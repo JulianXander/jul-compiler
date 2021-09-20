@@ -1,0 +1,23 @@
+{
+  "name": "jul-compiler",
+  "version": "0.0.0",
+  "description": "",
+  "main": "dist/cli.js",
+  "scripts": {
+    "build": "npx tsc",
+    "test": "tsc -p tsconfig.test.json && mocha 'test-setup.js' 'test/**/*.test.js'",
+    "cli": "tsc && ts-node src/cli.ts ../test1.jul"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/chai": "^4.2.21",
+    "@types/mocha": "^9.0.0",
+    "@types/node": "^16.9.1",
+    "chai": "^4.3.4",
+    "chai-as-promised": "^7.1.1",
+    "mocha": "^9.1.1",
+    "ts-node": "^10.2.1",
+    "typescript": "^4.4.3"
+  }
+}
