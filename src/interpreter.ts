@@ -578,18 +578,60 @@ const builtIns: {
 	// contains, forEach
 	// Array, Dictionary, Stream, String, generisch? mapFunction?
 	//#region Stream
-	// TODO create$, map$, aggregate$/combine$
-	create$: {
+	// TODO create$
+	//#region create
+	// create$: {
+	// 	checkedTypes: ['Function'],
+	// 	value: {
+	// 		type: 'native',
+	// 		code: (x: any) =>
+	// 			create$,
+	// 		params: { singleNames: [{ type: 'name', name: 'x', }] },
+	// 		returnType: 'Stream',
+	// 		pure: true,
+	// 	}
+	// },
+	timer$: {
 		checkedTypes: ['Function'],
 		value: {
 			type: 'native',
-			code: (x: any) =>
-				typeof x === 'number',
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
+			code: timer$,
+			params: { singleNames: [{ type: 'name', name: 'delayMs', typeGuard: { type: 'reference', names: ['Float64'] } }] },
+			// TODO returnType Stream(PositiveInteger)
+			returnType: 'Stream',
 			pure: true,
 		}
 	},
+	// TODO httpRequest$, of$
+	//#endregion create
+	//#region transform
+	// TODO map$, combine$
+	combine$: {
+		checkedTypes: ['Function'],
+		value: {
+			type: 'native',
+			code: combine$,
+			// TODO Tuple type propagation in returnType
+			// TODO source$s typeGuard Array(Stream)
+			params: { singleNames: [], rest: { name: 'source$s' } },
+			// TODO returnType Stream(Array)
+			returnType: 'Stream',
+			pure: true,
+		}
+	},
+	map$: {
+		checkedTypes: ['Function'],
+		value: {
+			type: 'native',
+			code: map$,
+			params: { singleNames: [{ type: 'name', name: 'source', typeGuard: { type: 'reference', names: ['Stream'] } }] },
+			// TODO returnType Stream(PositiveInteger)
+			returnType: 'Stream',
+			pure: true,
+		}
+	},
+	// TODO flatMerge$?(erstmal weglassen), flatSwitch$, takeUntil$
+	//#endregion transform
 	//#endregion Stream
 	//#endregion Data Transformation
 	//#region Utility
@@ -681,7 +723,7 @@ function interpreteExpression(expression: Expression, state: Scope): { value: an
  */
 function interpreteSingleDefinition(definition: SingleDefinition, state: Scope): { value: any; state: Scope; } {
 	const { name, typeGuard, value } = definition;
-	checkNameDefined(name, state)
+	checkNameAlreadyDefined(name, state)
 	const uncheckedValue = interpreteValueExpression(value, state);
 	const checkedValue = checkType(typeGuard, uncheckedValue, state);
 	const finalValue = checkedValue.value;
@@ -718,7 +760,7 @@ function interpreteDestructuring(
 	const isArray = Array.isArray(sourceValues);
 	destructuringNames.singleNames.forEach(({ name, typeGuard, source, fallback }, index) => {
 		if (checkDefinedNames) {
-			checkNameDefined(name, targetObject)
+			checkNameAlreadyDefined(name, targetObject)
 		}
 		const sourceWithAlias = source ?? name;
 		const sourceValue = isArray
@@ -737,7 +779,7 @@ function interpreteDestructuring(
 	if (destructuringNames.rest) {
 		const targetName = destructuringNames.rest.name;
 		if (checkDefinedNames) {
-			checkNameDefined(targetName, targetObject)
+			checkNameAlreadyDefined(targetName, targetObject)
 		}
 		let uncheckedValue;
 		if (isArray) {
@@ -821,7 +863,7 @@ function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope):
 			const valuesDictionary: Scope = {};
 			objectExpression.values.forEach((expression, index) => {
 				const { name, typeGuard, value } = expression;
-				checkNameDefined(name, valuesDictionary)
+				checkNameAlreadyDefined(name, valuesDictionary)
 				const uncheckedValue = interpreteValueExpression(value, state);
 				const checkedValue = checkType(typeGuard, uncheckedValue, state);
 				valuesDictionary[name] = {
@@ -866,8 +908,39 @@ function interpreteStringLiteral(stringLiteral: StringLiteral, state: Scope): st
 
 function interpreteReferenceNames(referenceNames: ReferenceNames, state: Scope): any {
 	let value: any = state;
-	referenceNames.forEach(name => {
+	referenceNames.forEach((name, index) => {
 		if (!(name in value)) {
+			if (index) {
+				// check scope for function, create function with argument bound to value
+				if (name in state) {
+					const functionValue: FunctionLiteral | NativeCode = state[name]!.value;
+					if (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native') {
+						throw new Error(`Can not bind argument to ${name} because it is not a function`);
+					}
+					const boundFunction: FunctionLiteral = {
+						type: 'functionLiteral',
+						pure: functionValue.pure,
+						params: {
+							...functionValue.params,
+							// remove 1st argument
+							singleNames: functionValue.params.singleNames.slice(1)
+						},
+						// TODO call functionValue mit value, ...args
+						body: [
+							{
+								type: 'functionCall',
+								functionReference: [name as string],
+								params: {
+									type: 'list',
+									values: [value] // TODO array/dictionary? params aus functionValue mappen?
+								},
+							}
+						],
+					};
+					value = boundFunction;
+					return;
+				}
+			}
 			throw new Error(`${name} is not defined`);
 		}
 		value = value[name].value
@@ -876,12 +949,14 @@ function interpreteReferenceNames(referenceNames: ReferenceNames, state: Scope):
 }
 
 function interpreteFunctionCall(functionCall: FunctionCall, state: Scope): any {
-	const functionValue: FunctionLiteral | NativeCode = interpreteReferenceNames(functionCall.functionReference, state);
+	const functionReference = functionCall.functionReference;
+	const functionValue: FunctionLiteral | NativeCode = interpreteReferenceNames(functionReference, state);
+	const functionName = referenceNamesToString(functionReference);
 	if (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native') {
-		throw new Error(`Can not call ${referenceNamesToString(functionCall.functionReference)} because it is not a function`);
+		throw new Error(`Can not call ${functionName} because it is not a function`);
 	}
 	const params = interpreteValueExpression(functionCall.params, state);
-	const returnValue = callFunction(functionValue, params, referenceNamesToString(functionCall.functionReference), state);
+	const returnValue = callFunction(functionValue, params, functionName, state);
 	return returnValue;
 }
 
@@ -1004,7 +1079,7 @@ function interpreteTypeExpression(typeExpression: TypeExpression, state: Scope):
 	}
 }
 
-function checkNameDefined(name: string, scope: object) {
+function checkNameAlreadyDefined(name: string, scope: object) {
 	if (name in scope) {
 		throw new Error(`${name} is already defined`)
 	}
@@ -1022,5 +1097,7 @@ function getReturnType(funcionLiteral: FunctionLiteral, scope: Scope): string {
 	}
 	return 'TODO';
 }
+
+// TODO Expression/Value toString
 
 //#endregion helper
