@@ -6,7 +6,7 @@
   "scripts": {
     "build": "npx tsc",
     "test": "tsc -p tsconfig.test.json && mocha 'test-setup.js' 'test/**/*.test.js'",
-    "cli": "tsc && ts-node src/cli.ts ../test1.jul"
+    "cli": "tsc && ts-node src/cli.ts"
   },
   "author": "",
   "license": "ISC",
