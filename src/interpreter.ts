@@ -989,49 +989,47 @@ function interpreteStringLiteral(stringLiteral: StringLiteral, state: Scope): st
 	return joined
 }
 
-function interpreteReferenceNames(referenceNames: ReferenceNames, state: Scope): any {
-	let value: any = state;
-	referenceNames.forEach((name, index) => {
-		if (!(name in value)
+function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope): any {
+	let value: any = getValueFromScope(scope, referenceNames[0]);
+	for (let index = 1; index < referenceNames.length; index++) {
+		const name = referenceNames[index]!;
+		if (
 			// Prüfe ob value ein Dictionary/Array ist
-			|| typeof value !== 'object'
-			|| value instanceof Stream) {
-			// BoundFunction erst ab 2. Name, da ein vorheriger value für das zu bindende Argument gebraucht.
-			if (index) {
-				// check scope for function, create function with argument bound to value
-				if (name in state) {
-					const functionValue: FunctionLiteral | NativeCode = state[name]!.value;
-					if (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native') {
-						throw new Error(`Can not bind argument to ${name} because it is not a function`);
-					}
-					const boundFunction: FunctionLiteral = {
-						type: 'functionLiteral',
-						pure: functionValue.pure,
-						params: {
-							...functionValue.params,
-							// remove 1st argument
-							singleNames: functionValue.params.singleNames.slice(1)
-						},
-						// TODO call functionValue mit value, ...args
-						body: [
-							{
-								type: 'functionCall',
-								functionReference: [name as string],
-								params: {
-									type: 'list',
-									values: [value] // TODO array/dictionary? params aus functionValue mappen?
-								},
-							}
-						],
-					};
-					value = boundFunction;
-					return;
-				}
+			typeof value !== 'object'
+			|| value instanceof Stream
+			|| !(name in value)
+		) {
+			// check scope for function, create function with argument bound to value
+			const functionValue: FunctionLiteral | NativeCode = getValueFromScope(scope, name as string);
+			if (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native') {
+				throw new Error(`Can not bind argument to ${name} because it is not a function`);
 			}
-			throw new Error(`${name} is not defined`);
+			const boundFunction: FunctionLiteral = {
+				type: 'functionLiteral',
+				pure: functionValue.pure,
+				params: {
+					...functionValue.params,
+					// remove 1st argument
+					singleNames: functionValue.params.singleNames.slice(1)
+				},
+				// TODO call functionValue mit value, ...args
+				body: [
+					{
+						type: 'functionCall',
+						functionReference: [name as string],
+						params: {
+							type: 'list',
+							values: [value] // TODO array/dictionary? params aus functionValue mappen?
+						},
+					}
+				],
+			};
+			value = boundFunction;
 		}
-		value = value[name].value
-	});
+		else {
+			value = value[name].value;
+		}
+	}
 	return value;
 }
 
@@ -1098,9 +1096,9 @@ function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, fu
 
 		case 'native':
 			const nativeArgs = functionLiteral.params.singleNames.map(definitionName =>
-				functionScope[definitionName.name]!.value);
+				getValueFromScope(functionScope, definitionName.name));
 			if (functionLiteral.params.rest) {
-				nativeArgs.push(...functionScope[functionLiteral.params.rest.name]!.value);
+				nativeArgs.push(...getValueFromScope(functionScope, functionLiteral.params.rest.name));
 			}
 			returnValue = functionLiteral.code(...nativeArgs);
 			break;
@@ -1114,6 +1112,13 @@ function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, fu
 //#endregion Value
 
 //#region helper
+
+function getValueFromScope(scope: Scope, name: string): any {
+	if (name in scope) {
+		return scope[name]!.value;
+	}
+	throw new Error(`${name} is not defined`);
+}
 
 function checkType(typeExpression: TypeExpression | undefined, value: any, state: Scope): { value: any; isError: boolean; } {
 	if (!typeExpression) {
