@@ -1,5 +1,6 @@
 import { Branching, DefinitionNames, DestructuringDefinition, Expression, FunctionCall, FunctionLiteral, NativeCode, NumberLiteral, ObjectLiteral, Reference, ReferenceNames, SingleDefinition, StringLiteral, TypeExpression, ValueExpression } from './abstract-syntax-tree';
 
+// TODO Scope mit Object.create(null) erzeugen, damit prototype leer ist
 interface Scope {
 	[key: string]: {
 		checkedTypes: string[];
@@ -437,7 +438,6 @@ const builtIns: {
 	//#endregion Numbers
 	String: {
 		checkedTypes: ['Type'],
-		// PureFunction Any => Boolean
 		value: {
 			type: 'native',
 			code: (x: any) => {
@@ -452,7 +452,6 @@ const builtIns: {
 	// TODO generic array?
 	Array: {
 		checkedTypes: ['Type'],
-		// PureFunction Any => Array
 		value: {
 			type: 'native',
 			code: Array.isArray,
@@ -462,8 +461,22 @@ const builtIns: {
 		}
 	},
 	// TODO Dictionary
-	// TODO Stream
-	// TODO Function
+	Function: {
+		checkedTypes: ['Type'],
+		// TODO Generic Parameter und Return Type
+		value: {
+			type: 'native',
+			code: (x: any) => {
+				return typeof x === 'object'
+					&& x !== null
+					&& ((x as FunctionLiteral).type === 'functionLiteral'
+						|| (x as NativeCode).type === 'native');
+			},
+			params: { singleNames: [{ type: 'name', name: 'x', }] },
+			returnType: 'Boolean',
+			pure: true,
+		}
+	},
 	Type: {
 		checkedTypes: ['Type'],
 		// PureFunction Any => Boolean
@@ -473,6 +486,19 @@ const builtIns: {
 				// TODO check function return type
 				// const returnType = getReturnType(x, scope);
 				return true;
+			},
+			params: { singleNames: [{ type: 'name', name: 'x', }] },
+			returnType: 'Boolean',
+			pure: true,
+		}
+	},
+	Stream: {
+		checkedTypes: ['Type'],
+		// TODO Generic Type
+		value: {
+			type: 'native',
+			code: (x: any) => {
+				return x instanceof Stream;
 			},
 			params: { singleNames: [{ type: 'name', name: 'x', }] },
 			returnType: 'Boolean',
@@ -578,6 +604,63 @@ const builtIns: {
 	// contains, forEach
 	// Array, Dictionary, Stream, String, generisch? mapFunction?
 	//#region Stream
+	//#region core
+	complete: {
+		checkedTypes: ['Function'],
+		value: {
+			type: 'native',
+			code: (stream$: Stream<any>) => {
+				stream$.complete();
+				return null;
+			},
+			params: {
+				singleNames: [
+					{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
+				]
+			},
+			returnType: '()',
+			pure: true,
+		}
+	},
+	onCompleted: {
+		checkedTypes: ['Function'],
+		value: {
+			type: 'native',
+			code: (stream$: Stream<any>, callback: () => void) => {
+				stream$.onCompleted(callback);
+				return null;
+			},
+			params: {
+				singleNames: [
+					{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
+					{ type: 'name', name: 'callback', typeGuard: { type: 'reference', names: ['Function'] } },
+				]
+			},
+			returnType: '()',
+			pure: true,
+		}
+	},
+	subscribe: {
+		checkedTypes: ['Function'],
+		value: {
+			type: 'native',
+			// TODO evaluateOnSubscribe?
+			// TODO generic type argument, inferred basierend auf stream$
+			code: (stream$: Stream<any>, listener: Listener<any>) => {
+				return stream$.subscribe(listener);
+			},
+			params: {
+				singleNames: [
+					{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
+					{ type: 'name', name: 'listener', typeGuard: { type: 'reference', names: ['Function'] } },
+				]
+			},
+			// TODO returnType Function () => void
+			returnType: 'Function',
+			pure: true,
+		}
+	},
+	//#endregion core
 	// TODO create$
 	//#region create
 	// create$: {
@@ -860,7 +943,7 @@ function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope):
 			return null;
 
 		case 'dictionary':
-			const valuesDictionary: Scope = {};
+			const valuesDictionary: Scope = Object.create(null);
 			objectExpression.values.forEach((expression, index) => {
 				const { name, typeGuard, value } = expression;
 				checkNameAlreadyDefined(name, valuesDictionary)
@@ -909,7 +992,11 @@ function interpreteStringLiteral(stringLiteral: StringLiteral, state: Scope): st
 function interpreteReferenceNames(referenceNames: ReferenceNames, state: Scope): any {
 	let value: any = state;
 	referenceNames.forEach((name, index) => {
-		if (!(name in value)) {
+		if (!(name in value)
+			// Prüfe ob value ein Dictionary/Array ist
+			|| typeof value !== 'object'
+			|| value instanceof Stream) {
+			// BoundFunction erst ab 2. Name, da ein vorheriger value für das zu bindende Argument gebraucht.
 			if (index) {
 				// check scope for function, create function with argument bound to value
 				if (name in state) {
