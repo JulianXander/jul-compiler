@@ -724,28 +724,41 @@ function interpreteExpressions(expressions: Expression[], scope: Scope): Interpr
 
 function interpreteExpression(expression: Expression, state: Scope): InterpretedValue {
 	switch (expression.type) {
-
 		case 'definition':
 			return interpreteSingleDefinition(expression, state);
 
-		case 'destructuring': {
-			const destructuring = interpreteDestructuringDefinition(expression, state);
+		case 'destructuring':
+			interpreteDestructuringDefinition(expression, state);
 			return null;
-		}
 
 		case 'branching':
+			return interpreteBranching(expression, state);
+
 		case 'empty':
 		case 'dictionary':
 		case 'list':
-		case 'functionCall':
-		case 'functionLiteral':
-		case 'number':
-		case 'reference':
-		case 'string':
-			return interpreteValueExpression(expression, state);
+			return interpreteObjectLiteral(expression, state);
 
-		default:
-			throw new Error('TODO');
+		case 'functionCall':
+			return interpreteFunctionCall(expression, state);
+
+		case 'functionLiteral':
+		case 'native':
+			return expression;
+
+		case 'number':
+			return expression.value;
+
+		case 'reference':
+			return interpreteReferenceNames(expression.names, state);
+
+		case 'string':
+			return interpreteStringLiteral(expression, state);
+
+		default: {
+			const assertNever: never = expression;
+			throw new Error('Unexpected expresstionType: ' + (assertNever as Expression).type);
+		}
 	}
 }
 
@@ -757,7 +770,7 @@ function interpreteExpression(expression: Expression, state: Scope): Interpreted
 function interpreteSingleDefinition(definition: SingleDefinition, scope: Scope): InterpretedValue {
 	const { name, typeGuard, value } = definition;
 	checkNameAlreadyDefined(name, scope);
-	const uncheckedValue = interpreteValueExpression(value, scope);
+	const uncheckedValue = interpreteExpression(value, scope);
 	const checkedValue = checkType(typeGuard, uncheckedValue, scope);
 	const finalValue = checkedValue.value;
 	scope[name] = finalValue;
@@ -765,7 +778,7 @@ function interpreteSingleDefinition(definition: SingleDefinition, scope: Scope):
 }
 
 function interpreteDestructuringDefinition(destructuring: DestructuringDefinition, scope: Scope): void {
-	const sourceValues = interpreteValueExpression(destructuring.value, scope);
+	const sourceValues = interpreteExpression(destructuring.value, scope);
 	interpreteDestructuring(destructuring.names, sourceValues as any, scope, scope, true);
 }
 
@@ -789,7 +802,7 @@ function interpreteDestructuring(
 		const sourceValue = isArray
 			? sourceValues[index]
 			: sourceValues[sourceWithAlias];
-		const uncheckedValue = sourceValue ?? (fallback && interpreteValueExpression(fallback, state)) ?? null;
+		const uncheckedValue = sourceValue ?? (fallback && interpreteExpression(fallback, state)) ?? null;
 		const checkedValue = checkType(typeGuard, uncheckedValue, state);
 		if (checkedValue.isError) {
 			hasError = true;
@@ -820,43 +833,13 @@ function interpreteDestructuring(
 
 //#region Value
 
-function interpreteValueExpression(expression: ValueExpression, state: Scope): InterpretedValue {
-	switch (expression.type) {
-		case 'branching':
-			return interpreteBranching(expression, state);
-
-		case 'empty':
-		case 'dictionary':
-		case 'list':
-			return interpreteObjectLiteral(expression, state);
-
-		case 'functionCall':
-			return interpreteFunctionCall(expression, state);
-
-		case 'functionLiteral':
-			return expression;
-
-		case 'number':
-			return expression.value;
-
-		case 'reference':
-			return interpreteReferenceNames(expression.names, state);
-
-		case 'string':
-			return interpreteStringLiteral(expression, state);
-
-		default:
-			throw new Error('TODO');
-	}
-}
-
 function interpreteBranching(branching: Branching, state: Scope): InterpretedValue {
-	const value = interpreteValueExpression(branching.value, state);
+	const value = interpreteExpression(branching.value, state);
 	const values = typeof value === 'object'
 		? value
 		: [value];
 	for (const branch of branching.branches) {
-		const functionValue = interpreteValueExpression(branch, state) as FunctionLiteral | NativeCode;
+		const functionValue = interpreteExpression(branch, state) as FunctionLiteral | NativeCode;
 		// TODO typeCheck functionValue auf Function
 		const functionName = branch.type === 'reference'
 			? referenceNamesToString(branch.names)
@@ -881,7 +864,7 @@ function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope):
 			objectExpression.values.forEach((expression, index) => {
 				const { name, typeGuard, value } = expression;
 				checkNameAlreadyDefined(name, valuesDictionary)
-				const uncheckedValue = interpreteValueExpression(value, state);
+				const uncheckedValue = interpreteExpression(value, state);
 				const checkedValue = checkType(typeGuard, uncheckedValue, state);
 				valuesDictionary[name] = checkedValue.value;
 			});
@@ -892,7 +875,7 @@ function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope):
 
 		case 'list':
 			const valuesArray = objectExpression.values.map((expression, index) => {
-				const uncheckedValue = interpreteValueExpression(expression, state);
+				const uncheckedValue = interpreteExpression(expression, state);
 				return uncheckedValue;
 			});
 			if (!valuesArray.length) {
@@ -912,7 +895,7 @@ function interpreteStringLiteral(stringLiteral: StringLiteral, state: Scope): st
 				return part.value;
 
 			default:
-				return interpreteValueExpression(part, state);
+				return interpreteExpression(part, state);
 		}
 	})
 	const joined = parts.join('');
@@ -971,7 +954,7 @@ function interpreteFunctionCall(functionCall: FunctionCall, state: Scope): Inter
 	if (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native') {
 		throw new Error(`Can not call ${functionName} because it is not a function`);
 	}
-	const params = interpreteValueExpression(functionCall.params, state);
+	const params = interpreteExpression(functionCall.params, state);
 	const returnValue = callFunction(functionValue, params as any, functionName, state);
 	return returnValue;
 }
@@ -1087,7 +1070,7 @@ function checkType(typeExpression: TypeExpression | undefined, value: Interprete
 }
 
 function interpreteTypeExpression(typeExpression: TypeExpression, state: Scope): FunctionLiteral | NativeCode {
-	const interpretedExpression = interpreteValueExpression(typeExpression, state)
+	const interpretedExpression = interpreteExpression(typeExpression, state)
 	switch (typeof interpretedExpression) {
 		case 'number':
 			return {
