@@ -1,11 +1,21 @@
 import { Branching, DefinitionNames, DestructuringDefinition, Expression, FunctionCall, FunctionLiteral, NativeCode, NumberLiteral, ObjectLiteral, Reference, ReferenceNames, SingleDefinition, StringLiteral, TypeExpression, ValueExpression } from './abstract-syntax-tree';
 
+type InterpretedValue =
+	| null
+	| boolean
+	| string
+	| number
+	| FunctionLiteral
+	| NativeCode
+	| Stream<InterpretedValue>
+	| InterpretedValue[]
+	| { [name: string]: InterpretedValue }
+	| Error
+	;
+
 // TODO Scope mit Object.create(null) erzeugen, damit prototype leer ist
 interface Scope {
-	[key: string]: {
-		checkedTypes: string[];
-		value: any;
-	};
+	[name: string]: InterpretedValue;
 }
 
 // TODO in scope/globals aufnehmen? 
@@ -50,8 +60,10 @@ function deepEquals(value1: any, value2: any): boolean {
 				return true
 			}
 			else {
-				for (const key in value1) {
-					if (value1[key] !== value2[key]) {
+				// Dictionary/Function Object
+				const typedValue1 = value1 as any;
+				for (const key in typedValue1) {
+					if (typedValue1[key] !== (value2 as any)[key]) {
 						return false;
 					}
 				}
@@ -392,118 +404,100 @@ function retry$<T>(
 //#endregion Stream
 
 const builtIns: {
-	[key: string]: {
-		checkedTypes: string[];
-		value: NativeCode;
-	};
+	[key: string]: NativeCode;
 } = {
 	//#region Types
 	//#region Primitive Types
 	// TODO Boolean
 	//#region Numbers
 	Float64: {
-		checkedTypes: ['Type'],
-		value: {
-			type: 'native',
-			code: (x: any) =>
-				typeof x === 'number',
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (x: any) =>
+			typeof x === 'number',
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	Integer: {
-		checkedTypes: ['Type'],
-		value: {
-			type: 'native',
-			code: (x: any) =>
-				Number.isInteger(x),
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (x: any) =>
+			Number.isInteger(x),
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	NonNegativeInteger: {
-		checkedTypes: ['Type'],
-		value: {
-			type: 'native',
-			code: (x: any) =>
-				Number.isInteger(x)
-				&& x >= 0,
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (x: any) =>
+			Number.isInteger(x)
+			&& x >= 0,
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	//#endregion Numbers
 	String: {
-		checkedTypes: ['Type'],
-		value: {
-			type: 'native',
-			code: (x: any) => {
-				return typeof x === 'string';
-			},
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (x: any) => {
+			return typeof x === 'string';
+		},
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	// TODO Object?
 	// TODO generic array?
 	Array: {
-		checkedTypes: ['Type'],
-		value: {
-			type: 'native',
-			code: Array.isArray,
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: Array.isArray,
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	// TODO Dictionary
 	Function: {
-		checkedTypes: ['Type'],
 		// TODO Generic Parameter und Return Type
-		value: {
-			type: 'native',
-			code: (x: any) => {
-				return typeof x === 'object'
-					&& x !== null
-					&& ((x as FunctionLiteral).type === 'functionLiteral'
-						|| (x as NativeCode).type === 'native');
-			},
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (x: any) => {
+			return typeof x === 'object'
+				&& x !== null
+				&& ((x as FunctionLiteral).type === 'functionLiteral'
+					|| (x as NativeCode).type === 'native');
+		},
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	Type: {
-		checkedTypes: ['Type'],
 		// PureFunction Any => Boolean
-		value: {
-			type: 'native',
-			code: (x: any, scope: Scope) => {
-				// TODO check function return type
-				// const returnType = getReturnType(x, scope);
-				return true;
-			},
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (x: any, scope: Scope) => {
+			// TODO check function return type
+			// const returnType = getReturnType(x, scope);
+			return true;
+		},
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	Stream: {
-		checkedTypes: ['Type'],
 		// TODO Generic Type
-		value: {
-			type: 'native',
-			code: (x: any) => {
-				return x instanceof Stream;
-			},
-			params: { singleNames: [{ type: 'name', name: 'x', }] },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (x: any) => {
+			return x instanceof Stream;
+		},
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
+	},
+	Error: {
+		type: 'native',
+		code: (x: any) => {
+			return x instanceof Error;
+		},
+		params: { singleNames: [{ type: 'name', name: 'x', }] },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	//#endregion Primitive Types
 	//#region Type Combinators
@@ -520,76 +514,61 @@ const builtIns: {
 	// TODO wird das überhaupt gebraucht? evtl alles über type branching möglich
 	//#region Boolean
 	and: {
-		checkedTypes: ['PureFunction'],
-		value: {
-			type: 'native',
-			code: (...args: boolean[]) =>
-				!args.some(arg => !arg),
-			// TODO params type ...boolean[]
-			params: { singleNames: [], rest: { name: 'args' } },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (...args: boolean[]) =>
+			!args.some(arg => !arg),
+		// TODO params type ...boolean[]
+		params: { singleNames: [], rest: { name: 'args' } },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	or: {
-		checkedTypes: ['PureFunction'],
-		value: {
-			type: 'native',
-			code: (...args: boolean[]) =>
-				args.some(arg => arg),
-			// TODO params type ...boolean[]
-			params: { singleNames: [], rest: { name: 'args' } },
-			returnType: 'Boolean',
-			pure: true,
-		}
+		type: 'native',
+		code: (...args: boolean[]) =>
+			args.some(arg => arg),
+		// TODO params type ...boolean[]
+		params: { singleNames: [], rest: { name: 'args' } },
+		returnType: 'Boolean',
+		pure: true,
 	},
 	//#endregion Boolean
 	//#region Number
 	// TODO comparison operations, multiply, subtract, divide, exponentiate, trogonometrie, random
 	modulo: {
-		checkedTypes: ['PureFunction'],
-		value: {
-			type: 'native',
-			code: (dividend: number, divisor: number) =>
-				dividend % divisor,
-			params: {
-				singleNames: [
-					{ type: 'name', name: 'dividend', typeGuard: { type: 'reference', names: ['Float64'] } },
-					{ type: 'name', name: 'divisor', typeGuard: { type: 'reference', names: ['Float64'] } }]
-			},
-			returnType: 'Number',
-			pure: true,
-		}
+		type: 'native',
+		code: (dividend: number, divisor: number) =>
+			dividend % divisor,
+		params: {
+			singleNames: [
+				{ type: 'name', name: 'dividend', typeGuard: { type: 'reference', names: ['Float64'] } },
+				{ type: 'name', name: 'divisor', typeGuard: { type: 'reference', names: ['Float64'] } }]
+		},
+		returnType: 'Number',
+		pure: true,
 	},
 	subtract: {
-		checkedTypes: ['PureFunction'],
-		value: {
-			type: 'native',
-			code: (minuend: number, subtrahend: number) =>
-				minuend - subtrahend,
-			params: {
-				singleNames: [
-					{ type: 'name', name: 'minuend', typeGuard: { type: 'reference', names: ['Float64'] } },
-					{ type: 'name', name: 'subtrahend', typeGuard: { type: 'reference', names: ['Float64'] } }]
-			},
-			returnType: 'Number',
-			pure: true,
-		}
+		type: 'native',
+		code: (minuend: number, subtrahend: number) =>
+			minuend - subtrahend,
+		params: {
+			singleNames: [
+				{ type: 'name', name: 'minuend', typeGuard: { type: 'reference', names: ['Float64'] } },
+				{ type: 'name', name: 'subtrahend', typeGuard: { type: 'reference', names: ['Float64'] } }]
+		},
+		returnType: 'Number',
+		pure: true,
 	},
 	sum: {
-		checkedTypes: ['PureFunction'],
-		value: {
-			type: 'native',
-			code: (...args: number[]) =>
-				args.reduce(
-					(accumulator, current) =>
-						accumulator + current,
-					0),
-			// TODO params type ...T[]
-			params: { singleNames: [], rest: { name: 'args' } },
-			returnType: 'Number',
-			pure: true,
-		}
+		type: 'native',
+		code: (...args: number[]) =>
+			args.reduce(
+				(accumulator, current) =>
+					accumulator + current,
+				0),
+		// TODO params type ...T[]
+		params: { singleNames: [], rest: { name: 'args' } },
+		returnType: 'Number',
+		pure: true,
 	},
 	//#endregion Number
 	//#region String
@@ -606,112 +585,91 @@ const builtIns: {
 	//#region Stream
 	//#region core
 	complete: {
-		checkedTypes: ['Function'],
-		value: {
-			type: 'native',
-			code: (stream$: Stream<any>) => {
-				stream$.complete();
-				return null;
-			},
-			params: {
-				singleNames: [
-					{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
-				]
-			},
-			returnType: '()',
-			pure: true,
-		}
+		type: 'native',
+		code: (stream$: Stream<any>) => {
+			stream$.complete();
+			return null;
+		},
+		params: {
+			singleNames: [
+				{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
+			]
+		},
+		returnType: '()',
+		pure: true,
 	},
 	onCompleted: {
-		checkedTypes: ['Function'],
-		value: {
-			type: 'native',
-			code: (stream$: Stream<any>, callback: () => void) => {
-				stream$.onCompleted(callback);
-				return null;
-			},
-			params: {
-				singleNames: [
-					{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
-					{ type: 'name', name: 'callback', typeGuard: { type: 'reference', names: ['Function'] } },
-				]
-			},
-			returnType: '()',
-			pure: true,
-		}
+		type: 'native',
+		code: (stream$: Stream<any>, callback: () => void) => {
+			stream$.onCompleted(callback);
+			return null;
+		},
+		params: {
+			singleNames: [
+				{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
+				{ type: 'name', name: 'callback', typeGuard: { type: 'reference', names: ['Function'] } },
+			]
+		},
+		returnType: '()',
+		pure: true,
 	},
 	subscribe: {
-		checkedTypes: ['Function'],
-		value: {
-			type: 'native',
-			// TODO evaluateOnSubscribe?
-			// TODO generic type argument, inferred basierend auf stream$
-			code: (stream$: Stream<any>, listener: Listener<any>) => {
-				return stream$.subscribe(listener);
-			},
-			params: {
-				singleNames: [
-					{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
-					{ type: 'name', name: 'listener', typeGuard: { type: 'reference', names: ['Function'] } },
-				]
-			},
-			// TODO returnType Function () => void
-			returnType: 'Function',
-			pure: true,
-		}
+		type: 'native',
+		// TODO evaluateOnSubscribe?
+		// TODO generic type argument, inferred basierend auf stream$
+		code: (stream$: Stream<any>, listener: Listener<any>) => {
+			return stream$.subscribe(listener);
+		},
+		params: {
+			singleNames: [
+				{ type: 'name', name: 'stream$', typeGuard: { type: 'reference', names: ['Stream'] } },
+				{ type: 'name', name: 'listener', typeGuard: { type: 'reference', names: ['Function'] } },
+			]
+		},
+		// TODO returnType Function () => void
+		returnType: 'Function',
+		pure: true,
 	},
 	//#endregion core
 	// TODO create$
 	//#region create
 	// create$: {
-	// 	checkedTypes: ['Function'],
-	// 	value: {
 	// 		type: 'native',
 	// 		code: (x: any) =>
 	// 			create$,
 	// 		params: { singleNames: [{ type: 'name', name: 'x', }] },
 	// 		returnType: 'Stream',
 	// 		pure: true,
-	// 	}
 	// },
 	timer$: {
-		checkedTypes: ['Function'],
-		value: {
-			type: 'native',
-			code: timer$,
-			params: { singleNames: [{ type: 'name', name: 'delayMs', typeGuard: { type: 'reference', names: ['Float64'] } }] },
-			// TODO returnType Stream(PositiveInteger)
-			returnType: 'Stream',
-			pure: true,
-		}
+		type: 'native',
+		code: timer$,
+		params: { singleNames: [{ type: 'name', name: 'delayMs', typeGuard: { type: 'reference', names: ['Float64'] } }] },
+		// TODO returnType Stream(PositiveInteger)
+		returnType: 'Stream',
+		pure: true,
 	},
 	// TODO httpRequest$, of$
 	//#endregion create
 	//#region transform
 	// TODO map$, combine$
 	combine$: {
-		checkedTypes: ['Function'],
-		value: {
-			type: 'native',
-			code: combine$,
-			// TODO Tuple type propagation in returnType
-			// TODO source$s typeGuard Array(Stream)
-			params: { singleNames: [], rest: { name: 'source$s' } },
-			// TODO returnType Stream(Array)
-			returnType: 'Stream',
-			pure: true,
-		}
+		type: 'native',
+		code: combine$,
+		// TODO Tuple type propagation in returnType
+		// TODO source$s typeGuard Array(Stream)
+		params: { singleNames: [], rest: { name: 'source$s' } },
+		// TODO returnType Stream(Array)
+		returnType: 'Stream',
+		pure: true,
 	},
 	map$: {
-		checkedTypes: ['Function'],
-		value: {
-			type: 'native',
-			code: map$,
-			params: { singleNames: [{ type: 'name', name: 'source', typeGuard: { type: 'reference', names: ['Stream'] } }] },
-			// TODO returnType Stream(PositiveInteger)
-			returnType: 'Stream',
-			pure: true,
-		}
+		type: 'native',
+		code: map$,
+		params: { singleNames: [{ type: 'name', name: 'source', typeGuard: { type: 'reference', names: ['Stream'] } }] },
+		// TODO returnType Stream(PositiveInteger)
+		returnType: 'Stream',
+		pure: true,
 	},
 	// TODO flatMerge$?(erstmal weglassen), flatSwitch$, takeUntil$
 	//#endregion transform
@@ -722,29 +680,22 @@ const builtIns: {
 	import: {
 		// TODO pure bei static import?
 		// TODO check file exists, return type
-		checkedTypes: ['ImpureFunction'],
-		value: {
-			type: 'native',
-			code: (path: string) =>
-				require(path),
-			params: { singleNames: [{ type: 'name', name: 'x', typeGuard: { type: 'reference', names: ['String'] } }] },
-			returnType: 'Any',
-			pure: true,
-		}
+		type: 'native',
+		code: (path: string) =>
+			require(path),
+		params: { singleNames: [{ type: 'name', name: 'x', typeGuard: { type: 'reference', names: ['String'] } }] },
+		returnType: 'Any',
+		pure: true,
 	},
 	log: {
-		// TODO check file exists, return type
-		checkedTypes: ['ImpureFunction'],
-		value: {
-			type: 'native',
-			code: (...args: any[]) => {
-				console.log(...args)
-				return null
-			},
-			params: { singleNames: [], rest: { name: 'args' } },
-			returnType: 'Empty',
-			pure: true,
-		}
+		type: 'native',
+		code: (...args: any[]) => {
+			console.log(...args)
+			return null
+		},
+		params: { singleNames: [], rest: { name: 'args' } },
+		returnType: 'Empty',
+		pure: true,
 	},
 	//#endregion Utility
 	//#endregion Functions
@@ -812,32 +763,33 @@ function interpreteSingleDefinition(definition: SingleDefinition, state: Scope):
 	const finalValue = checkedValue.value;
 	const newState: Scope = {
 		...state,
-		[name]: {
-			checkedTypes: checkedValue.isError ? ['Error'] : ['TODO'],
-			value: finalValue
-		}
-	}
-	return { value: finalValue, state: newState }
+		[name]: finalValue
+	};
+	return { value: finalValue, state: newState };
 }
 
-function interpreteDestructuringDefinition(destructuring: DestructuringDefinition, state: Scope): { value: undefined; state: Scope; hasError: boolean; } {
+function interpreteDestructuringDefinition(destructuring: DestructuringDefinition, state: Scope): {
+	value: undefined;
+	state: Scope;
+	hasError: boolean;
+} {
 	const sourceValues = interpreteValueExpression(destructuring.value, state);
 	const newState: Scope = {
 		...state,
-	}
-	const hasError = interpreteDestructuring(destructuring.names, sourceValues, newState, state, true);
-	return { value: undefined, state: newState, hasError: hasError }
+	};
+	const hasError = interpreteDestructuring(destructuring.names, sourceValues as any, newState, state, true);
+	return { value: undefined, state: newState, hasError: hasError };
 }
 
 function interpreteDestructuring(
 	destructuringNames: DefinitionNames,
-	sourceValues: { [key: string]: any } | any[],
+	sourceValues: { [key: string]: InterpretedValue } | InterpretedValue[],
 	targetObject: Scope,
 	state: Scope,
 	checkDefinedNames: boolean,
 ): boolean {
-	if (typeof sourceValues !== 'object') {
-		throw new Error();
+	if (typeof sourceValues !== 'object' || sourceValues === null) {
+		throw new Error('Can only destructure objects');
 	}
 	let hasError = false;
 	const isArray = Array.isArray(sourceValues);
@@ -854,10 +806,7 @@ function interpreteDestructuring(
 		if (checkedValue.isError) {
 			hasError = true
 		}
-		targetObject[name] = {
-			checkedTypes: [],// TODO
-			value: checkedValue.value,
-		};
+		targetObject[name] = checkedValue.value;
 	});
 	if (destructuringNames.rest) {
 		const targetName = destructuringNames.rest.name;
@@ -873,10 +822,7 @@ function interpreteDestructuring(
 			// TODO alle nicht benutzten dict keys nehmen? als dict?
 		}
 		const checkedValue = checkType(destructuringNames.rest.typeGuard, uncheckedValue, state);
-		targetObject[targetName] = {
-			checkedTypes: [],// TODO
-			value: checkedValue.value,
-		};
+		targetObject[targetName] = checkedValue.value;
 	}
 	return hasError
 }
@@ -885,8 +831,7 @@ function interpreteDestructuring(
 
 //#region Value
 
-// TODO return checkedTypes?
-function interpreteValueExpression(expression: ValueExpression, state: Scope): any {
+function interpreteValueExpression(expression: ValueExpression, state: Scope): InterpretedValue {
 	switch (expression.type) {
 		case 'branching':
 			return interpreteBranching(expression, state);
@@ -916,13 +861,13 @@ function interpreteValueExpression(expression: ValueExpression, state: Scope): a
 	}
 }
 
-function interpreteBranching(branching: Branching, state: Scope): any {
+function interpreteBranching(branching: Branching, state: Scope): InterpretedValue {
 	const value = interpreteValueExpression(branching.value, state);
 	const values = typeof value === 'object'
 		? value
 		: [value];
 	for (const branch of branching.branches) {
-		const functionValue: FunctionLiteral | NativeCode = interpreteValueExpression(branch, state)
+		const functionValue = interpreteValueExpression(branch, state) as FunctionLiteral | NativeCode;
 		// TODO typeCheck functionValue auf Function
 		const functionName = branch.type === 'reference'
 			? referenceNamesToString(branch.names)
@@ -937,7 +882,7 @@ function interpreteBranching(branching: Branching, state: Scope): any {
 	return new Error('No branch matched');
 }
 
-function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope): object | null {
+function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope): InterpretedValue[] | { [key: string]: InterpretedValue } | null {
 	switch (objectExpression.type) {
 		case 'empty':
 			return null;
@@ -949,10 +894,7 @@ function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope):
 				checkNameAlreadyDefined(name, valuesDictionary)
 				const uncheckedValue = interpreteValueExpression(value, state);
 				const checkedValue = checkType(typeGuard, uncheckedValue, state);
-				valuesDictionary[name] = {
-					checkedTypes: [], // TODO typeGuard/Error
-					value: checkedValue.value
-				};
+				valuesDictionary[name] = checkedValue.value;
 			});
 			if (!Object.keys(valuesDictionary).length) {
 				return null;
@@ -1079,7 +1021,7 @@ function callFunction(
 	params: any,
 	functionName: string | undefined,
 	state: Scope,
-): any {
+): InterpretedValue {
 	const functionScope = tryMakeFunctionScope(functionLiteral.params, params, functionName, state);
 	if (functionScope instanceof Error) {
 		return functionScope
@@ -1087,7 +1029,7 @@ function callFunction(
 	return callFunctionWithScope(functionLiteral, functionScope);
 }
 
-function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, functionScope: Scope): any {
+function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, functionScope: Scope): InterpretedValue {
 	let returnValue;
 	switch (functionLiteral.type) {
 		case 'functionLiteral':
@@ -1115,7 +1057,7 @@ function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, fu
 
 function getValueFromScope(scope: Scope, name: string): any {
 	if (name in scope) {
-		return scope[name]!.value;
+		return scope[name];
 	}
 	throw new Error(`${name} is not defined`);
 }
@@ -1167,7 +1109,7 @@ function interpreteTypeExpression(typeExpression: TypeExpression, state: Scope):
 		// TODO string literal, object literal, interface (object mit typeguards)
 		// TODO typeCheck typeFunction auf Function: any => boolean
 		default:
-			return interpretedExpression;
+			return interpretedExpression as any;
 	}
 }
 
