@@ -792,14 +792,14 @@ function interpreteDestructuring(
 		const uncheckedValue = sourceValue ?? (fallback && interpreteValueExpression(fallback, state)) ?? null;
 		const checkedValue = checkType(typeGuard, uncheckedValue, state);
 		if (checkedValue.isError) {
-			hasError = true
+			hasError = true;
 		}
 		targetObject[name] = checkedValue.value;
 	});
 	if (destructuringNames.rest) {
 		const targetName = destructuringNames.rest.name;
 		if (checkDefinedNames) {
-			checkNameAlreadyDefined(targetName, targetObject)
+			checkNameAlreadyDefined(targetName, targetObject);
 		}
 		let uncheckedValue;
 		if (isArray) {
@@ -813,7 +813,7 @@ function interpreteDestructuring(
 		const checkedValue = checkType(destructuringNames.rest.typeGuard, uncheckedValue, state);
 		targetObject[targetName] = checkedValue.value;
 	}
-	return hasError
+	return hasError;
 }
 
 //#endregion Definition
@@ -860,7 +860,7 @@ function interpreteBranching(branching: Branching, state: Scope): InterpretedVal
 		// TODO typeCheck functionValue auf Function
 		const functionName = branch.type === 'reference'
 			? referenceNamesToString(branch.names)
-			: undefined
+			: undefined;
 		const functionScope = tryCreateFunctionScope(functionValue.params, values as any, functionName, state);
 		if (functionScope instanceof Error) {
 			continue;
@@ -906,7 +906,6 @@ function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope):
 }
 
 function interpreteStringLiteral(stringLiteral: StringLiteral, state: Scope): string {
-	// TODO
 	const parts = stringLiteral.values.map(part => {
 		switch (part.type) {
 			case 'stringToken':
@@ -916,8 +915,8 @@ function interpreteStringLiteral(stringLiteral: StringLiteral, state: Scope): st
 				return interpreteValueExpression(part, state);
 		}
 	})
-	const joined = parts.join('')
-	return joined
+	const joined = parts.join('');
+	return joined;
 }
 
 function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope): InterpretedValue {
@@ -1014,7 +1013,7 @@ function callFunction(
 ): InterpretedValue {
 	const functionScope = tryCreateFunctionScope(functionLiteral.params, params, functionName, state);
 	if (functionScope instanceof Error) {
-		return functionScope
+		return functionScope;
 	}
 	return callFunctionWithScope(functionLiteral, functionScope);
 }
@@ -1061,7 +1060,7 @@ function checkType(typeExpression: TypeExpression | undefined, value: Interprete
 		return {
 			value: value,
 			isError: false
-		}
+		};
 	}
 	const typeFunction = interpreteTypeExpression(typeExpression, state)
 	const functionName = typeExpression.type === 'reference'
@@ -1098,7 +1097,7 @@ function interpreteTypeExpression(typeExpression: TypeExpression, state: Scope):
 					x === interpretedExpression,
 				params: { singleNames: [{ type: 'name', name: 'x', }] },
 				returnType: 'Boolean',
-			}
+			};
 
 		// TODO null/() literal, boolean literal, string literal, object literal, interface (object mit typeguards)
 		// TODO typeCheck typeFunction auf Function: any => boolean
@@ -1109,17 +1108,17 @@ function interpreteTypeExpression(typeExpression: TypeExpression, state: Scope):
 
 function checkNameAlreadyDefined(name: string, scope: object) {
 	if (name in scope) {
-		throw new Error(`${name} is already defined`)
+		throw new Error(`${name} is already defined`);
 	}
 }
 
 function referenceNamesToString(referenceName: ReferenceNames): string {
-	return referenceName.join('.')
+	return referenceName.join('.');
 }
 
 function getReturnType(funcionLiteral: FunctionLiteral, scope: Scope): string {
 	// TODO checkedTypes benutzen?
-	const lastExpression = funcionLiteral.body[funcionLiteral.body.length - 1]
+	const lastExpression = funcionLiteral.body[funcionLiteral.body.length - 1];
 	if (!lastExpression) {
 		return 'Empty';
 	}
