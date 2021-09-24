@@ -184,9 +184,10 @@ function indentParser(
 }
 
 /**
- * Beginnt mit columnIndex = 0
- * parsed undefined bei Leerzeile
- * parst nichts bei Kommentarzeile (wird übersprungen)
+ * Beginnt mit columnIndex = 0.
+ * Parst undefined bei Leerzeile.
+ * Parst nichts bei Kommentarzeile (wird übersprungen).
+ * Enthält ggf. endständiges Zeilenende nicht.
  * TODO comment in AST für Intellisense?
  */
 function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
@@ -553,6 +554,7 @@ function multilineNameListParser(
 	const result = sequenceParser(
 		openingBracketParser,
 		incrementIndent(multilineParser(definitionNameParser)),
+		// TODO newLineParser?
 		multiplicationParser(
 			0,
 			1,
@@ -1143,7 +1145,8 @@ function multilineObjectParser(
 	const result = sequenceParser(
 		openingBracketParser,
 		newLineParser,
-		incrementIndent(multilineParser(valueExpressionParser)), // TODO nur valueExpressions parsen
+		incrementIndent(multilineParser(valueExpressionParser)),
+		newLineParser,
 		indentParser,
 		closingBracketParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
