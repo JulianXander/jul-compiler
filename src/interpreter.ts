@@ -702,8 +702,8 @@ const builtIns: {
 	//#endregion Functions
 };
 
-export function interpreteAst(expressions: Expression[]): { value: any; state: Scope; } {
-	const scope = { ...builtIns };
+export function interpreteAst(expressions: Expression[]): { value: InterpretedValue; state: Scope; } {
+	const scope: Scope = Object.assign(Object.create(null), builtIns);
 	const value = interpreteExpressions(expressions, scope);
 	return {
 		state: scope,
@@ -861,7 +861,7 @@ function interpreteBranching(branching: Branching, state: Scope): InterpretedVal
 		const functionName = branch.type === 'reference'
 			? referenceNamesToString(branch.names)
 			: undefined
-		const functionScope = tryMakeFunctionScope(functionValue.params, values as any, functionName, state);
+		const functionScope = tryCreateFunctionScope(functionValue.params, values as any, functionName, state);
 		if (functionScope instanceof Error) {
 			continue;
 		}
@@ -978,7 +978,7 @@ function interpreteFunctionCall(functionCall: FunctionCall, state: Scope): Inter
 }
 
 // TODO call imported functions mit imported scope
-function tryMakeFunctionScope(
+function tryCreateFunctionScope(
 	paramDefinitions: DefinitionNames,
 	paramValues: { [key: string]: InterpretedValue } | InterpretedValue[],
 	functionName: string | undefined,
@@ -991,7 +991,7 @@ function tryMakeFunctionScope(
 		return state;
 	}
 
-	const functionScope = { ...state };
+	const functionScope: Scope = Object.assign(Object.create(null), state);
 	const hasError = interpreteDestructuring(
 		paramDefinitions,
 		paramValues,
@@ -1012,7 +1012,7 @@ function callFunction(
 	functionName: string | undefined,
 	state: Scope,
 ): InterpretedValue {
-	const functionScope = tryMakeFunctionScope(functionLiteral.params, params, functionName, state);
+	const functionScope = tryCreateFunctionScope(functionLiteral.params, params, functionName, state);
 	if (functionScope instanceof Error) {
 		return functionScope
 	}
