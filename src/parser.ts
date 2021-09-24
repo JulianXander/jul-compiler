@@ -272,6 +272,55 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
 	}
 }
 
+function multilineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
+	return (rows, startRowIndex, startColumnIndex, indent) => {
+		const result = sequenceParser(
+			openingBracketParser,
+			newLineParser,
+			incrementIndent(multilineParser(parser)),
+			newLineParser,
+			indentParser,
+			closingBracketParser,
+		)(rows, startRowIndex, startColumnIndex, indent);
+		const parsed = result.parsed?.[2];
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+			parsed: parsed,
+		};
+	}
+}
+
+function inlineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<T[]> {
+	return (rows, startRowIndex, startColumnIndex, indent) => {
+		const result = sequenceParser(
+			openingBracketParser,
+			parser,
+			multiplicationParser(
+				0,
+				undefined,
+				sequenceParser(
+					spaceParser,
+					parser,
+				)
+			),
+			closingBracketParser,
+		)(rows, startRowIndex, startColumnIndex, indent);
+		const parsed = result.parsed && [
+			result.parsed[1],
+			...result.parsed[2].map(sequence =>
+				sequence[1]),
+		];
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+			parsed: parsed,
+		};
+	}
+}
+
 //#endregion helper
 
 function numberParser(
@@ -484,39 +533,16 @@ function inlineNameListParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DefinitionNames> {
-	// TODO nur rest (...name)
-	const result = sequenceParser(
-		openingBracketParser,
-		definitionNameParser,
-		multiplicationParser(
-			0,
-			undefined,
+	const result = inlineBracketedExpressionListParser(
+		choiceParser(
+			definitionNameParser,
 			sequenceParser(
-				spaceParser,
-				definitionNameParser,
-			)
-		),
-		multiplicationParser(
-			0,
-			1,
-			sequenceParser(
-				spaceParser,
 				tokenParser('...'),
 				nameParser,
 				// TODO typeguard
 			)
 		),
-		closingBracketParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
-	// return {
-	// 	endIndex: result.endIndex,
-	// 	errors: result.errors,
-	// 	parsed: result.parsed && [
-	// 		result.parsed[1],
-	// 		...result.parsed[2].map(sequence =>
-	// 			sequence[1])
-	// 	]
-	// }
 	if (result.errors?.length) {
 		return {
 			endRowIndex: result.endRowIndex,
@@ -524,16 +550,36 @@ function inlineNameListParser(
 			errors: result.errors,
 		}
 	}
-	const [rest] = result.parsed![3].map(sequence => sequence[2]);
+	const parsed = result.parsed!;
+	const possibleRest = parsed[parsed.length - 1];
+	let rest: string | undefined;
+	if (Array.isArray(possibleRest)) {
+		rest = possibleRest[1];
+	}
+	let hasError = false;
+	let singleNames = parsed.filter((x, index) => {
+		const isRest = Array.isArray(x);
+		if (index < parsed.length - 1) {
+			hasError = true;
+		}
+		return !isRest;
+	}) as DefinitionName[];
+	if (hasError) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: [{
+				columnIndex: result.endColumnIndex,
+				rowIndex: result.endRowIndex,
+				message: 'Rest argument must be last.',
+			}],
+		};
+	}
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
-			singleNames: [
-				result.parsed![1],
-				...result.parsed![2].map(sequence =>
-					sequence[1])
-			],
+			singleNames: singleNames,
 			rest: rest === undefined
 				? undefined
 				: {
@@ -549,38 +595,53 @@ function multilineNameListParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DefinitionNames> {
-	// TODO rest parser in multilineparser packen,
-	// result prüfen
-	const result = sequenceParser(
-		openingBracketParser,
-		incrementIndent(multilineParser(definitionNameParser)),
-		// TODO newLineParser?
-		multiplicationParser(
-			0,
-			1,
+	const result = multilineBracketedExpressionListParser(
+		choiceParser(
+			definitionNameParser,
 			sequenceParser(
-				indentParser,
 				tokenParser('...'),
 				nameParser,
 				// TODO typeguard
 			)
 		),
-		indentParser,
-		closingBracketParser,
-	)(rows, startRowIndex, startColumnIndex, indent + 1);
+	)(rows, startRowIndex, startColumnIndex, indent);
 	if (result.errors?.length) {
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 			errors: result.errors,
-		}
+		};
 	}
-	const [rest] = result.parsed![2].map(sequence => sequence[2]);
+	const parsed = result.parsed!.filter(isDefined);
+	const possibleRest = parsed[parsed.length - 1];
+	let rest: string | undefined;
+	if (Array.isArray(possibleRest)) {
+		rest = possibleRest[1];
+	}
+	let hasError = false;
+	let singleNames = parsed.filter((x, index) => {
+		const isRest = Array.isArray(x);
+		if (index < parsed.length - 2) {
+			hasError = true;
+		}
+		return !isRest;
+	}) as DefinitionName[];
+	if (hasError) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: [{
+				columnIndex: result.endColumnIndex,
+				rowIndex: result.endRowIndex,
+				message: 'Rest argument must be last.',
+			}],
+		};
+	}
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
-			singleNames: result.parsed![1].filter(isDefined),
+			singleNames: singleNames,
 			rest: rest === undefined
 				? undefined
 				: {
@@ -589,16 +650,6 @@ function multilineNameListParser(
 		}
 	}
 }
-
-// const nameListParser: Parser<DefinitionName[]> = choiceParser(
-// 	// leer
-// 	emptyNameListParser,
-// 	// mit Klammern einzeilig
-// 	inlineNameListParser,
-// 	// mit Klammern mehrzeilig
-// 	multilineNameListParser,
-// 	// ohne Klammern?
-// );
 
 /**
  * enthält ggf. endständiges Zeilenende nicht
@@ -1104,28 +1155,10 @@ function inlineObjectParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ObjectLiteral> {
-	const result = sequenceParser(
-		openingBracketParser,
-		valueExpressionParser,
-		multiplicationParser(
-			0,
-			undefined,
-			sequenceParser(
-				spaceParser,
-				valueExpressionParser,
-			)
-		),
-		closingBracketParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
-	const head = result.parsed?.[1];
-	const rest = result.parsed?.[2]?.map(sequence => sequence?.[1]!);
-	// TODO filter missing? oder return undefined bei error? oder undefined expressions erlauben?
+	const result = inlineBracketedExpressionListParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: ObjectLiteral | undefined = result.parsed && {
 		type: 'list',
-		values: [
-			head!,
-			...(rest ?? [])
-		]
+		values: result.parsed
 	};
 	return {
 		endRowIndex: result.endRowIndex,
@@ -1142,17 +1175,10 @@ function multilineObjectParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ObjectLiteral> {
-	const result = sequenceParser(
-		openingBracketParser,
-		newLineParser,
-		incrementIndent(multilineParser(valueExpressionParser)),
-		newLineParser,
-		indentParser,
-		closingBracketParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
+	const result = multilineBracketedExpressionListParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: ObjectLiteral | undefined = result.parsed && {
 		type: 'list',
-		values: result.parsed?.[2] as any
+		values: result.parsed.filter(isDefined)
 	};
 	return {
 		endRowIndex: result.endRowIndex,
