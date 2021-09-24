@@ -408,7 +408,8 @@ const builtIns: {
 } = {
 	//#region Types
 	//#region Primitive Types
-	// TODO Boolean
+	// TODO Any?
+	// TODO Boolean?
 	//#region Numbers
 	Float64: {
 		type: 'native',
@@ -702,37 +703,35 @@ const builtIns: {
 };
 
 export function interpreteAst(expressions: Expression[]): { value: any; state: Scope; } {
-	return interpreteExpressions(
-		expressions,
-		builtIns
-	);
+	const scope = { ...builtIns };
+	const value = interpreteExpressions(expressions, scope);
+	return {
+		state: scope,
+		value: value,
+	};
 }
 
 /**
  * Gibt den Wert der letzten Expression zurück.
  */
-function interpreteExpressions(expressions: Expression[], state: Scope): { value: any; state: Scope; } {
-	let newState = state;
-	let value;
+function interpreteExpressions(expressions: Expression[], scope: Scope): InterpretedValue {
+	let value: InterpretedValue = null;
 	expressions.forEach(expression => {
-		const result = interpreteExpression(expression, newState);
-		newState = result.state;
-		value = result.value;
+		value = interpreteExpression(expression, scope);
 	});
-	return {
-		value: value,
-		state: newState,
-	};
+	return value;
 }
 
-function interpreteExpression(expression: Expression, state: Scope): { value: any; state: Scope; } {
+function interpreteExpression(expression: Expression, state: Scope): InterpretedValue {
 	switch (expression.type) {
 
 		case 'definition':
 			return interpreteSingleDefinition(expression, state);
 
-		case 'destructuring':
-			return interpreteDestructuringDefinition(expression, state);
+		case 'destructuring': {
+			const destructuring = interpreteDestructuringDefinition(expression, state);
+			return null;
+		}
 
 		case 'branching':
 		case 'empty':
@@ -743,7 +742,7 @@ function interpreteExpression(expression: Expression, state: Scope): { value: an
 		case 'number':
 		case 'reference':
 		case 'string':
-			return { state: state, value: interpreteValueExpression(expression, state) };
+			return interpreteValueExpression(expression, state);
 
 		default:
 			throw new Error('TODO');
@@ -755,30 +754,19 @@ function interpreteExpression(expression: Expression, state: Scope): { value: an
 /**
  * Gibt den Wert zurück, der zugewiesen wird.
  */
-function interpreteSingleDefinition(definition: SingleDefinition, state: Scope): { value: any; state: Scope; } {
+function interpreteSingleDefinition(definition: SingleDefinition, scope: Scope): InterpretedValue {
 	const { name, typeGuard, value } = definition;
-	checkNameAlreadyDefined(name, state)
-	const uncheckedValue = interpreteValueExpression(value, state);
-	const checkedValue = checkType(typeGuard, uncheckedValue, state);
+	checkNameAlreadyDefined(name, scope);
+	const uncheckedValue = interpreteValueExpression(value, scope);
+	const checkedValue = checkType(typeGuard, uncheckedValue, scope);
 	const finalValue = checkedValue.value;
-	const newState: Scope = {
-		...state,
-		[name]: finalValue
-	};
-	return { value: finalValue, state: newState };
+	scope[name] = finalValue;
+	return finalValue;
 }
 
-function interpreteDestructuringDefinition(destructuring: DestructuringDefinition, state: Scope): {
-	value: undefined;
-	state: Scope;
-	hasError: boolean;
-} {
-	const sourceValues = interpreteValueExpression(destructuring.value, state);
-	const newState: Scope = {
-		...state,
-	};
-	const hasError = interpreteDestructuring(destructuring.names, sourceValues as any, newState, state, true);
-	return { value: undefined, state: newState, hasError: hasError };
+function interpreteDestructuringDefinition(destructuring: DestructuringDefinition, scope: Scope): void {
+	const sourceValues = interpreteValueExpression(destructuring.value, scope);
+	interpreteDestructuring(destructuring.names, sourceValues as any, scope, scope, true);
 }
 
 function interpreteDestructuring(
@@ -1033,7 +1021,7 @@ function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, fu
 	let returnValue;
 	switch (functionLiteral.type) {
 		case 'functionLiteral':
-			returnValue = interpreteExpressions(functionLiteral.body, functionScope).value;
+			returnValue = interpreteExpressions(functionLiteral.body, functionScope);
 			break;
 
 		case 'native':
@@ -1106,7 +1094,7 @@ function interpreteTypeExpression(typeExpression: TypeExpression, state: Scope):
 				returnType: 'Boolean',
 			}
 
-		// TODO string literal, object literal, interface (object mit typeguards)
+		// TODO null/() literal, boolean literal, string literal, object literal, interface (object mit typeguards)
 		// TODO typeCheck typeFunction auf Function: any => boolean
 		default:
 			return interpretedExpression as any;
