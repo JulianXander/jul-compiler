@@ -703,7 +703,7 @@ const builtIns: {
 };
 
 export function interpreteAst(expressions: Expression[]): { value: InterpretedValue; state: Scope; } {
-	const scope: Scope = Object.assign(Object.create(null), builtIns);
+	const scope = createScope(builtIns);
 	const value = interpreteExpressions(expressions, scope);
 	return {
 		state: scope,
@@ -982,21 +982,21 @@ function tryCreateFunctionScope(
 	paramDefinitions: DefinitionNames,
 	paramValues: { [key: string]: InterpretedValue } | InterpretedValue[],
 	functionName: string | undefined,
-	state: Scope,
+	scope: Scope,
 ): Scope | Error {
 	if (!paramDefinitions) {
 		if (paramValues !== null) {
 			return new Error(`Function ${functionName ?? '(anonymous)'} takes no arguments`);
 		}
-		return state;
+		return scope;
 	}
 
-	const functionScope: Scope = Object.assign(Object.create(null), state);
+	const functionScope = createScope(scope);
 	const hasError = interpreteDestructuring(
 		paramDefinitions,
 		paramValues,
 		functionScope,
-		state,
+		scope,
 		false,
 	);
 	if (hasError) {
@@ -1044,6 +1044,10 @@ function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, fu
 //#endregion Value
 
 //#region helper
+
+function createScope(baseScope: Scope): Scope {
+	return Object.assign(Object.create(null), baseScope);
+}
 
 function getValueFromScope(scope: Scope, name: string): InterpretedValue {
 	if (name in scope) {
