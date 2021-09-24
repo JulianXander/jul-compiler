@@ -787,9 +787,9 @@ function interpreteDestructuring(
 		}
 		const sourceWithAlias = source ?? name;
 		const sourceValue = isArray
-			? (sourceValues as any[])[index]
-			: (sourceValues as { [key: string]: any })[sourceWithAlias];
-		const uncheckedValue = sourceValue ?? (fallback && interpreteValueExpression(fallback, state));
+			? sourceValues[index]
+			: sourceValues[sourceWithAlias];
+		const uncheckedValue = sourceValue ?? (fallback && interpreteValueExpression(fallback, state)) ?? null;
 		const checkedValue = checkType(typeGuard, uncheckedValue, state);
 		if (checkedValue.isError) {
 			hasError = true
@@ -804,10 +804,11 @@ function interpreteDestructuring(
 		let uncheckedValue;
 		if (isArray) {
 			// TODO dict destructuring?
-			uncheckedValue = (sourceValues as any[]).slice(destructuringNames.singleNames.length);
+			uncheckedValue = sourceValues.slice(destructuringNames.singleNames.length);
 		}
 		else {
 			// TODO alle nicht benutzten dict keys nehmen? als dict?
+			throw new Error('dictionary rest destructuring not implemented yet');
 		}
 		const checkedValue = checkType(destructuringNames.rest.typeGuard, uncheckedValue, state);
 		targetObject[targetName] = checkedValue.value;
@@ -860,7 +861,7 @@ function interpreteBranching(branching: Branching, state: Scope): InterpretedVal
 		const functionName = branch.type === 'reference'
 			? referenceNamesToString(branch.names)
 			: undefined
-		const functionScope = tryMakeFunctionScope(functionValue.params, values, functionName, state);
+		const functionScope = tryMakeFunctionScope(functionValue.params, values as any, functionName, state);
 		if (functionScope instanceof Error) {
 			continue;
 		}
@@ -919,19 +920,20 @@ function interpreteStringLiteral(stringLiteral: StringLiteral, state: Scope): st
 	return joined
 }
 
-function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope): any {
-	let value: any = getValueFromScope(scope, referenceNames[0]);
+function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope): InterpretedValue {
+	let value = getValueFromScope(scope, referenceNames[0]);
 	for (let index = 1; index < referenceNames.length; index++) {
 		const name = referenceNames[index]!;
 		if (
 			// Prüfe ob value ein Dictionary/Array ist
 			typeof value !== 'object'
+			|| value === null
 			|| value instanceof Stream
 			|| !(name in value)
 		) {
 			// check scope for function, create function with argument bound to value
-			const functionValue: FunctionLiteral | NativeCode = getValueFromScope(scope, name as string);
-			if (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native') {
+			const functionValue = getValueFromScope(scope, name as string) as FunctionLiteral | NativeCode;
+			if (!functionValue || (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native')) {
 				throw new Error(`Can not bind argument to ${name} because it is not a function`);
 			}
 			const boundFunction: FunctionLiteral = {
@@ -949,7 +951,7 @@ function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope):
 						functionReference: [name as string],
 						params: {
 							type: 'list',
-							values: [value] // TODO array/dictionary? params aus functionValue mappen?
+							values: [value as any] // TODO array/dictionary? params aus functionValue mappen?
 						},
 					}
 				],
@@ -957,28 +959,28 @@ function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope):
 			value = boundFunction;
 		}
 		else {
-			value = value[name].value;
+			value = (value as any)[name];
 		}
 	}
 	return value;
 }
 
-function interpreteFunctionCall(functionCall: FunctionCall, state: Scope): any {
+function interpreteFunctionCall(functionCall: FunctionCall, state: Scope): InterpretedValue {
 	const functionReference = functionCall.functionReference;
-	const functionValue: FunctionLiteral | NativeCode = interpreteReferenceNames(functionReference, state);
+	const functionValue = interpreteReferenceNames(functionReference, state) as FunctionLiteral | NativeCode;
 	const functionName = referenceNamesToString(functionReference);
 	if (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native') {
 		throw new Error(`Can not call ${functionName} because it is not a function`);
 	}
 	const params = interpreteValueExpression(functionCall.params, state);
-	const returnValue = callFunction(functionValue, params, functionName, state);
+	const returnValue = callFunction(functionValue, params as any, functionName, state);
 	return returnValue;
 }
 
 // TODO call imported functions mit imported scope
 function tryMakeFunctionScope(
 	paramDefinitions: DefinitionNames,
-	paramValues: any,
+	paramValues: { [key: string]: InterpretedValue } | InterpretedValue[],
 	functionName: string | undefined,
 	state: Scope,
 ): Scope | Error {
@@ -1006,7 +1008,7 @@ function tryMakeFunctionScope(
 
 function callFunction(
 	functionLiteral: FunctionLiteral | NativeCode,
-	params: any,
+	params: { [key: string]: InterpretedValue } | InterpretedValue[],
 	functionName: string | undefined,
 	state: Scope,
 ): InterpretedValue {
@@ -1028,7 +1030,7 @@ function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, fu
 			const nativeArgs = functionLiteral.params.singleNames.map(definitionName =>
 				getValueFromScope(functionScope, definitionName.name));
 			if (functionLiteral.params.rest) {
-				nativeArgs.push(...getValueFromScope(functionScope, functionLiteral.params.rest.name));
+				nativeArgs.push(...getValueFromScope(functionScope, functionLiteral.params.rest.name) as any);
 			}
 			returnValue = functionLiteral.code(...nativeArgs);
 			break;
@@ -1043,14 +1045,14 @@ function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, fu
 
 //#region helper
 
-function getValueFromScope(scope: Scope, name: string): any {
+function getValueFromScope(scope: Scope, name: string): InterpretedValue {
 	if (name in scope) {
-		return scope[name];
+		return scope[name]!;
 	}
 	throw new Error(`${name} is not defined`);
 }
 
-function checkType(typeExpression: TypeExpression | undefined, value: any, state: Scope): { value: any; isError: boolean; } {
+function checkType(typeExpression: TypeExpression | undefined, value: InterpretedValue, state: Scope): { value: InterpretedValue; isError: boolean; } {
 	if (!typeExpression) {
 		return {
 			value: value,
