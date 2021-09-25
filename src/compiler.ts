@@ -1,4 +1,3 @@
-import { Expression } from './abstract-syntax-tree';
 import { readFileSync, writeFileSync } from 'fs';
 import { parseCode } from './parser';
 
@@ -23,9 +22,10 @@ function compileCodeToJs(code: string): string {
 			throw new Error(JSON.stringify(result.errors, undefined, 2));
 		}
 		console.log(result);
-		const interpreterFile = readFileSync('dist/interpreter.js');
-		const interpreterCode = interpreterFile.toString();
-		const compiled = `${interpreterCode}
+		// const interpreterFile = readFileSync('dist/interpreter.js');
+		// const interpreterCode = interpreterFile.toString();
+		// const compiled = `${interpreterCode}
+		const compiled = `const interpreteAst = require("./interpreter").interpreteAst
 const c = ${JSON.stringify(result.parsed, undefined, 2)}
 interpreteAst(c)
 `;
@@ -35,35 +35,3 @@ interpreteAst(c)
 		throw error;
 	}
 }
-
-// function compileExpression(expression: Expression): string{
-// 	switch (expression.type) {
-// 		case 'branching':
-
-// 			break;
-
-// 		default:
-// 			break;
-// 	}
-// }
-
-//#region interfaces
-
-//#region tokens
-
-// type TokenType =
-// 	| '('
-// 	| ')'
-// 	| 'space'
-// 	| 'tab'
-// 	| 'newline'
-// 	| '='
-// 	| '=>'
-// 	| 'name'
-// 	| 'stringLiteral'
-// 	| 'numberLiteral'
-// 	;
-
-//#endregion tokens
-
-//#endregion interfaces

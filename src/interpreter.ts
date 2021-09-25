@@ -1,170 +1,46 @@
-import { Branching, DefinitionNames, DestructuringDefinition, Expression, FunctionCall, FunctionLiteral, NativeCode, NumberLiteral, ObjectLiteral, Reference, ReferenceNames, SingleDefinition, StringLiteral, TypeExpression, ValueExpression } from './abstract-syntax-tree';
+import {
+	Branching,
+	deepEquals,
+	DefinitionNames,
+	DestructuringDefinition,
+	Expression,
+	FunctionCall,
+	FunctionLiteral,
+	InterpretedValue,
+	Listener,
+	NativeFunction,
+	ObjectLiteral,
+	Reference,
+	ReferenceNames,
+	SingleDefinition,
+	Stream,
+	StringLiteral,
+	TypeExpression,
+} from './abstract-syntax-tree';
 
-type InterpretedValue =
-	| null
-	| boolean
-	| string
-	| number
-	| FunctionLiteral
-	| NativeCode
-	| Stream<InterpretedValue>
-	| InterpretedValue[]
-	| { [name: string]: InterpretedValue }
-	| Error
-	;
 
 // TODO Scope mit Object.create(null) erzeugen, damit prototype leer ist
 interface Scope {
 	[name: string]: InterpretedValue;
 }
 
+type FunctionExpression =
+	| FunctionLiteral
+	| NativeFunction
+	// TODO NativeValue
+	;
+
 // TODO in scope/globals aufnehmen? 
 // TODO beim interprete start setzen
 let processId = 1;
 
-//#region util
-
-function deepEquals(value1: any, value2: any): boolean {
-	const type1 = typeof value1;
-	if (type1 !== typeof value2) {
-		return false;
-	}
-	switch (type1) {
-		case 'bigint':
-		case 'boolean':
-		case 'function':
-		case 'number':
-		case 'string':
-		case 'symbol':
-		case 'undefined':
-			return value1 === value2;
-
-		case 'object':
-			if (value1 === null || value2 === null) {
-				return value1 === value2;
-			}
-			else if (value1 instanceof Stream || value2 instanceof Stream) {
-				return value1 === value2;
-			}
-			else if (Array.isArray(value1) || Array.isArray(value2)) {
-				if (!Array.isArray(value1)
-					|| !Array.isArray(value2)
-					|| value1.length !== value2.length) {
-					return false;
-				}
-				for (let index = 0; index < value1.length; index++) {
-					if (value1[index] !== value2[index]) {
-						return false;
-					}
-				}
-				return true
-			}
-			else {
-				// Dictionary/Function Object
-				const typedValue1 = value1 as any;
-				for (const key in typedValue1) {
-					if (typedValue1[key] !== (value2 as any)[key]) {
-						return false;
-					}
-				}
-				return true;
-			}
-
-		default: {
-			const assertNever: never = type1;
-			throw new Error('Unexpected type for deepEquals: ' + assertNever);
-		}
-	}
-}
-
-//#endregion util
-
 //#region Stream
-
-type Listener<T> = (value: T) => void;
-
-class Stream<T> {
-	constructor(getValue: () => T) {
-		this.getValue = getValue;
-	}
-
-	lastValue?: T;
-	lastProcessId?: number;
-	completed: boolean = false;
-	listeners: Listener<T>[] = [];
-	onCompletedListeners: (() => void)[] = [];
-
-	push(value: T): void {
-		if (processId === this.lastProcessId) {
-			return;
-		}
-		if (deepEquals(value, this.lastValue)) {
-			return;
-		}
-		if (this.completed) {
-			throw new Error('Can not push to completed stream.');
-		}
-		this.lastValue = value;
-		this.lastProcessId = processId;
-		this.listeners.forEach(listener => listener(value));
-	}
-	/**
-	 * Aktualisiert diesen Stream und alle Dependencies und benachrichtigt Subscriber.
-	 */
-	readonly getValue: () => T;
-	/**
-	 * Gibt einen unsubscribe callback zurück.
-	 * Wertet sofort den listener beim subscriben sofort aus, wenn evaluateOnSubscribe = true.
-	 */
-	subscribe(listener: Listener<T>, evaluateOnSubscribe: boolean = true): () => void {
-		if (evaluateOnSubscribe) {
-			listener(this.getValue());
-		}
-		if (this.completed) {
-			return () => { };
-		}
-		this.listeners.push(listener);
-		return () => {
-			if (this.completed) {
-				return;
-			}
-			const index = this.listeners.indexOf(listener);
-			if (index === -1) {
-				throw new Error('Can not unsubscribe listener, because listener was not subscribed.');
-			}
-			this.listeners.splice(index, 1);
-		};
-	}
-	complete(): void {
-		if (this.completed) {
-			return;
-		}
-		this.completed = true;
-		// dispose listeners
-		this.listeners = [];
-		this.onCompletedListeners.forEach(onCompletedListener => {
-			onCompletedListener();
-		});
-		this.onCompletedListeners = [];
-	}
-	/**
-	 * Wenn der Stream schon completed ist wird der callback sofort aufgerufen.
-	 */
-	onCompleted(callback: () => void): void {
-		if (this.completed) {
-			callback();
-		}
-		else {
-			this.onCompletedListeners.push(callback);
-		}
-	}
-}
 
 //#region create
 
 function createSource$<T>(initialValue: T): Stream<T> {
 	const stream$: Stream<T> = new Stream(() => stream$.lastValue as T);
-	stream$.push(initialValue);
+	stream$.push(initialValue, processId);
 	return stream$;
 }
 
@@ -176,7 +52,7 @@ function timer$(delayMs: number): Stream<number> {
 				return;
 			}
 			processId++;
-			stream$.push(stream$.lastValue! + 1);
+			stream$.push(stream$.lastValue! + 1, processId);
 			cycle();
 		}, delayMs);
 	}
@@ -196,10 +72,10 @@ function httpRequest$(url: string, method: string, body: any): Stream<null | Res
 		signal: abortController.signal,
 	}).then(response => {
 		processId++;
-		response$.push(response);
+		response$.push(response, processId);
 	}).catch(error => {
 		processId++;
-		response$.push(error);
+		response$.push(error, processId);
 	}).finally(() => {
 		response$.complete();
 	});
@@ -236,7 +112,7 @@ function map$<TSource, TTarget>(
 		}
 		const currentMappedValue = mapFunction(currentSourceValue);
 		lastSourceValue = currentSourceValue;
-		mapped$.push(currentMappedValue);
+		mapped$.push(currentMappedValue, processId);
 		return currentMappedValue;
 	});
 	mapped$.onCompleted(() => {
@@ -265,7 +141,7 @@ function combine$<T>(
 			combined$.lastProcessId = processId;
 			return lastValues;
 		}
-		combined$.push(currentValues);
+		combined$.push(currentValues, processId);
 		return currentValues;
 	});
 	combined$.onCompleted(() => {
@@ -316,7 +192,7 @@ function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 			flat$.lastProcessId = processId;
 			return lastValue;
 		}
-		flat$.push(currentValue);
+		flat$.push(currentValue, processId);
 		return currentValue;
 	});
 	const unsubscribeOuter = source$$.subscribe(source$ => {
@@ -357,7 +233,7 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 			flat$.lastProcessId = processId;
 			return lastValue;
 		}
-		flat$.push(currentValue);
+		flat$.push(currentValue, processId);
 		return currentValue;
 	});
 	const unsubscribeOuter = source$$.subscribe(source$ => {
@@ -404,7 +280,7 @@ function retry$<T>(
 //#endregion Stream
 
 const builtIns: {
-	[key: string]: NativeCode;
+	[key: string]: NativeFunction;
 } = {
 	//#region Types
 	//#region Primitive Types
@@ -413,7 +289,7 @@ const builtIns: {
 	//#region Numbers
 	Float64: {
 		type: 'native',
-		code: (x: any) =>
+		code: (scope: Scope, x: any) =>
 			typeof x === 'number',
 		params: { singleNames: [{ type: 'name', name: 'x', }] },
 		returnType: 'Boolean',
@@ -421,7 +297,7 @@ const builtIns: {
 	},
 	Integer: {
 		type: 'native',
-		code: (x: any) =>
+		code: (scope: Scope, x: any) =>
 			Number.isInteger(x),
 		params: { singleNames: [{ type: 'name', name: 'x', }] },
 		returnType: 'Boolean',
@@ -429,7 +305,7 @@ const builtIns: {
 	},
 	NonNegativeInteger: {
 		type: 'native',
-		code: (x: any) =>
+		code: (scope: Scope, x: any) =>
 			Number.isInteger(x)
 			&& x >= 0,
 		params: { singleNames: [{ type: 'name', name: 'x', }] },
@@ -439,7 +315,7 @@ const builtIns: {
 	//#endregion Numbers
 	String: {
 		type: 'native',
-		code: (x: any) => {
+		code: (scope: Scope, x: any) => {
 			return typeof x === 'string';
 		},
 		params: { singleNames: [{ type: 'name', name: 'x', }] },
@@ -459,11 +335,11 @@ const builtIns: {
 	Function: {
 		// TODO Generic Parameter und Return Type
 		type: 'native',
-		code: (x: any) => {
+		code: (scope: Scope, x: any) => {
 			return typeof x === 'object'
 				&& x !== null
 				&& ((x as FunctionLiteral).type === 'functionLiteral'
-					|| (x as NativeCode).type === 'native');
+					|| (x as NativeFunction).type === 'native');
 		},
 		params: { singleNames: [{ type: 'name', name: 'x', }] },
 		returnType: 'Boolean',
@@ -472,7 +348,7 @@ const builtIns: {
 	Type: {
 		// PureFunction Any => Boolean
 		type: 'native',
-		code: (x: any, scope: Scope) => {
+		code: (scope: Scope, x: any) => {
 			// TODO check function return type
 			// const returnType = getReturnType(x, scope);
 			return true;
@@ -484,7 +360,7 @@ const builtIns: {
 	Stream: {
 		// TODO Generic Type
 		type: 'native',
-		code: (x: any) => {
+		code: (scope: Scope, x: any) => {
 			return x instanceof Stream;
 		},
 		params: { singleNames: [{ type: 'name', name: 'x', }] },
@@ -493,7 +369,7 @@ const builtIns: {
 	},
 	Error: {
 		type: 'native',
-		code: (x: any) => {
+		code: (scope: Scope, x: any) => {
 			return x instanceof Error;
 		},
 		params: { singleNames: [{ type: 'name', name: 'x', }] },
@@ -516,7 +392,7 @@ const builtIns: {
 	//#region Boolean
 	and: {
 		type: 'native',
-		code: (...args: boolean[]) =>
+		code: (scope: Scope, ...args: boolean[]) =>
 			!args.some(arg => !arg),
 		// TODO params type ...boolean[]
 		params: { singleNames: [], rest: { name: 'args' } },
@@ -525,7 +401,7 @@ const builtIns: {
 	},
 	or: {
 		type: 'native',
-		code: (...args: boolean[]) =>
+		code: (scope: Scope, ...args: boolean[]) =>
 			args.some(arg => arg),
 		// TODO params type ...boolean[]
 		params: { singleNames: [], rest: { name: 'args' } },
@@ -537,7 +413,7 @@ const builtIns: {
 	// TODO comparison operations, multiply, subtract, divide, exponentiate, trogonometrie, random
 	modulo: {
 		type: 'native',
-		code: (dividend: number, divisor: number) =>
+		code: (scope: Scope, dividend: number, divisor: number) =>
 			dividend % divisor,
 		params: {
 			singleNames: [
@@ -549,7 +425,7 @@ const builtIns: {
 	},
 	subtract: {
 		type: 'native',
-		code: (minuend: number, subtrahend: number) =>
+		code: (scope: Scope, minuend: number, subtrahend: number) =>
 			minuend - subtrahend,
 		params: {
 			singleNames: [
@@ -561,7 +437,7 @@ const builtIns: {
 	},
 	sum: {
 		type: 'native',
-		code: (...args: number[]) =>
+		code: (scope: Scope, ...args: number[]) =>
 			args.reduce(
 				(accumulator, current) =>
 					accumulator + current,
@@ -587,7 +463,7 @@ const builtIns: {
 	//#region core
 	complete: {
 		type: 'native',
-		code: (stream$: Stream<any>) => {
+		code: (scope: Scope, stream$: Stream<any>) => {
 			stream$.complete();
 			return null;
 		},
@@ -601,8 +477,11 @@ const builtIns: {
 	},
 	onCompleted: {
 		type: 'native',
-		code: (stream$: Stream<any>, callback: () => void) => {
-			stream$.onCompleted(callback);
+		code: (scope: Scope, stream$: Stream<any>, callback: FunctionExpression) => {
+			const callbackFn: () => void = () => {
+				callFunction(callback, [], undefined, scope);
+			};
+			stream$.onCompleted(callbackFn);
 			return null;
 		},
 		params: {
@@ -618,8 +497,11 @@ const builtIns: {
 		type: 'native',
 		// TODO evaluateOnSubscribe?
 		// TODO generic type argument, inferred basierend auf stream$
-		code: (stream$: Stream<any>, listener: Listener<any>) => {
-			return stream$.subscribe(listener);
+		code: (scope: Scope, stream$: Stream<any>, listener: FunctionExpression) => {
+			const listenerFunction: Listener<any> = (value: any) => {
+				callFunction(listener, [value], undefined, scope);
+			};
+			return stream$.subscribe(listenerFunction);
 		},
 		params: {
 			singleNames: [
@@ -636,7 +518,7 @@ const builtIns: {
 	//#region create
 	// create$: {
 	// 		type: 'native',
-	// 		code: (x: any) =>
+	// 		code: (scope: Scope, x: any) =>
 	// 			create$,
 	// 		params: { singleNames: [{ type: 'name', name: 'x', }] },
 	// 		returnType: 'Stream',
@@ -644,7 +526,9 @@ const builtIns: {
 	// },
 	timer$: {
 		type: 'native',
-		code: timer$,
+		code: (scope: Scope, delayMs: number) => {
+			return timer$(delayMs);
+		},
 		params: { singleNames: [{ type: 'name', name: 'delayMs', typeGuard: { type: 'reference', names: ['Float64'] } }] },
 		// TODO returnType Stream(PositiveInteger)
 		returnType: 'Stream',
@@ -656,7 +540,9 @@ const builtIns: {
 	// TODO map$, combine$
 	combine$: {
 		type: 'native',
-		code: combine$,
+		code: (scope: Scope, ...source$s: Stream<any>[]) => {
+			return combine$(...source$s);
+		},
 		// TODO Tuple type propagation in returnType
 		// TODO source$s typeGuard Array(Stream)
 		params: { singleNames: [], rest: { name: 'source$s' } },
@@ -666,8 +552,18 @@ const builtIns: {
 	},
 	map$: {
 		type: 'native',
-		code: map$,
-		params: { singleNames: [{ type: 'name', name: 'source', typeGuard: { type: 'reference', names: ['Stream'] } }] },
+		code: (scope: Scope, source$: Stream<any>, mapFunction: FunctionExpression) => {
+			const mapFn = (value: any) => {
+				return callFunction(mapFunction, [value], undefined, scope);
+			};
+			return map$(source$, mapFn);
+		},
+		params: {
+			singleNames: [
+				{ type: 'name', name: 'source$', typeGuard: { type: 'reference', names: ['Stream'] } },
+				{ type: 'name', name: 'mapFunction', typeGuard: { type: 'reference', names: ['Function'] } },
+			]
+		},
 		// TODO returnType Stream(PositiveInteger)
 		returnType: 'Stream',
 		pure: true,
@@ -682,7 +578,7 @@ const builtIns: {
 		// TODO pure bei static import?
 		// TODO check file exists, return type
 		type: 'native',
-		code: (path: string) =>
+		code: (scope: Scope, path: string) =>
 			require(path),
 		params: { singleNames: [{ type: 'name', name: 'x', typeGuard: { type: 'reference', names: ['String'] } }] },
 		returnType: 'Any',
@@ -690,7 +586,7 @@ const builtIns: {
 	},
 	log: {
 		type: 'native',
-		code: (...args: any[]) => {
+		code: (scope: Scope, ...args: any[]) => {
 			console.log(...args)
 			return null
 		},
@@ -754,6 +650,9 @@ function interpreteExpression(expression: Expression, state: Scope): Interpreted
 
 		case 'string':
 			return interpreteStringLiteral(expression, state);
+
+		case 'value':
+			return expression.value;
 
 		default: {
 			const assertNever: never = expression;
@@ -839,7 +738,7 @@ function interpreteBranching(branching: Branching, state: Scope): InterpretedVal
 		? value
 		: [value];
 	for (const branch of branching.branches) {
-		const functionValue = interpreteExpression(branch, state) as FunctionLiteral | NativeCode;
+		const functionValue = interpreteExpression(branch, state) as FunctionExpression;
 		// TODO typeCheck functionValue auf Function
 		const functionName = branch.type === 'reference'
 			? referenceNamesToString(branch.names)
@@ -914,26 +813,42 @@ function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope):
 			|| !(name in value)
 		) {
 			// check scope for function, create function with argument bound to value
-			const functionValue = getValueFromScope(scope, name as string) as FunctionLiteral | NativeCode;
+			const functionName = name as string;
+			const functionValue = getValueFromScope(scope, functionName) as FunctionExpression;
 			if (!functionValue || (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native')) {
 				throw new Error(`Can not bind argument to ${name} because it is not a function`);
 			}
+			const singleNames = functionValue.params.singleNames.slice(1);
 			const boundFunction: FunctionLiteral = {
 				type: 'functionLiteral',
 				pure: functionValue.pure,
 				params: {
 					...functionValue.params,
 					// remove 1st argument
-					singleNames: functionValue.params.singleNames.slice(1)
+					singleNames: singleNames
 				},
-				// TODO call functionValue mit value, ...args
+				// call functionValue mit value, ...args
 				body: [
 					{
 						type: 'functionCall',
-						functionReference: [name as string],
+						functionReference: [functionName],
 						params: {
 							type: 'list',
-							values: [value as any] // TODO array/dictionary? params aus functionValue mappen?
+							values: [
+								{
+									type: 'value',
+									value: value,
+								},
+								...singleNames.map(definitionName => {
+									const reference: Reference = {
+										type: 'reference',
+										names: [definitionName.name],
+									};
+									return reference;
+								}),
+								// TODO rest args
+								// functionValue.params.rest
+							] // TODO array/dictionary? params aus functionValue mappen?
 						},
 					}
 				],
@@ -949,7 +864,7 @@ function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope):
 
 function interpreteFunctionCall(functionCall: FunctionCall, state: Scope): InterpretedValue {
 	const functionReference = functionCall.functionReference;
-	const functionValue = interpreteReferenceNames(functionReference, state) as FunctionLiteral | NativeCode;
+	const functionValue = interpreteReferenceNames(functionReference, state) as FunctionExpression;
 	const functionName = referenceNamesToString(functionReference);
 	if (functionValue.type !== 'functionLiteral' && functionValue.type !== 'native') {
 		throw new Error(`Can not call ${functionName} because it is not a function`);
@@ -966,7 +881,7 @@ function tryCreateFunctionScope(
 	functionName: string | undefined,
 	scope: Scope,
 ): Scope | Error {
-	if (!paramDefinitions) {
+	if (!paramDefinitions.singleNames.length && !paramDefinitions.rest) {
 		if (paramValues !== null) {
 			return new Error(`Function ${functionName ?? '(anonymous)'} takes no arguments`);
 		}
@@ -989,32 +904,32 @@ function tryCreateFunctionScope(
 }
 
 function callFunction(
-	functionLiteral: FunctionLiteral | NativeCode,
+	functionExpression: FunctionExpression,
 	params: { [key: string]: InterpretedValue } | InterpretedValue[],
 	functionName: string | undefined,
-	state: Scope,
+	scope: Scope,
 ): InterpretedValue {
-	const functionScope = tryCreateFunctionScope(functionLiteral.params, params, functionName, state);
+	const functionScope = tryCreateFunctionScope(functionExpression.params, params, functionName, scope);
 	if (functionScope instanceof Error) {
 		return functionScope;
 	}
-	return callFunctionWithScope(functionLiteral, functionScope);
+	return callFunctionWithScope(functionExpression, functionScope);
 }
 
-function callFunctionWithScope(functionLiteral: FunctionLiteral | NativeCode, functionScope: Scope): InterpretedValue {
+function callFunctionWithScope(functionExpression: FunctionExpression, functionScope: Scope): InterpretedValue {
 	let returnValue;
-	switch (functionLiteral.type) {
+	switch (functionExpression.type) {
 		case 'functionLiteral':
-			returnValue = interpreteExpressions(functionLiteral.body, functionScope);
+			returnValue = interpreteExpressions(functionExpression.body, functionScope);
 			break;
 
 		case 'native':
-			const nativeArgs = functionLiteral.params.singleNames.map(definitionName =>
+			const nativeArgs = functionExpression.params.singleNames.map(definitionName =>
 				getValueFromScope(functionScope, definitionName.name));
-			if (functionLiteral.params.rest) {
-				nativeArgs.push(...getValueFromScope(functionScope, functionLiteral.params.rest.name) as any);
+			if (functionExpression.params.rest) {
+				nativeArgs.push(...getValueFromScope(functionScope, functionExpression.params.rest.name) as any);
 			}
-			returnValue = functionLiteral.code(...nativeArgs);
+			returnValue = functionExpression.code(functionScope, ...nativeArgs);
 			break;
 
 		default:
@@ -1069,14 +984,14 @@ function checkType(typeExpression: TypeExpression | undefined, value: Interprete
 	}
 }
 
-function interpreteTypeExpression(typeExpression: TypeExpression, state: Scope): FunctionLiteral | NativeCode {
-	const interpretedExpression = interpreteExpression(typeExpression, state)
+function interpreteTypeExpression(typeExpression: TypeExpression, scope: Scope): FunctionExpression {
+	const interpretedExpression = interpreteExpression(typeExpression, scope)
 	switch (typeof interpretedExpression) {
 		case 'number':
 			return {
 				type: 'native',
 				pure: true,
-				code: (x: any) =>
+				code: (scope: Scope, x: any) =>
 					x === interpretedExpression,
 				params: { singleNames: [{ type: 'name', name: 'x', }] },
 				returnType: 'Boolean',
