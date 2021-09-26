@@ -93,7 +93,14 @@ function of$<T>(value: T): Stream<T> {
 //#region transform
 
 function createDerived$<T>(getValue: () => T): Stream<T> {
-	return new Stream(getValue);
+	const derived$: Stream<T> = new Stream(() => {
+		if (processId === derived$.lastProcessId
+			|| derived$.completed) {
+			return derived$.lastValue!;
+		}
+		return getValue();
+	});
+	return derived$;
 }
 
 function map$<TSource, TTarget>(
@@ -102,9 +109,6 @@ function map$<TSource, TTarget>(
 ): Stream<TTarget> {
 	let lastSourceValue: TSource;
 	const mapped$: Stream<TTarget> = createDerived$(() => {
-		if (processId === mapped$.lastProcessId) {
-			return mapped$.lastValue!;
-		}
 		const currentSourceValue = source$.getValue();
 		if (deepEquals(currentSourceValue, lastSourceValue)) {
 			mapped$.lastProcessId = processId;
@@ -132,9 +136,6 @@ function combine$<T>(
 ): Stream<T[]> {
 	const combined$: Stream<T[]> = createDerived$(() => {
 		const lastValues = combined$.lastValue!;
-		if (combined$.lastProcessId === processId) {
-			return lastValues;
-		}
 		const currentValues = source$s.map(source$ =>
 			source$.getValue());
 		if (deepEquals(currentValues, lastValues)) {
@@ -184,9 +185,6 @@ function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	const unsubscribeInners: (() => void)[] = [];
 	const flat$: Stream<T> = createDerived$(() => {
 		const lastValue = flat$.lastValue!;
-		if (processId === flat$.lastProcessId) {
-			return lastValue;
-		}
 		const currentValue = source$$.getValue().getValue();
 		if (deepEquals(currentValue, lastValue)) {
 			flat$.lastProcessId = processId;
@@ -225,9 +223,6 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	let unsubscribeInner: () => void;
 	const flat$: Stream<T> = createDerived$(() => {
 		const lastValue = flat$.lastValue!;
-		if (processId === flat$.lastProcessId) {
-			return lastValue;
-		}
 		const currentValue = source$$.getValue().getValue();
 		if (deepEquals(currentValue, lastValue)) {
 			flat$.lastProcessId = processId;
