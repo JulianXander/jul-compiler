@@ -2,7 +2,7 @@
   "name": "jul-compiler",
   "version": "0.0.0",
   "description": "",
-  "main": "dist/cli.js",
+  "main": "out/cli.js",
   "scripts": {
     "build": "npx tsc",
     "test": "tsc -p tsconfig.test.json && mocha 'test-setup.js' 'test/**/*.test.js'",

@@ -22,7 +22,7 @@ function compileCodeToJs(code: string): string {
 			throw new Error(JSON.stringify(result.errors, undefined, 2));
 		}
 		console.log(result);
-		// const interpreterFile = readFileSync('dist/interpreter.js');
+		// const interpreterFile = readFileSync('out/interpreter.js');
 		// const interpreterCode = interpreterFile.toString();
 		// const compiled = `${interpreterCode}
 		const compiled = `const interpreteAst = require("./interpreter").interpreteAst
