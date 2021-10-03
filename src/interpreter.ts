@@ -1,23 +1,128 @@
 import {
 	Branching,
-	deepEquals,
 	DefinitionNames,
 	DestructuringDefinition,
 	Expression,
 	FunctionCall,
 	FunctionLiteral,
-	InterpretedValue,
-	Listener,
-	NativeFunction,
 	ObjectLiteral,
 	Reference,
 	ReferenceNames,
 	SingleDefinition,
-	Stream,
 	StringLiteral,
 	TypeExpression,
 } from './abstract-syntax-tree';
 
+//#region AST
+
+type InterpreterExpression = Expression | NativeFunction | NativeValue;
+
+export interface NativeFunction {
+	type: 'native';
+	params: DefinitionNames;
+	code: Function;
+	pure: boolean;
+	returnType: string;
+}
+
+export interface NativeValue {
+	type: 'value';
+	value: InterpretedValue;
+}
+
+export type InterpretedValue =
+	| null
+	| boolean
+	| string
+	| number
+	| FunctionLiteral
+	| NativeFunction
+	| Stream<InterpretedValue>
+	| InterpretedValue[]
+	| { [name: string]: InterpretedValue }
+	| Error
+	;
+
+export type Listener<T> = (value: T) => void;
+
+export class Stream<T> {
+	constructor(getValue: () => T) {
+		this.getValue = getValue;
+	}
+
+	lastValue?: T;
+	lastProcessId?: number;
+	completed: boolean = false;
+	listeners: Listener<T>[] = [];
+	onCompletedListeners: (() => void)[] = [];
+
+	push(value: T, processId: number): void {
+		if (processId === this.lastProcessId) {
+			return;
+		}
+		if (deepEquals(value, this.lastValue)) {
+			return;
+		}
+		if (this.completed) {
+			throw new Error('Can not push to completed stream.');
+		}
+		this.lastValue = value;
+		this.lastProcessId = processId;
+		this.listeners.forEach(listener => listener(value));
+	}
+	/**
+	 * Aktualisiert diesen Stream und alle Dependencies und benachrichtigt Subscriber.
+	 */
+	readonly getValue: () => T;
+	/**
+	 * Gibt einen unsubscribe callback zurück.
+	 * Wertet sofort den listener beim subscriben sofort aus, wenn evaluateOnSubscribe = true.
+	 */
+	subscribe(listener: Listener<T>, evaluateOnSubscribe: boolean = true): () => void {
+		if (evaluateOnSubscribe) {
+			listener(this.getValue());
+		}
+		if (this.completed) {
+			return () => { };
+		}
+		this.listeners.push(listener);
+		return () => {
+			if (this.completed) {
+				return;
+			}
+			const index = this.listeners.indexOf(listener);
+			if (index === -1) {
+				throw new Error('Can not unsubscribe listener, because listener was not subscribed.');
+			}
+			this.listeners.splice(index, 1);
+		};
+	}
+	complete(): void {
+		if (this.completed) {
+			return;
+		}
+		this.completed = true;
+		// dispose listeners
+		this.listeners = [];
+		this.onCompletedListeners.forEach(onCompletedListener => {
+			onCompletedListener();
+		});
+		this.onCompletedListeners = [];
+	}
+	/**
+	 * Wenn der Stream schon completed ist wird der callback sofort aufgerufen.
+	 */
+	onCompleted(callback: () => void): void {
+		if (this.completed) {
+			callback();
+		}
+		else {
+			this.onCompletedListeners.push(callback);
+		}
+	}
+}
+
+//#endregion AST
 
 // TODO Scope mit Object.create(null) erzeugen, damit prototype leer ist
 interface Scope {
@@ -630,7 +735,7 @@ function interpreteExpressions(expressions: Expression[], scope: Scope): Interpr
 	return value;
 }
 
-function interpreteExpression(expression: Expression, state: Scope): InterpretedValue {
+function interpreteExpression(expression: InterpreterExpression, state: Scope): InterpretedValue {
 	switch (expression.type) {
 		case 'definition':
 			return interpreteSingleDefinition(expression, state);
@@ -850,7 +955,7 @@ function interpreteReferenceNames(referenceNames: ReferenceNames, scope: Scope):
 								{
 									type: 'value',
 									value: value,
-								},
+								} as any, // TODO typing für InterpreterFunctionCall?
 								...singleNames.map(definitionName => {
 									const reference: Reference = {
 										type: 'reference',
@@ -953,6 +1058,59 @@ function callFunctionWithScope(functionExpression: FunctionExpression, functionS
 //#endregion Value
 
 //#region helper
+
+function deepEquals(value1: any, value2: any): boolean {
+	const type1 = typeof value1;
+	if (type1 !== typeof value2) {
+		return false;
+	}
+	switch (type1) {
+		case 'bigint':
+		case 'boolean':
+		case 'function':
+		case 'number':
+		case 'string':
+		case 'symbol':
+		case 'undefined':
+			return value1 === value2;
+
+		case 'object':
+			if (value1 === null || value2 === null) {
+				return value1 === value2;
+			}
+			else if (value1 instanceof Stream || value2 instanceof Stream) {
+				return value1 === value2;
+			}
+			else if (Array.isArray(value1) || Array.isArray(value2)) {
+				if (!Array.isArray(value1)
+					|| !Array.isArray(value2)
+					|| value1.length !== value2.length) {
+					return false;
+				}
+				for (let index = 0; index < value1.length; index++) {
+					if (value1[index] !== value2[index]) {
+						return false;
+					}
+				}
+				return true
+			}
+			else {
+				// Dictionary/Function Object
+				const typedValue1 = value1 as any;
+				for (const key in typedValue1) {
+					if (typedValue1[key] !== (value2 as any)[key]) {
+						return false;
+					}
+				}
+				return true;
+			}
+
+		default: {
+			const assertNever: never = type1;
+			throw new Error('Unexpected type for deepEquals: ' + assertNever);
+		}
+	}
+}
 
 function createScope(baseScope: Scope): Scope {
 	return Object.assign(Object.create(null), baseScope);
