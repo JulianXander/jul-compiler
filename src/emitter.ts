@@ -1,4 +1,4 @@
-import { Expression } from './abstract-syntax-tree';
+import { Expression, ReferenceNames } from './abstract-syntax-tree';
 
 export function expressionsToJs(expressions: Expression[]): string {
 	const js = expressions.map(expressionToJs).join('\n');
@@ -17,8 +17,8 @@ export function expressionToJs(expression: Expression): string {
 		}
 
 		case 'destructuring':
-			// TODO
-			return;
+			// TODO type checks, temp value, definitionnames einzeln durchgehen
+			return `const {${expression.names}} = ${expressionToJs(expression.value)}`;
 
 		case 'dictionary':
 			return `{\n${expression.values.map(value => {
@@ -30,12 +30,15 @@ export function expressionToJs(expression: Expression): string {
 			return 'null';
 
 		case 'functionCall':
-			// TODO
-			return;
+			// TODO import runtime.callFunction (enthält checkType)
+			return `callFunction(${referenceNamesToJs(expression.functionReference)}, ${expressionToJs(expression.params)})`;
 
 		case 'functionLiteral':
-			// TODO
-			return;
+			// TODO import runtime.createFunction
+			// TODO params(DefinitionNames) to Type
+			// TODO rest args
+			// TODO return statement
+			return `createFunction((${expression.params.singleNames.map(name => name.name).join(', ')}) => {${expressionsToJs(expression.body)}}, ${expression.params})`;
 
 		case 'list':
 			return `[\n${expression.values.map(value => {
@@ -46,8 +49,7 @@ export function expressionToJs(expression: Expression): string {
 			return '' + expression.value;
 
 		case 'reference':
-			// TODO
-			return;
+			return referenceNamesToJs(expression.names);
 
 		case 'string':
 			return expression.values.map(value => {
@@ -62,6 +64,29 @@ export function expressionToJs(expression: Expression): string {
 			throw new Error(`Unexpected expression.type: ${(assertNever as Expression).type}`);
 		}
 	}
+}
+
+function referenceNamesToJs(referenceNames: ReferenceNames): string {
+	return referenceNames.map((name, index) => {
+		if (!index) {
+			if (typeof name !== 'string') {
+				throw new Error('First name must be a string');
+			}
+			return name;
+		}
+		switch (typeof name) {
+			case 'string':
+				return `.${name}`;
+
+			case 'number':
+				return `[${name}]`;
+
+			default: {
+				const assertNever: never = name;
+				throw new Error(`Unexpected typeof name: ${typeof assertNever}`);
+			}
+		}
+	}).join('');
 }
 
 function checkTypeJs(type: Expression, valueJs: string): string {
