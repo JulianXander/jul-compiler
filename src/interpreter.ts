@@ -252,6 +252,23 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 // TODO
 // function flatMap
 
+// TODO testen
+function accumulate$<TSource, TAccumulated>(
+	source$: Stream<TSource>,
+	initialAccumulator: TAccumulated,
+	accumulate: (previousAccumulator: TAccumulated, value: TSource) => TAccumulated,
+): Stream<TAccumulated> {
+	const mapped$ = map$(source$, value => {
+		const newAccumulator = accumulate(
+			mapped$.lastValue === undefined
+				? initialAccumulator
+				: mapped$.lastValue,
+			value);
+		return newAccumulator;
+	});
+	return mapped$;
+}
+
 function retry$<T>(
 	method$: () => Stream<T | Error>,
 	maxAttepmts: number,

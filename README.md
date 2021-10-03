@@ -1,6 +1,3 @@
-1. öffne Ordner ts-compiler mit Terminal
-cd .\ts-compiler\
-
 TODO launch config
 
 Build:
