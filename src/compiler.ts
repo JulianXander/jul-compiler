@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { parseCode } from './parser';
+import { expressionsToJs } from './emitter';
 
+// TODO compile dependencies
+// TODO bundler?
 export function compileFileToJs(fileName: string): void {
 	if (fileName.substr(fileName.length - 4, 4) !== '.jul') {
 		throw new Error('Invalid file ending. Expected .jul');
@@ -29,6 +32,7 @@ function compileCodeToJs(code: string): string {
 const c = ${JSON.stringify(result.parsed, undefined, 2)}
 interpreteAst(c)
 `;
+		// const compiled = expressionsToJs(result.parsed!);
 		return compiled;
 	} catch (error) {
 		console.error(error);

@@ -1,15 +1,16 @@
 import { Expression, ReferenceNames } from './abstract-syntax-tree';
 
+// TODO import builtins
 export function expressionsToJs(expressions: Expression[]): string {
 	const js = expressions.map(expressionToJs).join('\n');
 	return js;
 }
 
-export function expressionToJs(expression: Expression): string {
+function expressionToJs(expression: Expression): string {
 	switch (expression.type) {
 		case 'branching':
-			// TODO
-			return;
+			// TODO runtime.branch
+			return `branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(expressionToJs).join(',\n')},\n)`;
 
 		case 'definition': {
 			const valueJs = expressionToJs(expression.value);
@@ -66,6 +67,7 @@ export function expressionToJs(expression: Expression): string {
 	}
 }
 
+// TODO bound functions berücksichtigen
 function referenceNamesToJs(referenceNames: ReferenceNames): string {
 	return referenceNames.map((name, index) => {
 		if (!index) {
