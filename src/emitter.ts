@@ -1,6 +1,10 @@
-import { Expression, ReferenceNames } from './abstract-syntax-tree';
+import { DefinitionNames, Expression, ReferenceNames } from './abstract-syntax-tree';
 
 // TODO import builtins
+export function astToJs(expressions: Expression[]): string {
+	return 'import { _branch, _callFunction, _checkType, _createFunction } from "./runtime"\n' + expressionsToJs(expressions);
+}
+
 export function expressionsToJs(expressions: Expression[]): string {
 	const js = expressions.map(expressionToJs).join('\n');
 	return js;
@@ -9,8 +13,7 @@ export function expressionsToJs(expressions: Expression[]): string {
 function expressionToJs(expression: Expression): string {
 	switch (expression.type) {
 		case 'branching':
-			// TODO runtime.branch
-			return `branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(expressionToJs).join(',\n')},\n)`;
+			return `_branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(expressionToJs).join(',\n')},\n)`;
 
 		case 'definition': {
 			const valueJs = expressionToJs(expression.value);
@@ -31,15 +34,15 @@ function expressionToJs(expression: Expression): string {
 			return 'null';
 
 		case 'functionCall':
-			// TODO import runtime.callFunction (enthält checkType)
-			return `callFunction(${referenceNamesToJs(expression.functionReference)}, ${expressionToJs(expression.params)})`;
+			return `_callFunction(${referenceNamesToJs(expression.functionReference)}, ${expressionToJs(expression.params)})`;
 
-		case 'functionLiteral':
-			// TODO import runtime.createFunction
+		case 'functionLiteral': {
 			// TODO params(DefinitionNames) to Type
 			// TODO rest args
 			// TODO return statement
-			return `createFunction((${expression.params.singleNames.map(name => name.name).join(', ')}) => {${expressionsToJs(expression.body)}}, ${expression.params})`;
+			const argsJs = expression.params.singleNames.map(name => name.name).join(', ');
+			return `_createFunction((${argsJs}) => {${expressionsToJs(expression.body)}}, ${definitionNamesToJs(expression.params)})`;
+		}
 
 		case 'list':
 			return `[\n${expression.values.map(value => {
@@ -91,7 +94,13 @@ function referenceNamesToJs(referenceNames: ReferenceNames): string {
 	}).join('');
 }
 
+// TODO
+function definitionNamesToJs(definitionNames: DefinitionNames): string {
+	return `{${definitionNames.singleNames.map(definitionName => {
+		return `${definitionName.name}`;
+	})}}`;
+}
+
 function checkTypeJs(type: Expression, valueJs: string): string {
-	// TODO import runtime.checkType
-	return `checkType(${expressionToJs(type)}, ${valueJs})`
+	return `_checkType(${expressionToJs(type)}, ${valueJs})`
 }
