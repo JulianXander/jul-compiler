@@ -2,10 +2,10 @@ import { DefinitionNames, Expression, ReferenceNames } from './abstract-syntax-t
 
 // TODO import builtins
 export function astToJs(expressions: Expression[]): string {
-	return 'import { _branch, _callFunction, _checkType, _createFunction } from "./runtime"\n' + expressionsToJs(expressions);
+	return 'const { _branch, _callFunction, _checkType, _createFunction } = require("./runtime");\n' + expressionsToJs(expressions);
 }
 
-export function expressionsToJs(expressions: Expression[]): string {
+function expressionsToJs(expressions: Expression[]): string {
 	const js = expressions.map(expressionToJs).join('\n');
 	return js;
 }
@@ -55,13 +55,15 @@ function expressionToJs(expression: Expression): string {
 		case 'reference':
 			return referenceNamesToJs(expression.names);
 
-		case 'string':
-			return expression.values.map(value => {
+		case 'string': {
+			const stringValue = expression.values.map(value => {
 				if (value.type === 'stringToken') {
 					return value.value;
 				}
 				return expressionToJs(value);
 			}).join('');
+			return `"${stringValue}"`;
+		}
 
 		default: {
 			const assertNever: never = expression;
