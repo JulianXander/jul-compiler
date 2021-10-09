@@ -24,12 +24,24 @@ function expressionToJs(expression: Expression): string {
 
 		case 'definition': {
 			const valueJs = expressionToJs(expression.value);
-			return `const ${expression.name} = ${expression.typeGuard ? checkTypeJs(expression.typeGuard, valueJs) : valueJs};`;
+			return `const ${escapeReservedJsVariableName(expression.name)} = ${expression.typeGuard ? checkTypeJs(expression.typeGuard, valueJs) : valueJs};`;
 		}
 
-		case 'destructuring':
-			// TODO type checks, temp value, definitionnames einzeln durchgehen
-			return `const {${expression.names}} = ${expressionToJs(expression.value)}`;
+		case 'destructuring': {
+			// TODO rest
+			const singleNames = expression.names.singleNames;
+			const declarations = singleNames.map(singleName => `let ${escapeReservedJsVariableName(singleName.name)};`).join('\n');
+			const assignments = singleNames.map(singleName => {
+				const { name, source, fallback, typeGuard } = singleName;
+				const fallbackJs = fallback ? ` ?? ${expressionToJs(fallback)}` : '';
+				const rawValue = `_temp[${source ?? name}]${fallbackJs}`;
+				const checkedValue = typeGuard
+					? `_checkType(${expressionToJs(typeGuard)}, ${rawValue})`
+					: rawValue;
+				return `${escapeReservedJsVariableName(name)} = ${checkedValue};`
+			}).join('\n');
+			return `${declarations}\n{\nconst _temp = ${expressionToJs(expression.value)};\n${assignments}\n}`;
+		}
 
 		case 'dictionary':
 			return `{\n${expression.values.map(value => {
@@ -86,7 +98,7 @@ function referenceNamesToJs(referenceNames: ReferenceNames): string {
 			if (typeof name !== 'string') {
 				throw new Error('First name must be a string');
 			}
-			return name;
+			return escapeReservedJsVariableName(name);
 		}
 		switch (typeof name) {
 			case 'string':
@@ -101,6 +113,82 @@ function referenceNamesToJs(referenceNames: ReferenceNames): string {
 			}
 		}
 	}).join('');
+}
+
+const reservedJsNames: string[] = [
+	'abstract',
+	'arguments',
+	'await',
+	'abstract',
+	'boolean',
+	'break',
+	'byte',
+	'case',
+	'catch',
+	'case',
+	'char',
+	'case',
+	'class',
+	'const',
+	'continue',
+	'debugger',
+	'default',
+	'delete',
+	'do',
+	'double',
+	'else',
+	'enum',
+	'eval',
+	'export',
+	'extends',
+	'false',
+	'final',
+	'finally',
+	'float',
+	'for',
+	'function',
+	'goto',
+	'if',
+	'implements',
+	'import',
+	'in',
+	'instanceof',
+	'int',
+	'interface',
+	'let',
+	'long',
+	'native',
+	'new',
+	'null',
+	'package',
+	'private',
+	'protected',
+	'public',
+	'return',
+	'short',
+	'static',
+	'super',
+	'switch',
+	'synchronized',
+	'this',
+	'throw',
+	'throws',
+	'transient',
+	'true',
+	'try',
+	'typeof',
+	'var',
+	'void',
+	'volatile',
+	'while',
+	'with',
+	'yield',
+];
+function escapeReservedJsVariableName(name: string): string {
+	if (reservedJsNames.includes(name)) {
+		return '_' + name;
+	}
+	return name;
 }
 
 // TODO

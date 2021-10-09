@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { parseCode } from './parser';
-import { expressionsToJs } from './emitter';
+import { astToJs } from './emitter';
 
 // TODO compile dependencies
 // TODO bundler?
@@ -28,11 +28,11 @@ function compileCodeToJs(code: string): string {
 		// const interpreterFile = readFileSync('out/interpreter.js');
 		// const interpreterCode = interpreterFile.toString();
 		// const compiled = `${interpreterCode}
-		const compiled = `const interpreteAst = require("./interpreter").interpreteAst
-const c = ${JSON.stringify(result.parsed, undefined, 2)}
-interpreteAst(c)
-`;
-		// const compiled = expressionsToJs(result.parsed!);
+		// 		const compiled = `const interpreteAst = require("./interpreter").interpreteAst
+		// const c = ${JSON.stringify(result.parsed, undefined, 2)}
+		// interpreteAst(c)
+		// `;
+		const compiled = astToJs(result.parsed!);
 		return compiled;
 	} catch (error) {
 		console.error(error);
