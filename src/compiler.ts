@@ -28,11 +28,8 @@ function compileCodeToJs(code: string): string {
 		// const interpreterFile = readFileSync('out/interpreter.js');
 		// const interpreterCode = interpreterFile.toString();
 		// const compiled = `${interpreterCode}
-		// 		const compiled = `const interpreteAst = require("./interpreter").interpreteAst
-		// const c = ${JSON.stringify(result.parsed, undefined, 2)}
-		// interpreteAst(c)
-		// `;
-		const compiled = astToJs(result.parsed!);
+		const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(result.parsed, undefined, 2)}\ninterpreteAst(c)`;
+		// const compiled = astToJs(result.parsed!);
 		return compiled;
 	} catch (error) {
 		console.error(error);
