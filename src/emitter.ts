@@ -1,8 +1,15 @@
 import { DefinitionNames, Expression, ReferenceNames } from './abstract-syntax-tree';
+import * as runtime from './runtime';
+
+const runtimeKeys = Object.keys(runtime);
+// slice(1) um __esModule wegzulassen
+const runtimeImports = runtimeKeys.slice(1).join(', ');
 
 // TODO import builtins
+// TODO nür benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
 export function astToJs(expressions: Expression[]): string {
-	return 'const { _branch, _callFunction, _checkType, _createFunction } = require("./runtime");\n' + expressionsToJs(expressions);
+	// _branch, _callFunction, _checkType, _createFunction, log
+	return `const { ${runtimeImports} } = require("./runtime");\n${expressionsToJs(expressions)}`;
 }
 
 function expressionsToJs(expressions: Expression[]): string {
