@@ -149,13 +149,11 @@ const expectedResults: {
 		// },
 	]
 
-describe('Compiler', () => {
-
-	expectedResults.forEach(({ code, result }) => {
-		it(code, () => {
-			const compiled = compileCodeToJs(code);
-			expect(compiled).to.equal(importLine + result);
-		});
-	});
-
-});
+// describe('Compiler', () => {
+// 	expectedResults.forEach(({ code, result }) => {
+// 		it(code, () => {
+// 			const compiled = compileCodeToJs(code);
+// 			expect(compiled).to.equal(importLine + result);
+// 		});
+// 	});
+// });

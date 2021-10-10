@@ -92,6 +92,40 @@ const expectedResults: {
 		// 		},
 		// 	]
 		// },
+		{
+			code: '(var var2) = (4 5)',
+			result: [
+				{
+					type: 'destructuring',
+					names: {
+						singleNames: [
+							{
+								type: 'name',
+								name: 'var',
+								fallback: undefined,
+								source: undefined,
+								typeGuard: undefined,
+							},
+							{
+								type: 'name',
+								name: 'var2',
+								fallback: undefined,
+								source: undefined,
+								typeGuard: undefined,
+							}
+						],
+						rest: undefined
+					},
+					value: {
+						type: 'list',
+						values: [
+							{ type: 'number', value: 4 },
+							{ type: 'number', value: 5 }
+						]
+					},
+				},
+			]
+		},
 		// {
 		// 	code: 'log(§hallo welt§)',
 		// 	result: [
@@ -628,21 +662,14 @@ const expectedResults: {
 	]
 
 describe('Parser', () => {
-
-	// it('defer rejects when callback throws', () =>
-	// {
-	//     return expect(defer(() => { throw new Error('callbackError') }, 0)).to.eventually.be.rejectedWith('callbackError');
-	// })
-
 	expectedResults.forEach(({ code, result }) => {
 		it(code, () => {
-			const parserResult = parseCode(code)
+			const parserResult = parseCode(code);
 			if (parserResult.errors?.length) {
-				console.log(parserResult.errors)
+				console.log(parserResult.errors);
 			}
-			expect(parserResult.errors ?? []).to.deep.equal([])
-			expect(parserResult.parsed).to.deep.equal(result)
-		})
-	})
-
-})
+			expect(parserResult.errors ?? []).to.deep.equal([]);
+			expect(parserResult.parsed).to.deep.equal(result);
+		});
+	});
+});

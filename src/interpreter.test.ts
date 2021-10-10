@@ -146,19 +146,12 @@ const expectedResults: {
 		// },
 	]
 
-describe('Interpreter', () => {
-
-	// it('defer rejects when callback throws', () =>
-	// {
-	//     return expect(defer(() => { throw new Error('callbackError') }, 0)).to.eventually.be.rejectedWith('callbackError');
-	// })
-
-	expectedResults.forEach(({ code, result }) => {
-		it(code, () => {
-			const parsed = parseCode(code)
-			const interpreted = interpreteAst(parsed.parsed!);
-			expect(interpreted.value).to.deep.equal(result)
-		})
-	})
-
-})
+// describe('Interpreter', () => {
+// 	expectedResults.forEach(({ code, result }) => {
+// 		it(code, () => {
+// 			const parsed = parseCode(code)
+// 			const interpreted = interpreteAst(parsed.parsed!);
+// 			expect(interpreted.value).to.deep.equal(result);
+// 		});
+// 	});
+// });

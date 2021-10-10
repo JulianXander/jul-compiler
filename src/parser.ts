@@ -559,7 +559,7 @@ function inlineNameListParser(
 	let hasError = false;
 	let singleNames = parsed.filter((x, index) => {
 		const isRest = Array.isArray(x);
-		if (index < parsed.length - 1) {
+		if (isRest && index < parsed.length - 1) {
 			hasError = true;
 		}
 		return !isRest;
