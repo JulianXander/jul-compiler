@@ -86,6 +86,10 @@ function getImportedPaths(ast: Expression[]): string[] {
 	const importedPaths: string[] = [];
 	ast.forEach(expression => {
 		switch (expression.type) {
+			case 'functionCall':
+				// TODO impure imports erlauben?
+				return;
+
 			case 'definition':
 			case 'destructuring':
 				const value = expression.value;
