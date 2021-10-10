@@ -1,8 +1,6 @@
 import { expect } from 'chai';
-
-import { compileCodeToJs } from './compiler';
-
-const importLine = 'const { _callFunction, _checkType, _createFunction, log } = require("./runtime");\n';
+import { parseCode } from './parser';
+import { astToJs, importLine } from './emitter'
 
 const expectedResults: {
 	code: string;
@@ -149,11 +147,12 @@ const expectedResults: {
 		// },
 	]
 
-// describe('Compiler', () => {
-// 	expectedResults.forEach(({ code, result }) => {
-// 		it(code, () => {
-// 			const compiled = compileCodeToJs(code);
-// 			expect(compiled).to.equal(importLine + result);
-// 		});
-// 	});
-// });
+describe('Compiler', () => {
+	expectedResults.forEach(({ code, result }) => {
+		it(code, () => {
+			const parsed = parseCode(code);
+			const compiled = astToJs(parsed.parsed!);
+			expect(compiled).to.equal(importLine + result);
+		});
+	});
+});

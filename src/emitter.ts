@@ -4,11 +4,12 @@ import * as runtime from './runtime';
 const runtimeKeys = Object.keys(runtime);
 // slice(1) um __esModule wegzulassen
 const runtimeImports = runtimeKeys.slice(1).join(', ');
+export const importLine = `const { ${runtimeImports} } = require("./runtime");\n`;
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
 export function astToJs(expressions: Expression[]): string {
 	// _branch, _callFunction, _checkType, _createFunction, log
-	return `const { ${runtimeImports} } = require("./runtime");\n${expressionsToJs(expressions)}`;
+	return `${importLine}${expressionsToJs(expressions)}`;
 }
 
 function expressionsToJs(expressions: Expression[]): string {

@@ -61,27 +61,6 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	//#endregion 6. bundle
 }
 
-export function compileCodeToJs(code: string): string {
-	try {
-		const result = parseCode(code);
-		if (result.errors?.length) {
-			throw new Error(JSON.stringify(result.errors, undefined, 2));
-		}
-		console.log(result);
-		const ast = result.parsed!;
-		// const interpreterFile = readFileSync('out/interpreter.js');
-		// const interpreterCode = interpreterFile.toString();
-		// const compiled = `${interpreterCode}
-		// const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(ast, undefined, 2)}\ninterpreteAst(c)`;
-		const compiled = astToJs(ast);
-		// TODO imported files sammeln und zurückgeben, in compiler abarbeiten
-		return compiled;
-	} catch (error) {
-		console.error(error);
-		throw error;
-	}
-}
-
 function getImportedPaths(ast: Expression[]): string[] {
 	const importedPaths: string[] = [];
 	ast.forEach(expression => {
