@@ -31,16 +31,16 @@ function expressionToJs(expression: Expression): string {
 			// TODO rest
 			const singleNames = expression.names.singleNames;
 			const declarations = singleNames.map(singleName => `let ${escapeReservedJsVariableName(singleName.name)};`).join('\n');
-			const assignments = singleNames.map(singleName => {
+			const assignments = singleNames.map((singleName, index) => {
 				const { name, source, fallback, typeGuard } = singleName;
 				const fallbackJs = fallback ? ` ?? ${expressionToJs(fallback)}` : '';
-				const rawValue = `_temp[${source ?? name}]${fallbackJs}`;
+				const rawValue = `_isArray ? _temp[${index}] : _temp.${source ?? name}${fallbackJs}`;
 				const checkedValue = typeGuard
 					? `_checkType(${expressionToJs(typeGuard)}, ${rawValue})`
 					: rawValue;
 				return `${escapeReservedJsVariableName(name)} = ${checkedValue};`
 			}).join('\n');
-			return `${declarations}\n{\nconst _temp = ${expressionToJs(expression.value)};\n${assignments}\n}`;
+			return `${declarations}\n{\nconst _temp = ${expressionToJs(expression.value)};\nconst _isArray = Array.isArray(_temp);\n${assignments}\n}`;
 		}
 
 		case 'dictionary':
