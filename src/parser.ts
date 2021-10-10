@@ -1158,7 +1158,8 @@ function inlineObjectParser(
 	const result = inlineBracketedExpressionListParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: ObjectLiteral | undefined = result.parsed && {
 		type: 'list',
-		values: result.parsed
+		// TODO check NonEmptyArray?
+		values: result.parsed as any
 	};
 	return {
 		endRowIndex: result.endRowIndex,
@@ -1178,7 +1179,8 @@ function multilineObjectParser(
 	const result = multilineBracketedExpressionListParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: ObjectLiteral | undefined = result.parsed && {
 		type: 'list',
-		values: result.parsed.filter(isDefined)
+		// TODO check NonEmptyArray?
+		values: result.parsed.filter(isDefined) as any
 	};
 	return {
 		endRowIndex: result.endRowIndex,
@@ -1262,7 +1264,8 @@ function definitionNamesToObjectLiteral(possibleNames: ObjectLiteral | Definitio
 	return {
 		value: {
 			type: 'list',
-			values: refs as Reference[]
+			// TODO check NonEmptyArray?
+			values: refs as any
 		}
 	}
 }

@@ -1,5 +1,11 @@
 import { ParserError } from "./parser-combinator";
 
+//#region util
+
+export type NonEmptyArray<T> = [T, ...T[]];
+
+//#endregion util
+
 export interface AbstractSyntaxTree {
 	parsed?: Expression[];
 	errors?: ParserError[];
@@ -27,7 +33,7 @@ export interface StringLiteral {
 	type: 'string';
 	values: ({
 		type: 'stringToken';
-		value: String;
+		value: string;
 	} | ValueExpression)[];
 }
 
@@ -45,23 +51,21 @@ export interface EmptyLiteral {
 export interface ListLiteral {
 	type: 'list';
 	/**
-	 * niemals leeres array (stattdessen EmptyObject)
-	 * TODO check beim parsen und interpreten
+	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
-	values: ValueExpression[];
+	values: NonEmptyArray<ValueExpression>;
 }
 
 export interface DictionaryLiteral {
 	type: 'dictionary';
 	/**
-	 * niemals leeres array (stattdessen EmptyObject)
-	 * TODO check beim parsen und interpreten
+	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
-	values: {
+	values: NonEmptyArray<{
 		name: string;
 		typeGuard?: TypeExpression;
 		value: ValueExpression;
-	}[];
+	}>;
 }
 
 export interface FunctionLiteral {

@@ -1,21 +1,64 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { parseCode } from './parser';
 import { astToJs } from './emitter';
+import { Expression, ObjectLiteral, ValueExpression } from './abstract-syntax-tree';
 
-// TODO compile dependencies
-// TODO bundler?
-export function compileFileToJs(fileName: string): void {
-	if (fileName.substr(fileName.length - 4, 4) !== '.jul') {
+export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true }): void {
+	console.log(`compiling ${filePath} ...`);
+	if (filePath.substr(filePath.length - 4, 4) !== '.jul') {
 		throw new Error('Invalid file ending. Expected .jul');
 	}
-	const file = readFileSync(fileName);
+
+	//#region 1. read
+	const file = readFileSync(filePath);
 	const code = file.toString();
-	console.log(code);
-	const compiled = compileCodeToJs(code);
-	console.log(compiled);
+	// console.log(code);
+	//#endregion 1. read
+
+	//#region 2. parse
+	const result = parseCode(code);
+	if (result.errors?.length) {
+		throw new Error(JSON.stringify(result.errors, undefined, 2));
+	}
+	// console.log(result);
+	const ast = result.parsed!;
+	//#endregion 2. parse
+
+	//#region 3. compile
+	// const interpreterFile = readFileSync('out/interpreter.js');
+	// const interpreterCode = interpreterFile.toString();
+	// const compiled = `${interpreterCode}
+	// const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(ast, undefined, 2)}\ninterpreteAst(c)`;
+	const compiled = astToJs(ast);
+	// console.log(compiled);
+	//#endregion 3. compile
+
+	//#region 4. write
 	// ul von der DateiEndung abschneiden
-	const jsFileName = fileName.substring(0, fileName.length - 2) + 's';
+	const jsFileName = filePath.substring(0, filePath.length - 2) + 's';
 	writeFileSync(jsFileName, compiled);
+	//#endregion 4. write
+
+	//#region 5. compile dependencies
+	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
+	const compiledFilePathsWithDefault = compiledFilePaths ?? { [filePath]: true };
+	const importedFilePaths = getImportedPaths(ast);
+	importedFilePaths.forEach(path => {
+		if (compiledFilePathsWithDefault[path]) {
+			return;
+		}
+		compiledFilePathsWithDefault[path] = true;
+		compileFileToJs(path, compiledFilePathsWithDefault);
+	});
+	//#endregion 5. compile dependencies
+
+	//#region 6. bundle
+	// bundling nur einmalig beim root call (ohne compiledFilePaths)
+	if (!compiledFilePaths && importedFilePaths.length) {
+		console.log('bundling ...')
+		// TODO bundling
+	}
+	//#endregion 6. bundle
 }
 
 export function compileCodeToJs(code: string): string {
@@ -25,14 +68,62 @@ export function compileCodeToJs(code: string): string {
 			throw new Error(JSON.stringify(result.errors, undefined, 2));
 		}
 		console.log(result);
+		const ast = result.parsed!;
 		// const interpreterFile = readFileSync('out/interpreter.js');
 		// const interpreterCode = interpreterFile.toString();
 		// const compiled = `${interpreterCode}
-		// const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(result.parsed, undefined, 2)}\ninterpreteAst(c)`;
-		const compiled = astToJs(result.parsed!);
+		// const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(ast, undefined, 2)}\ninterpreteAst(c)`;
+		const compiled = astToJs(ast);
+		// TODO imported files sammeln und zurückgeben, in compiler abarbeiten
 		return compiled;
 	} catch (error) {
 		console.error(error);
 		throw error;
+	}
+}
+
+function getImportedPaths(ast: Expression[]): string[] {
+	const importedPaths: string[] = [];
+	ast.forEach(expression => {
+		switch (expression.type) {
+			case 'definition':
+			case 'destructuring':
+				const value = expression.value;
+				if (value.type === 'functionCall'
+					&& value.functionReference.length === 1
+					&& value.functionReference[0] === '_import') {
+					const pathExpression = getPathExpression(value.params);
+					if (pathExpression.type === 'string'
+						&& pathExpression.values.length === 1
+						&& pathExpression.values[0]!.type === 'stringToken') {
+						const importedPath = pathExpression.values[0].value;
+						importedPaths.push(importedPath);
+					}
+					// TODO dynamische imports verbieten???
+				}
+				return;
+
+			default:
+				return;
+		}
+	});
+	return importedPaths;
+}
+
+function getPathExpression(importParams: ObjectLiteral): ValueExpression {
+	switch (importParams.type) {
+		case 'dictionary':
+			return importParams.values[0].value;
+
+		case 'empty':
+			throw new Error('import can not be called without arguments');
+
+		case 'list':
+			return importParams.values[0];
+
+		default: {
+			const assertNever: never = importParams;
+			throw new Error(`Unexpected importParams.type: ${(assertNever as ObjectLiteral).type}`);
+		}
 	}
 }
