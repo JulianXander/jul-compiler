@@ -1155,9 +1155,9 @@ function inlineListParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ObjectLiteral> {
+): ParserResult<ListLiteral> {
 	const result = inlineBracketedExpressionListParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed: ObjectLiteral | undefined = result.parsed && {
+	const parsed: ListLiteral | undefined = result.parsed && {
 		type: 'list',
 		// TODO check NonEmptyArray?
 		values: result.parsed as any
@@ -1207,9 +1207,9 @@ function multilineListParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ObjectLiteral> {
+): ParserResult<ListLiteral> {
 	const result = multilineBracketedExpressionListParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed: ObjectLiteral | undefined = result.parsed && {
+	const parsed: ListLiteral | undefined = result.parsed && {
 		type: 'list',
 		// TODO check NonEmptyArray?
 		values: result.parsed.filter(isDefined) as any
