@@ -13,7 +13,9 @@ import {
 	SingleDefinition,
 	ValueExpression,
 	ListLiteral,
-	DefinitionNames
+	DefinitionNames,
+	DictionaryLiteral,
+	DictionaryValue
 } from './abstract-syntax-tree';
 import {
 	choiceParser,
@@ -1148,8 +1150,7 @@ function emptyObjectParser(
 	}
 }
 
-// TODO aufteilen in DictionaryLiteralParser und ListLiteralParser
-function inlineObjectParser(
+function inlineListParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
@@ -1169,8 +1170,39 @@ function inlineObjectParser(
 	}
 }
 
-// TODO aufteilen in DictionaryLiteralParser und ListLiteralParser
-function multilineObjectParser(
+function inlineDictionaryParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<DictionaryLiteral> {
+	const result = inlineBracketedExpressionListParser(sequenceParser(
+		definitionNameParser, // TODO ohne source, fallback
+		definitionTokenParser,
+		valueExpressionParser,
+	))(rows, startRowIndex, startColumnIndex, indent);
+	const parsed: DictionaryLiteral | undefined = result.parsed && {
+		type: 'dictionary',
+		// TODO check NonEmptyArray?
+		values: result.parsed.filter(isDefined).map(sequence => {
+			const definitionName = sequence[0];
+			const value: DictionaryValue = {
+				name: definitionName.name,
+				typeGuard: definitionName.typeGuard,
+				value: sequence[2],
+			};
+			return value;
+		}) as any
+	};
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: parsed,
+	}
+}
+
+function multilineListParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
@@ -1190,13 +1222,47 @@ function multilineObjectParser(
 	}
 }
 
+function multilineDictionaryParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<DictionaryLiteral> {
+	const result = multilineBracketedExpressionListParser(sequenceParser(
+		definitionNameParser, // TODO ohne source, fallback
+		definitionTokenParser,
+		valueExpressionParser,
+	))(rows, startRowIndex, startColumnIndex, indent);
+	const parsed: DictionaryLiteral | undefined = result.parsed && {
+		type: 'dictionary',
+		// TODO check NonEmptyArray?
+		values: result.parsed.filter(isDefined).map(sequence => {
+			const definitionName = sequence[0];
+			const value: DictionaryValue = {
+				name: definitionName.name,
+				typeGuard: definitionName.typeGuard,
+				value: sequence[2],
+			};
+			return value;
+		}) as any
+	};
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: parsed,
+	}
+}
+
 const objectParser: Parser<ObjectLiteral> = choiceParser(
 	// ()
 	emptyObjectParser,
 	// mit Klammern und Leerzeichen
-	inlineObjectParser,
+	inlineListParser,
+	inlineDictionaryParser,
 	// mit Klammern und Zeilenumbrüchen
-	multilineObjectParser,
+	multilineListParser,
+	multilineDictionaryParser,
 );
 
 //#endregion ObjectLteral

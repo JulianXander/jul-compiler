@@ -61,11 +61,13 @@ export interface DictionaryLiteral {
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
-	values: NonEmptyArray<{
-		name: string;
-		typeGuard?: TypeExpression;
-		value: ValueExpression;
-	}>;
+	values: NonEmptyArray<DictionaryValue>;
+}
+
+export interface DictionaryValue {
+	name: string;
+	typeGuard?: TypeExpression;
+	value: ValueExpression;
 }
 
 export interface FunctionLiteral {

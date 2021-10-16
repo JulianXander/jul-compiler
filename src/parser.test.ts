@@ -45,6 +45,19 @@ const expectedResults: {
 		// 		]
 		// 	}]
 		// },
+		{
+			code: '(\n\tsomeKey = 5\n)\n',
+			result: [{
+				type: 'dictionary',
+				values: [
+					{
+						name: 'someKey',
+						typeGuard: undefined,
+						value: { type: 'number', value: 5 },
+					}
+				]
+			}]
+		},
 		// {
 		// 	code: 'someVar = 12',
 		// 	result: [{

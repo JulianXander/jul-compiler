@@ -147,12 +147,12 @@ const expectedResults: {
 		// },
 	]
 
-describe('Compiler', () => {
-	expectedResults.forEach(({ code, result }) => {
-		it(code, () => {
-			const parsed = parseCode(code);
-			const compiled = astToJs(parsed.parsed!);
-			expect(compiled).to.equal(importLine + result);
-		});
-	});
-});
+// describe('Compiler', () => {
+// 	expectedResults.forEach(({ code, result }) => {
+// 		it(code, () => {
+// 			const parsed = parseCode(code);
+// 			const compiled = astToJs(parsed.parsed!);
+// 			expect(compiled).to.equal(importLine + result);
+// 		});
+// 	});
+// });
