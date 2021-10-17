@@ -1,6 +1,6 @@
 "use strict";
 exports.__esModule = true;
-exports.log = exports._createFunction = exports._checkType = exports._callFunction = exports._branch = void 0;
+exports._import = exports.log = exports._createFunction = exports._checkType = exports._callFunction = exports._branch = void 0;
 //#region internals
 function _branch(value, branches) {
     // TODO collect inner Errors?
@@ -19,7 +19,7 @@ function _callFunction(fn, args) {
     if (assignedParams instanceof Error) {
         return assignedParams;
     }
-    return fn(...assignedParams);
+    return fn.apply(void 0, assignedParams);
 }
 exports._callFunction = _callFunction;
 function _checkType(type, value) {
@@ -80,5 +80,11 @@ function tryAssignParams(values, params) {
 // TODO toString
 //#region builtins
 exports.log = _createFunction(console.log, { rest: {} });
+exports._import = _createFunction(require, {
+    singleNames: [{
+            name: 'path',
+            type: function (x) { return typeof x === 'string'; }
+        }]
+});
 // TODO
 //#endregion builtins
