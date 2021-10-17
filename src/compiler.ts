@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, copyFileSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import { parseCode } from './parser';
 import { astToJs } from './emitter';
 import { Expression, ObjectLiteral, ValueExpression } from './abstract-syntax-tree';
@@ -44,19 +44,21 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
 	const compiledFilePathsWithDefault = compiledFilePaths ?? { [filePath]: true };
 	const importedFilePaths = getImportedPaths(ast);
+	const sourceFolder = dirname(filePath);
 	importedFilePaths.forEach(path => {
-		if (compiledFilePathsWithDefault[path]) {
+		const combinedPath = join(sourceFolder, path);
+		if (compiledFilePathsWithDefault[combinedPath]) {
 			return;
 		}
-		compiledFilePathsWithDefault[path] = true;
-		compileFileToJs(path, compiledFilePathsWithDefault);
+		compiledFilePathsWithDefault[combinedPath] = true;
+		compileFileToJs(combinedPath, compiledFilePathsWithDefault);
 	});
 	//#endregion 5. compile dependencies
 
 	// copy runtime und bundling nur einmalig beim root call (ohne compiledFilePaths)
 	if (!compiledFilePaths) {
 		//#region 6. copy runtime
-		copyFileSync('src/runtime.js', dirname(filePath) + '/runtime.js')
+		copyFileSync('src/runtime.js', sourceFolder + '/runtime.js')
 		//#endregion 6. copy runtime
 
 		//#region 7. bundle
@@ -80,7 +82,7 @@ function getImportedPaths(ast: Expression[]): string[] {
 				const value = expression.value;
 				if (value.type === 'functionCall'
 					&& value.functionReference.length === 1
-					&& value.functionReference[0] === '_import') {
+					&& value.functionReference[0] === 'import') {
 					const pathExpression = getPathExpression(value.params);
 					if (pathExpression.type === 'string'
 						&& pathExpression.values.length === 1
