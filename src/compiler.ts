@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, copyFileSync } from 'fs';
+import { dirname } from 'path';
 import { parseCode } from './parser';
 import { astToJs } from './emitter';
 import { Expression, ObjectLiteral, ValueExpression } from './abstract-syntax-tree';
@@ -52,13 +53,18 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	});
 	//#endregion 5. compile dependencies
 
-	//#region 6. bundle
-	// bundling nur einmalig beim root call (ohne compiledFilePaths)
-	if (!compiledFilePaths && importedFilePaths.length) {
+	// copy runtime und bundling nur einmalig beim root call (ohne compiledFilePaths)
+	if (!compiledFilePaths) {
+		//#region 6. copy runtime
+		copyFileSync('src/runtime.js', dirname(filePath) + '/runtime.js')
+		//#endregion 6. copy runtime
+
+		//#region 7. bundle
 		console.log('bundling ...')
 		// TODO bundling
+		//#endregion 7. bundle
 	}
-	//#endregion 6. bundle
+
 }
 
 function getImportedPaths(ast: Expression[]): string[] {
