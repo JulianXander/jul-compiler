@@ -1,5 +1,5 @@
 Build (npm run build):
-1. jul-comiler: npx tsc src/runtime.ts && npx tsc
+1. jul-comiler: npx tsc
 2. jul-language-server: npx tsc --project ../jul-language-server/tsconfig.json
 3. vscode-jul-language-service: 
 3.1 delete:	rm -r ../vscode-jul-language-service/out/jul-language-server
