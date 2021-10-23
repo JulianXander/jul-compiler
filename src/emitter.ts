@@ -9,12 +9,13 @@ export const importLine = `const { ${runtimeImports} } = require("./runtime");\n
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
 export function astToJs(expressions: Expression[]): string {
 	// _branch, _callFunction, _checkType, _createFunction, log
-	return `${importLine}${expressionsToJs(expressions)}`;
-}
-
-function expressionsToJs(expressions: Expression[]): string {
-	const js = expressions.map(expressionToJs).join('\n');
-	return js;
+	return `${importLine}${expressions.map(expression => {
+		const expressionJs = expressionToJs(expression);
+		return expression.type === 'definition'
+			? 'exports.' + expressionJs
+			: expressionJs;
+	}).join('\n')}`;
+	// TODO export default
 }
 
 function expressionToJs(expression: Expression): string {
@@ -60,7 +61,7 @@ function expressionToJs(expression: Expression): string {
 			// TODO rest args
 			// TODO return statement
 			const argsJs = expression.params.singleNames.map(name => name.name).join(', ');
-			return `_createFunction((${argsJs}) => {${expressionsToJs(expression.body)}}, ${definitionNamesToJs(expression.params)})`;
+			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${definitionNamesToJs(expression.params)})`;
 		}
 
 		case 'list':
@@ -89,6 +90,23 @@ function expressionToJs(expression: Expression): string {
 			throw new Error(`Unexpected expression.type: ${(assertNever as Expression).type}`);
 		}
 	}
+}
+
+function functionBodyToJs(expressions: Expression[]): string {
+	const js = expressions.map((expression, index) => {
+		const expressionJs = expressionToJs(expression);
+		// Die letzte Expression ist der Rückgabewert
+		if (index === expressions.length - 1) {
+			if (expression.type === 'definition') {
+				return `${expressionJs}\nreturn ${expression.name};`
+			}
+			return `return ${expressionJs}`;
+		}
+		else {
+			return expressionJs;
+		}
+	}).join('\n');
+	return js;
 }
 
 // TODO bound functions berücksichtigen
