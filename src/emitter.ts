@@ -9,13 +9,20 @@ export const importLine = `const { ${runtimeImports} } = require("./runtime");\n
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
 export function astToJs(expressions: Expression[]): string {
 	// _branch, _callFunction, _checkType, _createFunction, log
-	return `${importLine}${expressions.map(expression => {
+	let hasDefinition = false;
+	return `${importLine}${expressions.map((expression, index) => {
 		const expressionJs = expressionToJs(expression);
-		return expression.type === 'definition'
-			? 'exports.' + expressionJs
-			: expressionJs;
+		// export defined names
+		if (expression.type === 'definition') {
+			hasDefinition = true;
+			return `${expressionJs}\nexports.${expression.name} = ${expression.name};`
+		}
+		// default export = last expression
+		if (index === expressions.length - 1 && !hasDefinition) {
+			return 'module.exports = ' + expressionJs;
+		}
+		return expressionJs;
 	}).join('\n')}`;
-	// TODO export default
 }
 
 function expressionToJs(expression: Expression): string {

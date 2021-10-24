@@ -694,6 +694,7 @@ const builtIns: {
 	import: {
 		// TODO pure bei static import?
 		// TODO check file exists, return type
+		// path ohne Dateiendung
 		type: 'native',
 		code: (scope: Scope, path: string) =>
 			require(path),

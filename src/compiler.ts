@@ -6,7 +6,7 @@ import { Expression, ObjectLiteral, ValueExpression } from './abstract-syntax-tr
 
 export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true }): void {
 	console.log(`compiling ${filePath} ...`);
-	if (filePath.substr(filePath.length - 4, 4) !== '.jul') {
+	if (filePath.substr(filePath.length - 4) !== '.jul') {
 		throw new Error('Invalid file ending. Expected .jul');
 	}
 
@@ -87,7 +87,7 @@ function getImportedPaths(ast: Expression[]): string[] {
 					if (pathExpression.type === 'string'
 						&& pathExpression.values.length === 1
 						&& pathExpression.values[0]!.type === 'stringToken') {
-						const importedPath = pathExpression.values[0].value;
+						const importedPath = pathExpression.values[0].value + '.jul';
 						importedPaths.push(importedPath);
 					}
 					// TODO dynamische imports verbieten???
