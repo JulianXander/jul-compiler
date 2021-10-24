@@ -95,12 +95,12 @@ function tryAssignParams(values: any[] | { [key: string]: any }, params: Params)
 //#region builtins
 
 export const log = _createFunction(console.log, { rest: {} });
-export const _import = _createFunction(require, {
-	singleNames: [{
-		name: 'path',
-		type: (x) => typeof x === 'string'
-	}]
-});
+// export const _import = _createFunction(require, {
+// 	singleNames: [{
+// 		name: 'path',
+// 		type: (x) => typeof x === 'string'
+// 	}]
+// });
 
 // TODO
 

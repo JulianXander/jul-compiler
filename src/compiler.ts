@@ -2,8 +2,8 @@ import { readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { webpack } from 'webpack';
 import { parseCode } from './parser';
-import { astToJs } from './emitter';
-import { Expression, ObjectLiteral, ValueExpression } from './abstract-syntax-tree';
+import { astToJs, getPathFromImport, isImport } from './emitter';
+import { Expression } from './abstract-syntax-tree';
 
 export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true }): void {
 	console.log(`compiling ${filePath} ...`);
@@ -67,6 +67,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 		// const absoulteJsPath = resolve(jsFileName);
 		const absoulteFolderPath = resolve(sourceFolder);
 		const bundler = webpack({
+			mode: 'none',
 			entry: jsFileName,
 			output: {
 				path: absoulteFolderPath,
@@ -94,16 +95,9 @@ function getImportedPaths(ast: Expression[]): string[] {
 			case 'destructuring':
 				const value = expression.value;
 				if (value.type === 'functionCall'
-					&& value.functionReference.length === 1
-					&& value.functionReference[0] === 'import') {
-					const pathExpression = getPathExpression(value.params);
-					if (pathExpression.type === 'string'
-						&& pathExpression.values.length === 1
-						&& pathExpression.values[0]!.type === 'stringToken') {
-						const importedPath = pathExpression.values[0].value + '.jul';
-						importedPaths.push(importedPath);
-					}
-					// TODO dynamische imports verbieten???
+					&& isImport(value.functionReference)) {
+					const path = getPathFromImport(value);
+					importedPaths.push(path + '.jul');
 				}
 				return;
 
@@ -112,22 +106,4 @@ function getImportedPaths(ast: Expression[]): string[] {
 		}
 	});
 	return importedPaths;
-}
-
-function getPathExpression(importParams: ObjectLiteral): ValueExpression {
-	switch (importParams.type) {
-		case 'dictionary':
-			return importParams.values[0].value;
-
-		case 'empty':
-			throw new Error('import can not be called without arguments');
-
-		case 'list':
-			return importParams.values[0];
-
-		default: {
-			const assertNever: never = importParams;
-			throw new Error(`Unexpected importParams.type: ${(assertNever as ObjectLiteral).type}`);
-		}
-	}
 }

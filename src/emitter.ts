@@ -1,4 +1,4 @@
-import { DefinitionNames, Expression, ReferenceNames } from './abstract-syntax-tree';
+import { DefinitionNames, Expression, FunctionCall, ObjectLiteral, ReferenceNames, ValueExpression } from './abstract-syntax-tree';
 import * as runtime from './runtime';
 
 const runtimeKeys = Object.keys(runtime);
@@ -60,8 +60,14 @@ function expressionToJs(expression: Expression): string {
 		case 'empty':
 			return 'null';
 
-		case 'functionCall':
-			return `_callFunction(${referenceNamesToJs(expression.functionReference)}, ${expressionToJs(expression.params)})`;
+		case 'functionCall': {
+			const functionReference = expression.functionReference;
+			if (isImport(functionReference)) {
+				const path = getPathFromImport(expression);
+				return `require("${path}")`;
+			}
+			return `_callFunction(${referenceNamesToJs(functionReference)}, ${expressionToJs(expression.params)})`;
+		}
 
 		case 'functionLiteral': {
 			// TODO params(DefinitionNames) to Type
@@ -95,6 +101,41 @@ function expressionToJs(expression: Expression): string {
 		default: {
 			const assertNever: never = expression;
 			throw new Error(`Unexpected expression.type: ${(assertNever as Expression).type}`);
+		}
+	}
+}
+
+export function isImport(functionReference: ReferenceNames): boolean {
+	return functionReference.length === 1
+		&& functionReference[0] === 'import';
+}
+
+export function getPathFromImport(importExpression: FunctionCall): string {
+	const pathExpression = getPathExpression(importExpression.params);
+	if (pathExpression.type === 'string'
+		&& pathExpression.values.length === 1
+		&& pathExpression.values[0]!.type === 'stringToken') {
+		const importedPath = pathExpression.values[0].value;
+		return importedPath;
+	}
+	// TODO dynamische imports verbieten???
+	throw new Error('Can not get import path from ' + pathExpression.type);
+}
+
+function getPathExpression(importParams: ObjectLiteral): ValueExpression {
+	switch (importParams.type) {
+		case 'dictionary':
+			return importParams.values[0].value;
+
+		case 'empty':
+			throw new Error('import can not be called without arguments');
+
+		case 'list':
+			return importParams.values[0];
+
+		default: {
+			const assertNever: never = importParams;
+			throw new Error(`Unexpected importParams.type: ${(assertNever as ObjectLiteral).type}`);
 		}
 	}
 }
