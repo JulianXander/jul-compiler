@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, copyFileSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
+import { webpack } from 'webpack';
 import { parseCode } from './parser';
 import { astToJs } from './emitter';
 import { Expression, ObjectLiteral, ValueExpression } from './abstract-syntax-tree';
@@ -58,12 +59,24 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	// copy runtime und bundling nur einmalig beim root call (ohne compiledFilePaths)
 	if (!compiledFilePaths) {
 		//#region 6. copy runtime
-		copyFileSync('out/runtime.js', sourceFolder + '/runtime.js')
+		copyFileSync('out/runtime.js', sourceFolder + '/runtime.js');
 		//#endregion 6. copy runtime
 
 		//#region 7. bundle
-		console.log('bundling ...')
-		// TODO bundling
+		console.log('bundling ...');
+		// const absoulteJsPath = resolve(jsFileName);
+		const absoulteFolderPath = resolve(sourceFolder);
+		const bundler = webpack({
+			entry: jsFileName,
+			output: {
+				path: absoulteFolderPath,
+				filename: 'bundle.js',
+			}
+		});
+		bundler.run((error, stats) => {
+			console.log('bundling finished');
+			console.log(error, stats);
+		});
 		//#endregion 7. bundle
 	}
 
