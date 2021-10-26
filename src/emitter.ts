@@ -1,4 +1,4 @@
-import { DefinitionNames, Expression, FunctionCall, ObjectLiteral, ReferenceNames, ValueExpression } from './abstract-syntax-tree';
+import { DefinitionNames, Expression, FunctionCall, NumberLiteral, ObjectLiteral, ReferenceNames, StringLiteral, TypeExpression, ValueExpression } from './abstract-syntax-tree';
 import * as runtime from './runtime';
 
 const runtimeKeys = Object.keys(runtime);
@@ -82,20 +82,13 @@ function expressionToJs(expression: Expression): string {
 			}).join('')}]`;
 
 		case 'number':
-			return '' + expression.value;
+			return numberLiteralToJs(expression);
 
 		case 'reference':
 			return referenceNamesToJs(expression.names);
 
-		case 'string': {
-			const stringValue = expression.values.map(value => {
-				if (value.type === 'stringToken') {
-					return value.value;
-				}
-				return expressionToJs(value);
-			}).join('');
-			return `"${stringValue}"`;
-		}
+		case 'string':
+			return stringLiteralToJs(expression);
 
 		default: {
 			const assertNever: never = expression;
@@ -271,11 +264,58 @@ function definitionNamesToJs(definitionNames: DefinitionNames): string {
 	return `{\n${singleNamesJs}${restJs}}`;
 }
 
-function checkTypeJs(type: Expression, valueJs: string): string {
+function checkTypeJs(type: TypeExpression, valueJs: string): string {
 	return `_checkType(${expressionToJs(type)}, ${valueJs})`
 }
 
-function typeToJs(type: Expression): string {
-	// TODO non function types (number, object?, etc?)? oder in runtime mit checkType prüfen??
-	return expressionToJs(type);
+function typeToJs(typeExpression: TypeExpression): string {
+	switch (typeExpression.type) {
+		case 'branching':
+			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
+
+		case 'dictionary':
+			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
+
+		case 'empty':
+			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
+
+		case 'functionCall':
+			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
+
+		case 'functionLiteral':
+			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
+
+		case 'list':
+			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
+
+		case 'number':
+		case 'string':
+			return constantValueToTypeJs(typeExpression);
+
+		case 'reference':
+			return referenceNamesToJs(typeExpression.names);
+
+		default: {
+			const assertNever: never = typeExpression;
+			throw new Error(`Unexpected expression.type: ${(assertNever as Expression).type}`);
+		}
+	}
+}
+
+function constantValueToTypeJs(expression: ValueExpression): string {
+	return `(_x) => _x === ${expressionToJs(expression)}`
+}
+
+function stringLiteralToJs(stringLiteral: StringLiteral): string {
+	const stringValue = stringLiteral.values.map(value => {
+		if (value.type === 'stringToken') {
+			return value.value;
+		}
+		return expressionToJs(value);
+	}).join('');
+	return `"${stringValue}"`
+}
+
+function numberLiteralToJs(numberLiteral: NumberLiteral): string {
+	return '' + numberLiteral.value;
 }
