@@ -14,7 +14,7 @@ type JulFunction = Function & { params: Params };
 
 //#region internals
 
-export function _branch(value: any, branches: JulFunction[]) {
+export function _branch(value: any, ...branches: JulFunction[]) {
 	// TODO collect inner Errors?
 	for (const branch of branches) {
 		const assignedParams = tryAssignParams(value, branch.params);
@@ -95,6 +95,7 @@ function tryAssignParams(values: any[] | { [key: string]: any }, params: Params)
 //#region builtins
 
 export const log = _createFunction(console.log, { rest: {} });
+// TODO dynamische imports erlauben??
 // export const _import = _createFunction(require, {
 // 	singleNames: [{
 // 		name: 'path',

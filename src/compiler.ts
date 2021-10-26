@@ -75,8 +75,8 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 			}
 		});
 		bundler.run((error, stats) => {
-			console.log('bundling finished');
-			console.log(error, stats);
+			// console.log(error, stats);
+			console.log('done');
 		});
 		//#endregion 7. bundle
 	}

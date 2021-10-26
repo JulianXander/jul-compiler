@@ -2,8 +2,7 @@ import { DefinitionNames, Expression, FunctionCall, ObjectLiteral, ReferenceName
 import * as runtime from './runtime';
 
 const runtimeKeys = Object.keys(runtime);
-// slice(1) um __esModule wegzulassen
-const runtimeImports = runtimeKeys.slice(1).join(', ');
+const runtimeImports = runtimeKeys.join(', ');
 export const importLine = `const { ${runtimeImports} } = require("./runtime");\n`;
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
@@ -257,13 +256,26 @@ function escapeReservedJsVariableName(name: string): string {
 	return name;
 }
 
-// TODO
 function definitionNamesToJs(definitionNames: DefinitionNames): string {
-	return `{${definitionNames.singleNames.map(definitionName => {
-		return `${definitionName.name}`;
-	})}}`;
+	const singleNamesJs = definitionNames.singleNames.length
+		? `singleNames: [\n${definitionNames.singleNames.map(definitionName => {
+			const typeJs = definitionName.typeGuard
+				? `,\ntype: ${typeToJs(definitionName.typeGuard)}`
+				: '';
+			return `{\nname: "${definitionName.name}"${typeJs}}`;
+		}).join(',\n')}\n],\n`
+		: '';
+	const restJs = definitionNames.rest
+		? `rest: {${definitionNames.rest.typeGuard ? 'type: ' + typeToJs(definitionNames.rest.typeGuard) : ''}}\n`
+		: '';
+	return `{\n${singleNamesJs}${restJs}}`;
 }
 
 function checkTypeJs(type: Expression, valueJs: string): string {
 	return `_checkType(${expressionToJs(type)}, ${valueJs})`
+}
+
+function typeToJs(type: Expression): string {
+	// TODO non function types (number, object?, etc?)? oder in runtime mit checkType prüfen??
+	return expressionToJs(type);
 }
