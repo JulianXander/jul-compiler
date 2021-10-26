@@ -93,8 +93,44 @@ function tryAssignParams(values: any[] | { [key: string]: any }, params: Params)
 // TODO toString
 
 //#region builtins
+// TODO
 
+//#region Number
+export const subtract = _createFunction(
+	(minuend: number, subtrahend: number) =>
+		minuend - subtrahend,
+	{
+		singleNames: [
+			{
+				name: 'minuend',
+				// TODO
+				// type: { type: 'reference', names: ['Float64'] }
+			},
+			{
+				name: 'subtrahend',
+				// TODO
+				// type: { type: 'reference', names: ['Float64'] }
+			}]
+	}
+);
+export const sum = _createFunction(
+	(...args: number[]) =>
+		args.reduce(
+			(accumulator, current) =>
+				accumulator + current,
+			0),
+	// TODO params type ...Float64[]
+	{
+		rest: {
+			// name: 'args'
+		}
+	}
+);
+//#endregion Number
+//#region Utility
 export const log = _createFunction(console.log, { rest: {} });
+//#endregion Utility
+
 // TODO dynamische imports erlauben??
 // export const _import = _createFunction(require, {
 // 	singleNames: [{
@@ -102,7 +138,5 @@ export const log = _createFunction(console.log, { rest: {} });
 // 		type: (x) => typeof x === 'string'
 // 	}]
 // });
-
-// TODO
 
 //#endregion builtins
