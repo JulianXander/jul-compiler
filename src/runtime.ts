@@ -504,6 +504,21 @@ export const sum = _createFunction(
 //#endregion Number
 //#region Stream
 //#region core
+export const complete = _createFunction(
+	(stream$: Stream<any>) => {
+		stream$.complete();
+		return null;
+	},
+	{
+		singleNames: [
+			{
+				name: 'stream$',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['Stream'] }
+			},
+		]
+	}
+);
 export const subscribe = _createFunction(
 	(stream$: Stream<any>, listener: JulFunction) => {
 		const listenerFunction: Listener<any> = (value: any) => {
