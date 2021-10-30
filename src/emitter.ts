@@ -311,9 +311,9 @@ function stringLiteralToJs(stringLiteral: StringLiteral): string {
 		if (value.type === 'stringToken') {
 			return value.value;
 		}
-		return expressionToJs(value);
+		return `\${${expressionToJs(value)}}`;
 	}).join('');
-	return `"${stringValue}"`
+	return `\`${stringValue}\``
 }
 
 function numberLiteralToJs(numberLiteral: NumberLiteral): string {
