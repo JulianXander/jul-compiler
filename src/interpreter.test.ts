@@ -140,18 +140,18 @@ const expectedResults: {
 			code: 'test = 4\ntest ?\n\t(a:String) => log(a)\n\t(b) => log(b)',
 			result: null
 		},
-		// {
-		// 	code: 'fibonacci = (number:NonNegativeInteger) =>\n\tnumber ?\n\t\t(n:0) => 0\n\t\t(n:1) => 1\n\t\t(n) => sum(fibonacci(subtract(n 2)) fibonacci(subtract(n 1)))\nfibonacci(12)',
-		// 	result: 144
-		// },
+		{
+			code: 'fibonacci = (countdown current previous) =>\n\t(countdown) ?\n\t\t(x:0) => previous\n\t\t(x) => fibonacci(subtract(countdown 1) sum(current previous) current)\nfibonacci(12 1 0)',
+			result: 144
+		},
 	]
 
-// describe('Interpreter', () => {
-// 	expectedResults.forEach(({ code, result }) => {
-// 		it(code, () => {
-// 			const parsed = parseCode(code)
-// 			const interpreted = interpreteAst(parsed.parsed!);
-// 			expect(interpreted.value).to.deep.equal(result);
-// 		});
-// 	});
-// });
+describe('Interpreter', () => {
+	expectedResults.forEach(({ code, result }) => {
+		it(code, () => {
+			const parsed = parseCode(code)
+			const interpreted = interpreteAst(parsed.parsed!);
+			expect(interpreted.value).to.deep.equal(result);
+		});
+	});
+});
