@@ -468,7 +468,7 @@ function retry$<T>(
 //#endregion Stream
 
 //#region builtins
-// TODO
+// TODO types, funktionen ergänzen
 
 //#region Number
 export const subtract = _createFunction(
@@ -562,7 +562,7 @@ export const timer$ = _createFunction(
 	{
 		singleNames: [{
 			name: 'delayMs',
-			// TODO params type Float64
+			// TODO
 			// type: Float64
 		}]
 	}
@@ -570,7 +570,24 @@ export const timer$ = _createFunction(
 //#endregion create
 //#endregion Stream
 //#region Utility
-export const log = _createFunction(console.log, { rest: {} });
+export const log = _createFunction(
+	console.log,
+	{
+		rest: {}
+	}
+);
+export const runJs = _createFunction(
+	(js: string) => {
+		return eval(js);
+	},
+	{
+		singleNames: [{
+			name: 'js',
+			// TODO
+			// type: String
+		}]
+	}
+);
 //#endregion Utility
 
 // TODO dynamische imports erlauben??
