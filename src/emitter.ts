@@ -51,6 +51,7 @@ function expressionToJs(expression: Expression): string {
 		}
 
 		case 'dictionary':
+			// TODO mit Object.create(null), damit leerer prototype
 			return `{\n${expression.values.map(value => {
 				const valueJs = expressionToJs(value.value);
 				return `${value.name}: ${value.typeGuard ? checkTypeJs(value.typeGuard, valueJs) : valueJs},\n`;

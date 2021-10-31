@@ -17,9 +17,13 @@ type JulFunction = Function & { params: Params };
 //#region internals
 
 export function _branch(value: any, ...branches: JulFunction[]) {
+	// primitive value in Array wrappen
+	const wrappedValue = typeof value === 'object'
+		? value
+		: [value];
 	// TODO collect inner Errors?
 	for (const branch of branches) {
-		const assignedParams = tryAssignParams(value, branch.params);
+		const assignedParams = tryAssignParams(wrappedValue, branch.params);
 		if (!(assignedParams instanceof Error)) {
 			return branch(assignedParams);
 		}
