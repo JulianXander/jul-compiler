@@ -79,7 +79,6 @@ export function discriminatedChoiceParser<T extends any[]>(
 	...choices: ParserChoices<T>
 ): Parser<T[number]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-		// const char = code[startIndex];
 		for (const { predicate, parser } of choices) {
 			const predicateResult = predicate(rows, startRowIndex, startColumnIndex, indent);
 			if (!predicateResult.errors?.length) {

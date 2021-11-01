@@ -45,7 +45,7 @@ function mapFn<Args extends any[], Result1, Result2>(
 		const result1 = fn(...args);
 		const result2 = transform(result1);
 		return result2;
-	}
+	};
 }
 
 function isDefined<T>(value: T | undefined): value is T {
@@ -68,7 +68,7 @@ export function parseCode(code: string): AbstractSyntaxTree {
 				},
 				...(parserResult.errors ?? [])
 			]
-		}
+		};
 	}
 	return {
 		parsed: parserResult.parsed,
@@ -84,9 +84,9 @@ const spaceParser = tokenParser(' ');
 const openingBracketParser = tokenParser('(');
 const closingBracketParser = tokenParser(')');
 const paragraphParser = tokenParser('§');
-const branchingTokenParser = tokenParser(' ?')
-const functionTokenParser = tokenParser(' =>')
-const definitionTokenParser = tokenParser(' = ')
+const branchingTokenParser = tokenParser(' ?');
+const functionTokenParser = tokenParser(' =>');
+const definitionTokenParser = tokenParser(' = ');
 
 //#endregion Tokens
 
@@ -105,7 +105,7 @@ function startOfLineParser(
 				columnIndex: startColumnIndex,
 				message: `columnIndex=${startColumnIndex}, but should be at start of line`
 			}],
-		}
+		};
 	}
 	return {
 		endRowIndex: startRowIndex,
@@ -120,7 +120,7 @@ function endOfLineParser(
 	indent: number,
 ): ParserResult<undefined> {
 	const row = rows[startRowIndex];
-	const rowLength = row!.length
+	const rowLength = row!.length;
 	if (startColumnIndex !== rowLength) {
 		return {
 			endRowIndex: startRowIndex,
@@ -130,7 +130,7 @@ function endOfLineParser(
 				columnIndex: startColumnIndex,
 				message: `columnIndex=${startColumnIndex}, but should be at end of line (${rowLength})`
 			}],
-		}
+		};
 	}
 	return {
 		endRowIndex: startRowIndex,
@@ -145,7 +145,7 @@ function newLineParser(
 	indent: number,
 ): ParserResult<undefined> {
 	const row = rows[startRowIndex];
-	const rowLength = row!.length
+	const rowLength = row!.length;
 	if (startColumnIndex !== rowLength) {
 		return {
 			endRowIndex: startRowIndex,
@@ -155,7 +155,7 @@ function newLineParser(
 				columnIndex: startColumnIndex,
 				message: `columnIndex=${startColumnIndex}, but should be at end of line (${rowLength})`
 			}],
-		}
+		};
 	}
 	return {
 		endRowIndex: startRowIndex + 1,
@@ -178,7 +178,7 @@ function indentParser(
 				columnIndex: startColumnIndex,
 				message: `columnIndex=${startColumnIndex}, but should be at start of line`
 			}],
-		}
+		};
 	}
 	const totalIndentToken = '\t'.repeat(indent);
 	const result = tokenParser(totalIndentToken)(rows, startRowIndex, startColumnIndex, indent);
@@ -203,25 +203,25 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
 					columnIndex: startColumnIndex,
 					message: 'multilineParser should start at beginning of row'
 				}],
-			}
+			};
 		}
 		const parsed: (T | undefined)[] = [];
 		const errors: ParserError[] = [];
 		let rowIndex = startRowIndex;
 		let columnIndex = 0;
 		for (; rowIndex < rows.length; rowIndex++) {
-			columnIndex = 0
+			columnIndex = 0;
 			const row = rows[rowIndex];
 			if (row === undefined) {
 				throw new Error(`row[${rowIndex}] missing`);
 			}
 			if (row === '') {
 				// Leerzeile
-				parsed.push(undefined)
+				parsed.push(undefined);
 				continue;
 			}
 			const indentResult = indentParser(rows, rowIndex, columnIndex, indent);
-			columnIndex = indentResult.endColumnIndex
+			columnIndex = indentResult.endColumnIndex;
 			if (indentResult.errors?.length) {
 				const endRowIndex = rowIndex - 1;
 				const endRow = rows[endRowIndex];
@@ -234,20 +234,20 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
 					endColumnIndex: endRow!.length,
 					parsed: parsed,
 					errors: errors,
-				}
+				};
 			}
 			if (row[columnIndex] === '#') {
 				// Kommentarzeile
 				continue;
 			}
-			const result = parser(rows, rowIndex, columnIndex, indent)
-			rowIndex = result.endRowIndex
+			const result = parser(rows, rowIndex, columnIndex, indent);
+			rowIndex = result.endRowIndex;
 			if (result.errors?.length) {
-				errors.push(...result.errors)
+				errors.push(...result.errors);
 				// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
 				continue;
 			}
-			parsed.push(result.parsed)
+			parsed.push(result.parsed);
 			// check columnIndex at endindex
 			const endRow = rows[rowIndex];
 			if (endRow === undefined) {
@@ -259,7 +259,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
 					rowIndex: rowIndex,
 					columnIndex: result.endColumnIndex,
 					message: 'multilineParser should parse until end of row'
-				})
+				});
 				// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
 				continue;
 			}
@@ -270,8 +270,8 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
 			endColumnIndex: columnIndex,
 			parsed: parsed,
 			errors: errors,
-		}
-	}
+		};
+	};
 }
 
 function multilineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
@@ -291,7 +291,7 @@ function multilineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<(T
 			errors: result.errors,
 			parsed: parsed,
 		};
-	}
+	};
 }
 
 function inlineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<T[]> {
@@ -320,7 +320,7 @@ function inlineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<T[]> 
 			errors: result.errors,
 			parsed: parsed,
 		};
-	}
+	};
 }
 
 //#endregion helper
@@ -342,7 +342,7 @@ function numberParser(
 				type: 'number',
 				value: +result.parsed
 			},
-	}
+	};
 }
 
 function stringParser(
@@ -382,13 +382,13 @@ function stringParser(
 							return {
 								type: 'stringToken',
 								value: '§'
-							}
+							};
 
 						case 'string':
 							return {
 								type: 'stringToken',
 								value: choice
-							}
+							};
 
 						case 'object':
 							return choice[1];
@@ -398,7 +398,7 @@ function stringParser(
 					}
 				})
 			},
-	}
+	};
 }
 
 function nameParser(
@@ -445,7 +445,7 @@ function referenceParser(
 				}) ?? [])
 			]
 		}
-	}
+	};
 }
 
 function indexAccessParser(
@@ -460,7 +460,7 @@ function indexAccessParser(
 		parsed: result.parsed === undefined
 			? undefined
 			: +result.parsed
-	}
+	};
 }
 
 function definitionNameParser(
@@ -511,7 +511,7 @@ function definitionNameParser(
 			typeGuard: typeSequence?.[1],
 			fallback: typeSequence?.[2]?.[0]?.[1],
 		},
-	}
+	};
 }
 
 function emptyNameListParser(
@@ -526,7 +526,7 @@ function emptyNameListParser(
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
 		parsed: result.errors ? undefined : { singleNames: [] },
-	}
+	};
 }
 
 function inlineNameListParser(
@@ -550,7 +550,7 @@ function inlineNameListParser(
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 			errors: result.errors,
-		}
+		};
 	}
 	const parsed = result.parsed!;
 	const possibleRest = parsed[parsed.length - 1];
@@ -588,7 +588,7 @@ function inlineNameListParser(
 					name: rest
 				}
 		}
-	}
+	};
 }
 
 function multilineNameListParser(
@@ -650,7 +650,7 @@ function multilineNameListParser(
 					name: rest
 				}
 		}
-	}
+	};
 }
 
 /**
@@ -691,7 +691,7 @@ function functionBodyParser(
 			type: 'functionBody',
 			body: result.parsed[1],
 		},
-	}
+	};
 }
 
 function definitionValueParser(
@@ -699,7 +699,10 @@ function definitionValueParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ValueExpression> {
+): ParserResult<{
+	type: 'definitionValue';
+	value: ValueExpression;
+}> {
 	const result = sequenceParser(
 		tokenParser(' = '),
 		valueExpressionParser
@@ -708,8 +711,11 @@ function definitionValueParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
-		parsed: result.parsed?.[1]
-	}
+		parsed: result.parsed && {
+			type: 'definitionValue',
+			value: result.parsed[1]
+		}
+	};
 }
 
 function simpleExpressionParser(
@@ -717,12 +723,11 @@ function simpleExpressionParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<Expression> {
+): ParserResult<ObjectLiteral | NumberLiteral | StringLiteral | Reference | FunctionCall | DefinitionNames | DefinitionName> {
 	const result = discriminatedChoiceParser(
 		// ObjectLiteral/FunctionLiteralParams/DestructuringDeclarations
 		{
 			predicate: openingBracketParser,
-			// TODO bracketedExpressionParser FunctionLiteralParams/DestructuringDeclarations
 			parser: bracketedExpressionParser,
 		},
 		// NumberLiteral
@@ -760,64 +765,173 @@ function expressionParser(
 				columnIndex: startColumnIndex,
 				message: endOfCodeError('expression')
 			}]
+		};
+	}
+	const result = sequenceParser(
+		simpleExpressionParser,
+		discriminatedChoiceParser(
+			// TODO Reference Chain,FunctionCall?
+			// {
+			// 	predicate: tokenParser('.'),
+			// 	parser: ???,
+			// },
+			// Branching
+			{
+				predicate: branchingTokenParser,
+				// function list
+				parser: branchesParser
+			},
+			// FunctionLiteral
+			{
+				predicate: functionTokenParser,
+				// expressionBlock
+				parser: functionBodyParser
+			},
+			// Definition
+			{
+				predicate: definitionTokenParser,
+				// ValueExpression
+				parser: definitionValueParser
+			},
+			// SimpleExpression
+			{
+				predicate: emptyParser,
+				parser: emptyParser
+			},
+		)
+	)(rows, startRowIndex, startColumnIndex, indent);
+	if (result.errors?.length) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+		};
+	}
+	const [parsed1, parsed2] = result.parsed!;
+	if (!parsed2) {
+		// SimpleExpression
+		// TODO definitionNames to ObjectLiteral
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			parsed: parsed1 as any
+		};
+	}
+	switch (parsed2.type) {
+		case 'branches': {
+			if ('type' in parsed1 && parsed1.type === 'name') {
+				return {
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+					errors: [{
+						rowIndex: result.endRowIndex,
+						columnIndex: result.endColumnIndex,
+						message: 'Can not branch over DefinitionName'
+					}]
+				};
+			}
+			const toExpressionList = definitionNamesToObjectLiteral(parsed1);
+			if (toExpressionList.errors?.length) {
+				return {
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+					errors: toExpressionList.errors as any // TODO structure überdenken
+				};
+			}
+			const branching: Branching = {
+				type: 'branching',
+				value: toExpressionList.value!,
+				branches: parsed2.value,
+			};
+			return {
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+				parsed: branching,
+			};
+		}
+
+		case 'functionBody': {
+			if ('type' in parsed1) {
+				return {
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+					errors: [{
+						rowIndex: result.endRowIndex,
+						columnIndex: result.endColumnIndex,
+						message: 'Expected DefinitionNames but got ExpressionList as FunctionParameters'
+					}],
+				};
+			}
+			const functionLiteral: FunctionLiteral = {
+				type: 'functionLiteral',
+				params: parsed1,
+				body: parsed2.body,
+				pure: true, // TODO impure functions mit !=>
+			};
+			return {
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+				parsed: functionLiteral,
+			};
+		}
+
+		case 'definitionValue': {
+			const definitionValue = parsed2.value;
+			if ('type' in parsed1) {
+				// SingleDefinition
+				switch (parsed1.type) {
+					case 'name':
+					case 'reference': {
+						const toName = referenceToDefinitionName(parsed1);
+						if (toName.errors?.length) {
+							return {
+								endRowIndex: result.endRowIndex,
+								endColumnIndex: result.endColumnIndex,
+								errors: toName.errors as any, // TODO error structure überdenken
+							};
+						}
+						const definition: SingleDefinition = {
+							type: 'definition',
+							name: toName.name!.name,
+							value: definitionValue,
+							typeGuard: toName.name!.typeGuard,
+						};
+						return {
+							endRowIndex: result.endRowIndex,
+							endColumnIndex: result.endColumnIndex,
+							parsed: definition,
+						};
+					}
+
+					default:
+						return {
+							endRowIndex: result.endRowIndex,
+							endColumnIndex: result.endColumnIndex,
+							errors: [{
+								rowIndex: startRowIndex,
+								columnIndex: startColumnIndex,
+								message: 'Unexpected ExpressionType for Definition part 1: ' + parsed1.type
+							}],
+						};
+				}
+			}
+			const definition: DestructuringDefinition = {
+				type: 'destructuring',
+				names: parsed1,
+				value: definitionValue,
+			};
+			return {
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+				parsed: definition,
+			};
+		}
+
+		default: {
+			const assertNever: never = parsed2;
+			throw new Error(`Unexpected secondExpression.type: ${(assertNever as any).type}`);
 		}
 	}
-	// const result = sequenceParser(
-	// 	simpleExpressionParser,
-	// 	discriminatedChoiceParser(
-	// 		// SimpleExpression
-	// 		{
-	// 			predicate: endOfLineParser,
-	// 			parser: emptyParser
-	// 		},
-	// 		// TODO Reference Chain,FunctionCall?
-	// 		// {
-	// 		// 	predicate: tokenParser('.'),
-	// 		// 	parser: ???,
-	// 		// },
-	// 		// Branching
-	// 		{
-	// 			predicate: branchingTokenParser,
-	// 			// function list
-	// 			parser: branchesParser
-	// 		},
-	// 		// FunctionLiteral
-	// 		{
-	// 			predicate: functionTokenParser,
-	// 			// expressionBlock
-	// 			parser: functionBodyParser
-	// 		},
-	// 		// Definition
-	// 		{
-	// 			predicate: definitionTokenParser,
-	// 			// ValueExpression
-	// 			parser: definitionValueParser
-	// 		},
-	// 	)
-	// )(rows, startRowIndex, startColumnIndex, indent);
-	const result = discriminatedChoiceParser(
-		// FunctionLiteral/Destructuring Definition/ObjectLiteral Branching/ObjectLiteral
-		{
-			predicate: openingBracketParser,
-			parser: bracketedExpressionParser,
-		},
-		// NumberLiteral
-		{
-			predicate: regexParser(/[-0-9]/g, ''),
-			parser: numberParser,
-		},
-		// StringLiteral
-		{
-			predicate: paragraphParser,
-			parser: stringParser,
-		},
-		// FunctionCall/Reference/Definition/Reference Branching
-		{
-			predicate: regexParser(/[a-zA-Z]/g, ''),
-			parser: nameStartedExpressionParser,
-		},
-	)(rows, startRowIndex, startColumnIndex, indent);
-	return result;
 }
 
 function valueExpressionParser(
@@ -838,160 +952,47 @@ function valueExpressionParser(
 					columnIndex: result.endColumnIndex,
 					message: `${result.parsed.type} expression is not a value expression`
 				}]
-			}
+			};
 
 		default:
 			return result as any;
 	}
 }
 
-// FunctionLiteral/Destructuring Definition/ObjectLiteral Branching/ObjectLiteral
+/**
+ * ObjectLiteral/FunctionLiteralParams/DestructuringDeclarations
+ * TODO object type literal
+ */
 function bracketedExpressionParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<Expression> {
-	const result = sequenceParser(
-		choiceParser(
-			//#region nameList
-			// leer
-			emptyNameListParser,
-			// mit Klammern einzeilig
-			inlineNameListParser,
-			// mit Klammern mehrzeilig
-			multilineNameListParser,
-			// ohne Klammern?
-			//#endregion nameList
-			objectParser,
-		),
-		discriminatedChoiceParser(
-			// ObjectLiteral
-			{
-				predicate: endOfLineParser,
-				parser: emptyParser
-			},
-			// Branching
-			{
-				predicate: branchingTokenParser,
-				// function list
-				parser: branchesParser
-			},
-			// FunctionLiteral
-			{
-				predicate: functionTokenParser,
-				// expressionBlock
-				parser: functionBodyParser
-			},
-			// Destructuring Definition
-			{
-				predicate: definitionTokenParser,
-				// ValueExpression
-				parser: definitionValueParser
-			},
-		)
+): ParserResult<ObjectLiteral | DefinitionNames> {
+	const result = choiceParser(
+		//#region nameList
+		// leer
+		emptyNameListParser,
+		// mit Klammern einzeilig
+		inlineNameListParser,
+		// mit Klammern mehrzeilig
+		multilineNameListParser,
+		// ohne Klammern?
+		//#endregion nameList
+		objectParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
-	if (result.errors?.length) {
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-		};
-	}
-	const [parsed1, parsed2] = result.parsed!;
-	if (!parsed2) {
-		// ObjectLiteral
-		const toObjectLiteral = definitionNamesToObjectLiteral(parsed1);
-		if (toObjectLiteral.errors?.length) {
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				errors: toObjectLiteral.errors as any // TODO structure überdenken
-			}
-		}
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			parsed: toObjectLiteral.value!,
-		}
-	}
-	switch (parsed2.type) {
-		case 'branches':
-			const toExpressionList = definitionNamesToObjectLiteral(parsed1);
-			if (toExpressionList.errors?.length) {
-				return {
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
-					errors: toExpressionList.errors as any // TODO structure überdenken
-				}
-			}
-			const branching: Branching = {
-				type: 'branching',
-				value: toExpressionList.value!,
-				branches: parsed2.value,
-			};
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				parsed: branching,
-			};
-
-		case 'functionBody':
-			if ('type' in parsed1) {
-				return {
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
-					errors: [{
-						rowIndex: result.endRowIndex,
-						columnIndex: result.endColumnIndex,
-						message: 'Expected DefinitionNames but got ExpressionList as FunctionParameters'
-					}],
-				}
-			}
-			const functionLiteral: FunctionLiteral = {
-				type: 'functionLiteral',
-				params: parsed1,
-				body: parsed2.body,
-				pure: true, // TODO impure functions mit !=>
-			};
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				parsed: functionLiteral,
-			};
-
-		default:
-			if ('type' in parsed1) {
-				return {
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
-					errors: [{
-						rowIndex: startRowIndex,
-						columnIndex: startColumnIndex,
-						message: 'Expected DefinitionNames but got ExpressionList for Definition part 1'
-					}],
-				}
-			}
-			const definition: DestructuringDefinition = {
-				type: 'destructuring',
-				names: parsed1,
-				value: parsed2,
-			};
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				parsed: definition,
-			};
-	}
+	return result;
 }
 
-// FunctionCall/Definition/Reference/Reference Branching
+/**
+ * FunctionCall/Reference/DefinitionName
+ */
 function nameStartedExpressionParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<Expression> {
+): ParserResult<Reference | FunctionCall | DefinitionName> {
 	const result = sequenceParser(
 		choiceParser(
 			referenceParser,
@@ -1002,29 +1003,10 @@ function nameStartedExpressionParser(
 			{
 				predicate: openingBracketParser,
 				// ObjectLiteral
-				parser: mapParser<ObjectLiteral, { type: 'functionArgument'; value: ObjectLiteral; }>(
-					objectParser,
-					objectLiteral => {
-						return {
-							type: 'functionArgument',
-							value: objectLiteral,
-						}
-					})
-			},
-			// Definition
-			{
-				predicate: definitionTokenParser,
-				// ValueExpression
-				parser: definitionValueParser
-			},
-			// Branching
-			{
-				predicate: branchingTokenParser,
-				// function list
-				parser: branchesParser
+				parser: objectParser
 			},
 			{
-				// Reference
+				// Reference/DefinitionName
 				predicate: emptyParser,
 				parser: emptyParser
 			},
@@ -1039,85 +1021,32 @@ function nameStartedExpressionParser(
 	}
 	const [parsed1, parsed2] = result.parsed!;
 	if (!parsed2) {
-		// Reference
-		const toRef = definitionNameToReference(parsed1);
-		if (toRef.errors?.length) {
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				errors: toRef.errors as any, // TODO error structure überdenken
-			}
-		}
+		// Reference/DefinitionName
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			parsed: toRef.ref
-		}
+			parsed: parsed1
+		};
 	}
-	switch (parsed2.type) {
-		case 'functionArgument': {
-			const toRef = definitionNameToReference(parsed1);
-			if (toRef.errors?.length) {
-				return {
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
-					errors: toRef.errors as any, // TODO error structure überdenken
-				}
-			}
-			const functionCall: FunctionCall = {
-				type: 'functionCall',
-				functionReference: toRef.ref!.names,
-				params: parsed2.value,
-			};
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				parsed: functionCall,
-			};
-		}
-
-		case 'branches': {
-			const toRef = definitionNameToReference(parsed1);
-			if (toRef.errors?.length) {
-				return {
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
-					errors: toRef.errors as any, // TODO error structure überdenken
-				}
-			}
-			const branching: Branching = {
-				type: 'branching',
-				value: toRef.ref!,
-				branches: parsed2.value,
-			};
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				parsed: branching,
-			};
-		}
-
-		default:
-			const toName = referenceToDefinitionName(parsed1);
-			if (toName.errors?.length) {
-				return {
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
-					errors: toName.errors as any, // TODO error structure überdenken
-				}
-			}
-			const definition: SingleDefinition = {
-				type: 'definition',
-				name: toName.name!.name,
-				value: parsed2,
-				typeGuard: toName.name!.typeGuard,
-			};
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				parsed: definition,
-			};
+	// FunctionCall
+	const toRef = definitionNameToReference(parsed1);
+	if (toRef.errors?.length) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: toRef.errors as any, // TODO error structure überdenken
+		};
 	}
+	const functionCall: FunctionCall = {
+		type: 'functionCall',
+		functionReference: toRef.ref!.names,
+		params: parsed2,
+	};
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		parsed: functionCall,
+	};
 }
 
 function definitionNameToReference(possibleRef: Reference | DefinitionName): { errors?: string[]; ref?: Reference; } {
@@ -1127,25 +1056,25 @@ function definitionNameToReference(possibleRef: Reference | DefinitionName): { e
 
 	const errors: string[] = [];
 	if (possibleRef.fallback) {
-		errors.push('fallback not allowed for reference')
+		errors.push('fallback not allowed for reference');
 	}
 	if (possibleRef.source) {
-		errors.push('source not allowed for reference')
+		errors.push('source not allowed for reference');
 	}
 	if (possibleRef.typeGuard) {
-		errors.push('typeGuard not allowed for reference')
+		errors.push('typeGuard not allowed for reference');
 	}
 	if (errors.length) {
 		return {
 			errors: errors,
-		}
+		};
 	}
 	return {
 		ref: {
 			type: 'reference',
 			names: [possibleRef.name]
 		}
-	}
+	};
 }
 
 function referenceToDefinitionName(possibleName: Reference | DefinitionName): { errors?: string[]; name?: DefinitionName; } {
@@ -1155,14 +1084,14 @@ function referenceToDefinitionName(possibleName: Reference | DefinitionName): { 
 	if (possibleName.names.length > 1) {
 		return {
 			errors: ['derefencing name not allowed for definition'],
-		}
+		};
 	}
 	return {
 		name: {
 			type: 'name',
 			name: possibleName.names[0]
 		}
-	}
+	};
 }
 
 /**
@@ -1183,14 +1112,14 @@ function expressionBlockParser(
 				columnIndex: startColumnIndex,
 				message: endOfCodeError('expressionBlock')
 			}]
-		}
+		};
 	}
 	const result = mapParser(
 		multilineParser(expressionParser),
 		expressions =>
 			expressions.filter(isDefined),
 	)(rows, startRowIndex, startColumnIndex, indent);
-	return result
+	return result;
 }
 
 //#region ObjectLteral
@@ -1209,7 +1138,7 @@ function emptyObjectParser(
 		parsed: result.errors ? undefined : {
 			type: 'empty',
 		},
-	}
+	};
 }
 
 function inlineListParser(
@@ -1229,7 +1158,7 @@ function inlineListParser(
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
 		parsed: parsed,
-	}
+	};
 }
 
 function inlineDictionaryParser(
@@ -1261,7 +1190,7 @@ function inlineDictionaryParser(
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
 		parsed: parsed,
-	}
+	};
 }
 
 function multilineListParser(
@@ -1281,7 +1210,7 @@ function multilineListParser(
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
 		parsed: parsed,
-	}
+	};
 }
 
 function multilineDictionaryParser(
@@ -1313,7 +1242,7 @@ function multilineDictionaryParser(
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
 		parsed: parsed,
-	}
+	};
 }
 
 const objectParser: Parser<ObjectLiteral> = choiceParser(
@@ -1347,7 +1276,7 @@ function branchesParser(
 				columnIndex: startColumnIndex,
 				message: endOfCodeError('branching')
 			}]
-		}
+		};
 	}
 	const result = sequenceParser(
 		branchingTokenParser,
@@ -1362,10 +1291,10 @@ function branchesParser(
 			type: 'branches',
 			value: result.parsed[2].filter(isDefined),
 		}
-	}
+	};
 }
 
-function definitionNamesToObjectLiteral(possibleNames: ObjectLiteral | DefinitionNames): { errors?: string[]; value?: ObjectLiteral; } {
+function definitionNamesToObjectLiteral(possibleNames: ValueExpression | DefinitionNames): { errors?: string[]; value?: ValueExpression; } {
 	if ('type' in possibleNames) {
 		// ExpressionList
 		return {
@@ -1375,19 +1304,19 @@ function definitionNamesToObjectLiteral(possibleNames: ObjectLiteral | Definitio
 	// DefinitionName[]
 	const errors: string[] = [];
 	if (possibleNames.rest) {
-		errors.push('Rest args not allowed for reference')
+		errors.push('Rest args not allowed for reference');
 	}
 	const refs = possibleNames.singleNames.map(name => {
 		const res = definitionNameToReference(name);
 		if (res.errors) {
-			errors.push(...res.errors)
+			errors.push(...res.errors);
 		}
 		return res.ref;
 	});
 	if (errors.length) {
 		return {
 			errors: errors,
-		}
+		};
 	}
 	return {
 		value: {
@@ -1395,5 +1324,5 @@ function definitionNamesToObjectLiteral(possibleNames: ObjectLiteral | Definitio
 			// TODO check NonEmptyArray?
 			values: refs as any
 		}
-	}
+	};
 }

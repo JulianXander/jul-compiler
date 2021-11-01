@@ -672,7 +672,7 @@ const expectedResults: {
 				}
 			]
 		}
-	]
+	];
 
 describe('Parser', () => {
 	expectedResults.forEach(({ code, result }) => {
