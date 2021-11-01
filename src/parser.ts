@@ -15,7 +15,8 @@ import {
 	ListLiteral,
 	DefinitionNames,
 	DictionaryLiteral,
-	DictionaryValue
+	DictionaryValue,
+	NonEmptyArray
 } from './abstract-syntax-tree';
 import {
 	choiceParser,
@@ -84,6 +85,8 @@ const spaceParser = tokenParser(' ');
 const openingBracketParser = tokenParser('(');
 const closingBracketParser = tokenParser(')');
 const paragraphParser = tokenParser('§');
+// SVO BoundFunction
+const boundFunctionTokenParser = tokenParser('.');
 const branchingTokenParser = tokenParser(' ?');
 const functionTokenParser = tokenParser(' =>');
 const definitionTokenParser = tokenParser(' = ');
@@ -423,7 +426,7 @@ function referenceParser(
 			0,
 			undefined,
 			sequenceParser(
-				tokenParser('.'),
+				tokenParser('/'),
 				choiceParser(
 					nameParser,
 					indexAccessParser
@@ -1020,9 +1023,12 @@ function nameStartedExpressionParser(
 		discriminatedChoiceParser(
 			// FunctionCall
 			{
-				predicate: openingBracketParser,
+				predicate: choiceParser(
+					openingBracketParser,
+					boundFunctionTokenParser,
+				),
 				// ObjectLiteral
-				parser: objectParser
+				parser: functionArgsParser
 			},
 			{
 				// Reference/DefinitionName
@@ -1056,15 +1062,66 @@ function nameStartedExpressionParser(
 			errors: toRef.errors as any, // TODO error structure überdenken
 		};
 	}
-	const functionCall: FunctionCall = {
-		type: 'functionCall',
-		functionReference: toRef.ref!.names,
-		params: parsed2,
-	};
+	let functionCall: FunctionCall;
+	if (parsed2.boundFunctionName) {
+		const values: NonEmptyArray<ValueExpression> = [
+			toRef.ref!,
+		];
+		// TODO bound function call mit dictionary
+		if (parsed2.args.type === 'list') {
+			values.push(...parsed2.args.values);
+		}
+		functionCall = {
+			type: 'functionCall',
+			functionReference: [parsed2.boundFunctionName],
+			params: {
+				type: 'list',
+				values: values
+			},
+		};
+	}
+	else {
+		functionCall = {
+			type: 'functionCall',
+			functionReference: toRef.ref!.names,
+			params: parsed2.args,
+		};
+	}
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: functionCall,
+	};
+}
+
+function functionArgsParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<{
+	args: ObjectLiteral;
+	boundFunctionName?: string;
+}> {
+	const result = sequenceParser(
+		multiplicationParser(0, 1, sequenceParser(boundFunctionTokenParser, nameParser)),
+		objectParser,
+	)(rows, startRowIndex, startColumnIndex, indent);
+	if (result.errors?.length) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+		};
+	}
+	const [parsed1, parsed2] = result.parsed!;
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		parsed: {
+			args: parsed2,
+			boundFunctionName: parsed1[0]?.[1]
+		},
 	};
 }
 

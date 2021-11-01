@@ -82,6 +82,7 @@ export interface FunctionLiteral {
 export interface FunctionCall {
 	type: 'functionCall';
 	functionReference: ReferenceNames;
+	// TODO primitive value direkt als params?
 	params: ObjectLiteral;
 }
 
