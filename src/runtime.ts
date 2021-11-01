@@ -1,29 +1,26 @@
 let processId = 1;
 
-type Type = (value: any) => boolean
+type Type = (value: any) => boolean;
 
 interface Params {
+	type?: Type;
 	singleNames?: {
 		name: string;
 		type?: Type;
 	}[];
 	rest?: {
-		type?: Type
+		type?: Type;
 	};
 }
 
-type JulFunction = Function & { params: Params };
+type JulFunction = Function & { params: Params; };
 
 //#region internals
 
 export function _branch(value: any, ...branches: JulFunction[]) {
-	// primitive value in Array wrappen
-	const wrappedValue = typeof value === 'object'
-		? value
-		: [value];
 	// TODO collect inner Errors?
 	for (const branch of branches) {
-		const assignedParams = tryAssignParams(wrappedValue, branch.params);
+		const assignedParams = tryAssignParams(value, branch.params);
 		if (!(assignedParams instanceof Error)) {
 			return branch(assignedParams);
 		}
@@ -53,23 +50,34 @@ export function _createFunction(fn: Function, params: Params): JulFunction {
 
 //#endregion internals
 
-function tryAssignParams(values: any[] | { [key: string]: any }, params: Params): any[] | Error {
+function tryAssignParams(values: any, params: Params): any[] | Error {
 	const assigneds: any[] = [];
-	const { singleNames, rest } = params;
-	const isArray = Array.isArray(values);
+	const { type: outerType, singleNames, rest } = params;
+	if (outerType) {
+		const isValid = outerType(values);
+		if (!isValid) {
+			return new Error(`Can not assign the value ${values} to params because it is not of type ${outerType}`);
+		}
+		return assigneds;
+	}
+	// primitive value in Array wrappen
+	const wrappedValue: any[] | { [key: string]: any; } = typeof values === 'object'
+		? values
+		: [values];
+	const isArray = Array.isArray(wrappedValue);
 	let index = 0;
 	if (singleNames) {
 		for (; index < singleNames.length; index++) {
 			const param = singleNames[index]!;
 			const { name, type } = param;
 			const value = isArray
-				? values[index]
-				: values[name];
+				? wrappedValue[index]
+				: wrappedValue[name];
 			const isValid = type
 				? type(value)
 				: true;
 			if (!isValid) {
-				return new Error(`Can not assigne the value ${value} to param ${name} because it is not of type ${type}`);
+				return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
 			}
 			assigneds.push(value);
 		}
@@ -77,13 +85,13 @@ function tryAssignParams(values: any[] | { [key: string]: any }, params: Params)
 	if (rest) {
 		const restType = rest.type;
 		if (isArray) {
-			for (; index < values.length; index++) {
-				const value = values[index];
+			for (; index < wrappedValue.length; index++) {
+				const value = wrappedValue[index];
 				const isValid = restType
 					? restType(value)
 					: true;
 				if (!isValid) {
-					return new Error(`Can not assigne the value ${value} to rest param because it is not of type ${rest}`);
+					return new Error(`Can not assign the value ${value} to rest param because it is not of type ${rest}`);
 				}
 				assigneds.push(value);
 			}
@@ -131,7 +139,7 @@ function deepEquals(value1: any, value2: any): boolean {
 						return false;
 					}
 				}
-				return true
+				return true;
 			}
 			else {
 				// Dictionary/Function Object
@@ -559,7 +567,7 @@ export const timer$ = _createFunction(
 				stream$.push(stream$.lastValue! + 1, processId);
 				cycle();
 			}, delayMs);
-		}
+		};
 		cycle();
 		return stream$;
 	},

@@ -39,7 +39,7 @@ export type InterpretedValue =
 	| NativeFunction
 	| Stream<InterpretedValue>
 	| InterpretedValue[]
-	| { [name: string]: InterpretedValue }
+	| { [name: string]: InterpretedValue; }
 	| Error
 	;
 
@@ -160,7 +160,7 @@ function timer$(delayMs: number): Stream<number> {
 			stream$.push(stream$.lastValue! + 1, processId);
 			cycle();
 		}, delayMs);
-	}
+	};
 	cycle();
 	return stream$;
 }
@@ -705,8 +705,8 @@ const builtIns: {
 	log: {
 		type: 'native',
 		code: (scope: Scope, ...args: any[]) => {
-			console.log(...args)
-			return null
+			console.log(...args);
+			return null;
 		},
 		params: { singleNames: [], rest: { name: 'args' } },
 		returnType: 'Empty',
@@ -801,7 +801,7 @@ function interpreteDestructuringDefinition(destructuring: DestructuringDefinitio
 
 function interpreteDestructuring(
 	destructuringNames: DefinitionNames,
-	sourceValues: { [key: string]: InterpretedValue } | InterpretedValue[],
+	sourceValues: { [key: string]: InterpretedValue; } | InterpretedValue[],
 	targetObject: Scope,
 	state: Scope,
 	checkDefinedNames: boolean,
@@ -813,7 +813,7 @@ function interpreteDestructuring(
 	const isArray = Array.isArray(sourceValues);
 	destructuringNames.singleNames.forEach(({ name, typeGuard, source, fallback }, index) => {
 		if (checkDefinedNames) {
-			checkNameAlreadyDefined(name, targetObject)
+			checkNameAlreadyDefined(name, targetObject);
 		}
 		const sourceWithAlias = source ?? name;
 		const sourceValue = isArray
@@ -861,7 +861,7 @@ function interpreteBranching(branching: Branching, state: Scope): InterpretedVal
 		const functionName = branch.type === 'reference'
 			? referenceNamesToString(branch.names)
 			: undefined;
-		const functionScope = tryCreateFunctionScope(functionValue.params, values as any, functionName, state);
+		const functionScope = tryCreateFunctionScope(functionValue.params as any, values as any, functionName, state);
 		if (functionScope instanceof Error) {
 			continue;
 		}
@@ -871,7 +871,7 @@ function interpreteBranching(branching: Branching, state: Scope): InterpretedVal
 	return new Error('No branch matched');
 }
 
-function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope): InterpretedValue[] | { [key: string]: InterpretedValue } | null {
+function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope): InterpretedValue[] | { [key: string]: InterpretedValue; } | null {
 	switch (objectExpression.type) {
 		case 'empty':
 			return null;
@@ -880,7 +880,7 @@ function interpreteObjectLiteral(objectExpression: ObjectLiteral, state: Scope):
 			const valuesDictionary: Scope = Object.create(null);
 			objectExpression.values.forEach((expression, index) => {
 				const { name, typeGuard, value } = expression;
-				checkNameAlreadyDefined(name, valuesDictionary)
+				checkNameAlreadyDefined(name, valuesDictionary);
 				const uncheckedValue = interpreteExpression(value, state);
 				const checkedValue = checkType(typeGuard, uncheckedValue, state);
 				valuesDictionary[name] = checkedValue.value;
@@ -914,7 +914,7 @@ function interpreteStringLiteral(stringLiteral: StringLiteral, state: Scope): st
 			default:
 				return interpreteExpression(part, state);
 		}
-	})
+	});
 	const joined = parts.join('');
 	return joined;
 }
@@ -995,7 +995,7 @@ function interpreteFunctionCall(functionCall: FunctionCall, state: Scope): Inter
 // TODO call imported functions mit imported scope
 function tryCreateFunctionScope(
 	paramDefinitions: DefinitionNames,
-	paramValues: { [key: string]: InterpretedValue } | InterpretedValue[],
+	paramValues: { [key: string]: InterpretedValue; } | InterpretedValue[],
 	functionName: string | undefined,
 	scope: Scope,
 ): Scope | Error {
@@ -1023,7 +1023,7 @@ function tryCreateFunctionScope(
 
 function callFunction(
 	functionExpression: FunctionExpression,
-	params: { [key: string]: InterpretedValue } | InterpretedValue[],
+	params: { [key: string]: InterpretedValue; } | InterpretedValue[],
 	functionName: string | undefined,
 	scope: Scope,
 ): InterpretedValue {
@@ -1093,7 +1093,7 @@ function deepEquals(value1: any, value2: any): boolean {
 						return false;
 					}
 				}
-				return true
+				return true;
 			}
 			else {
 				// Dictionary/Function Object
@@ -1131,7 +1131,7 @@ function checkType(typeExpression: TypeExpression | undefined, value: Interprete
 			isError: false
 		};
 	}
-	const typeFunction = interpreteTypeExpression(typeExpression, state)
+	const typeFunction = interpreteTypeExpression(typeExpression, state);
 	const functionName = typeExpression.type === 'reference'
 		? referenceNamesToString(typeExpression.names)
 		: undefined;
@@ -1152,11 +1152,11 @@ function checkType(typeExpression: TypeExpression | undefined, value: Interprete
 			// TODO error verbessern mit functionName/type function definition
 			: new Error('Type mismatch'),
 		isError: !typeCheck
-	}
+	};
 }
 
 function interpreteTypeExpression(typeExpression: TypeExpression, scope: Scope): FunctionExpression {
-	const interpretedExpression = interpreteExpression(typeExpression, scope)
+	const interpretedExpression = interpreteExpression(typeExpression, scope);
 	switch (typeof interpretedExpression) {
 		case 'number':
 			return {

@@ -811,10 +811,29 @@ function expressionParser(
 	if (!parsed2) {
 		// SimpleExpression
 		// TODO definitionNames to ObjectLiteral
+		if ('type' in parsed1 && parsed1.type === 'name') {
+			return {
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+				errors: [{
+					rowIndex: result.endRowIndex,
+					columnIndex: result.endColumnIndex,
+					message: 'Can not branch over DefinitionName'
+				}]
+			};
+		}
+		const valueExpression = definitionNamesToObjectLiteral(parsed1);
+		if (valueExpression.errors?.length) {
+			return {
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+				errors: valueExpression.errors as any // TODO structure überdenken
+			};
+		}
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			parsed: parsed1 as any
+			parsed: valueExpression.value
 		};
 	}
 	switch (parsed2.type) {
@@ -830,17 +849,17 @@ function expressionParser(
 					}]
 				};
 			}
-			const toExpressionList = definitionNamesToObjectLiteral(parsed1);
-			if (toExpressionList.errors?.length) {
+			const valueExpression = definitionNamesToObjectLiteral(parsed1);
+			if (valueExpression.errors?.length) {
 				return {
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
-					errors: toExpressionList.errors as any // TODO structure überdenken
+					errors: valueExpression.errors as any // TODO structure überdenken
 				};
 			}
 			const branching: Branching = {
 				type: 'branching',
-				value: toExpressionList.value!,
+				value: valueExpression.value!,
 				branches: parsed2.value,
 			};
 			return {
@@ -851,14 +870,14 @@ function expressionParser(
 		}
 
 		case 'functionBody': {
-			if ('type' in parsed1) {
+			if ('type' in parsed1 && parsed1.type === 'name') {
 				return {
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
 					errors: [{
 						rowIndex: result.endRowIndex,
 						columnIndex: result.endColumnIndex,
-						message: 'Expected DefinitionNames but got ExpressionList as FunctionParameters'
+						message: 'DefinitionName not allowed as FunctionParameters'
 					}],
 				};
 			}
@@ -866,7 +885,7 @@ function expressionParser(
 				type: 'functionLiteral',
 				params: parsed1,
 				body: parsed2.body,
-				pure: true, // TODO impure functions mit !=>
+				pure: true, // TODO impure functions mit !=> ?
 			};
 			return {
 				endRowIndex: result.endRowIndex,
@@ -1294,9 +1313,9 @@ function branchesParser(
 	};
 }
 
-function definitionNamesToObjectLiteral(possibleNames: ValueExpression | DefinitionNames): { errors?: string[]; value?: ValueExpression; } {
+function definitionNamesToObjectLiteral<T extends Expression>(possibleNames: T | DefinitionNames): { errors?: string[]; value?: T; } {
 	if ('type' in possibleNames) {
-		// ExpressionList
+		// Expression
 		return {
 			value: possibleNames
 		};
@@ -1322,7 +1341,7 @@ function definitionNamesToObjectLiteral(possibleNames: ValueExpression | Definit
 		value: {
 			type: 'list',
 			// TODO check NonEmptyArray?
-			values: refs as any
-		}
+			values: refs
+		} as any
 	};
 }

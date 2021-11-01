@@ -14,7 +14,7 @@ export function astToJs(expressions: Expression[]): string {
 		// export defined names
 		if (expression.type === 'definition') {
 			hasDefinition = true;
-			return `${expressionJs}\nexports.${expression.name} = ${expression.name};`
+			return `${expressionJs}\nexports.${expression.name} = ${expression.name};`;
 		}
 		// default export = last expression
 		if (index === expressions.length - 1 && !hasDefinition) {
@@ -45,7 +45,7 @@ function expressionToJs(expression: Expression): string {
 				const checkedValue = typeGuard
 					? `_checkType(${expressionToJs(typeGuard)}, ${rawValue})`
 					: rawValue;
-				return `${escapeReservedJsVariableName(name)} = ${checkedValue};`
+				return `${escapeReservedJsVariableName(name)} = ${checkedValue};`;
 			}).join('\n');
 			return `${declarations}\n{\nconst _temp = ${expressionToJs(expression.value)};\nconst _isArray = Array.isArray(_temp);\n${assignments}\n}`;
 		}
@@ -73,8 +73,18 @@ function expressionToJs(expression: Expression): string {
 			// TODO params(DefinitionNames) to Type
 			// TODO rest args
 			// TODO return statement
-			const argsJs = expression.params.singleNames.map(name => name.name).join(', ');
-			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${definitionNamesToJs(expression.params)})`;
+			const params = expression.params;
+			let argsJs: string;
+			let paramsJs: string;
+			if ('type' in params) {
+				argsJs = '';
+				paramsJs = `{type:${typeToJs(params)}}`;
+			}
+			else {
+				argsJs = params.singleNames.map(name => name.name).join(', ');
+				paramsJs = definitionNamesToJs(params);
+			}
+			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
 		}
 
 		case 'list':
@@ -139,7 +149,7 @@ function functionBodyToJs(expressions: Expression[]): string {
 		// Die letzte Expression ist der Rückgabewert
 		if (index === expressions.length - 1) {
 			if (expression.type === 'definition') {
-				return `${expressionJs}\nreturn ${expression.name};`
+				return `${expressionJs}\nreturn ${expression.name};`;
 			}
 			return `return ${expressionJs}`;
 		}
@@ -266,7 +276,7 @@ function definitionNamesToJs(definitionNames: DefinitionNames): string {
 }
 
 function checkTypeJs(type: TypeExpression, valueJs: string): string {
-	return `_checkType(${expressionToJs(type)}, ${valueJs})`
+	return `_checkType(${typeToJs(type)}, ${valueJs})`;
 }
 
 function typeToJs(typeExpression: TypeExpression): string {
@@ -304,7 +314,7 @@ function typeToJs(typeExpression: TypeExpression): string {
 }
 
 function constantValueToTypeJs(expression: ValueExpression): string {
-	return `(_x) => _x === ${expressionToJs(expression)}`
+	return `(_x) => _x === ${expressionToJs(expression)}`;
 }
 
 function stringLiteralToJs(stringLiteral: StringLiteral): string {
@@ -314,7 +324,7 @@ function stringLiteralToJs(stringLiteral: StringLiteral): string {
 		}
 		return `\${${expressionToJs(value)}}`;
 	}).join('');
-	return `\`${stringValue}\``
+	return `\`${stringValue}\``;
 }
 
 function numberLiteralToJs(numberLiteral: NumberLiteral): string {

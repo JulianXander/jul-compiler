@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { parseCode } from './parser';
-import { interpreteAst } from './interpreter';
+// import { interpreteAst } from './interpreter';
 
 const expectedResults: {
 	code: string;
@@ -144,7 +144,7 @@ const expectedResults: {
 			code: 'fibonacci = (countdown current previous) =>\n\t(countdown) ?\n\t\t(x:0) => previous\n\t\t(x) => fibonacci(subtract(countdown 1) sum(current previous) current)\nfibonacci(12 1 0)',
 			result: 144
 		},
-	]
+	];;
 
 // describe('Interpreter', () => {
 // 	expectedResults.forEach(({ code, result }) => {

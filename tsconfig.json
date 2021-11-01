@@ -1,7 +1,7 @@
 {
   "files": [
     "src/cli.ts",
-    "src/interpreter.ts"
+    // "src/interpreter.ts"
   ],
   // "include": [
   //   "src/**/*.ts"

@@ -72,9 +72,10 @@ export interface DictionaryValue {
 
 export interface FunctionLiteral {
 	type: 'functionLiteral';
-	// TODO functionName?
-	params: DefinitionNames;
+	// TODO functionName? für StackTrace
+	params: DefinitionNames | TypeExpression;
 	body: Expression[];
+	// TODO entfernen?
 	pure: boolean;
 }
 
@@ -106,6 +107,7 @@ export interface DefinitionNames {
 
 export interface DefinitionName {
 	type: 'name';
+	// TODO description
 	name: string;
 	/**
 	 * Wenn vorhanden, dann ist name ein Alias
@@ -123,6 +125,7 @@ export interface DefinitionName {
 
 export interface SingleDefinition {
 	type: 'definition';
+	// TODO description
 	name: string;
 	value: ValueExpression;
 	typeGuard?: TypeExpression;
