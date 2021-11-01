@@ -667,7 +667,7 @@ function functionBodyParser(
 }> {
 	const result = sequenceParser(
 		functionTokenParser,
-		discriminatedChoiceParser<Expression[][], never>([
+		discriminatedChoiceParser<Expression[][]>(
 			// multiline FunctionLiteral
 			{
 				predicate: endOfLineParser,
@@ -681,7 +681,7 @@ function functionBodyParser(
 					expression =>
 						([expression]))),
 			},
-		]),
+		),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		endRowIndex: result.endRowIndex,
@@ -712,6 +712,39 @@ function definitionValueParser(
 	}
 }
 
+function simpleExpressionParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<Expression> {
+	const result = discriminatedChoiceParser(
+		// ObjectLiteral/FunctionLiteralParams/DestructuringDeclarations
+		{
+			predicate: openingBracketParser,
+			// TODO bracketedExpressionParser FunctionLiteralParams/DestructuringDeclarations
+			parser: bracketedExpressionParser,
+		},
+		// NumberLiteral
+		{
+			predicate: regexParser(/[-0-9]/g, ''),
+			parser: numberParser,
+		},
+		// StringLiteral
+		{
+			predicate: paragraphParser,
+			parser: stringParser,
+		},
+		// FunctionCall/Reference/DefinitionDeclarations
+		{
+			predicate: regexParser(/[a-zA-Z]/g, ''),
+			// TODO nameStartedExpressionParser ohne Definition/Reference Branching
+			parser: nameStartedExpressionParser,
+		},
+	)(rows, startRowIndex, startColumnIndex, indent);
+	return result;
+}
+
 function expressionParser(
 	rows: string[],
 	startRowIndex: number,
@@ -729,29 +762,60 @@ function expressionParser(
 			}]
 		}
 	}
+	// const result = sequenceParser(
+	// 	simpleExpressionParser,
+	// 	discriminatedChoiceParser(
+	// 		// SimpleExpression
+	// 		{
+	// 			predicate: endOfLineParser,
+	// 			parser: emptyParser
+	// 		},
+	// 		// TODO Reference Chain,FunctionCall?
+	// 		// {
+	// 		// 	predicate: tokenParser('.'),
+	// 		// 	parser: ???,
+	// 		// },
+	// 		// Branching
+	// 		{
+	// 			predicate: branchingTokenParser,
+	// 			// function list
+	// 			parser: branchesParser
+	// 		},
+	// 		// FunctionLiteral
+	// 		{
+	// 			predicate: functionTokenParser,
+	// 			// expressionBlock
+	// 			parser: functionBodyParser
+	// 		},
+	// 		// Definition
+	// 		{
+	// 			predicate: definitionTokenParser,
+	// 			// ValueExpression
+	// 			parser: definitionValueParser
+	// 		},
+	// 	)
+	// )(rows, startRowIndex, startColumnIndex, indent);
 	const result = discriminatedChoiceParser(
-		[
-			// FunctionLiteral/Destructuring Definition/ObjectLiteral Branching/ObjectLiteral
-			{
-				predicate: openingBracketParser,
-				parser: bracketedExpressionParser,
-			},
-			// NumberLiteral
-			{
-				predicate: regexParser(/[-0-9]/g, ''),
-				parser: numberParser,
-			},
-			// StringLiteral
-			{
-				predicate: paragraphParser,
-				parser: stringParser,
-			},
-			// FunctionCall/Reference/Definition/Reference Branching
-			{
-				predicate: regexParser(/[a-zA-Z]/g, ''),
-				parser: nameStartedExpressionParser,
-			},
-		]
+		// FunctionLiteral/Destructuring Definition/ObjectLiteral Branching/ObjectLiteral
+		{
+			predicate: openingBracketParser,
+			parser: bracketedExpressionParser,
+		},
+		// NumberLiteral
+		{
+			predicate: regexParser(/[-0-9]/g, ''),
+			parser: numberParser,
+		},
+		// StringLiteral
+		{
+			predicate: paragraphParser,
+			parser: stringParser,
+		},
+		// FunctionCall/Reference/Definition/Reference Branching
+		{
+			predicate: regexParser(/[a-zA-Z]/g, ''),
+			parser: nameStartedExpressionParser,
+		},
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return result;
 }
@@ -802,32 +866,29 @@ function bracketedExpressionParser(
 			objectParser,
 		),
 		discriminatedChoiceParser(
-			[
-				// ObjectLiteral
-				{
-					predicate: endOfLineParser,
-					// function list
-					parser: emptyParser
-				},
-				// Branching
-				{
-					predicate: branchingTokenParser,
-					// function list
-					parser: branchesParser
-				},
-				// FunctionLiteral
-				{
-					predicate: functionTokenParser,
-					// expressionBlock
-					parser: functionBodyParser
-				},
-				// Destructuring Definition
-				{
-					predicate: definitionTokenParser,
-					// expression
-					parser: definitionValueParser
-				},
-			],
+			// ObjectLiteral
+			{
+				predicate: endOfLineParser,
+				parser: emptyParser
+			},
+			// Branching
+			{
+				predicate: branchingTokenParser,
+				// function list
+				parser: branchesParser
+			},
+			// FunctionLiteral
+			{
+				predicate: functionTokenParser,
+				// expressionBlock
+				parser: functionBodyParser
+			},
+			// Destructuring Definition
+			{
+				predicate: definitionTokenParser,
+				// ValueExpression
+				parser: definitionValueParser
+			},
 		)
 	)(rows, startRowIndex, startColumnIndex, indent);
 	if (result.errors?.length) {
@@ -937,35 +998,36 @@ function nameStartedExpressionParser(
 			definitionNameParser, // TODO nur name, typeGuard, kein source, optional
 		),
 		discriminatedChoiceParser(
-			[
-				// FunctionCall
-				{
-					predicate: openingBracketParser,
-					// ObjectLiteral
-					parser: mapParser<ObjectLiteral, { type: 'functionArgument'; value: ObjectLiteral; }>(
-						objectParser,
-						objectLiteral => {
-							return {
-								type: 'functionArgument',
-								value: objectLiteral,
-							}
-						})
-				},
-				// Definition
-				{
-					predicate: definitionTokenParser,
-					// ValueExpression
-					parser: definitionValueParser
-				},
-				// Branching
-				{
-					predicate: branchingTokenParser,
-					// function list
-					parser: branchesParser
-				},
-			],
-			// Reference
-			emptyParser
+			// FunctionCall
+			{
+				predicate: openingBracketParser,
+				// ObjectLiteral
+				parser: mapParser<ObjectLiteral, { type: 'functionArgument'; value: ObjectLiteral; }>(
+					objectParser,
+					objectLiteral => {
+						return {
+							type: 'functionArgument',
+							value: objectLiteral,
+						}
+					})
+			},
+			// Definition
+			{
+				predicate: definitionTokenParser,
+				// ValueExpression
+				parser: definitionValueParser
+			},
+			// Branching
+			{
+				predicate: branchingTokenParser,
+				// function list
+				parser: branchesParser
+			},
+			{
+				// Reference
+				predicate: emptyParser,
+				parser: emptyParser
+			},
 		)
 	)(rows, startRowIndex, startColumnIndex, indent);
 	if (result.errors?.length) {

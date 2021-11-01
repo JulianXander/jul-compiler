@@ -75,10 +75,9 @@ type ParserChoices<T extends any[]> = {
 	}
 }
 
-export function discriminatedChoiceParser<T extends any[], U = never>(
-	choices: ParserChoices<T>,
-	restParser?: Parser<U>,
-): Parser<T[number] | U> {
+export function discriminatedChoiceParser<T extends any[]>(
+	...choices: ParserChoices<T>
+): Parser<T[number]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		// const char = code[startIndex];
 		for (const { predicate, parser } of choices) {
@@ -87,11 +86,6 @@ export function discriminatedChoiceParser<T extends any[], U = never>(
 				const parserResult = parser(rows, startRowIndex, startColumnIndex, indent)
 				return parserResult;
 			}
-		}
-
-		if (restParser) {
-			const restParserResult = restParser(rows, startRowIndex, startColumnIndex, indent);
-			return restParserResult;
 		}
 
 		return {
