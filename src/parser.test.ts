@@ -8,6 +8,13 @@ const expectedResults: {
 	result: Expression[];
 }[] = [
 		{
+			code: '§\n\t12\n§',
+			result: [{
+				type: 'string',
+				values: [{ type: 'stringToken', value: '12\n' }]
+			}]
+		},
+		{
 			code: '# Destructuring import\n§a§',
 			result: [{
 				type: 'string',

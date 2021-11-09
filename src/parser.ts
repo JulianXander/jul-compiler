@@ -348,7 +348,7 @@ function numberParser(
 	};
 }
 
-function stringParser(
+function inlineStringParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
@@ -356,6 +356,32 @@ function stringParser(
 ): ParserResult<StringLiteral> {
 	const result = sequenceParser(
 		paragraphParser,
+		stringLineContentParser,
+		paragraphParser,
+	)(rows, startRowIndex, startColumnIndex, indent);
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: result.parsed === undefined
+			? undefined
+			: {
+				type: 'string',
+				values: result.parsed[1]
+			},
+	};
+}
+
+function stringLineContentParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<({
+	type: 'stringToken';
+	value: string;
+} | ValueExpression)[]> {
+	const result =
 		multiplicationParser(
 			0,
 			undefined,
@@ -368,9 +394,70 @@ function stringParser(
 					closingBracketParser,
 				),
 			)
-		),
+		)(rows, startRowIndex, startColumnIndex, indent);
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: result.parsed?.map(choice => {
+			switch (typeof choice) {
+				case 'undefined':
+					return {
+						type: 'stringToken',
+						value: '§'
+					};
+
+				case 'string':
+					return {
+						type: 'stringToken',
+						value: choice
+					};
+
+				case 'object':
+					return choice[1];
+
+				default:
+					throw new Error('unexpected String Token choice');
+			}
+		})
+	};
+}
+
+function multilineStringParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<StringLiteral> {
+	const result = sequenceParser(
+		paragraphParser,
+		newLineParser,
+		incrementIndent(multilineParser(stringLineContentParser)),
+		newLineParser,
+		indentParser,
 		paragraphParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
+	const values: ({
+		type: 'stringToken';
+		value: string;
+	} | ValueExpression)[] = [];
+	if (result.parsed) {
+		result.parsed[2].forEach(line => {
+			if (line) {
+				values.push(...line);
+			}
+			const tail = values[values.length - 1];
+			if (tail?.type === 'stringToken') {
+				tail.value += '\n';
+			}
+			else {
+				values.push({
+					type: 'stringToken',
+					value: '\n'
+				});
+			}
+		});
+	}
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
@@ -379,27 +466,7 @@ function stringParser(
 			? undefined
 			: {
 				type: 'string',
-				values: result.parsed[1].map(choice => {
-					switch (typeof choice) {
-						case 'undefined':
-							return {
-								type: 'stringToken',
-								value: '§'
-							};
-
-						case 'string':
-							return {
-								type: 'stringToken',
-								value: choice
-							};
-
-						case 'object':
-							return choice[1];
-
-						default:
-							throw new Error('unexpected String Token choice');
-					}
-				})
+				values: values,
 			},
 	};
 }
@@ -741,7 +808,10 @@ function simpleExpressionParser(
 		// StringLiteral
 		{
 			predicate: paragraphParser,
-			parser: stringParser,
+			parser: choiceParser(
+				inlineStringParser,
+				multilineStringParser
+			)
 		},
 		// FunctionCall/Reference/DefinitionDeclarations
 		{
