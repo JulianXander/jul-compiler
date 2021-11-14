@@ -29,7 +29,14 @@ export type ValueExpression =
 
 export type TypeExpression = ValueExpression; // TODO function any=>boolean/type literal
 
-export interface StringLiteral {
+interface PositionedExpression {
+	startRowIndex: number;
+	startColumnIndex: number;
+	endRowIndex: number;
+	endColumnIndex: number;
+}
+
+export interface StringLiteral extends PositionedExpression {
 	type: 'string';
 	values: ({
 		type: 'stringToken';
@@ -37,18 +44,18 @@ export interface StringLiteral {
 	} | ValueExpression)[];
 }
 
-export interface NumberLiteral {
+export interface NumberLiteral extends PositionedExpression {
 	type: 'number';
 	value: number;
 }
 
 export type ObjectLiteral = EmptyLiteral | ListLiteral | DictionaryLiteral;
 
-export interface EmptyLiteral {
+export interface EmptyLiteral extends PositionedExpression {
 	type: 'empty';
 }
 
-export interface ListLiteral {
+export interface ListLiteral extends PositionedExpression {
 	type: 'list';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
@@ -56,7 +63,7 @@ export interface ListLiteral {
 	values: NonEmptyArray<ValueExpression>;
 }
 
-export interface DictionaryLiteral {
+export interface DictionaryLiteral extends PositionedExpression {
 	type: 'dictionary';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
@@ -70,7 +77,7 @@ export interface DictionaryValue {
 	value: ValueExpression;
 }
 
-export interface FunctionLiteral {
+export interface FunctionLiteral extends PositionedExpression {
 	type: 'functionLiteral';
 	// TODO functionName? für StackTrace
 	params: DefinitionNames | TypeExpression;
@@ -79,8 +86,9 @@ export interface FunctionLiteral {
 	pure: boolean;
 }
 
-export interface FunctionCall {
+export interface FunctionCall extends PositionedExpression {
 	type: 'functionCall';
+	// TODO functionReference mit Reference, für position
 	functionReference: ReferenceNames;
 	// TODO primitive value direkt als params?
 	params: ObjectLiteral;
@@ -88,7 +96,7 @@ export interface FunctionCall {
 
 export type ReferenceNames = [string, ...(number | string)[]];
 
-export interface Reference {
+export interface Reference extends PositionedExpression {
 	type: 'reference';
 	names: ReferenceNames;
 }
@@ -106,7 +114,7 @@ export interface DefinitionNames {
 	};
 }
 
-export interface DefinitionName {
+export interface DefinitionName extends PositionedExpression {
 	type: 'name';
 	// TODO description
 	name: string;
@@ -118,13 +126,7 @@ export interface DefinitionName {
 	fallback?: ValueExpression;
 }
 
-// interface ObjectDereference{
-// 	type: 'objectDereference';
-// 	object
-// 	nullsafe: boolean;
-// }
-
-export interface SingleDefinition {
+export interface SingleDefinition extends PositionedExpression {
 	type: 'definition';
 	// TODO description
 	name: string;
@@ -132,13 +134,13 @@ export interface SingleDefinition {
 	typeGuard?: TypeExpression;
 }
 
-export interface DestructuringDefinition {
+export interface DestructuringDefinition extends PositionedExpression {
 	type: 'destructuring';
 	names: DefinitionNames;
 	value: ValueExpression;
 }
 
-export interface Branching {
+export interface Branching extends PositionedExpression {
 	type: 'branching';
 	value: ValueExpression;
 	// TODO check FunctionExpression

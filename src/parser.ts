@@ -343,7 +343,11 @@ function numberParser(
 			? undefined
 			: {
 				type: 'number',
-				value: +result.parsed
+				value: +result.parsed,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
 			},
 	};
 }
@@ -367,7 +371,11 @@ function inlineStringParser(
 			? undefined
 			: {
 				type: 'string',
-				values: result.parsed[1]
+				values: result.parsed[1],
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
 			},
 	};
 }
@@ -467,6 +475,10 @@ function multilineStringParser(
 			: {
 				type: 'string',
 				values: values,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex
 			},
 	};
 }
@@ -513,7 +525,11 @@ function referenceParser(
 					const name = sequence[1];
 					return name;
 				}) ?? [])
-			]
+			],
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex
 		}
 	};
 }
@@ -529,7 +545,7 @@ function indexAccessParser(
 		...result,
 		parsed: result.parsed === undefined
 			? undefined
-			: +result.parsed
+			: +result.parsed,
 	};
 }
 
@@ -580,6 +596,10 @@ function definitionNameParser(
 			source: result.parsed[1]?.[0]?.[1],
 			typeGuard: typeSequence?.[1],
 			fallback: typeSequence?.[2]?.[0]?.[1],
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
 		},
 	};
 }
@@ -934,6 +954,10 @@ function expressionParser(
 				type: 'branching',
 				value: valueExpression.value!,
 				branches: parsed2.value,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
 			};
 			return {
 				endRowIndex: result.endRowIndex,
@@ -959,6 +983,10 @@ function expressionParser(
 				params: parsed1,
 				body: parsed2.body,
 				pure: true, // TODO impure functions mit !=> ?
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
 			};
 			return {
 				endRowIndex: result.endRowIndex,
@@ -987,6 +1015,10 @@ function expressionParser(
 							name: toName.name!.name,
 							value: definitionValue,
 							typeGuard: toName.name!.typeGuard,
+							startRowIndex: startRowIndex,
+							startColumnIndex: startColumnIndex,
+							endRowIndex: result.endRowIndex,
+							endColumnIndex: result.endColumnIndex,
 						};
 						return {
 							endRowIndex: result.endRowIndex,
@@ -1011,6 +1043,10 @@ function expressionParser(
 				type: 'destructuring',
 				names: parsed1,
 				value: definitionValue,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
 			};
 			return {
 				endRowIndex: result.endRowIndex,
@@ -1133,28 +1169,42 @@ function nameStartedExpressionParser(
 		};
 	}
 	let functionCall: FunctionCall;
+	const params = parsed2.args;
 	if (parsed2.boundFunctionName) {
 		const values: NonEmptyArray<ValueExpression> = [
 			toRef.ref!,
 		];
 		// TODO bound function call mit dictionary
-		if (parsed2.args.type === 'list') {
-			values.push(...parsed2.args.values);
+		if (params.type === 'list') {
+			values.push(...params.values);
 		}
 		functionCall = {
 			type: 'functionCall',
 			functionReference: [parsed2.boundFunctionName],
 			params: {
 				type: 'list',
-				values: values
+				values: values,
+				// TODO achtung bei findExpressionbyPosition, da bound param außerhalb der range
+				startRowIndex: params.startRowIndex,
+				startColumnIndex: params.startColumnIndex,
+				endRowIndex: params.endRowIndex,
+				endColumnIndex: params.endColumnIndex,
 			},
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
 		};
 	}
 	else {
 		functionCall = {
 			type: 'functionCall',
 			functionReference: toRef.ref!.names,
-			params: parsed2.args,
+			params: params,
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
 		};
 	}
 	return {
@@ -1190,7 +1240,7 @@ function functionArgsParser(
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
 			args: parsed2,
-			boundFunctionName: parsed1[0]?.[1]
+			boundFunctionName: parsed1[0]?.[1],
 		},
 	};
 }
@@ -1218,7 +1268,11 @@ function definitionNameToReference(possibleRef: Reference | DefinitionName): { e
 	return {
 		ref: {
 			type: 'reference',
-			names: [possibleRef.name]
+			names: [possibleRef.name],
+			startRowIndex: possibleRef.startRowIndex,
+			startColumnIndex: possibleRef.startColumnIndex,
+			endRowIndex: possibleRef.endRowIndex,
+			endColumnIndex: possibleRef.endColumnIndex,
 		}
 	};
 }
@@ -1235,7 +1289,11 @@ function referenceToDefinitionName(possibleName: Reference | DefinitionName): { 
 	return {
 		name: {
 			type: 'name',
-			name: possibleName.names[0]
+			name: possibleName.names[0],
+			startRowIndex: possibleName.startRowIndex,
+			startColumnIndex: possibleName.startColumnIndex,
+			endRowIndex: possibleName.endRowIndex,
+			endColumnIndex: possibleName.endColumnIndex,
 		}
 	};
 }
@@ -1283,6 +1341,10 @@ function emptyObjectParser(
 		errors: result.errors,
 		parsed: result.errors ? undefined : {
 			type: 'empty',
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
 		},
 	};
 }
@@ -1297,7 +1359,11 @@ function inlineListParser(
 	const parsed: ListLiteral | undefined = result.parsed && {
 		type: 'list',
 		// TODO check NonEmptyArray?
-		values: result.parsed as any
+		values: result.parsed as any,
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
 	};
 	return {
 		endRowIndex: result.endRowIndex,
@@ -1329,7 +1395,11 @@ function inlineDictionaryParser(
 				value: sequence[2],
 			};
 			return value;
-		}) as any
+		}) as any,
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
 	};
 	return {
 		endRowIndex: result.endRowIndex,
@@ -1349,7 +1419,11 @@ function multilineListParser(
 	const parsed: ListLiteral | undefined = result.parsed && {
 		type: 'list',
 		// TODO check NonEmptyArray?
-		values: result.parsed.filter(isDefined) as any
+		values: result.parsed.filter(isDefined) as any,
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
 	};
 	return {
 		endRowIndex: result.endRowIndex,
@@ -1381,7 +1455,11 @@ function multilineDictionaryParser(
 				value: sequence[2],
 			};
 			return value;
-		}) as any
+		}) as any,
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
 	};
 	return {
 		endRowIndex: result.endRowIndex,
