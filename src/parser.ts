@@ -1170,7 +1170,7 @@ function nameStartedExpressionParser(
 	}
 	let functionCall: FunctionCall;
 	const params = parsed2.args;
-	if (parsed2.boundFunctionName) {
+	if (parsed2.boundFunctionReference) {
 		const values: NonEmptyArray<ValueExpression> = [
 			toRef.ref!,
 		];
@@ -1180,7 +1180,7 @@ function nameStartedExpressionParser(
 		}
 		functionCall = {
 			type: 'functionCall',
-			functionReference: [parsed2.boundFunctionName],
+			functionReference: parsed2.boundFunctionReference,
 			params: {
 				type: 'list',
 				values: values,
@@ -1199,7 +1199,7 @@ function nameStartedExpressionParser(
 	else {
 		functionCall = {
 			type: 'functionCall',
-			functionReference: toRef.ref!.names,
+			functionReference: toRef.ref!,
 			params: params,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
@@ -1221,7 +1221,7 @@ function functionArgsParser(
 	indent: number,
 ): ParserResult<{
 	args: ObjectLiteral;
-	boundFunctionName?: string;
+	boundFunctionReference?: Reference;
 }> {
 	const result = sequenceParser(
 		multiplicationParser(0, 1, sequenceParser(boundFunctionTokenParser, nameParser)),
@@ -1235,12 +1235,23 @@ function functionArgsParser(
 		};
 	}
 	const [parsed1, parsed2] = result.parsed!;
+	const boundFunctionName = parsed1[0]?.[1];
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
 			args: parsed2,
-			boundFunctionName: parsed1[0]?.[1],
+			boundFunctionReference: boundFunctionName
+				? {
+					type: 'reference',
+					names: [boundFunctionName],
+					startRowIndex: startRowIndex,
+					// + 1 für boundFunctionToken .
+					startColumnIndex: startColumnIndex + 1,
+					endRowIndex: startRowIndex,
+					endColumnIndex: startColumnIndex + 1 + boundFunctionName.length,
+				}
+				: undefined,
 		},
 	};
 }

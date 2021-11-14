@@ -1,4 +1,4 @@
-import { DefinitionNames, Expression, FunctionCall, NumberLiteral, ObjectLiteral, ReferenceNames, StringLiteral, TypeExpression, ValueExpression } from './abstract-syntax-tree';
+import { DefinitionNames, Expression, FunctionCall, NumberLiteral, ObjectLiteral, Reference, ReferenceNames, StringLiteral, TypeExpression, ValueExpression } from './abstract-syntax-tree';
 import * as runtime from './runtime';
 
 const runtimeKeys = Object.keys(runtime);
@@ -66,7 +66,7 @@ function expressionToJs(expression: Expression): string {
 				const path = getPathFromImport(expression);
 				return `require("${path}")`;
 			}
-			return `_callFunction(${referenceNamesToJs(functionReference)}, ${expressionToJs(expression.params)})`;
+			return `_callFunction(${referenceToJs(functionReference)}, ${expressionToJs(expression.params)})`;
 		}
 
 		case 'functionLiteral': {
@@ -96,7 +96,7 @@ function expressionToJs(expression: Expression): string {
 			return numberLiteralToJs(expression);
 
 		case 'reference':
-			return referenceNamesToJs(expression.names);
+			return referenceToJs(expression);
 
 		case 'string':
 			return stringLiteralToJs(expression);
@@ -108,9 +108,9 @@ function expressionToJs(expression: Expression): string {
 	}
 }
 
-export function isImport(functionReference: ReferenceNames): boolean {
-	return functionReference.length === 1
-		&& functionReference[0] === 'import';
+export function isImport(functionReference: Reference): boolean {
+	return functionReference.names.length === 1
+		&& functionReference.names[0] === 'import';
 }
 
 export function getPathFromImport(importExpression: FunctionCall): string {
@@ -161,8 +161,8 @@ function functionBodyToJs(expressions: Expression[]): string {
 }
 
 // TODO bound functions berücksichtigen
-function referenceNamesToJs(referenceNames: ReferenceNames): string {
-	return referenceNames.map((name, index) => {
+function referenceToJs(reference: Reference): string {
+	return reference.names.map((name, index) => {
 		if (!index) {
 			if (typeof name !== 'string') {
 				throw new Error('First name must be a string');
@@ -304,7 +304,7 @@ function typeToJs(typeExpression: TypeExpression): string {
 			return constantValueToTypeJs(typeExpression);
 
 		case 'reference':
-			return referenceNamesToJs(typeExpression.names);
+			return referenceToJs(typeExpression);
 
 		default: {
 			const assertNever: never = typeExpression;
