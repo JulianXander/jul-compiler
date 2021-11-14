@@ -31,7 +31,7 @@ function expressionToJs(expression: Expression): string {
 
 		case 'definition': {
 			const valueJs = expressionToJs(expression.value);
-			return `const ${escapeReservedJsVariableName(expression.name)} = ${expression.typeGuard ? checkTypeJs(expression.typeGuard, valueJs) : valueJs};`;
+			return `const ${escapeReservedJsVariableName(expression.name.name)} = ${expression.typeGuard ? checkTypeJs(expression.typeGuard, valueJs) : valueJs};`;
 		}
 
 		case 'destructuring': {

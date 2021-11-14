@@ -1012,7 +1012,7 @@ function expressionParser(
 						}
 						const definition: SingleDefinition = {
 							type: 'definition',
-							name: toName.name!.name,
+							name: toName.name!,
 							value: definitionValue,
 							typeGuard: toName.name!.typeGuard,
 							startRowIndex: startRowIndex,
