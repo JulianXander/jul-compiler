@@ -31,7 +31,10 @@ function expressionToJs(expression: Expression): string {
 
 		case 'definition': {
 			const valueJs = expressionToJs(expression.value);
-			return `const ${escapeReservedJsVariableName(expression.name.name)} = ${expression.typeGuard ? checkTypeJs(expression.typeGuard, valueJs) : valueJs};`;
+			const checkedValueJs = expression.typeGuard
+				? checkTypeJs(expression.typeGuard, valueJs)
+				: valueJs;
+			return `const ${escapeReservedJsVariableName(expression.name.name)} = ${checkedValueJs};`;
 		}
 
 		case 'destructuring': {
@@ -66,7 +69,7 @@ function expressionToJs(expression: Expression): string {
 				const path = getPathFromImport(expression);
 				return `require("${path}")`;
 			}
-			return `_callFunction(${referenceToJs(functionReference)}, ${expressionToJs(expression.params)})`;
+			return `_callFunction(${referenceToJs(functionReference)}, ${expressionToJs(expression.arguments)})`;
 		}
 
 		case 'functionLiteral': {
@@ -76,13 +79,13 @@ function expressionToJs(expression: Expression): string {
 			const params = expression.params;
 			let argsJs: string;
 			let paramsJs: string;
-			if ('type' in params) {
-				argsJs = '';
-				paramsJs = `{type:${typeToJs(params)}}`;
-			}
-			else {
+			if (params.type === 'definitionNames') {
 				argsJs = params.singleNames.map(name => name.name).join(', ');
 				paramsJs = definitionNamesToJs(params);
+			}
+			else {
+				argsJs = '';
+				paramsJs = `{type:${typeToJs(params)}}`;
 			}
 			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
 		}
@@ -114,7 +117,7 @@ export function isImport(functionReference: Reference): boolean {
 }
 
 export function getPathFromImport(importExpression: FunctionCall): string {
-	const pathExpression = getPathExpression(importExpression.params);
+	const pathExpression = getPathExpression(importExpression.arguments);
 	if (pathExpression.type === 'string'
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'stringToken') {

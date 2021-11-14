@@ -95,8 +95,8 @@ export interface FunctionCall extends Positioned {
 	type: 'functionCall';
 	// TODO functionReference mit Reference, für position
 	functionReference: Reference;
-	// TODO primitive value direkt als params?
-	params: ObjectLiteral;
+	// TODO primitive value direkt als arguments?
+	arguments: ObjectLiteral;
 }
 
 export interface Reference extends Positioned {
@@ -106,7 +106,8 @@ export interface Reference extends Positioned {
 
 export type ReferenceNames = [string, ...(number | string)[]];
 
-export interface DefinitionNames {
+export interface DefinitionNames extends Positioned {
+	type: 'definitionNames';
 	singleNames: DefinitionName[];
 	rest?: {
 		name: string;

@@ -615,7 +615,16 @@ function emptyNameListParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
-		parsed: result.errors ? undefined : { singleNames: [] },
+		parsed: result.errors
+			? undefined
+			: {
+				type: 'definitionNames',
+				singleNames: [],
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+			},
 	};
 }
 
@@ -671,12 +680,17 @@ function inlineNameListParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
+			type: 'definitionNames',
 			singleNames: singleNames,
 			rest: rest === undefined
 				? undefined
 				: {
 					name: rest
-				}
+				},
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
 		}
 	};
 }
@@ -733,12 +747,17 @@ function multilineNameListParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
+			type: 'definitionNames',
 			singleNames: singleNames,
 			rest: rest === undefined
 				? undefined
 				: {
 					name: rest
-				}
+				},
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
 		}
 	};
 }
@@ -1134,7 +1153,7 @@ function nameStartedExpressionParser(
 					boundFunctionTokenParser,
 				),
 				// ObjectLiteral
-				parser: functionArgsParser
+				parser: functionArgumentsParser
 			},
 			{
 				// Reference/DefinitionName
@@ -1169,7 +1188,7 @@ function nameStartedExpressionParser(
 		};
 	}
 	let functionCall: FunctionCall;
-	const params = parsed2.args;
+	const params = parsed2.arguments;
 	if (parsed2.boundFunctionReference) {
 		const values: NonEmptyArray<ValueExpression> = [
 			toRef.ref!,
@@ -1181,7 +1200,7 @@ function nameStartedExpressionParser(
 		functionCall = {
 			type: 'functionCall',
 			functionReference: parsed2.boundFunctionReference,
-			params: {
+			arguments: {
 				type: 'list',
 				values: values,
 				// TODO achtung bei findExpressionbyPosition, da bound param außerhalb der range
@@ -1200,7 +1219,7 @@ function nameStartedExpressionParser(
 		functionCall = {
 			type: 'functionCall',
 			functionReference: toRef.ref!,
-			params: params,
+			arguments: params,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
@@ -1214,13 +1233,13 @@ function nameStartedExpressionParser(
 	};
 }
 
-function functionArgsParser(
+function functionArgumentsParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<{
-	args: ObjectLiteral;
+	arguments: ObjectLiteral;
 	boundFunctionReference?: Reference;
 }> {
 	const result = sequenceParser(
@@ -1240,7 +1259,7 @@ function functionArgsParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
-			args: parsed2,
+			arguments: parsed2,
 			boundFunctionReference: boundFunctionName
 				? {
 					type: 'reference',
@@ -1530,7 +1549,7 @@ function branchesParser(
 }
 
 function definitionNamesToObjectLiteral<T extends Expression>(possibleNames: T | DefinitionNames): { errors?: string[]; value?: T; } {
-	if ('type' in possibleNames) {
+	if (possibleNames.type !== 'definitionNames') {
 		// Expression
 		return {
 			value: possibleNames
@@ -1539,7 +1558,7 @@ function definitionNamesToObjectLiteral<T extends Expression>(possibleNames: T |
 	// DefinitionName[]
 	const errors: string[] = [];
 	if (possibleNames.rest) {
-		errors.push('Rest args not allowed for reference');
+		errors.push('Rest arguments not allowed for reference');
 	}
 	const refs = possibleNames.singleNames.map(name => {
 		const res = definitionNameToReference(name);
