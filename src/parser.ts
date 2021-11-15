@@ -1498,9 +1498,14 @@ function dictionaryValueParser(
 	}
 	const definitionName = sequence[0];
 	const value: DictionaryValue = {
+		type: 'dictionaryValue',
 		name: definitionName.name,
 		typeGuard: definitionName.typeGuard,
 		value: sequence[2],
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
 	};
 	return {
 		endRowIndex: result.endRowIndex,

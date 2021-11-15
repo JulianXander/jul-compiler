@@ -33,6 +33,7 @@ export type PositionedExpression =
 	| Expression
 	| DefinitionName
 	| DefinitionNames
+	| DictionaryValue
 	;
 
 export interface Positioned {
@@ -77,7 +78,8 @@ export interface DictionaryLiteral extends Positioned {
 	values: NonEmptyArray<DictionaryValue>;
 }
 
-export interface DictionaryValue {
+export interface DictionaryValue extends Positioned {
+	type: 'dictionaryValue';
 	name: string;
 	typeGuard?: TypeExpression;
 	value: ValueExpression;
