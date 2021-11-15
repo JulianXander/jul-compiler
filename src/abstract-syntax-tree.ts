@@ -32,6 +32,7 @@ export type TypeExpression = ValueExpression; // TODO function any=>boolean/type
 export type PositionedExpression =
 	| Expression
 	| DefinitionName
+	| DefinitionNames
 	;
 
 export interface Positioned {

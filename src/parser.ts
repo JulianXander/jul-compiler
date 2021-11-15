@@ -1403,42 +1403,6 @@ function inlineListParser(
 	};
 }
 
-function inlineDictionaryParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<DictionaryLiteral> {
-	const result = inlineBracketedExpressionListParser(sequenceParser(
-		definitionNameParser, // TODO ohne source, fallback
-		definitionTokenParser,
-		valueExpressionParser,
-	))(rows, startRowIndex, startColumnIndex, indent);
-	const parsed: DictionaryLiteral | undefined = result.parsed && {
-		type: 'dictionary',
-		// TODO check NonEmptyArray?
-		values: result.parsed.filter(isDefined).map(sequence => {
-			const definitionName = sequence[0];
-			const value: DictionaryValue = {
-				name: definitionName.name,
-				typeGuard: definitionName.typeGuard,
-				value: sequence[2],
-			};
-			return value;
-		}) as any,
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-	};
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: parsed,
-	};
-}
-
 function multilineListParser(
 	rows: string[],
 	startRowIndex: number,
@@ -1463,29 +1427,19 @@ function multilineListParser(
 	};
 }
 
-function multilineDictionaryParser(
+//#region Dictionary
+
+function inlineDictionaryParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DictionaryLiteral> {
-	const result = multilineBracketedExpressionListParser(sequenceParser(
-		definitionNameParser, // TODO ohne source, fallback
-		definitionTokenParser,
-		valueExpressionParser,
-	))(rows, startRowIndex, startColumnIndex, indent);
+	const result = inlineBracketedExpressionListParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: DictionaryLiteral | undefined = result.parsed && {
 		type: 'dictionary',
 		// TODO check NonEmptyArray?
-		values: result.parsed.filter(isDefined).map(sequence => {
-			const definitionName = sequence[0];
-			const value: DictionaryValue = {
-				name: definitionName.name,
-				typeGuard: definitionName.typeGuard,
-				value: sequence[2],
-			};
-			return value;
-		}) as any,
+		values: result.parsed.filter(isDefined) as any,
 		startRowIndex: startRowIndex,
 		startColumnIndex: startColumnIndex,
 		endRowIndex: result.endRowIndex,
@@ -1498,6 +1452,65 @@ function multilineDictionaryParser(
 		parsed: parsed,
 	};
 }
+
+function multilineDictionaryParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<DictionaryLiteral> {
+	const result = multilineBracketedExpressionListParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
+	const parsed: DictionaryLiteral | undefined = result.parsed && {
+		type: 'dictionary',
+		// TODO check NonEmptyArray?
+		values: result.parsed.filter(isDefined) as any,
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+	};
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: parsed,
+	};
+}
+
+function dictionaryValueParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<DictionaryValue> {
+	const result = sequenceParser(
+		definitionNameParser, // TODO ohne source, fallback
+		definitionTokenParser,
+		valueExpressionParser,
+	)(rows, startRowIndex, startColumnIndex, indent);
+	const sequence = result.parsed;
+	if (!sequence) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+		};
+	}
+	const definitionName = sequence[0];
+	const value: DictionaryValue = {
+		name: definitionName.name,
+		typeGuard: definitionName.typeGuard,
+		value: sequence[2],
+	};
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: value,
+	};
+}
+
+//#endregion Dictionary
 
 const objectParser: Parser<ObjectLiteral> = choiceParser(
 	// ()
