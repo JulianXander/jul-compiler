@@ -4,7 +4,7 @@ import {
 	DefinitionName,
 	Expression,
 	FunctionLiteral,
-	AbstractSyntaxTree,
+	SyntaxTree,
 	NumberLiteral,
 	DestructuringDefinition,
 	Reference,
@@ -17,7 +17,7 @@ import {
 	DictionaryLiteral,
 	DictionaryValue,
 	NonEmptyArray
-} from './abstract-syntax-tree';
+} from './syntax-tree';
 import {
 	choiceParser,
 	discriminatedChoiceParser,
@@ -55,7 +55,7 @@ function isDefined<T>(value: T | undefined): value is T {
 
 //#endregion util
 
-export function parseCode(code: string): AbstractSyntaxTree {
+export function parseCode(code: string): SyntaxTree {
 	const rows = code.split('\n');
 	const parserResult = expressionBlockParser(rows, 0, 0, 0);
 	// check end of code reached

@@ -6,7 +6,7 @@ export type NonEmptyArray<T> = [T, ...T[]];
 
 //#endregion util
 
-export interface AbstractSyntaxTree {
+export interface SyntaxTree {
 	parsed?: Expression[];
 	errors?: ParserError[];
 }

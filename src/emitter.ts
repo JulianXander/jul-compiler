@@ -1,4 +1,4 @@
-import { DefinitionNames, Expression, FunctionCall, NumberLiteral, ObjectLiteral, Reference, ReferenceNames, StringLiteral, TypeExpression, ValueExpression } from './abstract-syntax-tree';
+import { DefinitionNames, Expression, FunctionCall, NumberLiteral, ObjectLiteral, Reference, ReferenceNames, StringLiteral, TypeExpression, ValueExpression } from './syntax-tree';
 import * as runtime from './runtime';
 
 const runtimeKeys = Object.keys(runtime);
@@ -6,7 +6,7 @@ const runtimeImports = runtimeKeys.join(', ');
 export const importLine = `const { ${runtimeImports} } = require("./runtime");\n`;
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
-export function astToJs(expressions: Expression[]): string {
+export function syntaxTreeToJs(expressions: Expression[]): string {
 	// _branch, _callFunction, _checkType, _createFunction, log
 	let hasDefinition = false;
 	return `${importLine}${expressions.map((expression, index) => {

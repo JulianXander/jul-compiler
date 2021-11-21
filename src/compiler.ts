@@ -2,10 +2,10 @@ import { readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { webpack } from 'webpack';
 import { parseCode } from './parser';
-import { astToJs, getPathFromImport, isImport } from './emitter';
-import { Expression } from './abstract-syntax-tree';
+import { syntaxTreeToJs, getPathFromImport, isImport } from './emitter';
+import { Expression } from './syntax-tree';
 
-export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true }): void {
+export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true; }): void {
 	console.log(`compiling ${filePath} ...`);
 	if (filePath.substr(filePath.length - 4) !== '.jul') {
 		throw new Error('Invalid file ending. Expected .jul');
@@ -23,7 +23,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 		throw new Error(JSON.stringify(result.errors, undefined, 2));
 	}
 	// console.log(result);
-	const ast = result.parsed!;
+	const syntaxTree = result.parsed!;
 	//#endregion 2. parse
 
 	//#region 3. compile
@@ -31,7 +31,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	// const interpreterCode = interpreterFile.toString();
 	// const compiled = `${interpreterCode}
 	// const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(ast, undefined, 2)}\ninterpreteAst(c)`;
-	const compiled = astToJs(ast);
+	const compiled = syntaxTreeToJs(syntaxTree);
 	// console.log(compiled);
 	//#endregion 3. compile
 
@@ -44,7 +44,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	//#region 5. compile dependencies
 	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
 	const compiledFilePathsWithDefault = compiledFilePaths ?? { [filePath]: true };
-	const importedFilePaths = getImportedPaths(ast);
+	const importedFilePaths = getImportedPaths(syntaxTree);
 	const sourceFolder = dirname(filePath);
 	importedFilePaths.forEach(path => {
 		const combinedPath = join(sourceFolder, path);
