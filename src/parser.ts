@@ -4,7 +4,6 @@ import {
 	DefinitionName,
 	Expression,
 	FunctionLiteral,
-	SyntaxTree,
 	NumberLiteral,
 	DestructuringDefinition,
 	Reference,
@@ -16,7 +15,8 @@ import {
 	DefinitionNames,
 	DictionaryLiteral,
 	DictionaryValue,
-	NonEmptyArray
+	ParsedFile,
+	SymbolTable
 } from './syntax-tree';
 import {
 	choiceParser,
@@ -35,49 +35,100 @@ import {
 	sequenceParser,
 	tokenParser
 } from './parser-combinator';
+import {
+	isDefined,
+	NonEmptyArray,
+} from './util';
 
-//#region util
-
-function mapFn<Args extends any[], Result1, Result2>(
-	fn: (...args: Args) => Result1,
-	transform: (result1: Result1) => Result2,
-): (...args: Args) => Result2 {
-	return (...args) => {
-		const result1 = fn(...args);
-		const result2 = transform(result1);
-		return result2;
-	};
-}
-
-function isDefined<T>(value: T | undefined): value is T {
-	return value !== undefined;
-}
-
-//#endregion util
-
-export function parseCode(code: string): SyntaxTree {
+export function parseCode(code: string): ParsedFile {
 	const rows = code.split('\n');
 	const parserResult = expressionBlockParser(rows, 0, 0, 0);
+	const expressions = parserResult.parsed;
+	const errors = [
+		...(parserResult.errors ?? [])
+	];
 	// check end of code reached
 	if (parserResult.endRowIndex !== rows.length) {
-		return {
-			errors: [
-				{
-					message: 'Failed to parse until end of code',
-					columnIndex: parserResult.endColumnIndex,
-					rowIndex: parserResult.endRowIndex,
-				},
-				...(parserResult.errors ?? [])
-			]
-		};
+		errors.push({
+			message: 'Failed to parse until end of code',
+			columnIndex: parserResult.endColumnIndex,
+			rowIndex: parserResult.endRowIndex,
+		});
 	}
+	const symbols: SymbolTable = {};
+	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
 	return {
-		parsed: parserResult.parsed,
-		errors: parserResult.errors,
+		type: 'file',
+		errors: errors,
+		expressions: expressions,
+		symbols: symbols,
 	};
 }
 
 //#region helper
+
+function fillSymbolTableWithExpressions(
+	symbolTable: SymbolTable,
+	errors: ParserError[],
+	expressions: Expression[],
+): void {
+	expressions.forEach(expression => {
+		switch (expression.type) {
+			case 'definition': {
+				// TODO type
+				defineSymbol(symbolTable, errors, expression.name, expression.value, 'TODO');
+				return;
+			}
+
+			case 'destructuring': {
+				// TODO type über value ermitteln
+				fillSymbolTableWithDefinitionNames(symbolTable, errors, expression.names);
+				return;
+			}
+
+			default:
+				return;
+		}
+	});
+}
+
+function fillSymbolTableWithDefinitionNames(
+	symbolTable: SymbolTable,
+	errors: ParserError[],
+	definitionNames: DefinitionNames,
+): void {
+	definitionNames.singleNames.forEach(definitionName => {
+		// TODO type
+		defineSymbol(symbolTable, errors, definitionName, definitionName.typeGuard!, 'TODO');
+	});
+	const rest = definitionNames.rest;
+	if (rest) {
+		// TODO
+		// defineSymbol(symbolTable,errors, rest.name, rest.typeGuard!, 'TODO')
+	}
+}
+
+function defineSymbol(
+	symbolTable: SymbolTable,
+	errors: ParserError[],
+	definitionName: DefinitionName,
+	type: ValueExpression,
+	description: string | undefined,
+): void {
+	const name = definitionName.name;
+	// TODO check upper scopes
+	if (symbolTable[name]) {
+		errors.push({
+			message: `${name} is already defined`,
+			columnIndex: definitionName.startColumnIndex,
+			rowIndex: definitionName.startRowIndex,
+		});
+	}
+	symbolTable[name] = {
+		type: type,
+		description: description,
+	};
+}
 
 //#region Tokens
 
@@ -912,11 +963,14 @@ function expressionParser(
 			},
 		)
 	)(rows, startRowIndex, startColumnIndex, indent);
-	if (result.errors?.length) {
+	const errors = result.errors
+		? [...result.errors]
+		: [];
+	if (errors.length) {
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
+			errors: errors,
 		};
 	}
 	const [parsed1, parsed2] = result.parsed!;
@@ -997,10 +1051,18 @@ function expressionParser(
 					}],
 				};
 			}
+			const symbols: SymbolTable = {};
+			const body = parsed2.body;
+			if (parsed1.type === 'definitionNames') {
+				fillSymbolTableWithDefinitionNames(symbols, errors, parsed1);
+			}
+			// TODO im Fall das params TypeExpression ist: Code Flow Typing berücksichtigen
+			fillSymbolTableWithExpressions(symbols, errors, body);
 			const functionLiteral: FunctionLiteral = {
 				type: 'functionLiteral',
 				params: parsed1,
-				body: parsed2.body,
+				body: body,
+				symbols: symbols,
 				pure: true, // TODO impure functions mit !=> ?
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -1011,6 +1073,7 @@ function expressionParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				parsed: functionLiteral,
+				errors: errors,
 			};
 		}
 

@@ -1,14 +1,31 @@
 import { ParserError } from "./parser-combinator";
-
-//#region util
-
-export type NonEmptyArray<T> = [T, ...T[]];
-
-//#endregion util
+import { NonEmptyArray } from './util';
 
 export interface SyntaxTree {
-	parsed?: Expression[];
+	type: 'root';
+	/**
+	 * Builtins
+	 */
+	symbols: SymbolTable;
+	files: {
+		[fileName: string]: ParsedFile;
+	};
+}
+
+export interface SymbolTable {
+	[symbol: string]: SymbolDefinition;
+}
+
+interface SymbolDefinition {
+	description?: string;
+	type: TypeExpression;
+}
+
+export interface ParsedFile {
+	type: 'file';
 	errors?: ParserError[];
+	expressions?: Expression[];
+	symbols: SymbolTable;
 }
 
 export type Expression =
@@ -90,6 +107,7 @@ export interface FunctionLiteral extends Positioned {
 	// TODO functionName? für StackTrace
 	params: DefinitionNames | TypeExpression;
 	body: Expression[];
+	symbols: SymbolTable;
 	// TODO entfernen?
 	pure: boolean;
 }

@@ -23,7 +23,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 		throw new Error(JSON.stringify(result.errors, undefined, 2));
 	}
 	// console.log(result);
-	const syntaxTree = result.parsed!;
+	const syntaxTree = result.expressions!;
 	//#endregion 2. parse
 
 	//#region 3. compile
