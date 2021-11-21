@@ -163,7 +163,6 @@ function functionBodyToJs(expressions: Expression[]): string {
 	return js;
 }
 
-// TODO bound functions berücksichtigen
 function referenceToJs(reference: Reference): string {
 	return reference.names.map((name, index) => {
 		if (!index) {

@@ -85,8 +85,8 @@ const spaceParser = tokenParser(' ');
 const openingBracketParser = tokenParser('(');
 const closingBracketParser = tokenParser(')');
 const paragraphParser = tokenParser('§');
-// SVO BoundFunction
-const boundFunctionTokenParser = tokenParser('.');
+// SVO InfixFunctionCall
+const infixFunctionTokenParser = tokenParser('.');
 const branchingTokenParser = tokenParser(' ?');
 const functionTokenParser = tokenParser(' =>');
 const definitionTokenParser = tokenParser(' = ');
@@ -1150,7 +1150,7 @@ function nameStartedExpressionParser(
 			{
 				predicate: choiceParser(
 					openingBracketParser,
-					boundFunctionTokenParser,
+					infixFunctionTokenParser,
 				),
 				// ObjectLiteral
 				parser: functionArgumentsParser
@@ -1189,21 +1189,21 @@ function nameStartedExpressionParser(
 	}
 	let functionCall: FunctionCall;
 	const params = parsed2.arguments;
-	if (parsed2.boundFunctionReference) {
+	if (parsed2.infixFunctionReference) {
 		const values: NonEmptyArray<ValueExpression> = [
 			toRef.ref!,
 		];
-		// TODO bound function call mit dictionary
+		// TODO infix function call mit dictionary
 		if (params.type === 'list') {
 			values.push(...params.values);
 		}
 		functionCall = {
 			type: 'functionCall',
-			functionReference: parsed2.boundFunctionReference,
+			functionReference: parsed2.infixFunctionReference,
 			arguments: {
 				type: 'list',
 				values: values,
-				// TODO achtung bei findExpressionbyPosition, da bound param außerhalb der range
+				// TODO achtung bei findExpressionbyPosition, da infix param außerhalb der range
 				startRowIndex: params.startRowIndex,
 				startColumnIndex: params.startColumnIndex,
 				endRowIndex: params.endRowIndex,
@@ -1240,10 +1240,10 @@ function functionArgumentsParser(
 	indent: number,
 ): ParserResult<{
 	arguments: ObjectLiteral;
-	boundFunctionReference?: Reference;
+	infixFunctionReference?: Reference;
 }> {
 	const result = sequenceParser(
-		multiplicationParser(0, 1, sequenceParser(boundFunctionTokenParser, nameParser)),
+		multiplicationParser(0, 1, sequenceParser(infixFunctionTokenParser, nameParser)),
 		objectParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
 	if (result.errors?.length) {
@@ -1254,21 +1254,21 @@ function functionArgumentsParser(
 		};
 	}
 	const [parsed1, parsed2] = result.parsed!;
-	const boundFunctionName = parsed1[0]?.[1];
+	const infixFunctionName = parsed1[0]?.[1];
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
 			arguments: parsed2,
-			boundFunctionReference: boundFunctionName
+			infixFunctionReference: infixFunctionName
 				? {
 					type: 'reference',
-					names: [boundFunctionName],
+					names: [infixFunctionName],
 					startRowIndex: startRowIndex,
-					// + 1 für boundFunctionToken .
+					// + 1 für infixFunctionToken .
 					startColumnIndex: startColumnIndex + 1,
 					endRowIndex: startRowIndex,
-					endColumnIndex: startColumnIndex + 1 + boundFunctionName.length,
+					endColumnIndex: startColumnIndex + 1 + infixFunctionName.length,
 				}
 				: undefined,
 		},
