@@ -58,7 +58,6 @@ export function parseCode(code: string): ParsedFile {
 	const symbols: SymbolTable = {};
 	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
 	return {
-		type: 'file',
 		errors: errors,
 		expressions: expressions,
 		symbols: symbols,

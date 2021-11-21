@@ -1,28 +1,16 @@
 import { ParserError } from "./parser-combinator";
 import { NonEmptyArray } from './util';
 
-export interface SyntaxTree {
-	type: 'root';
-	/**
-	 * Builtins
-	 */
-	symbols: SymbolTable;
-	files: {
-		[fileName: string]: ParsedFile;
-	};
-}
-
 export interface SymbolTable {
 	[symbol: string]: SymbolDefinition;
 }
 
-interface SymbolDefinition {
+export interface SymbolDefinition {
 	description?: string;
 	type: TypeExpression;
 }
 
 export interface ParsedFile {
-	type: 'file';
 	errors?: ParserError[];
 	expressions?: Expression[];
 	symbols: SymbolTable;
