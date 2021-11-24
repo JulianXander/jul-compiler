@@ -143,10 +143,10 @@ export interface DefinitionName extends Positioned {
 
 export interface SingleDefinition extends Positioned {
 	type: 'definition';
-	// TODO description
 	name: DefinitionName;
 	value: ValueExpression;
 	typeGuard?: TypeExpression;
+	description?: string;
 }
 
 export interface DestructuringDefinition extends Positioned {

@@ -2,7 +2,14 @@ import { SymbolTable } from './syntax-tree';
 
 export const builtInSymbols: SymbolTable = {
 	//#region Number
-	// TODO subtract, sum
+	subtract: {
+		type: 'TODO' as any,
+		description: 'minuend - subtrahend',
+	},
+	sum: {
+		type: 'TODO' as any,
+		description: 'Addiert die gegebenen Werte',
+	},
 	//#endregion Number
 	//#region Stream
 	//#region core
@@ -22,4 +29,10 @@ export const builtInSymbols: SymbolTable = {
 	},
 	//#endregion create
 	//#endregion Stream
+	//#region Utility
+	runJs: {
+		type: 'TODO' as any,
+		description: 'Führt den gegebenen String als JavaScript aus und gibt dessen Rückgabe zurück',
+	},
+	//#endregion Utility
 };

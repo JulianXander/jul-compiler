@@ -75,7 +75,7 @@ function fillSymbolTableWithExpressions(
 		switch (expression.type) {
 			case 'definition': {
 				// TODO type
-				defineSymbol(symbolTable, errors, expression.name, expression.value, 'TODO');
+				defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description);
 				return;
 			}
 
@@ -241,11 +241,11 @@ function indentParser(
 /**
  * Beginnt mit columnIndex = 0.
  * Parst undefined bei Leerzeile.
- * Parst nichts bei Kommentarzeile (wird übersprungen).
+ * Parst string bei Kommentarzeile.
  * Enthält ggf. endständiges Zeilenende nicht.
  * TODO comment in AST für Intellisense?
  */
-function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
+function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		if (startColumnIndex !== 0) {
 			return {
@@ -258,7 +258,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
 				}],
 			};
 		}
-		const parsed: (T | undefined)[] = [];
+		const parsed: (T | string | undefined)[] = [];
 		const errors: ParserError[] = [];
 		let rowIndex = startRowIndex;
 		let columnIndex = 0;
@@ -291,6 +291,8 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
 			}
 			if (row[columnIndex] === '#') {
 				// Kommentarzeile
+				const comment = row.substring(columnIndex + 1);
+				parsed.push(comment);
 				continue;
 			}
 			const result = parser(rows, rowIndex, columnIndex, indent);
@@ -327,7 +329,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
 	};
 }
 
-function multilineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<(T | undefined)[]> {
+function bracketedMultilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const result = sequenceParser(
 			openingBracketParser,
@@ -347,7 +349,7 @@ function multilineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<(T
 	};
 }
 
-function inlineBracketedExpressionListParser<T>(parser: Parser<T>): Parser<T[]> {
+function bracketedInlineParser<T>(parser: Parser<T>): Parser<T[]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const result = sequenceParser(
 			openingBracketParser,
@@ -501,7 +503,7 @@ function multilineStringParser(
 	} | ValueExpression)[] = [];
 	if (result.parsed) {
 		result.parsed[2].forEach(line => {
-			if (line) {
+			if (typeof line === 'object') {
 				values.push(...line);
 			}
 			const tail = values[values.length - 1];
@@ -684,7 +686,7 @@ function inlineNameListParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DefinitionNames> {
-	const result = inlineBracketedExpressionListParser(
+	const result = bracketedInlineParser(
 		choiceParser(
 			definitionNameParser,
 			sequenceParser(
@@ -751,7 +753,7 @@ function multilineNameListParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DefinitionNames> {
-	const result = multilineBracketedExpressionListParser(
+	const result = bracketedMultilineParser(
 		choiceParser(
 			definitionNameParser,
 			sequenceParser(
@@ -775,13 +777,14 @@ function multilineNameListParser(
 		rest = possibleRest[1];
 	}
 	let hasError = false;
-	let singleNames = parsed.filter((x, index) => {
+	// TODO description 
+	let singleNames = parsed.filter((x, index): x is DefinitionName => {
 		const isRest = Array.isArray(x);
 		if (index < parsed.length - 2) {
 			hasError = true;
 		}
-		return !isRest;
-	}) as DefinitionName[];
+		return !isRest && typeof x === 'object';
+	});
 	if (hasError) {
 		return {
 			endRowIndex: result.endRowIndex,
@@ -1410,12 +1413,40 @@ function expressionBlockParser(
 			}]
 		};
 	}
-	const result = mapParser(
-		multilineParser(expressionParser),
-		expressions =>
-			expressions.filter(isDefined),
-	)(rows, startRowIndex, startColumnIndex, indent);
-	return result;
+	const result = multilineParser(expressionParser)(rows, startRowIndex, startColumnIndex, indent);
+	// Unmittelbar aufeinanderfolgnde Kommentarzeilen zusammenfassen und zur darauffolgenden Definition packen
+	let descriptionComment = '';
+	const expressions: Expression[] = [];
+	result.parsed?.forEach(expression => {
+		switch (typeof expression) {
+			case 'object':
+				const expressionWithDesciption = expression.type === 'definition'
+					? {
+						...expression,
+						description: descriptionComment
+					}
+					: expression;
+				expressions.push(expressionWithDesciption);
+				descriptionComment = '';
+				return;
+
+			case 'string':
+				return descriptionComment += '\n' + expression;
+
+			case 'undefined':
+				descriptionComment = '';
+				return;
+
+			default: {
+				const assertNever: never = expression;
+				throw new Error(`Unexpected typeof expression: ${typeof assertNever}`);
+			}
+		}
+	});
+	return {
+		...result,
+		parsed: expressions
+	};
 }
 
 //#region ObjectLteral
@@ -1447,7 +1478,7 @@ function inlineListParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ListLiteral> {
-	const result = inlineBracketedExpressionListParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
+	const result = bracketedInlineParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: ListLiteral | undefined = result.parsed && {
 		type: 'list',
 		// TODO check NonEmptyArray?
@@ -1471,11 +1502,12 @@ function multilineListParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ListLiteral> {
-	const result = multilineBracketedExpressionListParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
+	const result = bracketedMultilineParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: ListLiteral | undefined = result.parsed && {
 		type: 'list',
 		// TODO check NonEmptyArray?
-		values: result.parsed.filter(isDefined) as any,
+		values: result.parsed.filter((x): x is ValueExpression =>
+			typeof x === 'object') as any,
 		startRowIndex: startRowIndex,
 		startColumnIndex: startColumnIndex,
 		endRowIndex: result.endRowIndex,
@@ -1497,7 +1529,7 @@ function inlineDictionaryParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DictionaryLiteral> {
-	const result = inlineBracketedExpressionListParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
+	const result = bracketedInlineParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: DictionaryLiteral | undefined = result.parsed && {
 		type: 'dictionary',
 		// TODO check NonEmptyArray?
@@ -1521,7 +1553,7 @@ function multilineDictionaryParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DictionaryLiteral> {
-	const result = multilineBracketedExpressionListParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
+	const result = bracketedMultilineParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: DictionaryLiteral | undefined = result.parsed && {
 		type: 'dictionary',
 		// TODO check NonEmptyArray?
@@ -1623,7 +1655,8 @@ function branchesParser(
 		errors: result.errors,
 		parsed: result.parsed && {
 			type: 'branches',
-			value: result.parsed[2].filter(isDefined),
+			value: result.parsed[2].filter((x): x is ValueExpression =>
+				typeof x === 'object'),
 		}
 	};
 }
