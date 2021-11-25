@@ -51,8 +51,10 @@ export function parseCode(code: string): ParsedFile {
 	if (parserResult.endRowIndex !== rows.length) {
 		errors.push({
 			message: 'Failed to parse until end of code',
-			columnIndex: parserResult.endColumnIndex,
-			rowIndex: parserResult.endRowIndex,
+			startRowIndex: parserResult.endRowIndex,
+			startColumnIndex: parserResult.endColumnIndex,
+			endRowIndex: parserResult.endRowIndex,
+			endColumnIndex: parserResult.endColumnIndex,
 		});
 	}
 	const symbols: SymbolTable = {};
@@ -119,13 +121,19 @@ function defineSymbol(
 	if (symbolTable[name]) {
 		errors.push({
 			message: `${name} is already defined`,
-			columnIndex: definitionName.startColumnIndex,
-			rowIndex: definitionName.startRowIndex,
+			startRowIndex: definitionName.startRowIndex,
+			startColumnIndex: definitionName.startColumnIndex,
+			endRowIndex: definitionName.endRowIndex,
+			endColumnIndex: definitionName.endColumnIndex,
 		});
 	}
 	symbolTable[name] = {
 		type: type,
 		description: description,
+		startRowIndex: definitionName.startRowIndex,
+		startColumnIndex: definitionName.startColumnIndex,
+		endRowIndex: definitionName.endRowIndex,
+		endColumnIndex: definitionName.endColumnIndex,
 	};
 }
 
@@ -143,6 +151,33 @@ const definitionTokenParser = tokenParser(' = ');
 
 //#endregion Tokens
 
+/**
+ * Liefert ParserErrorResult bei endOfCode
+ */
+function checkEndOfCode(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	searched: string,
+): ParserResult<never> | undefined {
+	if (startRowIndex >= rows.length) {
+		return {
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex,
+			errors: [{
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: startRowIndex,
+				endColumnIndex: startColumnIndex,
+				message: endOfCodeError(searched),
+			}]
+		};
+	}
+}
+
+/**
+ * parst 0 Zeichen
+ */
 function startOfLineParser(
 	rows: string[],
 	startRowIndex: number,
@@ -154,8 +189,10 @@ function startOfLineParser(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: startRowIndex,
+				endColumnIndex: startColumnIndex,
 				message: `columnIndex=${startColumnIndex}, but should be at start of line`
 			}],
 		};
@@ -166,6 +203,9 @@ function startOfLineParser(
 	};
 }
 
+/**
+ * parst 0 Zeichen
+ */
 function endOfLineParser(
 	rows: string[],
 	startRowIndex: number,
@@ -179,8 +219,10 @@ function endOfLineParser(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: startRowIndex,
+				endColumnIndex: startColumnIndex,
 				message: `columnIndex=${startColumnIndex}, but should be at end of line (${rowLength})`
 			}],
 		};
@@ -191,24 +233,18 @@ function endOfLineParser(
 	};
 }
 
+/**
+ * Verschiebt den Start in den Anfang der nächsten Zeilen.
+ */
 function newLineParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<undefined> {
-	const row = rows[startRowIndex];
-	const rowLength = row!.length;
-	if (startColumnIndex !== rowLength) {
-		return {
-			endRowIndex: startRowIndex,
-			endColumnIndex: startColumnIndex,
-			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
-				message: `columnIndex=${startColumnIndex}, but should be at end of line (${rowLength})`
-			}],
-		};
+	const result = endOfLineParser(rows, startRowIndex, startColumnIndex, indent);
+	if (result.errors?.length) {
+		return result;
 	}
 	return {
 		endRowIndex: startRowIndex + 1,
@@ -222,20 +258,13 @@ function indentParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<undefined> {
-	if (startColumnIndex !== 0) {
-		return {
-			endRowIndex: startRowIndex,
-			endColumnIndex: startColumnIndex,
-			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
-				message: `columnIndex=${startColumnIndex}, but should be at start of line`
-			}],
-		};
+	const startOfLineResult = startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
+	if (startOfLineResult.errors?.length) {
+		return startOfLineResult;
 	}
 	const totalIndentToken = '\t'.repeat(indent);
-	const result = tokenParser(totalIndentToken)(rows, startRowIndex, startColumnIndex, indent);
-	return result;
+	const indentResult = tokenParser(totalIndentToken)(rows, startRowIndex, startColumnIndex, indent);
+	return indentResult;
 }
 
 /**
@@ -247,15 +276,12 @@ function indentParser(
  */
 function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-		if (startColumnIndex !== 0) {
+		const startOfLineResult = startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
+		if (startOfLineResult.errors?.length) {
 			return {
-				endRowIndex: startRowIndex,
-				endColumnIndex: startColumnIndex,
-				errors: [{
-					rowIndex: startRowIndex,
-					columnIndex: startColumnIndex,
-					message: 'multilineParser should start at beginning of row'
-				}],
+				endRowIndex: startOfLineResult.endRowIndex,
+				endColumnIndex: startOfLineResult.endColumnIndex,
+				errors: startOfLineResult.errors,
 			};
 		}
 		const parsed: (T | string | undefined)[] = [];
@@ -311,8 +337,10 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 			}
 			if (result.endColumnIndex !== endRow.length) {
 				errors.push({
-					rowIndex: rowIndex,
-					columnIndex: result.endColumnIndex,
+					startRowIndex: rowIndex,
+					startColumnIndex: result.endColumnIndex,
+					endRowIndex: rowIndex,
+					endColumnIndex: result.endColumnIndex,
 					message: 'multilineParser should parse until end of row'
 				});
 				// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
@@ -326,6 +354,19 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 			parsed: parsed,
 			errors: errors,
 		};
+	};
+}
+
+/**
+ * Multiline oder inline mit Leerzeichen getrennt
+ */
+function bracketedMultiParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
+	return (rows, startRowIndex, startColumnIndex, indent) => {
+		const result = choiceParser(
+			bracketedMultilineParser(parser),
+			bracketedInlineParser(parser),
+		)(rows, startRowIndex, startColumnIndex, indent);
+		return result;
 	};
 }
 
@@ -680,80 +721,13 @@ function emptyNameListParser(
 	};
 }
 
-function inlineNameListParser(
+function multiNameListParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DefinitionNames> {
-	const result = bracketedInlineParser(
-		choiceParser(
-			definitionNameParser,
-			sequenceParser(
-				tokenParser('...'),
-				nameParser,
-				// TODO typeguard
-			)
-		),
-	)(rows, startRowIndex, startColumnIndex, indent);
-	if (result.errors?.length) {
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-		};
-	}
-	const parsed = result.parsed!;
-	const possibleRest = parsed[parsed.length - 1];
-	let rest: string | undefined;
-	if (Array.isArray(possibleRest)) {
-		rest = possibleRest[1];
-	}
-	let hasError = false;
-	let singleNames = parsed.filter((x, index) => {
-		const isRest = Array.isArray(x);
-		if (isRest && index < parsed.length - 1) {
-			hasError = true;
-		}
-		return !isRest;
-	}) as DefinitionName[];
-	if (hasError) {
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: [{
-				columnIndex: result.endColumnIndex,
-				rowIndex: result.endRowIndex,
-				message: 'Rest argument must be last.',
-			}],
-		};
-	}
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		parsed: {
-			type: 'definitionNames',
-			singleNames: singleNames,
-			rest: rest === undefined
-				? undefined
-				: {
-					name: rest
-				},
-			startRowIndex: startRowIndex,
-			startColumnIndex: startColumnIndex,
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-		}
-	};
-}
-
-function multilineNameListParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<DefinitionNames> {
-	const result = bracketedMultilineParser(
+	const result = bracketedMultiParser(
 		choiceParser(
 			definitionNameParser,
 			sequenceParser(
@@ -776,24 +750,27 @@ function multilineNameListParser(
 	if (Array.isArray(possibleRest)) {
 		rest = possibleRest[1];
 	}
-	let hasError = false;
-	// TODO description 
+	const errors: ParserError[] = [];
+	// TODO description
 	let singleNames = parsed.filter((x, index): x is DefinitionName => {
 		const isRest = Array.isArray(x);
 		if (index < parsed.length - 2) {
-			hasError = true;
+			errors.push({
+				// TODO indices aus rest nehmen
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+				message: 'Rest argument must be last.',
+			});
 		}
 		return !isRest && typeof x === 'object';
 	});
-	if (hasError) {
+	if (errors.length) {
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			errors: [{
-				columnIndex: result.endColumnIndex,
-				rowIndex: result.endRowIndex,
-				message: 'Rest argument must be last.',
-			}],
+			errors: errors,
 		};
 	}
 	return {
@@ -921,16 +898,9 @@ function expressionParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Expression> {
-	if (startRowIndex >= rows.length) {
-		return {
-			endRowIndex: startRowIndex,
-			endColumnIndex: startColumnIndex,
-			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
-				message: endOfCodeError('expression')
-			}]
-		};
+	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'expression');
+	if (endOfCodeError) {
+		return endOfCodeError;
 	}
 	const result = sequenceParser(
 		simpleExpressionParser,
@@ -984,9 +954,11 @@ function expressionParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				errors: [{
-					rowIndex: result.endRowIndex,
-					columnIndex: result.endColumnIndex,
-					message: 'Can not branch over DefinitionName'
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+					message: 'DefinitionName is not a valid simple Expression',
 				}]
 			};
 		}
@@ -995,13 +967,13 @@ function expressionParser(
 			return {
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-				errors: valueExpression.errors as any // TODO structure überdenken
+				errors: valueExpression.errors as any, // TODO structure überdenken
 			};
 		}
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			parsed: valueExpression.value
+			parsed: valueExpression.value,
 		};
 	}
 	switch (parsed2.type) {
@@ -1011,8 +983,10 @@ function expressionParser(
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
 					errors: [{
-						rowIndex: result.endRowIndex,
-						columnIndex: result.endColumnIndex,
+						startRowIndex: startRowIndex,
+						startColumnIndex: startColumnIndex,
+						endRowIndex: result.endRowIndex,
+						endColumnIndex: result.endColumnIndex,
 						message: 'Can not branch over DefinitionName'
 					}]
 				};
@@ -1047,8 +1021,10 @@ function expressionParser(
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
 					errors: [{
-						rowIndex: result.endRowIndex,
-						columnIndex: result.endColumnIndex,
+						startRowIndex: startRowIndex,
+						startColumnIndex: startColumnIndex,
+						endRowIndex: result.endRowIndex,
+						endColumnIndex: result.endColumnIndex,
 						message: 'DefinitionName not allowed as FunctionParameters'
 					}],
 				};
@@ -1116,8 +1092,11 @@ function expressionParser(
 							endRowIndex: result.endRowIndex,
 							endColumnIndex: result.endColumnIndex,
 							errors: [{
-								rowIndex: startRowIndex,
-								columnIndex: startColumnIndex,
+								startRowIndex: startRowIndex,
+								startColumnIndex: startColumnIndex,
+								// TODO end indices bei parsed1 end
+								endRowIndex: result.endRowIndex,
+								endColumnIndex: result.endColumnIndex,
 								message: 'Unexpected ExpressionType for Definition part 1: ' + parsed1.type
 							}],
 						};
@@ -1160,9 +1139,11 @@ function valueExpressionParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				errors: [{
-					rowIndex: result.endRowIndex,
-					columnIndex: result.endColumnIndex,
-					message: `${result.parsed.type} expression is not a value expression`
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+					message: `${result.parsed.type} expression is not a value expression`,
 				}]
 			};
 
@@ -1185,10 +1166,8 @@ function bracketedExpressionParser(
 		//#region nameList
 		// leer
 		emptyNameListParser,
-		// mit Klammern einzeilig
-		inlineNameListParser,
-		// mit Klammern mehrzeilig
-		multilineNameListParser,
+		// mit Klammern einzeilig/mehrzeilig
+		multiNameListParser,
 		// ohne Klammern?
 		//#endregion nameList
 		objectParser,
@@ -1402,16 +1381,9 @@ function expressionBlockParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Expression[]> {
-	if (startRowIndex >= rows.length) {
-		return {
-			endRowIndex: startRowIndex,
-			endColumnIndex: startColumnIndex,
-			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
-				message: endOfCodeError('expressionBlock')
-			}]
-		};
+	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'expressionBlock');
+	if (endOfCodeError) {
+		return endOfCodeError;
 	}
 	const result = multilineParser(expressionParser)(rows, startRowIndex, startColumnIndex, indent);
 	// Unmittelbar aufeinanderfolgnde Kommentarzeilen zusammenfassen und zur darauffolgenden Definition packen
@@ -1472,37 +1444,13 @@ function emptyObjectParser(
 	};
 }
 
-function inlineListParser(
+function multiListParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ListLiteral> {
-	const result = bracketedInlineParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed: ListLiteral | undefined = result.parsed && {
-		type: 'list',
-		// TODO check NonEmptyArray?
-		values: result.parsed as any,
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-	};
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: parsed,
-	};
-}
-
-function multilineListParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<ListLiteral> {
-	const result = bracketedMultilineParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
+	const result = bracketedMultiParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: ListLiteral | undefined = result.parsed && {
 		type: 'list',
 		// TODO check NonEmptyArray?
@@ -1523,37 +1471,13 @@ function multilineListParser(
 
 //#region Dictionary
 
-function inlineDictionaryParser(
+function multiDictionaryParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DictionaryLiteral> {
-	const result = bracketedInlineParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed: DictionaryLiteral | undefined = result.parsed && {
-		type: 'dictionary',
-		// TODO check NonEmptyArray?
-		values: result.parsed.filter(isDefined) as any,
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-	};
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: parsed,
-	};
-}
-
-function multilineDictionaryParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<DictionaryLiteral> {
-	const result = bracketedMultilineParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
+	const result = bracketedMultiParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed: DictionaryLiteral | undefined = result.parsed && {
 		type: 'dictionary',
 		// TODO check NonEmptyArray?
@@ -1614,12 +1538,9 @@ function dictionaryValueParser(
 const objectParser: Parser<ObjectLiteral> = choiceParser(
 	// ()
 	emptyObjectParser,
-	// mit Klammern und Leerzeichen
-	inlineListParser,
-	inlineDictionaryParser,
-	// mit Klammern und Zeilenumbrüchen
-	multilineListParser,
-	multilineDictionaryParser,
+	// mit Klammern und Leerzeichen/Zeilenumbrüchen
+	multiListParser,
+	multiDictionaryParser,
 );
 
 //#endregion ObjectLteral
@@ -1633,16 +1554,9 @@ function branchesParser(
 	type: 'branches';
 	value: ValueExpression[];
 }> {
-	if (startRowIndex >= rows.length) {
-		return {
-			endRowIndex: startRowIndex,
-			endColumnIndex: startColumnIndex,
-			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
-				message: endOfCodeError('branching')
-			}]
-		};
+	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'branching');
+	if (endOfCodeError) {
+		return endOfCodeError;
 	}
 	const result = sequenceParser(
 		branchingTokenParser,

@@ -1,19 +1,19 @@
-import { ParserError } from "./parser-combinator";
+import { ParserError, Positioned } from "./parser-combinator";
 import { NonEmptyArray } from './util';
-
-export interface SymbolTable {
-	[symbol: string]: SymbolDefinition;
-}
-
-export interface SymbolDefinition {
-	description?: string;
-	type: TypeExpression;
-}
 
 export interface ParsedFile {
 	errors?: ParserError[];
 	expressions?: Expression[];
 	symbols: SymbolTable;
+}
+
+export interface SymbolTable {
+	[symbol: string]: SymbolDefinition;
+}
+
+export interface SymbolDefinition extends Positioned {
+	description?: string;
+	type: TypeExpression;
 }
 
 export type Expression =
@@ -40,13 +40,6 @@ export type PositionedExpression =
 	| DefinitionNames
 	| DictionaryValue
 	;
-
-export interface Positioned {
-	startRowIndex: number;
-	startColumnIndex: number;
-	endRowIndex: number;
-	endColumnIndex: number;
-}
 
 export interface StringLiteral extends Positioned {
 	type: 'string';

@@ -13,17 +13,22 @@ export interface ParserResult<T> {
 	errors?: ParserError[];
 }
 
-export interface ParserError {
-	rowIndex: number;
-	columnIndex: number;
+export interface ParserError extends Positioned {
 	message: string;
 	// TODO isFatal?
+}
+
+export interface Positioned {
+	startRowIndex: number;
+	startColumnIndex: number;
+	endRowIndex: number;
+	endColumnIndex: number;
 }
 
 //#region Errors
 
 export function endOfCodeError(searched: string): string {
-	return `End of code reached while looking for ${searched}`
+	return `End of code reached while looking for ${searched}`;
 }
 
 //#endregion Errors
@@ -45,13 +50,13 @@ export function moveToNextLine<T>(parser: Parser<T>): Parser<T> {
 		parser(rows, startRowIndex + 1, 0, indent);
 }
 
-type Parsers<T extends any[]> = { [k in keyof T]: Parser<T[k]> }
+type Parsers<T extends any[]> = { [k in keyof T]: Parser<T[k]> };
 // type OptionalTuple<T extends any[]> = { [k in keyof T]?: T[k] }
 
 export function choiceParser<T extends any[]>(...parsers: Parsers<T>): Parser<T[number]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		for (const parser of parsers) {
-			const result = parser(rows, startRowIndex, startColumnIndex, indent)
+			const result = parser(rows, startRowIndex, startColumnIndex, indent);
 			if (!result.errors?.length) {
 				return result;
 			}
@@ -60,12 +65,15 @@ export function choiceParser<T extends any[]>(...parsers: Parsers<T>): Parser<T[
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				// TODO end indices
+				endRowIndex: startRowIndex,
+				endColumnIndex: startColumnIndex,
 				message: `Expected one of: ${parsers.map(parser => parser.name).join(',')}`
 			}],
-		}
-	}
+		};
+	};
 }
 
 type ParserChoices<T extends any[]> = {
@@ -73,7 +81,7 @@ type ParserChoices<T extends any[]> = {
 		predicate: Parser<any>;
 		parser: Parser<T[k]>;
 	}
-}
+};
 
 export function discriminatedChoiceParser<T extends any[]>(
 	...choices: ParserChoices<T>
@@ -82,7 +90,7 @@ export function discriminatedChoiceParser<T extends any[]>(
 		for (const { predicate, parser } of choices) {
 			const predicateResult = predicate(rows, startRowIndex, startColumnIndex, indent);
 			if (!predicateResult.errors?.length) {
-				const parserResult = parser(rows, startRowIndex, startColumnIndex, indent)
+				const parserResult = parser(rows, startRowIndex, startColumnIndex, indent);
 				return parserResult;
 			}
 		}
@@ -91,12 +99,15 @@ export function discriminatedChoiceParser<T extends any[]>(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
-				rowIndex: startRowIndex,
-				columnIndex: startColumnIndex,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				// TODO end indices
+				endRowIndex: startRowIndex,
+				endColumnIndex: startColumnIndex,
 				message: `Expected one of: ${choices.map(({ parser }) => parser.name).join(',')}`
 			}],
-		}
-	}
+		};
+	};
 }
 
 export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<T> {
@@ -118,7 +129,7 @@ export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<
 			// 		}],
 			// 	}
 			// }
-			const result = parser(rows, rowIndex, columnIndex, indent)
+			const result = parser(rows, rowIndex, columnIndex, indent);
 			rowIndex = result.endRowIndex;
 			columnIndex = result.endColumnIndex;
 			if (result.errors?.length) {
@@ -127,7 +138,7 @@ export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<
 					endRowIndex: rowIndex,
 					endColumnIndex: columnIndex,
 					errors: result.errors,
-				}
+				};
 			}
 			parsed.push(result.parsed);
 		}
@@ -136,8 +147,8 @@ export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<
 			endColumnIndex: columnIndex,
 			errors: errors,
 			parsed: parsed as any
-		}
-	}
+		};
+	};
 }
 
 export function multiplicationParser<T>(
@@ -156,28 +167,30 @@ export function multiplicationParser<T>(
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
 						parsed: parsed,
-					}
+					};
 				}
 				else {
 					return {
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
 						errors: [{
-							rowIndex: rowIndex,
-							columnIndex: columnIndex,
-							message: endOfCodeError(parser.name)
+							startRowIndex: rowIndex,
+							startColumnIndex: columnIndex,
+							endRowIndex: rowIndex,
+							endColumnIndex: columnIndex,
+							message: endOfCodeError(parser.name),
 						}],
-					}
+					};
 				}
 			}
-			const result = parser(rows, rowIndex, columnIndex, indent)
+			const result = parser(rows, rowIndex, columnIndex, indent);
 			if (result.errors?.length) {
 				if (count >= minOccurs) {
 					return {
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
 						parsed: parsed,
-					}
+					};
 				}
 				else {
 					return {
@@ -185,7 +198,7 @@ export function multiplicationParser<T>(
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
 						errors: result.errors,
-					}
+					};
 				}
 			}
 			rowIndex = result.endRowIndex;
@@ -196,8 +209,8 @@ export function multiplicationParser<T>(
 			endRowIndex: rowIndex,
 			endColumnIndex: columnIndex,
 			parsed: parsed
-		}
-	}
+		};
+	};
 }
 
 export function mapParser<T, U>(parser: Parser<T>, transform: (x: T) => U): Parser<U> {
@@ -210,8 +223,8 @@ export function mapParser<T, U>(parser: Parser<T>, transform: (x: T) => U): Pars
 			parsed: result.parsed === undefined
 				? undefined
 				: transform(result.parsed),
-		}
-	}
+		};
+	};
 }
 
 //#endregion combinators
@@ -227,7 +240,7 @@ export function emptyParser(
 	return {
 		endRowIndex: startRowIndex,
 		endColumnIndex: startColumnIndex,
-	}
+	};
 }
 
 export function tokenParser(token: string): Parser<undefined> {
@@ -239,11 +252,13 @@ export function tokenParser(token: string): Parser<undefined> {
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
 				errors: [{
-					message: 'Can not match token at end of code',
-					rowIndex: startRowIndex,
-					columnIndex: startColumnIndex
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: startRowIndex,
+					endColumnIndex: startColumnIndex,
+					message: endOfCodeError(token),
 				}],
-			}
+			};
 		}
 		for (let tokenIndex = 0; tokenIndex < token.length; tokenIndex++) {
 			const tokenChar = token[tokenIndex];
@@ -254,22 +269,26 @@ export function tokenParser(token: string): Parser<undefined> {
 					endRowIndex: startRowIndex,
 					endColumnIndex: columnIndex,
 					errors: [{
-						rowIndex: startRowIndex,
-						columnIndex: columnIndex,
+						startRowIndex: startRowIndex,
+						startColumnIndex: startColumnIndex,
+						endRowIndex: startRowIndex,
+						endColumnIndex: columnIndex,
 						message: endOfCodeError(token)
 					}]
-				}
+				};
 			}
 			if (codeChar !== tokenChar) {
 				return {
 					endRowIndex: startRowIndex,
 					endColumnIndex: columnIndex,
 					errors: [{
-						rowIndex: startRowIndex,
-						columnIndex: columnIndex,
+						startRowIndex: startRowIndex,
+						startColumnIndex: startColumnIndex,
+						endRowIndex: startRowIndex,
+						endColumnIndex: columnIndex,
 						message: `Unexpected character: ${codeChar} while looking for: ${token}`
 					}]
-				}
+				};
 			}
 		}
 		// Success
@@ -284,8 +303,8 @@ export function tokenParser(token: string): Parser<undefined> {
 		return {
 			endRowIndex: startRowIndex,
 			endColumnIndex: endColumnIndex,
-		}
-	}
+		};
+	};
 }
 
 /**
@@ -301,11 +320,13 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
 				errors: [{
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: startRowIndex,
+					endColumnIndex: startColumnIndex,
 					message: 'Can not match regex at end of code',
-					rowIndex: startRowIndex,
-					columnIndex: startColumnIndex
 				}],
-			}
+			};
 		}
 		const match = regex.exec(row);
 		if (!match || match.index !== startColumnIndex) {
@@ -313,14 +334,16 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
 				errors: [{
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: startRowIndex,
+					endColumnIndex: startColumnIndex,
 					message: errorMessage,
-					rowIndex: startRowIndex,
-					columnIndex: startColumnIndex
 				}],
-			}
+			};
 		}
 		// Success
-		const value = match[0]!
+		const value = match[0]!;
 		const endColumnIndex = startColumnIndex + value.length;
 		// if (endColumnIndex >= row.length) {
 		// 	// Ende der Zeile erreicht => gehe in die nächste Zeile
@@ -334,8 +357,8 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 			endRowIndex: startRowIndex,
 			endColumnIndex: endColumnIndex,
 			parsed: value,
-		}
-	}
+		};
+	};
 }
 
 //#endregion primitives
