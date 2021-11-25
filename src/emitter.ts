@@ -14,7 +14,8 @@ export function syntaxTreeToJs(expressions: Expression[]): string {
 		// export defined names
 		if (expression.type === 'definition') {
 			hasDefinition = true;
-			return `${expressionJs}\nexports.${expression.name} = ${expression.name};`;
+			const name = expression.name.name;
+			return `${expressionJs}\nexports.${name} = ${name};`;
 		}
 		// default export = last expression
 		if (index === expressions.length - 1 && !hasDefinition) {
@@ -152,7 +153,7 @@ function functionBodyToJs(expressions: Expression[]): string {
 		// Die letzte Expression ist der Rückgabewert
 		if (index === expressions.length - 1) {
 			if (expression.type === 'definition') {
-				return `${expressionJs}\nreturn ${expression.name};`;
+				return `${expressionJs}\nreturn ${expression.name.name};`;
 			}
 			return `return ${expressionJs}`;
 		}
