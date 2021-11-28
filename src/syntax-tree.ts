@@ -13,7 +13,7 @@ export interface SymbolTable {
 
 export interface SymbolDefinition extends Positioned {
 	description?: string;
-	type: TypeExpression;
+	type: ValueExpression;
 }
 
 export type Expression =
@@ -28,17 +28,17 @@ export type ValueExpression =
 	| StringLiteral
 	| FunctionLiteral
 	| ObjectLiteral
+	| DictionaryTypeLiteral
 	| FunctionCall
 	| Reference
 	;
 
-export type TypeExpression = ValueExpression; // TODO function any=>boolean/type literal
-
 export type PositionedExpression =
 	| Expression
-	| DefinitionName
-	| DefinitionNames
 	| DictionaryValue
+	| Field
+	| Index
+	| Name
 	;
 
 export interface StringLiteral extends Positioned {
@@ -78,15 +78,16 @@ export interface DictionaryLiteral extends Positioned {
 
 export interface DictionaryValue extends Positioned {
 	type: 'dictionaryValue';
-	name: string;
-	typeGuard?: TypeExpression;
+	name: Name;
+	typeGuard?: ValueExpression;
 	value: ValueExpression;
+	fallback?: ValueExpression;
 }
 
 export interface FunctionLiteral extends Positioned {
 	type: 'functionLiteral';
 	// TODO functionName? für StackTrace
-	params: DefinitionNames | TypeExpression;
+	params: ValueExpression;
 	body: Expression[];
 	symbols: SymbolTable;
 	// TODO entfernen?
@@ -106,45 +107,53 @@ export interface Reference extends Positioned {
 	names: ReferenceNames;
 }
 
-export type ReferenceNames = [string, ...(number | string)[]];
+export type ReferenceNames = [Name, ...(Name | Index)[]];
 
-export interface DefinitionNames extends Positioned {
-	type: 'definitionNames';
-	singleNames: DefinitionName[];
+export interface Name extends Positioned {
+	type: 'name';
+	name: string;
+}
+
+export interface Index extends Positioned {
+	type: 'index';
+	name: number;
+}
+
+export interface DictionaryTypeLiteral extends Positioned {
+	type: 'dictionaryType';
+	singleFields: Field[];
 	rest?: {
-		name: string;
+		name: Name;
 		/**
 		 * Generic List/Dictionary Type
 		 */
-		typeGuard?: TypeExpression;
+		typeGuard?: ValueExpression;
 		// TODO List/Dictionary
 		// isList: boolean;
 	};
 }
 
-export interface DefinitionName extends Positioned {
-	type: 'name';
-	// TODO description
-	name: string;
-	/**
-	 * Wenn vorhanden, dann ist name ein Alias
-	 */
-	source?: string;
-	typeGuard?: TypeExpression;
+export interface Field extends Positioned {
+	type: 'field';
+	description?: string;
+	name: Name;
+	typeGuard?: ValueExpression;
+	source?: Name;
 	fallback?: ValueExpression;
 }
 
 export interface SingleDefinition extends Positioned {
 	type: 'definition';
-	name: DefinitionName;
-	value: ValueExpression;
-	typeGuard?: TypeExpression;
 	description?: string;
+	name: Name;
+	typeGuard?: ValueExpression;
+	value: ValueExpression;
+	fallback?: ValueExpression;
 }
 
 export interface DestructuringDefinition extends Positioned {
 	type: 'destructuring';
-	names: DefinitionNames;
+	fields: DictionaryTypeLiteral;
 	value: ValueExpression;
 }
 

@@ -1,0 +1,11 @@
+CoreLib = (
+	# gibt Zeugs aus
+	log: (...x: Any) => ()
+	field = value
+	field: Type = value
+	field ?? fallBack
+	field: Type ?? fallBack
+	field = source ?? fallBack
+	field: Type = source ?? fallBack
+	field = source: Type ?? fallBack
+)

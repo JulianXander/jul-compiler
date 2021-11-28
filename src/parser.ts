@@ -1,22 +1,24 @@
 import {
-	ObjectLiteral,
-	StringLiteral,
-	DefinitionName,
-	Expression,
-	FunctionLiteral,
-	NumberLiteral,
-	DestructuringDefinition,
-	Reference,
-	FunctionCall,
 	Branching,
-	SingleDefinition,
-	ValueExpression,
-	ListLiteral,
-	DefinitionNames,
+	DestructuringDefinition,
 	DictionaryLiteral,
+	DictionaryTypeLiteral,
 	DictionaryValue,
+	Expression,
+	Field,
+	FunctionLiteral,
+	FunctionCall,
+	NumberLiteral,
+	Index,
+	ListLiteral,
+	ObjectLiteral,
 	ParsedFile,
-	SymbolTable
+	Reference,
+	SingleDefinition,
+	StringLiteral,
+	Name,
+	SymbolTable,
+	ValueExpression,
 } from './syntax-tree';
 import {
 	choiceParser,
@@ -33,7 +35,7 @@ import {
 	ParserResult,
 	regexParser,
 	sequenceParser,
-	tokenParser
+	tokenParser,
 } from './parser-combinator';
 import {
 	isDefined,
@@ -83,7 +85,7 @@ function fillSymbolTableWithExpressions(
 
 			case 'destructuring': {
 				// TODO type über value ermitteln
-				fillSymbolTableWithDefinitionNames(symbolTable, errors, expression.names);
+				fillSymbolTableWithDictionaryType(symbolTable, errors, expression.fields);
 				return;
 			}
 
@@ -93,16 +95,16 @@ function fillSymbolTableWithExpressions(
 	});
 }
 
-function fillSymbolTableWithDefinitionNames(
+function fillSymbolTableWithDictionaryType(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
-	definitionNames: DefinitionNames,
+	dictionaryType: DictionaryTypeLiteral,
 ): void {
-	definitionNames.singleNames.forEach(definitionName => {
+	dictionaryType.singleFields.forEach(field => {
 		// TODO type
-		defineSymbol(symbolTable, errors, definitionName, definitionName.typeGuard!, 'TODO');
+		defineSymbol(symbolTable, errors, field.name, field.typeGuard!, field.description);
 	});
-	const rest = definitionNames.rest;
+	const rest = dictionaryType.rest;
 	if (rest) {
 		// TODO
 		// defineSymbol(symbolTable,errors, rest.name, rest.typeGuard!, 'TODO')
@@ -112,28 +114,28 @@ function fillSymbolTableWithDefinitionNames(
 function defineSymbol(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
-	definitionName: DefinitionName,
+	name: Name,
 	type: ValueExpression,
 	description: string | undefined,
 ): void {
-	const name = definitionName.name;
+	const nameString = name.name;
 	// TODO check upper scopes
-	if (symbolTable[name]) {
+	if (symbolTable[nameString]) {
 		errors.push({
 			message: `${name} is already defined`,
-			startRowIndex: definitionName.startRowIndex,
-			startColumnIndex: definitionName.startColumnIndex,
-			endRowIndex: definitionName.endRowIndex,
-			endColumnIndex: definitionName.endColumnIndex,
+			startRowIndex: name.startRowIndex,
+			startColumnIndex: name.startColumnIndex,
+			endRowIndex: name.endRowIndex,
+			endColumnIndex: name.endColumnIndex,
 		});
 	}
-	symbolTable[name] = {
+	symbolTable[nameString] = {
 		type: type,
 		description: description,
-		startRowIndex: definitionName.startRowIndex,
-		startColumnIndex: definitionName.startColumnIndex,
-		endRowIndex: definitionName.endRowIndex,
-		endColumnIndex: definitionName.endColumnIndex,
+		startRowIndex: name.startRowIndex,
+		startColumnIndex: name.startColumnIndex,
+		endRowIndex: name.endRowIndex,
+		endColumnIndex: name.endColumnIndex,
 	};
 }
 
@@ -581,9 +583,21 @@ function nameParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<string> {
+): ParserResult<Name> {
 	const result = regexParser(/[a-zA-Z][0-9a-zA-Z]*\$?/g, 'Invalid name')(rows, startRowIndex, startColumnIndex, indent);
-	return result;
+	return {
+		...result,
+		parsed: result.parsed
+			? {
+				type: 'name',
+				name: result.parsed,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+			}
+			: undefined
+	};
 }
 
 function referenceParser(
@@ -601,7 +615,7 @@ function referenceParser(
 				tokenParser('/'),
 				choiceParser(
 					nameParser,
-					indexAccessParser
+					indexParser
 				)
 			)
 		),
@@ -627,68 +641,74 @@ function referenceParser(
 	};
 }
 
-function indexAccessParser(
+function indexParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<number> {
-	const result = regexParser(/[0-9]+/g, 'Invalid index access Syntax')(rows, startRowIndex, startColumnIndex, indent);
+): ParserResult<Index> {
+	const result = regexParser(/[0-9]+/g, 'Invalid index syntax')(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
 		parsed: result.parsed === undefined
 			? undefined
-			: +result.parsed,
+			: {
+				type: 'index',
+				name: +result.parsed,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+			}
 	};
 }
 
-function definitionNameParser(
+function fieldParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<DefinitionName> {
+): ParserResult<Field> {
 	const result = sequenceParser(
 		nameParser,
-		// source
-		multiplicationParser(
-			0,
-			1,
-			sequenceParser(
-				tokenParser('='),
-				nameParser,
-			)
-		),
 		// typeguard
 		multiplicationParser(
 			0,
 			1,
 			sequenceParser(
-				tokenParser(':'),
+				tokenParser(': '),
 				valueExpressionParser, // TODO type expression
-				// fallback
-				multiplicationParser(
-					0,
-					1,
-					sequenceParser(
-						tokenParser(' ?? '),
-						valueExpressionParser,
-					)
-				)
+			)
+		),
+		// source
+		multiplicationParser(
+			0,
+			1,
+			sequenceParser(
+				tokenParser(' = '),
+				nameParser,
+			)
+		),
+		// fallback
+		multiplicationParser(
+			0,
+			1,
+			sequenceParser(
+				tokenParser(' ?? '),
+				valueExpressionParser,
 			)
 		)
 	)(rows, startRowIndex, startColumnIndex, indent);
-	const typeSequence = result.parsed?.[2]?.[0];
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
 		parsed: result.parsed && {
-			type: 'name',
+			type: 'field',
 			name: result.parsed[0],
-			source: result.parsed[1]?.[0]?.[1],
-			typeGuard: typeSequence?.[1],
-			fallback: typeSequence?.[2]?.[0]?.[1],
+			typeGuard: result.parsed[1]?.[0]?.[1],
+			source: result.parsed[2]?.[0]?.[1],
+			fallback: result.parsed[3]?.[0]?.[1],
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
@@ -697,39 +717,15 @@ function definitionNameParser(
 	};
 }
 
-function emptyNameListParser(
+function multiDictionaryTypeParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<DefinitionNames> {
-	const result = tokenParser('()')(rows, startRowIndex, startColumnIndex, indent);
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: result.errors
-			? undefined
-			: {
-				type: 'definitionNames',
-				singleNames: [],
-				startRowIndex: startRowIndex,
-				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-			},
-	};
-}
-
-function multiNameListParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<DefinitionNames> {
+): ParserResult<DictionaryTypeLiteral> {
 	const result = bracketedMultiParser(
 		choiceParser(
-			definitionNameParser,
+			fieldParser,
 			sequenceParser(
 				tokenParser('...'),
 				nameParser,
@@ -746,13 +742,13 @@ function multiNameListParser(
 	}
 	const parsed = result.parsed!.filter(isDefined);
 	const possibleRest = parsed[parsed.length - 1];
-	let rest: string | undefined;
+	let rest: Name | undefined;
 	if (Array.isArray(possibleRest)) {
 		rest = possibleRest[1];
 	}
 	const errors: ParserError[] = [];
 	// TODO description
-	let singleNames = parsed.filter((x, index): x is DefinitionName => {
+	let singleFields = parsed.filter((x, index): x is Field => {
 		const isRest = Array.isArray(x);
 		if (index < parsed.length - 2) {
 			errors.push({
@@ -777,8 +773,8 @@ function multiNameListParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
-			type: 'definitionNames',
-			singleNames: singleNames,
+			type: 'dictionaryType',
+			singleFields: singleFields,
 			rest: rest === undefined
 				? undefined
 				: {
@@ -862,7 +858,7 @@ function simpleExpressionParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ObjectLiteral | NumberLiteral | StringLiteral | Reference | FunctionCall | DefinitionNames | DefinitionName> {
+): ParserResult<ObjectLiteral | NumberLiteral | StringLiteral | Reference | FunctionCall | DictionaryTypeLiteral | Field> {
 	const result = discriminatedChoiceParser(
 		// ObjectLiteral/FunctionLiteralParams/DestructuringDeclarations
 		{
@@ -885,7 +881,6 @@ function simpleExpressionParser(
 		// FunctionCall/Reference/DefinitionDeclarations
 		{
 			predicate: regexParser(/[a-zA-Z]/g, ''),
-			// TODO nameStartedExpressionParser ohne Definition/Reference Branching
 			parser: nameStartedExpressionParser,
 		},
 	)(rows, startRowIndex, startColumnIndex, indent);
@@ -948,8 +943,7 @@ function expressionParser(
 	const [parsed1, parsed2] = result.parsed!;
 	if (!parsed2) {
 		// SimpleExpression
-		// TODO definitionNames to ObjectLiteral
-		if ('type' in parsed1 && parsed1.type === 'name') {
+		if ('type' in parsed1 && parsed1.type === 'field') {
 			return {
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
@@ -958,17 +952,22 @@ function expressionParser(
 					startColumnIndex: startColumnIndex,
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
-					message: 'DefinitionName is not a valid simple Expression',
+					message: 'Field is not a valid simple Expression',
 				}]
 			};
 		}
-		const valueExpression = definitionNamesToObjectLiteral(parsed1);
+		const valueExpression = dictionaryTypeToObjectLiteral(parsed1);
 		if (valueExpression.errors?.length) {
 			return {
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-				errors: valueExpression.errors as any, // TODO structure überdenken
+				parsed: parsed1,
 			};
+			// return {
+			// 	endRowIndex: result.endRowIndex,
+			// 	endColumnIndex: result.endColumnIndex,
+			// 	errors: valueExpression.errors as any, // TODO structure überdenken
+			// };
 		}
 		return {
 			endRowIndex: result.endRowIndex,
@@ -978,7 +977,7 @@ function expressionParser(
 	}
 	switch (parsed2.type) {
 		case 'branches': {
-			if ('type' in parsed1 && parsed1.type === 'name') {
+			if ('type' in parsed1 && parsed1.type === 'field') {
 				return {
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
@@ -987,16 +986,16 @@ function expressionParser(
 						startColumnIndex: startColumnIndex,
 						endRowIndex: result.endRowIndex,
 						endColumnIndex: result.endColumnIndex,
-						message: 'Can not branch over DefinitionName'
+						message: 'Can not branch over Field'
 					}]
 				};
 			}
-			const valueExpression = definitionNamesToObjectLiteral(parsed1);
+			const valueExpression = dictionaryTypeToObjectLiteral(parsed1);
 			if (valueExpression.errors?.length) {
 				return {
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
-					errors: valueExpression.errors as any // TODO structure überdenken
+					errors: valueExpression.errors
 				};
 			}
 			const branching: Branching = {
@@ -1016,7 +1015,7 @@ function expressionParser(
 		}
 
 		case 'functionBody': {
-			if ('type' in parsed1 && parsed1.type === 'name') {
+			if ('type' in parsed1 && parsed1.type === 'field') {
 				return {
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
@@ -1025,14 +1024,14 @@ function expressionParser(
 						startColumnIndex: startColumnIndex,
 						endRowIndex: result.endRowIndex,
 						endColumnIndex: result.endColumnIndex,
-						message: 'DefinitionName not allowed as FunctionParameters'
+						message: 'Field not allowed as FunctionParameters'
 					}],
 				};
 			}
 			const symbols: SymbolTable = {};
 			const body = parsed2.body;
-			if (parsed1.type === 'definitionNames') {
-				fillSymbolTableWithDefinitionNames(symbols, errors, parsed1);
+			if (parsed1.type === 'dictionaryType') {
+				fillSymbolTableWithDictionaryType(symbols, errors, parsed1);
 			}
 			// TODO im Fall das params TypeExpression ist: Code Flow Typing berücksichtigen
 			fillSymbolTableWithExpressions(symbols, errors, body);
@@ -1060,21 +1059,24 @@ function expressionParser(
 			if ('type' in parsed1) {
 				// SingleDefinition
 				switch (parsed1.type) {
-					case 'name':
+					case 'field':
 					case 'reference': {
-						const toName = referenceToDefinitionName(parsed1);
-						if (toName.errors?.length) {
+						const toField = referenceToField(parsed1);
+						if (toField.errors?.length) {
 							return {
 								endRowIndex: result.endRowIndex,
 								endColumnIndex: result.endColumnIndex,
-								errors: toName.errors as any, // TODO error structure überdenken
+								errors: toField.errors as any, // TODO error structure überdenken
 							};
 						}
+						const field = toField.field!;
+						// TODO field.source verbieten
 						const definition: SingleDefinition = {
 							type: 'definition',
-							name: toName.name!,
+							name: field.name,
+							typeGuard: field.typeGuard,
 							value: definitionValue,
-							typeGuard: toName.name!.typeGuard,
+							fallback: field.fallback,
 							startRowIndex: startRowIndex,
 							startColumnIndex: startColumnIndex,
 							endRowIndex: result.endRowIndex,
@@ -1104,7 +1106,7 @@ function expressionParser(
 			}
 			const definition: DestructuringDefinition = {
 				type: 'destructuring',
-				names: parsed1,
+				fields: parsed1,
 				value: definitionValue,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -1161,13 +1163,11 @@ function bracketedExpressionParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ObjectLiteral | DefinitionNames> {
+): ParserResult<ObjectLiteral | DictionaryTypeLiteral> {
 	const result = choiceParser(
 		//#region nameList
-		// leer
-		emptyNameListParser,
 		// mit Klammern einzeilig/mehrzeilig
-		multiNameListParser,
+		multiDictionaryTypeParser,
 		// ohne Klammern?
 		//#endregion nameList
 		objectParser,
@@ -1176,18 +1176,18 @@ function bracketedExpressionParser(
 }
 
 /**
- * FunctionCall/Reference/DefinitionName
+ * FunctionCall/Reference/Field
  */
 function nameStartedExpressionParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<Reference | FunctionCall | DefinitionName> {
+): ParserResult<Reference | FunctionCall | Field> {
 	const result = sequenceParser(
 		choiceParser(
 			referenceParser,
-			definitionNameParser, // TODO nur name, typeGuard, kein source, optional
+			fieldParser,
 		),
 		discriminatedChoiceParser(
 			// FunctionCall
@@ -1200,7 +1200,7 @@ function nameStartedExpressionParser(
 				parser: functionArgumentsParser
 			},
 			{
-				// Reference/DefinitionName
+				// Reference/Field
 				predicate: emptyParser,
 				parser: emptyParser
 			},
@@ -1215,7 +1215,7 @@ function nameStartedExpressionParser(
 	}
 	const [parsed1, parsed2] = result.parsed!;
 	if (!parsed2) {
-		// Reference/DefinitionName
+		// Reference/Field
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
@@ -1223,12 +1223,12 @@ function nameStartedExpressionParser(
 		};
 	}
 	// FunctionCall
-	const toRef = definitionNameToReference(parsed1);
+	const toRef = fieldToReference(parsed1);
 	if (toRef.errors?.length) {
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			errors: toRef.errors as any, // TODO error structure überdenken
+			errors: toRef.errors,
 		};
 	}
 	let functionCall: FunctionCall;
@@ -1308,31 +1308,51 @@ function functionArgumentsParser(
 				? {
 					type: 'reference',
 					names: [infixFunctionName],
-					startRowIndex: startRowIndex,
-					// + 1 für infixFunctionToken .
-					startColumnIndex: startColumnIndex + 1,
-					endRowIndex: startRowIndex,
-					endColumnIndex: startColumnIndex + 1 + infixFunctionName.length,
+					startRowIndex: infixFunctionName.startRowIndex,
+					startColumnIndex: infixFunctionName.startColumnIndex,
+					endRowIndex: infixFunctionName.endRowIndex,
+					endColumnIndex: infixFunctionName.endColumnIndex,
 				}
 				: undefined,
 		},
 	};
 }
 
-function definitionNameToReference(possibleRef: Reference | DefinitionName): { errors?: string[]; ref?: Reference; } {
+function fieldToReference(possibleRef: Reference | Field): { errors?: ParserError[]; ref?: Reference; } {
 	if (possibleRef.type === 'reference') {
 		return { ref: possibleRef };
 	}
 
-	const errors: string[] = [];
-	if (possibleRef.fallback) {
-		errors.push('fallback not allowed for reference');
+	const errors: ParserError[] = [];
+	const fallback = possibleRef.fallback;
+	if (fallback) {
+		errors.push({
+			message: 'fallback is not allowed for reference',
+			startRowIndex: fallback.startRowIndex,
+			startColumnIndex: fallback.startColumnIndex,
+			endRowIndex: fallback.endRowIndex,
+			endColumnIndex: fallback.endColumnIndex,
+		});
 	}
-	if (possibleRef.source) {
-		errors.push('source not allowed for reference');
+	const source = possibleRef.source;
+	if (source) {
+		errors.push({
+			message: 'source is not allowed for reference',
+			startRowIndex: source.startRowIndex,
+			startColumnIndex: source.startColumnIndex,
+			endRowIndex: source.endRowIndex,
+			endColumnIndex: source.endColumnIndex,
+		});
 	}
-	if (possibleRef.typeGuard) {
-		errors.push('typeGuard not allowed for reference');
+	const typeGuard = possibleRef.typeGuard;
+	if (typeGuard) {
+		errors.push({
+			message: 'typeGuard is not allowed for reference',
+			startRowIndex: typeGuard.startRowIndex,
+			startColumnIndex: typeGuard.startColumnIndex,
+			endRowIndex: typeGuard.endRowIndex,
+			endColumnIndex: typeGuard.endColumnIndex,
+		});
 	}
 	if (errors.length) {
 		return {
@@ -1351,18 +1371,25 @@ function definitionNameToReference(possibleRef: Reference | DefinitionName): { e
 	};
 }
 
-function referenceToDefinitionName(possibleName: Reference | DefinitionName): { errors?: string[]; name?: DefinitionName; } {
-	if (possibleName.type === 'name') {
-		return { name: possibleName };
+function referenceToField(possibleName: Reference | Field): { errors?: ParserError[]; field?: Field; } {
+	if (possibleName.type === 'field') {
+		return { field: possibleName };
 	}
-	if (possibleName.names.length > 1) {
+	const derefencingName = possibleName.names[1];
+	if (derefencingName) {
 		return {
-			errors: ['derefencing name not allowed for definition'],
+			errors: [{
+				message: 'derefencing name not allowed for definition',
+				startRowIndex: derefencingName.startRowIndex,
+				startColumnIndex: derefencingName.startColumnIndex,
+				endRowIndex: derefencingName.endRowIndex,
+				endColumnIndex: derefencingName.endColumnIndex,
+			}],
 		};
 	}
 	return {
-		name: {
-			type: 'name',
+		field: {
+			type: 'field',
 			name: possibleName.names[0],
 			startRowIndex: possibleName.startRowIndex,
 			startColumnIndex: possibleName.startColumnIndex,
@@ -1502,7 +1529,7 @@ function dictionaryValueParser(
 	indent: number,
 ): ParserResult<DictionaryValue> {
 	const result = sequenceParser(
-		definitionNameParser, // TODO ohne source, fallback
+		fieldParser, // TODO ohne source, fallback
 		definitionTokenParser,
 		valueExpressionParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
@@ -1514,11 +1541,11 @@ function dictionaryValueParser(
 			errors: result.errors,
 		};
 	}
-	const definitionName = sequence[0];
+	const field = sequence[0];
 	const value: DictionaryValue = {
 		type: 'dictionaryValue',
-		name: definitionName.name,
-		typeGuard: definitionName.typeGuard,
+		name: field.name,
+		typeGuard: field.typeGuard,
 		value: sequence[2],
 		startRowIndex: startRowIndex,
 		startColumnIndex: startColumnIndex,
@@ -1575,20 +1602,30 @@ function branchesParser(
 	};
 }
 
-function definitionNamesToObjectLiteral<T extends Expression>(possibleNames: T | DefinitionNames): { errors?: string[]; value?: T; } {
-	if (possibleNames.type !== 'definitionNames') {
+function dictionaryTypeToObjectLiteral<T extends Expression>(
+	possibleNames: T | DictionaryTypeLiteral,
+): { errors?: ParserError[]; value?: T; } {
+	if (possibleNames.type !== 'dictionaryType') {
 		// Expression
 		return {
 			value: possibleNames
 		};
 	}
-	// DefinitionName[]
-	const errors: string[] = [];
-	if (possibleNames.rest) {
-		errors.push('Rest arguments not allowed for reference');
+	// DictionaryTypeLiteral
+	const errors: ParserError[] = [];
+	const rest = possibleNames.rest;
+	if (rest) {
+		errors.push({
+			message: 'Rest arguments not allowed for reference',
+			// TODO position aus rest
+			startRowIndex: 0,
+			startColumnIndex: 0,
+			endRowIndex: 0,
+			endColumnIndex: 0,
+		});
 	}
-	const refs = possibleNames.singleNames.map(name => {
-		const res = definitionNameToReference(name);
+	const refs = possibleNames.singleFields.map(name => {
+		const res = fieldToReference(name);
 		if (res.errors) {
 			errors.push(...res.errors);
 		}

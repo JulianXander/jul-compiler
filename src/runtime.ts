@@ -20,7 +20,7 @@ type JulFunction = Function & { params: Params; };
 export function _branch(value: any, ...branches: JulFunction[]) {
 	// TODO collect inner Errors?
 	for (const branch of branches) {
-		const assignedParams = tryAssignParams(value, branch.params);
+		const assignedParams = tryAssignParams(branch.params, value);
 		if (!(assignedParams instanceof Error)) {
 			return branch(assignedParams);
 		}
@@ -29,7 +29,7 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 }
 
 export function _callFunction(fn: JulFunction, args: any) {
-	const assignedParams = tryAssignParams(args, fn.params);
+	const assignedParams = tryAssignParams(fn.params, args);
 	if (assignedParams instanceof Error) {
 		return assignedParams;
 	}
@@ -48,9 +48,14 @@ export function _createFunction(fn: Function, params: Params): JulFunction {
 	return julFn;
 }
 
+export function _checkDictionaryType(dictionaryType: Params, value: any): boolean {
+	const assignedParams = tryAssignParams(dictionaryType, value);
+	return assignedParams instanceof Error;
+}
+
 //#endregion internals
 
-function tryAssignParams(values: any, params: Params): any[] | Error {
+function tryAssignParams(params: Params, values: any): any[] | Error {
 	const assigneds: any[] = [];
 	const { type: outerType, singleNames, rest } = params;
 	if (outerType) {
