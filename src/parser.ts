@@ -70,6 +70,8 @@ export function parseCode(code: string): ParsedFile {
 
 //#region helper
 
+//#region SymbolTable
+
 function fillSymbolTableWithExpressions(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
@@ -122,7 +124,7 @@ function defineSymbol(
 	// TODO check upper scopes
 	if (symbolTable[nameString]) {
 		errors.push({
-			message: `${name} is already defined`,
+			message: `${nameString} is already defined`,
 			startRowIndex: name.startRowIndex,
 			startColumnIndex: name.startColumnIndex,
 			endRowIndex: name.endRowIndex,
@@ -138,6 +140,8 @@ function defineSymbol(
 		endColumnIndex: name.endColumnIndex,
 	};
 }
+
+//#endregion SymbolTable
 
 //#region Tokens
 
@@ -167,11 +171,11 @@ function checkEndOfCode(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
+				message: endOfCodeError(searched),
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
-				message: endOfCodeError(searched),
 			}]
 		};
 	}
@@ -191,11 +195,11 @@ function startOfLineParser(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
+				message: `columnIndex=${startColumnIndex}, but should be at start of line`,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
-				message: `columnIndex=${startColumnIndex}, but should be at start of line`
 			}],
 		};
 	}
@@ -221,11 +225,11 @@ function endOfLineParser(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
+				message: `columnIndex=${startColumnIndex}, but should be at end of line (${rowLength})`,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
-				message: `columnIndex=${startColumnIndex}, but should be at end of line (${rowLength})`
 			}],
 		};
 	}
@@ -339,11 +343,11 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 			}
 			if (result.endColumnIndex !== endRow.length) {
 				errors.push({
+					message: 'multilineParser should parse until end of row',
 					startRowIndex: rowIndex,
 					startColumnIndex: result.endColumnIndex,
 					endRowIndex: rowIndex,
 					endColumnIndex: result.endColumnIndex,
-					message: 'multilineParser should parse until end of row'
 				});
 				// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
 				continue;
@@ -364,9 +368,18 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
  */
 function bracketedMultiParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = choiceParser(
-			bracketedMultilineParser(parser),
-			bracketedInlineParser(parser),
+		const result = discriminatedChoiceParser(
+			{
+				predicate: sequenceParser(
+					openingBracketParser,
+					newLineParser,
+				),
+				parser: bracketedMultilineParser(parser)
+			},
+			{
+				predicate: emptyParser,
+				parser: bracketedMultilineParser(parser)
+			},
 		)(rows, startRowIndex, startColumnIndex, indent);
 		return result;
 	};
@@ -750,14 +763,14 @@ function multiDictionaryTypeParser(
 	// TODO description
 	let singleFields = parsed.filter((x, index): x is Field => {
 		const isRest = Array.isArray(x);
-		if (index < parsed.length - 2) {
+		if (isRest && index < parsed.length - 2) {
+			const restArgument = x[1];
 			errors.push({
-				// TODO indices aus rest nehmen
-				startRowIndex: startRowIndex,
-				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
 				message: 'Rest argument must be last.',
+				startRowIndex: restArgument.startRowIndex,
+				startColumnIndex: restArgument.startColumnIndex,
+				endRowIndex: restArgument.endRowIndex,
+				endColumnIndex: restArgument.endColumnIndex,
 			});
 		}
 		return !isRest && typeof x === 'object';
@@ -948,11 +961,11 @@ function expressionParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				errors: [{
+					message: 'Field is not a valid simple Expression',
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
-					message: 'Field is not a valid simple Expression',
 				}]
 			};
 		}
@@ -982,11 +995,11 @@ function expressionParser(
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
 					errors: [{
+						message: 'Can not branch over Field',
 						startRowIndex: startRowIndex,
 						startColumnIndex: startColumnIndex,
 						endRowIndex: result.endRowIndex,
 						endColumnIndex: result.endColumnIndex,
-						message: 'Can not branch over Field'
 					}]
 				};
 			}
@@ -1020,11 +1033,11 @@ function expressionParser(
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
 					errors: [{
+						message: 'Field not allowed as FunctionParameters',
 						startRowIndex: startRowIndex,
 						startColumnIndex: startColumnIndex,
 						endRowIndex: result.endRowIndex,
 						endColumnIndex: result.endColumnIndex,
-						message: 'Field not allowed as FunctionParameters'
 					}],
 				};
 			}
@@ -1094,12 +1107,12 @@ function expressionParser(
 							endRowIndex: result.endRowIndex,
 							endColumnIndex: result.endColumnIndex,
 							errors: [{
+								message: 'Unexpected ExpressionType for Definition part 1: ' + parsed1.type,
 								startRowIndex: startRowIndex,
 								startColumnIndex: startColumnIndex,
 								// TODO end indices bei parsed1 end
 								endRowIndex: result.endRowIndex,
 								endColumnIndex: result.endColumnIndex,
-								message: 'Unexpected ExpressionType for Definition part 1: ' + parsed1.type
 							}],
 						};
 				}
@@ -1141,11 +1154,11 @@ function valueExpressionParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				errors: [{
+					message: `${result.parsed.type} expression is not a value expression`,
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
-					message: `${result.parsed.type} expression is not a value expression`,
 				}]
 			};
 
@@ -1615,13 +1628,13 @@ function dictionaryTypeToObjectLiteral<T extends Expression>(
 	const errors: ParserError[] = [];
 	const rest = possibleNames.rest;
 	if (rest) {
+		const restArgument = rest.name;
 		errors.push({
 			message: 'Rest arguments not allowed for reference',
-			// TODO position aus rest
-			startRowIndex: 0,
-			startColumnIndex: 0,
-			endRowIndex: 0,
-			endColumnIndex: 0,
+			startRowIndex: restArgument.startRowIndex,
+			startColumnIndex: restArgument.startColumnIndex,
+			endRowIndex: restArgument.endRowIndex,
+			endColumnIndex: restArgument.endColumnIndex,
 		});
 	}
 	const refs = possibleNames.singleFields.map(name => {
