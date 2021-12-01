@@ -8,15 +8,16 @@ import {
 	Field,
 	FunctionLiteral,
 	FunctionCall,
+	Name,
 	NumberLiteral,
 	Index,
 	ListLiteral,
 	ObjectLiteral,
 	ParsedFile,
+	PositionedExpression,
 	Reference,
 	SingleDefinition,
 	StringLiteral,
-	Name,
 	SymbolTable,
 	ValueExpression,
 } from './syntax-tree';
@@ -67,8 +68,6 @@ export function parseCode(code: string): ParsedFile {
 		symbols: symbols,
 	};
 }
-
-//#region helper
 
 //#region SymbolTable
 
@@ -156,6 +155,8 @@ const functionTokenParser = tokenParser(' =>');
 const definitionTokenParser = tokenParser(' = ');
 
 //#endregion Tokens
+
+//#region utility parser
 
 /**
  * Liefert ParserErrorResult bei endOfCode
@@ -363,78 +364,9 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 	};
 }
 
-/**
- * Multiline oder inline mit Leerzeichen getrennt
- */
-function bracketedMultiParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
-	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = discriminatedChoiceParser(
-			{
-				predicate: sequenceParser(
-					openingBracketParser,
-					newLineParser,
-				),
-				parser: bracketedMultilineParser(parser)
-			},
-			{
-				predicate: emptyParser,
-				parser: bracketedInlineParser(parser)
-			},
-		)(rows, startRowIndex, startColumnIndex, indent);
-		return result;
-	};
-}
+//#endregion utility parser
 
-function bracketedMultilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
-	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = sequenceParser(
-			openingBracketParser,
-			newLineParser,
-			incrementIndent(multilineParser(parser)),
-			newLineParser,
-			indentParser,
-			closingBracketParser,
-		)(rows, startRowIndex, startColumnIndex, indent);
-		const parsed = result.parsed?.[2];
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-			parsed: parsed,
-		};
-	};
-}
-
-function bracketedInlineParser<T>(parser: Parser<T>): Parser<T[]> {
-	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = sequenceParser(
-			openingBracketParser,
-			parser,
-			multiplicationParser(
-				0,
-				undefined,
-				sequenceParser(
-					spaceParser,
-					parser,
-				)
-			),
-			closingBracketParser,
-		)(rows, startRowIndex, startColumnIndex, indent);
-		const parsed = result.parsed && [
-			result.parsed[1],
-			...result.parsed[2].map(sequence =>
-				sequence[1]),
-		];
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-			parsed: parsed,
-		};
-	};
-}
-
-//#endregion helper
+//#region expression parser
 
 function numberParser(
 	rows: string[],
@@ -683,6 +615,12 @@ function fieldParser(
 	indent: number,
 ): ParserResult<Field> {
 	const result = sequenceParser(
+		// rest
+		multiplicationParser(
+			0,
+			1,
+			tokenParser('...'),
+		),
 		nameParser,
 		// typeguard
 		multiplicationParser(
@@ -690,8 +628,8 @@ function fieldParser(
 			1,
 			sequenceParser(
 				tokenParser(': '),
-				valueExpressionParser, // TODO type expression
-			)
+				valueExpressionParser,
+			),
 		),
 		// source
 		multiplicationParser(
@@ -700,7 +638,7 @@ function fieldParser(
 			sequenceParser(
 				tokenParser(' = '),
 				nameParser,
-			)
+			),
 		),
 		// fallback
 		multiplicationParser(
@@ -709,8 +647,8 @@ function fieldParser(
 			sequenceParser(
 				tokenParser(' ?? '),
 				valueExpressionParser,
-			)
-		)
+			),
+		),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		endRowIndex: result.endRowIndex,
@@ -718,10 +656,11 @@ function fieldParser(
 		errors: result.errors,
 		parsed: result.parsed && {
 			type: 'field',
-			name: result.parsed[0],
-			typeGuard: result.parsed[1]?.[0]?.[1],
-			source: result.parsed[2]?.[0]?.[1],
-			fallback: result.parsed[3]?.[0]?.[1],
+			isRest: !!result.parsed[0].length,
+			name: result.parsed[1],
+			typeGuard: result.parsed[2]?.[0]?.[1],
+			source: result.parsed[3]?.[0]?.[1],
+			fallback: result.parsed[4]?.[0]?.[1],
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
@@ -736,16 +675,7 @@ function multiDictionaryTypeParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<DictionaryTypeLiteral> {
-	const result = bracketedMultiParser(
-		choiceParser(
-			fieldParser,
-			sequenceParser(
-				tokenParser('...'),
-				nameParser,
-				// TODO typeguard
-			)
-		),
-	)(rows, startRowIndex, startColumnIndex, indent);
+	const result = bracketedMultiParser(fieldParser)(rows, startRowIndex, startColumnIndex, indent);
 	if (result.errors?.length) {
 		return {
 			endRowIndex: result.endRowIndex,
@@ -754,26 +684,36 @@ function multiDictionaryTypeParser(
 		};
 	}
 	const parsed = result.parsed!.filter(isDefined);
-	const possibleRest = parsed[parsed.length - 1];
-	let rest: Name | undefined;
-	if (Array.isArray(possibleRest)) {
-		rest = possibleRest[1];
-	}
+	const allFields = assignDescriptions(result.parsed!);
+	let rest: Field | undefined;
 	const errors: ParserError[] = [];
-	// TODO description
-	let singleFields = parsed.filter((x, index): x is Field => {
-		const isRest = Array.isArray(x);
-		if (isRest && index < parsed.length - 2) {
-			const restArgument = x[1];
-			errors.push({
-				message: 'Rest argument must be last.',
-				startRowIndex: restArgument.startRowIndex,
-				startColumnIndex: restArgument.startColumnIndex,
-				endRowIndex: restArgument.endRowIndex,
-				endColumnIndex: restArgument.endColumnIndex,
-			});
+	const singleFields = allFields.filter((field, index) => {
+		const isRest = field.isRest;
+		if (isRest) {
+			if (index < parsed.length - 1) {
+				errors.push({
+					message: 'Rest argument must be last.',
+					startRowIndex: field.startRowIndex,
+					startColumnIndex: field.startColumnIndex,
+					endRowIndex: field.endRowIndex,
+					endColumnIndex: field.endColumnIndex,
+				});
+			}
+			else {
+				rest = field;
+			}
+			const source = field.source;
+			if (source) {
+				errors.push({
+					message: 'source is not allowed for rest.',
+					startRowIndex: source.startRowIndex,
+					startColumnIndex: source.startColumnIndex,
+					endRowIndex: source.endRowIndex,
+					endColumnIndex: source.endColumnIndex,
+				});
+			}
 		}
-		return !isRest && typeof x === 'object';
+		return !isRest;
 	});
 	if (errors.length) {
 		return {
@@ -788,11 +728,7 @@ function multiDictionaryTypeParser(
 		parsed: {
 			type: 'dictionaryType',
 			singleFields: singleFields,
-			rest: rest === undefined
-				? undefined
-				: {
-					name: rest
-				},
+			rest: rest,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
@@ -1167,9 +1103,82 @@ function valueExpressionParser(
 	}
 }
 
+//#region bracketed
+
+/**
+ * Multiline oder inline mit Leerzeichen getrennt
+ */
+function bracketedMultiParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
+	return (rows, startRowIndex, startColumnIndex, indent) => {
+		const result = discriminatedChoiceParser(
+			{
+				predicate: sequenceParser(
+					openingBracketParser,
+					newLineParser,
+				),
+				parser: bracketedMultilineParser(parser)
+			},
+			{
+				predicate: emptyParser,
+				parser: bracketedInlineParser(parser)
+			},
+		)(rows, startRowIndex, startColumnIndex, indent);
+		return result;
+	};
+}
+
+function bracketedMultilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
+	return (rows, startRowIndex, startColumnIndex, indent) => {
+		const result = sequenceParser(
+			openingBracketParser,
+			newLineParser,
+			incrementIndent(multilineParser(parser)),
+			newLineParser,
+			indentParser,
+			closingBracketParser,
+		)(rows, startRowIndex, startColumnIndex, indent);
+		const parsed = result.parsed?.[2];
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+			parsed: parsed,
+		};
+	};
+}
+
+function bracketedInlineParser<T>(parser: Parser<T>): Parser<T[]> {
+	return (rows, startRowIndex, startColumnIndex, indent) => {
+		const result = sequenceParser(
+			openingBracketParser,
+			parser,
+			multiplicationParser(
+				0,
+				undefined,
+				sequenceParser(
+					spaceParser,
+					parser,
+				)
+			),
+			closingBracketParser,
+		)(rows, startRowIndex, startColumnIndex, indent);
+		const parsed = result.parsed && [
+			result.parsed[1],
+			...result.parsed[2].map(sequence =>
+				sequence[1]),
+		];
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+			parsed: parsed,
+		};
+	};
+}
+
 /**
  * ObjectLiteral/FunctionLiteralParams/DestructuringDeclarations
- * TODO object type literal
+ * TODO tuple type literal?
  */
 function bracketedExpressionParser(
 	rows: string[],
@@ -1178,15 +1187,137 @@ function bracketedExpressionParser(
 	indent: number,
 ): ParserResult<ObjectLiteral | DictionaryTypeLiteral> {
 	const result = choiceParser(
-		//#region nameList
-		// mit Klammern einzeilig/mehrzeilig
 		multiDictionaryTypeParser,
-		// ohne Klammern?
-		//#endregion nameList
 		objectParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return result;
 }
+
+//#region ObjectLteral
+
+function emptyObjectParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ObjectLiteral> {
+	const result = tokenParser('()')(rows, startRowIndex, startColumnIndex, indent);
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: result.errors ? undefined : {
+			type: 'empty',
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+		},
+	};
+}
+
+function multiListParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ListLiteral> {
+	const result = bracketedMultiParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
+	const parsed: ListLiteral | undefined = result.parsed && {
+		type: 'list',
+		// TODO check NonEmptyArray?
+		values: result.parsed.filter((x): x is ValueExpression =>
+			typeof x === 'object') as any,
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+	};
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: parsed,
+	};
+}
+
+//#region Dictionary
+
+function multiDictionaryParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<DictionaryLiteral> {
+	const result = bracketedMultiParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
+	const parsed: DictionaryLiteral | undefined = result.parsed && {
+		type: 'dictionary',
+		// TODO check NonEmptyArray?
+		values: result.parsed.filter(isDefined) as any,
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+	};
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: parsed,
+	};
+}
+
+function dictionaryValueParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<DictionaryValue> {
+	const result = sequenceParser(
+		fieldParser, // TODO ohne source, fallback
+		definitionTokenParser,
+		valueExpressionParser,
+	)(rows, startRowIndex, startColumnIndex, indent);
+	const sequence = result.parsed;
+	if (!sequence) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+		};
+	}
+	const field = sequence[0];
+	const value: DictionaryValue = {
+		type: 'dictionaryValue',
+		name: field.name,
+		typeGuard: field.typeGuard,
+		value: sequence[2],
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+	};
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: value,
+	};
+}
+
+//#endregion Dictionary
+
+const objectParser: Parser<ObjectLiteral> = choiceParser(
+	// ()
+	emptyObjectParser,
+	// mit Klammern und Leerzeichen/Zeilenumbrüchen
+	multiListParser,
+	multiDictionaryParser,
+);
+
+//#endregion ObjectLteral
+
+//#endregion bracketed
 
 /**
  * FunctionCall/Reference/Field
@@ -1331,12 +1462,76 @@ function functionArgumentsParser(
 	};
 }
 
+/**
+ * enthält ggf. endständiges Zeilenende nicht
+ */
+function expressionBlockParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<Expression[]> {
+	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'expressionBlock');
+	if (endOfCodeError) {
+		return endOfCodeError;
+	}
+	const result = multilineParser(expressionParser)(rows, startRowIndex, startColumnIndex, indent);
+	const expressions = result.parsed && assignDescriptions(result.parsed);
+	return {
+		...result,
+		parsed: expressions
+	};
+}
+
+function branchesParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<{
+	type: 'branches';
+	value: ValueExpression[];
+}> {
+	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'branching');
+	if (endOfCodeError) {
+		return endOfCodeError;
+	}
+	const result = sequenceParser(
+		branchingTokenParser,
+		newLineParser,
+		incrementIndent(multilineParser(valueExpressionParser)) // TODO function expression
+	)(rows, startRowIndex, startColumnIndex, indent);
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: result.parsed && {
+			type: 'branches',
+			value: result.parsed[2].filter((x): x is ValueExpression =>
+				typeof x === 'object'),
+		}
+	};
+}
+
+//#endregion expression parser
+
+//#region convert
+
 function fieldToReference(possibleRef: Reference | Field): { errors?: ParserError[]; ref?: Reference; } {
 	if (possibleRef.type === 'reference') {
 		return { ref: possibleRef };
 	}
 
 	const errors: ParserError[] = [];
+	if (possibleRef.isRest) {
+		errors.push({
+			message: 'rest is not allowed for reference',
+			startRowIndex: possibleRef.startRowIndex,
+			startColumnIndex: possibleRef.startColumnIndex,
+			endRowIndex: possibleRef.startRowIndex,
+			endColumnIndex: possibleRef.startColumnIndex + 3,
+		});
+	}
 	const fallback = possibleRef.fallback;
 	if (fallback) {
 		errors.push({
@@ -1403,214 +1598,12 @@ function referenceToField(possibleName: Reference | Field): { errors?: ParserErr
 	return {
 		field: {
 			type: 'field',
+			isRest: false,
 			name: possibleName.names[0],
 			startRowIndex: possibleName.startRowIndex,
 			startColumnIndex: possibleName.startColumnIndex,
 			endRowIndex: possibleName.endRowIndex,
 			endColumnIndex: possibleName.endColumnIndex,
-		}
-	};
-}
-
-/**
- * enthält ggf. endständiges Zeilenende nicht
- */
-function expressionBlockParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<Expression[]> {
-	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'expressionBlock');
-	if (endOfCodeError) {
-		return endOfCodeError;
-	}
-	const result = multilineParser(expressionParser)(rows, startRowIndex, startColumnIndex, indent);
-	// Unmittelbar aufeinanderfolgnde Kommentarzeilen zusammenfassen und zur darauffolgenden Definition packen
-	let descriptionComment = '';
-	const expressions: Expression[] = [];
-	result.parsed?.forEach(expression => {
-		switch (typeof expression) {
-			case 'object':
-				const expressionWithDesciption = expression.type === 'definition'
-					? {
-						...expression,
-						description: descriptionComment
-					}
-					: expression;
-				expressions.push(expressionWithDesciption);
-				descriptionComment = '';
-				return;
-
-			case 'string':
-				return descriptionComment += '\n' + expression;
-
-			case 'undefined':
-				descriptionComment = '';
-				return;
-
-			default: {
-				const assertNever: never = expression;
-				throw new Error(`Unexpected typeof expression: ${typeof assertNever}`);
-			}
-		}
-	});
-	return {
-		...result,
-		parsed: expressions
-	};
-}
-
-//#region ObjectLteral
-
-function emptyObjectParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<ObjectLiteral> {
-	const result = tokenParser('()')(rows, startRowIndex, startColumnIndex, indent);
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: result.errors ? undefined : {
-			type: 'empty',
-			startRowIndex: startRowIndex,
-			startColumnIndex: startColumnIndex,
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-		},
-	};
-}
-
-function multiListParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<ListLiteral> {
-	const result = bracketedMultiParser(valueExpressionParser)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed: ListLiteral | undefined = result.parsed && {
-		type: 'list',
-		// TODO check NonEmptyArray?
-		values: result.parsed.filter((x): x is ValueExpression =>
-			typeof x === 'object') as any,
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-	};
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: parsed,
-	};
-}
-
-//#region Dictionary
-
-function multiDictionaryParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<DictionaryLiteral> {
-	const result = bracketedMultiParser(dictionaryValueParser)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed: DictionaryLiteral | undefined = result.parsed && {
-		type: 'dictionary',
-		// TODO check NonEmptyArray?
-		values: result.parsed.filter(isDefined) as any,
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-	};
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: parsed,
-	};
-}
-
-function dictionaryValueParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<DictionaryValue> {
-	const result = sequenceParser(
-		fieldParser, // TODO ohne source, fallback
-		definitionTokenParser,
-		valueExpressionParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
-	const sequence = result.parsed;
-	if (!sequence) {
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-		};
-	}
-	const field = sequence[0];
-	const value: DictionaryValue = {
-		type: 'dictionaryValue',
-		name: field.name,
-		typeGuard: field.typeGuard,
-		value: sequence[2],
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-	};
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: value,
-	};
-}
-
-//#endregion Dictionary
-
-const objectParser: Parser<ObjectLiteral> = choiceParser(
-	// ()
-	emptyObjectParser,
-	// mit Klammern und Leerzeichen/Zeilenumbrüchen
-	multiListParser,
-	multiDictionaryParser,
-);
-
-//#endregion ObjectLteral
-
-function branchesParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<{
-	type: 'branches';
-	value: ValueExpression[];
-}> {
-	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'branching');
-	if (endOfCodeError) {
-		return endOfCodeError;
-	}
-	const result = sequenceParser(
-		branchingTokenParser,
-		newLineParser,
-		incrementIndent(multilineParser(valueExpressionParser)) // TODO function expression
-	)(rows, startRowIndex, startColumnIndex, indent);
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: result.parsed && {
-			type: 'branches',
-			value: result.parsed[2].filter((x): x is ValueExpression =>
-				typeof x === 'object'),
 		}
 	};
 }
@@ -1656,4 +1649,42 @@ function dictionaryTypeToObjectLiteral<T extends Expression>(
 			values: refs
 		} as any
 	};
+}
+
+//#endregion convert
+
+/**
+ * Unmittelbar aufeinanderfolgende Kommentarzeilen zusammenfassen und zur darauffolgenden Definition/Field packen
+ */
+function assignDescriptions<T extends PositionedExpression>(expressionsOrComments: (string | undefined | T)[]): T[] {
+	let descriptionComment = '';
+	const expressionsWithDescription: PositionedExpression[] = [];
+	expressionsOrComments.forEach(expressionOrComment => {
+		switch (typeof expressionOrComment) {
+			case 'object':
+				const expressionWithDesciption = expressionOrComment.type === 'definition'
+					|| expressionOrComment.type === 'field'
+					? {
+						...expressionOrComment,
+						description: descriptionComment
+					}
+					: expressionOrComment;
+				expressionsOrComments.push(expressionWithDesciption);
+				descriptionComment = '';
+				return;
+
+			case 'string':
+				return descriptionComment += '\n' + expressionOrComment;
+
+			case 'undefined':
+				descriptionComment = '';
+				return;
+
+			default: {
+				const assertNever: never = expressionOrComment;
+				throw new Error(`Unexpected typeof expression: ${typeof assertNever}`);
+			}
+		}
+	});
+	return expressionsWithDescription as any;
 }

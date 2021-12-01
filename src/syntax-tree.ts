@@ -122,20 +122,15 @@ export interface Index extends Positioned {
 export interface DictionaryTypeLiteral extends Positioned {
 	type: 'dictionaryType';
 	singleFields: Field[];
-	rest?: {
-		name: Name;
-		/**
-		 * Generic List/Dictionary Type
-		 */
-		typeGuard?: ValueExpression;
-		// TODO List/Dictionary
-		// isList: boolean;
-	};
+	rest?: Field;
 }
 
 export interface Field extends Positioned {
 	type: 'field';
 	description?: string;
+	// TODO List/Dictionary
+	// isList: boolean;
+	isRest: boolean;
 	name: Name;
 	typeGuard?: ValueExpression;
 	source?: Name;
@@ -160,6 +155,6 @@ export interface DestructuringDefinition extends Positioned {
 export interface Branching extends Positioned {
 	type: 'branching';
 	value: ValueExpression;
-	// TODO check FunctionExpression
+	// TODO check FunctionExpression: exclude number, string, object, dictionaryType? oder primitives/types als function auswerten?
 	branches: ValueExpression[];
 }
