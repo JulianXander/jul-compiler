@@ -378,7 +378,7 @@ function bracketedMultiParser<T>(parser: Parser<T>): Parser<(T | string | undefi
 			},
 			{
 				predicate: emptyParser,
-				parser: bracketedMultilineParser(parser)
+				parser: bracketedInlineParser(parser)
 			},
 		)(rows, startRowIndex, startColumnIndex, indent);
 		return result;

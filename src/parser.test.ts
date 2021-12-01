@@ -7,42 +7,42 @@ const expectedResults: {
 	code: string;
 	result: Expression[];
 }[] = [
-		{
-			code: '(\n\t#\n\ta = b\n\t#\n)',
-			result: [{
-				type: 'dictionaryType',
-				singleFields: [{
-					type: 'field',
-					name: {
-						type: 'name',
-						name: 'a',
-						startRowIndex: 2,
-						startColumnIndex: 1,
-						endRowIndex: 2,
-						endColumnIndex: 2,
-					},
-					typeGuard: undefined,
-					source: {
-						type: 'name',
-						name: 'b',
-						startRowIndex: 2,
-						startColumnIndex: 5,
-						endRowIndex: 2,
-						endColumnIndex: 6,
-					},
-					fallback: undefined,
-					startRowIndex: 2,
-					startColumnIndex: 1,
-					endRowIndex: 2,
-					endColumnIndex: 6,
-				}],
-				rest: undefined,
-				startRowIndex: 0,
-				startColumnIndex: 0,
-				endRowIndex: 4,
-				endColumnIndex: 1,
-			}],
-		},
+		// {
+		// 	code: '(\n\t#\n\ta = b\n\t#\n)',
+		// 	result: [{
+		// 		type: 'dictionaryType',
+		// 		singleFields: [{
+		// 			type: 'field',
+		// 			name: {
+		// 				type: 'name',
+		// 				name: 'a',
+		// 				startRowIndex: 2,
+		// 				startColumnIndex: 1,
+		// 				endRowIndex: 2,
+		// 				endColumnIndex: 2,
+		// 			},
+		// 			typeGuard: undefined,
+		// 			source: {
+		// 				type: 'name',
+		// 				name: 'b',
+		// 				startRowIndex: 2,
+		// 				startColumnIndex: 5,
+		// 				endRowIndex: 2,
+		// 				endColumnIndex: 6,
+		// 			},
+		// 			fallback: undefined,
+		// 			startRowIndex: 2,
+		// 			startColumnIndex: 1,
+		// 			endRowIndex: 2,
+		// 			endColumnIndex: 6,
+		// 		}],
+		// 		rest: undefined,
+		// 		startRowIndex: 0,
+		// 		startColumnIndex: 0,
+		// 		endRowIndex: 4,
+		// 		endColumnIndex: 1,
+		// 	}],
+		// },
 		// {
 		// 	code: '§\n\t12\n§',
 		// 	result: [{
@@ -184,25 +184,51 @@ const expectedResults: {
 		// 		},
 		// 	]
 		// },
-		// {
-		// 	code: 'log(§hallo welt§)',
-		// 	result: [
-		// 		{
-		// 			type: 'functionCall',
-		// 			functionReference: ['log'],
-		// 			params: {
-		// 				type: 'list',
-		// 				values: [{
-		// 					type: 'string',
-		// 					values: [{
-		// 						type: 'stringToken',
-		// 						value: 'hallo welt'
-		// 					}]
-		// 				}]
-		// 			},
-		// 		},
-		// 	]
-		// },
+		{
+			code: 'log(§hallo welt§)',
+			result: [
+				{
+					type: 'functionCall',
+					functionReference: {
+						type: 'reference',
+						names: [{
+							type: 'name',
+							name: 'log',
+							startRowIndex: 0,
+							startColumnIndex: 0,
+							endRowIndex: 0,
+							endColumnIndex: 3,
+						}],
+						startRowIndex: 0,
+						startColumnIndex: 0,
+						endRowIndex: 0,
+						endColumnIndex: 3,
+					},
+					arguments: {
+						type: 'list',
+						values: [{
+							type: 'string',
+							values: [{
+								type: 'stringToken',
+								value: 'hallo welt',
+							}],
+							startRowIndex: 0,
+							startColumnIndex: 4,
+							endRowIndex: 0,
+							endColumnIndex: 16,
+						}],
+						startRowIndex: 0,
+						startColumnIndex: 3,
+						endRowIndex: 0,
+						endColumnIndex: 17,
+					},
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 17,
+				},
+			]
+		},
 		// {
 		// 	code: '(a b) => log(a)',
 		// 	result: [
