@@ -1,9 +1,10 @@
 import { readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { webpack } from 'webpack';
-import { parseCode } from './parser';
+import { checkParseExpressions } from './checker';
 import { syntaxTreeToJs, getPathFromImport, isImport } from './emitter';
-import { Expression } from './syntax-tree';
+import { parseCode } from './parser';
+import { CheckedExpression } from './syntax-tree';
 
 export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true; }): void {
 	console.log(`compiling ${filePath} ...`);
@@ -23,7 +24,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 		throw new Error(JSON.stringify(result.errors, undefined, 2));
 	}
 	// console.log(result);
-	const syntaxTree = result.expressions!;
+	const syntaxTree = checkParseExpressions(result.expressions!)!;
 	//#endregion 2. parse
 
 	//#region 3. compile
@@ -83,7 +84,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 
 }
 
-function getImportedPaths(ast: Expression[]): string[] {
+function getImportedPaths(ast: CheckedExpression[]): string[] {
 	const importedPaths: string[] = [];
 	ast.forEach(expression => {
 		switch (expression.type) {

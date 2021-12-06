@@ -1,5 +1,9 @@
 export type NonEmptyArray<T> = [T, ...T[]];
 
+export function isNonEmpty<T>(array: T[]): array is NonEmptyArray<T> {
+	return !!array.length;
+}
+
 export function isDefined<T>(value: T | undefined): value is T {
 	return value !== undefined;
 }

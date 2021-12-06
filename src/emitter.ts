@@ -1,4 +1,14 @@
-import { DictionaryTypeLiteral, Expression, FunctionCall, NumberLiteral, ObjectLiteral, Reference, StringLiteral, ValueExpression } from './syntax-tree';
+import {
+	CheckedDestructuringField,
+	CheckedExpression,
+	CheckedFunctionCall,
+	CheckedParameterFields,
+	CheckedStringLiteral,
+	CheckedValueExpression,
+	NumberLiteral,
+	ObjectLiteral,
+	Reference,
+} from './syntax-tree';
 import * as runtime from './runtime';
 
 const runtimeKeys = Object.keys(runtime);
@@ -6,7 +16,7 @@ const runtimeImports = runtimeKeys.join(', ');
 export const importLine = `const { ${runtimeImports} } = require("./runtime");\n`;
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
-export function syntaxTreeToJs(expressions: Expression[]): string {
+export function syntaxTreeToJs(expressions: CheckedExpression[]): string {
 	// _branch, _callFunction, _checkType, _createFunction, log
 	let hasDefinition = false;
 	return `${importLine}${expressions.map((expression, index) => {
@@ -14,7 +24,7 @@ export function syntaxTreeToJs(expressions: Expression[]): string {
 		// export defined names
 		if (expression.type === 'definition') {
 			hasDefinition = true;
-			const name = expression.name.name;
+			const name = expression.name;
 			return `${expressionJs}\nexports.${name} = ${name};`;
 		}
 		// default export = last expression
@@ -25,7 +35,7 @@ export function syntaxTreeToJs(expressions: Expression[]): string {
 	}).join('\n')}`;
 }
 
-function expressionToJs(expression: Expression): string {
+function expressionToJs(expression: CheckedExpression): string {
 	switch (expression.type) {
 		case 'branching':
 			return `_branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(expressionToJs).join(',\n')},\n)`;
@@ -35,17 +45,17 @@ function expressionToJs(expression: Expression): string {
 			const checkedValueJs = expression.typeGuard
 				? checkTypeJs(expression.typeGuard, valueJs)
 				: valueJs;
-			return `const ${escapeReservedJsVariableName(expression.name.name)} = ${checkedValueJs};`;
+			return `const ${escapeReservedJsVariableName(expression.name)} = ${checkedValueJs};`;
 		}
 
 		case 'destructuring': {
+			const fields = expression.fields;
 			// TODO rest
-			const singleNames = expression.fields.singleFields;
-			const declarations = singleNames.map(singleName => `let ${escapeReservedJsVariableName(singleName.name.name)};`).join('\n');
-			const assignments = singleNames.map((singleName, index) => {
+			const declarations = fields.map(field => `let ${escapeReservedJsVariableName(field.name)};`).join('\n');
+			const assignments = fields.map((singleName, index) => {
 				const { name, source, fallback, typeGuard } = singleName;
-				const nameJs = escapeReservedJsVariableName(name.name);
-				const sourceJs = escapeReservedJsVariableName(source?.name ?? name.name);
+				const nameJs = escapeReservedJsVariableName(name);
+				const sourceJs = escapeReservedJsVariableName(source ?? name);
 				const fallbackJs = fallback ? ` ?? ${expressionToJs(fallback)}` : '';
 				const rawValue = `_isArray ? _temp[${index}] : _temp.${sourceJs}${fallbackJs}`;
 				const checkedValue = typeGuard
@@ -58,13 +68,19 @@ function expressionToJs(expression: Expression): string {
 
 		case 'dictionary':
 			// TODO mit Object.create(null), damit leerer prototype
-			return `{\n${expression.values.map(value => {
+			return `{\n${expression.fields.map(value => {
 				const valueJs = expressionToJs(value.value);
-				return `${value.name}: ${value.typeGuard ? checkTypeJs(value.typeGuard, valueJs) : valueJs},\n`;
+				if (value.type === 'singleDictionaryField') {
+					return `${value.name}: ${value.typeGuard ? checkTypeJs(value.typeGuard, valueJs) : valueJs},\n`;
+				}
+				else {
+					return `...${valueJs},\n`;
+				}
 			}).join('')}}`;
 
 		case 'dictionaryType':
-			return definitionNamesToJs(expression);
+			// TODO
+			return 'TODO dictionaryType';
 
 		case 'empty':
 			return 'null';
@@ -85,9 +101,9 @@ function expressionToJs(expression: Expression): string {
 			const params = expression.params;
 			let argsJs: string;
 			let paramsJs: string;
-			if (params.type === 'dictionaryType') {
+			if (params.type === 'parameters') {
 				argsJs = params.singleFields.map(field => field.name).join(', ');
-				paramsJs = definitionNamesToJs(params);
+				paramsJs = parametersToJs(params);
 			}
 			else {
 				argsJs = '';
@@ -112,7 +128,7 @@ function expressionToJs(expression: Expression): string {
 
 		default: {
 			const assertNever: never = expression;
-			throw new Error(`Unexpected expression.type: ${(assertNever as Expression).type}`);
+			throw new Error(`Unexpected expression.type: ${(assertNever as CheckedExpression).type}`);
 		}
 	}
 }
@@ -122,7 +138,7 @@ export function isImport(functionReference: Reference): boolean {
 		&& functionReference.names[0].name === 'import';
 }
 
-export function getPathFromImport(importExpression: FunctionCall): string {
+export function getPathFromImport(importExpression: CheckedFunctionCall): string {
 	const pathExpression = getPathExpression(importExpression.arguments);
 	if (pathExpression.type === 'string'
 		&& pathExpression.values.length === 1
@@ -134,10 +150,10 @@ export function getPathFromImport(importExpression: FunctionCall): string {
 	throw new Error('Can not get import path from ' + pathExpression.type);
 }
 
-function getPathExpression(importParams: ObjectLiteral): ValueExpression {
+function getPathExpression(importParams: ObjectLiteral): CheckedValueExpression {
 	switch (importParams.type) {
 		case 'dictionary':
-			return importParams.values[0].value;
+			return importParams.fields[0].value;
 
 		case 'empty':
 			throw new Error('import can not be called without arguments');
@@ -152,13 +168,13 @@ function getPathExpression(importParams: ObjectLiteral): ValueExpression {
 	}
 }
 
-function functionBodyToJs(expressions: Expression[]): string {
+function functionBodyToJs(expressions: CheckedExpression[]): string {
 	const js = expressions.map((expression, index) => {
 		const expressionJs = expressionToJs(expression);
 		// Die letzte Expression ist der Rückgabewert
 		if (index === expressions.length - 1) {
 			if (expression.type === 'definition') {
-				return `${expressionJs}\nreturn ${expression.name.name};`;
+				return `${expressionJs}\nreturn ${expression.name};`;
 			}
 			return `return ${expressionJs}`;
 		}
@@ -269,35 +285,38 @@ function escapeReservedJsVariableName(name: string): string {
 	return name;
 }
 
-function definitionNamesToJs(dictionaryType: DictionaryTypeLiteral): string {
-	const singleNamesJs = dictionaryType.singleFields.length
-		? `singleNames: [\n${dictionaryType.singleFields.map(field => {
+function parametersToJs(parameters: CheckedParameterFields): string {
+	const singleNamesJs = parameters.singleFields.length
+		? `singleNames: [\n${parameters.singleFields.map(field => {
 			const typeJs = field.typeGuard
 				? `,\ntype: ${typeToJs(field.typeGuard)}`
 				: '';
 			return `{\nname: "${field.name}"${typeJs}}`;
 		}).join(',\n')}\n],\n`
 		: '';
-	const restJs = dictionaryType.rest
-		? `rest: {${dictionaryType.rest.typeGuard ? 'type: ' + typeToJs(dictionaryType.rest.typeGuard) : ''}}\n`
+	const restJs = parameters.rest
+		? `rest: {${parameters.rest.typeGuard ? 'type: ' + typeToJs(parameters.rest.typeGuard) : ''}}\n`
 		: '';
 	return `{\n${singleNamesJs}${restJs}}`;
 }
 
-function checkTypeJs(type: ValueExpression, valueJs: string): string {
+function checkTypeJs(type: CheckedValueExpression, valueJs: string): string {
 	return `_checkType(${typeToJs(type)}, ${valueJs})`;
 }
 
-function typeToJs(typeExpression: ValueExpression): string {
+function typeToJs(typeExpression: CheckedValueExpression): string {
 	switch (typeExpression.type) {
 		case 'branching':
 			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
 
 		case 'dictionary':
+			// TODO dictionaryType?!
 			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
 
 		case 'dictionaryType':
-			return `(_x) => _checkDictionaryType(${definitionNamesToJs(typeExpression)}, _x)`;
+			// TODO dictionaryType?!
+			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
+		// return `(_x) => _checkDictionaryType(${definitionNamesToJs(typeExpression)}, _x)`;
 
 		case 'empty':
 			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
@@ -320,16 +339,16 @@ function typeToJs(typeExpression: ValueExpression): string {
 
 		default: {
 			const assertNever: never = typeExpression;
-			throw new Error(`Unexpected expression.type: ${(assertNever as Expression).type}`);
+			throw new Error(`Unexpected expression.type: ${(assertNever as CheckedExpression).type}`);
 		}
 	}
 }
 
-function constantValueToTypeJs(expression: ValueExpression): string {
+function constantValueToTypeJs(expression: CheckedValueExpression): string {
 	return `(_x) => _x === ${expressionToJs(expression)}`;
 }
 
-function stringLiteralToJs(stringLiteral: StringLiteral): string {
+function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
 	const stringValue = stringLiteral.values.map(value => {
 		if (value.type === 'stringToken') {
 			return value.value;
