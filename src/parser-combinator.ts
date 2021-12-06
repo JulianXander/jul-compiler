@@ -213,16 +213,14 @@ export function multiplicationParser<T>(
 	};
 }
 
-export function mapParser<T, U>(parser: Parser<T>, transform: (x: T) => U): Parser<U> {
+export function mapParser<T, U>(parser: Parser<T>, transform: (x: T | undefined) => U | undefined): Parser<U> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const result = parser(rows, startRowIndex, startColumnIndex, indent);
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 			errors: result.errors,
-			parsed: result.parsed === undefined
-				? undefined
-				: transform(result.parsed),
+			parsed: transform(result.parsed),
 		};
 	};
 }

@@ -1085,7 +1085,7 @@ function functionBodyParser(
 				parser: moveColumnIndex(1, mapParser(
 					valueExpressionParser,
 					expression =>
-						([expression]))),
+						expression && [expression])),
 			},
 		),
 	)(rows, startRowIndex, startColumnIndex, indent);
