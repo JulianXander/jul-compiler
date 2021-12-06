@@ -1370,7 +1370,7 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 						description: descriptionComment
 					}
 					: expressionOrComment;
-				expressionsOrComments.push(expressionWithDesciption);
+				expressionsWithDescription.push(expressionWithDesciption);
 				descriptionComment = '';
 				return;
 
