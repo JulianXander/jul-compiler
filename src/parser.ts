@@ -1128,11 +1128,11 @@ function bracketedBaseParser(
 				openingBracketParser,
 				newLineParser,
 			),
-			parser: bracketedMultilineParser(fieldParser)
+			parser: bracketedMultilineParser,
 		},
 		{
 			predicate: emptyParser,
-			parser: bracketedInlineParser(fieldParser)
+			parser: bracketedInlineParser,
 		},
 	)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed = result.parsed;
@@ -1158,52 +1158,58 @@ function bracketedBaseParser(
 	};
 }
 
-function bracketedMultilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
-	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = sequenceParser(
-			openingBracketParser,
-			newLineParser,
-			incrementIndent(multilineParser(parser)),
-			newLineParser,
-			indentParser,
-			closingBracketParser,
-		)(rows, startRowIndex, startColumnIndex, indent);
-		const parsed = result.parsed?.[2];
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-			parsed: parsed,
-		};
+function bracketedMultilineParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<(ParseFieldBase | string | undefined)[]> {
+	const result = sequenceParser(
+		openingBracketParser,
+		newLineParser,
+		incrementIndent(multilineParser(fieldParser)),
+		newLineParser,
+		indentParser,
+		closingBracketParser,
+	)(rows, startRowIndex, startColumnIndex, indent);
+	const parsed = result.parsed?.[2];
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: parsed,
 	};
 }
 
-function bracketedInlineParser<T>(parser: Parser<T>): Parser<T[]> {
-	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = sequenceParser(
-			openingBracketParser,
-			parser,
-			multiplicationParser(
-				0,
-				undefined,
-				sequenceParser(
-					spaceParser,
-					parser,
-				)
-			),
-			closingBracketParser,
-		)(rows, startRowIndex, startColumnIndex, indent);
-		const parsed = result.parsed && [
-			result.parsed[1],
-			...result.parsed[2].map(sequence =>
-				sequence[1]),
-		];
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-			parsed: parsed,
-		};
+function bracketedInlineParser<T>(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ParseFieldBase[]> {
+	const result = sequenceParser(
+		openingBracketParser,
+		fieldParser,
+		multiplicationParser(
+			0,
+			undefined,
+			sequenceParser(
+				spaceParser,
+				fieldParser,
+			)
+		),
+		closingBracketParser,
+	)(rows, startRowIndex, startColumnIndex, indent);
+	const parsed = result.parsed && [
+		result.parsed[1],
+		...result.parsed[2].map(sequence =>
+			sequence[1]),
+	];
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: parsed,
 	};
 }
 
@@ -1468,6 +1474,16 @@ function bracketedExpressionToParameters(
 	});
 }
 
+function baseValueExpressionToValueExpression(
+	baseExpression: ParseValueExpressionBase,
+	errors: ParserError[],
+): ParseValueExpression {
+	if (baseExpression.type === 'bracketed') {
+		return bracketedExpressionToValueExpression(baseExpression, errors);
+	}
+	return baseExpression;
+}
+
 function bracketedExpressionToValueExpression(
 	bracketedExpression: BracketedExpressionBase,
 	errors: ParserError[],
@@ -1593,16 +1609,6 @@ function bracketedExpressionToValueExpression(
 		endColumnIndex: bracketedExpression.endColumnIndex,
 	});
 	return bracketedExpression;
-}
-
-function baseValueExpressionToValueExpression(
-	baseExpression: ParseValueExpressionBase,
-	errors: ParserError[],
-): ParseValueExpression {
-	if (baseExpression.type === 'bracketed') {
-		return bracketedExpressionToValueExpression(baseExpression, errors);
-	}
-	return baseExpression;
 }
 
 //#endregion convert
