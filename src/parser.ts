@@ -1104,13 +1104,37 @@ function functionBodyParser(
 
 //#region bracketed
 
+
+/**
+ * Parsed beginnend mit öffnender bis zur 1. schließenden Klammer.
+ * Multiline oder inline mit Leerzeichen getrennt.
+ */
 function bracketedBaseParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<BracketedExpressionBase> {
-	const result = bracketedMultiParser(fieldParser)(rows, startRowIndex, startColumnIndex, indent);
+	const result = discriminatedChoiceParser(
+		{
+			predicate: tokenParser('()'),
+			parser: mapParser(
+				tokenParser('()'),
+				parsed =>
+					[]),
+		},
+		{
+			predicate: sequenceParser(
+				openingBracketParser,
+				newLineParser,
+			),
+			parser: bracketedMultilineParser(fieldParser)
+		},
+		{
+			predicate: emptyParser,
+			parser: bracketedInlineParser(fieldParser)
+		},
+	)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed = result.parsed;
 	if (!parsed) {
 		return {
@@ -1126,42 +1150,11 @@ function bracketedBaseParser(
 		startColumnIndex: startColumnIndex,
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
-
 	};
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: bracketed,
-	};
-}
-
-/**
- * Parsed beginnend mit öffnender bis zur 1. schließenden Klammer.
- * Multiline oder inline mit Leerzeichen getrennt.
- */
-function bracketedMultiParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
-	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = discriminatedChoiceParser(
-			{
-				predicate: tokenParser('()'),
-				parser: mapParser(
-					tokenParser('()'),
-					parsed =>
-						[]),
-			},
-			{
-				predicate: sequenceParser(
-					openingBracketParser,
-					newLineParser,
-				),
-				parser: bracketedMultilineParser(parser)
-			},
-			{
-				predicate: emptyParser,
-				parser: bracketedInlineParser(parser)
-			},
-		)(rows, startRowIndex, startColumnIndex, indent);
-		return result;
 	};
 }
 
