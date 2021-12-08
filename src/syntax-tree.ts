@@ -53,6 +53,7 @@ export type PositionedExpression =
 	| Index
 	| Name
 	| ParseDictionaryField
+	| ParseDictionaryTypeField
 	| ParseExpression
 	| ParseFieldBase
 	;
