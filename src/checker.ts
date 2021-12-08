@@ -2,11 +2,14 @@ import {
 	BracketedExpressionBase,
 	CheckedDestructuringField,
 	CheckedDictionaryField,
+	CheckedDictionaryTypeField,
 	CheckedExpression,
 	CheckedParameterField,
 	CheckedParameterFields,
 	CheckedSingleDictionaryField,
+	CheckedSingleDictionaryTypeField,
 	CheckedSpreadDictionaryField,
+	CheckedSpreadDictionaryTypeField,
 	CheckedValueExpression,
 	ParseExpression,
 	ParseValueExpression,
@@ -210,6 +213,55 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 						default: {
 							const assertNever: never = parseField;
 							throw new Error(`Unexpected parseField.type: ${(assertNever as CheckedDictionaryField).type}`);
+						}
+					}
+				});
+			if (!checkedFields) {
+				return undefined;
+			}
+			return {
+				type: 'dictionary',
+				fields: checkedFields as any,
+			};
+		}
+
+		case 'dictionaryType': {
+			const checkedFields = checkExpressions(
+				parseExpression.fields,
+				parseField => {
+					switch (parseField.type) {
+						case 'singleDictionaryTypeField': {
+							const checkedName = checkName(parseField.name);
+							if (!checkedName) {
+								return undefined;
+							}
+							const checkedTypeGuard = parseField.typeGuard && checkParseExpression(parseField.typeGuard);
+							if (!checkedTypeGuard && parseField.typeGuard) {
+								return undefined;
+							}
+							const checkedField: CheckedSingleDictionaryTypeField = {
+								type: 'singleDictionaryTypeField',
+								name: checkedName,
+								typeGuard: checkedTypeGuard,
+							};
+							return checkedField;
+						}
+
+						case 'spreadDictionaryTypeField': {
+							const checkedValue = checkParseExpression(parseField.value);
+							if (!checkedValue) {
+								return undefined;
+							}
+							const checkedField: CheckedSpreadDictionaryTypeField = {
+								type: 'spreadDictionaryTypeField',
+								value: checkedValue,
+							};
+							return checkedField;
+						}
+
+						default: {
+							const assertNever: never = parseField;
+							throw new Error(`Unexpected parseField.type: ${(assertNever as CheckedDictionaryTypeField).type}`);
 						}
 					}
 				});

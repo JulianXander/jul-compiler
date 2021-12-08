@@ -1,26 +1,26 @@
 CoreLib = (
 	# gibt Zeugs aus
-	log: (...x: Any) => ()
-	field = value
+	# log: (...x: Any) => ()
+	# field = value
 	field: Type
-	field: Type = value
-	field ?? fallBack
+	# field: Type = value
+	# field ?? fallBack
 	# field: Type ?? fallBack
-	field = source ?? fallBack
+	# field = source ?? fallBack
 	# field: Type = source ?? fallBack
 	# field = source: Type ?? fallBack
 )
 
-testDict = (
-	field1: String = asdfdsa ?? §asdf§
-	field2 = ()
-	...asdf
-)
+# testDict = (
+# 	field1: String = asdfdsa ?? §asdf§
+# 	field2 = ()
+# 	...asdf
+# )
 
-TestDictType = (
-	asdf: Type
-	...SomeType: ASDF
-)
+# TestDictType = (
+# 	asdf: Type
+# 	...SomeType: ASDF
+# )
 
-...import(§someFile§)
-(someStuff) = import(§someFile§)
+# ...import(§someFile§)
+# (someStuff) = import(§someFile§)

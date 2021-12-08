@@ -13,7 +13,9 @@ import {
 	ParseFunctionLiteral,
 	ParseSingleDefinition,
 	ParseSingleDictionaryField,
+	ParseSingleDictionaryTypeField,
 	ParseSpreadDictionaryField,
+	ParseSpreadDictionaryTypeField,
 	ParseStringLiteral,
 	ParseValueExpression,
 	ParseValueExpressionBase,
@@ -1527,7 +1529,7 @@ function bracketedExpressionToValueExpression(
 					const typeGuard = baseField.typeGuard;
 					if (typeGuard) {
 						errors.push({
-							message: `typeGuard is not aallowed for dictionary field`,
+							message: `typeGuard is not allowed for spread dictionary field`,
 							startRowIndex: typeGuard.startRowIndex,
 							startColumnIndex: typeGuard.startColumnIndex,
 							endRowIndex: typeGuard.endRowIndex,
@@ -1537,7 +1539,7 @@ function bracketedExpressionToValueExpression(
 					const assignedValue = baseField.assignedValue;
 					if (assignedValue) {
 						errors.push({
-							message: `assignedValue is not aallowed for dictionary field`,
+							message: `assignedValue is not allowed for spread dictionary field`,
 							startRowIndex: assignedValue.startRowIndex,
 							startColumnIndex: assignedValue.startColumnIndex,
 							endRowIndex: assignedValue.endRowIndex,
@@ -1547,7 +1549,7 @@ function bracketedExpressionToValueExpression(
 					const fallback = baseField.fallback;
 					if (fallback) {
 						errors.push({
-							message: `fallback is not aallowed for dictionary field`,
+							message: `fallback is not allowed for spread dictionary field`,
 							startRowIndex: fallback.startRowIndex,
 							startColumnIndex: fallback.startColumnIndex,
 							endRowIndex: fallback.endRowIndex,
@@ -1598,7 +1600,78 @@ function bracketedExpressionToValueExpression(
 		baseField.assignedValue
 		|| baseField.fallback);
 	if (isDictionaryType) {
-		// TODO
+		return {
+			type: 'dictionaryType',
+			fields: baseFields.map(baseField => {
+				const assignedValue = baseField.assignedValue;
+				if (assignedValue) {
+					errors.push({
+						message: `assignedValue is not allowed for dictionaryType field`,
+						startRowIndex: assignedValue.startRowIndex,
+						startColumnIndex: assignedValue.startColumnIndex,
+						endRowIndex: assignedValue.endRowIndex,
+						endColumnIndex: assignedValue.endColumnIndex,
+					});
+				}
+				const fallback = baseField.fallback;
+				if (fallback) {
+					errors.push({
+						message: `fallback is not allowed for dictionaryType field`,
+						startRowIndex: fallback.startRowIndex,
+						startColumnIndex: fallback.startColumnIndex,
+						endRowIndex: fallback.endRowIndex,
+						endColumnIndex: fallback.endColumnIndex,
+					});
+				}
+				const baseName = baseField.name;
+				if (baseField.spread) {
+					const typeGuard = baseField.typeGuard;
+					if (typeGuard) {
+						errors.push({
+							message: `typeGuard is not allowed for spread dictionaryType field`,
+							startRowIndex: typeGuard.startRowIndex,
+							startColumnIndex: typeGuard.startColumnIndex,
+							endRowIndex: typeGuard.endRowIndex,
+							endColumnIndex: typeGuard.endColumnIndex,
+						});
+					}
+					const spreadDictionaryField: ParseSpreadDictionaryTypeField = {
+						type: 'spreadDictionaryTypeField',
+						value: baseName,
+						startRowIndex: baseField.startRowIndex,
+						startColumnIndex: baseField.startColumnIndex,
+						endRowIndex: baseField.endRowIndex,
+						endColumnIndex: baseField.endColumnIndex,
+					};
+					return spreadDictionaryField;
+				}
+				else {
+					if (baseName.type !== 'reference') {
+						errors.push({
+							message: `${baseName.type} is not a valid expression for dictionaryType field name`,
+							startRowIndex: baseName.startRowIndex,
+							startColumnIndex: baseName.startColumnIndex,
+							endRowIndex: baseName.endRowIndex,
+							endColumnIndex: baseName.endColumnIndex,
+						});
+					}
+					const singleDictionaryField: ParseSingleDictionaryTypeField = {
+						type: 'singleDictionaryTypeField',
+						name: baseName,
+						typeGuard: baseField.typeGuard,
+						startRowIndex: baseField.startRowIndex,
+						startColumnIndex: baseField.startColumnIndex,
+						endRowIndex: baseField.endRowIndex,
+						endColumnIndex: baseField.endColumnIndex,
+					};
+					return singleDictionaryField;
+				}
+			}) as any,
+			startRowIndex: bracketedExpression.startRowIndex,
+			startColumnIndex: bracketedExpression.startColumnIndex,
+			endRowIndex: bracketedExpression.endRowIndex,
+			endColumnIndex: bracketedExpression.endColumnIndex,
+		};
 	}
 	// TODO bessere Fehlermeldung
 	errors.push({
