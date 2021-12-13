@@ -485,6 +485,7 @@ function retry$<T>(
 //#endregion Stream
 
 //#region builtins
+// TODO remove
 // TODO types, funktionen ergänzen
 
 //#region Number
@@ -594,9 +595,7 @@ export const log = _createFunction(
 	}
 );
 export const runJs = _createFunction(
-	(js: string) => {
-		return eval(js);
-	},
+	eval,
 	{
 		singleNames: [{
 			name: 'js',

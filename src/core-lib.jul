@@ -1,26 +1,124 @@
-CoreLib = (
-	# gibt Zeugs aus
-	# log: (...x: Any) => ()
-	# field = value
-	field: Type
-	# field: Type = value
-	# field ?? fallBack
-	# field: Type ?? fallBack
-	# field = source ?? fallBack
-	# field: Type = source ?? fallBack
-	# field = source: Type ?? fallBack
+#region Types
+# TODO?
+# Float64: (x: Any) => x is Float64
+# 64 bit floating point number
+Float64 = uncheckedRunJs(
+	Type
+	§x => typeof x === 'number'§
 )
-
-# testDict = (
-# 	field1: String = asdfdsa ?? §asdf§
-# 	field2 = ()
-# 	...asdf
-# )
-
-# TestDictType = (
-# 	asdf: Type
-# 	...SomeType: ASDF
-# )
-
-# ...import(§someFile§)
-# (someStuff) = import(§someFile§)
+# sequence of characters
+String = uncheckedRunJs(
+	Type
+	§x => typeof x === 'string'§
+)
+Error = uncheckedRunJs(
+	Type
+	§x => x instanceof Error§
+)
+Type = uncheckedRunJs(
+	Type
+	§TODO check function return type§
+)
+# Automatically converts to any type without checking
+# TODO ?
+# Function: Type
+# data structure representing a value of type T changing over time
+Stream = uncheckedRunJs(
+	(T: Type) => Type
+	# TODO generic Stream check
+	§x => x instanceof Stream§
+)
+# data structure containing 1 or more elements of type T
+List = uncheckedRunJs(
+	(T: Type) => Type
+	# TODO generic List check
+	§Array.isArray§
+)
+#endregion Types
+#region Functions
+#region Number
+# minuend - subtrahend
+# subtract: (minuend: Float64 subtrahend: Float64) => Float64
+# Gibt die Summe der args zurück.
+sum = uncheckedRunJs(
+	(...args: List(Float64)) => Float64
+	§
+		(...args) =>
+			args.reduce(
+				(accumulator, current) =>
+					accumulator + current,
+				0)
+	§
+)
+#endregion Number
+#region Stream
+#region core
+# Beendet den Stream.
+complete = uncheckedRunJs(
+	(stream$: Stream(Any)) => ()
+	§
+		(stream$) => {
+			stream$.complete();
+			return null;
+		}
+	§
+)
+subscribe = uncheckedRunJs(
+	(stream$: Stream(Any) listener: (value: stream$/type) => ()) => ()
+	§
+		(stream$, listener) => {
+			const listenerFunction = (value) => {
+				_callFunction(listener, [value]);
+			};
+			return stream$.subscribe(listenerFunction);
+		}
+	§
+)
+#endregion core
+#region create
+# gibt alle delayMs die nächste Zahl aus, beginnend mit 1
+timer$ = uncheckedRunJs(
+	(delayMs: Float64) => Stream(Float64)
+	§
+		(delayMs) => {
+			const stream$ = createSource$(1);
+			const cycle = () => {
+				setTimeout(() => {
+					if (stream$.completed) {
+						return;
+					}
+					processId++;
+					stream$.push(stream$.lastValue! + 1, processId);
+					cycle();
+				}, delayMs);
+			};
+			cycle();
+			return stream$;
+		}
+	§
+)
+#endregion create
+#endregion Stream
+#region Utility
+import = uncheckedRunJs(
+	(path: String) => Any
+	§require§
+)
+# Gibt die args in der Konsole aus.
+log = uncheckedRunJs(
+	(...args: List(Any)) => ()
+	§console.log§
+)
+# Führt den gegebenen String als JavaScript aus und liefert dessen Rückgabe.
+runJS = uncheckedRunJs(
+	(js: String) => Any
+	§eval§
+)
+# Interpretes the given String as js Code and yields the return value,
+# assuming the specified type without checking. Make sure the Type fits under all circumstances
+uncheckedRunJs = uncheckedRunJs(
+	(T: Type js: String) => T
+	§[...]§
+)
+#endregion Utility
+#endregion Functions
