@@ -11,7 +11,7 @@ import {
 	SingleDefinition,
 	StringLiteral,
 	TypeExpression,
-} from './abstract-syntax-tree';
+} from './syntax-tree';
 
 //#region AST
 

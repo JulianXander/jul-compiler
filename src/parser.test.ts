@@ -1,12 +1,16 @@
 import { expect } from 'chai';
-import { Expression } from './syntax-tree';
+import { ParseExpression } from './syntax-tree';
 
 import { parseCode } from './parser';
 
 const expectedResults: {
 	code: string;
-	result: Expression[];
+	result: ParseExpression[];
 }[] = [
+		{
+			code: 'x: (b: B c: C) => () = ()',
+			result: []
+		},
 		// {
 		// 	code: '(\n\t#\n\ta = b\n\t#\n)',
 		// 	result: [{

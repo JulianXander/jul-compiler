@@ -116,16 +116,30 @@ function defineSymbolsForField(
 		// TODO spread
 	}
 	else {
+		const name = checkName(field.name);
+		if (!name) {
+			// TODO error?
+			return;
+		}
 		defineSymbol(
 			symbolTable,
 			errors,
-			// TODO check field.name type
-			field.name as any,
-			// TODO type
+			name,
+			// TODO check type
 			field.typeGuard as any,
 			field.description,
 		);
 	}
+}
+
+function checkName(parseName: ParseValueExpressionBase): Name | undefined {
+	if (parseName.type !== 'reference') {
+		return undefined;
+	}
+	if (parseName.names.length > 1) {
+		return undefined;
+	}
+	return parseName.names[0];
 }
 
 function defineSymbol(
@@ -169,6 +183,8 @@ const infixFunctionTokenParser = tokenParser('.');
 const branchingTokenParser = tokenParser(' ?');
 const functionTokenParser = tokenParser(' =>');
 const definitionTokenParser = tokenParser(' = ');
+const typeGuardTokenParser = tokenParser(': ');
+const fallbackTokenParser = tokenParser(' ?? ');
 
 //#endregion Tokens
 
@@ -811,31 +827,46 @@ function fieldParser(
 		// name/single value/definitionFields
 		valueExpressionBaseParser,
 		// typeguard
-		multiplicationParser(
-			0,
-			1,
-			sequenceParser(
-				tokenParser(': '),
-				valueExpressionParser,
-			),
+		discriminatedChoiceParser(
+			{
+				predicate: typeGuardTokenParser,
+				parser: sequenceParser(
+					typeGuardTokenParser,
+					valueExpressionParser,
+				),
+			},
+			{
+				predicate: emptyParser,
+				parser: emptyParser,
+			}
 		),
 		// source/assignedValue
-		multiplicationParser(
-			0,
-			1,
-			sequenceParser(
-				definitionTokenParser,
-				valueExpressionParser,
-			),
+		discriminatedChoiceParser(
+			{
+				predicate: definitionTokenParser,
+				parser: sequenceParser(
+					definitionTokenParser,
+					valueExpressionParser,
+				),
+			},
+			{
+				predicate: emptyParser,
+				parser: emptyParser,
+			}
 		),
 		// fallback
-		multiplicationParser(
-			0,
-			1,
-			sequenceParser(
-				tokenParser(' ?? '),
-				valueExpressionParser,
-			),
+		discriminatedChoiceParser(
+			{
+				predicate: fallbackTokenParser,
+				parser: sequenceParser(
+					fallbackTokenParser,
+					valueExpressionParser,
+				),
+			},
+			{
+				predicate: emptyParser,
+				parser: emptyParser,
+			}
 		),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
@@ -846,9 +877,9 @@ function fieldParser(
 			type: 'field',
 			spread: !!result.parsed[0].length,
 			name: result.parsed[1],
-			typeGuard: result.parsed[2]?.[0]?.[1],
-			assignedValue: result.parsed[3]?.[0]?.[1],
-			fallback: result.parsed[4]?.[0]?.[1],
+			typeGuard: result.parsed[2]?.[1],
+			assignedValue: result.parsed[3]?.[1],
+			fallback: result.parsed[4]?.[1],
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
