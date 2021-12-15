@@ -55,7 +55,7 @@ interface NumberType {
 
 interface DictionaryLiteralType {
 	type: 'dictionaryLiteral';
-	fields: { [key: string]: NormalizedType };
+	fields: { [key: string]: NormalizedType; };
 }
 
 interface FunctionLiteralType {
@@ -99,7 +99,7 @@ interface CustomFunctionType {
 
 // TODO flatten nested or/and
 // TODO distribute and>or nesting chain
-// TODO merge dictionaries
+// TODO merge dictionaries bei and, spread
 // TODO resolve dereferences
 export function normalizeType(type: CheckedValueExpression): NormalizedType {
 	return type;
@@ -131,9 +131,20 @@ export function isSubType(superType: NormalizedType, subType: NormalizedType): b
 			return false;
 
 		// TODO Or Type contains
-		case '':
-
-			return;
+		case 'or': {
+			let result: false | 'maybe' = false;
+			// TODO case subType = orType: check ob alle subType orTypes im superType enthalten sind (via isSubType)
+			for (const orType of superType.orTypes) {
+				const orIsSuperType = isSubType(orType, subType);
+				if (orIsSuperType === true) {
+					return true;
+				}
+				else if (orIsSuperType === 'maybe') {
+					result = 'maybe';
+				}
+			}
+			return result;
+		}
 
 		case 'functionLiteral':
 			// TODO check subType.paramType > superType.paramType und subType.returnType < superType.returnType
