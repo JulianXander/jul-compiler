@@ -1,4 +1,7 @@
-import { CheckedValueExpression } from './syntax-tree';
+import {
+	CheckedValueExpression,
+	ObjectLiteral,
+} from './syntax-tree';
 
 //#region NormalizedType
 
@@ -97,12 +100,74 @@ interface CustomFunctionType {
 
 //#endregion NormalizedType
 
+const emptyType: EmptyType = {
+	type: 'empty'
+};
+
 // TODO flatten nested or/and
 // TODO distribute and>or nesting chain
 // TODO merge dictionaries bei and, spread
 // TODO resolve dereferences
 export function normalizeType(type: CheckedValueExpression): NormalizedType {
-	return type;
+	switch (type.type) {
+		case 'empty':
+			return emptyType;
+
+		case 'functionCall': {
+			// TODO was wenn dereference chain?
+			const functionName = type.functionReference.names[0].name;
+			switch (functionName) {
+				case 'Or': {
+					const args = type.arguments;
+					switch (args.type) {
+						case 'empty':
+							return emptyType;
+
+						case 'dictionary':
+							// TODO error? dictionary to array?
+							throw new Error('unexpected arguments for Or: dictionary');
+
+						case 'list': {
+							const normalizedArgs = args.values.map(normalizeType);
+							const or: UnionType = {
+								type: 'or',
+								orTypes: [],
+							};
+							// flatten nested or
+							normalizedArgs.forEach(argument => {
+								if (argument.type === 'or') {
+									or.orTypes.push(...argument.orTypes);
+								}
+								else {
+									or.orTypes.push(argument);
+								}
+							});
+							return or;
+						}
+
+						default: {
+							const assertNever: never = args;
+							throw new Error(`Unexpected args.type: ${(assertNever as ObjectLiteral)}`);
+						}
+					}
+				}
+
+				default: {
+					// TODO
+					return;
+				}
+			}
+		}
+
+		case 'reference': {
+			// TODO builtin primitive types (String etc)
+		}
+
+		default: {
+			const assertNever: never = type.type;
+			throw new Error(`Unexpected type.type: ${assertNever}`);
+		}
+	}
 }
 
 // TODO return true/false = always/never, sometimes/maybe?
@@ -153,4 +218,4 @@ export function isSubType(superType: NormalizedType, subType: NormalizedType): b
 		default:
 			break;
 	}
-}
+};;
