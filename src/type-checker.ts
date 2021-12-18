@@ -104,12 +104,28 @@ const emptyType: EmptyType = {
 	type: 'empty'
 };
 
+const stringType: StringType = {
+	type: 'string'
+};
+
 // TODO flatten nested or/and
 // TODO distribute and>or nesting chain
 // TODO merge dictionaries bei and, spread
 // TODO resolve dereferences
 export function normalizeType(type: CheckedValueExpression): NormalizedType {
 	switch (type.type) {
+
+		case 'branching':
+			// TODO union branch return types?
+			return;
+
+		case 'dictionary':
+			// TODO ditionary literal type?
+			return;
+
+		case 'dictionaryType':
+			// TODO ditionary literal type
+			return;
 		case 'empty':
 			return emptyType;
 
@@ -158,14 +174,56 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 				}
 			}
 		}
+		case 'functionLiteral':
+			// TODO FunctionLiteralType?
+			return;
+
+		case 'list':
+			return {
+				type: 'tuple',
+				elementTypes: type.values.map(normalizeType),
+			};
+
+		case 'number':
+			return {
+				type: 'numberLiteral',
+				value: type.value
+			};
 
 		case 'reference': {
 			// TODO builtin primitive types (String etc)
+			// TODO resolve dereference
+			return;
+		}
+
+		case 'string': {
+			// TODO string template type?
+			// TODO evaluate values, wenn alles bekannt: string literal, sonst: string
+			// TODO StringLiteralType
+			let combinedString = '';
+			for (const value of type.values) {
+				if (value.type === 'stringToken') {
+					combinedString += value.value;
+				}
+				else {
+					const evaluatedValue = normalizeType(value);
+					if (evaluatedValue.type === 'stringLiteral') {
+						combinedString += evaluatedValue.value;
+					}
+					else {
+						return stringType;
+					}
+				}
+			}
+			return {
+				type: 'stringLiteral',
+				value: combinedString
+			};
 		}
 
 		default: {
-			const assertNever: never = type.type;
-			throw new Error(`Unexpected type.type: ${assertNever}`);
+			const assertNever: never = type;
+			throw new Error(`Unexpected type.type: ${(assertNever as CheckedValueExpression).type}`);
 		}
 	}
 }
