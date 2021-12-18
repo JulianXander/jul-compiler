@@ -198,22 +198,20 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 
 		case 'string': {
 			// TODO string template type?
-			// TODO evaluate values, wenn alles bekannt: string literal, sonst: string
-			// TODO StringLiteralType
+			// evaluate values, wenn alles bekannt: string literal, sonst: string
 			let combinedString = '';
 			for (const value of type.values) {
 				if (value.type === 'stringToken') {
 					combinedString += value.value;
+					continue;
 				}
-				else {
-					const evaluatedValue = normalizeType(value);
-					if (evaluatedValue.type === 'stringLiteral') {
-						combinedString += evaluatedValue.value;
-					}
-					else {
-						return stringType;
-					}
+				const evaluatedValue = normalizeType(value);
+				// TODO number als string auswerten?
+				if (evaluatedValue.type === 'stringLiteral') {
+					combinedString += evaluatedValue.value;
+					continue;
 				}
+				return stringType;
 			}
 			return {
 				type: 'stringLiteral',
