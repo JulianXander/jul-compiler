@@ -117,15 +117,47 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 
 		case 'branching':
 			// TODO union branch return types?
+			// TODO conditional type?
 			return;
 
 		case 'dictionary':
 			// TODO ditionary literal type?
 			return;
 
-		case 'dictionaryType':
-			// TODO ditionary literal type
-			return;
+		case 'dictionaryType': {
+			const normalizedDictionaryType: DictionaryLiteralType = {
+				type: 'dictionaryLiteral',
+				fields: {}
+			};
+			type.fields.forEach(field => {
+				// TODO check field name already defined?
+				switch (field.type) {
+					case 'singleDictionaryTypeField':
+						normalizedDictionaryType.fields[field.name] = normalizeType(field.typeGuard);
+						return;
+
+					case 'spreadDictionaryTypeField': {
+						// merge dictionaries bei spread
+						const normalizedSpread = normalizeType(field.value);
+						if (normalizedSpread.type !== 'dictionaryLiteral') {
+							// TODO?
+							throw new Error(`Can not spread ${normalizedSpread.type} into dictionary type`);
+						}
+						for (const key in normalizedSpread.fields) {
+							normalizedDictionaryType.fields[key] = normalizedSpread.fields[key];
+						}
+						return;
+					}
+
+					default: {
+						const assertNever: never = field;
+						throw new Error(`Unexpected field.type: ${(assertNever as any).type}`);
+					}
+				}
+			});
+			return normalizedDictionaryType;
+		}
+
 		case 'empty':
 			return emptyType;
 

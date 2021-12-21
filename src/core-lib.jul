@@ -1,47 +1,62 @@
 #region Types
-# TODO?
-# Float64: (x: Any) => x is Float64
+Boolean = nativeFunction(
+	Or(true false)
+	§x => typeof x === 'boolean'§
+)
 # 64 bit floating point number
-Float64 = uncheckedRunJs(
+Float64 = nativeFunction(
 	Type
 	§x => typeof x === 'number'§
 )
 # sequence of characters
-String = uncheckedRunJs(
+String = nativeFunction(
 	Type
 	§x => typeof x === 'string'§
 )
-Error = uncheckedRunJs(
+Error = nativeFunction(
+	# TODO?
+	# (
+	# 	message: String
+	# 	stack: String
+	# )
 	Type
 	§x => x instanceof Error§
 )
-Type = uncheckedRunJs(
-	Type
+Type = nativeFunction(
+	Any: Boolean
 	§TODO check function return type§
 )
-# Automatically converts to any type without checking
-# TODO ?
-# Function: Type
 # data structure representing a value of type T changing over time
-Stream = uncheckedRunJs(
-	(T: Type) => Type
+Stream = nativeFunction(
+	(ValueType: Type): Type
 	# TODO generic Stream check
 	§x => x instanceof Stream§
 )
 # data structure containing 1 or more elements of type T
-List = uncheckedRunJs(
-	(T: Type) => Type
+List = nativeFunction(
+	(ElementType: Type): Type
 	# TODO generic List check
 	§Array.isArray§
+)
+And = nativeFunction(
+	(...ChoiceTypes: List(Type)): Type
+	§TODO§
+)
+Or = nativeFunction(
+	(...ChoiceTypes: List(Type)): Type
+	§TODO§
 )
 #endregion Types
 #region Functions
 #region Number
 # minuend - subtrahend
-# subtract: (minuend: Float64 subtrahend: Float64) => Float64
+subtract: nativeFunction(
+	(minuend: Float64 subtrahend: Float64): Float64
+	§(minuend, subtrahend) => minuend - subtrahend§
+)
 # Gibt die Summe der args zurück.
-sum = uncheckedRunJs(
-	(...args: List(Float64)) => Float64
+sum = nativeFunction(
+	(...arg: List(Float64)): Float64
 	§
 		(...args) =>
 			args.reduce(
@@ -54,8 +69,8 @@ sum = uncheckedRunJs(
 #region Stream
 #region core
 # Beendet den Stream.
-complete = uncheckedRunJs(
-	(stream$: Stream(Any)) => ()
+complete = nativeFunction(
+	Function(Stream(Any) ())
 	§
 		(stream$) => {
 			stream$.complete();
@@ -63,8 +78,8 @@ complete = uncheckedRunJs(
 		}
 	§
 )
-subscribe = uncheckedRunJs(
-	(stream$: Stream(Any) listener: (value: stream$/type) => ()) => ()
+subscribe = nativeFunction(
+	(stream$: Stream(Any) listener: (value: stream$/ValueType): ()): ()
 	§
 		(stream$, listener) => {
 			const listenerFunction = (value) => {
@@ -77,8 +92,8 @@ subscribe = uncheckedRunJs(
 #endregion core
 #region create
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1
-timer$ = uncheckedRunJs(
-	(delayMs: Float64) => Stream(Float64)
+timer$ = nativeFunction(
+	(delayMs: Float64): Stream(Float64)
 	§
 		(delayMs) => {
 			const stream$ = createSource$(1);
@@ -100,25 +115,28 @@ timer$ = uncheckedRunJs(
 #endregion create
 #endregion Stream
 #region Utility
-import = uncheckedRunJs(
-	(path: String) => Any
+import = nativeFunction(
+	(path: String): Any
 	§require§
 )
 # Gibt die args in der Konsole aus.
-log = uncheckedRunJs(
-	(...args: List(Any)) => ()
+log = nativeFunction(
+	(...args: List(Any)): ()
 	§console.log§
 )
 # Führt den gegebenen String als JavaScript aus und liefert dessen Rückgabe.
-runJS = uncheckedRunJs(
-	(js: String) => Any
+runJS = nativeFunction(
+	(js: String): Any
 	§eval§
 )
 # Interpretes the given String as js Code and yields the return value,
 # assuming the specified type without checking. Make sure the Type fits under all circumstances
-uncheckedRunJs = uncheckedRunJs(
-	(T: Type js: String) => T
+nativeFunction = nativeFunction(
+	# (FunctionType: (x: Any): x is (): Any js: String): FunctionType
+	(FunctionType: Type js: String): FunctionType
 	§[...]§
 )
 #endregion Utility
 #endregion Functions
+# Type = Any: Boolean
+# FunctionType = (x: Any): x is (): Any
