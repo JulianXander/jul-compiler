@@ -20,7 +20,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 
 	//#region 2. parse
 	const result = parseCode(code);
-	if (result.errors?.length) {
+	if (result.errors.length) {
 		throw new Error(JSON.stringify(result.errors, undefined, 2));
 	}
 	// console.log(result);

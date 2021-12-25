@@ -1,104 +1,15 @@
+import { ParserError } from './parser-combinator';
 import {
 	CheckedValueExpression,
+	DictionaryLiteralType,
+	EmptyType,
+	NormalizedType,
 	ObjectLiteral,
+	ParsedFile,
+	ParseExpression,
+	StringType,
+	UnionType,
 } from './syntax-tree';
-
-//#region NormalizedType
-
-type NormalizedType =
-	| EmptyType
-	| AnyType
-	| BooleanLiteralType
-	| StringLiteralType
-	| NumberLiteralType
-	| DictionaryLiteralType
-	| FunctionLiteralType
-	| StringType
-	| NumberType
-	| ListType
-	| TupleType
-	// TODO? | DictionaryType
-	| StreamType
-	| UnionType
-	| IntersectionType
-	// TODO? | ParametersType oder stattdessen einfach dictionarytype?
-	| CustomFunctionType
-	;
-
-interface EmptyType {
-	type: 'empty';
-}
-
-interface AnyType {
-	type: 'any';
-}
-
-interface BooleanLiteralType {
-	type: 'booleanLiteral';
-	value: boolean;
-}
-
-interface StringLiteralType {
-	type: 'stringLiteral';
-	value: string;
-}
-
-interface NumberLiteralType {
-	type: 'numberLiteral';
-	value: number;
-}
-
-interface StringType {
-	type: 'string';
-}
-
-interface NumberType {
-	type: 'number';
-}
-
-interface DictionaryLiteralType {
-	type: 'dictionaryLiteral';
-	fields: { [key: string]: NormalizedType; };
-}
-
-interface FunctionLiteralType {
-	type: 'functionLiteral';
-	// TODO generic return type? parameters type ref auf anderen, fallbacks
-	parameterType: NormalizedType;
-	returnType: NormalizedType;
-}
-
-interface StreamType {
-	type: 'stream';
-	valueType: NormalizedType;
-}
-
-interface ListType {
-	type: 'list';
-	elementType: NormalizedType;
-}
-
-interface TupleType {
-	type: 'tuple';
-	elementTypes: NormalizedType[];
-}
-
-interface UnionType {
-	type: 'or';
-	orTypes: NormalizedType[];
-}
-
-interface IntersectionType {
-	type: 'and';
-	andTypes: NormalizedType[];
-}
-
-interface CustomFunctionType {
-	type: 'customFunction';
-	fn: (x: any) => boolean;
-}
-
-//#endregion NormalizedType
 
 const emptyType: EmptyType = {
 	type: 'empty'
@@ -108,12 +19,174 @@ const stringType: StringType = {
 	type: 'string'
 };
 
+/**
+ * infer types of expressions, normalize typeGuards
+ * fills errors
+ */
+export function checkTypes(documents: { [documentUri: string]: ParsedFile; }): void {
+	inferTypes(documents);
+	for (const uri in documents) {
+		const document = documents[uri]!;
+		const { errors, expressions } = document;
+		expressions?.forEach(expression => {
+			checkType(expression, errors);
+		});
+	}
+}
+
+/**
+ * füllt errors
+ */
+function checkType(expression: ParseExpression, errors: ParserError[]): void {
+	switch (expression.type) {
+		case 'bracketed':
+			return;
+
+		case 'branching':
+			// TODO check branches recursively
+			return;
+
+		case 'definition': {
+			if (!expression.typeGuard) {
+				return;
+			}
+			// TODO error structure??nested errors?
+			const error = isTypeAssignableTo(expression.inferredType!, expression.normalizedTypeGuard!);
+			if (error) {
+				errors.push({
+					message: 'Can not assign due to type mismatch',
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				});
+			}
+			return;
+		}
+
+		case 'destructuring':
+			// TODO check typeguards
+			expression.fields.fields.forEach(field => {
+				if (field.typeGuard) {
+					// check value, check fallback?
+				}
+			});
+			return;
+
+		case 'dictionary':
+			// TODO
+			return;
+
+		case 'dictionaryType':
+			// TODO?
+			return;
+
+		case 'empty':
+			return;
+
+		case 'field':
+			return;
+
+		case 'functionCall':
+			// TODO check args
+			return;
+
+		case 'functionLiteral':
+			// TODO check return type
+			return;
+
+		case 'list':
+			// TODO?
+			return;
+
+		case 'number':
+			return;
+
+		case 'reference':
+			return;
+
+		case 'string':
+			// check nested expressions
+			expression.values.forEach(value => {
+				if (value.type === 'stringToken') {
+					return;
+				}
+				checkType(value, errors);
+			});
+			return;
+
+		default: {
+			const assertNever: never = expression;
+			throw new Error(`Unexpected expression.type: ${(assertNever as ParseExpression).type}`);
+		}
+	}
+}
+
+// infer types of expressions, normalize typeGuards
+function inferTypes(documents: { [documentUri: string]: ParsedFile; }): void {
+	// TODO recurse
+	// TODO check cyclic import
+}
+
 // TODO flatten nested or/and
 // TODO distribute and>or nesting chain
 // TODO merge dictionaries bei and, spread
 // TODO resolve dereferences
-export function normalizeType(type: CheckedValueExpression): NormalizedType {
-	switch (type.type) {
+function inferType(valueExpression: CheckedValueExpression): NormalizedType {
+	switch (valueExpression.type) {
+		case 'branching':
+			// TODO union branch return types?
+			// TODO conditional type?
+			return;
+
+		case 'dictionary':
+			// TODO dictionary literal type?
+			return;
+
+		case 'dictionaryType':
+			// TODO?
+			return;
+
+		case 'empty':
+			return emptyType;
+
+		case 'functionCall':
+			// get function returntype, provide args types for conditional/generic/derived type?
+			return;
+
+		case 'functionLiteral':
+			// TODO?
+			return;
+
+		case 'list':
+			// TODO?
+			return;
+
+		case 'number':
+			// TODO?
+			return;
+
+		case 'reference':
+			// TODO?
+			return;
+
+		case 'string':
+			// TODO?
+			return;
+
+		default: {
+			const assertNever: never = valueExpression;
+			throw new Error(`Unexpected valueExpression.type: ${(assertNever as CheckedValueExpression).type}`);
+		}
+	}
+}
+
+// TODO flatten nested or/and
+// TODO distribute and>or nesting chain
+// TODO merge dictionaries bei and, spread
+// TODO resolve dereferences
+function normalizeType(typeExpression: CheckedValueExpression): NormalizedType {
+	switch (typeExpression.type) {
 
 		case 'branching':
 			// TODO union branch return types?
@@ -121,7 +194,7 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 			return;
 
 		case 'dictionary':
-			// TODO ditionary literal type?
+			// TODO dictionary literal type?
 			return;
 
 		case 'dictionaryType': {
@@ -129,7 +202,7 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 				type: 'dictionaryLiteral',
 				fields: {}
 			};
-			type.fields.forEach(field => {
+			typeExpression.fields.forEach(field => {
 				// TODO check field name already defined?
 				switch (field.type) {
 					case 'singleDictionaryTypeField':
@@ -163,10 +236,10 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 
 		case 'functionCall': {
 			// TODO was wenn dereference chain?
-			const functionName = type.functionReference.names[0].name;
+			const functionName = typeExpression.functionReference.names[0].name;
 			switch (functionName) {
 				case 'Or': {
-					const args = type.arguments;
+					const args = typeExpression.arguments;
 					switch (args.type) {
 						case 'empty':
 							return emptyType;
@@ -208,18 +281,19 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 		}
 		case 'functionLiteral':
 			// TODO FunctionLiteralType?
+			// custom function type?
 			return;
 
 		case 'list':
 			return {
 				type: 'tuple',
-				elementTypes: type.values.map(normalizeType),
+				elementTypes: typeExpression.values.map(normalizeType),
 			};
 
 		case 'number':
 			return {
 				type: 'numberLiteral',
-				value: type.value
+				value: typeExpression.value
 			};
 
 		case 'reference': {
@@ -232,7 +306,7 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 			// TODO string template type?
 			// evaluate values, wenn alles bekannt: string literal, sonst: string
 			let combinedString = '';
-			for (const value of type.values) {
+			for (const value of typeExpression.values) {
 				if (value.type === 'stringToken') {
 					combinedString += value.value;
 					continue;
@@ -252,18 +326,18 @@ export function normalizeType(type: CheckedValueExpression): NormalizedType {
 		}
 
 		default: {
-			const assertNever: never = type;
+			const assertNever: never = typeExpression;
 			throw new Error(`Unexpected type.type: ${(assertNever as CheckedValueExpression).type}`);
 		}
 	}
 }
 
 // TODO return true/false = always/never, sometimes/maybe?
-export function isTypeAssignableTo(valueType: NormalizedType, targetType: NormalizedType): boolean | 'maybe' {
+function isTypeAssignableTo(valueType: NormalizedType, targetType: NormalizedType): boolean | 'maybe' {
 
 }
 
-export function isSubType(superType: NormalizedType, subType: NormalizedType): boolean | 'maybe' {
+function isSubType(superType: NormalizedType, subType: NormalizedType): boolean | 'maybe' {
 	// TODO deepEquals
 	if (superType === subType) {
 		return true;

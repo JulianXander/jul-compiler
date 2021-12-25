@@ -1,4 +1,9 @@
 #region Types
+# TODO ???
+Any = nativeFunction(
+	Type
+	§() => true§
+)
 Boolean = nativeFunction(
 	Or(true false)
 	§x => typeof x === 'boolean'§
@@ -22,21 +27,42 @@ Error = nativeFunction(
 	Type
 	§x => x instanceof Error§
 )
+Function = nativeFunction(
+	# TODO?
+	# (
+	# 	parametersType: Type
+	# 	returnType: Type
+	# )
+	§x => x instanceof Function§
+)
 Type = nativeFunction(
-	Any: Boolean
+	Or(
+		Any: Boolean
+		# Literals (Number, String, Boolean, Dictionary, List)
+		# DictionaryType/DictionaryLiteralType/DictionaryTypeLiteral?
+		FunctionType
+		# TupleType?
+		# StreamType?
+		UnionType
+		IntersectionType
+	)
 	§TODO check function return type§
 )
-# data structure representing a value of type T changing over time
-Stream = nativeFunction(
-	(ValueType: Type): Type
-	# TODO generic Stream check
-	§x => x instanceof Stream§
+Dictionary = nativeFunction(
+	# TODO ???
+	§x => typeof x === 'object'§
 )
 # data structure containing 1 or more elements of type T
 List = nativeFunction(
 	(ElementType: Type): Type
 	# TODO generic List check
 	§Array.isArray§
+)
+# data structure representing a value of type T changing over time
+Stream = nativeFunction(
+	(ValueType: Type): Type
+	# TODO generic Stream check
+	§x => x instanceof Stream§
 )
 And = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type

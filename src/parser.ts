@@ -161,7 +161,7 @@ function defineSymbol(
 		});
 	}
 	symbolTable[nameString] = {
-		type: type,
+		typeExpression: type,
 		description: description,
 		startRowIndex: name.startRowIndex,
 		startColumnIndex: name.startColumnIndex,

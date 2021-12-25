@@ -4,7 +4,7 @@ import { NonEmptyArray } from './util';
 //#region ParseTree
 
 export interface ParsedFile {
-	errors?: ParserError[];
+	errors: ParserError[];
 	expressions?: ParseExpression[];
 	symbols: SymbolTable;
 }
@@ -15,7 +15,9 @@ export interface SymbolTable {
 
 export interface SymbolDefinition extends Positioned {
 	description?: string;
-	type: ParseValueExpression;
+	typeExpression: ParseValueExpression;
+	// TODO inferred type aus dem value? oder normalize typeguard?
+	normalizedType?: NormalizedType;
 }
 
 export type ParseExpression =
@@ -64,8 +66,10 @@ export interface ParseSingleDefinition extends Positioned {
 	// TODO spread?
 	name: Name;
 	typeGuard?: ParseValueExpression;
+	normalizedTypeGuard?: NormalizedType;
 	value: ParseValueExpression;
 	fallback?: ParseValueExpression;
+	inferredType?: NormalizedType;
 }
 
 export interface ParseDestructuringDefinition extends Positioned {
@@ -240,6 +244,103 @@ export interface Index extends Positioned {
 	type: 'index';
 	name: number;
 }
+
+//#region NormalizedType
+
+export type NormalizedType =
+	| EmptyType
+	| AnyType
+	| BooleanLiteralType
+	| StringLiteralType
+	| NumberLiteralType
+	| DictionaryLiteralType
+	| FunctionLiteralType
+	| StringType
+	| NumberType
+	| ListType
+	| TupleType
+	// TODO? | DictionaryType
+	| StreamType
+	| UnionType
+	| IntersectionType
+	// TODO? | ParametersType oder stattdessen einfach dictionarytype?
+	| CustomFunctionType
+	;
+
+export interface EmptyType {
+	type: 'empty';
+}
+
+interface AnyType {
+	type: 'any';
+}
+
+interface BooleanLiteralType {
+	type: 'booleanLiteral';
+	value: boolean;
+}
+
+interface StringLiteralType {
+	type: 'stringLiteral';
+	value: string;
+}
+
+interface NumberLiteralType {
+	type: 'numberLiteral';
+	value: number;
+}
+
+export interface StringType {
+	type: 'string';
+}
+
+interface NumberType {
+	type: 'number';
+}
+
+export interface DictionaryLiteralType {
+	type: 'dictionaryLiteral';
+	fields: { [key: string]: NormalizedType; };
+}
+
+interface FunctionLiteralType {
+	type: 'functionLiteral';
+	// TODO generic return type? parameters type ref auf anderen, fallbacks
+	parameterType: NormalizedType;
+	returnType: NormalizedType;
+}
+
+interface StreamType {
+	type: 'stream';
+	valueType: NormalizedType;
+}
+
+interface ListType {
+	type: 'list';
+	elementType: NormalizedType;
+}
+
+interface TupleType {
+	type: 'tuple';
+	elementTypes: NormalizedType[];
+}
+
+export interface UnionType {
+	type: 'or';
+	orTypes: NormalizedType[];
+}
+
+interface IntersectionType {
+	type: 'and';
+	andTypes: NormalizedType[];
+}
+
+interface CustomFunctionType {
+	type: 'customFunction';
+	fn: (x: any) => boolean;
+}
+
+//#endregion NormalizedType
 
 //#endregion ParseTree
 
