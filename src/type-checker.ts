@@ -166,7 +166,7 @@ function setInferredType(
 	if (expression.inferredType) {
 		return;
 	}
-	expression.inferredType = inferType(expression, scopes) as any;
+	expression.inferredType = inferType(expression, scopes);
 }
 
 // TODO flatten nested or/and
@@ -176,7 +176,7 @@ function setInferredType(
 function inferType(
 	expression: ParseExpression,
 	scopes: SymbolTable[],
-): NormalizedType | void {
+): NormalizedType {
 	switch (expression.type) {
 		case 'bracketed':
 			// TODO?
@@ -201,49 +201,49 @@ function inferType(
 				})
 			};
 
-		case 'definition':
+		case 'definition': {
 			setInferredType(expression.value, scopes);
+			const inferredType = expression.value.inferredType!;
 			const currentScope = last(scopes)!;
-			// TODO typecheck, ggf union mit Error type
-			currentScope[expression.name.name]!.normalizedType = expression.value.inferredType;
+			// TODO typecheck mit typeguard, ggf union mit Error type
+			// TODO remove checkType, wenn type hier gecheckt wird
+			currentScope[expression.name.name]!.normalizedType = inferredType;
 			if (expression.typeGuard) {
 				// TODO fix normalizeType
 				// valueExpression.normalizedTypeGuard = normalizeType(valueExpression.typeGuard);
 			}
-			// TODO ceck error schon hier?
-			return;
+			return inferredType;
+		}
 
 		case 'destructuring':
 			// TODO?
-			return;
+			return anyType;
 
 		case 'dictionary':
 			// TODO dictionary literal type?
-			return;
+			return anyType;
 
 		case 'dictionaryType':
 			// TODO?
-			return;
+			return anyType;
 
 		case 'empty':
 			return emptyType;
 
 		case 'field':
 			// TODO?
-			return;
+			return anyType;
 
 		case 'functionCall': {
-			// TODO get function returntype, provide args types for conditional/generic/derived type?
-			// TODO dereference function, infer, get returntype
-			// TODO pass scopes as arg to infer? or get scopes from expression?
+			// TODO provide args types for conditional/generic/derived type?
 			setInferredType(expression.functionReference, scopes);
 			setInferredType(expression.arguments, scopes);
 			const functionType = expression.functionReference.inferredType!;
 			if (functionType.type !== 'functionLiteral') {
 				// TODO error?
-				return;
+				return anyType;
 			}
-			return;
+			return functionType.returnType;
 		}
 
 		case 'functionLiteral':
@@ -254,7 +254,7 @@ function inferType(
 			});
 			return {
 				type: 'functionLiteral',
-				parameterType: expression.params.inferredType,
+				parameterType: expression.params.inferredType!,
 				returnType: last(expression.body)?.inferredType ?? emptyType,
 			};
 
@@ -276,10 +276,15 @@ function inferType(
 				value: expression.value
 			};
 
-		case 'reference':
-			// TODO was wenn referencedsymbol type noch nicht inferred ist?
+		case 'reference': {
 			const referencedSymbol = dereference(expression, scopes);
-			return referencedSymbol.normalizedType;
+			if (!referencedSymbol) {
+				// TODO add 'reference not found' error?
+				return anyType;
+			}
+			// TODO was wenn referencedsymbol type noch nicht inferred ist?
+			return referencedSymbol.normalizedType!;
+		}
 
 		case 'string':
 			// TODO string literal type
