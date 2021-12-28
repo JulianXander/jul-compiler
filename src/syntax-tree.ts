@@ -60,7 +60,12 @@ export type PositionedExpression =
 	| ParseFieldBase
 	;
 
-export interface ParseSingleDefinition extends Positioned {
+// TODO beil allen parseExpression oder nur bei value expressions?
+interface ParseExpressionBase extends Positioned {
+	inferredType?: NormalizedType;
+}
+
+export interface ParseSingleDefinition extends ParseExpressionBase {
 	type: 'definition';
 	description?: string;
 	// TODO spread?
@@ -72,7 +77,7 @@ export interface ParseSingleDefinition extends Positioned {
 	inferredType?: NormalizedType;
 }
 
-export interface ParseDestructuringDefinition extends Positioned {
+export interface ParseDestructuringDefinition extends ParseExpressionBase {
 	type: 'destructuring';
 	fields: BracketedExpressionBase;
 	value: ParseValueExpression;
@@ -89,21 +94,22 @@ export type BracketedExpression =
 	| BracketedExpressionBase
 	;
 
-export interface ParseEmptyLiteral extends Positioned {
+export interface ParseEmptyLiteral extends ParseExpressionBase {
 	type: 'empty';
 }
 
-export interface ParseListLiteral extends Positioned {
+export interface ParseListLiteral extends ParseExpressionBase {
 	type: 'list';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
+	 * TODO list spread
 	 */
 	values: NonEmptyArray<ParseValueExpression>;
 }
 
 //#region Dictionary
 
-export interface ParseDictionaryLiteral extends Positioned {
+export interface ParseDictionaryLiteral extends ParseExpressionBase {
 	type: 'dictionary';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
@@ -134,7 +140,7 @@ export interface ParseSpreadDictionaryField extends Positioned {
 
 //#region DictionaryType
 
-export interface ParseDictionaryTypeLiteral extends Positioned {
+export interface ParseDictionaryTypeLiteral extends ParseExpressionBase {
 	type: 'dictionaryType';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
@@ -160,21 +166,21 @@ export interface ParseSpreadDictionaryTypeField extends Positioned {
 
 //#endregion DictionaryType
 
-export interface BracketedExpressionBase extends Positioned {
+export interface BracketedExpressionBase extends ParseExpressionBase {
 	type: 'bracketed';
 	fields: ParseFieldBase[];
 }
 
 //#endregion Bracketed
 
-export interface ParseBranching extends Positioned {
+export interface ParseBranching extends ParseExpressionBase {
 	type: 'branching';
 	value: ParseValueExpression;
 	// TODO check FunctionExpression: exclude number, string, object, dictionaryType? oder primitives/types als function auswerten?
 	branches: ParseValueExpression[];
 }
 
-export interface ParseStringLiteral extends Positioned {
+export interface ParseStringLiteral extends ParseExpressionBase {
 	type: 'string';
 	values: (StringToken | ParseValueExpression)[];
 }
@@ -184,12 +190,12 @@ export interface StringToken {
 	value: string;
 }
 
-export interface NumberLiteral extends Positioned {
+export interface NumberLiteral extends ParseExpressionBase {
 	type: 'number';
 	value: number;
 }
 
-export interface ParseFieldBase extends Positioned {
+export interface ParseFieldBase extends ParseExpressionBase {
 	type: 'field';
 	description?: string;
 	// TODO List/Dictionary
@@ -210,7 +216,7 @@ export interface ParseFieldBase extends Positioned {
 	fallback?: ParseValueExpression;
 }
 
-export interface ParseFunctionCall extends Positioned {
+export interface ParseFunctionCall extends ParseExpressionBase {
 	type: 'functionCall';
 	// TODO functionReference mit Reference, für position
 	functionReference: Reference;
@@ -218,7 +224,7 @@ export interface ParseFunctionCall extends Positioned {
 	arguments: BracketedExpression;
 }
 
-export interface ParseFunctionLiteral extends Positioned {
+export interface ParseFunctionLiteral extends ParseExpressionBase {
 	type: 'functionLiteral';
 	// TODO functionName? für StackTrace
 	params: SimpleExpression;
@@ -228,7 +234,7 @@ export interface ParseFunctionLiteral extends Positioned {
 	// pure: boolean;
 }
 
-export interface Reference extends Positioned {
+export interface Reference extends ParseExpressionBase {
 	type: 'reference';
 	names: ReferenceNames;
 }
@@ -264,14 +270,14 @@ export type NormalizedType =
 	| UnionType
 	| IntersectionType
 	// TODO? | ParametersType oder stattdessen einfach dictionarytype?
-	| CustomFunctionType
+	| PredicateType
 	;
 
 export interface EmptyType {
 	type: 'empty';
 }
 
-interface AnyType {
+export interface AnyType {
 	type: 'any';
 }
 
@@ -335,9 +341,9 @@ interface IntersectionType {
 	andTypes: NormalizedType[];
 }
 
-interface CustomFunctionType {
-	type: 'customFunction';
-	fn: (x: any) => boolean;
+interface PredicateType {
+	type: 'predicate';
+	predicate: (x: any) => boolean;
 }
 
 //#endregion NormalizedType
