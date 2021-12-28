@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import {
 	BracketedExpression,
 	BracketedExpressionBase,
@@ -43,6 +44,13 @@ import {
 import {
 	NonEmptyArray,
 } from './util';
+
+export function parseFile(filePath: string): ParsedFile {
+	const file = readFileSync(filePath);
+	const code = file.toString();
+	const result = parseCode(code);
+	return result;
+}
 
 export function parseCode(code: string): ParsedFile {
 	const rows = code.split('\n');

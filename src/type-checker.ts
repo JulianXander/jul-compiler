@@ -1,3 +1,4 @@
+import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
 import {
 	AnyType,
@@ -28,6 +29,10 @@ const stringType: StringType = {
 	type: 'string'
 };
 
+const parsedCoreLib = parseFile('./core-lib.jul');
+inferFileTypes(parsedCoreLib, []);
+export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
+
 export function dereference(reference: Reference, scopes: SymbolTable[]): SymbolDefinition | undefined {
 	// TODO nested ref path
 	const name = reference.names[0].name;
@@ -48,7 +53,7 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefiniti
  * fills errors
  */
 export function checkTypes(documents: { [documentUri: string]: ParsedFile; }): void {
-	inferTypes(documents);
+	inferFilesTypes(documents);
 	for (const uri in documents) {
 		const document = documents[uri]!;
 		const { errors, expressions } = document;
@@ -147,16 +152,25 @@ function checkType(expression: ParseExpression, errors: ParserError[]): void {
 }
 
 // infer types of expressions, normalize typeGuards
-function inferTypes(documents: { [documentUri: string]: ParsedFile; }): void {
+function inferFilesTypes(
+	files: { [documentUri: string]: ParsedFile; },
+): void {
 	// TODO recurse
 	// TODO check cyclic import
-	for (const uri in documents) {
-		const document = documents[uri]!;
-		const scopes = [document.symbols];
-		document.expressions?.forEach(expression => {
-			setInferredType(expression, scopes);
-		});
+	for (const uri in files) {
+		const file = files[uri]!;
+		inferFileTypes(file, [builtInSymbols]);
 	}
+}
+
+function inferFileTypes(file: ParsedFile, scopes: SymbolTable[]): void {
+	const scopes2 = [
+		...scopes,
+		file.symbols,
+	];
+	file.expressions?.forEach(expression => {
+		setInferredType(expression, scopes2);
+	});
 }
 
 function setInferredType(

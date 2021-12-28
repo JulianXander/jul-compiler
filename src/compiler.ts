@@ -1,9 +1,9 @@
-import { readFileSync, writeFileSync, copyFileSync } from 'fs';
+import { writeFileSync, copyFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { webpack } from 'webpack';
 import { checkParseExpressions } from './checker';
 import { syntaxTreeToJs, getPathFromImport, isImport } from './emitter';
-import { parseCode } from './parser';
+import { parseFile } from './parser';
 import { CheckedExpression } from './syntax-tree';
 
 export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true; }): void {
@@ -12,20 +12,16 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 		throw new Error('Invalid file ending. Expected .jul');
 	}
 
-	//#region 1. read
-	const file = readFileSync(filePath);
-	const code = file.toString();
-	// console.log(code);
-	//#endregion 1. read
-
-	//#region 2. parse
-	const result = parseCode(code);
-	if (result.errors.length) {
-		throw new Error(JSON.stringify(result.errors, undefined, 2));
+	//#region 1. read & 2. parse
+	const parsed = parseFile(filePath);
+	if (parsed.errors.length) {
+		throw new Error(JSON.stringify(parsed.errors, undefined, 2));
 	}
 	// console.log(result);
-	const syntaxTree = checkParseExpressions(result.expressions!)!;
-	//#endregion 2. parse
+	const syntaxTree = checkParseExpressions(parsed.expressions!)!;
+	//#endregion 1. read & 2. parse
+
+	// TODO typecheck
 
 	//#region 3. compile
 	// const interpreterFile = readFileSync('out/interpreter.js');
