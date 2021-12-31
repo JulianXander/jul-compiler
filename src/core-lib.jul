@@ -64,10 +64,12 @@ Stream = nativeFunction(
 	# TODO generic Stream check
 	§x => x instanceof Stream§
 )
+# IntersectionType
 And = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
 	§TODO§
 )
+# UnionType
 Or = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
 	§TODO§

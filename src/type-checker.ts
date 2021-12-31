@@ -30,14 +30,42 @@ const stringType: StringType = {
 	type: 'string'
 };
 
-const parsedCoreLib = parseFile(join(__dirname, '..', '..', 'core-lib.jul'));
+export const coreLibPath = join(__dirname, '..', '..', 'core-lib.jul');
+const parsedCoreLib = parseFile(coreLibPath);
 inferFileTypes(parsedCoreLib, []);
-export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
+const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
-export function dereference(reference: Reference, scopes: SymbolTable[]): SymbolDefinition | undefined {
+export function dereferenceWithBuiltIns(reference: Reference, scopes: SymbolTable[]): {
+	isBuiltIn: boolean;
+	symbol: SymbolDefinition;
+} | undefined {
+	// TODO nested ref path
+	const name = reference.names[0].name;
+	return findSymbolInScopesWithBuiltIns(name, scopes);
+}
+
+function dereference(reference: Reference, scopes: SymbolTable[]): SymbolDefinition | undefined {
 	// TODO nested ref path
 	const name = reference.names[0].name;
 	return findSymbolInScopes(name, scopes);
+}
+
+function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable[]): {
+	isBuiltIn: boolean;
+	symbol: SymbolDefinition;
+} | undefined {
+	const builtInSymbol = builtInSymbols[name];
+	if (builtInSymbol) {
+		return {
+			isBuiltIn: true,
+			symbol: builtInSymbol,
+		};
+	}
+	const ownSymbol = findSymbolInScopes(name, scopes);
+	return ownSymbol && {
+		isBuiltIn: false,
+		symbol: ownSymbol,
+	};
 }
 
 function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefinition | undefined {
