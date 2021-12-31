@@ -1,3 +1,4 @@
+import { join } from 'path';
 import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
 import {
@@ -29,7 +30,7 @@ const stringType: StringType = {
 	type: 'string'
 };
 
-const parsedCoreLib = parseFile('./core-lib.jul');
+const parsedCoreLib = parseFile(join(__dirname, '..', '..', 'core-lib.jul'));
 inferFileTypes(parsedCoreLib, []);
 export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
