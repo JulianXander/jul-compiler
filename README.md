@@ -1,3 +1,6 @@
+Setup
+npm i copyfiles -g
+
 Build (npm run build):
 1. jul-comiler: npx tsc
 2. jul-language-server: npx tsc --project ../jul-language-server/tsconfig.json

@@ -37,7 +37,7 @@ Function = nativeFunction(
 )
 Type = nativeFunction(
 	Or(
-		Any: Boolean
+		(...args: List(Any)): Boolean
 		# Literals (Number, String, Boolean, Dictionary, List)
 		# DictionaryType/DictionaryLiteralType/DictionaryTypeLiteral?
 		FunctionType
@@ -96,7 +96,7 @@ sum = nativeFunction(
 #region core
 # Beendet den Stream.
 complete = nativeFunction(
-	Function(Stream(Any) ())
+	(stream$: Stream(Any)): ()
 	§
 		(stream$) => {
 			stream$.complete();

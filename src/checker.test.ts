@@ -9,68 +9,72 @@ const expectedResults: {
 	result: CheckedExpression[];
 }[] = [
 		{
-			code: 'x: (b: B c: C) => () = ()',
-			result: [
-				{
-					type: 'definition',
-					name: 'x',
-					typeGuard: {
-						type: 'functionLiteral',
-						params: {
-							type: 'parameters',
-							singleFields: [
-								{
-									name: 'b',
-									typeGuard: {
-										type: 'reference',
-										names: [{
-											type: 'name',
-											name: 'B',
-											startRowIndex: 0,
-											startColumnIndex: 7,
-											endRowIndex: 0,
-											endColumnIndex: 8,
-										}],
-										startRowIndex: 0,
-										startColumnIndex: 7,
-										endRowIndex: 0,
-										endColumnIndex: 8,
-									},
-									fallback: undefined,
-								},
-								{
-									name: 'c',
-									typeGuard: {
-										type: 'reference',
-										names: [{
-											type: 'name',
-											name: 'C',
-											startRowIndex: 0,
-											startColumnIndex: 12,
-											endRowIndex: 0,
-											endColumnIndex: 13,
-										}],
-										startRowIndex: 0,
-										startColumnIndex: 12,
-										endRowIndex: 0,
-										endColumnIndex: 13,
-									},
-									fallback: undefined,
-								},
-							],
-							rest: undefined,
-						},
-						body: [{
-							type: 'empty'
-						}]
-					},
-					value: {
-						type: 'empty'
-					},
-					fallback: undefined,
-				}
-			]
+			code: '(): ()',
+			result: [],
 		},
+		// {
+		// 	code: 'x: (b: B c: C) => () = ()',
+		// 	result: [
+		// 		{
+		// 			type: 'definition',
+		// 			name: 'x',
+		// 			typeGuard: {
+		// 				type: 'functionLiteral',
+		// 				params: {
+		// 					type: 'parameters',
+		// 					singleFields: [
+		// 						{
+		// 							name: 'b',
+		// 							typeGuard: {
+		// 								type: 'reference',
+		// 								names: [{
+		// 									type: 'name',
+		// 									name: 'B',
+		// 									startRowIndex: 0,
+		// 									startColumnIndex: 7,
+		// 									endRowIndex: 0,
+		// 									endColumnIndex: 8,
+		// 								}],
+		// 								startRowIndex: 0,
+		// 								startColumnIndex: 7,
+		// 								endRowIndex: 0,
+		// 								endColumnIndex: 8,
+		// 							},
+		// 							fallback: undefined,
+		// 						},
+		// 						{
+		// 							name: 'c',
+		// 							typeGuard: {
+		// 								type: 'reference',
+		// 								names: [{
+		// 									type: 'name',
+		// 									name: 'C',
+		// 									startRowIndex: 0,
+		// 									startColumnIndex: 12,
+		// 									endRowIndex: 0,
+		// 									endColumnIndex: 13,
+		// 								}],
+		// 								startRowIndex: 0,
+		// 								startColumnIndex: 12,
+		// 								endRowIndex: 0,
+		// 								endColumnIndex: 13,
+		// 							},
+		// 							fallback: undefined,
+		// 						},
+		// 					],
+		// 					rest: undefined,
+		// 				},
+		// 				body: [{
+		// 					type: 'empty'
+		// 				}]
+		// 			},
+		// 			value: {
+		// 				type: 'empty'
+		// 			},
+		// 			fallback: undefined,
+		// 		}
+		// 	]
+		// },
 		// {
 		// 	code: '(\n\t#\n\ta = b\n\t#\n)',
 		// 	result: [{

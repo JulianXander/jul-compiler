@@ -12,6 +12,7 @@ import {
 	ParseFieldBase,
 	ParseFunctionCall,
 	ParseFunctionLiteral,
+	ParseFunctionTypeLiteral,
 	ParseSingleDefinition,
 	ParseSingleDictionaryField,
 	ParseSingleDictionaryTypeField,
@@ -948,6 +949,11 @@ function valueExpressionBaseParser(
 				// expressionBlock
 				parser: functionBodyParser,
 			},
+			// FunctionTypeLiteral/FunctionLiteral mit ReturnType
+			{
+				predicate: typeGuardTokenParser,
+				parser: functionTypeBodyParser,
+			},
 			// SimpleValueExpression
 			{
 				predicate: emptyParser,
@@ -1025,6 +1031,54 @@ function valueExpressionBaseParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				parsed: functionLiteral,
+				errors: errors,
+			};
+		}
+
+		case 'functionTypeBody': {
+			const symbols: SymbolTable = {};
+			const body = parsed2.body;
+			if (parsed1.type === 'bracketed') {
+				fillSymbolTableWithDictionaryType(symbols, errors, parsed1);
+				bracketedExpressionToParameters(parsed1, errors);
+			}
+			if (body) {
+				// FunctionLiteral mit ReturnType
+				// TODO im Fall das params TypeExpression ist: Code Flow Typing berücksichtigen
+				fillSymbolTableWithExpressions(symbols, errors, body);
+				const functionLiteral: ParseFunctionLiteral = {
+					type: 'functionLiteral',
+					params: parsed1,
+					returnType: parsed2.returnType,
+					body: body,
+					symbols: symbols,
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+				};
+				return {
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+					parsed: functionLiteral,
+					errors: errors,
+				};
+			}
+			// FunctionTypeLiteral
+			const functionTypeLiteral: ParseFunctionTypeLiteral = {
+				type: 'functionTypeLiteral',
+				params: parsed1,
+				returnType: parsed2.returnType,
+				// symbols: symbols,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+			};
+			return {
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+				parsed: functionTypeLiteral,
 				errors: errors,
 			};
 		}
@@ -1137,6 +1191,48 @@ function functionBodyParser(
 		parsed: result.parsed && {
 			type: 'functionBody',
 			body: result.parsed[1],
+		},
+	};
+}
+
+/**
+ * FunctionTypeLiteral/FunctionLiteral mit ReturnType
+ * enthält ggf. endständiges Zeilenende nicht
+ */
+function functionTypeBodyParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<{
+	type: 'functionTypeBody';
+	returnType: ParseValueExpression;
+	body?: ParseExpression[];
+}> {
+	const result = sequenceParser(
+		typeGuardTokenParser,
+		valueExpressionParser,
+		discriminatedChoiceParser(
+			// FunctionLiteral mit ReturnType
+			{
+				predicate: functionTokenParser,
+				parser: functionBodyParser
+			},
+			// FunctionTypeLiteral
+			{
+				predicate: emptyParser,
+				parser: emptyParser,
+			},
+		),
+	)(rows, startRowIndex, startColumnIndex, indent);
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: result.parsed && {
+			type: 'functionTypeBody',
+			returnType: result.parsed[1],
+			body: result.parsed[2]?.body,
 		},
 	};
 }

@@ -33,6 +33,7 @@ export type ParseValueExpression =
 	| ParseBranching
 	| ParseFunctionCall
 	| ParseFunctionLiteral
+	| ParseFunctionTypeLiteral
 	| ParseStringLiteral
 	| Reference
 	;
@@ -40,6 +41,7 @@ export type ParseValueExpression =
 export type ParseValueExpressionBase =
 	| ParseBranching
 	| ParseFunctionLiteral
+	| ParseFunctionTypeLiteral
 	| SimpleExpression
 	;
 
@@ -228,10 +230,19 @@ export interface ParseFunctionLiteral extends ParseExpressionBase {
 	type: 'functionLiteral';
 	// TODO functionName? für StackTrace
 	params: SimpleExpression;
+	returnType?: ParseValueExpression;
 	body: ParseExpression[];
 	symbols: SymbolTable;
 	// TODO impure functions mit !=> ?
 	// pure: boolean;
+}
+
+export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
+	type: 'functionTypeLiteral';
+	params: SimpleExpression;
+	returnType: ParseValueExpression;
+	// TODO symbols?
+	// symbols: SymbolTable;
 }
 
 export interface Reference extends ParseExpressionBase {

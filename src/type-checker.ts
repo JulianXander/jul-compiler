@@ -121,7 +121,11 @@ function checkType(expression: ParseExpression, errors: ParserError[]): void {
 			return;
 
 		case 'functionLiteral':
-			// TODO check return type
+			// TODO check inferred return type vs declared return type
+			return;
+
+		case 'functionTypeLiteral':
+			// TODO?
 			return;
 
 		case 'list':
@@ -260,17 +264,34 @@ function inferType(
 			return functionType.returnType;
 		}
 
-		case 'functionLiteral':
+		case 'functionLiteral': {
 			setInferredType(expression.params, scopes);
 			const functionScopes = [...scopes, expression.symbols];
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes);
 			});
+			// TODO declaredReturnType vs inferredReturnType
 			return {
 				type: 'functionLiteral',
 				parameterType: expression.params.inferredType!,
 				returnType: last(expression.body)?.inferredType ?? emptyType,
 			};
+		}
+
+		case 'functionTypeLiteral': {
+			// TODO
+			// setInferredType(expression.params, scopes);
+			// const functionScopes = [...scopes, expression.symbols];
+			// expression.body.forEach(bodyExpression => {
+			// 	setInferredType(bodyExpression, functionScopes);
+			// });
+			// return {
+			// 	type: 'functionLiteral',
+			// 	parameterType: expression.params.inferredType!,
+			// 	returnType: last(expression.body)?.inferredType ?? emptyType,
+			// };
+			return anyType;
+		}
 
 		case 'list':
 			// TODO spread elements

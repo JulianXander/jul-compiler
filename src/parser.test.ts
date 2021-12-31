@@ -188,51 +188,51 @@ const expectedResults: {
 		// 		},
 		// 	]
 		// },
-		{
-			code: 'log(§hallo welt§)',
-			result: [
-				{
-					type: 'functionCall',
-					functionReference: {
-						type: 'reference',
-						names: [{
-							type: 'name',
-							name: 'log',
-							startRowIndex: 0,
-							startColumnIndex: 0,
-							endRowIndex: 0,
-							endColumnIndex: 3,
-						}],
-						startRowIndex: 0,
-						startColumnIndex: 0,
-						endRowIndex: 0,
-						endColumnIndex: 3,
-					},
-					arguments: {
-						type: 'list',
-						values: [{
-							type: 'string',
-							values: [{
-								type: 'stringToken',
-								value: 'hallo welt',
-							}],
-							startRowIndex: 0,
-							startColumnIndex: 4,
-							endRowIndex: 0,
-							endColumnIndex: 16,
-						}],
-						startRowIndex: 0,
-						startColumnIndex: 3,
-						endRowIndex: 0,
-						endColumnIndex: 17,
-					},
-					startRowIndex: 0,
-					startColumnIndex: 0,
-					endRowIndex: 0,
-					endColumnIndex: 17,
-				},
-			]
-		},
+		// {
+		// 	code: 'log(§hallo welt§)',
+		// 	result: [
+		// 		{
+		// 			type: 'functionCall',
+		// 			functionReference: {
+		// 				type: 'reference',
+		// 				names: [{
+		// 					type: 'name',
+		// 					name: 'log',
+		// 					startRowIndex: 0,
+		// 					startColumnIndex: 0,
+		// 					endRowIndex: 0,
+		// 					endColumnIndex: 3,
+		// 				}],
+		// 				startRowIndex: 0,
+		// 				startColumnIndex: 0,
+		// 				endRowIndex: 0,
+		// 				endColumnIndex: 3,
+		// 			},
+		// 			arguments: {
+		// 				type: 'list',
+		// 				values: [{
+		// 					type: 'string',
+		// 					values: [{
+		// 						type: 'stringToken',
+		// 						value: 'hallo welt',
+		// 					}],
+		// 					startRowIndex: 0,
+		// 					startColumnIndex: 4,
+		// 					endRowIndex: 0,
+		// 					endColumnIndex: 16,
+		// 				}],
+		// 				startRowIndex: 0,
+		// 				startColumnIndex: 3,
+		// 				endRowIndex: 0,
+		// 				endColumnIndex: 17,
+		// 			},
+		// 			startRowIndex: 0,
+		// 			startColumnIndex: 0,
+		// 			endRowIndex: 0,
+		// 			endColumnIndex: 17,
+		// 		},
+		// 	]
+		// },
 		// {
 		// 	code: '(a b) => log(a)',
 		// 	result: [

@@ -310,6 +310,26 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 			};
 		}
 
+		case 'functionTypeLiteral': {
+			// TODO
+			// const checkedParams = checkParameters(parseExpression.params);
+			// if (!checkedParams) {
+			// 	return undefined;
+			// }
+			// const checkedBody = checkParseExpressions(parseExpression.body);
+			// if (!checkedBody) {
+			// 	return undefined;
+			// }
+			// return {
+			// 	type: 'functionTypeLiteral',
+			// 	params: checkedParams,
+			// 	body: checkedBody,
+			// };
+			return {
+				type: 'empty',
+			};
+		}
+
 		case 'list': {
 			const checkedValues = checkParseExpressions(parseExpression.values);
 			if (!checkedValues) {
