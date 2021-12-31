@@ -257,8 +257,8 @@ function inferType(
 			// TODO provide args types for conditional/generic/derived type?
 			setInferredType(expression.functionReference, scopes);
 			setInferredType(expression.arguments, scopes);
-			const functionType = expression.functionReference.inferredType!;
-			if (functionType.type !== 'functionLiteral') {
+			const functionType = expression.functionReference.inferredType;
+			if (functionType?.type !== 'functionLiteral') {
 				// TODO error?
 				return anyType;
 			}
