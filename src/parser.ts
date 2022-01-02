@@ -951,7 +951,10 @@ function valueExpressionBaseParser(
 			},
 			// FunctionTypeLiteral/FunctionLiteral mit ReturnType
 			{
-				predicate: typeGuardTokenParser,
+				predicate: sequenceParser(
+					moveColumnIndex(-1, closingBracketParser),
+					typeGuardTokenParser,
+				),
 				parser: functionTypeBodyParser,
 			},
 			// SimpleValueExpression

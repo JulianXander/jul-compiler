@@ -8,10 +8,10 @@ const expectedResults: {
 	code: string;
 	result: CheckedExpression[];
 }[] = [
-		{
-			code: '(): ()',
-			result: [],
-		},
+		// {
+		// 	code: '(delayMs: Float64): Stream(Float64)',
+		// 	result: [],
+		// },
 		// {
 		// 	code: 'x: (b: B c: C) => () = ()',
 		// 	result: [
