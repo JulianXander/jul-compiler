@@ -85,7 +85,6 @@ export interface ParseDestructuringDefinition extends ParseExpressionBase {
 	value: ParseValueExpression;
 }
 
-
 //#region Bracketed
 
 export type BracketedExpression =
@@ -272,6 +271,7 @@ export type NormalizedType =
 	| NumberLiteralType
 	| DictionaryLiteralType
 	| FunctionLiteralType
+	| ArgumentReference
 	| StringType
 	| NumberType
 	| ListType
@@ -325,6 +325,13 @@ interface FunctionLiteralType {
 	// TODO generic return type? parameters type ref auf anderen, fallbacks
 	parameterType: NormalizedType;
 	returnType: NormalizedType;
+}
+
+// TODO NormalizedReference? ArgumentReference? erstmal nur für generische Funktionen
+interface ArgumentReference {
+	type: 'reference';
+	// TODO names ohne position?
+	names: ReferenceNames;
 }
 
 interface StreamType {

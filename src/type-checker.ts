@@ -30,10 +30,52 @@ const stringType: StringType = {
 	type: 'string'
 };
 
+const coreBuiltInSymbols: SymbolTable = {
+	nativeFunction: {
+		typeExpression: null as any,
+		normalizedType: {
+			type: 'functionLiteral',
+			// TODO generic function
+			parameterType: {
+				type: 'dictionaryLiteral',
+				fields: {
+					FunctionType: {
+						// TODO functionType
+						type: 'any'
+					},
+					js: {
+						type: 'string'
+					}
+				}
+			},
+			returnType: {
+				type: 'reference',
+				names: [{
+					type: 'name',
+					name: 'FunctionType',
+					startRowIndex: 162,
+					startColumnIndex: 0,
+					endRowIndex: 162,
+					endColumnIndex: 5,
+				}]
+			},
+		},
+		description: `Interpretes the given String as js Code and yields the return value,
+assuming the specified type without checking. Make sure the Type fits under all circumstances`,
+		startRowIndex: 162,
+		startColumnIndex: 0,
+		endRowIndex: 162,
+		endColumnIndex: 5,
+	}
+};
+
 export const coreLibPath = join(__dirname, '..', '..', 'core-lib.jul');
 const parsedCoreLib = parseFile(coreLibPath);
-inferFileTypes(parsedCoreLib, []);
-const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
+inferFileTypes(parsedCoreLib, [coreBuiltInSymbols]);
+const builtInSymbols: SymbolTable = {
+	...parsedCoreLib.symbols,
+	...coreBuiltInSymbols
+};
 
 export function dereferenceWithBuiltIns(reference: Reference, scopes: SymbolTable[]): {
 	isBuiltIn: boolean;
@@ -290,7 +332,36 @@ function inferType(
 				// TODO error?
 				return anyType;
 			}
-			return functionType.returnType;
+			const returnType = functionType.returnType;
+			if (returnType.type !== 'reference') {
+				return returnType;
+			}
+			// evaluate generic ReturnType
+			const argsType = expression.arguments.inferredType!;
+			switch (argsType.type) {
+				case 'dictionaryLiteral': {
+					const referenceName = returnType.names[0].name;
+					const argType = argsType.fields[referenceName];
+					// TODO error bei unbound ref?
+					return argType ?? anyType;
+				}
+
+				case 'tuple': {
+					// TODO get param index
+					const referenceName = returnType.names[0].name;
+					// functionType.parameterType
+					const paramIndex = 0;
+					const argType = argsType.elementTypes[paramIndex];
+					// TODO error bei unbound ref?
+					return argType ?? anyType;
+				}
+
+				case 'list':
+				// TODO?
+
+				default:
+					return anyType;
+			}
 		}
 
 		case 'functionLiteral': {
@@ -308,18 +379,14 @@ function inferType(
 		}
 
 		case 'functionTypeLiteral': {
-			// TODO
-			// setInferredType(expression.params, scopes);
-			// const functionScopes = [...scopes, expression.symbols];
-			// expression.body.forEach(bodyExpression => {
-			// 	setInferredType(bodyExpression, functionScopes);
-			// });
-			// return {
-			// 	type: 'functionLiteral',
-			// 	parameterType: expression.params.inferredType!,
-			// 	returnType: last(expression.body)?.inferredType ?? emptyType,
-			// };
-			return anyType;
+			setInferredType(expression.params, scopes);
+			setInferredType(expression.returnType, scopes);
+			return {
+				// TODO functionTypeLiteral?
+				type: 'functionLiteral',
+				parameterType: expression.params.inferredType!,
+				returnType: expression.returnType.inferredType!,
+			};
 		}
 
 		case 'list':
