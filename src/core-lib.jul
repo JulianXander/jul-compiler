@@ -78,7 +78,7 @@ Or = nativeFunction(
 #region Functions
 #region Number
 # minuend - subtrahend
-subtract: nativeFunction(
+subtract = nativeFunction(
 	(minuend: Float64 subtrahend: Float64): Float64
 	§(minuend, subtrahend) => minuend - subtrahend§
 )
