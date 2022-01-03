@@ -14,6 +14,7 @@ import {
 	StringType,
 	SymbolDefinition,
 	SymbolTable,
+	TypedExpression,
 	UnionType,
 } from './syntax-tree';
 import { last } from './util';
@@ -249,7 +250,7 @@ function inferFileTypes(file: ParsedFile, scopes: SymbolTable[]): void {
 }
 
 function setInferredType(
-	expression: ParseExpression,
+	expression: TypedExpression,
 	scopes: SymbolTable[],
 ): void {
 	if (expression.inferredType) {
@@ -263,7 +264,7 @@ function setInferredType(
 // TODO merge dictionaries bei and, spread
 // TODO resolve dereferences
 function inferType(
-	expression: ParseExpression,
+	expression: TypedExpression,
 	scopes: SymbolTable[],
 ): NormalizedType {
 	switch (expression.type) {
@@ -406,6 +407,11 @@ function inferType(
 				type: 'numberLiteral',
 				value: expression.value
 			};
+
+		case 'parameters': {
+			// TODO
+			return anyType;
+		}
 
 		case 'reference': {
 			const referencedSymbol = dereference(expression, scopes);

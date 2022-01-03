@@ -13,6 +13,8 @@ import {
 	ParseFunctionCall,
 	ParseFunctionLiteral,
 	ParseFunctionTypeLiteral,
+	ParseParameterField,
+	ParseParameterFields,
 	ParseSingleDefinition,
 	ParseSingleDictionaryField,
 	ParseSingleDictionaryTypeField,
@@ -139,16 +141,6 @@ function defineSymbolsForField(
 			field.description,
 		);
 	}
-}
-
-function checkName(parseName: ParseValueExpressionBase): Name | undefined {
-	if (parseName.type !== 'reference') {
-		return undefined;
-	}
-	if (parseName.names.length > 1) {
-		return undefined;
-	}
-	return parseName.names[0];
 }
 
 function defineSymbol(
@@ -1014,15 +1006,16 @@ function valueExpressionBaseParser(
 		case 'functionBody': {
 			const symbols: SymbolTable = {};
 			const body = parsed2.body;
+			let params: SimpleExpression | ParseParameterFields = parsed1;
 			if (parsed1.type === 'bracketed') {
 				fillSymbolTableWithDictionaryType(symbols, errors, parsed1);
-				bracketedExpressionToParameters(parsed1, errors);
+				params = bracketedExpressionToParameters(parsed1, errors);
 			}
 			// TODO im Fall das params TypeExpression ist: Code Flow Typing berücksichtigen
 			fillSymbolTableWithExpressions(symbols, errors, body);
 			const functionLiteral: ParseFunctionLiteral = {
 				type: 'functionLiteral',
-				params: parsed1,
+				params: params,
 				body: body,
 				symbols: symbols,
 				startRowIndex: startRowIndex,
@@ -1041,17 +1034,17 @@ function valueExpressionBaseParser(
 		case 'functionTypeBody': {
 			const symbols: SymbolTable = {};
 			const body = parsed2.body;
-			if (parsed1.type === 'bracketed') {
-				fillSymbolTableWithDictionaryType(symbols, errors, parsed1);
-				bracketedExpressionToParameters(parsed1, errors);
+			if (parsed1.type !== 'bracketed') {
+				throw new Error('ReturnType can only follow a bracketed expression.');
 			}
+			const params: BracketedExpressionBase | ParseParameterFields = bracketedExpressionToParameters(parsed1, errors);
+			fillSymbolTableWithDictionaryType(symbols, errors, parsed1);
 			if (body) {
 				// FunctionLiteral mit ReturnType
-				// TODO im Fall das params TypeExpression ist: Code Flow Typing berücksichtigen
 				fillSymbolTableWithExpressions(symbols, errors, body);
 				const functionLiteral: ParseFunctionLiteral = {
 					type: 'functionLiteral',
-					params: parsed1,
+					params: params,
 					returnType: parsed2.returnType,
 					body: body,
 					symbols: symbols,
@@ -1070,8 +1063,9 @@ function valueExpressionBaseParser(
 			// FunctionTypeLiteral
 			const functionTypeLiteral: ParseFunctionTypeLiteral = {
 				type: 'functionTypeLiteral',
-				params: parsed1,
+				params: params,
 				returnType: parsed2.returnType,
+				// TODO?
 				// symbols: symbols,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -1576,18 +1570,49 @@ function bracketedExpressionToDestructuringFields(
 function bracketedExpressionToParameters(
 	bracketedExpression: BracketedExpressionBase,
 	errors: ParserError[],
-): void {
+): BracketedExpressionBase | ParseParameterFields {
 	const baseFields = bracketedExpression.fields;
-	baseFields.forEach((field, index) => {
-		if (field.spread) {
+	let rest: ParseParameterField | undefined;
+	const singleFields: ParseParameterField[] = [];
+	for (let index = 0; index < baseFields.length; index++) {
+		const baseField = baseFields[index]!;
+		const assignedValue = baseField.assignedValue;
+		if (assignedValue) {
+			errors.push({
+				message: 'assignedValue is not allowed for parameter.',
+				startRowIndex: assignedValue.startRowIndex,
+				startColumnIndex: assignedValue.startColumnIndex,
+				endRowIndex: assignedValue.endRowIndex,
+				endColumnIndex: assignedValue.endColumnIndex,
+			});
+			// TODO collect all errors before returning?
+			return bracketedExpression;
+		}
+		const checkedName = checkName(baseField.name);
+		if (!checkedName) {
+			// TODO collect all errors before returning?
+			return bracketedExpression;
+		}
+		const parameterField: ParseParameterField = {
+			name: checkedName,
+			typeGuard: baseField.typeGuard,
+			fallback: baseField.fallback,
+			startRowIndex: baseField.startRowIndex,
+			startColumnIndex: baseField.startColumnIndex,
+			endRowIndex: baseField.endRowIndex,
+			endColumnIndex: baseField.endColumnIndex,
+		};
+		if (baseField.spread) {
 			if (index < baseFields.length - 1) {
 				errors.push({
 					message: 'Rest argument must be last.',
-					startRowIndex: field.startRowIndex,
-					startColumnIndex: field.startColumnIndex,
-					endRowIndex: field.endRowIndex,
-					endColumnIndex: field.endColumnIndex,
+					startRowIndex: baseField.startRowIndex,
+					startColumnIndex: baseField.startColumnIndex,
+					endRowIndex: baseField.endRowIndex,
+					endColumnIndex: baseField.endColumnIndex,
 				});
+				// TODO collect all errors before returning?
+				return bracketedExpression;
 			}
 			// TODO ?
 			// const fallback = field.fallback;
@@ -1600,18 +1625,31 @@ function bracketedExpressionToParameters(
 			// 		endColumnIndex: fallback.endColumnIndex,
 			// 	});
 			// }
+			rest = parameterField;
 		}
-		const assignedValue = field.assignedValue;
-		if (assignedValue) {
-			errors.push({
-				message: 'assignedValue is not allowed for parameter.',
-				startRowIndex: assignedValue.startRowIndex,
-				startColumnIndex: assignedValue.startColumnIndex,
-				endRowIndex: assignedValue.endRowIndex,
-				endColumnIndex: assignedValue.endColumnIndex,
-			});
+		else {
+			singleFields.push(parameterField);
 		}
-	});
+	}
+	return {
+		type: 'parameters',
+		singleFields: singleFields,
+		rest: rest,
+		startRowIndex: bracketedExpression.startRowIndex,
+		startColumnIndex: bracketedExpression.startColumnIndex,
+		endRowIndex: bracketedExpression.endRowIndex,
+		endColumnIndex: bracketedExpression.endColumnIndex,
+	};
+}
+
+function checkName(parseName: ParseValueExpressionBase): Name | undefined {
+	if (parseName.type !== 'reference') {
+		return undefined;
+	}
+	if (parseName.names.length > 1) {
+		return undefined;
+	}
+	return parseName.names[0];
 }
 
 function baseValueExpressionToValueExpression(

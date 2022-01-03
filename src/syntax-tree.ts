@@ -62,6 +62,11 @@ export type PositionedExpression =
 	| ParseFieldBase
 	;
 
+export type TypedExpression =
+	| ParseExpression
+	| ParseParameterFields
+	;
+
 // TODO beil allen parseExpression oder nur bei value expressions?
 interface ParseExpressionBase extends Positioned {
 	inferredType?: NormalizedType;
@@ -225,10 +230,12 @@ export interface ParseFunctionCall extends ParseExpressionBase {
 	arguments: BracketedExpression;
 }
 
+//#region FunctionLiteral
+
 export interface ParseFunctionLiteral extends ParseExpressionBase {
 	type: 'functionLiteral';
 	// TODO functionName? für StackTrace
-	params: SimpleExpression;
+	params: SimpleExpression | ParseParameterFields;
 	returnType?: ParseValueExpression;
 	body: ParseExpression[];
 	symbols: SymbolTable;
@@ -236,13 +243,28 @@ export interface ParseFunctionLiteral extends ParseExpressionBase {
 	// pure: boolean;
 }
 
+export interface ParseParameterFields extends ParseExpressionBase {
+	type: 'parameters';
+	singleFields: ParseParameterField[];
+	// TODO rest ohne fallback?
+	rest?: ParseParameterField;
+}
+
+export interface ParseParameterField extends ParseExpressionBase {
+	name: Name;
+	typeGuard?: ParseValueExpression;
+	fallback?: ParseValueExpression;
+}
+
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
 	type: 'functionTypeLiteral';
-	params: SimpleExpression;
+	params: BracketedExpressionBase | ParseParameterFields;
 	returnType: ParseValueExpression;
 	// TODO symbols?
 	// symbols: SymbolTable;
 }
+
+//#endregion FunctionLiteral
 
 export interface Reference extends ParseExpressionBase {
 	type: 'reference';

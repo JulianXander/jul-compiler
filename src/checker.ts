@@ -12,6 +12,8 @@ import {
 	CheckedSpreadDictionaryTypeField,
 	CheckedValueExpression,
 	ParseExpression,
+	ParseParameterField,
+	ParseParameterFields,
 	ParseValueExpression,
 	SimpleExpression,
 	StringToken,
@@ -399,50 +401,53 @@ function checkDestructuringFields(parseDefinitionFields: BracketedExpressionBase
 	);
 }
 
-function checkParameters(parseParameters: SimpleExpression): CheckedValueExpression | CheckedParameterFields | undefined {
-	if (parseParameters.type !== 'bracketed') {
+function checkParameters(parseParameters: SimpleExpression | ParseParameterFields): CheckedValueExpression | CheckedParameterFields | undefined {
+	if (parseParameters.type === 'bracketed') {
+		return undefined;
+	}
+	if (parseParameters.type !== 'parameters') {
 		return checkParseExpression(parseParameters);
 	}
-	const parseFields = parseParameters.fields;
-	let rest: CheckedParameterField | undefined;
-	const singleFields: CheckedParameterField[] = [];
-	for (let index = 0; index < parseFields.length; index++) {
-		const parseField = parseFields[index]!;
-		if (parseField.assignedValue) {
+	const parseSingleFields = parseParameters.singleFields;
+	const checkedSingleFields: CheckedParameterField[] = [];
+	for (let index = 0; index < parseSingleFields.length; index++) {
+		const parseField = parseSingleFields[index]!;
+		const checkedField = checkParameterField(parseField);
+		if (!checkedField) {
 			return undefined;
 		}
-		const checkedName = checkName(parseField.name);
-		if (!checkedName) {
+		checkedSingleFields.push(checkedField);
+	}
+	let checkedRest: CheckedParameterField | undefined;
+	const parseRest = parseParameters.rest;
+	if (parseRest) {
+		checkedRest = checkParameterField(parseRest);
+		if (!checkedRest) {
 			return undefined;
-		}
-		const checkedTypeGuard = parseField.typeGuard && checkParseExpression(parseField.typeGuard);
-		if (!checkedTypeGuard && parseField.typeGuard) {
-			return undefined;
-		}
-		const checkedFallback = parseField.fallback && checkParseExpression(parseField.fallback);
-		if (!checkedFallback && parseField.fallback) {
-			return undefined;
-		}
-		const checkedField: CheckedParameterField = {
-			name: checkedName,
-			typeGuard: checkedTypeGuard,
-			fallback: checkedFallback,
-		};
-		if (parseField.spread) {
-			if (index < parseFields.length - 1) {
-				return undefined;
-			}
-			rest = checkedField;
-		}
-		else {
-			singleFields.push(checkedField);
 		}
 	}
 	return {
 		type: 'parameters',
-		singleFields: singleFields,
-		rest: rest,
+		singleFields: checkedSingleFields,
+		rest: checkedRest,
 	};
+}
+
+function checkParameterField(parseField: ParseParameterField): CheckedParameterField | undefined {
+	const checkedTypeGuard = parseField.typeGuard && checkParseExpression(parseField.typeGuard);
+	if (!checkedTypeGuard && parseField.typeGuard) {
+		return undefined;
+	}
+	const checkedFallback = parseField.fallback && checkParseExpression(parseField.fallback);
+	if (!checkedFallback && parseField.fallback) {
+		return undefined;
+	}
+	const checkedField: CheckedParameterField = {
+		name: parseField.name.name,
+		typeGuard: checkedTypeGuard,
+		fallback: checkedFallback,
+	};
+	return checkedField;
 }
 
 function checkName(parseName: ParseValueExpression): string | undefined {
