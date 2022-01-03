@@ -1594,6 +1594,7 @@ function bracketedExpressionToParameters(
 			return bracketedExpression;
 		}
 		const parameterField: ParseParameterField = {
+			type: 'parameter',
 			name: checkedName,
 			typeGuard: baseField.typeGuard,
 			fallback: baseField.fallback,

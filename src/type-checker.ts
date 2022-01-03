@@ -17,7 +17,7 @@ import {
 	TypedExpression,
 	UnionType,
 } from './syntax-tree';
-import { last } from './util';
+import { last, toDictionary } from './util';
 
 const anyType: AnyType = {
 	type: 'any'
@@ -313,9 +313,23 @@ function inferType(
 			// TODO dictionary literal type?
 			return anyType;
 
-		case 'dictionaryType':
-			// TODO?
+		case 'dictionaryType': {
+			// TODO spread fields flach machen
+			// expression.fields.forEach(field => {
+			// 	setInferredType(field, scopes);
+			// })
+			// return {
+			// 	type: 'dictionaryLiteral',
+			// 	fields: toDictionary(
+			// 		expression.fields,
+			// 		field =>
+			// 			field.name.name,
+			// 		field =>
+			// 			field.inferredType!
+			// 	),
+			// };
 			return anyType;
+		}
 
 		case 'empty':
 			return emptyType;
@@ -408,9 +422,35 @@ function inferType(
 				value: expression.value
 			};
 
+		case 'parameter': {
+			if (expression.typeGuard) {
+				setInferredType(expression.typeGuard, scopes);
+			}
+			if (expression.fallback) {
+				setInferredType(expression.fallback, scopes);
+			}
+			// TODO fallback berücksichtigen?
+			return expression.typeGuard.inferredType ?? anyType;
+		}
+
 		case 'parameters': {
-			// TODO
-			return anyType;
+			expression.singleFields.forEach(field => {
+				setInferredType(field, scopes);
+			});
+			if (expression.rest) {
+				setInferredType(expression.rest, scopes);
+			}
+			// TODO rest in dictionarytype?! oder parameterstype als eigener typ?
+			return {
+				type: 'dictionaryLiteral',
+				fields: toDictionary(
+					expression.singleFields,
+					field =>
+						field.name.name,
+					field =>
+						field.inferredType!
+				),
+			};
 		}
 
 		case 'reference': {

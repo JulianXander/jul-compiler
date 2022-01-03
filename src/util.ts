@@ -12,19 +12,19 @@ export function last<T>(array: T[]): T | undefined {
 	return array[array.length - 1];
 }
 
-// export function toDictionary<T, U>(
-// 	values: T[],
-// 	getKey: (value: T) => string,
-// 	getValue: (value: T) => U,
-// ): { [key: string]: U; } {
-// 	const dictionary: { [key: string]: U; } = {};
-// 	values.forEach(oldValue => {
-// 		const key = getKey(oldValue);
-// 		const newValue = getValue(oldValue);
-// 		dictionary[key] = newValue;
-// 	});
-// 	return dictionary;
-// }
+export function toDictionary<T, U>(
+	values: T[],
+	getKey: (value: T) => string,
+	getValue: (value: T) => U,
+): { [key: string]: U; } {
+	const dictionary: { [key: string]: U; } = {};
+	values.forEach(oldValue => {
+		const key = getKey(oldValue);
+		const newValue = getValue(oldValue);
+		dictionary[key] = newValue;
+	});
+	return dictionary;
+}
 
 // function mapFn<Args extends any[], Result1, Result2>(
 // 	fn: (...args: Args) => Result1,

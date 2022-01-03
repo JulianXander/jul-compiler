@@ -65,6 +65,7 @@ export type PositionedExpression =
 export type TypedExpression =
 	| ParseExpression
 	| ParseParameterFields
+	| ParseParameterField
 	;
 
 // TODO beil allen parseExpression oder nur bei value expressions?
@@ -251,6 +252,7 @@ export interface ParseParameterFields extends ParseExpressionBase {
 }
 
 export interface ParseParameterField extends ParseExpressionBase {
+	type: 'parameter';
 	name: Name;
 	typeGuard?: ParseValueExpression;
 	fallback?: ParseValueExpression;
