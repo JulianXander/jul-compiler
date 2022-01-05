@@ -60,6 +60,8 @@ export type PositionedExpression =
 	| ParseDictionaryTypeField
 	| ParseExpression
 	| ParseFieldBase
+	| ParseParameterFields
+	| ParseParameterField
 	;
 
 export type TypedExpression =

@@ -430,7 +430,7 @@ function inferType(
 				setInferredType(expression.fallback, scopes);
 			}
 			// TODO fallback berücksichtigen?
-			return expression.typeGuard.inferredType ?? anyType;
+			return expression.typeGuard?.inferredType ?? anyType;
 		}
 
 		case 'parameters': {
