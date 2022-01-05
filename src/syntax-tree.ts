@@ -264,8 +264,7 @@ export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
 	type: 'functionTypeLiteral';
 	params: BracketedExpressionBase | ParseParameterFields;
 	returnType: ParseValueExpression;
-	// TODO symbols?
-	// symbols: SymbolTable;
+	symbols: SymbolTable;
 }
 
 //#endregion FunctionLiteral

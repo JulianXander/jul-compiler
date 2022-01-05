@@ -1065,8 +1065,7 @@ function valueExpressionBaseParser(
 				type: 'functionTypeLiteral',
 				params: params,
 				returnType: parsed2.returnType,
-				// TODO?
-				// symbols: symbols,
+				symbols: symbols,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
