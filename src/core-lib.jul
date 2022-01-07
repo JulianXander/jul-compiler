@@ -1,54 +1,17 @@
+true = nativeValue(§true§)
+false = nativeValue(§false§)
 #region Types
-# TODO ???
-Any = nativeFunction(
-	Type
-	§() => true§
-)
-Boolean = nativeFunction(
-	Or(true false)
-	§x => typeof x === 'boolean'§
-)
+# any value
+Any = nativeValue(§_any§)
+# true or false
+Boolean = nativeValue(§_boolean§)
 # 64 bit floating point number
-Float64 = nativeFunction(
-	Type
-	§x => typeof x === 'number'§
-)
+Float64 = nativeValue(§_float64§)
 # sequence of characters
-String = nativeFunction(
-	Type
-	§x => typeof x === 'string'§
-)
-Error = nativeFunction(
-	# TODO?
-	# (
-	# 	message: String
-	# 	stack: String
-	# )
-	Type
-	§x => x instanceof Error§
-)
-Function = nativeFunction(
-	# TODO?
-	# (
-	# 	parametersType: Type
-	# 	returnType: Type
-	# )
-	§x => x instanceof Function§
-)
-Type = nativeFunction(
-	Or(
-		(...args: List(Any)): Boolean
-		# Literals (Number, String, Boolean, Dictionary, List)
-		# DictionaryType/DictionaryLiteralType/DictionaryTypeLiteral?
-		FunctionType
-		# TupleType?
-		# StreamType?
-		UnionType
-		IntersectionType
-	)
-	§TODO check function return type§
-)
+String = nativeValue(§_string§)
+Error = nativeValue(§_error§)
 Dictionary = nativeFunction(
+	(ElementType: Type): Type
 	# TODO ???
 	§x => typeof x === 'object'§
 )
@@ -64,15 +27,35 @@ Stream = nativeFunction(
 	# TODO generic Stream check
 	§x => x instanceof Stream§
 )
+# Function = nativeFunction(
+# 	# TODO?
+# 	# (
+# 	# 	parametersType: Type
+# 	# 	returnType: Type
+# 	# )
+# 	§x => x instanceof Function§
+# )
+
+# Or(
+# 	(...args: List(Any)): Boolean
+# 	# Literals (Number, String, Boolean, Dictionary, List)
+# 	# DictionaryType/DictionaryLiteralType/DictionaryTypeLiteral?
+# 	FunctionType
+# 	# TupleType?
+# 	# StreamType?
+# 	UnionType
+# 	IntersectionType
+# )
+Type = nativeValue(§_type§)
 # IntersectionType
 And = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
-	§TODO§
+	§(...args) => new IntersectionType(args)§
 )
 # UnionType
 Or = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
-	§TODO§
+	§(...args) => new UnionType(args)§
 )
 #endregion Types
 #region Functions
@@ -162,6 +145,12 @@ runJS = nativeFunction(
 nativeFunction = nativeFunction(
 	# (FunctionType: (x: Any): x is (): Any js: String): FunctionType
 	(FunctionType: Type js: String): FunctionType
+	§[...]§
+)
+# Interpretes the given String as js Code and yields the return value,
+# type???
+nativeValue = nativeFunction(
+	(js: String): Any
 	§[...]§
 )
 #endregion Utility

@@ -17,7 +17,7 @@ import {
 	TypedExpression,
 	UnionType,
 } from './syntax-tree';
-import { last, toDictionary } from './util';
+import { last, NonEmptyArray, toDictionary } from './util';
 
 const anyType: AnyType = {
 	type: 'any'
@@ -32,6 +32,56 @@ const stringType: StringType = {
 };
 
 const coreBuiltInSymbols: SymbolTable = {
+	true: {
+		description: 'asdf true',
+		typeExpression: null as any,
+		normalizedType: {
+			type: 'booleanLiteral',
+			value: true,
+		},
+		startRowIndex: 162,
+		startColumnIndex: 0,
+		endRowIndex: 162,
+		endColumnIndex: 5,
+	},
+	false: {
+		description: 'asdf false',
+		typeExpression: null as any,
+		normalizedType: {
+			type: 'booleanLiteral',
+			value: false,
+		},
+		startRowIndex: 162,
+		startColumnIndex: 0,
+		endRowIndex: 162,
+		endColumnIndex: 5,
+	},
+	// TODO?
+	// Any: {
+	// 	description: 'asdf Any',
+	// 	typeExpression: null as any,
+	// 	normalizedType: {
+	// 		type: 'booleanLiteral',
+	// 		value: false,
+	// 	},
+	// 	startRowIndex: 162,
+	// 	startColumnIndex: 0,
+	// 	endRowIndex: 162,
+	// 	endColumnIndex: 5,
+	// },
+	Type: {
+		description: 'asdf Type',
+		typeExpression: null as any,
+		// TODO
+		normalizedType: {
+			type: 'booleanLiteral',
+			value: false,
+		},
+		startRowIndex: 162,
+		startColumnIndex: 0,
+		endRowIndex: 162,
+		endColumnIndex: 5,
+	},
 	nativeFunction: {
 		typeExpression: null as any,
 		normalizedType: {
@@ -67,7 +117,7 @@ assuming the specified type without checking. Make sure the Type fits under all 
 		startColumnIndex: 0,
 		endRowIndex: 162,
 		endColumnIndex: 5,
-	}
+	},
 };
 
 export const coreLibPath = join(__dirname, '..', '..', 'core-lib.jul');
@@ -243,7 +293,7 @@ function inferFileTypes(file: ParsedFile, scopes: SymbolTable[]): void {
 	const scopes2 = [
 		...scopes,
 		file.symbols,
-	];
+	] as any as NonEmptyArray<SymbolTable>;
 	file.expressions?.forEach(expression => {
 		setInferredType(expression, scopes2);
 	});
@@ -251,7 +301,7 @@ function inferFileTypes(file: ParsedFile, scopes: SymbolTable[]): void {
 
 function setInferredType(
 	expression: TypedExpression,
-	scopes: SymbolTable[],
+	scopes: NonEmptyArray<SymbolTable>,
 ): void {
 	if (expression.inferredType) {
 		return;
@@ -265,7 +315,7 @@ function setInferredType(
 // TODO resolve dereferences
 function inferType(
 	expression: TypedExpression,
-	scopes: SymbolTable[],
+	scopes: NonEmptyArray<SymbolTable>,
 ): NormalizedType {
 	switch (expression.type) {
 		case 'bracketed':
@@ -294,7 +344,7 @@ function inferType(
 		case 'definition': {
 			setInferredType(expression.value, scopes);
 			const inferredType = expression.value.inferredType!;
-			const currentScope = last(scopes)!;
+			const currentScope = last(scopes);
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			// TODO remove checkType, wenn type hier gecheckt wird
 			currentScope[expression.name.name]!.normalizedType = inferredType;
@@ -380,27 +430,38 @@ function inferType(
 		}
 
 		case 'functionLiteral': {
-			setInferredType(expression.params, scopes);
-			const functionScopes = [...scopes, expression.symbols];
+			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
+			setInferredType(expression.params, functionScopes);
+			const declaredReturnType = expression.returnType;
+			if (declaredReturnType) {
+				setInferredType(declaredReturnType, functionScopes);
+			}
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes);
 			});
 			// TODO declaredReturnType vs inferredReturnType
+			const inferredReturnType = last(expression.body)?.inferredType ?? emptyType;
 			return {
 				type: 'functionLiteral',
 				parameterType: expression.params.inferredType!,
-				returnType: last(expression.body)?.inferredType ?? emptyType,
+				returnType: inferredReturnType,
 			};
 		}
 
 		case 'functionTypeLiteral': {
-			setInferredType(expression.params, scopes);
-			setInferredType(expression.returnType, scopes);
+			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
+			setInferredType(expression.params, functionScopes);
+			setInferredType(expression.returnType, functionScopes);
+			const inferredReturnType = expression.returnType.inferredType;
+			if (!inferredReturnType) {
+				console.log(JSON.stringify(expression, undefined, 4));
+				throw new Error('returnType was not inferred');
+			}
 			return {
 				// TODO functionTypeLiteral?
 				type: 'functionLiteral',
 				parameterType: expression.params.inferredType!,
-				returnType: expression.returnType.inferredType!,
+				returnType: inferredReturnType,
 			};
 		}
 
@@ -430,7 +491,12 @@ function inferType(
 				setInferredType(expression.fallback, scopes);
 			}
 			// TODO fallback berücksichtigen?
-			return expression.typeGuard?.inferredType ?? anyType;
+			const inferredType = expression.typeGuard?.inferredType ?? anyType;
+			const currentScope = last(scopes);
+			// TODO typecheck mit typeguard, ggf union mit Error type
+			// TODO remove checkType, wenn type hier gecheckt wird
+			currentScope[expression.name.name]!.normalizedType = inferredType;
+			return inferredType;
 		}
 
 		case 'parameters': {
@@ -459,8 +525,12 @@ function inferType(
 				// TODO add 'reference not found' error?
 				return anyType;
 			}
-			// TODO was wenn referencedsymbol type noch nicht inferred ist?
-			return referencedSymbol.normalizedType!;
+			if (!referencedSymbol.normalizedType) {
+				// TODO was wenn referencedsymbol type noch nicht inferred ist?
+				// setInferredType(referencedSymbol)
+				throw new Error('symbol type was not inferred');
+			}
+			return referencedSymbol.normalizedType;
 		}
 
 		case 'string':

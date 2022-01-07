@@ -1,7 +1,5 @@
 let processId = 1;
 
-type Type = (value: any) => boolean;
-
 interface Params {
 	type?: Type;
 	singleNames?: {
@@ -37,7 +35,7 @@ export function _callFunction(fn: JulFunction, args: any) {
 }
 
 export function _checkType(type: Type, value: any) {
-	return type(value)
+	return isOfType(value, type)
 		? value
 		: new Error(`${value} is not of type ${type}`);
 }
@@ -55,11 +53,129 @@ export function _checkDictionaryType(dictionaryType: Params, value: any): boolea
 
 //#endregion internals
 
+function isOfType(value: any, type: Type): boolean {
+	switch (typeof type) {
+		case 'boolean':
+		case 'number':
+		case 'string':
+			return value === type;
+
+		case 'object': {
+			if (type instanceof BuiltInTypeBase) {
+				const builtInType = type as BuiltInType;
+				switch (builtInType.type) {
+					case 'any':
+						return true;
+
+					case 'boolean':
+						return typeof value === 'boolean';
+
+					case 'float64':
+						return typeof value === 'number';
+
+					case 'string':
+						return typeof value === 'string';
+
+					case 'error':
+						return value instanceof Error;
+
+					case 'dictionary': {
+						if (!isDictionary(value)) {
+							return false;
+						}
+						const elementType = builtInType.elementType;
+						for (const key in value) {
+							const elementValue = value[key];
+							if (!isOfType(elementValue, elementType)) {
+								return false;
+							}
+						}
+						return true;
+					}
+
+					case 'dictionaryLiteral': {
+						if (!isDictionary(value)) {
+							return false;
+						}
+						const fieldTypes = builtInType.fields;
+						for (const key in fieldTypes) {
+							const elementValue = value[key];
+							const elementType = fieldTypes[key]!;
+							if (!isOfType(elementValue, elementType)) {
+								return false;
+							}
+						}
+						return true;
+					}
+
+					case 'list':
+						return Array.isArray(value)
+							&& value.every(element =>
+								isOfType(element, builtInType.elementType));
+
+					case 'tuple':
+						return Array.isArray(value)
+							&& value.length <= builtInType.elementTypes.length
+							&& builtInType.elementTypes.every((elementType, index) =>
+								isOfType(value[index], elementType));
+
+					case 'stream':
+						// TODO check value type
+						return value instanceof Stream;
+
+					case 'function':
+						// TODO check returntype/paramstype
+						return typeof value === 'function';
+
+					case 'type':
+						// TODO check primitive value (null/boolean/number/string)/builtintype/function
+						// return value === null
+						// || typeof value === 'boolean'
+						// || typeof value === 'number'
+						// || typeof value === 'string'
+						// || value instanceof BuiltInTypeBase
+						// || typeof value === ;
+						return true;
+
+					case 'and':
+						return builtInType.choiceTypes.every(coiceType =>
+							isOfType(value, coiceType));
+
+					case 'or':
+						return builtInType.choiceTypes.some(coiceType =>
+							isOfType(value, coiceType));
+
+					default: {
+						const assertNever: never = builtInType;
+						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType).type}`);
+					}
+				}
+			}
+			// null/Dictionary/Array
+			return deepEquals(value, type);
+		}
+
+		case 'function':
+			return type(value);
+
+		default:
+			throw new Error(`Unexpected type ${typeof type}`);
+	}
+}
+
+// TOOD check empty prototype?
+function isDictionary(value: any): value is { [key: string]: any; } {
+	return typeof value === 'object'
+		&& !(value instanceof BuiltInTypeBase)
+		&& !(value instanceof Error)
+		&& !Array.isArray(value);
+}
+
 function tryAssignParams(params: Params, values: any): any[] | Error {
 	const assigneds: any[] = [];
 	const { type: outerType, singleNames, rest } = params;
 	if (outerType) {
-		const isValid = outerType(values);
+		const isValid = isOfType(values, outerType);
 		if (!isValid) {
 			return new Error(`Can not assign the value ${values} to params because it is not of type ${outerType}`);
 		}
@@ -79,7 +195,7 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 				? wrappedValue[index]
 				: wrappedValue[name];
 			const isValid = type
-				? type(value)
+				? isOfType(value, type)
 				: true;
 			if (!isValid) {
 				return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
@@ -93,7 +209,7 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 			for (; index < wrappedValue.length; index++) {
 				const value = wrappedValue[index];
 				const isValid = restType
-					? restType(value)
+					? isOfType(value, restType)
 					: true;
 				if (!isValid) {
 					return new Error(`Can not assign the value ${value} to rest param because it is not of type ${rest}`);
@@ -163,6 +279,109 @@ function deepEquals(value1: any, value2: any): boolean {
 		}
 	}
 }
+
+//#region Types
+
+type Type =
+	| null
+	| boolean
+	| number
+	| string
+	| { [key: string]: any; }
+	| any[]
+	| BuiltInType
+	| CustomType
+	;
+
+type CustomType = (value: any) => boolean;
+
+type BuiltInType =
+	| Any
+	| BooleanType
+	| StringType
+	| Float64
+	| ErrorType
+	| Dictionary
+	| DictionaryLiteral
+	| List
+	| Tuple
+	| StreamType
+	| FunctionType
+	| TypeType
+	| IntersectionType
+	| UnionType
+	;
+
+class BuiltInTypeBase { }
+
+class Any extends BuiltInTypeBase {
+	readonly type = 'any';
+}
+
+class BooleanType extends BuiltInTypeBase {
+	readonly type = 'boolean';
+}
+
+class StringType extends BuiltInTypeBase {
+	readonly type = 'string';
+}
+
+class Float64 extends BuiltInTypeBase {
+	readonly type = 'float64';
+}
+
+class ErrorType extends BuiltInTypeBase {
+	readonly type = 'error';
+}
+
+class Dictionary extends BuiltInTypeBase {
+	constructor(public elementType: Type) { super(); }
+	readonly type = 'dictionary';
+}
+
+class DictionaryLiteral extends BuiltInTypeBase {
+	constructor(public fields: { [key: string]: Type; }) { super(); }
+	readonly type = 'dictionaryLiteral';
+}
+
+class List extends BuiltInTypeBase {
+	constructor(public elementType: Type) { super(); }
+	readonly type = 'list';
+}
+
+class Tuple extends BuiltInTypeBase {
+	constructor(public elementTypes: Type[]) { super(); }
+	readonly type = 'tuple';
+}
+
+class StreamType extends BuiltInTypeBase {
+	constructor(public valueType: Type) { super(); }
+	readonly type = 'stream';
+}
+
+class FunctionType extends BuiltInTypeBase {
+	constructor(
+		public paramsType: Type,
+		public returnType: Type,
+	) { super(); }
+	readonly type = 'function';
+}
+
+class TypeType extends BuiltInTypeBase {
+	readonly type = 'type';
+}
+
+class IntersectionType extends BuiltInTypeBase {
+	constructor(public choiceTypes: Type[]) { super(); }
+	readonly type = 'and';
+}
+
+class UnionType extends BuiltInTypeBase {
+	constructor(public choiceTypes: Type[]) { super(); }
+	readonly type = 'or';
+}
+
+//#endregion Types
 
 //#region Stream
 
@@ -485,6 +704,16 @@ function retry$<T>(
 //#endregion Stream
 
 //#region builtins
+
+//#region Types
+export const _any = new Any();
+export const _boolean = new BooleanType();
+export const _float64 = new Float64();
+export const _string = new StringType();
+export const _error = new ErrorType();
+export const _type = new TypeType();
+//#endregion Types
+
 // TODO remove
 // TODO types, funktionen ergänzen
 
