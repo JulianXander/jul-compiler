@@ -118,6 +118,28 @@ assuming the specified type without checking. Make sure the Type fits under all 
 		endRowIndex: 162,
 		endColumnIndex: 5,
 	},
+	nativeValue: {
+		typeExpression: null as any,
+		normalizedType: {
+			type: 'functionLiteral',
+			parameterType: {
+				type: 'dictionaryLiteral',
+				fields: {
+					js: {
+						type: 'string'
+					}
+				}
+			},
+			returnType: {
+				type: 'any',
+			},
+		},
+		description: `TODO nativeValue`,
+		startRowIndex: 162,
+		startColumnIndex: 0,
+		endRowIndex: 162,
+		endColumnIndex: 5,
+	},
 };
 
 export const coreLibPath = join(__dirname, '..', '..', 'core-lib.jul');
@@ -492,10 +514,15 @@ function inferType(
 			}
 			// TODO fallback berücksichtigen?
 			const inferredType = expression.typeGuard?.inferredType ?? anyType;
+			// TODO check array type bei spread
 			const currentScope = last(scopes);
-			// TODO typecheck mit typeguard, ggf union mit Error type
-			// TODO remove checkType, wenn type hier gecheckt wird
-			currentScope[expression.name.name]!.normalizedType = inferredType;
+			const parameterName = expression.name.name;
+			const parameterSymbol = currentScope[parameterName];
+			if (!parameterSymbol) {
+				console.log(scopes);
+				throw new Error(`parameterSymbol ${parameterName} not found`);
+			}
+			parameterSymbol.normalizedType = inferredType;
 			return inferredType;
 		}
 
@@ -528,6 +555,7 @@ function inferType(
 			if (!referencedSymbol.normalizedType) {
 				// TODO was wenn referencedsymbol type noch nicht inferred ist?
 				// setInferredType(referencedSymbol)
+				console.log(expression);
 				throw new Error('symbol type was not inferred');
 			}
 			return referencedSymbol.normalizedType;

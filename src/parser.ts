@@ -123,24 +123,19 @@ function defineSymbolsForField(
 	errors: ParserError[],
 	field: ParseFieldBase,
 ): void {
-	if (field.spread) {
-		// TODO spread
+	const name = checkName(field.name);
+	if (!name) {
+		// TODO error?
+		return;
 	}
-	else {
-		const name = checkName(field.name);
-		if (!name) {
-			// TODO error?
-			return;
-		}
-		defineSymbol(
-			symbolTable,
-			errors,
-			name,
-			// TODO check type
-			field.typeGuard as any,
-			field.description,
-		);
-	}
+	defineSymbol(
+		symbolTable,
+		errors,
+		name,
+		// TODO check type
+		field.typeGuard as any,
+		field.description,
+	);
 }
 
 function defineSymbol(
