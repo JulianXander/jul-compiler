@@ -145,6 +145,9 @@ function isOfType(value: any, type: Type): boolean {
 						return builtInType.choiceTypes.some(coiceType =>
 							isOfType(value, coiceType));
 
+					case 'typeOf':
+						return deepEquals(value, builtInType.value);
+
 					default: {
 						const assertNever: never = builtInType;
 						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType).type}`);
@@ -310,6 +313,7 @@ type BuiltInType =
 	| TypeType
 	| IntersectionType
 	| UnionType
+	| TypeOfType
 	;
 
 class BuiltInTypeBase { }
@@ -379,6 +383,11 @@ class IntersectionType extends BuiltInTypeBase {
 class UnionType extends BuiltInTypeBase {
 	constructor(public choiceTypes: Type[]) { super(); }
 	readonly type = 'or';
+}
+
+class TypeOfType extends BuiltInTypeBase {
+	constructor(public value: any) { super(); }
+	readonly type = 'typeOf';
 }
 
 //#endregion Types

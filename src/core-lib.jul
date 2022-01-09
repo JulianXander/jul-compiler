@@ -57,6 +57,11 @@ Or = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
 	§(...args) => new UnionType(args)§
 )
+# The Type that only contains the given value.
+TypeOf = nativeFunction(
+	(value: Any): Type
+	§value => new TypeOfType(value)§
+)
 #endregion Types
 #region Functions
 #region Number
