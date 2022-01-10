@@ -85,13 +85,9 @@ const coreBuiltInSymbols: SymbolTable = {
 		typeExpression: null as any,
 		normalizedType: new FunctionType(
 			new DictionaryLiteralType({
-				FunctionType: {
-					// TODO functionType
-					type: 'any'
-				},
-				js: {
-					type: 'string'
-				}
+				// TODO functionType
+				FunctionType: _any,
+				js: _string
 			}),
 			// TODO?! argumentreference type?
 			new ArgumentReference([{
@@ -110,9 +106,7 @@ assuming the specified type without checking. Make sure the Type fits under all 
 		typeExpression: null as any,
 		normalizedType: new FunctionType(
 			new DictionaryLiteralType({
-				js: {
-					type: 'string'
-				}
+				js: _string
 			}),
 			_any,
 		),
