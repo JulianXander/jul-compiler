@@ -1,4 +1,5 @@
-import { ParserError, Positioned } from "./parser-combinator";
+import { ParserError, Positioned } from './parser-combinator';
+import { Type } from './runtime';
 import { NonEmptyArray } from './util';
 
 //#region ParseTree
@@ -271,10 +272,10 @@ export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
 
 export interface Reference extends ParseExpressionBase {
 	type: 'reference';
-	names: ReferenceNames;
+	path: ReferencePath;
 }
 
-export type ReferenceNames = [Name, ...(Name | Index)[]];
+export type ReferencePath = [Name, ...(Name | Index)[]];
 
 export interface Name extends Positioned {
 	type: 'name';
@@ -288,34 +289,23 @@ export interface Index extends Positioned {
 
 //#region NormalizedType
 
-export type NormalizedType =
-	| EmptyType
-	| AnyType
-	| BooleanLiteralType
-	| StringLiteralType
-	| NumberLiteralType
-	| DictionaryLiteralType
-	| FunctionLiteralType
-	| ArgumentReference
-	| StringType
-	| NumberType
-	| ListType
-	| TupleType
-	// TODO? | DictionaryType
-	| StreamType
-	| UnionType
-	| IntersectionType
-	// TODO? | ParametersType oder stattdessen einfach dictionarytype?
-	| PredicateType
-	;
-
-export interface EmptyType {
-	type: 'empty';
-}
-
-export interface AnyType {
-	type: 'any';
-}
+export type NormalizedType = Type;
+// | Type
+// | BooleanLiteralType
+// | StringLiteralType
+// | NumberLiteralType
+// // | DictionaryLiteralType
+// | FunctionLiteralType
+// | ArgumentReference
+// | ListType
+// | TupleType
+// // TODO? | DictionaryType
+// | StreamType
+// | UnionType
+// | IntersectionType
+// // TODO? | ParametersType oder stattdessen einfach dictionarytype?
+// | PredicateType
+// ;
 
 interface BooleanLiteralType {
 	type: 'booleanLiteral';
@@ -332,18 +322,10 @@ interface NumberLiteralType {
 	value: number;
 }
 
-export interface StringType {
-	type: 'string';
-}
-
-interface NumberType {
-	type: 'number';
-}
-
-export interface DictionaryLiteralType {
-	type: 'dictionaryLiteral';
-	fields: { [key: string]: NormalizedType; };
-}
+// export interface DictionaryLiteralType {
+// 	type: 'dictionaryLiteral';
+// 	fields: { [key: string]: NormalizedType; };
+// }
 
 interface FunctionLiteralType {
 	type: 'functionLiteral';
@@ -356,7 +338,7 @@ interface FunctionLiteralType {
 interface ArgumentReference {
 	type: 'reference';
 	// TODO names ohne position?
-	names: ReferenceNames;
+	names: ReferencePath;
 }
 
 interface StreamType {

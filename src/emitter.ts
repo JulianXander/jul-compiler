@@ -134,8 +134,8 @@ function expressionToJs(expression: CheckedExpression): string {
 }
 
 export function isImport(functionReference: Reference): boolean {
-	return functionReference.names.length === 1
-		&& functionReference.names[0].name === 'import';
+	return functionReference.path.length === 1
+		&& functionReference.path[0].name === 'import';
 }
 
 export function getPathFromImport(importExpression: CheckedFunctionCall): string {
@@ -186,7 +186,7 @@ function functionBodyToJs(expressions: CheckedExpression[]): string {
 }
 
 function referenceToJs(reference: Reference): string {
-	return reference.names.map((name, index) => {
+	return reference.path.map((name, index) => {
 		const innerName = name.name;
 		if (!index) {
 			if (typeof innerName !== 'string') {

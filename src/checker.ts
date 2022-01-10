@@ -454,8 +454,8 @@ function checkName(parseName: ParseValueExpression): string | undefined {
 	if (parseName.type !== 'reference') {
 		return undefined;
 	}
-	if (parseName.names.length > 1) {
+	if (parseName.path.length > 1) {
 		return undefined;
 	}
-	return parseName.names[0].name;
+	return parseName.path[0].name;
 }

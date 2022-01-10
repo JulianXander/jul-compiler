@@ -2,43 +2,53 @@ import { join } from 'path';
 import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
 import {
-	AnyType,
-	CheckedValueExpression,
+	Any,
+	ArgumentReference,
+	BuiltInTypeBase,
 	DictionaryLiteralType,
-	EmptyType,
+	// EmptyType,
+	FunctionType,
+	StringType,
+	TupleType,
+	Type,
+	TypeOfType,
+	UnionType,
+	_any,
+	_string,
+	_type,
+} from './runtime';
+import {
+	CheckedValueExpression,
+	// DictionaryLiteralType,
 	NormalizedType,
 	ObjectLiteral,
 	ParsedFile,
+	ParseDictionaryTypeField,
 	ParseExpression,
 	Reference,
-	StringType,
 	SymbolDefinition,
 	SymbolTable,
 	TypedExpression,
-	UnionType,
 } from './syntax-tree';
-import { last, NonEmptyArray, toDictionary } from './util';
+import { forEach, last, NonEmptyArray, toDictionary } from './util';
 
-const anyType: AnyType = {
-	type: 'any'
-};
+// const anyType: Any = {
+// 	type: 'any'
+// };
 
-const emptyType: EmptyType = {
-	type: 'empty'
-};
+// const emptyType: EmptyType = {
+// 	type: 'empty'
+// };
 
-const stringType: StringType = {
-	type: 'string'
-};
+// const stringType: StringType = {
+// 	type: 'string'
+// };
 
 const coreBuiltInSymbols: SymbolTable = {
 	true: {
 		description: 'asdf true',
 		typeExpression: null as any,
-		normalizedType: {
-			type: 'booleanLiteral',
-			value: true,
-		},
+		normalizedType: true,
 		startRowIndex: 162,
 		startColumnIndex: 0,
 		endRowIndex: 162,
@@ -47,36 +57,25 @@ const coreBuiltInSymbols: SymbolTable = {
 	false: {
 		description: 'asdf false',
 		typeExpression: null as any,
-		normalizedType: {
-			type: 'booleanLiteral',
-			value: false,
-		},
+		normalizedType: false,
 		startRowIndex: 162,
 		startColumnIndex: 0,
 		endRowIndex: 162,
 		endColumnIndex: 5,
 	},
-	// TODO?
-	// Any: {
-	// 	description: 'asdf Any',
-	// 	typeExpression: null as any,
-	// 	normalizedType: {
-	// 		type: 'booleanLiteral',
-	// 		value: false,
-	// 	},
-	// 	startRowIndex: 162,
-	// 	startColumnIndex: 0,
-	// 	endRowIndex: 162,
-	// 	endColumnIndex: 5,
-	// },
+	Any: {
+		description: 'asdf Any',
+		typeExpression: null as any,
+		normalizedType: new TypeOfType(_any),
+		startRowIndex: 162,
+		startColumnIndex: 0,
+		endRowIndex: 162,
+		endColumnIndex: 5,
+	},
 	Type: {
 		description: 'asdf Type',
 		typeExpression: null as any,
-		// TODO
-		normalizedType: {
-			type: 'booleanLiteral',
-			value: false,
-		},
+		normalizedType: new TypeOfType(_type),
 		startRowIndex: 162,
 		startColumnIndex: 0,
 		endRowIndex: 162,
@@ -84,33 +83,22 @@ const coreBuiltInSymbols: SymbolTable = {
 	},
 	nativeFunction: {
 		typeExpression: null as any,
-		normalizedType: {
-			type: 'functionLiteral',
-			// TODO generic function
-			parameterType: {
-				type: 'dictionaryLiteral',
-				fields: {
-					FunctionType: {
-						// TODO functionType
-						type: 'any'
-					},
-					js: {
-						type: 'string'
-					}
+		normalizedType: new FunctionType(
+			new DictionaryLiteralType({
+				FunctionType: {
+					// TODO functionType
+					type: 'any'
+				},
+				js: {
+					type: 'string'
 				}
-			},
-			returnType: {
-				type: 'reference',
-				names: [{
-					type: 'name',
-					name: 'FunctionType',
-					startRowIndex: 162,
-					startColumnIndex: 0,
-					endRowIndex: 162,
-					endColumnIndex: 5,
-				}]
-			},
-		},
+			}),
+			// TODO?! argumentreference type?
+			new ArgumentReference([{
+				type: 'name',
+				name: 'FunctionType',
+			}]),
+		),
 		description: `Interpretes the given String as js Code and yields the return value,
 assuming the specified type without checking. Make sure the Type fits under all circumstances`,
 		startRowIndex: 162,
@@ -120,20 +108,14 @@ assuming the specified type without checking. Make sure the Type fits under all 
 	},
 	nativeValue: {
 		typeExpression: null as any,
-		normalizedType: {
-			type: 'functionLiteral',
-			parameterType: {
-				type: 'dictionaryLiteral',
-				fields: {
-					js: {
-						type: 'string'
-					}
+		normalizedType: new FunctionType(
+			new DictionaryLiteralType({
+				js: {
+					type: 'string'
 				}
-			},
-			returnType: {
-				type: 'any',
-			},
-		},
+			}),
+			_any,
+		),
 		description: `TODO nativeValue`,
 		startRowIndex: 162,
 		startColumnIndex: 0,
@@ -155,13 +137,13 @@ export function dereferenceWithBuiltIns(reference: Reference, scopes: SymbolTabl
 	symbol: SymbolDefinition;
 } | undefined {
 	// TODO nested ref path
-	const name = reference.names[0].name;
+	const name = reference.path[0].name;
 	return findSymbolInScopesWithBuiltIns(name, scopes);
 }
 
 function dereference(reference: Reference, scopes: SymbolTable[]): SymbolDefinition | undefined {
 	// TODO nested ref path
-	const name = reference.names[0].name;
+	const name = reference.path[0].name;
 	return findSymbolInScopes(name, scopes);
 }
 
@@ -198,13 +180,15 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefiniti
  */
 export function checkTypes(documents: { [documentUri: string]: ParsedFile; }): void {
 	inferFilesTypes(documents);
-	for (const uri in documents) {
-		const document = documents[uri]!;
-		const { errors, expressions } = document;
-		expressions?.forEach(expression => {
-			checkType(expression, errors);
+	forEach(
+		documents,
+		document => {
+
+			const { errors, expressions } = document;
+			expressions?.forEach(expression => {
+				checkType(expression, errors);
+			});
 		});
-	}
 }
 
 /**
@@ -342,7 +326,7 @@ function inferType(
 	switch (expression.type) {
 		case 'bracketed':
 			// TODO?
-			return anyType;
+			return _any;
 
 		case 'branching':
 			// union branch return types
@@ -351,17 +335,15 @@ function inferType(
 			expression.branches.forEach(branch => {
 				setInferredType(branch, scopes);
 			});
-			return {
-				type: 'or',
-				// TODO normalize UnionType, wenn any verodert => return any
-				orTypes: expression.branches.map(branch => {
-					if (branch.inferredType!.type === 'functionLiteral') {
-						return branch.inferredType.returnType;
-					}
-					// TODO return any?
-					throw new Error('TODO?');
-				})
-			};
+			// TODO normalize (flatten) UnionType, wenn any verodert => return any
+			return new UnionType(expression.branches.map(branch => {
+				const inferredType = branch.inferredType as FunctionType;
+				if (inferredType.type === 'function') {
+					return inferredType.returnType;
+				}
+				// TODO return any?
+				throw new Error('TODO?');
+			}));
 
 		case 'definition': {
 			setInferredType(expression.value, scopes);
@@ -379,75 +361,91 @@ function inferType(
 
 		case 'destructuring':
 			// TODO?
-			return anyType;
+			return _any;
 
 		case 'dictionary':
 			// TODO dictionary literal type?
-			return anyType;
+			return _any;
 
 		case 'dictionaryType': {
-			// TODO spread fields flach machen
+			// TODO infer field types
 			// expression.fields.forEach(field => {
 			// 	setInferredType(field, scopes);
-			// })
-			// return {
-			// 	type: 'dictionaryLiteral',
-			// 	fields: toDictionary(
-			// 		expression.fields,
-			// 		field =>
-			// 			field.name.name,
-			// 		field =>
-			// 			field.inferredType!
-			// 	),
-			// };
-			return anyType;
+			// });
+			const fieldTypes: { [key: string]: Type; } = {};
+			expression.fields.forEach(field => {
+				switch (field.type) {
+					case 'singleDictionaryTypeField': {
+						// TODO fieldName as string
+						const fieldName = field.name;
+						// fieldTypes[fieldName] = field.inferredType!
+						break;
+					}
+
+					case 'spreadDictionaryTypeField':
+						// TODO spread fields flach machen
+						break;
+
+					default: {
+						const assertNever: never = field;
+						throw new Error('Unexpected DictionaryType field type ' + (assertNever as ParseDictionaryTypeField).type);
+					}
+				}
+			});
+			return new TypeOfType(new DictionaryLiteralType(fieldTypes));
 		}
 
 		case 'empty':
-			return emptyType;
+			return null;
 
 		case 'field':
 			// TODO?
-			return anyType;
+			return _any;
 
 		case 'functionCall': {
 			// TODO provide args types for conditional/generic/derived type?
+			// TODO infer last body expression type for returnType
 			setInferredType(expression.functionReference, scopes);
 			setInferredType(expression.arguments, scopes);
 			const functionType = expression.functionReference.inferredType;
-			if (functionType?.type !== 'functionLiteral') {
+			if (!(functionType instanceof FunctionType)) {
 				// TODO error?
-				return anyType;
+				return _any;
 			}
 			const returnType = functionType.returnType;
-			if (returnType.type !== 'reference') {
+			if (!(returnType instanceof ArgumentReference)) {
 				return returnType;
 			}
 			// evaluate generic ReturnType
 			const argsType = expression.arguments.inferredType!;
+			if (!(argsType instanceof BuiltInTypeBase)) {
+				return _any;
+			}
 			switch (argsType.type) {
 				case 'dictionaryLiteral': {
-					const referenceName = returnType.names[0].name;
+					// TODO dereference nested path
+					const referenceName = returnType.path[0].name;
 					const argType = argsType.fields[referenceName];
 					// TODO error bei unbound ref?
-					return argType ?? anyType;
+					return argType ?? _any;
 				}
 
 				case 'tuple': {
 					// TODO get param index
-					const referenceName = returnType.names[0].name;
+					// TODO dereference nested path
+					const referenceName = returnType.path[0].name;
 					// functionType.parameterType
 					const paramIndex = 0;
 					const argType = argsType.elementTypes[paramIndex];
 					// TODO error bei unbound ref?
-					return argType ?? anyType;
+					return argType ?? _any;
 				}
 
 				case 'list':
 				// TODO?
 
 				default:
-					return anyType;
+					return _any;
 			}
 		}
 
@@ -462,29 +460,28 @@ function inferType(
 				setInferredType(bodyExpression, functionScopes);
 			});
 			// TODO declaredReturnType vs inferredReturnType
-			const inferredReturnType = last(expression.body)?.inferredType ?? emptyType;
-			return {
-				type: 'functionLiteral',
-				parameterType: expression.params.inferredType!,
-				returnType: inferredReturnType,
-			};
+			const inferredReturnType = last(expression.body)?.inferredType ?? null;
+			return new FunctionType(
+				expression.params.inferredType!,
+				inferredReturnType,
+			);
 		}
 
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			setInferredType(expression.params, functionScopes);
+			// TODO argumentReference
 			setInferredType(expression.returnType, functionScopes);
 			const inferredReturnType = expression.returnType.inferredType;
-			if (!inferredReturnType) {
+			if (inferredReturnType === undefined) {
 				console.log(JSON.stringify(expression, undefined, 4));
 				throw new Error('returnType was not inferred');
 			}
-			return {
-				// TODO functionTypeLiteral?
-				type: 'functionLiteral',
-				parameterType: expression.params.inferredType!,
-				returnType: inferredReturnType,
-			};
+			// TODO FunctionTypeLiteral?
+			return new TypeOfType(new FunctionType(
+				expression.params.inferredType!,
+				inferredReturnType,
+			));
 		}
 
 		case 'list':
@@ -492,18 +489,12 @@ function inferType(
 			expression.values.forEach(element => {
 				setInferredType(element, scopes);
 			});
-			return {
-				type: 'tuple',
-				elementTypes: expression.values.map(element => {
-					return element.inferredType!;
-				})
-			};
+			return new TupleType(expression.values.map(element => {
+				return element.inferredType!;
+			}));
 
 		case 'number':
-			return {
-				type: 'numberLiteral',
-				value: expression.value
-			};
+			return expression.value;
 
 		case 'parameter': {
 			if (expression.typeGuard) {
@@ -513,7 +504,7 @@ function inferType(
 				setInferredType(expression.fallback, scopes);
 			}
 			// TODO fallback berücksichtigen?
-			const inferredType = expression.typeGuard?.inferredType ?? anyType;
+			const inferredType = expression.typeGuard?.inferredType ?? _any;
 			// TODO check array type bei spread
 			const currentScope = last(scopes);
 			const parameterName = expression.name.name;
@@ -534,25 +525,22 @@ function inferType(
 				setInferredType(expression.rest, scopes);
 			}
 			// TODO rest in dictionarytype?! oder parameterstype als eigener typ?
-			return {
-				type: 'dictionaryLiteral',
-				fields: toDictionary(
-					expression.singleFields,
-					field =>
-						field.name.name,
-					field =>
-						field.inferredType!
-				),
-			};
+			return new DictionaryLiteralType(toDictionary(
+				expression.singleFields,
+				field =>
+					field.name.name,
+				field =>
+					field.inferredType!
+			));
 		}
 
 		case 'reference': {
 			const referencedSymbol = dereference(expression, scopes);
 			if (!referencedSymbol) {
 				// TODO add 'reference not found' error?
-				return anyType;
+				return _any;
 			}
-			if (!referencedSymbol.normalizedType) {
+			if (referencedSymbol.normalizedType === undefined) {
 				// TODO was wenn referencedsymbol type noch nicht inferred ist?
 				// setInferredType(referencedSymbol)
 				console.log(expression);
@@ -564,7 +552,7 @@ function inferType(
 		case 'string':
 			// TODO string literal type
 			// TODO string template type?
-			return stringType;
+			return _string;
 
 		default: {
 			const assertNever: never = expression;
@@ -729,47 +717,47 @@ function isTypeAssignableTo(valueType: NormalizedType, targetType: NormalizedTyp
 	return false;
 }
 
-function isSubType(superType: NormalizedType, subType: NormalizedType): boolean | 'maybe' {
-	// TODO deepEquals
-	if (superType === subType) {
-		return true;
-	}
-	// TODO non nullable type?
-	// if (subType.type === 'empty') {
-	// 	return true;
-	// }
+// function isSubType(superType: NormalizedType, subType: NormalizedType): boolean | 'maybe' {
+// 	// TODO deepEquals
+// 	if (superType === subType) {
+// 		return true;
+// 	}
+// 	// TODO non nullable type?
+// 	// if (subType.type === 'empty') {
+// 	// 	return true;
+// 	// }
 
-	// TODO subtype predicate?!
-	// TODO bei supertype predicate: literal subtype value checken, sonst false
-	// TODO order maybe bei predicate?
-	switch (superType.type) {
-		case 'any':
-			return true;
+// 	// TODO subtype predicate?!
+// 	// TODO bei supertype predicate: literal subtype value checken, sonst false
+// 	// TODO order maybe bei predicate?
+// 	switch (superType.type) {
+// 		case 'any':
+// 			return true;
 
-		case 'empty':
-			return false;
+// 		case 'empty':
+// 			return false;
 
-		// TODO Or Type contains
-		case 'or': {
-			let result: false | 'maybe' = false;
-			// TODO case subType = orType: check ob alle subType orTypes im superType enthalten sind (via isSubType)
-			for (const orType of superType.orTypes) {
-				const orIsSuperType = isSubType(orType, subType);
-				if (orIsSuperType === true) {
-					return true;
-				}
-				else if (orIsSuperType === 'maybe') {
-					result = 'maybe';
-				}
-			}
-			return result;
-		}
+// 		// TODO Or Type contains
+// 		case 'or': {
+// 			let result: false | 'maybe' = false;
+// 			// TODO case subType = orType: check ob alle subType orTypes im superType enthalten sind (via isSubType)
+// 			for (const orType of superType.orTypes) {
+// 				const orIsSuperType = isSubType(orType, subType);
+// 				if (orIsSuperType === true) {
+// 					return true;
+// 				}
+// 				else if (orIsSuperType === 'maybe') {
+// 					result = 'maybe';
+// 				}
+// 			}
+// 			return result;
+// 		}
 
-		case 'functionLiteral':
-			// TODO check subType.paramType > superType.paramType und subType.returnType < superType.returnType
-			return false;
+// 		case 'functionLiteral':
+// 			// TODO check subType.paramType > superType.paramType und subType.returnType < superType.returnType
+// 			return false;
 
-		default:
-			throw new Error('TODO');
-	}
-}
+// 		default:
+// 			throw new Error('TODO');
+// 	}
+// }

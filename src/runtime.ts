@@ -127,6 +127,10 @@ function isOfType(value: any, type: Type): boolean {
 						// TODO check returntype/paramstype
 						return typeof value === 'function';
 
+					case 'reference':
+						// TODO deref?
+						return true;
+
 					case 'type':
 						// TODO check primitive value (null/boolean/number/string)/builtintype/function
 						// return value === null
@@ -285,7 +289,7 @@ function deepEquals(value1: any, value2: any): boolean {
 
 //#region Types
 
-type Type =
+export type Type =
 	| null
 	| boolean
 	| number
@@ -298,39 +302,40 @@ type Type =
 
 type CustomType = (value: any) => boolean;
 
-type BuiltInType =
+export type BuiltInType =
 	| Any
 	| BooleanType
 	| StringType
 	| Float64
 	| ErrorType
-	| Dictionary
-	| DictionaryLiteral
-	| List
-	| Tuple
+	| DictionaryType
+	| DictionaryLiteralType
+	| ListType
+	| TupleType
 	| StreamType
 	| FunctionType
+	| ArgumentReference
 	| TypeType
 	| IntersectionType
 	| UnionType
 	| TypeOfType
 	;
 
-class BuiltInTypeBase { }
+export class BuiltInTypeBase { }
 
-class Any extends BuiltInTypeBase {
+export class Any extends BuiltInTypeBase {
 	readonly type = 'any';
 }
 
-class BooleanType extends BuiltInTypeBase {
+export class BooleanType extends BuiltInTypeBase {
 	readonly type = 'boolean';
 }
 
-class StringType extends BuiltInTypeBase {
+export class StringType extends BuiltInTypeBase {
 	readonly type = 'string';
 }
 
-class Float64 extends BuiltInTypeBase {
+export class Float64 extends BuiltInTypeBase {
 	readonly type = 'float64';
 }
 
@@ -338,22 +343,22 @@ class ErrorType extends BuiltInTypeBase {
 	readonly type = 'error';
 }
 
-class Dictionary extends BuiltInTypeBase {
+class DictionaryType extends BuiltInTypeBase {
 	constructor(public elementType: Type) { super(); }
 	readonly type = 'dictionary';
 }
 
-class DictionaryLiteral extends BuiltInTypeBase {
+export class DictionaryLiteralType extends BuiltInTypeBase {
 	constructor(public fields: { [key: string]: Type; }) { super(); }
 	readonly type = 'dictionaryLiteral';
 }
 
-class List extends BuiltInTypeBase {
+class ListType extends BuiltInTypeBase {
 	constructor(public elementType: Type) { super(); }
 	readonly type = 'list';
 }
 
-class Tuple extends BuiltInTypeBase {
+export class TupleType extends BuiltInTypeBase {
 	constructor(public elementTypes: Type[]) { super(); }
 	readonly type = 'tuple';
 }
@@ -363,15 +368,47 @@ class StreamType extends BuiltInTypeBase {
 	readonly type = 'stream';
 }
 
-class FunctionType extends BuiltInTypeBase {
+export class FunctionType extends BuiltInTypeBase {
 	constructor(
 		public paramsType: Type,
 		public returnType: Type,
-	) { super(); }
+	) {
+		super();
+		// TODO set functionRef bei params
+		if (returnType instanceof ArgumentReference) {
+			returnType.functionRef = this;
+		}
+	}
 	readonly type = 'function';
 }
 
-class TypeType extends BuiltInTypeBase {
+// TODO Parameter Type ???
+
+
+export class ArgumentReference extends BuiltInTypeBase {
+	constructor(
+		public path: ReferencePath,
+	) { super(); }
+	readonly type = 'reference';
+	/**
+	 * Wird im constructor von FunctionType gesetzt und sollte immer vorhanden sein.
+	 */
+	functionRef?: FunctionType;
+}
+
+export type ReferencePath = [Name, ...(Name | Index)[]];
+
+export interface Name {
+	type: 'name';
+	name: string;
+}
+
+export interface Index {
+	type: 'index';
+	name: number;
+}
+
+export class TypeType extends BuiltInTypeBase {
 	readonly type = 'type';
 }
 
@@ -380,12 +417,12 @@ class IntersectionType extends BuiltInTypeBase {
 	readonly type = 'and';
 }
 
-class UnionType extends BuiltInTypeBase {
+export class UnionType extends BuiltInTypeBase {
 	constructor(public choiceTypes: Type[]) { super(); }
 	readonly type = 'or';
 }
 
-class TypeOfType extends BuiltInTypeBase {
+export class TypeOfType extends BuiltInTypeBase {
 	constructor(public value: any) { super(); }
 	readonly type = 'typeOf';
 }

@@ -482,7 +482,7 @@ function expressionParser(
 		};
 	}
 	if (baseName.type === 'reference' && parsed.assignedValue) {
-		if (baseName.names.length > 1) {
+		if (baseName.path.length > 1) {
 			errors.push({
 				message: 'only single name allowed for definition',
 				startRowIndex: baseName.startRowIndex,
@@ -494,7 +494,7 @@ function expressionParser(
 		const definition: ParseSingleDefinition = {
 			type: 'definition',
 			description: parsed.description,
-			name: baseName.names[0],
+			name: baseName.path[0],
 			typeGuard: parsed.typeGuard,
 			value: parsed.assignedValue,
 			fallback: parsed.fallback,
@@ -770,7 +770,7 @@ function referenceParser(
 		errors: result.errors,
 		parsed: result.parsed && {
 			type: 'reference',
-			names: [
+			path: [
 				result.parsed[0],
 				...(result.parsed[1].map(sequence => {
 					const name = sequence[1];
@@ -1467,7 +1467,7 @@ function functionArgumentsParser(
 			infixFunctionReference: infixFunctionName
 				? {
 					type: 'reference',
-					names: [infixFunctionName],
+					path: [infixFunctionName],
 					startRowIndex: infixFunctionName.startRowIndex,
 					startColumnIndex: infixFunctionName.startColumnIndex,
 					endRowIndex: infixFunctionName.endRowIndex,
@@ -1535,7 +1535,7 @@ function bracketedExpressionToDestructuringFields(
 	bracketedExpression.fields.forEach(baseField => {
 		const baseName = baseField.name;
 		if (baseName.type === 'reference') {
-			if (baseName.names.length > 1) {
+			if (baseName.path.length > 1) {
 				errors.push({
 					message: 'only single name allowed for destruring field',
 					startRowIndex: baseName.startRowIndex,
@@ -1641,10 +1641,10 @@ function checkName(parseName: ParseValueExpressionBase): Name | undefined {
 	if (parseName.type !== 'reference') {
 		return undefined;
 	}
-	if (parseName.names.length > 1) {
+	if (parseName.path.length > 1) {
 		return undefined;
 	}
-	return parseName.names[0];
+	return parseName.path[0];
 }
 
 function baseValueExpressionToValueExpression(
