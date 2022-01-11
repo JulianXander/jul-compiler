@@ -1502,6 +1502,10 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 				return;
 
 			case 'string':
+				if (expressionOrComment.startsWith('region') || expressionOrComment.startsWith('endregion')) {
+					// region comments verwerfen
+					return;
+				}
 				return descriptionComment += '\n' + expressionOrComment;
 
 			case 'undefined':
