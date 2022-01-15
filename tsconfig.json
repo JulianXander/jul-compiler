@@ -3,9 +3,12 @@
     "src/cli.ts",
     // "src/interpreter.ts"
   ],
-  // "include": [
-  //   "src/**/*.ts"
-  // ],
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ],
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig.json to read more about this file */
     /* Basic Options */

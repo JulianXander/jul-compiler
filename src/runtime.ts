@@ -363,7 +363,7 @@ export class TupleType extends BuiltInTypeBase {
 	readonly type = 'tuple';
 }
 
-class StreamType extends BuiltInTypeBase {
+export class StreamType extends BuiltInTypeBase {
 	constructor(public valueType: Type) { super(); }
 	readonly type = 'stream';
 }

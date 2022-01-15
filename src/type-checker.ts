@@ -4,16 +4,21 @@ import { ParserError } from './parser-combinator';
 import {
 	Any,
 	ArgumentReference,
+	BuiltInType,
 	BuiltInTypeBase,
 	DictionaryLiteralType,
 	// EmptyType,
 	FunctionType,
+	StreamType,
 	StringType,
 	TupleType,
 	Type,
 	TypeOfType,
 	UnionType,
 	_any,
+	_boolean,
+	_error,
+	_float64,
 	_string,
 	_type,
 } from './runtime';
@@ -26,6 +31,7 @@ import {
 	ParseDictionaryTypeField,
 	ParseExpression,
 	Reference,
+	StringToken,
 	SymbolDefinition,
 	SymbolTable,
 	TypedExpression,
@@ -44,87 +50,57 @@ import { forEach, last, NonEmptyArray, toDictionary } from './util';
 // 	type: 'string'
 // };
 
-const coreBuiltInSymbols: SymbolTable = {
-	true: {
-		description: 'asdf true',
-		typeExpression: null as any,
-		normalizedType: true,
-		startRowIndex: 162,
-		startColumnIndex: 0,
-		endRowIndex: 162,
-		endColumnIndex: 5,
-	},
-	false: {
-		description: 'asdf false',
-		typeExpression: null as any,
-		normalizedType: false,
-		startRowIndex: 162,
-		startColumnIndex: 0,
-		endRowIndex: 162,
-		endColumnIndex: 5,
-	},
-	Any: {
-		description: 'asdf Any',
-		typeExpression: null as any,
-		normalizedType: new TypeOfType(_any),
-		startRowIndex: 162,
-		startColumnIndex: 0,
-		endRowIndex: 162,
-		endColumnIndex: 5,
-	},
-	Type: {
-		description: 'asdf Type',
-		typeExpression: null as any,
-		normalizedType: new TypeOfType(_type),
-		startRowIndex: 162,
-		startColumnIndex: 0,
-		endRowIndex: 162,
-		endColumnIndex: 5,
-	},
-	nativeFunction: {
-		typeExpression: null as any,
-		normalizedType: new FunctionType(
-			new DictionaryLiteralType({
-				// TODO functionType
-				FunctionType: _any,
-				js: _string
-			}),
-			// TODO?! argumentreference type?
-			new ArgumentReference([{
-				type: 'name',
-				name: 'FunctionType',
-			}]),
-		),
-		description: `Interpretes the given String as js Code and yields the return value,
-assuming the specified type without checking. Make sure the Type fits under all circumstances`,
-		startRowIndex: 162,
-		startColumnIndex: 0,
-		endRowIndex: 162,
-		endColumnIndex: 5,
-	},
-	nativeValue: {
-		typeExpression: null as any,
-		normalizedType: new FunctionType(
-			new DictionaryLiteralType({
-				js: _string
-			}),
-			_any,
-		),
-		description: `TODO nativeValue`,
-		startRowIndex: 162,
-		startColumnIndex: 0,
-		endRowIndex: 162,
-		endColumnIndex: 5,
-	},
+const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
+	true: true,
+	false: false,
+	Any: new TypeOfType(_any),
+	Boolean: new TypeOfType(_boolean),
+	Float64: new TypeOfType(_float64),
+	String: new TypeOfType(_string),
+	Error: new TypeOfType(_error),
+	Stream: new FunctionType(
+		new DictionaryLiteralType({
+			// TODO functionType
+			ValueType: _type,
+		}),
+		new StreamType(new ArgumentReference([{
+			type: 'name',
+			name: 'ValueType',
+		}])),
+	),
+	Type: new TypeOfType(_type),
+	// ValueOf:  new FunctionType(
+	// 		new DictionaryLiteralType({
+	// 			T: _type,
+	// 		}),
+	// 		new ArgumentReference([{
+	// 			type: 'name',
+	// 			name: 'FunctionType',
+	// 		}]),
+	// 	),
+	nativeFunction: new FunctionType(
+		new DictionaryLiteralType({
+			// TODO functionType
+			FunctionType: _any,
+			js: _string
+		}),
+		new ArgumentReference([{
+			type: 'name',
+			name: 'FunctionType',
+		}]),
+	),
+	nativeValue: new FunctionType(
+		new DictionaryLiteralType({
+			js: _string
+		}),
+		_any,
+	),
 };
 
 export const coreLibPath = join(__dirname, '..', '..', 'core-lib.jul');
 const parsedCoreLib = parseFile(coreLibPath);
-inferFileTypes(parsedCoreLib, [coreBuiltInSymbols]);
-const builtInSymbols: SymbolTable = {
-	...parsedCoreLib.symbols,
-	...coreBuiltInSymbols
-};
+inferFileTypes(parsedCoreLib, []);
+const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
 export function dereferenceWithBuiltIns(reference: Reference, scopes: SymbolTable[]): {
 	isBuiltIn: boolean;
@@ -135,10 +111,26 @@ export function dereferenceWithBuiltIns(reference: Reference, scopes: SymbolTabl
 	return findSymbolInScopesWithBuiltIns(name, scopes);
 }
 
-function dereference(reference: Reference, scopes: SymbolTable[]): SymbolDefinition | undefined {
+function dereferenceType(reference: Reference, scopes: SymbolTable[]): Type {
 	// TODO nested ref path
 	const name = reference.path[0].name;
-	return findSymbolInScopes(name, scopes);
+	const coreType = coreBuiltInSymbolTypes[name];
+	if (coreType !== undefined) {
+		return coreType;
+	}
+	const foundSymbol = findSymbolInScopes(name, scopes);
+	if (!foundSymbol) {
+		// TODO add 'reference not found' error?
+		return _any;
+	}
+	const referencedType = foundSymbol.normalizedType;
+	if (referencedType === undefined) {
+		// TODO was wenn referencedsymbol type noch nicht inferred ist?
+		// setInferredType(referencedSymbol)
+		console.log(reference);
+		throw new Error('symbol type was not inferred');
+	}
+	return referencedType;
 }
 
 function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable[]): {
@@ -341,7 +333,7 @@ function inferType(
 
 		case 'definition': {
 			setInferredType(expression.value, scopes);
-			const inferredType = expression.value.inferredType!;
+			const inferredType = coreBuiltInSymbolTypes[expression.name.name] ?? expression.value.inferredType!;
 			const currentScope = last(scopes);
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			// TODO remove checkType, wenn type hier gecheckt wird
@@ -399,48 +391,54 @@ function inferType(
 		case 'functionCall': {
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
-			setInferredType(expression.functionReference, scopes);
+			const functionReference = expression.functionReference;
+			setInferredType(functionReference, scopes);
 			setInferredType(expression.arguments, scopes);
-			const functionType = expression.functionReference.inferredType;
+			const argsType = expression.arguments.inferredType!;
+			// TODO statt functionname functionref value/inferred type prüfen?
+			if (functionReference.path.length === 1) {
+				const functionName = functionReference.path[0].name;
+				switch (functionName) {
+					case 'nativeFunction': {
+						const argumentType = dereferenceArgumentType(argsType, new ArgumentReference([{
+							type: 'name',
+							name: 'FunctionType',
+						}]));
+						return valueOf(argumentType);
+					}
+
+					// case 'nativeValue': {
+					// 	const argumentType = dereferenceArgumentType(argsType, new ArgumentReference([{
+					// 		type: 'name',
+					// 		name: 'js',
+					// 	}]));
+					// 	if (typeof argumentType === 'string') {
+					// 		console.log('stg', argumentType);
+					// 		// const test = (global as any)['_string'];
+					// 		try {
+					// 			const test = eval(argumentType);
+					// 			console.log(test);
+
+					// 		} catch (error) {
+					// 			console.error(error);
+					// 		}
+					// 	}
+					// 	return _any;
+					// }
+
+					default:
+						break;
+				}
+			}
+			const functionType = functionReference.inferredType;
 			if (!(functionType instanceof FunctionType)) {
 				// TODO error?
 				return _any;
 			}
 			const returnType = functionType.returnType;
-			if (!(returnType instanceof ArgumentReference)) {
-				return returnType;
-			}
 			// evaluate generic ReturnType
-			const argsType = expression.arguments.inferredType!;
-			if (!(argsType instanceof BuiltInTypeBase)) {
-				return _any;
-			}
-			switch (argsType.type) {
-				case 'dictionaryLiteral': {
-					// TODO dereference nested path
-					const referenceName = returnType.path[0].name;
-					const argType = argsType.fields[referenceName];
-					// TODO error bei unbound ref?
-					return argType ?? _any;
-				}
-
-				case 'tuple': {
-					// TODO get param index
-					// TODO dereference nested path
-					const referenceName = returnType.path[0].name;
-					// functionType.parameterType
-					const paramIndex = 0;
-					const argType = argsType.elementTypes[paramIndex];
-					// TODO error bei unbound ref?
-					return argType ?? _any;
-				}
-
-				case 'list':
-				// TODO?
-
-				default:
-					return _any;
-			}
+			const dereferencedReturnType = dereferenceArgumentTypesNested(argsType, returnType);
+			return dereferencedReturnType;
 		}
 
 		case 'functionLiteral': {
@@ -456,6 +454,7 @@ function inferType(
 			// TODO declaredReturnType vs inferredReturnType
 			const inferredReturnType = last(expression.body)?.inferredType ?? null;
 			return new FunctionType(
+				// TODO valueOf?
 				expression.params.inferredType!,
 				inferredReturnType,
 			);
@@ -471,10 +470,10 @@ function inferType(
 				console.log(JSON.stringify(expression, undefined, 4));
 				throw new Error('returnType was not inferred');
 			}
-			// TODO FunctionTypeLiteral?
 			return new TypeOfType(new FunctionType(
+				// TODO valueOf bei non Parameters Type?
 				expression.params.inferredType!,
-				inferredReturnType,
+				valueOf(inferredReturnType),
 			));
 		}
 
@@ -498,7 +497,7 @@ function inferType(
 				setInferredType(expression.fallback, scopes);
 			}
 			// TODO fallback berücksichtigen?
-			const inferredType = expression.typeGuard?.inferredType ?? _any;
+			const inferredType = valueOf(expression.typeGuard?.inferredType);
 			// TODO check array type bei spread
 			const currentScope = last(scopes);
 			const parameterName = expression.name.name;
@@ -529,29 +528,82 @@ function inferType(
 		}
 
 		case 'reference': {
-			const referencedSymbol = dereference(expression, scopes);
-			if (!referencedSymbol) {
-				// TODO add 'reference not found' error?
-				return _any;
-			}
-			if (referencedSymbol.normalizedType === undefined) {
-				// TODO was wenn referencedsymbol type noch nicht inferred ist?
-				// setInferredType(referencedSymbol)
-				console.log(expression);
-				throw new Error('symbol type was not inferred');
-			}
-			return referencedSymbol.normalizedType;
+			const referencedType = dereferenceType(expression, scopes);
+			return referencedType;
 		}
 
-		case 'string':
-			// TODO string literal type
+		case 'string': {
 			// TODO string template type?
+			if (expression.values.every((part): part is StringToken => part.type === 'stringToken')) {
+				// string literal type
+				// TODO sollte hier überhaupt mehrelementiger string möglich sein?
+				return expression.values.map(part => part.value).join('\n');
+			}
 			return _string;
+		}
 
 		default: {
 			const assertNever: never = expression;
 			throw new Error(`Unexpected valueExpression.type: ${(assertNever as CheckedValueExpression).type}`);
 		}
+	}
+}
+
+function valueOf(type: Type | undefined): Type {
+	if (type instanceof TypeOfType) {
+		return type.value;
+	}
+	return _any;
+}
+
+function dereferenceArgumentTypesNested(argsType: Type, typeToDereference: Type): Type {
+	if (!(typeToDereference instanceof BuiltInTypeBase)) {
+		return typeToDereference;
+	}
+	const builtInType: BuiltInType = typeToDereference;
+	switch (builtInType.type) {
+		case 'reference':
+			// TODO immer valueOf?
+			return valueOf(dereferenceArgumentType(argsType, builtInType));
+
+		case 'stream':
+			return new StreamType(dereferenceArgumentTypesNested(argsType, builtInType.valueType));
+
+		// TODO
+		default:
+			return builtInType;
+	}
+}
+
+function dereferenceArgumentType(argsType: Type, argumentReference: ArgumentReference): Type | undefined {
+	if (!(argsType instanceof BuiltInTypeBase)) {
+		return undefined;
+	}
+	switch (argsType.type) {
+		case 'dictionaryLiteral': {
+			// TODO dereference nested path
+			const referenceName = argumentReference.path[0].name;
+			const argType = argsType.fields[referenceName];
+			// TODO error bei unbound ref?
+			return argType;
+		}
+
+		case 'tuple': {
+			// TODO get param index
+			// TODO dereference nested path
+			const referenceName = argumentReference.path[0].name;
+			// functionType.parameterType
+			const paramIndex = 0;
+			const argType = argsType.elementTypes[paramIndex];
+			// TODO error bei unbound ref?
+			return argType;
+		}
+
+		case 'list':
+		// TODO?
+
+		default:
+			return argsType;
 	}
 }
 

@@ -1,6 +1,7 @@
 true = nativeValue(§true§)
 false = nativeValue(§false§)
 #region Types
+# TODO split Unknown Type?
 # any value
 Any = nativeValue(§_any§)
 # true or false
@@ -15,7 +16,7 @@ Dictionary = nativeFunction(
 	# TODO ???
 	§x => typeof x === 'object'§
 )
-# data structure containing 1 or more elements of type T
+# data structure containing 1 or more elements of type ElementType
 List = nativeFunction(
 	(ElementType: Type): Type
 	# TODO generic List check
@@ -61,6 +62,12 @@ Or = nativeFunction(
 TypeOf = nativeFunction(
 	(value: Any): Type
 	§value => new TypeOfType(value)§
+)
+# The set of values that is of the given Type
+# The inverse of TypeOf
+ValueOf = nativeFunction(
+	(T: TypeOf(Any)): T/value
+	§T => new ValueOfType(T)§
 )
 #endregion Types
 #region Functions
@@ -149,7 +156,7 @@ runJS = nativeFunction(
 # assuming the specified type without checking. Make sure the Type fits under all circumstances
 nativeFunction = nativeFunction(
 	# (FunctionType: (x: Any): x is (): Any js: String): FunctionType
-	(FunctionType: Type js: String): FunctionType
+	(FunctionType: Type js: String): ValueOf(FunctionType)
 	§[...]§
 )
 # Interpretes the given String as js Code and yields the return value,
