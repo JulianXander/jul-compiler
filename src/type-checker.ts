@@ -64,10 +64,10 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 			// TODO functionType
 			ValueType: _type,
 		}),
-		new StreamType(new ArgumentReference([{
+		new TypeOfType(new StreamType(new ArgumentReference([{
 			type: 'name',
 			name: 'ValueType',
-		}])),
+		}]))),
 	),
 	Type: new TypeOfType(_type),
 	// ValueOf:  new FunctionType(
@@ -551,10 +551,26 @@ function inferType(
 }
 
 function valueOf(type: Type | undefined): Type {
-	if (type instanceof TypeOfType) {
-		return type.value;
+	switch (typeof type) {
+		case 'boolean':
+		case 'string':
+		case 'number':
+			return type;
+
+		case 'object':
+			if (type instanceof BuiltInTypeBase) {
+				if (type instanceof TypeOfType) {
+					return type.value;
+				}
+				// TODO error?
+				return _any;
+			}
+			// null/array/dictionary
+			return type;
+
+		default:
+			return _any;
 	}
-	return _any;
 }
 
 function dereferenceArgumentTypesNested(argsType: Type, typeToDereference: Type): Type {
@@ -569,6 +585,9 @@ function dereferenceArgumentTypesNested(argsType: Type, typeToDereference: Type)
 
 		case 'stream':
 			return new StreamType(dereferenceArgumentTypesNested(argsType, builtInType.valueType));
+
+		case 'typeOf':
+			return new TypeOfType(dereferenceArgumentTypesNested(argsType, builtInType.value));
 
 		// TODO
 		default:
