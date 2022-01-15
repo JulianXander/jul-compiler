@@ -31,6 +31,7 @@ import {
 	ParseDictionaryTypeField,
 	ParseExpression,
 	Reference,
+	ReferencePath,
 	StringToken,
 	SymbolDefinition,
 	SymbolTable,
@@ -102,12 +103,12 @@ const parsedCoreLib = parseFile(coreLibPath);
 inferFileTypes(parsedCoreLib, []);
 const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
-export function dereferenceWithBuiltIns(reference: Reference, scopes: SymbolTable[]): {
+export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable[]): {
 	isBuiltIn: boolean;
 	symbol: SymbolDefinition;
 } | undefined {
 	// TODO nested ref path
-	const name = reference.path[0].name;
+	const name = path[0].name;
 	return findSymbolInScopesWithBuiltIns(name, scopes);
 }
 
