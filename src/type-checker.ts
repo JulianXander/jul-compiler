@@ -82,7 +82,7 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 	nativeFunction: new FunctionType(
 		new DictionaryLiteralType({
 			// TODO functionType
-			FunctionType: _any,
+			FunctionType: _type,
 			js: _string
 		}),
 		new ArgumentReference([{
@@ -101,7 +101,7 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 export const coreLibPath = join(__dirname, '..', '..', 'core-lib.jul');
 const parsedCoreLib = parseFile(coreLibPath);
 inferFileTypes(parsedCoreLib, []);
-const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
+export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
 export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable[]): {
 	isBuiltIn: boolean;
@@ -400,13 +400,13 @@ function inferType(
 			if (functionReference.path.length === 1) {
 				const functionName = functionReference.path[0].name;
 				switch (functionName) {
-					case 'nativeFunction': {
-						const argumentType = dereferenceArgumentType(argsType, new ArgumentReference([{
-							type: 'name',
-							name: 'FunctionType',
-						}]));
-						return valueOf(argumentType);
-					}
+					// case 'nativeFunction': {
+					// 	const argumentType = dereferenceArgumentType(argsType, new ArgumentReference([{
+					// 		type: 'name',
+					// 		name: 'FunctionType',
+					// 	}]));
+					// 	return valueOf(argumentType);
+					// }
 
 					// case 'nativeValue': {
 					// 	const argumentType = dereferenceArgumentType(argsType, new ArgumentReference([{
