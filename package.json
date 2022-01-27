@@ -4,7 +4,8 @@
   "description": "",
   "main": "out/cli.js",
   "scripts": {
-    "build": "npx tsc && copyfiles --flat src/core-lib.jul out && npx tsc --project ../jul-language-server/tsconfig.json && rm -r ../vscode-jul-language-service/out/jul-language-server && rsync -a ../jul-language-server ../vscode-jul-language-service/out --exclude .git",
+    "build": "npx tsc && copyfiles --flat src/core-lib.jul out",
+    "build-all": "npm run build && npx tsc --project ../jul-language-server/tsconfig.json && rimraf ../vscode-jul-language-service/out/jul-language-server && copyfiles -a ../jul-language-server/** ../vscode-jul-language-service/out/out --exclude .git",
     "test": "tsc -p tsconfig.test.json && mocha 'test-setup.js' 'test/**/*.test.js'",
     "cli": "tsc && ts-node src/cli.ts"
   },
