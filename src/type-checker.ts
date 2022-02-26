@@ -103,7 +103,7 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 	),
 };
 
-export const coreLibPath = join(__dirname, '..', '..', 'core-lib.jul');
+export const coreLibPath = join(__dirname, 'core-lib.jul');
 const parsedCoreLib = parseFile(coreLibPath);
 inferFileTypes(parsedCoreLib, [], {}, '');
 export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;

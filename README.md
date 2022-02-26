@@ -1,4 +1,5 @@
 Setup
+npm i (in allen Projekten)
 npm i copyfiles -g
 npm i rimraf -g
 

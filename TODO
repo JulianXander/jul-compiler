@@ -4,3 +4,5 @@
 -virtual document für corelib.jul
 	-https://code.visualstudio.com/api/extension-guides/virtual-documents
 -emitter mit parseExpression statt checkedExpression, checkedExpression entfernen
+-out js files bundlen statt node modules kopieren
+	?npm module publishen?
