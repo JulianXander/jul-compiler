@@ -42,7 +42,7 @@ import {
 } from './syntax-tree';
 import { forEach, last, mapDictionary, NonEmptyArray, toDictionary } from './util';
 
-export type ParsedDocuments = { [documentUri: string]: ParsedFile; };
+export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
 // const anyType: Any = {
 // 	type: 'any'
@@ -858,7 +858,7 @@ export function getPathFromImport(importExpression: ParseFunctionCall): string |
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'stringToken') {
 		const importedPath = pathExpression.values[0].value;
-		return importedPath;
+		return importedPath + '.jul';
 	}
 	// TODO dynamische imports verbieten???
 	return undefined;

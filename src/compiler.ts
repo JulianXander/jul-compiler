@@ -96,7 +96,9 @@ export function getImportedPaths(parsedFile: ParsedFile): string[] {
 				const value = expression.value;
 				if (isImport(value)) {
 					const path = getPathFromImport(value);
-					importedPaths.push(path + '.jul');
+					if (path) {
+						importedPaths.push(path);
+					}
 				}
 				return;
 
