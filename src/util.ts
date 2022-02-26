@@ -56,6 +56,18 @@ export function map<T, U>(
 	return mapped;
 }
 
+export function mapDictionary<T, U>(
+	dictionary: { [key: string]: T; },
+	mapFn: (value: T, key: string) => U,
+): { [key: string]: U; } {
+	const mapped: { [key: string]: U; } = {};
+	for (const key in dictionary) {
+		const element = dictionary[key]!;
+		mapped[key] = (mapFn(element, key));
+	}
+	return mapped;
+}
+
 //#endregion Dictionary
 
 // function mapFn<Args extends any[], Result1, Result2>(

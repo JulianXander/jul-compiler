@@ -1,0 +1,6 @@
+-file system guided intellisense bei import path
+?dateiendung bei import path angeben
+	?json, yaml, js, ts imports
+-virtual document für corelib.jul
+	-https://code.visualstudio.com/api/extension-guides/virtual-documents
+-emitter mit parseExpression statt checkedExpression, checkedExpression entfernen

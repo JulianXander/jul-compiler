@@ -2,9 +2,10 @@ import { writeFileSync, copyFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { webpack } from 'webpack';
 import { checkParseExpressions } from './checker';
-import { syntaxTreeToJs, getPathFromImport, isImport } from './emitter';
+import { syntaxTreeToJs } from './emitter';
 import { parseFile } from './parser';
-import { CheckedExpression } from './syntax-tree';
+import { BracketedExpression, CheckedExpression, ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tree';
+import { getPathFromImport } from './type-checker';
 
 export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true; }): void {
 	console.log(`compiling ${filePath} ...`);
@@ -41,15 +42,15 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	//#region 5. compile dependencies
 	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
 	const compiledFilePathsWithDefault = compiledFilePaths ?? { [filePath]: true };
-	const importedFilePaths = getImportedPaths(syntaxTree);
+	const importedFilePaths = getImportedPaths(parsed);
 	const sourceFolder = dirname(filePath);
 	importedFilePaths.forEach(path => {
-		const combinedPath = join(sourceFolder, path);
-		if (compiledFilePathsWithDefault[combinedPath]) {
+		const fullPath = join(sourceFolder, path);
+		if (compiledFilePathsWithDefault[fullPath]) {
 			return;
 		}
-		compiledFilePathsWithDefault[combinedPath] = true;
-		compileFileToJs(combinedPath, compiledFilePathsWithDefault);
+		compiledFilePathsWithDefault[fullPath] = true;
+		compileFileToJs(fullPath, compiledFilePathsWithDefault);
 	});
 	//#endregion 5. compile dependencies
 
@@ -80,9 +81,11 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 
 }
 
-function getImportedPaths(ast: CheckedExpression[]): string[] {
+//#region import
+
+export function getImportedPaths(parsedFile: ParsedFile): string[] {
 	const importedPaths: string[] = [];
-	ast.forEach(expression => {
+	parsedFile.expressions?.forEach(expression => {
 		switch (expression.type) {
 			case 'functionCall':
 				// TODO impure imports erlauben?
@@ -91,8 +94,7 @@ function getImportedPaths(ast: CheckedExpression[]): string[] {
 			case 'definition':
 			case 'destructuring':
 				const value = expression.value;
-				if (value.type === 'functionCall'
-					&& isImport(value.functionReference)) {
+				if (isImport(value)) {
 					const path = getPathFromImport(value);
 					importedPaths.push(path + '.jul');
 				}
@@ -104,3 +106,14 @@ function getImportedPaths(ast: CheckedExpression[]): string[] {
 	});
 	return importedPaths;
 }
+
+function isImport(expression: ParseValueExpression): expression is ParseFunctionCall {
+	if (expression.type !== 'functionCall') {
+		return false;
+	}
+	const functionReferencePath = expression.functionReference.path;
+	return functionReferencePath.length === 1
+		&& functionReferencePath[0].name === 'import';
+}
+
+//#endregion import

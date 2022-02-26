@@ -23,6 +23,7 @@ import {
 	_type,
 } from './runtime';
 import {
+	BracketedExpression,
 	CheckedValueExpression,
 	// DictionaryLiteralType,
 	NormalizedType,
@@ -30,6 +31,8 @@ import {
 	ParsedFile,
 	ParseDictionaryTypeField,
 	ParseExpression,
+	ParseFunctionCall,
+	ParseValueExpression,
 	Reference,
 	ReferencePath,
 	StringToken,
@@ -37,7 +40,9 @@ import {
 	SymbolTable,
 	TypedExpression,
 } from './syntax-tree';
-import { forEach, last, NonEmptyArray, toDictionary } from './util';
+import { forEach, last, mapDictionary, NonEmptyArray, toDictionary } from './util';
+
+export type ParsedDocuments = { [documentUri: string]: ParsedFile; };
 
 // const anyType: Any = {
 // 	type: 'any'
@@ -100,7 +105,7 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 
 export const coreLibPath = join(__dirname, '..', '..', 'core-lib.jul');
 const parsedCoreLib = parseFile(coreLibPath);
-inferFileTypes(parsedCoreLib, []);
+inferFileTypes(parsedCoreLib, [], {}, '');
 export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
 export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable[]): {
@@ -165,8 +170,12 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefiniti
  * infer types of expressions, normalize typeGuards
  * fills errors
  */
-export function checkTypes(documents: { [documentUri: string]: ParsedFile; }): void {
-	inferFilesTypes(documents);
+export function checkTypes(
+	document: ParsedFile,
+	documents: ParsedDocuments,
+	folder: string,
+): void {
+	inferFileTypes(document, [builtInSymbols], documents, folder);
 	forEach(
 		documents,
 		document => {
@@ -270,36 +279,31 @@ function checkType(expression: ParseExpression, errors: ParserError[]): void {
 	}
 }
 
-// infer types of expressions, normalize typeGuards
-function inferFilesTypes(
-	files: { [documentUri: string]: ParsedFile; },
+function inferFileTypes(
+	file: ParsedFile,
+	scopes: SymbolTable[],
+	parsedDocuments: ParsedDocuments,
+	folder: string,
 ): void {
-	// TODO recurse
-	// TODO check cyclic import
-	for (const uri in files) {
-		const file = files[uri]!;
-		inferFileTypes(file, [builtInSymbols]);
-	}
-}
-
-function inferFileTypes(file: ParsedFile, scopes: SymbolTable[]): void {
 	const scopes2 = [
 		...scopes,
 		file.symbols,
 	] as any as NonEmptyArray<SymbolTable>;
 	file.expressions?.forEach(expression => {
-		setInferredType(expression, scopes2);
+		setInferredType(expression, scopes2, parsedDocuments, folder);
 	});
 }
 
 function setInferredType(
 	expression: TypedExpression,
 	scopes: NonEmptyArray<SymbolTable>,
+	parsedDocuments: ParsedDocuments,
+	folder: string,
 ): void {
 	if (expression.inferredType) {
 		return;
 	}
-	expression.inferredType = inferType(expression, scopes);
+	expression.inferredType = inferType(expression, scopes, parsedDocuments, folder);
 }
 
 // TODO flatten nested or/and
@@ -309,6 +313,8 @@ function setInferredType(
 function inferType(
 	expression: TypedExpression,
 	scopes: NonEmptyArray<SymbolTable>,
+	parsedDocuments: ParsedDocuments,
+	folder: string,
 ): NormalizedType {
 	switch (expression.type) {
 		case 'bracketed':
@@ -318,9 +324,9 @@ function inferType(
 		case 'branching':
 			// union branch return types
 			// TODO conditional type?
-			setInferredType(expression.value, scopes);
+			setInferredType(expression.value, scopes, parsedDocuments, folder);
 			expression.branches.forEach(branch => {
-				setInferredType(branch, scopes);
+				setInferredType(branch, scopes, parsedDocuments, folder);
 			});
 			// TODO normalize (flatten) UnionType, wenn any verodert => return any
 			return new UnionType(expression.branches.map(branch => {
@@ -333,7 +339,7 @@ function inferType(
 			}));
 
 		case 'definition': {
-			setInferredType(expression.value, scopes);
+			setInferredType(expression.value, scopes, parsedDocuments, folder);
 			const inferredType = coreBuiltInSymbolTypes[expression.name.name] ?? expression.value.inferredType!;
 			const currentScope = last(scopes);
 			// TODO typecheck mit typeguard, ggf union mit Error type
@@ -393,13 +399,29 @@ function inferType(
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
 			const functionReference = expression.functionReference;
-			setInferredType(functionReference, scopes);
-			setInferredType(expression.arguments, scopes);
+			setInferredType(functionReference, scopes, parsedDocuments, folder);
+			setInferredType(expression.arguments, scopes, parsedDocuments, folder);
 			const argsType = expression.arguments.inferredType!;
 			// TODO statt functionname functionref value/inferred type prüfen?
 			if (functionReference.path.length === 1) {
 				const functionName = functionReference.path[0].name;
 				switch (functionName) {
+					case 'import': {
+						const importedPath = getPathFromImport(expression);
+						if (!importedPath) {
+							return _any;
+						}
+						// TODO get full path, get type from parsedfile
+						const fullPath = join(folder, importedPath);
+						const importedFile = parsedDocuments[fullPath];
+						if (!importedFile) {
+							return _any;
+						}
+						const importedTypes = mapDictionary(importedFile.symbols, symbol => {
+							return symbol.normalizedType!;
+						});
+						return new DictionaryLiteralType(importedTypes);
+					}
 					// case 'nativeFunction': {
 					// 	const argumentType = dereferenceArgumentType(argsType, new ArgumentReference([{
 					// 		type: 'name',
@@ -444,13 +466,13 @@ function inferType(
 
 		case 'functionLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
-			setInferredType(expression.params, functionScopes);
+			setInferredType(expression.params, functionScopes, parsedDocuments, folder);
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
-				setInferredType(declaredReturnType, functionScopes);
+				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder);
 			}
 			expression.body.forEach(bodyExpression => {
-				setInferredType(bodyExpression, functionScopes);
+				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder);
 			});
 			// TODO declaredReturnType vs inferredReturnType
 			const inferredReturnType = last(expression.body)?.inferredType ?? null;
@@ -463,9 +485,9 @@ function inferType(
 
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
-			setInferredType(expression.params, functionScopes);
+			setInferredType(expression.params, functionScopes, parsedDocuments, folder);
 			// TODO argumentReference
-			setInferredType(expression.returnType, functionScopes);
+			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder);
 			const inferredReturnType = expression.returnType.inferredType;
 			if (inferredReturnType === undefined) {
 				console.log(JSON.stringify(expression, undefined, 4));
@@ -481,7 +503,7 @@ function inferType(
 		case 'list':
 			// TODO spread elements
 			expression.values.forEach(element => {
-				setInferredType(element, scopes);
+				setInferredType(element, scopes, parsedDocuments, folder);
 			});
 			return new TupleType(expression.values.map(element => {
 				return element.inferredType!;
@@ -492,10 +514,10 @@ function inferType(
 
 		case 'parameter': {
 			if (expression.typeGuard) {
-				setInferredType(expression.typeGuard, scopes);
+				setInferredType(expression.typeGuard, scopes, parsedDocuments, folder);
 			}
 			if (expression.fallback) {
-				setInferredType(expression.fallback, scopes);
+				setInferredType(expression.fallback, scopes, parsedDocuments, folder);
 			}
 			// TODO fallback berücksichtigen?
 			const inferredType = valueOf(expression.typeGuard?.inferredType);
@@ -513,10 +535,10 @@ function inferType(
 
 		case 'parameters': {
 			expression.singleFields.forEach(field => {
-				setInferredType(field, scopes);
+				setInferredType(field, scopes, parsedDocuments, folder);
 			});
 			if (expression.rest) {
-				setInferredType(expression.rest, scopes);
+				setInferredType(expression.rest, scopes, parsedDocuments, folder);
 			}
 			// TODO rest in dictionarytype?! oder parameterstype als eigener typ?
 			return new DictionaryLiteralType(toDictionary(
@@ -827,3 +849,39 @@ function isTypeAssignableTo(valueType: NormalizedType, targetType: NormalizedTyp
 // 			throw new Error('TODO');
 // 	}
 // }
+
+//#region import
+
+export function getPathFromImport(importExpression: ParseFunctionCall): string | undefined {
+	const pathExpression = getPathExpression(importExpression.arguments);
+	if (pathExpression?.type === 'string'
+		&& pathExpression.values.length === 1
+		&& pathExpression.values[0]!.type === 'stringToken') {
+		const importedPath = pathExpression.values[0].value;
+		return importedPath;
+	}
+	// TODO dynamische imports verbieten???
+	return undefined;
+}
+
+function getPathExpression(importParams: BracketedExpression): ParseValueExpression | undefined {
+	switch (importParams.type) {
+		case 'dictionary':
+			return importParams.fields[0].value;
+
+		case 'bracketed':
+		case 'dictionaryType':
+		case 'empty':
+			return undefined;
+
+		case 'list':
+			return importParams.values[0];
+
+		default: {
+			const assertNever: never = importParams;
+			throw new Error(`Unexpected importParams.type: ${(assertNever as BracketedExpression).type}`);
+		}
+	}
+}
+
+//#endregion import
