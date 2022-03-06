@@ -1,4 +1,5 @@
--debug type checker mit boolean vgl test2.jul
+-fix type checker mit boolean vgl test2.jul
+	-typeof typeguard?
 -file system guided intellisense bei import path
 ?dateiendung bei import path angeben
 	?json, yaml, js, ts imports

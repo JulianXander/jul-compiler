@@ -189,6 +189,7 @@ export function checkTypes(
 }
 
 /**
+ * TODO remove, in setInferredType integrieren
  * füllt errors
  */
 function checkType(expression: ParseExpression, errors: ParserError[]): void {
@@ -201,11 +202,12 @@ function checkType(expression: ParseExpression, errors: ParserError[]): void {
 			return;
 
 		case 'definition': {
-			if (!expression.typeGuard) {
+			const typeGuard = expression.typeGuard;
+			if (!typeGuard) {
 				return;
 			}
 			// TODO error structure??nested errors?
-			const error = isTypeAssignableTo(expression.inferredType!, expression.normalizedTypeGuard!);
+			const error = isTypeAssignableTo(expression.inferredType!, typeGuard.inferredType!);
 			if (error) {
 				errors.push({
 					message: 'Can not assign due to type mismatch.\n' + error,
@@ -346,8 +348,11 @@ function inferType(
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			// TODO remove checkType, wenn type hier gecheckt wird
 			currentScope[expression.name.name]!.normalizedType = inferredType;
-			if (expression.typeGuard) {
+			const typeGuard = expression.typeGuard;
+			if (typeGuard) {
+				setInferredType(typeGuard, scopes, parsedDocuments, folder);
 				// TODO fix normalizeType
+				// expression.normalizedTypeGuard = typeGuard.inferredType
 				// valueExpression.normalizedTypeGuard = normalizeType(valueExpression.typeGuard);
 			}
 			return inferredType;
