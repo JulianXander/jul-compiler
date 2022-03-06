@@ -289,6 +289,7 @@ export interface Index extends Positioned {
 
 //#region NormalizedType
 
+// TODO remove NormalizedType, replace with Type?
 export type NormalizedType = Type;
 // | Type
 // | BooleanLiteralType

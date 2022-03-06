@@ -16,6 +16,8 @@ export interface ParserResult<T> {
 export interface ParserError extends Positioned {
 	message: string;
 	// TODO isFatal?
+	// TODO type: 'semantic'? | 'syntax' | 'type';?
+	// TODO id/number/code: number;?
 }
 
 export interface Positioned {

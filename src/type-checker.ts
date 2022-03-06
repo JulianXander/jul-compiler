@@ -6,6 +6,7 @@ import {
 	ArgumentReference,
 	BuiltInType,
 	BuiltInTypeBase,
+	deepEquals,
 	DictionaryLiteralType,
 	// EmptyType,
 	FunctionType,
@@ -40,7 +41,7 @@ import {
 	SymbolTable,
 	TypedExpression,
 } from './syntax-tree';
-import { forEach, last, mapDictionary, NonEmptyArray, toDictionary } from './util';
+import { forEach, last, map, mapDictionary, NonEmptyArray, toDictionary } from './util';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -207,7 +208,7 @@ function checkType(expression: ParseExpression, errors: ParserError[]): void {
 			const error = isTypeAssignableTo(expression.inferredType!, expression.normalizedTypeGuard!);
 			if (error) {
 				errors.push({
-					message: 'Can not assign due to type mismatch',
+					message: 'Can not assign due to type mismatch.\n' + error,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,
@@ -801,8 +802,85 @@ function dereferenceArgumentType(argsType: Type, argumentReference: ArgumentRefe
 // }
 
 // TODO return true/false = always/never, sometimes/maybe?
-function isTypeAssignableTo(valueType: NormalizedType, targetType: NormalizedType): boolean | 'maybe' {
-	return false;
+function isTypeAssignableTo(valueType: NormalizedType, targetType: NormalizedType): string | undefined {
+	const typeError = getTypeError(valueType, targetType);
+	if (typeof typeError === 'object') {
+		return typeErrorToString(typeError);
+	}
+	return undefined;
+}
+
+function getTypeError(valueType: NormalizedType, targetType: NormalizedType): TypeError | undefined {
+	if (targetType === _any) {
+		return undefined;
+	}
+	if (valueType === _any) {
+		// TODO error/warning bei any?
+		// error type bei assignment/function call?
+		// maybe return value?
+		return undefined;
+	}
+	if (deepEquals(valueType, targetType)) {
+		return undefined;
+	}
+	// TODO generic types (customType, union/intersection, ...?)
+	switch (typeof targetType) {
+		case 'boolean':
+			// true/false literal type
+			switch (typeof valueType) {
+				case 'object':
+					if (valueType instanceof BuiltInTypeBase) {
+						switch (valueType.type) {
+							case 'boolean':
+								// TODO return maybe?
+								return undefined;
+
+							default:
+								break;
+						}
+					}
+					break;
+
+				default:
+					break;
+			}
+			break;
+
+		case 'object':
+			if (targetType instanceof BuiltInTypeBase) {
+				switch (targetType.type) {
+					case 'boolean':
+						switch (typeof valueType) {
+							case 'boolean':
+								return undefined;
+
+							default:
+								break;
+						}
+						break;
+
+					default:
+						break;
+				}
+			}
+			break;
+
+		default:
+			break;
+	}
+	return { message: `Can not assign ${typeToString(valueType, 0)} to ${typeToString(targetType, 0)}.` };
+}
+
+interface TypeError {
+	message: string;
+	innerError?: TypeError;
+}
+
+function typeErrorToString(typeError: TypeError): string {
+	if (typeError.innerError) {
+		return typeErrorToString(typeError.innerError) + '\n' + typeError.message;
+	}
+	return typeError.message;
 }
 
 // function isSubType(superType: NormalizedType, subType: NormalizedType): boolean | 'maybe' {
@@ -885,3 +963,147 @@ function getPathExpression(importParams: BracketedExpression): ParseValueExpress
 }
 
 //#endregion import
+
+//#region ToString
+
+export function typeToString(type: Type, indent: number): string {
+	switch (typeof type) {
+		case 'string':
+			return `§${type.replaceAll('§', '§§')}§`;
+
+		case 'boolean':
+		case 'number':
+			return type.toString();
+
+		case 'object': {
+			if (type === null) {
+				return '()';
+			}
+			if (Array.isArray(type)) {
+				return arrayTypeToString(type, indent);
+			}
+			if (type instanceof BuiltInTypeBase) {
+				const builtInType: BuiltInType = type;
+				switch (builtInType.type) {
+					case 'and':
+						return `And${arrayTypeToString(builtInType.choiceTypes, indent)}`;
+
+					case 'any':
+						return 'Any';
+
+					case 'boolean':
+						return 'Boolean';
+
+					case 'dictionary':
+						return `Dictionary(${typeToString(builtInType.elementType, indent)})`;
+
+					case 'dictionaryLiteral':
+						return dictionaryTypeToString(builtInType.fields, ': ', indent);
+
+					case 'error':
+						return 'Error';
+
+					case 'float64':
+						return 'Float64';
+
+					case 'function':
+						return `${typeToString(builtInType.paramsType, indent)} => ${typeToString(builtInType.returnType, indent)}`;
+
+					case 'list':
+						return `List(${typeToString(builtInType.elementType, indent)})`;
+
+					case 'or':
+						return `Or${arrayTypeToString(builtInType.choiceTypes, indent)}`;
+
+					case 'reference':
+						return builtInType.path.map(pathSegment => {
+							return pathSegment.name;
+						}).join('/');
+
+					case 'stream':
+						return `Stream(${typeToString(builtInType.valueType, indent)})`;
+
+					case 'string':
+						return 'String';
+
+					case 'tuple':
+						return arrayTypeToString(builtInType.elementTypes, indent);
+
+					case 'type':
+						return 'Type';
+
+					case 'typeOf':
+						return `TypeOf(${typeToString(builtInType.value, indent)})`;
+
+					default: {
+						const assertNever: never = builtInType;
+						throw new Error(`Unexpected BuiltInType ${(builtInType as BuiltInType).type}`);
+					}
+				}
+			}
+			// Dictionary
+			return dictionaryTypeToString(type, ' = ', indent);
+		}
+
+
+		default:
+			throw new Error(`Unexpected type ${typeof type}`);
+	}
+}
+
+const maxElementsPerLine = 5;
+function arrayTypeToString(
+	array: Type[],
+	indent: number,
+): string {
+	const multiline = array.length > maxElementsPerLine;
+	const newIndent = multiline
+		? indent + 1
+		: indent;
+	return bracketedExpressionToString(
+		array.map(element =>
+			typeToString(element, newIndent)),
+		multiline,
+		newIndent);
+}
+
+function dictionaryTypeToString(
+	dictionary: { [key: string]: Type; },
+	nameSeparator: string,
+	indent: number,
+): string {
+	const multiline = Object.keys(dictionary).length > 1;
+	const newIndent = multiline
+		? indent + 1
+		: indent;
+	return bracketedExpressionToString(
+		map(
+			dictionary,
+			(element, key) => {
+				return `${key}${nameSeparator}${typeToString(element, newIndent)}`;
+			}),
+		multiline,
+		newIndent);
+}
+
+function bracketedExpressionToString(
+	elements: string[],
+	multiline: boolean,
+	indent: number,
+): string {
+	const indentString = '\t'.repeat(indent);
+	const elementsWithIndent = multiline
+		? elements.map(element => {
+			return `${indentString}${element}`;
+		})
+		: elements;
+	const bracketSeparator = multiline
+		? '\n'
+		: '';
+	const elementSeparator = multiline
+		? '\n'
+		: ' ';
+	return `(${bracketSeparator}${elementsWithIndent.join(elementSeparator)}${bracketSeparator})`;
+}
+
+//#endregion ToString

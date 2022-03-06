@@ -234,7 +234,7 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 
 // TODO toString
 
-function deepEquals(value1: any, value2: any): boolean {
+export function deepEquals(value1: any, value2: any): boolean {
 	const type1 = typeof value1;
 	if (type1 !== typeof value2) {
 		return false;
