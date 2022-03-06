@@ -257,7 +257,7 @@ function inferType(
 				// expression.normalizedTypeGuard = typeGuard.inferredType
 				// valueExpression.normalizedTypeGuard = normalizeType(valueExpression.typeGuard);
 
-				const error = isTypeAssignableTo(expression.inferredType!, typeGuard.inferredType!);
+				const error = isTypeAssignableTo(inferredType, typeGuard.inferredType!);
 				if (error) {
 					errors.push({
 						message: error,
