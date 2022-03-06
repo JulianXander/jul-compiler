@@ -177,109 +177,6 @@ export function checkTypes(
 	folder: string,
 ): void {
 	inferFileTypes(document, [builtInSymbols], documents, folder);
-	forEach(
-		documents,
-		document => {
-
-			const { errors, expressions } = document;
-			expressions?.forEach(expression => {
-				checkType(expression, errors);
-			});
-		});
-}
-
-/**
- * TODO remove, in setInferredType integrieren
- * füllt errors
- */
-function checkType(expression: ParseExpression, errors: ParserError[]): void {
-	switch (expression.type) {
-		case 'bracketed':
-			return;
-
-		case 'branching':
-			// TODO check branches recursively
-			return;
-
-		case 'definition': {
-			const typeGuard = expression.typeGuard;
-			if (!typeGuard) {
-				return;
-			}
-			// TODO error structure??nested errors?
-			const error = isTypeAssignableTo(expression.inferredType!, typeGuard.inferredType!);
-			if (error) {
-				errors.push({
-					message: 'Can not assign due to type mismatch.\n' + error,
-					startRowIndex: expression.startRowIndex,
-					startColumnIndex: expression.startColumnIndex,
-					endRowIndex: expression.endRowIndex,
-					endColumnIndex: expression.endColumnIndex,
-				});
-			}
-			return;
-		}
-
-		case 'destructuring':
-			// TODO check typeguards
-			expression.fields.fields.forEach(field => {
-				if (field.typeGuard) {
-					// check value, check fallback?
-				}
-			});
-			return;
-
-		case 'dictionary':
-			// TODO
-			return;
-
-		case 'dictionaryType':
-			// TODO?
-			return;
-
-		case 'empty':
-			return;
-
-		case 'field':
-			return;
-
-		case 'functionCall':
-			// TODO check args
-			return;
-
-		case 'functionLiteral':
-			// TODO check inferred return type vs declared return type
-			return;
-
-		case 'functionTypeLiteral':
-			// TODO?
-			return;
-
-		case 'list':
-			// TODO?
-			return;
-
-		case 'number':
-			return;
-
-		case 'reference':
-			return;
-
-		case 'string':
-			// check nested expressions
-			expression.values.forEach(value => {
-				if (value.type === 'stringToken') {
-					return;
-				}
-				checkType(value, errors);
-			});
-			return;
-
-		default: {
-			const assertNever: never = expression;
-			throw new Error(`Unexpected expression.type: ${(assertNever as ParseExpression).type}`);
-		}
-	}
 }
 
 function inferFileTypes(
@@ -293,7 +190,7 @@ function inferFileTypes(
 		file.symbols,
 	] as any as NonEmptyArray<SymbolTable>;
 	file.expressions?.forEach(expression => {
-		setInferredType(expression, scopes2, parsedDocuments, folder);
+		setInferredType(expression, scopes2, parsedDocuments, folder, file);
 	});
 }
 
@@ -302,23 +199,29 @@ function setInferredType(
 	scopes: NonEmptyArray<SymbolTable>,
 	parsedDocuments: ParsedDocuments,
 	folder: string,
+	file: ParsedFile,
 ): void {
 	if (expression.inferredType) {
 		return;
 	}
-	expression.inferredType = inferType(expression, scopes, parsedDocuments, folder);
+	expression.inferredType = inferType(expression, scopes, parsedDocuments, folder, file);
 }
 
 // TODO flatten nested or/and
 // TODO distribute and>or nesting chain
 // TODO merge dictionaries bei and, spread
 // TODO resolve dereferences
+/**
+ * Füllt errors
+ */
 function inferType(
 	expression: TypedExpression,
 	scopes: NonEmptyArray<SymbolTable>,
 	parsedDocuments: ParsedDocuments,
 	folder: string,
+	file: ParsedFile,
 ): NormalizedType {
+	const errors = file.errors;
 	switch (expression.type) {
 		case 'bracketed':
 			// TODO?
@@ -327,9 +230,9 @@ function inferType(
 		case 'branching':
 			// union branch return types
 			// TODO conditional type?
-			setInferredType(expression.value, scopes, parsedDocuments, folder);
+			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
 			expression.branches.forEach(branch => {
-				setInferredType(branch, scopes, parsedDocuments, folder);
+				setInferredType(branch, scopes, parsedDocuments, folder, file);
 			});
 			// TODO normalize (flatten) UnionType, wenn any verodert => return any
 			return new UnionType(expression.branches.map(branch => {
@@ -342,24 +245,40 @@ function inferType(
 			}));
 
 		case 'definition': {
-			setInferredType(expression.value, scopes, parsedDocuments, folder);
+			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
 			const inferredType = coreBuiltInSymbolTypes[expression.name.name] ?? expression.value.inferredType!;
 			const currentScope = last(scopes);
 			// TODO typecheck mit typeguard, ggf union mit Error type
-			// TODO remove checkType, wenn type hier gecheckt wird
 			currentScope[expression.name.name]!.normalizedType = inferredType;
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
-				setInferredType(typeGuard, scopes, parsedDocuments, folder);
+				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
 				// TODO fix normalizeType
 				// expression.normalizedTypeGuard = typeGuard.inferredType
 				// valueExpression.normalizedTypeGuard = normalizeType(valueExpression.typeGuard);
+
+				const error = isTypeAssignableTo(expression.inferredType!, typeGuard.inferredType!);
+				if (error) {
+					errors.push({
+						message: error,
+						startRowIndex: expression.startRowIndex,
+						startColumnIndex: expression.startColumnIndex,
+						endRowIndex: expression.endRowIndex,
+						endColumnIndex: expression.endColumnIndex,
+					});
+				}
 			}
 			return inferredType;
 		}
 
 		case 'destructuring':
 			// TODO?
+			// TODO check typeguards
+			expression.fields.fields.forEach(field => {
+				if (field.typeGuard) {
+					// check value, check fallback?
+				}
+			});
 			return _any;
 
 		case 'dictionary':
@@ -405,8 +324,8 @@ function inferType(
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
 			const functionReference = expression.functionReference;
-			setInferredType(functionReference, scopes, parsedDocuments, folder);
-			setInferredType(expression.arguments, scopes, parsedDocuments, folder);
+			setInferredType(functionReference, scopes, parsedDocuments, folder, file);
+			setInferredType(expression.arguments, scopes, parsedDocuments, folder, file);
 			const argsType = expression.arguments.inferredType!;
 			// TODO statt functionname functionref value/inferred type prüfen?
 			if (functionReference.path.length === 1) {
@@ -472,13 +391,13 @@ function inferType(
 
 		case 'functionLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
-			setInferredType(expression.params, functionScopes, parsedDocuments, folder);
+			setInferredType(expression.params, functionScopes, parsedDocuments, folder, file);
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
-				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder);
+				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
 			}
 			expression.body.forEach(bodyExpression => {
-				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder);
+				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
 			});
 			// TODO declaredReturnType vs inferredReturnType
 			const inferredReturnType = last(expression.body)?.inferredType ?? null;
@@ -491,9 +410,9 @@ function inferType(
 
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
-			setInferredType(expression.params, functionScopes, parsedDocuments, folder);
+			setInferredType(expression.params, functionScopes, parsedDocuments, folder, file);
 			// TODO argumentReference
-			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder);
+			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file);
 			const inferredReturnType = expression.returnType.inferredType;
 			if (inferredReturnType === undefined) {
 				console.log(JSON.stringify(expression, undefined, 4));
@@ -509,7 +428,7 @@ function inferType(
 		case 'list':
 			// TODO spread elements
 			expression.values.forEach(element => {
-				setInferredType(element, scopes, parsedDocuments, folder);
+				setInferredType(element, scopes, parsedDocuments, folder, file);
 			});
 			return new TupleType(expression.values.map(element => {
 				return element.inferredType!;
@@ -520,10 +439,10 @@ function inferType(
 
 		case 'parameter': {
 			if (expression.typeGuard) {
-				setInferredType(expression.typeGuard, scopes, parsedDocuments, folder);
+				setInferredType(expression.typeGuard, scopes, parsedDocuments, folder, file);
 			}
 			if (expression.fallback) {
-				setInferredType(expression.fallback, scopes, parsedDocuments, folder);
+				setInferredType(expression.fallback, scopes, parsedDocuments, folder, file);
 			}
 			// TODO fallback berücksichtigen?
 			const inferredType = valueOf(expression.typeGuard?.inferredType);
@@ -541,10 +460,10 @@ function inferType(
 
 		case 'parameters': {
 			expression.singleFields.forEach(field => {
-				setInferredType(field, scopes, parsedDocuments, folder);
+				setInferredType(field, scopes, parsedDocuments, folder, file);
 			});
 			if (expression.rest) {
-				setInferredType(expression.rest, scopes, parsedDocuments, folder);
+				setInferredType(expression.rest, scopes, parsedDocuments, folder, file);
 			}
 			// TODO rest in dictionarytype?! oder parameterstype als eigener typ?
 			return new DictionaryLiteralType(toDictionary(
