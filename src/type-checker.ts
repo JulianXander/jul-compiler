@@ -782,6 +782,26 @@ function getTypeError(valueType: Type, targetType: Type): TypeError | undefined 
 						}
 						break;
 
+					case 'float64':
+						switch (typeof valueType) {
+							case 'number':
+								return undefined;
+
+							default:
+								break;
+						}
+						break;
+
+					case 'string':
+						switch (typeof valueType) {
+							case 'string':
+								return undefined;
+
+							default:
+								break;
+						}
+						break;
+
 					default:
 						break;
 				}
