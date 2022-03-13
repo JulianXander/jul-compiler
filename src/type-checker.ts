@@ -27,7 +27,6 @@ import {
 	BracketedExpression,
 	CheckedValueExpression,
 	// DictionaryLiteralType,
-	NormalizedType,
 	ObjectLiteral,
 	ParsedFile,
 	ParseDictionaryTypeField,
@@ -220,7 +219,7 @@ function inferType(
 	parsedDocuments: ParsedDocuments,
 	folder: string,
 	file: ParsedFile,
-): NormalizedType {
+): Type {
 	const errors = file.errors;
 	switch (expression.type) {
 		case 'bracketed':
@@ -578,7 +577,7 @@ function dereferenceArgumentType(argsType: Type, argumentReference: ArgumentRefe
 // TODO distribute and>or nesting chain
 // TODO merge dictionaries bei and, spread
 // TODO resolve dereferences
-// function normalizeType(typeExpression: CheckedValueExpression): NormalizedType {
+// function normalizeType(typeExpression: CheckedValueExpression): Type {
 // 	switch (typeExpression.type) {
 
 // 		case 'branching':
@@ -726,15 +725,15 @@ function dereferenceArgumentType(argsType: Type, argumentReference: ArgumentRefe
 // }
 
 // TODO return true/false = always/never, sometimes/maybe?
-function isTypeAssignableTo(valueType: NormalizedType, targetType: NormalizedType): string | undefined {
-	const typeError = getTypeError(valueType, targetType);
+function isTypeAssignableTo(valueType: Type, typeType: Type): string | undefined {
+	const typeError = getTypeError(valueType, valueOf(typeType));
 	if (typeof typeError === 'object') {
 		return typeErrorToString(typeError);
 	}
 	return undefined;
 }
 
-function getTypeError(valueType: NormalizedType, targetType: NormalizedType): TypeError | undefined {
+function getTypeError(valueType: Type, targetType: Type): TypeError | undefined {
 	if (targetType === _any) {
 		return undefined;
 	}
@@ -807,7 +806,7 @@ function typeErrorToString(typeError: TypeError): string {
 	return typeError.message;
 }
 
-// function isSubType(superType: NormalizedType, subType: NormalizedType): boolean | 'maybe' {
+// function isSubType(superType: Type, subType: Type): boolean | 'maybe' {
 // 	// TODO deepEquals
 // 	if (superType === subType) {
 // 		return true;

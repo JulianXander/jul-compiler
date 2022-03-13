@@ -18,7 +18,7 @@ export interface SymbolDefinition extends Positioned {
 	description?: string;
 	typeExpression: ParseValueExpression;
 	// TODO inferred type aus dem value? oder normalize typeguard?
-	normalizedType?: NormalizedType;
+	normalizedType?: Type;
 }
 
 export type ParseExpression =
@@ -73,7 +73,7 @@ export type TypedExpression =
 
 // TODO beil allen parseExpression oder nur bei value expressions?
 interface ParseExpressionBase extends Positioned {
-	inferredType?: NormalizedType;
+	inferredType?: Type;
 }
 
 export interface ParseSingleDefinition extends ParseExpressionBase {
@@ -82,10 +82,10 @@ export interface ParseSingleDefinition extends ParseExpressionBase {
 	// TODO spread?
 	name: Name;
 	typeGuard?: ParseValueExpression;
-	normalizedTypeGuard?: NormalizedType;
+	normalizedTypeGuard?: Type;
 	value: ParseValueExpression;
 	fallback?: ParseValueExpression;
-	inferredType?: NormalizedType;
+	inferredType?: Type;
 }
 
 export interface ParseDestructuringDefinition extends ParseExpressionBase {
@@ -286,93 +286,6 @@ export interface Index extends Positioned {
 	type: 'index';
 	name: number;
 }
-
-//#region NormalizedType
-
-// TODO remove NormalizedType, replace with Type?
-export type NormalizedType = Type;
-// | Type
-// | BooleanLiteralType
-// | StringLiteralType
-// | NumberLiteralType
-// // | DictionaryLiteralType
-// | FunctionLiteralType
-// | ArgumentReference
-// | ListType
-// | TupleType
-// // TODO? | DictionaryType
-// | StreamType
-// | UnionType
-// | IntersectionType
-// // TODO? | ParametersType oder stattdessen einfach dictionarytype?
-// | PredicateType
-// ;
-
-interface BooleanLiteralType {
-	type: 'booleanLiteral';
-	value: boolean;
-}
-
-interface StringLiteralType {
-	type: 'stringLiteral';
-	value: string;
-}
-
-interface NumberLiteralType {
-	type: 'numberLiteral';
-	value: number;
-}
-
-// export interface DictionaryLiteralType {
-// 	type: 'dictionaryLiteral';
-// 	fields: { [key: string]: NormalizedType; };
-// }
-
-interface FunctionLiteralType {
-	type: 'functionLiteral';
-	// TODO generic return type? parameters type ref auf anderen, fallbacks
-	parameterType: NormalizedType;
-	returnType: NormalizedType;
-}
-
-// TODO NormalizedReference? ArgumentReference? erstmal nur für generische Funktionen
-interface ArgumentReference {
-	type: 'reference';
-	// TODO names ohne position?
-	names: ReferencePath;
-}
-
-interface StreamType {
-	type: 'stream';
-	valueType: NormalizedType;
-}
-
-interface ListType {
-	type: 'list';
-	elementType: NormalizedType;
-}
-
-interface TupleType {
-	type: 'tuple';
-	elementTypes: NormalizedType[];
-}
-
-export interface UnionType {
-	type: 'or';
-	orTypes: NormalizedType[];
-}
-
-interface IntersectionType {
-	type: 'and';
-	andTypes: NormalizedType[];
-}
-
-interface PredicateType {
-	type: 'predicate';
-	predicate: (x: any) => boolean;
-}
-
-//#endregion NormalizedType
 
 //#endregion ParseTree
 
