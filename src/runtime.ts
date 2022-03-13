@@ -412,7 +412,7 @@ export class TypeType extends BuiltInTypeBase {
 	readonly type = 'type';
 }
 
-class IntersectionType extends BuiltInTypeBase {
+export class IntersectionType extends BuiltInTypeBase {
 	constructor(public choiceTypes: Type[]) { super(); }
 	readonly type = 'and';
 }

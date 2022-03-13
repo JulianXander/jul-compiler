@@ -10,6 +10,7 @@ import {
 	DictionaryLiteralType,
 	// EmptyType,
 	FunctionType,
+	IntersectionType,
 	StreamType,
 	StringType,
 	TupleType,
@@ -40,7 +41,7 @@ import {
 	SymbolTable,
 	TypedExpression,
 } from './syntax-tree';
-import { forEach, last, map, mapDictionary, NonEmptyArray, toDictionary } from './util';
+import { forEach, isDefined, last, map, mapDictionary, NonEmptyArray, toDictionary } from './util';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -84,6 +85,13 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 	// 			name: 'FunctionType',
 	// 		}]),
 	// 	),
+	// TODO And
+	// TODO hier? oder customlogik case in inferType?
+	// Or: new FunctionType(
+	// 	// TODO rest args type?
+	// 	,
+	// 	new UnionType(),
+	// ),
 	nativeFunction: new FunctionType(
 		new DictionaryLiteralType({
 			// TODO functionType
@@ -372,6 +380,24 @@ function inferType(
 					// 	}
 					// 	return _any;
 					// }
+
+					case 'And': {
+						//TODO andere array args types?
+						if (!(argsType instanceof TupleType)) {
+							// TODO error?
+							return _any;
+						}
+						return new TypeOfType(new IntersectionType(argsType.elementTypes));
+					}
+
+					case 'Or': {
+						//TODO andere array args types?
+						if (!(argsType instanceof TupleType)) {
+							// TODO error?
+							return _any;
+						}
+						return new TypeOfType(new UnionType(argsType.elementTypes));
+					}
 
 					default:
 						break;
@@ -748,26 +774,26 @@ function getTypeError(valueType: Type, targetType: Type): TypeError | undefined 
 	}
 	// TODO generic types (customType, union/intersection, ...?)
 	switch (typeof targetType) {
-		case 'boolean':
-			// true/false literal type
-			switch (typeof valueType) {
-				case 'object':
-					if (valueType instanceof BuiltInTypeBase) {
-						switch (valueType.type) {
-							case 'boolean':
-								// TODO return maybe?
-								return undefined;
+		// case 'boolean':
+		// 	// true/false literal type
+		// 	switch (typeof valueType) {
+		// 		case 'object':
+		// 			if (valueType instanceof BuiltInTypeBase) {
+		// 				switch (valueType.type) {
+		// 					case 'boolean':
+		// 						// TODO return maybe?
+		// 						return undefined;
 
-							default:
-								break;
-						}
-					}
-					break;
+		// 					default:
+		// 						break;
+		// 				}
+		// 			}
+		// 			break;
 
-				default:
-					break;
-			}
-			break;
+		// 		default:
+		// 			break;
+		// 	}
+		// 	break;
 
 		case 'object':
 			if (targetType instanceof BuiltInTypeBase) {
@@ -801,6 +827,32 @@ function getTypeError(valueType: Type, targetType: Type): TypeError | undefined 
 								break;
 						}
 						break;
+
+					case 'and': {
+						const subErrors = targetType.choiceTypes.map(choiceType =>
+							getTypeError(valueType, choiceType)).filter(isDefined);
+						if (!subErrors.length) {
+							return undefined;
+						}
+						return {
+							// TODO error struktur überdenken
+							message: subErrors.map(typeErrorToString).join('\n'),
+							// innerError
+						};
+					}
+
+					case 'or': {
+						const subErrors = targetType.choiceTypes.map(choiceType =>
+							getTypeError(valueType, choiceType));
+						if (subErrors.every(isDefined)) {
+							return {
+								// TODO error struktur überdenken
+								message: subErrors.map(typeErrorToString).join('\n'),
+								// innerError
+							};
+						}
+						return undefined;
+					}
 
 					default:
 						break;
