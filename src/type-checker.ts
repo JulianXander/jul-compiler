@@ -1,6 +1,6 @@
 import { join } from 'path';
+import { getCheckedName } from './checker';
 import { parseFile } from './parser';
-import { ParserError } from './parser-combinator';
 import {
 	Any,
 	ArgumentReference,
@@ -30,6 +30,7 @@ import {
 	// DictionaryLiteralType,
 	ObjectLiteral,
 	ParsedFile,
+	ParseDictionaryField,
 	ParseDictionaryTypeField,
 	ParseExpression,
 	ParseFunctionCall,
@@ -288,28 +289,61 @@ function inferType(
 			});
 			return _any;
 
-		case 'dictionary':
-			// TODO dictionary literal type?
-			return _any;
+		case 'dictionary': {
+			const fieldTypes: { [key: string]: Type; } = {};
+			expression.fields.forEach(field => {
+				setInferredType(field.value, scopes, parsedDocuments, folder, file);
+				switch (field.type) {
+					case 'singleDictionaryField': {
+						if (field.fallback) {
+							setInferredType(field.fallback, scopes, parsedDocuments, folder, file);
+						}
+						if (field.typeGuard) {
+							setInferredType(field.typeGuard, scopes, parsedDocuments, folder, file);
+						}
+						const fieldName = getCheckedName(field.name);
+						if (!fieldName) {
+							return;
+						}
+						// TODO valueOf?
+						fieldTypes[fieldName] = field.value.inferredType!;
+						return;
+					}
+
+					case 'spreadDictionaryField':
+						// TODO spread fields flach machen
+						return;
+
+					default: {
+						const assertNever: never = field;
+						throw new Error('Unexpected Dictionary field type ' + (assertNever as ParseDictionaryField).type);
+					}
+				}
+			})
+			return new DictionaryLiteralType(fieldTypes);
+		}
 
 		case 'dictionaryType': {
-			// TODO infer field types
-			// expression.fields.forEach(field => {
-			// 	setInferredType(field, scopes);
-			// });
 			const fieldTypes: { [key: string]: Type; } = {};
 			expression.fields.forEach(field => {
 				switch (field.type) {
 					case 'singleDictionaryTypeField': {
-						// TODO fieldName as string
-						const fieldName = field.name;
-						// fieldTypes[fieldName] = field.inferredType!
-						break;
+						if (!field.typeGuard) {
+							return;
+						}
+						setInferredType(field.typeGuard, scopes, parsedDocuments, folder, file);
+						const fieldName = getCheckedName(field.name);
+						if (!fieldName) {
+							return;
+						}
+						fieldTypes[fieldName] = field.typeGuard.inferredType!
+						return;
 					}
 
 					case 'spreadDictionaryTypeField':
+						setInferredType(field.value, scopes, parsedDocuments, folder, file);
 						// TODO spread fields flach machen
-						break;
+						return;
 
 					default: {
 						const assertNever: never = field;

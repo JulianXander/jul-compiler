@@ -1741,29 +1741,28 @@ function bracketedExpressionToValueExpression(
 					};
 					return spreadDictionaryField;
 				}
-				else {
-					if (baseName.type !== 'reference') {
-						errors.push({
-							message: `${baseName.type} is not a valid expression for dictionary field name`,
-							startRowIndex: baseName.startRowIndex,
-							startColumnIndex: baseName.startColumnIndex,
-							endRowIndex: baseName.endRowIndex,
-							endColumnIndex: baseName.endColumnIndex,
-						});
-					}
-					const singleDictionaryField: ParseSingleDictionaryField = {
-						type: 'singleDictionaryField',
-						name: baseName,
-						typeGuard: baseField.typeGuard,
-						value: baseField.assignedValue!,
-						fallback: baseField.fallback,
-						startRowIndex: baseField.startRowIndex,
-						startColumnIndex: baseField.startColumnIndex,
-						endRowIndex: baseField.endRowIndex,
-						endColumnIndex: baseField.endColumnIndex,
-					};
-					return singleDictionaryField;
+				if (baseName.type !== 'reference') {
+					errors.push({
+						message: `${baseName.type} is not a valid expression for dictionary field name`,
+						startRowIndex: baseName.startRowIndex,
+						startColumnIndex: baseName.startColumnIndex,
+						endRowIndex: baseName.endRowIndex,
+						endColumnIndex: baseName.endColumnIndex,
+					});
 				}
+				// TODO check baseName path length = 1?
+				const singleDictionaryField: ParseSingleDictionaryField = {
+					type: 'singleDictionaryField',
+					name: baseName,
+					typeGuard: baseField.typeGuard,
+					value: baseField.assignedValue!,
+					fallback: baseField.fallback,
+					startRowIndex: baseField.startRowIndex,
+					startColumnIndex: baseField.startColumnIndex,
+					endRowIndex: baseField.endRowIndex,
+					endColumnIndex: baseField.endColumnIndex,
+				};
+				return singleDictionaryField;
 			}) as any,
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
@@ -1820,27 +1819,25 @@ function bracketedExpressionToValueExpression(
 					};
 					return spreadDictionaryField;
 				}
-				else {
-					if (baseName.type !== 'reference') {
-						errors.push({
-							message: `${baseName.type} is not a valid expression for dictionaryType field name`,
-							startRowIndex: baseName.startRowIndex,
-							startColumnIndex: baseName.startColumnIndex,
-							endRowIndex: baseName.endRowIndex,
-							endColumnIndex: baseName.endColumnIndex,
-						});
-					}
-					const singleDictionaryField: ParseSingleDictionaryTypeField = {
-						type: 'singleDictionaryTypeField',
-						name: baseName,
-						typeGuard: baseField.typeGuard,
-						startRowIndex: baseField.startRowIndex,
-						startColumnIndex: baseField.startColumnIndex,
-						endRowIndex: baseField.endRowIndex,
-						endColumnIndex: baseField.endColumnIndex,
-					};
-					return singleDictionaryField;
+				if (baseName.type !== 'reference') {
+					errors.push({
+						message: `${baseName.type} is not a valid expression for dictionaryType field name`,
+						startRowIndex: baseName.startRowIndex,
+						startColumnIndex: baseName.startColumnIndex,
+						endRowIndex: baseName.endRowIndex,
+						endColumnIndex: baseName.endColumnIndex,
+					});
 				}
+				const singleDictionaryField: ParseSingleDictionaryTypeField = {
+					type: 'singleDictionaryTypeField',
+					name: baseName,
+					typeGuard: baseField.typeGuard,
+					startRowIndex: baseField.startRowIndex,
+					startColumnIndex: baseField.startColumnIndex,
+					endRowIndex: baseField.endRowIndex,
+					endColumnIndex: baseField.endColumnIndex,
+				};
+				return singleDictionaryField;
 			}) as any,
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,

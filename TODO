@@ -1,5 +1,4 @@
--fix type checker mit boolean vgl test2.jul
-	-typeof typeguard?
+?typeChecking: return union mit Error, oder compiler error
 -file system guided intellisense bei import path
 ?dateiendung bei import path angeben
 	?json, yaml, js, ts imports

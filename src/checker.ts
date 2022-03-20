@@ -174,7 +174,7 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				parseField => {
 					switch (parseField.type) {
 						case 'singleDictionaryField': {
-							const checkedName = checkName(parseField.name);
+							const checkedName = getCheckedName(parseField.name);
 							if (!checkedName) {
 								return undefined;
 							}
@@ -233,7 +233,7 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				parseField => {
 					switch (parseField.type) {
 						case 'singleDictionaryTypeField': {
-							const checkedName = checkName(parseField.name);
+							const checkedName = getCheckedName(parseField.name);
 							if (!checkedName) {
 								return undefined;
 							}
@@ -374,7 +374,7 @@ function checkDestructuringFields(parseDefinitionFields: BracketedExpressionBase
 	return checkExpressions(
 		parseDefinitionFields.fields,
 		parseField => {
-			const checkedName = checkName(parseField.name);
+			const checkedName = getCheckedName(parseField.name);
 			if (!checkedName) {
 				return undefined;
 			}
@@ -382,7 +382,7 @@ function checkDestructuringFields(parseDefinitionFields: BracketedExpressionBase
 			if (!checkedTypeGuard && parseField.typeGuard) {
 				return undefined;
 			}
-			const checkedSource = parseField.assignedValue && checkName(parseField.assignedValue);
+			const checkedSource = parseField.assignedValue && getCheckedName(parseField.assignedValue);
 			if (!checkedSource && parseField.assignedValue) {
 				return undefined;
 			}
@@ -450,7 +450,7 @@ function checkParameterField(parseField: ParseParameterField): CheckedParameterF
 	return checkedField;
 }
 
-function checkName(parseName: ParseValueExpression): string | undefined {
+export function getCheckedName(parseName: ParseValueExpression): string | undefined {
 	if (parseName.type !== 'reference') {
 		return undefined;
 	}
