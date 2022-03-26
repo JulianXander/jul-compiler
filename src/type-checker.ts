@@ -832,36 +832,6 @@ function getTypeError(valueType: Type, targetType: Type): TypeError | undefined 
 		case 'object':
 			if (targetType instanceof BuiltInTypeBase) {
 				switch (targetType.type) {
-					case 'boolean':
-						switch (typeof valueType) {
-							case 'boolean':
-								return undefined;
-
-							default:
-								break;
-						}
-						break;
-
-					case 'float64':
-						switch (typeof valueType) {
-							case 'number':
-								return undefined;
-
-							default:
-								break;
-						}
-						break;
-
-					case 'string':
-						switch (typeof valueType) {
-							case 'string':
-								return undefined;
-
-							default:
-								break;
-						}
-						break;
-
 					case 'and': {
 						const subErrors = targetType.choiceTypes.map(choiceType =>
 							getTypeError(valueType, choiceType)).filter(isDefined);
@@ -875,6 +845,86 @@ function getTypeError(valueType: Type, targetType: Type): TypeError | undefined 
 						};
 					}
 
+					case 'boolean':
+						switch (typeof valueType) {
+							case 'boolean':
+								return undefined;
+
+							default:
+								break;
+						}
+						break;
+
+					// case 'dictionary':
+					case 'dictionaryLiteral': {
+						if (typeof valueType !== 'object') {
+							// TODO type specific error?
+							break;
+						}
+						if (!valueType) {
+							// TODO null specific error?
+							break;
+						}
+						if (valueType instanceof BuiltInTypeBase) {
+							switch (valueType.type) {
+								case 'dictionaryLiteral': {
+									const subErrors = map(
+										targetType.fields,
+										(fieldType, fieldName) =>
+											// TODO add fieldName to error
+											// TODO the field x is missing error?
+											getTypeError(valueType.fields[fieldName] ?? null, fieldType),
+									).filter(isDefined);
+									if (!subErrors.length) {
+										return undefined;
+									}
+									return {
+										// TODO error struktur überdenken
+										message: subErrors.map(typeErrorToString).join('\n'),
+										// innerError
+									};
+								}
+
+								default:
+									// TODO type specific error?
+									break;
+							}
+							break;
+						}
+						if (Array.isArray(valueType)) {
+							// TODO array specific error?
+							break;
+						}
+						// plain Dictionary
+						// TODO wird das gebraucht? aktuell wird dictionary type immer als dictionaryLiteralType inferred
+						// wann tritt also dieser case ein? ggf ebenso mit array/tuple?
+						const subErrors = map(
+							targetType.fields,
+							(fieldType, fieldName) =>
+								// TODO add fieldName to error
+								// TODO the field x is missing error?
+								getTypeError(valueType[fieldName] ?? null, fieldType),
+						).filter(isDefined);
+						if (!subErrors.length) {
+							return undefined;
+						}
+						return {
+							// TODO error struktur überdenken
+							message: subErrors.map(typeErrorToString).join('\n'),
+							// innerError
+						};
+					}
+
+					case 'float64':
+						switch (typeof valueType) {
+							case 'number':
+								return undefined;
+
+							default:
+								break;
+						}
+						break;
+
 					case 'or': {
 						const subErrors = targetType.choiceTypes.map(choiceType =>
 							getTypeError(valueType, choiceType));
@@ -887,6 +937,16 @@ function getTypeError(valueType: Type, targetType: Type): TypeError | undefined 
 						}
 						return undefined;
 					}
+
+					case 'string':
+						switch (typeof valueType) {
+							case 'string':
+								return undefined;
+
+							default:
+								break;
+						}
+						break;
 
 					default:
 						break;
