@@ -786,14 +786,15 @@ function dereferenceArgumentType(argsType: Type, argumentReference: ArgumentRefe
 
 // TODO return true/false = always/never, sometimes/maybe?
 function isTypeAssignableTo(valueType: Type, typeType: Type): string | undefined {
-	const typeError = getTypeError(valueType, valueOf(typeType));
+	const typeError = getTypeError(valueType, typeType);
 	if (typeof typeError === 'object') {
 		return typeErrorToString(typeError);
 	}
 	return undefined;
 }
 
-function getTypeError(valueType: Type, targetType: Type): TypeError | undefined {
+function getTypeError(valueType: Type, typeType: Type): TypeError | undefined {
+	const targetType = valueOf(typeType);
 	if (targetType === _any) {
 		return undefined;
 	}
@@ -948,8 +949,23 @@ function getTypeError(valueType: Type, targetType: Type): TypeError | undefined 
 						}
 						break;
 
-					default:
+					// TODO
+					case 'any':
+					case 'dictionary':
+					case 'error':
+					case 'function':
+					case 'list':
+					case 'reference':
+					case 'stream':
+					case 'tuple':
+					case 'type':
+					case 'typeOf':
 						break;
+
+					default: {
+						const assertNever: never = targetType;
+						throw new Error(`Unexpected targetType.type: ${(assertNever as BuiltInType).type}`);
+					}
 				}
 			}
 			break;

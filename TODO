@@ -1,4 +1,8 @@
+-tuple typechecking
+?fix dictionary value als type typeChecking?
+	?wie soll sich das verhalten? wird das gebraucht?
 ?typeChecking: return union mit Error, oder compiler error
+	?compiler error wenn assignment unmöglich, error union type wenn fehler möglich?
 -file system guided intellisense bei import path
 ?dateiendung bei import path angeben
 	?json, yaml, js, ts imports
