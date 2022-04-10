@@ -1,3 +1,20 @@
+-builtins:
+	-Integer
+	-Intersection/Exclude
+	-NonZero (Integer/Float64?), PositiveInteger
+	-repeat?
+	-modulo
+	-equal
+	?Subtract type?
+		-PositiveInteger.subtract(1) => PositiveInteger & 0 = NonNegativeInteger
+		-(positiveInteger.exclude(1)).subtract(1) => (PositiveInteger & 0).exclude(1 - 1 = 0) = PositiveInteger
+?function as type
+	-1. check args assignable
+	-2. check returnValue = true
+?catchAll default case in branching mit () oder Any?
+-fix infix (dotted) function call parser mit chains, vgl fizz-buzz.jul
+-taschenrechner demo app
+-fix and typeChecking vgl typeCheckingTest.jul
 -tuple typechecking
 ?fix dictionary value als type typeChecking?
 	?wie soll sich das verhalten? wird das gebraucht?
@@ -6,7 +23,7 @@
 -file system guided intellisense bei import path
 ?dateiendung bei import path angeben
 	?json, yaml, js, ts imports
--virtual document für corelib.jul
+-virtual document für core-lib.jul
 	-https://code.visualstudio.com/api/extension-guides/virtual-documents
 -emitter mit parseExpression statt checkedExpression, checkedExpression entfernen
 -out js files bundlen statt node modules kopieren

@@ -8,6 +8,8 @@ Any = nativeValue(§_any§)
 Boolean = nativeValue(§_boolean§)
 # 64 bit floating point number
 Float64 = nativeValue(§_float64§)
+# TODO Integer
+# TODO nonzero/positive
 # sequence of characters
 String = nativeValue(§_string§)
 Error = nativeValue(§_error§)
@@ -58,6 +60,7 @@ Or = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
 	§(...args) => new UnionType(args)§
 )
+# TODO intersection/exclude type
 # The Type that only contains the given value.
 TypeOf = nativeFunction(
 	(value: Any): Type
