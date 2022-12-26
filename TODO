@@ -1,5 +1,10 @@
+-docs
+	-https://prismjs.com/extending.html#language-definitions
 -builtins:
 	-Integer
+		-js bigint
+		?syntax int vs float64 vs decimal literal
+		?jul number type
 	-Intersection/Exclude
 	-NonZero (Integer/Float64?), PositiveInteger
 	-repeat?
