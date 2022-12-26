@@ -141,9 +141,11 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): Type {
 	const referencedType = foundSymbol.normalizedType;
 	if (referencedType === undefined) {
 		// TODO was wenn referencedsymbol type noch nicht inferred ist?
+		// tritt vermutlich bei rekursion auf
 		// setInferredType(referencedSymbol)
-		console.log(reference);
-		throw new Error('symbol type was not inferred');
+		// console.log(reference);
+		// throw new Error('symbol type was not inferred');
+		return _any;
 	}
 	return referencedType;
 }
