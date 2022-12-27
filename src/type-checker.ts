@@ -18,6 +18,7 @@ import {
 	TypeOfType,
 	UnionType,
 	_any,
+	_arbitraryInteger,
 	_boolean,
 	_error,
 	_float,
@@ -63,6 +64,7 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 	false: false,
 	Any: new TypeOfType(_any),
 	Boolean: new TypeOfType(_boolean),
+	ArbitraryInteger: new TypeOfType(_arbitraryInteger),
 	Float: new TypeOfType(_float),
 	String: new TypeOfType(_string),
 	Error: new TypeOfType(_error),
@@ -848,6 +850,16 @@ function getTypeError(valueType: Type, typeType: Type): TypeError | undefined {
 						};
 					}
 
+					case 'arbitraryInteger':
+						switch (typeof valueType) {
+							case 'bigint':
+								return undefined;
+
+							default:
+								break;
+						}
+						break;
+
 					case 'boolean':
 						switch (typeof valueType) {
 							case 'boolean':
@@ -1097,6 +1109,9 @@ export function typeToString(type: Type, indent: number): string {
 
 					case 'any':
 						return 'Any';
+
+					case 'arbitraryInteger':
+						return 'ArbitraryInteger';
 
 					case 'boolean':
 						return 'Boolean';

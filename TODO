@@ -3,9 +3,22 @@
 -builtins:
 	-Integer
 		-js bigint
-		?syntax int vs float vs decimal/fraction(rational) literal
-		?jul number type
-		?float integer type
+		?Decimal
+			?decimal fixed precision? arbitrary precision?
+		-syntax ArbitraryInteger vs Float vs Decimal vs Fraction literal
+			-Float: 123f, 12.3f vs f123, f12.3
+			-ArbitraryInteger: 123
+			-Fraction: 12.3
+			?Decimal: 123d, 12.3d vs d123, d12.3
+			-default number type: ArbitraryInteger/Rational
+				?wenn integer < maxSafeInteger: FloatInteger statt ArbitraryInteger
+		-Fraction
+			-create Fraction mit denominator kürzen
+			?toString
+			?fractionToDecimal mit x Stellen
+			?fractionToFloat mit x Stellen
+		-number type
+		-integer type
 	-Intersection/Exclude
 	-NonZero (Integer/Float?), PositiveInteger
 	-repeat?

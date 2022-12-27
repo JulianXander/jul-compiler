@@ -70,6 +70,9 @@ function isOfType(value: any, type: Type): boolean {
 					case 'boolean':
 						return typeof value === 'boolean';
 
+					case 'arbitraryInteger':
+						return typeof value === 'bigint';
+
 					case 'float':
 						return typeof value === 'number';
 
@@ -305,8 +308,9 @@ type CustomType = (value: any) => boolean;
 export type BuiltInType =
 	| Any
 	| BooleanType
-	| StringType
+	| ArbitraryInteger
 	| Float
+	| StringType
 	| ErrorType
 	| DictionaryType
 	| DictionaryLiteralType
@@ -331,12 +335,16 @@ export class BooleanType extends BuiltInTypeBase {
 	readonly type = 'boolean';
 }
 
-export class StringType extends BuiltInTypeBase {
-	readonly type = 'string';
+export class ArbitraryInteger extends BuiltInTypeBase {
+	readonly type = 'arbitraryInteger';
 }
 
 export class Float extends BuiltInTypeBase {
 	readonly type = 'float';
+}
+
+export class StringType extends BuiltInTypeBase {
+	readonly type = 'string';
 }
 
 class ErrorType extends BuiltInTypeBase {
@@ -754,6 +762,7 @@ function retry$<T>(
 //#region Types
 export const _any = new Any();
 export const _boolean = new BooleanType();
+export const _arbitraryInteger = new ArbitraryInteger();
 export const _float = new Float();
 export const _string = new StringType();
 export const _error = new ErrorType();
@@ -764,6 +773,7 @@ export const _type = new TypeType();
 // TODO types, funktionen ergänzen
 
 //#region Number
+// TODO subtract, subtractFloat
 export const subtract = _createFunction(
 	(minuend: number, subtrahend: number) =>
 		minuend - subtrahend,
@@ -781,6 +791,7 @@ export const subtract = _createFunction(
 			}]
 	}
 );
+// TODO sum, sumFloat
 export const sum = _createFunction(
 	(...args: number[]) =>
 		args.reduce(

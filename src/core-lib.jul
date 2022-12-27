@@ -6,11 +6,20 @@ false = nativeValue(§false§)
 Any = nativeValue(§_any§)
 # true or false
 Boolean = nativeValue(§_boolean§)
+#region Number
 # 64 bit floating point number
 Float = nativeValue(§_float§)
-# TODO ArbitraryInteger?, Integer, FloatInteger
-# TODO Fraction, Rational
+# TODO ArbitraryInteger = nativeValue(§_arbitraryInteger§)
+# TODO Integer = Or(ArbitraryInteger, FloatInteger)
+# TODO FloatInteger = And(Float ?)
+# TODO Fraction = nativeValue()? (
+# 	numerator: ArbitraryInteger
+# 	denominator: ArbitraryInteger
+# )
+# TODO Rational = Or(ArbitraryInteger Fraction)
 # TODO nonzero/positive
+# TODO Number = Or(Float Rational)
+#endregion Number
 # sequence of characters
 String = nativeValue(§_string§)
 Error = nativeValue(§_error§)

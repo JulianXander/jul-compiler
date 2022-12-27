@@ -200,6 +200,7 @@ export interface StringToken {
 	value: string;
 }
 
+// TODO ArbitraryIntegerLiteral, FractionLiteral, FloatLiteral? union value type?
 export interface NumberLiteral extends ParseExpressionBase {
 	type: 'number';
 	value: number;
