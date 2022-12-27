@@ -3,10 +3,11 @@
 -builtins:
 	-Integer
 		-js bigint
-		?syntax int vs float64 vs decimal literal
+		?syntax int vs float vs decimal/fraction(rational) literal
 		?jul number type
+		?float integer type
 	-Intersection/Exclude
-	-NonZero (Integer/Float64?), PositiveInteger
+	-NonZero (Integer/Float?), PositiveInteger
 	-repeat?
 	-modulo
 	-equal

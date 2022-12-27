@@ -8,7 +8,7 @@ const expectedResults: {
 	result: ParseExpression[];
 }[] = [
 		{
-			code: '(delayMs: Float64): Stream(Float64)',
+			code: '(delayMs: Float): Stream(Float)',
 			result: []
 		},
 		// {

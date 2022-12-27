@@ -9,7 +9,7 @@ const expectedResults: {
 	result: CheckedExpression[];
 }[] = [
 		// {
-		// 	code: '(delayMs: Float64): Stream(Float64)',
+		// 	code: '(delayMs: Float): Stream(Float)',
 		// 	result: [],
 		// },
 		// {

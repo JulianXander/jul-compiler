@@ -70,7 +70,7 @@ function isOfType(value: any, type: Type): boolean {
 					case 'boolean':
 						return typeof value === 'boolean';
 
-					case 'float64':
+					case 'float':
 						return typeof value === 'number';
 
 					case 'string':
@@ -306,7 +306,7 @@ export type BuiltInType =
 	| Any
 	| BooleanType
 	| StringType
-	| Float64
+	| Float
 	| ErrorType
 	| DictionaryType
 	| DictionaryLiteralType
@@ -335,8 +335,8 @@ export class StringType extends BuiltInTypeBase {
 	readonly type = 'string';
 }
 
-export class Float64 extends BuiltInTypeBase {
-	readonly type = 'float64';
+export class Float extends BuiltInTypeBase {
+	readonly type = 'float';
 }
 
 class ErrorType extends BuiltInTypeBase {
@@ -754,7 +754,7 @@ function retry$<T>(
 //#region Types
 export const _any = new Any();
 export const _boolean = new BooleanType();
-export const _float64 = new Float64();
+export const _float = new Float();
 export const _string = new StringType();
 export const _error = new ErrorType();
 export const _type = new TypeType();
@@ -772,12 +772,12 @@ export const subtract = _createFunction(
 			{
 				name: 'minuend',
 				// TODO
-				// type: { type: 'reference', names: ['Float64'] }
+				// type: { type: 'reference', names: ['Float'] }
 			},
 			{
 				name: 'subtrahend',
 				// TODO
-				// type: { type: 'reference', names: ['Float64'] }
+				// type: { type: 'reference', names: ['Float'] }
 			}]
 	}
 );
@@ -787,7 +787,7 @@ export const sum = _createFunction(
 			(accumulator, current) =>
 				accumulator + current,
 			0),
-	// TODO params type ...Float64[]
+	// TODO params type ...Float[]
 	{
 		rest: {
 			// name: 'args'
@@ -856,7 +856,7 @@ export const timer$ = _createFunction(
 		singleNames: [{
 			name: 'delayMs',
 			// TODO
-			// type: Float64
+			// type: Float
 		}]
 	}
 );

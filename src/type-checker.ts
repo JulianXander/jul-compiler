@@ -20,7 +20,7 @@ import {
 	_any,
 	_boolean,
 	_error,
-	_float64,
+	_float,
 	_string,
 	_type,
 } from './runtime';
@@ -63,7 +63,7 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 	false: false,
 	Any: new TypeOfType(_any),
 	Boolean: new TypeOfType(_boolean),
-	Float64: new TypeOfType(_float64),
+	Float: new TypeOfType(_float),
 	String: new TypeOfType(_string),
 	Error: new TypeOfType(_error),
 	Stream: new FunctionType(
@@ -918,7 +918,7 @@ function getTypeError(valueType: Type, typeType: Type): TypeError | undefined {
 						};
 					}
 
-					case 'float64':
+					case 'float':
 						switch (typeof valueType) {
 							case 'number':
 								return undefined;
@@ -1110,8 +1110,8 @@ export function typeToString(type: Type, indent: number): string {
 					case 'error':
 						return 'Error';
 
-					case 'float64':
-						return 'Float64';
+					case 'float':
+						return 'Float';
 
 					case 'function':
 						return `${typeToString(builtInType.paramsType, indent)} => ${typeToString(builtInType.returnType, indent)}`;

@@ -404,7 +404,7 @@
 // 	// TODO Any?
 // 	// TODO Boolean?
 // 	//#region Numbers
-// 	Float64: {
+// 	Float: {
 // 		type: 'native',
 // 		code: (scope: Scope, x: any) =>
 // 			typeof x === 'number',
@@ -534,8 +534,8 @@
 // 			dividend % divisor,
 // 		params: {
 // 			singleNames: [
-// 				{ type: 'name', name: 'dividend', typeGuard: { type: 'reference', names: ['Float64'] } },
-// 				{ type: 'name', name: 'divisor', typeGuard: { type: 'reference', names: ['Float64'] } }]
+// 				{ type: 'name', name: 'dividend', typeGuard: { type: 'reference', names: ['Float'] } },
+// 				{ type: 'name', name: 'divisor', typeGuard: { type: 'reference', names: ['Float'] } }]
 // 		},
 // 		returnType: 'Number',
 // 		pure: true,
@@ -546,8 +546,8 @@
 // 			minuend - subtrahend,
 // 		params: {
 // 			singleNames: [
-// 				{ type: 'name', name: 'minuend', typeGuard: { type: 'reference', names: ['Float64'] } },
-// 				{ type: 'name', name: 'subtrahend', typeGuard: { type: 'reference', names: ['Float64'] } }]
+// 				{ type: 'name', name: 'minuend', typeGuard: { type: 'reference', names: ['Float'] } },
+// 				{ type: 'name', name: 'subtrahend', typeGuard: { type: 'reference', names: ['Float'] } }]
 // 		},
 // 		returnType: 'Number',
 // 		pure: true,
@@ -646,7 +646,7 @@
 // 		code: (scope: Scope, delayMs: number) => {
 // 			return timer$(delayMs);
 // 		},
-// 		params: { singleNames: [{ type: 'name', name: 'delayMs', typeGuard: { type: 'reference', names: ['Float64'] } }] },
+// 		params: { singleNames: [{ type: 'name', name: 'delayMs', typeGuard: { type: 'reference', names: ['Float'] } }] },
 // 		// TODO returnType Stream(PositiveInteger)
 // 		returnType: 'Stream',
 // 		pure: true,

@@ -7,8 +7,9 @@ Any = nativeValue(§_any§)
 # true or false
 Boolean = nativeValue(§_boolean§)
 # 64 bit floating point number
-Float64 = nativeValue(§_float64§)
-# TODO Integer
+Float = nativeValue(§_float§)
+# TODO ArbitraryInteger?, Integer, FloatInteger
+# TODO Fraction, Rational
 # TODO nonzero/positive
 # sequence of characters
 String = nativeValue(§_string§)
@@ -77,12 +78,12 @@ ValueOf = nativeFunction(
 #region Number
 # minuend - subtrahend
 subtract = nativeFunction(
-	(minuend: Float64 subtrahend: Float64): Float64
+	(minuend: Float subtrahend: Float): Float
 	§(minuend, subtrahend) => minuend - subtrahend§
 )
 # Gibt die Summe der args zurück.
 sum = nativeFunction(
-	(...arg: List(Float64)): Float64
+	(...arg: List(Float)): Float
 	§
 		(...args) =>
 			args.reduce(
@@ -119,7 +120,7 @@ subscribe = nativeFunction(
 #region create
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1
 timer$ = nativeFunction(
-	(delayMs: Float64): Stream(Float64)
+	(delayMs: Float): Stream(Float)
 	§
 		(delayMs) => {
 			const stream$ = createSource$(1);
