@@ -10,8 +10,6 @@ export function isNonEmpty<T>(array: T[]): array is NonEmptyArray<T> {
 	return !!array.length;
 }
 
-const t: ArrayLike<string> = 'a';
-
 export function last<T>(array: NonEmptyArray<T>): T;
 export function last<T>(array: ArrayLike<T>): T | undefined;
 export function last<T>(array: ArrayLike<T>): T | undefined {
