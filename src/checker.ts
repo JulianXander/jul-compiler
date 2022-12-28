@@ -284,6 +284,12 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 		case 'field':
 			return undefined;
 
+		case 'float':
+			return parseExpression;
+
+		case 'fraction':
+			return parseExpression;
+
 		case 'functionCall': {
 			const checkedArguments = checkParseExpression(parseExpression.arguments);
 			if (!checkedArguments) {
@@ -332,6 +338,9 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 			};
 		}
 
+		case 'integer':
+			return parseExpression;
+
 		case 'list': {
 			const checkedValues = checkParseExpressions(parseExpression.values);
 			if (!checkedValues) {
@@ -342,9 +351,6 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				values: checkedValues as any,
 			};
 		}
-
-		case 'number':
-			return parseExpression;
 
 		case 'reference':
 			return parseExpression;

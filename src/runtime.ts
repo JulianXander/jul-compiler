@@ -296,6 +296,7 @@ export type Type =
 	| null
 	| boolean
 	| number
+	| bigint
 	| string
 	| { [key: string]: any; }
 	| any[]

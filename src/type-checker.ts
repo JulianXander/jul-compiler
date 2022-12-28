@@ -365,6 +365,15 @@ function inferType(
 			// TODO?
 			return _any;
 
+		case 'float':
+			return expression.value;
+
+		case 'fraction':
+			return new DictionaryLiteralType({
+				numerator: expression.numerator,
+				denominator: expression.denominator,
+			});
+
 		case 'functionCall': {
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
@@ -488,6 +497,9 @@ function inferType(
 			));
 		}
 
+		case 'integer':
+			return expression.value;
+
 		case 'list':
 			// TODO spread elements
 			expression.values.forEach(element => {
@@ -496,9 +508,6 @@ function inferType(
 			return new TupleType(expression.values.map(element => {
 				return element.inferredType!;
 			}));
-
-		case 'number':
-			return expression.value;
 
 		case 'parameter': {
 			if (expression.typeGuard) {

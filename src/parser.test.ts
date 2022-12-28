@@ -8,9 +8,20 @@ const expectedResults: {
 	result: ParseExpression[];
 }[] = [
 		{
-			code: '(delayMs: Float): Stream(Float)',
-			result: []
+			code: '12',
+			result: [{
+				type: 'integer',
+				value: 12n,
+				startRowIndex: 0,
+				startColumnIndex: 0,
+				endRowIndex: 4,
+				endColumnIndex: 0,
+			}]
 		},
+		// {
+		// 	code: '(delayMs: Float): Stream(Float)',
+		// 	result: []
+		// },
 		// {
 		// 	code: 'x: (b: B c: C) => () = ()',
 		// 	result: []
