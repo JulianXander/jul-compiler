@@ -45,6 +45,7 @@ import {
 	tokenParser,
 } from './parser-combinator';
 import {
+	last,
 	NonEmptyArray,
 } from './util';
 
@@ -576,7 +577,7 @@ function numberParser(
 		};
 	}
 	const parsed = result.parsed!;
-	if (parsed[parsed.length - 1] === 'f') {
+	if (last(parsed) === 'f') {
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
@@ -593,6 +594,7 @@ function numberParser(
 	const decimalSeparatorIndex = parsed.indexOf('.');
 	if (decimalSeparatorIndex > 0) {
 		// TODO kürzen
+		const numberOfDecimalPlaces = (parsed.length - 1) - decimalSeparatorIndex;
 		return {
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
@@ -600,7 +602,7 @@ function numberParser(
 			parsed: {
 				type: 'fraction',
 				numerator: BigInt(parsed.replace('.', '')),
-				denominator: 10n ** BigInt((parsed.length - 1) - decimalSeparatorIndex),
+				denominator: 10n ** BigInt(numberOfDecimalPlaces),
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
