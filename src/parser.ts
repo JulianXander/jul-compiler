@@ -600,7 +600,7 @@ function numberParser(
 			parsed: {
 				type: 'fraction',
 				numerator: BigInt(parsed.replace('.', '')),
-				denominator: 10n * BigInt((parsed.length - 1) - decimalSeparatorIndex),
+				denominator: 10n ** BigInt((parsed.length - 1) - decimalSeparatorIndex),
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
