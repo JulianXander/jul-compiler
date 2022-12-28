@@ -680,7 +680,7 @@ function multilineStringParser(
 			if (typeof line === 'object') {
 				values.push(...line);
 			}
-			const tail = values[values.length - 1];
+			const tail = last(values);
 			if (tail?.type === 'stringToken') {
 				tail.value += '\n';
 			}
