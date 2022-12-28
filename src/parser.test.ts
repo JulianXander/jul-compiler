@@ -14,8 +14,8 @@ const expectedResults: {
 				value: 12n,
 				startRowIndex: 0,
 				startColumnIndex: 0,
-				endRowIndex: 4,
-				endColumnIndex: 0,
+				endRowIndex: 0,
+				endColumnIndex: 2,
 			}]
 		},
 		// {
