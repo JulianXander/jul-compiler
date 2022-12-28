@@ -5,6 +5,7 @@ import {
 	CheckedParameterFields,
 	CheckedStringLiteral,
 	CheckedValueExpression,
+	FloatLiteral,
 	NumberLiteral,
 	ObjectLiteral,
 	Reference,
@@ -85,6 +86,12 @@ function expressionToJs(expression: CheckedExpression): string {
 		case 'empty':
 			return 'null';
 
+		case 'float':
+			return '' + expression.value;
+
+		case 'fraction':
+			return `{numerator:${expression.numerator}n,denominator:${expression.denominator}n}`;
+
 		case 'functionCall': {
 			const functionReference = expression.functionReference;
 			if (isImport(functionReference)) {
@@ -112,13 +119,13 @@ function expressionToJs(expression: CheckedExpression): string {
 			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
 		}
 
+		case 'integer':
+			return `${expression.value}n`;
+
 		case 'list':
 			return `[\n${expression.values.map(value => {
 				return `${expressionToJs(value)},\n`;
 			}).join('')}]`;
-
-		case 'number':
-			return numberLiteralToJs(expression);
 
 		case 'reference':
 			return referenceToJs(expression);
@@ -321,6 +328,10 @@ function typeToJs(typeExpression: CheckedValueExpression): string {
 		case 'empty':
 			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
 
+		case 'fraction':
+			// TODO dictionaryType?!
+			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
+
 		case 'functionCall':
 			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
 
@@ -330,7 +341,8 @@ function typeToJs(typeExpression: CheckedValueExpression): string {
 		case 'list':
 			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
 
-		case 'number':
+		case 'float':
+		case 'integer':
 		case 'string':
 			return constantValueToTypeJs(typeExpression);
 
@@ -356,8 +368,4 @@ function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
 		return `\${${expressionToJs(value)}}`;
 	}).join('');
 	return `\`${stringValue}\``;
-}
-
-function numberLiteralToJs(numberLiteral: NumberLiteral): string {
-	return '' + numberLiteral.value;
 }

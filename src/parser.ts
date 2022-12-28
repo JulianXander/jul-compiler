@@ -567,21 +567,59 @@ function numberParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<NumberLiteral> {
-	const result = regexParser(/-?(0|[1-9][0-9]*)(\.[0-9]+)?/g, 'not a valid number')(rows, startRowIndex, startColumnIndex, indent);
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: result.parsed === undefined
-			? undefined
-			: {
-				type: 'number',
-				value: +result.parsed,
+	const result = regexParser(/-?(0|[1-9][0-9]*)(\.[0-9]+)?f?/g, 'not a valid number')(rows, startRowIndex, startColumnIndex, indent);
+	if (result.errors?.length) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+		};
+	}
+	const parsed = result.parsed!;
+	if (parsed[parsed.length - 1] === 'f') {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			parsed: {
+				type: 'float',
+				value: +parsed.substring(0, parsed.length - 1),
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 			},
+		};
+	}
+	const decimalSeparatorIndex = parsed.indexOf('.');
+	if (decimalSeparatorIndex > 0) {
+		// TODO kürzen
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: result.errors,
+			parsed: {
+				type: 'fraction',
+				numerator: BigInt(parsed.replace('.', '')),
+				denominator: 10n * BigInt((parsed.length - 1) - decimalSeparatorIndex),
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: result.endRowIndex,
+				endColumnIndex: result.endColumnIndex,
+			},
+		};
+	}
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		errors: result.errors,
+		parsed: {
+			type: 'integer',
+			value: BigInt(parsed),
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+		},
 	};
 }
 

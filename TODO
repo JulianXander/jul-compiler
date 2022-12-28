@@ -3,15 +3,10 @@
 -builtins:
 	-Integer
 		-js bigint
-		?Decimal
-			?decimal fixed precision? arbitrary precision?
-		-syntax ArbitraryInteger vs Float vs Decimal vs Fraction literal
-			-Float: 123f, 12.3f vs f123, f12.3
+		-syntax ArbitraryInteger vs Float vs Fraction literal
+			-Float: 123f, 12.3f
 			-ArbitraryInteger: 123
 			-Fraction: 12.3
-			?Decimal: 123d, 12.3d vs d123, d12.3
-			-default number type: ArbitraryInteger/Rational
-				?wenn integer < maxSafeInteger: FloatInteger statt ArbitraryInteger
 		-Fraction
 			-create Fraction mit denominator kürzen
 			?toString
@@ -47,3 +42,6 @@
 -emitter mit parseExpression statt checkedExpression, checkedExpression entfernen
 -out js files bundlen statt node modules kopieren
 	?npm module publishen?
+?Decimal
+	?decimal fixed precision? arbitrary precision?
+	?Decimal: 123d, 12.3d vs d123, d12.3

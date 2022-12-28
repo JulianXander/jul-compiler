@@ -200,11 +200,31 @@ export interface StringToken {
 	value: string;
 }
 
-// TODO ArbitraryIntegerLiteral, FractionLiteral, FloatLiteral? union value type?
-export interface NumberLiteral extends ParseExpressionBase {
-	type: 'number';
+//#region NumberLiteral
+
+export type NumberLiteral =
+	| ArbitraryIntegerLiteral
+	| FloatLiteral
+	| FractionLiteral
+	;
+
+export interface ArbitraryIntegerLiteral extends ParseExpressionBase {
+	type: 'integer';
+	value: bigint;
+}
+
+export interface FloatLiteral extends ParseExpressionBase {
+	type: 'float';
 	value: number;
 }
+
+export interface FractionLiteral extends ParseExpressionBase {
+	type: 'fraction';
+	numerator: bigint;
+	denominator: bigint;
+}
+
+//#endregion NumberLiteral
 
 export interface ParseFieldBase extends ParseExpressionBase {
 	type: 'field';
