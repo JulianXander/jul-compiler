@@ -437,7 +437,7 @@ function expressionParser(
 	// bei name = BracketedExpression und assignedValue: DestructuringDefinition
 	// bei name = ref und assignedValue: SingleDefinition
 	// bei alles außer name leer: valueExpression
-	// sonst fehler
+	// sonst Fehler
 	if ((baseName.type === 'bracketed') && parsed.assignedValue) {
 		if (parsed.spread) {
 			errors.push({
@@ -627,7 +627,7 @@ function numberParser(
 
 //#region String
 
-// TODO stringparser mit discriminated choice über linebreak
+// TODO stringParser mit discriminated choice über linebreak
 
 function inlineStringParser(
 	rows: string[],
@@ -1444,7 +1444,7 @@ function simpleNameStartedExpressionParser(
 			arguments: {
 				type: 'list',
 				values: values,
-				// TODO achtung bei findExpressionbyPosition, da infix param außerhalb der range
+				// TODO Achtung bei findExpressionbyPosition, da infix param außerhalb der range
 				startRowIndex: params.startRowIndex,
 				startColumnIndex: params.startColumnIndex,
 				endRowIndex: params.endRowIndex,
@@ -1530,14 +1530,14 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 	expressionsOrComments.forEach(expressionOrComment => {
 		switch (typeof expressionOrComment) {
 			case 'object':
-				const expressionWithDesciption = expressionOrComment.type === 'definition'
+				const expressionWithDescription = expressionOrComment.type === 'definition'
 					|| expressionOrComment.type === 'field'
 					? {
 						...expressionOrComment,
 						description: descriptionComment
 					}
 					: expressionOrComment;
-				expressionsWithDescription.push(expressionWithDesciption);
+				expressionsWithDescription.push(expressionWithDescription);
 				descriptionComment = '';
 				return;
 
@@ -1581,7 +1581,7 @@ function bracketedExpressionToDestructuringFields(
 		if (baseName.type === 'reference') {
 			if (baseName.path.length > 1) {
 				errors.push({
-					message: 'only single name allowed for destruring field',
+					message: 'only single name allowed for destructuring field',
 					startRowIndex: baseName.startRowIndex,
 					startColumnIndex: baseName.startColumnIndex,
 					endRowIndex: baseName.endRowIndex,
@@ -1592,7 +1592,7 @@ function bracketedExpressionToDestructuringFields(
 		else {
 			// TODO nested destructuring?
 			errors.push({
-				message: `${baseName.type} is not a valid expression for destruring field name`,
+				message: `${baseName.type} is not a valid expression for destructuring field name`,
 				startRowIndex: baseName.startRowIndex,
 				startColumnIndex: baseName.startColumnIndex,
 				endRowIndex: baseName.endRowIndex,
