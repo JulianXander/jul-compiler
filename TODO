@@ -1,17 +1,13 @@
+-infix function call chain inline/multiline
 -docs
 	-https://prismjs.com/extending.html#language-definitions
 -builtins:
-	-Integer
-		-js bigint
-		-syntax ArbitraryInteger vs Float vs Fraction literal
-			-Float: 123f, 12.3f
-			-ArbitraryInteger: 123
-			-Fraction: 12.3
-		-Fraction
-			-create Fraction mit denominator kürzen
-			?toString
-			?fractionToDecimal mit x Stellen
-			?fractionToFloat mit x Stellen
+	-Fraction
+		-create Fraction mit denominator kürzen
+			-auch in parser
+		?toString
+		?fractionToDecimal mit x Stellen
+		?fractionToFloat mit x Stellen
 		-number type
 		-integer type
 	-Intersection/Exclude
