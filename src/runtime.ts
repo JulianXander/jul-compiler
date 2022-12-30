@@ -55,6 +55,7 @@ export function _checkDictionaryType(dictionaryType: Params, value: any): boolea
 
 function isOfType(value: any, type: Type): boolean {
 	switch (typeof type) {
+		case 'bigint':
 		case 'boolean':
 		case 'number':
 		case 'string':
@@ -168,8 +169,10 @@ function isOfType(value: any, type: Type): boolean {
 		case 'function':
 			return type(value);
 
-		default:
-			throw new Error(`Unexpected type ${typeof type}`);
+		default: {
+			const assertNever: never = type;
+			throw new Error(`Unexpected type ${typeof assertNever}`);
+		}
 	}
 }
 
