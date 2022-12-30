@@ -1099,6 +1099,7 @@ export function typeToString(type: Type, indent: number): string {
 		case 'string':
 			return `§${type.replaceAll('§', '§§')}§`;
 
+		case 'bigint':
 		case 'boolean':
 		case 'number':
 			return type.toString();
