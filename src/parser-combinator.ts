@@ -1,4 +1,4 @@
-// Abstrake Parser Library
+// Abstrakte Parser Library
 export type Parser<T> = (
 	rows: string[],
 	startRowIndex: number,
@@ -85,6 +85,10 @@ type ParserChoices<T extends any[]> = {
 	}
 };
 
+/**
+ * Im Gegensatz zum choiceParser, der bei Fehlern den nächsten parser versucht,
+ * bricht der discriminatedChoiceParser ab, sobald das erste predicate passt.
+ */
 export function discriminatedChoiceParser<T extends any[]>(
 	...choices: ParserChoices<T>
 ): Parser<T[number]> {
@@ -120,7 +124,7 @@ export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<
 		let columnIndex = startColumnIndex;
 		for (const parser of parsers) {
 			// nicht abbrechen bei end of code, denn die folgenden parser könnten optional sein
-			// wenn sie nicht optional sind, dann liefern sie eh direkt fehler
+			// wenn sie nicht optional sind, dann liefern sie eh direkt Fehler
 			// TODO bei allen parsern abbruchbedingung end of code einbauen!
 			// if (index >= code.length) {
 			// 	return {
@@ -196,7 +200,7 @@ export function multiplicationParser<T>(
 				}
 				else {
 					return {
-						// TODO endIndizes hier aus error result nehmen? (indizes enthalten hier noch die werte vor dem Fehler)
+						// TODO endIndizes hier aus error result nehmen? (Indizes enthalten hier noch die Werte vor dem Fehler)
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
 						errors: result.errors,
