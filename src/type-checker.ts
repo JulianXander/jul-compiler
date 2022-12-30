@@ -1177,9 +1177,14 @@ export function typeToString(type: Type, indent: number): string {
 			return dictionaryTypeToString(type, ' = ', indent);
 		}
 
+		case 'function':
+			// TODO?
+			throw new Error('typeToString not implemented yet for CustomFunction');
 
-		default:
-			throw new Error(`Unexpected type ${typeof type}`);
+		default: {
+			const assertNever: never = type;
+			throw new Error(`Unexpected type ${typeof assertNever}`);
+		}
 	}
 }
 
