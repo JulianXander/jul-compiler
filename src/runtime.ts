@@ -176,7 +176,7 @@ function isOfType(value: any, type: Type): boolean {
 	}
 }
 
-// TOOD check empty prototype?
+// TODO check empty prototype?
 function isDictionary(value: any): value is { [key: string]: any; } {
 	return typeof value === 'object'
 		&& !(value instanceof BuiltInTypeBase)
