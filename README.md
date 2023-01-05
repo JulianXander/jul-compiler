@@ -4,6 +4,7 @@ npm i copyfiles -g
 npm i rimraf -g
 
 Build (npm run build-all):
+Baut jul-compiler und jul-language-server. vscode-jul-language-server muss separat gebaut werden!
 1. jul-comiler: npx tsc && copyfiles --flat src/core-lib.jul out
 2. jul-language-server: npx tsc --project ../jul-language-server/tsconfig.json
 3. vscode-jul-language-service: 

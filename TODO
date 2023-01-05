@@ -1,4 +1,9 @@
--infix function call chain inline/multiline
++infix function call chain inline/multiline
+	-runtime testen
+-float typeToString mit f?
+?FractionValueType
+	-für custom typeToSting
+?typeToString mit custom types, custom toString?
 -docs
 	-https://prismjs.com/extending.html#language-definitions
 -builtins:
