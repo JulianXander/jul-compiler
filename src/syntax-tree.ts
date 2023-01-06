@@ -203,12 +203,12 @@ export interface StringToken {
 //#region NumberLiteral
 
 export type NumberLiteral =
-	| ArbitraryIntegerLiteral
+	| IntegerLiteral
 	| FloatLiteral
 	| FractionLiteral
 	;
 
-export interface ArbitraryIntegerLiteral extends ParseExpressionBase {
+export interface IntegerLiteral extends ParseExpressionBase {
 	type: 'integer';
 	value: bigint;
 }

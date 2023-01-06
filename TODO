@@ -1,3 +1,20 @@
+-typechecking testen:
+	-Integer
+	-Without
+	-NonZeroInteger
+-fizzbuzz lauffähig
+	-builtins:
+		+Integer
+		+NonZeroInteger
+			+Without
+		-equal
+		-modulo
+		-repeat
+-examples sortieren, aufräumen, organisieren?
+-homepage
+	?deutsch vs englisch
+	-title navbar
+		-home, roadmap, documentation
 +infix function call chain inline/multiline
 	-runtime testen
 -float typeToString mit f?

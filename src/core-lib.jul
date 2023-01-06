@@ -8,15 +8,17 @@ Any = nativeValue(§_any§)
 Boolean = nativeValue(§_boolean§)
 #region Number
 # 64 bit floating point number
+# Erlaubt perormante Hardware-Rechenoperationen
 Float = nativeValue(§_float§)
-# TODO ArbitraryInteger = nativeValue(§_arbitraryInteger§)
-# TODO Integer = Or(ArbitraryInteger, FloatInteger)
 # TODO FloatInteger = And(Float ?)
+# Ganzzahl beliebiger Größe
+Integer = nativeValue(§_integer§)
+NonZeroInteger = Integer.Without(0)
 # TODO Fraction = nativeValue()? (
-# 	numerator: ArbitraryInteger
-# 	denominator: ArbitraryInteger
+# 	numerator: Integer
+# 	denominator: Integer
 # )
-# TODO Rational = Or(ArbitraryInteger Fraction)
+# TODO Rational = Or(Integer Fraction)
 # TODO nonzero/positive
 # TODO Number = Or(Float Rational)
 #endregion Number
@@ -70,7 +72,12 @@ Or = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
 	§(...args) => new UnionType(args)§
 )
-# TODO intersection/exclude type
+# SubtractionType
+# Set difference: Minuend without Subtrahend
+Without = nativeFunction(
+	(Minuend: Type Subtrahend: Type): Type
+	§(minuend, subtrahend) => new SubtractionType(minuend, subtrahend)§
+)
 # The Type that only contains the given value.
 TypeOf = nativeFunction(
 	(value: Any): Type

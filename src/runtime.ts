@@ -71,7 +71,7 @@ function isOfType(value: any, type: Type): boolean {
 					case 'boolean':
 						return typeof value === 'boolean';
 
-					case 'arbitraryInteger':
+					case 'integer':
 						return typeof value === 'bigint';
 
 					case 'float':
@@ -152,6 +152,10 @@ function isOfType(value: any, type: Type): boolean {
 					case 'or':
 						return builtInType.choiceTypes.some(coiceType =>
 							isOfType(value, coiceType));
+
+					case 'without':
+						return !isOfType(value, builtInType.subtrahend)
+							&& isOfType(value, builtInType.minuend);
 
 					case 'typeOf':
 						return deepEquals(value, builtInType.value);
@@ -312,7 +316,7 @@ type CustomType = (value: any) => boolean;
 export type BuiltInType =
 	| Any
 	| BooleanType
-	| ArbitraryInteger
+	| Integer
 	| Float
 	| StringType
 	| ErrorType
@@ -323,6 +327,7 @@ export type BuiltInType =
 	| StreamType
 	| FunctionType
 	| ArgumentReference
+	| SubtractionType
 	| TypeType
 	| IntersectionType
 	| UnionType
@@ -339,8 +344,8 @@ export class BooleanType extends BuiltInTypeBase {
 	readonly type = 'boolean';
 }
 
-export class ArbitraryInteger extends BuiltInTypeBase {
-	readonly type = 'arbitraryInteger';
+export class Integer extends BuiltInTypeBase {
+	readonly type = 'integer';
 }
 
 export class Float extends BuiltInTypeBase {
@@ -432,6 +437,11 @@ export class IntersectionType extends BuiltInTypeBase {
 export class UnionType extends BuiltInTypeBase {
 	constructor(public choiceTypes: Type[]) { super(); }
 	readonly type = 'or';
+}
+
+export class SubtractionType extends BuiltInTypeBase {
+	constructor(public minuend: Type, public subtrahend: Type) { super(); }
+	readonly type = 'without';
 }
 
 export class TypeOfType extends BuiltInTypeBase {
@@ -766,7 +776,7 @@ function retry$<T>(
 //#region Types
 export const _any = new Any();
 export const _boolean = new BooleanType();
-export const _arbitraryInteger = new ArbitraryInteger();
+export const _integer = new Integer();
 export const _float = new Float();
 export const _string = new StringType();
 export const _error = new ErrorType();
