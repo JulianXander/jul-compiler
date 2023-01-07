@@ -586,8 +586,9 @@ function inferType(
 function valueOf(type: Type | undefined): Type {
 	switch (typeof type) {
 		case 'boolean':
-		case 'string':
+		case 'bigint':
 		case 'number':
+		case 'string':
 			return type;
 
 		case 'object':
@@ -601,8 +602,15 @@ function valueOf(type: Type | undefined): Type {
 			// null/array/dictionary
 			return type;
 
-		default:
+		case 'function':
+		case 'symbol':
+		case 'undefined':
 			return _any;
+
+		default: {
+			const assertNever: never = type;
+			throw new Error(`Unexpected type ${typeof assertNever} for valueOf`);
+		}
 	}
 }
 

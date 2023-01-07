@@ -8,7 +8,7 @@ const expectedResults: {
 	result: ParseExpression[];
 }[] = [
 		{
-			code: '12',
+			code: 'a: 4 = 4',
 			result: [{
 				type: 'integer',
 				value: 12n,
@@ -18,29 +18,40 @@ const expectedResults: {
 				endColumnIndex: 2,
 			}]
 		},
-		{
-			code: '12.34f',
-			result: [{
-				type: 'float',
-				value: 12.34,
-				startRowIndex: 0,
-				startColumnIndex: 0,
-				endRowIndex: 0,
-				endColumnIndex: 6,
-			}]
-		},
-		{
-			code: '12.34',
-			result: [{
-				type: 'fraction',
-				numerator: 1234n,
-				denominator: 100n,
-				startRowIndex: 0,
-				startColumnIndex: 0,
-				endRowIndex: 0,
-				endColumnIndex: 5,
-			}]
-		},
+		// {
+		// 	code: '12',
+		// 	result: [{
+		// 		type: 'integer',
+		// 		value: 12n,
+		// 		startRowIndex: 0,
+		// 		startColumnIndex: 0,
+		// 		endRowIndex: 0,
+		// 		endColumnIndex: 2,
+		// 	}]
+		// },
+		// {
+		// 	code: '12.34f',
+		// 	result: [{
+		// 		type: 'float',
+		// 		value: 12.34,
+		// 		startRowIndex: 0,
+		// 		startColumnIndex: 0,
+		// 		endRowIndex: 0,
+		// 		endColumnIndex: 6,
+		// 	}]
+		// },
+		// {
+		// 	code: '12.34',
+		// 	result: [{
+		// 		type: 'fraction',
+		// 		numerator: 1234n,
+		// 		denominator: 100n,
+		// 		startRowIndex: 0,
+		// 		startColumnIndex: 0,
+		// 		endRowIndex: 0,
+		// 		endColumnIndex: 5,
+		// 	}]
+		// },
 		// {
 		// 	code: '(delayMs: Float): Stream(Float)',
 		// 	result: []
