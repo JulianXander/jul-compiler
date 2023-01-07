@@ -153,9 +153,8 @@ function isOfType(value: any, type: Type): boolean {
 						return builtInType.choiceTypes.some(coiceType =>
 							isOfType(value, coiceType));
 
-					case 'without':
-						return !isOfType(value, builtInType.subtrahend)
-							&& isOfType(value, builtInType.minuend);
+					case 'not':
+						return !isOfType(value, builtInType.sourceType);
 
 					case 'typeOf':
 						return deepEquals(value, builtInType.value);
@@ -327,10 +326,10 @@ export type BuiltInType =
 	| StreamType
 	| FunctionType
 	| ArgumentReference
-	| SubtractionType
 	| TypeType
 	| IntersectionType
 	| UnionType
+	| ComplementType
 	| TypeOfType
 	;
 
@@ -439,9 +438,9 @@ export class UnionType extends BuiltInTypeBase {
 	readonly type = 'or';
 }
 
-export class SubtractionType extends BuiltInTypeBase {
-	constructor(public minuend: Type, public subtrahend: Type) { super(); }
-	readonly type = 'without';
+export class ComplementType extends BuiltInTypeBase {
+	constructor(public sourceType: Type) { super(); }
+	readonly type = 'not';
 }
 
 export class TypeOfType extends BuiltInTypeBase {

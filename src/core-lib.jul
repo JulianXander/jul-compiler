@@ -72,12 +72,17 @@ Or = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
 	§(...args) => new UnionType(args)§
 )
+# ComplementType
+Not = nativeFunction(
+	(T: Type): Type
+	§(type) => new ComplementType(type)§
+)
 # SubtractionType
 # Set difference: Minuend without Subtrahend
-Without = nativeFunction(
-	(Minuend: Type Subtrahend: Type): Type
-	§(minuend, subtrahend) => new SubtractionType(minuend, subtrahend)§
-)
+Without = (
+	Minuend: Type
+	Subtrahend: Type
+) => Minuend.And(Not(Subtrahend))
 # The Type that only contains the given value.
 TypeOf = nativeFunction(
 	(value: Any): Type

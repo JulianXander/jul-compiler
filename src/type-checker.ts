@@ -24,7 +24,7 @@ import {
 	_float,
 	_string,
 	_type,
-	SubtractionType,
+	ComplementType,
 } from './runtime';
 import {
 	BracketedExpression,
@@ -447,18 +447,8 @@ function inferType(
 						return new TypeOfType(new UnionType(argsType.elementTypes));
 					}
 
-					case 'Without': {
-						//TODO andere array args types?
-						if (!(argsType instanceof TupleType)) {
-							// TODO error?
-							return _any;
-						}
-						if (argsType.elementTypes.length < 2) {
-							// TODO error?
-							return _any;
-						}
-						return new TypeOfType(new SubtractionType(argsType.elementTypes[0]!, argsType.elementTypes[1]!));
-					}
+					case 'Not':
+						return new TypeOfType(new ComplementType(argsType));
 
 					default:
 						break;
@@ -876,16 +866,6 @@ function getTypeError(valueType: Type, typeType: Type): TypeError | undefined {
 						};
 					}
 
-					case 'integer':
-						switch (typeof valueType) {
-							case 'bigint':
-								return undefined;
-
-							default:
-								break;
-						}
-						break;
-
 					case 'boolean':
 						switch (typeof valueType) {
 							case 'boolean':
@@ -966,6 +946,26 @@ function getTypeError(valueType: Type, typeType: Type): TypeError | undefined {
 						}
 						break;
 
+					case 'integer':
+						switch (typeof valueType) {
+							case 'bigint':
+								return undefined;
+
+							default:
+								break;
+						}
+						break;
+
+					case 'not': {
+						const sourceError = getTypeError(valueType, targetType.sourceType);
+						if (sourceError === undefined) {
+							return {
+								message: `${typeToString(valueType, 0)} is assignable to ${typeToString(targetType.sourceType, 0)}, but should not be.`
+							};
+						}
+						return undefined;
+					}
+
 					case 'or': {
 						const subErrors = targetType.choiceTypes.map(choiceType =>
 							getTypeError(valueType, choiceType));
@@ -988,20 +988,6 @@ function getTypeError(valueType: Type, typeType: Type): TypeError | undefined {
 								break;
 						}
 						break;
-
-					case 'without': {
-						const subtrahendError = getTypeError(valueType, targetType.subtrahend);
-						if (subtrahendError !== undefined) {
-							// TODO verschachtelter Fehler?
-							return subtrahendError;
-						}
-						const minuendError = getTypeError(valueType, targetType.minuend);
-						if (minuendError !== undefined) {
-							// TODO verschachtelter Fehler?
-							return minuendError;
-						}
-						return undefined;
-					}
 
 					// TODO
 					case 'any':
@@ -1175,6 +1161,9 @@ export function typeToString(type: Type, indent: number): string {
 					case 'list':
 						return `List(${typeToString(builtInType.elementType, indent)})`;
 
+					case 'not':
+						return `Not(${typeToString(builtInType.sourceType, indent)})`;
+
 					case 'or':
 						return `Or${arrayTypeToString(builtInType.choiceTypes, indent)}`;
 
@@ -1197,9 +1186,6 @@ export function typeToString(type: Type, indent: number): string {
 
 					case 'typeOf':
 						return `TypeOf(${typeToString(builtInType.value, indent)})`;
-
-					case 'without':
-						return `${typeToString(builtInType.minuend, indent)}.Without(${typeToString(builtInType.subtrahend, indent)})`;
 
 					default: {
 						const assertNever: never = builtInType;
