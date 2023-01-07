@@ -8,7 +8,7 @@ Any = nativeValue(§_any§)
 Boolean = nativeValue(§_boolean§)
 #region Number
 # 64 bit floating point number
-# Erlaubt perormante Hardware-Rechenoperationen
+# Erlaubt performante Hardware-Rechenoperationen
 Float = nativeValue(§_float§)
 # TODO FloatInteger = And(Float ?)
 # Ganzzahl beliebiger Größe
@@ -177,14 +177,14 @@ runJS = nativeFunction(
 	(js: String): Any
 	§eval§
 )
-# Interpretes the given String as js Code and yields the return value,
+# Interprets the given String as js Code and yields the return value,
 # assuming the specified type without checking. Make sure the Type fits under all circumstances
 nativeFunction = nativeFunction(
 	# (FunctionType: (x: Any): x is (): Any js: String): FunctionType
 	(FunctionType: Type js: String): ValueOf(FunctionType)
 	§[...]§
 )
-# Interpretes the given String as js Code and yields the return value,
+# Interprets the given String as js Code and yields the return value,
 # type???
 nativeValue = nativeFunction(
 	(js: String): Any
