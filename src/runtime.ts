@@ -893,6 +893,30 @@ export const log = _createFunction(
 		rest: {}
 	}
 );
+export const repeat = _createFunction(
+	(
+		count: bigint,
+		iteratee: (index: bigint) => void,
+	) => {
+		for (let index = 1n; index <= count; index++) {
+			iteratee(index);
+		}
+	},
+	{
+		singleNames: [
+			{
+				name: 'count',
+				// TODO
+				// type: Integer
+			},
+			{
+				name: 'iteratee',
+				// TODO
+				// type: Function
+			},
+		]
+	}
+);
 export const runJs = _createFunction(
 	eval,
 	{

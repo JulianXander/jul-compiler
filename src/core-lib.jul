@@ -172,6 +172,15 @@ log = nativeFunction(
 	(...args: List(Any)): ()
 	§console.log§
 )
+# Führt den iteratee count mal aus, beginnend mit index 1.
+repeat = nativeFunction(
+	(
+		count: Integer
+		iteratee: (index: Integer): ()
+	): ()
+	§repeat§
+)
+#region JavaScript
 # Führt den gegebenen String als JavaScript aus und liefert dessen Rückgabe.
 runJS = nativeFunction(
 	(js: String): Any
@@ -190,6 +199,7 @@ nativeValue = nativeFunction(
 	(js: String): Any
 	§[...]§
 )
+#endregion JavaScript
 #endregion Utility
 #endregion Functions
 # Type = Any: Boolean
