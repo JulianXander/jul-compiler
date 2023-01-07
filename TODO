@@ -5,13 +5,14 @@
 	-Without
 	-NonZeroInteger
 -fizzbuzz lauffähig
-	-builtins:
+	+builtins:
 		+Integer
 		+NonZeroInteger
 			+Without
-		-equal
-		-modulo
-		-repeat
+		+equal
+		+modulo
+		+repeat
+	-compile, test
 -examples sortieren, aufräumen, organisieren?
 -homepage
 	?deutsch vs englisch

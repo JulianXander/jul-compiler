@@ -96,13 +96,21 @@ ValueOf = nativeFunction(
 )
 #endregion Types
 #region Functions
+#region Any
+# Liefert true, wenn die beiden Werte gleich sind (Referenzgleichheit)
+# TODO deepEqual?
+equal = nativeFunction(
+	(first second): Boolean
+	§(first, second) => first === second§
+)
+#endregion Any
 #region Number
 # minuend - subtrahend
 subtract = nativeFunction(
 	(minuend: Float subtrahend: Float): Float
 	§(minuend, subtrahend) => minuend - subtrahend§
 )
-# Gibt die Summe der args zurück.
+# Liefert die Summe der args.
 sum = nativeFunction(
 	(...arg: List(Float)): Float
 	§
@@ -112,6 +120,12 @@ sum = nativeFunction(
 					accumulator + current,
 				0)
 	§
+)
+# Liefert den Rest bei ganzzahliger Division.
+# TODO moduloFloat?
+modulo = nativeFunction(
+	(dividend: Integer divisor: NonZeroInteger): Integer
+	§(dividend, divisor) => dividend % divisor§
 )
 #endregion Number
 #region Stream
