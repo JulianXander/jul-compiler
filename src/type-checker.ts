@@ -44,7 +44,7 @@ import {
 	SymbolTable,
 	TypedExpression,
 } from './syntax-tree';
-import { forEach, isDefined, last, map, mapDictionary, NonEmptyArray, toDictionary } from './util';
+import { forEach, isDefined, isNonEmpty, last, map, mapDictionary, NonEmptyArray, toDictionary } from './util';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -447,8 +447,18 @@ function inferType(
 						return new TypeOfType(new UnionType(argsType.elementTypes));
 					}
 
-					case 'Not':
-						return new TypeOfType(new ComplementType(argsType));
+					case 'Not': {
+						//TODO andere array args types?
+						if (!(argsType instanceof TupleType)) {
+							// TODO error?
+							return _any;
+						}
+						if (!isNonEmpty(argsType.elementTypes)) {
+							// TODO error?
+							return _any;
+						}
+						return new TypeOfType(new ComplementType(argsType.elementTypes[0]));
+					}
 
 					default:
 						break;

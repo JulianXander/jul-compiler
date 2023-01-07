@@ -1,5 +1,7 @@
 -typechecking testen:
-	-Integer
+	-IntegerLiteral
+	+Integer
+	-Not
 	-Without
 	-NonZeroInteger
 -fizzbuzz lauffähig
