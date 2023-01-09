@@ -114,7 +114,7 @@ function expressionToJs(expression: CheckedExpression): string {
 			}
 			else {
 				argsJs = '';
-				paramsJs = `{type:${typeToJs(params)}}`;
+				paramsJs = `{type:${expressionToJs(params)}}`;
 			}
 			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
 		}
@@ -296,68 +296,19 @@ function parametersToJs(parameters: CheckedParameterFields): string {
 	const singleNamesJs = parameters.singleFields.length
 		? `singleNames: [\n${parameters.singleFields.map(field => {
 			const typeJs = field.typeGuard
-				? `,\ntype: ${typeToJs(field.typeGuard)}`
+				? `,\ntype: ${expressionToJs(field.typeGuard)}`
 				: '';
 			return `{\nname: "${field.name}"${typeJs}}`;
 		}).join(',\n')}\n],\n`
 		: '';
 	const restJs = parameters.rest
-		? `rest: {${parameters.rest.typeGuard ? 'type: ' + typeToJs(parameters.rest.typeGuard) : ''}}\n`
+		? `rest: {${parameters.rest.typeGuard ? 'type: ' + expressionToJs(parameters.rest.typeGuard) : ''}}\n`
 		: '';
 	return `{\n${singleNamesJs}${restJs}}`;
 }
 
 function checkTypeJs(type: CheckedValueExpression, valueJs: string): string {
-	return `_checkType(${typeToJs(type)}, ${valueJs})`;
-}
-
-function typeToJs(typeExpression: CheckedValueExpression): string {
-	switch (typeExpression.type) {
-		case 'branching':
-			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
-
-		case 'dictionary':
-			// TODO dictionaryType?!
-			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
-
-		case 'dictionaryType':
-			// TODO dictionaryType?!
-			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
-		// return `(_x) => _checkDictionaryType(${definitionNamesToJs(typeExpression)}, _x)`;
-
-		case 'empty':
-			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
-
-		case 'fraction':
-			// TODO dictionaryType?!
-			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
-
-		case 'functionCall':
-			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
-
-		case 'functionLiteral':
-			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
-
-		case 'list':
-			throw new Error(`Type not implemented for expression.type: ${typeExpression.type}`);
-
-		case 'float':
-		case 'integer':
-		case 'string':
-			return constantValueToTypeJs(typeExpression);
-
-		case 'reference':
-			return referenceToJs(typeExpression);
-
-		default: {
-			const assertNever: never = typeExpression;
-			throw new Error(`Unexpected expression.type: ${(assertNever as CheckedExpression).type}`);
-		}
-	}
-}
-
-function constantValueToTypeJs(expression: CheckedValueExpression): string {
-	return `(_x) => _x === ${expressionToJs(expression)}`;
+	return `_checkType(${expressionToJs(type)}, ${valueJs})`;
 }
 
 function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
