@@ -2,7 +2,7 @@ import { join } from 'path';
 import { getCheckedName } from './checker';
 import { parseFile } from './parser';
 import {
-	Any,
+	AnyType,
 	ArgumentReference,
 	BuiltInType,
 	BuiltInTypeBase,
@@ -14,16 +14,16 @@ import {
 	StreamType,
 	StringType,
 	TupleType,
-	Type,
+	RuntimeType,
 	TypeOfType,
 	UnionType,
-	_any,
-	_integer,
-	_boolean,
-	_error,
-	_float,
-	_string,
-	_type,
+	Any,
+	Integer,
+	_Boolean,
+	_Error,
+	Float,
+	_String,
+	Type,
 	ComplementType,
 } from './runtime';
 import {
@@ -60,26 +60,26 @@ export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 // 	type: 'string'
 // };
 
-const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
+const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	true: true,
 	false: false,
-	Any: new TypeOfType(_any),
-	Boolean: new TypeOfType(_boolean),
-	Integer: new TypeOfType(_integer),
-	Float: new TypeOfType(_float),
-	String: new TypeOfType(_string),
-	Error: new TypeOfType(_error),
+	Any: new TypeOfType(Any),
+	Boolean: new TypeOfType(_Boolean),
+	Integer: new TypeOfType(Integer),
+	Float: new TypeOfType(Float),
+	String: new TypeOfType(_String),
+	Error: new TypeOfType(_Error),
 	Stream: new FunctionType(
 		new DictionaryLiteralType({
 			// TODO functionType
-			ValueType: _type,
+			ValueType: Type,
 		}),
 		new TypeOfType(new StreamType(new ArgumentReference([{
 			type: 'name',
 			name: 'ValueType',
 		}]))),
 	),
-	Type: new TypeOfType(_type),
+	Type: new TypeOfType(Type),
 	// ValueOf:  new FunctionType(
 	// 		new DictionaryLiteralType({
 	// 			T: _type,
@@ -99,8 +99,8 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 	nativeFunction: new FunctionType(
 		new DictionaryLiteralType({
 			// TODO functionType
-			FunctionType: _type,
-			js: _string
+			FunctionType: Type,
+			js: _String
 		}),
 		new ArgumentReference([{
 			type: 'name',
@@ -109,9 +109,9 @@ const coreBuiltInSymbolTypes: { [key: string]: Type; } = {
 	),
 	nativeValue: new FunctionType(
 		new DictionaryLiteralType({
-			js: _string
+			js: _String
 		}),
-		_any,
+		Any,
 	),
 };
 
@@ -129,7 +129,7 @@ export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable
 	return findSymbolInScopesWithBuiltIns(name, scopes);
 }
 
-function dereferenceType(reference: Reference, scopes: SymbolTable[]): Type {
+function dereferenceType(reference: Reference, scopes: SymbolTable[]): RuntimeType {
 	// TODO nested ref path
 	const name = reference.path[0].name;
 	const coreType = coreBuiltInSymbolTypes[name];
@@ -139,7 +139,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): Type {
 	const foundSymbol = findSymbolInScopes(name, scopes);
 	if (!foundSymbol) {
 		// TODO add 'reference not found' error?
-		return _any;
+		return Any;
 	}
 	const referencedType = foundSymbol.normalizedType;
 	if (referencedType === undefined) {
@@ -148,7 +148,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): Type {
 		// setInferredType(referencedSymbol)
 		// console.log(reference);
 		// throw new Error('symbol type was not inferred');
-		return _any;
+		return Any;
 	}
 	return referencedType;
 }
@@ -233,12 +233,12 @@ function inferType(
 	parsedDocuments: ParsedDocuments,
 	folder: string,
 	file: ParsedFile,
-): Type {
+): RuntimeType {
 	const errors = file.errors;
 	switch (expression.type) {
 		case 'bracketed':
 			// TODO?
-			return _any;
+			return Any;
 
 		case 'branching':
 			// union branch return types
@@ -292,10 +292,10 @@ function inferType(
 					// check value, check fallback?
 				}
 			});
-			return _any;
+			return Any;
 
 		case 'dictionary': {
-			const fieldTypes: { [key: string]: Type; } = {};
+			const fieldTypes: { [key: string]: RuntimeType; } = {};
 			expression.fields.forEach(field => {
 				setInferredType(field.value, scopes, parsedDocuments, folder, file);
 				switch (field.type) {
@@ -329,7 +329,7 @@ function inferType(
 		}
 
 		case 'dictionaryType': {
-			const fieldTypes: { [key: string]: Type; } = {};
+			const fieldTypes: { [key: string]: RuntimeType; } = {};
 			expression.fields.forEach(field => {
 				switch (field.type) {
 					case 'singleDictionaryTypeField': {
@@ -364,7 +364,7 @@ function inferType(
 
 		case 'field':
 			// TODO?
-			return _any;
+			return Any;
 
 		case 'float':
 			return expression.value;
@@ -389,13 +389,13 @@ function inferType(
 					case 'import': {
 						const importedPath = getPathFromImport(expression);
 						if (!importedPath) {
-							return _any;
+							return Any;
 						}
 						// TODO get full path, get type from parsedfile
 						const fullPath = join(folder, importedPath);
 						const importedFile = parsedDocuments[fullPath];
 						if (!importedFile) {
-							return _any;
+							return Any;
 						}
 						const importedTypes = mapDictionary(importedFile.symbols, symbol => {
 							return symbol.normalizedType!;
@@ -433,7 +433,7 @@ function inferType(
 						//TODO andere array args types?
 						if (!(argsType instanceof TupleType)) {
 							// TODO error?
-							return _any;
+							return Any;
 						}
 						return new TypeOfType(new IntersectionType(argsType.elementTypes));
 					}
@@ -442,7 +442,7 @@ function inferType(
 						//TODO andere array args types?
 						if (!(argsType instanceof TupleType)) {
 							// TODO error?
-							return _any;
+							return Any;
 						}
 						return new TypeOfType(new UnionType(argsType.elementTypes));
 					}
@@ -451,11 +451,11 @@ function inferType(
 						//TODO andere array args types?
 						if (!(argsType instanceof TupleType)) {
 							// TODO error?
-							return _any;
+							return Any;
 						}
 						if (!isNonEmpty(argsType.elementTypes)) {
 							// TODO error?
-							return _any;
+							return Any;
 						}
 						return new TypeOfType(new ComplementType(argsType.elementTypes[0]));
 					}
@@ -467,7 +467,7 @@ function inferType(
 			const functionType = functionReference.inferredType;
 			if (!(functionType instanceof FunctionType)) {
 				// TODO error?
-				return _any;
+				return Any;
 			}
 			const returnType = functionType.returnType;
 			// evaluate generic ReturnType
@@ -573,7 +573,7 @@ function inferType(
 				// TODO sollte hier überhaupt mehrelementiger string möglich sein?
 				return expression.values.map(part => part.value).join('\n');
 			}
-			return _string;
+			return _String;
 		}
 
 		default: {
@@ -583,7 +583,7 @@ function inferType(
 	}
 }
 
-function valueOf(type: Type | undefined): Type {
+function valueOf(type: RuntimeType | undefined): RuntimeType {
 	switch (typeof type) {
 		case 'boolean':
 		case 'bigint':
@@ -597,7 +597,7 @@ function valueOf(type: Type | undefined): Type {
 					return type.value;
 				}
 				// TODO error?
-				return _any;
+				return Any;
 			}
 			// null/array/dictionary
 			return type;
@@ -605,7 +605,7 @@ function valueOf(type: Type | undefined): Type {
 		case 'function':
 		case 'symbol':
 		case 'undefined':
-			return _any;
+			return Any;
 
 		default: {
 			const assertNever: never = type;
@@ -614,7 +614,7 @@ function valueOf(type: Type | undefined): Type {
 	}
 }
 
-function dereferenceArgumentTypesNested(argsType: Type, typeToDereference: Type): Type {
+function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference: RuntimeType): RuntimeType {
 	if (!(typeToDereference instanceof BuiltInTypeBase)) {
 		return typeToDereference;
 	}
@@ -636,7 +636,7 @@ function dereferenceArgumentTypesNested(argsType: Type, typeToDereference: Type)
 	}
 }
 
-function dereferenceArgumentType(argsType: Type, argumentReference: ArgumentReference): Type | undefined {
+function dereferenceArgumentType(argsType: RuntimeType, argumentReference: ArgumentReference): RuntimeType | undefined {
 	if (!(argsType instanceof BuiltInTypeBase)) {
 		return undefined;
 	}
@@ -820,7 +820,7 @@ function dereferenceArgumentType(argsType: Type, argumentReference: ArgumentRefe
 // }
 
 // TODO return true/false = always/never, sometimes/maybe?
-function isTypeAssignableTo(valueType: Type, typeType: Type): string | undefined {
+function isTypeAssignableTo(valueType: RuntimeType, typeType: RuntimeType): string | undefined {
 	const typeError = getTypeError(valueType, typeType);
 	if (typeof typeError === 'object') {
 		return typeErrorToString(typeError);
@@ -831,12 +831,12 @@ function isTypeAssignableTo(valueType: Type, typeType: Type): string | undefined
 /**
  * Liefert den Fehler, der beim Zuweisen eines Wertes vom Typ valueType in eine Variable vom Typ typeType entsteht.
  */
-function getTypeError(valueType: Type, typeType: Type): TypeError | undefined {
+function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError | undefined {
 	const targetType = valueOf(typeType);
-	if (targetType === _any) {
+	if (targetType === Any) {
 		return undefined;
 	}
-	if (valueType === _any) {
+	if (valueType === Any) {
 		// TODO error/warning bei any?
 		// error type bei assignment/function call?
 		// maybe return value?
@@ -1129,7 +1129,7 @@ function getPathExpression(importParams: BracketedExpression): ParseValueExpress
 
 //#region ToString
 
-export function typeToString(type: Type, indent: number): string {
+export function typeToString(type: RuntimeType, indent: number): string {
 	switch (typeof type) {
 		case 'string':
 			return `§${type.replaceAll('§', '§§')}§`;
@@ -1228,7 +1228,7 @@ export function typeToString(type: Type, indent: number): string {
 
 const maxElementsPerLine = 5;
 function arrayTypeToString(
-	array: Type[],
+	array: RuntimeType[],
 	indent: number,
 ): string {
 	const multiline = array.length > maxElementsPerLine;
@@ -1243,7 +1243,7 @@ function arrayTypeToString(
 }
 
 function dictionaryTypeToString(
-	dictionary: { [key: string]: Type; },
+	dictionary: { [key: string]: RuntimeType; },
 	nameSeparator: string,
 	indent: number,
 ): string {

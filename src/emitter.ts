@@ -284,6 +284,10 @@ const reservedJsNames: string[] = [
 	'while',
 	'with',
 	'yield',
+
+	'Boolean',
+	'Error',
+	'String',
 ];
 function escapeReservedJsVariableName(name: string): string {
 	if (reservedJsNames.includes(name)) {

@@ -1,5 +1,5 @@
 import { ParserError, Positioned } from './parser-combinator';
-import { Type } from './runtime';
+import { RuntimeType } from './runtime';
 import { NonEmptyArray } from './util';
 
 //#region ParseTree
@@ -18,7 +18,7 @@ export interface SymbolDefinition extends Positioned {
 	description?: string;
 	typeExpression: ParseValueExpression;
 	// TODO inferred type aus dem value? oder normalize typeguard?
-	normalizedType?: Type;
+	normalizedType?: RuntimeType;
 }
 
 export type ParseExpression =
@@ -73,7 +73,7 @@ export type TypedExpression =
 
 // TODO beil allen parseExpression oder nur bei value expressions?
 interface ParseExpressionBase extends Positioned {
-	inferredType?: Type;
+	inferredType?: RuntimeType;
 }
 
 export interface ParseSingleDefinition extends ParseExpressionBase {
@@ -82,10 +82,10 @@ export interface ParseSingleDefinition extends ParseExpressionBase {
 	// TODO spread?
 	name: Name;
 	typeGuard?: ParseValueExpression;
-	normalizedTypeGuard?: Type;
+	normalizedTypeGuard?: RuntimeType;
 	value: ParseValueExpression;
 	fallback?: ParseValueExpression;
-	inferredType?: Type;
+	inferredType?: RuntimeType;
 }
 
 export interface ParseDestructuringDefinition extends ParseExpressionBase {

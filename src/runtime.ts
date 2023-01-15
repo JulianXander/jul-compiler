@@ -1,13 +1,16 @@
+// Enthält Laufzeit helper sowie core-lib builtins
+
+//#region helper
 let processId = 1;
 
 interface Params {
-	type?: Type;
+	type?: RuntimeType;
 	singleNames?: {
 		name: string;
-		type?: Type;
+		type?: RuntimeType;
 	}[];
 	rest?: {
-		type?: Type;
+		type?: RuntimeType;
 	};
 }
 
@@ -34,7 +37,7 @@ export function _callFunction(fn: JulFunction, args: any) {
 	return fn(...assignedParams);
 }
 
-export function _checkType(type: Type, value: any) {
+export function _checkType(type: RuntimeType, value: any) {
 	return isOfType(value, type)
 		? value
 		: new Error(`${value} is not of type ${type}`);
@@ -53,7 +56,7 @@ export function _checkDictionaryType(dictionaryType: Params, value: any): boolea
 
 //#endregion internals
 
-function isOfType(value: any, type: Type): boolean {
+function isOfType(value: any, type: RuntimeType): boolean {
 	switch (typeof type) {
 		case 'bigint':
 		case 'boolean':
@@ -298,7 +301,7 @@ export function deepEquals(value1: any, value2: any): boolean {
 
 //#region Types
 
-export type Type =
+export type RuntimeType =
 	| null
 	| boolean
 	| number
@@ -313,10 +316,10 @@ export type Type =
 type CustomType = (value: any) => boolean;
 
 export type BuiltInType =
-	| Any
+	| AnyType
 	| BooleanType
-	| Integer
-	| Float
+	| IntegerType
+	| FloatType
 	| StringType
 	| ErrorType
 	| DictionaryType
@@ -335,7 +338,7 @@ export type BuiltInType =
 
 export class BuiltInTypeBase { }
 
-export class Any extends BuiltInTypeBase {
+export class AnyType extends BuiltInTypeBase {
 	readonly type = 'any';
 }
 
@@ -343,11 +346,11 @@ export class BooleanType extends BuiltInTypeBase {
 	readonly type = 'boolean';
 }
 
-export class Integer extends BuiltInTypeBase {
+export class IntegerType extends BuiltInTypeBase {
 	readonly type = 'integer';
 }
 
-export class Float extends BuiltInTypeBase {
+export class FloatType extends BuiltInTypeBase {
 	readonly type = 'float';
 }
 
@@ -360,34 +363,34 @@ class ErrorType extends BuiltInTypeBase {
 }
 
 class DictionaryType extends BuiltInTypeBase {
-	constructor(public elementType: Type) { super(); }
+	constructor(public elementType: RuntimeType) { super(); }
 	readonly type = 'dictionary';
 }
 
 export class DictionaryLiteralType extends BuiltInTypeBase {
-	constructor(public fields: { [key: string]: Type; }) { super(); }
+	constructor(public fields: { [key: string]: RuntimeType; }) { super(); }
 	readonly type = 'dictionaryLiteral';
 }
 
 class ListType extends BuiltInTypeBase {
-	constructor(public elementType: Type) { super(); }
+	constructor(public elementType: RuntimeType) { super(); }
 	readonly type = 'list';
 }
 
 export class TupleType extends BuiltInTypeBase {
-	constructor(public elementTypes: Type[]) { super(); }
+	constructor(public elementTypes: RuntimeType[]) { super(); }
 	readonly type = 'tuple';
 }
 
 export class StreamType extends BuiltInTypeBase {
-	constructor(public valueType: Type) { super(); }
+	constructor(public valueType: RuntimeType) { super(); }
 	readonly type = 'stream';
 }
 
 export class FunctionType extends BuiltInTypeBase {
 	constructor(
-		public paramsType: Type,
-		public returnType: Type,
+		public paramsType: RuntimeType,
+		public returnType: RuntimeType,
 	) {
 		super();
 		// TODO set functionRef bei params
@@ -429,17 +432,17 @@ export class TypeType extends BuiltInTypeBase {
 }
 
 export class IntersectionType extends BuiltInTypeBase {
-	constructor(public choiceTypes: Type[]) { super(); }
+	constructor(public choiceTypes: RuntimeType[]) { super(); }
 	readonly type = 'and';
 }
 
 export class UnionType extends BuiltInTypeBase {
-	constructor(public choiceTypes: Type[]) { super(); }
+	constructor(public choiceTypes: RuntimeType[]) { super(); }
 	readonly type = 'or';
 }
 
 export class ComplementType extends BuiltInTypeBase {
-	constructor(public sourceType: Type) { super(); }
+	constructor(public sourceType: RuntimeType) { super(); }
 	readonly type = 'not';
 }
 
@@ -770,22 +773,58 @@ function retry$<T>(
 
 //#endregion Stream
 
+//#endregion helper
+
 //#region builtins
-
 //#region Types
-export const _any = new Any();
-export const _boolean = new BooleanType();
-export const _integer = new Integer();
-export const _float = new Float();
-export const _string = new StringType();
-export const _error = new ErrorType();
-export const _type = new TypeType();
+export const Any = new AnyType();
+export const _Boolean = new BooleanType();
+export const Float = new FloatType();
+export const Integer = new IntegerType();
+export const NonZeroInteger = new UnionType([Integer, new ComplementType(0)]);
+export const _String = new StringType();
+export const _Error = new ErrorType();
+export const Type = new TypeType();
 //#endregion Types
-
-// TODO remove
-// TODO types, funktionen ergänzen
-
+//#region Functions
+//#region Any
+export const equal = _createFunction(
+	(first: any, second: any) =>
+		first === second,
+	{
+		singleNames: [
+			{
+				name: 'first',
+				// TODO
+				// type: { type: 'reference', names: ['Any'] }
+			},
+			{
+				name: 'second',
+				// TODO
+				// type: { type: 'reference', names: ['Any'] }
+			}]
+	}
+);
+//#endregion Any
 //#region Number
+// TODO moduloFloat
+export const modulo = _createFunction(
+	(dividend: bigint, divisor: bigint) =>
+		dividend % divisor,
+	{
+		singleNames: [
+			{
+				name: 'dividend',
+				// TODO
+				// type: { type: 'reference', names: ['Integer'] }
+			},
+			{
+				name: 'divisor',
+				// TODO
+				// type: { type: 'reference', names: ['NonZeroInteger'] }
+			}]
+	}
+);
 // TODO subtract, subtractFloat
 export const subtract = _createFunction(
 	(minuend: number, subtrahend: number) =>
@@ -927,8 +966,6 @@ export const runJs = _createFunction(
 		}]
 	}
 );
-//#endregion Utility
-
 // TODO dynamische imports erlauben??
 // export const _import = _createFunction(require, {
 // 	singleNames: [{
@@ -936,5 +973,6 @@ export const runJs = _createFunction(
 // 		type: (x) => typeof x === 'string'
 // 	}]
 // });
-
+//#endregion Utility
+//#endregion Functions
 //#endregion builtins
