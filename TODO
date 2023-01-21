@@ -1,3 +1,13 @@
+?type inference: generic parameter im inferred return type bei function literal?
+	-vgl Without in core-lib.jul
+?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion
+	-vgl. type-checking-test.jul Zeile 50 vs 51 variable type
+	?wie erkennt man dass ein argument statisch bekannt ist
+	?pure functions kennzeichnen
+		?wie
+	?alternativ: für alle corelib functions type inference hard coden?
+		-problem: usercode type inference nur sehr eingeschränkt
+	?was ist mit type inference bei impure functions?
 -typechecking testen:
 	+IntegerLiteral
 	+Integer
