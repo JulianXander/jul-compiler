@@ -4,15 +4,10 @@
 	+Not
 	-Without
 	-NonZeroInteger
--fizzbuzz lauffähig
-	+builtins:
-		+Integer
-		+NonZeroInteger
-			+Without
-		+equal
-		+modulo
-		+repeat
-	-compile, test
+-type inference: infer argument type bei function literal wenn literal inline argument eines function calls ist
+	-vgl fizz-buzz.jul index
+-type inference: infer branching argument type im sub scope der branch functions narrowed by function parameter type
+	-fehler wenn branching argument type = empty/never, also unreachable code detected
 -examples sortieren, aufräumen, organisieren?
 -homepage
 	?deutsch vs englisch
