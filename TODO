@@ -1,4 +1,7 @@
 ?type inference: generic parameter im inferred return type bei function literal?
+	?ArgumentReference in symbolTable ?was ist mit nested function calls und namenskonflikten
+		?alternativ: functionRef bei symbols die function parameter sind, bei dereference symbol in functionLiteral mit gleicher functionRef ArgumentReference liefern
+
 	?infer function call return type mit generic return type durch inferring der args typen und ersetzung der type parameter
 	?stattdessen (oder zusätzlich): infer function call return type durch inferring des function return types in neuem scope mit inferten args types
 	-vgl Without in core-lib.jul
@@ -10,9 +13,6 @@
 	?pure functions kennzeichnen
 		?wie
 -typechecking testen:
-	+IntegerLiteral
-	+Integer
-	+Not
 	-Without
 	-NonZeroInteger
 -type inference: infer argument type bei function literal wenn literal inline argument eines function calls ist
