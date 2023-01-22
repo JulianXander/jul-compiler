@@ -8,16 +8,38 @@ const expectedResults: {
 	result: ParseExpression[];
 }[] = [
 		{
-			code: 'a: 4 = 4',
+			code: '§\n\t§#\n§',
 			result: [{
-				type: 'integer',
-				value: 12n,
+				type: 'string',
+				values: [{ type: 'stringToken', value: '#\n' }],
 				startRowIndex: 0,
 				startColumnIndex: 0,
-				endRowIndex: 0,
-				endColumnIndex: 2,
+				endRowIndex: 2,
+				endColumnIndex: 1,
 			}]
 		},
+		// {
+		// 	code: '§\n\t12\n§',
+		// 	result: [{
+		// 		type: 'string',
+		// 		values: [{ type: 'stringToken', value: '12\n' }],
+		// 		startRowIndex: 0,
+		// 		startColumnIndex: 0,
+		// 		endRowIndex: 2,
+		// 		endColumnIndex: 1,
+		// 	}]
+		// },
+		// {
+		// 	code: 'a: 4 = 4',
+		// 	result: [{
+		// 		type: 'integer',
+		// 		value: 12n,
+		// 		startRowIndex: 0,
+		// 		startColumnIndex: 0,
+		// 		endRowIndex: 0,
+		// 		endColumnIndex: 2,
+		// 	}]
+		// },
 		// {
 		// 	code: '12',
 		// 	result: [{
@@ -95,15 +117,6 @@ const expectedResults: {
 		// 		endRowIndex: 4,
 		// 		endColumnIndex: 1,
 		// 	}],
-		// },
-		// {
-		// 	code: '§\n\t12\n§',
-		// 	result: [{
-		// 		type: 'string',
-		// 		values: [{ type: 'stringToken', value: '12\n' }],
-		// 		startRowIndex: 0,
-		// 		endRowIndex: 0,
-		// 	}]
 		// },
 		// {
 		// 	code: '# Destructuring import\n§a§',

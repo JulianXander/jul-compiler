@@ -1170,8 +1170,7 @@ function stringLineContentParser(
 			0,
 			undefined,
 			choiceParser(
-				regexParser(/[^§]+/g, 'Invalid String Syntax'),
-				tokenParser('§§'),
+				regexParser(/([^§]+|§§|§#)/g, 'Invalid String Syntax'),
 				sequenceParser(
 					tokenParser('§('),
 					valueExpressionParser,
@@ -1185,16 +1184,12 @@ function stringLineContentParser(
 		errors: result.errors,
 		parsed: result.parsed?.map(choice => {
 			switch (typeof choice) {
-				case 'undefined':
-					return {
-						type: 'stringToken',
-						value: '§'
-					};
-
 				case 'string':
 					return {
 						type: 'stringToken',
-						value: choice
+						value: choice.startsWith('§')
+							? choice.substring(1)
+							: choice
 					};
 
 				case 'object':
