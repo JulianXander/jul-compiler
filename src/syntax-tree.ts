@@ -262,6 +262,9 @@ export interface ParseFunctionLiteral extends ParseExpressionBase {
 	params: SimpleExpression | ParseParameterFields;
 	returnType?: ParseValueExpression;
 	body: ParseExpression[];
+	/**
+	 * Die Variablen aus den Parametern sowie dem body.
+	 */
 	symbols: SymbolTable;
 	// TODO impure functions mit !=> ?
 	// pure: boolean;

@@ -1,5 +1,9 @@
 ?type inference: generic parameter im inferred return type bei function literal?
+	?infer function call return type mit generic return type durch inferring der args typen und ersetzung der type parameter
+	?stattdessen (oder zusätzlich): infer function call return type durch inferring des function return types in neuem scope mit inferten args types
 	-vgl Without in core-lib.jul
+	-vgl test1-wip.jul
+	-vgl Stream in core-lib.jul, ArgumentReference in type-checker.ts
 ?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion
 	-vgl. type-checking-test.jul Zeile 50 vs 51 variable type
 	?wie erkennt man dass ein argument statisch bekannt ist
