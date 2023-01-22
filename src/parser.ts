@@ -241,6 +241,7 @@ function startOfLineParser(
 
 /**
  * parst 0 Zeichen
+ * Liefert ParserErrorResult bei endOfCode
  */
 function endOfLineParser(
 	rows: string[],
@@ -248,8 +249,15 @@ function endOfLineParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<undefined> {
+	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'endOfLine');
+	if (endOfCodeError) {
+		return endOfCodeError;
+	}
 	const row = rows[startRowIndex];
-	const rowLength = row!.length;
+	if (row === undefined) {
+		throw new Error(`row[${startRowIndex}] missing`);
+	}
+	const rowLength = row.length;
 	if (startColumnIndex !== rowLength) {
 		return {
 			endRowIndex: startRowIndex,
@@ -346,7 +354,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 				// Ende des Blocks
 				return {
 					endRowIndex: endRowIndex,
-					endColumnIndex: endRow!.length,
+					endColumnIndex: endRow.length,
 					parsed: parsed,
 					errors: errors,
 				};

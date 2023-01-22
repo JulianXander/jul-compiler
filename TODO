@@ -1,3 +1,4 @@
+-debug string-example.jul (crash parser.js:155)
 ?type inference: generic parameter im inferred return type bei function literal?
 	-vgl Without in core-lib.jul
 ?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion
