@@ -478,15 +478,24 @@ function inferType(
 		case 'functionLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			setInferredType(expression.params, functionScopes, parsedDocuments, folder, file);
-			const declaredReturnType = expression.returnType;
-			if (declaredReturnType) {
-				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
-			}
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
 			});
-			// TODO declaredReturnType vs inferredReturnType
 			const inferredReturnType = last(expression.body)?.inferredType ?? null;
+			const declaredReturnType = expression.returnType;
+			if (declaredReturnType) {
+				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
+				const error = isTypeAssignableTo(inferredReturnType, declaredReturnType.inferredType!);
+				if (error) {
+					errors.push({
+						message: error,
+						startRowIndex: expression.startRowIndex,
+						startColumnIndex: expression.startColumnIndex,
+						endRowIndex: expression.endRowIndex,
+						endColumnIndex: expression.endColumnIndex,
+					});
+				}
+			}
 			return new FunctionType(
 				// TODO valueOf?
 				expression.params.inferredType!,
