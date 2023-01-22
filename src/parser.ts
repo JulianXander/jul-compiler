@@ -1112,6 +1112,7 @@ function multilineStringParser(
 ): ParserResult<ParseStringLiteral> {
 	const result = sequenceParser(
 		paragraphParser,
+		// TODO string language identifier?
 		newLineParser,
 		incrementIndent(multilineParser(stringLineContentParser)),
 		newLineParser,
