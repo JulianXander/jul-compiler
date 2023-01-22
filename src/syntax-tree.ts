@@ -85,7 +85,6 @@ export interface ParseSingleDefinition extends ParseExpressionBase {
 	normalizedTypeGuard?: RuntimeType;
 	value: ParseValueExpression;
 	fallback?: ParseValueExpression;
-	inferredType?: RuntimeType;
 }
 
 export interface ParseDestructuringDefinition extends ParseExpressionBase {
