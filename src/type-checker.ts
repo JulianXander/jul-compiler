@@ -141,6 +141,11 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): RuntimeTy
 		// TODO add 'reference not found' error?
 		return Any;
 	}
+	if (foundSymbol.isFunctionParameter) {
+		// TODO ArgumentReference nur liefern, wenn Symbol im untersten Scope gefunden,
+		// da ArgumentReference auf höhere Funktionen problematisch ist?
+		return new ArgumentReference(reference.path);
+	}
 	const referencedType = foundSymbol.normalizedType;
 	if (referencedType === undefined) {
 		// TODO was wenn referencedsymbol type noch nicht inferred ist?
@@ -629,6 +634,24 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 	}
 	const builtInType: BuiltInType = typeToDereference;
 	switch (builtInType.type) {
+		case 'any':
+		case 'boolean':
+		case 'error':
+		case 'float':
+		case 'integer':
+		case 'string':
+		case 'type':
+			return builtInType;
+
+		case 'and':
+			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
+
+		case 'not':
+			return new ComplementType(dereferenceArgumentTypesNested(argsType, builtInType.sourceType));
+
+		case 'or':
+			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
+
 		case 'reference':
 			// TODO immer valueOf?
 			return valueOf(dereferenceArgumentType(argsType, builtInType));
@@ -640,8 +663,17 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 			return new TypeOfType(dereferenceArgumentTypesNested(argsType, builtInType.value));
 
 		// TODO
-		default:
+		case 'dictionary':
+		case 'dictionaryLiteral':
+		case 'function':
+		case 'list':
+		case 'tuple':
 			return builtInType;
+
+		default: {
+			const assertNever: never = builtInType;
+			throw new Error('Unexpected BuiltInType.type: ' + (assertNever as BuiltInType).type);
+		}
 	}
 }
 

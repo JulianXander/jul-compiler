@@ -1,10 +1,10 @@
 ?type inference: generic parameter im inferred return type bei function literal?
+	-Fix paramIndex vgl type-checker.ts Zeile 698
 	?ArgumentReference in symbolTable ?was ist mit nested function calls und namenskonflikten
 		?alternativ: functionRef bei symbols die function parameter sind, bei dereference symbol in functionLiteral mit gleicher functionRef ArgumentReference liefern
 
 	?infer function call return type mit generic return type durch inferring der args typen und ersetzung der type parameter
 	?stattdessen (oder zusätzlich): infer function call return type durch inferring des function return types in neuem scope mit inferten args types
-	-vgl Without in core-lib.jul
 	-vgl test1-wip.jul
 	-vgl Stream in core-lib.jul, ArgumentReference in type-checker.ts
 ?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion

@@ -93,13 +93,13 @@ function fillSymbolTableWithExpressions(
 		switch (expression.type) {
 			case 'definition': {
 				// TODO type
-				defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description);
+				defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description, false);
 				return;
 			}
 
 			case 'destructuring': {
 				// TODO type über value ermitteln
-				fillSymbolTableWithDictionaryType(symbolTable, errors, expression.fields);
+				fillSymbolTableWithDictionaryType(symbolTable, errors, expression.fields, false);
 				return;
 			}
 
@@ -113,9 +113,10 @@ function fillSymbolTableWithDictionaryType(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
 	dictionaryType: BracketedExpressionBase,
+	isFunctionParameter: boolean,
 ): void {
 	dictionaryType.fields.forEach(field => {
-		defineSymbolsForField(symbolTable, errors, field);
+		defineSymbolsForField(symbolTable, errors, field, isFunctionParameter);
 	});
 }
 
@@ -123,6 +124,7 @@ function defineSymbolsForField(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
 	field: ParseFieldBase,
+	isFunctionParameter: boolean,
 ): void {
 	const name = checkName(field.name);
 	if (!name) {
@@ -136,6 +138,7 @@ function defineSymbolsForField(
 		// TODO check type
 		field.typeGuard as any,
 		field.description,
+		isFunctionParameter,
 	);
 }
 
@@ -145,6 +148,7 @@ function defineSymbol(
 	name: Name,
 	type: ParseValueExpression,
 	description: string | undefined,
+	isFunctionParameter: boolean,
 ): void {
 	const nameString = name.name;
 	// TODO check upper scopes
@@ -160,6 +164,7 @@ function defineSymbol(
 	symbolTable[nameString] = {
 		typeExpression: type,
 		description: description,
+		isFunctionParameter: isFunctionParameter,
 		startRowIndex: name.startRowIndex,
 		startColumnIndex: name.startColumnIndex,
 		endRowIndex: name.endRowIndex,
@@ -855,7 +860,7 @@ function valueExpressionBaseParser(
 			const body = parsed2.body;
 			let params: SimpleExpression | ParseParameterFields = parsed1;
 			if (parsed1.type === 'bracketed') {
-				fillSymbolTableWithDictionaryType(symbols, errors, parsed1);
+				fillSymbolTableWithDictionaryType(symbols, errors, parsed1, true);
 				params = bracketedExpressionToParameters(parsed1, errors);
 			}
 			// TODO im Fall dass params TypeExpression ist: Code Flow Typing berücksichtigen
@@ -925,7 +930,7 @@ function valueExpressionBaseParser(
 				throw new Error('ReturnType can only follow a bracketed expression.');
 			}
 			const params: BracketedExpressionBase | ParseParameterFields = bracketedExpressionToParameters(parsed1, errors);
-			fillSymbolTableWithDictionaryType(symbols, errors, parsed1);
+			fillSymbolTableWithDictionaryType(symbols, errors, parsed1, true);
 			if (body) {
 				// FunctionLiteral mit ReturnType
 				fillSymbolTableWithExpressions(symbols, errors, body);
