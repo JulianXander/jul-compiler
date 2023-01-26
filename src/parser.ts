@@ -93,7 +93,7 @@ function fillSymbolTableWithExpressions(
 		switch (expression.type) {
 			case 'definition': {
 				// TODO type
-				defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description, false);
+				defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description, undefined);
 				return;
 			}
 
@@ -115,16 +115,16 @@ function fillSymbolTableWithDictionaryType(
 	dictionaryType: BracketedExpressionBase,
 	isFunctionParameter: boolean,
 ): void {
-	dictionaryType.fields.forEach(field => {
-		defineSymbolsForField(symbolTable, errors, field, isFunctionParameter);
+	dictionaryType.fields.forEach((field, index) => {
+		defineSymbolForField(symbolTable, errors, field, isFunctionParameter ? index : undefined);
 	});
 }
 
-function defineSymbolsForField(
+function defineSymbolForField(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
 	field: ParseFieldBase,
-	isFunctionParameter: boolean,
+	functionParameterIndex: number | undefined,
 ): void {
 	const name = checkName(field.name);
 	if (!name) {
@@ -138,7 +138,7 @@ function defineSymbolsForField(
 		// TODO check type
 		field.typeGuard as any,
 		field.description,
-		isFunctionParameter,
+		functionParameterIndex,
 	);
 }
 
@@ -148,7 +148,7 @@ function defineSymbol(
 	name: Name,
 	type: ParseValueExpression,
 	description: string | undefined,
-	isFunctionParameter: boolean,
+	functionParameterIndex: number | undefined,
 ): void {
 	const nameString = name.name;
 	// TODO check upper scopes
@@ -164,7 +164,7 @@ function defineSymbol(
 	symbolTable[nameString] = {
 		typeExpression: type,
 		description: description,
-		isFunctionParameter: isFunctionParameter,
+		functionParameterIndex: functionParameterIndex,
 		startRowIndex: name.startRowIndex,
 		startColumnIndex: name.startColumnIndex,
 		endRowIndex: name.endRowIndex,

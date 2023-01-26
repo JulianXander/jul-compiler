@@ -3,7 +3,7 @@ import { getCheckedName } from './checker';
 import { parseFile } from './parser';
 import {
 	AnyType,
-	ArgumentReference,
+	ParameterReference,
 	BuiltInType,
 	BuiltInTypeBase,
 	deepEquals,
@@ -74,17 +74,17 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 			// TODO functionType
 			ValueType: Type,
 		}),
-		new TypeOfType(new StreamType(new ArgumentReference([{
+		new TypeOfType(new StreamType(new ParameterReference([{
 			type: 'name',
 			name: 'ValueType',
-		}]))),
+		}], 0))),
 	),
 	Type: new TypeOfType(Type),
 	// ValueOf:  new FunctionType(
 	// 		new DictionaryLiteralType({
 	// 			T: _type,
 	// 		}),
-	// 		new ArgumentReference([{
+	// 		new ParameterReference([{
 	// 			type: 'name',
 	// 			name: 'FunctionType',
 	// 		}]),
@@ -102,10 +102,10 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 			FunctionType: Type,
 			js: _String
 		}),
-		new ArgumentReference([{
+		new ParameterReference([{
 			type: 'name',
 			name: 'FunctionType',
-		}]),
+		}], 0),
 	),
 	nativeValue: new FunctionType(
 		new DictionaryLiteralType({
@@ -141,10 +141,10 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): RuntimeTy
 		// TODO add 'reference not found' error?
 		return Any;
 	}
-	if (foundSymbol.isFunctionParameter) {
-		// TODO ArgumentReference nur liefern, wenn Symbol im untersten Scope gefunden,
-		// da ArgumentReference auf höhere Funktionen problematisch ist?
-		return new ArgumentReference(reference.path);
+	if (foundSymbol.functionParameterIndex !== undefined) {
+		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
+		// da ParameterReference auf höhere Funktionen problematisch ist?
+		return new ParameterReference(reference.path, foundSymbol.functionParameterIndex);
 	}
 	const referencedType = foundSymbol.normalizedType;
 	if (referencedType === undefined) {
@@ -408,7 +408,7 @@ function inferType(
 						return new DictionaryLiteralType(importedTypes);
 					}
 					// case 'nativeFunction': {
-					// 	const argumentType = dereferenceArgumentType(argsType, new ArgumentReference([{
+					// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
 					// 		type: 'name',
 					// 		name: 'FunctionType',
 					// 	}]));
@@ -416,7 +416,7 @@ function inferType(
 					// }
 
 					// case 'nativeValue': {
-					// 	const argumentType = dereferenceArgumentType(argsType, new ArgumentReference([{
+					// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
 					// 		type: 'name',
 					// 		name: 'js',
 					// 	}]));
@@ -511,7 +511,7 @@ function inferType(
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			setInferredType(expression.params, functionScopes, parsedDocuments, folder, file);
-			// TODO argumentReference
+			// TODO parameterReference
 			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file);
 			const inferredReturnType = expression.returnType.inferredType;
 			if (inferredReturnType === undefined) {
@@ -677,25 +677,24 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 	}
 }
 
-function dereferenceArgumentType(argsType: RuntimeType, argumentReference: ArgumentReference): RuntimeType | undefined {
+function dereferenceArgumentType(argsType: RuntimeType, parameterReference: ParameterReference): RuntimeType | undefined {
 	if (!(argsType instanceof BuiltInTypeBase)) {
 		return undefined;
 	}
 	switch (argsType.type) {
 		case 'dictionaryLiteral': {
 			// TODO dereference nested path
-			const referenceName = argumentReference.path[0].name;
+			const referenceName = parameterReference.path[0].name;
 			const argType = argsType.fields[referenceName];
 			// TODO error bei unbound ref?
 			return argType;
 		}
 
 		case 'tuple': {
-			// TODO get param index
+			// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
 			// TODO dereference nested path
-			const referenceName = argumentReference.path[0].name;
-			// functionType.parameterType
-			const paramIndex = 0;
+			// const referenceName = parameterReference.path[0].name;
+			const paramIndex = parameterReference.index;
 			const argType = argsType.elementTypes[paramIndex];
 			// TODO error bei unbound ref?
 			return argType;

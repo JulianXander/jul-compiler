@@ -19,7 +19,7 @@ export interface SymbolDefinition extends Positioned {
 	typeExpression: ParseValueExpression;
 	// TODO inferred type aus dem value? oder normalize typeguard?
 	normalizedType?: RuntimeType;
-	isFunctionParameter: boolean;
+	functionParameterIndex?: number;
 }
 
 export type ParseExpression =

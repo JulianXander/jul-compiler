@@ -328,7 +328,7 @@ export type BuiltInType =
 	| TupleType
 	| StreamType
 	| FunctionType
-	| ArgumentReference
+	| ParameterReference
 	| TypeType
 	| IntersectionType
 	| UnionType
@@ -394,7 +394,7 @@ export class FunctionType extends BuiltInTypeBase {
 	) {
 		super();
 		// TODO set functionRef bei params
-		if (returnType instanceof ArgumentReference) {
+		if (returnType instanceof ParameterReference) {
 			returnType.functionRef = this;
 		}
 	}
@@ -404,9 +404,10 @@ export class FunctionType extends BuiltInTypeBase {
 // TODO Parameter Type ???
 
 
-export class ArgumentReference extends BuiltInTypeBase {
+export class ParameterReference extends BuiltInTypeBase {
 	constructor(
 		public path: ReferencePath,
+		public index: number,
 	) { super(); }
 	readonly type = 'reference';
 	/**
