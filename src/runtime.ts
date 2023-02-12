@@ -193,7 +193,7 @@ function isDictionary(value: any): value is { [key: string]: any; } {
 function tryAssignParams(params: Params, values: any): any[] | Error {
 	const assigneds: any[] = [];
 	const { type: outerType, singleNames, rest } = params;
-	if (outerType) {
+	if (outerType !== undefined) {
 		const isValid = isOfType(values, outerType);
 		if (!isValid) {
 			return new Error(`Can not assign the value ${values} to params because it is not of type ${outerType}`);
@@ -312,6 +312,13 @@ export type RuntimeType =
 	| BuiltInType
 	| CustomType
 	;
+
+interface Fraction {
+	numerator: bigint;
+	denominator: bigint;
+}
+
+type Rational = bigint | Fraction;
 
 type CustomType = (value: any) => boolean;
 
@@ -826,8 +833,50 @@ export const modulo = _createFunction(
 			}]
 	}
 );
-// TODO subtract, subtractFloat
 export const subtract = _createFunction(
+	(minuend: Rational, subtrahend: Rational): Rational => {
+		if (typeof minuend === 'bigint') {
+			if (typeof subtrahend === 'bigint') {
+				return minuend - subtrahend;
+			}
+			else {
+				return {
+					numerator: minuend * subtrahend.denominator - subtrahend.numerator,
+					denominator: subtrahend.denominator,
+				};
+			}
+		}
+		else {
+			if (typeof subtrahend === 'bigint') {
+				return {
+					numerator: minuend.numerator - subtrahend * minuend.denominator,
+					denominator: minuend.denominator,
+				};
+			}
+			else {
+				// TODO kleinstes gemeinsames Vielfaches, kürzen
+				return {
+					numerator: minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
+					denominator: minuend.denominator * subtrahend.denominator,
+				};
+			}
+		}
+	},
+	{
+		singleNames: [
+			{
+				name: 'minuend',
+				// TODO
+				// type: { type: 'reference', names: ['Rational'] }
+			},
+			{
+				name: 'subtrahend',
+				// TODO
+				// type: { type: 'reference', names: ['Rational'] }
+			}]
+	}
+);
+export const subtractFloat = _createFunction(
 	(minuend: number, subtrahend: number) =>
 		minuend - subtrahend,
 	{
@@ -846,6 +895,45 @@ export const subtract = _createFunction(
 );
 // TODO sum, sumFloat
 export const sum = _createFunction(
+	(...args: Rational[]) =>
+		args.reduce(
+			(accumulator, current) => {
+				if (typeof accumulator === 'bigint') {
+					if (typeof current === 'bigint') {
+						return accumulator + current;
+					}
+					else {
+						return {
+							numerator: accumulator * current.denominator + current.numerator,
+							denominator: current.denominator,
+						};
+					}
+				}
+				else {
+					if (typeof current === 'bigint') {
+						return {
+							numerator: accumulator.numerator + current * accumulator.denominator,
+							denominator: accumulator.denominator,
+						};
+					}
+					else {
+						// TODO kleinstes gemeinsames Vielfaches, kürzen
+						return {
+							numerator: accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
+							denominator: accumulator.denominator * current.denominator,
+						};
+					}
+				}
+			},
+			0n),
+	// TODO params type ...Rational[]
+	{
+		rest: {
+			// name: 'args'
+		}
+	}
+);
+export const sumFloat = _createFunction(
 	(...args: number[]) =>
 		args.reduce(
 			(accumulator, current) =>

@@ -14,13 +14,13 @@ Float = nativeValue(§_float§)
 # Ganzzahl beliebiger Größe
 Integer = nativeValue(§_integer§)
 NonZeroInteger = Integer.Without(0)
-# TODO Fraction = nativeValue()? (
-# 	numerator: Integer
-# 	denominator: Integer
-# )
-# TODO Rational = Or(Integer Fraction)
+Fraction = (
+	numerator: Integer
+	denominator: Integer
+)
+Rational = Or(Integer Fraction)
 # TODO nonzero/positive
-# TODO Number = Or(Float Rational)
+# TODO Number = Or(Float Rational)?
 #endregion Number
 # sequence of characters
 String = nativeValue(§_string§)
@@ -113,11 +113,27 @@ modulo = nativeFunction(
 )
 # minuend - subtrahend
 subtract = nativeFunction(
+	(minuend: Rational subtrahend: Rational): Rational
+	§(minuend, subtrahend) => minuend - subtrahend§
+)
+# minuend - subtrahend
+subtractFloat = nativeFunction(
 	(minuend: Float subtrahend: Float): Float
 	§(minuend, subtrahend) => minuend - subtrahend§
 )
 # Liefert die Summe der args.
 sum = nativeFunction(
+	(...arg: List(Rational)): Rational
+	§
+		(...args) =>
+			args.reduce(
+				(accumulator, current) =>
+					accumulator + current,
+				0)
+	§
+)
+# Liefert die Summe der args.
+sumFloat = nativeFunction(
 	(...arg: List(Float)): Float
 	§
 		(...args) =>
