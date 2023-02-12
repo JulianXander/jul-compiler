@@ -169,6 +169,15 @@ subscribe = nativeFunction(
 )
 #endregion core
 #region create
+# TODO response type, body type
+httpRequest$ = nativeFunction(
+	(
+		url: String
+		method: String
+		body: Any
+	): Stream(Any)
+	§[...]§
+)
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1
 timer$ = nativeFunction(
 	(delayMs: Float): Stream(Float)

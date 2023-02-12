@@ -549,29 +549,6 @@ function createSource$<T>(initialValue: T): Stream<T> {
 	stream$.push(initialValue, processId);
 	return stream$;
 }
-
-function httpRequest$(url: string, method: string, body: any): Stream<null | Response | Error> {
-	const abortController = new AbortController();
-	const response$ = createSource$<null | Response | Error>(null);
-	response$.onCompleted(() => {
-		abortController.abort();
-	});
-	fetch(url, {
-		method: method,
-		body: body,
-		signal: abortController.signal,
-	}).then(response => {
-		processId++;
-		response$.push(response, processId);
-	}).catch(error => {
-		processId++;
-		response$.push(error, processId);
-	}).finally(() => {
-		response$.complete();
-	});
-	return response$;
-}
-
 function of$<T>(value: T): Stream<T> {
 	const $ = createSource$(value);
 	$.complete();
@@ -988,6 +965,48 @@ export const subscribe = _createFunction(
 );
 //#endregion core
 //#region create
+export const httpRequest$ = _createFunction(
+	(url: string, method: string, body: any): Stream<null | Response | Error> => {
+		const abortController = new AbortController();
+		const response$ = createSource$<null | Response | Error>(null);
+		response$.onCompleted(() => {
+			abortController.abort();
+		});
+		fetch(url, {
+			method: method,
+			body: body,
+			signal: abortController.signal,
+		}).then(response => {
+			processId++;
+			response$.push(response, processId);
+		}).catch(error => {
+			processId++;
+			response$.push(error, processId);
+		}).finally(() => {
+			response$.complete();
+		});
+		return response$;
+	},
+	{
+		singleNames: [
+			{
+				name: 'url',
+				// TODO
+				// type: String
+			},
+			{
+				name: 'method',
+				// TODO
+				// type: String
+			},
+			{
+				name: 'body',
+				// TODO
+				// type: Any
+			},
+		]
+	}
+);
 export const timer$ = _createFunction(
 	(delayMs: number): Stream<number> => {
 		const stream$ = createSource$(1);
