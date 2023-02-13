@@ -169,13 +169,14 @@ subscribe = nativeFunction(
 )
 #endregion core
 #region create
-# TODO response type, body type
-httpRequest$ = nativeFunction(
+# Startwert: ()
+# Schickt eine HTTP Anfrage ab und liefert die Antwort als Text.
+httpTextRequest$ = nativeFunction(
 	(
 		url: String
 		method: String
 		body: Any
-	): Stream(Any)
+	): Stream(Or(() String Error))
 	§[...]§
 )
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1

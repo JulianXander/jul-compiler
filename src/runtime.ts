@@ -965,10 +965,10 @@ export const subscribe = _createFunction(
 );
 //#endregion core
 //#region create
-export const httpRequest$ = _createFunction(
-	(url: string, method: string, body: any): Stream<null | Response | Error> => {
+export const httpTextRequest$ = _createFunction(
+	(url: string, method: string, body: any): Stream<null | string | Error> => {
 		const abortController = new AbortController();
-		const response$ = createSource$<null | Response | Error>(null);
+		const response$ = createSource$<null | string | Error>(null);
 		response$.onCompleted(() => {
 			abortController.abort();
 		});
@@ -977,8 +977,15 @@ export const httpRequest$ = _createFunction(
 			body: body,
 			signal: abortController.signal,
 		}).then(response => {
+			if (response.ok) {
+				return response.text();
+			}
+			else {
+				throw new Error(response.statusText);
+			}
+		}).then(responseText => {
 			processId++;
-			response$.push(response, processId);
+			response$.push(responseText, processId);
 		}).catch(error => {
 			processId++;
 			response$.push(error, processId);
