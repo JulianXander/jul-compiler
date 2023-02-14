@@ -61,24 +61,44 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 		//#endregion 6. copy runtime
 
 		//#region 7. bundle
-		console.log('bundling ...');
+		process.stdout.write('bundling ');
 		// const absoluteJsPath = resolve(jsFileName);
 		const absoluteFolderPath = resolve(sourceFolder);
 		const bundler = webpack({
-			mode: 'none',
+			// mode: 'none',
 			entry: jsFileName,
 			output: {
 				path: absoluteFolderPath,
 				filename: 'bundle.js',
-			}
+			},
+			target: 'node',
+			// resolve: {
+			// 	modules: ['node_modules']
+			// }
 		});
+		const spinner = busySpinner()
 		bundler.run((error, stats) => {
 			// console.log(error, stats);
+			spinner();
 			console.log('done');
 		});
 		//#endregion 7. bundle
 	}
+}
 
+function busySpinner() {
+	let step = 0;
+	const characters = '⡀⠄⠂⠁⠈⠐⠠⢀';
+	process.stdout.write(characters[0] + ' ');
+	const timer = setInterval(() => {
+		step++;
+		process.stdout.write(`\b\b${characters[step % characters.length]!} `);
+		// move back: \x1b[1D
+	}, 200);
+	return () => {
+		clearInterval(timer);
+		process.stdout.write('\b\b  \n');
+	};
 }
 
 //#region import

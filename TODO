@@ -1,3 +1,4 @@
+-fix webpack mit node_modules
 -fix typeChecking t2: FalseType = 4 vgl test1-wip.jul
 ?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion
 	-vgl. type-checking-test.jul Zeile 50 vs 51 variable type
