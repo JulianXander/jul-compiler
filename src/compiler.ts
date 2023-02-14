@@ -62,6 +62,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 
 		//#region 7. bundle
 		process.stdout.write('bundling ');
+		const stopSpinner = busySpinner();
 		// const absoluteJsPath = resolve(jsFileName);
 		const absoluteFolderPath = resolve(sourceFolder);
 		const bundler = webpack({
@@ -75,11 +76,9 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 			// resolve: {
 			// 	modules: ['node_modules']
 			// }
-		});
-		const spinner = busySpinner()
-		bundler.run((error, stats) => {
+		}); bundler.run((error, stats) => {
 			// console.log(error, stats);
-			spinner();
+			stopSpinner();
 			console.log('done');
 		});
 		//#endregion 7. bundle
@@ -88,13 +87,14 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 
 function busySpinner() {
 	let step = 0;
-	const characters = '⡀⠄⠂⠁⠈⠐⠠⢀';
+	// const characters = '⡀⠄⠂⠁⠈⠐⠠⢀';
+	const characters = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
 	process.stdout.write(characters[0] + ' ');
 	const timer = setInterval(() => {
 		step++;
 		process.stdout.write(`\b\b${characters[step % characters.length]!} `);
 		// move back: \x1b[1D
-	}, 200);
+	}, 100);
 	return () => {
 		clearInterval(timer);
 		process.stdout.write('\b\b  \n');
