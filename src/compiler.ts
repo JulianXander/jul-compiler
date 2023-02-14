@@ -62,13 +62,13 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 
 		//#region 7. bundle
 		console.log('bundling ...');
-		// const absoulteJsPath = resolve(jsFileName);
-		const absoulteFolderPath = resolve(sourceFolder);
+		// const absoluteJsPath = resolve(jsFileName);
+		const absoluteFolderPath = resolve(sourceFolder);
 		const bundler = webpack({
 			mode: 'none',
 			entry: jsFileName,
 			output: {
-				path: absoulteFolderPath,
+				path: absoluteFolderPath,
 				filename: 'bundle.js',
 			}
 		});
