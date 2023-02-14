@@ -9,7 +9,7 @@ import { getPathFromImport } from './type-checker';
 
 export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true; }): void {
 	console.log(`compiling ${filePath} ...`);
-	if (filePath.substr(filePath.length - 4) !== '.jul') {
+	if (filePath.substring(filePath.length - 4) !== '.jul') {
 		throw new Error('Invalid file ending. Expected .jul');
 	}
 
