@@ -29,12 +29,19 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 	return new Error(`${value} did not match any branch`);
 }
 
-export function _callFunction(fn: JulFunction, args: any) {
-	const assignedParams = tryAssignParams(fn.params, args);
-	if (assignedParams instanceof Error) {
-		return assignedParams;
+export function _callFunction(fn: JulFunction | Function, args: any) {
+	if ('params' in fn) {
+		// jul function
+		const assignedParams = tryAssignParams(fn.params, args);
+		if (assignedParams instanceof Error) {
+			return assignedParams;
+		}
+		return fn(...assignedParams);
 	}
-	return fn(...assignedParams);
+	// js function
+	return Array.isArray(args)
+		? fn(...args)
+		: fn(args)
 }
 
 export function _checkType(type: RuntimeType, value: any) {

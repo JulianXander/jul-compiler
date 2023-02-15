@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { extname, join } from 'path';
 import { getCheckedName } from './checker';
 import { parseFile } from './parser';
 import {
@@ -1139,7 +1139,15 @@ export function getPathFromImport(importExpression: ParseFunctionCall): string |
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'stringToken') {
 		const importedPath = pathExpression.values[0].value;
-		return importedPath + '.jul';
+		const extension = extname(importedPath);
+		switch (extension) {
+			case '.js':
+				return importedPath;
+			case '':
+				return importedPath + '.jul';
+			default:
+				throw new Error(`Unexpected extension for import: ${extension}`);
+		}
 	}
 	// TODO dynamische imports verbieten???
 	return undefined;

@@ -1,5 +1,5 @@
 import { writeFileSync, copyFileSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import { dirname, extname, join, resolve } from 'path';
 import { webpack } from 'webpack';
 import { checkParseExpressions } from './checker';
 import { syntaxTreeToJs } from './emitter';
@@ -45,6 +45,9 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	const importedFilePaths = getImportedPaths(parsed);
 	const sourceFolder = dirname(filePath);
 	importedFilePaths.forEach(path => {
+		if (extname(path) !== '.jul') {
+			return;
+		}
 		const fullPath = join(sourceFolder, path);
 		if (compiledFilePathsWithDefault[fullPath]) {
 			return;
