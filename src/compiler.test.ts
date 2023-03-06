@@ -145,7 +145,7 @@ const expectedResults: {
 		// 	code: 'fibonacci = (number:NonNegativeInteger) =>\n\tnumber ?\n\t\t(n:0) => 0\n\t\t(n:1) => 1\n\t\t(n) => sum(fibonacci(subtract(n 2)) fibonacci(subtract(n 1)))\nfibonacci(12)',
 		// 	result: 144
 		// },
-	];;
+	];
 
 // describe('Compiler', () => {
 // 	expectedResults.forEach(({ code, result }) => {
