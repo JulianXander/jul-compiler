@@ -175,6 +175,7 @@ httpTextRequest$ = nativeFunction(
 	(
 		url: String
 		method: String
+		headers: Dictionary(String)
 		body: Any
 	): Stream(Or(() String Error))
 	§[...]§

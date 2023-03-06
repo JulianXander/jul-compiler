@@ -973,7 +973,12 @@ export const subscribe = _createFunction(
 //#endregion core
 //#region create
 export const httpTextRequest$ = _createFunction(
-	(url: string, method: string, body: any): Stream<null | string | Error> => {
+	(
+		url: string,
+		method: string,
+		headers: { [key: string]: string },
+		body: any
+	): Stream<null | string | Error> => {
 		const abortController = new AbortController();
 		const response$ = createSource$<null | string | Error>(null);
 		response$.onCompleted(() => {
@@ -981,6 +986,7 @@ export const httpTextRequest$ = _createFunction(
 		});
 		fetch(url, {
 			method: method,
+			headers: headers,
 			body: body,
 			signal: abortController.signal,
 		}).then(response => {
