@@ -112,7 +112,7 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				parseField => {
 					switch (parseField.type) {
 						case 'singleDictionaryField': {
-							const checkedName = getCheckedName(parseField.name);
+							const checkedName = getCheckedDictionaryName(parseField.name);
 							if (!checkedName) {
 								return undefined;
 							}
@@ -402,4 +402,25 @@ export function getCheckedName(parseName: ParseValueExpression): string | undefi
 		return undefined;
 	}
 	return parseName.path[0].name;
+}
+
+export function getCheckedDictionaryName(parseName: ParseValueExpression): string | undefined {
+	switch (parseName.type) {
+		case 'reference':
+			if (parseName.path.length > 1) {
+				return undefined;
+			}
+			return parseName.path[0].name;
+		case 'string':
+			if (parseName.values.length > 1) {
+				return undefined;
+			}
+			const value = parseName.values[0];
+			if (value?.type !== 'stringToken') {
+				return undefined;
+			}
+			return value.value;
+		default:
+			return undefined;
+	}
 }

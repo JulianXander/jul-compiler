@@ -1,5 +1,5 @@
 import { extname, join } from 'path';
-import { getCheckedName } from './checker';
+import { getCheckedDictionaryName, getCheckedName } from './checker';
 import { parseFile } from './parser';
 import {
 	AnyType,
@@ -311,7 +311,7 @@ function inferType(
 						if (field.typeGuard) {
 							setInferredType(field.typeGuard, scopes, parsedDocuments, folder, file);
 						}
-						const fieldName = getCheckedName(field.name);
+						const fieldName = getCheckedDictionaryName(field.name);
 						if (!fieldName) {
 							return;
 						}

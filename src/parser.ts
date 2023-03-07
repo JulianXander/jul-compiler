@@ -1867,7 +1867,8 @@ function bracketedExpressionToValueExpression(
 					};
 					return spreadDictionaryField;
 				}
-				if (baseName.type !== 'reference') {
+				if (baseName.type !== 'reference'
+					&& baseName.type !== 'string') {
 					errors.push({
 						message: `${baseName.type} is not a valid expression for dictionary field name`,
 						startRowIndex: baseName.startRowIndex,
@@ -1877,6 +1878,7 @@ function bracketedExpressionToValueExpression(
 					});
 				}
 				// TODO check baseName path length = 1?
+				// TODO check string not dynamic?
 				const singleDictionaryField: ParseSingleDictionaryField = {
 					type: 'singleDictionaryField',
 					name: baseName,
