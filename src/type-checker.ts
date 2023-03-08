@@ -258,8 +258,7 @@ function inferType(
 				if (inferredType.type === 'function') {
 					return inferredType.returnType;
 				}
-				// TODO return any?
-				throw new Error('TODO?');
+				return Any;
 			}));
 
 		case 'definition': {
