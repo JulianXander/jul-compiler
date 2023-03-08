@@ -1867,18 +1867,50 @@ function bracketedExpressionToValueExpression(
 					};
 					return spreadDictionaryField;
 				}
-				if (baseName.type !== 'reference'
-					&& baseName.type !== 'string') {
-					errors.push({
-						message: `${baseName.type} is not a valid expression for dictionary field name`,
-						startRowIndex: baseName.startRowIndex,
-						startColumnIndex: baseName.startColumnIndex,
-						endRowIndex: baseName.endRowIndex,
-						endColumnIndex: baseName.endColumnIndex,
-					});
+				switch (baseName.type) {
+					case 'reference':
+						if (baseName.path.length !== 1) {
+							errors.push({
+								message: `dictionary field name can not be nested path`,
+								startRowIndex: baseName.startRowIndex,
+								startColumnIndex: baseName.startColumnIndex,
+								endRowIndex: baseName.endRowIndex,
+								endColumnIndex: baseName.endColumnIndex,
+							});
+						}
+						break;
+
+					case 'string':
+						if (baseName.values.length > 1) {
+							errors.push({
+								message: `dictionary field name can not be a multiline string literal`,
+								startRowIndex: baseName.startRowIndex,
+								startColumnIndex: baseName.startColumnIndex,
+								endRowIndex: baseName.endRowIndex,
+								endColumnIndex: baseName.endColumnIndex,
+							});
+						}
+						if (baseName.values.some(value => value.type !== 'stringToken')) {
+							errors.push({
+								message: `dictionary field can not contain string interpolation`,
+								startRowIndex: baseName.startRowIndex,
+								startColumnIndex: baseName.startColumnIndex,
+								endRowIndex: baseName.endRowIndex,
+								endColumnIndex: baseName.endColumnIndex,
+							});
+						}
+						break;
+
+					default:
+						errors.push({
+							message: `${baseName.type} is not a valid expression for dictionary field name`,
+							startRowIndex: baseName.startRowIndex,
+							startColumnIndex: baseName.startColumnIndex,
+							endRowIndex: baseName.endRowIndex,
+							endColumnIndex: baseName.endColumnIndex,
+						});
+						break;
 				}
-				// TODO check baseName path length = 1?
-				// TODO check string not dynamic?
 				const singleDictionaryField: ParseSingleDictionaryField = {
 					type: 'singleDictionaryField',
 					name: baseName,
