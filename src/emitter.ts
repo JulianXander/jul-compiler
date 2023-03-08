@@ -72,7 +72,7 @@ function expressionToJs(expression: CheckedExpression): string {
 			return `{\n${expression.fields.map(value => {
 				const valueJs = expressionToJs(value.value);
 				if (value.type === 'singleDictionaryField') {
-					return `'${value.name}': ${value.typeGuard ? checkTypeJs(value.typeGuard, valueJs) : valueJs},\n`;
+					return `'${value.name.replaceAll('\'', '\\\'')}': ${value.typeGuard ? checkTypeJs(value.typeGuard, valueJs) : valueJs},\n`;
 				}
 				else {
 					return `...${valueJs},\n`;
@@ -318,7 +318,7 @@ function checkTypeJs(type: CheckedValueExpression, valueJs: string): string {
 function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
 	const stringValue = stringLiteral.values.map(value => {
 		if (value.type === 'stringToken') {
-			return value.value;
+			return value.value.replaceAll('`', '\\`');
 		}
 		return `\${${expressionToJs(value)}}`;
 	}).join('');
