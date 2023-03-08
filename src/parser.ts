@@ -1882,6 +1882,7 @@ function bracketedExpressionToValueExpression(
 
 					case 'string':
 						if (baseName.values.length > 1) {
+							// TODO string parser combine multiline string to single token and allow multiline string for dictionary field name?
 							errors.push({
 								message: `dictionary field name can not be a multiline string literal`,
 								startRowIndex: baseName.startRowIndex,
