@@ -72,7 +72,7 @@ function expressionToJs(expression: CheckedExpression): string {
 			return `{\n${expression.fields.map(value => {
 				const valueJs = expressionToJs(value.value);
 				if (value.type === 'singleDictionaryField') {
-					return `${value.name}: ${value.typeGuard ? checkTypeJs(value.typeGuard, valueJs) : valueJs},\n`;
+					return `'${value.name}': ${value.typeGuard ? checkTypeJs(value.typeGuard, valueJs) : valueJs},\n`;
 				}
 				else {
 					return `...${valueJs},\n`;
