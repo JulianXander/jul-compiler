@@ -314,8 +314,8 @@ export type RuntimeType =
 	| number
 	| bigint
 	| string
-	| { [key: string]: any; }
 	| any[]
+	| { [key: string]: any; }
 	| BuiltInType
 	| CustomType
 	;
@@ -336,10 +336,10 @@ export type BuiltInType =
 	| FloatType
 	| StringType
 	| ErrorType
-	| DictionaryType
-	| DictionaryLiteralType
 	| ListType
 	| TupleType
+	| DictionaryType
+	| DictionaryLiteralType
 	| StreamType
 	| FunctionType
 	| ParameterReference
@@ -376,16 +376,6 @@ class ErrorType extends BuiltInTypeBase {
 	readonly type = 'error';
 }
 
-class DictionaryType extends BuiltInTypeBase {
-	constructor(public elementType: RuntimeType) { super(); }
-	readonly type = 'dictionary';
-}
-
-export class DictionaryLiteralType extends BuiltInTypeBase {
-	constructor(public fields: { [key: string]: RuntimeType; }) { super(); }
-	readonly type = 'dictionaryLiteral';
-}
-
 class ListType extends BuiltInTypeBase {
 	constructor(public elementType: RuntimeType) { super(); }
 	readonly type = 'list';
@@ -394,6 +384,16 @@ class ListType extends BuiltInTypeBase {
 export class TupleType extends BuiltInTypeBase {
 	constructor(public elementTypes: RuntimeType[]) { super(); }
 	readonly type = 'tuple';
+}
+
+class DictionaryType extends BuiltInTypeBase {
+	constructor(public elementType: RuntimeType) { super(); }
+	readonly type = 'dictionary';
+}
+
+export class DictionaryLiteralType extends BuiltInTypeBase {
+	constructor(public fields: { [key: string]: RuntimeType; }) { super(); }
+	readonly type = 'dictionaryLiteral';
 }
 
 export class StreamType extends BuiltInTypeBase {
@@ -764,6 +764,141 @@ function retry$<T>(
 //#endregion transform
 
 //#endregion Stream
+
+//region JSON
+
+type ParserResult<T> = {
+	parsed: T,
+	endIndex: number;
+} | Error;
+
+function parseJson(json: string): any {
+	const result = parseJsonValue(json, 0);
+	if (result instanceof Error) {
+		return result;
+	}
+	// TODO check only whitespace remaining
+	return result.parsed;
+}
+
+function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
+	const character = json[startIndex]
+	switch (character) {
+		case 'n':
+			return parseJsonToken(json, startIndex, 'null', null)
+		case 't':
+			return parseJsonToken(json, startIndex, 'true', true)
+		case 'f':
+			return parseJsonToken(json, startIndex, 'false', false);
+		case '-':
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9': {
+			const isNegative = character === '-';
+			const numberRegex = /(?<integer>0|[1-9][0-9]*)(\.(?<fraction>[0-9]+))?([eE](?<exponentSign>[-+])?(?<exponentNumber>[0-9]+))?/y;
+			numberRegex.lastIndex = isNegative
+				? startIndex + 1
+				: startIndex;
+			const match = numberRegex.exec(json);
+			if (!match) {
+				return new Error(`Invalid JSON. Failed to parse number at position ${startIndex}`);
+			}
+			// TODO exponent
+			const fractionString = match.groups!.isNegative;
+			const integerValue = BigInt(match.groups!.integer!);
+			const numberValue: Rational = fractionString
+				? {
+					numerator: integerValue,
+					denominator: BigInt(fractionString)
+				}
+				: integerValue
+			return {
+				parsed: numberValue,
+				endIndex: numberRegex.lastIndex,
+			};
+		}
+		case '"': {
+			let stringValue = '';
+			for (let index = startIndex; index < json.length; index++) {
+				const stringCharacter = json[index];
+				switch (stringCharacter) {
+					case '"':
+						return {
+							parsed: stringValue,
+							endIndex: index,
+						};
+					case '\\':
+						index++;
+						if (index === json.length) {
+							return new Error('Invalid JSON. String not terminated.');
+						}
+						const escapedCharacter = json[index];
+						switch (escapedCharacter) {
+							case '"':
+							case '\\':
+							case '/':
+							case 'b':
+							case 'f':
+							case 'n':
+							case 'r':
+							case 't':
+								stringValue += escapedCharacter;
+								break;
+							case 'u':
+								const hexEndIndex = index + 4;
+								if (hexEndIndex >= json.length) {
+									return new Error('Invalid JSON. String not terminated.');
+								}
+								const hexCharacters = json.substring(index, hexEndIndex);
+								if (!/[0-9a-fA-F]{4}/.test(hexCharacters)) {
+									return new Error(`Invalid JSON. Invalid hex code at position ${index}.`);
+								}
+								stringValue += String.fromCharCode(parseInt(hexCharacters, 16));
+								index = hexEndIndex - 1;
+								break;
+							default:
+								return new Error();
+						}
+						break;
+					default:
+						stringValue += stringCharacter;
+						break;
+				}
+			}
+			return new Error('Invalid JSON. String not terminated.');
+		}
+		case '[': {
+			// TODO array
+		}
+		case '{': {
+			// TODO object
+		}
+		default:
+			return new Error(`Invalid JSON. Unexpected character ${character} at position ${startIndex}`);
+	}
+}
+
+// JSON whitespace:  (space), \n, \r, \t
+
+function parseJsonToken(json: string, startIndex: number, token: string, value: any): ParserResult<any> {
+	const endIndex = startIndex + token.length;
+	if (json.substring(startIndex, endIndex) !== token) {
+		return new Error(`Inavlid JSON. Failed to parse value ${token} at position ${startIndex}`);
+	}
+	return {
+		parsed: value,
+		endIndex: endIndex,
+	};
+}
+
+//endregion JSON
 
 //#endregion helper
 

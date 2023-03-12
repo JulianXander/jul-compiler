@@ -312,7 +312,7 @@ export function tokenParser(token: string): Parser<undefined> {
 }
 
 /**
- * Achtung: regex muss g flag haben!
+ * Achtung: regex muss y (sticky) flag haben!
  */
 export function regexParser(regex: RegExp, errorMessage: string): Parser<string> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
@@ -333,7 +333,7 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 			};
 		}
 		const match = regex.exec(row);
-		if (!match || match.index !== startColumnIndex) {
+		if (!match) {
 			return {
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,

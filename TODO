@@ -1,3 +1,4 @@
+-parse JSON
 -rename variable
 ?ts module interop
 -fix webpack mit node_modules

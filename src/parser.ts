@@ -582,7 +582,7 @@ function nameParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Name> {
-	const result = regexParser(/[a-zA-Z][0-9a-zA-Z]*\$?/g, 'Invalid name')(rows, startRowIndex, startColumnIndex, indent);
+	const result = regexParser(/[a-zA-Z][0-9a-zA-Z]*\$?/y, 'Invalid name')(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
 		parsed: result.parsed
@@ -645,7 +645,7 @@ function indexParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Index> {
-	const result = regexParser(/[0-9]+/g, 'Invalid index syntax')(rows, startRowIndex, startColumnIndex, indent);
+	const result = regexParser(/[0-9]+/y, 'Invalid index syntax')(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
 		parsed: result.parsed === undefined
@@ -994,7 +994,7 @@ function simpleExpressionParser(
 		},
 		// NumberLiteral
 		{
-			predicate: regexParser(/[-0-9]/g, ''),
+			predicate: regexParser(/[-0-9]/y, ''),
 			parser: numberParser,
 		},
 		// StringLiteral
@@ -1007,7 +1007,7 @@ function simpleExpressionParser(
 		},
 		// Reference/FunctionCall
 		{
-			predicate: regexParser(/[a-zA-Z]/g, ''),
+			predicate: regexParser(/[a-zA-Z]/y, ''),
 			parser: simpleNameStartedExpressionParser,
 		},
 	)(rows, startRowIndex, startColumnIndex, indent);
@@ -1020,7 +1020,7 @@ function numberParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<NumberLiteral> {
-	const result = regexParser(/-?(0|[1-9][0-9]*)(\.[0-9]+)?f?/g, 'not a valid number')(rows, startRowIndex, startColumnIndex, indent);
+	const result = regexParser(/-?(0|[1-9][0-9]*)(\.[0-9]+)?f?/y, 'not a valid number')(rows, startRowIndex, startColumnIndex, indent);
 	if (result.errors?.length) {
 		return {
 			endRowIndex: result.endRowIndex,
@@ -1176,7 +1176,7 @@ function stringLineContentParser(
 			0,
 			undefined,
 			choiceParser(
-				regexParser(/([^§]+|§§|§#)/g, 'Invalid String Syntax'),
+				regexParser(/([^§]+|§§|§#)/y, 'Invalid String Syntax'),
 				sequenceParser(
 					tokenParser('§('),
 					valueExpressionParser,

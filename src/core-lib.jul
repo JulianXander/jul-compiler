@@ -25,16 +25,17 @@ Rational = Or(Integer Fraction)
 # sequence of characters
 String = nativeValue(§_string§)
 Error = nativeValue(§_error§)
-Dictionary = nativeFunction(
-	(ElementType: Type): Type
-	# TODO ???
-	§x => typeof x === 'object'§
-)
 # data structure containing 1 or more elements of type ElementType
 List = nativeFunction(
 	(ElementType: Type): Type
 	# TODO generic List check
 	§Array.isArray§
+)
+# data structure containing 1 or more key-value-pairs of type ElementType
+Dictionary = nativeFunction(
+	(ElementType: Type): Type
+	# TODO ???
+	§x => typeof x === 'object'§
 )
 # data structure representing a value of type T changing over time
 Stream = nativeFunction(
@@ -144,6 +145,15 @@ sumFloat = nativeFunction(
 	§
 )
 #endregion Number
+#region String
+# Liefert Error, wenn das gegebene json kein valides JSON ist.
+parseJson = nativeFunction(
+	(json: String): Or(JsonValue Error)
+	§TODO§
+)
+JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
+JsonPrimitive = Or(() Boolean Rational String)
+#endregion String
 #region List
 forEach = nativeFunction(
 	(
