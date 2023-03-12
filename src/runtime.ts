@@ -772,24 +772,16 @@ type ParserResult<T> = {
 	endIndex: number;
 } | Error;
 
-function parseJson(json: string): any {
-	const result = parseJsonValue(json, 0);
-	if (result instanceof Error) {
-		return result;
-	}
-	// TODO check only whitespace remaining
-	return result.parsed;
-}
-
 function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
-	const character = json[startIndex]
+	let index = parseJsonWhiteSpace(json, startIndex);
+	const character = json[index]
 	switch (character) {
 		case 'n':
-			return parseJsonToken(json, startIndex, 'null', null)
+			return parseJsonToken(json, index, 'null', null)
 		case 't':
-			return parseJsonToken(json, startIndex, 'true', true)
+			return parseJsonToken(json, index, 'true', true)
 		case 'f':
-			return parseJsonToken(json, startIndex, 'false', false);
+			return parseJsonToken(json, index, 'false', false);
 		case '-':
 		case '0':
 		case '1':
@@ -804,11 +796,11 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 			const isNegative = character === '-';
 			const numberRegex = /(?<integer>0|[1-9][0-9]*)(\.(?<fraction>[0-9]+))?([eE](?<exponentSign>[-+])?(?<exponentNumber>[0-9]+))?/y;
 			numberRegex.lastIndex = isNegative
-				? startIndex + 1
-				: startIndex;
+				? index + 1
+				: index;
 			const match = numberRegex.exec(json);
 			if (!match) {
-				return new Error(`Invalid JSON. Failed to parse number at position ${startIndex}`);
+				return new Error(`Invalid JSON. Failed to parse number at position ${index}`);
 			}
 			// TODO exponent
 			const fractionString = match.groups!.isNegative;
@@ -824,68 +816,98 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 				endIndex: numberRegex.lastIndex,
 			};
 		}
-		case '"': {
-			let stringValue = '';
-			for (let index = startIndex; index < json.length; index++) {
-				const stringCharacter = json[index];
-				switch (stringCharacter) {
-					case '"':
-						return {
-							parsed: stringValue,
-							endIndex: index,
-						};
-					case '\\':
-						index++;
-						if (index === json.length) {
-							return new Error('Invalid JSON. String not terminated.');
-						}
-						const escapedCharacter = json[index];
-						switch (escapedCharacter) {
-							case '"':
-							case '\\':
-							case '/':
-							case 'b':
-							case 'f':
-							case 'n':
-							case 'r':
-							case 't':
-								stringValue += escapedCharacter;
-								break;
-							case 'u':
-								const hexEndIndex = index + 4;
-								if (hexEndIndex >= json.length) {
-									return new Error('Invalid JSON. String not terminated.');
-								}
-								const hexCharacters = json.substring(index, hexEndIndex);
-								if (!/[0-9a-fA-F]{4}/.test(hexCharacters)) {
-									return new Error(`Invalid JSON. Invalid hex code at position ${index}.`);
-								}
-								stringValue += String.fromCharCode(parseInt(hexCharacters, 16));
-								index = hexEndIndex - 1;
-								break;
-							default:
-								return new Error();
-						}
-						break;
-					default:
-						stringValue += stringCharacter;
-						break;
+		case '"':
+			return parseJsonString(json, index + 1);
+		case '[': {
+			const array = [];
+			// TODO empty array
+			let isSeparator = false;
+			while (index < json.length) {
+				if (isSeparator) {
+					index = parseJsonWhiteSpace(json, index);
+					const arrayCharacter = json[index];
+					switch (arrayCharacter) {
+						case ',':
+							isSeparator = false;
+							index++;
+							break;
+						case ']':
+							return {
+								parsed: array,
+								endIndex: index + 1,
+							}
+						default:
+							return new Error(`Invalid JSON. Unexpected character ${arrayCharacter} at position ${index} while parsing array.`);
+					}
+				}
+				else {
+					const elementResult = parseJsonValue(json, index);
+					if (elementResult instanceof Error) {
+						return elementResult;
+					}
+					array.push(elementResult.parsed);
+					isSeparator = true;
+					index = elementResult.endIndex;
 				}
 			}
-			return new Error('Invalid JSON. String not terminated.');
-		}
-		case '[': {
-			// TODO array
 		}
 		case '{': {
-			// TODO object
+			// TODO empty object
+			const object: { [key: string]: any } = {};
+			let isSeparator = false;
+			while (index < json.length) {
+				// TODO skip whitespace
+				const objectCharacter = json[index];
+				if (isSeparator) {
+					switch (objectCharacter) {
+						case ',':
+							isSeparator = false;
+							index++;
+							break;
+						case '}':
+							return {
+								parsed: object,
+								endIndex: index + 1,
+							}
+						default:
+							return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing object.`);
+					}
+				}
+				else {
+					if (objectCharacter !== '"') {
+						return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing object key.`)
+					}
+					const keyResult = parseJsonString(json, index);
+					if (keyResult instanceof Error) {
+						return keyResult;
+					}
+					const colonIndex = parseJsonWhiteSpace(json, keyResult.endIndex);
+					const colonCharacter = json[colonIndex];
+					if (colonCharacter !== ':') {
+						return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing colon.`)
+					}
+					const valueIndex = parseJsonWhiteSpace(json, colonIndex + 1);
+					const valueResult = parseJsonValue(json, valueIndex);
+					if (valueResult instanceof Error) {
+						return valueResult;
+					}
+					object[keyResult.parsed] = valueResult.parsed;
+					isSeparator = true;
+					index = valueResult.endIndex;
+				}
+			}
 		}
 		default:
-			return new Error(`Invalid JSON. Unexpected character ${character} at position ${startIndex}`);
+			return new Error(`Invalid JSON. Unexpected character ${character} at position ${index}`);
 	}
 }
 
-// JSON whitespace:  (space), \n, \r, \t
+function parseJsonWhiteSpace(json: string, startIndex: number): number {
+	const whiteSpaceRegex = /[ \n\r\t]*/y;
+	whiteSpaceRegex.lastIndex = startIndex;
+	whiteSpaceRegex.exec(json);
+	return whiteSpaceRegex.lastIndex;
+}
 
 function parseJsonToken(json: string, startIndex: number, token: string, value: any): ParserResult<any> {
 	const endIndex = startIndex + token.length;
@@ -896,6 +918,57 @@ function parseJsonToken(json: string, startIndex: number, token: string, value: 
 		parsed: value,
 		endIndex: endIndex,
 	};
+}
+
+function parseJsonString(json: string, startIndex: number): ParserResult<string> {
+	let stringValue = '';
+	for (let index = startIndex; index < json.length; index++) {
+		const stringCharacter = json[index];
+		switch (stringCharacter) {
+			case '"':
+				return {
+					parsed: stringValue,
+					endIndex: index,
+				};
+			case '\\':
+				index++;
+				if (index === json.length) {
+					return new Error('Invalid JSON. String not terminated.');
+				}
+				const escapedCharacter = json[index];
+				switch (escapedCharacter) {
+					case '"':
+					case '\\':
+					case '/':
+					case 'b':
+					case 'f':
+					case 'n':
+					case 'r':
+					case 't':
+						stringValue += escapedCharacter;
+						break;
+					case 'u':
+						const hexEndIndex = index + 4;
+						if (hexEndIndex >= json.length) {
+							return new Error('Invalid JSON. String not terminated.');
+						}
+						const hexCharacters = json.substring(index, hexEndIndex);
+						if (!/[0-9a-fA-F]{4}/.test(hexCharacters)) {
+							return new Error(`Invalid JSON. Invalid hex code at position ${index}.`);
+						}
+						stringValue += String.fromCharCode(parseInt(hexCharacters, 16));
+						index = hexEndIndex - 1;
+						break;
+					default:
+						return new Error();
+				}
+				break;
+			default:
+				stringValue += stringCharacter;
+				break;
+		}
+	}
+	return new Error('Invalid JSON. String not terminated.');
 }
 
 //endregion JSON
@@ -1066,6 +1139,30 @@ export const sumFloat = _createFunction(
 	}
 );
 //#endregion Number
+//#region String
+export const parseJson = _createFunction(
+	(json: string) => {
+		const result = parseJsonValue(json, 0);
+		if (result instanceof Error) {
+			return result;
+		}
+		const endIndex = parseJsonWhiteSpace(json, result.endIndex);
+		if (endIndex < json.length) {
+			return new Error(`Invalid JSON. Unexpected extra charcter ${json[endIndex]} after parsed value at position ${endIndex}`);
+		}
+		return result.parsed;
+	},
+	{
+		singleNames: [
+			{
+				name: 'json',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['String'] }
+			},
+		]
+	}
+)
+//#endregion String
 //#region List
 export const forEach = _createFunction(
 	(
