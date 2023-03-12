@@ -144,6 +144,21 @@ sumFloat = nativeFunction(
 	§
 )
 #endregion Number
+#region List
+forEach = nativeFunction(
+	(
+		values: List(Any)
+		callback: (
+			value: Any
+			# TODO
+			# value: TypeOf(values)/ElementType
+			# TODO Integer vs FloatInteger
+			# index: Integer
+		): ()
+	): ()
+	§TODO§
+)
+#endregion List
 #region Stream
 #region core
 # Beendet den Stream.

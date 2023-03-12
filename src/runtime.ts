@@ -931,6 +931,31 @@ export const sumFloat = _createFunction(
 	}
 );
 //#endregion Number
+//#region List
+export const forEach = _createFunction(
+	(
+		values: any[],
+		callback: (value: any) => void,
+	) => {
+		values.forEach(callback);
+		return null;
+	},
+	{
+		singleNames: [
+			{
+				name: 'values',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['List'] }
+			},
+			{
+				name: 'callback',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['Function'] }
+			},
+		]
+	}
+)
+//#endregion List
 //#region Stream
 //#region core
 export const complete = _createFunction(

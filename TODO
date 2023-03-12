@@ -1,3 +1,4 @@
+-rename variable
 ?ts module interop
 -fix webpack mit node_modules
 -fix typeChecking t2: FalseType = 4 vgl test1-wip.jul
