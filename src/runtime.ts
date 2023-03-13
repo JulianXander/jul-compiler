@@ -803,7 +803,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 				return new Error(`Invalid JSON. Failed to parse number at position ${index}`);
 			}
 			const integerString = (isNegative ? '-' : '') + match.groups!.integer!;
-			const fractionString = match.groups!.isNegative;
+			const fractionString = match.groups!.fraction;
 			const numerator = BigInt(integerString + (fractionString ?? ''))
 			const exponentString = match.groups!.exponent;
 			const fractionExponent = fractionString
@@ -828,6 +828,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 		case '"':
 			return parseJsonString(json, index + 1);
 		case '[': {
+			index++;
 			const array: any[] = [];
 			index = parseJsonWhiteSpace(json, index);
 			if (json[index] === ']') {
@@ -867,6 +868,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 			}
 		}
 		case '{': {
+			index++;
 			const object: { [key: string]: any } = {};
 			index = parseJsonWhiteSpace(json, index);
 			if (json[index] === '}') {
@@ -948,7 +950,7 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 			case '"':
 				return {
 					parsed: stringValue,
-					endIndex: index,
+					endIndex: index + 1,
 				};
 			case '\\':
 				index++;
@@ -968,6 +970,7 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 						stringValue += escapedCharacter;
 						break;
 					case 'u':
+						index++
 						const hexEndIndex = index + 4;
 						if (hexEndIndex >= json.length) {
 							return new Error('Invalid JSON. String not terminated.');
