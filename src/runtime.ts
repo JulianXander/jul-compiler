@@ -794,7 +794,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 		case '8':
 		case '9': {
 			const isNegative = character === '-';
-			const numberRegex = /(?<integer>0|[1-9][0-9]*)(\.(?<fraction>[0-9]+))?([eE](?<exponentSign>[-+])?(?<exponentNumber>[0-9]+))?/y;
+			const numberRegex = /(?<integer>0|[1-9][0-9]*)(\.(?<fraction>[0-9]+))?([eE](?<exponent>[-+]?[0-9]+))?/y;
 			numberRegex.lastIndex = isNegative
 				? index + 1
 				: index;
@@ -802,15 +802,24 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 			if (!match) {
 				return new Error(`Invalid JSON. Failed to parse number at position ${index}`);
 			}
-			// TODO exponent
+			const integerString = (isNegative ? '-' : '') + match.groups!.integer!;
 			const fractionString = match.groups!.isNegative;
-			const integerValue = BigInt(match.groups!.integer!);
-			const numberValue: Rational = fractionString
+			const numerator = BigInt(integerString + (fractionString ?? ''))
+			const exponentString = match.groups!.exponent;
+			const fractionExponent = fractionString
+				? BigInt('-' + fractionString.length)
+				: 0n;
+			const exponent = exponentString
+				? BigInt(exponentString)
+				: 0n;
+			const combinedExponent = fractionExponent + exponent;
+			const numberValue: Rational = combinedExponent < 0
+				// TODO kürzen?
 				? {
-					numerator: integerValue,
-					denominator: BigInt(fractionString)
+					numerator: numerator,
+					denominator: 10n ** (-1n * combinedExponent),
 				}
-				: integerValue
+				: numerator * 10n ** combinedExponent;
 			return {
 				parsed: numberValue,
 				endIndex: numberRegex.lastIndex,
@@ -819,8 +828,14 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 		case '"':
 			return parseJsonString(json, index + 1);
 		case '[': {
-			const array = [];
-			// TODO empty array
+			const array: any[] = [];
+			index = parseJsonWhiteSpace(json, index);
+			if (json[index] === ']') {
+				return {
+					parsed: array,
+					endIndex: index + 1,
+				};
+			}
 			let isSeparator = false;
 			while (index < json.length) {
 				if (isSeparator) {
@@ -835,7 +850,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 							return {
 								parsed: array,
 								endIndex: index + 1,
-							}
+							};
 						default:
 							return new Error(`Invalid JSON. Unexpected character ${arrayCharacter} at position ${index} while parsing array.`);
 					}
@@ -852,11 +867,17 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 			}
 		}
 		case '{': {
-			// TODO empty object
 			const object: { [key: string]: any } = {};
+			index = parseJsonWhiteSpace(json, index);
+			if (json[index] === '}') {
+				return {
+					parsed: object,
+					endIndex: index + 1,
+				};
+			}
 			let isSeparator = false;
 			while (index < json.length) {
-				// TODO skip whitespace
+				index = parseJsonWhiteSpace(json, index);
 				const objectCharacter = json[index];
 				if (isSeparator) {
 					switch (objectCharacter) {
@@ -886,8 +907,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 					if (colonCharacter !== ':') {
 						return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing colon.`)
 					}
-					const valueIndex = parseJsonWhiteSpace(json, colonIndex + 1);
-					const valueResult = parseJsonValue(json, valueIndex);
+					const valueResult = parseJsonValue(json, colonIndex + 1);
 					if (valueResult instanceof Error) {
 						return valueResult;
 					}
