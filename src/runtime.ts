@@ -765,7 +765,7 @@ function retry$<T>(
 
 //#endregion Stream
 
-//region JSON
+//#region JSON
 
 type ParserResult<T> = {
 	parsed: T,
@@ -994,7 +994,7 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 	return new Error('Invalid JSON. String not terminated.');
 }
 
-//endregion JSON
+//#endregion JSON
 
 //#endregion helper
 
