@@ -70,29 +70,22 @@ function isOfType(value: any, type: RuntimeType): boolean {
 		case 'number':
 		case 'string':
 			return value === type;
-
 		case 'object': {
 			if (type instanceof BuiltInTypeBase) {
 				const builtInType = type as BuiltInType;
 				switch (builtInType.type) {
 					case 'any':
 						return true;
-
 					case 'boolean':
 						return typeof value === 'boolean';
-
 					case 'integer':
 						return typeof value === 'bigint';
-
 					case 'float':
 						return typeof value === 'number';
-
 					case 'string':
 						return typeof value === 'string';
-
 					case 'error':
 						return value instanceof Error;
-
 					case 'dictionary': {
 						if (!isDictionary(value)) {
 							return false;
@@ -106,7 +99,6 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						}
 						return true;
 					}
-
 					case 'dictionaryLiteral': {
 						if (!isDictionary(value)) {
 							return false;
@@ -121,30 +113,24 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						}
 						return true;
 					}
-
 					case 'list':
 						return Array.isArray(value)
 							&& value.every(element =>
 								isOfType(element, builtInType.elementType));
-
 					case 'tuple':
 						return Array.isArray(value)
 							&& value.length <= builtInType.elementTypes.length
 							&& builtInType.elementTypes.every((elementType, index) =>
 								isOfType(value[index], elementType));
-
 					case 'stream':
 						// TODO check value type
 						return value instanceof Stream;
-
 					case 'function':
 						// TODO check returntype/paramstype
 						return typeof value === 'function';
-
 					case 'reference':
 						// TODO deref?
 						return true;
-
 					case 'type':
 						// TODO check primitive value (null/boolean/number/string)/builtintype/function
 						// return value === null
@@ -154,21 +140,16 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						// || value instanceof BuiltInTypeBase
 						// || typeof value === ;
 						return true;
-
 					case 'and':
 						return builtInType.choiceTypes.every(coiceType =>
 							isOfType(value, coiceType));
-
 					case 'or':
 						return builtInType.choiceTypes.some(coiceType =>
 							isOfType(value, coiceType));
-
 					case 'not':
 						return !isOfType(value, builtInType.sourceType);
-
 					case 'typeOf':
 						return deepEquals(value, builtInType.value);
-
 					default: {
 						const assertNever: never = builtInType;
 						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType).type}`);
@@ -178,10 +159,8 @@ function isOfType(value: any, type: RuntimeType): boolean {
 			// null/Dictionary/Array
 			return deepEquals(value, type);
 		}
-
 		case 'function':
 			return type(value);
-
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected type ${typeof assertNever}`);

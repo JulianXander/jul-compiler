@@ -96,13 +96,11 @@ function fillSymbolTableWithExpressions(
 				defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description, undefined);
 				return;
 			}
-
 			case 'destructuring': {
 				// TODO type über value ermitteln
 				fillSymbolTableWithDictionaryType(symbolTable, errors, expression.fields, false);
 				return;
 			}
-
 			default:
 				return;
 		}
@@ -1197,10 +1195,8 @@ function stringLineContentParser(
 							? choice.substring(1)
 							: choice
 					};
-
 				case 'object':
 					return choice[1];
-
 				default:
 					throw new Error('unexpected String Token choice');
 			}
@@ -1626,18 +1622,15 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 				expressionsWithDescription.push(expressionWithDescription);
 				descriptionComment = '';
 				return;
-
 			case 'string':
 				if (expressionOrComment.startsWith('region') || expressionOrComment.startsWith('endregion')) {
 					// region comments verwerfen
 					return;
 				}
 				return descriptionComment += '\n' + expressionOrComment;
-
 			case 'undefined':
 				descriptionComment = '';
 				return;
-
 			default: {
 				const assertNever: never = expressionOrComment;
 				throw new Error(`Unexpected typeof expression: ${typeof assertNever}`);
@@ -1879,7 +1872,6 @@ function bracketedExpressionToValueExpression(
 							});
 						}
 						break;
-
 					case 'string':
 						if (baseName.values.length > 1) {
 							// TODO string parser combine multiline string to single token and allow multiline string for dictionary field name?
@@ -1901,7 +1893,6 @@ function bracketedExpressionToValueExpression(
 							});
 						}
 						break;
-
 					default:
 						errors.push({
 							message: `${baseName.type} is not a valid expression for dictionary field name`,
