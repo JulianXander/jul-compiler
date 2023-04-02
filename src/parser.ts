@@ -1,5 +1,22 @@
 import { readFileSync } from 'fs';
 import {
+	choiceParser,
+	discriminatedChoiceParser,
+	emptyParser,
+	endOfCodeError,
+	incrementIndent,
+	mapParser,
+	moveColumnIndex,
+	moveToNextLine,
+	multiplicationParser,
+	Parser,
+	ParserError,
+	ParserResult,
+	regexParser,
+	sequenceParser,
+	tokenParser,
+} from './parser-combinator';
+import {
 	BracketedExpression,
 	BracketedExpressionBase,
 	Index,
@@ -28,24 +45,9 @@ import {
 	SymbolTable,
 } from './syntax-tree';
 import {
-	choiceParser,
-	discriminatedChoiceParser,
-	emptyParser,
-	endOfCodeError,
-	incrementIndent,
-	mapParser,
-	moveColumnIndex,
-	moveToNextLine,
-	multiplicationParser,
-	Parser,
-	ParserError,
-	ParserResult,
-	regexParser,
-	sequenceParser,
-	tokenParser,
-} from './parser-combinator';
-import {
+	isNonEmpty,
 	last,
+	mapNonEmpty,
 	NonEmptyArray,
 } from './util';
 
@@ -1785,7 +1787,7 @@ function bracketedExpressionToValueExpression(
 	errors: ParserError[],
 ): BracketedExpression {
 	const baseFields = bracketedExpression.fields;
-	if (!baseFields.length) {
+	if (!isNonEmpty(baseFields)) {
 		return {
 			type: 'empty',
 			startRowIndex: bracketedExpression.startRowIndex,
@@ -1803,8 +1805,10 @@ function bracketedExpressionToValueExpression(
 	if (isList) {
 		return {
 			type: 'list',
-			values: baseFields.map(baseField =>
-				baseValueExpressionToValueExpression(baseField.name, errors)) as any,
+			values: mapNonEmpty(
+				baseFields,
+				baseField =>
+					baseValueExpressionToValueExpression(baseField.name, errors)),
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
@@ -1817,105 +1821,65 @@ function bracketedExpressionToValueExpression(
 	if (isDictionary) {
 		return {
 			type: 'dictionary',
-			fields: baseFields.map(baseField => {
-				const baseName = baseField.name;
-				if (baseField.spread) {
-					const typeGuard = baseField.typeGuard;
-					if (typeGuard) {
-						errors.push({
-							message: `typeGuard is not allowed for spread dictionary field`,
-							startRowIndex: typeGuard.startRowIndex,
-							startColumnIndex: typeGuard.startColumnIndex,
-							endRowIndex: typeGuard.endRowIndex,
-							endColumnIndex: typeGuard.endColumnIndex,
-						});
+			fields: mapNonEmpty(
+				baseFields,
+				baseField => {
+					const baseName = baseField.name;
+					if (baseField.spread) {
+						const typeGuard = baseField.typeGuard;
+						if (typeGuard) {
+							errors.push({
+								message: `typeGuard is not allowed for spread dictionary field`,
+								startRowIndex: typeGuard.startRowIndex,
+								startColumnIndex: typeGuard.startColumnIndex,
+								endRowIndex: typeGuard.endRowIndex,
+								endColumnIndex: typeGuard.endColumnIndex,
+							});
+						}
+						const assignedValue = baseField.assignedValue;
+						if (assignedValue) {
+							errors.push({
+								message: `assignedValue is not allowed for spread dictionary field`,
+								startRowIndex: assignedValue.startRowIndex,
+								startColumnIndex: assignedValue.startColumnIndex,
+								endRowIndex: assignedValue.endRowIndex,
+								endColumnIndex: assignedValue.endColumnIndex,
+							});
+						}
+						const fallback = baseField.fallback;
+						if (fallback) {
+							errors.push({
+								message: `fallback is not allowed for spread dictionary field`,
+								startRowIndex: fallback.startRowIndex,
+								startColumnIndex: fallback.startColumnIndex,
+								endRowIndex: fallback.endRowIndex,
+								endColumnIndex: fallback.endColumnIndex,
+							});
+						}
+						const spreadDictionaryField: ParseSpreadDictionaryField = {
+							type: 'spreadDictionaryField',
+							value: baseName,
+							startRowIndex: baseField.startRowIndex,
+							startColumnIndex: baseField.startColumnIndex,
+							endRowIndex: baseField.endRowIndex,
+							endColumnIndex: baseField.endColumnIndex,
+						};
+						return spreadDictionaryField;
 					}
-					const assignedValue = baseField.assignedValue;
-					if (assignedValue) {
-						errors.push({
-							message: `assignedValue is not allowed for spread dictionary field`,
-							startRowIndex: assignedValue.startRowIndex,
-							startColumnIndex: assignedValue.startColumnIndex,
-							endRowIndex: assignedValue.endRowIndex,
-							endColumnIndex: assignedValue.endColumnIndex,
-						});
-					}
-					const fallback = baseField.fallback;
-					if (fallback) {
-						errors.push({
-							message: `fallback is not allowed for spread dictionary field`,
-							startRowIndex: fallback.startRowIndex,
-							startColumnIndex: fallback.startColumnIndex,
-							endRowIndex: fallback.endRowIndex,
-							endColumnIndex: fallback.endColumnIndex,
-						});
-					}
-					const spreadDictionaryField: ParseSpreadDictionaryField = {
-						type: 'spreadDictionaryField',
-						value: baseName,
+					errors.push(...getEscapableNameErrors(baseName));
+					const singleDictionaryField: ParseSingleDictionaryField = {
+						type: 'singleDictionaryField',
+						name: baseName,
+						typeGuard: baseField.typeGuard,
+						value: baseField.assignedValue!,
+						fallback: baseField.fallback,
 						startRowIndex: baseField.startRowIndex,
 						startColumnIndex: baseField.startColumnIndex,
 						endRowIndex: baseField.endRowIndex,
 						endColumnIndex: baseField.endColumnIndex,
 					};
-					return spreadDictionaryField;
-				}
-				switch (baseName.type) {
-					case 'reference':
-						if (baseName.path.length !== 1) {
-							errors.push({
-								message: `dictionary field name can not be nested path`,
-								startRowIndex: baseName.startRowIndex,
-								startColumnIndex: baseName.startColumnIndex,
-								endRowIndex: baseName.endRowIndex,
-								endColumnIndex: baseName.endColumnIndex,
-							});
-						}
-						break;
-					case 'string':
-						if (baseName.values.length > 1) {
-							// TODO string parser combine multiline string to single token and allow multiline string for dictionary field name?
-							errors.push({
-								message: `dictionary field name can not be a multiline string literal`,
-								startRowIndex: baseName.startRowIndex,
-								startColumnIndex: baseName.startColumnIndex,
-								endRowIndex: baseName.endRowIndex,
-								endColumnIndex: baseName.endColumnIndex,
-							});
-						}
-						if (baseName.values.some(value => value.type !== 'stringToken')) {
-							errors.push({
-								message: `dictionary field can not contain string interpolation`,
-								startRowIndex: baseName.startRowIndex,
-								startColumnIndex: baseName.startColumnIndex,
-								endRowIndex: baseName.endRowIndex,
-								endColumnIndex: baseName.endColumnIndex,
-							});
-						}
-						break;
-					default:
-						errors.push({
-							message: `${baseName.type} is not a valid expression for dictionary field name`,
-							startRowIndex: baseName.startRowIndex,
-							startColumnIndex: baseName.startColumnIndex,
-							endRowIndex: baseName.endRowIndex,
-							endColumnIndex: baseName.endColumnIndex,
-						});
-						break;
-				}
-				const singleDictionaryField: ParseSingleDictionaryField = {
-					type: 'singleDictionaryField',
-					name: baseName,
-					typeGuard: baseField.typeGuard,
-					value: baseField.assignedValue!,
-					fallback: baseField.fallback,
-					startRowIndex: baseField.startRowIndex,
-					startColumnIndex: baseField.startColumnIndex,
-					endRowIndex: baseField.endRowIndex,
-					endColumnIndex: baseField.endColumnIndex,
-				};
-				return singleDictionaryField;
-			}) as any,
+					return singleDictionaryField;
+				}),
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
@@ -1928,69 +1892,63 @@ function bracketedExpressionToValueExpression(
 	if (isDictionaryType) {
 		return {
 			type: 'dictionaryType',
-			fields: baseFields.map(baseField => {
-				const assignedValue = baseField.assignedValue;
-				if (assignedValue) {
-					errors.push({
-						message: `assignedValue is not allowed for dictionaryType field`,
-						startRowIndex: assignedValue.startRowIndex,
-						startColumnIndex: assignedValue.startColumnIndex,
-						endRowIndex: assignedValue.endRowIndex,
-						endColumnIndex: assignedValue.endColumnIndex,
-					});
-				}
-				const fallback = baseField.fallback;
-				if (fallback) {
-					errors.push({
-						message: `fallback is not allowed for dictionaryType field`,
-						startRowIndex: fallback.startRowIndex,
-						startColumnIndex: fallback.startColumnIndex,
-						endRowIndex: fallback.endRowIndex,
-						endColumnIndex: fallback.endColumnIndex,
-					});
-				}
-				const baseName = baseField.name;
-				if (baseField.spread) {
-					const typeGuard = baseField.typeGuard;
-					if (typeGuard) {
+			fields: mapNonEmpty(
+				baseFields,
+				baseField => {
+					const assignedValue = baseField.assignedValue;
+					if (assignedValue) {
 						errors.push({
-							message: `typeGuard is not allowed for spread dictionaryType field`,
-							startRowIndex: typeGuard.startRowIndex,
-							startColumnIndex: typeGuard.startColumnIndex,
-							endRowIndex: typeGuard.endRowIndex,
-							endColumnIndex: typeGuard.endColumnIndex,
+							message: `assignedValue is not allowed for dictionaryType field`,
+							startRowIndex: assignedValue.startRowIndex,
+							startColumnIndex: assignedValue.startColumnIndex,
+							endRowIndex: assignedValue.endRowIndex,
+							endColumnIndex: assignedValue.endColumnIndex,
 						});
 					}
-					const spreadDictionaryField: ParseSpreadDictionaryTypeField = {
-						type: 'spreadDictionaryTypeField',
-						value: baseName,
+					const fallback = baseField.fallback;
+					if (fallback) {
+						errors.push({
+							message: `fallback is not allowed for dictionaryType field`,
+							startRowIndex: fallback.startRowIndex,
+							startColumnIndex: fallback.startColumnIndex,
+							endRowIndex: fallback.endRowIndex,
+							endColumnIndex: fallback.endColumnIndex,
+						});
+					}
+					const baseName = baseField.name;
+					if (baseField.spread) {
+						const typeGuard = baseField.typeGuard;
+						if (typeGuard) {
+							errors.push({
+								message: `typeGuard is not allowed for spread dictionaryType field`,
+								startRowIndex: typeGuard.startRowIndex,
+								startColumnIndex: typeGuard.startColumnIndex,
+								endRowIndex: typeGuard.endRowIndex,
+								endColumnIndex: typeGuard.endColumnIndex,
+							});
+						}
+						const spreadDictionaryField: ParseSpreadDictionaryTypeField = {
+							type: 'spreadDictionaryTypeField',
+							value: baseName,
+							startRowIndex: baseField.startRowIndex,
+							startColumnIndex: baseField.startColumnIndex,
+							endRowIndex: baseField.endRowIndex,
+							endColumnIndex: baseField.endColumnIndex,
+						};
+						return spreadDictionaryField;
+					}
+					errors.push(...getEscapableNameErrors(baseName));
+					const singleDictionaryField: ParseSingleDictionaryTypeField = {
+						type: 'singleDictionaryTypeField',
+						name: baseName,
+						typeGuard: baseField.typeGuard,
 						startRowIndex: baseField.startRowIndex,
 						startColumnIndex: baseField.startColumnIndex,
 						endRowIndex: baseField.endRowIndex,
 						endColumnIndex: baseField.endColumnIndex,
 					};
-					return spreadDictionaryField;
-				}
-				if (baseName.type !== 'reference') {
-					errors.push({
-						message: `${baseName.type} is not a valid expression for dictionaryType field name`,
-						startRowIndex: baseName.startRowIndex,
-						startColumnIndex: baseName.startColumnIndex,
-						endRowIndex: baseName.endRowIndex,
-						endColumnIndex: baseName.endColumnIndex,
-					});
-				}
-				const singleDictionaryField: ParseSingleDictionaryTypeField = {
-					type: 'singleDictionaryTypeField',
-					name: baseName,
-					typeGuard: baseField.typeGuard,
-					startRowIndex: baseField.startRowIndex,
-					startColumnIndex: baseField.startColumnIndex,
-					endRowIndex: baseField.endRowIndex,
-					endColumnIndex: baseField.endColumnIndex,
-				};
-				return singleDictionaryField;
-			}) as any,
+					return singleDictionaryField;
+				}),
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
@@ -2006,6 +1964,54 @@ function bracketedExpressionToValueExpression(
 		endColumnIndex: bracketedExpression.endColumnIndex,
 	});
 	return bracketedExpression;
+}
+
+function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError[] {
+	const errors: ParserError[] = [];
+	switch (baseName.type) {
+		case 'reference':
+			if (baseName.path.length !== 1) {
+				errors.push({
+					message: `name can not be a nested path`,
+					startRowIndex: baseName.startRowIndex,
+					startColumnIndex: baseName.startColumnIndex,
+					endRowIndex: baseName.endRowIndex,
+					endColumnIndex: baseName.endColumnIndex,
+				});
+			}
+			break;
+		case 'string':
+			if (baseName.values.length > 1) {
+				// TODO string parser combine multiline string to single token and allow multiline string for escaped name?
+				errors.push({
+					message: `escaped name can not be a multiline string literal`,
+					startRowIndex: baseName.startRowIndex,
+					startColumnIndex: baseName.startColumnIndex,
+					endRowIndex: baseName.endRowIndex,
+					endColumnIndex: baseName.endColumnIndex,
+				});
+			}
+			if (baseName.values.some(value => value.type !== 'stringToken')) {
+				errors.push({
+					message: `escaped name can not contain string interpolation`,
+					startRowIndex: baseName.startRowIndex,
+					startColumnIndex: baseName.startColumnIndex,
+					endRowIndex: baseName.endRowIndex,
+					endColumnIndex: baseName.endColumnIndex,
+				});
+			}
+			break;
+		default:
+			errors.push({
+				message: `${baseName.type} is not a valid expression for escapable name`,
+				startRowIndex: baseName.startRowIndex,
+				startColumnIndex: baseName.startColumnIndex,
+				endRowIndex: baseName.endRowIndex,
+				endColumnIndex: baseName.endColumnIndex,
+			});
+			break;
+	}
+	return errors;
 }
 
 //#endregion convert

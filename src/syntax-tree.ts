@@ -135,6 +135,9 @@ export type ParseDictionaryField =
 
 export interface ParseSingleDictionaryField extends Positioned {
 	type: 'singleDictionaryField';
+	/**
+	 * escapable
+	 */
 	name: ParseValueExpressionBase;
 	typeGuard?: ParseValueExpression;
 	value: ParseValueExpression;
@@ -165,6 +168,9 @@ export type ParseDictionaryTypeField =
 
 export interface ParseSingleDictionaryTypeField extends Positioned {
 	type: 'singleDictionaryTypeField';
+	/**
+	 * escapable
+	 */
 	name: ParseValueExpressionBase;
 	typeGuard?: ParseValueExpression;
 }

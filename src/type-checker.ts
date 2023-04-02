@@ -1,50 +1,45 @@
 import { extname, join } from 'path';
-import { getCheckedDictionaryName, getCheckedName } from './checker';
+import { getCheckedEscapableName } from './checker';
 import { parseFile } from './parser';
 import {
-	AnyType,
-	ParameterReference,
+	Any,
 	BuiltInType,
 	BuiltInTypeBase,
-	deepEquals,
+	ComplementType,
 	DictionaryLiteralType,
+	Float,
 	// EmptyType,
 	FunctionType,
+	Integer,
 	IntersectionType,
-	StreamType,
-	StringType,
-	TupleType,
+	ParameterReference,
 	RuntimeType,
+	StreamType,
+	TupleType,
+	Type,
 	TypeOfType,
 	UnionType,
-	Any,
-	Integer,
 	_Boolean,
 	_Error,
-	Float,
 	_String,
-	Type,
-	ComplementType,
+	deepEquals
 } from './runtime';
 import {
 	BracketedExpression,
 	CheckedValueExpression,
-	// DictionaryLiteralType,
-	ObjectLiteral,
-	ParsedFile,
 	ParseDictionaryField,
 	ParseDictionaryTypeField,
-	ParseExpression,
 	ParseFunctionCall,
 	ParseValueExpression,
+	ParsedFile,
 	Reference,
 	ReferencePath,
 	StringToken,
 	SymbolDefinition,
 	SymbolTable,
-	TypedExpression,
+	TypedExpression
 } from './syntax-tree';
-import { forEach, isDefined, isNonEmpty, last, map, mapDictionary, NonEmptyArray, toDictionary } from './util';
+import { NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -310,7 +305,7 @@ function inferType(
 						if (field.typeGuard) {
 							setInferredType(field.typeGuard, scopes, parsedDocuments, folder, file);
 						}
-						const fieldName = getCheckedDictionaryName(field.name);
+						const fieldName = getCheckedEscapableName(field.name);
 						if (!fieldName) {
 							return;
 						}
@@ -341,7 +336,7 @@ function inferType(
 							return;
 						}
 						setInferredType(field.typeGuard, scopes, parsedDocuments, folder, file);
-						const fieldName = getCheckedName(field.name);
+						const fieldName = getCheckedEscapableName(field.name);
 						if (!fieldName) {
 							return;
 						}

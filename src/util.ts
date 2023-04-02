@@ -16,6 +16,10 @@ export function last<T>(array: ArrayLike<T>): T | undefined {
 	return array[array.length - 1];
 }
 
+export function mapNonEmpty<T, U>(array: NonEmptyArray<T>, fn: (element: T) => U): NonEmptyArray<U> {
+	return array.map(fn) as NonEmptyArray<U>;
+}
+
 export function toDictionary<T, U>(
 	values: T[],
 	getKey: (value: T) => string,

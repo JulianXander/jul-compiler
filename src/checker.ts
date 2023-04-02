@@ -112,7 +112,7 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				parseField => {
 					switch (parseField.type) {
 						case 'singleDictionaryField': {
-							const checkedName = getCheckedDictionaryName(parseField.name);
+							const checkedName = getCheckedEscapableName(parseField.name);
 							if (!checkedName) {
 								return undefined;
 							}
@@ -171,7 +171,7 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				parseField => {
 					switch (parseField.type) {
 						case 'singleDictionaryTypeField': {
-							const checkedName = getCheckedName(parseField.name);
+							const checkedName = getCheckedEscapableName(parseField.name);
 							if (!checkedName) {
 								return undefined;
 							}
@@ -209,7 +209,7 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				return undefined;
 			}
 			return {
-				type: 'dictionary',
+				type: 'dictionaryType',
 				fields: checkedFields as any,
 			};
 		}
@@ -404,7 +404,7 @@ export function getCheckedName(parseName: ParseValueExpression): string | undefi
 	return parseName.path[0].name;
 }
 
-export function getCheckedDictionaryName(parseName: ParseValueExpression): string | undefined {
+export function getCheckedEscapableName(parseName: ParseValueExpression): string | undefined {
 	switch (parseName.type) {
 		case 'reference':
 			if (parseName.path.length > 1) {
