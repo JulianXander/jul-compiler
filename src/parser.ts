@@ -1,4 +1,3 @@
-import { readFileSync } from 'fs';
 import {
 	choiceParser,
 	discriminatedChoiceParser,
@@ -49,11 +48,25 @@ import {
 	last,
 	mapNonEmpty,
 	NonEmptyArray,
+	readTextFile,
 } from './util';
 
 export function parseFile(filePath: string): ParsedFile {
-	const file = readFileSync(filePath);
-	const code = file.toString();
+	const code = readTextFile(filePath);
+	if (!code) {
+		return {
+			errors: [
+				{
+					message: `Failed to read file at ${filePath}`,
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 0,
+				},
+			],
+			symbols: {},
+		}
+	}
 	const result = parseCode(code);
 	return result;
 }

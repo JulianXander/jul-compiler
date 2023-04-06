@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+
 export function isDefined<T>(value: T | undefined): value is T {
 	return value !== undefined;
 }
@@ -84,3 +86,15 @@ export function mapDictionary<T, U>(
 // 		return result2;
 // 	};
 // }
+
+export function readTextFile(path: string): string | undefined {
+	try {
+		const file = readFileSync(path);
+		const text = file.toString();
+		return text;
+	}
+	catch (error) {
+		console.error(error);
+		return undefined;
+	}
+}
