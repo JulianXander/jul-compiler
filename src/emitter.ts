@@ -65,20 +65,29 @@ function expressionToJs(expression: CheckedExpression): string {
 		}
 
 		case 'dictionary':
-			// TODO mit Object.create(null), damit leerer prototype
-			return `{\n${expression.fields.map(value => {
-				const valueJs = expressionToJs(value.value);
-				if (value.type === 'singleDictionaryField') {
-					return `'${value.name.replaceAll('\'', '\\\'')}': ${value.typeGuard ? checkTypeJs(value.typeGuard, valueJs) : valueJs},\n`;
+			// TODO mit Object.create(null), damit leerer prototype? Oder Persistent Data Structure?
+			return `{\n${expression.fields.map(field => {
+				const valueJs = expressionToJs(field.value);
+				if (field.type === 'singleDictionaryField') {
+					return singleDictionaryFieldToJs(field.name, field.typeGuard ? checkTypeJs(field.typeGuard, valueJs) : valueJs);
 				}
 				else {
-					return `...${valueJs},\n`;
+					return spreadDictionaryFieldToJs(valueJs);
 				}
 			}).join('')}}`;
 
 		case 'dictionaryType':
-			// TODO
-			return `new `;
+			return `new DictionaryLiteralType({\n${expression.fields.map(field => {
+				if (field.type === 'singleDictionaryTypeField') {
+					const typeGuardJs = field.typeGuard
+						? expressionToJs(field.typeGuard)
+						: 'Any';
+					return singleDictionaryFieldToJs(field.name, typeGuardJs);
+				}
+				else {
+					return spreadDictionaryFieldToJs(expressionToJs(field.value));
+				}
+			})}})`;
 
 		case 'empty':
 			return 'null';
@@ -320,4 +329,12 @@ function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
 		return `\${${expressionToJs(value)}}`;
 	}).join('');
 	return `\`${stringValue}\``;
+}
+
+function singleDictionaryFieldToJs(name: string, valueJs: string): string {
+	return `'${name.replaceAll('\'', '\\\'')}': ${valueJs},\n`
+}
+
+function spreadDictionaryFieldToJs(valueJs: string): string {
+	return `...${valueJs},\n`;
 }
