@@ -48,28 +48,7 @@ import {
 	last,
 	mapNonEmpty,
 	NonEmptyArray,
-	readTextFile,
 } from './util';
-
-export function parseFile(filePath: string): ParsedFile {
-	const code = readTextFile(filePath);
-	if (!code) {
-		return {
-			errors: [
-				{
-					message: `Failed to read file at ${filePath}`,
-					startRowIndex: 0,
-					startColumnIndex: 0,
-					endRowIndex: 0,
-					endColumnIndex: 0,
-				},
-			],
-			symbols: {},
-		}
-	}
-	const result = parseCode(code);
-	return result;
-}
 
 export function parseCode(code: string): ParsedFile {
 	const rows = code.split('\n');

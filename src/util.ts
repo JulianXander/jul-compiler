@@ -87,11 +87,15 @@ export function mapDictionary<T, U>(
 // 	};
 // }
 
-export function readTextFile(path: string): string | undefined {
+export function readTextFile(path: string): string {
+	const file = readFileSync(path);
+	const text = file.toString();
+	return text;
+}
+
+export function tryReadTextFile(path: string): string | undefined {
 	try {
-		const file = readFileSync(path);
-		const text = file.toString();
-		return text;
+		return readTextFile(path);
 	}
 	catch (error) {
 		console.error(error);

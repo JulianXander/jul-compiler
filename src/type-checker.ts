@@ -1,6 +1,6 @@
 import { extname, join } from 'path';
 import { getCheckedEscapableName } from './checker';
-import { parseFile } from './parser';
+import { parseFile } from './compiler';
 import {
 	Any,
 	BuiltInType,

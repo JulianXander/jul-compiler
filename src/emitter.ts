@@ -1,12 +1,9 @@
 import {
-	CheckedDestructuringField,
 	CheckedExpression,
 	CheckedFunctionCall,
 	CheckedParameterFields,
 	CheckedStringLiteral,
 	CheckedValueExpression,
-	FloatLiteral,
-	NumberLiteral,
 	ObjectLiteral,
 	Reference,
 } from './syntax-tree';
@@ -81,7 +78,7 @@ function expressionToJs(expression: CheckedExpression): string {
 
 		case 'dictionaryType':
 			// TODO
-			return 'TODO dictionaryType';
+			return `new `;
 
 		case 'empty':
 			return 'null';
