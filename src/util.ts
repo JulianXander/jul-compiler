@@ -87,6 +87,9 @@ export function mapDictionary<T, U>(
 // 	};
 // }
 
+/**
+ * @throws Wirft Error wenn Datei nicht gelesen werden kann.
+ */
 export function readTextFile(path: string): string {
 	const file = readFileSync(path);
 	const text = file.toString();

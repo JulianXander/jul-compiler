@@ -1,6 +1,5 @@
 import { extname, join } from 'path';
 import { getCheckedEscapableName } from './checker';
-import { parseFile } from './compiler';
 import {
 	Any,
 	BuiltInType,
@@ -40,6 +39,7 @@ import {
 	TypedExpression
 } from './syntax-tree';
 import { NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
+import { parseFile } from './parser';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 

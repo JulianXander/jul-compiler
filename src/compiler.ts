@@ -3,10 +3,9 @@ import { dirname, extname, join, resolve } from 'path';
 import { webpack } from 'webpack';
 import { checkParseExpressions } from './checker';
 import { syntaxTreeToJs } from './emitter';
-import { parseCode } from './parser';
 import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tree';
 import { getPathFromImport } from './type-checker';
-import { readTextFile } from './util';
+import { parseFile } from './parser';
 
 export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true; }): void {
 	console.log(`compiling ${filePath} ...`);
@@ -87,12 +86,6 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 		});
 		//#endregion 7. bundle
 	}
-}
-
-export function parseFile(filePath: string): ParsedFile {
-	const code = readTextFile(filePath);
-	const result = parseCode(code);
-	return result;
 }
 
 function busySpinner() {

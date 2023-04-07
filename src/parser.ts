@@ -48,7 +48,17 @@ import {
 	last,
 	mapNonEmpty,
 	NonEmptyArray,
+	readTextFile,
 } from './util';
+
+/**
+ * @throws Wirft Error wenn Datei nicht gelesen werden kann.
+ */
+export function parseFile(filePath: string): ParsedFile {
+	const code = readTextFile(filePath);
+	const result = parseCode(code);
+	return result;
+}
 
 export function parseCode(code: string): ParsedFile {
 	const rows = code.split('\n');
