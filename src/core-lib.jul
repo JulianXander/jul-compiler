@@ -3,16 +3,16 @@ false = nativeValue(§false§)
 #region Types
 # TODO split Unknown Type?
 # any value
-Any = nativeValue(§_any§)
+Any = nativeValue(§Any§)
 # true or false
-Boolean = nativeValue(§_boolean§)
+Boolean = nativeValue(§_Boolean§)
 #region Number
 # 64 bit floating point number
 # Erlaubt performante Hardware-Rechenoperationen
-Float = nativeValue(§_float§)
+Float = nativeValue(§Float§)
 # TODO FloatInteger = And(Float ?)
 # Ganzzahl beliebiger Größe
-Integer = nativeValue(§_integer§)
+Integer = nativeValue(§Integer§)
 NonZeroInteger = Integer.Without(0)
 Fraction = (
 	numerator: Integer
@@ -23,8 +23,8 @@ Rational = Or(Integer Fraction)
 # TODO Number = Or(Float Rational)?
 #endregion Number
 # sequence of characters
-String = nativeValue(§_string§)
-Error = nativeValue(§_error§)
+String = nativeValue(§_String§)
+Error = nativeValue(§_Error§)
 # data structure containing 1 or more elements of type ElementType
 List = nativeFunction(
 	(ElementType: Type): Type
@@ -62,7 +62,7 @@ Stream = nativeFunction(
 # 	UnionType
 # 	IntersectionType
 # )
-Type = nativeValue(§_type§)
+Type = nativeValue(§Type§)
 # IntersectionType
 And = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type

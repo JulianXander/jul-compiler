@@ -7,6 +7,18 @@ const expectedResults: {
 	code: string;
 	result: string;
 }[] = [
+		{
+			code: 'true',
+			result: 'true'
+		},
+		// {
+		// 	code: 'Any',
+		// 	result: 'Any'
+		// },
+		// {
+		// 	code: 'String',
+		// 	result: '_String'
+		// },
 		// {
 		// 	code: '# Destructuring import\n§a§',
 		// 	// TODO parse comments
@@ -148,8 +160,8 @@ const expectedResults: {
 		// },
 		{
 			code: '(a: String)',
-			result: ''
-		}
+			result: 'new DictionaryLiteralType({\n\'a\': _String,\n})'
+		},
 	];
 
 describe('Emitter', () => {
@@ -158,7 +170,7 @@ describe('Emitter', () => {
 			const parsed = parseCode(code);
 			const syntaxTree = checkParseExpressions(parsed.expressions!)!;
 			const compiled = syntaxTreeToJs(syntaxTree);
-			expect(compiled).to.equal(importLine + result);
+			expect(compiled).to.equal(importLine + 'module.exports = ' + result);
 		});
 	});
 });
