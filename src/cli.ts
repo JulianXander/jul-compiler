@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { compileFileToJs } from './compiler';
 
 // console.log(process.argv)

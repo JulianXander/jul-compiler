@@ -12,6 +12,10 @@ Baut jul-compiler, jul-language-server und vscode-jul-language-server
     2. copy:	copyfiles -a ../jul-language-server ../vscode-jul-language-service/out --exclude .git
     3. build:   npx tsc
 
+Cli installieren:
+npm i -g
+
 Cli ausführen:
-npm run cli ../examples/test1.jul
-npx ts-node src/cli.ts ../examples/test1.jul
+jul ../jul-examples/test1.jul
+npm run cli ../jul-examples/test1.jul
+npx ts-node src/cli.ts ../jul-examples/test1.jul
