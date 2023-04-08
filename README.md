@@ -18,5 +18,4 @@ Baut jul-compiler, jul-language-server und vscode-jul-language-server
 
 ## Cli ausführen
 `jul ../jul-examples/test1.jul`  
-`npm run cli ../jul-examples/test1.jul`  
 `npx ts-node src/cli.ts ../jul-examples/test1.jul`

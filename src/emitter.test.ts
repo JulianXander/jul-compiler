@@ -162,6 +162,10 @@ const expectedResults: {
 			code: '(a: String)',
 			result: 'new DictionaryLiteralType({\n\'a\': _String,\n})'
 		},
+		{
+			code: '(a: String b)',
+			result: 'new DictionaryLiteralType({\n\'a\': _String,\n\'b\': Any,\n})'
+		},
 	];
 
 describe('Emitter', () => {

@@ -66,7 +66,7 @@ function expressionToJs(expression: CheckedExpression): string {
 
 		case 'dictionary':
 			// TODO mit Object.create(null), damit leerer prototype? Oder Persistent Data Structure?
-			return `{\n${expression.fields.map(field => {
+			return dictionaryToJs(expression.fields.map(field => {
 				const valueJs = expressionToJs(field.value);
 				if (field.type === 'singleDictionaryField') {
 					return singleDictionaryFieldToJs(field.name, field.typeGuard ? checkTypeJs(field.typeGuard, valueJs) : valueJs);
@@ -74,10 +74,10 @@ function expressionToJs(expression: CheckedExpression): string {
 				else {
 					return spreadDictionaryFieldToJs(valueJs);
 				}
-			}).join('')}}`;
+			}));
 
 		case 'dictionaryType':
-			return `new DictionaryLiteralType({\n${expression.fields.map(field => {
+			return `new DictionaryLiteralType(${dictionaryToJs(expression.fields.map(field => {
 				if (field.type === 'singleDictionaryTypeField') {
 					const typeGuardJs = field.typeGuard
 						? expressionToJs(field.typeGuard)
@@ -87,7 +87,7 @@ function expressionToJs(expression: CheckedExpression): string {
 				else {
 					return spreadDictionaryFieldToJs(expressionToJs(field.value));
 				}
-			})}})`;
+			}))})`;
 
 		case 'empty':
 			return 'null';
@@ -327,6 +327,10 @@ function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
 		return `\${${expressionToJs(value)}}`;
 	}).join('');
 	return `\`${stringValue}\``;
+}
+
+function dictionaryToJs(fieldsJs: string[]): string {
+	return `{\n${fieldsJs.join('')}}`
 }
 
 function singleDictionaryFieldToJs(name: string, valueJs: string): string {
