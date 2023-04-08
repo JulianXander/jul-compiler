@@ -60,7 +60,8 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	// copy runtime und bundling nur einmalig beim root call (ohne compiledFilePaths)
 	if (!compiledFilePaths) {
 		//#region 6. copy runtime
-		copyFileSync('out/runtime.js', sourceFolder + '/runtime.js');
+		const runtimePath = join(__dirname, 'runtime.js');
+		copyFileSync(runtimePath, sourceFolder + '/runtime.js');
 		//#endregion 6. copy runtime
 
 		//#region 7. bundle
