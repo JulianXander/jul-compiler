@@ -370,6 +370,7 @@ class DictionaryType extends BuiltInTypeBase {
 	readonly type = 'dictionary';
 }
 
+// TODO rename to _DictionaryLiteralType or split builtin exports to other file or importLine contain only builtins?
 export class DictionaryLiteralType extends BuiltInTypeBase {
 	constructor(public fields: { [key: string]: RuntimeType; }) { super(); }
 	readonly type = 'dictionaryLiteral';
