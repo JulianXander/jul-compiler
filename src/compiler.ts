@@ -79,7 +79,8 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 			// resolve: {
 			// 	modules: ['node_modules']
 			// }
-		}); bundler.run((error, stats) => {
+		});
+		bundler.run((error, stats) => {
 			// console.log(error, stats);
 			stopSpinner();
 			console.log('done');
