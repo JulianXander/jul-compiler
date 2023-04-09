@@ -165,7 +165,7 @@ regex = nativeFunction(
 #region List
 # filtert empty Werte raus
 # TODO generic
-filterMap => nativeFunction(
+filterMap = nativeFunction(
 	(
 		values: List(Any)
 		callback: (
