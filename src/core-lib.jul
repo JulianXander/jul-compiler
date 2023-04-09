@@ -153,6 +153,14 @@ parseJson = nativeFunction(
 )
 JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
 JsonPrimitive = Or(() Boolean Rational String)
+# Gibt die capture groups zurück
+regex = nativeFunction(
+	(
+		text: String
+		regex: String
+	): Or(Dictionary(String) ())
+	§TODO§
+)
 #endregion String
 #region List
 forEach = nativeFunction(

@@ -1181,7 +1181,27 @@ export const parseJson = _createFunction(
 			},
 		]
 	}
-)
+);
+export const regex = _createFunction(
+	(text: string, regex1: string) => {
+		const match = text.match(regex1);
+		return match?.groups ?? null;
+	},
+	{
+		singleNames: [
+			{
+				name: 'text',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['String'] }
+			},
+			{
+				name: 'regex',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['String'] }
+			},
+		]
+	}
+);
 //#endregion String
 //#region List
 export const forEach = _createFunction(
@@ -1206,7 +1226,7 @@ export const forEach = _createFunction(
 			},
 		]
 	}
-)
+);
 //#endregion List
 //#region Stream
 //#region core
