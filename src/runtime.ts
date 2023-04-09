@@ -23,7 +23,7 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 	for (const branch of branches) {
 		const assignedParams = tryAssignParams(branch.params, value);
 		if (!(assignedParams instanceof Error)) {
-			return branch(assignedParams);
+			return branch(...assignedParams);
 		}
 	}
 	return new Error(`${value} did not match any branch`);

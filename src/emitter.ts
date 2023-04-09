@@ -109,13 +109,16 @@ function expressionToJs(expression: CheckedExpression): string {
 
 		case 'functionLiteral': {
 			// TODO params(DefinitionNames) to Type
-			// TODO rest args
 			// TODO return statement
 			const params = expression.params;
 			let argsJs: string;
 			let paramsJs: string;
 			if (params.type === 'parameters') {
 				argsJs = params.singleFields.map(field => field.name).join(', ');
+				const rest = params.rest;
+				if (rest) {
+					argsJs += '...' + rest.name;
+				}
 				paramsJs = parametersToJs(params);
 			}
 			else {
