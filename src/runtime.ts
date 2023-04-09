@@ -168,9 +168,14 @@ function isOfType(value: any, type: RuntimeType): boolean {
 	}
 }
 
+function isRealObject(value: any): value is { [key: string]: any; } | any[] {
+	return typeof value === 'object'
+		&& value !== null;
+}
+
 // TODO check empty prototype?
 function isDictionary(value: any): value is { [key: string]: any; } {
-	return typeof value === 'object'
+	return isRealObject(value)
 		&& !(value instanceof BuiltInTypeBase)
 		&& !(value instanceof Error)
 		&& !Array.isArray(value);
@@ -187,7 +192,7 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 		return assignedValues;
 	}
 	// primitive value in Array wrappen
-	const wrappedValue: any[] | { [key: string]: any; } = typeof values === 'object'
+	const wrappedValue: any[] | { [key: string]: any; } = isRealObject(values)
 		? values
 		: [values];
 	const isArray = Array.isArray(wrappedValue);
