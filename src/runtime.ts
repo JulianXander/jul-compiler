@@ -982,11 +982,26 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 //#region Types
 export const Any = new AnyType();
 export const _Boolean = new BooleanType();
+//#region Number
 export const Float = new FloatType();
 export const Integer = new IntegerType();
 export const NonZeroInteger = new UnionType([Integer, new ComplementType(0)]);
+//#endregion Number
 export const _String = new StringType();
 export const _Error = new ErrorType();
+export const List = _createFunction(
+	(ElementType: RuntimeType) =>
+		new ListType(ElementType),
+	{
+		singleNames: [
+			{
+				name: 'ElementType',
+				// TODO
+				// type: { type: 'reference', names: ['Type'] }
+			},
+		]
+	}
+)
 export const Type = new TypeType();
 //#endregion Types
 //#region Functions
@@ -1005,7 +1020,8 @@ export const equal = _createFunction(
 				name: 'second',
 				// TODO
 				// type: { type: 'reference', names: ['Any'] }
-			}]
+			}
+		]
 	}
 );
 //#endregion Any
@@ -1025,7 +1041,8 @@ export const modulo = _createFunction(
 				name: 'divisor',
 				// TODO
 				// type: { type: 'reference', names: ['NonZeroInteger'] }
-			}]
+			}
+		]
 	}
 );
 export const subtract = _createFunction(
@@ -1068,7 +1085,8 @@ export const subtract = _createFunction(
 				name: 'subtrahend',
 				// TODO
 				// type: { type: 'reference', names: ['Rational'] }
-			}]
+			}
+		]
 	}
 );
 export const subtractFloat = _createFunction(
@@ -1085,7 +1103,8 @@ export const subtractFloat = _createFunction(
 				name: 'subtrahend',
 				// TODO
 				// type: { type: 'reference', names: ['Float'] }
-			}]
+			}
+		]
 	}
 );
 // TODO sum, sumFloat
