@@ -177,14 +177,14 @@ function isDictionary(value: any): value is { [key: string]: any; } {
 }
 
 function tryAssignParams(params: Params, values: any): any[] | Error {
-	const assigneds: any[] = [];
+	const assignedValues: any[] = [];
 	const { type: outerType, singleNames, rest } = params;
 	if (outerType !== undefined) {
 		const isValid = isOfType(values, outerType);
 		if (!isValid) {
 			return new Error(`Can not assign the value ${values} to params because it is not of type ${outerType}`);
 		}
-		return assigneds;
+		return assignedValues;
 	}
 	// primitive value in Array wrappen
 	const wrappedValue: any[] | { [key: string]: any; } = typeof values === 'object'
@@ -205,29 +205,27 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 			if (!isValid) {
 				return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
 			}
-			assigneds.push(value);
+			assignedValues.push(value);
 		}
 	}
 	if (rest) {
 		const restType = rest.type;
 		if (isArray) {
-			for (; index < wrappedValue.length; index++) {
-				const value = wrappedValue[index];
-				const isValid = restType
-					? isOfType(value, restType)
-					: true;
-				if (!isValid) {
-					return new Error(`Can not assign the value ${value} to rest param because it is not of type ${rest}`);
-				}
-				assigneds.push(value);
+			const remainingArgs = wrappedValue.slice(index);
+			const isValid = restType
+				? isOfType(remainingArgs, restType)
+				: true;
+			if (!isValid) {
+				return new Error(`Can not assign the value ${remainingArgs} to rest param because it is not of type ${rest}`);
 			}
+			assignedValues.push(...remainingArgs);
 		}
 		else {
 			// TODO rest dictionary??
 			throw new Error('tryAssignParams not implemented yet for rest dictionary');
 		}
 	}
-	return assigneds;
+	return assignedValues;
 }
 
 // TODO toString
