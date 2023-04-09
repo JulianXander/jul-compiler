@@ -1204,6 +1204,35 @@ export const regex = _createFunction(
 );
 //#endregion String
 //#region List
+export const filterMap = _createFunction(
+	<T, U>(
+		values: T[],
+		callback: (value: T) => U | null,
+	): U[] => {
+		const mappedValues: U[] = [];
+		values.forEach(value => {
+			const mapped = callback(value);
+			if (mapped !== null) {
+				mappedValues.push(mapped);
+			}
+		});
+		return mappedValues;
+	},
+	{
+		singleNames: [
+			{
+				name: 'values',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['List'] }
+			},
+			{
+				name: 'callback',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['Function'] }
+			},
+		]
+	}
+);
 export const forEach = _createFunction(
 	(
 		values: any[],
