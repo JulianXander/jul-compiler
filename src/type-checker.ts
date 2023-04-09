@@ -249,8 +249,8 @@ function inferType(
 			});
 			// TODO normalize (flatten) UnionType, wenn any verodert => return any
 			return new UnionType(expression.branches.map(branch => {
-				const inferredType = branch.inferredType as FunctionType;
-				if (inferredType.type === 'function') {
+				const inferredType = branch.inferredType;
+				if (inferredType instanceof FunctionType) {
 					return inferredType.returnType;
 				}
 				return Any;
