@@ -44,6 +44,8 @@ import { ParserError } from './parser-combinator';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
+const maxElementsPerLine = 5;
+
 // const anyType: Any = {
 // 	type: 'any'
 // };
@@ -385,6 +387,19 @@ function inferType(
 			setInferredType(functionReference, scopes, parsedDocuments, folder, file);
 			setInferredType(expression.arguments, scopes, parsedDocuments, folder, file);
 			const argsType = expression.arguments.inferredType!;
+			const functionType = functionReference.inferredType;
+			const paramsType = getParamsType(functionType);
+			// TODO function parameter assignment logik berücksichtigen
+			const assignArgsError = isTypeAssignableTo(argsType, paramsType);
+			if (assignArgsError) {
+				errors.push({
+					message: assignArgsError,
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				});
+			}
 			// TODO statt functionname functionref value/inferred type prüfen?
 			if (functionReference.path.length === 1) {
 				const functionName = functionReference.path[0].name;
@@ -466,7 +481,7 @@ function inferType(
 						break;
 				}
 			}
-			const returnType = getReturnType(functionReference.inferredType);
+			const returnType = getReturnType(functionType);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(argsType, returnType);
 			return dereferencedReturnType;
@@ -1236,7 +1251,6 @@ export function typeToString(type: RuntimeType, indent: number): string {
 	}
 }
 
-const maxElementsPerLine = 5;
 function arrayTypeToString(
 	array: RuntimeType[],
 	indent: number,
