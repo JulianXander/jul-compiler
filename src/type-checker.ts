@@ -1221,7 +1221,7 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return `TypeOf(${typeToString(builtInType.value, indent)})`;
 					default: {
 						const assertNever: never = builtInType;
-						throw new Error(`Unexpected BuiltInType ${(builtInType as BuiltInType).type}`);
+						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType).type}`);
 					}
 				}
 			}
