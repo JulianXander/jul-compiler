@@ -285,6 +285,7 @@ function inferType(
 		}
 
 		case 'destructuring':
+			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
 			// TODO?
 			// TODO check typeguards
 			expression.fields.fields.forEach(field => {
