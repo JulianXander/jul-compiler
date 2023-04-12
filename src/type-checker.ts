@@ -1146,15 +1146,12 @@ function getPathExpression(importParams: BracketedExpression): ParseValueExpress
 	switch (importParams.type) {
 		case 'dictionary':
 			return importParams.fields[0].value;
-
 		case 'bracketed':
 		case 'dictionaryType':
 		case 'empty':
 			return undefined;
-
 		case 'list':
 			return importParams.values[0];
-
 		default: {
 			const assertNever: never = importParams;
 			throw new Error(`Unexpected importParams.type: ${(assertNever as BracketedExpression).type}`);
@@ -1170,12 +1167,10 @@ export function typeToString(type: RuntimeType, indent: number): string {
 	switch (typeof type) {
 		case 'string':
 			return `§${type.replaceAll('§', '§§')}§`;
-
 		case 'bigint':
 		case 'boolean':
 		case 'number':
 			return type.toString();
-
 		case 'object': {
 			if (type === null) {
 				return '()';
@@ -1188,60 +1183,42 @@ export function typeToString(type: RuntimeType, indent: number): string {
 				switch (builtInType.type) {
 					case 'and':
 						return `And${arrayTypeToString(builtInType.choiceTypes, indent)}`;
-
 					case 'any':
 						return 'Any';
-
 					case 'integer':
 						return 'Integer';
-
 					case 'boolean':
 						return 'Boolean';
-
 					case 'dictionary':
 						return `Dictionary(${typeToString(builtInType.elementType, indent)})`;
-
 					case 'dictionaryLiteral':
 						return dictionaryTypeToString(builtInType.fields, ': ', indent);
-
 					case 'error':
 						return 'Error';
-
 					case 'float':
 						return 'Float';
-
 					case 'function':
 						return `${typeToString(builtInType.paramsType, indent)} => ${typeToString(builtInType.returnType, indent)}`;
-
 					case 'list':
 						return `List(${typeToString(builtInType.elementType, indent)})`;
-
 					case 'not':
 						return `Not(${typeToString(builtInType.sourceType, indent)})`;
-
 					case 'or':
 						return `Or${arrayTypeToString(builtInType.choiceTypes, indent)}`;
-
 					case 'reference':
 						return builtInType.path.map(pathSegment => {
 							return pathSegment.name;
 						}).join('/');
-
 					case 'stream':
 						return `Stream(${typeToString(builtInType.valueType, indent)})`;
-
 					case 'string':
 						return 'String';
-
 					case 'tuple':
 						return arrayTypeToString(builtInType.elementTypes, indent);
-
 					case 'type':
 						return 'Type';
-
 					case 'typeOf':
 						return `TypeOf(${typeToString(builtInType.value, indent)})`;
-
 					default: {
 						const assertNever: never = builtInType;
 						throw new Error(`Unexpected BuiltInType ${(builtInType as BuiltInType).type}`);
@@ -1251,11 +1228,9 @@ export function typeToString(type: RuntimeType, indent: number): string {
 			// Dictionary
 			return dictionaryTypeToString(type, ' = ', indent);
 		}
-
 		case 'function':
 			// TODO?
 			throw new Error('typeToString not implemented yet for CustomFunction');
-
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected type ${typeof assertNever}`);
