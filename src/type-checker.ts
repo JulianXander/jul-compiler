@@ -1148,10 +1148,10 @@ export function getPathFromImport(importExpression: ParseFunctionCall): { path?:
 				return {
 					error: {
 						message: `Unexpected extension for import: ${extension}`,
-						startRowIndex: importExpression.startRowIndex,
-						startColumnIndex: importExpression.startColumnIndex,
-						endRowIndex: importExpression.endColumnIndex,
-						endColumnIndex: importExpression.endColumnIndex,
+						startRowIndex: pathExpression.startRowIndex,
+						startColumnIndex: pathExpression.startColumnIndex,
+						endRowIndex: pathExpression.endRowIndex,
+						endColumnIndex: pathExpression.endColumnIndex,
 					}
 				};
 		}
