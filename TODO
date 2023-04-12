@@ -1,8 +1,7 @@
 ?Maximilian call fn with array arg singlename param vgl examples/function-call.jul
 ?shared code? libraries?
 -developtime check function parameter anzahl + typen
--bei branching: developtime fehler wenn case nicht eintreten kann weil teilmenge eines vorherigen cases
--build in out verzeichnis
+?build in out verzeichnis
 	-achtung mit relativen pfaden
 -Escaped Dereferencing
 -fix List type hoverinfo

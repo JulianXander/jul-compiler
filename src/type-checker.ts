@@ -241,21 +241,38 @@ function inferType(
 			// TODO?
 			return Any;
 
-		case 'branching':
+		case 'branching': {
 			// union branch return types
 			// TODO conditional type?
 			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
-			expression.branches.forEach(branch => {
+			const branches = expression.branches;
+			branches.forEach((branch, index) => {
 				setInferredType(branch, scopes, parsedDocuments, folder, file);
+				if (index) {
+					// Fehler, wenn ParameterTyp des Branches schon von vorherigen Branches abgedeckt.
+					// Also wenn aktueller ParamterTyp Teilmenge der Veroderung der vorherigen ParameterTypen ist.
+					const previousTypes = branches.slice(0, index).map(previousBranch => {
+						return getParamsType(previousBranch.inferredType);
+					});
+					const combinedPreviousType = new UnionType(previousTypes);
+					const currentParamsType = getParamsType(branch.inferredType);
+					const error = isTypeAssignableTo(currentParamsType, combinedPreviousType);
+					if (!error) {
+						errors.push({
+							message: 'Unreachable branch detected.',
+							startRowIndex: branch.startRowIndex,
+							startColumnIndex: branch.startColumnIndex,
+							endRowIndex: branch.endRowIndex,
+							endColumnIndex: branch.endColumnIndex,
+						});
+					}
+				}
 			});
 			// TODO normalize (flatten) UnionType, wenn any verodert => return any
 			return new UnionType(expression.branches.map(branch => {
-				const inferredType = branch.inferredType;
-				if (inferredType instanceof FunctionType) {
-					return inferredType.returnType;
-				}
-				return Any;
+				return getReturnType(branch.inferredType);
 			}));
+		}
 
 		case 'definition': {
 			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
@@ -468,12 +485,7 @@ function inferType(
 						break;
 				}
 			}
-			const functionType = functionReference.inferredType;
-			if (!(functionType instanceof FunctionType)) {
-				// TODO error?
-				return Any;
-			}
-			const returnType = functionType.returnType;
+			const returnType = getReturnType(functionReference.inferredType);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(argsType, returnType);
 			return dereferencedReturnType;
@@ -869,6 +881,7 @@ function isTypeAssignableTo(valueType: RuntimeType, typeType: RuntimeType): stri
 
 /**
  * Liefert den Fehler, der beim Zuweisen eines Wertes vom Typ valueType in eine Variable vom Typ typeType entsteht.
+ * valueType muss also Teilmenge von typeType sein.
  */
 function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError | undefined {
 	const targetType = valueOf(typeType);
@@ -1345,3 +1358,17 @@ function bracketedExpressionToString(
 }
 
 //#endregion ToString
+
+function getParamsType(possibleFunctionType: RuntimeType | undefined): RuntimeType {
+	if (possibleFunctionType instanceof FunctionType) {
+		return possibleFunctionType.paramsType;
+	}
+	return Any;
+}
+
+function getReturnType(possibleFunctionType: RuntimeType | undefined): RuntimeType {
+	if (possibleFunctionType instanceof FunctionType) {
+		return possibleFunctionType.returnType;
+	}
+	return Any;
+}
