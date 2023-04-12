@@ -6,6 +6,7 @@ import { syntaxTreeToJs } from './emitter';
 import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tree';
 import { getPathFromImport } from './type-checker';
 import { parseFile } from './parser';
+import { ParserError } from './parser-combinator';
 
 export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true; }): void {
 	console.log(`compiling ${filePath} ...`);
@@ -15,9 +16,7 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 
 	//#region 1. read & 2. parse
 	const parsed = parseFile(filePath);
-	if (parsed.errors.length) {
-		throw new Error(JSON.stringify(parsed.errors, undefined, 2));
-	}
+	outputErrors(parsed.errors);
 	// console.log(result);
 	const syntaxTree = checkParseExpressions(parsed.expressions!)!;
 	//#endregion 1. read & 2. parse
@@ -43,8 +42,9 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
 	const compiledFilePathsWithDefault = compiledFilePaths ?? { [filePath]: true };
 	const importedFilePaths = getImportedPaths(parsed);
+	outputErrors(importedFilePaths.errors);
 	const sourceFolder = dirname(filePath);
-	importedFilePaths.forEach(path => {
+	importedFilePaths.paths.forEach(path => {
 		if (extname(path) !== '.jul') {
 			return;
 		}
@@ -90,6 +90,12 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 	}
 }
 
+function outputErrors(errors: ParserError[]): void {
+	if (errors.length) {
+		throw new Error(JSON.stringify(errors, undefined, 2));
+	}
+}
+
 function busySpinner() {
 	let step = 0;
 	// const characters = '⡀⠄⠂⠁⠈⠐⠠⢀';
@@ -108,8 +114,9 @@ function busySpinner() {
 
 //#region import
 
-export function getImportedPaths(parsedFile: ParsedFile): string[] {
+export function getImportedPaths(parsedFile: ParsedFile): { paths: string[], errors: ParserError[] } {
 	const importedPaths: string[] = [];
+	const errors: ParserError[] = [];
 	parsedFile.expressions?.forEach(expression => {
 		switch (expression.type) {
 			case 'functionCall':
@@ -122,7 +129,7 @@ export function getImportedPaths(parsedFile: ParsedFile): string[] {
 				if (isImport(value)) {
 					const { path, error } = getPathFromImport(value);
 					if (error) {
-						throw new Error(error.message);
+						errors.push(error);
 					}
 					if (path) {
 						importedPaths.push(path);
@@ -134,7 +141,10 @@ export function getImportedPaths(parsedFile: ParsedFile): string[] {
 				return;
 		}
 	});
-	return importedPaths;
+	return {
+		paths: importedPaths,
+		errors: errors,
+	};
 }
 
 function isImport(expression: ParseValueExpression): expression is ParseFunctionCall {
