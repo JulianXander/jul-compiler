@@ -1006,6 +1006,16 @@ export const List = _createFunction(
 	}
 )
 export const Type = new TypeType();
+export const Or = _createFunction(
+	(...args: RuntimeType[]) =>
+		new UnionType(args),
+	{
+		// TODO
+		// rest: {
+		// 	type: List(Type)
+		// }
+	}
+)
 //#endregion Types
 //#region Functions
 //#region Any
