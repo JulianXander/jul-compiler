@@ -240,7 +240,6 @@ function inferType(
 		case 'bracketed':
 			// TODO?
 			return Any;
-
 		case 'branching': {
 			// union branch return types
 			// TODO conditional type?
@@ -273,7 +272,6 @@ function inferType(
 				return getReturnType(branch.inferredType);
 			}));
 		}
-
 		case 'definition': {
 			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
 			const inferredType = coreBuiltInSymbolTypes[expression.name.name] ?? expression.value.inferredType!;
@@ -300,7 +298,6 @@ function inferType(
 			}
 			return inferredType;
 		}
-
 		case 'destructuring':
 			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
 			// TODO?
@@ -311,7 +308,6 @@ function inferType(
 				}
 			});
 			return Any;
-
 		case 'dictionary': {
 			const fieldTypes: { [key: string]: RuntimeType; } = {};
 			expression.fields.forEach(field => {
@@ -331,11 +327,9 @@ function inferType(
 						fieldTypes[fieldName] = field.value.inferredType!;
 						return;
 					}
-
 					case 'spreadDictionaryField':
 						// TODO spread fields flach machen
 						return;
-
 					default: {
 						const assertNever: never = field;
 						throw new Error('Unexpected Dictionary field type ' + (assertNever as ParseDictionaryField).type);
@@ -344,7 +338,6 @@ function inferType(
 			})
 			return new DictionaryLiteralType(fieldTypes);
 		}
-
 		case 'dictionaryType': {
 			const fieldTypes: { [key: string]: RuntimeType; } = {};
 			expression.fields.forEach(field => {
@@ -361,12 +354,10 @@ function inferType(
 						fieldTypes[fieldName] = valueOf(field.typeGuard.inferredType);
 						return;
 					}
-
 					case 'spreadDictionaryTypeField':
 						setInferredType(field.value, scopes, parsedDocuments, folder, file);
 						// TODO spread fields flach machen
 						return;
-
 					default: {
 						const assertNever: never = field;
 						throw new Error('Unexpected DictionaryType field type ' + (assertNever as ParseDictionaryTypeField).type);
@@ -375,23 +366,18 @@ function inferType(
 			});
 			return new TypeOfType(new DictionaryLiteralType(fieldTypes));
 		}
-
 		case 'empty':
 			return null;
-
 		case 'field':
 			// TODO?
 			return Any;
-
 		case 'float':
 			return expression.value;
-
 		case 'fraction':
 			return new DictionaryLiteralType({
 				numerator: expression.numerator,
 				denominator: expression.denominator,
 			});
-
 		case 'functionCall': {
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
@@ -448,7 +434,6 @@ function inferType(
 					// 	}
 					// 	return _any;
 					// }
-
 					case 'And': {
 						//TODO andere array args types?
 						if (!(argsType instanceof TupleType)) {
@@ -457,7 +442,6 @@ function inferType(
 						}
 						return new TypeOfType(new IntersectionType(argsType.elementTypes.map(valueOf)));
 					}
-
 					case 'Or': {
 						//TODO andere array args types?
 						if (!(argsType instanceof TupleType)) {
@@ -466,7 +450,6 @@ function inferType(
 						}
 						return new TypeOfType(new UnionType(argsType.elementTypes.map(valueOf)));
 					}
-
 					case 'Not': {
 						//TODO andere array args types?
 						if (!(argsType instanceof TupleType)) {
@@ -479,7 +462,6 @@ function inferType(
 						}
 						return new TypeOfType(new ComplementType(valueOf(argsType.elementTypes[0])));
 					}
-
 					default:
 						break;
 				}
@@ -534,10 +516,8 @@ function inferType(
 				valueOf(inferredReturnType),
 			));
 		}
-
 		case 'integer':
 			return expression.value;
-
 		case 'list':
 			// TODO spread elements
 			expression.values.forEach(element => {
@@ -546,7 +526,6 @@ function inferType(
 			return new TupleType(expression.values.map(element => {
 				return element.inferredType!;
 			}));
-
 		case 'parameter': {
 			if (expression.typeGuard) {
 				setInferredType(expression.typeGuard, scopes, parsedDocuments, folder, file);
@@ -567,7 +546,6 @@ function inferType(
 			parameterSymbol.normalizedType = inferredType;
 			return inferredType;
 		}
-
 		case 'parameters': {
 			expression.singleFields.forEach(field => {
 				setInferredType(field, scopes, parsedDocuments, folder, file);
@@ -584,12 +562,10 @@ function inferType(
 					field.inferredType!
 			));
 		}
-
 		case 'reference': {
 			const referencedType = dereferenceType(expression, scopes);
 			return referencedType;
 		}
-
 		case 'string': {
 			// TODO string template type?
 			if (expression.values.every((part): part is StringToken => part.type === 'stringToken')) {
@@ -599,7 +575,6 @@ function inferType(
 			}
 			return _String;
 		}
-
 		default: {
 			const assertNever: never = expression;
 			throw new Error(`Unexpected valueExpression.type: ${(assertNever as CheckedValueExpression).type}`);
@@ -614,7 +589,6 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 		case 'number':
 		case 'string':
 			return type;
-
 		case 'object':
 			if (type instanceof BuiltInTypeBase) {
 				if (type instanceof TypeOfType) {
@@ -625,12 +599,10 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 			}
 			// null/array/dictionary
 			return type;
-
 		case 'function':
 		case 'symbol':
 		case 'undefined':
 			return Any;
-
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected type ${typeof assertNever} for valueOf`);
@@ -652,26 +624,19 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 		case 'string':
 		case 'type':
 			return builtInType;
-
 		case 'and':
 			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
-
 		case 'not':
 			return new ComplementType(dereferenceArgumentTypesNested(argsType, builtInType.sourceType));
-
 		case 'or':
 			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
-
 		case 'reference':
 			// TODO immer valueOf?
 			return valueOf(dereferenceArgumentType(argsType, builtInType));
-
 		case 'stream':
 			return new StreamType(dereferenceArgumentTypesNested(argsType, builtInType.valueType));
-
 		case 'typeOf':
 			return new TypeOfType(dereferenceArgumentTypesNested(argsType, builtInType.value));
-
 		// TODO
 		case 'dictionary':
 		case 'dictionaryLiteral':
@@ -679,7 +644,6 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 		case 'list':
 		case 'tuple':
 			return builtInType;
-
 		default: {
 			const assertNever: never = builtInType;
 			throw new Error('Unexpected BuiltInType.type: ' + (assertNever as BuiltInType).type);
@@ -699,7 +663,6 @@ function dereferenceArgumentType(argsType: RuntimeType, parameterReference: Para
 			// TODO error bei unbound ref?
 			return argType;
 		}
-
 		case 'tuple': {
 			// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
 			// TODO dereference nested path
@@ -709,10 +672,8 @@ function dereferenceArgumentType(argsType: RuntimeType, parameterReference: Para
 			// TODO error bei unbound ref?
 			return argType;
 		}
-
 		case 'list':
 		// TODO?
-
 		default:
 			return argsType;
 	}
