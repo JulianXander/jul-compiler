@@ -120,7 +120,10 @@ export function getImportedPaths(parsedFile: ParsedFile): string[] {
 			case 'destructuring':
 				const value = expression.value;
 				if (isImport(value)) {
-					const path = getPathFromImport(value);
+					const { path, error } = getPathFromImport(value);
+					if (error) {
+						throw new Error(error.message);
+					}
 					if (path) {
 						importedPaths.push(path);
 					}

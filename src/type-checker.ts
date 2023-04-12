@@ -40,6 +40,7 @@ import {
 } from './syntax-tree';
 import { NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
 import { parseFile } from './parser';
+import { ParserError } from './parser-combinator';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -386,12 +387,15 @@ function inferType(
 				const functionName = functionReference.path[0].name;
 				switch (functionName) {
 					case 'import': {
-						const importedPath = getPathFromImport(expression);
-						if (!importedPath) {
+						const { path, error } = getPathFromImport(expression);
+						if (error) {
+							errors.push(error)
+						}
+						if (!path) {
 							return Any;
 						}
 						// TODO get full path, get type from parsedfile
-						const fullPath = join(folder, importedPath);
+						const fullPath = join(folder, path);
 						const importedFile = parsedDocuments[fullPath];
 						if (!importedFile) {
 							return Any;
@@ -1127,7 +1131,7 @@ function typeErrorToString(typeError: TypeError): string {
 
 //#region import
 
-export function getPathFromImport(importExpression: ParseFunctionCall): string | undefined {
+export function getPathFromImport(importExpression: ParseFunctionCall): { path?: string, error?: ParserError } {
 	const pathExpression = getPathExpression(importExpression.arguments);
 	if (pathExpression?.type === 'string'
 		&& pathExpression.values.length === 1
@@ -1136,15 +1140,31 @@ export function getPathFromImport(importExpression: ParseFunctionCall): string |
 		const extension = extname(importedPath);
 		switch (extension) {
 			case '.js':
-				return importedPath;
+				return { path: importedPath };
 			case '':
-				return importedPath + '.jul';
+				return { path: importedPath + '.jul' };
 			default:
-				throw new Error(`Unexpected extension for import: ${extension}`);
+				return {
+					error: {
+						message: `Unexpected extension for import: ${extension}`,
+						startRowIndex: importExpression.startRowIndex,
+						startColumnIndex: importExpression.startColumnIndex,
+						endRowIndex: importExpression.endColumnIndex,
+						endColumnIndex: importExpression.endColumnIndex,
+					}
+				};
 		}
 	}
 	// TODO dynamische imports verbieten???
-	return undefined;
+	return {
+		error: {
+			message: 'dynamic import not allowed',
+			startRowIndex: importExpression.startRowIndex,
+			startColumnIndex: importExpression.startColumnIndex,
+			endRowIndex: importExpression.endColumnIndex,
+			endColumnIndex: importExpression.endColumnIndex,
+		}
+	};
 }
 
 function getPathExpression(importParams: BracketedExpression): ParseValueExpression | undefined {
