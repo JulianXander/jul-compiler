@@ -471,7 +471,6 @@ function inferType(
 			const dereferencedReturnType = dereferenceArgumentTypesNested(argsType, returnType);
 			return dereferencedReturnType;
 		}
-
 		case 'functionLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			setInferredType(expression.params, functionScopes, parsedDocuments, folder, file);
@@ -499,7 +498,6 @@ function inferType(
 				inferredReturnType,
 			);
 		}
-
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			setInferredType(expression.params, functionScopes, parsedDocuments, folder, file);

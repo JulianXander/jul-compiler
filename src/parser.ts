@@ -856,7 +856,6 @@ function valueExpressionBaseParser(
 				parsed: branching,
 			};
 		}
-
 		case 'functionBody': {
 			const symbols: SymbolTable = {};
 			const body = parsed2.body;
@@ -884,7 +883,6 @@ function valueExpressionBaseParser(
 				errors: errors,
 			};
 		}
-
 		case 'functionCall': {
 			const functionCall = parsed2.value.reduce<SimpleExpression>(
 				(accumulator, currentValue) => {
@@ -924,7 +922,6 @@ function valueExpressionBaseParser(
 				errors: errors,
 			};
 		}
-
 		case 'functionTypeBody': {
 			const symbols: SymbolTable = {};
 			const body = parsed2.body;
@@ -972,7 +969,6 @@ function valueExpressionBaseParser(
 				errors: errors,
 			};
 		}
-
 		default: {
 			const assertNever: never = parsed2;
 			throw new Error(`Unexpected secondExpression.type: ${(assertNever as any).type}`);
