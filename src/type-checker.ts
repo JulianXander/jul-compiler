@@ -287,7 +287,7 @@ function inferType(
 				// expression.normalizedTypeGuard = typeGuard.inferredType
 				// valueExpression.normalizedTypeGuard = normalizeType(valueExpression.typeGuard);
 
-				const error = isTypeAssignableTo(inferredType, typeGuard.inferredType!);
+				const error = isTypeAssignableTo(inferredType, valueOf(typeGuard.inferredType));
 				if (error) {
 					errors.push({
 						message: error,
@@ -328,7 +328,6 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						// TODO valueOf?
 						fieldTypes[fieldName] = field.value.inferredType!;
 						return;
 					}
@@ -359,7 +358,7 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						fieldTypes[fieldName] = field.typeGuard.inferredType!
+						fieldTypes[fieldName] = valueOf(field.typeGuard.inferredType);
 						return;
 					}
 
@@ -456,7 +455,7 @@ function inferType(
 							// TODO error?
 							return Any;
 						}
-						return new TypeOfType(new IntersectionType(argsType.elementTypes));
+						return new TypeOfType(new IntersectionType(argsType.elementTypes.map(valueOf)));
 					}
 
 					case 'Or': {
@@ -465,7 +464,7 @@ function inferType(
 							// TODO error?
 							return Any;
 						}
-						return new TypeOfType(new UnionType(argsType.elementTypes));
+						return new TypeOfType(new UnionType(argsType.elementTypes.map(valueOf)));
 					}
 
 					case 'Not': {
@@ -478,7 +477,7 @@ function inferType(
 							// TODO error?
 							return Any;
 						}
-						return new TypeOfType(new ComplementType(argsType.elementTypes[0]));
+						return new TypeOfType(new ComplementType(valueOf(argsType.elementTypes[0])));
 					}
 
 					default:
@@ -501,7 +500,7 @@ function inferType(
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
-				const error = isTypeAssignableTo(inferredReturnType, declaredReturnType.inferredType!);
+				const error = isTypeAssignableTo(inferredReturnType, valueOf(declaredReturnType.inferredType));
 				if (error) {
 					errors.push({
 						message: error,
@@ -884,7 +883,8 @@ function isTypeAssignableTo(valueType: RuntimeType, typeType: RuntimeType): stri
  * valueType muss also Teilmenge von typeType sein.
  */
 function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError | undefined {
-	const targetType = valueOf(typeType);
+	// const targetType = valueOf(typeType);
+	const targetType = typeType;
 	if (targetType === Any) {
 		return undefined;
 	}
