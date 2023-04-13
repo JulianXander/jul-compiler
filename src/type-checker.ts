@@ -893,7 +893,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 		// 			break;
 		// 	}
 		// 	break;
-
 		case 'object':
 			if (targetType instanceof BuiltInTypeBase) {
 				switch (targetType.type) {
@@ -909,7 +908,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 							// innerError
 						};
 					}
-
 					case 'boolean':
 						switch (typeof valueType) {
 							case 'boolean':
@@ -919,7 +917,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 								break;
 						}
 						break;
-
 					// case 'dictionary':
 					case 'dictionaryLiteral': {
 						if (typeof valueType !== 'object') {
@@ -979,7 +976,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 							// innerError
 						};
 					}
-
 					case 'float':
 						switch (typeof valueType) {
 							case 'number':
@@ -989,7 +985,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 								break;
 						}
 						break;
-
 					case 'integer':
 						switch (typeof valueType) {
 							case 'bigint':
@@ -999,7 +994,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 								break;
 						}
 						break;
-
 					case 'not': {
 						const sourceError = getTypeError(valueType, targetType.sourceType);
 						if (sourceError === undefined) {
@@ -1009,7 +1003,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 						}
 						return undefined;
 					}
-
 					case 'or': {
 						const subErrors = targetType.choiceTypes.map(choiceType =>
 							getTypeError(valueType, choiceType));
@@ -1022,7 +1015,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 						}
 						return undefined;
 					}
-
 					case 'string':
 						switch (typeof valueType) {
 							case 'string':
@@ -1032,7 +1024,41 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 								break;
 						}
 						break;
-
+					case 'type':
+						switch (typeof valueType) {
+							case 'bigint':
+							case 'boolean':
+							case 'number':
+							case 'string':
+								return undefined;
+							case 'object':
+								if (!valueType) {
+									return undefined;
+								}
+								if (valueType instanceof BuiltInTypeBase) {
+									switch (valueType.type) {
+										case 'boolean':
+										case 'float':
+										case 'integer':
+										case 'string':
+										case 'typeOf':
+											return undefined;
+										// TODO check inner types
+										case 'dictionary':
+										case 'dictionaryLiteral':
+										case 'list':
+										case 'tuple':
+										default:
+											// TODO type specific error?
+											break;
+									}
+									break;
+								}
+								break;
+							default:
+								break;
+						}
+						break;
 					// TODO
 					case 'any':
 					case 'dictionary':
@@ -1042,10 +1068,8 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 					case 'reference':
 					case 'stream':
 					case 'tuple':
-					case 'type':
 					case 'typeOf':
 						break;
-
 					default: {
 						const assertNever: never = targetType;
 						throw new Error(`Unexpected targetType.type: ${(assertNever as BuiltInType).type}`);
@@ -1053,7 +1077,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 				}
 			}
 			break;
-
 		default:
 			break;
 	}
