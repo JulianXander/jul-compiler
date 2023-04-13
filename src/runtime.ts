@@ -131,6 +131,9 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					case 'reference':
 						// TODO deref?
 						return true;
+					case 'parameters':
+						// TODO
+						return true;
 					case 'type':
 						// TODO check primitive value (null/boolean/number/string)/builtintype/function
 						// return value === null
@@ -311,6 +314,8 @@ type Rational = bigint | Fraction;
 
 type CustomType = (value: any) => boolean;
 
+//#region BuiltInType
+
 export type BuiltInType =
 	| AnyType
 	| BooleanType
@@ -325,6 +330,7 @@ export type BuiltInType =
 	| StreamType
 	| FunctionType
 	| ParameterReference
+	| _ParametersType
 	| TypeType
 	| IntersectionType
 	| UnionType
@@ -398,8 +404,6 @@ export class FunctionType extends BuiltInTypeBase {
 	readonly type = 'function';
 }
 
-// TODO Parameter Type ???
-
 
 export class ParameterReference extends BuiltInTypeBase {
 	constructor(
@@ -411,6 +415,19 @@ export class ParameterReference extends BuiltInTypeBase {
 	 * Wird im constructor von FunctionType gesetzt und sollte immer vorhanden sein.
 	 */
 	functionRef?: FunctionType;
+}
+
+export class _ParametersType extends BuiltInTypeBase {
+	constructor(
+		public singleNames: { [key: string]: RuntimeType; },
+		public rest?: {
+			name: string;
+			type?: RuntimeType;
+		},
+	) {
+		super();
+	}
+	readonly type = 'parameters';
 }
 
 export type ReferencePath = [Name, ...(Name | Index)[]];
@@ -448,6 +465,8 @@ export class TypeOfType extends BuiltInTypeBase {
 	constructor(public value: any) { super(); }
 	readonly type = 'typeOf';
 }
+
+//#endregion BuiltInType
 
 //#endregion Types
 

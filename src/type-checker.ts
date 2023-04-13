@@ -20,6 +20,7 @@ import {
 	UnionType,
 	_Boolean,
 	_Error,
+	_ParametersType,
 	_String,
 	deepEquals
 } from './runtime';
@@ -68,7 +69,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	String: new TypeOfType(_String),
 	Error: new TypeOfType(_Error),
 	Stream: new FunctionType(
-		new DictionaryLiteralType({
+		new _ParametersType({
 			// TODO functionType
 			ValueType: Type,
 		}),
@@ -79,7 +80,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	),
 	Type: new TypeOfType(Type),
 	// ValueOf:  new FunctionType(
-	// 		new DictionaryLiteralType({
+	// 		new _ParametersType({
 	// 			T: _type,
 	// 		}),
 	// 		new ParameterReference([{
@@ -95,7 +96,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	// 	new UnionType(),
 	// ),
 	nativeFunction: new FunctionType(
-		new DictionaryLiteralType({
+		new _ParametersType({
 			// TODO functionType
 			FunctionType: Type,
 			js: _String
@@ -106,7 +107,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 		}], 0),
 	),
 	nativeValue: new FunctionType(
-		new DictionaryLiteralType({
+		new _ParametersType({
 			js: _String
 		}),
 		Any,
@@ -563,17 +564,23 @@ function inferType(
 			expression.singleFields.forEach(field => {
 				setInferredType(field, scopes, parsedDocuments, folder, file);
 			});
-			if (expression.rest) {
-				setInferredType(expression.rest, scopes, parsedDocuments, folder, file);
+			const rest = expression.rest;
+			if (rest) {
+				setInferredType(rest, scopes, parsedDocuments, folder, file);
 			}
-			// TODO rest in dictionarytype?! oder parameterstype als eigener typ?
-			return new DictionaryLiteralType(toDictionary(
-				expression.singleFields,
-				field =>
-					field.name.name,
-				field =>
-					field.inferredType!
-			));
+			return new _ParametersType(
+				toDictionary(
+					expression.singleFields,
+					field =>
+						field.name.name,
+					field =>
+						field.inferredType!
+				),
+				rest && {
+					name: rest.name.name,
+					type: rest.inferredType,
+				},
+			);
 		}
 		case 'reference': {
 			const referencedType = dereferenceType(expression, scopes);
@@ -655,6 +662,7 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 		case 'dictionaryLiteral':
 		case 'function':
 		case 'list':
+		case 'parameters':
 		case 'tuple':
 			return builtInType;
 		default: {
@@ -1003,6 +1011,10 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 						}
 						return undefined;
 					}
+					case 'parameters': {
+						// TODO
+						return undefined;
+					}
 					case 'or': {
 						const subErrors = targetType.choiceTypes.map(choiceType =>
 							getTypeError(valueType, choiceType));
@@ -1043,7 +1055,7 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 										case 'string':
 										case 'typeOf':
 											return undefined;
-										// TODO check inner types
+										// TODO check inner types rekursiv
 										case 'dictionary':
 										case 'dictionaryLiteral':
 										case 'list':
@@ -1241,6 +1253,22 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return `Not(${typeToString(builtInType.sourceType, indent)})`;
 					case 'or':
 						return `Or${arrayTypeToString(builtInType.choiceTypes, indent)}`;
+					case 'parameters': {
+						const rest = builtInType.rest;
+						const multiline = Object.keys(builtInType.singleNames).length + (rest ? 1 : 0) > 1;
+						const newIndent = multiline
+							? indent + 1
+							: indent;
+						const elements = [
+							...map(
+								builtInType.singleNames,
+								(element, key) => {
+									return `${key}: ${typeToString(element, newIndent)}`;
+								}),
+							...(rest ? [`...${rest.name}${rest.type ? `: ${typeToString(rest.type, newIndent)}` : ''}`] : []),
+						]
+						return bracketedExpressionToString(elements, multiline, indent);
+					}
 					case 'reference':
 						return builtInType.path.map(pathSegment => {
 							return pathSegment.name;
