@@ -12,6 +12,7 @@ import {
 	Integer,
 	IntersectionType,
 	ParameterReference,
+	Primitive,
 	RuntimeType,
 	StreamType,
 	TupleType,
@@ -861,12 +862,10 @@ function isTypeAssignableTo(valueType: RuntimeType, typeType: RuntimeType): stri
 }
 
 /**
- * Liefert den Fehler, der beim Zuweisen eines Wertes vom Typ valueType in eine Variable vom Typ typeType entsteht.
- * valueType muss also Teilmenge von typeType sein.
+ * Liefert den Fehler, der beim Zuweisen eines Wertes vom Typ valueType in eine Variable vom Typ targetType entsteht.
+ * valueType muss also Teilmenge von targetType sein.
  */
-function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError | undefined {
-	// const targetType = valueOf(typeType);
-	const targetType = typeType;
+function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeError | undefined {
 	if (targetType === Any) {
 		return undefined;
 	}
@@ -925,7 +924,63 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 								break;
 						}
 						break;
-					// case 'dictionary':
+					case 'dictionary': {
+						if (typeof valueType !== 'object') {
+							// TODO type specific error?
+							break;
+						}
+						if (!valueType) {
+							// TODO null specific error?
+							break;
+						}
+						const elementType = targetType.elementType;
+						if (valueType instanceof BuiltInTypeBase) {
+							switch (valueType.type) {
+								case 'dictionaryLiteral': {
+									const subErrors = map(
+										valueType.fields,
+										(fieldType, fieldName) =>
+											// TODO add fieldName to error
+											// TODO the field x is missing error?
+											getTypeError(fieldType, elementType),
+									).filter(isDefined);
+									if (!subErrors.length) {
+										return undefined;
+									}
+									return {
+										// TODO error struktur überdenken
+										message: subErrors.map(typeErrorToString).join('\n'),
+										// innerError
+									};
+								}
+								default:
+									// TODO type specific error?
+									break;
+							}
+							break;
+						}
+						if (Array.isArray(valueType)) {
+							// TODO array specific error?
+							break;
+						}
+						// plain Dictionary
+						// TODO wird das gebraucht? aktuell wird dictionary type immer als dictionaryLiteralType inferred
+						// wann tritt also dieser case ein? ggf ebenso mit array/tuple?
+						const subErrors = map(
+							valueType,
+							(fieldType, fieldName) =>
+								// TODO add fieldName to error
+								getTypeError(fieldType, elementType),
+						).filter(isDefined);
+						if (!subErrors.length) {
+							return undefined;
+						}
+						return {
+							// TODO error struktur überdenken
+							message: subErrors.map(typeErrorToString).join('\n'),
+							// innerError
+						};
+					}
 					case 'dictionaryLiteral': {
 						if (typeof valueType !== 'object') {
 							// TODO type specific error?
@@ -954,7 +1009,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 										// innerError
 									};
 								}
-
 								default:
 									// TODO type specific error?
 									break;
@@ -1012,8 +1066,21 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 						return undefined;
 					}
 					case 'parameters': {
-						// TODO
-						return undefined;
+						switch (typeof valueType) {
+							case 'bigint':
+							case 'boolean':
+							case 'number':
+							case 'string':
+								return getTypeErrorForPrimitiveArg(valueType, targetType);
+							case 'object':
+								if (!valueType) {
+									return getTypeErrorForPrimitiveArg(valueType, targetType);
+								}
+								return getTypeErrorForWrappedArgs(valueType, targetType);
+							default:
+								break;
+						}
+						break;
 					}
 					case 'or': {
 						const subErrors = targetType.choiceTypes.map(choiceType =>
@@ -1073,7 +1140,6 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 						break;
 					// TODO
 					case 'any':
-					case 'dictionary':
 					case 'error':
 					case 'function':
 					case 'list':
@@ -1093,6 +1159,15 @@ function getTypeError(valueType: RuntimeType, typeType: RuntimeType): TypeError 
 			break;
 	}
 	return { message: `Can not assign ${typeToString(valueType, 0)} to ${typeToString(targetType, 0)}.` };
+}
+
+function getTypeErrorForPrimitiveArg(value: Primitive, valueType: _ParametersType): TypeError | undefined {
+	const wrappeValue = new TupleType([value]);
+	return getTypeErrorForWrappedArgs(wrappeValue, valueType);
+}
+
+function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, valueType: _ParametersType): TypeError | undefined {
+	// TODO check is array
 }
 
 interface TypeError {

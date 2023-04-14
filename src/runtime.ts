@@ -293,12 +293,16 @@ export function deepEquals(value1: any, value2: any): boolean {
 
 //#region Types
 
-export type RuntimeType =
+export type Primitive =
 	| null
 	| boolean
 	| number
 	| bigint
 	| string
+	;
+
+export type RuntimeType =
+	| Primitive
 	| any[]
 	| { [key: string]: any; }
 	| BuiltInType
