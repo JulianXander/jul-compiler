@@ -1057,6 +1057,19 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 								break;
 						}
 						break;
+					case 'function': {
+						// TODO types als function interpretieren?
+						if (!(valueType instanceof FunctionType)) {
+							break;
+						}
+						// check value params obermenge von target params und value returntype teilmenge von target returntype
+						// TODO getTypeErrorForWrappedArgs mit ParametersType?
+						// const paramsError = getTypeError(targetType.paramsType, valueType.paramsType);
+						// if (paramsError) {
+						// 	return paramsError;
+						// }
+						return getTypeError(valueType.returnType, targetType.returnType);
+					}
 					case 'integer':
 						switch (typeof valueType) {
 							case 'bigint':
@@ -1157,7 +1170,6 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 					// TODO
 					case 'any':
 					case 'error':
-					case 'function':
 					case 'list':
 					case 'reference':
 					case 'tuple':
@@ -1209,9 +1221,9 @@ function getTypeErrorForCollectionArgs(collectionValue: Collection, valueType: _
 	for (; index < singleNames.length; index++) {
 		const param = singleNames[index]!;
 		const { name, type } = param;
-		const value = isArray
+		const value = (isArray
 			? collectionValue[index]
-			: collectionValue[name];
+			: collectionValue[name]) ?? null;
 		const error = type
 			? getTypeError(value, type)
 			: undefined;
