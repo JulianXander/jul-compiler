@@ -171,13 +171,13 @@ function isOfType(value: any, type: RuntimeType): boolean {
 	}
 }
 
-function isRealObject(value: any): value is { [key: string]: any; } | any[] {
+function isRealObject(value: any): value is Collection {
 	return typeof value === 'object'
 		&& value !== null;
 }
 
 // TODO check empty prototype?
-function isDictionary(value: any): value is { [key: string]: any; } {
+function isDictionary(value: any): value is Dictionary {
 	return isRealObject(value)
 		&& !(value instanceof BuiltInTypeBase)
 		&& !(value instanceof Error)
@@ -195,7 +195,7 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 		return assignedValues;
 	}
 	// primitive value in Array wrappen
-	const wrappedValue: any[] | { [key: string]: any; } = isRealObject(values)
+	const wrappedValue: Collection = isRealObject(values)
 		? values
 		: [values];
 	const isArray = Array.isArray(wrappedValue);
@@ -301,9 +301,11 @@ export type Primitive =
 	| string
 	;
 
+interface Dictionary { [key: string]: any; }
+
 export type Collection =
 	| any[]
-	| { [key: string]: any; }
+	| Dictionary
 	;
 
 export type RuntimeType =
