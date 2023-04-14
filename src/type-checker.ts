@@ -4,6 +4,7 @@ import {
 	Any,
 	BuiltInType,
 	BuiltInTypeBase,
+	Collection,
 	ComplementType,
 	DictionaryLiteralType,
 	Float,
@@ -70,10 +71,10 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	String: new TypeOfType(_String),
 	Error: new TypeOfType(_Error),
 	Stream: new FunctionType(
-		new _ParametersType({
-			// TODO functionType
-			ValueType: Type,
-		}),
+		new _ParametersType([{
+			name: 'ValueType',
+			type: Type,
+		}]),
 		new TypeOfType(new StreamType(new ParameterReference([{
 			type: 'name',
 			name: 'ValueType',
@@ -97,20 +98,29 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	// 	new UnionType(),
 	// ),
 	nativeFunction: new FunctionType(
-		new _ParametersType({
-			// TODO functionType
-			FunctionType: Type,
-			js: _String
-		}),
+		new _ParametersType([
+			{
+				name: 'FunctionType',
+				// TODO functionType
+				type: Type,
+			},
+			{
+				name: 'js',
+				type: _String,
+			},
+		]),
 		new ParameterReference([{
 			type: 'name',
 			name: 'FunctionType',
 		}], 0),
 	),
 	nativeValue: new FunctionType(
-		new _ParametersType({
-			js: _String
-		}),
+		new _ParametersType([
+			{
+				name: 'js',
+				type: _String,
+			},
+		]),
 		Any,
 	),
 };
@@ -568,15 +578,15 @@ function inferType(
 			const rest = expression.rest;
 			if (rest) {
 				setInferredType(rest, scopes, parsedDocuments, folder, file);
+				// TODO check rest type is list type
 			}
 			return new _ParametersType(
-				toDictionary(
-					expression.singleFields,
-					field =>
-						field.name.name,
-					field =>
-						field.inferredType!
-				),
+				expression.singleFields.map(field => {
+					return {
+						name: field.name.name,
+						type: field.inferredType
+					};
+				}),
 				rest && {
 					name: rest.name.name,
 					type: rest.inferredType,
@@ -1166,8 +1176,64 @@ function getTypeErrorForPrimitiveArg(value: Primitive, valueType: _ParametersTyp
 	return getTypeErrorForWrappedArgs(wrappeValue, valueType);
 }
 
+// TODO check mit _ParametersType = plain type
 function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, valueType: _ParametersType): TypeError | undefined {
-	// TODO check is array
+	if (typeof wrappedValue !== 'object' || !wrappedValue) {
+		throw new Error('wrappedValue should be object but got' + typeof wrappedValue);
+	}
+	if (wrappedValue instanceof BuiltInTypeBase) {
+		// TODO other cases
+		switch (wrappedValue.type) {
+			case 'dictionaryLiteral':
+				return getTypeErrorForCollectionArgs(wrappedValue.fields, valueType);
+
+			case 'tuple':
+				return getTypeErrorForCollectionArgs(wrappedValue.elementTypes, valueType);
+
+			default:
+				return { message: 'getTypeErrorForWrappedArgs not implemented yet for ' + wrappedValue.type };
+		}
+	}
+	return getTypeErrorForCollectionArgs(wrappedValue, valueType);
+}
+
+function getTypeErrorForCollectionArgs(collectionValue: Collection, valueType: _ParametersType): TypeError | undefined {
+	const isArray = Array.isArray(collectionValue);
+	let index = 0;
+	const { singleNames, rest } = valueType;
+	for (; index < singleNames.length; index++) {
+		const param = singleNames[index]!;
+		const { name, type } = param;
+		const value = isArray
+			? collectionValue[index]
+			: collectionValue[name];
+		const error = type
+			? getTypeError(value, type)
+			: undefined;
+		if (error) {
+			// TODO collect inner errors
+			return error;
+			// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
+		}
+	}
+	if (rest) {
+		const restType = rest.type;
+		if (isArray) {
+			const remainingArgs = collectionValue.slice(index);
+			const error = restType
+				? getTypeError(remainingArgs, restType)
+				: undefined;
+			if (error) {
+				// TODO collect inner errors
+				return error;
+				// return new Error(`Can not assign the value ${remainingArgs} to rest param because it is not of type ${rest}`);
+			}
+		}
+		else {
+			// TODO rest dictionary??
+			return { message: 'Can not assign dictionary to rest parameter' };
+		}
+	}
 }
 
 interface TypeError {
@@ -1330,17 +1396,15 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return `Or${arrayTypeToString(builtInType.choiceTypes, indent)}`;
 					case 'parameters': {
 						const rest = builtInType.rest;
-						const multiline = Object.keys(builtInType.singleNames).length + (rest ? 1 : 0) > 1;
+						const multiline = builtInType.singleNames.length + (rest ? 1 : 0) > 1;
 						const newIndent = multiline
 							? indent + 1
 							: indent;
 						const elements = [
-							...map(
-								builtInType.singleNames,
-								(element, key) => {
-									return `${key}: ${typeToString(element, newIndent)}`;
-								}),
-							...(rest ? [`...${rest.name}${rest.type ? `: ${typeToString(rest.type, newIndent)}` : ''}`] : []),
+							...builtInType.singleNames.map(element => {
+								return `${element.name}${optionalTypeGuardToString(element.type, newIndent)}`;
+							}),
+							...(rest ? [`...${rest.name}${optionalTypeGuardToString(rest.type, newIndent)}`] : []),
 						]
 						return bracketedExpressionToString(elements, multiline, indent);
 					}
@@ -1375,6 +1439,12 @@ export function typeToString(type: RuntimeType, indent: number): string {
 			throw new Error(`Unexpected type ${typeof assertNever}`);
 		}
 	}
+}
+
+function optionalTypeGuardToString(type: RuntimeType | undefined, indent: number): string {
+	return type
+		? `: ${typeToString(type, indent)}`
+		: '';
 }
 
 function arrayTypeToString(

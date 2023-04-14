@@ -1,6 +1,5 @@
 ?Maximilian call fn with array arg singlename param vgl examples/function-call.jul
 ?shared code? libraries?
--parameters typechecker getTypeError
 -typecheck destructuring mit parameterstype
 ?dereference parameterReference in getTypeError oder infer paramterReference type mit path?
 ?build in out verzeichnis

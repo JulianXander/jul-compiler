@@ -301,10 +301,14 @@ export type Primitive =
 	| string
 	;
 
-export type RuntimeType =
-	| Primitive
+export type Collection =
 	| any[]
 	| { [key: string]: any; }
+	;
+
+export type RuntimeType =
+	| Primitive
+	| Collection
 	| BuiltInType
 	| CustomType
 	;
@@ -423,15 +427,17 @@ export class ParameterReference extends BuiltInTypeBase {
 
 export class _ParametersType extends BuiltInTypeBase {
 	constructor(
-		public singleNames: { [key: string]: RuntimeType; },
-		public rest?: {
-			name: string;
-			type?: RuntimeType;
-		},
+		public singleNames: Parameter[],
+		public rest?: Parameter,
 	) {
 		super();
 	}
 	readonly type = 'parameters';
+}
+
+interface Parameter {
+	name: string;
+	type?: RuntimeType;
 }
 
 export type ReferencePath = [Name, ...(Name | Index)[]];
