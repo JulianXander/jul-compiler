@@ -1104,6 +1104,12 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 						}
 						return undefined;
 					}
+					case 'stream': {
+						if (!(valueType instanceof StreamType)) {
+							break;
+						}
+						return getTypeError(valueType.valueType, targetType.valueType);
+					}
 					case 'string':
 						switch (typeof valueType) {
 							case 'string':
@@ -1154,7 +1160,6 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 					case 'function':
 					case 'list':
 					case 'reference':
-					case 'stream':
 					case 'tuple':
 					case 'typeOf':
 						break;
