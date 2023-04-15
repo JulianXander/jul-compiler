@@ -28,6 +28,7 @@
 	?deutsch vs englisch
 	-title navbar
 		-home, roadmap, documentation
+		-github wiki für doku prüfen
 +infix function call chain inline/multiline
 	-runtime testen
 -float typeToString mit f?
