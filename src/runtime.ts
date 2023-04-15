@@ -63,6 +63,7 @@ export function _checkDictionaryType(dictionaryType: Params, value: any): boolea
 
 //#endregion internals
 
+// TODO value: RuntimeValue, RuntimeValue = RuntimeType | Stream ...
 function isOfType(value: any, type: RuntimeType): boolean {
 	switch (typeof type) {
 		case 'bigint':
@@ -92,7 +93,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						}
 						const elementType = builtInType.elementType;
 						for (const key in value) {
-							const elementValue = value[key];
+							const elementValue = value[key] ?? null;
 							if (!isOfType(elementValue, elementType)) {
 								return false;
 							}
@@ -105,7 +106,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						}
 						const fieldTypes = builtInType.fields;
 						for (const key in fieldTypes) {
-							const elementValue = value[key];
+							const elementValue = value[key] ?? null;
 							const elementType = fieldTypes[key]!;
 							if (!isOfType(elementValue, elementType)) {
 								return false;
@@ -121,7 +122,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						return Array.isArray(value)
 							&& value.length <= builtInType.elementTypes.length
 							&& builtInType.elementTypes.every((elementType, index) =>
-								isOfType(value[index], elementType));
+								isOfType(value[index] ?? null, elementType));
 					case 'stream':
 						// TODO check value type
 						return value instanceof Stream;
@@ -204,9 +205,9 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 		for (; index < singleNames.length; index++) {
 			const param = singleNames[index]!;
 			const { name, type } = param;
-			const value = isArray
+			const value = (isArray
 				? wrappedValue[index]
-				: wrappedValue[name];
+				: wrappedValue[name]) ?? null;
 			const isValid = type
 				? isOfType(value, type)
 				: true;
@@ -301,10 +302,10 @@ export type Primitive =
 	| string
 	;
 
-interface Dictionary { [key: string]: any; }
+interface Dictionary { [key: string]: RuntimeType; }
 
 export type Collection =
-	| any[]
+	| RuntimeType[]
 	| Dictionary
 	;
 
@@ -340,7 +341,7 @@ export type BuiltInType =
 	| StreamType
 	| FunctionType
 	| ParameterReference
-	| _ParametersType
+	| ParametersType
 	| TypeType
 	| IntersectionType
 	| UnionType
@@ -374,7 +375,7 @@ class ErrorType extends BuiltInTypeBase {
 	readonly type = 'error';
 }
 
-class ListType extends BuiltInTypeBase {
+export class ListType extends BuiltInTypeBase {
 	constructor(public elementType: RuntimeType) { super(); }
 	readonly type = 'list';
 }
@@ -384,7 +385,7 @@ export class TupleType extends BuiltInTypeBase {
 	readonly type = 'tuple';
 }
 
-class DictionaryType extends BuiltInTypeBase {
+export class DictionaryType extends BuiltInTypeBase {
 	constructor(public elementType: RuntimeType) { super(); }
 	readonly type = 'dictionary';
 }
@@ -427,7 +428,7 @@ export class ParameterReference extends BuiltInTypeBase {
 	functionRef?: FunctionType;
 }
 
-export class _ParametersType extends BuiltInTypeBase {
+export class ParametersType extends BuiltInTypeBase {
 	constructor(
 		public singleNames: Parameter[],
 		public rest?: Parameter,
