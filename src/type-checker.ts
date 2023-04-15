@@ -1103,6 +1103,41 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 								break;
 						}
 						break;
+					case 'list': {
+						const targetElementType = targetType.elementType;
+						if (valueType instanceof BuiltInTypeBase) {
+							switch (valueType.type) {
+								case 'list':
+									return getTypeError(valueType.elementType, targetElementType);
+								case 'tuple':
+									const subErrors = valueType.elementTypes.map(valueElement =>
+										getTypeError(valueElement, targetElementType)).filter(isDefined);
+									if (!subErrors.length) {
+										return undefined;
+									}
+									return {
+										// TODO error struktur überdenken
+										message: subErrors.map(typeErrorToString).join('\n'),
+										// innerError
+									};
+								default:
+									break;
+							}
+						}
+						if (Array.isArray(valueType)) {
+							const subErrors = valueType.map(valueElement =>
+								getTypeError(valueElement, targetElementType)).filter(isDefined);
+							if (!subErrors.length) {
+								return undefined;
+							}
+							return {
+								// TODO error struktur überdenken
+								message: subErrors.map(typeErrorToString).join('\n'),
+								// innerError
+							};
+						}
+						break;
+					}
 					case 'not': {
 						const sourceError = getTypeError(valueType, targetType.sourceType);
 						if (sourceError === undefined) {
@@ -1194,7 +1229,6 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 					// TODO
 					case 'any':
 					case 'error':
-					case 'list':
 					case 'reference':
 					case 'tuple':
 					case 'typeOf':
