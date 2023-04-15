@@ -949,6 +949,8 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 							// innerError
 						};
 					}
+					case 'any':
+						throw new Error('Unexpected any targetType');
 					case 'boolean':
 						switch (typeof valueType) {
 							case 'boolean':
@@ -1072,6 +1074,8 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 							// innerError
 						};
 					}
+					case 'error':
+						break;
 					case 'float':
 						switch (typeof valueType) {
 							case 'number':
@@ -1227,8 +1231,6 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 						}
 						break;
 					// TODO
-					case 'any':
-					case 'error':
 					case 'reference':
 					case 'tuple':
 					case 'typeOf':
