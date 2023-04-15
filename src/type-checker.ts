@@ -899,7 +899,10 @@ function isTypeAssignableTo(valueType: RuntimeType, typeType: RuntimeType): stri
  * Liefert den Fehler, der beim Zuweisen eines Wertes vom Typ valueType in eine Variable vom Typ targetType entsteht.
  * valueType muss also Teilmenge von targetType sein.
  */
-function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeError | undefined {
+function getTypeError(
+	valueType: RuntimeType,
+	targetType: RuntimeType,
+): TypeError | undefined {
 	if (targetType === Any) {
 		return undefined;
 	}
@@ -910,6 +913,12 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 		return undefined;
 	}
 	if (deepEquals(valueType, targetType)) {
+		return undefined;
+	}
+	if (valueType instanceof ParameterReference) {
+		// TODO
+		// const dereferenced = dereferenceArgumentType(null as any, valueType);
+		// return getTypeError(dereferenced ?? Any, targetType);
 		return undefined;
 	}
 	// TODO generic types (customType, union/intersection, ...?)
@@ -1180,6 +1189,12 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 						}
 						return undefined;
 					}
+					case 'reference': {
+						// TODO
+						// const dereferenced = dereferenceArgumentType(null as any, targetType);
+						// return getTypeError(valueType, dereferenced ?? Any);
+						return undefined;
+					}
 					case 'stream': {
 						if (!(valueType instanceof StreamType)) {
 							break;
@@ -1231,7 +1246,6 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 						}
 						break;
 					// TODO
-					case 'reference':
 					case 'tuple':
 					case 'typeOf':
 						break;
