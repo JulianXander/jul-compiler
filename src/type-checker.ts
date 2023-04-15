@@ -22,9 +22,11 @@ import {
 	UnionType,
 	_Boolean,
 	_Error,
-	_ParametersType,
+	ListType,
+	ParametersType,
 	_String,
-	deepEquals
+	deepEquals,
+	DictionaryType
 } from './runtime';
 import {
 	BracketedExpression,
@@ -70,8 +72,28 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	Float: new TypeOfType(Float),
 	String: new TypeOfType(_String),
 	Error: new TypeOfType(_Error),
+	List: new FunctionType(
+		new ParametersType([{
+			name: 'ElementType',
+			type: Type,
+		}]),
+		new TypeOfType(new ListType(new ParameterReference([{
+			type: 'name',
+			name: 'ElementType',
+		}], 0))),
+	),
+	Dictionary: new FunctionType(
+		new ParametersType([{
+			name: 'ElementType',
+			type: Type,
+		}]),
+		new TypeOfType(new DictionaryType(new ParameterReference([{
+			type: 'name',
+			name: 'ElementType',
+		}], 0))),
+	),
 	Stream: new FunctionType(
-		new _ParametersType([{
+		new ParametersType([{
 			name: 'ValueType',
 			type: Type,
 		}]),
@@ -98,7 +120,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	// 	new UnionType(),
 	// ),
 	nativeFunction: new FunctionType(
-		new _ParametersType([
+		new ParametersType([
 			{
 				name: 'FunctionType',
 				// TODO functionType
@@ -115,7 +137,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 		}], 0),
 	),
 	nativeValue: new FunctionType(
-		new _ParametersType([
+		new ParametersType([
 			{
 				name: 'js',
 				type: _String,
@@ -580,7 +602,7 @@ function inferType(
 				setInferredType(rest, scopes, parsedDocuments, folder, file);
 				// TODO check rest type is list type
 			}
-			return new _ParametersType(
+			return new ParametersType(
 				expression.singleFields.map(field => {
 					return {
 						name: field.name.name,
@@ -657,6 +679,10 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 			return builtInType;
 		case 'and':
 			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
+		case 'dictionary':
+			return new DictionaryType(dereferenceArgumentTypesNested(argsType, builtInType.elementType));
+		case 'list':
+			return new ListType(dereferenceArgumentTypesNested(argsType, builtInType.elementType));
 		case 'not':
 			return new ComplementType(dereferenceArgumentTypesNested(argsType, builtInType.sourceType));
 		case 'or':
@@ -669,10 +695,8 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 		case 'typeOf':
 			return new TypeOfType(dereferenceArgumentTypesNested(argsType, builtInType.value));
 		// TODO
-		case 'dictionary':
 		case 'dictionaryLiteral':
 		case 'function':
-		case 'list':
 		case 'parameters':
 		case 'tuple':
 			return builtInType;
@@ -1188,13 +1212,13 @@ function getTypeError(valueType: RuntimeType, targetType: RuntimeType): TypeErro
 	return { message: `Can not assign ${typeToString(valueType, 0)} to ${typeToString(targetType, 0)}.` };
 }
 
-function getTypeErrorForPrimitiveArg(value: Primitive, valueType: _ParametersType): TypeError | undefined {
+function getTypeErrorForPrimitiveArg(value: Primitive, valueType: ParametersType): TypeError | undefined {
 	const wrappeValue = new TupleType([value]);
 	return getTypeErrorForWrappedArgs(wrappeValue, valueType);
 }
 
 // TODO check mit _ParametersType = plain type
-function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, valueType: _ParametersType): TypeError | undefined {
+function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, valueType: ParametersType): TypeError | undefined {
 	if (typeof wrappedValue !== 'object' || !wrappedValue) {
 		throw new Error('wrappedValue should be object but got' + typeof wrappedValue);
 	}
@@ -1214,7 +1238,7 @@ function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, valueType: _Param
 	return getTypeErrorForCollectionArgs(wrappedValue, valueType);
 }
 
-function getTypeErrorForCollectionArgs(collectionValue: Collection, valueType: _ParametersType): TypeError | undefined {
+function getTypeErrorForCollectionArgs(collectionValue: Collection, valueType: ParametersType): TypeError | undefined {
 	const isArray = Array.isArray(collectionValue);
 	let index = 0;
 	const { singleNames, rest } = valueType;

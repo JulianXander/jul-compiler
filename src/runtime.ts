@@ -341,7 +341,7 @@ export type BuiltInType =
 	| StreamType
 	| FunctionType
 	| ParameterReference
-	| _ParametersType
+	| ParametersType
 	| TypeType
 	| IntersectionType
 	| UnionType
@@ -375,7 +375,7 @@ class ErrorType extends BuiltInTypeBase {
 	readonly type = 'error';
 }
 
-class ListType extends BuiltInTypeBase {
+export class ListType extends BuiltInTypeBase {
 	constructor(public elementType: RuntimeType) { super(); }
 	readonly type = 'list';
 }
@@ -385,7 +385,7 @@ export class TupleType extends BuiltInTypeBase {
 	readonly type = 'tuple';
 }
 
-class DictionaryType extends BuiltInTypeBase {
+export class DictionaryType extends BuiltInTypeBase {
 	constructor(public elementType: RuntimeType) { super(); }
 	readonly type = 'dictionary';
 }
@@ -428,7 +428,7 @@ export class ParameterReference extends BuiltInTypeBase {
 	functionRef?: FunctionType;
 }
 
-export class _ParametersType extends BuiltInTypeBase {
+export class ParametersType extends BuiltInTypeBase {
 	constructor(
 		public singleNames: Parameter[],
 		public rest?: Parameter,
