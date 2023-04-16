@@ -158,7 +158,7 @@ regex = nativeFunction(
 	(
 		text: String
 		regex: String
-	): Or(Dictionary(String) ())
+	): Or(() Dictionary(String))
 	§TODO§
 )
 #endregion String
@@ -187,7 +187,7 @@ forEach = nativeFunction(
 			# value: TypeOf(values)/ElementType
 			# TODO Integer vs FloatInteger
 			# index: Integer
-		): ()
+		): Any
 	): ()
 	§TODO§
 )
@@ -205,7 +205,10 @@ complete = nativeFunction(
 	§
 )
 subscribe = nativeFunction(
-	(stream$: Stream(Any) listener: (value: stream$/ValueType): ()): ()
+	(
+		stream$: Stream(Any)
+		listener: (value: stream$/ValueType): Any
+	): ()
 	§
 		(stream$, listener) => {
 			const listenerFunction = (value) => {
@@ -223,7 +226,7 @@ httpTextRequest$ = nativeFunction(
 	(
 		url: String
 		method: String
-		headers: Dictionary(String)
+		headers: Or(() Dictionary(String))
 		body: Any
 	): Stream(Or(() String Error))
 	§[...]§
@@ -265,7 +268,7 @@ log = nativeFunction(
 repeat = nativeFunction(
 	(
 		count: Integer
-		iteratee: (index: Integer): ()
+		iteratee: (index: Integer): Any
 	): ()
 	§repeat§
 )

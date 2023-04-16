@@ -915,11 +915,29 @@ function getTypeError(
 	if (deepEquals(valueType, targetType)) {
 		return undefined;
 	}
-	if (valueType instanceof ParameterReference) {
-		// TODO
-		// const dereferenced = dereferenceArgumentType(null as any, valueType);
-		// return getTypeError(dereferenced ?? Any, targetType);
-		return undefined;
+	if (valueType instanceof BuiltInTypeBase) {
+		switch (valueType.type) {
+			case 'or': {
+				const subErrors = valueType.choiceTypes.map(choiceType =>
+					getTypeError(choiceType, targetType));
+				if (subErrors.every(isDefined)) {
+					return {
+						// TODO error struktur überdenken
+						message: subErrors.map(typeErrorToString).join('\n'),
+						// innerError
+					};
+				}
+				return undefined;
+			}
+			case 'reference': {
+				// TODO
+				// const dereferenced = dereferenceArgumentType(null as any, valueType);
+				// return getTypeError(dereferenced ?? Any, targetType);
+				return undefined;
+			}
+			default:
+				break;
+		}
 	}
 	// TODO generic types (customType, union/intersection, ...?)
 	switch (typeof targetType) {
