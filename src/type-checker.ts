@@ -14,6 +14,7 @@ import {
 	IntersectionType,
 	ParameterReference,
 	Primitive,
+	ReferencePath,
 	RuntimeType,
 	StreamType,
 	TupleType,
@@ -37,7 +38,6 @@ import {
 	ParseValueExpression,
 	ParsedFile,
 	Reference,
-	ReferencePath,
 	StringToken,
 	SymbolDefinition,
 	SymbolTable,
@@ -161,22 +161,33 @@ export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable
 	return findSymbolInScopesWithBuiltIns(name, scopes);
 }
 
-function dereferenceType(reference: Reference, scopes: SymbolTable[]): RuntimeType {
+function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
+	type: RuntimeType;
+	found: boolean;
+} {
 	// TODO nested ref path
 	const name = reference.path[0].name;
 	const coreType = coreBuiltInSymbolTypes[name];
 	if (coreType !== undefined) {
-		return coreType;
+		return {
+			type: coreType,
+			found: true,
+		};
 	}
 	const foundSymbol = findSymbolInScopes(name, scopes);
 	if (!foundSymbol) {
-		// TODO add 'reference not found' error?
-		return Any;
+		return {
+			type: Any,
+			found: false,
+		};
 	}
 	if (foundSymbol.functionParameterIndex !== undefined) {
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
 		// da ParameterReference auf höhere Funktionen problematisch ist?
-		return new ParameterReference(reference.path, foundSymbol.functionParameterIndex);
+		return {
+			type: new ParameterReference(reference.path, foundSymbol.functionParameterIndex),
+			found: true,
+		};
 	}
 	const referencedType = foundSymbol.normalizedType;
 	if (referencedType === undefined) {
@@ -185,9 +196,15 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): RuntimeTy
 		// setInferredType(referencedSymbol)
 		// console.log(reference);
 		// throw new Error('symbol type was not inferred');
-		return Any;
+		return {
+			type: Any,
+			found: true
+		};
 	}
-	return referencedType;
+	return {
+		type: referencedType,
+		found: true
+	};
 }
 
 function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable[]): {
@@ -616,8 +633,17 @@ function inferType(
 			);
 		}
 		case 'reference': {
-			const referencedType = dereferenceType(expression, scopes);
-			return referencedType;
+			const { found, type } = dereferenceType(expression, scopes);
+			if (!found) {
+				errors.push({
+					message: `${referencePathToString(expression.path)} is not defined`,
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				})
+			}
+			return type;
 		}
 		case 'string': {
 			// TODO string template type?
@@ -1530,9 +1556,7 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return bracketedExpressionToString(elements, multiline, indent);
 					}
 					case 'reference':
-						return builtInType.path.map(pathSegment => {
-							return pathSegment.name;
-						}).join('/');
+						return referencePathToString(builtInType.path);
 					case 'stream':
 						return `Stream(${typeToString(builtInType.valueType, indent)})`;
 					case 'string':
@@ -1620,6 +1644,12 @@ function bracketedExpressionToString(
 		? '\n'
 		: ' ';
 	return `(${bracketSeparator}${elementsWithIndent.join(elementSeparator)}${bracketSeparator})`;
+}
+
+function referencePathToString(path: ReferencePath): string {
+	return path.map(pathSegment => {
+		return pathSegment.name;
+	}).join('/');
 }
 
 //#endregion ToString
