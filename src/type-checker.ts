@@ -917,6 +917,18 @@ function getTypeError(
 	}
 	if (valueType instanceof BuiltInTypeBase) {
 		switch (valueType.type) {
+			case 'and': {
+				const subErrors = valueType.choiceTypes.map(choiceType =>
+					getTypeError(choiceType, targetType)).filter(isDefined);
+				if (!subErrors.length) {
+					return undefined;
+				}
+				return {
+					// TODO error struktur überdenken
+					message: subErrors.map(typeErrorToString).join('\n'),
+					// innerError
+				};
+			}
 			case 'or': {
 				const subErrors = valueType.choiceTypes.map(choiceType =>
 					getTypeError(choiceType, targetType));
