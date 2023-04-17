@@ -1367,19 +1367,18 @@ function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, targetType: Param
 						// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
 					}
 				}
-				const targetRest = targetType.rest;
-				if (targetRest) {
-					const targetRestType = targetRest.type;
-					const remainingArgs = valueSingleNames.slice(index);
-					// TODO
-					// const error = restType
-					// 	? getTypeError(remainingArgs, restType)
-					// 	: undefined;
-					// if (error) {
-					// 	// TODO collect inner errors
-					// 	return error;
-					// 	// return new Error(`Can not assign the value ${remainingArgs} to rest param because it is not of type ${rest}`);
-					// }
+				const targetRestType = targetType.rest?.type;
+				if (targetRestType) {
+					const remainingValueParameters = valueSingleNames.slice(index);
+					for (const valueParameter of remainingValueParameters) {
+						const valueParameterType = valueParameter.type ?? valueRestItemType ?? Any;
+						const error = getTypeError(valueParameterType, targetRestType);
+						if (error) {
+							// TODO collect inner errors
+							return error;
+							// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
+						}
+					}
 				}
 				return undefined;
 			}
