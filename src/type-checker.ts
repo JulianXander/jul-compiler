@@ -1156,11 +1156,10 @@ function getTypeError(
 							break;
 						}
 						// check value params obermenge von target params und value returntype teilmenge von target returntype
-						// TODO getTypeErrorForWrappedArgs mit ParametersType?
-						// const paramsError = getTypeError(targetType.paramsType, valueType.paramsType);
-						// if (paramsError) {
-						// 	return paramsError;
-						// }
+						const paramsError = getTypeError(targetType.paramsType, valueType.paramsType);
+						if (paramsError) {
+							return paramsError;
+						}
 						return getTypeError(valueType.returnType, targetType.returnType);
 					}
 					case 'integer':
@@ -1318,13 +1317,13 @@ function getTypeError(
 	return { message: `Can not assign ${typeToString(valueType, 0)} to ${typeToString(targetType, 0)}.` };
 }
 
-function getTypeErrorForPrimitiveArg(value: Primitive, valueType: ParametersType): TypeError | undefined {
+function getTypeErrorForPrimitiveArg(value: Primitive, targetType: ParametersType): TypeError | undefined {
 	const wrappeValue = new TupleType([value]);
-	return getTypeErrorForWrappedArgs(wrappeValue, valueType);
+	return getTypeErrorForWrappedArgs(wrappeValue, targetType);
 }
 
 // TODO check mit _ParametersType = plain type
-function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, valueType: ParametersType): TypeError | undefined {
+function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, targetType: ParametersType): TypeError | undefined {
 	if (typeof wrappedValue !== 'object' || !wrappedValue) {
 		throw new Error('wrappedValue should be object but got' + typeof wrappedValue);
 	}
@@ -1332,22 +1331,68 @@ function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, valueType: Parame
 		// TODO other cases
 		switch (wrappedValue.type) {
 			case 'dictionaryLiteral':
-				return getTypeErrorForCollectionArgs(wrappedValue.fields, valueType);
-
+				return getTypeErrorForCollectionArgs(wrappedValue.fields, targetType);
 			case 'tuple':
-				return getTypeErrorForCollectionArgs(wrappedValue.elementTypes, valueType);
-
+				return getTypeErrorForCollectionArgs(wrappedValue.elementTypes, targetType);
+			case 'parameters': {
+				let index = 0;
+				const targetSingleNames = targetType.singleNames;
+				const valueSingleNames = wrappedValue.singleNames;
+				const valueRest = wrappedValue.rest;
+				const valueRestType = valueRest?.type;
+				const valueRestItemType = valueRest
+					? valueRestType instanceof ListType
+						? valueRestType.elementType
+						: Any
+					: undefined;
+				for (; index < targetSingleNames.length; index++) {
+					const targetParameter = targetSingleNames[index]!;
+					const targetParameterName = targetParameter.name;
+					const targetParameterType = targetParameter.type;
+					const valueParameter = valueSingleNames[index];
+					if (valueParameter && valueParameter.name !== targetParameterName) {
+						return {
+							message: `Parameter name mismatch. Got ${valueParameter.name} but expected ${targetParameterName}`,
+						};
+					}
+					const valueParameterType = valueParameter
+						? valueParameter.type ?? valueRestItemType ?? Any
+						: null;
+					const error = targetParameterType
+						? getTypeError(valueParameterType, targetParameterType)
+						: undefined;
+					if (error) {
+						// TODO collect inner errors
+						return error;
+						// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
+					}
+				}
+				const targetRestType = targetType.rest?.type;
+				if (targetRestType) {
+					const remainingValueParameters = valueSingleNames.slice(index);
+					for (const valueParameter of remainingValueParameters) {
+						const valueParameterType = valueParameter.type ?? valueRestItemType ?? Any;
+						const error = getTypeError(valueParameterType, targetRestType);
+						if (error) {
+							// TODO collect inner errors
+							return error;
+							// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
+						}
+					}
+				}
+				return undefined;
+			}
 			default:
 				return { message: 'getTypeErrorForWrappedArgs not implemented yet for ' + wrappedValue.type };
 		}
 	}
-	return getTypeErrorForCollectionArgs(wrappedValue, valueType);
+	return getTypeErrorForCollectionArgs(wrappedValue, targetType);
 }
 
-function getTypeErrorForCollectionArgs(collectionValue: Collection, valueType: ParametersType): TypeError | undefined {
+function getTypeErrorForCollectionArgs(collectionValue: Collection, targetType: ParametersType): TypeError | undefined {
 	const isArray = Array.isArray(collectionValue);
 	let index = 0;
-	const { singleNames, rest } = valueType;
+	const { singleNames, rest } = targetType;
 	for (; index < singleNames.length; index++) {
 		const param = singleNames[index]!;
 		const { name, type } = param;
