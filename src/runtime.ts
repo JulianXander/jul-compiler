@@ -1016,11 +1016,17 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 //#region builtins
 //#region Types
 export const Any = new AnyType();
+export const Type = new TypeType();
 export const _Boolean = new BooleanType();
 //#region Number
 export const Float = new FloatType();
 export const Integer = new IntegerType();
 export const NonZeroInteger = new UnionType([Integer, new ComplementType(0)]);
+export const Fraction = new DictionaryLiteralType({
+	numerator: Integer,
+	denominator: Integer
+});
+export const Rational = new UnionType([Integer, Fraction]);
 //#endregion Number
 export const _String = new StringType();
 export const _Error = new ErrorType();
@@ -1031,21 +1037,18 @@ export const List = _createFunction(
 		singleNames: [
 			{
 				name: 'ElementType',
-				// TODO
-				// type: { type: 'reference', names: ['Type'] }
+				type: Type,
 			},
 		]
 	}
 )
-export const Type = new TypeType();
 export const Or = _createFunction(
 	(...args: RuntimeType[]) =>
 		new UnionType(args),
 	{
-		// TODO
-		// rest: {
-		// 	type: List(Type)
-		// }
+		rest: {
+			type: new ListType(Type)
+		}
 	}
 )
 //#endregion Types
@@ -1058,13 +1061,9 @@ export const equal = _createFunction(
 		singleNames: [
 			{
 				name: 'first',
-				// TODO
-				// type: { type: 'reference', names: ['Any'] }
 			},
 			{
 				name: 'second',
-				// TODO
-				// type: { type: 'reference', names: ['Any'] }
 			}
 		]
 	}
@@ -1079,13 +1078,11 @@ export const modulo = _createFunction(
 		singleNames: [
 			{
 				name: 'dividend',
-				// TODO
-				// type: { type: 'reference', names: ['Integer'] }
+				type: Integer,
 			},
 			{
 				name: 'divisor',
-				// TODO
-				// type: { type: 'reference', names: ['NonZeroInteger'] }
+				type: NonZeroInteger,
 			}
 		]
 	}
@@ -1123,13 +1120,11 @@ export const subtract = _createFunction(
 		singleNames: [
 			{
 				name: 'minuend',
-				// TODO
-				// type: { type: 'reference', names: ['Rational'] }
+				type: Rational,
 			},
 			{
 				name: 'subtrahend',
-				// TODO
-				// type: { type: 'reference', names: ['Rational'] }
+				type: Rational,
 			}
 		]
 	}
@@ -1141,18 +1136,15 @@ export const subtractFloat = _createFunction(
 		singleNames: [
 			{
 				name: 'minuend',
-				// TODO
-				// type: { type: 'reference', names: ['Float'] }
+				type: Float,
 			},
 			{
 				name: 'subtrahend',
-				// TODO
-				// type: { type: 'reference', names: ['Float'] }
+				type: Float,
 			}
 		]
 	}
 );
-// TODO sum, sumFloat
 export const sum = _createFunction(
 	(...args: Rational[]) =>
 		args.reduce(
@@ -1185,10 +1177,9 @@ export const sum = _createFunction(
 				}
 			},
 			0n),
-	// TODO params type ...Rational[]
 	{
 		rest: {
-			// name: 'args'
+			type: new ListType(Rational)
 		}
 	}
 );
@@ -1198,10 +1189,9 @@ export const sumFloat = _createFunction(
 			(accumulator, current) =>
 				accumulator + current,
 			0),
-	// TODO params type ...Float[]
 	{
 		rest: {
-			// name: 'args'
+			type: new ListType(Float)
 		}
 	}
 );
@@ -1223,8 +1213,7 @@ export const parseJson = _createFunction(
 		singleNames: [
 			{
 				name: 'json',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['String'] }
+				type: _String,
 			},
 		]
 	}
@@ -1238,13 +1227,11 @@ export const regex = _createFunction(
 		singleNames: [
 			{
 				name: 'text',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['String'] }
+				type: _String,
 			},
 			{
 				name: 'regex',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['String'] }
+				type: _String,
 			},
 		]
 	}
@@ -1269,8 +1256,7 @@ export const filterMap = _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['List'] }
+				type: new ListType(Any)
 			},
 			{
 				name: 'callback',
@@ -1292,8 +1278,7 @@ export const forEach = _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['List'] }
+				type: new ListType(Any)
 			},
 			{
 				name: 'callback',
@@ -1315,8 +1300,7 @@ export const complete = _createFunction(
 		singleNames: [
 			{
 				name: 'stream$',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Stream'] }
+				type: new StreamType(Any)
 			},
 		]
 	}
@@ -1332,8 +1316,7 @@ export const subscribe = _createFunction(
 		singleNames: [
 			{
 				name: 'stream$',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Stream'] }
+				type: new StreamType(Any)
 			},
 			{
 				name: 'listener',
@@ -1384,18 +1367,14 @@ export const httpTextRequest$ = _createFunction(
 		singleNames: [
 			{
 				name: 'url',
-				// TODO
-				// type: String
+				type: _String
 			},
 			{
 				name: 'method',
-				// TODO
-				// type: String
+				type: _String
 			},
 			{
 				name: 'body',
-				// TODO
-				// type: Any
 			},
 		]
 	}
@@ -1419,8 +1398,7 @@ export const timer$ = _createFunction(
 	{
 		singleNames: [{
 			name: 'delayMs',
-			// TODO
-			// type: Float
+			type: Float
 		}]
 	}
 );
@@ -1446,8 +1424,7 @@ export const repeat = _createFunction(
 		singleNames: [
 			{
 				name: 'count',
-				// TODO
-				// type: Integer
+				type: Integer
 			},
 			{
 				name: 'iteratee',
@@ -1462,8 +1439,7 @@ export const runJs = _createFunction(
 	{
 		singleNames: [{
 			name: 'js',
-			// TODO
-			// type: String
+			type: _String
 		}]
 	}
 );
