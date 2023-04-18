@@ -1332,7 +1332,7 @@ export const httpTextRequest$ = _createFunction(
 	(
 		url: string,
 		method: string,
-		headers: { [key: string]: string },
+		headers: { [key: string]: string } | null,
 		body: any
 	): Stream<null | string | Error> => {
 		const abortController = new AbortController();
@@ -1342,7 +1342,7 @@ export const httpTextRequest$ = _createFunction(
 		});
 		fetch(url, {
 			method: method,
-			headers: headers,
+			headers: headers ?? undefined,
 			body: body,
 			signal: abortController.signal,
 		}).then(response => {
