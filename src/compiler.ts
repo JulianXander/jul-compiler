@@ -8,7 +8,16 @@ import { getPathFromImport } from './type-checker';
 import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
 
-export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: string]: true; }): void {
+export interface JulCompilerOptions {
+	entryFilePath: string;
+	/**
+	 * Default: out
+	 */
+	outputFolder?: string;
+}
+
+export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?: { [key: string]: true; }): void {
+	const filePath = options.entryFilePath;
 	console.log(`compiling ${filePath} ...`);
 	if (filePath.substring(filePath.length - 4) !== '.jul') {
 		throw new Error('Invalid file ending. Expected .jul');
@@ -53,7 +62,10 @@ export function compileFileToJs(filePath: string, compiledFilePaths?: { [key: st
 			return;
 		}
 		compiledFilePathsWithDefault[fullPath] = true;
-		compileFileToJs(fullPath, compiledFilePathsWithDefault);
+		compileFileToJs({
+			...options,
+			entryFilePath: fullPath,
+		}, compiledFilePathsWithDefault);
 	});
 	//#endregion 5. compile dependencies
 

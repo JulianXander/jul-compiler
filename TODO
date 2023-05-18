@@ -1,4 +1,4 @@
--wurzelverzeichnis aus ausführungsverzeichnis nehmen, entry datei pfad relativ dazu angeben
+-wurzelverzeichnis aus configverzeichnis nehmen, entry datei pfad relativ dazu angeben
 -emitter.ts importLine runtimepfad dynamisch, relativ zu wurzel/entry verzeichnis
 -compilat in out (konfigurierbarer name) directory ausgeben
 	-verzeichnisstruktur der kompilierten dateien im out verzeichnis nachbauen
