@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { mkdirSync, readFileSync } from "fs";
 
 export function isDefined<T>(value: T | undefined): value is T {
 	return value !== undefined;
@@ -87,6 +87,8 @@ export function mapDictionary<T, U>(
 // 	};
 // }
 
+//#region file system
+
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
  */
@@ -105,3 +107,9 @@ export function tryReadTextFile(path: string): string | undefined {
 		return undefined;
 	}
 }
+
+export function tryCreateDirectory(path: string): void {
+	mkdirSync(path, { recursive: true });
+}
+
+//#endregion file system
