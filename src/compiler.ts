@@ -19,7 +19,7 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 	const outFolderPath = options.outputFolderPath;
 	console.log(`compiling ${filePath} ...`);
 	if (filePath.substring(filePath.length - 4) !== '.jul') {
-		throw new Error('Invalid file ending. Expected .jul');
+		throw new Error(`Invalid file ending. Expected .jul but got ${filePath}`);
 	}
 
 	//#region 1. read & 2. parse
@@ -68,6 +68,7 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 				const jsOutDir = dirname(jsOutFilePath);
 				tryCreateDirectory(jsOutDir);
 				copyFileSync(fullPath, jsOutFilePath);
+				return;
 			}
 			case '.jul': {
 				compileFileToJs({
