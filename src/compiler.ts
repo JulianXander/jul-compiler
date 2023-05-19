@@ -1,4 +1,4 @@
-import { writeFileSync, copyFileSync, mkdirSync } from 'fs';
+import { writeFileSync, copyFileSync, mkdirSync, rmSync } from 'fs';
 import { dirname, extname, join, resolve } from 'path';
 import { webpack } from 'webpack';
 import { checkParseExpressions } from './checker';
@@ -9,23 +9,84 @@ import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
 import { tryCreateDirectory } from './util';
 
-interface JulCompilerOptions {
-	entryFilePath: string;
-	outputFolderPath: string;
-}
-
 const runtimeFileName = 'runtime.js';
 
-export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?: { [key: string]: true; }): void {
-	const filePath = options.entryFilePath;
-	const outFolderPath = options.outputFolderPath;
-	console.log(`compiling ${filePath} ...`);
-	if (filePath.substring(filePath.length - 4) !== '.jul') {
-		throw new Error(`Invalid file ending. Expected .jul but got ${filePath}`);
+export function compileFileToJs(
+	entryFilePath: string,
+	outputFolderPath: string,
+): void {
+	//#region 1. cleanup out
+	rmSync(outputFolderPath, { recursive: true, force: true });
+	//#endregion 1. cleanup out
+
+	//#region 2. compile
+	const runtimePath = resolve(join(outputFolderPath, runtimeFileName));
+	const outFilePath = compileJulFileInternal({
+		sourceFilePath: entryFilePath,
+		outputFolderPath: outputFolderPath,
+		runtimePath: runtimePath,
+	});
+	//#endregion 2. compile
+
+	//#region 3. copy runtime
+	const runtimeSourcePath = join(__dirname, runtimeFileName);
+	copyFileSync(runtimeSourcePath, runtimePath);
+	//#endregion 3. copy runtime
+
+	//#region 4. bundle
+	process.stdout.write('bundling ');
+	const stopSpinner = busySpinner();
+	const absoluteOutFilePath = resolve(outFilePath);
+	const absoluteFolderPath = resolve(outputFolderPath);
+	const bundler = webpack({
+		// mode: 'none',
+		entry: absoluteOutFilePath,
+		output: {
+			path: absoluteFolderPath,
+			filename: 'bundle.js',
+		},
+		target: 'node',
+		// resolve: {
+		// 	modules: ['node_modules']
+		// }
+	});
+	bundler.run((error, stats) => {
+		// console.log(error, stats);
+		const hasErrors = stats?.hasErrors();
+		stopSpinner();
+		if (hasErrors) {
+			console.log('bundling failed');
+			console.log(stats?.compilation.errors);
+		}
+		else {
+			console.log('build finished successfully');
+		}
+	});
+	//#endregion 4. bundle
+}
+
+interface JulCompilerOptions {
+	sourceFilePath: string;
+	outputFolderPath: string;
+	runtimePath: string;
+}
+
+function compileJulFileInternal(
+	options: JulCompilerOptions,
+	compiledFilePaths?: { [key: string]: true; },
+): string {
+	const {
+		sourceFilePath,
+		outputFolderPath,
+		runtimePath,
+	} = options;
+	console.log(`compiling ${sourceFilePath} ...`);
+	if (sourceFilePath.substring(sourceFilePath.length - 4) !== '.jul') {
+		throw new Error(`Invalid file ending. Expected .jul but got ${sourceFilePath}`);
 	}
 
 	//#region 1. read & 2. parse
-	const parsed = parseFile(filePath);
+	const parsed = parseFile(sourceFilePath);
 	outputErrors(parsed.errors);
 	// console.log(result);
 	const syntaxTree = checkParseExpressions(parsed.expressions!)!;
@@ -38,15 +99,14 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 	// const interpreterCode = interpreterFile.toString();
 	// const compiled = `${interpreterCode}
 	// const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(ast, undefined, 2)}\ninterpreteAst(c)`;
-	const runtimePath = resolve(join(outFolderPath, runtimeFileName));
 	const compiled = syntaxTreeToJs(syntaxTree, runtimePath);
 	// console.log(compiled);
 	//#endregion 3. compile
 
 	//#region 4. write
 	// ul von der DateiEndung abschneiden
-	const jsFileName = filePath.substring(0, filePath.length - 2) + 's';
-	const outFilePath = join(outFolderPath, jsFileName);
+	const jsFileName = sourceFilePath.substring(0, sourceFilePath.length - 2) + 's';
+	const outFilePath = join(outputFolderPath, jsFileName);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
 	writeFileSync(outFilePath, compiled);
@@ -54,10 +114,10 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 
 	//#region 5. compile dependencies
 	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
-	const compiledFilePathsWithDefault = compiledFilePaths ?? { [filePath]: true };
+	const compiledFilePathsWithDefault = compiledFilePaths ?? { [sourceFilePath]: true };
 	const importedFilePaths = getImportedPaths(parsed);
 	outputErrors(importedFilePaths.errors);
-	const sourceFolder = dirname(filePath);
+	const sourceFolder = dirname(sourceFilePath);
 	importedFilePaths.paths.forEach(path => {
 		const fullPath = join(sourceFolder, path);
 		if (compiledFilePathsWithDefault[fullPath]) {
@@ -67,16 +127,16 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 		switch (extname(path)) {
 			case '.js': {
 				// copy js file to output folder
-				const jsOutFilePath = join(outFolderPath, fullPath);
+				const jsOutFilePath = join(outputFolderPath, fullPath);
 				const jsOutDir = dirname(jsOutFilePath);
 				tryCreateDirectory(jsOutDir);
 				copyFileSync(fullPath, jsOutFilePath);
 				return;
 			}
 			case '.jul': {
-				compileFileToJs({
+				compileJulFileInternal({
 					...options,
-					entryFilePath: fullPath,
+					sourceFilePath: fullPath,
 				}, compiledFilePathsWithDefault);
 				return;
 			}
@@ -85,45 +145,7 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 		}
 	});
 	//#endregion 5. compile dependencies
-
-	// copy runtime und bundling nur einmalig beim root call (ohne compiledFilePaths)
-	if (!compiledFilePaths) {
-		//#region 6. copy runtime
-		const runtimeSourcePath = join(__dirname, runtimeFileName);
-		copyFileSync(runtimeSourcePath, runtimePath);
-		//#endregion 6. copy runtime
-
-		//#region 7. bundle
-		process.stdout.write('bundling ');
-		const stopSpinner = busySpinner();
-		const absoluteOutFilePath = resolve(outFilePath);
-		const absoluteFolderPath = resolve(outFolderPath);
-		const bundler = webpack({
-			// mode: 'none',
-			entry: absoluteOutFilePath,
-			output: {
-				path: absoluteFolderPath,
-				filename: 'bundle.js',
-			},
-			target: 'node',
-			// resolve: {
-			// 	modules: ['node_modules']
-			// }
-		});
-		bundler.run((error, stats) => {
-			// console.log(error, stats);
-			const hasErrors = stats?.hasErrors();
-			stopSpinner();
-			if (hasErrors) {
-				console.log('bundling failed');
-				console.log(stats?.compilation.errors);
-			}
-			else {
-				console.log('build finished successfully');
-			}
-		});
-		//#endregion 7. bundle
-	}
+	return outFilePath;
 }
 
 function outputErrors(errors: ParserError[]): void {

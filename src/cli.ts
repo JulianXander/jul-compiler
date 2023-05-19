@@ -27,7 +27,7 @@ if (!valid) {
 const rootFolder = dirname(configFilePath);
 const outputFolder = config.outputFolder ?? 'out';
 console.log(`Compiler started with entry file ${config.entryFilePath} ...`);
-compileFileToJs({
-	entryFilePath: join(rootFolder, config.entryFilePath),
-	outputFolderPath: join(rootFolder, outputFolder),
-});
+compileFileToJs(
+	join(rootFolder, config.entryFilePath),
+	join(rootFolder, outputFolder),
+);
