@@ -274,7 +274,7 @@ repeat = nativeFunction(
 )
 #region JavaScript
 # Führt den gegebenen String als JavaScript aus und liefert dessen Rückgabe.
-runJS = nativeFunction(
+runJs = nativeFunction(
 	(js: String): Any
 	§eval§
 )
