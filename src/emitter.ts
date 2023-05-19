@@ -11,13 +11,15 @@ import * as runtime from './runtime';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
-export const importLine = `const { ${runtimeImports} } = require("./runtime");\n`;
+export function getRuntimeImportJs(runtimePath: string): string {
+	return `const { ${runtimeImports} } = require(\`${escapeStringForBackTickJs(runtimePath)}\`);\n`;
+}
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
-export function syntaxTreeToJs(expressions: CheckedExpression[]): string {
+export function syntaxTreeToJs(expressions: CheckedExpression[], runtimePath: string): string {
 	// _branch, _callFunction, _checkType, _createFunction, log
 	let hasDefinition = false;
-	return `${importLine}${expressions.map((expression, index) => {
+	return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
 		const expressionJs = expressionToJs(expression);
 		// export defined names
 		if (expression.type === 'definition') {
@@ -325,7 +327,7 @@ function checkTypeJs(type: CheckedValueExpression, valueJs: string): string {
 function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
 	const stringValue = stringLiteral.values.map(value => {
 		if (value.type === 'stringToken') {
-			return value.value.replaceAll('`', '\\`');
+			return escapeStringForBackTickJs(value.value);
 		}
 		return `\${${expressionToJs(value)}}`;
 	}).join('');
@@ -342,4 +344,10 @@ function singleDictionaryFieldToJs(name: string, valueJs: string): string {
 
 function spreadDictionaryFieldToJs(valueJs: string): string {
 	return `...${valueJs},\n`;
+}
+
+function escapeStringForBackTickJs(value: string): string {
+	return value
+		.replaceAll('\\', '\\\\')
+		.replaceAll('`', '\\`');
 }

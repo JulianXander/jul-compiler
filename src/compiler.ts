@@ -14,6 +14,8 @@ interface JulCompilerOptions {
 	outputFolderPath: string;
 }
 
+const runtimeFileName = 'runtime.js';
+
 export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?: { [key: string]: true; }): void {
 	const filePath = options.entryFilePath;
 	const outFolderPath = options.outputFolderPath;
@@ -36,7 +38,8 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 	// const interpreterCode = interpreterFile.toString();
 	// const compiled = `${interpreterCode}
 	// const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(ast, undefined, 2)}\ninterpreteAst(c)`;
-	const compiled = syntaxTreeToJs(syntaxTree);
+	const runtimePath = resolve(join(outFolderPath, runtimeFileName));
+	const compiled = syntaxTreeToJs(syntaxTree, runtimePath);
 	// console.log(compiled);
 	//#endregion 3. compile
 
@@ -86,8 +89,8 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 	// copy runtime und bundling nur einmalig beim root call (ohne compiledFilePaths)
 	if (!compiledFilePaths) {
 		//#region 6. copy runtime
-		const runtimePath = join(__dirname, 'runtime.js');
-		copyFileSync(runtimePath, join(outFolderPath, 'runtime.js'));
+		const runtimeSourcePath = join(__dirname, runtimeFileName);
+		copyFileSync(runtimeSourcePath, runtimePath);
 		//#endregion 6. copy runtime
 
 		//#region 7. bundle
@@ -109,8 +112,15 @@ export function compileFileToJs(options: JulCompilerOptions, compiledFilePaths?:
 		});
 		bundler.run((error, stats) => {
 			// console.log(error, stats);
+			const hasErrors = stats?.hasErrors();
 			stopSpinner();
-			console.log('done');
+			if (hasErrors) {
+				console.log('bundling failed');
+				console.log(stats?.compilation.errors);
+			}
+			else {
+				console.log('build finished successfully');
+			}
 		});
 		//#endregion 7. bundle
 	}

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { parseCode } from './parser';
-import { importLine, syntaxTreeToJs } from './emitter';
+import { getRuntimeImportJs, syntaxTreeToJs } from './emitter';
 import { checkParseExpressions } from './checker';
 
 const expectedResults: {
@@ -173,8 +173,8 @@ describe('Emitter', () => {
 		it(code, () => {
 			const parsed = parseCode(code);
 			const syntaxTree = checkParseExpressions(parsed.expressions!)!;
-			const compiled = syntaxTreeToJs(syntaxTree);
-			expect(compiled).to.equal(importLine + 'module.exports = ' + result);
+			const compiled = syntaxTreeToJs(syntaxTree, '');
+			expect(compiled).to.equal(getRuntimeImportJs('') + 'module.exports = ' + result);
 		});
 	});
 });
