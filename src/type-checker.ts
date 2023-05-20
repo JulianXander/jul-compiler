@@ -36,7 +36,6 @@ import {
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
 	ParseListValue,
-	ParseValueExpression,
 	ParsedFile,
 	Reference,
 	StringToken,
@@ -47,6 +46,7 @@ import {
 import { NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
 import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
+import { getCheckedName } from './checker';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -160,6 +160,30 @@ export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable
 	// TODO nested ref path
 	const name = path[0].name;
 	return findSymbolInScopesWithBuiltIns(name, scopes);
+}
+
+function dereferenceFromObject(reference: Reference, sourceObjectType: RuntimeType): RuntimeType | undefined {
+	// TODO nested ref path
+	const name = reference.path[0].name;
+	if (typeof sourceObjectType !== 'object'
+		|| !sourceObjectType) {
+		return undefined;
+	}
+	if (sourceObjectType instanceof BuiltInTypeBase) {
+		switch (sourceObjectType.type) {
+			case 'dictionaryLiteral':
+				return sourceObjectType.fields[name];
+			// TODO other object types
+
+			default:
+				return undefined;
+		}
+	}
+	if (Array.isArray(sourceObjectType)) {
+		// TODO dereference by index
+		return undefined;
+	}
+	return sourceObjectType[name];
 }
 
 function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
@@ -352,16 +376,57 @@ function inferType(
 			}
 			return inferredType;
 		}
-		case 'destructuring':
-			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
+		case 'destructuring': {
+			const value = expression.value;
+			setInferredType(value, scopes, parsedDocuments, folder, file);
+			const currentScope = last(scopes);
 			// TODO?
 			// TODO check typeguards
 			expression.fields.fields.forEach(field => {
-				if (field.typeGuard) {
-					// check value, check fallback?
+				if (field.spread) {
+					// TODO?
+				}
+				else {
+					const fieldName = getCheckedName(field.name);
+					if (!fieldName) {
+						return;
+					}
+					const pathToDereference = field.assignedValue ?? field.name;
+					if (pathToDereference.type !== 'reference') {
+						return;
+					}
+					const valueType = value.inferredType!;
+					const dereferencedType = dereferenceFromObject(pathToDereference, valueType);
+					if (dereferencedType === undefined) {
+						errors.push({
+							message: `Failed to dereference ${referencePathToString(pathToDereference.path)} in type ${typeToString(valueType, 0)}`,
+							startRowIndex: field.startRowIndex,
+							startColumnIndex: field.startColumnIndex,
+							endRowIndex: field.endRowIndex,
+							endColumnIndex: field.endColumnIndex,
+						});
+						return;
+					}
+					currentScope[fieldName]!.normalizedType = dereferencedType;
+					const typeGuard = field.typeGuard;
+					if (typeGuard) {
+						setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+						// TODO check value, check fallback?
+						const error = isTypeAssignableTo(dereferencedType, valueOf(typeGuard.inferredType));
+						if (error) {
+							errors.push({
+								message: error,
+								startRowIndex: field.startRowIndex,
+								startColumnIndex: field.startColumnIndex,
+								endRowIndex: field.endRowIndex,
+								endColumnIndex: field.endColumnIndex,
+							});
+						}
+					}
 				}
 			});
 			return Any;
+		}
 		case 'dictionary': {
 			const fieldTypes: { [key: string]: RuntimeType; } = {};
 			expression.fields.forEach(field => {
