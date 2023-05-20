@@ -411,6 +411,7 @@ function inferType(
 					case 'spread':
 						setInferredType(field.value, scopes, parsedDocuments, folder, file);
 						// TODO spread fields flach machen
+						// TODO error when spread list
 						return;
 					default: {
 						const assertNever: never = field;
@@ -585,6 +586,7 @@ function inferType(
 			return expression.value;
 		case 'list':
 			// TODO spread elements
+			// TODO error when spread dictionary
 			expression.values.forEach(element => {
 				const typedExpression = element.type === 'spread'
 					? element.value
