@@ -1,11 +1,3 @@
--wurzelverzeichnis aus configverzeichnis nehmen, entry datei pfad relativ dazu angeben
--emitter.ts importLine runtimepfad dynamisch, relativ zu wurzel/entry verzeichnis
--compilat in out (konfigurierbarer name) directory ausgeben
-	-verzeichnisstruktur der kompilierten dateien im out verzeichnis nachbauen
-	-raw js auch in out kopieren
-	-runtime in out packen
-	-bundlen im out verzeichnis
-	-optional: alles außer bundle im out löschen
 ?Maximilian call fn with array arg singlename param vgl examples/function-call.jul
 	-idee Maximilian: spread explizit bei fn call mit array arg, sonst immer fn arg als erstes argument in js fn packen
 ?shared code? libraries?

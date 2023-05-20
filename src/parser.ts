@@ -29,13 +29,13 @@ import {
 	ParseFunctionCall,
 	ParseFunctionLiteral,
 	ParseFunctionTypeLiteral,
+	ParseListValue,
 	ParseParameterField,
 	ParseParameterFields,
 	ParseSingleDefinition,
 	ParseSingleDictionaryField,
 	ParseSingleDictionaryTypeField,
-	ParseSpreadDictionaryField,
-	ParseSpreadDictionaryTypeField,
+	ParseSpreadValueExpression,
 	ParseStringLiteral,
 	ParseValueExpression,
 	ParseValueExpressionBase,
@@ -886,7 +886,7 @@ function valueExpressionBaseParser(
 		case 'functionCall': {
 			const functionCall = parsed2.value.reduce<SimpleExpression>(
 				(accumulator, currentValue) => {
-					const values: NonEmptyArray<ParseValueExpression> = [
+					const values: NonEmptyArray<ParseListValue> = [
 						accumulator,
 					];
 					const args = currentValue.arguments;
@@ -1794,12 +1794,12 @@ function bracketedExpressionToValueExpression(
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
 	}
-	const isList = !baseFields.some(parseField =>
-		parseField.spread
-		|| parseField.typeGuard
-		|| parseField.assignedValue
+	const isList = baseFields.every(baseField =>
+		!baseField.typeGuard
+		&& !baseField.assignedValue
 		// TODO ListLiteral mit Fallback?
-		|| parseField.fallback);
+		&& !baseField.fallback)
+		&& baseFields.some(baseField => !baseField.spread);
 	if (isList) {
 		return {
 			type: 'list',
@@ -1813,9 +1813,10 @@ function bracketedExpressionToValueExpression(
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
 	}
-	const isDictionary = !baseFields.some(baseField =>
+	const isDictionary = baseFields.every(baseField =>
 		// singleDictionaryField muss assignedValue haben
-		!baseField.spread && !baseField.assignedValue);
+		baseField.spread || baseField.assignedValue)
+		&& baseFields.some(baseField => baseField.assignedValue);
 	if (isDictionary) {
 		return {
 			type: 'dictionary',
@@ -1854,8 +1855,8 @@ function bracketedExpressionToValueExpression(
 								endColumnIndex: fallback.endColumnIndex,
 							});
 						}
-						const spreadDictionaryField: ParseSpreadDictionaryField = {
-							type: 'spreadDictionaryField',
+						const spreadDictionaryField: ParseSpreadValueExpression = {
+							type: 'spread',
 							value: baseName,
 							startRowIndex: baseField.startRowIndex,
 							startColumnIndex: baseField.startColumnIndex,
@@ -1884,9 +1885,10 @@ function bracketedExpressionToValueExpression(
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
 	}
-	const isDictionaryType = !baseFields.some(baseField =>
-		baseField.assignedValue
-		|| baseField.fallback);
+	const isDictionaryType = baseFields.every(baseField =>
+		!baseField.assignedValue
+		&& !baseField.fallback)
+		&& baseFields.some(baseField => baseField.typeGuard);
 	if (isDictionaryType) {
 		return {
 			type: 'dictionaryType',
@@ -1925,8 +1927,8 @@ function bracketedExpressionToValueExpression(
 								endColumnIndex: typeGuard.endColumnIndex,
 							});
 						}
-						const spreadDictionaryField: ParseSpreadDictionaryTypeField = {
-							type: 'spreadDictionaryTypeField',
+						const spreadDictionaryField: ParseSpreadValueExpression = {
+							type: 'spread',
 							value: baseName,
 							startRowIndex: baseField.startRowIndex,
 							startColumnIndex: baseField.startColumnIndex,
@@ -1952,6 +1954,32 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
+	}
+	const isUnknownObject = baseFields.every(baseField =>
+		baseField.spread
+		&& !baseField.typeGuard);
+	if (isUnknownObject) {
+		return {
+			type: 'object',
+			values: mapNonEmpty(
+				baseFields,
+				baseField => {
+					const spreadValue: ParseSpreadValueExpression = {
+						type: 'spread',
+						value: baseField.name,
+						startRowIndex: baseField.startRowIndex,
+						startColumnIndex: baseField.startColumnIndex,
+						endRowIndex: baseField.endRowIndex,
+						endColumnIndex: baseField.endColumnIndex,
+					};
+					return spreadValue;
+				}
+			),
+			startRowIndex: bracketedExpression.startRowIndex,
+			startColumnIndex: bracketedExpression.startColumnIndex,
+			endRowIndex: bracketedExpression.endRowIndex,
+			endColumnIndex: bracketedExpression.endColumnIndex,
+		}
 	}
 	// TODO bessere Fehlermeldung
 	errors.push({

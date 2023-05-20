@@ -8,12 +8,12 @@ import {
 	CheckedParameterFields,
 	CheckedSingleDictionaryField,
 	CheckedSingleDictionaryTypeField,
-	CheckedSpreadDictionaryField,
-	CheckedSpreadDictionaryTypeField,
+	CheckedSpreadValueExpression,
 	CheckedValueExpression,
 	ParseExpression,
 	ParseParameterField,
 	ParseParameterFields,
+	ParseSpreadValueExpression,
 	ParseValueExpression,
 	SimpleExpression,
 	StringToken,
@@ -51,7 +51,6 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 	switch (parseExpression.type) {
 		case 'bracketed':
 			return undefined;
-
 		case 'branching': {
 			const checkedValue = checkParseExpression(parseExpression.value);
 			if (!checkedValue) {
@@ -67,7 +66,6 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				branches: checkedBranches,
 			};
 		}
-
 		case 'definition': {
 			const checkedTypeGuard = parseExpression.typeGuard && checkParseExpression(parseExpression.typeGuard);
 			if (!checkedTypeGuard && parseExpression.typeGuard) {
@@ -89,7 +87,6 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				fallback: checkedFallback,
 			};
 		}
-
 		case 'destructuring': {
 			const checkedValue = checkParseExpression(parseExpression.value);
 			if (!checkedValue) {
@@ -105,7 +102,6 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				value: checkedValue,
 			};
 		}
-
 		case 'dictionary': {
 			const checkedFields = checkExpressions(
 				parseExpression.fields,
@@ -137,19 +133,8 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 							};
 							return checkedField;
 						}
-
-						case 'spreadDictionaryField': {
-							const checkedValue = checkParseExpression(parseField.value);
-							if (!checkedValue) {
-								return undefined;
-							}
-							const checkedField: CheckedSpreadDictionaryField = {
-								type: 'spreadDictionaryField',
-								value: checkedValue,
-							};
-							return checkedField;
-						}
-
+						case 'spread':
+							return checkSpreadExpression(parseField);
 						default: {
 							const assertNever: never = parseField;
 							throw new Error(`Unexpected parseField.type: ${(assertNever as CheckedDictionaryField).type}`);
@@ -164,7 +149,6 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				fields: checkedFields as any,
 			};
 		}
-
 		case 'dictionaryType': {
 			const checkedFields = checkExpressions(
 				parseExpression.fields,
@@ -186,19 +170,8 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 							};
 							return checkedField;
 						}
-
-						case 'spreadDictionaryTypeField': {
-							const checkedValue = checkParseExpression(parseField.value);
-							if (!checkedValue) {
-								return undefined;
-							}
-							const checkedField: CheckedSpreadDictionaryTypeField = {
-								type: 'spreadDictionaryTypeField',
-								value: checkedValue,
-							};
-							return checkedField;
-						}
-
+						case 'spread':
+							return checkSpreadExpression(parseField);
 						default: {
 							const assertNever: never = parseField;
 							throw new Error(`Unexpected parseField.type: ${(assertNever as CheckedDictionaryTypeField).type}`);
@@ -213,21 +186,16 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				fields: checkedFields as any,
 			};
 		}
-
 		case 'empty':
 			return {
 				type: 'empty',
 			};
-
 		case 'field':
 			return undefined;
-
 		case 'float':
 			return parseExpression;
-
 		case 'fraction':
 			return parseExpression;
-
 		case 'functionCall': {
 			const checkedArguments = checkParseExpression(parseExpression.arguments);
 			if (!checkedArguments) {
@@ -239,7 +207,6 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				arguments: checkedArguments as any
 			};
 		}
-
 		case 'functionLiteral': {
 			const checkedParams = checkParameters(parseExpression.params);
 			if (!checkedParams) {
@@ -255,7 +222,6 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				body: checkedBody,
 			};
 		}
-
 		case 'functionTypeLiteral': {
 			// TODO
 			// const checkedParams = checkParameters(parseExpression.params);
@@ -275,12 +241,19 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				type: 'empty',
 			};
 		}
-
 		case 'integer':
 			return parseExpression;
-
 		case 'list': {
-			const checkedValues = checkParseExpressions(parseExpression.values);
+			const checkedValues = checkExpressions(
+				parseExpression.values,
+				expression => {
+					switch (expression.type) {
+						case 'spread':
+							return checkSpreadExpression(expression);
+						default:
+							return checkParseExpression(expression);
+					}
+				});
 			if (!checkedValues) {
 				return undefined;
 			}
@@ -289,10 +262,20 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				values: checkedValues as any,
 			};
 		}
-
+		case 'object': {
+			const checkedValues = checkExpressions(
+				parseExpression.values,
+				checkSpreadExpression);
+			if (!checkedValues) {
+				return undefined;
+			}
+			return {
+				type: 'object',
+				values: checkedValues as any,
+			};
+		}
 		case 'reference':
 			return parseExpression;
-
 		case 'string': {
 			const checkedValues = checkParseExpressions(parseExpression.values);
 			if (!checkedValues) {
@@ -303,15 +286,25 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				values: checkedValues,
 			};
 		}
-
 		case 'stringToken':
 			return parseExpression;
-
 		default: {
 			const assertNever: never = parseExpression;
 			throw new Error(`Unexpected parseExpression.type: ${(assertNever as ParseExpression).type}`);
 		}
 	}
+}
+
+function checkSpreadExpression(spreadExpression: ParseSpreadValueExpression): CheckedSpreadValueExpression | undefined {
+	const checkedValue = checkParseExpression(spreadExpression.value);
+	if (!checkedValue) {
+		return undefined;
+	}
+	const checkedSpread: CheckedSpreadValueExpression = {
+		type: 'spread',
+		value: checkedValue,
+	};
+	return checkedSpread;
 }
 
 function checkDestructuringFields(parseDefinitionFields: BracketedExpressionBase): CheckedDestructuringField[] | undefined {

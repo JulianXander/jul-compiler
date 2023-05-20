@@ -1,6 +1,7 @@
 import {
 	CheckedExpression,
 	CheckedFunctionCall,
+	CheckedListValue,
 	CheckedParameterFields,
 	CheckedStringLiteral,
 	CheckedValueExpression,
@@ -135,8 +136,15 @@ function expressionToJs(expression: CheckedExpression): string {
 
 		case 'list':
 			return `[\n${expression.values.map(value => {
-				return `${expressionToJs(value)},\n`;
+				const spread = value.type === 'spread';
+				const valueExpression = value.type === 'spread'
+					? value.value
+					: value;
+				return `${spread ? '...' : ''}${expressionToJs(valueExpression)},\n`;
 			}).join('')}]`;
+
+		case 'object':
+			throw new Error('Unknown object literal emitter not implemented yet');
 
 		case 'reference':
 			return referenceToJs(expression);
@@ -168,7 +176,7 @@ export function getPathFromImport(importExpression: CheckedFunctionCall): string
 	throw new Error('Can not get import path from ' + pathExpression.type);
 }
 
-function getPathExpression(importParams: ObjectLiteral): CheckedValueExpression {
+function getPathExpression(importParams: ObjectLiteral): CheckedListValue {
 	switch (importParams.type) {
 		case 'dictionary':
 			return importParams.fields[0].value;
@@ -178,6 +186,9 @@ function getPathExpression(importParams: ObjectLiteral): CheckedValueExpression 
 
 		case 'list':
 			return importParams.values[0];
+
+		case 'object':
+			throw new Error('import with unknown object literal argument not implemented yet');
 
 		default: {
 			const assertNever: never = importParams;

@@ -35,6 +35,7 @@ import {
 	ParseDictionaryField,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
+	ParseListValue,
 	ParseValueExpression,
 	ParsedFile,
 	Reference,
@@ -380,7 +381,7 @@ function inferType(
 						fieldTypes[fieldName] = field.value.inferredType!;
 						return;
 					}
-					case 'spreadDictionaryField':
+					case 'spread':
 						// TODO spread fields flach machen
 						return;
 					default: {
@@ -407,7 +408,7 @@ function inferType(
 						fieldTypes[fieldName] = valueOf(field.typeGuard.inferredType);
 						return;
 					}
-					case 'spreadDictionaryTypeField':
+					case 'spread':
 						setInferredType(field.value, scopes, parsedDocuments, folder, file);
 						// TODO spread fields flach machen
 						return;
@@ -585,11 +586,36 @@ function inferType(
 		case 'list':
 			// TODO spread elements
 			expression.values.forEach(element => {
-				setInferredType(element, scopes, parsedDocuments, folder, file);
+				const typedExpression = element.type === 'spread'
+					? element.value
+					: element;
+				setInferredType(typedExpression, scopes, parsedDocuments, folder, file);
 			});
 			return new TupleType(expression.values.map(element => {
+				if (element.type === 'spread') {
+					// TODO flatten spread tuple value type
+					return Any;
+				}
 				return element.inferredType!;
 			}));
+		case 'object': {
+			// TODO check is List or Dictionary in values
+			// TODO error when List/Dictionary mixed
+			// TODO Dictionary Type?
+			let hasList: boolean = false;
+			let hasDictionary: boolean = false;
+			expression.values.forEach(element => {
+				const typedExpression = element.value;
+				setInferredType(typedExpression, scopes, parsedDocuments, folder, file);
+				const inferredType = typedExpression.inferredType;
+				// TODO
+				if (inferredType instanceof DictionaryType
+					|| inferredType instanceof DictionaryLiteralType) {
+					hasDictionary = true;
+				}
+			});
+			return Any;
+		}
 		case 'parameter': {
 			if (expression.typeGuard) {
 				setInferredType(expression.typeGuard, scopes, parsedDocuments, folder, file);
@@ -1524,13 +1550,14 @@ export function getPathFromImport(importExpression: ParseFunctionCall): { path?:
 	};
 }
 
-function getPathExpression(importParams: BracketedExpression): ParseValueExpression | undefined {
+function getPathExpression(importParams: BracketedExpression): ParseListValue | undefined {
 	switch (importParams.type) {
 		case 'dictionary':
 			return importParams.fields[0].value;
 		case 'bracketed':
 		case 'dictionaryType':
 		case 'empty':
+		case 'object':
 			return undefined;
 		case 'list':
 			return importParams.values[0];

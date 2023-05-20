@@ -40,6 +40,11 @@ export type ParseValueExpression =
 	| Reference
 	;
 
+export interface ParseSpreadValueExpression extends Positioned {
+	type: 'spread';
+	value: ParseValueExpression;
+}
+
 export type ParseValueExpressionBase =
 	| ParseBranching
 	| ParseFunctionLiteral
@@ -98,6 +103,7 @@ export interface ParseDestructuringDefinition extends ParseExpressionBase {
 
 export type BracketedExpression =
 	| ParseEmptyLiteral
+	| ParseUnknownObjectLiteral
 	| ParseListLiteral
 	| ParseDictionaryLiteral
 	| ParseDictionaryTypeLiteral
@@ -108,14 +114,29 @@ export interface ParseEmptyLiteral extends ParseExpressionBase {
 	type: 'empty';
 }
 
+/**
+ * ListLiteral oder DictionaryLiteral (abhängig vom Typ des gespreadeten Werts)
+ */
+export interface ParseUnknownObjectLiteral extends ParseExpressionBase {
+	type: 'object';
+	/**
+	 * niemals leeres array (stattdessen EmptyLiteral)
+	 */
+	values: NonEmptyArray<ParseSpreadValueExpression>;
+}
+
 export interface ParseListLiteral extends ParseExpressionBase {
 	type: 'list';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
-	 * TODO list spread
 	 */
-	values: NonEmptyArray<ParseValueExpression>;
+	values: NonEmptyArray<ParseListValue>;
 }
+
+export type ParseListValue =
+	| ParseValueExpression
+	| ParseSpreadValueExpression
+	;
 
 //#region Dictionary
 
@@ -129,8 +150,7 @@ export interface ParseDictionaryLiteral extends ParseExpressionBase {
 
 export type ParseDictionaryField =
 	| ParseSingleDictionaryField
-	| ParseSpreadDictionaryField
-	// | ParseFieldBase // TODO ?
+	| ParseSpreadValueExpression
 	;
 
 export interface ParseSingleDictionaryField extends Positioned {
@@ -142,11 +162,6 @@ export interface ParseSingleDictionaryField extends Positioned {
 	typeGuard?: ParseValueExpression;
 	value: ParseValueExpression;
 	fallback?: ParseValueExpression;
-}
-
-export interface ParseSpreadDictionaryField extends Positioned {
-	type: 'spreadDictionaryField';
-	value: ParseValueExpression;
 }
 
 //#endregion Dictionary
@@ -163,7 +178,7 @@ export interface ParseDictionaryTypeLiteral extends ParseExpressionBase {
 
 export type ParseDictionaryTypeField =
 	| ParseSingleDictionaryTypeField
-	| ParseSpreadDictionaryTypeField
+	| ParseSpreadValueExpression
 	;
 
 export interface ParseSingleDictionaryTypeField extends Positioned {
@@ -173,11 +188,6 @@ export interface ParseSingleDictionaryTypeField extends Positioned {
 	 */
 	name: ParseValueExpressionBase;
 	typeGuard?: ParseValueExpression;
-}
-
-export interface ParseSpreadDictionaryTypeField extends Positioned {
-	type: 'spreadDictionaryTypeField';
-	value: ParseValueExpression;
 }
 
 //#endregion DictionaryType
@@ -338,6 +348,11 @@ export type CheckedValueExpression =
 	| Reference
 	;
 
+export interface CheckedSpreadValueExpression {
+	type: 'spread';
+	value: CheckedValueExpression;
+}
+
 export interface CheckedBranching {
 	type: 'branching';
 	value: CheckedValueExpression;
@@ -414,6 +429,7 @@ export interface CheckedStringLiteral {
 
 export type ObjectLiteral =
 	| CheckedEmptyLiteral
+	| CheckedUnknownObjectLiteral
 	| CheckedListLiteral
 	| CheckedDictionaryLiteral
 	;
@@ -422,13 +438,29 @@ export interface CheckedEmptyLiteral {
 	type: 'empty';
 }
 
+/**
+ * ListLiteral oder DictionaryLiteral (abhängig vom Typ des gespreadeten Werts)
+ */
+export interface CheckedUnknownObjectLiteral {
+	type: 'object';
+	/**
+	 * niemals leeres array (stattdessen EmptyLiteral)
+	 */
+	values: NonEmptyArray<CheckedSpreadValueExpression>;
+}
+
 export interface CheckedListLiteral {
 	type: 'list';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
-	values: NonEmptyArray<CheckedValueExpression>;
+	values: NonEmptyArray<CheckedListValue>;
 }
+
+export type CheckedListValue =
+	| CheckedValueExpression
+	| CheckedSpreadValueExpression
+	;
 
 //#region Dictionary
 
@@ -442,7 +474,7 @@ export interface CheckedDictionaryLiteral {
 
 export type CheckedDictionaryField =
 	| CheckedSingleDictionaryField
-	| CheckedSpreadDictionaryField
+	| CheckedSpreadValueExpression
 	;
 
 export interface CheckedSingleDictionaryField {
@@ -451,11 +483,6 @@ export interface CheckedSingleDictionaryField {
 	typeGuard?: CheckedValueExpression;
 	value: CheckedValueExpression;
 	fallback?: CheckedValueExpression;
-}
-
-export interface CheckedSpreadDictionaryField {
-	type: 'spreadDictionaryField';
-	value: CheckedValueExpression;
 }
 
 //#endregion Dictionary
@@ -474,18 +501,13 @@ export interface CheckedDictionaryTypeLiteral {
 
 export type CheckedDictionaryTypeField =
 	| CheckedSingleDictionaryTypeField
-	| CheckedSpreadDictionaryTypeField
+	| CheckedSpreadValueExpression
 	;
 
 export interface CheckedSingleDictionaryTypeField {
 	type: 'singleDictionaryTypeField';
 	name: string;
 	typeGuard?: CheckedValueExpression;
-}
-
-export interface CheckedSpreadDictionaryTypeField {
-	type: 'spreadDictionaryTypeField';
-	value: CheckedValueExpression;
 }
 
 //#endregion DictionaryType
