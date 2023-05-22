@@ -1,4 +1,4 @@
-import { writeFileSync, copyFileSync, mkdirSync, rmSync } from 'fs';
+import { writeFileSync, copyFileSync, rmSync } from 'fs';
 import { dirname, extname, join, resolve } from 'path';
 import { webpack } from 'webpack';
 import { checkParseExpressions } from './checker';
