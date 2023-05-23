@@ -1,5 +1,7 @@
-?Maximilian call fn with array arg singlename param vgl examples/function-call.jul
-	-idee Maximilian: spread explizit bei fn call mit array arg, sonst immer fn arg als erstes argument in js fn packen
+-fn parameters mit alias
+-anonyme parameter mit _, _1, _2 etc
+-spread operator für branching value
+	-branching operator spreadet nicht mehr implizit
 ?shared code? libraries?
 -typechecker getTypeError function
 -typechecker parameters mit plain type
