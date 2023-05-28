@@ -1,8 +1,8 @@
--fn parameters mit alias
-	?alias bei rest parameter
--anonyme parameter mit _, _1, _2 etc
+?alias bei rest parameter
 -spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
+-anonyme parameter mit _/_1, _2 etc
+	-anonymer parameter für type parametered functions
 ?shared code? libraries?
 -typechecker getTypeError function
 -typechecker parameters mit plain type
