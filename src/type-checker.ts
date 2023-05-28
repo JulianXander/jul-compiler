@@ -1443,12 +1443,11 @@ function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, targetType: Param
 					const targetParameterName = targetParameter.name;
 					const targetParameterType = targetParameter.type;
 					const valueParameter = valueSingleNames[index];
-					// TODO check?
-					// if (valueParameter && valueParameter.name !== targetParameterName) {
-					// 	return {
-					// 		message: `Parameter name mismatch. Got ${valueParameter.name} but expected ${targetParameterName}`,
-					// 	};
-					// }
+					if (valueParameter && valueParameter.name !== targetParameterName) {
+						return {
+							message: `Parameter name mismatch. Got ${valueParameter.name} but expected ${targetParameterName}`,
+						};
+					}
 					const valueParameterType = valueParameter
 						? valueParameter.type ?? valueRestItemType ?? Any
 						: null;
