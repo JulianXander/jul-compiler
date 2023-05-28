@@ -715,7 +715,7 @@ function inferType(
 			return new ParametersType(
 				expression.singleFields.map(field => {
 					return {
-						name: field.name.name,
+						name: field.source ?? field.name.name,
 						type: field.inferredType
 					};
 				}),

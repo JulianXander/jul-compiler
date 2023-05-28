@@ -296,8 +296,10 @@ export interface ParseParameterFields extends ParseExpressionBase {
 
 export interface ParseParameterField extends ParseExpressionBase {
 	type: 'parameter';
+	description?: string;
 	name: Name;
 	typeGuard?: ParseValueExpression;
+	source?: string;
 	fallback?: ParseValueExpression;
 }
 
@@ -408,13 +410,14 @@ export interface CheckedFunctionLiteral {
 export interface CheckedParameterFields {
 	type: 'parameters';
 	singleFields: CheckedParameterField[];
-	// TODO rest ohne fallback?
+	// TODO rest ohne source, fallback?
 	rest?: CheckedParameterField;
 }
 
 export interface CheckedParameterField {
 	name: string;
 	typeGuard?: CheckedValueExpression;
+	source?: string;
 	fallback?: CheckedValueExpression;
 }
 

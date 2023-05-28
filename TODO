@@ -1,4 +1,5 @@
 -fn parameters mit alias
+	?alias bei rest parameter
 -anonyme parameter mit _, _1, _2 etc
 -spread operator für branching value
 	-branching operator spreadet nicht mehr implizit

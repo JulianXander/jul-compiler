@@ -382,6 +382,7 @@ function checkParameterField(parseField: ParseParameterField): CheckedParameterF
 	const checkedField: CheckedParameterField = {
 		name: parseField.name.name,
 		typeGuard: checkedTypeGuard,
+		source: parseField.source,
 		fallback: checkedFallback,
 	};
 	return checkedField;
