@@ -8,6 +8,7 @@ interface Params {
 	singleNames?: {
 		name: string;
 		type?: RuntimeType;
+		source?: string;
 	}[];
 	rest?: {
 		type?: RuntimeType;
@@ -204,15 +205,16 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 	if (singleNames) {
 		for (; index < singleNames.length; index++) {
 			const param = singleNames[index]!;
-			const { name, type } = param;
+			const { name, type, source } = param;
+			const sourceWithFallback = source ?? name;
 			const value = (isArray
 				? wrappedValue[index]
-				: wrappedValue[name]) ?? null;
+				: wrappedValue[sourceWithFallback]) ?? null;
 			const isValid = type
 				? isOfType(value, type)
 				: true;
 			if (!isValid) {
-				return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
+				return new Error(`Can not assign the value ${value} to param ${sourceWithFallback} because it is not of type ${type}`);
 			}
 			assignedValues.push(value);
 		}

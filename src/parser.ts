@@ -1693,17 +1693,22 @@ function bracketedExpressionToParameters(
 	const singleFields: ParseParameterField[] = [];
 	for (let index = 0; index < baseFields.length; index++) {
 		const baseField = baseFields[index]!;
-		const assignedValue = baseField.assignedValue;
-		if (assignedValue) {
-			errors.push({
-				message: 'assignedValue is not allowed for parameter.',
-				startRowIndex: assignedValue.startRowIndex,
-				startColumnIndex: assignedValue.startColumnIndex,
-				endRowIndex: assignedValue.endRowIndex,
-				endColumnIndex: assignedValue.endColumnIndex,
-			});
-			// TODO collect all errors before returning?
-			return bracketedExpression;
+		const parseSource = baseField.assignedValue;
+		let source: string | undefined;
+		if (parseSource) {
+			const checkedSource = checkName(parseSource);
+			if (checkedSource) {
+				source = checkedSource.name;
+			}
+			else {
+				errors.push({
+					message: `${parseSource.type} is not a valid expression for parameter source.`,
+					startRowIndex: parseSource.startRowIndex,
+					startColumnIndex: parseSource.startColumnIndex,
+					endRowIndex: parseSource.endRowIndex,
+					endColumnIndex: parseSource.endColumnIndex,
+				});
+			}
 		}
 		const checkedName = checkName(baseField.name);
 		if (!checkedName) {
@@ -1712,8 +1717,10 @@ function bracketedExpressionToParameters(
 		}
 		const parameterField: ParseParameterField = {
 			type: 'parameter',
+			description: baseField.description,
 			name: checkedName,
 			typeGuard: baseField.typeGuard,
+			source: source,
 			fallback: baseField.fallback,
 			startRowIndex: baseField.startRowIndex,
 			startColumnIndex: baseField.startColumnIndex,
@@ -1760,7 +1767,7 @@ function bracketedExpressionToParameters(
 	};
 }
 
-function checkName(parseName: ParseValueExpressionBase): Name | undefined {
+function checkName(parseName: ParseValueExpressionBase | ParseValueExpression): Name | undefined {
 	if (parseName.type !== 'reference') {
 		return undefined;
 	}

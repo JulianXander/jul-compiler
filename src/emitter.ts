@@ -13,7 +13,7 @@ import * as runtime from './runtime';
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
 export function getRuntimeImportJs(runtimePath: string): string {
-	return `const { ${runtimeImports} } = require(\`${escapeStringForBackTickJs(runtimePath)}\`);\n`;
+	return `const { ${runtimeImports} } = require(${stringToJs(runtimePath)});\n`;
 }
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
@@ -322,7 +322,10 @@ function parametersToJs(parameters: CheckedParameterFields): string {
 			const typeJs = field.typeGuard
 				? `,\ntype: ${expressionToJs(field.typeGuard)}`
 				: '';
-			return `{\nname: "${field.name}"${typeJs}}`;
+			const sourceJs = field.source
+				? `,\nsource: ${stringToJs(field.source)}`
+				: '';
+			return `{\nname: ${stringToJs(field.name)}${typeJs}${sourceJs}}`;
 		}).join(',\n')}\n],\n`
 		: '';
 	const restJs = parameters.rest
@@ -361,4 +364,8 @@ function escapeStringForBackTickJs(value: string): string {
 	return value
 		.replaceAll('\\', '\\\\')
 		.replaceAll('`', '\\`');
+}
+
+function stringToJs(value: string): string {
+	return `\`${escapeStringForBackTickJs(value)}\``;
 }
