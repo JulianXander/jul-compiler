@@ -1,6 +1,5 @@
 ?alias bei rest parameter
 	?rest arg mit parameter namen übergeben
--anonyme parameter mit _, _1, _2 etc für function mit type als params
 -spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 -anonyme parameter mit _/_1, _2 etc
