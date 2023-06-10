@@ -380,8 +380,6 @@ function inferType(
 			const value = expression.value;
 			setInferredType(value, scopes, parsedDocuments, folder, file);
 			const currentScope = last(scopes);
-			// TODO?
-			// TODO check typeguards
 			expression.fields.fields.forEach(field => {
 				if (field.spread) {
 					// TODO?

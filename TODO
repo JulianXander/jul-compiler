@@ -1,17 +1,12 @@
 ?alias bei rest parameter
 	?rest arg mit parameter namen übergeben
--spread operator für branching value
+?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
--anonyme parameter mit _/_1, _2 etc
+?anonyme parameter mit _/_1, _2 etc
 	-anonymer parameter für type parametered functions
 	?rest args anonym
 ?shared code? libraries?
--typechecker getTypeError function
--typechecker parameters mit plain type
--typecheck destructuring mit parameterstype
 ?dereference parameterReference in getTypeError oder infer paramterReference type mit path?
-?build in out verzeichnis
-	-achtung mit relativen pfaden
 -Escaped Dereferencing
 -fix List type hoverinfo
 -validate import paths: check file exists, valid ending
