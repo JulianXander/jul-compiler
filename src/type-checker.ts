@@ -1590,6 +1590,7 @@ export function getPathFromImport(importExpression: ParseFunctionCall): { path?:
 				return { path: importedPath + '.jul' };
 			case '.js':
 			case '.json':
+			case '.yaml':
 				return { path: importedPath };
 			default:
 				return {

@@ -112,4 +112,14 @@ export function tryCreateDirectory(path: string): void {
 	mkdirSync(path, { recursive: true });
 }
 
+export function changeExtension(
+	path: string,
+	/**
+	 * inklusive . am Anfang
+	 */
+	newExtension: string,
+): string {
+	return path.replace(/\.[^/.]+$/, '') + newExtension;
+}
+
 //#endregion file system

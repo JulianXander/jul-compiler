@@ -7,7 +7,8 @@ import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tr
 import { getPathFromImport } from './type-checker';
 import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
-import { tryCreateDirectory } from './util';
+import { changeExtension, readTextFile, tryCreateDirectory } from './util';
+import { load } from 'js-yaml';
 
 const runtimeFileName = 'runtime.js';
 
@@ -81,7 +82,7 @@ function compileJulFileInternal(
 		runtimePath,
 	} = options;
 	console.log(`compiling ${sourceFilePath} ...`);
-	if (sourceFilePath.substring(sourceFilePath.length - 4) !== '.jul') {
+	if (!sourceFilePath.endsWith('.jul')) {
 		throw new Error(`Invalid file ending. Expected .jul but got ${sourceFilePath}`);
 	}
 
@@ -104,8 +105,7 @@ function compileJulFileInternal(
 	//#endregion 3. compile
 
 	//#region 4. write
-	// ul von der DateiEndung abschneiden
-	const jsFileName = sourceFilePath.substring(0, sourceFilePath.length - 2) + 's';
+	const jsFileName = changeExtension(sourceFilePath, '.js');
 	const outFilePath = join(outputFolderPath, jsFileName);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
@@ -139,6 +139,17 @@ function compileJulFileInternal(
 					...options,
 					sourceFilePath: fullPath,
 				}, compiledFilePathsWithDefault);
+				return;
+			}
+			case '.yaml': {
+				// parse yaml and write to json in output folder
+				const yaml = readTextFile(fullPath);
+				const parsedYaml = load(yaml);
+				const json = JSON.stringify(parsedYaml);
+				const jsonOutFilePath = join(outputFolderPath, changeExtension(fullPath, '.json'));
+				const jsonOutDir = dirname(jsonOutFilePath);
+				tryCreateDirectory(jsonOutDir);
+				writeFileSync(jsonOutFilePath, json);
 				return;
 			}
 			default:

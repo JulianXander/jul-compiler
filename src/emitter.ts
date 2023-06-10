@@ -9,6 +9,7 @@ import {
 	Reference,
 } from './syntax-tree';
 import * as runtime from './runtime';
+import { changeExtension } from './util';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
@@ -105,7 +106,10 @@ function expressionToJs(expression: CheckedExpression): string {
 			const functionReference = expression.functionReference;
 			if (isImport(functionReference)) {
 				const path = getPathFromImport(expression);
-				return `require("${path}")`;
+				const outPath = path.endsWith('.yaml')
+					? changeExtension(path, '.json')
+					: path;
+				return `require("${outPath}")`;
 			}
 			return `_callFunction(${referenceToJs(functionReference)}, ${expressionToJs(expression.arguments)})`;
 		}

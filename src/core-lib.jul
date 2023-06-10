@@ -259,6 +259,7 @@ timer$ = nativeFunction(
 # .jul (no ending specified)
 # .js
 # .json
+# .yaml
 import = nativeFunction(
 	(path: String): Any
 	§require§
