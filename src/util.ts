@@ -89,6 +89,13 @@ export function mapDictionary<T, U>(
 
 //#region file system
 
+export enum Extensions {
+	js = '.js',
+	json = '.json',
+	jul = '.jul',
+	yaml = '.yaml',
+}
+
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
  */

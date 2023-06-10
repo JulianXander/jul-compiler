@@ -7,7 +7,7 @@ import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tr
 import { getPathFromImport } from './type-checker';
 import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
-import { changeExtension, readTextFile, tryCreateDirectory } from './util';
+import { Extensions, changeExtension, readTextFile, tryCreateDirectory } from './util';
 import { load } from 'js-yaml';
 
 const runtimeFileName = 'runtime.js';
@@ -82,7 +82,7 @@ function compileJulFileInternal(
 		runtimePath,
 	} = options;
 	console.log(`compiling ${sourceFilePath} ...`);
-	if (!sourceFilePath.endsWith('.jul')) {
+	if (!sourceFilePath.endsWith(Extensions.jul)) {
 		throw new Error(`Invalid file ending. Expected .jul but got ${sourceFilePath}`);
 	}
 
@@ -105,7 +105,7 @@ function compileJulFileInternal(
 	//#endregion 3. compile
 
 	//#region 4. write
-	const jsFileName = changeExtension(sourceFilePath, '.js');
+	const jsFileName = changeExtension(sourceFilePath, Extensions.js);
 	const outFilePath = join(outputFolderPath, jsFileName);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
@@ -125,8 +125,8 @@ function compileJulFileInternal(
 		}
 		compiledFilePathsWithDefault[fullPath] = true;
 		switch (extname(path)) {
-			case '.js':
-			case '.json': {
+			case Extensions.js:
+			case Extensions.json: {
 				// copy js/json file to output folder
 				const jsOutFilePath = join(outputFolderPath, fullPath);
 				const jsOutDir = dirname(jsOutFilePath);
@@ -134,19 +134,19 @@ function compileJulFileInternal(
 				copyFileSync(fullPath, jsOutFilePath);
 				return;
 			}
-			case '.jul': {
+			case Extensions.jul: {
 				compileJulFileInternal({
 					...options,
 					sourceFilePath: fullPath,
 				}, compiledFilePathsWithDefault);
 				return;
 			}
-			case '.yaml': {
+			case Extensions.yaml: {
 				// parse yaml and write to json in output folder
 				const yaml = readTextFile(fullPath);
 				const parsedYaml = load(yaml);
 				const json = JSON.stringify(parsedYaml);
-				const jsonOutFilePath = join(outputFolderPath, changeExtension(fullPath, '.json'));
+				const jsonOutFilePath = join(outputFolderPath, fullPath + Extensions.json);
 				const jsonOutDir = dirname(jsonOutFilePath);
 				tryCreateDirectory(jsonOutDir);
 				writeFileSync(jsonOutFilePath, json);

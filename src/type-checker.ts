@@ -43,7 +43,7 @@ import {
 	SymbolTable,
 	TypedExpression
 } from './syntax-tree';
-import { NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
+import { Extensions, NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
 import { parseFile } from './parser';
 import { ParserError } from './parser-combinator';
 import { getCheckedName } from './checker';
@@ -1587,10 +1587,10 @@ export function getPathFromImport(importExpression: ParseFunctionCall): { path?:
 		const extension = extname(importedPath);
 		switch (extension) {
 			case '':
-				return { path: importedPath + '.jul' };
-			case '.js':
-			case '.json':
-			case '.yaml':
+				return { path: importedPath + Extensions.jul };
+			case Extensions.js:
+			case Extensions.json:
+			case Extensions.yaml:
 				return { path: importedPath };
 			default:
 				return {
