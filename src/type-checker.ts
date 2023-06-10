@@ -1586,10 +1586,11 @@ export function getPathFromImport(importExpression: ParseFunctionCall): { path?:
 		const importedPath = pathExpression.values[0].value;
 		const extension = extname(importedPath);
 		switch (extension) {
-			case '.js':
-				return { path: importedPath };
 			case '':
 				return { path: importedPath + '.jul' };
+			case '.js':
+			case '.json':
+				return { path: importedPath };
 			default:
 				return {
 					error: {

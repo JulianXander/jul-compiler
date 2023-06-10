@@ -125,8 +125,9 @@ function compileJulFileInternal(
 		}
 		compiledFilePathsWithDefault[fullPath] = true;
 		switch (extname(path)) {
-			case '.js': {
-				// copy js file to output folder
+			case '.js':
+			case '.json': {
+				// copy js/json file to output folder
 				const jsOutFilePath = join(outputFolderPath, fullPath);
 				const jsOutDir = dirname(jsOutFilePath);
 				tryCreateDirectory(jsOutDir);
