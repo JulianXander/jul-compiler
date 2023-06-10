@@ -1,3 +1,7 @@
+-type info für yaml, json, js imports
+-compile to ecmascript modules statt commonjs
+-fix webpack mit node_modules
+-ts module interop
 ?alias bei rest parameter
 	?rest arg mit parameter namen übergeben
 ?spread operator für branching value
@@ -10,8 +14,6 @@
 -Escaped Dereferencing
 -fix List type hoverinfo
 -validate import paths: check file exists, valid ending
-?ts module interop
--fix webpack mit node_modules
 -fix typeChecking t2: FalseType = 4 vgl test1-wip.jul
 ?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion
 	-vgl. type-checking-test.jul Zeile 50 vs 51 variable type
@@ -69,8 +71,6 @@
 ?typeChecking: return union mit Error, oder compiler error
 	?compiler error wenn assignment unmöglich, error union type wenn Fehler möglich?
 -file system guided intellisense bei import path
-?dateiendung bei import path angeben
-	?json, yaml, js, ts imports
 -virtual document für core-lib.jul
 	-https://code.visualstudio.com/api/extension-guides/virtual-documents
 -emitter mit parseExpression statt checkedExpression, checkedExpression entfernen
