@@ -255,6 +255,10 @@ timer$ = nativeFunction(
 #endregion create
 #endregion Stream
 #region Utility
+# Supported file types:
+# .jul (no ending specified)
+# .js
+# .json
 import = nativeFunction(
 	(path: String): Any
 	§require§
