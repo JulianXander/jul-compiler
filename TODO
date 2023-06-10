@@ -11,6 +11,7 @@
 -fix List type hoverinfo
 -validate import paths: check file exists, valid ending
 ?ts module interop
+?compile yaml
 -fix webpack mit node_modules
 -fix typeChecking t2: FalseType = 4 vgl test1-wip.jul
 ?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion
