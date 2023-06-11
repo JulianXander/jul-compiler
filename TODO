@@ -1,6 +1,10 @@
--type info für yaml, json, js imports
+-type info für yaml, json
+?compile json, yaml to js wegen rundungsfehler bei großen zahlen
 -compile to ecmascript modules statt commonjs
 -fix webpack mit node_modules
+?publish npm package lokal
+	-compiler, server
+-type info für js imports
 -ts module interop
 ?alias bei rest parameter
 	?rest arg mit parameter namen übergeben

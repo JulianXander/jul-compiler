@@ -43,8 +43,8 @@ import {
 	SymbolTable,
 	TypedExpression
 } from './syntax-tree';
-import { Extensions, NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
-import { parseFile } from './parser';
+import { Extension, NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
+import { parseJulFile } from './parser';
 import { ParserError } from './parser-combinator';
 import { getCheckedName } from './checker';
 
@@ -149,7 +149,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 };
 
 export const coreLibPath = join(__dirname, 'core-lib.jul');
-const parsedCoreLib = parseFile(coreLibPath);
+const parsedCoreLib = parseJulFile(coreLibPath);
 inferFileTypes(parsedCoreLib, [], {}, '');
 export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
@@ -1587,10 +1587,10 @@ export function getPathFromImport(importExpression: ParseFunctionCall): { path?:
 		const extension = extname(importedPath);
 		switch (extension) {
 			case '':
-				return { path: importedPath + Extensions.jul };
-			case Extensions.js:
-			case Extensions.json:
-			case Extensions.yaml:
+				return { path: importedPath + Extension.jul };
+			case Extension.js:
+			case Extension.json:
+			case Extension.yaml:
 				return { path: importedPath };
 			default:
 				return {

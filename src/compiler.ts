@@ -5,9 +5,9 @@ import { checkParseExpressions } from './checker';
 import { syntaxTreeToJs } from './emitter';
 import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tree';
 import { getPathFromImport } from './type-checker';
-import { parseFile } from './parser';
+import { parseJulFile } from './parser';
 import { ParserError } from './parser-combinator';
-import { Extensions, changeExtension, readTextFile, tryCreateDirectory } from './util';
+import { Extension, changeExtension, readTextFile, tryCreateDirectory } from './util';
 import { load } from 'js-yaml';
 
 const runtimeFileName = 'runtime.js';
@@ -82,12 +82,12 @@ function compileJulFileInternal(
 		runtimePath,
 	} = options;
 	console.log(`compiling ${sourceFilePath} ...`);
-	if (!sourceFilePath.endsWith(Extensions.jul)) {
+	if (!sourceFilePath.endsWith(Extension.jul)) {
 		throw new Error(`Invalid file ending. Expected .jul but got ${sourceFilePath}`);
 	}
 
 	//#region 1. read & 2. parse
-	const parsed = parseFile(sourceFilePath);
+	const parsed = parseJulFile(sourceFilePath);
 	outputErrors(parsed.errors);
 	// console.log(result);
 	const syntaxTree = checkParseExpressions(parsed.expressions!)!;
@@ -105,7 +105,7 @@ function compileJulFileInternal(
 	//#endregion 3. compile
 
 	//#region 4. write
-	const jsFileName = changeExtension(sourceFilePath, Extensions.js);
+	const jsFileName = changeExtension(sourceFilePath, Extension.js);
 	const outFilePath = join(outputFolderPath, jsFileName);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
@@ -125,8 +125,8 @@ function compileJulFileInternal(
 		}
 		compiledFilePathsWithDefault[fullPath] = true;
 		switch (extname(path)) {
-			case Extensions.js:
-			case Extensions.json: {
+			case Extension.js:
+			case Extension.json: {
 				// copy js/json file to output folder
 				const jsOutFilePath = join(outputFolderPath, fullPath);
 				const jsOutDir = dirname(jsOutFilePath);
@@ -134,19 +134,19 @@ function compileJulFileInternal(
 				copyFileSync(fullPath, jsOutFilePath);
 				return;
 			}
-			case Extensions.jul: {
+			case Extension.jul: {
 				compileJulFileInternal({
 					...options,
 					sourceFilePath: fullPath,
 				}, compiledFilePathsWithDefault);
 				return;
 			}
-			case Extensions.yaml: {
+			case Extension.yaml: {
 				// parse yaml and write to json in output folder
 				const yaml = readTextFile(fullPath);
 				const parsedYaml = load(yaml);
 				const json = JSON.stringify(parsedYaml);
-				const jsonOutFilePath = join(outputFolderPath, fullPath + Extensions.json);
+				const jsonOutFilePath = join(outputFolderPath, fullPath + Extension.json);
 				const jsonOutDir = dirname(jsonOutFilePath);
 				tryCreateDirectory(jsonOutDir);
 				writeFileSync(jsonOutFilePath, json);

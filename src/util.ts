@@ -89,7 +89,7 @@ export function mapDictionary<T, U>(
 
 //#region file system
 
-export enum Extensions {
+export enum Extension {
 	js = '.js',
 	json = '.json',
 	jul = '.jul',

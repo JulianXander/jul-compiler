@@ -44,6 +44,7 @@ import {
 	SymbolTable,
 } from './syntax-tree';
 import {
+	Extension,
 	isNonEmpty,
 	last,
 	mapNonEmpty,
@@ -54,13 +55,47 @@ import {
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
  */
-export function parseFile(filePath: string): ParsedFile {
+export function parseJulFile(filePath: string): ParsedFile {
 	const code = readTextFile(filePath);
-	const result = parseCode(code);
+	const result = parseJulCode(code);
 	return result;
 }
 
-export function parseCode(code: string): ParsedFile {
+export function parseCode(code: string, extension: Extension): ParsedFile {
+	switch (extension) {
+		case Extension.js:
+			// TODO
+			return {
+				errors: [],
+				symbols: {},
+			};
+		case Extension.json: {
+			// TODO
+			// const parsedJson = JSON.parse(code);
+			return {
+				// expressions: [
+				// 	{type: ''}
+				// ],
+				errors: [],
+				symbols: {},
+			};
+		}
+		case Extension.jul:
+			return parseJulCode(code);
+		case Extension.yaml:
+			// TODO
+			return {
+				errors: [],
+				symbols: {},
+			};
+		default: {
+			const assertNever = extension;
+			throw new Error(`Unexpected extension: ${assertNever}`);
+		}
+	}
+}
+
+function parseJulCode(code: string): ParsedFile {
 	const rows = code.split('\n');
 	const parserResult = expressionBlockParser(rows, 0, 0, 0);
 	const expressions = parserResult.parsed;

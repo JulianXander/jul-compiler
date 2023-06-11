@@ -9,7 +9,7 @@ import {
 	Reference,
 } from './syntax-tree';
 import * as runtime from './runtime';
-import { Extensions, changeExtension } from './util';
+import { Extension, changeExtension } from './util';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
@@ -106,8 +106,8 @@ function expressionToJs(expression: CheckedExpression): string {
 			const functionReference = expression.functionReference;
 			if (isImport(functionReference)) {
 				const path = getPathFromImport(expression);
-				const outPath = path.endsWith(Extensions.yaml)
-					? path + Extensions.json
+				const outPath = path.endsWith(Extension.yaml)
+					? path + Extension.json
 					: path;
 				return `require("${outPath}")`;
 			}
