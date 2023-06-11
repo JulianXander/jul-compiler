@@ -1,4 +1,5 @@
 -type info für yaml, json
+	?typescript compiler nutzen für ast parser
 ?compile json, yaml to js wegen rundungsfehler bei großen zahlen
 -compile to ecmascript modules statt commonjs
 -fix webpack mit node_modules
