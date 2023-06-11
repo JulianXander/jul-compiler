@@ -9,12 +9,13 @@ import {
 	Reference,
 } from './syntax-tree';
 import * as runtime from './runtime';
-import { Extension, changeExtension } from './util';
+import { Extension } from './util';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
 export function getRuntimeImportJs(runtimePath: string): string {
-	return `const { ${runtimeImports} } = require(${stringToJs(runtimePath)});\n`;
+	return `import { ${runtimeImports} } from ${stringToJs(runtimePath)};\n`;
+	// return `const { ${runtimeImports} } = require(${stringToJs(runtimePath)});\n`;
 }
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
@@ -26,12 +27,14 @@ export function syntaxTreeToJs(expressions: CheckedExpression[], runtimePath: st
 		// export defined names
 		if (expression.type === 'definition') {
 			hasDefinition = true;
-			const name = expression.name;
-			return `${expressionJs}\nexports.${name} = ${name};`;
+			return `export ${expressionJs}`;
+			// const name = expression.name;
+			// return `${expressionJs}\nexports.${name} = ${name};`;
 		}
 		// default export = last expression
 		if (index === expressions.length - 1 && !hasDefinition) {
-			return 'module.exports = ' + expressionJs;
+			return `export default ${expressionJs}`;
+			// return 'module.exports = ' + expressionJs;
 		}
 		return expressionJs;
 	}).join('\n')}`;
@@ -43,7 +46,12 @@ function expressionToJs(expression: CheckedExpression): string {
 			return `_branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(expressionToJs).join(',\n')},\n)`;
 
 		case 'definition': {
-			const valueJs = expressionToJs(expression.value);
+			const value = expression.value;
+			if (isImportFunctionCall(value)) {
+				const importPath = getPathFromImport(value);
+				return `import * as ${escapeReservedJsVariableName(expression.name)} from ${stringToJs(importPath)};`;
+			}
+			const valueJs = expressionToJs(value);
 			const checkedValueJs = expression.typeGuard
 				? checkTypeJs(expression.typeGuard, valueJs)
 				: valueJs;
@@ -52,6 +60,16 @@ function expressionToJs(expression: CheckedExpression): string {
 
 		case 'destructuring': {
 			const fields = expression.fields;
+			const value = expression.value;
+			if (isImportFunctionCall(value)) {
+				const importPath = getPathFromImport(value);
+				// TODO was tun mit typeGuard, fallback?
+				return `import {${fields.map(field =>
+					field.source
+						? `${escapeReservedJsVariableName(field.source)} as ${escapeReservedJsVariableName(field.source)}`
+						: escapeReservedJsVariableName(field.name)
+				).join(', ')}} from ${stringToJs(importPath)};`;
+			}
 			// TODO rest
 			const declarations = fields.map(field => `let ${escapeReservedJsVariableName(field.name)};`).join('\n');
 			const assignments = fields.map((singleName, index) => {
@@ -65,7 +83,7 @@ function expressionToJs(expression: CheckedExpression): string {
 					: rawValue;
 				return `${nameJs} = ${checkedValue};`;
 			}).join('\n');
-			return `${declarations}\n{\nconst _temp = ${expressionToJs(expression.value)};\nconst _isArray = Array.isArray(_temp);\n${assignments}\n}`;
+			return `${declarations}\n{\nconst _temp = ${expressionToJs(value)};\nconst _isArray = Array.isArray(_temp);\n${assignments}\n}`;
 		}
 
 		case 'dictionary':
@@ -104,12 +122,13 @@ function expressionToJs(expression: CheckedExpression): string {
 
 		case 'functionCall': {
 			const functionReference = expression.functionReference;
-			if (isImport(functionReference)) {
-				const path = getPathFromImport(expression);
-				const outPath = path.endsWith(Extension.yaml)
-					? path + Extension.json
-					: path;
-				return `require("${outPath}")`;
+			if (isImportFunction(functionReference)) {
+				throw new Error('import at unexpected location.');
+				// const path = getPathFromImport(expression);
+				// const outPath = path.endsWith(Extension.yaml)
+				// 	? path + Extension.json
+				// 	: path;
+				// return `require("${outPath}")`;
 			}
 			return `_callFunction(${referenceToJs(functionReference)}, ${expressionToJs(expression.arguments)})`;
 		}
@@ -163,7 +182,12 @@ function expressionToJs(expression: CheckedExpression): string {
 	}
 }
 
-export function isImport(functionReference: Reference): boolean {
+function isImportFunctionCall(value: CheckedValueExpression): value is CheckedFunctionCall {
+	return value.type === 'functionCall'
+		&& isImportFunction(value.functionReference);
+}
+
+export function isImportFunction(functionReference: Reference): boolean {
 	return functionReference.path.length === 1
 		&& functionReference.path[0].name === 'import';
 }
