@@ -1,5 +1,6 @@
 -type info für yaml, json
 	?typescript compiler nutzen für ast parser
+	 -vgl https://github.com/microsoft/TypeScript/blob/main/src/compiler/parser.ts
 ?compile json, yaml to js wegen rundungsfehler bei großen zahlen
 -compile to ecmascript modules statt commonjs
 -fix webpack mit node_modules
