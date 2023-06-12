@@ -23,14 +23,15 @@ export function syntaxTreeToJs(expressions: CheckedExpression[], runtimePath: st
 	// _branch, _callFunction, _checkType, _createFunction, log
 	let hasDefinition = false;
 	return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
-		const expressionJs = expressionToJs(expression);
-		// export defined names
-		if (expression.type === 'definition') {
-			hasDefinition = true;
-			return `export ${expressionJs}`;
-			// const name = expression.name;
-			// return `${expressionJs}\nexports.${name} = ${name};`;
-		}
+		const expressionJs = expressionToJs(expression, true);
+		// TODO remove wenn ecmascript module syntax fertig
+		// // export defined names
+		// if (expression.type === 'definition') {
+		// 	hasDefinition = true;
+		// 	return `export ${expressionJs}`;
+		// 	// const name = expression.name;
+		// 	// return `${expressionJs}\nexports.${name} = ${name};`;
+		// }
 		// default export = last expression
 		if (index === expressions.length - 1 && !hasDefinition) {
 			return `export default ${expressionJs}`;
@@ -40,22 +41,41 @@ export function syntaxTreeToJs(expressions: CheckedExpression[], runtimePath: st
 	}).join('\n')}`;
 }
 
-function expressionToJs(expression: CheckedExpression): string {
+function getDefinitionJs(isExport: boolean, nameJs: string, valueJs: string): string {
+	return `${isExport ? 'export ' : ''}const ${nameJs} = ${valueJs};`;
+}
+
+function expressionToJs(expression: CheckedExpression, topLevel: boolean = false): string {
 	switch (expression.type) {
 		case 'branching':
-			return `_branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(expressionToJs).join(',\n')},\n)`;
+			return `_branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(branch =>
+				expressionToJs(branch)).join(',\n')},\n)`;
 
 		case 'definition': {
+			// export topLevel definitions
 			const value = expression.value;
+			const nameJs = escapeReservedJsVariableName(expression.name);
+			const typeGuard = expression.typeGuard;
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
-				return `import * as ${escapeReservedJsVariableName(expression.name)} from ${stringToJs(importPath)};`;
+				const useDefinitionLine = typeGuard || topLevel;
+				const aliasJs = `${useDefinitionLine ? '_' : ''}${nameJs}`;
+				const importJs = `import * as ${aliasJs} from ${stringToJs(importPath)};`;
+				if (useDefinitionLine) {
+					const checkedValueJs = typeGuard
+						? checkTypeJs(typeGuard, aliasJs)
+						: aliasJs;
+
+					return `${importJs}
+${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`
+				}
+				return importJs;
 			}
 			const valueJs = expressionToJs(value);
-			const checkedValueJs = expression.typeGuard
-				? checkTypeJs(expression.typeGuard, valueJs)
+			const checkedValueJs = typeGuard
+				? checkTypeJs(typeGuard, valueJs)
 				: valueJs;
-			return `const ${escapeReservedJsVariableName(expression.name)} = ${checkedValueJs};`;
+			return getDefinitionJs(topLevel, nameJs, checkedValueJs);
 		}
 
 		case 'destructuring': {
@@ -63,7 +83,7 @@ function expressionToJs(expression: CheckedExpression): string {
 			const value = expression.value;
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
-				// TODO was tun mit typeGuard, fallback?
+				// TODO export, typeGuard, fallback
 				return `import {${fields.map(field =>
 					field.source
 						? `${escapeReservedJsVariableName(field.source)} as ${escapeReservedJsVariableName(field.source)}`
