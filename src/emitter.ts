@@ -13,8 +13,9 @@ import { Extension } from './util.js';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
+
 export function getRuntimeImportJs(runtimePath: string): string {
-	return `import { ${runtimeImports} } from ${stringToJs(runtimePath)};\n`;
+	return getImportJs(`{ ${runtimeImports} }`, runtimePath);
 }
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
@@ -54,7 +55,8 @@ function expressionToJs(expression: CheckedExpression, topLevel: boolean = false
 				const importPath = getPathFromImport(value);
 				const useDefinitionLine = typeGuard || topLevel;
 				const aliasJs = `${useDefinitionLine ? '_' : ''}${nameJs}`;
-				const importJs = `import * as ${aliasJs} from ${stringToJs(importPath)};`;
+				const isJson = importPath.endsWith(Extension.json);
+				const importJs = getImportJs(`${isJson ? '' : '* as '}${aliasJs}`, importPath);;
 				if (useDefinitionLine) {
 					const checkedValueJs = typeGuard
 						? checkTypeJs(typeGuard, aliasJs)
@@ -78,12 +80,12 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
 				// TODO export, typeGuard, fallback
-				return `import {${fields.map(field => {
+				return getImportJs(`{${fields.map(field => {
 					const nameJs = escapeReservedJsVariableName(field.name);
 					return field.source
 						? `${escapeReservedJsVariableName(field.source)} as ${nameJs}`
 						: nameJs
-				}).join(', ')}} from ${stringToJs(importPath)};`;
+				}).join(', ')}}`, importPath);
 			}
 			// TODO rest
 			const declarations = fields.map(field => `let ${escapeReservedJsVariableName(field.name)};`).join('\n');
@@ -198,12 +200,19 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`
 	}
 }
 
+//#region import
+
+function getImportJs(importedJs: string, path: string): string {
+	const isJson = path.endsWith(Extension.json);
+	return `import ${importedJs} from ${stringToJs(path)}${isJson ? ' assert { type: \'json\' }' : ''};\n`;
+}
+
 function isImportFunctionCall(value: CheckedValueExpression): value is CheckedFunctionCall {
 	return value.type === 'functionCall'
 		&& isImportFunction(value.functionReference);
 }
 
-export function isImportFunction(functionReference: Reference): boolean {
+function isImportFunction(functionReference: Reference): boolean {
 	return functionReference.path.length === 1
 		&& functionReference.path[0].name === 'import';
 }
@@ -243,6 +252,8 @@ function getPathExpression(importParams: ObjectLiteral): CheckedListValue {
 		}
 	}
 }
+
+//#endregion import
 
 function functionBodyToJs(expressions: CheckedExpression[]): string {
 	const js = expressions.map((expression, index) => {
