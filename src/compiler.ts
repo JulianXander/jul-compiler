@@ -31,7 +31,7 @@ export function compileFileToJs(
 
 	//#region 3. copy runtime
 	const runtimeSourcePath = join(executingDirectory, runtimeFileName);
-	copyFileSync(runtimeSourcePath, changeExtension(runtimePath, Extension.mjs));
+	copyFileSync(runtimeSourcePath, runtimePath);
 	//#endregion 3. copy runtime
 
 	//#region 4. bundle
@@ -105,7 +105,7 @@ function compileJulFileInternal(
 	//#endregion 3. compile
 
 	//#region 4. write
-	const jsFileName = changeExtension(sourceFilePath, Extension.mjs);
+	const jsFileName = changeExtension(sourceFilePath, Extension.js);
 	const outFilePath = join(outputFolderPath, jsFileName);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);

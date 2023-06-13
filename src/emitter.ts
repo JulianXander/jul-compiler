@@ -389,7 +389,7 @@ function checkTypeJs(type: CheckedValueExpression, valueJs: string): string {
 function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
 	const stringValue = stringLiteral.values.map(value => {
 		if (value.type === 'stringToken') {
-			return escapeStringForBackTickJs(value.value);
+			return escapeStringForBacktickJs(value.value);
 		}
 		return `\${${expressionToJs(value)}}`;
 	}).join('');
@@ -408,12 +408,18 @@ function spreadDictionaryFieldToJs(valueJs: string): string {
 	return `...${valueJs},\n`;
 }
 
-function escapeStringForBackTickJs(value: string): string {
+function escapeStringForBacktickJs(value: string): string {
 	return value
 		.replaceAll('\\', '\\\\')
 		.replaceAll('`', '\\`');
 }
 
+function escapeStringForSingleQuoteJs(value: string): string {
+	return value
+		.replaceAll('\\', '\\\\')
+		.replaceAll('\'', '\\\'');
+}
+
 function stringToJs(value: string): string {
-	return `\`${escapeStringForBackTickJs(value)}\``;
+	return `'${escapeStringForSingleQuoteJs(value)}'`;
 }
