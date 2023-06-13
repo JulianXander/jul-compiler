@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { checkParseExpressions } from './checker';
 import { parseCode } from './parser';
 import { CheckedExpression } from './syntax-tree';
+import { Extension } from './util';
 
 const expectedResults: {
 	code: string;
@@ -816,7 +817,7 @@ const expectedResults: {
 describe('Checker', () => {
 	expectedResults.forEach(({ code, result }) => {
 		it(code, () => {
-			const parserResult = parseCode(code);
+			const parserResult = parseCode(code, Extension.jul);
 			if (parserResult.errors?.length) {
 				console.log(parserResult.errors);
 			}

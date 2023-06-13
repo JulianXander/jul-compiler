@@ -1,5 +1,5 @@
 import { extname, join } from 'path';
-import { getCheckedEscapableName } from './checker';
+import { getCheckedEscapableName } from './checker.js';
 import {
 	Any,
 	BuiltInType,
@@ -28,7 +28,7 @@ import {
 	_String,
 	deepEquals,
 	DictionaryType
-} from './runtime';
+} from './runtime.js';
 import {
 	BracketedExpression,
 	CheckedValueExpression,
@@ -42,11 +42,11 @@ import {
 	SymbolDefinition,
 	SymbolTable,
 	TypedExpression
-} from './syntax-tree';
-import { Extension, NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util';
-import { parseJulFile } from './parser';
-import { ParserError } from './parser-combinator';
-import { getCheckedName } from './checker';
+} from './syntax-tree.js';
+import { Extension, NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util.js';
+import { parseJulFile } from './parser.js';
+import { ParserError } from './parser-combinator.js';
+import { getCheckedName } from './checker.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -148,7 +148,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	),
 };
 
-export const coreLibPath = join(__dirname, 'core-lib.jul');
+export const coreLibPath = join(executingDirectory, 'core-lib.jul');
 const parsedCoreLib = parseJulFile(coreLibPath);
 inferFileTypes(parsedCoreLib, [], {}, '');
 export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;

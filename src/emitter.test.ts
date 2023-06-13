@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { parseCode } from './parser';
 import { getRuntimeImportJs, syntaxTreeToJs } from './emitter';
 import { checkParseExpressions } from './checker';
+import { Extension } from './util';
 
 const expectedResults: {
 	code: string;
@@ -171,7 +172,7 @@ const expectedResults: {
 describe('Emitter', () => {
 	expectedResults.forEach(({ code, result }) => {
 		it(code, () => {
-			const parsed = parseCode(code);
+			const parsed = parseCode(code, Extension.jul);
 			const syntaxTree = checkParseExpressions(parsed.expressions!)!;
 			const compiled = syntaxTreeToJs(syntaxTree, '');
 			expect(compiled).to.equal(getRuntimeImportJs('') + 'module.exports = ' + result);

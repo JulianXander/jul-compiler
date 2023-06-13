@@ -1,6 +1,6 @@
-import { ParserError, Positioned } from './parser-combinator';
-import { RuntimeType } from './runtime';
-import { NonEmptyArray } from './util';
+import { ParserError, Positioned } from './parser-combinator.js';
+import { RuntimeType } from './runtime.js';
+import { NonEmptyArray } from './util.js';
 
 //#region ParseTree
 

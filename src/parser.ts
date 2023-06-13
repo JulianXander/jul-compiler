@@ -14,7 +14,7 @@ import {
 	regexParser,
 	sequenceParser,
 	tokenParser,
-} from './parser-combinator';
+} from './parser-combinator.js';
 import {
 	BracketedExpression,
 	BracketedExpressionBase,
@@ -42,7 +42,7 @@ import {
 	Reference,
 	SimpleExpression,
 	SymbolTable,
-} from './syntax-tree';
+} from './syntax-tree.js';
 import {
 	Extension,
 	isNonEmpty,
@@ -50,7 +50,7 @@ import {
 	mapNonEmpty,
 	NonEmptyArray,
 	readTextFile,
-} from './util';
+} from './util.js';
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.

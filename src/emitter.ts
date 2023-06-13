@@ -7,9 +7,9 @@ import {
 	CheckedValueExpression,
 	ObjectLiteral,
 	Reference,
-} from './syntax-tree';
-import * as runtime from './runtime';
-import { Extension } from './util';
+} from './syntax-tree.js';
+import * as runtime from './runtime.js';
+import { Extension } from './util.js';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');

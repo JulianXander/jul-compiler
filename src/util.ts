@@ -1,4 +1,6 @@
-import { mkdirSync, readFileSync } from "fs";
+import { mkdirSync, readFileSync } from 'fs';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 export function isDefined<T>(value: T | undefined): value is T {
 	return value !== undefined;
@@ -89,10 +91,13 @@ export function mapDictionary<T, U>(
 
 //#region file system
 
+export const executingDirectory = dirname(fileURLToPath(import.meta.url));
+
 export enum Extension {
 	js = '.js',
 	json = '.json',
 	jul = '.jul',
+	mjs = '.mjs',
 	yaml = '.yaml',
 }
 

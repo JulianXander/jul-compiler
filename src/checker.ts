@@ -17,7 +17,7 @@ import {
 	ParseValueExpression,
 	SimpleExpression,
 	StringToken,
-} from './syntax-tree';
+} from './syntax-tree.js';
 
 /**
  * Gibt undefined zurück im Fehlerfall

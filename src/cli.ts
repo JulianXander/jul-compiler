@@ -2,9 +2,10 @@
 import Ajv from 'ajv';
 import { load } from 'js-yaml';
 import { dirname, join } from 'path';
-import { compileFileToJs } from './compiler';
-import configSchema from './jul-config-schema.json';
-import { readTextFile } from './util';
+import { compileFileToJs } from './compiler.js';
+import configSchema from './jul-config-schema.json' assert { type: 'json' };
+import { readTextFile } from './util.js';
+import { assert } from 'console';
 
 interface JulCompilerConfiguration {
 	entryFilePath: string;

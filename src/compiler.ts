@@ -1,13 +1,13 @@
 import { writeFileSync, copyFileSync, rmSync } from 'fs';
 import { dirname, extname, join, resolve } from 'path';
-import { webpack } from 'webpack';
-import { checkParseExpressions } from './checker';
-import { syntaxTreeToJs } from './emitter';
-import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tree';
-import { getPathFromImport } from './type-checker';
-import { parseJulFile } from './parser';
-import { ParserError } from './parser-combinator';
-import { Extension, changeExtension, readTextFile, tryCreateDirectory } from './util';
+import webpack from 'webpack';
+import { checkParseExpressions } from './checker.js';
+import { syntaxTreeToJs } from './emitter.js';
+import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tree.js';
+import { getPathFromImport } from './type-checker.js';
+import { parseJulFile } from './parser.js';
+import { ParserError } from './parser-combinator.js';
+import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 
 const runtimeFileName = 'runtime.js';
@@ -30,8 +30,8 @@ export function compileFileToJs(
 	//#endregion 2. compile
 
 	//#region 3. copy runtime
-	const runtimeSourcePath = join(__dirname, runtimeFileName);
-	copyFileSync(runtimeSourcePath, runtimePath);
+	const runtimeSourcePath = join(executingDirectory, runtimeFileName);
+	copyFileSync(runtimeSourcePath, changeExtension(runtimePath, Extension.mjs));
 	//#endregion 3. copy runtime
 
 	//#region 4. bundle
@@ -105,7 +105,7 @@ function compileJulFileInternal(
 	//#endregion 3. compile
 
 	//#region 4. write
-	const jsFileName = changeExtension(sourceFilePath, Extension.js);
+	const jsFileName = changeExtension(sourceFilePath, Extension.mjs);
 	const outFilePath = join(outputFolderPath, jsFileName);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
