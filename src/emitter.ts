@@ -15,7 +15,6 @@ const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
 export function getRuntimeImportJs(runtimePath: string): string {
 	return `import { ${runtimeImports} } from ${stringToJs(runtimePath)};\n`;
-	// return `const { ${runtimeImports} } = require(${stringToJs(runtimePath)});\n`;
 }
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
@@ -24,18 +23,13 @@ export function syntaxTreeToJs(expressions: CheckedExpression[], runtimePath: st
 	let hasDefinition = false;
 	return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
 		const expressionJs = expressionToJs(expression, true);
-		// TODO remove wenn ecmascript module syntax fertig
-		// // export defined names
-		// if (expression.type === 'definition') {
-		// 	hasDefinition = true;
-		// 	return `export ${expressionJs}`;
-		// 	// const name = expression.name;
-		// 	// return `${expressionJs}\nexports.${name} = ${name};`;
-		// }
+		if (expression.type === 'definition') {
+			hasDefinition = true;
+		}
 		// default export = last expression
-		if (index === expressions.length - 1 && !hasDefinition) {
+		if (index === expressions.length - 1
+			&& !hasDefinition) {
 			return `export default ${expressionJs}`;
-			// return 'module.exports = ' + expressionJs;
 		}
 		return expressionJs;
 	}).join('\n')}`;
@@ -143,6 +137,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`
 		case 'functionCall': {
 			const functionReference = expression.functionReference;
 			if (isImportFunction(functionReference)) {
+				// TODO dynamic import/parser error?
 				throw new Error('import at unexpected location.');
 				// const path = getPathFromImport(expression);
 				// const outPath = path.endsWith(Extension.yaml)
