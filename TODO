@@ -3,7 +3,6 @@
 -type info für yaml, json
 	?typescript compiler nutzen für ast parser
 	 -vgl https://github.com/microsoft/TypeScript/blob/main/src/compiler/parser.ts
--compile to ecmascript modules statt commonjs
 ?was tun mit typeGuard, fallback bei destructuring import
 -fix webpack mit node_modules
 ?publish npm package lokal
