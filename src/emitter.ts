@@ -208,13 +208,16 @@ export function isImportFunction(functionReference: Reference): boolean {
 		&& functionReference.path[0].name === 'import';
 }
 
-export function getPathFromImport(importExpression: CheckedFunctionCall): string {
+function getPathFromImport(importExpression: CheckedFunctionCall): string {
 	const pathExpression = getPathExpression(importExpression.arguments);
 	if (pathExpression.type === 'string'
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'stringToken') {
 		const importedPath = pathExpression.values[0].value;
-		return importedPath;
+		const outPath = importedPath.endsWith(Extension.yaml)
+			? importedPath + Extension.json
+			: importedPath;
+		return outPath;
 	}
 	// TODO dynamische imports verbieten???
 	throw new Error('Can not get import path from ' + pathExpression.type);
