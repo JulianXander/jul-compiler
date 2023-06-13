@@ -53,19 +53,19 @@ function expressionToJs(expression: CheckedExpression, topLevel: boolean = false
 			const typeGuard = expression.typeGuard;
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
-				const useDefinitionLine = typeGuard || topLevel;
-				const aliasJs = `${useDefinitionLine ? '_' : ''}${nameJs}`;
+				// const useDefinitionLine = typeGuard || topLevel;
+				const aliasJs = `_${nameJs}`;
 				const isJson = importPath.endsWith(Extension.json);
-				const importJs = getImportJs(`${isJson ? '' : '* as '}${aliasJs}`, importPath);;
-				if (useDefinitionLine) {
-					const checkedValueJs = typeGuard
-						? checkTypeJs(typeGuard, aliasJs)
-						: aliasJs;
-
-					return `${importJs}
-${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`
-				}
-				return importJs;
+				const importJs = getImportJs(`${isJson ? '' : '* as '}${aliasJs}`, importPath);
+				const valueJs = isJson
+					? aliasJs
+					// default export automatisch liefern, wenn vorhanden (value import)
+					: `${aliasJs}.default ?? ${aliasJs}`;
+				const checkedValueJs = typeGuard
+					? checkTypeJs(typeGuard, valueJs)
+					: valueJs;
+				return `${importJs}
+${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}
 			const valueJs = expressionToJs(value);
 			const checkedValueJs = typeGuard
