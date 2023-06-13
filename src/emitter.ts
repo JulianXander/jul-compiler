@@ -78,11 +78,12 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
 				// TODO export, typeGuard, fallback
-				return `import {${fields.map(field =>
-					field.source
-						? `${escapeReservedJsVariableName(field.source)} as ${escapeReservedJsVariableName(field.source)}`
-						: escapeReservedJsVariableName(field.name)
-				).join(', ')}} from ${stringToJs(importPath)};`;
+				return `import {${fields.map(field => {
+					const nameJs = escapeReservedJsVariableName(field.name);
+					return field.source
+						? `${escapeReservedJsVariableName(field.source)} as ${nameJs}`
+						: nameJs
+				}).join(', ')}} from ${stringToJs(importPath)};`;
 			}
 			// TODO rest
 			const declarations = fields.map(field => `let ${escapeReservedJsVariableName(field.name)};`).join('\n');
