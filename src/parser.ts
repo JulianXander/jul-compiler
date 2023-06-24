@@ -51,6 +51,7 @@ import {
 	NonEmptyArray,
 	readTextFile,
 } from './util.js';
+import { createSourceFile, ScriptTarget } from 'typescript';
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
@@ -82,12 +83,16 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 		}
 		case Extension.jul:
 			return parseJulCode(code);
-		case Extension.ts:
+		case Extension.ts: {
+			// TODO pass file name?
+			const tsAst = createSourceFile('todo.ts', code, ScriptTarget.ESNext);
+			console.log(tsAst);
 			// TODO
 			return {
 				errors: [],
 				symbols: {},
 			};
+		}
 		case Extension.yaml:
 			// TODO
 			return {
