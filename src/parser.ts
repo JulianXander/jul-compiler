@@ -82,6 +82,12 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 		}
 		case Extension.jul:
 			return parseJulCode(code);
+		case Extension.ts:
+			// TODO
+			return {
+				errors: [],
+				symbols: {},
+			};
 		case Extension.yaml:
 			// TODO
 			return {
@@ -89,7 +95,7 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 				symbols: {},
 			};
 		default: {
-			const assertNever = extension;
+			const assertNever: never = extension;
 			throw new Error(`Unexpected extension: ${assertNever}`);
 		}
 	}

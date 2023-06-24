@@ -97,6 +97,7 @@ export enum Extension {
 	js = '.js',
 	json = '.json',
 	jul = '.jul',
+	ts = '.ts',
 	yaml = '.yaml',
 }
 

@@ -1590,6 +1590,7 @@ export function getPathFromImport(importExpression: ParseFunctionCall): { path?:
 				return { path: importedPath + Extension.jul };
 			case Extension.js:
 			case Extension.json:
+			case Extension.ts:
 			case Extension.yaml:
 				return { path: importedPath };
 			default:

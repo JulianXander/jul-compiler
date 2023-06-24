@@ -9,6 +9,7 @@ import { parseJulFile } from './parser.js';
 import { ParserError } from './parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
+import { transpileModule } from 'typescript';
 
 const runtimeFileName = 'runtime.js';
 
@@ -139,6 +140,19 @@ function compileJulFileInternal(
 					...options,
 					sourceFilePath: fullPath,
 				}, compiledFilePathsWithDefault);
+				return;
+			}
+			case Extension.ts: {
+				const ts = readTextFile(fullPath);
+				const js = transpileModule(ts, {
+					// compilerOptions: {
+					// 	module: 
+					// }
+				});
+				const jsOutFilePath = join(outputFolderPath, changeExtension(fullPath, Extension.js));
+				const jsOutDir = dirname(jsOutFilePath);
+				tryCreateDirectory(jsOutDir);
+				writeFileSync(jsOutFilePath, js.outputText);
 				return;
 			}
 			case Extension.yaml: {
