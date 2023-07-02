@@ -1,9 +1,3 @@
--fix module system
-	-vscode extension untersützt kein esm
-	?https://stackoverflow.com/questions/70620025/how-do-i-import-an-es6-javascript-module-in-my-vs-code-extension-written-in-type
-	?esm import in commonjs vscode-jul-language-service
-	?esm import in commonjs jul-language-server
-	?nur runtime in extra deployment ordner als esm komilieren, alles als commonjs
 ?fallback bei definition
 ?compile json, yaml to js wegen rundungsfehler bei großen zahlen
 -type info für yaml, json
