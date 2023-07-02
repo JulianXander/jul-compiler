@@ -1,5 +1,8 @@
--build script: node modules von lokalen paket referenzen löschen und npm i
-	?Maximilian npm link
+-fix module system
+	-vscode extension untersützt kein esm
+	?esm import in commonjs vscode-jul-language-service
+	?esm import in commonjs jul-language-server
+	?nur runtime in extra deployment ordner als esm komilieren, alles als commonjs
 ?fallback bei definition
 ?compile json, yaml to js wegen rundungsfehler bei großen zahlen
 -type info für yaml, json
