@@ -9,7 +9,8 @@ import { parseJulFile } from './parser.js';
 import { ParserError } from './parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
-import { transpileModule } from 'typescript';
+import typescript from 'typescript';
+const { transpileModule } = typescript;
 
 const runtimeFileName = 'runtime.js';
 

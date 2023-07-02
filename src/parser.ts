@@ -51,7 +51,8 @@ import {
 	NonEmptyArray,
 	readTextFile,
 } from './util.js';
-import { createSourceFile, ScriptTarget } from 'typescript';
+import typescript from 'typescript';
+const { createSourceFile, ScriptTarget } = typescript;
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
