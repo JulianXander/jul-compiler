@@ -1,3 +1,5 @@
+-build script: node modules von lokalen paket referenzen löschen und npm i
+	?Maximilian npm link
 ?fallback bei definition
 ?compile json, yaml to js wegen rundungsfehler bei großen zahlen
 -type info für yaml, json
