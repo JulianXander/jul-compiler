@@ -1,26 +1,33 @@
-import { Name, ParseExpression, ParsedFile } from '../syntax-tree.js';
+import { Name, ParseExpression, ParsedExpressions, ParsedFile, SymbolTable } from '../syntax-tree.js';
 import { isDefined } from '../util.js';
 import { Positioned } from './parser-combinator.js';
-import typescript, { BindingName, Node, StringLiteral, VariableStatement } from 'typescript';
+import typescript, { BindingName, Node, NumericLiteral, StringLiteral, VariableStatement } from 'typescript';
 const { createSourceFile, ScriptTarget, SyntaxKind } = typescript;
 
-export function parseTsCode(code: string): ParsedFile {
+export function parseTsCode(code: string): ParsedExpressions {
   // TODO pass file name?
   const tsAst = createSourceFile('todo.ts', code, ScriptTarget.ESNext);
-  console.log(tsAst.statements);
-  // TODO
+  const julExpressions = tsAst.statements.map(tsNode =>
+    tsNodeToJulAst(tsNode))
+    .filter(isDefined);
+  // TODO errors
   return {
-    expressions: tsAst.statements.map(tsNode =>
-      tsNodeToJulAst(tsNode))
-      .filter(isDefined),
+    expressions: julExpressions,
     errors: [],
-    symbols: {},
   };
 }
 
 function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
   const position = getPositionFromTsNode(tsNode);
   switch (tsNode.kind) {
+    case SyntaxKind.NumericLiteral: {
+      const numericLiteral = tsNode as NumericLiteral;
+      return {
+        type: 'float',
+        value: +numericLiteral.text,
+        ...position,
+      };
+    }
     case SyntaxKind.StringLiteral: {
       const stringLiteral = tsNode as StringLiteral;
       return {
@@ -46,6 +53,9 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
         };
       });
       const test1 = test[0]!;
+      if (!test1.value) {
+        return undefined;
+      }
       return {
         type: 'definition',
         name: test1.name,
@@ -75,7 +85,7 @@ function tsNameToJulName(tsName: BindingName): Name {
   }
   return {
     type: 'name',
-    name: tsName.text,
+    name: name,
     ...getPositionFromTsNode(tsName),
   }
 }

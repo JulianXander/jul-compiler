@@ -352,10 +352,15 @@ function inferType(
 		}
 		case 'definition': {
 			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
-			const inferredType = coreBuiltInSymbolTypes[expression.name.name] ?? expression.value.inferredType!;
+			const name = expression.name.name;
+			const inferredType = coreBuiltInSymbolTypes[name] ?? expression.value.inferredType!;
 			const currentScope = last(scopes);
 			// TODO typecheck mit typeguard, ggf union mit Error type
-			currentScope[expression.name.name]!.normalizedType = inferredType;
+			const symbol = currentScope[name];
+			if (!symbol) {
+				throw new Error(`Definition Symbol ${name} not found`);
+			}
+			symbol.normalizedType = inferredType;
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);

@@ -23,6 +23,7 @@ import {
 	NumberLiteral,
 	ParseBranching,
 	ParseDestructuringDefinition,
+	ParsedExpressions,
 	ParsedFile,
 	ParseExpression,
 	ParseFieldBase,
@@ -58,14 +59,16 @@ import { parseTsCode } from './typescript-parser.js';
  */
 export function parseJulFile(filePath: string): ParsedFile {
 	const code = readTextFile(filePath);
-	const result = parseJulCode(code);
+	const result = parseCode(code, Extension.jul);
 	return result;
 }
 
 export function parseCode(code: string, extension: Extension): ParsedFile {
+	let parsedExpressions: ParsedExpressions;
 	switch (extension) {
 		case Extension.js:
-			return parseTsCode(code);
+			parsedExpressions = parseTsCode(code);
+			break;
 		case Extension.json: {
 			// TODO
 			// const parsedJson = JSON.parse(code);
@@ -78,9 +81,11 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 			};
 		}
 		case Extension.jul:
-			return parseJulCode(code);
+			parsedExpressions = parseJulCode(code);
+			break;
 		case Extension.ts:
-			return parseTsCode(code);
+			parsedExpressions = parseTsCode(code);
+			break;
 		case Extension.yaml:
 			// TODO
 			return {
@@ -92,9 +97,17 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 			throw new Error(`Unexpected extension: ${assertNever}`);
 		}
 	}
+	const { errors, expressions } = parsedExpressions;
+	const symbols: SymbolTable = {};
+	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
+	return {
+		errors: errors,
+		expressions: expressions,
+		symbols: symbols,
+	}
 }
 
-function parseJulCode(code: string): ParsedFile {
+function parseJulCode(code: string): ParsedExpressions {
 	const rows = code.split('\n');
 	const parserResult = expressionBlockParser(rows, 0, 0, 0);
 	const expressions = parserResult.parsed;
@@ -111,12 +124,9 @@ function parseJulCode(code: string): ParsedFile {
 			endColumnIndex: parserResult.endColumnIndex,
 		});
 	}
-	const symbols: SymbolTable = {};
-	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
 	return {
 		errors: errors,
 		expressions: expressions,
-		symbols: symbols,
 	};
 }
 

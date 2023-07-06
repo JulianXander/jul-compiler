@@ -10,6 +10,11 @@ export interface ParsedFile {
 	symbols: SymbolTable;
 }
 
+export interface ParsedExpressions {
+	errors: ParserError[];
+	expressions?: ParseExpression[];
+}
+
 export interface SymbolTable {
 	[symbol: string]: SymbolDefinition;
 }
