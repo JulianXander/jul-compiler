@@ -56,6 +56,7 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
       if (!test1.value) {
         return undefined;
       }
+      // TODO nur exported definitions lieferen?
       return {
         type: 'definition',
         name: test1.name,
