@@ -42,7 +42,7 @@ import {
 	Reference,
 	SimpleExpression,
 	SymbolTable,
-} from './syntax-tree.js';
+} from '../syntax-tree.js';
 import {
 	Extension,
 	isNonEmpty,
@@ -50,9 +50,8 @@ import {
 	mapNonEmpty,
 	NonEmptyArray,
 	readTextFile,
-} from './util.js';
-import typescript from 'typescript';
-const { createSourceFile, ScriptTarget } = typescript;
+} from '../util.js';
+import { parseTsCode } from './typescript-parser.js';
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
@@ -66,11 +65,7 @@ export function parseJulFile(filePath: string): ParsedFile {
 export function parseCode(code: string, extension: Extension): ParsedFile {
 	switch (extension) {
 		case Extension.js:
-			// TODO
-			return {
-				errors: [],
-				symbols: {},
-			};
+			return parseTsCode(code);
 		case Extension.json: {
 			// TODO
 			// const parsedJson = JSON.parse(code);
@@ -84,16 +79,8 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 		}
 		case Extension.jul:
 			return parseJulCode(code);
-		case Extension.ts: {
-			// TODO pass file name?
-			const tsAst = createSourceFile('todo.ts', code, ScriptTarget.ESNext);
-			console.log(tsAst);
-			// TODO
-			return {
-				errors: [],
-				symbols: {},
-			};
-		}
+		case Extension.ts:
+			return parseTsCode(code);
 		case Extension.yaml:
 			// TODO
 			return {

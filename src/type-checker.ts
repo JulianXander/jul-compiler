@@ -44,8 +44,8 @@ import {
 	TypedExpression
 } from './syntax-tree.js';
 import { Extension, NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util.js';
-import { parseJulFile } from './parser.js';
-import { ParserError } from './parser-combinator.js';
+import { parseJulFile } from './parser/parser.js';
+import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedName } from './checker.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };

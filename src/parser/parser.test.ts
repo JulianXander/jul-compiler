@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 
 import { parseCode } from './parser';
-import { ParseExpression } from './syntax-tree';
+import { ParseExpression } from '../syntax-tree';
+import { Extension } from '../util';
 
 const expectedResults: {
 	code: string;
@@ -814,7 +815,7 @@ const expectedResults: {
 describe('Parser', () => {
 	expectedResults.forEach(({ code, result }) => {
 		it(code, () => {
-			const parserResult = parseCode(code);
+			const parserResult = parseCode(code, Extension.jul);
 			if (parserResult.errors?.length) {
 				console.log(parserResult.errors);
 			}

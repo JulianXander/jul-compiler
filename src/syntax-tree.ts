@@ -1,4 +1,4 @@
-import { ParserError, Positioned } from './parser-combinator.js';
+import { ParserError, Positioned } from './parser/parser-combinator.js';
 import { RuntimeType } from './runtime.js';
 import { NonEmptyArray } from './util.js';
 
