@@ -1,9 +1,8 @@
 import { Name, ParseExpression, ParsedFile } from '../syntax-tree.js';
 import { isDefined } from '../util.js';
 import { Positioned } from './parser-combinator.js';
-import typescript, { BindingName, Identifier, Node, StringLiteral, VariableStatement } from 'typescript';
+import typescript, { BindingName, Node, StringLiteral, VariableStatement } from 'typescript';
 const { createSourceFile, ScriptTarget, SyntaxKind } = typescript;
-
 
 export function parseTsCode(code: string): ParsedFile {
   // TODO pass file name?
