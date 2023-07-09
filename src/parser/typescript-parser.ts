@@ -2,6 +2,7 @@ import { Name, ParseExpression, ParseParameterField, ParseParameterFields, Parse
 import { isDefined } from '../util.js';
 import { Positioned } from './parser-combinator.js';
 import typescript, { ArrowFunction, BindingName, FunctionDeclaration, Node, NodeArray, NumericLiteral, ParameterDeclaration, StringLiteral, VariableStatement } from 'typescript';
+import { createParseFunctionLiteral } from './parser-utils.js';
 const { createSourceFile, ScriptTarget, SyntaxKind } = typescript;
 
 export function parseTsCode(code: string): ParsedExpressions {
@@ -86,14 +87,14 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
       return {
         type: 'definition',
         name: tsNameToJulName(tsName),
-        value: {
-          type: 'functionLiteral',
-          params: tsParametersToJulParameters(functionDeclaration.parameters, position),
-          // TODO body, symbols
-          body: [],
-          symbols: {},
-          ...position,
-        },
+        value: createParseFunctionLiteral(
+          tsParametersToJulParameters(functionDeclaration.parameters, position),
+          undefined,
+          // TODO body, errors,
+          [],
+          position,
+          [],
+        ),
         ...position,
       };
     }
