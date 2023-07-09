@@ -47,14 +47,14 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
       };
     case SyntaxKind.ArrowFunction: {
       const arrowFunction = tsNode as ArrowFunction;
-      return {
-        type: 'functionLiteral',
-        params: tsParametersToJulParameters(arrowFunction.parameters, position),
-        // TODO body, symbols
-        body: [],
-        symbols: {},
-        ...position,
-      };
+      return createParseFunctionLiteral(
+        tsParametersToJulParameters(arrowFunction.parameters, position),
+        undefined,
+        // TODO body, errors
+        [],
+        position,
+        [],
+      );
     }
     case SyntaxKind.EmptyStatement:
       return undefined;
