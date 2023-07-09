@@ -1,4 +1,4 @@
-import { Name, ParseExpression, ParsedExpressions, ParsedFile, SymbolTable } from '../syntax-tree.js';
+import { Name, ParseExpression, ParsedExpressions } from '../syntax-tree.js';
 import { isDefined } from '../util.js';
 import { Positioned } from './parser-combinator.js';
 import typescript, { BindingName, Node, NumericLiteral, StringLiteral, VariableStatement } from 'typescript';
