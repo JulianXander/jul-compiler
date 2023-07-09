@@ -1,7 +1,7 @@
-import { Name, ParseExpression, ParsedExpressions } from '../syntax-tree.js';
+import { Name, ParseExpression, ParseParameterField, ParsedExpressions } from '../syntax-tree.js';
 import { isDefined } from '../util.js';
 import { Positioned } from './parser-combinator.js';
-import typescript, { BindingName, Node, NumericLiteral, StringLiteral, VariableStatement } from 'typescript';
+import typescript, { BindingName, FunctionDeclaration, Node, NumericLiteral, StringLiteral, VariableStatement } from 'typescript';
 const { createSourceFile, ScriptTarget, SyntaxKind } = typescript;
 
 export function parseTsCode(code: string): ParsedExpressions {
@@ -64,7 +64,40 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
         ...position,
       };
     }
+    case SyntaxKind.FunctionDeclaration: {
+      const functionDeclaration = tsNode as FunctionDeclaration;
+      const parameters = functionDeclaration.parameters.map(tsParameter => {
+        const julParameter: ParseParameterField = {
+          type: 'parameter',
+          name: tsNameToJulName(tsParameter.name),
+          ...getPositionFromTsNode(tsParameter),
+        };
+        return julParameter;
+      });
+      const tsName = functionDeclaration.name;
+      if (!tsName) {
+        return undefined;
+      }
+      return {
+        type: 'definition',
+        name: tsNameToJulName(tsName),
+        value: {
+          type: 'functionLiteral',
+          params: {
+            type: 'parameters',
+            singleFields: parameters,
+            ...position,
+          },
+          // TODO body, symbols
+          body: [],
+          symbols: {},
+          ...position,
+        },
+        ...position,
+      };
+    }
     case SyntaxKind.TypeAliasDeclaration:
+      return undefined;
     default:
       return undefined;
   }
