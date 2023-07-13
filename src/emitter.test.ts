@@ -175,7 +175,7 @@ describe('Emitter', () => {
 			const parsed = parseCode(code, Extension.jul);
 			const syntaxTree = checkParseExpressions(parsed.expressions!)!;
 			const compiled = syntaxTreeToJs(syntaxTree, '');
-			expect(compiled).to.equal(getRuntimeImportJs('') + 'module.exports = ' + result);
+			expect(compiled).to.equal(getRuntimeImportJs('') + 'export default ' + result);
 		});
 	});
 });
