@@ -286,7 +286,7 @@ function referenceToJs(reference: Reference): string {
 				return `.${escapeReservedJsVariableName(innerName)}`;
 
 			case 'number':
-				return `[${innerName}]`;
+				return `[${innerName} - 1]`;
 
 			default: {
 				const assertNever: never = innerName;
