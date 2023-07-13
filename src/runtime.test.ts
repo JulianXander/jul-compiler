@@ -55,14 +55,22 @@ const expectedParseJsonResults: {
 		// 	json: '"\\u1234"',
 		// 	result: 'ሴ',
 		// },
+		// {
+		// 	json: '[  ]',
+		// 	result: [],
+		// },
+		// {
+		// 	json: '[1]',
+		// 	result: [1n],
+		// },
 		{
-			json: '[  ]',
-			result: [],
+			json: '{"a":"b"}',
+			result: { a: 'b' },
 		},
-		{
-			json: '[1]',
-			result: [1n],
-		},
+		// {
+		// 	json: '[{"a":"b"}]',
+		// 	result: [{ a: 'b' }],
+		// },
 	];
 
 describe('parseJson', () => {

@@ -917,7 +917,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 					if (objectCharacter !== '"') {
 						return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing object key.`)
 					}
-					const keyResult = parseJsonString(json, index);
+					const keyResult = parseJsonString(json, index + 1);
 					if (keyResult instanceof Error) {
 						return keyResult;
 					}
@@ -959,6 +959,9 @@ function parseJsonToken(json: string, startIndex: number, token: string, value: 
 	};
 }
 
+/**
+ * startIndex fängt hinter dem ersten " an
+ */
 function parseJsonString(json: string, startIndex: number): ParserResult<string> {
 	let stringValue = '';
 	for (let index = startIndex; index < json.length; index++) {
