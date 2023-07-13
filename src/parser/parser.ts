@@ -28,7 +28,6 @@ import {
 	ParseExpression,
 	ParseFieldBase,
 	ParseFunctionCall,
-	ParseFunctionLiteral,
 	ParseFunctionTypeLiteral,
 	ParseListValue,
 	ParseParameterField,

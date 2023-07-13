@@ -55,18 +55,30 @@ function fillSymbolTableWithParams(
     case 'bracketed':
       fillSymbolTableWithDictionaryType(symbolTable, errors, params, true);
       break;
-    case 'parameters':
+    case 'parameters': {
       params.singleFields.forEach((field, index) => {
         defineSymbol(
           symbolTable,
           errors,
           field.name,
           // TODO
-          field.type as any,
+          field.typeGuard as any,
           field.description,
           index);
       });
+      const rest = params.rest;
+      if (rest) {
+        defineSymbol(
+          symbolTable,
+          errors,
+          rest.name,
+          // TODO
+          rest.typeGuard as any,
+          rest.description,
+          undefined);
+      }
       break;
+    }
     default:
       break;
   }
