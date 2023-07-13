@@ -1,3 +1,6 @@
+?spread operator für branching value
+	-branching operator spreadet nicht mehr implizit
+?tryAssignParams mit rest dictionary
 ?compile json, yaml to js wegen rundungsfehler bei großen zahlen
 -type info für yaml, json
 	?typescript compiler nutzen für ast parser
@@ -8,8 +11,6 @@
 ?was tun mit typeGuard, fallback bei destructuring import
 ?alias bei rest parameter
 	?rest arg mit parameter namen übergeben
-?spread operator für branching value
-	-branching operator spreadet nicht mehr implizit
 ?anonyme parameter mit _/_1, _2 etc
 	-anonymer parameter für type parametered functions
 	?rest args anonym
