@@ -3,6 +3,7 @@
 	?typescript compiler nutzen für ast parser
 		-vgl https://github.com/microsoft/TypeScript/blob/main/src/compiler/parser.ts
 		-https://github.com/Microsoft/TypeScript/wiki/Using-the-Compiler-API
+-parse derefence operator nach beliebiger valueExpression
 ?fallback bei definition
 ?was tun mit typeGuard, fallback bei destructuring import
 ?alias bei rest parameter
