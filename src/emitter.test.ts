@@ -1,8 +1,8 @@
 import { expect } from 'chai';
-import { parseCode } from './parser';
-import { getRuntimeImportJs, syntaxTreeToJs } from './emitter';
-import { checkParseExpressions } from './checker';
-import { Extension } from './util';
+import { parseCode } from './parser/parser.js';
+import { getRuntimeImportJs, syntaxTreeToJs } from './emitter.js';
+import { checkParseExpressions } from './checker.js';
+import { Extension } from './util.js';
 
 const expectedResults: {
 	code: string;

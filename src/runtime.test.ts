@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { parseJson } from './runtime';
+import { parseJson } from './runtime.js';
 
 //#region parseJson
 

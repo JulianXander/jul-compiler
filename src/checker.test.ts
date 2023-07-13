@@ -1,9 +1,8 @@
 import { expect } from 'chai';
-
-import { checkParseExpressions } from './checker';
-import { parseCode } from './parser';
-import { CheckedExpression } from './syntax-tree';
-import { Extension } from './util';
+import { checkParseExpressions } from './checker.js';
+import { parseCode } from './parser/parser.js';
+import { CheckedExpression } from './syntax-tree.js';
+import { Extension } from './util.js';
 
 const expectedResults: {
 	code: string;

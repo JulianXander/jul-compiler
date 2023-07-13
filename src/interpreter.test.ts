@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { parseCode } from './parser';
+import { parseCode } from './parser/parser.js';
 // import { interpreteAst } from './interpreter';
 
 const expectedResults: {
