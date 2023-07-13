@@ -287,6 +287,8 @@ function dereferencePathSegmentFromObject(
 				switch (sourceObjectType.type) {
 					case 'dictionaryLiteral':
 						return sourceObjectType.fields[name];
+					case 'dictionary':
+						return sourceObjectType.elementType;
 					// TODO other object types
 					default:
 						return undefined;
