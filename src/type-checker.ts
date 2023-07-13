@@ -32,6 +32,8 @@ import {
 import {
 	BracketedExpression,
 	CheckedValueExpression,
+	Index,
+	Name,
 	ParseDictionaryField,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
@@ -43,7 +45,7 @@ import {
 	SymbolTable,
 	TypedExpression
 } from './syntax-tree.js';
-import { Extension, NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary, toDictionary } from './util.js';
+import { Extension, NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { parseJulFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedName } from './checker.js';
@@ -153,6 +155,8 @@ const parsedCoreLib = parseJulFile(coreLibPath);
 inferFileTypes(parsedCoreLib, [], {}, '');
 export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
+//#region dereference
+
 export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable[]): {
 	isBuiltIn: boolean;
 	symbol: SymbolDefinition;
@@ -162,35 +166,30 @@ export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable
 	return findSymbolInScopesWithBuiltIns(name, scopes);
 }
 
-function dereferenceFromObject(reference: Reference, sourceObjectType: RuntimeType): RuntimeType | undefined {
-	// TODO nested ref path
-	const name = reference.path[0].name;
-	if (typeof sourceObjectType !== 'object'
-		|| !sourceObjectType) {
-		return undefined;
-	}
-	if (sourceObjectType instanceof BuiltInTypeBase) {
-		switch (sourceObjectType.type) {
-			case 'dictionaryLiteral':
-				return sourceObjectType.fields[name];
-			// TODO other object types
-
-			default:
-				return undefined;
-		}
-	}
-	if (Array.isArray(sourceObjectType)) {
-		// TODO dereference by index
-		return undefined;
-	}
-	return sourceObjectType[name];
-}
-
 function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	type: RuntimeType;
 	found: boolean;
 } {
-	// TODO nested ref path
+	const { type, found } = dereferenceFirstPathSegmentToType(reference, scopes);
+	if (found) {
+		const typeFromObject = dereferenceFromObject(reference, type, 1);
+		if (typeFromObject != undefined) {
+			return {
+				type: typeFromObject,
+				found: true,
+			};
+		}
+	}
+	return {
+		type: Any,
+		found: false,
+	};
+}
+
+function dereferenceFirstPathSegmentToType(reference: Reference, scopes: SymbolTable[]): {
+	type: RuntimeType;
+	found: boolean;
+} {
 	const name = reference.path[0].name;
 	const coreType = coreBuiltInSymbolTypes[name];
 	if (coreType !== undefined) {
@@ -232,6 +231,78 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	};
 }
 
+function dereferenceFromObject(
+	reference: Reference,
+	sourceObjectType: RuntimeType,
+	startIndex: number = 0,
+): RuntimeType | undefined {
+	const path = reference.path;
+	let source = sourceObjectType;
+	for (let index = startIndex; index < path.length; index++) {
+		const pathSegment = path[index]!;
+		const dereferenced = dereferencePathSegmentFromObject(pathSegment, source);
+		if (dereferenced === undefined) {
+			return undefined;
+		}
+		source = dereferenced;
+	}
+	return source;
+}
+
+function dereferencePathSegmentFromObject(
+	pathSegment: Name | Index,
+	sourceObjectType: RuntimeType,
+): RuntimeType | undefined {
+	if (typeof sourceObjectType !== 'object'
+		|| !sourceObjectType) {
+		return undefined;
+	}
+	switch (pathSegment.type) {
+		case 'index': {
+			const index = pathSegment.name;
+			if (sourceObjectType instanceof BuiltInTypeBase) {
+				switch (sourceObjectType.type) {
+					case 'dictionaryLiteral':
+						// TODO error: cant dereference index in dictionary type
+						return undefined;
+					case 'list':
+						return sourceObjectType.elementType;
+					case 'tuple':
+						return sourceObjectType.elementTypes[index - 1];
+					// TODO other object types
+					default:
+						return undefined;
+				}
+			}
+			if (Array.isArray(sourceObjectType)) {
+				// TODO dereference by index
+				return sourceObjectType[index - 1];
+			}
+			// TODO error: cant dereference index in dictionary
+			return undefined;
+		}
+		case 'name': {
+			const name = pathSegment.name;
+			if (sourceObjectType instanceof BuiltInTypeBase) {
+				switch (sourceObjectType.type) {
+					case 'dictionaryLiteral':
+						return sourceObjectType.fields[name];
+					// TODO other object types
+					default:
+						return undefined;
+				}
+			}
+			if (Array.isArray(sourceObjectType)) {
+				// TODO error: cant dereference name in list 
+				return undefined;
+			}
+			return sourceObjectType[name];
+		}
+		default:
+			throw new Error(`Unexpected pathSegment.type ${(pathSegment as Name).type}`);
+	}
+}
+
 function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable[]): {
 	isBuiltIn: boolean;
 	symbol: SymbolDefinition;
@@ -258,6 +329,8 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefiniti
 		}
 	}
 }
+
+//#endregion dereference
 
 /**
  * infer types of expressions, normalize typeGuards

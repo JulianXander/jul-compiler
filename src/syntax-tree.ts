@@ -331,6 +331,9 @@ export interface Name extends Positioned {
 
 export interface Index extends Positioned {
 	type: 'index';
+	/**
+	 * Startet mit 1
+	 */
 	name: number;
 }
 
