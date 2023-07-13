@@ -176,7 +176,7 @@ filterMap = nativeFunction(
 		): Any
 	): List(Any)
 	# TODO
-	# ): List(TypeOf(callback)/ReturnType)
+	# ): List(Without(TypeOf(callback)/ReturnType ()))
 	§TODO§
 )
 forEach = nativeFunction(
