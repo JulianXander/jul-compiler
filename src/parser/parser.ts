@@ -601,7 +601,8 @@ function indexParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Index> {
-	const result = regexParser(/[0-9]+/y, 'Invalid index syntax')(rows, startRowIndex, startColumnIndex, indent);
+	// TODO parse number, and check number > 0 für bessere Fehlermeldung?
+	const result = regexParser(/[1-9][0-9]*/y, 'Invalid index syntax')(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
 		parsed: result.parsed === undefined
