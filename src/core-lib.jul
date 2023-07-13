@@ -164,7 +164,6 @@ regex = nativeFunction(
 #endregion String
 #region List
 # filtert empty Werte raus
-# TODO generic
 filterMap = nativeFunction(
 	(
 		values: List(Any)
@@ -176,6 +175,8 @@ filterMap = nativeFunction(
 			# index: Integer
 		): Any
 	): List(Any)
+	# TODO
+	# ): List(TypeOf(callback)/ReturnType)
 	§TODO§
 )
 forEach = nativeFunction(
