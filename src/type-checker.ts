@@ -12,6 +12,8 @@ import {
 	FunctionType,
 	Integer,
 	IntersectionType,
+	Index,
+	Name,
 	ParameterReference,
 	Primitive,
 	ReferencePath,
@@ -32,8 +34,6 @@ import {
 import {
 	BracketedExpression,
 	CheckedValueExpression,
-	Index,
-	Name,
 	ParseDictionaryField,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
@@ -172,7 +172,13 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 } {
 	const { type, found } = dereferenceFirstPathSegmentToType(reference, scopes);
 	if (found) {
-		const typeFromObject = dereferenceFromObject(reference, type, 1);
+		if (type instanceof ParameterReference) {
+			return {
+				type: type,
+				found: true
+			};
+		}
+		const typeFromObject = dereferenceFromObject(reference.path, type, 1);
 		if (typeFromObject != undefined) {
 			return {
 				type: typeFromObject,
@@ -232,11 +238,10 @@ function dereferenceFirstPathSegmentToType(reference: Reference, scopes: SymbolT
 }
 
 function dereferenceFromObject(
-	reference: Reference,
+	path: ReferencePath,
 	sourceObjectType: RuntimeType,
 	startIndex: number = 0,
 ): RuntimeType | undefined {
-	const path = reference.path;
 	let source = sourceObjectType;
 	for (let index = startIndex; index < path.length; index++) {
 		const pathSegment = path[index]!;
@@ -329,6 +334,81 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefiniti
 		if (symbol) {
 			return symbol;
 		}
+	}
+}
+
+function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference: RuntimeType): RuntimeType {
+	if (!(typeToDereference instanceof BuiltInTypeBase)) {
+		return typeToDereference;
+	}
+	const builtInType: BuiltInType = typeToDereference;
+	switch (builtInType.type) {
+		case 'any':
+		case 'boolean':
+		case 'error':
+		case 'float':
+		case 'integer':
+		case 'string':
+		case 'type':
+			return builtInType;
+		case 'and':
+			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
+		case 'dictionary':
+			return new DictionaryType(dereferenceArgumentTypesNested(argsType, builtInType.elementType));
+		case 'list':
+			return new ListType(dereferenceArgumentTypesNested(argsType, builtInType.elementType));
+		case 'not':
+			return new ComplementType(dereferenceArgumentTypesNested(argsType, builtInType.sourceType));
+		case 'or':
+			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
+		case 'reference':
+			// TODO immer valueOf?
+			return valueOf(dereferenceArgumentType(argsType, builtInType));
+		case 'stream':
+			return new StreamType(dereferenceArgumentTypesNested(argsType, builtInType.valueType));
+		case 'typeOf':
+			return new TypeOfType(dereferenceArgumentTypesNested(argsType, builtInType.value));
+		// TODO
+		case 'dictionaryLiteral':
+		case 'function':
+		case 'parameters':
+		case 'tuple':
+			return builtInType;
+		default: {
+			const assertNever: never = builtInType;
+			throw new Error('Unexpected BuiltInType.type: ' + (assertNever as BuiltInType).type);
+		}
+	}
+}
+
+function dereferenceArgumentType(argsType: RuntimeType, parameterReference: ParameterReference): RuntimeType | undefined {
+	if (!(argsType instanceof BuiltInTypeBase)) {
+		return undefined;
+	}
+	switch (argsType.type) {
+		case 'dictionaryLiteral': {
+			const path = parameterReference.path;
+			const referenceName = path[0].name;
+			const argType = argsType.fields[referenceName];
+			// TODO error bei unbound ref?
+			if (!argType) {
+				return undefined;
+			}
+			return dereferenceFromObject(path, argType, 1);
+		}
+		case 'tuple': {
+			// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
+			// TODO dereference nested path
+			// const referenceName = parameterReference.path[0].name;
+			const paramIndex = parameterReference.index;
+			const argType = argsType.elementTypes[paramIndex];
+			// TODO error bei unbound ref?
+			return argType;
+		}
+		case 'list':
+		// TODO?
+		default:
+			return argsType;
 	}
 }
 
@@ -474,7 +554,7 @@ function inferType(
 						return;
 					}
 					const valueType = value.inferredType!;
-					const dereferencedType = dereferenceFromObject(pathToDereference, valueType);
+					const dereferencedType = dereferenceFromObject(pathToDereference.path, valueType);
 					if (dereferencedType === undefined) {
 						errors.push({
 							message: `Failed to dereference ${referencePathToString(pathToDereference.path)} in type ${typeToString(valueType, 0)}`,
@@ -857,78 +937,6 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 			const assertNever: never = type;
 			throw new Error(`Unexpected type ${typeof assertNever} for valueOf`);
 		}
-	}
-}
-
-function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference: RuntimeType): RuntimeType {
-	if (!(typeToDereference instanceof BuiltInTypeBase)) {
-		return typeToDereference;
-	}
-	const builtInType: BuiltInType = typeToDereference;
-	switch (builtInType.type) {
-		case 'any':
-		case 'boolean':
-		case 'error':
-		case 'float':
-		case 'integer':
-		case 'string':
-		case 'type':
-			return builtInType;
-		case 'and':
-			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
-		case 'dictionary':
-			return new DictionaryType(dereferenceArgumentTypesNested(argsType, builtInType.elementType));
-		case 'list':
-			return new ListType(dereferenceArgumentTypesNested(argsType, builtInType.elementType));
-		case 'not':
-			return new ComplementType(dereferenceArgumentTypesNested(argsType, builtInType.sourceType));
-		case 'or':
-			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
-		case 'reference':
-			// TODO immer valueOf?
-			return valueOf(dereferenceArgumentType(argsType, builtInType));
-		case 'stream':
-			return new StreamType(dereferenceArgumentTypesNested(argsType, builtInType.valueType));
-		case 'typeOf':
-			return new TypeOfType(dereferenceArgumentTypesNested(argsType, builtInType.value));
-		// TODO
-		case 'dictionaryLiteral':
-		case 'function':
-		case 'parameters':
-		case 'tuple':
-			return builtInType;
-		default: {
-			const assertNever: never = builtInType;
-			throw new Error('Unexpected BuiltInType.type: ' + (assertNever as BuiltInType).type);
-		}
-	}
-}
-
-function dereferenceArgumentType(argsType: RuntimeType, parameterReference: ParameterReference): RuntimeType | undefined {
-	if (!(argsType instanceof BuiltInTypeBase)) {
-		return undefined;
-	}
-	switch (argsType.type) {
-		case 'dictionaryLiteral': {
-			// TODO dereference nested path
-			const referenceName = parameterReference.path[0].name;
-			const argType = argsType.fields[referenceName];
-			// TODO error bei unbound ref?
-			return argType;
-		}
-		case 'tuple': {
-			// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
-			// TODO dereference nested path
-			// const referenceName = parameterReference.path[0].name;
-			const paramIndex = parameterReference.index;
-			const argType = argsType.elementTypes[paramIndex];
-			// TODO error bei unbound ref?
-			return argType;
-		}
-		case 'list':
-		// TODO?
-		default:
-			return argsType;
 	}
 }
 
