@@ -854,10 +854,10 @@ function valueExpressionBaseParser(
 							type: 'functionCall',
 							functionExpression: accumulator,
 							arguments: currentValue,
-							startRowIndex: startRowIndex,
-							startColumnIndex: startColumnIndex,
-							endRowIndex: result.endRowIndex,
-							endColumnIndex: result.endColumnIndex,
+							startRowIndex: accumulator.startRowIndex,
+							startColumnIndex: accumulator.startColumnIndex,
+							endRowIndex: currentValue.endRowIndex,
+							endColumnIndex: currentValue.endColumnIndex,
 						};
 						return functionCall;
 					}
