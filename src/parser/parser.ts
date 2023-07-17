@@ -11,7 +11,6 @@ import {
 	Parser,
 	ParserError,
 	ParserResult,
-	Positioned,
 	regexParser,
 	sequenceParser,
 	tokenParser,
@@ -19,9 +18,9 @@ import {
 import {
 	BracketedExpression,
 	BracketedExpressionBase,
-	FieldReference,
+	ParseFieldReference,
 	Index,
-	IndexReference,
+	ParseIndexReference,
 	Name,
 	NumberLiteral,
 	ParseBranching,
@@ -723,7 +722,8 @@ function valueExpressionBaseParser(
 							predicate: tokenParser('/'),
 							parser: moveColumnIndex(1, choiceParser(
 								nameParser,
-								indexParser
+								inlineStringParser,
+								indexParser,
 							)),
 						},
 						// FunctionCall
@@ -822,7 +822,7 @@ function valueExpressionBaseParser(
 						return innerFunctionCall;
 					}
 					case 'index': {
-						const indexReference: IndexReference = {
+						const indexReference: ParseIndexReference = {
 							type: 'indexReference',
 							source: accumulator,
 							index: currentValue,
@@ -833,8 +833,12 @@ function valueExpressionBaseParser(
 						};
 						return indexReference;
 					}
-					case 'name': {
-						const fieldReference: FieldReference = {
+					case 'name':
+					case 'string': {
+						if (currentValue.type === 'string') {
+							errors.push(...getEscapableNameErrors(currentValue));
+						}
+						const fieldReference: ParseFieldReference = {
 							type: 'fieldReference',
 							source: accumulator,
 							field: currentValue,

@@ -15,6 +15,7 @@ import {
 	ParseParameterFields,
 	ParseSpreadValueExpression,
 	ParseValueExpression,
+	PositionedExpression,
 	SimpleExpression,
 	StringToken,
 } from './syntax-tree.js';
@@ -197,10 +198,14 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 			if (!checkedSource) {
 				return undefined;
 			}
+			const checkedField = getCheckedEscapableName(parseExpression.field);
+			if (!checkedField) {
+				return undefined;
+			}
 			return {
 				type: 'fieldReference',
 				source: checkedSource,
-				field: parseExpression.field.name,
+				field: checkedField,
 			};
 		};
 		case 'float':
@@ -421,8 +426,10 @@ export function getCheckedName(parseName: ParseValueExpression): string | undefi
 	return parseName.name.name;
 }
 
-export function getCheckedEscapableName(parseName: ParseValueExpression): string | undefined {
+export function getCheckedEscapableName(parseName: PositionedExpression): string | undefined {
 	switch (parseName.type) {
+		case 'name':
+			return parseName.name;
 		case 'reference':
 			return parseName.name.name;
 		case 'string':

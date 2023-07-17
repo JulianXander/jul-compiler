@@ -126,7 +126,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'empty':
 			return 'null';
 		case 'fieldReference':
-			return `${expressionToJs(expression.source)}.${escapeReservedJsVariableName(expression.field)}`;
+			return `${expressionToJs(expression.source)}[${stringToJs(expression.field)}]`;
 		case 'float':
 			return '' + expression.value;
 		case 'fraction':
@@ -380,7 +380,7 @@ function dictionaryToJs(fieldsJs: string[]): string {
 }
 
 function singleDictionaryFieldToJs(name: string, valueJs: string): string {
-	return `'${name.replaceAll('\'', '\\\'')}': ${valueJs},\n`
+	return `${stringToJs(name)}: ${valueJs},\n`
 }
 
 function spreadDictionaryFieldToJs(valueJs: string): string {

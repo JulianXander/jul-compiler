@@ -587,7 +587,11 @@ function inferType(
 		case 'fieldReference': {
 			const source = expression.source;
 			setInferredType(source, scopes, parsedDocuments, folder, file);
-			const dereferencedType = dereferenceNameFromObject(expression.field.name, source.inferredType!);
+			const fieldName = getCheckedEscapableName(expression.field);
+			if (!fieldName) {
+				return Any;
+			}
+			const dereferencedType = dereferenceNameFromObject(fieldName, source.inferredType!);
 			return dereferencedType ?? Any;
 		}
 		case 'float':
