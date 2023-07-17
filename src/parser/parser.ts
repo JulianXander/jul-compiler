@@ -736,8 +736,10 @@ function valueExpressionBaseParser(
 			// Field/Index Reference
 			{
 				predicate: tokenParser('/'),
-				// TODO Name/Index
-				parser: ,
+				parser: moveColumnIndex(1, choiceParser(
+					nameParser,
+					indexParser
+				)),
 			},
 			// Infix FunctionCall Chain
 			{
