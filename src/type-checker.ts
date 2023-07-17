@@ -12,8 +12,6 @@ import {
 	FunctionType,
 	Integer,
 	IntersectionType,
-	Index,
-	Name,
 	ParameterReference,
 	Primitive,
 	ReferencePath,
@@ -80,30 +78,21 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 			name: 'ElementType',
 			type: Type,
 		}]),
-		new TypeOfType(new ListType(new ParameterReference([{
-			type: 'name',
-			name: 'ElementType',
-		}], 0))),
+		new TypeOfType(new ListType(new ParameterReference('ElementType', 0))),
 	),
 	Dictionary: new FunctionType(
 		new ParametersType([{
 			name: 'ElementType',
 			type: Type,
 		}]),
-		new TypeOfType(new DictionaryType(new ParameterReference([{
-			type: 'name',
-			name: 'ElementType',
-		}], 0))),
+		new TypeOfType(new DictionaryType(new ParameterReference('ElementType', 0))),
 	),
 	Stream: new FunctionType(
 		new ParametersType([{
 			name: 'ValueType',
 			type: Type,
 		}]),
-		new TypeOfType(new StreamType(new ParameterReference([{
-			type: 'name',
-			name: 'ValueType',
-		}], 0))),
+		new TypeOfType(new StreamType(new ParameterReference('ValueType', 0))),
 	),
 	Type: new TypeOfType(Type),
 	// ValueOf:  new FunctionType(
@@ -134,10 +123,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 				type: _String,
 			},
 		]),
-		new ParameterReference([{
-			type: 'name',
-			name: 'FunctionType',
-		}], 0),
+		new ParameterReference('FunctionType', 0),
 	),
 	nativeValue: new FunctionType(
 		new ParametersType([
@@ -157,46 +143,11 @@ export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 
 //#region dereference
 
-export function dereferenceWithBuiltIns(path: ReferencePath, scopes: SymbolTable[]): {
-	isBuiltIn: boolean;
-	symbol: SymbolDefinition;
-} | undefined {
-	// TODO nested ref path
-	const name = path[0].name;
-	return findSymbolInScopesWithBuiltIns(name, scopes);
-}
-
 function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	type: RuntimeType;
 	found: boolean;
 } {
-	const { type, found } = dereferenceFirstPathSegmentToType(reference, scopes);
-	if (found) {
-		if (type instanceof ParameterReference) {
-			return {
-				type: type,
-				found: true
-			};
-		}
-		const typeFromObject = dereferenceFromObject(reference.path, type, 1);
-		if (typeFromObject != undefined) {
-			return {
-				type: typeFromObject,
-				found: true,
-			};
-		}
-	}
-	return {
-		type: Any,
-		found: false,
-	};
-}
-
-function dereferenceFirstPathSegmentToType(reference: Reference, scopes: SymbolTable[]): {
-	type: RuntimeType;
-	found: boolean;
-} {
-	const name = reference.path[0].name;
+	const name = reference.name.name;
 	const coreType = coreBuiltInSymbolTypes[name];
 	if (coreType !== undefined) {
 		return {
@@ -215,7 +166,7 @@ function dereferenceFirstPathSegmentToType(reference: Reference, scopes: SymbolT
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
 		// da ParameterReference auf höhere Funktionen problematisch ist?
 		return {
-			type: new ParameterReference(reference.path, foundSymbol.functionParameterIndex),
+			type: new ParameterReference(reference.name.name, foundSymbol.functionParameterIndex),
 			found: true,
 		};
 	}
@@ -237,80 +188,63 @@ function dereferenceFirstPathSegmentToType(reference: Reference, scopes: SymbolT
 	};
 }
 
-function dereferenceFromObject(
-	path: ReferencePath,
-	sourceObjectType: RuntimeType,
-	startIndex: number = 0,
-): RuntimeType | undefined {
-	let source = sourceObjectType;
-	for (let index = startIndex; index < path.length; index++) {
-		const pathSegment = path[index]!;
-		const dereferenced = dereferencePathSegmentFromObject(pathSegment, source);
-		if (dereferenced === undefined) {
-			return undefined;
-		}
-		source = dereferenced;
-	}
-	return source;
-}
-
-function dereferencePathSegmentFromObject(
-	pathSegment: Name | Index,
+function dereferenceNameFromObject(
+	name: string,
 	sourceObjectType: RuntimeType,
 ): RuntimeType | undefined {
 	if (typeof sourceObjectType !== 'object'
 		|| !sourceObjectType) {
 		return undefined;
 	}
-	switch (pathSegment.type) {
-		case 'index': {
-			const index = pathSegment.name;
-			if (sourceObjectType instanceof BuiltInTypeBase) {
-				switch (sourceObjectType.type) {
-					case 'dictionaryLiteral':
-						// TODO error: cant dereference index in dictionary type
-						return undefined;
-					case 'list':
-						return sourceObjectType.elementType;
-					case 'tuple':
-						return sourceObjectType.elementTypes[index - 1];
-					// TODO other object types
-					default:
-						return undefined;
-				}
-			}
-			if (Array.isArray(sourceObjectType)) {
-				// TODO dereference by index
-				return sourceObjectType[index - 1];
-			}
-			// TODO error: cant dereference index in dictionary
-			return undefined;
-		}
-		case 'name': {
-			const name = pathSegment.name;
-			if (sourceObjectType instanceof BuiltInTypeBase) {
-				switch (sourceObjectType.type) {
-					case 'dictionaryLiteral':
-						return sourceObjectType.fields[name];
-					case 'dictionary':
-						return sourceObjectType.elementType;
-					// TODO other object types
-					default:
-						return undefined;
-				}
-			}
-			if (Array.isArray(sourceObjectType)) {
-				// TODO error: cant dereference name in list 
+	if (sourceObjectType instanceof BuiltInTypeBase) {
+		switch (sourceObjectType.type) {
+			case 'dictionaryLiteral':
+				return sourceObjectType.fields[name];
+			case 'dictionary':
+				return sourceObjectType.elementType;
+			// TODO other object types
+			default:
 				return undefined;
-			}
-			return sourceObjectType[name];
 		}
-		default:
-			throw new Error(`Unexpected pathSegment.type ${(pathSegment as Name).type}`);
 	}
+	if (Array.isArray(sourceObjectType)) {
+		// TODO error: cant dereference name in list 
+		return undefined;
+	}
+	return sourceObjectType[name];
 }
 
-function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable[]): {
+function dereferenceIndexFromObject(
+	index: number,
+	sourceObjectType: RuntimeType,
+): RuntimeType | undefined {
+	if (typeof sourceObjectType !== 'object'
+		|| !sourceObjectType) {
+		return undefined;
+	}
+	if (sourceObjectType instanceof BuiltInTypeBase) {
+		switch (sourceObjectType.type) {
+			case 'dictionaryLiteral':
+				// TODO error: cant dereference index in dictionary type
+				return undefined;
+			case 'list':
+				return sourceObjectType.elementType;
+			case 'tuple':
+				return sourceObjectType.elementTypes[index - 1];
+			// TODO other object types
+			default:
+				return undefined;
+		}
+	}
+	if (Array.isArray(sourceObjectType)) {
+		// TODO dereference by index
+		return sourceObjectType[index - 1];
+	}
+	// TODO error: cant dereference index in dictionary
+	return undefined;
+}
+
+export function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable[]): {
 	isBuiltIn: boolean;
 	symbol: SymbolDefinition;
 } | undefined {
@@ -387,14 +321,13 @@ function dereferenceArgumentType(argsType: RuntimeType, parameterReference: Para
 	}
 	switch (argsType.type) {
 		case 'dictionaryLiteral': {
-			const path = parameterReference.path;
-			const referenceName = path[0].name;
+			const referenceName = parameterReference.name;
 			const argType = argsType.fields[referenceName];
 			// TODO error bei unbound ref?
 			if (!argType) {
 				return undefined;
 			}
-			return dereferenceFromObject(path, argType, 1);
+			return dereferenceNameFromObject(referenceName, argType);
 		}
 		case 'tuple': {
 			// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
@@ -550,14 +483,16 @@ function inferType(
 						return;
 					}
 					const pathToDereference = field.assignedValue ?? field.name;
+					// TODO nested deref/complex expressions?
 					if (pathToDereference.type !== 'reference') {
 						return;
 					}
 					const valueType = value.inferredType!;
-					const dereferencedType = dereferenceFromObject(pathToDereference.path, valueType);
+					const referenceName = pathToDereference.name.name;
+					const dereferencedType = dereferenceNameFromObject(referenceName, valueType);
 					if (dereferencedType === undefined) {
 						errors.push({
-							message: `Failed to dereference ${referencePathToString(pathToDereference.path)} in type ${typeToString(valueType, 0)}`,
+							message: `Failed to dereference ${referenceName} in type ${typeToString(valueType, 0)}`,
 							startRowIndex: field.startRowIndex,
 							startColumnIndex: field.startColumnIndex,
 							endRowIndex: field.endRowIndex,
@@ -649,6 +584,12 @@ function inferType(
 		case 'field':
 			// TODO?
 			return Any;
+		case 'fieldReference': {
+			const source = expression.source;
+			setInferredType(source, scopes, parsedDocuments, folder, file);
+			const dereferencedType = dereferenceNameFromObject(expression.field.name, source.inferredType!);
+			return dereferencedType ?? Any;
+		}
 		case 'float':
 			return expression.value;
 		case 'fraction':
@@ -659,11 +600,11 @@ function inferType(
 		case 'functionCall': {
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
-			const functionReference = expression.functionReference;
-			setInferredType(functionReference, scopes, parsedDocuments, folder, file);
+			const functionExpression = expression.functionExpression;
+			setInferredType(functionExpression, scopes, parsedDocuments, folder, file);
 			setInferredType(expression.arguments, scopes, parsedDocuments, folder, file);
 			const argsType = expression.arguments.inferredType!;
-			const functionType = functionReference.inferredType;
+			const functionType = functionExpression.inferredType;
 			const paramsType = getParamsType(functionType);
 			// TODO function parameter assignment logik berücksichtigen
 			const assignArgsError = isTypeAssignableTo(argsType, paramsType);
@@ -677,8 +618,8 @@ function inferType(
 				});
 			}
 			// TODO statt functionname functionref value/inferred type prüfen?
-			if (functionReference.path.length === 1) {
-				const functionName = functionReference.path[0].name;
+			if (functionExpression.type === 'reference') {
+				const functionName = functionExpression.name.name;
 				switch (functionName) {
 					case 'import': {
 						const { path, error } = getPathFromImport(expression);
@@ -805,17 +746,15 @@ function inferType(
 				valueOf(inferredReturnType),
 			));
 		}
+		case 'indexReference': {
+			const source = expression.source;
+			setInferredType(source, scopes, parsedDocuments, folder, file);
+			const dereferencedType = dereferenceIndexFromObject(expression.index.name, source.inferredType!);
+			return dereferencedType ?? Any;
+		}
 		case 'integer':
 			return expression.value;
 		case 'list':
-			// TODO spread elements
-			// TODO error when spread dictionary
-			expression.values.forEach(element => {
-				const typedExpression = element.type === 'spread'
-					? element.value
-					: element;
-				setInferredType(typedExpression, scopes, parsedDocuments, folder, file);
-			});
 			return new TupleType(expression.values.map(element => {
 				if (element.type === 'spread') {
 					// TODO flatten spread tuple value type
@@ -887,7 +826,7 @@ function inferType(
 			const { found, type } = dereferenceType(expression, scopes);
 			if (!found) {
 				errors.push({
-					message: `${referencePathToString(expression.path)} is not defined`,
+					message: `${expression.name.name} is not defined`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,
@@ -1784,7 +1723,7 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return bracketedExpressionToString(elements, multiline, indent);
 					}
 					case 'reference':
-						return referencePathToString(builtInType.path);
+						return builtInType.name;
 					case 'stream':
 						return `Stream(${typeToString(builtInType.valueType, indent)})`;
 					case 'string':
@@ -1872,12 +1811,6 @@ function bracketedExpressionToString(
 		? '\n'
 		: ' ';
 	return `(${bracketSeparator}${elementsWithIndent.join(elementSeparator)}${bracketSeparator})`;
-}
-
-function referencePathToString(path: ReferencePath): string {
-	return path.map(pathSegment => {
-		return pathSegment.name;
-	}).join('/');
 }
 
 //#endregion ToString

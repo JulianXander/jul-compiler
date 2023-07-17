@@ -11,6 +11,7 @@ import {
 	Parser,
 	ParserError,
 	ParserResult,
+	Positioned,
 	regexParser,
 	sequenceParser,
 	tokenParser,
@@ -18,7 +19,9 @@ import {
 import {
 	BracketedExpression,
 	BracketedExpressionBase,
+	FieldReference,
 	Index,
+	IndexReference,
 	Name,
 	NumberLiteral,
 	ParseBranching,
@@ -136,6 +139,7 @@ const spaceParser = tokenParser(' ');
 const openingBracketParser = tokenParser('(');
 const closingBracketParser = tokenParser(')');
 const paragraphParser = tokenParser('§');
+const nestedReferenceTokenParser = tokenParser('/');
 // SVO InfixFunctionCall
 const infixFunctionTokenParser = tokenParser('.');
 const branchingTokenParser = tokenParser(' ?');
@@ -453,19 +457,10 @@ function expressionParser(
 		};
 	}
 	if (baseName.type === 'reference' && parsed.assignedValue) {
-		if (baseName.path.length > 1) {
-			errors.push({
-				message: 'only single name allowed for definition',
-				startRowIndex: baseName.startRowIndex,
-				startColumnIndex: baseName.startColumnIndex,
-				endRowIndex: baseName.endRowIndex,
-				endColumnIndex: baseName.endColumnIndex,
-			});
-		}
 		const definition: ParseSingleDefinition = {
 			type: 'definition',
 			description: parsed.description,
-			name: baseName.path[0],
+			name: baseName.name,
 			typeGuard: parsed.typeGuard,
 			value: parsed.assignedValue,
 			fallback: parsed.fallback,
@@ -560,34 +555,14 @@ function referenceParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Reference> {
-	const result = sequenceParser(
-		nameParser,
-		// TODO nur name
-		multiplicationParser(
-			0,
-			undefined,
-			sequenceParser(
-				tokenParser('/'),
-				choiceParser(
-					nameParser,
-					indexParser
-				)
-			)
-		),
-	)(rows, startRowIndex, startColumnIndex, indent);
+	const result = nameParser(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		errors: result.errors,
 		parsed: result.parsed && {
 			type: 'reference',
-			path: [
-				result.parsed[0],
-				...(result.parsed[1].map(sequence => {
-					const name = sequence[1];
-					return name;
-				}) ?? [])
-			],
+			name: result.parsed,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
@@ -731,23 +706,41 @@ function valueExpressionBaseParser(
 	const result = sequenceParser(
 		simpleExpressionParser,
 		discriminatedChoiceParser(
-			// TODO schleife, sodass field/index ref mehrfach verschachtelt vorkommen kann
-			// TODO ebenso mit (infix) function call?
-			// Field/Index Reference
-			{
-				predicate: tokenParser('/'),
-				parser: moveColumnIndex(1, choiceParser(
-					nameParser,
-					indexParser
-				)),
-			},
-			// Infix FunctionCall Chain
+			// Field/Index Reference / (Infix) FunctionCall
 			{
 				predicate: choiceParser(
+					nestedReferenceTokenParser,
+					openingBracketParser,
 					infixFunctionTokenParser,
 					// TODO multiline functionCall chain mit Kommentarzeilen
 				),
-				parser: infixFunctionCallChainParser,
+				parser: multiplicationParser(
+					1,
+					undefined,
+					discriminatedChoiceParser(
+						// Field/Index Reference
+						{
+							predicate: tokenParser('/'),
+							parser: moveColumnIndex(1, choiceParser(
+								nameParser,
+								indexParser
+							)),
+						},
+						// FunctionCall
+						{
+							predicate: openingBracketParser,
+							// ObjectLiteral
+							parser: functionArgumentsParser
+						},
+						// Infix FunctionCall
+						{
+							predicate: choiceParser(
+								infixFunctionTokenParser,
+								// TODO multiline functionCall mit Kommentarzeilen
+							),
+							parser: infixFunctionArgumentsParser,
+						},
+					)),
 			},
 			// Branching
 			{
@@ -793,6 +786,85 @@ function valueExpressionBaseParser(
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 			parsed: parsed1,
+		};
+	}
+	if (Array.isArray(parsed2)) {
+		// (Nested Ref/Function Call) Chain
+		const expression = parsed2.reduce<SimpleExpression>(
+			(accumulator, currentValue) => {
+				switch (currentValue.type) {
+					case 'infixFunctionArgs': {
+						const values: NonEmptyArray<ParseListValue> = [
+							accumulator,
+						];
+						const args = currentValue.arguments;
+						// TODO infix function call mit dictionary
+						if (args.type === 'list') {
+							values.push(...args.values);
+						}
+						const innerFunctionCall: ParseFunctionCall = {
+							type: 'functionCall',
+							functionExpression: currentValue.infixFunctionReference,
+							arguments: {
+								type: 'list',
+								values: values,
+								// TODO Achtung bei findExpressionbyPosition, da infix param außerhalb der range
+								startRowIndex: args.startRowIndex,
+								startColumnIndex: args.startColumnIndex,
+								endRowIndex: args.endRowIndex,
+								endColumnIndex: args.endColumnIndex,
+							},
+							startRowIndex: accumulator.startRowIndex,
+							startColumnIndex: accumulator.startColumnIndex,
+							endRowIndex: args.endRowIndex,
+							endColumnIndex: args.endColumnIndex,
+						};
+						return innerFunctionCall;
+					}
+					case 'index': {
+						const indexReference: IndexReference = {
+							type: 'indexReference',
+							source: accumulator,
+							index: currentValue,
+							startColumnIndex: accumulator.startColumnIndex,
+							startRowIndex: accumulator.startRowIndex,
+							endColumnIndex: currentValue.endColumnIndex,
+							endRowIndex: currentValue.endColumnIndex,
+						};
+						return indexReference;
+					}
+					case 'name': {
+						const fieldReference: FieldReference = {
+							type: 'fieldReference',
+							source: accumulator,
+							field: currentValue,
+							startColumnIndex: accumulator.startColumnIndex,
+							startRowIndex: accumulator.startRowIndex,
+							endColumnIndex: currentValue.endColumnIndex,
+							endRowIndex: currentValue.endColumnIndex,
+						};
+						return fieldReference;
+					}
+					default: {
+						const functionCall: ParseFunctionCall = {
+							type: 'functionCall',
+							functionExpression: accumulator,
+							arguments: currentValue,
+							startRowIndex: startRowIndex,
+							startColumnIndex: startColumnIndex,
+							endRowIndex: result.endRowIndex,
+							endColumnIndex: result.endColumnIndex,
+						};
+						return functionCall;
+					}
+				}
+			},
+			parsed1);
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			parsed: expression,
+			errors: errors,
 		};
 	}
 	switch (parsed2.type) {
@@ -845,45 +917,6 @@ function valueExpressionBaseParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				parsed: functionLiteral,
-				errors: errors,
-			};
-		}
-		case 'functionCall': {
-			const functionCall = parsed2.value.reduce<SimpleExpression>(
-				(accumulator, currentValue) => {
-					const values: NonEmptyArray<ParseListValue> = [
-						accumulator,
-					];
-					const args = currentValue.arguments;
-					// TODO infix function call mit dictionary
-					if (args.type === 'list') {
-						values.push(...args.values);
-					}
-					const innerFunctionCall: ParseFunctionCall = {
-						type: 'functionCall',
-						functionReference: currentValue.infixFunctionReference,
-						arguments: {
-							type: 'list',
-							values: values,
-							// TODO Achtung bei findExpressionbyPosition, da infix param außerhalb der range
-							startRowIndex: args.startRowIndex,
-							startColumnIndex: args.startColumnIndex,
-							endRowIndex: args.endRowIndex,
-							endColumnIndex: args.endColumnIndex,
-						},
-						startRowIndex: startRowIndex,
-						startColumnIndex: startColumnIndex,
-						endRowIndex: result.endRowIndex,
-						endColumnIndex: result.endColumnIndex,
-					};
-					return innerFunctionCall;
-				},
-				parsed1,
-			)
-			return {
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				parsed: functionCall,
 				errors: errors,
 			};
 		}
@@ -968,10 +1001,10 @@ function simpleExpressionParser(
 				multilineStringParser
 			)
 		},
-		// Reference/FunctionCall
+		// Reference
 		{
 			predicate: regexParser(/[a-zA-Z]/y, ''),
-			parser: simpleNameStartedExpressionParser,
+			parser: referenceParser,
 		},
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return result;
@@ -1172,69 +1205,17 @@ function stringLineContentParser(
 //#endregion String
 
 /**
- * Reference/FunctionCall
+ * TODO multiline mit Kommentaren
+ * Parst den Teil hinter dem . (infixFunctionToken)
+ * Also FunctionReference und weitere Args, aber nicht das erste Arg vor dem .
  */
-function simpleNameStartedExpressionParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<Reference | ParseFunctionCall> {
-	const result = sequenceParser(
-		referenceParser,
-		discriminatedChoiceParser(
-			// FunctionCall
-			{
-				predicate: openingBracketParser,
-				// ObjectLiteral
-				parser: functionArgumentsParser
-			},
-			{
-				// Reference
-				predicate: emptyParser,
-				parser: emptyParser
-			},
-		)
-	)(rows, startRowIndex, startColumnIndex, indent);
-	if (result.errors?.length) {
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-		};
-	}
-	const [parsed1, parsed2] = result.parsed!;
-	if (!parsed2) {
-		// Reference
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			parsed: parsed1
-		};
-	}
-	// FunctionCall
-	const functionCall: ParseFunctionCall = {
-		type: 'functionCall',
-		functionReference: parsed1,
-		arguments: parsed2,
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-	};
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		parsed: functionCall,
-	};
-}
-
 function infixFunctionArgumentsParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<{
+	type: 'infixFunctionArgs',
 	arguments: BracketedExpression;
 	infixFunctionReference: Reference;
 }> {
@@ -1258,10 +1239,11 @@ function infixFunctionArgumentsParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: {
+			type: 'infixFunctionArgs',
 			arguments: args,
 			infixFunctionReference: {
 				type: 'reference',
-				path: [infixFunctionName],
+				name: infixFunctionName,
 				startRowIndex: infixFunctionName.startRowIndex,
 				startColumnIndex: infixFunctionName.startColumnIndex,
 				endRowIndex: infixFunctionName.endRowIndex,
@@ -1298,46 +1280,6 @@ function functionArgumentsParser(
 }
 
 //#endregion SimpleExpression
-
-function infixFunctionCallChainParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<{
-	type: 'functionCall';
-	value: {
-		infixFunctionReference: Reference;
-		arguments: BracketedExpression;
-	}[];
-}> {
-	const result = discriminatedChoiceParser(
-		{
-			predicate: infixFunctionTokenParser,
-			parser: multiplicationParser(
-				1,
-				undefined,
-				infixFunctionArgumentsParser,
-			),
-		},
-		// TODO
-		// {
-		// 	predicate: newLineParser,
-		// 	// TODO multiline function call chain
-		// 	// indent, infixToken, functionArgumentsParser
-		// 	parser: multilineParser(),
-		// }
-	)(rows, startRowIndex, startColumnIndex, indent);
-	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
-		parsed: result.parsed && {
-			type: 'functionCall',
-			value: result.parsed,
-		}
-	};
-}
 
 function branchesParser(
 	rows: string[],
@@ -1622,18 +1564,7 @@ function bracketedExpressionToDestructuringFields(
 	}
 	bracketedExpression.fields.forEach(baseField => {
 		const baseName = baseField.name;
-		if (baseName.type === 'reference') {
-			if (baseName.path.length > 1) {
-				errors.push({
-					message: 'only single name allowed for destructuring field',
-					startRowIndex: baseName.startRowIndex,
-					startColumnIndex: baseName.startColumnIndex,
-					endRowIndex: baseName.endRowIndex,
-					endColumnIndex: baseName.endColumnIndex,
-				});
-			}
-		}
-		else {
+		if (baseName.type !== 'reference') {
 			// TODO nested destructuring?
 			errors.push({
 				message: `${baseName.type} is not a valid expression for destructuring field name`,
@@ -1958,15 +1889,6 @@ function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError
 	const errors: ParserError[] = [];
 	switch (baseName.type) {
 		case 'reference':
-			if (baseName.path.length !== 1) {
-				errors.push({
-					message: `name can not be a nested path`,
-					startRowIndex: baseName.startRowIndex,
-					startColumnIndex: baseName.startColumnIndex,
-					endRowIndex: baseName.endRowIndex,
-					endColumnIndex: baseName.endColumnIndex,
-				});
-			}
 			break;
 		case 'string':
 			if (baseName.values.length > 1) {

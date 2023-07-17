@@ -153,8 +153,5 @@ export function checkName(parseName: ParseValueExpressionBase | ParseValueExpres
   if (parseName.type !== 'reference') {
     return undefined;
   }
-  if (parseName.path.length > 1) {
-    return undefined;
-  }
-  return parseName.path[0];
+  return parseName.name;
 }

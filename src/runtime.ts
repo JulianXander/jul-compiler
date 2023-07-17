@@ -420,7 +420,7 @@ export class FunctionType extends BuiltInTypeBase {
 
 export class ParameterReference extends BuiltInTypeBase {
 	constructor(
-		public path: ReferencePath,
+		public name: string,
 		public index: number,
 	) { super(); }
 	readonly type = 'reference';

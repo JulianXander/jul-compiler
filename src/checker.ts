@@ -192,6 +192,17 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 			};
 		case 'field':
 			return undefined;
+		case 'fieldReference': {
+			const checkedSource = checkParseExpression(parseExpression.source);
+			if (!checkedSource) {
+				return undefined;
+			}
+			return {
+				type: 'fieldReference',
+				source: checkedSource,
+				field: parseExpression.field.name,
+			};
+		};
 		case 'float':
 			return parseExpression;
 		case 'fraction':
@@ -201,10 +212,14 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 			if (!checkedArguments) {
 				return undefined;
 			}
+			const checkedFunctionExpression = checkParseExpression(parseExpression.functionExpression);
+			if (!checkedFunctionExpression) {
+				return undefined;
+			}
 			return {
 				type: 'functionCall',
-				functionReference: parseExpression.functionReference,
-				arguments: checkedArguments as any
+				functionExpression: checkedFunctionExpression,
+				arguments: checkedArguments as any,
 			};
 		}
 		case 'functionLiteral': {
@@ -241,6 +256,17 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 				type: 'empty',
 			};
 		}
+		case 'indexReference': {
+			const checkedSource = checkParseExpression(parseExpression.source);
+			if (!checkedSource) {
+				return undefined;
+			}
+			return {
+				type: 'indexReference',
+				source: checkedSource,
+				index: parseExpression.index.name,
+			};
+		};
 		case 'integer':
 			return parseExpression;
 		case 'list': {
@@ -392,19 +418,13 @@ export function getCheckedName(parseName: ParseValueExpression): string | undefi
 	if (parseName.type !== 'reference') {
 		return undefined;
 	}
-	if (parseName.path.length > 1) {
-		return undefined;
-	}
-	return parseName.path[0].name;
+	return parseName.name.name;
 }
 
 export function getCheckedEscapableName(parseName: ParseValueExpression): string | undefined {
 	switch (parseName.type) {
 		case 'reference':
-			if (parseName.path.length > 1) {
-				return undefined;
-			}
-			return parseName.path[0].name;
+			return parseName.name.name;
 		case 'string':
 			if (parseName.values.length > 1) {
 				return undefined;

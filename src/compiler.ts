@@ -236,9 +236,9 @@ function isImport(expression: ParseValueExpression): expression is ParseFunction
 	if (expression.type !== 'functionCall') {
 		return false;
 	}
-	const functionReferencePath = expression.functionReference.path;
-	return functionReferencePath.length === 1
-		&& functionReferencePath[0].name === 'import';
+	const functionExpression = expression.functionExpression;
+	return functionExpression.type === 'reference'
+		&& functionExpression.name.name === 'import';
 }
 
 //#endregion import

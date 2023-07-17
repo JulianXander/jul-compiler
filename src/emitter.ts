@@ -45,7 +45,6 @@ function expressionToJs(expression: CheckedExpression, topLevel: boolean = false
 		case 'branching':
 			return `_branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(branch =>
 				expressionToJs(branch)).join(',\n')},\n)`;
-
 		case 'definition': {
 			// export topLevel definitions
 			const value = expression.value;
@@ -73,7 +72,6 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				: valueJs;
 			return getDefinitionJs(topLevel, nameJs, checkedValueJs);
 		}
-
 		case 'destructuring': {
 			const fields = expression.fields;
 			const value = expression.value;
@@ -102,7 +100,6 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}).join('\n');
 			return `${declarations}\n{\nconst _temp = ${expressionToJs(value)};\nconst _isArray = Array.isArray(_temp);\n${assignments}\n}`;
 		}
-
 		case 'dictionary':
 			// TODO mit Object.create(null), damit leerer prototype? Oder Persistent Data Structure?
 			return dictionaryToJs(expression.fields.map(field => {
@@ -114,7 +111,6 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 					return spreadDictionaryFieldToJs(valueJs);
 				}
 			}));
-
 		case 'dictionaryType':
 			return `new DictionaryLiteralType(${dictionaryToJs(expression.fields.map(field => {
 				if (field.type === 'singleDictionaryTypeField') {
@@ -127,19 +123,17 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 					return spreadDictionaryFieldToJs(expressionToJs(field.value));
 				}
 			}))})`;
-
 		case 'empty':
 			return 'null';
-
+		case 'fieldReference':
+			return `${expressionToJs(expression.source)}.${escapeReservedJsVariableName(expression.field)}`;
 		case 'float':
 			return '' + expression.value;
-
 		case 'fraction':
 			return `{numerator:${expression.numerator}n,denominator:${expression.denominator}n}`;
-
 		case 'functionCall': {
-			const functionReference = expression.functionReference;
-			if (isImportFunction(functionReference)) {
+			const functionExpression = expression.functionExpression;
+			if (isImportFunction(functionExpression)) {
 				// TODO dynamic import/parser error?
 				throw new Error('import at unexpected location.');
 				// const path = getPathFromImport(expression);
@@ -148,9 +142,8 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				// 	: path;
 				// return `require("${outPath}")`;
 			}
-			return `_callFunction(${referenceToJs(functionReference)}, ${expressionToJs(expression.arguments)})`;
+			return `_callFunction(${expressionToJs(functionExpression)}, ${expressionToJs(expression.arguments)})`;
 		}
-
 		case 'functionLiteral': {
 			// TODO params(DefinitionNames) to Type
 			// TODO return statement
@@ -171,10 +164,10 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}
 			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
 		}
-
+		case 'indexReference':
+			return `${expressionToJs(expression.source)}[${expression.index} - 1]`;
 		case 'integer':
 			return `${expression.value}n`;
-
 		case 'list':
 			return `[\n${expression.values.map(value => {
 				const spread = value.type === 'spread';
@@ -183,16 +176,12 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 					: value;
 				return `${spread ? '...' : ''}${expressionToJs(valueExpression)},\n`;
 			}).join('')}]`;
-
 		case 'object':
 			throw new Error('Unknown object literal emitter not implemented yet');
-
 		case 'reference':
 			return referenceToJs(expression);
-
 		case 'string':
 			return stringLiteralToJs(expression);
-
 		default: {
 			const assertNever: never = expression;
 			throw new Error(`Unexpected expression.type: ${(assertNever as CheckedExpression).type}`);
@@ -209,12 +198,11 @@ function getImportJs(importedJs: string, path: string): string {
 
 function isImportFunctionCall(value: CheckedValueExpression): value is CheckedFunctionCall {
 	return value.type === 'functionCall'
-		&& isImportFunction(value.functionReference);
+		&& isImportFunction(value.functionExpression);
 }
 
-function isImportFunction(functionReference: Reference): boolean {
-	return functionReference.path.length === 1
-		&& functionReference.path[0].name === 'import';
+function isImportFunction(functionExpression: CheckedValueExpression): boolean {
+	return functionExpression.type === 'reference' && functionExpression.name.name === 'import';
 }
 
 function getPathFromImport(importExpression: CheckedFunctionCall): string {
@@ -273,27 +261,8 @@ function functionBodyToJs(expressions: CheckedExpression[]): string {
 }
 
 function referenceToJs(reference: Reference): string {
-	return reference.path.map((name, index) => {
-		const innerName = name.name;
-		if (!index) {
-			if (typeof innerName !== 'string') {
-				throw new Error('First name must be a string');
-			}
-			return escapeReservedJsVariableName(innerName);
-		}
-		switch (typeof innerName) {
-			case 'string':
-				return `.${escapeReservedJsVariableName(innerName)}`;
-
-			case 'number':
-				return `[${innerName} - 1]`;
-
-			default: {
-				const assertNever: never = innerName;
-				throw new Error(`Unexpected typeof name: ${typeof assertNever}`);
-			}
-		}
-	}).join('');
+	const name = reference.name.name;
+	return escapeReservedJsVariableName(name);
 }
 
 const reservedJsNames: string[] = [

@@ -65,6 +65,8 @@ export type SimpleExpression =
 	| ParseFunctionCall
 	| ParseStringLiteral
 	| Reference
+	| FieldReference
+	| IndexReference
 	;
 
 export type PositionedExpression =
@@ -272,8 +274,7 @@ export interface ParseFieldBase extends ParseExpressionBase {
 
 export interface ParseFunctionCall extends ParseExpressionBase {
 	type: 'functionCall';
-	// TODO functionReference mit Reference, für position
-	functionReference: Reference;
+	functionExpression: SimpleExpression;
 	// TODO primitive value direkt als arguments?
 	arguments: BracketedExpression;
 }
@@ -368,6 +369,8 @@ export type CheckedValueExpression =
 	| NumberLiteral
 	| ObjectLiteral
 	| Reference
+	| CheckedFieldReference
+	| CheckedIndexReference
 	;
 
 export interface CheckedSpreadValueExpression {
@@ -412,8 +415,7 @@ export interface CheckedDestructuringField {
 
 export interface CheckedFunctionCall {
 	type: 'functionCall';
-	// TODO functionReference mit Reference, für position
-	functionReference: Reference;
+	functionExpression: CheckedValueExpression;
 	// TODO primitive value direkt als arguments?
 	arguments: ObjectLiteral;
 }
@@ -442,6 +444,18 @@ export interface CheckedParameterField {
 }
 
 //#endregion FunctionLiteral
+
+export interface CheckedFieldReference {
+	type: 'fieldReference';
+	source: CheckedValueExpression;
+	field: string;
+}
+
+export interface CheckedIndexReference {
+	type: 'indexReference';
+	source: CheckedValueExpression;
+	index: number;
+}
 
 export interface CheckedStringLiteral {
 	type: 'string';
