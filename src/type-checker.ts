@@ -759,6 +759,14 @@ function inferType(
 		case 'integer':
 			return expression.value;
 		case 'list':
+			// TODO spread elements
+			// TODO error when spread dictionary
+			expression.values.forEach(element => {
+				const typedExpression = element.type === 'spread'
+					? element.value
+					: element;
+				setInferredType(typedExpression, scopes, parsedDocuments, folder, file);
+			});
 			return new TupleType(expression.values.map(element => {
 				if (element.type === 'spread') {
 					// TODO flatten spread tuple value type
