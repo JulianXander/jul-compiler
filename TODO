@@ -1,5 +1,4 @@
 -Escaped Dereferencing
--parse dereference operator nach beliebiger valueExpression
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary
