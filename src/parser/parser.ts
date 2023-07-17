@@ -562,6 +562,7 @@ function referenceParser(
 ): ParserResult<Reference> {
 	const result = sequenceParser(
 		nameParser,
+		// TODO nur name
 		multiplicationParser(
 			0,
 			undefined,
@@ -730,6 +731,14 @@ function valueExpressionBaseParser(
 	const result = sequenceParser(
 		simpleExpressionParser,
 		discriminatedChoiceParser(
+			// TODO schleife, sodass field/index ref mehrfach verschachtelt vorkommen kann
+			// TODO ebenso mit (infix) function call?
+			// Field/Index Reference
+			{
+				predicate: tokenParser('/'),
+				// TODO Name/Index
+				parser: ,
+			},
 			// Infix FunctionCall Chain
 			{
 				predicate: choiceParser(

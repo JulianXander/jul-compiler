@@ -1,3 +1,5 @@
+-Escaped Dereferencing
+-parse dereference operator nach beliebiger valueExpression
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary
@@ -6,7 +8,6 @@
 	?typescript compiler nutzen für ast parser
 		-vgl https://github.com/microsoft/TypeScript/blob/main/src/compiler/parser.ts
 		-https://github.com/Microsoft/TypeScript/wiki/Using-the-Compiler-API
--parse dereference operator nach beliebiger valueExpression
 ?fallback bei definition
 ?was tun mit typeGuard, fallback bei destructuring import
 ?alias bei rest parameter
@@ -16,7 +17,6 @@
 	?rest args anonym
 ?shared code? libraries?
 ?dereference parameterReference in getTypeError oder infer paramterReference type mit path?
--Escaped Dereferencing
 -fix List type hoverinfo
 -validate import paths: check file exists, valid ending
 -fix typeChecking t2: FalseType = 4 vgl test1-wip.jul

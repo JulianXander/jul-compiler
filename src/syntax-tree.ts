@@ -43,6 +43,8 @@ export type ParseValueExpression =
 	| ParseFunctionTypeLiteral
 	| ParseStringLiteral
 	| Reference
+	| FieldReference
+	| IndexReference
 	;
 
 export interface ParseSpreadValueExpression extends Positioned {
@@ -319,14 +321,24 @@ export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
 
 export interface Reference extends ParseExpressionBase {
 	type: 'reference';
-	path: ReferencePath;
+	name: Name;
 }
 
-export type ReferencePath = [Name, ...(Name | Index)[]];
+export interface FieldReference extends ParseExpressionBase {
+	type: 'fieldReference';
+	source: ParseValueExpression;
+	field: Name;
+}
 
 export interface Name extends Positioned {
 	type: 'name';
 	name: string;
+}
+
+export interface IndexReference extends ParseExpressionBase {
+	type: 'indexReference';
+	source: ParseValueExpression;
+	index: Index;
 }
 
 export interface Index extends Positioned {
