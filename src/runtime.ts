@@ -318,6 +318,9 @@ export type RuntimeType =
 	| CustomType
 	;
 
+/**
+ * numerator / denominator
+ */
 interface Fraction {
 	numerator: bigint;
 	denominator: bigint;
@@ -1106,6 +1109,24 @@ export const modulo = _createFunction(
 				name: 'divisor',
 				type: NonZeroInteger,
 			}
+		]
+	}
+);
+export const rationalToFloat = _createFunction(
+	(rational: Rational): number => {
+		if (typeof rational === 'bigint') {
+			return Number(rational);
+		}
+		else {
+			return Number(rational.numerator) / Number(rational.denominator);
+		}
+	},
+	{
+		singleNames: [
+			{
+				name: 'rational',
+				type: Rational,
+			},
 		]
 	}
 );

@@ -118,6 +118,10 @@ modulo = nativeFunction(
 	(dividend: Integer divisor: NonZeroInteger): Integer
 	§(dividend, divisor) => dividend % divisor§
 )
+rationalToFloat = nativeFunction(
+	(rational: Rational): Float
+	§Todo§
+)
 # minuend - subtrahend
 subtract = nativeFunction(
 	(minuend: Rational subtrahend: Rational): Rational
