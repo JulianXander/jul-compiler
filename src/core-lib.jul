@@ -163,6 +163,7 @@ regex = nativeFunction(
 )
 #endregion String
 #region List
+# Liefert die Anzahl der Elemente in der Liste
 length = nativeFunction(
 	(
 		values: List(Any)
