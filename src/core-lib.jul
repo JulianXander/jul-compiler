@@ -168,6 +168,7 @@ elementAt = nativeFunction(
 	(
 		values: List(Any)
 		# 1 basiert
+		# TODO positive
 		index: NonZeroInteger
 	): Any
 	# TODO Or(() TypeOf(values)/ElementType)
