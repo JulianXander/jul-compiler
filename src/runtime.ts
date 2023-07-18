@@ -1025,6 +1025,7 @@ export const Type = new TypeType();
 export const _Boolean = new BooleanType();
 //#region Number
 export const Float = new FloatType();
+export const NonZeroFloat = new IntersectionType([Float, new ComplementType(0)]);
 export const Integer = new IntegerType();
 export const NonZeroInteger = new IntersectionType([Integer, new ComplementType(0n)]);
 export const Fraction = new DictionaryLiteralType({
@@ -1075,6 +1076,22 @@ export const equal = _createFunction(
 );
 //#endregion Any
 //#region Number
+export const divideFloat = _createFunction(
+	(dividend: number, divisor: number) =>
+		dividend / divisor,
+	{
+		singleNames: [
+			{
+				name: 'dividend',
+				type: Float,
+			},
+			{
+				name: 'divisor',
+				type: NonZeroFloat,
+			}
+		]
+	}
+);
 // TODO moduloFloat
 export const modulo = _createFunction(
 	(dividend: bigint, divisor: bigint) =>

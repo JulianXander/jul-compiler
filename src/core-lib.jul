@@ -10,6 +10,7 @@ Boolean = nativeValue(§_Boolean§)
 # 64 bit floating point number
 # Erlaubt performante Hardware-Rechenoperationen
 Float = nativeValue(§Float§)
+NonZeroFloat = Float.Without(0f)
 # TODO FloatInteger = And(Float ?)
 # Ganzzahl beliebiger Größe
 Integer = nativeValue(§Integer§)
@@ -106,6 +107,11 @@ equal = nativeFunction(
 )
 #endregion Any
 #region Number
+# dividend / divisor
+divideFloat = nativeFunction(
+	(dividend: Float divisor: NonZeroFloat): Float
+	§(dividend, divisor) => dividend / divisor§
+)
 # Liefert den Rest bei ganzzahliger Division.
 # TODO moduloFloat?
 modulo = nativeFunction(
