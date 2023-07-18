@@ -10,7 +10,7 @@ import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
-const { transpileModule } = typescript;
+const { ModuleKind, transpileModule } = typescript;
 
 const runtimeFileName = 'runtime.js';
 
@@ -146,9 +146,9 @@ function compileJulFileInternal(
 			case Extension.ts: {
 				const ts = readTextFile(fullPath);
 				const js = transpileModule(ts, {
-					// compilerOptions: {
-					// 	module: 
-					// }
+					compilerOptions: {
+						module: ModuleKind.ESNext
+					}
 				});
 				const jsOutFilePath = join(outputFolderPath, changeExtension(fullPath, Extension.js));
 				const jsOutDir = dirname(jsOutFilePath);
