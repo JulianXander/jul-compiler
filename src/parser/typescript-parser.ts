@@ -67,7 +67,8 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
         };
       });
       const test1 = test[0]!;
-      if (!test1.value) {
+      if (!test1.value
+        || !test1.name) {
         return undefined;
       }
       // TODO nur exported definitions lieferen?
@@ -84,9 +85,13 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
       if (!tsName) {
         return undefined;
       }
+      const julName = tsNameToJulName(tsName);
+      if (!julName) {
+        return undefined;
+      }
       return {
         type: 'definition',
-        name: tsNameToJulName(tsName),
+        name: julName,
         value: createParseFunctionLiteral(
           tsParametersToJulParameters(functionDeclaration.parameters, position),
           undefined,
@@ -110,13 +115,17 @@ function tsParametersToJulParameters(
   position: Positioned,
 ): ParseParameterFields {
   const julParameters = tsParameters.map(tsParameter => {
+    const julName = tsNameToJulName(tsParameter.name);
+    if (!julName) {
+      return undefined;
+    }
     const julParameter: ParseParameterField = {
       type: 'parameter',
-      name: tsNameToJulName(tsParameter.name),
+      name: julName,
       ...getPositionFromTsNode(tsParameter),
     };
     return julParameter;
-  });
+  }).filter(isDefined);
   return {
     type: 'parameters',
     singleFields: julParameters,
@@ -124,7 +133,7 @@ function tsParametersToJulParameters(
   };
 }
 
-function tsNameToJulName(tsName: BindingName): Name {
+function tsNameToJulName(tsName: BindingName): Name | undefined {
   // TODO case BindingPattern
   let name: string;
   switch (tsName.kind) {
@@ -133,7 +142,8 @@ function tsNameToJulName(tsName: BindingName): Name {
       break;
     case SyntaxKind.ObjectBindingPattern:
     case SyntaxKind.ArrayBindingPattern:
-      throw new Error(`SyntaxKind for Name not implemented yet: ${SyntaxKind[tsName.kind]}`);
+      console.error(`SyntaxKind for Name not implemented yet: ${SyntaxKind[tsName.kind]}`);
+      return undefined;
     default:
       const assertNever: never = tsName;
       throw new Error(`Unexpected SyntaxKind for Name: ${SyntaxKind[(assertNever as BindingName).kind]}`);
