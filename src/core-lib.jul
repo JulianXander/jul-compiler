@@ -163,6 +163,13 @@ regex = nativeFunction(
 )
 #endregion String
 #region List
+length = nativeFunction(
+	(
+		values: List(Any)
+	): NonZeroInteger
+	# TODO positive
+	§TODO§
+)
 # TODO conditional return type, sodass null nur geliefert wird, wenn index > values.Length
 elementAt = nativeFunction(
 	(

@@ -1243,6 +1243,21 @@ export const regex = _createFunction(
 );
 //#endregion String
 //#region List
+export const length = _createFunction(
+	(
+		values: any[],
+	): bigint => {
+		return BigInt(values.length);
+	},
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: new ListType(Any)
+			},
+		]
+	}
+);
 export const elementAt = _createFunction(
 	<T>(
 		values: T[],
