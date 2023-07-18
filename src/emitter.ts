@@ -9,7 +9,8 @@ import {
 	Reference,
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
-import { Extension } from './util.js';
+import { Extension, changeExtension } from './util.js';
+import { extname } from 'path';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
@@ -211,10 +212,14 @@ function getPathFromImport(importExpression: CheckedFunctionCall): string {
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'stringToken') {
 		const importedPath = pathExpression.values[0].value;
-		const outPath = importedPath.endsWith(Extension.yaml)
-			? importedPath + Extension.json
-			: importedPath;
-		return outPath;
+		switch (extname(importedPath)) {
+			case Extension.ts:
+				return changeExtension(importedPath, Extension.js);
+			case Extension.yaml:
+				return importedPath + Extension.json;
+			default:
+				return importedPath;
+		}
 	}
 	// TODO dynamische imports verbieten???
 	throw new Error('Can not get import path from ' + pathExpression.type);
