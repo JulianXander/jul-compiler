@@ -1702,8 +1702,21 @@ function bracketedExpressionToValueExpression(
 			type: 'list',
 			values: mapNonEmpty(
 				baseFields,
-				baseField =>
-					baseValueExpressionToValueExpression(baseField.name, errors)),
+				baseField => {
+					const value = baseValueExpressionToValueExpression(baseField.name, errors)
+					if (baseField.spread) {
+						const spreadValue: ParseSpreadValueExpression = {
+							type: 'spread',
+							value: value,
+							startRowIndex: baseField.startRowIndex,
+							startColumnIndex: baseField.startColumnIndex,
+							endRowIndex: baseField.endRowIndex,
+							endColumnIndex: baseField.endColumnIndex,
+						}
+						return spreadValue;
+					}
+					return value;
+				}),
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,

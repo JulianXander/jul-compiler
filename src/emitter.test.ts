@@ -159,13 +159,17 @@ const expectedResults: {
 		// 	code: 'fibonacci = (number:NonNegativeInteger) =>\n\tnumber ?\n\t\t(n:0) => 0\n\t\t(n:1) => 1\n\t\t(n) => sum(fibonacci(subtract(n 2)) fibonacci(subtract(n 1)))\nfibonacci(12)',
 		// 	result: 144
 		// },
+		// {
+		// 	code: '(a: String)',
+		// 	result: 'new DictionaryLiteralType({\n\'a\': _String,\n})'
+		// },
+		// {
+		// 	code: '(a: String b)',
+		// 	result: 'new DictionaryLiteralType({\n\'a\': _String,\n\'b\': Any,\n})'
+		// },
 		{
-			code: '(a: String)',
-			result: 'new DictionaryLiteralType({\n\'a\': _String,\n})'
-		},
-		{
-			code: '(a: String b)',
-			result: 'new DictionaryLiteralType({\n\'a\': _String,\n\'b\': Any,\n})'
+			code: '(1 ...a ...b)',
+			result: '[\n1n,\n...a,\n...b,\n]'
 		},
 	];
 
