@@ -1263,7 +1263,7 @@ export const elementAt = _createFunction(
 		values: T[],
 		index: bigint,
 	): T | null => {
-		return values[Number(index)] ?? null;
+		return values[Number(index) - 1] ?? null;
 	},
 	{
 		singleNames: [
