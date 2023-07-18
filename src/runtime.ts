@@ -1219,6 +1219,23 @@ export const sumFloat = _createFunction(
 );
 //#endregion Number
 //#region String
+export const parseFloat = _createFunction(
+	(stringNumber: string) => {
+		const result = +stringNumber;
+		if (Number.isNaN(result)) {
+			return new Error(`Invalid number.`);
+		}
+		return result;
+	},
+	{
+		singleNames: [
+			{
+				name: 'stringNumber',
+				type: _String,
+			},
+		]
+	}
+);
 export const parseJson = _createFunction(
 	(json: string) => {
 		const result = parseJsonValue(json, 0);

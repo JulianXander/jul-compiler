@@ -152,6 +152,11 @@ sumFloat = nativeFunction(
 )
 #endregion Number
 #region String
+# Liefert Error, wenn die gegebene stringNumber keine valide Zahl ist.
+parseFloat = nativeFunction(
+	(stringNumber: String): Or(Float Error)
+	§TODO§
+)
 # Liefert Error, wenn das gegebene json kein valides JSON ist.
 parseJson = nativeFunction(
 	(json: String): Or(JsonValue Error)
