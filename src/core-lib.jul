@@ -163,6 +163,16 @@ regex = nativeFunction(
 )
 #endregion String
 #region List
+# TODO conditional return type, sodass null nur geliefert wird, wenn index > values.Length
+elementAt = nativeFunction(
+	(
+		values: List(Any)
+		# 1 basiert
+		index: NonZeroInteger
+	): Any
+	# TODO Or(() TypeOf(values)/ElementType)
+	§TODO§
+)
 # filtert empty Werte raus
 filterMap = nativeFunction(
 	(

@@ -1243,6 +1243,26 @@ export const regex = _createFunction(
 );
 //#endregion String
 //#region List
+export const elementAt = _createFunction(
+	<T>(
+		values: T[],
+		index: bigint,
+	): T | null => {
+		return values[Number(index)] ?? null;
+	},
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: new ListType(Any)
+			},
+			{
+				name: 'index',
+				type: NonZeroInteger
+			},
+		]
+	}
+);
 export const filterMap = _createFunction(
 	<T, U>(
 		values: T[],
