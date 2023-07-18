@@ -1026,7 +1026,7 @@ export const _Boolean = new BooleanType();
 //#region Number
 export const Float = new FloatType();
 export const Integer = new IntegerType();
-export const NonZeroInteger = new IntersectionType([Integer, new ComplementType(0)]);
+export const NonZeroInteger = new IntersectionType([Integer, new ComplementType(0n)]);
 export const Fraction = new DictionaryLiteralType({
 	numerator: Integer,
 	denominator: Integer
