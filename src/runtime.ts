@@ -1529,6 +1529,10 @@ export const repeat = _createFunction(
 		]
 	}
 );
+export const currentIsoDate = _createFunction(
+	() => new Date().toISOString(),
+	{}
+);
 export const runJs = _createFunction(
 	eval,
 	{

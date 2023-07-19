@@ -313,6 +313,11 @@ repeat = nativeFunction(
 	): ()
 	§repeat§
 )
+# ISO 8601
+currentIsoDate = nativeFunction(
+	(): String
+	§() => new Date().toISOString()§
+)
 #region JavaScript
 # Führt den gegebenen String als JavaScript aus und liefert dessen Rückgabe.
 runJs = nativeFunction(
