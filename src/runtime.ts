@@ -22,7 +22,7 @@ type JulFunction = Function & { params: Params; };
 export function _branch(value: any, ...branches: JulFunction[]) {
 	// TODO collect inner Errors?
 	for (const branch of branches) {
-		const assignedParams = tryAssignParams(branch.params, value);
+		const assignedParams = tryAssignParams(branch.params, undefined, value);
 		if (!(assignedParams instanceof Error)) {
 			return branch(...assignedParams);
 		}
@@ -30,16 +30,17 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 	return new Error(`${value} did not match any branch`);
 }
 
-export function _callFunction(fn: JulFunction | Function, args: any) {
+export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: any) {
 	if ('params' in fn) {
 		// jul function
-		const assignedParams = tryAssignParams(fn.params, args);
+		const assignedParams = tryAssignParams(fn.params, prefixArg, args);
 		if (assignedParams instanceof Error) {
 			return assignedParams;
 		}
 		return fn(...assignedParams);
 	}
 	// js function
+	// Todo prefix arg
 	return Array.isArray(args)
 		? fn(...args)
 		: fn(args)
@@ -58,7 +59,7 @@ export function _createFunction(fn: Function, params: Params): JulFunction {
 }
 
 export function _checkDictionaryType(dictionaryType: Params, value: any): boolean {
-	const assignedParams = tryAssignParams(dictionaryType, value);
+	const assignedParams = tryAssignParams(dictionaryType, undefined, value);
 	return assignedParams instanceof Error;
 }
 
@@ -188,13 +189,15 @@ function isDictionary(value: any): value is Dictionary {
 		&& !Array.isArray(value);
 }
 
-function tryAssignParams(params: Params, values: any): any[] | Error {
+function tryAssignParams(params: Params, prefixArg: any, values: any): any[] | Error {
 	const assignedValues: any[] = [];
-	const { type: outerType, singleNames, rest } = params;
-	if (outerType !== undefined) {
-		const isValid = isOfType(values, outerType);
+	const { type: paramsType, singleNames, rest } = params;
+	const hasPrefixArg = prefixArg !== undefined;
+	if (paramsType !== undefined) {
+		// TODO typecheck prefixArg with paramsType?
+		const isValid = isOfType(values, paramsType);
 		if (!isValid) {
-			return new Error(`Can not assign the value ${values} to params because it is not of type ${outerType}`);
+			return new Error(`Can not assign the value ${values} to params because it is not of type ${paramsType}`);
 		}
 		return assignedValues;
 	}
@@ -209,9 +212,11 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 			const param = singleNames[index]!;
 			const { name, type, source } = param;
 			const sourceWithFallback = source ?? name;
-			const value = (isArray
-				? wrappedValue[index]
-				: wrappedValue[sourceWithFallback]) ?? null;
+			const value = (hasPrefixArg && !index
+				? prefixArg
+				: isArray
+					? wrappedValue[index]
+					: wrappedValue[sourceWithFallback]) ?? null;
 			const isValid = type
 				? isOfType(value, type)
 				: true;
@@ -225,6 +230,9 @@ function tryAssignParams(params: Params, values: any): any[] | Error {
 		const restType = rest.type;
 		if (isArray) {
 			const remainingArgs = wrappedValue.slice(index);
+			if (hasPrefixArg && !index) {
+				remainingArgs.unshift(prefixArg);
+			}
 			const isValid = restType
 				? isOfType(remainingArgs, restType)
 				: true;
@@ -1491,7 +1499,7 @@ export const complete = _createFunction(
 export const subscribe = _createFunction(
 	(stream$: Stream<any>, listener: JulFunction) => {
 		const listenerFunction: Listener<any> = (value: any) => {
-			_callFunction(listener, [value]);
+			_callFunction(listener, undefined, [value]);
 		};
 		return stream$.subscribe(listenerFunction);
 	},

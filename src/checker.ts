@@ -213,6 +213,11 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 		case 'fraction':
 			return parseExpression;
 		case 'functionCall': {
+			const prefixArgument = parseExpression.prefixArgument;
+			const checkedPrefixArg = prefixArgument && checkParseExpression(prefixArgument);
+			if (prefixArgument && !checkedPrefixArg) {
+				return undefined;
+			}
 			const checkedArguments = checkParseExpression(parseExpression.arguments);
 			if (!checkedArguments) {
 				return undefined;
@@ -223,6 +228,7 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 			}
 			return {
 				type: 'functionCall',
+				prefixArgument: checkedPrefixArg,
 				functionExpression: checkedFunctionExpression,
 				arguments: checkedArguments as any,
 			};

@@ -794,26 +794,12 @@ function valueExpressionBaseParser(
 			(accumulator, currentValue) => {
 				switch (currentValue.type) {
 					case 'infixFunctionArgs': {
-						const values: NonEmptyArray<ParseListValue> = [
-							accumulator,
-						];
 						const args = currentValue.arguments;
-						// TODO infix function call mit dictionary
-						if (args.type === 'list') {
-							values.push(...args.values);
-						}
 						const innerFunctionCall: ParseFunctionCall = {
 							type: 'functionCall',
+							prefixArgument: accumulator,
 							functionExpression: currentValue.infixFunctionReference,
-							arguments: {
-								type: 'list',
-								values: values,
-								// TODO Achtung bei findExpressionbyPosition, da infix param außerhalb der range
-								startRowIndex: args.startRowIndex,
-								startColumnIndex: args.startColumnIndex,
-								endRowIndex: args.endRowIndex,
-								endColumnIndex: args.endColumnIndex,
-							},
+							arguments: args,
 							startRowIndex: accumulator.startRowIndex,
 							startColumnIndex: accumulator.startColumnIndex,
 							endRowIndex: args.endRowIndex,

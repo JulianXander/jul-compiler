@@ -143,7 +143,10 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				// 	: path;
 				// return `require("${outPath}")`;
 			}
-			return `_callFunction(${expressionToJs(functionExpression)}, ${expressionToJs(expression.arguments)})`;
+			const prefixArgJs = expression.prefixArgument
+				? expressionToJs(expression.prefixArgument)
+				: 'undefined';
+			return `_callFunction(${expressionToJs(functionExpression)}, ${prefixArgJs}, ${expressionToJs(expression.arguments)})`;
 		}
 		case 'functionLiteral': {
 			// TODO params(DefinitionNames) to Type

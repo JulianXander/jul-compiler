@@ -274,6 +274,10 @@ export interface ParseFieldBase extends ParseExpressionBase {
 
 export interface ParseFunctionCall extends ParseExpressionBase {
 	type: 'functionCall';
+	/**
+	 * Nur bei InfixFunctionCall
+	 */
+	prefixArgument?: SimpleExpression;
 	functionExpression: SimpleExpression;
 	// TODO primitive value direkt als arguments?
 	arguments: BracketedExpression;
@@ -418,6 +422,7 @@ export interface CheckedDestructuringField {
 
 export interface CheckedFunctionCall {
 	type: 'functionCall';
+	prefixArgument?: CheckedValueExpression;
 	functionExpression: CheckedValueExpression;
 	// TODO primitive value direkt als arguments?
 	arguments: ObjectLiteral;
