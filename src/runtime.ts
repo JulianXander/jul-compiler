@@ -119,6 +119,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						return true;
 					}
 					case 'list':
+						// TODO check array not empty?
 						return Array.isArray(value)
 							&& value.every(element =>
 								isOfType(element, builtInType.elementType));
@@ -862,7 +863,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 			return parseJsonString(json, index + 1);
 		case '[': {
 			index++;
-			const array: any[] = [];
+			let array: any[] | null = null;
 			index = parseJsonWhiteSpace(json, index);
 			if (json[index] === ']') {
 				return {
@@ -894,6 +895,9 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 					if (elementResult instanceof Error) {
 						return elementResult;
 					}
+					if (array === null) {
+						array = [];
+					}
 					array.push(elementResult.parsed);
 					isSeparator = true;
 					index = elementResult.endIndex;
@@ -902,7 +906,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 		}
 		case '{': {
 			index++;
-			const object: { [key: string]: any } = {};
+			let object: { [key: string]: any } | null = null;
 			index = parseJsonWhiteSpace(json, index);
 			if (json[index] === '}') {
 				return {
@@ -945,6 +949,9 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 					const valueResult = parseJsonValue(json, colonIndex + 1);
 					if (valueResult instanceof Error) {
 						return valueResult;
+					}
+					if (object === null) {
+						object = {};
 					}
 					object[keyResult.parsed] = valueResult.parsed;
 					isSeparator = true;
