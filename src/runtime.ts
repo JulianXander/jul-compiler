@@ -206,17 +206,23 @@ function tryAssignParams(params: Params, prefixArg: any, values: any): any[] | E
 		? values
 		: [values];
 	const isArray = Array.isArray(wrappedValue);
-	let index = 0;
+	let paramIndex = 0;
+	let valueIndex = 0;
 	if (singleNames) {
-		for (; index < singleNames.length; index++) {
-			const param = singleNames[index]!;
+		for (; paramIndex < singleNames.length; paramIndex++) {
+			const param = singleNames[paramIndex]!;
 			const { name, type, source } = param;
 			const sourceWithFallback = source ?? name;
-			const value = (hasPrefixArg && !index
-				? prefixArg
-				: isArray
-					? wrappedValue[index]
-					: wrappedValue[sourceWithFallback]) ?? null;
+			let value;
+			if (hasPrefixArg && !paramIndex) {
+				value = prefixArg;
+			}
+			else {
+				value = isArray
+					? wrappedValue[valueIndex]
+					: wrappedValue[sourceWithFallback] ?? null;
+				valueIndex++;
+			}
 			const isValid = type
 				? isOfType(value, type)
 				: true;
@@ -229,8 +235,8 @@ function tryAssignParams(params: Params, prefixArg: any, values: any): any[] | E
 	if (rest) {
 		const restType = rest.type;
 		if (isArray) {
-			const remainingArgs = wrappedValue.slice(index);
-			if (hasPrefixArg && !index) {
+			const remainingArgs = wrappedValue.slice(valueIndex);
+			if (hasPrefixArg && !paramIndex) {
 				remainingArgs.unshift(prefixArg);
 			}
 			const isValid = restType
