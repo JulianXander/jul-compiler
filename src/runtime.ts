@@ -1358,6 +1358,19 @@ export const currentDate = _createFunction(
 	() => new Date(),
 	{}
 );
+export const getMilliseconds = _createFunction(
+	(
+		date: Date,
+	) => BigInt(date.getMilliseconds()),
+	{
+		singleNames: [
+			{
+				name: 'date',
+				type: _Date
+			},
+		]
+	}
+);
 export const toIsoDateString = _createFunction(
 	(
 		date: Date,

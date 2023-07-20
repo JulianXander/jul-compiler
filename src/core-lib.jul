@@ -196,6 +196,10 @@ currentDate = nativeFunction(
 	(): Date
 	§() => new Date()§
 )
+getMilliseconds = nativeFunction(
+	(date: Date): Integer
+	§date => BigInt(date.getMilliseconds())§
+)
 # ISO 8601
 toIsoDateString = nativeFunction(
 	(date: Date): String
