@@ -196,6 +196,11 @@ currentDate = nativeFunction(
 	(): Date
 	§() => new Date()§
 )
+# ISO 8601
+toIsoDateString = nativeFunction(
+	(date: Date): String
+	§date => date.toISOString()§
+)
 #endregion Date
 #region List
 # Liefert die Anzahl der Elemente in der Liste

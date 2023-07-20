@@ -1358,6 +1358,19 @@ export const currentDate = _createFunction(
 	() => new Date(),
 	{}
 );
+export const toIsoDateString = _createFunction(
+	(
+		date: Date,
+	) => date.toISOString(),
+	{
+		singleNames: [
+			{
+				name: 'date',
+				type: _Date
+			},
+		]
+	}
+);
 //#endregion Date
 //#region List
 export const length = _createFunction(
