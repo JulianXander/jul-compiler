@@ -455,18 +455,6 @@ interface Parameter {
 	type?: RuntimeType;
 }
 
-export type ReferencePath = [Name, ...(Name | Index)[]];
-
-export interface Name {
-	type: 'name';
-	name: string;
-}
-
-export interface Index {
-	type: 'index';
-	name: number;
-}
-
 export class TypeType extends BuiltInTypeBase {
 	readonly type = 'type';
 }

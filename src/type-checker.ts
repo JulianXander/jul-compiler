@@ -14,7 +14,6 @@ import {
 	IntersectionType,
 	ParameterReference,
 	Primitive,
-	ReferencePath,
 	RuntimeType,
 	StreamType,
 	TupleType,
@@ -27,7 +26,8 @@ import {
 	ParametersType,
 	_String,
 	deepEquals,
-	DictionaryType
+	DictionaryType,
+	_Date
 } from './runtime.js';
 import {
 	BracketedExpression,
@@ -72,6 +72,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	Integer: new TypeOfType(Integer),
 	Float: new TypeOfType(Float),
 	String: new TypeOfType(_String),
+	Date: new TypeOfType(_Date),
 	Error: new TypeOfType(_Error),
 	List: new FunctionType(
 		new ParametersType([{
