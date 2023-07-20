@@ -188,6 +188,7 @@ addDate = nativeFunction(
 		hours: Or(() Integer)
 		minutes: Or(() Integer)
 		seconds: Or(() Integer)
+		milliSeconds: Or(() Integer)
 	): Date
 	§TODO§
 )
