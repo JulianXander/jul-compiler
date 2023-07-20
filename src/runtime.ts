@@ -1307,7 +1307,7 @@ export const addDate = _createFunction(
 		hours: bigint | null,
 		minutes: bigint | null,
 		seconds: bigint | null,
-		milliSeconds: bigint | null
+		milliseconds: bigint | null
 	) => new Date(
 		date.getFullYear() + Number(years ?? 0),
 		date.getMonth() + Number(months ?? 0),
@@ -1315,7 +1315,7 @@ export const addDate = _createFunction(
 		date.getHours() + Number(hours ?? 0),
 		date.getMinutes() + Number(minutes ?? 0),
 		date.getSeconds() + Number(seconds ?? 0),
-		date.getMilliseconds() + Number(milliSeconds ?? 0),
+		date.getMilliseconds() + Number(milliseconds ?? 0),
 	),
 	{
 		singleNames: [
@@ -1348,7 +1348,7 @@ export const addDate = _createFunction(
 				type: optionalType(Integer)
 			},
 			{
-				name: 'milliSeconds',
+				name: 'milliseconds',
 				type: optionalType(Integer)
 			},
 		]
