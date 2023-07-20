@@ -279,6 +279,7 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 	switch (builtInType.type) {
 		case 'any':
 		case 'boolean':
+		case 'date':
 		case 'error':
 		case 'float':
 		case 'integer':
@@ -1155,6 +1156,8 @@ function getTypeError(
 								break;
 						}
 						break;
+					case 'date':
+						break;
 					case 'dictionary': {
 						if (typeof valueType !== 'object') {
 							// TODO type specific error?
@@ -1704,6 +1707,8 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return 'Integer';
 					case 'boolean':
 						return 'Boolean';
+					case 'date':
+						return 'Date';
 					case 'dictionary':
 						return `Dictionary(${typeToString(builtInType.elementType, indent)})`;
 					case 'dictionaryLiteral':
