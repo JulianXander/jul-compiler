@@ -86,6 +86,8 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						return typeof value === 'number';
 					case 'string':
 						return typeof value === 'string';
+					case 'date':
+						return value instanceof Date;
 					case 'error':
 						return value instanceof Error;
 					case 'dictionary': {
@@ -338,6 +340,7 @@ export type BuiltInType =
 	| IntegerType
 	| FloatType
 	| StringType
+	| DateType
 	| ErrorType
 	| ListType
 	| TupleType
@@ -374,6 +377,10 @@ export class FloatType extends BuiltInTypeBase {
 
 export class StringType extends BuiltInTypeBase {
 	readonly type = 'string';
+}
+
+export class DateType extends BuiltInTypeBase {
+	readonly type = 'date';
 }
 
 class ErrorType extends BuiltInTypeBase {
@@ -485,6 +492,10 @@ export class TypeOfType extends BuiltInTypeBase {
 }
 
 //#endregion BuiltInType
+
+function optionalType(...types: RuntimeType[]): UnionType {
+	return new UnionType([null, ...types]);
+}
 
 //#endregion Types
 
@@ -1038,6 +1049,7 @@ export const Fraction = new DictionaryLiteralType({
 export const Rational = new UnionType([Integer, Fraction]);
 //#endregion Number
 export const _String = new StringType();
+export const _Date = new DateType();
 export const _Error = new ErrorType();
 export const List = _createFunction(
 	(ElementType: RuntimeType) =>
@@ -1297,6 +1309,62 @@ export const regex = _createFunction(
 	}
 );
 //#endregion String
+//#region Date
+export const addDate = _createFunction(
+	(
+		date: Date,
+		years: bigint | null,
+		months: bigint | null,
+		days: bigint | null,
+		hours: bigint | null,
+		minutes: bigint | null,
+		seconds: bigint | null,
+	) => new Date(
+		date.getFullYear() + Number(years ?? 0),
+		date.getMonth() + Number(months ?? 0),
+		date.getDate() + Number(days ?? 0),
+		date.getHours() + Number(hours ?? 0),
+		date.getMinutes() + Number(minutes ?? 0),
+		date.getSeconds() + Number(seconds ?? 0),
+	),
+	{
+		singleNames: [
+			{
+				name: 'date',
+				type: _Date
+			},
+			{
+				name: 'years',
+				type: optionalType(_Date)
+			},
+			{
+				name: 'months',
+				type: optionalType(_Date)
+			},
+			{
+				name: 'days',
+				type: optionalType(_Date)
+			},
+			{
+				name: 'hours',
+				type: optionalType(_Date)
+			},
+			{
+				name: 'minutes',
+				type: optionalType(_Date)
+			},
+			{
+				name: 'seconds',
+				type: optionalType(_Date)
+			},
+		]
+	}
+);
+export const currentDate = _createFunction(
+	() => new Date(),
+	{}
+);
+//#endregion Date
 //#region List
 export const length = _createFunction(
 	(
@@ -1528,10 +1596,6 @@ export const repeat = _createFunction(
 			},
 		]
 	}
-);
-export const currentIsoDate = _createFunction(
-	() => new Date().toISOString(),
-	{}
 );
 export const runJs = _createFunction(
 	eval,

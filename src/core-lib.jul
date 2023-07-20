@@ -25,6 +25,7 @@ Rational = Or(Integer Fraction)
 #endregion Number
 # sequence of characters
 String = nativeValue(§_String§)
+Date = nativeValue(§_Date§)
 Error = nativeValue(§_Error§)
 # data structure containing 1 or more elements of type ElementType
 List = nativeFunction(
@@ -177,6 +178,24 @@ regex = nativeFunction(
 	§TODO§
 )
 #endregion String
+#region Date
+addDate = nativeFunction(
+	(
+		date: Date
+		years: Or(() Integer)
+		months: Or(() Integer)
+		days: Or(() Integer)
+		hours: Or(() Integer)
+		minutes: Or(() Integer)
+		seconds: Or(() Integer)
+	): Date
+	§TODO§
+)
+currentDate = nativeFunction(
+	(): Date
+	§() => new Date()§
+)
+#endregion Date
 #region List
 # Liefert die Anzahl der Elemente in der Liste
 # Achtung: List/length liefert die javascript Array.length als Float
@@ -312,11 +331,6 @@ repeat = nativeFunction(
 		iteratee: (index: Integer): Any
 	): ()
 	§repeat§
-)
-# ISO 8601
-currentIsoDate = nativeFunction(
-	(): String
-	§() => new Date().toISOString()§
 )
 #region JavaScript
 # Führt den gegebenen String als JavaScript aus und liefert dessen Rückgabe.
