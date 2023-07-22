@@ -9,6 +9,24 @@ const expectedResults: {
 	result: ParseExpression[];
 }[] = [
 		{
+			code: 'true',
+			result: [{
+				type: 'reference',
+				name: {
+					type: 'name',
+					name: 'true',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 4,
+				},
+				startRowIndex: 0,
+				startColumnIndex: 0,
+				endRowIndex: 0,
+				endColumnIndex: 4,
+			}]
+		},
+		{
 			code: '§\n\t§#\n§',
 			result: [{
 				type: 'string',

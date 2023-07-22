@@ -2,7 +2,7 @@
 import Ajv from 'ajv';
 import { load } from 'js-yaml';
 import { dirname, join } from 'path';
-import { compileFileToJs } from './compiler.js';
+import { compileProject } from './compiler.js';
 import configSchema from './jul-config-schema.json' assert { type: 'json' };
 import { readTextFile } from './util.js';
 
@@ -27,7 +27,7 @@ if (!valid) {
 const rootFolder = dirname(configFilePath);
 const outputFolder = config.outputFolder ?? 'out';
 console.log(`Compiler started with entry file ${config.entryFilePath} ...`);
-compileFileToJs(
+compileProject(
 	join(rootFolder, config.entryFilePath),
 	join(rootFolder, outputFolder),
 );

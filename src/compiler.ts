@@ -5,7 +5,7 @@ import { checkParseExpressions } from './checker.js';
 import { syntaxTreeToJs } from './emitter.js';
 import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tree.js';
 import { getPathFromImport } from './type-checker.js';
-import { parseJulFile } from './parser/parser.js';
+import { parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
@@ -14,7 +14,7 @@ const { ModuleKind, transpileModule } = typescript;
 
 const runtimeFileName = 'runtime.js';
 
-export function compileFileToJs(
+export function compileProject(
 	entryFilePath: string,
 	outputFolderPath: string,
 ): void {
@@ -24,7 +24,7 @@ export function compileFileToJs(
 
 	//#region 2. compile
 	const runtimePath = resolve(join(outputFolderPath, runtimeFileName));
-	const outFilePath = compileJulFileInternal({
+	const outFilePath = compileFile({
 		sourceFilePath: entryFilePath,
 		outputFolderPath: outputFolderPath,
 		runtimePath: runtimePath,
@@ -77,7 +77,10 @@ interface JulCompilerOptions {
 	runtimePath: string;
 }
 
-function compileJulFileInternal(
+/**
+ * Gibt den outFilePath zurück
+ */
+function compileFile(
 	options: JulCompilerOptions,
 	compiledFilePaths?: { [key: string]: true; },
 ): string {
@@ -87,12 +90,9 @@ function compileJulFileInternal(
 		runtimePath,
 	} = options;
 	console.log(`compiling ${sourceFilePath} ...`);
-	if (!sourceFilePath.endsWith(Extension.jul)) {
-		throw new Error(`Invalid file ending. Expected .jul but got ${sourceFilePath}`);
-	}
 
 	//#region 1. read & 2. parse
-	const parsed = parseJulFile(sourceFilePath);
+	const parsed = parseFile(sourceFilePath);
 	outputErrors(parsed.errors);
 	// console.log(result);
 	const syntaxTree = checkParseExpressions(parsed.expressions!)!;
@@ -101,10 +101,6 @@ function compileJulFileInternal(
 	// TODO typecheck
 
 	//#region 3. compile
-	// const interpreterFile = readFileSync('out/interpreter.js');
-	// const interpreterCode = interpreterFile.toString();
-	// const compiled = `${interpreterCode}
-	// const compiled = `const interpreteAst = require("./interpreter").interpreteAst\nconst c = ${JSON.stringify(ast, undefined, 2)}\ninterpreteAst(c)`;
 	const compiled = syntaxTreeToJs(syntaxTree, runtimePath);
 	// console.log(compiled);
 	//#endregion 3. compile
@@ -130,17 +126,24 @@ function compileJulFileInternal(
 		}
 		compiledFilePathsWithDefault[fullPath] = true;
 		switch (extname(path)) {
-			case Extension.js:
-			case Extension.json: {
-				// copy js/json file to output folder
+			case Extension.js: {
+				// copy js file to output folder
 				const jsOutFilePath = join(outputFolderPath, fullPath);
 				const jsOutDir = dirname(jsOutFilePath);
 				tryCreateDirectory(jsOutDir);
 				copyFileSync(fullPath, jsOutFilePath);
 				return;
 			}
+			case Extension.json: {
+				// parse json and write to js in output folder
+				compileFile({
+					...options,
+					sourceFilePath: fullPath,
+				}, compiledFilePathsWithDefault);
+				return;
+			}
 			case Extension.jul: {
-				compileJulFileInternal({
+				compileFile({
 					...options,
 					sourceFilePath: fullPath,
 				}, compiledFilePathsWithDefault);
@@ -161,6 +164,7 @@ function compileJulFileInternal(
 			}
 			case Extension.yaml: {
 				// parse yaml and write to json in output folder
+				// TODO compile
 				const yaml = readTextFile(fullPath);
 				const parsedYaml = load(yaml);
 				const json = JSON.stringify(parsedYaml);

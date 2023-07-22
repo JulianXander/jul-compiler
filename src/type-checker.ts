@@ -44,7 +44,7 @@ import {
 	TypedExpression
 } from './syntax-tree.js';
 import { Extension, NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
-import { parseJulFile } from './parser/parser.js';
+import { parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedName } from './checker.js';
 
@@ -138,7 +138,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 };
 
 export const coreLibPath = join(executingDirectory, 'core-lib.jul');
-const parsedCoreLib = parseJulFile(coreLibPath);
+const parsedCoreLib = parseFile(coreLibPath);
 inferFileTypes(parsedCoreLib, [], {}, '');
 export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
 

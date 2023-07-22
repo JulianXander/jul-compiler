@@ -1,12 +1,12 @@
+-compile yaml to js wegen rundungsfehler bei großen zahlen
+-type info für yaml
+	?typescript compiler nutzen für ast parser
+		-vgl https://github.com/microsoft/TypeScript/blob/main/src/compiler/parser.ts
+		-https://github.com/Microsoft/TypeScript/wiki/Using-the-Compiler-API
 -typecheck functionCall mit prefixArg
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary
-?compile json, yaml to js wegen rundungsfehler bei großen zahlen
--type info für yaml, json
-	?typescript compiler nutzen für ast parser
-		-vgl https://github.com/microsoft/TypeScript/blob/main/src/compiler/parser.ts
-		-https://github.com/Microsoft/TypeScript/wiki/Using-the-Compiler-API
 ?fallback bei definition
 ?was tun mit typeGuard, fallback bei destructuring import
 ?alias bei rest parameter

@@ -31,7 +31,6 @@ import {
 	ParseFieldBase,
 	ParseFunctionCall,
 	ParseFunctionTypeLiteral,
-	ParseListValue,
 	ParseParameterField,
 	ParseParameterFields,
 	ParseSingleDefinition,
@@ -50,19 +49,31 @@ import {
 	isNonEmpty,
 	last,
 	mapNonEmpty,
-	NonEmptyArray,
 	readTextFile,
 } from '../util.js';
 import { parseTsCode } from './typescript-parser.js';
 import { checkName, createParseFunctionLiteral, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions } from './parser-utils.js';
+import { extname } from 'path';
+import { parseJsonFn } from '../runtime.js';
+import { jsonValueToJulAst } from './json-parser.js';
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
  */
-export function parseJulFile(filePath: string): ParsedFile {
+export function parseFile(filePath: string): ParsedFile {
 	const code = readTextFile(filePath);
-	const result = parseCode(code, Extension.jul);
-	return result;
+	const extension = extname(filePath);
+	switch (extension) {
+		case Extension.js:
+		case Extension.json:
+		case Extension.jul:
+		case Extension.ts:
+		case Extension.yaml:
+			const result = parseCode(code, extension);
+			return result;
+		default:
+			throw new Error(`Unexpected extension for parseFile: ${extension}`);
+	}
 }
 
 export function parseCode(code: string, extension: Extension): ParsedFile {
@@ -72,12 +83,25 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 			parsedExpressions = parseTsCode(code);
 			break;
 		case Extension.json: {
-			// TODO
-			// const parsedJson = JSON.parse(code);
+			const parsedJson = parseJsonFn(code);
+			if (parsedJson instanceof Error) {
+				return {
+					errors: [{
+						message: parsedJson.message,
+						// TODO position?
+						startColumnIndex: 0,
+						startRowIndex: 0,
+						endColumnIndex: 0,
+						endRowIndex: 0,
+					}],
+					symbols: {},
+				};
+			}
+			const ast = jsonValueToJulAst(parsedJson);
 			return {
-				// expressions: [
-				// 	{type: ''}
-				// ],
+				expressions: [
+					ast,
+				],
 				errors: [],
 				symbols: {},
 			};

@@ -806,6 +806,18 @@ type ParserResult<T> = {
 	endIndex: number;
 } | Error;
 
+export function parseJsonFn(json: string) {
+	const result = parseJsonValue(json, 0);
+	if (result instanceof Error) {
+		return result;
+	}
+	const endIndex = parseJsonWhiteSpace(json, result.endIndex);
+	if (endIndex < json.length) {
+		return new Error(`Invalid JSON. Unexpected extra charcter ${json[endIndex]} after parsed value at position ${endIndex}`);
+	}
+	return result.parsed;
+}
+
 function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 	let index = parseJsonWhiteSpace(json, startIndex);
 	const character = json[index]
@@ -1279,17 +1291,7 @@ export const parseFloat = _createFunction(
 	}
 );
 export const parseJson = _createFunction(
-	(json: string) => {
-		const result = parseJsonValue(json, 0);
-		if (result instanceof Error) {
-			return result;
-		}
-		const endIndex = parseJsonWhiteSpace(json, result.endIndex);
-		if (endIndex < json.length) {
-			return new Error(`Invalid JSON. Unexpected extra charcter ${json[endIndex]} after parsed value at position ${endIndex}`);
-		}
-		return result.parsed;
-	},
+	parseJsonFn,
 	{
 		singleNames: [
 			{
