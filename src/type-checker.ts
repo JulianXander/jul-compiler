@@ -641,10 +641,20 @@ function inferType(
 						if (!importedFile) {
 							return Any;
 						}
-						const importedTypes = mapDictionary(importedFile.symbols, symbol => {
-							return symbol.normalizedType!;
-						});
-						return new DictionaryLiteralType(importedTypes);
+						// definitions import
+						// a dictionary containing all definitions is imported
+						if (Object.keys(importedFile.symbols).length) {
+							const importedTypes = mapDictionary(importedFile.symbols, symbol => {
+								return symbol.normalizedType!;
+							});
+							return new DictionaryLiteralType(importedTypes);
+						}
+						// value import
+						// the last expression is imported
+						if (!importedFile.expressions) {
+							return Any;
+						}
+						return last(importedFile.expressions)?.inferredType ?? Any;
 					}
 					// case 'nativeFunction': {
 					// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
