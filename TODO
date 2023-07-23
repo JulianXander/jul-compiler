@@ -1,4 +1,5 @@
 -compile yaml to js wegen rundungsfehler bei großen zahlen
+	-https://github.com/nodeca/js-yaml/blob/2b5620ed8f03ba0df319fe7710f6d7fd44811742/examples/int_type_override.js
 -typecheck functionCall mit prefixArg
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
