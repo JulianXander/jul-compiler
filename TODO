@@ -33,8 +33,6 @@
 	-title navbar
 		-home, roadmap, documentation
 		-github wiki für doku prüfen
-+infix function call chain inline/multiline
-	-runtime testen
 -float typeToString mit f?
 ?FractionValueType
 	-für custom typeToSting
@@ -62,7 +60,6 @@
 	-1. check args assignable
 	-2. check returnValue = true
 ?catchAll default case in branching mit () oder Any?
--fix infix (dotted) function call parser mit chains, vgl fizz-buzz.jul
 -taschenrechner demo app
 -fix and typeChecking vgl typeCheckingTest.jul
 -tuple typechecking
