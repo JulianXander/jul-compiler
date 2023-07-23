@@ -116,9 +116,9 @@ function compileFile(
 	//#region 5. compile dependencies
 	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
 	const compiledFilePathsWithDefault = compiledFilePaths ?? { [sourceFilePath]: true };
-	const importedFilePaths = getImportedPaths(parsed);
-	outputErrors(importedFilePaths.errors);
 	const sourceFolder = dirname(sourceFilePath);
+	const importedFilePaths = getImportedPaths(parsed, sourceFolder);
+	outputErrors(importedFilePaths.errors);
 	importedFilePaths.paths.forEach(path => {
 		const fullPath = join(sourceFolder, path);
 		if (compiledFilePathsWithDefault[fullPath]) {
@@ -206,7 +206,13 @@ function busySpinner() {
 
 //#region import
 
-export function getImportedPaths(parsedFile: ParsedFile): { paths: string[], errors: ParserError[] } {
+export function getImportedPaths(
+	parsedFile: ParsedFile,
+	sourceFolder: string,
+): {
+	paths: string[];
+	errors: ParserError[];
+} {
 	const importedPaths: string[] = [];
 	const errors: ParserError[] = [];
 	parsedFile.expressions?.forEach(expression => {
@@ -219,7 +225,7 @@ export function getImportedPaths(parsedFile: ParsedFile): { paths: string[], err
 			case 'destructuring':
 				const value = expression.value;
 				if (isImport(value)) {
-					const { path, error } = getPathFromImport(value);
+					const { path, error } = getPathFromImport(value, sourceFolder);
 					if (error) {
 						errors.push(error);
 					}

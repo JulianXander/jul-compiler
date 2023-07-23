@@ -47,6 +47,7 @@ import { Extension, NonEmptyArray, executingDirectory, isDefined, isNonEmpty, la
 import { parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedName } from './checker.js';
+import { existsSync } from 'fs';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -356,23 +357,23 @@ function dereferenceArgumentType(argsType: RuntimeType, parameterReference: Para
 export function checkTypes(
 	document: ParsedFile,
 	documents: ParsedDocuments,
-	folder: string,
+	sourceFolder: string,
 ): void {
-	inferFileTypes(document, [builtInSymbols], documents, folder);
+	inferFileTypes(document, [builtInSymbols], documents, sourceFolder);
 }
 
 function inferFileTypes(
 	file: ParsedFile,
 	scopes: SymbolTable[],
 	parsedDocuments: ParsedDocuments,
-	folder: string,
+	sourceFolder: string,
 ): void {
 	const scopes2 = [
 		...scopes,
 		file.symbols,
 	] as any as NonEmptyArray<SymbolTable>;
 	file.expressions?.forEach(expression => {
-		setInferredType(expression, scopes2, parsedDocuments, folder, file);
+		setInferredType(expression, scopes2, parsedDocuments, sourceFolder, file);
 	});
 }
 
@@ -380,13 +381,13 @@ function setInferredType(
 	expression: TypedExpression,
 	scopes: NonEmptyArray<SymbolTable>,
 	parsedDocuments: ParsedDocuments,
-	folder: string,
+	sourceFolder: string,
 	file: ParsedFile,
 ): void {
 	if (expression.inferredType) {
 		return;
 	}
-	expression.inferredType = inferType(expression, scopes, parsedDocuments, folder, file);
+	expression.inferredType = inferType(expression, scopes, parsedDocuments, sourceFolder, file);
 }
 
 // TODO flatten nested or/and
@@ -628,7 +629,7 @@ function inferType(
 				const functionName = functionExpression.name.name;
 				switch (functionName) {
 					case 'import': {
-						const { path, error } = getPathFromImport(expression);
+						const { path, error } = getPathFromImport(expression, folder);
 						if (error) {
 							errors.push(error)
 						}
@@ -1631,21 +1632,36 @@ function typeErrorToString(typeError: TypeError): string {
 
 //#region import
 
-export function getPathFromImport(importExpression: ParseFunctionCall): { path?: string, error?: ParserError } {
+/**
+ * Prüft extension und file exists
+ */
+export function getPathFromImport(
+	importExpression: ParseFunctionCall,
+	/**
+	 * Pfad des Ordners, der die Quelldatei enthält
+	 */
+	sourceFolder: string,
+): {
+	path?: string;
+	error?: ParserError;
+} {
 	const pathExpression = getPathExpression(importExpression.arguments);
 	if (pathExpression?.type === 'string'
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'stringToken') {
-		const importedPath = pathExpression.values[0].value;
-		const extension = extname(importedPath);
+		const rawImportedPath = pathExpression.values[0].value;
+		const extension = extname(rawImportedPath);
+		let importedPathWithExtension: string;
 		switch (extension) {
 			case '':
-				return { path: importedPath + Extension.jul };
+				importedPathWithExtension = rawImportedPath + Extension.jul;
+				break;
 			case Extension.js:
 			case Extension.json:
 			case Extension.ts:
 			case Extension.yaml:
-				return { path: importedPath };
+				importedPathWithExtension = rawImportedPath;
+				break;
 			default:
 				return {
 					error: {
@@ -1657,6 +1673,20 @@ export function getPathFromImport(importExpression: ParseFunctionCall): { path?:
 					}
 				};
 		}
+		const filePath = join(sourceFolder, importedPathWithExtension);
+		const fileNotFoundError: ParserError | undefined = existsSync(filePath)
+			? undefined
+			: {
+				message: `File not found: ${importedPathWithExtension}`,
+				startRowIndex: pathExpression.startRowIndex,
+				startColumnIndex: pathExpression.startColumnIndex,
+				endRowIndex: pathExpression.endRowIndex,
+				endColumnIndex: pathExpression.endColumnIndex,
+			}
+		return {
+			path: importedPathWithExtension,
+			error: fileNotFoundError,
+		};
 	}
 	// TODO dynamische imports verbieten???
 	return {
