@@ -216,6 +216,7 @@ function getPathFromImport(importExpression: CheckedFunctionCall): string {
 		&& pathExpression.values[0]!.type === 'stringToken') {
 		const importedPath = pathExpression.values[0].value;
 		switch (extname(importedPath)) {
+			case Extension.json:
 			case Extension.ts:
 				return changeExtension(importedPath, Extension.js);
 			case Extension.yaml:

@@ -1,4 +1,3 @@
--fix json import als js
 -compile yaml to js wegen rundungsfehler bei großen zahlen
 -type info für yaml
 	?typescript compiler nutzen für ast parser
