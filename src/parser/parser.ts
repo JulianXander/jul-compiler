@@ -722,43 +722,6 @@ function valueExpressionBaseParser(
 	const result = sequenceParser(
 		simpleExpressionParser,
 		discriminatedChoiceParser(
-			// Field/Index Reference / (Infix) FunctionCall
-			{
-				predicate: choiceParser(
-					nestedReferenceTokenParser,
-					openingBracketParser,
-					infixFunctionTokenParser,
-					// TODO multiline functionCall chain mit Kommentarzeilen
-				),
-				parser: multiplicationParser(
-					1,
-					undefined,
-					discriminatedChoiceParser(
-						// Field/Index Reference
-						{
-							predicate: tokenParser('/'),
-							parser: moveColumnIndex(1, choiceParser(
-								nameParser,
-								inlineStringParser,
-								indexParser,
-							)),
-						},
-						// FunctionCall
-						{
-							predicate: openingBracketParser,
-							// ObjectLiteral
-							parser: functionArgumentsParser
-						},
-						// Infix FunctionCall
-						{
-							predicate: choiceParser(
-								infixFunctionTokenParser,
-								// TODO multiline functionCall mit Kommentarzeilen
-							),
-							parser: infixFunctionArgumentsParser,
-						},
-					)),
-			},
 			// Branching
 			{
 				predicate: branchingTokenParser,
@@ -803,75 +766,6 @@ function valueExpressionBaseParser(
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 			parsed: parsed1,
-		};
-	}
-	if (Array.isArray(parsed2)) {
-		// (Nested Ref/Function Call) Chain
-		const expression = parsed2.reduce<SimpleExpression>(
-			(accumulator, currentValue) => {
-				switch (currentValue.type) {
-					case 'infixFunctionArgs': {
-						const args = currentValue.arguments;
-						const innerFunctionCall: ParseFunctionCall = {
-							type: 'functionCall',
-							prefixArgument: accumulator,
-							functionExpression: currentValue.infixFunctionReference,
-							arguments: args,
-							startRowIndex: accumulator.startRowIndex,
-							startColumnIndex: accumulator.startColumnIndex,
-							endRowIndex: args.endRowIndex,
-							endColumnIndex: args.endColumnIndex,
-						};
-						return innerFunctionCall;
-					}
-					case 'index': {
-						const indexReference: ParseIndexReference = {
-							type: 'indexReference',
-							source: accumulator,
-							index: currentValue,
-							startColumnIndex: accumulator.startColumnIndex,
-							startRowIndex: accumulator.startRowIndex,
-							endColumnIndex: currentValue.endColumnIndex,
-							endRowIndex: currentValue.endColumnIndex,
-						};
-						return indexReference;
-					}
-					case 'name':
-					case 'string': {
-						if (currentValue.type === 'string') {
-							errors.push(...getEscapableNameErrors(currentValue));
-						}
-						const fieldReference: ParseFieldReference = {
-							type: 'fieldReference',
-							source: accumulator,
-							field: currentValue,
-							startColumnIndex: accumulator.startColumnIndex,
-							startRowIndex: accumulator.startRowIndex,
-							endColumnIndex: currentValue.endColumnIndex,
-							endRowIndex: currentValue.endColumnIndex,
-						};
-						return fieldReference;
-					}
-					default: {
-						const functionCall: ParseFunctionCall = {
-							type: 'functionCall',
-							functionExpression: accumulator,
-							arguments: currentValue,
-							startRowIndex: accumulator.startRowIndex,
-							startColumnIndex: accumulator.startColumnIndex,
-							endRowIndex: currentValue.endRowIndex,
-							endColumnIndex: currentValue.endColumnIndex,
-						};
-						return functionCall;
-					}
-				}
-			},
-			parsed1);
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			parsed: expression,
-			errors: errors,
 		};
 	}
 	switch (parsed2.type) {
@@ -989,32 +883,139 @@ function simpleExpressionParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<SimpleExpression> {
-	const result = discriminatedChoiceParser(
-		// BracketedExpression
-		{
-			predicate: openingBracketParser,
-			parser: bracketedBaseParser,
-		},
-		// NumberLiteral
-		{
-			predicate: regexParser(/[-0-9]/y, ''),
-			parser: numberParser,
-		},
-		// StringLiteral
-		{
-			predicate: paragraphParser,
-			parser: choiceParser(
-				inlineStringParser,
-				multilineStringParser
-			)
-		},
-		// Reference
-		{
-			predicate: regexParser(/[a-zA-Z]/y, ''),
-			parser: referenceParser,
-		},
+	const result = sequenceParser(
+		discriminatedChoiceParser(
+			// BracketedExpression
+			{
+				predicate: openingBracketParser,
+				parser: bracketedBaseParser,
+			},
+			// NumberLiteral
+			{
+				predicate: regexParser(/[-0-9]/y, ''),
+				parser: numberParser,
+			},
+			// StringLiteral
+			{
+				predicate: paragraphParser,
+				parser: choiceParser(
+					inlineStringParser,
+					multilineStringParser
+				)
+			},
+			// Reference
+			{
+				predicate: regexParser(/[a-zA-Z]/y, ''),
+				parser: referenceParser,
+			},
+		),
+		multiplicationParser(
+			0,
+			undefined,
+			discriminatedChoiceParser(
+				// Field/Index Reference
+				{
+					predicate: tokenParser('/'),
+					parser: moveColumnIndex(1, choiceParser(
+						nameParser,
+						inlineStringParser,
+						indexParser,
+					)),
+				},
+				// FunctionCall
+				{
+					predicate: openingBracketParser,
+					// ObjectLiteral
+					parser: functionArgumentsParser
+				},
+				// Infix FunctionCall
+				{
+					predicate: choiceParser(
+						infixFunctionTokenParser,
+						// TODO multiline functionCall mit Kommentarzeilen
+					),
+					parser: infixFunctionArgumentsParser,
+				},
+			)),
 	)(rows, startRowIndex, startColumnIndex, indent);
-	return result;
+	const errors = result.errors
+		? [...result.errors]
+		: [];
+	if (errors.length) {
+		return {
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+			errors: errors,
+		};
+	}
+	const [parsed1, parsed2] = result.parsed!;
+	// (Nested Ref/Function Call) Chain
+	const expression = parsed2.reduce<SimpleExpression>(
+		(accumulator, currentValue) => {
+			switch (currentValue.type) {
+				case 'infixFunctionArgs': {
+					const args = currentValue.arguments;
+					const innerFunctionCall: ParseFunctionCall = {
+						type: 'functionCall',
+						prefixArgument: accumulator,
+						functionExpression: currentValue.infixFunctionReference,
+						arguments: args,
+						startRowIndex: accumulator.startRowIndex,
+						startColumnIndex: accumulator.startColumnIndex,
+						endRowIndex: args.endRowIndex,
+						endColumnIndex: args.endColumnIndex,
+					};
+					return innerFunctionCall;
+				}
+				case 'index': {
+					const indexReference: ParseIndexReference = {
+						type: 'indexReference',
+						source: accumulator,
+						index: currentValue,
+						startColumnIndex: accumulator.startColumnIndex,
+						startRowIndex: accumulator.startRowIndex,
+						endColumnIndex: currentValue.endColumnIndex,
+						endRowIndex: currentValue.endColumnIndex,
+					};
+					return indexReference;
+				}
+				case 'name':
+				case 'string': {
+					if (currentValue.type === 'string') {
+						errors.push(...getEscapableNameErrors(currentValue));
+					}
+					const fieldReference: ParseFieldReference = {
+						type: 'fieldReference',
+						source: accumulator,
+						field: currentValue,
+						startColumnIndex: accumulator.startColumnIndex,
+						startRowIndex: accumulator.startRowIndex,
+						endColumnIndex: currentValue.endColumnIndex,
+						endRowIndex: currentValue.endColumnIndex,
+					};
+					return fieldReference;
+				}
+				default: {
+					const functionCall: ParseFunctionCall = {
+						type: 'functionCall',
+						functionExpression: accumulator,
+						arguments: currentValue,
+						startRowIndex: accumulator.startRowIndex,
+						startColumnIndex: accumulator.startColumnIndex,
+						endRowIndex: currentValue.endRowIndex,
+						endColumnIndex: currentValue.endColumnIndex,
+					};
+					return functionCall;
+				}
+			}
+		},
+		parsed1);
+	return {
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		parsed: expression,
+		errors: errors,
+	};
 }
 
 function numberParser(
