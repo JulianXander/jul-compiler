@@ -1,8 +1,4 @@
 -compile yaml to js wegen rundungsfehler bei großen zahlen
--type info für yaml
-	?typescript compiler nutzen für ast parser
-		-vgl https://github.com/microsoft/TypeScript/blob/main/src/compiler/parser.ts
-		-https://github.com/Microsoft/TypeScript/wiki/Using-the-Compiler-API
 -typecheck functionCall mit prefixArg
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
