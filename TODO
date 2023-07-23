@@ -74,8 +74,6 @@
 -virtual document für core-lib.jul
 	-https://code.visualstudio.com/api/extension-guides/virtual-documents
 -emitter mit parseExpression statt checkedExpression, checkedExpression entfernen
--out js files bundlen statt node modules kopieren
-	?npm module publishen?
 ?Decimal
 	?decimal fixed precision? arbitrary precision?
 	?Decimal: 123d, 12.3d vs d123, d12.3
