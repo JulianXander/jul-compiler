@@ -56,6 +56,7 @@ import { checkName, createParseFunctionLiteral, fillSymbolTableWithDictionaryTyp
 import { extname } from 'path';
 import { parseJsonFn } from '../runtime.js';
 import { jsonValueToJulAst } from './json-parser.js';
+import { load } from 'js-yaml';
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
@@ -112,12 +113,18 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 		case Extension.ts:
 			parsedExpressions = parseTsCode(code);
 			break;
-		case Extension.yaml:
-			// TODO
+		case Extension.yaml: {
+			// TODO bigints, Fractions
+			const parsedYaml = load(code);
+			const ast = jsonValueToJulAst(parsedYaml);
 			return {
+				expressions: [
+					ast,
+				],
 				errors: [],
 				symbols: {},
 			};
+		}
 		default: {
 			const assertNever: never = extension;
 			throw new Error(`Unexpected extension: ${assertNever}`);
