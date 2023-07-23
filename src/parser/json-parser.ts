@@ -1,7 +1,19 @@
-import { ParseExpression, ParseSingleDictionaryField } from "../syntax-tree.js";
+import { ParseExpression, ParseSingleDictionaryField, ParsedFile } from "../syntax-tree.js";
 import { Positioned } from "./parser-combinator.js";
 
-export function jsonValueToJulAst(jsonValue: any): ParseExpression {
+
+export function jsonValueToParsedFile(jsonValue: any): ParsedFile {
+  const ast = jsonValueToJulAst(jsonValue);
+  return {
+    expressions: [
+      ast,
+    ],
+    errors: [],
+    symbols: {},
+  };
+}
+
+function jsonValueToJulAst(jsonValue: any): ParseExpression {
   // TODO position?
   const position: Positioned = {
     startColumnIndex: 0,

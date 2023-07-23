@@ -55,7 +55,7 @@ import { parseTsCode } from './typescript-parser.js';
 import { checkName, createParseFunctionLiteral, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions } from './parser-utils.js';
 import { extname } from 'path';
 import { parseJsonFn } from '../runtime.js';
-import { jsonValueToJulAst } from './json-parser.js';
+import { jsonValueToParsedFile } from './json-parser.js';
 import { load } from 'js-yaml';
 
 /**
@@ -98,14 +98,7 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 					symbols: {},
 				};
 			}
-			const ast = jsonValueToJulAst(parsedJson);
-			return {
-				expressions: [
-					ast,
-				],
-				errors: [],
-				symbols: {},
-			};
+			return jsonValueToParsedFile(parsedJson);
 		}
 		case Extension.jul:
 			parsedExpressions = parseJulCode(code);
@@ -116,14 +109,7 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 		case Extension.yaml: {
 			// TODO bigints, Fractions
 			const parsedYaml = load(code);
-			const ast = jsonValueToJulAst(parsedYaml);
-			return {
-				expressions: [
-					ast,
-				],
-				errors: [],
-				symbols: {},
-			};
+			return jsonValueToParsedFile(parsedYaml);
 		}
 		default: {
 			const assertNever: never = extension;
