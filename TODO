@@ -39,23 +39,6 @@
 ?typeToString mit custom types, custom toString?
 -docs
 	-https://prismjs.com/extending.html#language-definitions
--builtins:
-	-Fraction
-		-create Fraction mit denominator kürzen
-			-auch in parser
-		?toString
-		?fractionToDecimal mit x Stellen
-		?fractionToFloat mit x Stellen
-		-number type
-		-integer type
-	-Intersection/Exclude
-	-NonZero (Integer/Float?), PositiveInteger
-	-repeat?
-	-modulo
-	-equal
-	?Subtract type?
-		-PositiveInteger.subtract(1) => PositiveInteger & 0 = NonNegativeInteger
-		-(positiveInteger.exclude(1)).subtract(1) => (PositiveInteger & 0).exclude(1 - 1 = 0) = PositiveInteger
 ?function as type
 	-1. check args assignable
 	-2. check returnValue = true
