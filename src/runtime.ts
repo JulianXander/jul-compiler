@@ -22,7 +22,7 @@ type JulFunction = Function & { params: Params; };
 export function _branch(value: any, ...branches: JulFunction[]) {
 	// TODO collect inner Errors?
 	for (const branch of branches) {
-		const assignedParams = tryAssignParams(branch.params, undefined, value);
+		const assignedParams = tryAssignArgs(branch.params, undefined, value);
 		if (!(assignedParams instanceof Error)) {
 			return branch(...assignedParams);
 		}
@@ -33,7 +33,7 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: any) {
 	if ('params' in fn) {
 		// jul function
-		const assignedParams = tryAssignParams(fn.params, prefixArg, args);
+		const assignedParams = tryAssignArgs(fn.params, prefixArg, args);
 		if (assignedParams instanceof Error) {
 			return assignedParams;
 		}
@@ -59,7 +59,7 @@ export function _createFunction(fn: Function, params: Params): JulFunction {
 }
 
 export function _checkDictionaryType(dictionaryType: Params, value: any): boolean {
-	const assignedParams = tryAssignParams(dictionaryType, undefined, value);
+	const assignedParams = tryAssignArgs(dictionaryType, undefined, value);
 	return assignedParams instanceof Error;
 }
 
@@ -190,7 +190,7 @@ function isDictionary(value: any): value is Dictionary {
 		&& !Array.isArray(value);
 }
 
-function tryAssignParams(params: Params, prefixArg: any, values: any): any[] | Error {
+function tryAssignArgs(params: Params, prefixArg: any, values: any): any[] | Error {
 	const assignedValues: any[] = [];
 	const { type: paramsType, singleNames, rest } = params;
 	const hasPrefixArg = prefixArg !== undefined;

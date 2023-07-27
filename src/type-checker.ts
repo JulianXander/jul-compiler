@@ -424,7 +424,7 @@ function inferType(
 					});
 					const combinedPreviousType = new UnionType(previousTypes);
 					const currentParamsType = getParamsType(branch.inferredType);
-					const error = isTypeAssignableTo(currentParamsType, combinedPreviousType);
+					const error = areArgsAssignableTo(undefined, currentParamsType, combinedPreviousType);
 					if (!error) {
 						errors.push({
 							message: 'Unreachable branch detected.',
@@ -459,7 +459,7 @@ function inferType(
 				// expression.normalizedTypeGuard = typeGuard.inferredType
 				// valueExpression.normalizedTypeGuard = normalizeType(valueExpression.typeGuard);
 
-				const error = isTypeAssignableTo(inferredType, valueOf(typeGuard.inferredType));
+				const error = areArgsAssignableTo(undefined, inferredType, valueOf(typeGuard.inferredType));
 				if (error) {
 					errors.push({
 						message: error,
@@ -508,7 +508,7 @@ function inferType(
 					if (typeGuard) {
 						setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
 						// TODO check value, check fallback?
-						const error = isTypeAssignableTo(dereferencedType, valueOf(typeGuard.inferredType));
+						const error = areArgsAssignableTo(undefined, dereferencedType, valueOf(typeGuard.inferredType));
 						if (error) {
 							errors.push({
 								message: error,
@@ -607,14 +607,17 @@ function inferType(
 		case 'functionCall': {
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
+			const prefixArgument = expression.prefixArgument;
+			if (prefixArgument) {
+				setInferredType(prefixArgument, scopes, parsedDocuments, folder, file);
+			}
 			const functionExpression = expression.functionExpression;
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file);
 			setInferredType(expression.arguments, scopes, parsedDocuments, folder, file);
 			const argsType = expression.arguments.inferredType!;
 			const functionType = functionExpression.inferredType;
 			const paramsType = getParamsType(functionType);
-			// TODO function parameter assignment logik berücksichtigen
-			const assignArgsError = isTypeAssignableTo(argsType, paramsType);
+			const assignArgsError = areArgsAssignableTo(prefixArgument?.inferredType, argsType, paramsType);
 			if (assignArgsError) {
 				errors.push({
 					message: assignArgsError,
@@ -730,7 +733,7 @@ function inferType(
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
-				const error = isTypeAssignableTo(inferredReturnType, valueOf(declaredReturnType.inferredType));
+				const error = areArgsAssignableTo(undefined, inferredReturnType, valueOf(declaredReturnType.inferredType));
 				if (error) {
 					errors.push({
 						message: error,
@@ -1055,10 +1058,16 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 // 	}
 // }
 
+//#region TypeError
+
 // TODO return true/false = always/never, sometimes/maybe?
-function isTypeAssignableTo(valueType: RuntimeType, typeType: RuntimeType): string | undefined {
-	const typeError = getTypeError(valueType, typeType);
-	if (typeof typeError === 'object') {
+function areArgsAssignableTo(
+	prefixArgumentType: undefined | RuntimeType,
+	argumentsType: RuntimeType,
+	parametersType: RuntimeType,
+): string | undefined {
+	const typeError = getTypeError(prefixArgumentType, argumentsType, parametersType);
+	if (typeError) {
 		return typeErrorToString(typeError);
 	}
 	return undefined;
@@ -1069,26 +1078,27 @@ function isTypeAssignableTo(valueType: RuntimeType, typeType: RuntimeType): stri
  * valueType muss also Teilmenge von targetType sein.
  */
 function getTypeError(
-	valueType: RuntimeType,
+	prefixArgumentType: undefined | RuntimeType,
+	argumentsType: RuntimeType,
 	targetType: RuntimeType,
 ): TypeError | undefined {
 	if (targetType === Any) {
 		return undefined;
 	}
-	if (valueType === Any) {
+	if (argumentsType === Any) {
 		// TODO error/warning bei any?
 		// error type bei assignment/function call?
 		// maybe return value?
 		return undefined;
 	}
-	if (deepEquals(valueType, targetType)) {
+	if (deepEquals(argumentsType, targetType)) {
 		return undefined;
 	}
-	if (valueType instanceof BuiltInTypeBase) {
-		switch (valueType.type) {
+	if (argumentsType instanceof BuiltInTypeBase) {
+		switch (argumentsType.type) {
 			case 'and': {
-				const subErrors = valueType.choiceTypes.map(choiceType =>
-					getTypeError(choiceType, targetType)).filter(isDefined);
+				const subErrors = argumentsType.choiceTypes.map(choiceType =>
+					getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
 				if (!subErrors.length) {
 					return undefined;
 				}
@@ -1099,8 +1109,8 @@ function getTypeError(
 				};
 			}
 			case 'or': {
-				const subErrors = valueType.choiceTypes.map(choiceType =>
-					getTypeError(choiceType, targetType));
+				const subErrors = argumentsType.choiceTypes.map(choiceType =>
+					getTypeError(prefixArgumentType, choiceType, targetType));
 				if (subErrors.every(isDefined)) {
 					return {
 						// TODO error struktur überdenken
@@ -1147,7 +1157,7 @@ function getTypeError(
 				switch (targetType.type) {
 					case 'and': {
 						const subErrors = targetType.choiceTypes.map(choiceType =>
-							getTypeError(valueType, choiceType)).filter(isDefined);
+							getTypeError(prefixArgumentType, argumentsType, choiceType)).filter(isDefined);
 						if (!subErrors.length) {
 							return undefined;
 						}
@@ -1160,7 +1170,7 @@ function getTypeError(
 					case 'any':
 						throw new Error('Unexpected any targetType');
 					case 'boolean':
-						switch (typeof valueType) {
+						switch (typeof argumentsType) {
 							case 'boolean':
 								return undefined;
 
@@ -1171,24 +1181,24 @@ function getTypeError(
 					case 'date':
 						break;
 					case 'dictionary': {
-						if (typeof valueType !== 'object') {
+						if (typeof argumentsType !== 'object') {
 							// TODO type specific error?
 							break;
 						}
-						if (!valueType) {
+						if (!argumentsType) {
 							// TODO null specific error?
 							break;
 						}
 						const elementType = targetType.elementType;
-						if (valueType instanceof BuiltInTypeBase) {
-							switch (valueType.type) {
+						if (argumentsType instanceof BuiltInTypeBase) {
+							switch (argumentsType.type) {
 								case 'dictionaryLiteral': {
 									const subErrors = map(
-										valueType.fields,
+										argumentsType.fields,
 										(fieldType, fieldName) =>
 											// TODO add fieldName to error
 											// TODO the field x is missing error?
-											getTypeError(fieldType, elementType),
+											getTypeError(prefixArgumentType, fieldType, elementType),
 									).filter(isDefined);
 									if (!subErrors.length) {
 										return undefined;
@@ -1205,7 +1215,7 @@ function getTypeError(
 							}
 							break;
 						}
-						if (Array.isArray(valueType)) {
+						if (Array.isArray(argumentsType)) {
 							// TODO array specific error?
 							break;
 						}
@@ -1213,10 +1223,10 @@ function getTypeError(
 						// TODO wird das gebraucht? aktuell wird dictionary type immer als dictionaryLiteralType inferred
 						// wann tritt also dieser case ein? ggf ebenso mit array/tuple?
 						const subErrors = map(
-							valueType,
+							argumentsType,
 							(fieldType, fieldName) =>
 								// TODO add fieldName to error
-								getTypeError(fieldType, elementType),
+								getTypeError(prefixArgumentType, fieldType, elementType),
 						).filter(isDefined);
 						if (!subErrors.length) {
 							return undefined;
@@ -1228,23 +1238,23 @@ function getTypeError(
 						};
 					}
 					case 'dictionaryLiteral': {
-						if (typeof valueType !== 'object') {
+						if (typeof argumentsType !== 'object') {
 							// TODO type specific error?
 							break;
 						}
-						if (!valueType) {
+						if (!argumentsType) {
 							// TODO null specific error?
 							break;
 						}
-						if (valueType instanceof BuiltInTypeBase) {
-							switch (valueType.type) {
+						if (argumentsType instanceof BuiltInTypeBase) {
+							switch (argumentsType.type) {
 								case 'dictionaryLiteral': {
 									const subErrors = map(
 										targetType.fields,
 										(fieldType, fieldName) =>
 											// TODO add fieldName to error
 											// TODO the field x is missing error?
-											getTypeError(valueType.fields[fieldName] ?? null, fieldType),
+											getTypeError(prefixArgumentType, argumentsType.fields[fieldName] ?? null, fieldType),
 									).filter(isDefined);
 									if (!subErrors.length) {
 										return undefined;
@@ -1261,7 +1271,7 @@ function getTypeError(
 							}
 							break;
 						}
-						if (Array.isArray(valueType)) {
+						if (Array.isArray(argumentsType)) {
 							// TODO array specific error?
 							break;
 						}
@@ -1273,7 +1283,7 @@ function getTypeError(
 							(fieldType, fieldName) =>
 								// TODO add fieldName to error
 								// TODO the field x is missing error?
-								getTypeError(valueType[fieldName] ?? null, fieldType),
+								getTypeError(prefixArgumentType, argumentsType[fieldName] ?? null, fieldType),
 						).filter(isDefined);
 						if (!subErrors.length) {
 							return undefined;
@@ -1287,7 +1297,7 @@ function getTypeError(
 					case 'error':
 						break;
 					case 'float':
-						switch (typeof valueType) {
+						switch (typeof argumentsType) {
 							case 'number':
 								return undefined;
 
@@ -1297,18 +1307,18 @@ function getTypeError(
 						break;
 					case 'function': {
 						// TODO types als function interpretieren?
-						if (!(valueType instanceof FunctionType)) {
+						if (!(argumentsType instanceof FunctionType)) {
 							break;
 						}
 						// check value params obermenge von target params und value returntype teilmenge von target returntype
-						const paramsError = getTypeError(targetType.paramsType, valueType.paramsType);
+						const paramsError = getTypeError(prefixArgumentType, targetType.paramsType, argumentsType.paramsType);
 						if (paramsError) {
 							return paramsError;
 						}
-						return getTypeError(valueType.returnType, targetType.returnType);
+						return getTypeError(prefixArgumentType, argumentsType.returnType, targetType.returnType);
 					}
 					case 'integer':
-						switch (typeof valueType) {
+						switch (typeof argumentsType) {
 							case 'bigint':
 								return undefined;
 
@@ -1318,13 +1328,13 @@ function getTypeError(
 						break;
 					case 'list': {
 						const targetElementType = targetType.elementType;
-						if (valueType instanceof BuiltInTypeBase) {
-							switch (valueType.type) {
+						if (argumentsType instanceof BuiltInTypeBase) {
+							switch (argumentsType.type) {
 								case 'list':
-									return getTypeError(valueType.elementType, targetElementType);
+									return getTypeError(prefixArgumentType, argumentsType.elementType, targetElementType);
 								case 'tuple':
-									const subErrors = valueType.elementTypes.map(valueElement =>
-										getTypeError(valueElement, targetElementType)).filter(isDefined);
+									const subErrors = argumentsType.elementTypes.map(valueElement =>
+										getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
 									if (!subErrors.length) {
 										return undefined;
 									}
@@ -1337,9 +1347,9 @@ function getTypeError(
 									break;
 							}
 						}
-						if (Array.isArray(valueType)) {
-							const subErrors = valueType.map(valueElement =>
-								getTypeError(valueElement, targetElementType)).filter(isDefined);
+						if (Array.isArray(argumentsType)) {
+							const subErrors = argumentsType.map(valueElement =>
+								getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
 							if (!subErrors.length) {
 								return undefined;
 							}
@@ -1352,26 +1362,26 @@ function getTypeError(
 						break;
 					}
 					case 'not': {
-						const sourceError = getTypeError(valueType, targetType.sourceType);
+						const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.sourceType);
 						if (sourceError === undefined) {
 							return {
-								message: `${typeToString(valueType, 0)} is assignable to ${typeToString(targetType.sourceType, 0)}, but should not be.`
+								message: `${typeToString(argumentsType, 0)} is assignable to ${typeToString(targetType.sourceType, 0)}, but should not be.`
 							};
 						}
 						return undefined;
 					}
 					case 'parameters': {
-						switch (typeof valueType) {
+						switch (typeof argumentsType) {
 							case 'bigint':
 							case 'boolean':
 							case 'number':
 							case 'string':
-								return getTypeErrorForPrimitiveArg(valueType, targetType);
+								return getTypeErrorForPrimitiveArg(prefixArgumentType, argumentsType, targetType);
 							case 'object':
-								if (!valueType) {
-									return getTypeErrorForPrimitiveArg(valueType, targetType);
+								if (!argumentsType) {
+									return getTypeErrorForPrimitiveArg(prefixArgumentType, argumentsType, targetType);
 								}
-								return getTypeErrorForWrappedArgs(valueType, targetType);
+								return getTypeErrorForWrappedArgs(prefixArgumentType, argumentsType, targetType);
 							default:
 								break;
 						}
@@ -1379,7 +1389,7 @@ function getTypeError(
 					}
 					case 'or': {
 						const subErrors = targetType.choiceTypes.map(choiceType =>
-							getTypeError(valueType, choiceType));
+							getTypeError(prefixArgumentType, argumentsType, choiceType));
 						if (subErrors.every(isDefined)) {
 							return {
 								// TODO error struktur überdenken
@@ -1396,13 +1406,13 @@ function getTypeError(
 						return undefined;
 					}
 					case 'stream': {
-						if (!(valueType instanceof StreamType)) {
+						if (!(argumentsType instanceof StreamType)) {
 							break;
 						}
-						return getTypeError(valueType.valueType, targetType.valueType);
+						return getTypeError(prefixArgumentType, argumentsType.valueType, targetType.valueType);
 					}
 					case 'string':
-						switch (typeof valueType) {
+						switch (typeof argumentsType) {
 							case 'string':
 								return undefined;
 
@@ -1411,18 +1421,18 @@ function getTypeError(
 						}
 						break;
 					case 'type':
-						switch (typeof valueType) {
+						switch (typeof argumentsType) {
 							case 'bigint':
 							case 'boolean':
 							case 'number':
 							case 'string':
 								return undefined;
 							case 'object':
-								if (!valueType) {
+								if (!argumentsType) {
 									return undefined;
 								}
-								if (valueType instanceof BuiltInTypeBase) {
-									switch (valueType.type) {
+								if (argumentsType instanceof BuiltInTypeBase) {
+									switch (argumentsType.type) {
 										case 'boolean':
 										case 'float':
 										case 'integer':
@@ -1459,16 +1469,24 @@ function getTypeError(
 		default:
 			break;
 	}
-	return { message: `Can not assign ${typeToString(valueType, 0)} to ${typeToString(targetType, 0)}.` };
+	return { message: `Can not assign ${typeToString(argumentsType, 0)} to ${typeToString(targetType, 0)}.` };
 }
 
-function getTypeErrorForPrimitiveArg(value: Primitive, targetType: ParametersType): TypeError | undefined {
+function getTypeErrorForPrimitiveArg(
+	prefixArgumentType: undefined | RuntimeType,
+	value: Primitive,
+	targetType: ParametersType,
+): TypeError | undefined {
 	const wrappeValue = new TupleType([value]);
-	return getTypeErrorForWrappedArgs(wrappeValue, targetType);
+	return getTypeErrorForWrappedArgs(prefixArgumentType, wrappeValue, targetType);
 }
 
 // TODO check mit _ParametersType = plain type
-function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, targetType: ParametersType): TypeError | undefined {
+function getTypeErrorForWrappedArgs(
+	prefixArgumentType: undefined | RuntimeType,
+	wrappedValue: RuntimeType,
+	targetType: ParametersType,
+): TypeError | undefined {
 	if (typeof wrappedValue !== 'object' || !wrappedValue) {
 		throw new Error('wrappedValue should be object but got' + typeof wrappedValue);
 	}
@@ -1476,10 +1494,11 @@ function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, targetType: Param
 		// TODO other cases
 		switch (wrappedValue.type) {
 			case 'dictionaryLiteral':
-				return getTypeErrorForCollectionArgs(wrappedValue.fields, targetType);
+				return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue.fields, targetType);
 			case 'tuple':
-				return getTypeErrorForCollectionArgs(wrappedValue.elementTypes, targetType);
+				return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue.elementTypes, targetType);
 			case 'parameters': {
+				// TODO prefixArgumentType berücksichtigen?
 				let index = 0;
 				const targetSingleNames = targetType.singleNames;
 				const valueSingleNames = wrappedValue.singleNames;
@@ -1504,7 +1523,7 @@ function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, targetType: Param
 						? valueParameter.type ?? valueRestItemType ?? Any
 						: null;
 					const error = targetParameterType
-						? getTypeError(valueParameterType, targetParameterType)
+						? getTypeError(undefined, valueParameterType, targetParameterType)
 						: undefined;
 					if (error) {
 						// TODO collect inner errors
@@ -1517,7 +1536,7 @@ function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, targetType: Param
 					const remainingValueParameters = valueSingleNames.slice(index);
 					for (const valueParameter of remainingValueParameters) {
 						const valueParameterType = valueParameter.type ?? valueRestItemType ?? Any;
-						const error = getTypeError(valueParameterType, targetRestType);
+						const error = getTypeError(undefined, valueParameterType, targetRestType);
 						if (error) {
 							// TODO collect inner errors
 							return error;
@@ -1531,21 +1550,34 @@ function getTypeErrorForWrappedArgs(wrappedValue: RuntimeType, targetType: Param
 				return { message: 'getTypeErrorForWrappedArgs not implemented yet for ' + wrappedValue.type };
 		}
 	}
-	return getTypeErrorForCollectionArgs(wrappedValue, targetType);
+	return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue, targetType);
 }
 
-function getTypeErrorForCollectionArgs(collectionValue: Collection, targetType: ParametersType): TypeError | undefined {
+function getTypeErrorForCollectionArgs(
+	prefixArgumentType: undefined | RuntimeType,
+	collectionValue: Collection,
+	targetType: ParametersType,
+): TypeError | undefined {
+	const hasPrefixArg = prefixArgumentType !== undefined;
 	const isArray = Array.isArray(collectionValue);
-	let index = 0;
+	let paramIndex = 0;
+	let valueIndex = 0;
 	const { singleNames, rest } = targetType;
-	for (; index < singleNames.length; index++) {
-		const param = singleNames[index]!;
+	for (; paramIndex < singleNames.length; paramIndex++) {
+		const param = singleNames[paramIndex]!;
 		const { name, type } = param;
-		const value = (isArray
-			? collectionValue[index]
-			: collectionValue[name]) ?? null;
+		let value: RuntimeType;
+		if (hasPrefixArg && !paramIndex) {
+			value = prefixArgumentType;
+		}
+		else {
+			value = (isArray
+				? collectionValue[valueIndex]
+				: collectionValue[name]) ?? null;
+			valueIndex++;
+		}
 		const error = type
-			? getTypeError(value, type)
+			? getTypeError(undefined, value, type)
 			: undefined;
 		if (error) {
 			// TODO collect inner errors
@@ -1556,9 +1588,12 @@ function getTypeErrorForCollectionArgs(collectionValue: Collection, targetType: 
 	if (rest) {
 		const restType = rest.type;
 		if (isArray) {
-			const remainingArgs = collectionValue.slice(index);
+			const remainingArgs = collectionValue.slice(valueIndex);
+			if (hasPrefixArg && !paramIndex) {
+				remainingArgs.unshift(prefixArgumentType);
+			}
 			const error = restType
-				? getTypeError(remainingArgs, restType)
+				? getTypeError(undefined, remainingArgs, restType)
 				: undefined;
 			if (error) {
 				// TODO collect inner errors
@@ -1629,6 +1664,8 @@ function typeErrorToString(typeError: TypeError): string {
 // 			throw new Error('TODO');
 // 	}
 // }
+
+//#endregion TypeError
 
 //#region import
 
