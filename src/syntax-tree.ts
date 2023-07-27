@@ -60,6 +60,7 @@ export type ParseValueExpressionBase =
 	;
 
 export type SimpleExpression =
+	| BracketedExpression
 	| BracketedExpressionBase
 	| NumberLiteral
 	| ParseFunctionCall

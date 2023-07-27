@@ -949,67 +949,73 @@ function simpleExpressionParser(
 		};
 	}
 	const [parsed1, parsed2] = result.parsed!;
-	// (Nested Ref/Function Call) Chain
-	const expression = parsed2.reduce<SimpleExpression>(
-		(accumulator, currentValue) => {
-			switch (currentValue.type) {
-				case 'infixFunctionArgs': {
-					const args = currentValue.arguments;
-					const innerFunctionCall: ParseFunctionCall = {
-						type: 'functionCall',
-						prefixArgument: accumulator,
-						functionExpression: currentValue.infixFunctionReference,
-						arguments: args,
-						startRowIndex: accumulator.startRowIndex,
-						startColumnIndex: accumulator.startColumnIndex,
-						endRowIndex: args.endRowIndex,
-						endColumnIndex: args.endColumnIndex,
-					};
-					return innerFunctionCall;
-				}
-				case 'index': {
-					const indexReference: ParseIndexReference = {
-						type: 'indexReference',
-						source: accumulator,
-						index: currentValue,
-						startColumnIndex: accumulator.startColumnIndex,
-						startRowIndex: accumulator.startRowIndex,
-						endColumnIndex: currentValue.endColumnIndex,
-						endRowIndex: currentValue.endColumnIndex,
-					};
-					return indexReference;
-				}
-				case 'name':
-				case 'string': {
-					if (currentValue.type === 'string') {
-						errors.push(...getEscapableNameErrors(currentValue));
+	let expression: SimpleExpression = parsed1;
+	if (parsed2.length) {
+		// (Nested Ref/Function Call) Chain
+		if (expression.type === 'bracketed') {
+			expression = bracketedExpressionToValueExpression(expression, errors);
+		}
+		expression = parsed2.reduce<SimpleExpression>(
+			(accumulator, currentValue) => {
+				switch (currentValue.type) {
+					case 'infixFunctionArgs': {
+						const args = currentValue.arguments;
+						const innerFunctionCall: ParseFunctionCall = {
+							type: 'functionCall',
+							prefixArgument: accumulator,
+							functionExpression: currentValue.infixFunctionReference,
+							arguments: args,
+							startRowIndex: accumulator.startRowIndex,
+							startColumnIndex: accumulator.startColumnIndex,
+							endRowIndex: args.endRowIndex,
+							endColumnIndex: args.endColumnIndex,
+						};
+						return innerFunctionCall;
 					}
-					const fieldReference: ParseFieldReference = {
-						type: 'fieldReference',
-						source: accumulator,
-						field: currentValue,
-						startColumnIndex: accumulator.startColumnIndex,
-						startRowIndex: accumulator.startRowIndex,
-						endColumnIndex: currentValue.endColumnIndex,
-						endRowIndex: currentValue.endColumnIndex,
-					};
-					return fieldReference;
+					case 'index': {
+						const indexReference: ParseIndexReference = {
+							type: 'indexReference',
+							source: accumulator,
+							index: currentValue,
+							startColumnIndex: accumulator.startColumnIndex,
+							startRowIndex: accumulator.startRowIndex,
+							endColumnIndex: currentValue.endColumnIndex,
+							endRowIndex: currentValue.endColumnIndex,
+						};
+						return indexReference;
+					}
+					case 'name':
+					case 'string': {
+						if (currentValue.type === 'string') {
+							errors.push(...getEscapableNameErrors(currentValue));
+						}
+						const fieldReference: ParseFieldReference = {
+							type: 'fieldReference',
+							source: accumulator,
+							field: currentValue,
+							startColumnIndex: accumulator.startColumnIndex,
+							startRowIndex: accumulator.startRowIndex,
+							endColumnIndex: currentValue.endColumnIndex,
+							endRowIndex: currentValue.endColumnIndex,
+						};
+						return fieldReference;
+					}
+					default: {
+						const functionCall: ParseFunctionCall = {
+							type: 'functionCall',
+							functionExpression: accumulator,
+							arguments: currentValue,
+							startRowIndex: accumulator.startRowIndex,
+							startColumnIndex: accumulator.startColumnIndex,
+							endRowIndex: currentValue.endRowIndex,
+							endColumnIndex: currentValue.endColumnIndex,
+						};
+						return functionCall;
+					}
 				}
-				default: {
-					const functionCall: ParseFunctionCall = {
-						type: 'functionCall',
-						functionExpression: accumulator,
-						arguments: currentValue,
-						startRowIndex: accumulator.startRowIndex,
-						startColumnIndex: accumulator.startColumnIndex,
-						endRowIndex: currentValue.endRowIndex,
-						endColumnIndex: currentValue.endColumnIndex,
-					};
-					return functionCall;
-				}
-			}
-		},
-		parsed1);
+			},
+			expression);
+	}
 	return {
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
