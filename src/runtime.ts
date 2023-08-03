@@ -1433,9 +1433,12 @@ export const elementAt = _createFunction(
 );
 export const filterMap = _createFunction(
 	<T, U>(
-		values: T[],
+		values: T[] | null,
 		callback: (value: T) => U | null,
-	): U[] => {
+	): U[] | null => {
+		if (!values) {
+			return null;
+		}
 		const mappedValues: U[] = [];
 		values.forEach(value => {
 			const mapped = callback(value);
@@ -1443,13 +1446,15 @@ export const filterMap = _createFunction(
 				mappedValues.push(mapped);
 			}
 		});
-		return mappedValues;
+		return mappedValues.length
+			? mappedValues
+			: null;
 	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: new ListType(Any)
+				type: optionalType(new ListType(Any))
 			},
 			{
 				name: 'callback',

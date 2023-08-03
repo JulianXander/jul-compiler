@@ -226,7 +226,7 @@ elementAt = nativeFunction(
 # filtert empty Werte raus
 filterMap = nativeFunction(
 	(
-		values: List(Any)
+		values: Or(() List(Any))
 		callback: (
 			value: Any
 			# TODO
@@ -234,7 +234,7 @@ filterMap = nativeFunction(
 			# TODO Integer vs FloatInteger
 			# index: Integer
 		): Any
-	): List(Any)
+	): Or(() List(Any))
 	# TODO
 	# ): List(Without(TypeOf(callback)/ReturnType ()))
 	§TODO§
