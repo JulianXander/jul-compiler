@@ -58,7 +58,7 @@ export function _combineObject(...parts: Collection[]): Collection {
 		return ([] as any[]).concat(...parts);
 	}
 	else {
-		return Object.assign({}, parts);
+		return Object.assign({}, ...parts);
 	}
 }
 
