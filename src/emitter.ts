@@ -181,7 +181,9 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				return `${spread ? '...' : ''}${expressionToJs(valueExpression)},\n`;
 			}).join('')}]`;
 		case 'object':
-			throw new Error('Unknown object literal emitter not implemented yet');
+			return `_combineObject(${expression.values.map(value => {
+				return expressionToJs(value.value);
+			}).join(',\n')})`;
 		case 'reference':
 			return referenceToJs(expression);
 		case 'string':
