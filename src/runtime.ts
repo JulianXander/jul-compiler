@@ -52,7 +52,7 @@ export function _checkType(type: RuntimeType, value: any) {
 		: new Error(`${value} is not of type ${type}`);
 }
 
-export function _combineObject(parts: Collection[]): Collection {
+export function _combineObject(...parts: Collection[]): Collection {
 	const first = parts[0]!;
 	if (Array.isArray(first)) {
 		return ([] as any[]).concat(...parts);
