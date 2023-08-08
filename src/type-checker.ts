@@ -726,7 +726,7 @@ function inferType(
 							return Any;
 						}
 						if (!isNonEmpty(argsTypes)) {
-							// TODO error?
+							// TODO unknown?
 							return Any;
 						}
 						return new TypeOfType(new ComplementType(valueOf(argsTypes[0])));
