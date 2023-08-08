@@ -630,6 +630,23 @@ function inferType(
 			// TODO statt functionname functionref value/inferred type prüfen?
 			if (functionExpression.type === 'reference') {
 				const functionName = functionExpression.name.name;
+				function getAllArgsTypes(): (RuntimeType[] | undefined) {
+					const prefixArgs = prefixArgument
+						? [prefixArgument.inferredType!]
+						: [];
+					if (argsType == null) {
+						return prefixArgs;
+					}
+					if (!(argsType instanceof TupleType)) {
+						// TODO other types
+						return undefined;
+					}
+					const allArgs = [
+						...prefixArgs,
+						...argsType.elementTypes,
+					];
+					return allArgs;
+				}
 				switch (functionName) {
 					case 'import': {
 						const { path, error } = getPathFromImport(expression, folder);
@@ -687,32 +704,32 @@ function inferType(
 					// 	return _any;
 					// }
 					case 'And': {
-						//TODO andere array args types?
-						if (!(argsType instanceof TupleType)) {
-							// TODO error?
+						const argsTypes = getAllArgsTypes();
+						if (!argsTypes) {
+							// TODO unknown?
 							return Any;
 						}
-						return new TypeOfType(new IntersectionType(argsType.elementTypes.map(valueOf)));
+						return new TypeOfType(new IntersectionType(argsTypes.map(valueOf)));
 					}
 					case 'Or': {
-						//TODO andere array args types?
-						if (!(argsType instanceof TupleType)) {
-							// TODO error?
+						const argsTypes = getAllArgsTypes();
+						if (!argsTypes) {
+							// TODO unknown?
 							return Any;
 						}
-						return new TypeOfType(new UnionType(argsType.elementTypes.map(valueOf)));
+						return new TypeOfType(new UnionType(argsTypes.map(valueOf)));
 					}
 					case 'Not': {
-						//TODO andere array args types?
-						if (!(argsType instanceof TupleType)) {
+						const argsTypes = getAllArgsTypes();
+						if (!argsTypes) {
+							// TODO unknown?
+							return Any;
+						}
+						if (!isNonEmpty(argsTypes)) {
 							// TODO error?
 							return Any;
 						}
-						if (!isNonEmpty(argsType.elementTypes)) {
-							// TODO error?
-							return Any;
-						}
-						return new TypeOfType(new ComplementType(valueOf(argsType.elementTypes[0])));
+						return new TypeOfType(new ComplementType(valueOf(argsTypes[0])));
 					}
 					default:
 						break;
