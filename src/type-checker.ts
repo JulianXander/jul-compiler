@@ -327,12 +327,16 @@ function dereferenceArgumentType(
 	argsType: RuntimeType,
 	parameterReference: ParameterReference,
 ): RuntimeType | undefined {
+	// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
+	const paramIndex = parameterReference.index;
+	if (prefixArgumentType !== undefined && paramIndex === 0) {
+		return prefixArgumentType;
+	}
 	if (!(argsType instanceof BuiltInTypeBase)) {
 		return undefined;
 	}
 	switch (argsType.type) {
 		case 'dictionaryLiteral': {
-			// TODO prefixArgumentType berücksichtigen
 			const referenceName = parameterReference.name;
 			const argType = argsType.fields[referenceName];
 			// TODO error bei unbound ref?
@@ -342,17 +346,12 @@ function dereferenceArgumentType(
 			return dereferenceNameFromObject(referenceName, argType);
 		}
 		case 'tuple': {
-			// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
 			// TODO dereference nested path
 			// const referenceName = parameterReference.path[0].name;
-			const paramIndex = parameterReference.index;
-			const allArgs = [
-				...(prefixArgumentType === undefined
-					? []
-					: [prefixArgumentType]),
-				...argsType.elementTypes,
-			];
-			const argType = allArgs[paramIndex];
+			const argIndex = prefixArgumentType === undefined
+				? paramIndex
+				: paramIndex - 1;
+			const argType = argsType.elementTypes[argIndex];
 			// TODO error bei unbound ref?
 			return argType;
 		}
