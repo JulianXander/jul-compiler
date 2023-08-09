@@ -4,67 +4,13 @@ false = nativeValue(§false§)
 # TODO split Unknown Type?
 # any value
 Any = nativeValue(§Any§)
-# true or false
-Boolean = nativeValue(§_Boolean§)
-#region Number
-# 64 bit floating point number
-# Erlaubt performante Hardware-Rechenoperationen
-Float = nativeValue(§Float§)
-NonZeroFloat = Float.Without(0f)
-# TODO FloatInteger = And(Float ?)
-# Ganzzahl beliebiger Größe
-Integer = nativeValue(§Integer§)
-NonZeroInteger = Integer.Without(0)
-Fraction = (
-	numerator: Integer
-	denominator: Integer
-)
-Rational = Or(Integer Fraction)
-# TODO nonzero/positive
-# TODO Number = Or(Float Rational)?
-#endregion Number
-# sequence of characters
-String = nativeValue(§_String§)
-Date = nativeValue(§_Date§)
-Error = nativeValue(§_Error§)
+Type = nativeValue(§Type§)
 # data structure containing 1 or more elements of type ElementType
 List = nativeFunction(
 	(ElementType: Type): Type
 	# TODO generic List check
 	§Array.isArray§
 )
-# data structure containing 1 or more key-value-pairs of type ElementType
-Dictionary = nativeFunction(
-	(ElementType: Type): Type
-	# TODO ???
-	§x => typeof x === 'object'§
-)
-# data structure representing a value of type T changing over time
-Stream = nativeFunction(
-	(ValueType: Type): Type
-	# TODO generic Stream check
-	§x => x instanceof Stream§
-)
-# Function = nativeFunction(
-# 	# TODO?
-# 	# (
-# 	# 	parametersType: Type
-# 	# 	returnType: Type
-# 	# )
-# 	§x => x instanceof Function§
-# )
-
-# Or(
-# 	(...args: List(Any)): Boolean
-# 	# Literals (Number, String, Boolean, Dictionary, List)
-# 	# DictionaryType/DictionaryLiteralType/DictionaryTypeLiteral?
-# 	FunctionType
-# 	# TupleType?
-# 	# StreamType?
-# 	UnionType
-# 	IntersectionType
-# )
-Type = nativeValue(§Type§)
 # IntersectionType
 And = nativeFunction(
 	(...ChoiceTypes: List(Type)): Type
@@ -97,6 +43,60 @@ ValueOf = nativeFunction(
 	(T: TypeOf(Any)): T/value
 	§T => new ValueOfType(T)§
 )
+# true or false
+Boolean = nativeValue(§_Boolean§)
+#region Number
+# 64 bit floating point number
+# Erlaubt performante Hardware-Rechenoperationen
+Float = nativeValue(§Float§)
+NonZeroFloat = Float.Without(0f)
+# TODO FloatInteger = And(Float ?)
+# Ganzzahl beliebiger Größe
+Integer = nativeValue(§Integer§)
+NonZeroInteger = Integer.Without(0)
+Fraction = (
+	numerator: Integer
+	denominator: Integer
+)
+Rational = Or(Integer Fraction)
+# TODO nonzero/positive
+# TODO Number = Or(Float Rational)?
+#endregion Number
+# sequence of characters
+String = nativeValue(§_String§)
+Date = nativeValue(§_Date§)
+Error = nativeValue(§_Error§)
+# data structure containing 1 or more key-value-pairs of type ElementType
+Dictionary = nativeFunction(
+	(ElementType: Type): Type
+	# TODO ???
+	§x => typeof x === 'object'§
+)
+# data structure representing a value of type T changing over time
+Stream = nativeFunction(
+	(ValueType: Type): Type
+	# TODO generic Stream check
+	§x => x instanceof Stream§
+)
+# Function = nativeFunction(
+# 	# TODO?
+# 	# (
+# 	# 	parametersType: Type
+# 	# 	returnType: Type
+# 	# )
+# 	§x => x instanceof Function§
+# )
+
+# Or(
+# 	(...args: List(Any)): Boolean
+# 	# Literals (Number, String, Boolean, Dictionary, List)
+# 	# DictionaryType/DictionaryLiteralType/DictionaryTypeLiteral?
+# 	FunctionType
+# 	# TupleType?
+# 	# StreamType?
+# 	UnionType
+# 	IntersectionType
+# )
 #endregion Types
 #region Functions
 #region Any

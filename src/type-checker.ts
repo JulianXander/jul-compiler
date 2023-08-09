@@ -36,6 +36,7 @@ import {
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
 	ParseListValue,
+	ParseParameterField,
 	ParsedFile,
 	Reference,
 	StringToken,
@@ -167,8 +168,10 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	if (foundSymbol.functionParameterIndex !== undefined) {
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
 		// da ParameterReference auf höhere Funktionen problematisch ist?
+		const parameterReference = new ParameterReference(reference.name.name, foundSymbol.functionParameterIndex);
+		parameterReference.functionRef = foundSymbol.functionRef;
 		return {
-			type: new ParameterReference(reference.name.name, foundSymbol.functionParameterIndex),
+			type: parameterReference,
 			found: true,
 		};
 	}
@@ -273,7 +276,22 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefiniti
 	}
 }
 
+function findParameterSymbol(
+	expression: ParseParameterField,
+	scopes: NonEmptyArray<SymbolTable>,
+): SymbolDefinition {
+	const currentScope = last(scopes);
+	const parameterName = expression.name.name;
+	const parameterSymbol = currentScope[parameterName];
+	if (!parameterSymbol) {
+		console.log(scopes);
+		throw new Error(`parameterSymbol ${parameterName} not found`);
+	}
+	return parameterSymbol;
+}
+
 function dereferenceArgumentTypesNested(
+	calledFunction: RuntimeType,
 	prefixArgumentType: RuntimeType | undefined,
 	argsType: RuntimeType,
 	typeToDereference: RuntimeType,
@@ -293,22 +311,22 @@ function dereferenceArgumentTypesNested(
 		case 'type':
 			return builtInType;
 		case 'and':
-			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(prefixArgumentType, argsType, choiceType)));
+			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
 		case 'dictionary':
-			return new DictionaryType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.elementType));
+			return new DictionaryType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.elementType));
 		case 'list':
-			return new ListType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.elementType));
+			return new ListType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.elementType));
 		case 'not':
-			return new ComplementType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.sourceType));
+			return new ComplementType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.sourceType));
 		case 'or':
-			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(prefixArgumentType, argsType, choiceType)));
+			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
 		case 'reference':
 			// TODO immer valueOf?
-			return valueOf(dereferenceArgumentType(prefixArgumentType, argsType, builtInType));
+			return valueOf(dereferenceArgumentType(calledFunction, prefixArgumentType, argsType, builtInType));
 		case 'stream':
-			return new StreamType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.valueType));
+			return new StreamType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.valueType));
 		case 'typeOf':
-			return new TypeOfType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.value));
+			return new TypeOfType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.value));
 		// TODO
 		case 'dictionaryLiteral':
 		case 'function':
@@ -323,17 +341,21 @@ function dereferenceArgumentTypesNested(
 }
 
 function dereferenceArgumentType(
+	calledFunction: RuntimeType,
 	prefixArgumentType: RuntimeType | undefined,
 	argsType: RuntimeType,
 	parameterReference: ParameterReference,
-): RuntimeType | undefined {
+): RuntimeType {
+	if (parameterReference.functionRef !== calledFunction) {
+		return parameterReference;
+	}
 	// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
 	const paramIndex = parameterReference.index;
 	if (prefixArgumentType !== undefined && paramIndex === 0) {
 		return prefixArgumentType;
 	}
 	if (!(argsType instanceof BuiltInTypeBase)) {
-		return undefined;
+		return parameterReference;
 	}
 	switch (argsType.type) {
 		case 'dictionaryLiteral': {
@@ -341,9 +363,13 @@ function dereferenceArgumentType(
 			const argType = argsType.fields[referenceName];
 			// TODO error bei unbound ref?
 			if (!argType) {
-				return undefined;
+				return parameterReference;
 			}
-			return dereferenceNameFromObject(referenceName, argType);
+			const dereferenced = dereferenceNameFromObject(referenceName, argType);
+			if (dereferenced === undefined) {
+				return parameterReference;
+			}
+			return dereferenced;
 		}
 		case 'tuple': {
 			// TODO dereference nested path
@@ -353,6 +379,9 @@ function dereferenceArgumentType(
 				: paramIndex - 1;
 			const argType = argsType.elementTypes[argIndex];
 			// TODO error bei unbound ref?
+			if (argType === undefined) {
+				return parameterReference;
+			}
 			return argType;
 		}
 		case 'list':
@@ -452,7 +481,7 @@ function inferType(
 			});
 			// TODO normalize (flatten) UnionType, wenn any verodert => return any
 			return new UnionType(expression.branches.map(branch => {
-				return getReturnType(branch.inferredType);
+				return getReturnTypeFromFunctionType(branch.inferredType);
 			}));
 		}
 		case 'definition': {
@@ -628,8 +657,8 @@ function inferType(
 			const functionExpression = expression.functionExpression;
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file);
 			setInferredType(expression.arguments, scopes, parsedDocuments, folder, file);
+			const functionType = functionExpression.inferredType!;
 			const argsType = expression.arguments.inferredType!;
-			const functionType = functionExpression.inferredType;
 			const paramsType = getParamsType(functionType);
 			const assignArgsError = areArgsAssignableTo(prefixArgument?.inferredType, argsType, paramsType);
 			if (assignArgsError) {
@@ -641,122 +670,136 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			// TODO statt functionname functionref value/inferred type prüfen?
-			if (functionExpression.type === 'reference') {
-				const functionName = functionExpression.name.name;
-				function getAllArgsTypes(): (RuntimeType[] | undefined) {
-					const prefixArgs = prefixArgument
-						? [prefixArgument.inferredType!]
-						: [];
-					if (argsType == null) {
-						return prefixArgs;
+			function getReturnTypeFromFunctionCall(functionCall: ParseFunctionCall): RuntimeType {
+				// TODO statt functionname functionref value/inferred type prüfen?
+				if (functionExpression.type === 'reference') {
+					const functionName = functionExpression.name.name;
+					function getAllArgsTypes(): (RuntimeType[] | undefined) {
+						const prefixArgs = prefixArgument
+							? [prefixArgument.inferredType!]
+							: [];
+						if (argsType == null) {
+							return prefixArgs;
+						}
+						if (!(argsType instanceof TupleType)) {
+							// TODO other types
+							return undefined;
+						}
+						const allArgs = [
+							...prefixArgs,
+							...argsType.elementTypes,
+						];
+						return allArgs;
 					}
-					if (!(argsType instanceof TupleType)) {
-						// TODO other types
-						return undefined;
-					}
-					const allArgs = [
-						...prefixArgs,
-						...argsType.elementTypes,
-					];
-					return allArgs;
-				}
-				switch (functionName) {
-					case 'import': {
-						const { path, error } = getPathFromImport(expression, folder);
-						if (error) {
-							errors.push(error)
+					switch (functionName) {
+						case 'import': {
+							const { path, error } = getPathFromImport(functionCall, folder);
+							if (error) {
+								errors.push(error)
+							}
+							if (!path) {
+								return Any;
+							}
+							// TODO get full path, get type from parsedfile
+							const fullPath = join(folder, path);
+							const importedFile = parsedDocuments[fullPath];
+							if (!importedFile) {
+								return Any;
+							}
+							// definitions import
+							// a dictionary containing all definitions is imported
+							if (Object.keys(importedFile.symbols).length) {
+								const importedTypes = mapDictionary(importedFile.symbols, symbol => {
+									return symbol.normalizedType!;
+								});
+								return new DictionaryLiteralType(importedTypes);
+							}
+							// value import
+							// the last expression is imported
+							if (!importedFile.expressions) {
+								return Any;
+							}
+							return last(importedFile.expressions)?.inferredType ?? Any;
 						}
-						if (!path) {
-							return Any;
-						}
-						// TODO get full path, get type from parsedfile
-						const fullPath = join(folder, path);
-						const importedFile = parsedDocuments[fullPath];
-						if (!importedFile) {
-							return Any;
-						}
-						// definitions import
-						// a dictionary containing all definitions is imported
-						if (Object.keys(importedFile.symbols).length) {
-							const importedTypes = mapDictionary(importedFile.symbols, symbol => {
-								return symbol.normalizedType!;
-							});
-							return new DictionaryLiteralType(importedTypes);
-						}
-						// value import
-						// the last expression is imported
-						if (!importedFile.expressions) {
-							return Any;
-						}
-						return last(importedFile.expressions)?.inferredType ?? Any;
-					}
-					// case 'nativeFunction': {
-					// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
-					// 		type: 'name',
-					// 		name: 'FunctionType',
-					// 	}]));
-					// 	return valueOf(argumentType);
-					// }
+						// case 'nativeFunction': {
+						// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
+						// 		type: 'name',
+						// 		name: 'FunctionType',
+						// 	}]));
+						// 	return valueOf(argumentType);
+						// }
 
-					// case 'nativeValue': {
-					// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
-					// 		type: 'name',
-					// 		name: 'js',
-					// 	}]));
-					// 	if (typeof argumentType === 'string') {
-					// 		console.log('stg', argumentType);
-					// 		// const test = (global as any)['_string'];
-					// 		try {
-					// 			const test = eval(argumentType);
-					// 			console.log(test);
+						// case 'nativeValue': {
+						// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
+						// 		type: 'name',
+						// 		name: 'js',
+						// 	}]));
+						// 	if (typeof argumentType === 'string') {
+						// 		console.log('stg', argumentType);
+						// 		// const test = (global as any)['_string'];
+						// 		try {
+						// 			const test = eval(argumentType);
+						// 			console.log(test);
 
-					// 		} catch (error) {
-					// 			console.error(error);
-					// 		}
-					// 	}
-					// 	return _any;
-					// }
-					case 'And': {
-						const argsTypes = getAllArgsTypes();
-						if (!argsTypes) {
-							// TODO unknown?
-							return Any;
+						// 		} catch (error) {
+						// 			console.error(error);
+						// 		}
+						// 	}
+						// 	return _any;
+						// }
+						case 'And': {
+							const argsTypes = getAllArgsTypes();
+							if (!argsTypes) {
+								// TODO unknown?
+								return Any;
+							}
+							return new TypeOfType(new IntersectionType(argsTypes.map(valueOf)));
 						}
-						return new TypeOfType(new IntersectionType(argsTypes.map(valueOf)));
+						case 'Or': {
+							const argsTypes = getAllArgsTypes();
+							if (!argsTypes) {
+								// TODO unknown?
+								return Any;
+							}
+							return new TypeOfType(new UnionType(argsTypes.map(valueOf)));
+						}
+						case 'Not': {
+							const argsTypes = getAllArgsTypes();
+							if (!argsTypes) {
+								// TODO unknown?
+								return Any;
+							}
+							if (!isNonEmpty(argsTypes)) {
+								// TODO unknown?
+								return Any;
+							}
+							return new TypeOfType(new ComplementType(valueOf(argsTypes[0])));
+						}
+						default:
+							break;
 					}
-					case 'Or': {
-						const argsTypes = getAllArgsTypes();
-						if (!argsTypes) {
-							// TODO unknown?
-							return Any;
-						}
-						return new TypeOfType(new UnionType(argsTypes.map(valueOf)));
-					}
-					case 'Not': {
-						const argsTypes = getAllArgsTypes();
-						if (!argsTypes) {
-							// TODO unknown?
-							return Any;
-						}
-						if (!isNonEmpty(argsTypes)) {
-							// TODO unknown?
-							return Any;
-						}
-						return new TypeOfType(new ComplementType(valueOf(argsTypes[0])));
-					}
-					default:
-						break;
 				}
+				return getReturnTypeFromFunctionType(functionType);
 			}
-			const returnType = getReturnType(functionType);
+			const returnType = getReturnTypeFromFunctionCall(expression);
 			// evaluate generic ReturnType
-			const dereferencedReturnType = dereferenceArgumentTypesNested(prefixArgument?.inferredType, argsType, returnType);
+			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgument?.inferredType, argsType, returnType);
 			return dereferencedReturnType;
 		}
 		case 'functionLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
-			setInferredType(expression.params, functionScopes, parsedDocuments, folder, file);
+			const params = expression.params;
+			setInferredType(params, functionScopes, parsedDocuments, folder, file);
+			const functionType = new FunctionType(
+				null,
+				null,
+			);
+			if (params.type === 'parameters') {
+				params.singleFields.forEach(parameter => {
+					const parameterSymbol = findParameterSymbol(parameter, functionScopes);
+					parameterSymbol.functionRef = functionType;
+				});
+			}
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
 			});
@@ -775,11 +818,10 @@ function inferType(
 					});
 				}
 			}
-			return new FunctionType(
-				// TODO valueOf?
-				expression.params.inferredType!,
-				inferredReturnType,
-			);
+			// TODO valueOf?
+			functionType.paramsType = params.inferredType!;
+			functionType.returnType = inferredReturnType;
+			return functionType;
 		}
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
@@ -849,13 +891,7 @@ function inferType(
 			// TODO fallback berücksichtigen?
 			const inferredType = valueOf(expression.typeGuard?.inferredType);
 			// TODO check array type bei spread
-			const currentScope = last(scopes);
-			const parameterName = expression.name.name;
-			const parameterSymbol = currentScope[parameterName];
-			if (!parameterSymbol) {
-				console.log(scopes);
-				throw new Error(`parameterSymbol ${parameterName} not found`);
-			}
+			const parameterSymbol = findParameterSymbol(expression, scopes);
 			parameterSymbol.normalizedType = inferredType;
 			return inferredType;
 		}
@@ -1953,7 +1989,7 @@ function getParamsType(possibleFunctionType: RuntimeType | undefined): RuntimeTy
 	return Any;
 }
 
-function getReturnType(possibleFunctionType: RuntimeType | undefined): RuntimeType {
+function getReturnTypeFromFunctionType(possibleFunctionType: RuntimeType | undefined): RuntimeType {
 	if (possibleFunctionType instanceof FunctionType) {
 		return possibleFunctionType.returnType;
 	}

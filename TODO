@@ -1,5 +1,3 @@
--typechecking testen:
-	-NonZeroInteger
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary
