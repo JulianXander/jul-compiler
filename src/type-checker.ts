@@ -273,7 +273,11 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefiniti
 	}
 }
 
-function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference: RuntimeType): RuntimeType {
+function dereferenceArgumentTypesNested(
+	prefixArgumentType: RuntimeType | undefined,
+	argsType: RuntimeType,
+	typeToDereference: RuntimeType,
+): RuntimeType {
 	if (!(typeToDereference instanceof BuiltInTypeBase)) {
 		return typeToDereference;
 	}
@@ -289,22 +293,22 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 		case 'type':
 			return builtInType;
 		case 'and':
-			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
+			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(prefixArgumentType, argsType, choiceType)));
 		case 'dictionary':
-			return new DictionaryType(dereferenceArgumentTypesNested(argsType, builtInType.elementType));
+			return new DictionaryType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.elementType));
 		case 'list':
-			return new ListType(dereferenceArgumentTypesNested(argsType, builtInType.elementType));
+			return new ListType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.elementType));
 		case 'not':
-			return new ComplementType(dereferenceArgumentTypesNested(argsType, builtInType.sourceType));
+			return new ComplementType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.sourceType));
 		case 'or':
-			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(argsType, choiceType)));
+			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(prefixArgumentType, argsType, choiceType)));
 		case 'reference':
 			// TODO immer valueOf?
-			return valueOf(dereferenceArgumentType(argsType, builtInType));
+			return valueOf(dereferenceArgumentType(prefixArgumentType, argsType, builtInType));
 		case 'stream':
-			return new StreamType(dereferenceArgumentTypesNested(argsType, builtInType.valueType));
+			return new StreamType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.valueType));
 		case 'typeOf':
-			return new TypeOfType(dereferenceArgumentTypesNested(argsType, builtInType.value));
+			return new TypeOfType(dereferenceArgumentTypesNested(prefixArgumentType, argsType, builtInType.value));
 		// TODO
 		case 'dictionaryLiteral':
 		case 'function':
@@ -318,12 +322,17 @@ function dereferenceArgumentTypesNested(argsType: RuntimeType, typeToDereference
 	}
 }
 
-function dereferenceArgumentType(argsType: RuntimeType, parameterReference: ParameterReference): RuntimeType | undefined {
+function dereferenceArgumentType(
+	prefixArgumentType: RuntimeType | undefined,
+	argsType: RuntimeType,
+	parameterReference: ParameterReference,
+): RuntimeType | undefined {
 	if (!(argsType instanceof BuiltInTypeBase)) {
 		return undefined;
 	}
 	switch (argsType.type) {
 		case 'dictionaryLiteral': {
+			// TODO prefixArgumentType berücksichtigen
 			const referenceName = parameterReference.name;
 			const argType = argsType.fields[referenceName];
 			// TODO error bei unbound ref?
@@ -337,7 +346,13 @@ function dereferenceArgumentType(argsType: RuntimeType, parameterReference: Para
 			// TODO dereference nested path
 			// const referenceName = parameterReference.path[0].name;
 			const paramIndex = parameterReference.index;
-			const argType = argsType.elementTypes[paramIndex];
+			const allArgs = [
+				...(prefixArgumentType === undefined
+					? []
+					: [prefixArgumentType]),
+				...argsType.elementTypes,
+			];
+			const argType = allArgs[paramIndex];
 			// TODO error bei unbound ref?
 			return argType;
 		}
@@ -737,7 +752,7 @@ function inferType(
 			}
 			const returnType = getReturnType(functionType);
 			// evaluate generic ReturnType
-			const dereferencedReturnType = dereferenceArgumentTypesNested(argsType, returnType);
+			const dereferencedReturnType = dereferenceArgumentTypesNested(prefixArgument?.inferredType, argsType, returnType);
 			return dereferencedReturnType;
 		}
 		case 'functionLiteral': {
@@ -905,11 +920,16 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 			return type;
 		case 'object':
 			if (type instanceof BuiltInTypeBase) {
-				if (type instanceof TypeOfType) {
-					return type.value;
+				switch (type.type) {
+					case 'typeOf':
+						return type.value;
+					case 'reference':
+						// TODO wo deref? wo Type => value auspacken?
+						return type;
+					default:
+						// TODO error?
+						return Any;
 				}
-				// TODO error?
-				return Any;
 			}
 			// null/array/dictionary
 			return type;
