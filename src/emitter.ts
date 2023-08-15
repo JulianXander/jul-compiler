@@ -127,7 +127,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'empty':
 			return 'null';
 		case 'fieldReference':
-			return `${expressionToJs(expression.source)}[${stringToJs(expression.field)}]`;
+			return `${expressionToJs(expression.source)}?.[${stringToJs(expression.field)}]`;
 		case 'float':
 			return '' + expression.value;
 		case 'fraction':
@@ -169,7 +169,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
 		}
 		case 'indexReference':
-			return `${expressionToJs(expression.source)}[${expression.index} - 1]`;
+			return `${expressionToJs(expression.source)}?.[${expression.index} - 1]`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':
