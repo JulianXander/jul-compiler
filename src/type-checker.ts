@@ -1160,7 +1160,7 @@ function areArgsAssignableTo(
  * Liefert den Fehler, der beim Zuweisen eines Wertes vom Typ valueType in eine Variable vom Typ targetType entsteht.
  * valueType muss also Teilmenge von targetType sein.
  */
-function getTypeError(
+export function getTypeError(
 	prefixArgumentType: undefined | RuntimeType,
 	argumentsType: RuntimeType,
 	targetType: RuntimeType,
