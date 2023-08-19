@@ -179,6 +179,7 @@ function checkEndOfCode(
 ): ParserResult<never> | undefined {
 	if (startRowIndex >= rows.length) {
 		return {
+			hasParsed: false,
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
@@ -203,6 +204,7 @@ function startOfLineParser(
 ): ParserResult<undefined> {
 	if (startColumnIndex !== 0) {
 		return {
+			hasParsed: false,
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
@@ -215,6 +217,7 @@ function startOfLineParser(
 		};
 	}
 	return {
+		hasParsed: true,
 		endRowIndex: startRowIndex,
 		endColumnIndex: startColumnIndex,
 	};
@@ -241,6 +244,7 @@ function endOfLineParser(
 	const rowLength = row.length;
 	if (startColumnIndex !== rowLength) {
 		return {
+			hasParsed: false,
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
@@ -253,6 +257,7 @@ function endOfLineParser(
 		};
 	}
 	return {
+		hasParsed: true,
 		endRowIndex: startRowIndex,
 		endColumnIndex: startColumnIndex,
 	};
@@ -268,10 +273,11 @@ function newLineParser(
 	indent: number,
 ): ParserResult<undefined> {
 	const result = endOfLineParser(rows, startRowIndex, startColumnIndex, indent);
-	if (result.errors?.length) {
+	if (!result.hasParsed) {
 		return result;
 	}
 	return {
+		hasParsed: true,
 		endRowIndex: startRowIndex + 1,
 		endColumnIndex: 0,
 	};
@@ -284,7 +290,7 @@ function indentParser(
 	indent: number,
 ): ParserResult<undefined> {
 	const startOfLineResult = startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
-	if (startOfLineResult.errors?.length) {
+	if (!startOfLineResult.hasParsed) {
 		return startOfLineResult;
 	}
 	const totalIndentToken = '\t'.repeat(indent);
@@ -302,11 +308,9 @@ function indentParser(
 function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const startOfLineResult = startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
-		if (startOfLineResult.errors?.length) {
+		if (!startOfLineResult.hasParsed) {
 			return {
-				endRowIndex: startOfLineResult.endRowIndex,
-				endColumnIndex: startOfLineResult.endColumnIndex,
-				errors: startOfLineResult.errors,
+				...startOfLineResult,
 			};
 		}
 		const parsed: (T | string | undefined)[] = [];
@@ -326,7 +330,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 			}
 			const indentResult = indentParser(rows, rowIndex, columnIndex, indent);
 			columnIndex = indentResult.endColumnIndex;
-			if (indentResult.errors?.length) {
+			if (!indentResult.hasParsed) {
 				const endRowIndex = rowIndex - 1;
 				const endRow = rows[endRowIndex];
 				if (endRow === undefined) {
@@ -334,6 +338,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 				}
 				// Ende des Blocks
 				return {
+					hasParsed: true,
 					endRowIndex: endRowIndex,
 					endColumnIndex: endRow.length,
 					parsed: parsed,
@@ -348,8 +353,10 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 			}
 			const result = parser(rows, rowIndex, columnIndex, indent);
 			rowIndex = result.endRowIndex;
-			if (result.errors?.length) {
+			if (result.errors) {
 				errors.push(...result.errors);
+			}
+			if (!result.hasParsed) {
 				// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
 				continue;
 			}
@@ -374,6 +381,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 		}
 		// Ende des Codes
 		return {
+			hasParsed: true,
 			endRowIndex: rowIndex,
 			endColumnIndex: columnIndex,
 			parsed: parsed,
@@ -573,9 +581,7 @@ function referenceParser(
 ): ParserResult<Reference> {
 	const result = nameParser(rows, startRowIndex, startColumnIndex, indent);
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: result.parsed && {
 			type: 'reference',
 			name: result.parsed,
@@ -669,9 +675,7 @@ function fieldParser(
 		),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: result.parsed && {
 			type: 'field',
 			spread: !!result.parsed[0].length,
@@ -749,25 +753,25 @@ function valueExpressionBaseParser(
 			},
 		)
 	)(rows, startRowIndex, startColumnIndex, indent);
-	const errors = result.errors
-		? [...result.errors]
-		: [];
-	if (errors.length) {
+	if (!result.hasParsed) {
 		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: errors,
+			...result,
+			parsed: undefined,
 		};
 	}
 	const [parsed1, parsed2] = result.parsed!;
 	if (!parsed2) {
 		// SimpleExpression
 		return {
+			hasParsed: true,
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 			parsed: parsed1,
 		};
 	}
+	const errors = result.errors
+		? [...result.errors]
+		: [];
 	switch (parsed2.type) {
 		case 'branches': {
 			// TODO
@@ -790,6 +794,7 @@ function valueExpressionBaseParser(
 				endColumnIndex: result.endColumnIndex,
 			};
 			return {
+				hasParsed: true,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				parsed: branching,
@@ -815,6 +820,7 @@ function valueExpressionBaseParser(
 				errors,
 			);
 			return {
+				hasParsed: true,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				parsed: functionLiteral,
@@ -842,6 +848,7 @@ function valueExpressionBaseParser(
 					errors,
 				);
 				return {
+					hasParsed: true,
 					endRowIndex: result.endRowIndex,
 					endColumnIndex: result.endColumnIndex,
 					parsed: functionLiteral,
@@ -862,6 +869,7 @@ function valueExpressionBaseParser(
 				endColumnIndex: result.endColumnIndex,
 			};
 			return {
+				hasParsed: true,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				parsed: functionTypeLiteral,
@@ -938,16 +946,15 @@ function simpleExpressionParser(
 				},
 			)),
 	)(rows, startRowIndex, startColumnIndex, indent);
+	if (!result.hasParsed) {
+		return {
+			...result,
+			parsed: undefined,
+		};
+	}
 	const errors = result.errors
 		? [...result.errors]
 		: [];
-	if (errors.length) {
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: errors,
-		};
-	}
 	const [parsed1, parsed2] = result.parsed!;
 	let expression: SimpleExpression = parsed1;
 	if (parsed2.length) {
@@ -1017,6 +1024,7 @@ function simpleExpressionParser(
 			expression);
 	}
 	return {
+		hasParsed: true,
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 		parsed: expression,
@@ -1031,16 +1039,16 @@ function numberParser(
 	indent: number,
 ): ParserResult<NumberLiteral> {
 	const result = regexParser(/-?(0|[1-9][0-9]*)(\.[0-9]+)?f?/y, 'not a valid number')(rows, startRowIndex, startColumnIndex, indent);
-	if (result.errors?.length) {
+	if (!result.hasParsed) {
 		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
+			...result,
+			parsed: undefined,
 		};
 	}
 	const parsed = result.parsed!;
 	if (last(parsed) === 'f') {
 		return {
+			hasParsed: true,
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 			parsed: {
@@ -1058,9 +1066,7 @@ function numberParser(
 		// TODO kürzen
 		const numberOfDecimalPlaces = (parsed.length - 1) - decimalSeparatorIndex;
 		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
+			...result,
 			parsed: {
 				type: 'fraction',
 				numerator: BigInt(parsed.replace('.', '')),
@@ -1073,9 +1079,7 @@ function numberParser(
 		};
 	}
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: {
 			type: 'integer',
 			value: BigInt(parsed),
@@ -1103,9 +1107,7 @@ function inlineStringParser(
 		paragraphParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: result.parsed === undefined
 			? undefined
 			: {
@@ -1156,9 +1158,7 @@ function multilineStringParser(
 		});
 	}
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: result.parsed === undefined
 			? undefined
 			: {
@@ -1195,9 +1195,7 @@ function stringLineContentParser(
 			)
 		)(rows, startRowIndex, startColumnIndex, indent);
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: result.parsed?.map(choice => {
 			switch (typeof choice) {
 				case 'string':
@@ -1239,19 +1237,17 @@ function infixFunctionArgumentsParser(
 		functionArgumentsParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed = result.parsed;
+	// TODO parse unvollständigen infix function call ohne functionRef und/oder ohne args
 	if (!parsed) {
 		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
+			...result,
+			parsed: undefined,
 		};
 	}
-	const errors = result.errors ?? [];
 	const infixFunctionName = parsed[1];
 	const args = parsed[2];
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
+		...result,
 		parsed: {
 			type: 'infixFunctionArgs',
 			arguments: args,
@@ -1264,7 +1260,6 @@ function infixFunctionArgumentsParser(
 				endColumnIndex: infixFunctionName.endColumnIndex,
 			},
 		},
-		errors: errors
 	};
 }
 
@@ -1277,17 +1272,12 @@ function functionArgumentsParser(
 	const result = bracketedBaseParser(rows, startRowIndex, startColumnIndex, indent);
 	const parsed = result.parsed;
 	if (!parsed) {
-		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
-		};
+		return result;
 	}
 	const errors = result.errors ?? [];
 	const args = bracketedExpressionToValueExpression(parsed, errors);
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
+		...result,
 		parsed: args,
 		errors: errors
 	};
@@ -1314,9 +1304,7 @@ function branchesParser(
 		incrementIndent(multilineParser(valueExpressionParser)) // TODO function expression
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: result.parsed && {
 			type: 'branches',
 			value: result.parsed[2].filter((x): x is ParseValueExpression =>
@@ -1356,9 +1344,7 @@ function functionBodyParser(
 		),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: result.parsed && {
 			type: 'functionBody',
 			body: result.parsed[1],
@@ -1397,9 +1383,7 @@ function functionTypeBodyParser(
 		),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: result.parsed && {
 			type: 'functionTypeBody',
 			returnType: result.parsed[1],
@@ -1459,8 +1443,7 @@ function bracketedBaseParser(
 		endColumnIndex: result.endColumnIndex,
 	};
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
+		...result,
 		parsed: bracketed,
 	};
 }
@@ -1481,9 +1464,7 @@ function bracketedMultilineParser(
 	)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed = result.parsed?.[2];
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: parsed,
 	};
 }
@@ -1513,9 +1494,7 @@ function bracketedInlineParser<T>(
 			sequence[1]),
 	];
 	return {
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-		errors: result.errors,
+		...result,
 		parsed: parsed,
 	};
 }

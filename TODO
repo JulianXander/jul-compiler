@@ -1,3 +1,7 @@
+-fix unreachable branch detected vgl fizz-buzz.jul
+-onCompletion bei . infix function call funktionen mit passendem ersten parametertyp vorschlagen
+	-erfordert unvollständiges parsen von infix function call
+	-ParserResult mit errors erlauben, hasParsed flag
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary
@@ -18,7 +22,6 @@
 -type inference: infer argument type bei function literal wenn literal inline argument eines function calls ist
 	-vgl fizz-buzz.jul index
 -type inference: infer branching argument type im sub scope der branch functions narrowed by function parameter type
-	-fehler wenn branching argument type = empty/never, also unreachable code detected
 -examples sortieren, aufräumen, organisieren?
 -homepage
 	?deutsch vs englisch

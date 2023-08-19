@@ -7,6 +7,11 @@ export type Parser<T> = (
 ) => ParserResult<T>;
 
 export interface ParserResult<T> {
+	/**
+	 * Gibt an, ob etwas geparst wurde.
+	 * Es kann trotzdem errors geben.
+	 */
+	hasParsed: boolean;
 	parsed?: T;
 	endRowIndex: number;
 	endColumnIndex: number;
@@ -59,11 +64,12 @@ export function choiceParser<T extends any[]>(...parsers: Parsers<T>): Parser<T[
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		for (const parser of parsers) {
 			const result = parser(rows, startRowIndex, startColumnIndex, indent);
-			if (!result.errors?.length) {
+			if (result.hasParsed) {
 				return result;
 			}
 		}
 		return {
+			hasParsed: false,
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
@@ -86,7 +92,7 @@ type ParserChoices<T extends any[]> = {
 };
 
 /**
- * Im Gegensatz zum choiceParser, der bei Fehlern den nächsten parser versucht,
+ * Im Gegensatz zum choiceParser, der bei erfolglosem Parsen den nächsten parser versucht,
  * bricht der discriminatedChoiceParser ab, sobald das erste predicate passt.
  */
 export function discriminatedChoiceParser<T extends any[]>(
@@ -95,13 +101,14 @@ export function discriminatedChoiceParser<T extends any[]>(
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		for (const { predicate, parser } of choices) {
 			const predicateResult = predicate(rows, startRowIndex, startColumnIndex, indent);
-			if (!predicateResult.errors?.length) {
+			if (predicateResult.hasParsed) {
 				const parserResult = parser(rows, startRowIndex, startColumnIndex, indent);
 				return parserResult;
 			}
 		}
 
 		return {
+			hasParsed: false,
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
@@ -116,9 +123,12 @@ export function discriminatedChoiceParser<T extends any[]>(
 	};
 }
 
+/**
+ * Parst alles oder nichts.
+ */
 export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<T> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const parsed: (T | undefined)[] = [];
+		const parsed: any[] = [];
 		const errors: ParserError[] = [];
 		let rowIndex = startRowIndex;
 		let columnIndex = startColumnIndex;
@@ -138,9 +148,10 @@ export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<
 			const result = parser(rows, rowIndex, columnIndex, indent);
 			rowIndex = result.endRowIndex;
 			columnIndex = result.endColumnIndex;
-			if (result.errors?.length) {
+			if (!result.hasParsed) {
 				// errors.push(...result.errors)
 				return {
+					hasParsed: false,
 					endRowIndex: rowIndex,
 					endColumnIndex: columnIndex,
 					errors: result.errors,
@@ -149,6 +160,7 @@ export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<
 			parsed.push(result.parsed);
 		}
 		return {
+			hasParsed: true,
 			endRowIndex: rowIndex,
 			endColumnIndex: columnIndex,
 			errors: errors,
@@ -170,6 +182,7 @@ export function multiplicationParser<T>(
 			if (rowIndex >= rows.length) {
 				if (count >= minOccurs) {
 					return {
+						hasParsed: true,
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
 						parsed: parsed,
@@ -177,6 +190,7 @@ export function multiplicationParser<T>(
 				}
 				else {
 					return {
+						hasParsed: false,
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
 						errors: [{
@@ -190,9 +204,10 @@ export function multiplicationParser<T>(
 				}
 			}
 			const result = parser(rows, rowIndex, columnIndex, indent);
-			if (result.errors?.length) {
+			if (!result.hasParsed) {
 				if (count >= minOccurs) {
 					return {
+						hasParsed: true,
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
 						parsed: parsed,
@@ -200,6 +215,7 @@ export function multiplicationParser<T>(
 				}
 				else {
 					return {
+						hasParsed: false,
 						// TODO endIndizes hier aus error result nehmen? (Indizes enthalten hier noch die Werte vor dem Fehler)
 						endRowIndex: rowIndex,
 						endColumnIndex: columnIndex,
@@ -212,6 +228,7 @@ export function multiplicationParser<T>(
 			parsed.push(result.parsed!);
 		}
 		return {
+			hasParsed: true,
 			endRowIndex: rowIndex,
 			endColumnIndex: columnIndex,
 			parsed: parsed
@@ -223,9 +240,7 @@ export function mapParser<T, U>(parser: Parser<T>, transform: (x: T | undefined)
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const result = parser(rows, startRowIndex, startColumnIndex, indent);
 		return {
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-			errors: result.errors,
+			...result,
 			parsed: transform(result.parsed),
 		};
 	};
@@ -242,6 +257,7 @@ export function emptyParser(
 	indent: number,
 ): ParserResult<undefined> {
 	return {
+		hasParsed: true,
 		endRowIndex: startRowIndex,
 		endColumnIndex: startColumnIndex,
 	};
@@ -251,8 +267,8 @@ export function tokenParser(token: string): Parser<undefined> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const row = rows[startRowIndex];
 		if (row === undefined) {
-			// throw new Error('Can not parse token at end of code');
 			return {
+				hasParsed: false,
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
 				errors: [{
@@ -270,6 +286,7 @@ export function tokenParser(token: string): Parser<undefined> {
 			const codeChar = row[columnIndex];
 			if (!codeChar) {
 				return {
+					hasParsed: false,
 					endRowIndex: startRowIndex,
 					endColumnIndex: columnIndex,
 					errors: [{
@@ -283,6 +300,7 @@ export function tokenParser(token: string): Parser<undefined> {
 			}
 			if (codeChar !== tokenChar) {
 				return {
+					hasParsed: false,
 					endRowIndex: startRowIndex,
 					endColumnIndex: columnIndex,
 					errors: [{
@@ -297,14 +315,8 @@ export function tokenParser(token: string): Parser<undefined> {
 		}
 		// Success
 		const endColumnIndex = startColumnIndex + token.length;
-		// if (endColumnIndex >= row.length) {
-		// 	// Ende der Zeile erreicht => gehe in die nächste Zeile
-		// 	return {
-		// 		endRowIndex: startRowIndex + 1,
-		// 		endColumnIndex: 0,
-		// 	}
-		// }
 		return {
+			hasParsed: true,
 			endRowIndex: startRowIndex,
 			endColumnIndex: endColumnIndex,
 		};
@@ -321,6 +333,7 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 		if (row === undefined) {
 			// throw new Error('Can not match regex at end of code');
 			return {
+				hasParsed: false,
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
 				errors: [{
@@ -335,6 +348,7 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 		const match = regex.exec(row);
 		if (!match) {
 			return {
+				hasParsed: false,
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
 				errors: [{
@@ -349,15 +363,8 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 		// Success
 		const value = match[0]!;
 		const endColumnIndex = startColumnIndex + value.length;
-		// if (endColumnIndex >= row.length) {
-		// 	// Ende der Zeile erreicht => gehe in die nächste Zeile
-		// 	return {
-		// 		endRowIndex: startRowIndex + 1,
-		// 		endColumnIndex: 0,
-		// 		parsed: value,
-		// 	}
-		// }
 		return {
+			hasParsed: true,
 			endRowIndex: startRowIndex,
 			endColumnIndex: endColumnIndex,
 			parsed: value,
