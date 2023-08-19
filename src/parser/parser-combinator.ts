@@ -135,26 +135,18 @@ export function sequenceParser<T extends any[]>(...parsers: Parsers<T>): Parser<
 		for (const parser of parsers) {
 			// nicht abbrechen bei end of code, denn die folgenden parser könnten optional sein
 			// wenn sie nicht optional sind, dann liefern sie eh direkt Fehler
-			// TODO bei allen parsern abbruchbedingung end of code einbauen!
-			// if (index >= code.length) {
-			// 	return {
-			// 		endIndex: index,
-			// 		errors: [{
-			// 			index: index,
-			// 			message: `End of code reached while looking for ${parser.name}`
-			// 		}],
-			// 	}
-			// }
 			const result = parser(rows, rowIndex, columnIndex, indent);
 			rowIndex = result.endRowIndex;
 			columnIndex = result.endColumnIndex;
+			if (result.errors) {
+				errors.push(...result.errors);
+			}
 			if (!result.hasParsed) {
-				// errors.push(...result.errors)
 				return {
 					hasParsed: false,
 					endRowIndex: rowIndex,
 					endColumnIndex: columnIndex,
-					errors: result.errors,
+					errors: errors,
 				};
 			}
 			parsed.push(result.parsed);
@@ -176,6 +168,7 @@ export function multiplicationParser<T>(
 ): Parser<T[]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const parsed: T[] = [];
+		const errors: ParserError[] = [];
 		let rowIndex = startRowIndex;
 		let columnIndex = startColumnIndex;
 		for (let count = 0; maxOccurs === undefined || count < maxOccurs; count++) {
@@ -204,24 +197,26 @@ export function multiplicationParser<T>(
 				}
 			}
 			const result = parser(rows, rowIndex, columnIndex, indent);
-			if (!result.hasParsed) {
-				if (count >= minOccurs) {
-					return {
-						hasParsed: true,
-						endRowIndex: rowIndex,
-						endColumnIndex: columnIndex,
-						parsed: parsed,
-					};
-				}
-				else {
-					return {
-						hasParsed: false,
-						// TODO endIndizes hier aus error result nehmen? (Indizes enthalten hier noch die Werte vor dem Fehler)
-						endRowIndex: rowIndex,
-						endColumnIndex: columnIndex,
-						errors: result.errors,
-					};
-				}
+			if (!result.hasParsed && count >= minOccurs) {
+				return {
+					hasParsed: true,
+					endRowIndex: rowIndex,
+					endColumnIndex: columnIndex,
+					parsed: parsed,
+					errors: errors,
+				};
+			}
+			if (result.errors) {
+				errors.push(...result.errors);
+			}
+			if (!result.hasParsed && count < minOccurs) {
+				return {
+					hasParsed: false,
+					// TODO endIndizes hier aus error result nehmen? (Indizes enthalten hier noch die Werte vor dem Fehler)
+					endRowIndex: rowIndex,
+					endColumnIndex: columnIndex,
+					errors: errors,
+				};
 			}
 			rowIndex = result.endRowIndex;
 			columnIndex = result.endColumnIndex;
@@ -231,7 +226,8 @@ export function multiplicationParser<T>(
 			hasParsed: true,
 			endRowIndex: rowIndex,
 			endColumnIndex: columnIndex,
-			parsed: parsed
+			parsed: parsed,
+			errors: errors,
 		};
 	};
 }

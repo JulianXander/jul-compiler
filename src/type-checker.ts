@@ -39,6 +39,7 @@ import {
 	ParseParameterField,
 	ParsedFile,
 	Reference,
+	SimpleExpression,
 	StringToken,
 	SymbolDefinition,
 	SymbolTable,
@@ -655,10 +656,17 @@ function inferType(
 				setInferredType(prefixArgument, scopes, parsedDocuments, folder, file);
 			}
 			const functionExpression = expression.functionExpression;
+			if (!functionExpression) {
+				return Any;
+			}
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file);
-			setInferredType(expression.arguments, scopes, parsedDocuments, folder, file);
+			const args = expression.arguments;
+			if (!args) {
+				return Any;
+			}
+			setInferredType(args, scopes, parsedDocuments, folder, file);
 			const functionType = functionExpression.inferredType!;
-			const argsType = expression.arguments.inferredType!;
+			const argsType = args.inferredType!;
 			const paramsType = getParamsType(functionType);
 			const assignArgsError = areArgsAssignableTo(prefixArgument?.inferredType, argsType, paramsType);
 			if (assignArgsError) {
@@ -670,7 +678,10 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			function getReturnTypeFromFunctionCall(functionCall: ParseFunctionCall): RuntimeType {
+			function getReturnTypeFromFunctionCall(
+				functionCall: ParseFunctionCall,
+				functionExpression: SimpleExpression,
+			): RuntimeType {
 				// TODO statt functionname functionref value/inferred type prüfen?
 				if (functionExpression.type === 'reference') {
 					const functionName = functionExpression.name.name;
@@ -781,7 +792,7 @@ function inferType(
 				}
 				return getReturnTypeFromFunctionType(functionType);
 			}
-			const returnType = getReturnTypeFromFunctionCall(expression);
+			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgument?.inferredType, argsType, returnType);
 			return dereferencedReturnType;
@@ -1754,6 +1765,17 @@ export function getPathFromImport(
 	path?: string;
 	error?: ParserError;
 } {
+	if (!importExpression.arguments) {
+		return {
+			error: {
+				message: 'arguments missing for import',
+				startRowIndex: importExpression.startRowIndex,
+				startColumnIndex: importExpression.startColumnIndex,
+				endRowIndex: importExpression.endColumnIndex,
+				endColumnIndex: importExpression.endColumnIndex,
+			}
+		};
+	}
 	const pathExpression = getPathExpression(importExpression.arguments);
 	if (pathExpression?.type === 'string'
 		&& pathExpression.values.length === 1

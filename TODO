@@ -1,7 +1,5 @@
 -fix unreachable branch detected vgl fizz-buzz.jul
 -onCompletion bei . infix function call funktionen mit passendem ersten parametertyp vorschlagen
-	-erfordert unvollständiges parsen von infix function call
-	-ParserResult mit errors erlauben, hasParsed flag
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary

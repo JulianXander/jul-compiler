@@ -250,7 +250,8 @@ function isImport(expression: ParseValueExpression): expression is ParseFunction
 		return false;
 	}
 	const functionExpression = expression.functionExpression;
-	return functionExpression.type === 'reference'
+	return !!functionExpression
+		&& functionExpression.type === 'reference'
 		&& functionExpression.name.name === 'import';
 }
 

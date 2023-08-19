@@ -763,9 +763,7 @@ function valueExpressionBaseParser(
 	if (!parsed2) {
 		// SimpleExpression
 		return {
-			hasParsed: true,
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
+			...result,
 			parsed: parsed1,
 		};
 	}
@@ -966,16 +964,15 @@ function simpleExpressionParser(
 			(accumulator, currentValue) => {
 				switch (currentValue.type) {
 					case 'infixFunctionArgs': {
-						const args = currentValue.arguments;
 						const innerFunctionCall: ParseFunctionCall = {
 							type: 'functionCall',
 							prefixArgument: accumulator,
 							functionExpression: currentValue.infixFunctionReference,
-							arguments: args,
+							arguments: currentValue.arguments,
 							startRowIndex: accumulator.startRowIndex,
 							startColumnIndex: accumulator.startColumnIndex,
-							endRowIndex: args.endRowIndex,
-							endColumnIndex: args.endColumnIndex,
+							endRowIndex: currentValue.endRowIndex,
+							endColumnIndex: currentValue.endColumnIndex,
 						};
 						return innerFunctionCall;
 					}
@@ -1228,38 +1225,58 @@ function infixFunctionArgumentsParser(
 	indent: number,
 ): ParserResult<{
 	type: 'infixFunctionArgs',
-	arguments: BracketedExpression;
-	infixFunctionReference: Reference;
+	arguments?: BracketedExpression;
+	infixFunctionReference?: Reference;
+	endRowIndex: number,
+	endColumnIndex: number,
 }> {
-	const result = sequenceParser(
-		infixFunctionTokenParser,
-		nameParser,
-		functionArgumentsParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed = result.parsed;
-	// TODO parse unvollständigen infix function call ohne functionRef und/oder ohne args
-	if (!parsed) {
+	// TODO greedy SequenceParser der soviel von der Sequence parst wie möglich?
+	// const result = sequenceParser(
+	// 	infixFunctionTokenParser,
+	// 	nameParser,
+	// 	functionArgumentsParser,
+	// )(rows, startRowIndex, startColumnIndex, indent);
+	const infixTokenResult = infixFunctionTokenParser(rows, startRowIndex, startColumnIndex, indent);
+	if (!infixTokenResult.hasParsed) {
 		return {
-			...result,
+			...infixTokenResult,
 			parsed: undefined,
 		};
 	}
-	const infixFunctionName = parsed[1];
-	const args = parsed[2];
+	const errors = infixTokenResult.errors ?? [];
+	let endRowIndex = infixTokenResult.endRowIndex;
+	let endColumnIndex = infixTokenResult.endColumnIndex;
+	const functionReferenceResult = referenceParser(rows, endRowIndex, endColumnIndex, indent);
+	if (functionReferenceResult.errors) {
+		errors.push(...functionReferenceResult.errors);
+	}
+	let args: BracketedExpression | undefined;
+	if (functionReferenceResult.hasParsed) {
+		endRowIndex = functionReferenceResult.endRowIndex;
+		endColumnIndex = functionReferenceResult.endColumnIndex;
+		const argumentsResult = functionArgumentsParser(rows, endRowIndex, endColumnIndex, indent);
+		if (argumentsResult.errors) {
+			errors.push(...argumentsResult.errors);
+		}
+		args = argumentsResult.parsed;
+		if (argumentsResult.hasParsed) {
+			endRowIndex = argumentsResult.endRowIndex;
+			endColumnIndex = argumentsResult.endColumnIndex;
+		}
+	}
+
 	return {
-		...result,
+		...infixTokenResult,
+		endRowIndex: endRowIndex,
+		endColumnIndex: endColumnIndex,
 		parsed: {
 			type: 'infixFunctionArgs',
 			arguments: args,
-			infixFunctionReference: {
-				type: 'reference',
-				name: infixFunctionName,
-				startRowIndex: infixFunctionName.startRowIndex,
-				startColumnIndex: infixFunctionName.startColumnIndex,
-				endRowIndex: infixFunctionName.endRowIndex,
-				endColumnIndex: infixFunctionName.endColumnIndex,
-			},
+			infixFunctionReference: functionReferenceResult.parsed,
+			endRowIndex: endRowIndex,
+			endColumnIndex: endColumnIndex,
 		},
+		errors: errors,
 	};
 }
 

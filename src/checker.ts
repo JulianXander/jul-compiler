@@ -218,11 +218,11 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 			if (prefixArgument && !checkedPrefixArg) {
 				return undefined;
 			}
-			const checkedArguments = checkParseExpression(parseExpression.arguments);
+			const checkedArguments = parseExpression.arguments && checkParseExpression(parseExpression.arguments);
 			if (!checkedArguments) {
 				return undefined;
 			}
-			const checkedFunctionExpression = checkParseExpression(parseExpression.functionExpression);
+			const checkedFunctionExpression = parseExpression.functionExpression && checkParseExpression(parseExpression.functionExpression);
 			if (!checkedFunctionExpression) {
 				return undefined;
 			}

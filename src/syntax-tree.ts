@@ -282,9 +282,9 @@ export interface ParseFunctionCall extends ParseExpressionBase {
 	 * Nur bei InfixFunctionCall
 	 */
 	prefixArgument?: SimpleExpression;
-	functionExpression: SimpleExpression;
+	functionExpression?: SimpleExpression;
 	// TODO primitive value direkt als arguments?
-	arguments: BracketedExpression;
+	arguments?: BracketedExpression;
 }
 
 //#region FunctionLiteral
