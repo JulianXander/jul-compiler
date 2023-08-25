@@ -1,4 +1,5 @@
 ## Setup
+`npm i -g npm`
 `npm i` (in den Projekten jul-compiler, jul-language-server, vscode-jul-language-service)  
 `npm i copyfiles -g`  
 `npm i rimraf -g`
