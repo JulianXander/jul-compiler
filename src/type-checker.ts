@@ -973,11 +973,13 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 						const fieldValues = mapDictionary(type.fields, valueOf);
 						return fieldValues;
 					}
-					case 'typeOf':
-						return type.value;
 					case 'reference':
 						// TODO wo deref? wo Type => value auspacken?
 						return type;
+					case 'tuple':
+						return type.elementTypes.map(valueOf);
+					case 'typeOf':
+						return type.value;
 					default:
 						// TODO error?
 						return Any;
@@ -1460,6 +1462,14 @@ export function getTypeError(
 								break;
 						}
 						break;
+					case 'tuple': {
+						const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType.elementTypes);
+						if (error === true) {
+							// Standardfehler
+							break;
+						}
+						return error;
+					}
 					case 'type':
 						switch (typeof argumentsType) {
 							case 'bigint':
@@ -1496,7 +1506,6 @@ export function getTypeError(
 						}
 						break;
 					// TODO
-					case 'tuple':
 					case 'typeOf':
 						break;
 					default: {
@@ -1511,8 +1520,12 @@ export function getTypeError(
 					break;
 				}
 				if (Array.isArray(targetType)) {
-					// TODO
-					break;
+					const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType);
+					if (error === true) {
+						// Standardfehler
+						break;
+					}
+					return error;
 				}
 				// dictionary
 				const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType);
@@ -1528,6 +1541,62 @@ export function getTypeError(
 			break;
 	}
 	return { message: `Can not assign ${typeToString(argumentsType, 0)} to ${typeToString(targetType, 0)}.` };
+}
+
+/**
+ * Liefert true bei Standardfehler, undefined bei keinem Fehler.
+ */
+function getTupleTypeError(
+	prefixArgumentType: undefined | RuntimeType,
+	argumentsType: RuntimeType,
+	targetElementTypes: RuntimeType[],
+): TypeError | true | undefined {
+	if (argumentsType instanceof BuiltInTypeBase) {
+		switch (argumentsType.type) {
+			case 'list':
+				if (targetElementTypes.length > 1) {
+					return {
+						message: `Expected ${targetElementTypes.length} elements, but List may contain less.`,
+					};
+				}
+				return getTypeError(prefixArgumentType, argumentsType.elementType, targetElementTypes[0]!);
+			case 'tuple':
+				return getTupleTypeError2(prefixArgumentType, argumentsType.elementTypes, targetElementTypes);
+			default:
+				return true;
+		}
+	}
+	if (Array.isArray(argumentsType)) {
+		return getTupleTypeError2(prefixArgumentType, argumentsType, targetElementTypes);
+	}
+	return true;
+}
+
+function getTupleTypeError2(
+	prefixArgumentType: undefined | RuntimeType,
+	argumentElementTypes: RuntimeType[],
+	targetElementTypes: RuntimeType[],
+): TypeError | undefined {
+	// TODO fehler wenn argument mehr elemente entfält als target?
+	const subErrors = targetElementTypes.map((targetElementType, index) => {
+		const valueElement = argumentElementTypes[index];
+		if (valueElement === undefined) {
+			// TODO kein Fehler bei empty target?
+			const error: TypeError = {
+				message: `Missing element at position ${index + 1}. Expected ${typeToString(targetElementType, 0)}.`,
+			};
+			return error;
+		}
+		return getTypeError(prefixArgumentType, valueElement, targetElementType)
+	}).filter(isDefined);
+	if (!subErrors.length) {
+		return undefined;
+	}
+	return {
+		// TODO error struktur überdenken
+		message: subErrors.map(typeErrorToString).join('\n'),
+		// innerError
+	};
 }
 
 /**

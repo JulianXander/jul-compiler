@@ -1,4 +1,3 @@
--tuple typechecking
 -type inference: infer argument type bei function literal wenn literal inline argument eines function calls ist
 	-vgl fizz-buzz.jul index
 ?remove .jul default extension bei import, stattdessen .jul immer explizit angeben
