@@ -1,3 +1,6 @@
+-file system guided intellisense bei import path
+-fix and typeChecking vgl typeCheckingTest.jul
+-tuple typechecking
 -type inference: infer argument type bei function literal wenn literal inline argument eines function calls ist
 	-vgl fizz-buzz.jul index
 ?spread operator für branching value
@@ -25,7 +28,8 @@
 		-home, roadmap, documentation
 		-github wiki für doku prüfen
 ?FractionValueType
-	-für custom typeToSting
+	-für custom typeToString
+	-alternativ custom typeToString für Fraction structured values
 ?typeToString mit custom types, custom toString?
 -docs
 	-https://prismjs.com/extending.html#language-definitions
@@ -34,13 +38,10 @@
 	-2. check returnValue = true
 ?catchAll default case in branching mit () oder Any?
 -taschenrechner demo app
--fix and typeChecking vgl typeCheckingTest.jul
--tuple typechecking
 ?fix dictionary value als type typeChecking?
 	?wie soll sich das verhalten? wird das gebraucht?
 ?typeChecking: return union mit Error, oder compiler error
 	?compiler error wenn assignment unmöglich, error union type wenn Fehler möglich?
--file system guided intellisense bei import path
 -virtual document für core-lib.jul
 	-https://code.visualstudio.com/api/extension-guides/virtual-documents
 -emitter mit parseExpression statt checkedExpression, checkedExpression entfernen
