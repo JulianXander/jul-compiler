@@ -331,7 +331,7 @@ export type Primitive =
 	| string
 	;
 
-interface Dictionary { [key: string]: RuntimeType; }
+export interface Dictionary { [key: string]: RuntimeType; }
 
 export type Collection =
 	| RuntimeType[]

@@ -27,7 +27,8 @@ import {
 	_String,
 	deepEquals,
 	DictionaryType,
-	_Date
+	_Date,
+	Dictionary
 } from './runtime.js';
 import {
 	BracketedExpression,
@@ -968,6 +969,10 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 		case 'object':
 			if (type instanceof BuiltInTypeBase) {
 				switch (type.type) {
+					case 'dictionaryLiteral': {
+						const fieldValues = mapDictionary(type.fields, valueOf);
+						return fieldValues;
+					}
 					case 'typeOf':
 						return type.value;
 					case 'reference':
@@ -1236,7 +1241,7 @@ export function getTypeError(
 		// 			break;
 		// 	}
 		// 	break;
-		case 'object':
+		case 'object': {
 			if (targetType instanceof BuiltInTypeBase) {
 				switch (targetType.type) {
 					case 'and': {
@@ -1322,61 +1327,12 @@ export function getTypeError(
 						};
 					}
 					case 'dictionaryLiteral': {
-						if (typeof argumentsType !== 'object') {
-							// TODO type specific error?
+						const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType.fields);
+						if (error === true) {
+							// Standardfehler
 							break;
 						}
-						if (!argumentsType) {
-							// TODO null specific error?
-							break;
-						}
-						if (argumentsType instanceof BuiltInTypeBase) {
-							switch (argumentsType.type) {
-								case 'dictionaryLiteral': {
-									const subErrors = map(
-										targetType.fields,
-										(fieldType, fieldName) =>
-											// TODO add fieldName to error
-											// TODO the field x is missing error?
-											getTypeError(prefixArgumentType, argumentsType.fields[fieldName] ?? null, fieldType),
-									).filter(isDefined);
-									if (!subErrors.length) {
-										return undefined;
-									}
-									return {
-										// TODO error struktur überdenken
-										message: subErrors.map(typeErrorToString).join('\n'),
-										// innerError
-									};
-								}
-								default:
-									// TODO type specific error?
-									break;
-							}
-							break;
-						}
-						if (Array.isArray(argumentsType)) {
-							// TODO array specific error?
-							break;
-						}
-						// plain Dictionary
-						// TODO wird das gebraucht? aktuell wird dictionary type immer als dictionaryLiteralType inferred
-						// wann tritt also dieser case ein? ggf ebenso mit array/tuple?
-						const subErrors = map(
-							targetType.fields,
-							(fieldType, fieldName) =>
-								// TODO add fieldName to error
-								// TODO the field x is missing error?
-								getTypeError(prefixArgumentType, argumentsType[fieldName] ?? null, fieldType),
-						).filter(isDefined);
-						if (!subErrors.length) {
-							return undefined;
-						}
-						return {
-							// TODO error struktur überdenken
-							message: subErrors.map(typeErrorToString).join('\n'),
-							// innerError
-						};
+						return error;
 					}
 					case 'error':
 						break;
@@ -1549,11 +1505,94 @@ export function getTypeError(
 					}
 				}
 			}
+			else {
+				// null/array/dictionary
+				if (targetType === null) {
+					break;
+				}
+				if (Array.isArray(targetType)) {
+					// TODO
+					break;
+				}
+				// dictionary
+				const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType);
+				if (error === true) {
+					// Standardfehler
+					break;
+				}
+				return error;
+			}
 			break;
+		}
 		default:
 			break;
 	}
 	return { message: `Can not assign ${typeToString(argumentsType, 0)} to ${typeToString(targetType, 0)}.` };
+}
+
+/**
+ * Liefert true bei Standardfehler, undefined bei keinem Fehler.
+ */
+function getDictionaryLiteralTypeError(
+	prefixArgumentType: undefined | RuntimeType,
+	argumentsType: RuntimeType,
+	targetFieldTypes: Dictionary,
+): TypeError | true | undefined {
+	if (typeof argumentsType !== 'object') {
+		// TODO type specific error?
+		return true;
+	}
+	if (!argumentsType) {
+		// TODO null specific error?
+		return true;
+	}
+	if (argumentsType instanceof BuiltInTypeBase) {
+		switch (argumentsType.type) {
+			case 'dictionaryLiteral': {
+				const subErrors = map(
+					targetFieldTypes,
+					(fieldType, fieldName) =>
+						// TODO add fieldName to error
+						// TODO the field x is missing error?
+						getTypeError(prefixArgumentType, argumentsType.fields[fieldName] ?? null, fieldType),
+				).filter(isDefined);
+				if (!subErrors.length) {
+					return undefined;
+				}
+				return {
+					// TODO error struktur überdenken
+					message: subErrors.map(typeErrorToString).join('\n'),
+					// innerError
+				};
+			}
+			default:
+				// TODO type specific error?
+				break;
+		}
+		return true;
+	}
+	if (Array.isArray(argumentsType)) {
+		// TODO array specific error?
+		return true;
+	}
+	// plain Dictionary
+	// TODO wird das gebraucht? aktuell wird dictionary type immer als dictionaryLiteralType inferred
+	// wann tritt also dieser case ein? ggf ebenso mit array/tuple?
+	const subErrors = map(
+		targetFieldTypes,
+		(fieldType, fieldName) =>
+			// TODO add fieldName to error
+			// TODO the field x is missing error?
+			getTypeError(prefixArgumentType, argumentsType[fieldName] ?? null, fieldType),
+	).filter(isDefined);
+	if (!subErrors.length) {
+		return undefined;
+	}
+	return {
+		// TODO error struktur überdenken
+		message: subErrors.map(typeErrorToString).join('\n'),
+		// innerError
+	};
 }
 
 function getTypeErrorForPrimitiveArg(

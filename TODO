@@ -1,13 +1,12 @@
+-tuple typechecking
+-type inference: infer argument type bei function literal wenn literal inline argument eines function calls ist
+	-vgl fizz-buzz.jul index
 ?remove .jul default extension bei import, stattdessen .jul immer explizit angeben
 	-explizit > implizit
 	-stört bei import autocomplete
 		?stattdessen bei import autocomplete .jul abschneiden
 		-ein weg > 2 wege
 	?.jul optional
--fix and typeChecking vgl typeCheckingTest.jul
--tuple typechecking
--type inference: infer argument type bei function literal wenn literal inline argument eines function calls ist
-	-vgl fizz-buzz.jul index
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary
