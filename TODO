@@ -2,6 +2,7 @@
 	-explizit > implizit
 	-stört bei import autocomplete
 		?stattdessen bei import autocomplete .jul abschneiden
+		-ein weg > 2 wege
 	?.jul optional
 -fix and typeChecking vgl typeCheckingTest.jul
 -tuple typechecking
