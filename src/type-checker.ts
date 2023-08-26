@@ -1860,8 +1860,9 @@ export function typeToString(type: RuntimeType, indent: number): string {
 			return `§${type.replaceAll('§', '§§')}§`;
 		case 'bigint':
 		case 'boolean':
-		case 'number':
 			return type.toString();
+		case 'number':
+			return type.toString() + 'f';
 		case 'object': {
 			if (type === null) {
 				return '()';
