@@ -43,6 +43,8 @@ import {
 	Reference,
 	SimpleExpression,
 	SymbolTable,
+	ParseListLiteral,
+	PositionedExpressionBase,
 } from '../syntax-tree.js';
 import {
 	Extension,
@@ -1712,7 +1714,7 @@ function bracketedExpressionToValueExpression(
 		&& !baseField.fallback)
 		&& baseFields.some(baseField => !baseField.spread);
 	if (isList) {
-		return {
+		const list: ParseListLiteral = {
 			type: 'list',
 			values: mapNonEmpty(
 				baseFields,
@@ -1736,6 +1738,10 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
+		list.values.forEach(value => {
+			setParent(value, list);
+		});
+		return list;
 	}
 	const isDictionary = baseFields.every(baseField =>
 		// singleDictionaryField muss assignedValue haben
@@ -1957,7 +1963,7 @@ function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError
 
 //#endregion convert
 
-function setParent(expression: ParseExpression | undefined, parent: ParseExpression): void {
+function setParent(expression: PositionedExpressionBase | undefined, parent: ParseExpression): void {
 	if (expression) {
 		expression.parent = parent;
 	}

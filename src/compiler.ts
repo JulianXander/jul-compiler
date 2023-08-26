@@ -3,7 +3,7 @@ import { dirname, extname, join, resolve } from 'path';
 import webpack from 'webpack';
 import { checkParseExpressions } from './checker.js';
 import { syntaxTreeToJs } from './emitter.js';
-import { ParsedFile, ParseFunctionCall, ParseValueExpression } from './syntax-tree.js';
+import { ParsedFile, ParseExpression, ParseFunctionCall } from './syntax-tree.js';
 import { getPathFromImport } from './type-checker.js';
 import { parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
@@ -245,7 +245,7 @@ export function getImportedPaths(
 	};
 }
 
-function isImport(expression: ParseValueExpression): expression is ParseFunctionCall {
+export function isImport(expression: ParseExpression): expression is ParseFunctionCall {
 	if (expression.type !== 'functionCall') {
 		return false;
 	}

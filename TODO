@@ -1,4 +1,8 @@
--file system guided intellisense bei import path
+?remove .jul default extension bei import, stattdessen .jul immer explizit angeben
+	-explizit > implizit
+	-stört bei import autocomplete
+		?stattdessen bei import autocomplete .jul abschneiden
+	?.jul optional
 -fix and typeChecking vgl typeCheckingTest.jul
 -tuple typechecking
 -type inference: infer argument type bei function literal wenn literal inline argument eines function calls ist

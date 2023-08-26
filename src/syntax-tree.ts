@@ -85,7 +85,7 @@ export type TypedExpression =
 	| ParseParameterField
 	;
 
-interface PositionedExpressionBase extends Positioned {
+export interface PositionedExpressionBase extends Positioned {
 	/**
 	 * Wird vom parser gesetzt.
 	 */
