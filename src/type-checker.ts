@@ -463,21 +463,22 @@ function inferType(
 				if (index) {
 					// Fehler, wenn ParameterTyp des Branches schon von vorherigen Branches abgedeckt.
 					// Also wenn aktueller ParamterTyp Teilmenge der Veroderung der vorherigen ParameterTypen ist.
-					const previousTypes = branches.slice(0, index).map(previousBranch => {
-						return getParamsType(previousBranch.inferredType);
-					});
-					const combinedPreviousType = new UnionType(previousTypes);
-					const currentParamsType = getParamsType(branch.inferredType);
-					const error = areArgsAssignableTo(undefined, currentParamsType, combinedPreviousType);
-					if (!error) {
-						errors.push({
-							message: 'Unreachable branch detected.',
-							startRowIndex: branch.startRowIndex,
-							startColumnIndex: branch.startColumnIndex,
-							endRowIndex: branch.endRowIndex,
-							endColumnIndex: branch.endColumnIndex,
-						});
-					}
+					// TODO
+					// const previousTypes = branches.slice(0, index).map(previousBranch => {
+					// 	return getParamsType(previousBranch.inferredType);
+					// });
+					// const combinedPreviousType = new UnionType(previousTypes);
+					// const currentParamsType = getParamsType(branch.inferredType);
+					// const error = areArgsAssignableTo(undefined, currentParamsType, combinedPreviousType);
+					// if (!error) {
+					// 	errors.push({
+					// 		message: 'Unreachable branch detected.',
+					// 		startRowIndex: branch.startRowIndex,
+					// 		startColumnIndex: branch.startColumnIndex,
+					// 		endRowIndex: branch.endRowIndex,
+					// 		endColumnIndex: branch.endColumnIndex,
+					// 	});
+					// }
 				}
 			});
 			// TODO normalize (flatten) UnionType, wenn any verodert => return any
