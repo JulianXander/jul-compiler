@@ -960,21 +960,28 @@ function simpleExpressionParser(
 		if (expression.type === 'bracketed') {
 			expression = bracketedExpressionToValueExpression(expression, errors);
 		}
+		function setParentForFunctionCall(functionCall: ParseFunctionCall): void {
+			setParent(functionCall.prefixArgument, functionCall);
+			setParent(functionCall.functionExpression, functionCall);
+			setParent(functionCall.arguments, functionCall);
+		}
 		expression = parsed2.reduce<SimpleExpression>(
 			(accumulator, currentValue) => {
 				switch (currentValue.type) {
 					case 'infixFunctionArgs': {
-						const innerFunctionCall: ParseFunctionCall = {
+						const args = currentValue.arguments;
+						const functionCall: ParseFunctionCall = {
 							type: 'functionCall',
 							prefixArgument: accumulator,
 							functionExpression: currentValue.infixFunctionReference,
-							arguments: currentValue.arguments,
+							arguments: args,
 							startRowIndex: accumulator.startRowIndex,
 							startColumnIndex: accumulator.startColumnIndex,
 							endRowIndex: currentValue.endRowIndex,
 							endColumnIndex: currentValue.endColumnIndex,
 						};
-						return innerFunctionCall;
+						setParentForFunctionCall(functionCall);
+						return functionCall;
 					}
 					case 'index': {
 						const indexReference: ParseIndexReference = {
@@ -1014,6 +1021,7 @@ function simpleExpressionParser(
 							endRowIndex: currentValue.endRowIndex,
 							endColumnIndex: currentValue.endColumnIndex,
 						};
+						setParentForFunctionCall(functionCall);
 						return functionCall;
 					}
 				}
@@ -1948,3 +1956,9 @@ function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError
 }
 
 //#endregion convert
+
+function setParent(expression: ParseExpression | undefined, parent: ParseExpression): void {
+	if (expression) {
+		expression.parent = parent;
+	}
+}

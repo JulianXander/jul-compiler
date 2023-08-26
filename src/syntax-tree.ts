@@ -50,11 +50,6 @@ export type ParseValueExpression =
 	| ParseIndexReference
 	;
 
-export interface ParseSpreadValueExpression extends Positioned {
-	type: 'spread';
-	value: ParseValueExpression;
-}
-
 export type ParseValueExpressionBase =
 	| ParseBranching
 	| ParseFunctionLiteral
@@ -90,9 +85,24 @@ export type TypedExpression =
 	| ParseParameterField
 	;
 
+interface PositionedExpressionBase extends Positioned {
+	/**
+	 * Wird vom parser gesetzt.
+	 */
+	parent?: ParseExpression;
+}
+
 // TODO beil allen parseExpression oder nur bei value expressions?
-interface ParseExpressionBase extends Positioned {
+interface ParseExpressionBase extends PositionedExpressionBase {
+	/**
+	 * Wird vom type-checker gesetzt.
+	 */
 	inferredType?: RuntimeType;
+}
+
+export interface ParseSpreadValueExpression extends PositionedExpressionBase {
+	type: 'spread';
+	value: ParseValueExpression;
 }
 
 export interface ParseSingleDefinition extends ParseExpressionBase {
@@ -166,7 +176,7 @@ export type ParseDictionaryField =
 	| ParseSpreadValueExpression
 	;
 
-export interface ParseSingleDictionaryField extends Positioned {
+export interface ParseSingleDictionaryField extends PositionedExpressionBase {
 	type: 'singleDictionaryField';
 	/**
 	 * escapable
@@ -194,7 +204,7 @@ export type ParseDictionaryTypeField =
 	| ParseSpreadValueExpression
 	;
 
-export interface ParseSingleDictionaryTypeField extends Positioned {
+export interface ParseSingleDictionaryTypeField extends PositionedExpressionBase {
 	type: 'singleDictionaryTypeField';
 	/**
 	 * escapable
@@ -342,7 +352,7 @@ export interface ParseFieldReference extends ParseExpressionBase {
 	field: Name | ParseStringLiteral;
 }
 
-export interface Name extends Positioned {
+export interface Name extends PositionedExpressionBase {
 	type: 'name';
 	name: string;
 }
@@ -353,7 +363,7 @@ export interface ParseIndexReference extends ParseExpressionBase {
 	index: Index;
 }
 
-export interface Index extends Positioned {
+export interface Index extends PositionedExpressionBase {
 	type: 'index';
 	/**
 	 * Startet mit 1
