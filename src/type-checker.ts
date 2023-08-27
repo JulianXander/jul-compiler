@@ -38,6 +38,7 @@ import {
 	ParseFunctionCall,
 	ParseListValue,
 	ParseParameterField,
+	ParseValueExpression,
 	ParsedFile,
 	Reference,
 	SimpleExpression,
@@ -662,14 +663,71 @@ function inferType(
 				return Any;
 			}
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file);
+			const functionType = functionExpression.inferredType!;
+			const paramsType = getParamsType(functionType);
 			const args = expression.arguments;
 			if (!args) {
 				return Any;
 			}
+			//#region infer argument type bei function literal wenn literal inline argument des function calls ist
+			function getAllArgs(): ParseValueExpression[] {
+				const prefixArgs = prefixArgument
+					? [prefixArgument]
+					: [];
+				if (args == undefined) {
+					return prefixArgs;
+				}
+				switch (args.type) {
+					case 'bracketed':
+						return prefixArgs;
+					case 'dictionary':
+						return args.fields.map(field => field.value);
+					case 'dictionaryType':
+						return prefixArgs;
+					case 'empty':
+						return prefixArgs;
+					case 'list':
+						return args.values.map(value => {
+							return value.type === 'spread'
+								? value.value
+								: value;
+						});
+					case 'object':
+						return args.values.map(value => {
+							return value.value;
+						});
+					default: {
+						const assertNever: never = args;
+						throw new Error(`Unexpected args.type: ${(assertNever as BracketedExpression).type}`);
+					}
+				}
+			}
+			const argsExpressions = getAllArgs();
+			argsExpressions.forEach((arg, argIndex) => {
+				if (arg.type === 'functionLiteral') {
+					// TODO get param type by name, spread args berücksichtigen
+					if (paramsType instanceof ParametersType) {
+						const param = paramsType.singleNames[argIndex];
+						if (param !== undefined
+							&& param.type instanceof FunctionType) {
+							const innerParamsType = param.type.paramsType;
+							if (arg.params.type === 'parameters') {
+								arg.params.singleFields.forEach((literalParam, literalParamIndex) => {
+									console.log(innerParamsType);
+									if (innerParamsType instanceof ParametersType) {
+										const innerParam = innerParamsType.singleNames[literalParamIndex];
+										literalParam.inferredTypeFromCall = innerParam?.type;
+									}
+								});
+							}
+						}
+						// TODO rest param berücksichtigen
+					}
+				}
+			});
+			//#endregion
 			setInferredType(args, scopes, parsedDocuments, folder, file);
-			const functionType = functionExpression.inferredType!;
 			const argsType = args.inferredType!;
-			const paramsType = getParamsType(functionType);
 			const assignArgsError = areArgsAssignableTo(prefixArgument?.inferredType, argsType, paramsType);
 			if (assignArgsError) {
 				errors.push({
@@ -902,7 +960,7 @@ function inferType(
 				setInferredType(expression.fallback, scopes, parsedDocuments, folder, file);
 			}
 			// TODO fallback berücksichtigen?
-			const inferredType = valueOf(expression.typeGuard?.inferredType);
+			const inferredType = expression.inferredTypeFromCall ?? valueOf(expression.typeGuard?.inferredType);
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			parameterSymbol.normalizedType = inferredType;

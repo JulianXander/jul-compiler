@@ -327,6 +327,10 @@ export interface ParseParameterField extends ParseExpressionBase {
 	typeGuard?: ParseValueExpression;
 	source?: string;
 	fallback?: ParseValueExpression;
+	/**
+	 * Wird in type-checker gesetzt
+	 */
+	inferredTypeFromCall?: RuntimeType;
 }
 
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
