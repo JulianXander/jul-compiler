@@ -1929,7 +1929,11 @@ export function getPathFromImport(
 	 */
 	sourceFolder: string,
 ): {
+	/**
+	 * Relative path
+	 */
 	path?: string;
+	fullPath?: string;
 	error?: ParserError;
 } {
 	if (!importExpression.arguments) {
@@ -1971,8 +1975,8 @@ export function getPathFromImport(
 					}
 				};
 		}
-		const filePath = join(sourceFolder, importedPathWithExtension);
-		const fileNotFoundError: ParserError | undefined = existsSync(filePath)
+		const fullPath = join(sourceFolder, importedPathWithExtension);
+		const fileNotFoundError: ParserError | undefined = existsSync(fullPath)
 			? undefined
 			: {
 				message: `File not found: ${importedPathWithExtension}`,
@@ -1983,6 +1987,7 @@ export function getPathFromImport(
 			}
 		return {
 			path: importedPathWithExtension,
+			fullPath: fullPath,
 			error: fileNotFoundError,
 		};
 	}
