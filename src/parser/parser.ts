@@ -49,6 +49,7 @@ import {
 import {
 	Extension,
 	isNonEmpty,
+	isValidExtension,
 	last,
 	mapNonEmpty,
 	readTextFile,
@@ -66,16 +67,12 @@ import { load } from 'js-yaml';
 export function parseFile(filePath: string): ParsedFile {
 	const code = readTextFile(filePath);
 	const extension = extname(filePath);
-	switch (extension) {
-		case Extension.js:
-		case Extension.json:
-		case Extension.jul:
-		case Extension.ts:
-		case Extension.yaml:
-			const result = parseCode(code, extension);
-			return result;
-		default:
-			throw new Error(`Unexpected extension for parseFile: ${extension}`);
+	if (isValidExtension(extension)) {
+		const result = parseCode(code, extension);
+		return result;
+	}
+	else {
+		throw new Error(`Unexpected extension for parseFile: ${extension}`);
 	}
 }
 

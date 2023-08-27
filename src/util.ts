@@ -93,6 +93,8 @@ export function mapDictionary<T, U>(
 
 export const executingDirectory = dirname(fileURLToPath(import.meta.url));
 
+//#region extension
+
 export enum Extension {
 	js = '.js',
 	json = '.json',
@@ -100,6 +102,35 @@ export enum Extension {
 	ts = '.ts',
 	yaml = '.yaml',
 }
+
+export function isValidExtension(extension: string): extension is Extension {
+	switch (extension) {
+		case Extension.js:
+		case Extension.json:
+		case Extension.jul:
+		case Extension.ts:
+		case Extension.yaml:
+			return true;
+		default:
+			return false;
+	}
+}
+
+export function removeExtension(path: string): string {
+	return path.replace(/\.[^/.]+$/, '');
+}
+
+export function changeExtension(
+	path: string,
+	/**
+	 * inklusive . am Anfang
+	 */
+	newExtension: string,
+): string {
+	return removeExtension(path) + newExtension;
+}
+
+//#endregion extension
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
@@ -122,16 +153,6 @@ export function tryReadTextFile(path: string): string | undefined {
 
 export function tryCreateDirectory(path: string): void {
 	mkdirSync(path, { recursive: true });
-}
-
-export function changeExtension(
-	path: string,
-	/**
-	 * inklusive . am Anfang
-	 */
-	newExtension: string,
-): string {
-	return path.replace(/\.[^/.]+$/, '') + newExtension;
 }
 
 //#endregion file system
