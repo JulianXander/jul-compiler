@@ -2,8 +2,8 @@
 	-explizit > implizit
 	-stört bei import autocomplete
 		?stattdessen bei import autocomplete .jul abschneiden
-		-ein weg > 2 wege
 	?.jul optional
+		-ein weg > 2 wege
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary
