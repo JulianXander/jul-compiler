@@ -1,3 +1,7 @@
+-doku
+	-https://about.readthedocs.com/
+	-https://prismjs.com/extending.html#language-definitions
+	-github wiki für doku prüfen
 ?remove .jul default extension bei import, stattdessen .jul immer explizit angeben
 	-explizit > implizit
 	-stört bei import autocomplete
@@ -27,13 +31,10 @@
 	?deutsch vs englisch
 	-title navbar
 		-home, roadmap, documentation
-		-github wiki für doku prüfen
 ?FractionValueType
 	-für custom typeToString
 	-alternativ custom typeToString für Fraction structured values
 ?typeToString mit custom types, custom toString?
--docs
-	-https://prismjs.com/extending.html#language-definitions
 ?function as type
 	-1. check args assignable
 	-2. check returnValue = true
