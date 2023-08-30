@@ -13,6 +13,11 @@
 			"description": "Relative to config directory",
 			"type": "string",
 			"default": "out"
+		},
+		"cli": {
+			"description": "Add shebang #!/usr/bin/env node",
+			"type": "boolean",
+			"default": false
 		}
 	},
 	"required": [

@@ -12,6 +12,10 @@ interface JulCompilerConfiguration {
 	 * Default: out
 	 */
 	outputFolder?: string;
+	/**
+	 * Default: false
+	 */
+	cli?: boolean;
 }
 
 // console.log(process.argv)
@@ -30,4 +34,5 @@ console.log(`Compiler started with entry file ${config.entryFilePath} ...`);
 compileProject(
 	join(rootFolder, config.entryFilePath),
 	join(rootFolder, outputFolder),
+	config.cli,
 );

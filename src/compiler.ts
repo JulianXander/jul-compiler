@@ -10,6 +10,7 @@ import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
+import ShebangPlugin from 'webpack-shebang-plugin';
 const { ModuleKind, transpileModule } = typescript;
 
 const runtimeFileName = 'runtime.js';
@@ -17,6 +18,7 @@ const runtimeFileName = 'runtime.js';
 export function compileProject(
 	entryFilePath: string,
 	outputFolderPath: string,
+	cli: boolean = false,
 ): void {
 	//#region 1. cleanup out
 	rmSync(outputFolderPath, { recursive: true, force: true });
@@ -28,7 +30,7 @@ export function compileProject(
 		sourceFilePath: entryFilePath,
 		outputFolderPath: outputFolderPath,
 		runtimePath: runtimePath,
-	});
+	}, undefined, cli);
 	//#endregion 2. compile
 
 	//#region 3. copy runtime
@@ -51,6 +53,9 @@ export function compileProject(
 			path: absoluteFolderPath,
 			filename: 'bundle.js',
 		},
+		plugins: [
+			new ShebangPlugin(),
+		],
 		target: 'node',
 		// resolve: {
 		// 	modules: ['node_modules']
@@ -83,6 +88,7 @@ interface JulCompilerOptions {
 function compileFile(
 	options: JulCompilerOptions,
 	compiledFilePaths?: { [key: string]: true; },
+	shebang: boolean = false,
 ): string {
 	const {
 		sourceFilePath,
@@ -110,7 +116,7 @@ function compileFile(
 	const outFilePath = join(outputFolderPath, jsFileName);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
-	writeFileSync(outFilePath, compiled);
+	writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
 	//#endregion 4. write
 
 	//#region 5. compile dependencies
