@@ -507,7 +507,7 @@ export class TypeOfType extends BuiltInTypeBase {
 
 //#endregion BuiltInType
 
-function optionalType(...types: RuntimeType[]): UnionType {
+export function _optionalType(...types: RuntimeType[]): UnionType {
 	return new UnionType([null, ...types]);
 }
 
@@ -1065,6 +1065,12 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 //#endregion helper
 
 //#region builtins
+function getCliArguments() {
+	try {
+		return process.argv;
+	} catch { }
+}
+export const cliArguments = getCliArguments() ?? null;
 //#region Types
 export const Any = new AnyType();
 export const Type = new TypeType();
@@ -1359,31 +1365,31 @@ export const addDate = _createFunction(
 			},
 			{
 				name: 'years',
-				type: optionalType(Integer)
+				type: _optionalType(Integer)
 			},
 			{
 				name: 'months',
-				type: optionalType(Integer)
+				type: _optionalType(Integer)
 			},
 			{
 				name: 'days',
-				type: optionalType(Integer)
+				type: _optionalType(Integer)
 			},
 			{
 				name: 'hours',
-				type: optionalType(Integer)
+				type: _optionalType(Integer)
 			},
 			{
 				name: 'minutes',
-				type: optionalType(Integer)
+				type: _optionalType(Integer)
 			},
 			{
 				name: 'seconds',
-				type: optionalType(Integer)
+				type: _optionalType(Integer)
 			},
 			{
 				name: 'milliseconds',
-				type: optionalType(Integer)
+				type: _optionalType(Integer)
 			},
 		]
 	}
@@ -1465,7 +1471,7 @@ export const filterMap = _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: _optionalType(new ListType(Any))
 			},
 			{
 				name: 'callback',

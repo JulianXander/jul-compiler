@@ -28,7 +28,8 @@ import {
 	deepEquals,
 	DictionaryType,
 	_Date,
-	Dictionary
+	Dictionary,
+	_optionalType
 } from './runtime.js';
 import {
 	BracketedExpression,
@@ -72,6 +73,7 @@ const maxElementsPerLine = 5;
 const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	true: true,
 	false: false,
+	cliArguments: _optionalType(new ListType(_String)),
 	Any: new TypeOfType(Any),
 	Boolean: new TypeOfType(_Boolean),
 	Integer: new TypeOfType(Integer),
