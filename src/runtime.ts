@@ -1612,6 +1612,8 @@ export const httpTextRequest$ = _createFunction(
 				return response.text();
 			}
 			else {
+				// TODO improve error handling: return error response body (text)
+				// return response.text();
 				throw new Error(response.statusText);
 			}
 		}).then(responseText => {
@@ -1634,6 +1636,10 @@ export const httpTextRequest$ = _createFunction(
 			{
 				name: 'method',
 				type: _String
+			},
+			{
+				name: 'headers',
+				type: _optionalType(new DictionaryType(_String))
 			},
 			{
 				name: 'body',
