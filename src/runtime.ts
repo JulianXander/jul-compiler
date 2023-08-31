@@ -1066,17 +1066,13 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 
 function _toJson(value: RuntimeType): string | Error {
 	switch (typeof value) {
-		case 'bigint': {
-			const str = value.toString();
-			// n abschneiden
-			return str.substring(0, str.length - 1);
-		}
+		case 'bigint':
 		case 'boolean':
 		case 'number':
+			return value.toString();
 		case 'string':
 			return JSON.stringify(value);
 		case 'function':
-			return new Error('Can not convert function to JSON');
 		case 'object': {
 			if (value === null) {
 				return 'null';
