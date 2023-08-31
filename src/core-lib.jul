@@ -163,13 +163,19 @@ parseFloat = nativeFunction(
 	(stringNumber: String): Or(Float Error)
 	§TODO§
 )
+#region JSON
+JsonPrimitive = Or(() Boolean Rational String)
+JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
 # Liefert Error, wenn das gegebene json kein valides JSON ist.
 parseJson = nativeFunction(
 	(json: String): Or(JsonValue Error)
 	§TODO§
 )
-JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
-JsonPrimitive = Or(() Boolean Rational String)
+toJson = nativeFunction(
+	(value: JsonValue): String
+	§TODO§
+)
+#endregion JSON
 # Gibt die capture groups zurück
 regex = nativeFunction(
 	(

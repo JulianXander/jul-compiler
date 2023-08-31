@@ -57,7 +57,7 @@ import {
 import { parseTsCode } from './typescript-parser.js';
 import { checkName, createParseFunctionLiteral, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions } from './parser-utils.js';
 import { extname } from 'path';
-import { parseJsonFn } from '../runtime.js';
+import { _parseJson } from '../runtime.js';
 import { jsonValueToParsedFile } from './json-parser.js';
 import { load } from 'js-yaml';
 
@@ -83,7 +83,7 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 			parsedExpressions = parseTsCode(code);
 			break;
 		case Extension.json: {
-			const parsedJson = parseJsonFn(code);
+			const parsedJson = _parseJson(code);
 			if (parsedJson instanceof Error) {
 				return {
 					errors: [{

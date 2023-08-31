@@ -812,12 +812,14 @@ function retry$<T>(
 
 //#region JSON
 
+//#region parse
+
 type ParserResult<T> = {
 	parsed: T,
 	endIndex: number;
 } | Error;
 
-export function parseJsonFn(json: string) {
+export function _parseJson(json: string) {
 	const result = parseJsonValue(json, 0);
 	if (result instanceof Error) {
 		return result;
@@ -1058,6 +1060,43 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 		}
 	}
 	return new Error('Invalid JSON. String not terminated.');
+}
+
+//#endregion parse
+
+function _toJson(value: RuntimeType): string | Error {
+	switch (typeof value) {
+		case 'bigint': {
+			const str = value.toString();
+			// n abschneiden
+			return str.substring(0, str.length - 1);
+		}
+		case 'boolean':
+		case 'number':
+		case 'string':
+			return JSON.stringify(value);
+		case 'function':
+			return new Error('Can not convert function to JSON');
+		case 'object': {
+			if (value === null) {
+				return 'null';
+			}
+			if (Array.isArray(value)) {
+				return `[${value.map(_toJson).join()}]`;
+			}
+			return `{${Object.entries(value).map(([key, innerValue]) => {
+				return `${_toJson(key)}:${_toJson(innerValue)}`
+			}).join()}}`;
+		};
+		case 'symbol':
+			return new Error('Can not convert symbol to JSON');
+		case 'undefined':
+			return new Error('Can not convert undefined to JSON');
+		default: {
+			const assertNever: never = value;
+			return new Error(`Unexpected type ${typeof assertNever}`);
+		}
+	}
 }
 
 //#endregion JSON
@@ -1308,12 +1347,24 @@ export const parseFloat = _createFunction(
 	}
 );
 export const parseJson = _createFunction(
-	parseJsonFn,
+	_parseJson,
 	{
 		singleNames: [
 			{
 				name: 'json',
 				type: _String,
+			},
+		]
+	}
+);
+export const toJson = _createFunction(
+	_toJson,
+	{
+		singleNames: [
+			{
+				name: 'value',
+				// TODO JsonValue
+				type: Any,
 			},
 		]
 	}
