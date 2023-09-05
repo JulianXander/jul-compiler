@@ -10,7 +10,7 @@ import {
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
 import { Extension, changeExtension } from './util.js';
-import { extname } from 'path';
+import { extname, isAbsolute } from 'path';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
@@ -199,7 +199,8 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 
 function getImportJs(importedJs: string, path: string): string {
 	const isJson = path.endsWith(Extension.json);
-	return `import ${importedJs} from ${stringToJs(path)}${isJson ? ' assert { type: \'json\' }' : ''};\n`;
+	const pathWithFileScheme = (isAbsolute(path) ? 'file://' : '') + path;
+	return `import ${importedJs} from ${stringToJs(pathWithFileScheme)}${isJson ? ' assert { type: \'json\' }' : ''};\n`;
 }
 
 function isImportFunctionCall(value: CheckedValueExpression): value is CheckedFunctionCall {
