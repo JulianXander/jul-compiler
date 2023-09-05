@@ -200,53 +200,53 @@ function isDictionary(value: any): value is Dictionary {
 		&& !Array.isArray(value);
 }
 
-function tryAssignArgs(params: Params, prefixArg: any, values: any): any[] | Error {
+function tryAssignArgs(params: Params, prefixArg: any, args: any): any[] | Error {
 	const assignedValues: any[] = [];
 	const { type: paramsType, singleNames, rest } = params;
 	const hasPrefixArg = prefixArg !== undefined;
 	if (paramsType !== undefined) {
 		// TODO typecheck prefixArg with paramsType?
-		const isValid = isOfType(values, paramsType);
+		const isValid = isOfType(args, paramsType);
 		if (!isValid) {
-			return new Error(`Can not assign the value ${values} to params because it is not of type ${paramsType}`);
+			return new Error(`Can not assign the value ${args} to params because it is not of type ${paramsType}`);
 		}
 		return assignedValues;
 	}
 	// primitive value in Array wrappen
-	const wrappedValue: Collection = isRealObject(values)
-		? values
-		: [values];
-	const isArray = Array.isArray(wrappedValue);
+	const wrappedArgs: Collection = isRealObject(args)
+		? args
+		: [args];
+	const isArray = Array.isArray(wrappedArgs);
 	let paramIndex = 0;
-	let valueIndex = 0;
+	let argIndex = 0;
 	if (singleNames) {
 		for (; paramIndex < singleNames.length; paramIndex++) {
 			const param = singleNames[paramIndex]!;
 			const { name, type, source } = param;
 			const sourceWithFallback = source ?? name;
-			let value;
+			let arg;
 			if (hasPrefixArg && !paramIndex) {
-				value = prefixArg;
+				arg = prefixArg;
 			}
 			else {
-				value = isArray
-					? wrappedValue[valueIndex]
-					: wrappedValue[sourceWithFallback] ?? null;
-				valueIndex++;
+				arg = (isArray
+					? wrappedArgs[argIndex]
+					: wrappedArgs[sourceWithFallback]) ?? null;
+				argIndex++;
 			}
 			const isValid = type
-				? isOfType(value, type)
+				? isOfType(arg, type)
 				: true;
 			if (!isValid) {
-				return new Error(`Can not assign the value ${value} to param ${sourceWithFallback} because it is not of type ${type}`);
+				return new Error(`Can not assign the value ${arg} to param ${sourceWithFallback} because it is not of type ${type}`);
 			}
-			assignedValues.push(value);
+			assignedValues.push(arg);
 		}
 	}
 	if (rest) {
 		const restType = rest.type;
 		if (isArray) {
-			const remainingArgs = wrappedValue.slice(valueIndex);
+			const remainingArgs = wrappedArgs.slice(argIndex);
 			if (hasPrefixArg && !paramIndex) {
 				remainingArgs.unshift(prefixArg);
 			}
