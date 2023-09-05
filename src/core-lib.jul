@@ -324,7 +324,7 @@ timer$ = nativeFunction(
 #endregion Stream
 #region Utility
 # Supported file types:
-# .jul (no ending specified)
+# .jul
 # .js
 # .json
 # .yaml

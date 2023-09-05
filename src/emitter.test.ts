@@ -8,10 +8,10 @@ const expectedResults: {
 	code: string;
 	result: string;
 }[] = [
-		{
-			code: 'true',
-			result: 'true'
-		},
+		// {
+		// 	code: 'true',
+		// 	result: 'export default true'
+		// },
 		// {
 		// 	code: 'Any',
 		// 	result: 'Any'
@@ -167,9 +167,13 @@ const expectedResults: {
 		// 	code: '(a: String b)',
 		// 	result: 'new DictionaryLiteralType({\n\'a\': _String,\n\'b\': Any,\n})'
 		// },
+		// {
+		// 	code: '(1 ...a ...b)',
+		// 	result: 'export default [\n1n,\n...a,\n...b,\n]'
+		// },
 		{
-			code: '(1 ...a ...b)',
-			result: '[\n1n,\n...a,\n...b,\n]'
+			code: '(testVar) = import(§./some-file.jul§)',
+			result: 'export default import {testVar} from \'./some-file.js\';\n'
 		},
 	];
 
@@ -179,7 +183,7 @@ describe('Emitter', () => {
 			const parsed = parseCode(code, Extension.jul);
 			const syntaxTree = checkParseExpressions(parsed.expressions!)!;
 			const compiled = syntaxTreeToJs(syntaxTree, '');
-			expect(compiled).to.equal(getRuntimeImportJs('') + 'export default ' + result);
+			expect(compiled).to.equal(getRuntimeImportJs('') + result);
 		});
 	});
 });

@@ -48,7 +48,7 @@ import {
 	SymbolTable,
 	TypedExpression
 } from './syntax-tree.js';
-import { Extension, NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { NonEmptyArray, executingDirectory, isDefined, isNonEmpty, isValidExtension, last, map, mapDictionary } from './util.js';
 import { parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedName } from './checker.js';
@@ -1953,42 +1953,31 @@ export function getPathFromImport(
 	if (pathExpression?.type === 'string'
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'stringToken') {
-		const rawImportedPath = pathExpression.values[0].value;
-		const extension = extname(rawImportedPath);
-		let importedPathWithExtension: string;
-		switch (extension) {
-			case '':
-				importedPathWithExtension = rawImportedPath + Extension.jul;
-				break;
-			case Extension.js:
-			case Extension.json:
-			case Extension.ts:
-			case Extension.yaml:
-				importedPathWithExtension = rawImportedPath;
-				break;
-			default:
-				return {
-					error: {
-						message: `Unexpected extension for import: ${extension}`,
-						startRowIndex: pathExpression.startRowIndex,
-						startColumnIndex: pathExpression.startColumnIndex,
-						endRowIndex: pathExpression.endRowIndex,
-						endColumnIndex: pathExpression.endColumnIndex,
-					}
-				};
+		const importedPath = pathExpression.values[0].value;
+		const extension = extname(importedPath);
+		if (!isValidExtension(extension)) {
+			return {
+				error: {
+					message: `Unexpected extension for import: ${extension}`,
+					startRowIndex: pathExpression.startRowIndex,
+					startColumnIndex: pathExpression.startColumnIndex,
+					endRowIndex: pathExpression.endRowIndex,
+					endColumnIndex: pathExpression.endColumnIndex,
+				}
+			};
 		}
-		const fullPath = join(sourceFolder, importedPathWithExtension);
+		const fullPath = join(sourceFolder, importedPath);
 		const fileNotFoundError: ParserError | undefined = existsSync(fullPath)
 			? undefined
 			: {
-				message: `File not found: ${importedPathWithExtension}`,
+				message: `File not found: ${fullPath}`,
 				startRowIndex: pathExpression.startRowIndex,
 				startColumnIndex: pathExpression.startColumnIndex,
 				endRowIndex: pathExpression.endRowIndex,
 				endColumnIndex: pathExpression.endColumnIndex,
 			}
 		return {
-			path: importedPathWithExtension,
+			path: importedPath,
 			fullPath: fullPath,
 			error: fileNotFoundError,
 		};

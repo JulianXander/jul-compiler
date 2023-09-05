@@ -217,14 +217,18 @@ function getPathFromImport(importExpression: CheckedFunctionCall): string {
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'stringToken') {
 		const importedPath = pathExpression.values[0].value;
-		switch (extname(importedPath)) {
+		const extension = extname(importedPath);
+		switch (extension) {
 			case Extension.json:
+			case Extension.jul:
 			case Extension.ts:
 				return changeExtension(importedPath, Extension.js);
 			case Extension.yaml:
 				return importedPath + Extension.json;
-			default:
+			case Extension.js:
 				return importedPath;
+			default:
+				throw new Error('Unexpected extension for import ' + extension);
 		}
 	}
 	// TODO dynamische imports verbieten???
