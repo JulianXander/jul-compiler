@@ -336,8 +336,20 @@ map$ = nativeFunction(
 	): Stream(Any)
 	§TODO§
 )
-# TODO switch vs merge einzelne funktionen oder parameter
-flatMap$ = nativeFunction(
+flatMergeMap$ = nativeFunction(
+	(
+		source$: Stream(Any)
+		transform$: (
+			value: Any
+			# TODO
+			# value: TypeOf(source$)/ValueType
+			# TODO Integer vs FloatInteger
+			# index: Integer
+		): Or(Stream(Any) Any)
+	): Stream(Any)
+	§TODO§
+)
+flatSwitchMap$ = nativeFunction(
 	(
 		source$: Stream(Any)
 		transform$: (

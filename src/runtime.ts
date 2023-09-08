@@ -740,7 +740,6 @@ function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	return flat$;
 }
 
-// TODO testen
 function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	let unsubscribeInner: () => void;
 	const flat$: Stream<T> = createDerived$(() => {
@@ -754,7 +753,8 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 		return currentValue;
 	});
 	const unsubscribeOuter = source$$.subscribe(source$ => {
-		unsubscribeInner = takeUntil$(source$, source$$).subscribe(value => {
+		unsubscribeInner?.();
+		unsubscribeInner = source$.subscribe(value => {
 			flat$.getValue();
 		});
 	});
@@ -771,12 +771,12 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	return flat$;
 }
 
-// TODO switch vs merge einzelne funktionen oder parameter
 function _flatMap$<T, U>(
 	source$: Stream<T>,
 	transform$: (value: T) => U | Stream<U>,
+	merge: boolean,
 ): Stream<U> {
-	return flatMerge$(_map$(source$, (value) => {
+	const mapped$ = _map$(source$, (value) => {
 		const transformed$ = transform$(value);
 		if (transformed$ instanceof Stream) {
 			return transformed$;
@@ -784,7 +784,13 @@ function _flatMap$<T, U>(
 		else {
 			return of$(transformed$);
 		}
-	}));
+	})
+	if (merge) {
+		return flatMerge$(mapped$);
+	}
+	else {
+		return flatSwitch$(mapped$);
+	}
 }
 
 // TODO testen
@@ -1704,8 +1710,28 @@ export const map$ = _createFunction(
 		]
 	}
 );
-export const flatMap$ = _createFunction(
-	_flatMap$,
+export const flatMergeMap$ = _createFunction(
+	<T, U>(source$: Stream<T>, transform$: (value: T) => U | Stream<U>) => {
+		return _flatMap$(source$, transform$, true);
+	},
+	{
+		singleNames: [
+			{
+				name: 'source$',
+				type: new StreamType(Any)
+			},
+			{
+				name: 'transform$',
+				// TODO
+				// type: function source$/ValueType => Any
+			}
+		]
+	}
+);
+export const flatSwitchMap$ = _createFunction(
+	<T, U>(source$: Stream<T>, transform$: (value: T) => U | Stream<U>) => {
+		return _flatMap$(source$, transform$, false);
+	},
 	{
 		singleNames: [
 			{
