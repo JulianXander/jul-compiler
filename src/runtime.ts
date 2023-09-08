@@ -601,6 +601,7 @@ function createSource$<T>(initialValue: T): Stream<T> {
 	stream$.push(initialValue, processId);
 	return stream$;
 }
+
 function of$<T>(value: T): Stream<T> {
 	const $ = createSource$(value);
 	$.complete();
@@ -622,7 +623,7 @@ function createDerived$<T>(getValue: () => T): Stream<T> {
 	return derived$;
 }
 
-function map$<TSource, TTarget>(
+function _map$<TSource, TTarget>(
 	source$: Stream<TSource>,
 	mapFunction: (value: TSource) => TTarget,
 ): Stream<TTarget> {
@@ -684,7 +685,7 @@ function combine$<T>(
 }
 
 function takeUntil$<T>(source$: Stream<T>, completed$: Stream<any>): Stream<T> {
-	const mapped$ = map$(source$, x => x);
+	const mapped$ = _map$(source$, x => x);
 	const unsubscribeCompleted = completed$.subscribe(
 		() => {
 			mapped$.complete();
@@ -768,8 +769,21 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	return flat$;
 }
 
-// TODO
-// function flatMap
+// TODO switch vs merge einzelne funktionen oder parameter
+function _flatMap$<T, U>(
+	source$: Stream<T>,
+	transform$: (value: T) => U | Stream<U>,
+): Stream<U> {
+	return flatSwitch$(_map$(source$, (value) => {
+		const transformed$ = transform$(value);
+		if (transformed$ instanceof Stream) {
+			return transformed$;
+		}
+		else {
+			return of$(transformed$);
+		}
+	}));
+}
 
 // TODO testen
 function accumulate$<TSource, TAccumulated>(
@@ -777,7 +791,7 @@ function accumulate$<TSource, TAccumulated>(
 	initialAccumulator: TAccumulated,
 	accumulate: (previousAccumulator: TAccumulated, value: TSource) => TAccumulated,
 ): Stream<TAccumulated> {
-	const mapped$ = map$(source$, value => {
+	const mapped$ = _map$(source$, value => {
 		const newAccumulator = accumulate(
 			mapped$.lastValue === undefined
 				? initialAccumulator
@@ -796,7 +810,7 @@ function retry$<T>(
 	if (currentAttempt === maxAttepmts) {
 		return method$();
 	}
-	const withRetry$$ = map$(method$(), result => {
+	const withRetry$$ = _map$(method$(), result => {
 		if (result instanceof Error) {
 			console.log('Error! Retrying... Attempt:', currentAttempt, 'process:', processId);
 			return retry$(method$, maxAttepmts, currentAttempt + 1);
@@ -1671,6 +1685,40 @@ export const timer$ = _createFunction(
 	}
 );
 //#endregion create
+//#region transform
+export const map$ = _createFunction(
+	_map$,
+	{
+		singleNames: [
+			{
+				name: 'source$',
+				type: new StreamType(Any)
+			},
+			{
+				name: 'transform$',
+				// TODO
+				// type: function source$/ValueType => Any
+			}
+		]
+	}
+);
+export const flatMap$ = _createFunction(
+	_flatMap$,
+	{
+		singleNames: [
+			{
+				name: 'source$',
+				type: new StreamType(Any)
+			},
+			{
+				name: 'transform$',
+				// TODO
+				// type: function source$/ValueType => Any
+			}
+		]
+	}
+);
+//#endregion transform
 //#endregion Stream
 //#region Utility
 export const log = _createFunction(
