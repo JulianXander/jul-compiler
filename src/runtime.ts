@@ -684,6 +684,7 @@ function combine$<T>(
 	return combined$;
 }
 
+// TODO testen
 function takeUntil$<T>(source$: Stream<T>, completed$: Stream<any>): Stream<T> {
 	const mapped$ = _map$(source$, x => x);
 	const unsubscribeCompleted = completed$.subscribe(
