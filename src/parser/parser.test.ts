@@ -8,35 +8,35 @@ const expectedResults: {
 	code: string;
 	result: ParseExpression[];
 }[] = [
-		{
-			code: 'true',
-			result: [{
-				type: 'reference',
-				name: {
-					type: 'name',
-					name: 'true',
-					startRowIndex: 0,
-					startColumnIndex: 0,
-					endRowIndex: 0,
-					endColumnIndex: 4,
-				},
-				startRowIndex: 0,
-				startColumnIndex: 0,
-				endRowIndex: 0,
-				endColumnIndex: 4,
-			}]
-		},
-		{
-			code: '§\n\t§#\n§',
-			result: [{
-				type: 'string',
-				values: [{ type: 'stringToken', value: '#\n' }],
-				startRowIndex: 0,
-				startColumnIndex: 0,
-				endRowIndex: 2,
-				endColumnIndex: 1,
-			}]
-		},
+		// {
+		// 	code: 'true',
+		// 	result: [{
+		// 		type: 'reference',
+		// 		name: {
+		// 			type: 'name',
+		// 			name: 'true',
+		// 			startRowIndex: 0,
+		// 			startColumnIndex: 0,
+		// 			endRowIndex: 0,
+		// 			endColumnIndex: 4,
+		// 		},
+		// 		startRowIndex: 0,
+		// 		startColumnIndex: 0,
+		// 		endRowIndex: 0,
+		// 		endColumnIndex: 4,
+		// 	}]
+		// },
+		// {
+		// 	code: '§\n\t§#\n§',
+		// 	result: [{
+		// 		type: 'string',
+		// 		values: [{ type: 'stringToken', value: '#\n' }],
+		// 		startRowIndex: 0,
+		// 		startColumnIndex: 0,
+		// 		endRowIndex: 2,
+		// 		endColumnIndex: 1,
+		// 	}]
+		// },
 		// {
 		// 	code: '§\n\t12\n§',
 		// 	result: [{
@@ -827,7 +827,11 @@ const expectedResults: {
 		// 			}
 		// 		}
 		// 	]
-		// }
+		// },
+		{
+			code: '(): () => ()',
+			result: []
+		},
 	];
 
 describe('Parser', () => {

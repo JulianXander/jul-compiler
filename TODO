@@ -1,3 +1,10 @@
+-functionTypeLiteralParser interpretiert
+	(): () => ()
+	als type und nicht als function mit returntype
+	der type ist dabei () => ()
+	1. [(): ()] => ()
+	2. (): [() => ()]
+	?sollte immer wie in 1. interpretiert werden?
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
