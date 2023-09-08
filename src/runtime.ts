@@ -739,6 +739,7 @@ function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	return flat$;
 }
 
+// TODO testen
 function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	let unsubscribeInner: () => void;
 	const flat$: Stream<T> = createDerived$(() => {
@@ -774,7 +775,7 @@ function _flatMap$<T, U>(
 	source$: Stream<T>,
 	transform$: (value: T) => U | Stream<U>,
 ): Stream<U> {
-	return flatSwitch$(_map$(source$, (value) => {
+	return flatMerge$(_map$(source$, (value) => {
 		const transformed$ = transform$(value);
 		if (transformed$ instanceof Stream) {
 			return transformed$;
