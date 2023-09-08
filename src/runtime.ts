@@ -673,7 +673,7 @@ function combine$<T>(
 	const unsubscribes = source$s.map((source$, index) => {
 		source$.onCompleted(() => {
 			// combined ist complete, wenn alle Sources complete sind.
-			if (!source$s.some(source$ => !source$.completed)) {
+			if (source$s.every(source$ => source$.completed)) {
 				combined$.complete();
 			}
 		});
@@ -731,7 +731,7 @@ function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	source$$.onCompleted(() => {
 		inner$s.forEach(inner$ => {
 			inner$.onCompleted(() => {
-				if (!inner$s.some(source$ => !source$.completed)) {
+				if (inner$s.every(source$ => source$.completed)) {
 					flat$.complete();
 				}
 			});
