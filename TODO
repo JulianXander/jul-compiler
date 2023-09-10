@@ -9,9 +9,8 @@
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
 -doku
-	-https://about.readthedocs.com/
-	-https://prismjs.com/extending.html#language-definitions
-	-github wiki für doku prüfen
+	-https://docusaurus.io/
+	-en übersetzung vgl https://docusaurus.io/docs/i18n/tutorial
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
 ?tryAssignParams mit rest dictionary
