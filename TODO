@@ -8,7 +8,6 @@
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
--cli example
 -doku
 	-https://about.readthedocs.com/
 	-https://prismjs.com/extending.html#language-definitions
