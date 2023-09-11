@@ -348,8 +348,8 @@ const reservedJsNames: string[] = [
 	'with',
 	'yield',
 
-	'Boolean',
 	'Blob',
+	'Boolean',
 	'Error',
 	'String',
 ];
