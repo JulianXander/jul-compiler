@@ -180,6 +180,8 @@ toJson = nativeFunction(
 # Gibt die capture groups zurück
 # unnamedCaptures enthält als ersten Eintrag das gesamte Match
 # TODO stattdessen ganzes match in extra feld?
+# Liefert Error bei Syntaxfehler in regex.
+# TODO validate regex String mit TypeChecker, regex Syntax Highlighting
 regex = nativeFunction(
 	(
 		text: String
