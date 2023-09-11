@@ -307,6 +307,7 @@ function dereferenceArgumentTypesNested(
 	const builtInType: BuiltInType = typeToDereference;
 	switch (builtInType.type) {
 		case 'any':
+		case 'blob':
 		case 'boolean':
 		case 'date':
 		case 'error':
@@ -1320,6 +1321,8 @@ export function getTypeError(
 					}
 					case 'any':
 						throw new Error('Unexpected any targetType');
+					case 'blob':
+						break;
 					case 'boolean':
 						switch (typeof argumentsType) {
 							case 'boolean':
@@ -2039,8 +2042,8 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return `And${arrayTypeToString(builtInType.choiceTypes, indent)}`;
 					case 'any':
 						return 'Any';
-					case 'integer':
-						return 'Integer';
+					case 'blob':
+						return 'Blob';
 					case 'boolean':
 						return 'Boolean';
 					case 'date':
@@ -2055,6 +2058,8 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return 'Float';
 					case 'function':
 						return `${typeToString(builtInType.paramsType, indent)} => ${typeToString(builtInType.returnType, indent)}`;
+					case 'integer':
+						return 'Integer';
 					case 'list':
 						return `List(${typeToString(builtInType.elementType, indent)})`;
 					case 'not':

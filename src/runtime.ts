@@ -99,6 +99,8 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						return typeof value === 'string';
 					case 'date':
 						return value instanceof Date;
+					case 'blob':
+						return value instanceof Blob;
 					case 'error':
 						return value instanceof Error;
 					case 'dictionary': {
@@ -366,6 +368,7 @@ export type BuiltInType =
 	| FloatType
 	| StringType
 	| DateType
+	| BlobType
 	| ErrorType
 	| ListType
 	| TupleType
@@ -406,6 +409,10 @@ export class StringType extends BuiltInTypeBase {
 
 export class DateType extends BuiltInTypeBase {
 	readonly type = 'date';
+}
+
+export class BlobType extends BuiltInTypeBase {
+	readonly type = 'blob';
 }
 
 class ErrorType extends BuiltInTypeBase {
@@ -606,6 +613,58 @@ function of$<T>(value: T): Stream<T> {
 	const $ = createSource$(value);
 	$.complete();
 	return $;
+}
+
+type HttpResponseType =
+	| 'blob'
+	| 'text'
+	;
+
+function httpRequest$(
+	url: string,
+	method: string,
+	headers: { [key: string]: string } | null,
+	body: any,
+	responseType: HttpResponseType,
+): Stream<null | string | Blob | Error> {
+	const abortController = new AbortController();
+	const response$ = createSource$<null | string | Blob | Error>(null);
+	response$.onCompleted(() => {
+		abortController.abort();
+	});
+	fetch(url, {
+		method: method,
+		headers: headers ?? undefined,
+		body: body,
+		signal: abortController.signal,
+	}).then<string | Blob>(response => {
+		if (response.ok) {
+			switch (responseType) {
+				case 'text':
+					return response.text();
+				case 'blob':
+					return response.blob();
+				default: {
+					const assertNever: never = responseType;
+					throw new Error(`Unexpected HttpResponseType ${assertNever}`);
+				}
+			}
+		}
+		else {
+			// TODO improve error handling: return error response body (text)
+			// return response.text();
+			throw new Error(response.statusText);
+		}
+	}).then(responseText => {
+		processId++;
+		response$.push(responseText, processId);
+	}).catch(error => {
+		processId++;
+		response$.push(error, processId);
+	}).finally(() => {
+		response$.complete();
+	});
+	return response$;
 }
 
 //#endregion create
@@ -1145,6 +1204,7 @@ export const Rational = new UnionType([Integer, Fraction]);
 //#endregion Number
 export const _String = new StringType();
 export const _Date = new DateType();
+export const _Blob = new BlobType();
 export const _Error = new ErrorType();
 export const List = _createFunction(
 	(ElementType: RuntimeType) =>
@@ -1621,37 +1681,38 @@ export const httpTextRequest$ = _createFunction(
 		url: string,
 		method: string,
 		headers: { [key: string]: string } | null,
-		body: any
-	): Stream<null | string | Error> => {
-		const abortController = new AbortController();
-		const response$ = createSource$<null | string | Error>(null);
-		response$.onCompleted(() => {
-			abortController.abort();
-		});
-		fetch(url, {
-			method: method,
-			headers: headers ?? undefined,
-			body: body,
-			signal: abortController.signal,
-		}).then(response => {
-			if (response.ok) {
-				return response.text();
-			}
-			else {
-				// TODO improve error handling: return error response body (text)
-				// return response.text();
-				throw new Error(response.statusText);
-			}
-		}).then(responseText => {
-			processId++;
-			response$.push(responseText, processId);
-		}).catch(error => {
-			processId++;
-			response$.push(error, processId);
-		}).finally(() => {
-			response$.complete();
-		});
-		return response$;
+		body: any,
+	) => {
+		return httpRequest$(url, method, headers, body, 'text');
+	},
+	{
+		singleNames: [
+			{
+				name: 'url',
+				type: _String
+			},
+			{
+				name: 'method',
+				type: _String
+			},
+			{
+				name: 'headers',
+				type: _optionalType(new DictionaryType(_String))
+			},
+			{
+				name: 'body',
+			},
+		]
+	}
+);
+export const httpBlobRequest$ = _createFunction(
+	(
+		url: string,
+		method: string,
+		headers: { [key: string]: string } | null,
+		body: any,
+	) => {
+		return httpRequest$(url, method, headers, body, 'blob');
 	},
 	{
 		singleNames: [

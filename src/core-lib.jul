@@ -66,6 +66,7 @@ Rational = Or(Integer Fraction)
 # sequence of characters
 String = nativeValue(§_String§)
 Date = nativeValue(§_Date§)
+Blob = nativeValue(§_Date§)
 Error = nativeValue(§_Error§)
 # data structure containing 1 or more key-value-pairs of type ElementType
 Dictionary = nativeFunction(
@@ -303,6 +304,17 @@ httpTextRequest$ = nativeFunction(
 		headers: Or(() Dictionary(String))
 		body: Any
 	): Stream(Or(() String Error))
+	§[...]§
+)
+# Startwert: ()
+# Schickt eine HTTP Anfrage ab und liefert die Antwort als Blob.
+httpBlobRequest$ = nativeFunction(
+	(
+		url: String
+		method: String
+		headers: Or(() Dictionary(String))
+		body: Any
+	): Stream(Or(() Blob Error))
 	§[...]§
 )
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1
