@@ -177,11 +177,16 @@ toJson = nativeFunction(
 )
 #endregion JSON
 # Gibt die capture groups zurück
+# unnamedCaptures enthält als ersten Eintrag das gesamte Match
 regex = nativeFunction(
 	(
 		text: String
 		regex: String
-	): Or(() Dictionary(String))
+	): (
+		isMatch: Boolean
+		namedCaptures: Or(() Dictionary(String))
+		unnamedCaptures: Or(() List(String))
+	)
 	§TODO§
 )
 #endregion String

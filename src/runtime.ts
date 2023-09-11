@@ -1390,7 +1390,11 @@ export const toJson = _createFunction(
 export const regex = _createFunction(
 	(text: string, regex1: string) => {
 		const match = text.match(regex1);
-		return match?.groups ?? null;
+		return {
+			isMatch: !!match,
+			unnamedCaptures: match ? Array.from(match) : null,
+			namedCaptures: match?.groups ?? null,
+		};
 	},
 	{
 		singleNames: [
