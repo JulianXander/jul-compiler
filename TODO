@@ -1,3 +1,6 @@
+-fix parser wenn schließende klammer bei functioncall nicht in neuer zeile
+	myFunc(
+		§someValue§)
 -functionTypeLiteralParser interpretiert
 	(): () => ()
 	als type und nicht als function mit returntype
