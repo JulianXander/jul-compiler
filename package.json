@@ -1,11 +1,20 @@
 {
   "name": "jul-compiler",
   "version": "0.0.0",
-  "description": "Compiler cli for JUL ",
+  "description": "Compiler cli for JUL",
   "main": "out/cli.js",
   "type": "module",
   "bin": {
     "jul": "out/cli.js"
+  },
+  "author": {
+    "name": "Julian Xander"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianXander/jul-compiler.git"
   },
   "scripts": {
     "build": "npx tsc && copyfiles --flat src/core-lib.jul out",
@@ -14,10 +23,6 @@
     "test": "tsc -p tsconfig.test.json && mocha 'test-setup.mjs' 'test/**/*.test.js'",
     "install-cli": "npm i -g"
   },
-  "author": {
-    "name": "Julian Xander"
-  },
-  "license": "ISC",
   "devDependencies": {
     "@types/chai": "^4.3.4",
     "@types/js-yaml": "^4.0.5",
