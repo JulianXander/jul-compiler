@@ -1,8 +1,8 @@
 ## Setup
-`npm i npm -g`
+`npm i npm -g`  
 `npm i` (in den Projekten jul-compiler, jul-language-server, vscode-jul-language-service)  
 `npm i copyfiles -g`  
-`npm i rimraf -g`
+`npm i rimraf -g`  
 ? `npm link` (in jul-compiler)
 
 ## Build
