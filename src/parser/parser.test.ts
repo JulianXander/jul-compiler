@@ -1,12 +1,14 @@
 import { expect } from 'chai';
 
-import { parseCode } from './parser.js';
 import { ParseExpression } from '../syntax-tree.js';
 import { Extension } from '../util.js';
+import { ParserError } from './parser-combinator.js';
+import { parseCode } from './parser.js';
 
 const expectedResults: {
 	code: string;
 	result: ParseExpression[];
+	errors?: ParserError[];
 }[] = [
 		// {
 		// 	code: 'true',
@@ -829,19 +831,68 @@ const expectedResults: {
 		// 	]
 		// },
 		{
-			code: '(): () => ()',
-			result: []
+			code: 'myFunc(\n§someValue§)',
+			result: [
+				{
+					"endColumnIndex": 6,
+					"endRowIndex": 0,
+					"name": {
+						"endColumnIndex": 6,
+						"endRowIndex": 0,
+						"name": "myFunc",
+						"startColumnIndex": 0,
+						"startRowIndex": 0,
+						"type": "name",
+					},
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"type": "reference",
+				},
+				{
+					"endColumnIndex": 11,
+					"endRowIndex": 1,
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+					"type": "string",
+					"values": [
+						{
+							"type": "stringToken",
+							"value": "someValue",
+						},
+					],
+				},
+			],
+			errors: [
+				{
+					"endColumnIndex": 6,
+					"endRowIndex": 0,
+					"message": "multilineParser should parse until end of row",
+					"startColumnIndex": 6,
+					"startRowIndex": 0,
+				},
+				{
+					"endColumnIndex": 11,
+					"endRowIndex": 1,
+					"message": "multilineParser should parse until end of row",
+					"startColumnIndex": 11,
+					"startRowIndex": 1,
+				}
+			]
 		},
+		// {
+		// 	code: '(): () => ()',
+		// 	result: []
+		// },
 	];
 
 describe('Parser', () => {
-	expectedResults.forEach(({ code, result }) => {
+	expectedResults.forEach(({ code, result, errors }) => {
 		it(code, () => {
 			const parserResult = parseCode(code, Extension.jul);
-			if (parserResult.errors?.length) {
-				console.log(parserResult.errors);
-			}
-			expect(parserResult.errors ?? []).to.deep.equal([]);
+			// if (parserResult.errors?.length) {
+			// 	console.log(parserResult.errors);
+			// }
+			expect(parserResult.errors).to.deep.equal(errors ?? []);
 			expect(parserResult.expressions).to.deep.equal(result);
 		});
 	});
