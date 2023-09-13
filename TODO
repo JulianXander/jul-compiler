@@ -8,6 +8,7 @@
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
+	?debug non minified bundle
 -doku
 	-https://docusaurus.io/
 	-en übersetzung vgl https://docusaurus.io/docs/i18n/tutorial
