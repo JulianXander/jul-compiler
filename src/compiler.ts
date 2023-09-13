@@ -46,9 +46,9 @@ export function compileProject(
 	const bundler = webpack({
 		// mode: 'none',
 		entry: absoluteOutFilePath,
-		// optimization: {
-		// 	minimize: false
-		// },
+		optimization: {
+			minimize: false
+		},
 		output: {
 			path: absoluteFolderPath,
 			filename: 'bundle.js',
