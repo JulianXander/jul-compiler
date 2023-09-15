@@ -920,7 +920,7 @@ function simpleExpressionParser(
 			discriminatedChoiceParser(
 				// Field/Index Reference
 				{
-					predicate: tokenParser('/'),
+					predicate: nestedReferenceTokenParser,
 					parser: moveColumnIndex(1, choiceParser(
 						nameParser,
 						inlineStringParser,
