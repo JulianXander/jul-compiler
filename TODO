@@ -1,4 +1,5 @@
 -fix parser vgl test1.jul
+-typechecker: check branches type = function
 -functionTypeLiteralParser interpretiert
 	(): () => ()
 	als type und nicht als function mit returntype

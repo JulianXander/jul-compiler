@@ -1325,7 +1325,7 @@ function branchesParser(
 	const result = sequenceParser(
 		branchingTokenParser,
 		newLineParser,
-		incrementIndent(multilineParser(valueExpressionParser)) // TODO function expression
+		incrementIndent(multilineParser(valueExpressionParser))
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
