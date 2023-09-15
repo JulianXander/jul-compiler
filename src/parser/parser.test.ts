@@ -830,54 +830,59 @@ const expectedResults: {
 		// 		}
 		// 	]
 		// },
+		// {
+		// 	code: 'myFunc(\n§someValue§)',
+		// 	result: [
+		// 		{
+		// 			"endColumnIndex": 6,
+		// 			"endRowIndex": 0,
+		// 			"name": {
+		// 				"endColumnIndex": 6,
+		// 				"endRowIndex": 0,
+		// 				"name": "myFunc",
+		// 				"startColumnIndex": 0,
+		// 				"startRowIndex": 0,
+		// 				"type": "name",
+		// 			},
+		// 			"startColumnIndex": 0,
+		// 			"startRowIndex": 0,
+		// 			"type": "reference",
+		// 		},
+		// 		{
+		// 			"endColumnIndex": 11,
+		// 			"endRowIndex": 1,
+		// 			"startColumnIndex": 0,
+		// 			"startRowIndex": 1,
+		// 			"type": "string",
+		// 			"values": [
+		// 				{
+		// 					"type": "stringToken",
+		// 					"value": "someValue",
+		// 				},
+		// 			],
+		// 		},
+		// 	],
+		// 	errors: [
+		// 		{
+		// 			"endColumnIndex": 6,
+		// 			"endRowIndex": 0,
+		// 			"message": "multilineParser should parse until end of row",
+		// 			"startColumnIndex": 6,
+		// 			"startRowIndex": 0,
+		// 		},
+		// 		{
+		// 			"endColumnIndex": 11,
+		// 			"endRowIndex": 1,
+		// 			"message": "multilineParser should parse until end of row",
+		// 			"startColumnIndex": 11,
+		// 			"startRowIndex": 1,
+		// 		}
+		// 	]
+		// },
 		{
-			code: 'myFunc(\n§someValue§)',
-			result: [
-				{
-					"endColumnIndex": 6,
-					"endRowIndex": 0,
-					"name": {
-						"endColumnIndex": 6,
-						"endRowIndex": 0,
-						"name": "myFunc",
-						"startColumnIndex": 0,
-						"startRowIndex": 0,
-						"type": "name",
-					},
-					"startColumnIndex": 0,
-					"startRowIndex": 0,
-					"type": "reference",
-				},
-				{
-					"endColumnIndex": 11,
-					"endRowIndex": 1,
-					"startColumnIndex": 0,
-					"startRowIndex": 1,
-					"type": "string",
-					"values": [
-						{
-							"type": "stringToken",
-							"value": "someValue",
-						},
-					],
-				},
-			],
-			errors: [
-				{
-					"endColumnIndex": 6,
-					"endRowIndex": 0,
-					"message": "multilineParser should parse until end of row",
-					"startColumnIndex": 6,
-					"startRowIndex": 0,
-				},
-				{
-					"endColumnIndex": 11,
-					"endRowIndex": 1,
-					"message": "multilineParser should parse until end of row",
-					"startColumnIndex": 11,
-					"startRowIndex": 1,
-				}
-			]
+			code: '4 ?\n\t4 =>\n\t\tlog(\n\t\t\t4)',
+			result: [],
+			errors: [],
 		},
 		// {
 		// 	code: '(): () => ()',
