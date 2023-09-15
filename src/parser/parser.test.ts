@@ -881,8 +881,76 @@ const expectedResults: {
 		// },
 		{
 			code: '4 ?\n\t4 =>\n\t\tlog(\n\t\t\t4)',
-			result: [],
-			errors: [],
+			result: [
+				{
+					type: "branching",
+					value: {
+						type: "integer",
+						value: 4n,
+						startRowIndex: 0,
+						startColumnIndex: 0,
+						endRowIndex: 0,
+						endColumnIndex: 1,
+					},
+					branches: [
+						{
+							type: "functionLiteral",
+							params: {
+								type: "integer",
+								value: 4n,
+								startRowIndex: 1,
+								startColumnIndex: 1,
+								endRowIndex: 1,
+								endColumnIndex: 2,
+							},
+							returnType: undefined,
+							body: [
+								{
+									type: "reference",
+									name: {
+										type: "name",
+										name: "log",
+										startRowIndex: 2,
+										startColumnIndex: 2,
+										endRowIndex: 2,
+										endColumnIndex: 5,
+									},
+									startRowIndex: 2,
+									startColumnIndex: 2,
+									endRowIndex: 2,
+									endColumnIndex: 5,
+								},
+							],
+							symbols: {
+							},
+							startRowIndex: 1,
+							startColumnIndex: 1,
+							endRowIndex: 4,
+							endColumnIndex: 2,
+						},
+					],
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 4,
+					endColumnIndex: 1,
+				},
+			],
+			errors: [
+				{
+					message: "multilineParser should parse until end of row",
+					startRowIndex: 2,
+					startColumnIndex: 5,
+					endRowIndex: 2,
+					endColumnIndex: 5,
+				},
+				{
+					startRowIndex: 3,
+					startColumnIndex: 2,
+					endRowIndex: 3,
+					endColumnIndex: 2,
+					message: "Expected one of: bracketedBaseParser,numberParser,,referenceParser",
+				},
+			],
 		},
 		// {
 		// 	code: '(): () => ()',

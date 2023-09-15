@@ -795,6 +795,7 @@ function valueExpressionBaseParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 				parsed: branching,
+				errors: errors,
 			};
 		}
 		case 'functionBody': {
