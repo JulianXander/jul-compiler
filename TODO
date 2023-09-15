@@ -1,4 +1,5 @@
 -typechecker: check branches type = function
+	?schon im parser string, number literale verbieten
 -functionTypeLiteralParser interpretiert
 	(): () => ()
 	als type und nicht als function mit returntype
