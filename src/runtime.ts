@@ -1181,12 +1181,6 @@ function _toJson(value: RuntimeType): string | Error {
 //#endregion helper
 
 //#region builtins
-function getCliArguments() {
-	try {
-		return process.argv;
-	} catch { }
-}
-export const cliArguments = getCliArguments() ?? null;
 //#region Types
 export const Any = new AnyType();
 export const Type = new TypeType();

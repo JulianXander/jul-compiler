@@ -1,6 +1,5 @@
 true = nativeValue(§true§)
 false = nativeValue(§false§)
-cliArguments = nativeValue(§process.argv§)
 #region Types
 # TODO split Unknown Type?
 # any value
