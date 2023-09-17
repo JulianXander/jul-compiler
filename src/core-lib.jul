@@ -280,6 +280,14 @@ complete = nativeFunction(
 		}
 	§
 )
+# TODO typesafe
+push = nativeFunction(
+	(
+		stream$: Stream(Any)
+		value: Any
+	): ()
+	§todo§
+)
 subscribe = nativeFunction(
 	(
 		stream$: Stream(Any)
@@ -296,6 +304,14 @@ subscribe = nativeFunction(
 )
 #endregion core
 #region create
+# Erzeugt einen Stream mit dem manuell push und complete aufgerufen werden muss.
+# TODO typesafe
+create$ = nativeFunction(
+	(
+		intitialValue: Any
+	): Stream(Any)
+	§todo§
+)
 # Startwert: ()
 # Schickt eine HTTP Anfrage ab und liefert die Antwort als Text.
 httpTextRequest$ = nativeFunction(

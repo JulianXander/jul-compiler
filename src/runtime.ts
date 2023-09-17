@@ -603,14 +603,14 @@ class Stream<T> {
 
 //#region create
 
-function createSource$<T>(initialValue: T): Stream<T> {
+function createStream$<T>(initialValue: T): Stream<T> {
 	const stream$: Stream<T> = new Stream(() => stream$.lastValue as T);
 	stream$.push(initialValue, processId);
 	return stream$;
 }
 
 function of$<T>(value: T): Stream<T> {
-	const $ = createSource$(value);
+	const $ = createStream$(value);
 	$.complete();
 	return $;
 }
@@ -628,7 +628,7 @@ function httpRequest$(
 	responseType: HttpResponseType,
 ): Stream<null | string | Blob | Error> {
 	const abortController = new AbortController();
-	const response$ = createSource$<null | string | Blob | Error>(null);
+	const response$ = createStream$<null | string | Blob | Error>(null);
 	response$.onCompleted(() => {
 		abortController.abort();
 	});
@@ -1652,6 +1652,25 @@ export const complete = _createFunction(
 		]
 	}
 );
+export const push = _createFunction(
+	(stream$: Stream<any>, value: any) => {
+		processId++;
+		stream$.push(value, processId);
+		return null;
+	},
+	{
+		singleNames: [
+			{
+				name: 'stream$',
+				type: new StreamType(Any)
+			},
+			{
+				name: 'value',
+				type: Any
+			},
+		]
+	}
+);
 export const subscribe = _createFunction(
 	(stream$: Stream<any>, listener: JulFunction) => {
 		const listenerFunction: Listener<any> = (value: any) => {
@@ -1675,6 +1694,17 @@ export const subscribe = _createFunction(
 );
 //#endregion core
 //#region create
+export const create$ = _createFunction(
+	createStream$,
+	{
+		singleNames: [
+			{
+				name: 'initialValue',
+				type: Any
+			},
+		]
+	}
+)
 export const httpTextRequest$ = _createFunction(
 	(
 		url: string,
@@ -1735,7 +1765,7 @@ export const httpBlobRequest$ = _createFunction(
 );
 export const timer$ = _createFunction(
 	(delayMs: number): Stream<number> => {
-		const stream$ = createSource$(1);
+		const stream$ = createStream$(1);
 		const cycle = () => {
 			setTimeout(() => {
 				if (stream$.completed) {
