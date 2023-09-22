@@ -6,6 +6,7 @@ import { ParserError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
 const expectedResults: {
+	name?: string;
 	code: string;
 	result: ParseExpression[];
 	errors?: ParserError[];
@@ -880,6 +881,7 @@ const expectedResults: {
 		// 	]
 		// },
 		{
+			name: 'branching-error',
 			code: '4 ?\n\t4 =>\n\t\tlog(\n\t\t\t4)',
 			result: [
 				{
@@ -959,8 +961,8 @@ const expectedResults: {
 	];
 
 describe('Parser', () => {
-	expectedResults.forEach(({ code, result, errors }) => {
-		it(code, () => {
+	expectedResults.forEach(({ name, code, result, errors }) => {
+		it(name ?? code, () => {
 			const parserResult = parseCode(code, Extension.jul);
 			// if (parserResult.errors?.length) {
 			// 	console.log(parserResult.errors);

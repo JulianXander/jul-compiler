@@ -24,7 +24,7 @@
     "build": "npx tsc && copyfiles --flat src/core-lib.jul out",
     "build-all": "npm run build && npx tsc --project ../jul-language-server/tsconfig.json && npx tsc --project ../vscode-jul-language-service/tsconfig.json",
     "build-all-and-deploy": "npm run build-all && npm run install-cli && npm run test-deploy --prefix ../vscode-jul-language-service",
-    "test": "tsc -p tsconfig.test.json && mocha 'test-setup.mjs' 'test/**/*.test.js'",
+    "test": "tsc -p tsconfig.test.json && copyfiles --flat src/core-lib.jul test && mocha 'test-setup.mjs' 'test/**/*.test.js'",
     "install-cli": "npm i -g"
   },
   "devDependencies": {

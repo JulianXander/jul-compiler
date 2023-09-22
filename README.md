@@ -21,3 +21,7 @@ Baut jul-compiler, jul-language-server und vscode-jul-language-server
 ## Cli ausführen
 `jul ../jul-examples/test1.jul`  
 `node out/cli.js ../jul-examples/test1.jul`
+
+## Test
+einzelnen Test ausführen (pattern sucht nach it(...))
+`npx mocha 'test-setup.mjs' 'test/**/*.test.js' -g pattern`

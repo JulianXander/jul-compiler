@@ -1011,6 +1011,11 @@ function inferType(
 				// TODO sollte hier überhaupt mehrelementiger string möglich sein?
 				return expression.values.map(part => part.value).join('\n');
 			}
+			expression.values.forEach(part => {
+				if (part.type !== 'stringToken') {
+					setInferredType(part, scopes, parsedDocuments, folder, file);
+				}
+			})
 			return _String;
 		}
 		default: {
