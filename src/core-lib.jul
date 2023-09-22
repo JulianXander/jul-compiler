@@ -218,12 +218,13 @@ toIsoDateText = nativeFunction(
 )
 #endregion Date
 #region List
-# Liefert die Anzahl der Elemente in der Liste
+# Liefert die Anzahl der Elemente in der Liste.
+# Liefert 0 bei Empty.
 # Achtung: List/length liefert die javascript Array.length als Float
 length = nativeFunction(
 	(
-		values: List(Any)
-	): NonZeroInteger
+		values: Or(() List(Any))
+	): Integer
 	# TODO positive
 	§TODO§
 )

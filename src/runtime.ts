@@ -1547,8 +1547,11 @@ export const toIsoDateText = _createFunction(
 //#region List
 export const length = _createFunction(
 	(
-		values: any[],
+		values: any[] | null,
 	): bigint => {
+		if (values === null) {
+			return 0n;
+		}
 		return BigInt(values.length);
 	},
 	{
