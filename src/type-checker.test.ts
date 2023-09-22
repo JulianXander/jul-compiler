@@ -22,10 +22,16 @@ const expectedResults: {
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
 					"type": "text",
+					"inferredType": {
+						"type": "text",
+					},
 					"values": [
 						{
 							"endColumnIndex": 4,
 							"endRowIndex": 0,
+							"inferredType": {
+								"type": "any",
+							},
 							"name": {
 								"endColumnIndex": 4,
 								"endRowIndex": 0,
