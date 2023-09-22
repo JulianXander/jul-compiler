@@ -1,3 +1,5 @@
+-typechecker: check variable not defined mit ref in string literal interpolation
+	vgl test1.jul
 -typechecker: check branches type = function
 	?schon im parser string, number literale verbieten
 -functionTypeLiteralParser interpretiert
