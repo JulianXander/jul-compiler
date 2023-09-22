@@ -68,9 +68,9 @@ function jsonValueToJulAst(jsonValue: any): ParseExpression {
     }
     case 'string':
       return {
-        type: 'string',
+        type: 'text',
         values: [{
-          type: 'stringToken',
+          type: 'textToken',
           value: jsonValue,
         }],
         ...position,

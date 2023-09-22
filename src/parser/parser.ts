@@ -37,7 +37,7 @@ import {
 	ParseSingleDictionaryField,
 	ParseSingleDictionaryTypeField,
 	ParseSpreadValueExpression,
-	ParseStringLiteral,
+	ParseTextLiteral,
 	ParseValueExpression,
 	ParseValueExpressionBase,
 	Reference,
@@ -45,6 +45,7 @@ import {
 	SymbolTable,
 	ParseListLiteral,
 	PositionedExpressionBase,
+	TextToken,
 } from '../syntax-tree.js';
 import {
 	Extension,
@@ -996,8 +997,8 @@ function simpleExpressionParser(
 						return indexReference;
 					}
 					case 'name':
-					case 'string': {
-						if (currentValue.type === 'string') {
+					case 'text': {
+						if (currentValue.type === 'text') {
 							errors.push(...getEscapableNameErrors(currentValue));
 						}
 						const fieldReference: ParseFieldReference = {
@@ -1105,7 +1106,7 @@ function inlineStringParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ParseStringLiteral> {
+): ParserResult<ParseTextLiteral> {
 	const result = sequenceParser(
 		paragraphParser,
 		stringLineContentParser,
@@ -1116,7 +1117,7 @@ function inlineStringParser(
 		parsed: result.parsed === undefined
 			? undefined
 			: {
-				type: 'string',
+				type: 'text',
 				values: result.parsed[1],
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -1131,7 +1132,7 @@ function multilineStringParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ParseStringLiteral> {
+): ParserResult<ParseTextLiteral> {
 	const result = sequenceParser(
 		paragraphParser,
 		// TODO string language identifier?
@@ -1141,24 +1142,22 @@ function multilineStringParser(
 		indentParser,
 		paragraphParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
-	const values: ({
-		type: 'stringToken';
-		value: string;
-	} | ParseValueExpression)[] = [];
+	const values: (TextToken | ParseValueExpression)[] = [];
 	if (result.parsed) {
 		result.parsed[2].forEach(line => {
 			if (typeof line === 'object') {
 				values.push(...line);
 			}
 			const tail = last(values);
-			if (tail?.type === 'stringToken') {
+			if (tail?.type === 'textToken') {
 				tail.value += '\n';
 			}
 			else {
-				values.push({
-					type: 'stringToken',
+				const textToken: TextToken = {
+					type: 'textToken',
 					value: '\n'
-				});
+				};
+				values.push(textToken);
 			}
 		});
 	}
@@ -1167,7 +1166,7 @@ function multilineStringParser(
 		parsed: result.parsed === undefined
 			? undefined
 			: {
-				type: 'string',
+				type: 'text',
 				values: values,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -1182,10 +1181,7 @@ function stringLineContentParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<({
-	type: 'stringToken';
-	value: string;
-} | ParseValueExpression)[]> {
+): ParserResult<(TextToken | ParseValueExpression)[]> {
 	const result =
 		multiplicationParser(
 			0,
@@ -1205,7 +1201,7 @@ function stringLineContentParser(
 			switch (typeof choice) {
 				case 'string':
 					return {
-						type: 'stringToken',
+						type: 'textToken',
 						value: choice.startsWith('§')
 							? choice.substring(1)
 							: choice
@@ -1925,7 +1921,7 @@ function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError
 	switch (baseName.type) {
 		case 'reference':
 			break;
-		case 'string':
+		case 'text':
 			if (baseName.values.length > 1) {
 				// TODO string parser combine multiline string to single token and allow multiline string for escaped name?
 				errors.push({
@@ -1936,7 +1932,7 @@ function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError
 					endColumnIndex: baseName.endColumnIndex,
 				});
 			}
-			if (baseName.values.some(value => value.type !== 'stringToken')) {
+			if (baseName.values.some(value => value.type !== 'textToken')) {
 				errors.push({
 					message: `escaped name can not contain string interpolation`,
 					startRowIndex: baseName.startRowIndex,

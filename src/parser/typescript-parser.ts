@@ -32,9 +32,9 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
     case SyntaxKind.StringLiteral: {
       const stringLiteral = tsNode as StringLiteral;
       return {
-        type: 'string',
+        type: 'text',
         values: [{
-          type: 'stringToken',
+          type: 'textToken',
           value: stringLiteral.text,
         }],
         ...position,

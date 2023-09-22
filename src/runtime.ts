@@ -95,7 +95,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						return typeof value === 'bigint';
 					case 'float':
 						return typeof value === 'number';
-					case 'string':
+					case 'text':
 						return typeof value === 'string';
 					case 'date':
 						return value instanceof Date;
@@ -366,7 +366,7 @@ export type BuiltInType =
 	| BooleanType
 	| IntegerType
 	| FloatType
-	| StringType
+	| TextType
 	| DateType
 	| BlobType
 	| ErrorType
@@ -403,8 +403,8 @@ export class FloatType extends BuiltInTypeBase {
 	readonly type = 'float';
 }
 
-export class StringType extends BuiltInTypeBase {
-	readonly type = 'string';
+export class TextType extends BuiltInTypeBase {
+	readonly type = 'text';
 }
 
 export class DateType extends BuiltInTypeBase {
@@ -1196,7 +1196,7 @@ export const Fraction = new DictionaryLiteralType({
 });
 export const Rational = new UnionType([Integer, Fraction]);
 //#endregion Number
-export const _String = new StringType();
+export const _Text = new TextType();
 export const _Date = new DateType();
 export const _Blob = new BlobType();
 export const _Error = new ErrorType();
@@ -1413,7 +1413,7 @@ export const parseFloat = _createFunction(
 		singleNames: [
 			{
 				name: 'stringNumber',
-				type: _String,
+				type: _Text,
 			},
 		]
 	}
@@ -1424,7 +1424,7 @@ export const parseJson = _createFunction(
 		singleNames: [
 			{
 				name: 'json',
-				type: _String,
+				type: _Text,
 			},
 		]
 	}
@@ -1459,11 +1459,11 @@ export const regex = _createFunction(
 		singleNames: [
 			{
 				name: 'text',
-				type: _String,
+				type: _Text,
 			},
 			{
 				name: 'regex',
-				type: _String,
+				type: _Text,
 			},
 		]
 	}
@@ -1718,15 +1718,15 @@ export const httpTextRequest$ = _createFunction(
 		singleNames: [
 			{
 				name: 'url',
-				type: _String
+				type: _Text
 			},
 			{
 				name: 'method',
-				type: _String
+				type: _Text
 			},
 			{
 				name: 'headers',
-				type: _optionalType(new DictionaryType(_String))
+				type: _optionalType(new DictionaryType(_Text))
 			},
 			{
 				name: 'body',
@@ -1747,15 +1747,15 @@ export const httpBlobRequest$ = _createFunction(
 		singleNames: [
 			{
 				name: 'url',
-				type: _String
+				type: _Text
 			},
 			{
 				name: 'method',
-				type: _String
+				type: _Text
 			},
 			{
 				name: 'headers',
-				type: _optionalType(new DictionaryType(_String))
+				type: _optionalType(new DictionaryType(_Text))
 			},
 			{
 				name: 'body',
@@ -1880,7 +1880,7 @@ export const runJs = _createFunction(
 	{
 		singleNames: [{
 			name: 'js',
-			type: _String
+			type: _Text
 		}]
 	}
 );

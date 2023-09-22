@@ -62,8 +62,8 @@ Rational = Or(Integer Fraction)
 # TODO nonzero/positive
 # TODO Number = Or(Float Rational)?
 #endregion Number
-# sequence of characters
-String = nativeValue(§_String§)
+# sequence of characters (String)
+Text = nativeValue(§_Text§)
 Date = nativeValue(§_Date§)
 Blob = nativeValue(§_Date§)
 Error = nativeValue(§_Error§)
@@ -90,7 +90,7 @@ Stream = nativeFunction(
 
 # Or(
 # 	(...args: List(Any)): Boolean
-# 	# Literals (Number, String, Boolean, Dictionary, List)
+# 	# Literals (Number, Text, Boolean, Dictionary, List)
 # 	# DictionaryType/DictionaryLiteralType/DictionaryTypeLiteral?
 # 	FunctionType
 # 	# TupleType?
@@ -157,22 +157,22 @@ sumFloat = nativeFunction(
 	§
 )
 #endregion Number
-#region String
-# Liefert Error, wenn die gegebene stringNumber keine valide Zahl ist.
+#region Text
+# Liefert Error, wenn die gegebene TextNumber keine valide Zahl ist.
 parseFloat = nativeFunction(
-	(stringNumber: String): Or(Float Error)
+	(textNumber: Text): Or(Float Error)
 	§TODO§
 )
 #region JSON
-JsonPrimitive = Or(() Boolean Rational String)
+JsonPrimitive = Or(() Boolean Rational Text)
 JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
 # Liefert Error, wenn das gegebene json kein valides JSON ist.
 parseJson = nativeFunction(
-	(json: String): Or(JsonValue Error)
+	(json: Text): Or(JsonValue Error)
 	§TODO§
 )
 toJson = nativeFunction(
-	(value: JsonValue): String
+	(value: JsonValue): Text
 	§TODO§
 )
 #endregion JSON
@@ -180,19 +180,19 @@ toJson = nativeFunction(
 # unnamedCaptures enthält als ersten Eintrag das gesamte Match
 # TODO stattdessen ganzes match in extra feld?
 # Liefert Error bei Syntaxfehler in regex.
-# TODO validate regex String mit TypeChecker, regex Syntax Highlighting
+# TODO validate regex Text mit TypeChecker, regex Syntax Highlighting
 regex = nativeFunction(
 	(
-		text: String
-		regex: String
+		text: Text
+		regex: Text
 	): (
 		isMatch: Boolean
-		namedCaptures: Or(() Dictionary(String))
-		unnamedCaptures: Or(() List(String))
+		namedCaptures: Or(() Dictionary(Text))
+		unnamedCaptures: Or(() List(Text))
 	)
 	§TODO§
 )
-#endregion String
+#endregion Text
 #region Date
 addDate = nativeFunction(
 	(
@@ -212,8 +212,8 @@ currentDate = nativeFunction(
 	§() => new Date()§
 )
 # ISO 8601
-toIsoDateString = nativeFunction(
-	(date: Date): String
+toIsoDateText = nativeFunction(
+	(date: Date): Text
 	§date => date.toISOString()§
 )
 #endregion Date
@@ -316,20 +316,20 @@ create$ = nativeFunction(
 # Schickt eine HTTP Anfrage ab und liefert die Antwort als Text.
 httpTextRequest$ = nativeFunction(
 	(
-		url: String
-		method: String
-		headers: Or(() Dictionary(String))
+		url: Text
+		method: Text
+		headers: Or(() Dictionary(Text))
 		body: Any
-	): Stream(Or(() String Error))
+	): Stream(Or(() Text Error))
 	§[...]§
 )
 # Startwert: ()
 # Schickt eine HTTP Anfrage ab und liefert die Antwort als Blob.
 httpBlobRequest$ = nativeFunction(
 	(
-		url: String
-		method: String
-		headers: Or(() Dictionary(String))
+		url: Text
+		method: Text
+		headers: Or(() Dictionary(Text))
 		body: Any
 	): Stream(Or(() Blob Error))
 	§[...]§
@@ -406,7 +406,7 @@ flatSwitchMap$ = nativeFunction(
 # .json
 # .yaml
 import = nativeFunction(
-	(path: String): Any
+	(path: Text): Any
 	§require§
 )
 # Gibt die args in der Konsole aus.
@@ -423,22 +423,22 @@ repeat = nativeFunction(
 	§repeat§
 )
 #region JavaScript
-# Führt den gegebenen String als JavaScript aus und liefert dessen Rückgabe.
+# Führt den gegebenen Text als JavaScript aus und liefert dessen Rückgabe.
 runJs = nativeFunction(
-	(js: String): Any
+	(js: Text): Any
 	§eval§
 )
-# Interprets the given String as js Code and yields the return value,
+# Interprets the given Text as js Code and yields the return value,
 # assuming the specified type without checking. Make sure the Type fits under all circumstances
 nativeFunction = nativeFunction(
-	# (FunctionType: (x: Any): x is (): Any js: String): FunctionType
-	(FunctionType: Type js: String): ValueOf(FunctionType)
+	# (FunctionType: (x: Any): x is (): Any js: Text): FunctionType
+	(FunctionType: Type js: Text): ValueOf(FunctionType)
 	§[...]§
 )
-# Interprets the given String as js Code and yields the return value,
+# Interprets the given Text as js Code and yields the return value,
 # type???
 nativeValue = nativeFunction(
-	(js: String): Any
+	(js: Text): Any
 	§[...]§
 )
 #endregion JavaScript

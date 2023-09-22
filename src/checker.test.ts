@@ -114,7 +114,7 @@ const expectedResults: {
 		// {
 		// 	code: '§\n\t12\n§',
 		// 	result: [{
-		// 		type: 'string',
+		// 		type: 'text',
 		// 		values: [{ type: 'stringToken', value: '12\n' }],
 		// 		startRowIndex: 0,
 		// 		endRowIndex: 0,
@@ -123,15 +123,15 @@ const expectedResults: {
 		// {
 		// 	code: '# Destructuring import\n§a§',
 		// 	result: [{
-		// 		type: 'string',
-		// 		values: [{ type: 'stringToken', value: 'a' }]
+		// 		type: 'text',
+		// 		values: [{ type: 'textToken', value: 'a' }]
 		// 	}]
 		// },
 		// {
 		// 	code: '§12§',
 		// 	result: [{
-		// 		type: 'string',
-		// 		values: [{ type: 'stringToken', value: '12' }]
+		// 		type: 'text',
+		// 		values: [{ type: 'textToken', value: '12' }]
 		// 	}]
 		// },
 		// {
@@ -275,7 +275,7 @@ const expectedResults: {
 		// 			arguments: {
 		// 				type: 'list',
 		// 				values: [{
-		// 					type: 'string',
+		// 					type: 'text',
 		// 					values: [{
 		// 						type: 'stringToken',
 		// 						value: 'hallo welt',
@@ -550,7 +550,7 @@ const expectedResults: {
 		// 	]
 		// },
 		// {
-		// 	code: '(a:String) => a',
+		// 	code: '(a:Text) => a',
 		// 	result: [
 		// 		{
 		// 			type: 'functionLiteral',
@@ -564,7 +564,7 @@ const expectedResults: {
 		// 						source: undefined,
 		// 						typeGuard: {
 		// 							type: 'reference',
-		// 							names: ['String']
+		// 							names: ['Text']
 		// 						},
 		// 					},
 		// 				],

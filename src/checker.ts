@@ -17,7 +17,7 @@ import {
 	ParseValueExpression,
 	PositionedExpression,
 	SimpleExpression,
-	StringToken,
+	TextToken,
 } from './syntax-tree.js';
 
 /**
@@ -25,8 +25,8 @@ import {
  */
 export function checkParseExpressions(parseExpressions: ParseValueExpression[]): CheckedValueExpression[] | undefined;
 export function checkParseExpressions(parseExpressions: ParseExpression[]): CheckedExpression[] | undefined;
-export function checkParseExpressions(parseExpressions: (ParseValueExpression | StringToken)[]): (CheckedValueExpression | StringToken)[] | undefined;
-export function checkParseExpressions(parseExpressions: (ParseExpression | StringToken)[]): (CheckedExpression | StringToken)[] | undefined {
+export function checkParseExpressions(parseExpressions: (ParseValueExpression | TextToken)[]): (CheckedValueExpression | TextToken)[] | undefined;
+export function checkParseExpressions(parseExpressions: (ParseExpression | TextToken)[]): (CheckedExpression | TextToken)[] | undefined {
 	return checkExpressions(parseExpressions, checkParseExpression);
 }
 
@@ -46,9 +46,9 @@ function checkExpressions<T, U>(expressions: T[], checkFn: (x: T) => U | undefin
 
 function checkParseExpression(parseExpression: ParseValueExpression): CheckedValueExpression | undefined;
 function checkParseExpression(parseExpression: ParseExpression): CheckedExpression | undefined;
-function checkParseExpression(parseExpression: ParseValueExpression | StringToken): CheckedValueExpression | StringToken | undefined;
-function checkParseExpression(parseExpression: ParseExpression | StringToken): CheckedExpression | StringToken | undefined;
-function checkParseExpression(parseExpression: ParseExpression | StringToken): CheckedExpression | StringToken | undefined {
+function checkParseExpression(parseExpression: ParseValueExpression | TextToken): CheckedValueExpression | TextToken | undefined;
+function checkParseExpression(parseExpression: ParseExpression | TextToken): CheckedExpression | TextToken | undefined;
+function checkParseExpression(parseExpression: ParseExpression | TextToken): CheckedExpression | TextToken | undefined {
 	switch (parseExpression.type) {
 		case 'bracketed':
 			return undefined;
@@ -313,17 +313,17 @@ function checkParseExpression(parseExpression: ParseExpression | StringToken): C
 		}
 		case 'reference':
 			return parseExpression;
-		case 'string': {
+		case 'text': {
 			const checkedValues = checkParseExpressions(parseExpression.values);
 			if (!checkedValues) {
 				return undefined;
 			}
 			return {
-				type: 'string',
+				type: 'text',
 				values: checkedValues,
 			};
 		}
-		case 'stringToken':
+		case 'textToken':
 			return parseExpression;
 		default: {
 			const assertNever: never = parseExpression;
@@ -438,12 +438,12 @@ export function getCheckedEscapableName(parseName: PositionedExpression): string
 			return parseName.name;
 		case 'reference':
 			return parseName.name.name;
-		case 'string':
+		case 'text':
 			if (parseName.values.length > 1) {
 				return undefined;
 			}
 			const value = parseName.values[0];
-			if (value?.type !== 'stringToken') {
+			if (value?.type !== 'textToken') {
 				return undefined;
 			}
 			return value.value;

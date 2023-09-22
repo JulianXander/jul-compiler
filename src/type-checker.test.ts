@@ -21,7 +21,7 @@ const expectedResults: {
 					"endRowIndex": 0,
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
-					"type": "string",
+					"type": "text",
 					"values": [
 						{
 							"endColumnIndex": 4,

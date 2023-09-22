@@ -44,7 +44,7 @@ export type ParseValueExpression =
 	| ParseFunctionCall
 	| ParseFunctionLiteral
 	| ParseFunctionTypeLiteral
-	| ParseStringLiteral
+	| ParseTextLiteral
 	| Reference
 	| ParseFieldReference
 	| ParseIndexReference
@@ -62,7 +62,7 @@ export type SimpleExpression =
 	| BracketedExpressionBase
 	| NumberLiteral
 	| ParseFunctionCall
-	| ParseStringLiteral
+	| ParseTextLiteral
 	| Reference
 	| ParseFieldReference
 	| ParseIndexReference
@@ -225,17 +225,17 @@ export interface BracketedExpressionBase extends ParseExpressionBase {
 export interface ParseBranching extends ParseExpressionBase {
 	type: 'branching';
 	value: ParseValueExpression;
-	// TODO check FunctionExpression: exclude number, string, object, dictionaryType? oder primitives/types als function auswerten?
+	// TODO check FunctionExpression: exclude number, text, object, dictionaryType? oder primitives/types als function auswerten?
 	branches: ParseValueExpression[];
 }
 
-export interface ParseStringLiteral extends ParseExpressionBase {
-	type: 'string';
-	values: (StringToken | ParseValueExpression)[];
+export interface ParseTextLiteral extends ParseExpressionBase {
+	type: 'text';
+	values: (TextToken | ParseValueExpression)[];
 }
 
-export interface StringToken {
-	type: 'stringToken';
+export interface TextToken {
+	type: 'textToken';
 	value: string;
 }
 
@@ -353,7 +353,7 @@ export interface ParseFieldReference extends ParseExpressionBase {
 	/**
 	 * escapable
 	 */
-	field: Name | ParseStringLiteral;
+	field: Name | ParseTextLiteral;
 }
 
 export interface Name extends PositionedExpressionBase {
@@ -389,7 +389,7 @@ export type CheckedValueExpression =
 	| CheckedBranching
 	| CheckedFunctionCall
 	| CheckedFunctionLiteral
-	| CheckedStringLiteral
+	| CheckedTextLiteral
 	| CheckedDictionaryTypeLiteral
 	| NumberLiteral
 	| ObjectLiteral
@@ -483,9 +483,9 @@ export interface CheckedIndexReference {
 	index: number;
 }
 
-export interface CheckedStringLiteral {
-	type: 'string';
-	values: (StringToken | CheckedValueExpression)[];
+export interface CheckedTextLiteral {
+	type: 'text';
+	values: (TextToken | CheckedValueExpression)[];
 }
 
 //#region Object

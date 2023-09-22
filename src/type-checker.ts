@@ -24,7 +24,7 @@ import {
 	_Error,
 	ListType,
 	ParametersType,
-	_String,
+	_Text,
 	deepEquals,
 	DictionaryType,
 	_Date,
@@ -43,7 +43,7 @@ import {
 	ParsedFile,
 	Reference,
 	SimpleExpression,
-	StringToken,
+	TextToken,
 	SymbolDefinition,
 	SymbolTable,
 	TypedExpression
@@ -73,12 +73,12 @@ const maxElementsPerLine = 5;
 const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	true: true,
 	false: false,
-	cliArguments: _optionalType(new ListType(_String)),
+	cliArguments: _optionalType(new ListType(_Text)),
 	Any: new TypeOfType(Any),
 	Boolean: new TypeOfType(_Boolean),
 	Integer: new TypeOfType(Integer),
 	Float: new TypeOfType(Float),
-	String: new TypeOfType(_String),
+	String: new TypeOfType(_Text),
 	Date: new TypeOfType(_Date),
 	Error: new TypeOfType(_Error),
 	List: new FunctionType(
@@ -128,7 +128,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 			},
 			{
 				name: 'js',
-				type: _String,
+				type: _Text,
 			},
 		]),
 		new ParameterReference('FunctionType', 0),
@@ -137,7 +137,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 		new ParametersType([
 			{
 				name: 'js',
-				type: _String,
+				type: _Text,
 			},
 		]),
 		Any,
@@ -313,7 +313,7 @@ function dereferenceArgumentTypesNested(
 		case 'error':
 		case 'float':
 		case 'integer':
-		case 'string':
+		case 'text':
 		case 'type':
 			return builtInType;
 		case 'and':
@@ -1004,19 +1004,19 @@ function inferType(
 			}
 			return type;
 		}
-		case 'string': {
+		case 'text': {
 			// TODO string template type?
-			if (expression.values.every((part): part is StringToken => part.type === 'stringToken')) {
+			if (expression.values.every((part): part is TextToken => part.type === 'textToken')) {
 				// string literal type
 				// TODO sollte hier überhaupt mehrelementiger string möglich sein?
 				return expression.values.map(part => part.value).join('\n');
 			}
 			expression.values.forEach(part => {
-				if (part.type !== 'stringToken') {
+				if (part.type !== 'textToken') {
 					setInferredType(part, scopes, parsedDocuments, folder, file);
 				}
 			})
-			return _String;
+			return _Text;
 		}
 		default: {
 			const assertNever: never = expression;
@@ -1521,7 +1521,7 @@ export function getTypeError(
 						}
 						return getTypeError(prefixArgumentType, argumentsType.valueType, targetType.valueType);
 					}
-					case 'string':
+					case 'text':
 						switch (typeof argumentsType) {
 							case 'string':
 								return undefined;
@@ -1554,7 +1554,7 @@ export function getTypeError(
 										case 'boolean':
 										case 'float':
 										case 'integer':
-										case 'string':
+										case 'text':
 										case 'typeOf':
 											return undefined;
 										// TODO check inner types rekursiv
@@ -1958,9 +1958,9 @@ export function getPathFromImport(
 		};
 	}
 	const pathExpression = getPathExpression(importExpression.arguments);
-	if (pathExpression?.type === 'string'
+	if (pathExpression?.type === 'text'
 		&& pathExpression.values.length === 1
-		&& pathExpression.values[0]!.type === 'stringToken') {
+		&& pathExpression.values[0]!.type === 'textToken') {
 		const importedPath = pathExpression.values[0].value;
 		const extension = extname(importedPath);
 		if (!isValidExtension(extension)) {
@@ -2089,8 +2089,8 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return builtInType.name;
 					case 'stream':
 						return `Stream(${typeToString(builtInType.valueType, indent)})`;
-					case 'string':
-						return 'String';
+					case 'text':
+						return 'Text';
 					case 'tuple':
 						return arrayTypeToString(builtInType.elementTypes, indent);
 					case 'type':

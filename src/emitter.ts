@@ -3,7 +3,7 @@ import {
 	CheckedFunctionCall,
 	CheckedListValue,
 	CheckedParameterFields,
-	CheckedStringLiteral,
+	CheckedTextLiteral,
 	CheckedValueExpression,
 	ObjectLiteral,
 	Reference,
@@ -186,7 +186,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}).join(',\n')})`;
 		case 'reference':
 			return referenceToJs(expression);
-		case 'string':
+		case 'text':
 			return stringLiteralToJs(expression);
 		default: {
 			const assertNever: never = expression;
@@ -214,9 +214,9 @@ function isImportFunction(functionExpression: CheckedValueExpression): boolean {
 
 function getPathFromImport(importExpression: CheckedFunctionCall): string {
 	const pathExpression = getPathExpression(importExpression.arguments);
-	if (pathExpression.type === 'string'
+	if (pathExpression.type === 'text'
 		&& pathExpression.values.length === 1
-		&& pathExpression.values[0]!.type === 'stringToken') {
+		&& pathExpression.values[0]!.type === 'textToken') {
 		const importedPath = pathExpression.values[0].value;
 		const extension = extname(importedPath);
 		switch (extension) {
@@ -352,6 +352,7 @@ const reservedJsNames: string[] = [
 	'Boolean',
 	'Error',
 	'String',
+	'Text',
 ];
 function escapeReservedJsVariableName(name: string): string {
 	if (reservedJsNames.includes(name)) {
@@ -382,9 +383,9 @@ function checkTypeJs(type: CheckedValueExpression, valueJs: string): string {
 	return `_checkType(${expressionToJs(type)}, ${valueJs})`;
 }
 
-function stringLiteralToJs(stringLiteral: CheckedStringLiteral): string {
+function stringLiteralToJs(stringLiteral: CheckedTextLiteral): string {
 	const stringValue = stringLiteral.values.map(value => {
-		if (value.type === 'stringToken') {
+		if (value.type === 'textToken') {
 			return escapeStringForBacktickJs(value.value);
 		}
 		return `\${${expressionToJs(value)}}`;
