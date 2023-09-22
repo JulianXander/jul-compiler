@@ -1,3 +1,4 @@
+-https://docs.npmjs.com/cli/v6/commands/npm-version
 -typechecker: check branches type = function
 	?schon im parser string, number literale verbieten
 -functionTypeLiteralParser interpretiert
