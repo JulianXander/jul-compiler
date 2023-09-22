@@ -78,7 +78,7 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	Boolean: new TypeOfType(_Boolean),
 	Integer: new TypeOfType(Integer),
 	Float: new TypeOfType(Float),
-	String: new TypeOfType(_Text),
+	Text: new TypeOfType(_Text),
 	Date: new TypeOfType(_Date),
 	Error: new TypeOfType(_Error),
 	List: new FunctionType(
