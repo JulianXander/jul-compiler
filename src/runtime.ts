@@ -1844,7 +1844,10 @@ export const flatSwitchMap$ = _createFunction(
 //#endregion Stream
 //#region Utility
 export const log = _createFunction(
-	console.log,
+	(...args: any[]) => {
+		console.log(...args);
+		return null;
+	},
 	{
 		rest: {}
 	}
