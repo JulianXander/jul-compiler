@@ -1530,7 +1530,7 @@ export const currentDate = _createFunction(
 	() => new Date(),
 	{}
 );
-export const toIsoDateString = _createFunction(
+export const toIsoDateText = _createFunction(
 	(
 		date: Date,
 	) => date.toISOString(),
