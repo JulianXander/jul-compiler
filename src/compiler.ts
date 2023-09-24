@@ -87,7 +87,7 @@ interface JulCompilerOptions {
 }
 
 /**
- * Gibt den outFilePath zurück bei success (nur jul/json), undefined bei error.
+ * Gibt den outFilePath zurück bei success (nur jul/json), undefined bei error/andere Dateitypen.
  */
 function compileFile(
 	options: JulCompilerOptions,
