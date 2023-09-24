@@ -166,7 +166,7 @@ function compileFile(
 
 	//#region 5. compile dependencies
 	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
-	compiledDocuments[sourceFilePath] = parsed ?? {};
+	compiledDocuments[sourceFilePath] = parsed;
 	const sourceFolder = dirname(sourceFilePath);
 	const importedFilePaths = getImportedPaths(parsed, sourceFolder);
 	importedFilePaths.paths.forEach(path => {
