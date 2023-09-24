@@ -23,10 +23,11 @@ Baut jul-compiler, jul-language-server und vscode-jul-language-server
 `node out/cli.js ../jul-examples/test1.jul`
 
 ## Test
-einzelnen Test ausführen (pattern sucht nach it(...))
+einzelnen Test ausführen (pattern sucht nach it(...))  
 `npx mocha 'test-setup.mjs' 'test/**/*.test.js' -g pattern`
 
 ## Publish
-
-`npm version patch` (oder minor/major)
+`npm run build`  
+`npm version patch` (oder minor/major)  
+commit  
 `npm publish`
