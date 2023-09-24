@@ -170,10 +170,9 @@ function compileFile(
 	const sourceFolder = dirname(sourceFilePath);
 	const importedFilePaths = getImportedPaths(parsed, sourceFolder);
 	importedFilePaths.paths.forEach(importedPath => {
-		const importedFullPath = join(sourceFolder, importedPath);
 		compileFile({
 			...options,
-			sourceFilePath: importedFullPath,
+			sourceFilePath: importedPath,
 		}, compiledDocuments);
 	});
 	//#endregion 5. compile dependencies
@@ -228,12 +227,12 @@ export function getImportedPaths(
 			case 'destructuring':
 				const value = expression.value;
 				if (isImportFunctionCall(value)) {
-					const { path, error } = getPathFromImport(value, sourceFolder);
+					const { fullPath, error } = getPathFromImport(value, sourceFolder);
 					if (error) {
 						errors.push(error);
 					}
-					if (path) {
-						importedPaths.push(path);
+					if (fullPath) {
+						importedPaths.push(fullPath);
 					}
 				}
 				return;
