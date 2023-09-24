@@ -1,6 +1,6 @@
 {
   "name": "jul-compiler",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Compiler cli for JUL",
   "main": "out/cli.js",
   "type": "module",
