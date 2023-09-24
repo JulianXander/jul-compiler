@@ -1,5 +1,4 @@
 import { extname, join } from 'path';
-import { getCheckedEscapableName } from './checker.js';
 import {
 	Any,
 	BuiltInType,
@@ -46,12 +45,12 @@ import {
 	TextToken,
 	SymbolDefinition,
 	SymbolTable,
-	TypedExpression
+	TypedExpression,
+	PositionedExpression
 } from './syntax-tree.js';
 import { NonEmptyArray, executingDirectory, isDefined, isNonEmpty, isValidExtension, last, map, mapDictionary } from './util.js';
 import { parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
-import { getCheckedName } from './checker.js';
 import { existsSync } from 'fs';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
@@ -2002,7 +2001,7 @@ export function getPathFromImport(
 	};
 }
 
-function getPathExpression(importParams: BracketedExpression): ParseListValue | undefined {
+export function getPathExpression(importParams: BracketedExpression): ParseListValue | undefined {
 	switch (importParams.type) {
 		case 'dictionary':
 			return importParams.fields[0].value;
@@ -2190,4 +2189,31 @@ function getReturnTypeFromFunctionType(possibleFunctionType: RuntimeType | undef
 		return possibleFunctionType.returnType;
 	}
 	return Any;
+}
+
+export function getCheckedName(parseName: ParseValueExpression): string | undefined {
+	if (parseName.type !== 'reference') {
+		return undefined;
+	}
+	return parseName.name.name;
+}
+
+export function getCheckedEscapableName(parseName: PositionedExpression): string | undefined {
+	switch (parseName.type) {
+		case 'name':
+			return parseName.name;
+		case 'reference':
+			return parseName.name.name;
+		case 'text':
+			if (parseName.values.length > 1) {
+				return undefined;
+			}
+			const value = parseName.values[0];
+			if (value?.type !== 'textToken') {
+				return undefined;
+			}
+			return value.value;
+		default:
+			return undefined;
+	}
 }

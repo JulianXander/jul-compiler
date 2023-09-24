@@ -52,6 +52,5 @@
 	?compiler error wenn assignment unmöglich, error union type wenn Fehler möglich?
 -virtual document für core-lib.jul
 	-https://code.visualstudio.com/api/extension-guides/virtual-documents
--emitter mit parseExpression statt checkedExpression, checkedExpression entfernen
 -compile yaml to js wegen rundungsfehler bei großen zahlen
 	-https://github.com/nodeca/js-yaml/blob/2b5620ed8f03ba0df319fe7710f6d7fd44811742/examples/int_type_override.js

@@ -1,16 +1,18 @@
 import {
 	CheckedExpression,
-	CheckedFunctionCall,
-	CheckedListValue,
-	CheckedParameterFields,
-	CheckedTextLiteral,
-	CheckedValueExpression,
-	ObjectLiteral,
+	ParseExpression,
+	ParseFunctionCall,
+	ParseParameterFields,
+	ParseTextLiteral,
+	ParseValueExpression,
+	ParseValueExpressionBase,
 	Reference,
+	SimpleExpression,
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
 import { Extension, changeExtension } from './util.js';
 import { extname, isAbsolute } from 'path';
+import { getCheckedEscapableName, getCheckedName, getPathExpression } from './type-checker.js';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
@@ -20,7 +22,7 @@ export function getRuntimeImportJs(runtimePath: string): string {
 }
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
-export function syntaxTreeToJs(expressions: CheckedExpression[], runtimePath: string): string {
+export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: string): string {
 	// _branch, _callFunction, _checkType, _createFunction, log
 	let hasDefinition = false;
 	return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
@@ -41,7 +43,7 @@ function getDefinitionJs(isExport: boolean, nameJs: string, valueJs: string): st
 	return `${isExport ? 'export ' : ''}const ${nameJs} = ${valueJs};`;
 }
 
-function expressionToJs(expression: CheckedExpression, topLevel: boolean = false): string {
+function expressionToJs(expression: ParseExpression, topLevel: boolean = false): string {
 	switch (expression.type) {
 		case 'branching':
 			return `_branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(branch =>
@@ -49,7 +51,7 @@ function expressionToJs(expression: CheckedExpression, topLevel: boolean = false
 		case 'definition': {
 			// export topLevel definitions
 			const value = expression.value;
-			const nameJs = escapeReservedJsVariableName(expression.name);
+			const nameJs = escapeReservedJsVariableName(expression.name.name);
 			const typeGuard = expression.typeGuard;
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
@@ -74,24 +76,33 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			return getDefinitionJs(topLevel, nameJs, checkedValueJs);
 		}
 		case 'destructuring': {
-			const fields = expression.fields;
+			const fields = expression.fields.fields;
 			const value = expression.value;
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
 				// TODO export, typeGuard, fallback
 				return getImportJs(`{${fields.map(field => {
-					const nameJs = escapeReservedJsVariableName(field.name);
-					return field.source
-						? `${escapeReservedJsVariableName(field.source)} as ${nameJs}`
+					const name = getCheckedName(field.name);
+					const nameJs = name && escapeReservedJsVariableName(name);
+					const source = field.assignedValue;
+					const checkedSource = source && getCheckedName(source);
+					return checkedSource
+						? `${escapeReservedJsVariableName(checkedSource)} as ${nameJs}`
 						: nameJs
 				}).join(', ')}}`, importPath);
 			}
 			// TODO rest
-			const declarations = fields.map(field => `let ${escapeReservedJsVariableName(field.name)};`).join('\n');
+
+			const declarations = fields.map(field => {
+				const name = getCheckedEscapableName(field.name);
+				return `let ${name && escapeReservedJsVariableName(name)};`
+			}).join('\n');
 			const assignments = fields.map((singleName, index) => {
-				const { name, source, fallback, typeGuard } = singleName;
-				const nameJs = escapeReservedJsVariableName(name);
-				const sourceJs = escapeReservedJsVariableName(source ?? name);
+				const { name, assignedValue, fallback, typeGuard } = singleName;
+				const checkedName = getCheckedName(name);
+				const checkedSource = (assignedValue && getCheckedName(assignedValue)) ?? checkedName;
+				const nameJs = checkedName && escapeReservedJsVariableName(checkedName);
+				const sourceJs = checkedSource && escapeReservedJsVariableName(checkedSource);
 				const fallbackJs = fallback ? ` ?? ${expressionToJs(fallback)}` : '';
 				const rawValue = `_isArray ? _temp[${index}] : _temp.${sourceJs}${fallbackJs}`;
 				const checkedValue = typeGuard
@@ -126,8 +137,10 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}))})`;
 		case 'empty':
 			return 'null';
-		case 'fieldReference':
-			return `${expressionToJs(expression.source)}?.[${stringToJs(expression.field)}]`;
+		case 'fieldReference': {
+			const field = getCheckedEscapableName(expression.field);
+			return `${expressionToJs(expression.source)}?.[${field && stringToJs(field)}]`;
+		}
 		case 'float':
 			return '' + expression.value;
 		case 'fraction':
@@ -143,10 +156,13 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				// 	: path;
 				// return `require("${outPath}")`;
 			}
+			const functionJs = functionExpression && expressionToJs(functionExpression);
 			const prefixArgJs = expression.prefixArgument
 				? expressionToJs(expression.prefixArgument)
 				: 'undefined';
-			return `_callFunction(${expressionToJs(functionExpression)}, ${prefixArgJs}, ${expressionToJs(expression.arguments)})`;
+			const args = expression.arguments;
+			const argsJs = args && expressionToJs(args);
+			return `_callFunction(${functionJs}, ${prefixArgJs}, ${argsJs})`;
 		}
 		case 'functionLiteral': {
 			// TODO params(DefinitionNames) to Type
@@ -187,7 +203,12 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'reference':
 			return referenceToJs(expression);
 		case 'text':
-			return stringLiteralToJs(expression);
+			return textLiteralToJs(expression);
+		case 'bracketed':
+		case 'field':
+		case 'functionTypeLiteral': {
+			throw new Error(`Unexpected expression.type: ${expression.type}`);
+		}
 		default: {
 			const assertNever: never = expression;
 			throw new Error(`Unexpected expression.type: ${(assertNever as CheckedExpression).type}`);
@@ -203,18 +224,27 @@ function getImportJs(importedJs: string, path: string): string {
 	return `import ${importedJs} from ${stringToJs(pathWithFileScheme)}${isJson ? ' assert { type: \'json\' }' : ''};\n`;
 }
 
-function isImportFunctionCall(value: CheckedValueExpression): value is CheckedFunctionCall {
-	return value.type === 'functionCall'
-		&& isImportFunction(value.functionExpression);
+export function isImportFunctionCall(expression: ParseExpression): expression is ParseFunctionCall {
+	if (expression.type !== 'functionCall') {
+		return false;
+	}
+	return isImportFunction(expression.functionExpression);
 }
 
-function isImportFunction(functionExpression: CheckedValueExpression): boolean {
-	return functionExpression.type === 'reference' && functionExpression.name.name === 'import';
+function isImportFunction(functionExpression: SimpleExpression | undefined): boolean {
+	return !!functionExpression
+		&& functionExpression.type === 'reference'
+		&& functionExpression.name.name === 'import';
 }
 
-function getPathFromImport(importExpression: CheckedFunctionCall): string {
-	const pathExpression = getPathExpression(importExpression.arguments);
-	if (pathExpression.type === 'text'
+function getPathFromImport(importExpression: ParseFunctionCall): string {
+	const args = importExpression.arguments;
+	if (!args) {
+		throw new Error('arguments missing for import');
+	}
+	const pathExpression = getPathExpression(args);
+	if (pathExpression
+		&& pathExpression.type === 'text'
 		&& pathExpression.values.length === 1
 		&& pathExpression.values[0]!.type === 'textToken') {
 		const importedPath = pathExpression.values[0].value;
@@ -233,33 +263,12 @@ function getPathFromImport(importExpression: CheckedFunctionCall): string {
 		}
 	}
 	// TODO dynamische imports verbieten???
-	throw new Error('Can not get import path from ' + pathExpression.type);
-}
-
-function getPathExpression(importParams: ObjectLiteral): CheckedListValue {
-	switch (importParams.type) {
-		case 'dictionary':
-			return importParams.fields[0].value;
-
-		case 'empty':
-			throw new Error('import can not be called without arguments');
-
-		case 'list':
-			return importParams.values[0];
-
-		case 'object':
-			throw new Error('import with unknown object literal argument not implemented yet');
-
-		default: {
-			const assertNever: never = importParams;
-			throw new Error(`Unexpected importParams.type: ${(assertNever as ObjectLiteral).type}`);
-		}
-	}
+	throw new Error('Can not get import path from ' + pathExpression?.type);
 }
 
 //#endregion import
 
-function functionBodyToJs(expressions: CheckedExpression[]): string {
+function functionBodyToJs(expressions: ParseExpression[]): string {
 	const js = expressions.map((expression, index) => {
 		const expressionJs = expressionToJs(expression);
 		// Die letzte Expression ist der Rückgabewert
@@ -361,7 +370,7 @@ function escapeReservedJsVariableName(name: string): string {
 	return name;
 }
 
-function parametersToJs(parameters: CheckedParameterFields): string {
+function parametersToJs(parameters: ParseParameterFields): string {
 	const singleNamesJs = parameters.singleFields.length
 		? `singleNames: [\n${parameters.singleFields.map(field => {
 			const typeJs = field.typeGuard
@@ -370,7 +379,7 @@ function parametersToJs(parameters: CheckedParameterFields): string {
 			const sourceJs = field.source
 				? `,\nsource: ${stringToJs(field.source)}`
 				: '';
-			return `{\nname: ${stringToJs(field.name)}${typeJs}${sourceJs}}`;
+			return `{\nname: ${stringToJs(field.name.name)}${typeJs}${sourceJs}}`;
 		}).join(',\n')}\n],\n`
 		: '';
 	const restJs = parameters.rest
@@ -379,11 +388,11 @@ function parametersToJs(parameters: CheckedParameterFields): string {
 	return `{\n${singleNamesJs}${restJs}}`;
 }
 
-function checkTypeJs(type: CheckedValueExpression, valueJs: string): string {
+function checkTypeJs(type: ParseValueExpression, valueJs: string): string {
 	return `_checkType(${expressionToJs(type)}, ${valueJs})`;
 }
 
-function stringLiteralToJs(stringLiteral: CheckedTextLiteral): string {
+function textLiteralToJs(stringLiteral: ParseTextLiteral): string {
 	const stringValue = stringLiteral.values.map(value => {
 		if (value.type === 'textToken') {
 			return escapeStringForBacktickJs(value.value);
@@ -397,8 +406,9 @@ function dictionaryToJs(fieldsJs: string[]): string {
 	return `{\n${fieldsJs.join('')}}`
 }
 
-function singleDictionaryFieldToJs(name: string, valueJs: string): string {
-	return `${stringToJs(name)}: ${valueJs},\n`
+function singleDictionaryFieldToJs(name: ParseValueExpressionBase, valueJs: string): string {
+	const checkedName = getCheckedEscapableName(name);
+	return `${checkedName && stringToJs(checkedName)}: ${valueJs},\n`
 }
 
 function spreadDictionaryFieldToJs(valueJs: string): string {

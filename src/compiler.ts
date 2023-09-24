@@ -1,10 +1,9 @@
 import { writeFileSync, copyFileSync, rmSync } from 'fs';
 import { dirname, extname, join, resolve } from 'path';
 import webpack from 'webpack';
-import { checkParseExpressions } from './checker.js';
-import { syntaxTreeToJs } from './emitter.js';
-import { ParsedFile, ParseExpression, ParseFunctionCall } from './syntax-tree.js';
-import { getPathFromImport } from './type-checker.js';
+import { isImportFunctionCall, syntaxTreeToJs } from './emitter.js';
+import { ParsedFile } from './syntax-tree.js';
+import { ParsedDocuments, checkTypes, getPathFromImport } from './type-checker.js';
 import { parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
@@ -30,7 +29,11 @@ export function compileProject(
 		sourceFilePath: entryFilePath,
 		outputFolderPath: outputFolderPath,
 		runtimePath: runtimePath,
-	}, undefined, cli);
+		shebang: cli,
+	}, {});
+	if (!outFilePath) {
+		return;
+	}
 	//#endregion 2. compile
 
 	//#region 3. copy runtime
@@ -80,111 +83,105 @@ interface JulCompilerOptions {
 	sourceFilePath: string;
 	outputFolderPath: string;
 	runtimePath: string;
+	shebang: boolean;
 }
 
 /**
- * Gibt den outFilePath zurück
+ * Gibt den outFilePath zurück bei success, undefined bei error.
  */
 function compileFile(
 	options: JulCompilerOptions,
-	compiledFilePaths?: { [key: string]: true; },
-	shebang: boolean = false,
-): string {
+	compiledDocuments: ParsedDocuments,
+): string | undefined {
 	const {
 		sourceFilePath,
 		outputFolderPath,
 		runtimePath,
+		shebang,
 	} = options;
+	if (compiledDocuments[sourceFilePath]) {
+		return undefined;
+	}
 	console.log(`compiling ${sourceFilePath} ...`);
 
 	//#region 1. read & 2. parse
 	const parsed = parseFile(sourceFilePath);
-	outputErrors(parsed.errors);
-	// console.log(result);
-	const syntaxTree = checkParseExpressions(parsed.expressions!)!;
 	//#endregion 1. read & 2. parse
+	let outFilePath;
+	switch (extname(sourceFilePath)) {
+		case Extension.js: {
+			// copy js file to output folder
+			const jsOutFilePath = join(outputFolderPath, sourceFilePath);
+			const jsOutDir = dirname(jsOutFilePath);
+			tryCreateDirectory(jsOutDir);
+			copyFileSync(sourceFilePath, jsOutFilePath);
+			break;
+		}
+		case Extension.json:
+		// parse json and write to js in output folder
+		case Extension.jul: {
+			//#region 3. compile
+			const expressions = parsed.expressions ?? [];
+			const compiled = syntaxTreeToJs(expressions, runtimePath);
+			// console.log(compiled);
+			//#endregion 3. compile
 
-	// TODO typecheck
-
-	//#region 3. compile
-	const compiled = syntaxTreeToJs(syntaxTree, runtimePath);
-	// console.log(compiled);
-	//#endregion 3. compile
-
-	//#region 4. write
-	const jsFileName = changeExtension(sourceFilePath, Extension.js);
-	const outFilePath = join(outputFolderPath, jsFileName);
-	const outDir = dirname(outFilePath);
-	tryCreateDirectory(outDir);
-	writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
-	//#endregion 4. write
+			//#region 4. write
+			const jsFileName = changeExtension(sourceFilePath, Extension.js);
+			outFilePath = join(outputFolderPath, jsFileName);
+			const outDir = dirname(outFilePath);
+			tryCreateDirectory(outDir);
+			writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
+			//#endregion 4. write
+			break;
+		}
+		case Extension.ts: {
+			const ts = readTextFile(sourceFilePath);
+			const js = transpileModule(ts, {
+				compilerOptions: {
+					module: ModuleKind.ESNext
+				}
+			});
+			const jsOutFilePath = join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
+			const jsOutDir = dirname(jsOutFilePath);
+			tryCreateDirectory(jsOutDir);
+			writeFileSync(jsOutFilePath, js.outputText);
+			break;
+		}
+		case Extension.yaml: {
+			// parse yaml and write to json in output folder
+			// TODO compile
+			const yaml = readTextFile(sourceFilePath);
+			const parsedYaml = load(yaml);
+			const json = JSON.stringify(parsedYaml);
+			const jsonOutFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
+			const jsonOutDir = dirname(jsonOutFilePath);
+			tryCreateDirectory(jsonOutDir);
+			writeFileSync(jsonOutFilePath, json);
+			break;
+		}
+		default:
+			break;
+	}
 
 	//#region 5. compile dependencies
 	// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
-	const compiledFilePathsWithDefault = compiledFilePaths ?? { [sourceFilePath]: true };
+	compiledDocuments[sourceFilePath] = parsed ?? {};
 	const sourceFolder = dirname(sourceFilePath);
 	const importedFilePaths = getImportedPaths(parsed, sourceFolder);
-	outputErrors(importedFilePaths.errors);
 	importedFilePaths.paths.forEach(path => {
 		const fullPath = join(sourceFolder, path);
-		if (compiledFilePathsWithDefault[fullPath]) {
-			return;
-		}
-		compiledFilePathsWithDefault[fullPath] = true;
-		switch (extname(path)) {
-			case Extension.js: {
-				// copy js file to output folder
-				const jsOutFilePath = join(outputFolderPath, fullPath);
-				const jsOutDir = dirname(jsOutFilePath);
-				tryCreateDirectory(jsOutDir);
-				copyFileSync(fullPath, jsOutFilePath);
-				return;
-			}
-			case Extension.json: {
-				// parse json and write to js in output folder
-				compileFile({
-					...options,
-					sourceFilePath: fullPath,
-				}, compiledFilePathsWithDefault);
-				return;
-			}
-			case Extension.jul: {
-				compileFile({
-					...options,
-					sourceFilePath: fullPath,
-				}, compiledFilePathsWithDefault);
-				return;
-			}
-			case Extension.ts: {
-				const ts = readTextFile(fullPath);
-				const js = transpileModule(ts, {
-					compilerOptions: {
-						module: ModuleKind.ESNext
-					}
-				});
-				const jsOutFilePath = join(outputFolderPath, changeExtension(fullPath, Extension.js));
-				const jsOutDir = dirname(jsOutFilePath);
-				tryCreateDirectory(jsOutDir);
-				writeFileSync(jsOutFilePath, js.outputText);
-				return;
-			}
-			case Extension.yaml: {
-				// parse yaml and write to json in output folder
-				// TODO compile
-				const yaml = readTextFile(fullPath);
-				const parsedYaml = load(yaml);
-				const json = JSON.stringify(parsedYaml);
-				const jsonOutFilePath = join(outputFolderPath, fullPath + Extension.json);
-				const jsonOutDir = dirname(jsonOutFilePath);
-				tryCreateDirectory(jsonOutDir);
-				writeFileSync(jsonOutFilePath, json);
-				return;
-			}
-			default:
-				return;
-		}
+		compileFile({
+			...options,
+			sourceFilePath: fullPath,
+		}, compiledDocuments);
 	});
 	//#endregion 5. compile dependencies
+
+	//#region 6. check
+	checkTypes(parsed, compiledDocuments, sourceFolder);
+	outputErrors(parsed.errors);
+	//#endregion 6. check
 	return outFilePath;
 }
 
@@ -230,7 +227,7 @@ export function getImportedPaths(
 			case 'definition':
 			case 'destructuring':
 				const value = expression.value;
-				if (isImport(value)) {
+				if (isImportFunctionCall(value)) {
 					const { path, error } = getPathFromImport(value, sourceFolder);
 					if (error) {
 						errors.push(error);
@@ -249,16 +246,6 @@ export function getImportedPaths(
 		paths: importedPaths,
 		errors: errors,
 	};
-}
-
-export function isImport(expression: ParseExpression): expression is ParseFunctionCall {
-	if (expression.type !== 'functionCall') {
-		return false;
-	}
-	const functionExpression = expression.functionExpression;
-	return !!functionExpression
-		&& functionExpression.type === 'reference'
-		&& functionExpression.name.name === 'import';
 }
 
 //#endregion import
