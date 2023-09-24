@@ -104,6 +104,11 @@ function compileFile(
 	}
 	console.log(`compiling ${sourceFilePath} ...`);
 
+	//#region 1. read & 2. parse
+	const parsed = parseFile(sourceFilePath);
+	compiledDocuments[sourceFilePath] = parsed;
+	//#endregion 1. read & 2. parse
+
 	switch (extname(sourceFilePath)) {
 		case Extension.js: {
 			// copy js file to output folder
@@ -116,10 +121,6 @@ function compileFile(
 		case Extension.json:
 		// parse json and write to js in output folder
 		case Extension.jul: {
-			//#region 1. read & 2. parse
-			const parsed = parseFile(sourceFilePath);
-			//#endregion 1. read & 2. parse
-
 			//#region 3. compile
 			const expressions = parsed.expressions ?? [];
 			const compiled = syntaxTreeToJs(expressions, runtimePath);
@@ -136,7 +137,6 @@ function compileFile(
 
 			//#region 5. compile dependencies
 			// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
-			compiledDocuments[sourceFilePath] = parsed;
 			const sourceFolder = dirname(sourceFilePath);
 			const importedFilePaths = getImportedPaths(parsed, sourceFolder);
 			importedFilePaths.paths.forEach(importedPath => {
