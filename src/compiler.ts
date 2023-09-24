@@ -169,11 +169,11 @@ function compileFile(
 	compiledDocuments[sourceFilePath] = parsed;
 	const sourceFolder = dirname(sourceFilePath);
 	const importedFilePaths = getImportedPaths(parsed, sourceFolder);
-	importedFilePaths.paths.forEach(path => {
-		const fullPath = join(sourceFolder, path);
+	importedFilePaths.paths.forEach(importedPath => {
+		const importedFullPath = join(sourceFolder, importedPath);
 		compileFile({
 			...options,
-			sourceFilePath: fullPath,
+			sourceFilePath: importedFullPath,
 		}, compiledDocuments);
 	});
 	//#endregion 5. compile dependencies
