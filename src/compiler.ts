@@ -4,9 +4,9 @@ import webpack from 'webpack';
 import { isImportFunctionCall, syntaxTreeToJs } from './emitter.js';
 import { ParsedFile } from './syntax-tree.js';
 import { ParsedDocuments, checkTypes, getPathFromImport } from './type-checker.js';
-import { parseFile } from './parser/parser.js';
+import { parseCode, parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
-import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
+import { Extension, changeExtension, executingDirectory, isValidExtension, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
 import ShebangPlugin from 'webpack-shebang-plugin';
@@ -87,7 +87,7 @@ interface JulCompilerOptions {
 }
 
 /**
- * Gibt den outFilePath zurück bei success, undefined bei error.
+ * Gibt den outFilePath zurück bei success, undefined wenn schon compiled.
  */
 function compileFile(
 	options: JulCompilerOptions,
@@ -104,19 +104,26 @@ function compileFile(
 	}
 	console.log(`compiling ${sourceFilePath} ...`);
 
-	//#region 1. read & 2. parse
-	const parsed = parseFile(sourceFilePath);
+	//#region 1. read
+	const sourceCode = readTextFile(sourceFilePath);
+	//#endregion 1. read
+
+	//#region 2. parse
+	const extension = extname(sourceFilePath);
+	if (!isValidExtension(extension)) {
+		throw new Error(`Unexpected extension for parseFile: ${extension}`);
+	}
+	const parsed = parseCode(sourceCode, extension);
 	compiledDocuments[sourceFilePath] = parsed;
-	//#endregion 1. read & 2. parse
+	//#endregion 2. parse
 
 	//#region 3. compile
 	let compiled;
 	let outFilePath;
-	const extension = extname(sourceFilePath);
 	switch (extension) {
 		case Extension.js: {
 			// copy js file to output folder
-			compiled = readTextFile(sourceFilePath);
+			compiled = sourceCode;
 			outFilePath = join(outputFolderPath, sourceFilePath);
 			break;
 		}
@@ -129,8 +136,7 @@ function compileFile(
 			outFilePath = join(outputFolderPath, jsFileName);
 		}
 		case Extension.ts: {
-			const ts = readTextFile(sourceFilePath);
-			const js = transpileModule(ts, {
+			const js = transpileModule(sourceCode, {
 				compilerOptions: {
 					module: ModuleKind.ESNext
 				}
@@ -143,14 +149,15 @@ function compileFile(
 		case Extension.yaml: {
 			// parse yaml and write to json in output folder
 			// TODO compile
-			const yaml = readTextFile(sourceFilePath);
-			const parsedYaml = load(yaml);
+			const parsedYaml = load(sourceCode);
 			compiled = JSON.stringify(parsedYaml);
 			outFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
 			break;
 		}
-		default:
-			return undefined;
+		default: {
+			const assertNever: never = extension;
+			throw new Error(`Unexpected extension for compileFile: ${assertNever}`);
+		}
 	}
 	//#endregion 3. compile
 
