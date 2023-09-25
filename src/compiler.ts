@@ -87,7 +87,7 @@ interface JulCompilerOptions {
 }
 
 /**
- * Gibt den outFilePath zurück bei success (nur jul/json), undefined bei error/andere Dateitypen.
+ * Gibt den outFilePath zurück bei success, undefined bei error.
  */
 function compileFile(
 	options: JulCompilerOptions,
@@ -109,49 +109,24 @@ function compileFile(
 	compiledDocuments[sourceFilePath] = parsed;
 	//#endregion 1. read & 2. parse
 
-	switch (extname(sourceFilePath)) {
+	//#region 3. compile
+	let compiled;
+	let outFilePath;
+	const extension = extname(sourceFilePath);
+	switch (extension) {
 		case Extension.js: {
 			// copy js file to output folder
-			const jsOutFilePath = join(outputFolderPath, sourceFilePath);
-			const jsOutDir = dirname(jsOutFilePath);
-			tryCreateDirectory(jsOutDir);
-			copyFileSync(sourceFilePath, jsOutFilePath);
+			compiled = readTextFile(sourceFilePath);
+			outFilePath = join(outputFolderPath, sourceFilePath);
 			break;
 		}
 		case Extension.json:
 		// parse json and write to js in output folder
 		case Extension.jul: {
-			//#region 3. compile
 			const expressions = parsed.expressions ?? [];
-			const compiled = syntaxTreeToJs(expressions, runtimePath);
-			// console.log(compiled);
-			//#endregion 3. compile
-
-			//#region 4. write
+			compiled = syntaxTreeToJs(expressions, runtimePath);
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);
-			const outFilePath = join(outputFolderPath, jsFileName);
-			const outDir = dirname(outFilePath);
-			tryCreateDirectory(outDir);
-			writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
-			//#endregion 4. write
-
-			//#region 5. compile dependencies
-			// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
-			const sourceFolder = dirname(sourceFilePath);
-			const importedFilePaths = getImportedPaths(parsed, sourceFolder);
-			importedFilePaths.paths.forEach(importedPath => {
-				compileFile({
-					...options,
-					sourceFilePath: importedPath,
-				}, compiledDocuments);
-			});
-			//#endregion 5. compile dependencies
-
-			//#region 6. check
-			checkTypes(parsed, compiledDocuments, sourceFolder);
-			outputErrors(parsed.errors);
-			//#endregion 6. check
-			return outFilePath;
+			outFilePath = join(outputFolderPath, jsFileName);
 		}
 		case Extension.ts: {
 			const ts = readTextFile(sourceFilePath);
@@ -160,10 +135,8 @@ function compileFile(
 					module: ModuleKind.ESNext
 				}
 			});
-			const jsOutFilePath = join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
-			const jsOutDir = dirname(jsOutFilePath);
-			tryCreateDirectory(jsOutDir);
-			writeFileSync(jsOutFilePath, js.outputText);
+			compiled = js.outputText;
+			outFilePath = join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
 			break;
 		}
 		case Extension.yaml: {
@@ -171,16 +144,41 @@ function compileFile(
 			// TODO compile
 			const yaml = readTextFile(sourceFilePath);
 			const parsedYaml = load(yaml);
-			const json = JSON.stringify(parsedYaml);
-			const jsonOutFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
-			const jsonOutDir = dirname(jsonOutFilePath);
-			tryCreateDirectory(jsonOutDir);
-			writeFileSync(jsonOutFilePath, json);
+			compiled = JSON.stringify(parsedYaml);
+			outFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
 			break;
 		}
 		default:
-			break;
+			return undefined;
 	}
+	//#endregion 3. compile
+
+	//#region 4. write
+	const outDir = dirname(outFilePath);
+	tryCreateDirectory(outDir);
+	writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
+	//#endregion 4. write
+
+	if (extension === Extension.jul) {
+		//#region 5. compile dependencies
+		// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
+		const sourceFolder = dirname(sourceFilePath);
+		const importedFilePaths = getImportedPaths(parsed, sourceFolder);
+		importedFilePaths.paths.forEach(importedPath => {
+			compileFile({
+				...options,
+				shebang: false,
+				sourceFilePath: importedPath,
+			}, compiledDocuments);
+		});
+		//#endregion 5. compile dependencies
+
+		//#region 6. check
+		checkTypes(parsed, compiledDocuments, sourceFolder);
+		outputErrors(parsed.errors);
+		//#endregion 6. check
+	}
+	return outFilePath;
 }
 
 function outputErrors(errors: ParserError[]): void {
