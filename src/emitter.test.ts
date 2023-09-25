@@ -1,51 +1,50 @@
 import { expect } from 'chai';
 import { parseCode } from './parser/parser.js';
 import { getRuntimeImportJs, syntaxTreeToJs } from './emitter.js';
-import { checkParseExpressions } from './checker.js';
 import { Extension } from './util.js';
 
 const expectedResults: {
 	code: string;
 	result: string;
 }[] = [
-		// {
-		// 	code: 'true',
-		// 	result: 'export default true'
-		// },
-		// {
-		// 	code: 'Any',
-		// 	result: 'Any'
-		// },
-		// {
-		// 	code: 'String',
-		// 	result: '_String'
-		// },
-		// {
-		// 	code: '# Destructuring import\n§a§',
-		// 	// TODO parse comments
-		// 	// result: '// Destructuring import\n"a"'
-		// 	result: '"a"'
-		// },
-		// {
-		// 	code: '§12§',
-		// 	result: '"12"'
-		// },
-		// {
-		// 	code: '12',
-		// 	result: '12'
-		// },
-		// {
-		// 	code: '(1 2)',
-		// 	result: '[\n1,\n2,\n]'
-		// },
+		{
+			code: 'true',
+			result: 'export default true'
+		},
+		{
+			code: 'Any',
+			result: 'export default Any'
+		},
+		{
+			code: 'String',
+			result: 'export default _String'
+		},
+		{
+			code: '# Destructuring import\n§a§',
+			// TODO parse comments
+			// result: '// Destructuring import\n"a"'
+			result: 'export default `a`'
+		},
+		{
+			code: '§12§',
+			result: 'export default `12`'
+		},
+		{
+			code: '12',
+			result: 'export default 12n'
+		},
+		{
+			code: '(1 2)',
+			result: 'export default [\n1n,\n2n,\n]'
+		},
 		// {
 		// 	code: '(\n\t1\n\t2\n)\n',
 		// 	result: [1, 2]
 		// },
-		// {
-		// 	code: 'someVar = 12',
-		// 	result: 'const someVar = 12;'
-		// },
+		{
+			code: 'someVar = 12',
+			result: 'export const someVar = 12n;'
+		},
 		// {
 		// 	code: 'someVar = (1 2)',
 		// 	result: [1, 2]
@@ -159,18 +158,18 @@ const expectedResults: {
 		// 	code: 'fibonacci = (number:NonNegativeInteger) =>\n\tnumber ?\n\t\t(n:0) => 0\n\t\t(n:1) => 1\n\t\t(n) => sum(fibonacci(subtract(n 2)) fibonacci(subtract(n 1)))\nfibonacci(12)',
 		// 	result: 144
 		// },
-		// {
-		// 	code: '(a: String)',
-		// 	result: 'new DictionaryLiteralType({\n\'a\': _String,\n})'
-		// },
-		// {
-		// 	code: '(a: String b)',
-		// 	result: 'new DictionaryLiteralType({\n\'a\': _String,\n\'b\': Any,\n})'
-		// },
-		// {
-		// 	code: '(1 ...a ...b)',
-		// 	result: 'export default [\n1n,\n...a,\n...b,\n]'
-		// },
+		{
+			code: '(a: String)',
+			result: 'export default new DictionaryLiteralType({\n\'a\': _String,\n})'
+		},
+		{
+			code: '(a: String b)',
+			result: 'export default new DictionaryLiteralType({\n\'a\': _String,\n\'b\': Any,\n})'
+		},
+		{
+			code: '(1 ...a ...b)',
+			result: 'export default [\n1n,\n...a,\n...b,\n]'
+		},
 		{
 			code: '(testVar) = import(§./some-file.jul§)',
 			result: 'export default import {testVar} from \'./some-file.js\';\n'
@@ -181,7 +180,7 @@ describe('Emitter', () => {
 	expectedResults.forEach(({ code, result }) => {
 		it(code, () => {
 			const parsed = parseCode(code, Extension.jul);
-			const syntaxTree = checkParseExpressions(parsed.expressions!)!;
+			const syntaxTree = parsed.expressions!;
 			const compiled = syntaxTreeToJs(syntaxTree, '');
 			expect(compiled).to.equal(getRuntimeImportJs('') + result);
 		});
