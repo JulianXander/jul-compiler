@@ -134,6 +134,7 @@ function compileFile(
 			compiled = syntaxTreeToJs(expressions, runtimePath);
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);
 			outFilePath = join(outputFolderPath, jsFileName);
+			break;
 		}
 		case Extension.ts: {
 			const js = transpileModule(sourceCode, {
