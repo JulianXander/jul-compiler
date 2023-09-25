@@ -136,7 +136,8 @@ function compileFile(
 				}
 			});
 			compiled = js.outputText;
-			outFilePath = join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
+			const jsFileName = changeExtension(sourceFilePath, Extension.js);
+			outFilePath = join(outputFolderPath, jsFileName);
 			break;
 		}
 		case Extension.yaml: {
