@@ -59,7 +59,7 @@ const expectedResults: {
 		},
 	];
 
-describe('Parser', () => {
+describe('Checker', () => {
 	expectedResults.forEach(({ name, code, result, errors }) => {
 		it(name ?? code, () => {
 			const parserResult = parseCode(code, Extension.jul);
