@@ -4,7 +4,7 @@ import webpack from 'webpack';
 import { isImportFunctionCall, syntaxTreeToJs } from './emitter.js';
 import { ParsedFile } from './syntax-tree.js';
 import { ParsedDocuments, checkTypes, getPathFromImport } from './type-checker.js';
-import { parseCode, parseFile } from './parser/parser.js';
+import { parseCode } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, isValidExtension, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
