@@ -12,7 +12,7 @@ import {
 import * as runtime from './runtime.js';
 import { Extension, changeExtension } from './util.js';
 import { extname, isAbsolute } from 'path';
-import { getCheckedEscapableName, getCheckedName, getPathExpression } from './type-checker.js';
+import { getCheckedEscapableName, getCheckedName, getPathExpression } from './checker.js';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');

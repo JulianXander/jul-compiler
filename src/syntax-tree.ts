@@ -95,7 +95,7 @@ export interface PositionedExpressionBase extends Positioned {
 // TODO beil allen parseExpression oder nur bei value expressions?
 interface ParseExpressionBase extends PositionedExpressionBase {
 	/**
-	 * Wird vom type-checker gesetzt.
+	 * Wird vom checker gesetzt.
 	 */
 	inferredType?: RuntimeType;
 }
@@ -328,7 +328,7 @@ export interface ParseParameterField extends ParseExpressionBase {
 	source?: string;
 	fallback?: ParseValueExpression;
 	/**
-	 * Wird in type-checker gesetzt
+	 * Wird vom checker gesetzt.
 	 */
 	inferredTypeFromCall?: RuntimeType;
 }

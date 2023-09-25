@@ -3,7 +3,7 @@ import { dirname, extname, join, resolve } from 'path';
 import webpack from 'webpack';
 import { isImportFunctionCall, syntaxTreeToJs } from './emitter.js';
 import { ParsedFile } from './syntax-tree.js';
-import { ParsedDocuments, checkTypes, getPathFromImport } from './type-checker.js';
+import { ParsedDocuments, checkTypes, getPathFromImport } from './checker.js';
 import { parseCode } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, isValidExtension, readTextFile, tryCreateDirectory } from './util.js';

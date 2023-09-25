@@ -4,7 +4,7 @@ import { ParseExpression } from './syntax-tree.js';
 import { Extension } from './util.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { parseCode } from './parser/parser.js';
-import { checkTypes } from './type-checker.js'
+import { checkTypes } from './checker.js'
 
 const expectedResults: {
 	name?: string;
