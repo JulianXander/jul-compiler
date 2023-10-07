@@ -954,10 +954,46 @@ const expectedResults: {
 				},
 			],
 		},
-		// {
-		// 	code: '(): () => ()',
-		// 	result: []
-		// },
+		{
+			name: 'function-literal-return-type',
+			code: '(): () => ()',
+			result: [
+				{
+					"body": [
+						{
+							"endColumnIndex": 12,
+							"endRowIndex": 0,
+							"startColumnIndex": 10,
+							"startRowIndex": 0,
+							"type": "empty",
+						},
+					],
+					"endColumnIndex": 12,
+					"endRowIndex": 0,
+					"params": {
+						"endColumnIndex": 2,
+						"endRowIndex": 0,
+						"rest": undefined,
+						"singleFields": [],
+						"startColumnIndex": 0,
+						"startRowIndex": 0,
+						"type": "parameters",
+					},
+					"returnType": {
+						"endColumnIndex": 6,
+						"endRowIndex": 0,
+						"fields": [],
+						"startColumnIndex": 4,
+						"startRowIndex": 0,
+						"type": "bracketed",
+					},
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"symbols": {},
+					"type": "functionLiteral",
+				},
+			],
+		},
 	];
 
 describe('Parser', () => {

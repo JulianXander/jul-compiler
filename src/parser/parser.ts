@@ -1384,12 +1384,12 @@ function functionTypeBodyParser(
 	indent: number,
 ): ParserResult<{
 	type: 'functionTypeBody';
-	returnType: ParseValueExpression;
+	returnType: SimpleExpression;
 	body?: ParseExpression[];
 }> {
 	const result = sequenceParser(
 		typeGuardTokenParser,
-		valueExpressionParser,
+		simpleExpressionParser,
 		discriminatedChoiceParser(
 			// FunctionLiteral mit ReturnType
 			{
