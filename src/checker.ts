@@ -464,6 +464,18 @@ function inferType(
 			const branches = expression.branches;
 			branches.forEach((branch, index) => {
 				setInferredType(branch, scopes, parsedDocuments, folder, file);
+				// Fehler, wenn branch type != function
+				const functionType = new FunctionType(Any, Any);
+				const nonFunctionError = areArgsAssignableTo(undefined, branch.inferredType!, functionType);
+				if (nonFunctionError) {
+					errors.push({
+						message: 'Expected branch to be a function.\n' + nonFunctionError,
+						startRowIndex: branch.startRowIndex,
+						startColumnIndex: branch.startColumnIndex,
+						endRowIndex: branch.endRowIndex,
+						endColumnIndex: branch.endColumnIndex,
+					});
+				}
 				if (index) {
 					// Fehler, wenn ParameterTyp des Branches schon von vorherigen Branches abgedeckt.
 					// Also wenn aktueller ParamterTyp Teilmenge der Veroderung der vorherigen ParameterTypen ist.

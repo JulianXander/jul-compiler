@@ -1,5 +1,3 @@
--checker: check branches type = function
-	?schon im parser string, number literale verbieten
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
