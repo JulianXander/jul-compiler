@@ -189,7 +189,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			return `new FunctionType(Any, ${expressionToJs(expression.returnType)})`;
 		}
 		case 'indexReference':
-			return `${expressionToJs(expression.source)}?.[${expression.index} - 1]`;
+			return `${expressionToJs(expression.source)}?.[${expression.index.name} - 1]`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':

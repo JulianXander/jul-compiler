@@ -58,6 +58,10 @@ const expectedResults: {
 		// 	result: null
 		// },
 		{
+			code: 'someVar/1/test',
+			result: 'export default someVar?.[1 - 1]?.[\'test\']'
+		},
+		{
 			code: '(a b) => log(a)',
 			result: `export default _createFunction((a, b) => {return _callFunction(log, undefined, [
 a,
