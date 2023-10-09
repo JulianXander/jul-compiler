@@ -171,10 +171,10 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			let argsJs: string;
 			let paramsJs: string;
 			if (params.type === 'parameters') {
-				argsJs = params.singleFields.map(field => field.name).join(', ');
+				argsJs = params.singleFields.map(field => field.name.name).join(', ');
 				const rest = params.rest;
 				if (rest) {
-					argsJs += '...' + rest.name;
+					argsJs += '...' + rest.name.name;
 				}
 				paramsJs = parametersToJs(params);
 			}
