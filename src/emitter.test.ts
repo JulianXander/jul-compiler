@@ -57,45 +57,19 @@ const expectedResults: {
 		// 	code: 'log(§hallo welt§)',
 		// 	result: null
 		// },
-		// {
-		// 	code: '(a b) => log(a)',
-		// 	result: {
-		// 		type: 'functionLiteral',
-		// 		pure: true,
-		// 		params: {
-		// 			singleNames: [
-		// 				{
-		// 					type: 'name',
-		// 					name: 'a',
-		// 					fallback: undefined,
-		// 					source: undefined,
-		// 					typeGuard: undefined,
-		// 				},
-		// 				{
-		// 					type: 'name',
-		// 					name: 'b',
-		// 					fallback: undefined,
-		// 					source: undefined,
-		// 					typeGuard: undefined,
-		// 				}
-		// 			],
-		// 			rest: undefined
-		// 		},
-		// 		body: [
-		// 			{
-		// 				type: 'functionCall',
-		// 				functionReference: ['log'],
-		// 				params: {
-		// 					type: 'list',
-		// 					values: [{
-		// 						type: 'reference',
-		// 						names: ['a']
-		// 					}],
-		// 				},
-		// 			},
-		// 		]
-		// 	},
-		// },
+		{
+			code: '(a b) => log(a)',
+			result: `export default _createFunction((a, b) => {return _callFunction(log, undefined, [
+a,
+])}, {
+singleNames: [
+{
+name: 'a'},
+{
+name: 'b'}
+],
+})`,
+		},
 		// {
 		// 	code: '(a b) =>\n\tlog(a)\n\tlog(b)',
 		// 	result: {
