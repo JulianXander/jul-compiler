@@ -184,6 +184,10 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}
 			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
 		}
+		case 'functionTypeLiteral': {
+			// TODO params to type
+			return `new FunctionType(Any, ${expressionToJs(expression.returnType)})`;
+		}
 		case 'indexReference':
 			return `${expressionToJs(expression.source)}?.[${expression.index} - 1]`;
 		case 'integer':
@@ -205,8 +209,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'text':
 			return textLiteralToJs(expression);
 		case 'bracketed':
-		case 'field':
-		case 'functionTypeLiteral': {
+		case 'field': {
 			throw new Error(`Unexpected expression.type: ${expression.type}`);
 		}
 		default: {
