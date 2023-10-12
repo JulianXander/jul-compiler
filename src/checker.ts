@@ -795,7 +795,7 @@ function inferType(
 							// a dictionary containing all definitions is imported
 							if (Object.keys(importedFile.symbols).length) {
 								const importedTypes = mapDictionary(importedFile.symbols, symbol => {
-									return symbol.normalizedType!;
+									return symbol.normalizedType ?? Any;
 								});
 								return new DictionaryLiteralType(importedTypes);
 							}

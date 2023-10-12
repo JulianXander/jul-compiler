@@ -171,10 +171,10 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			let argsJs: string;
 			let paramsJs: string;
 			if (params.type === 'parameters') {
-				argsJs = params.singleFields.map(field => field.name).join(', ');
+				argsJs = params.singleFields.map(field => field.name.name).join(', ');
 				const rest = params.rest;
 				if (rest) {
-					argsJs += '...' + rest.name;
+					argsJs += '...' + rest.name.name;
 				}
 				paramsJs = parametersToJs(params);
 			}
@@ -184,8 +184,12 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}
 			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
 		}
+		case 'functionTypeLiteral': {
+			// TODO params to type
+			return `new FunctionType(Any, ${expressionToJs(expression.returnType)})`;
+		}
 		case 'indexReference':
-			return `${expressionToJs(expression.source)}?.[${expression.index} - 1]`;
+			return `${expressionToJs(expression.source)}?.[${expression.index.name} - 1]`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':
@@ -205,8 +209,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'text':
 			return textLiteralToJs(expression);
 		case 'bracketed':
-		case 'field':
-		case 'functionTypeLiteral': {
+		case 'field': {
 			throw new Error(`Unexpected expression.type: ${expression.type}`);
 		}
 		default: {
