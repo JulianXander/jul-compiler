@@ -1742,11 +1742,11 @@ function getDictionaryLiteralTypeError(
 
 function getDictionaryFieldError(
 	fieldName: string,
-	fieldType: RuntimeType,
+	fieldTargetType: RuntimeType,
 	prefixArgumentType: RuntimeType | undefined,
-	valueType: RuntimeType,
+	fieldValueType: RuntimeType,
 ): TypeError | undefined {
-	const subError = getTypeError(prefixArgumentType, valueType, fieldType);
+	const subError = getTypeError(prefixArgumentType, fieldValueType, fieldTargetType);
 	if (subError) {
 		const wrappedError: TypeError = {
 			message: `Invalid value for field ${fieldName}`,
