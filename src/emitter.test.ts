@@ -4,6 +4,7 @@ import { getRuntimeImportJs, syntaxTreeToJs } from './emitter.js';
 import { Extension } from './util.js';
 
 const expectedResults: {
+	name?: string;
 	code: string;
 	result: string;
 }[] = [
@@ -72,6 +73,14 @@ name: 'a'},
 {
 name: 'b'}
 ],
+})`,
+		},
+		{
+			name: 'function-return-type-check',
+			code: `() =>
+	a: Integer = 1`,
+			result: `export default _createFunction(() => {const a = _checkType(Integer, 1n);
+return a}, {
 })`,
 		},
 		// {
@@ -155,8 +164,8 @@ name: 'b'}
 	];
 
 describe('Emitter', () => {
-	expectedResults.forEach(({ code, result }) => {
-		it(code, () => {
+	expectedResults.forEach(({ name, code, result }) => {
+		it(name ?? code, () => {
 			const parsed = parseCode(code, Extension.jul);
 			const syntaxTree = parsed.expressions!;
 			const compiled = syntaxTreeToJs(syntaxTree, '');

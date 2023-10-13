@@ -277,7 +277,7 @@ function functionBodyToJs(expressions: ParseExpression[]): string {
 		// Die letzte Expression ist der Rückgabewert
 		if (index === expressions.length - 1) {
 			if (expression.type === 'definition') {
-				return `${expressionJs}\nreturn ${expression.name};`;
+				return `${expressionJs}\nreturn ${escapeReservedJsVariableName(expression.name.name)};`;
 			}
 			return `return ${expressionJs}`;
 		}
