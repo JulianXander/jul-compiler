@@ -69,8 +69,8 @@ export function compileProject(
 		const hasErrors = stats?.hasErrors();
 		stopSpinner();
 		if (hasErrors) {
-			console.log('bundling failed');
 			console.log(stats?.compilation.errors);
+			throw new Error('bundling failed.')
 		}
 		else {
 			console.log('build finished successfully');

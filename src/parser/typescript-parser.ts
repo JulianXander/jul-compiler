@@ -47,14 +47,7 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
       };
     case SyntaxKind.ArrowFunction: {
       const arrowFunction = tsNode as ArrowFunction;
-      return createParseFunctionLiteral(
-        tsParametersToJulParameters(arrowFunction.parameters, position),
-        undefined,
-        // TODO body, errors
-        [],
-        position,
-        [],
-      );
+      return tsFunctionToJulAst(position, arrowFunction.parameters);
     }
     case SyntaxKind.EmptyStatement:
       return undefined;
@@ -92,14 +85,7 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
       return {
         type: 'definition',
         name: julName,
-        value: createParseFunctionLiteral(
-          tsParametersToJulParameters(functionDeclaration.parameters, position),
-          undefined,
-          // TODO body, errors,
-          [],
-          position,
-          [],
-        ),
+        value: tsFunctionToJulAst(position, functionDeclaration.parameters),
         ...position,
       };
     }
@@ -108,6 +94,51 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
     default:
       return undefined;
   }
+}
+
+function tsFunctionToJulAst(
+  position: Positioned,
+  parameters: NodeArray<ParameterDeclaration>,
+) {
+  return createParseFunctionLiteral(
+    tsParametersToJulParameters(parameters, position),
+    undefined,
+    // TODO body, errors,
+    // erstmal dummy body nativeValue([...]) damit returnType = Any inferred wird
+    [
+      {
+        type: 'functionCall',
+        functionExpression: {
+          type: 'reference',
+          name: {
+            type: 'name',
+            name: 'nativeValue',
+            ...position,
+          },
+          ...position,
+        },
+        arguments: {
+          type: 'list',
+          values: [
+            {
+              type: 'text',
+              values: [
+                {
+                  type: 'textToken',
+                  value: '[...]'
+                }
+              ],
+              ...position,
+            }
+          ],
+          ...position,
+        },
+        ...position,
+      }
+    ],
+    position,
+    [],
+  )
 }
 
 function tsParametersToJulParameters(
