@@ -1365,10 +1365,10 @@ export function getTypeError(
 								case 'dictionaryLiteral': {
 									const subErrors = map(
 										argumentsType.fields,
-										(fieldType, fieldName) =>
-											// TODO add fieldName to error
+										(fieldType, fieldName) => {
 											// TODO the field x is missing error?
-											getTypeError(prefixArgumentType, fieldType, elementType),
+											return getDictionaryFieldError(fieldName, elementType, prefixArgumentType, fieldType);
+										},
 									).filter(isDefined);
 									if (!subErrors.length) {
 										return undefined;
@@ -1395,8 +1395,7 @@ export function getTypeError(
 						const subErrors = map(
 							argumentsType,
 							(fieldType, fieldName) =>
-								// TODO add fieldName to error
-								getTypeError(prefixArgumentType, fieldType, elementType),
+								getDictionaryFieldError(fieldName, elementType, prefixArgumentType, fieldType),
 						).filter(isDefined);
 						if (!subErrors.length) {
 							return undefined;
@@ -1700,9 +1699,8 @@ function getDictionaryLiteralTypeError(
 				const subErrors = map(
 					targetFieldTypes,
 					(fieldType, fieldName) =>
-						// TODO add fieldName to error
 						// TODO the field x is missing error?
-						getTypeError(prefixArgumentType, argumentsType.fields[fieldName] ?? null, fieldType),
+						getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType.fields[fieldName] ?? null),
 				).filter(isDefined);
 				if (!subErrors.length) {
 					return undefined;
@@ -1729,9 +1727,8 @@ function getDictionaryLiteralTypeError(
 	const subErrors = map(
 		targetFieldTypes,
 		(fieldType, fieldName) =>
-			// TODO add fieldName to error
 			// TODO the field x is missing error?
-			getTypeError(prefixArgumentType, argumentsType[fieldName] ?? null, fieldType),
+			getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType[fieldName] ?? null),
 	).filter(isDefined);
 	if (!subErrors.length) {
 		return undefined;
@@ -1741,6 +1738,23 @@ function getDictionaryLiteralTypeError(
 		message: subErrors.map(typeErrorToString).join('\n'),
 		// innerError
 	};
+}
+
+function getDictionaryFieldError(
+	fieldName: string,
+	fieldType: RuntimeType,
+	prefixArgumentType: RuntimeType | undefined,
+	valueType: RuntimeType,
+): TypeError | undefined {
+	const subError = getTypeError(prefixArgumentType, valueType, fieldType);
+	if (subError) {
+		const wrappedError: TypeError = {
+			message: `Invalid value for field ${fieldName}`,
+			innerError: subError,
+		};
+		return wrappedError;
+	}
+	return subError;
 }
 
 function getTypeErrorForPrimitiveArg(
