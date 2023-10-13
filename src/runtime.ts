@@ -710,7 +710,7 @@ function _map$<TSource, TTarget>(
 	return mapped$;
 }
 
-function combine$<T>(
+function _combine$<T>(
 	...source$s: Stream<T>[]
 ): Stream<T[]> {
 	const combined$: Stream<T[]> = createDerived$(() => {
@@ -1841,6 +1841,14 @@ export const flatSwitchMap$ = _createFunction(
 				// type: function source$/ValueType => Any
 			}
 		]
+	}
+);
+export const combine$ = _createFunction(
+	_combine$,
+	{
+		rest: {
+			type: new ListType(new StreamType(Any))
+		}
 	}
 );
 //#endregion transform

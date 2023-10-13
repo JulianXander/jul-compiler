@@ -398,6 +398,14 @@ flatSwitchMap$ = nativeFunction(
 	): Stream(Any)
 	§TODO§
 )
+combine$ = nativeFunction(
+	(
+		...sources: List(Stream(Any))
+		# TODO generic returntype
+		# Stream(List(sources/ElementType))
+	): Stream(List(Any))
+	§TODO§
+)
 #endregion transform
 #endregion Stream
 #region Utility
