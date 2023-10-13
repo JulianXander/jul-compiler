@@ -1,3 +1,4 @@
+-update imported types wenn importierte datei geändert
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
