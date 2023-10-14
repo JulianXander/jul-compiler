@@ -1,4 +1,4 @@
-import { extname, join } from 'path';
+import { join } from 'path';
 import {
 	Any,
 	BuiltInType,
@@ -36,7 +36,6 @@ import {
 	ParseDictionaryField,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
-	ParseListValue,
 	ParseParameterField,
 	ParseValueExpression,
 	ParsedFile,
@@ -48,10 +47,8 @@ import {
 	TypedExpression,
 	PositionedExpression
 } from './syntax-tree.js';
-import { NonEmptyArray, executingDirectory, isDefined, isNonEmpty, isValidExtension, last, map, mapDictionary } from './util.js';
-import { parseFile } from './parser/parser.js';
-import { ParserError } from './parser/parser-combinator.js';
-import { existsSync } from 'fs';
+import { NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { getPathFromImport, parseFile } from './parser/parser.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -1951,101 +1948,6 @@ function typeErrorToString(typeError: TypeError): string {
 // }
 
 //#endregion TypeError
-
-//#region import
-
-/**
- * Prüft extension und file exists
- */
-export function getPathFromImport(
-	importExpression: ParseFunctionCall,
-	/**
-	 * Pfad des Ordners, der die Quelldatei enthält
-	 */
-	sourceFolder: string,
-): {
-	/**
-	 * Relative path
-	 */
-	path?: string;
-	fullPath?: string;
-	error?: ParserError;
-} {
-	if (!importExpression.arguments) {
-		return {
-			error: {
-				message: 'arguments missing for import',
-				startRowIndex: importExpression.startRowIndex,
-				startColumnIndex: importExpression.startColumnIndex,
-				endRowIndex: importExpression.endColumnIndex,
-				endColumnIndex: importExpression.endColumnIndex,
-			}
-		};
-	}
-	const pathExpression = getPathExpression(importExpression.arguments);
-	if (pathExpression?.type === 'text'
-		&& pathExpression.values.length === 1
-		&& pathExpression.values[0]!.type === 'textToken') {
-		const importedPath = pathExpression.values[0].value;
-		const extension = extname(importedPath);
-		if (!isValidExtension(extension)) {
-			return {
-				error: {
-					message: `Unexpected extension for import: ${extension}`,
-					startRowIndex: pathExpression.startRowIndex,
-					startColumnIndex: pathExpression.startColumnIndex,
-					endRowIndex: pathExpression.endRowIndex,
-					endColumnIndex: pathExpression.endColumnIndex,
-				}
-			};
-		}
-		const fullPath = join(sourceFolder, importedPath);
-		const fileNotFoundError: ParserError | undefined = existsSync(fullPath)
-			? undefined
-			: {
-				message: `File not found: ${fullPath}`,
-				startRowIndex: pathExpression.startRowIndex,
-				startColumnIndex: pathExpression.startColumnIndex,
-				endRowIndex: pathExpression.endRowIndex,
-				endColumnIndex: pathExpression.endColumnIndex,
-			}
-		return {
-			path: importedPath,
-			fullPath: fullPath,
-			error: fileNotFoundError,
-		};
-	}
-	// TODO dynamische imports verbieten???
-	return {
-		error: {
-			message: 'dynamic import not allowed',
-			startRowIndex: importExpression.startRowIndex,
-			startColumnIndex: importExpression.startColumnIndex,
-			endRowIndex: importExpression.endColumnIndex,
-			endColumnIndex: importExpression.endColumnIndex,
-		}
-	};
-}
-
-export function getPathExpression(importParams: BracketedExpression): ParseListValue | undefined {
-	switch (importParams.type) {
-		case 'dictionary':
-			return importParams.fields[0].value;
-		case 'bracketed':
-		case 'dictionaryType':
-		case 'empty':
-		case 'object':
-			return undefined;
-		case 'list':
-			return importParams.values[0];
-		default: {
-			const assertNever: never = importParams;
-			throw new Error(`Unexpected importParams.type: ${(assertNever as BracketedExpression).type}`);
-		}
-	}
-}
-
-//#endregion import
 
 //#region ToString
 

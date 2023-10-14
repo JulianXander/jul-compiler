@@ -1,9 +1,8 @@
 import { writeFileSync, copyFileSync, rmSync } from 'fs';
 import { dirname, extname, join, resolve } from 'path';
 import webpack from 'webpack';
-import { isImportFunctionCall, syntaxTreeToJs } from './emitter.js';
-import { ParsedFile } from './syntax-tree.js';
-import { ParsedDocuments, checkTypes, getPathFromImport } from './checker.js';
+import { syntaxTreeToJs } from './emitter.js';
+import { ParsedDocuments, checkTypes } from './checker.js';
 import { parseCode } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, isValidExtension, readTextFile, tryCreateDirectory } from './util.js';
@@ -113,7 +112,8 @@ function compileFile(
 	if (!isValidExtension(extension)) {
 		throw new Error(`Unexpected extension for parseFile: ${extension}`);
 	}
-	const parsed = parseCode(sourceCode, extension);
+	const sourceFolder = dirname(sourceFilePath);
+	const parsed = parseCode(sourceCode, extension, sourceFolder);
 	compiledDocuments[sourceFilePath] = parsed;
 	//#endregion 2. parse
 
@@ -171,9 +171,8 @@ function compileFile(
 	if (extension === Extension.jul) {
 		//#region 5. compile dependencies
 		// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
-		const sourceFolder = dirname(sourceFilePath);
-		const importedFilePaths = getImportedPaths(parsed, sourceFolder);
-		importedFilePaths.paths.forEach(importedPath => {
+		const importedFilePaths = parsed.dependencies;
+		importedFilePaths?.forEach(importedPath => {
 			compileFile({
 				...options,
 				shebang: false,
@@ -211,46 +210,3 @@ function busySpinner() {
 		process.stdout.write('\b\b  \n');
 	};
 }
-
-//#region import
-
-export function getImportedPaths(
-	parsedFile: ParsedFile,
-	sourceFolder: string,
-): {
-	paths: string[];
-	errors: ParserError[];
-} {
-	const importedPaths: string[] = [];
-	const errors: ParserError[] = [];
-	parsedFile.expressions?.forEach(expression => {
-		switch (expression.type) {
-			case 'functionCall':
-				// TODO impure imports erlauben?
-				return;
-
-			case 'definition':
-			case 'destructuring':
-				const value = expression.value;
-				if (isImportFunctionCall(value)) {
-					const { fullPath, error } = getPathFromImport(value, sourceFolder);
-					if (error) {
-						errors.push(error);
-					}
-					if (fullPath) {
-						importedPaths.push(fullPath);
-					}
-				}
-				return;
-
-			default:
-				return;
-		}
-	});
-	return {
-		paths: importedPaths,
-		errors: errors,
-	};
-}
-
-//#endregion import

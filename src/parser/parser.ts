@@ -46,6 +46,7 @@ import {
 	ParseListLiteral,
 	PositionedExpressionBase,
 	TextToken,
+	ParseListValue,
 } from '../syntax-tree.js';
 import {
 	Extension,
@@ -57,28 +58,33 @@ import {
 } from '../util.js';
 import { parseTsCode } from './typescript-parser.js';
 import { checkName, createParseFunctionLiteral, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions } from './parser-utils.js';
-import { extname } from 'path';
+import { dirname, extname, join } from 'path';
 import { _parseJson } from '../runtime.js';
 import { jsonValueToParsedFile } from './json-parser.js';
 import { load } from 'js-yaml';
+import { existsSync } from 'fs';
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
  */
 export function parseFile(filePath: string): ParsedFile {
-	const code = readTextFile(filePath);
 	const extension = extname(filePath);
-	if (isValidExtension(extension)) {
-		const result = parseCode(code, extension);
-		return result;
-	}
-	else {
+	if (!isValidExtension(extension)) {
 		throw new Error(`Unexpected extension for parseFile: ${extension}`);
 	}
+	const code = readTextFile(filePath);
+	const sourceFolder = dirname(filePath);
+	const result = parseCode(code, extension, sourceFolder);
+	return result;
 }
 
-export function parseCode(code: string, extension: Extension): ParsedFile {
+export function parseCode(
+	code: string,
+	extension: Extension,
+	sourceFolder: string,
+): ParsedFile {
 	let parsedExpressions: ParsedExpressions;
+	let dependencies: string[] | undefined;
 	switch (extension) {
 		case Extension.js:
 			parsedExpressions = parseTsCode(code);
@@ -102,6 +108,9 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 		}
 		case Extension.jul:
 			parsedExpressions = parseJulCode(code);
+			const imported = getImportedPaths(parsedExpressions.expressions, sourceFolder);
+			parsedExpressions.errors.push(...imported.errors);
+			dependencies = imported.paths;
 			break;
 		case Extension.ts:
 			parsedExpressions = parseTsCode(code);
@@ -122,6 +131,7 @@ export function parseCode(code: string, extension: Extension): ParsedFile {
 	return {
 		errors: errors,
 		expressions: expressions,
+		dependencies: dependencies,
 		symbols: symbols,
 	}
 }
@@ -1962,3 +1972,150 @@ function setParent(expression: PositionedExpressionBase | undefined, parent: Par
 		expression.parent = parent;
 	}
 }
+
+//#region import
+
+function getImportedPaths(
+	expressions: ParseExpression[] | undefined,
+	sourceFolder: string,
+): {
+	paths: string[];
+	errors: ParserError[];
+} {
+	const importedPaths: string[] = [];
+	const errors: ParserError[] = [];
+	expressions?.forEach(expression => {
+		switch (expression.type) {
+			case 'functionCall':
+				// TODO impure imports erlauben?
+				return;
+
+			case 'definition':
+			case 'destructuring':
+				const value = expression.value;
+				if (isImportFunctionCall(value)) {
+					const { fullPath, error } = getPathFromImport(value, sourceFolder);
+					if (error) {
+						errors.push(error);
+					}
+					if (fullPath) {
+						importedPaths.push(fullPath);
+					}
+				}
+				return;
+
+			default:
+				return;
+		}
+	});
+	return {
+		paths: importedPaths,
+		errors: errors,
+	};
+}
+
+/**
+ * Prüft extension und file exists
+ */
+export function getPathFromImport(
+	importExpression: ParseFunctionCall,
+	/**
+	 * Pfad des Ordners, der die Quelldatei enthält
+	 */
+	sourceFolder: string,
+): {
+	/**
+	 * Relative path
+	 */
+	path?: string;
+	fullPath?: string;
+	error?: ParserError;
+} {
+	if (!importExpression.arguments) {
+		return {
+			error: {
+				message: 'arguments missing for import',
+				startRowIndex: importExpression.startRowIndex,
+				startColumnIndex: importExpression.startColumnIndex,
+				endRowIndex: importExpression.endColumnIndex,
+				endColumnIndex: importExpression.endColumnIndex,
+			}
+		};
+	}
+	const pathExpression = getPathExpression(importExpression.arguments);
+	if (pathExpression?.type === 'text'
+		&& pathExpression.values.length === 1
+		&& pathExpression.values[0]!.type === 'textToken') {
+		const importedPath = pathExpression.values[0].value;
+		const extension = extname(importedPath);
+		if (!isValidExtension(extension)) {
+			return {
+				error: {
+					message: `Unexpected extension for import: ${extension}`,
+					startRowIndex: pathExpression.startRowIndex,
+					startColumnIndex: pathExpression.startColumnIndex,
+					endRowIndex: pathExpression.endRowIndex,
+					endColumnIndex: pathExpression.endColumnIndex,
+				}
+			};
+		}
+		const fullPath = join(sourceFolder, importedPath);
+		const fileNotFoundError: ParserError | undefined = existsSync(fullPath)
+			? undefined
+			: {
+				message: `File not found: ${fullPath}`,
+				startRowIndex: pathExpression.startRowIndex,
+				startColumnIndex: pathExpression.startColumnIndex,
+				endRowIndex: pathExpression.endRowIndex,
+				endColumnIndex: pathExpression.endColumnIndex,
+			}
+		return {
+			path: importedPath,
+			fullPath: fullPath,
+			error: fileNotFoundError,
+		};
+	}
+	// TODO dynamische imports verbieten???
+	return {
+		error: {
+			message: 'dynamic import not allowed',
+			startRowIndex: importExpression.startRowIndex,
+			startColumnIndex: importExpression.startColumnIndex,
+			endRowIndex: importExpression.endColumnIndex,
+			endColumnIndex: importExpression.endColumnIndex,
+		}
+	};
+}
+
+export function getPathExpression(importParams: BracketedExpression): ParseListValue | undefined {
+	switch (importParams.type) {
+		case 'dictionary':
+			return importParams.fields[0].value;
+		case 'bracketed':
+		case 'dictionaryType':
+		case 'empty':
+		case 'object':
+			return undefined;
+		case 'list':
+			return importParams.values[0];
+		default: {
+			const assertNever: never = importParams;
+			throw new Error(`Unexpected importParams.type: ${(assertNever as BracketedExpression).type}`);
+		}
+	}
+}
+
+export function isImportFunctionCall(expression: ParseExpression): expression is ParseFunctionCall {
+	if (expression.type !== 'functionCall') {
+		return false;
+	}
+	return isImportFunction(expression.functionExpression);
+}
+
+export function isImportFunction(functionExpression: SimpleExpression | undefined): boolean {
+	return !!functionExpression
+		&& functionExpression.type === 'reference'
+		&& functionExpression.name.name === 'import';
+}
+
+//#endregion import

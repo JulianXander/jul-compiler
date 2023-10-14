@@ -7,12 +7,12 @@ import {
 	ParseValueExpression,
 	ParseValueExpressionBase,
 	Reference,
-	SimpleExpression,
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
 import { Extension, changeExtension } from './util.js';
 import { extname, isAbsolute } from 'path';
-import { getCheckedEscapableName, getCheckedName, getPathExpression } from './checker.js';
+import { getCheckedEscapableName, getCheckedName } from './checker.js';
+import { getPathExpression, isImportFunction, isImportFunctionCall } from './parser/parser.js';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
@@ -225,19 +225,6 @@ function getImportJs(importedJs: string, path: string): string {
 	const isJson = path.endsWith(Extension.json);
 	const pathWithFileScheme = (isAbsolute(path) ? 'file://' : '') + path;
 	return `import ${importedJs} from ${stringToJs(pathWithFileScheme)}${isJson ? ' assert { type: \'json\' }' : ''};\n`;
-}
-
-export function isImportFunctionCall(expression: ParseExpression): expression is ParseFunctionCall {
-	if (expression.type !== 'functionCall') {
-		return false;
-	}
-	return isImportFunction(expression.functionExpression);
-}
-
-function isImportFunction(functionExpression: SimpleExpression | undefined): boolean {
-	return !!functionExpression
-		&& functionExpression.type === 'reference'
-		&& functionExpression.name.name === 'import';
 }
 
 function getPathFromImport(importExpression: ParseFunctionCall): string {

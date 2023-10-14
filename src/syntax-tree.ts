@@ -4,10 +4,12 @@ import { NonEmptyArray } from './util.js';
 
 //#region ParseTree
 
-export interface ParsedFile {
-	errors: ParserError[];
-	expressions?: ParseExpression[];
+export interface ParsedFile extends ParsedExpressions {
 	symbols: SymbolTable;
+	/**
+	 * nur für .jul Dateien
+	 */
+	dependencies?: string[];
 }
 
 export interface ParsedExpressions {
