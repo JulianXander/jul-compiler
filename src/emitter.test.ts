@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import { parseCode } from './parser/parser.js';
 import { getRuntimeImportJs, syntaxTreeToJs } from './emitter.js';
-import { Extension } from './util.js';
 
 const expectedResults: {
 	name?: string;
@@ -166,8 +165,8 @@ return a;}, {
 describe('Emitter', () => {
 	expectedResults.forEach(({ name, code, result }) => {
 		it(name ?? code, () => {
-			const parsed = parseCode(code, Extension.jul);
-			const syntaxTree = parsed.expressions!;
+			const parsed = parseCode(code, 'dummy.jul');
+			const syntaxTree = parsed.unchecked.expressions!;
 			const compiled = syntaxTreeToJs(syntaxTree, '');
 			expect(compiled).to.equal(getRuntimeImportJs('') + result);
 		});

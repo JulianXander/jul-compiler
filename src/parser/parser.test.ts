@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 
 import { ParseExpression } from '../syntax-tree.js';
-import { Extension } from '../util.js';
 import { ParserError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
@@ -999,12 +998,12 @@ const expectedResults: {
 describe('Parser', () => {
 	expectedResults.forEach(({ name, code, result, errors }) => {
 		it(name ?? code, () => {
-			const parserResult = parseCode(code, Extension.jul);
+			const parserResult = parseCode(code, 'dummy.jul');
 			// if (parserResult.errors?.length) {
 			// 	console.log(parserResult.errors);
 			// }
-			expect(parserResult.errors).to.deep.equal(errors ?? []);
-			expect(parserResult.expressions).to.deep.equal(result);
+			expect(parserResult.unchecked.errors).to.deep.equal(errors ?? []);
+			expect(parserResult.unchecked.expressions).to.deep.equal(result);
 		});
 	});
 });
