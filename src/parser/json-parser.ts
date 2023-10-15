@@ -1,15 +1,14 @@
-import { ParseExpression, ParseSingleDictionaryField, ParsedFile } from "../syntax-tree.js";
+import { ParseExpression, ParseSingleDictionaryField, ParsedExpressions, ParsedFile } from "../syntax-tree.js";
 import { Positioned } from "./parser-combinator.js";
 
 
-export function jsonValueToParsedFile(jsonValue: any): ParsedFile {
+export function jsonValueToParsedExpressions(jsonValue: any): ParsedExpressions {
   const ast = jsonValueToJulAst(jsonValue);
   return {
     expressions: [
       ast,
     ],
     errors: [],
-    symbols: {},
   };
 }
 

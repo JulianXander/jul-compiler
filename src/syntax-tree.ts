@@ -1,15 +1,26 @@
 import { ParserError, Positioned } from './parser/parser-combinator.js';
 import { RuntimeType } from './runtime.js';
-import { NonEmptyArray } from './util.js';
+import { Extension, NonEmptyArray } from './util.js';
 
 //#region ParseTree
 
-export interface ParsedFile extends ParsedExpressions {
-	symbols: SymbolTable;
+export interface ParsedFile {
+	filePath: string;
+	extension: Extension;
+	sourceFolder: string;
+	unchecked: ParsedExpressions2;
+	/**
+	 * Wird vom checker gesetzt.
+	 */
+	checked?: ParsedExpressions2;
 	/**
 	 * nur für .jul Dateien
 	 */
 	dependencies?: string[];
+}
+
+export interface ParsedExpressions2 extends ParsedExpressions {
+	symbols: SymbolTable;
 }
 
 export interface ParsedExpressions {

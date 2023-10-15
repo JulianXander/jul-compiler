@@ -45,7 +45,8 @@ import {
 	SymbolDefinition,
 	SymbolTable,
 	TypedExpression,
-	PositionedExpression
+	PositionedExpression,
+	ParsedExpressions2
 } from './syntax-tree.js';
 import { NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { getPathFromImport, parseFile } from './parser/parser.js';
@@ -142,8 +143,9 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 
 export const coreLibPath = join(executingDirectory, 'core-lib.jul');
 const parsedCoreLib = parseFile(coreLibPath);
-inferFileTypes(parsedCoreLib, [], {}, '');
-export const builtInSymbols: SymbolTable = parsedCoreLib.symbols;
+const parsedCoreLib2 = parsedCoreLib.unchecked;
+inferFileTypes(parsedCoreLib2, [], {}, '');
+export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
 
 //#region dereference
 
@@ -402,13 +404,14 @@ function dereferenceArgumentType(
 export function checkTypes(
 	document: ParsedFile,
 	documents: ParsedDocuments,
-	sourceFolder: string,
 ): void {
-	inferFileTypes(document, [builtInSymbols], documents, sourceFolder);
+	const checked = structuredClone(document.unchecked);
+	document.checked = checked;
+	inferFileTypes(checked, [builtInSymbols], documents, document.sourceFolder);
 }
 
 function inferFileTypes(
-	file: ParsedFile,
+	file: ParsedExpressions2,
 	scopes: SymbolTable[],
 	parsedDocuments: ParsedDocuments,
 	sourceFolder: string,
@@ -427,7 +430,7 @@ function setInferredType(
 	scopes: NonEmptyArray<SymbolTable>,
 	parsedDocuments: ParsedDocuments,
 	sourceFolder: string,
-	file: ParsedFile,
+	file: ParsedExpressions2,
 ): void {
 	if (expression.inferredType) {
 		return;
@@ -447,7 +450,7 @@ function inferType(
 	scopes: NonEmptyArray<SymbolTable>,
 	parsedDocuments: ParsedDocuments,
 	folder: string,
-	file: ParsedFile,
+	file: ParsedExpressions2,
 ): RuntimeType {
 	const errors = file.errors;
 	switch (expression.type) {
@@ -784,7 +787,7 @@ function inferType(
 							}
 							// TODO get full path, get type from parsedfile
 							const fullPath = join(folder, path);
-							const importedFile = parsedDocuments[fullPath];
+							const importedFile = parsedDocuments[fullPath]?.checked;
 							if (!importedFile) {
 								return Any;
 							}

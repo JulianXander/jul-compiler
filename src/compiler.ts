@@ -1,11 +1,11 @@
 import { writeFileSync, copyFileSync, rmSync } from 'fs';
-import { dirname, extname, join, resolve } from 'path';
+import { dirname, join, resolve } from 'path';
 import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
 import { ParsedDocuments, checkTypes } from './checker.js';
 import { parseCode } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
-import { Extension, changeExtension, executingDirectory, isValidExtension, readTextFile, tryCreateDirectory } from './util.js';
+import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
 import ShebangPlugin from 'webpack-shebang-plugin';
@@ -108,13 +108,9 @@ function compileFile(
 	//#endregion 1. read
 
 	//#region 2. parse
-	const extension = extname(sourceFilePath);
-	if (!isValidExtension(extension)) {
-		throw new Error(`Unexpected extension for parseFile: ${extension}`);
-	}
-	const sourceFolder = dirname(sourceFilePath);
-	const parsed = parseCode(sourceCode, extension, sourceFolder);
+	const parsed = parseCode(sourceCode, sourceFilePath);
 	compiledDocuments[sourceFilePath] = parsed;
+	const extension = parsed.extension;
 	//#endregion 2. parse
 
 	//#region 3. compile
@@ -130,7 +126,7 @@ function compileFile(
 		case Extension.json:
 		// parse json and write to js in output folder
 		case Extension.jul: {
-			const expressions = parsed.expressions ?? [];
+			const expressions = parsed.unchecked.expressions ?? [];
 			compiled = syntaxTreeToJs(expressions, runtimePath);
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);
 			outFilePath = join(outputFolderPath, jsFileName);
@@ -182,8 +178,8 @@ function compileFile(
 		//#endregion 5. compile dependencies
 
 		//#region 6. check
-		checkTypes(parsed, compiledDocuments, sourceFolder);
-		outputErrors(parsed.errors);
+		checkTypes(parsed, compiledDocuments);
+		outputErrors(parsed.checked!.errors);
 		//#endregion 6. check
 	}
 	return outFilePath;

@@ -60,7 +60,7 @@ import { parseTsCode } from './typescript-parser.js';
 import { checkName, createParseFunctionLiteral, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions } from './parser-utils.js';
 import { dirname, extname, join } from 'path';
 import { _parseJson } from '../runtime.js';
-import { jsonValueToParsedFile } from './json-parser.js';
+import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
 import { existsSync } from 'fs';
 
@@ -68,21 +68,20 @@ import { existsSync } from 'fs';
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
  */
 export function parseFile(filePath: string): ParsedFile {
-	const extension = extname(filePath);
-	if (!isValidExtension(extension)) {
-		throw new Error(`Unexpected extension for parseFile: ${extension}`);
-	}
 	const code = readTextFile(filePath);
-	const sourceFolder = dirname(filePath);
-	const result = parseCode(code, extension, sourceFolder);
+	const result = parseCode(code, filePath);
 	return result;
 }
 
 export function parseCode(
 	code: string,
-	extension: Extension,
-	sourceFolder: string,
+	filePath: string,
 ): ParsedFile {
+	const extension = extname(filePath);
+	if (!isValidExtension(extension)) {
+		throw new Error(`Unexpected extension for parseCode: ${extension}`);
+	}
+	const sourceFolder = dirname(filePath);
 	let parsedExpressions: ParsedExpressions;
 	let dependencies: string[] | undefined;
 	switch (extension) {
@@ -92,7 +91,7 @@ export function parseCode(
 		case Extension.json: {
 			const parsedJson = _parseJson(code);
 			if (parsedJson instanceof Error) {
-				return {
+				parsedExpressions = {
 					errors: [{
 						message: parsedJson.message,
 						// TODO position?
@@ -101,10 +100,11 @@ export function parseCode(
 						endColumnIndex: 0,
 						endRowIndex: 0,
 					}],
-					symbols: {},
 				};
+				break;
 			}
-			return jsonValueToParsedFile(parsedJson);
+			parsedExpressions = jsonValueToParsedExpressions(parsedJson);
+			break;
 		}
 		case Extension.jul:
 			parsedExpressions = parseJulCode(code);
@@ -118,7 +118,8 @@ export function parseCode(
 		case Extension.yaml: {
 			// TODO bigints, Fractions
 			const parsedYaml = load(code);
-			return jsonValueToParsedFile(parsedYaml);
+			parsedExpressions = jsonValueToParsedExpressions(parsedYaml);
+			break;
 		}
 		default: {
 			const assertNever: never = extension;
@@ -129,11 +130,16 @@ export function parseCode(
 	const symbols: SymbolTable = {};
 	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
 	return {
-		errors: errors,
-		expressions: expressions,
+		filePath: filePath,
+		extension: extension,
+		sourceFolder: sourceFolder,
+		unchecked: {
+			errors: errors,
+			expressions: expressions,
+			symbols: symbols,
+		},
 		dependencies: dependencies,
-		symbols: symbols,
-	}
+	};
 }
 
 function parseJulCode(code: string): ParsedExpressions {
