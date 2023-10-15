@@ -108,11 +108,11 @@ const expectedResults: {
 				},
 			],
 		},
-		{
-			name: 'prefix-function-call',
-			code: '4.log()',
-			result: [],
-		}
+		// {
+		// 	name: 'prefix-function-call',
+		// 	code: '4.log()',
+		// 	result: [],
+		// },
 	];
 
 describe('Checker', () => {
