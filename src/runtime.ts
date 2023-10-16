@@ -52,13 +52,17 @@ export function _checkType(type: RuntimeType, value: any) {
 		: new Error(`${value} is not of type ${type}`);
 }
 
-export function _combineObject(...parts: Collection[]): Collection {
-	const first = parts[0]!;
-	if (Array.isArray(first)) {
-		return ([] as any[]).concat(...parts);
+export function _combineObject(...parts: (Collection | null)[]): Collection | null {
+	const nonEmptyParts = parts.filter(part => part !== null);
+	const firstNonEmptyPart = nonEmptyParts[0];
+	if (!firstNonEmptyPart) {
+		return null;
+	}
+	if (Array.isArray(firstNonEmptyPart)) {
+		return ([] as any[]).concat(...nonEmptyParts);
 	}
 	else {
-		return Object.assign({}, ...parts);
+		return Object.assign({}, ...nonEmptyParts);
 	}
 }
 
@@ -262,7 +266,7 @@ function tryAssignArgs(params: Params, prefixArg: any, args: any): any[] | Error
 		}
 		else {
 			// TODO rest dictionary??
-			throw new Error('tryAssignParams not implemented yet for rest dictionary');
+			throw new Error('tryAssignArgs not implemented yet for rest dictionary');
 		}
 	}
 	return assignedValues;
