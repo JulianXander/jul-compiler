@@ -1868,7 +1868,8 @@ export const combine$ = _createFunction(
 	_combine$,
 	{
 		rest: {
-			type: new ListType(new StreamType(Any))
+			// TODO reinnehmen, wenn rest typechecking mit empty gefixt
+			// type: _optionalType(new ListType(new StreamType(Any)))
 		}
 	}
 );

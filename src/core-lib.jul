@@ -407,7 +407,7 @@ flatSwitchMap$ = nativeFunction(
 )
 combine$ = nativeFunction(
 	(
-		...sources: List(Stream(Any))
+		...sources: Or(() List(Stream(Any)))
 		# TODO generic returntype
 		# Stream(List(sources/ElementType))
 	): Stream(List(Any))

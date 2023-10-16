@@ -1,3 +1,4 @@
+-fix rest typechecking mit empty ...rest: Or(() List(Any))
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
