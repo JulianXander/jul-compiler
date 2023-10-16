@@ -198,7 +198,11 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				const valueExpression = value.type === 'spread'
 					? value.value
 					: value;
-				return `${spread ? '...' : ''}${expressionToJs(valueExpression)},\n`;
+				const valueJs = expressionToJs(valueExpression);
+				const spreadValueJs = spread
+					? `...${valueJs} ?? []`
+					: valueJs;
+				return `${spreadValueJs},\n`;
 			}).join('')}]`;
 		case 'object':
 			return `_combineObject(${expression.values.map(value => {
