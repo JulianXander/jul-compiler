@@ -53,6 +53,18 @@ const expectedResults: {
 		// 	code: 'someVar = (1 2)\ntest = 4',
 		// 	result: 4
 		// },
+		{
+			code: 'log()',
+			result: 'export default _callFunction(log, undefined, null)'
+		},
+		{
+			code: 'log(())',
+			result: 'export default _callFunction(log, undefined, [\nnull,\n])'
+		},
+		{
+			code: 'log(1)',
+			result: 'export default _callFunction(log, undefined, [\n1n,\n])'
+		},
 		// {
 		// 	code: 'log(§hallo welt§)',
 		// 	result: null
@@ -133,8 +145,8 @@ return a;}, {
 		// 	},
 		// },
 		// {
-		// 	code: 'test = 4\ntest ?\n\t(a) => log(a)\n\t(b) => log(b)',
-		// 	result: null
+		// 	code: '4 ?\n\t(a) => log(a)\n\t(b) => log(b)',
+		// 	result: 'null'
 		// },
 		// {
 		// 	code: 'test = 4\ntest ?\n\t(a:String) => log(a)\n\t(b) => log(b)',
@@ -154,7 +166,7 @@ return a;}, {
 		},
 		{
 			code: '(1 ...a ...b)',
-			result: 'export default [\n1n,\n...a,\n...b,\n]'
+			result: 'export default [\n1n,\n...a ?? [],\n...b ?? [],\n]'
 		},
 		{
 			code: '(testVar) = import(§./some-file.jul§)',

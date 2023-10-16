@@ -22,7 +22,11 @@ type JulFunction = Function & { params: Params; };
 export function _branch(value: any, ...branches: JulFunction[]) {
 	// TODO collect inner Errors?
 	for (const branch of branches) {
-		const assignedParams = tryAssignArgs(branch.params, undefined, value);
+		// primitive value in Array wrappen
+		const wrappedArgs: Collection = isRealObject(value)
+			? value
+			: [value];
+		const assignedParams = tryAssignArgs(branch.params, undefined, wrappedArgs, value);
 		if (!(assignedParams instanceof Error)) {
 			return branch(...assignedParams);
 		}
@@ -33,7 +37,7 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: any) {
 	if ('params' in fn) {
 		// jul function
-		const assignedParams = tryAssignArgs(fn.params, prefixArg, args);
+		const assignedParams = tryAssignArgs(fn.params, prefixArg, args, args);
 		if (assignedParams instanceof Error) {
 			return assignedParams;
 		}
@@ -70,11 +74,6 @@ export function _createFunction(fn: Function, params: Params): JulFunction {
 	const julFn = fn as JulFunction;
 	julFn.params = params;
 	return julFn;
-}
-
-export function _checkDictionaryType(dictionaryType: Params, value: any): boolean {
-	const assignedParams = tryAssignArgs(dictionaryType, undefined, value);
-	return assignedParams instanceof Error;
 }
 
 //#endregion internals
@@ -206,23 +205,20 @@ function isDictionary(value: any): value is Dictionary {
 		&& !Array.isArray(value);
 }
 
-function tryAssignArgs(params: Params, prefixArg: any, args: any): any[] | Error {
+function tryAssignArgs(params: Params, prefixArg: any, args: Collection | null, rawArgs: any): any[] | Error {
 	const assignedValues: any[] = [];
 	const { type: paramsType, singleNames, rest } = params;
 	const hasPrefixArg = prefixArg !== undefined;
 	if (paramsType !== undefined) {
 		// TODO typecheck prefixArg with paramsType?
-		const isValid = isOfType(args, paramsType);
+		// TODO typecheck paramsType wrappedArgs unwrappen? also nur 1. arg checken?
+		const isValid = isOfType(rawArgs, paramsType);
 		if (!isValid) {
-			return new Error(`Can not assign the value ${args} to params because it is not of type ${paramsType}`);
+			return new Error(`Can not assign the value ${rawArgs} to params because it is not of type ${paramsType}`);
 		}
 		return assignedValues;
 	}
-	// primitive value in Array wrappen
-	const wrappedArgs: Collection = isRealObject(args)
-		? args
-		: [args];
-	const isArray = Array.isArray(wrappedArgs);
+	const isArray = Array.isArray(args);
 	let paramIndex = 0;
 	let argIndex = 0;
 	if (singleNames) {
@@ -236,8 +232,8 @@ function tryAssignArgs(params: Params, prefixArg: any, args: any): any[] | Error
 			}
 			else {
 				arg = (isArray
-					? wrappedArgs[argIndex]
-					: wrappedArgs[sourceWithFallback]) ?? null;
+					? args[argIndex]
+					: args?.[sourceWithFallback]) ?? null;
 				argIndex++;
 			}
 			const isValid = type
@@ -251,8 +247,20 @@ function tryAssignArgs(params: Params, prefixArg: any, args: any): any[] | Error
 	}
 	if (rest) {
 		const restType = rest.type;
-		if (isArray) {
-			const remainingArgs = wrappedArgs.slice(argIndex);
+		if (args === null) {
+			const remainingArgs = hasPrefixArg && !paramIndex
+				? [prefixArg]
+				: null;
+			const isValid = restType
+				? isOfType(remainingArgs, restType)
+				: true;
+			if (!isValid) {
+				return new Error(`Can not assign the value ${remainingArgs} to rest param because it is not of type ${rest}`);
+			}
+			assignedValues.push(...remainingArgs ?? []);
+		}
+		else if (isArray) {
+			const remainingArgs = args.slice(argIndex);
 			if (hasPrefixArg && !paramIndex) {
 				remainingArgs.unshift(prefixArg);
 			}
@@ -1868,7 +1876,7 @@ export const combine$ = _createFunction(
 	_combine$,
 	{
 		rest: {
-			type: new ListType(new StreamType(Any))
+			type: _optionalType(new ListType(new StreamType(Any)))
 		}
 	}
 );

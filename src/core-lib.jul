@@ -405,12 +405,13 @@ flatSwitchMap$ = nativeFunction(
 	): Stream(Any)
 	§TODO§
 )
+# Wenn keine sources übergeben, dann wird Empty vom Rückgabestream emittiert.
 combine$ = nativeFunction(
 	(
-		...sources: List(Stream(Any))
+		...sources: Or(() List(Stream(Any)))
 		# TODO generic returntype
 		# Stream(List(sources/ElementType))
-	): Stream(List(Any))
+	): Stream(Or(() List(Any)))
 	§TODO§
 )
 #endregion transform
