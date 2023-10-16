@@ -206,6 +206,8 @@ function dereferenceNameFromObject(
 	}
 	if (sourceObjectType instanceof BuiltInTypeBase) {
 		switch (sourceObjectType.type) {
+			case 'any':
+				return Any;
 			case 'dictionaryLiteral':
 				return sourceObjectType.fields[name];
 			case 'dictionary':
