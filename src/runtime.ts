@@ -1400,7 +1400,24 @@ export const sumFloat = _createFunction(
 	}
 );
 //#endregion Number
-//#region String
+//#region Text
+export const combineTexts = _createFunction(
+	(texts: string[] | null, separator: string | null) => {
+		return texts?.join(separator ?? '') ?? '';
+	},
+	{
+		singleNames: [
+			{
+				name: 'texts',
+				type: _optionalType(new ListType(_Text)),
+			},
+			{
+				name: 'separator',
+				type: _optionalType(_Text),
+			},
+		]
+	}
+);
 export const parseFloat = _createFunction(
 	(stringNumber: string) => {
 		const result = +stringNumber;
@@ -1468,7 +1485,7 @@ export const regex = _createFunction(
 		]
 	}
 );
-//#endregion String
+//#endregion Text
 //#region Date
 export const addDate = _createFunction(
 	(

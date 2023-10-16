@@ -158,6 +158,13 @@ sumFloat = nativeFunction(
 )
 #endregion Number
 #region Text
+combineTexts = nativeFunction(
+	(
+		texts: Or(() List(Text))
+		separator: Or(() Text)
+	): Text
+	§String.join§
+)
 # Liefert Error, wenn die gegebene TextNumber keine valide Zahl ist.
 parseFloat = nativeFunction(
 	(textNumber: Text): Or(Float Error)
