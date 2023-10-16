@@ -410,7 +410,7 @@ combine$ = nativeFunction(
 		...sources: Or(() List(Stream(Any)))
 		# TODO generic returntype
 		# Stream(List(sources/ElementType))
-	): Stream(List(Any))
+	): Stream(Or(() List(Any)))
 	§TODO§
 )
 #endregion transform
