@@ -194,15 +194,10 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			return `${expression.value}n`;
 		case 'list':
 			return `[\n${expression.values.map(value => {
-				const spread = value.type === 'spread';
-				const valueExpression = value.type === 'spread'
-					? value.value
-					: value;
-				const valueJs = expressionToJs(valueExpression);
-				const spreadValueJs = spread
-					? `...${valueJs} ?? []`
-					: valueJs;
-				return `${spreadValueJs},\n`;
+				const valueJs = value.type === 'spread'
+					? `...${expressionToJs(value.value)} ?? []`
+					: expressionToJs(value);
+				return `${valueJs},\n`;
 			}).join('')}]`;
 		case 'object':
 			return `_combineObject(${expression.values.map(value => {
