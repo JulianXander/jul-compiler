@@ -7,6 +7,11 @@
 	-en übersetzung vgl https://docusaurus.io/docs/i18n/tutorial
 ?spread operator für branching value
 	-branching operator spreadet nicht mehr implizit
+	?ebenso was tun mit type parametered function vgl function.call.jul
+		myFunction1 = (a: MyType) => log(§hi§)
+		typeFunction = MyType => log(§hi§)
+		?immer äquivalent
+		?oder nur äquivalent mit 'primitive' types und sonst spreaden
 ?tryAssignParams mit rest dictionary
 ?fallback bei definition
 ?was tun mit typeGuard, fallback bei destructuring import
