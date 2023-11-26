@@ -1316,10 +1316,23 @@ export const multiply = _createFunction(
 					}
 				}
 			},
-			0n),
+			1n),
 	{
 		rest: {
 			type: new ListType(Rational)
+		}
+	}
+);
+export const multiplyFloat = _createFunction(
+	(...args: number[]) =>
+		args.reduce(
+			(accumulator, current) => {
+				return accumulator * current;
+			},
+			1),
+	{
+		rest: {
+			type: new ListType(Float)
 		}
 	}
 );

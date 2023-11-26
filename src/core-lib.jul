@@ -131,6 +131,17 @@ multiply = nativeFunction(
 				0)
 	§
 )
+# Liefert das Produkt der args
+multiplyFloat = nativeFunction(
+	(...args: List(Float)): Float
+	§
+		(...args) =>
+			args.reduce(
+				(accumulator, current) =>
+					accumulator * current,
+				0)
+	§
+)
 rationalToFloat = nativeFunction(
 	(rational: Rational): Float
 	§Todo§
