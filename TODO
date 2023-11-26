@@ -1,3 +1,4 @@
+-error bei redefine corelib symbol vgl test1.jul
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
