@@ -1285,6 +1285,44 @@ export const modulo = _createFunction(
 		]
 	}
 );
+export const multiply = _createFunction(
+	(...args: Rational[]) =>
+		args.reduce(
+			(accumulator, current) => {
+				if (typeof accumulator === 'bigint') {
+					if (typeof current === 'bigint') {
+						return accumulator * current;
+					}
+					else {
+						return {
+							numerator: accumulator * current.numerator,
+							denominator: current.denominator,
+						};
+					}
+				}
+				else {
+					if (typeof current === 'bigint') {
+						return {
+							numerator: accumulator.numerator * current,
+							denominator: accumulator.denominator,
+						};
+					}
+					else {
+						// TODO kleinstes gemeinsames Vielfaches, kürzen
+						return {
+							numerator: accumulator.numerator * current.numerator,
+							denominator: accumulator.denominator * current.denominator,
+						};
+					}
+				}
+			},
+			0n),
+	{
+		rest: {
+			type: new ListType(Rational)
+		}
+	}
+);
 export const rationalToFloat = _createFunction(
 	(rational: Rational): number => {
 		if (typeof rational === 'bigint') {

@@ -120,6 +120,17 @@ modulo = nativeFunction(
 	(dividend: Integer divisor: NonZeroInteger): Integer
 	§(dividend, divisor) => dividend % divisor§
 )
+# Liefert das Produkt der args
+multiply = nativeFunction(
+	(...args: List(Rational)): Rational
+	§
+		(...args) =>
+			args.reduce(
+				(accumulator, current) =>
+					accumulator * current,
+				0)
+	§
+)
 rationalToFloat = nativeFunction(
 	(rational: Rational): Float
 	§Todo§
@@ -136,7 +147,7 @@ subtractFloat = nativeFunction(
 )
 # Liefert die Summe der args.
 sum = nativeFunction(
-	(...arg: List(Rational)): Rational
+	(...args: List(Rational)): Rational
 	§
 		(...args) =>
 			args.reduce(
@@ -147,7 +158,7 @@ sum = nativeFunction(
 )
 # Liefert die Summe der args.
 sumFloat = nativeFunction(
-	(...arg: List(Float)): Float
+	(...args: List(Float)): Float
 	§
 		(...args) =>
 			args.reduce(
