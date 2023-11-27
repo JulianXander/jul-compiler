@@ -114,6 +114,12 @@ divideFloat = nativeFunction(
 	(dividend: Float divisor: NonZeroFloat): Float
 	§(dividend, divisor) => dividend / divisor§
 )
+# TODO support Rational values
+# Liefert true, wenn first größer als second ist.
+greater = nativeFunction(
+	(first: Or(Integer Float) second: Or(Integer Float)): Boolean
+	§(first, second) => first > second§
+)
 # Liefert den Rest bei ganzzahliger Division.
 # TODO moduloFloat?
 modulo = nativeFunction(

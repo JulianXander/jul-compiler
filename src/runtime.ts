@@ -1268,6 +1268,23 @@ export const divideFloat = _createFunction(
 		]
 	}
 );
+// TODO support Rational values
+export const greater = _createFunction(
+	(first: number | bigint, second: number | bigint) =>
+		first > second,
+	{
+		singleNames: [
+			{
+				name: 'first',
+				type: Or(Integer, Float),
+			},
+			{
+				name: 'second',
+				type: Or(Integer, Float),
+			}
+		]
+	}
+);
 // TODO moduloFloat
 export const modulo = _createFunction(
 	(dividend: bigint, divisor: bigint) =>
