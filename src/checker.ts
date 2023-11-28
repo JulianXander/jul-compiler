@@ -50,6 +50,7 @@ import {
 } from './syntax-tree.js';
 import { NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { getPathFromImport, parseFile } from './parser/parser.js';
+import { ParserError } from './parser/parser-combinator.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -508,19 +509,7 @@ function inferType(
 			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
 			const name = expression.name.name;
 			const inferredType = coreBuiltInSymbolTypes[name] ?? expression.value.inferredType!;
-			const alreadyDefined = scopes.some((scope, index) =>
-				// nur vorherige scopes prüfen
-				index < scopes.length - 1
-				&& scope[name] !== undefined);
-			if (alreadyDefined) {
-				errors.push({
-					message: `${name} is already defined in upper scope`,
-					startRowIndex: expression.startRowIndex,
-					startColumnIndex: expression.startColumnIndex,
-					endRowIndex: expression.endRowIndex,
-					endColumnIndex: expression.endColumnIndex,
-				});
-			}
+			checkNameDefinedInUpperScope(expression, scopes, errors, name);
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			const currentScope = last(scopes);
 			const symbol = currentScope[name];
@@ -561,6 +550,7 @@ function inferType(
 					if (!fieldName) {
 						return;
 					}
+					checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
 					const pathToDereference = field.assignedValue ?? field.name;
 					// TODO nested deref/complex expressions?
 					if (pathToDereference.type !== 'reference') {
@@ -988,6 +978,7 @@ function inferType(
 			if (expression.fallback) {
 				setInferredType(expression.fallback, scopes, parsedDocuments, folder, file);
 			}
+			checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
 			// TODO fallback berücksichtigen?
 			const inferredType = expression.inferredTypeFromCall ?? valueOf(expression.typeGuard?.inferredType);
 			// TODO check array type bei spread
@@ -2161,5 +2152,26 @@ export function getCheckedEscapableName(parseName: PositionedExpression): string
 			return value.value;
 		default:
 			return undefined;
+	}
+}
+
+function checkNameDefinedInUpperScope(
+	expression: TypedExpression,
+	scopes: NonEmptyArray<SymbolTable>,
+	errors: ParserError[],
+	name: string,
+): void {
+	const alreadyDefined = scopes.some((scope, index) =>
+		// nur vorherige scopes prüfen
+		index < scopes.length - 1
+		&& scope[name] !== undefined);
+	if (alreadyDefined) {
+		errors.push({
+			message: `${name} is already defined in upper scope`,
+			startRowIndex: expression.startRowIndex,
+			startColumnIndex: expression.startColumnIndex,
+			endRowIndex: expression.endRowIndex,
+			endColumnIndex: expression.endColumnIndex,
+		});
 	}
 }
