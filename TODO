@@ -1,4 +1,4 @@
--error bei redefine corelib symbol vgl test1.jul
+-check function declaration param als variable schon im höheren scope defined vgl test1.jul
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar

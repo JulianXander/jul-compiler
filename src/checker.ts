@@ -508,8 +508,21 @@ function inferType(
 			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
 			const name = expression.name.name;
 			const inferredType = coreBuiltInSymbolTypes[name] ?? expression.value.inferredType!;
-			const currentScope = last(scopes);
+			const alreadyDefined = scopes.some((scope, index) =>
+				// nur vorherige scopes prüfen
+				index < scopes.length - 1
+				&& scope[name] !== undefined);
+			if (alreadyDefined) {
+				errors.push({
+					message: `${name} is already defined in upper scope`,
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				});
+			}
 			// TODO typecheck mit typeguard, ggf union mit Error type
+			const currentScope = last(scopes);
 			const symbol = currentScope[name];
 			if (!symbol) {
 				throw new Error(`Definition Symbol ${name} not found`);

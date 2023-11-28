@@ -126,7 +126,6 @@ function defineSymbol(
   functionParameterIndex: number | undefined,
 ): void {
   const nameString = name.name;
-  // TODO check upper scopes
   if (symbolTable[nameString]) {
     errors.push({
       message: `${nameString} is already defined`,

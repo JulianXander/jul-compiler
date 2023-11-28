@@ -113,6 +113,20 @@ const expectedResults: {
 		// 	code: '4.log()',
 		// 	result: [],
 		// },
+		// {
+		// 	name: 'redefine-corelib',
+		// 	code: 'add = 1',
+		// 	result: [],
+		// 	errors: [
+		// 		{
+		// 			"endColumnIndex": 7,
+		// 			"endRowIndex": 0,
+		// 			"message": "add is already defined in upper scope",
+		// 			"startColumnIndex": 0,
+		// 			"startRowIndex": 0,
+		// 		},
+		// 	],
+		// },
 	];
 
 describe('Checker', () => {
