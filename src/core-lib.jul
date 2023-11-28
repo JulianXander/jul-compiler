@@ -109,22 +109,38 @@ equal = nativeFunction(
 )
 #endregion Any
 #region Number
-# dividend / divisor
-divideFloat = nativeFunction(
-	(dividend: Float divisor: NonZeroFloat): Float
-	§(dividend, divisor) => dividend / divisor§
+#region arithmetic
+# Liefert die Summe der args.
+add = nativeFunction(
+	(...args: List(Rational)): Rational
+	§
+		(...args) =>
+			args.reduce(
+				(accumulator, current) =>
+					accumulator + current,
+				0)
+	§
 )
-# TODO support Rational values
-# Liefert true, wenn first größer als second ist.
-greater = nativeFunction(
-	(first: Or(Integer Float) second: Or(Integer Float)): Boolean
-	§(first, second) => first > second§
+# Liefert die Summe der args.
+addFloat = nativeFunction(
+	(...args: List(Float)): Float
+	§
+		(...args) =>
+			args.reduce(
+				(accumulator, current) =>
+					accumulator + current,
+				0)
+	§
 )
-# Liefert den Rest bei ganzzahliger Division.
-# TODO moduloFloat?
-modulo = nativeFunction(
-	(dividend: Integer divisor: NonZeroInteger): Integer
-	§(dividend, divisor) => dividend % divisor§
+# minuend - subtrahend
+subtract = nativeFunction(
+	(minuend: Rational subtrahend: Rational): Rational
+	§(minuend, subtrahend) => minuend - subtrahend§
+)
+# minuend - subtrahend
+subtractFloat = nativeFunction(
+	(minuend: Float subtrahend: Float): Float
+	§(minuend, subtrahend) => minuend - subtrahend§
 )
 # Liefert das Produkt der args
 multiply = nativeFunction(
@@ -148,41 +164,27 @@ multiplyFloat = nativeFunction(
 				0)
 	§
 )
+# dividend / divisor
+divideFloat = nativeFunction(
+	(dividend: Float divisor: NonZeroFloat): Float
+	§(dividend, divisor) => dividend / divisor§
+)
+# Liefert den Rest bei ganzzahliger Division.
+# TODO moduloFloat?
+modulo = nativeFunction(
+	(dividend: Integer divisor: NonZeroInteger): Integer
+	§(dividend, divisor) => dividend % divisor§
+)
+#endregion arithmetic
+# TODO support Rational values
+# Liefert true, wenn first größer als second ist.
+greater = nativeFunction(
+	(first: Or(Integer Float) second: Or(Integer Float)): Boolean
+	§(first, second) => first > second§
+)
 rationalToFloat = nativeFunction(
 	(rational: Rational): Float
 	§Todo§
-)
-# minuend - subtrahend
-subtract = nativeFunction(
-	(minuend: Rational subtrahend: Rational): Rational
-	§(minuend, subtrahend) => minuend - subtrahend§
-)
-# minuend - subtrahend
-subtractFloat = nativeFunction(
-	(minuend: Float subtrahend: Float): Float
-	§(minuend, subtrahend) => minuend - subtrahend§
-)
-# Liefert die Summe der args.
-sum = nativeFunction(
-	(...args: List(Rational)): Rational
-	§
-		(...args) =>
-			args.reduce(
-				(accumulator, current) =>
-					accumulator + current,
-				0)
-	§
-)
-# Liefert die Summe der args.
-sumFloat = nativeFunction(
-	(...args: List(Float)): Float
-	§
-		(...args) =>
-			args.reduce(
-				(accumulator, current) =>
-					accumulator + current,
-				0)
-	§
 )
 #endregion Number
 #region Text

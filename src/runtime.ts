@@ -1429,7 +1429,7 @@ export const subtractFloat = _createFunction(
 		]
 	}
 );
-export const sum = _createFunction(
+export const add = _createFunction(
 	(...args: Rational[]) =>
 		args.reduce(
 			(accumulator, current) => {
@@ -1467,7 +1467,7 @@ export const sum = _createFunction(
 		}
 	}
 );
-export const sumFloat = _createFunction(
+export const addFloat = _createFunction(
 	(...args: number[]) =>
 		args.reduce(
 			(accumulator, current) =>

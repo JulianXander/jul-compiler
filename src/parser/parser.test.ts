@@ -684,7 +684,7 @@ const expectedResults: {
 		// 	]
 		// },
 		// {
-		// 	code: 'number ?\n\t(n:0) => 1\n\t(n:1) => 1\n\t(n) => sum(fibonacci(subtract(n 2)) fibonacci(subtract(n 1)))\nfibonacci(7)',
+		// 	code: 'number ?\n\t(n:0) => 1\n\t(n:1) => 1\n\t(n) => add(fibonacci(subtract(n 2)) fibonacci(subtract(n 1)))\nfibonacci(7)',
 		// 	result: [
 		// 		{
 		// 			type: 'branching',
