@@ -244,6 +244,7 @@ export interface ParseBranching extends ParseExpressionBase {
 
 export interface ParseTextLiteral extends ParseExpressionBase {
 	type: 'text';
+	language?: string;
 	values: (TextToken | ParseValueExpression)[];
 }
 

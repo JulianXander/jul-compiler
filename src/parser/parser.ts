@@ -918,12 +918,12 @@ function simpleExpressionParser(
 				predicate: regexParser(/[-0-9]/y, ''),
 				parser: numberParser,
 			},
-			// StringLiteral
+			// TextLiteral
 			{
 				predicate: paragraphParser,
 				parser: choiceParser(
-					inlineStringParser,
-					multilineStringParser
+					inlineTextParser,
+					multilineTextParser
 				)
 			},
 			// Reference
@@ -941,7 +941,7 @@ function simpleExpressionParser(
 					predicate: nestedReferenceTokenParser,
 					parser: moveColumnIndex(1, choiceParser(
 						nameParser,
-						inlineStringParser,
+						inlineTextParser,
 						indexParser,
 					)),
 				},
@@ -1117,7 +1117,7 @@ function numberParser(
 
 // TODO stringParser mit discriminated choice über linebreak
 
-function inlineStringParser(
+function inlineTextParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
@@ -1125,7 +1125,7 @@ function inlineStringParser(
 ): ParserResult<ParseTextLiteral> {
 	const result = sequenceParser(
 		paragraphParser,
-		stringLineContentParser,
+		textLineContentParser,
 		paragraphParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
@@ -1143,7 +1143,7 @@ function inlineStringParser(
 	};
 }
 
-function multilineStringParser(
+function multilineTextParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
@@ -1151,16 +1151,20 @@ function multilineStringParser(
 ): ParserResult<ParseTextLiteral> {
 	const result = sequenceParser(
 		paragraphParser,
-		// TODO string language identifier?
+		// language identifier
+		// TODO nur unterstützte sprachen? validieren?
+		regexParser(/[a-z]*/y, 'language identifier'),
 		newLineParser,
-		incrementIndent(multilineParser(stringLineContentParser)),
+		incrementIndent(multilineParser(textLineContentParser)),
 		newLineParser,
 		indentParser,
 		paragraphParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
 	const values: (TextToken | ParseValueExpression)[] = [];
+	let languageIdentifier: string | undefined;
 	if (result.parsed) {
-		result.parsed[2].forEach(line => {
+		languageIdentifier = result.parsed[1];
+		result.parsed[3].forEach(line => {
 			if (typeof line === 'object') {
 				values.push(...line);
 			}
@@ -1183,6 +1187,7 @@ function multilineStringParser(
 			? undefined
 			: {
 				type: 'text',
+				language: languageIdentifier,
 				values: values,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -1192,7 +1197,7 @@ function multilineStringParser(
 	};
 }
 
-function stringLineContentParser(
+function textLineContentParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
