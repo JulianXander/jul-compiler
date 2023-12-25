@@ -50,6 +50,8 @@
 	-https://code.visualstudio.com/api/extension-guides/virtual-documents
 -compile yaml to js wegen rundungsfehler bei großen zahlen
 	-https://github.com/nodeca/js-yaml/blob/2b5620ed8f03ba0df319fe7710f6d7fd44811742/examples/int_type_override.js
+?weitere eingebettete sprachen außer html,js
 -programmatic language support für embbedded languages
+	-js
 	?Language Services vs Request Forwarding
 	-https://code.visualstudio.com/api/language-extensions/embedded-languages
