@@ -1,3 +1,4 @@
+-intellisense für object properties
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
