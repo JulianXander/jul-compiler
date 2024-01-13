@@ -49,6 +49,7 @@ import {
 	ParseListValue,
 } from '../syntax-tree.js';
 import {
+	executingDirectory,
 	Extension,
 	isNonEmpty,
 	isValidExtension,
@@ -63,6 +64,8 @@ import { _parseJson } from '../runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
 import { existsSync } from 'fs';
+
+export const coreLibPath = join(executingDirectory, 'core-lib.jul');
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
@@ -128,7 +131,8 @@ export function parseCode(
 	}
 	const { errors, expressions } = parsedExpressions;
 	const symbols: SymbolTable = {};
-	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
+	const isCoreLib = filePath === coreLibPath;
+	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions, isCoreLib);
 	return {
 		filePath: filePath,
 		extension: extension,

@@ -50,7 +50,7 @@ const expectedResults: {
 				{
 					"endColumnIndex": 4,
 					"endRowIndex": 0,
-					"message": "a is not defined",
+					"message": "a is not defined.",
 					"startColumnIndex": 3,
 					"startRowIndex": 0,
 				},

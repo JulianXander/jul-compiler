@@ -48,8 +48,8 @@ import {
 	PositionedExpression,
 	ParsedExpressions2
 } from './syntax-tree.js';
-import { NonEmptyArray, executingDirectory, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
-import { getPathFromImport, parseFile } from './parser/parser.js';
+import { NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
@@ -142,7 +142,6 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	),
 };
 
-export const coreLibPath = join(executingDirectory, 'core-lib.jul');
 const parsedCoreLib = parseFile(coreLibPath);
 const parsedCoreLib2 = parsedCoreLib.unchecked;
 inferFileTypes(parsedCoreLib2, [], {}, '');
@@ -153,6 +152,10 @@ export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
 function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	type: RuntimeType;
 	found: boolean;
+	/**
+	 * Undefined, wenn symbol in coreBuiltInSymbolTypes gefunden.
+	 */
+	foundSymbol?: SymbolDefinition;
 } {
 	const name = reference.name.name;
 	const coreType = coreBuiltInSymbolTypes[name];
@@ -177,6 +180,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 		return {
 			type: parameterReference,
 			found: true,
+			foundSymbol: foundSymbol,
 		};
 	}
 	const referencedType = foundSymbol.normalizedType;
@@ -188,12 +192,14 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 		// throw new Error('symbol type was not inferred');
 		return {
 			type: Any,
-			found: true
+			found: true,
+			foundSymbol: foundSymbol,
 		};
 	}
 	return {
 		type: referencedType,
-		found: true
+		found: true,
+		foundSymbol: foundSymbol,
 	};
 }
 
@@ -1009,15 +1015,34 @@ function inferType(
 			);
 		}
 		case 'reference': {
-			const { found, type } = dereferenceType(expression, scopes);
+			const {
+				found,
+				foundSymbol,
+				type,
+			} = dereferenceType(expression, scopes);
 			if (!found) {
 				errors.push({
-					message: `${expression.name.name} is not defined`,
+					message: `${expression.name.name} is not defined.`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,
 					endColumnIndex: expression.endColumnIndex,
 				})
+			}
+			// check position: reference (expression) darf nicht vor definition (foundSymbol) benutzt werden
+			// wenn kein foundSymbol: symbol ist in core-lib definiert, dann ist alles erlaubt
+			if (foundSymbol
+				&& !foundSymbol.isBuiltIn
+				&& (expression.startRowIndex < foundSymbol.startRowIndex
+					|| (expression.startRowIndex === foundSymbol.startRowIndex
+						&& expression.startColumnIndex < foundSymbol.startColumnIndex))) {
+				errors.push({
+					message: `${expression.name.name} is used before it is defined.`,
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				});
 			}
 			return type;
 		}
