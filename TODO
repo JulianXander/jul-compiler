@@ -1,6 +1,4 @@
 -intellisense für object properties
--keine errors in core-lib
-	-checker disablen für core-lib
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
