@@ -14,6 +14,19 @@ export function isNonEmpty<T>(array: T[]): array is NonEmptyArray<T> {
 	return !!array.length;
 }
 
+export function findMap<T, U>(
+	values: T[],
+	fn: (value: T, index: number) => U | undefined,
+): U | undefined {
+	for (let index = 0; index < values.length; index++) {
+		const value = values[index]!;
+		const mapped = fn(value, index);
+		if (mapped !== undefined) {
+			return mapped;
+		}
+	}
+}
+
 export function last<T>(array: NonEmptyArray<T>): T;
 export function last<T>(array: ArrayLike<T>): T | undefined;
 export function last<T>(array: ArrayLike<T>): T | undefined {
@@ -36,19 +49,6 @@ export function toDictionary<T, U>(
 		dictionary[key] = newValue;
 	});
 	return dictionary;
-}
-
-export function findMap<T, U>(
-	values: T[],
-	fn: (value: T, index: number) => U | undefined,
-): U | undefined {
-	for (let index = 0; index < values.length; index++) {
-		const value = values[index]!;
-		const mapped = fn(value, index);
-		if (mapped !== undefined) {
-			return mapped;
-		}
-	}
 }
 
 //#endregion Array
