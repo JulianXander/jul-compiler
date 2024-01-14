@@ -44,10 +44,13 @@ export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: 
 		return fn(...assignedParams);
 	}
 	// js function
-	// Todo prefix arg
-	return Array.isArray(args)
-		? fn(...args)
-		: fn(args)
+	const wrappedArgs = Array.isArray(args)
+		? args
+		: [args];
+	const argsWithPrefix = prefixArg === undefined
+		? wrappedArgs
+		: [prefixArg, ...wrappedArgs];
+	return fn(...argsWithPrefix);
 }
 
 export function _checkType(type: RuntimeType, value: any) {
