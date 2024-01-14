@@ -1,4 +1,4 @@
--autocomplete für DictionaryLiteral felder
+-autocomplete für DictionaryLiteral felder und feld reference anhand DictionaryLiteralType
 	-vgl test1.jul
 -debug experience vebessern
 	?sourcemap
