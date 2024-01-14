@@ -1049,10 +1049,10 @@ function simpleExpressionParser(
 							endColumnIndex: nestedKey
 								? nestedKey.endColumnIndex
 								// + 1 für nestedReferenceToken /
-								: accumulator.startColumnIndex + 1,
+								: accumulator.endColumnIndex + 1,
 							endRowIndex: nestedKey
-								? nestedKey.endColumnIndex
-								: accumulator.endColumnIndex,
+								? nestedKey.endRowIndex
+								: accumulator.endRowIndex,
 						};
 						return nestedReference;
 					}

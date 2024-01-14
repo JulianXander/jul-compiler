@@ -998,8 +998,8 @@ const expectedResults: {
 			code: 'a/',
 			result: [
 				{
-					"endColumnIndex": 1,
-					"endRowIndex": 1,
+					"endColumnIndex": 2,
+					"endRowIndex": 0,
 					"nestedKey": undefined,
 					"source": {
 						"endColumnIndex": 1,
