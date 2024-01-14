@@ -32,7 +32,6 @@ import {
 } from './runtime.js';
 import {
 	BracketedExpression,
-	CheckedValueExpression,
 	ParseDictionaryField,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
@@ -675,16 +674,6 @@ function inferType(
 		case 'field':
 			// TODO?
 			return Any;
-		case 'fieldReference': {
-			const source = expression.source;
-			setInferredType(source, scopes, parsedDocuments, folder, file);
-			const fieldName = getCheckedEscapableName(expression.field);
-			if (!fieldName) {
-				return Any;
-			}
-			const dereferencedType = dereferenceNameFromObject(fieldName, source.inferredType!);
-			return dereferencedType ?? Any;
-		}
 		case 'float':
 			return expression.value;
 		case 'fraction':
@@ -951,12 +940,6 @@ function inferType(
 				valueOf(inferredReturnType),
 			));
 		}
-		case 'indexReference': {
-			const source = expression.source;
-			setInferredType(source, scopes, parsedDocuments, folder, file);
-			const dereferencedType = dereferenceIndexFromObject(expression.index.name, source.inferredType!);
-			return dereferencedType ?? Any;
-		}
 		case 'integer':
 			return expression.value;
 		case 'list':
@@ -975,6 +958,33 @@ function inferType(
 				}
 				return element.inferredType!;
 			}));
+		case 'nestedReference': {
+			const source = expression.source;
+			setInferredType(source, scopes, parsedDocuments, folder, file);
+			const nestedKey = expression.nestedKey;
+			if (!nestedKey) {
+				return Any;
+			}
+			switch (nestedKey.type) {
+				case 'index': {
+					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.inferredType!);
+					return dereferencedType ?? Any;
+				}
+				case 'name':
+				case 'text': {
+					const fieldName = getCheckedEscapableName(nestedKey);
+					if (!fieldName) {
+						return Any;
+					}
+					const dereferencedType = dereferenceNameFromObject(fieldName, source.inferredType!);
+					return dereferencedType ?? Any;
+				}
+				default: {
+					const assertNever: never = nestedKey;
+					throw new Error(`Unexpected nestedKey.type ${(assertNever as TypedExpression).type}`);
+				}
+			}
+		}
 		case 'object': {
 			// TODO check is List or Dictionary in values
 			// TODO error when List/Dictionary mixed
@@ -1079,7 +1089,7 @@ function inferType(
 		}
 		default: {
 			const assertNever: never = expression;
-			throw new Error(`Unexpected valueExpression.type: ${(assertNever as CheckedValueExpression).type}`);
+			throw new Error(`Unexpected valueExpression.type: ${(assertNever as TypedExpression).type}`);
 		}
 	}
 }

@@ -1,5 +1,4 @@
 import {
-	CheckedExpression,
 	ParseExpression,
 	ParseFunctionCall,
 	ParseParameterFields,
@@ -137,10 +136,6 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}))})`;
 		case 'empty':
 			return 'null';
-		case 'fieldReference': {
-			const field = getCheckedEscapableName(expression.field);
-			return `${expressionToJs(expression.source)}?.[${field && stringToJs(field)}]`;
-		}
 		case 'float':
 			return '' + expression.value;
 		case 'fraction':
@@ -188,8 +183,6 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			// TODO params to type
 			return `new FunctionType(Any, ${expressionToJs(expression.returnType)})`;
 		}
-		case 'indexReference':
-			return `${expressionToJs(expression.source)}?.[${expression.index.name} - 1]`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':
@@ -199,6 +192,27 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 					: expressionToJs(value);
 				return `${valueJs},\n`;
 			}).join('')}]`;
+		case 'nestedReference': {
+			const nestedKey = expression.nestedKey;
+			if (!nestedKey) {
+				throw new Error('Missing nestedKey in nestedReference.');
+			}
+			switch (nestedKey.type) {
+				case 'index':
+					return `${expressionToJs(expression.source)}?.[${nestedKey.name} - 1]`;
+				case 'name':
+				case 'text':
+					const field = getCheckedEscapableName(nestedKey);
+					if (!field) {
+						throw new Error(`Invalid field.`);
+					}
+					return `${expressionToJs(expression.source)}?.[${stringToJs(field)}]`;
+				default: {
+					const assertNever: never = nestedKey;
+					throw new Error(`Unexpected nestedKey.type ${(assertNever as ParseExpression).type}`);
+				}
+			}
+		}
 		case 'object':
 			return `_combineObject(${expression.values.map(value => {
 				return expressionToJs(value.value);
@@ -213,7 +227,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		}
 		default: {
 			const assertNever: never = expression;
-			throw new Error(`Unexpected expression.type: ${(assertNever as CheckedExpression).type}`);
+			throw new Error(`Unexpected expression.type: ${(assertNever as ParseExpression).type}`);
 		}
 	}
 }

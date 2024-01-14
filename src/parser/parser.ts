@@ -18,9 +18,7 @@ import {
 import {
 	BracketedExpression,
 	BracketedExpressionBase,
-	ParseFieldReference,
 	Index,
-	ParseIndexReference,
 	Name,
 	NumberLiteral,
 	ParseBranching,
@@ -31,6 +29,7 @@ import {
 	ParseFieldBase,
 	ParseFunctionCall,
 	ParseFunctionTypeLiteral,
+	ParseNestedReference,
 	ParseParameterField,
 	ParseParameterFields,
 	ParseSingleDefinition,
@@ -612,6 +611,29 @@ function referenceParser(
 	};
 }
 
+function nestedReferenceKeyParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<{
+	type: 'nestedReference';
+	nestedKey?: Name | ParseTextLiteral | Index;
+}> {
+	const result = moveColumnIndex(1, choiceParser(
+		nameParser,
+		inlineTextParser,
+		indexParser,
+	))(rows, startRowIndex, startColumnIndex, indent);
+	return {
+		...result,
+		parsed: {
+			type: 'nestedReference',
+			nestedKey: result.parsed,
+		},
+	};
+}
+
 function indexParser(
 	rows: string[],
 	startRowIndex: number,
@@ -942,11 +964,7 @@ function simpleExpressionParser(
 				// Field/Index Reference
 				{
 					predicate: nestedReferenceTokenParser,
-					parser: moveColumnIndex(1, choiceParser(
-						nameParser,
-						inlineTextParser,
-						indexParser,
-					)),
+					parser: nestedReferenceKeyParser,
 				},
 				// FunctionCall
 				{
@@ -1003,33 +1021,26 @@ function simpleExpressionParser(
 						setParentForFunctionCall(functionCall);
 						return functionCall;
 					}
-					case 'index': {
-						const indexReference: ParseIndexReference = {
-							type: 'indexReference',
-							source: accumulator,
-							index: currentValue,
-							startColumnIndex: accumulator.startColumnIndex,
-							startRowIndex: accumulator.startRowIndex,
-							endColumnIndex: currentValue.endColumnIndex,
-							endRowIndex: currentValue.endColumnIndex,
-						};
-						return indexReference;
-					}
-					case 'name':
-					case 'text': {
-						if (currentValue.type === 'text') {
-							errors.push(...getEscapableNameErrors(currentValue));
+					case 'nestedReference': {
+						const nestedKey = currentValue.nestedKey;
+						if (nestedKey?.type === 'text') {
+							errors.push(...getEscapableNameErrors(nestedKey));
 						}
-						const fieldReference: ParseFieldReference = {
-							type: 'fieldReference',
+						const nestedReference: ParseNestedReference = {
+							type: 'nestedReference',
 							source: accumulator,
-							field: currentValue,
+							nestedKey: nestedKey,
 							startColumnIndex: accumulator.startColumnIndex,
 							startRowIndex: accumulator.startRowIndex,
-							endColumnIndex: currentValue.endColumnIndex,
-							endRowIndex: currentValue.endColumnIndex,
+							endColumnIndex: nestedKey
+								? nestedKey.endColumnIndex
+								// + 1 für nestedReferenceToken /
+								: accumulator.startColumnIndex + 1,
+							endRowIndex: nestedKey
+								? nestedKey.endColumnIndex
+								: accumulator.endColumnIndex,
 						};
-						return fieldReference;
+						return nestedReference;
 					}
 					default: {
 						const functionCall: ParseFunctionCall = {

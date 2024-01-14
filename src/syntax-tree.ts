@@ -2,8 +2,6 @@ import { ParserError, Positioned } from './parser/parser-combinator.js';
 import { RuntimeType } from './runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
-//#region ParseTree
-
 export interface ParsedFile {
 	filePath: string;
 	extension: Extension;
@@ -59,8 +57,7 @@ export type ParseValueExpression =
 	| ParseFunctionTypeLiteral
 	| ParseTextLiteral
 	| Reference
-	| ParseFieldReference
-	| ParseIndexReference
+	| ParseNestedReference
 	;
 
 export type ParseValueExpressionBase =
@@ -77,8 +74,7 @@ export type SimpleExpression =
 	| ParseFunctionCall
 	| ParseTextLiteral
 	| Reference
-	| ParseFieldReference
-	| ParseIndexReference
+	| ParseNestedReference
 	;
 
 export type PositionedExpression =
@@ -361,24 +357,19 @@ export interface Reference extends ParseExpressionBase {
 	name: Name;
 }
 
-export interface ParseFieldReference extends ParseExpressionBase {
-	type: 'fieldReference';
+export interface ParseNestedReference extends ParseExpressionBase {
+	type: 'nestedReference';
 	source: ParseValueExpression;
 	/**
-	 * escapable
+	 * undefined, bei unvollständiger expression
+	 * escapable, bei field reference
 	 */
-	field: Name | ParseTextLiteral;
+	nestedKey?: Name | ParseTextLiteral | Index;
 }
 
 export interface Name extends PositionedExpressionBase {
 	type: 'name';
 	name: string;
-}
-
-export interface ParseIndexReference extends ParseExpressionBase {
-	type: 'indexReference';
-	source: ParseValueExpression;
-	index: Index;
 }
 
 export interface Index extends PositionedExpressionBase {
@@ -388,205 +379,3 @@ export interface Index extends PositionedExpressionBase {
 	 */
 	name: number;
 }
-
-//#endregion ParseTree
-
-//#region CheckedTree
-
-export type CheckedExpression =
-	| CheckedSingleDefinition
-	| CheckedDestructuringDefinition
-	| CheckedValueExpression
-	;
-
-export type CheckedValueExpression =
-	| CheckedBranching
-	| CheckedFunctionCall
-	| CheckedFunctionLiteral
-	| CheckedTextLiteral
-	| CheckedDictionaryTypeLiteral
-	| NumberLiteral
-	| ObjectLiteral
-	| Reference
-	| CheckedFieldReference
-	| CheckedIndexReference
-	;
-
-export interface CheckedSpreadValueExpression {
-	type: 'spread';
-	value: CheckedValueExpression;
-}
-
-export interface CheckedBranching {
-	type: 'branching';
-	value: CheckedValueExpression;
-	// TODO check FunctionExpression: exclude number, string, object, dictionaryType? oder primitives/types als function auswerten?
-	branches: CheckedValueExpression[];
-}
-
-export interface CheckedSingleDefinition {
-	type: 'definition';
-	// TODO spread?
-	name: string;
-	typeGuard?: CheckedValueExpression;
-	value: CheckedValueExpression;
-	fallback?: CheckedValueExpression;
-}
-
-//#region destructuring
-
-export interface CheckedDestructuringDefinition {
-	type: 'destructuring';
-	fields: CheckedDestructuringField[];
-	value: CheckedValueExpression;
-}
-
-export interface CheckedDestructuringField {
-	// TODO spread als eigener Typ ohne source, fallback, typeguard?
-	spread: boolean;
-	name: string;
-	typeGuard?: CheckedValueExpression;
-	source?: string;
-	fallback?: CheckedValueExpression;
-}
-
-//#endregion destructuring
-
-export interface CheckedFunctionCall {
-	type: 'functionCall';
-	prefixArgument?: CheckedValueExpression;
-	functionExpression: CheckedValueExpression;
-	// TODO primitive value direkt als arguments?
-	arguments: ObjectLiteral;
-}
-
-//#region FunctionLiteral
-
-export interface CheckedFunctionLiteral {
-	type: 'functionLiteral';
-	// TODO functionName? für StackTrace
-	params: CheckedValueExpression | CheckedParameterFields;
-	body: CheckedExpression[];
-}
-
-export interface CheckedParameterFields {
-	type: 'parameters';
-	singleFields: CheckedParameterField[];
-	// TODO rest ohne source, fallback?
-	rest?: CheckedParameterField;
-}
-
-export interface CheckedParameterField {
-	name: string;
-	typeGuard?: CheckedValueExpression;
-	source?: string;
-	fallback?: CheckedValueExpression;
-}
-
-//#endregion FunctionLiteral
-
-export interface CheckedFieldReference {
-	type: 'fieldReference';
-	source: CheckedValueExpression;
-	field: string;
-}
-
-export interface CheckedIndexReference {
-	type: 'indexReference';
-	source: CheckedValueExpression;
-	index: number;
-}
-
-export interface CheckedTextLiteral {
-	type: 'text';
-	values: (TextToken | CheckedValueExpression)[];
-}
-
-//#region Object
-
-export type ObjectLiteral =
-	| CheckedEmptyLiteral
-	| CheckedUnknownObjectLiteral
-	| CheckedListLiteral
-	| CheckedDictionaryLiteral
-	;
-
-export interface CheckedEmptyLiteral {
-	type: 'empty';
-}
-
-/**
- * ListLiteral oder DictionaryLiteral (abhängig vom Typ des gespreadeten Werts)
- */
-export interface CheckedUnknownObjectLiteral {
-	type: 'object';
-	/**
-	 * niemals leeres array (stattdessen EmptyLiteral)
-	 */
-	values: NonEmptyArray<CheckedSpreadValueExpression>;
-}
-
-export interface CheckedListLiteral {
-	type: 'list';
-	/**
-	 * niemals leeres array (stattdessen EmptyLiteral)
-	 */
-	values: NonEmptyArray<CheckedListValue>;
-}
-
-export type CheckedListValue =
-	| CheckedValueExpression
-	| CheckedSpreadValueExpression
-	;
-
-//#region Dictionary
-
-export interface CheckedDictionaryLiteral {
-	type: 'dictionary';
-	/**
-	 * niemals leeres array (stattdessen EmptyLiteral)
-	 */
-	fields: NonEmptyArray<CheckedDictionaryField>;
-}
-
-export type CheckedDictionaryField =
-	| CheckedSingleDictionaryField
-	| CheckedSpreadValueExpression
-	;
-
-export interface CheckedSingleDictionaryField {
-	type: 'singleDictionaryField';
-	name: string;
-	typeGuard?: CheckedValueExpression;
-	value: CheckedValueExpression;
-	fallback?: CheckedValueExpression;
-}
-
-//#endregion Dictionary
-
-//#endregion Object
-
-//#region DictionaryType
-
-export interface CheckedDictionaryTypeLiteral {
-	type: 'dictionaryType';
-	/**
-	 * niemals leeres array (stattdessen EmptyLiteral)
-	 */
-	fields: NonEmptyArray<CheckedDictionaryTypeField>;
-}
-
-export type CheckedDictionaryTypeField =
-	| CheckedSingleDictionaryTypeField
-	| CheckedSpreadValueExpression
-	;
-
-export interface CheckedSingleDictionaryTypeField {
-	type: 'singleDictionaryTypeField';
-	name: string;
-	typeGuard?: CheckedValueExpression;
-}
-
-//#endregion DictionaryType
-
-//#endregion CheckedTree
