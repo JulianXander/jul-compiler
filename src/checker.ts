@@ -176,6 +176,8 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 		};
 	}
 	const foundSymbol = findResult.symbol;
+	// Der oberste Scope ist builtInSymbols.
+	const isBuiltIn = findResult.scopeIndex === 0;
 	if (foundSymbol.functionParameterIndex !== undefined) {
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
 		// da ParameterReference auf höhere Funktionen problematisch ist?
@@ -185,7 +187,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 			type: parameterReference,
 			found: true,
 			foundSymbol: foundSymbol,
-			isBuiltIn: findResult.isBuiltIn,
+			isBuiltIn: isBuiltIn,
 		};
 	}
 	const referencedType = foundSymbol.normalizedType;
@@ -199,14 +201,14 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 			type: Any,
 			found: true,
 			foundSymbol: foundSymbol,
-			isBuiltIn: findResult.isBuiltIn,
+			isBuiltIn: isBuiltIn,
 		};
 	}
 	return {
 		type: referencedType,
 		found: true,
 		foundSymbol: foundSymbol,
-		isBuiltIn: findResult.isBuiltIn,
+		isBuiltIn: isBuiltIn,
 	};
 }
 
@@ -288,14 +290,14 @@ export function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable
 
 function findSymbolInScopes(name: string, scopes: SymbolTable[]): {
 	symbol: SymbolDefinition,
-	isBuiltIn: boolean,
+	scopeIndex: number,
 } | undefined {
 	return findMap(scopes, (scope, index) => {
 		const symbol = scope[name];
 		if (symbol) {
 			return {
 				symbol: symbol,
-				isBuiltIn: index === 0,
+				scopeIndex: index,
 			};
 		}
 	});
