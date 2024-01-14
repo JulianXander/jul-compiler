@@ -1,4 +1,4 @@
--intellisense für object properties
+-autocomplete für DictionaryLiteral felder
 	-vgl test1.jul
 -debug experience vebessern
 	?sourcemap
