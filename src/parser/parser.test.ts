@@ -993,6 +993,44 @@ const expectedResults: {
 				},
 			],
 		},
+		{
+			name: 'uncomplete-nested-reference',
+			code: 'a/',
+			result: [
+				{
+					"endColumnIndex": 1,
+					"endRowIndex": 1,
+					"nestedKey": undefined,
+					"source": {
+						"endColumnIndex": 1,
+						"endRowIndex": 0,
+						"name": {
+							"endColumnIndex": 1,
+							"endRowIndex": 0,
+							"name": "a",
+							"startColumnIndex": 0,
+							"startRowIndex": 0,
+							"type": "name",
+						},
+						"startColumnIndex": 0,
+						"startRowIndex": 0,
+						"type": "reference",
+					},
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"type": "nestedReference",
+				},
+			],
+			errors: [
+				{
+					"endColumnIndex": 2,
+					"endRowIndex": 0,
+					"message": "Expected a nested key",
+					"startColumnIndex": 1,
+					"startRowIndex": 0,
+				},
+			],
+		}
 	];
 
 describe('Parser', () => {

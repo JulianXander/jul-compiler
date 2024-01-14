@@ -624,13 +624,27 @@ function nestedReferenceKeyParser(
 		nameParser,
 		inlineTextParser,
 		indexParser,
+		emptyParser,
 	))(rows, startRowIndex, startColumnIndex, indent);
+	const errors = result.errors
+		? [...result.errors]
+		: [];
+	if (result.parsed === undefined) {
+		errors.push({
+			message: 'Expected a nested key',
+			startRowIndex: result.endRowIndex,
+			startColumnIndex: result.endColumnIndex - 1,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+		});
+	}
 	return {
 		...result,
 		parsed: {
 			type: 'nestedReference',
 			nestedKey: result.parsed,
 		},
+		errors: errors,
 	};
 }
 
