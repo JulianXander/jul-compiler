@@ -38,6 +38,19 @@ export function toDictionary<T, U>(
 	return dictionary;
 }
 
+export function findMap<T, U>(
+	values: T[],
+	fn: (value: T, index: number) => U | undefined,
+): U | undefined {
+	for (let index = 0; index < values.length; index++) {
+		const value = values[index]!;
+		const mapped = fn(value, index);
+		if (mapped !== undefined) {
+			return mapped;
+		}
+	}
+}
+
 //#endregion Array
 
 //#region Dictionary

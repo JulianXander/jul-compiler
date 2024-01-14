@@ -131,8 +131,7 @@ export function parseCode(
 	}
 	const { errors, expressions } = parsedExpressions;
 	const symbols: SymbolTable = {};
-	const isCoreLib = filePath === coreLibPath;
-	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions, isCoreLib);
+	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
 	return {
 		filePath: filePath,
 		extension: extension,

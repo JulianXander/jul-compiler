@@ -48,7 +48,7 @@ import {
 	PositionedExpression,
 	ParsedExpressions2
 } from './syntax-tree.js';
-import { NonEmptyArray, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { NonEmptyArray, findMap, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 
@@ -156,6 +156,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	 * Undefined, wenn symbol in coreBuiltInSymbolTypes gefunden.
 	 */
 	foundSymbol?: SymbolDefinition;
+	isBuiltIn: boolean;
 } {
 	const name = reference.name.name;
 	const coreType = coreBuiltInSymbolTypes[name];
@@ -163,15 +164,18 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 		return {
 			type: coreType,
 			found: true,
+			isBuiltIn: true,
 		};
 	}
-	const foundSymbol = findSymbolInScopes(name, scopes);
-	if (!foundSymbol) {
+	const findResult = findSymbolInScopes(name, scopes);
+	if (!findResult) {
 		return {
 			type: Any,
 			found: false,
+			isBuiltIn: false,
 		};
 	}
+	const foundSymbol = findResult.symbol;
 	if (foundSymbol.functionParameterIndex !== undefined) {
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
 		// da ParameterReference auf höhere Funktionen problematisch ist?
@@ -181,6 +185,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 			type: parameterReference,
 			found: true,
 			foundSymbol: foundSymbol,
+			isBuiltIn: findResult.isBuiltIn,
 		};
 	}
 	const referencedType = foundSymbol.normalizedType;
@@ -194,12 +199,14 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 			type: Any,
 			found: true,
 			foundSymbol: foundSymbol,
+			isBuiltIn: findResult.isBuiltIn,
 		};
 	}
 	return {
 		type: referencedType,
 		found: true,
 		foundSymbol: foundSymbol,
+		isBuiltIn: findResult.isBuiltIn,
 	};
 }
 
@@ -275,17 +282,23 @@ export function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable
 	const ownSymbol = findSymbolInScopes(name, scopes);
 	return ownSymbol && {
 		isBuiltIn: false,
-		symbol: ownSymbol,
+		symbol: ownSymbol.symbol,
 	};
 }
 
-function findSymbolInScopes(name: string, scopes: SymbolTable[]): SymbolDefinition | undefined {
-	for (const scope of scopes) {
+function findSymbolInScopes(name: string, scopes: SymbolTable[]): {
+	symbol: SymbolDefinition,
+	isBuiltIn: boolean,
+} | undefined {
+	return findMap(scopes, (scope, index) => {
 		const symbol = scope[name];
 		if (symbol) {
-			return symbol;
+			return {
+				symbol: symbol,
+				isBuiltIn: index === 0,
+			};
 		}
-	}
+	});
 }
 
 function findParameterSymbol(
@@ -1019,6 +1032,7 @@ function inferType(
 				found,
 				foundSymbol,
 				type,
+				isBuiltIn,
 			} = dereferenceType(expression, scopes);
 			if (!found) {
 				errors.push({
@@ -1032,7 +1046,7 @@ function inferType(
 			// check position: reference (expression) darf nicht vor definition (foundSymbol) benutzt werden
 			// wenn kein foundSymbol: symbol ist in core-lib definiert, dann ist alles erlaubt
 			if (foundSymbol
-				&& !foundSymbol.isBuiltIn
+				&& !isBuiltIn
 				&& (expression.startRowIndex < foundSymbol.startRowIndex
 					|| (expression.startRowIndex === foundSymbol.startRowIndex
 						&& expression.startColumnIndex < foundSymbol.startColumnIndex))) {

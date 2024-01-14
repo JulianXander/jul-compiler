@@ -34,7 +34,6 @@ export interface SymbolTable {
 
 export interface SymbolDefinition extends Positioned {
 	description?: string;
-	isBuiltIn: boolean;
 	typeExpression: ParseValueExpression;
 	// TODO inferred type aus dem value? oder normalize typeguard?
 	normalizedType?: RuntimeType;

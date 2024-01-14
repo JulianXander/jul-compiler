@@ -10,7 +10,7 @@ export function createParseFunctionLiteral(
 ): ParseFunctionLiteral {
   const symbols: SymbolTable = {};
   fillSymbolTableWithParams(symbols, errors, params);
-  fillSymbolTableWithExpressions(symbols, errors, body, false);
+  fillSymbolTableWithExpressions(symbols, errors, body);
   return {
     type: 'functionLiteral',
     params: params,
@@ -27,13 +27,12 @@ export function fillSymbolTableWithExpressions(
   symbolTable: SymbolTable,
   errors: ParserError[],
   expressions: ParseExpression[],
-  isCoreLib: boolean,
 ): void {
   expressions.forEach(expression => {
     switch (expression.type) {
       case 'definition': {
         // TODO type
-        defineSymbol(symbolTable, errors, expression.name, isCoreLib, expression.value, expression.description, undefined);
+        defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description, undefined);
         return;
       }
       case 'destructuring': {
@@ -62,7 +61,6 @@ function fillSymbolTableWithParams(
           symbolTable,
           errors,
           field.name,
-          false,
           // TODO
           field.typeGuard as any,
           field.description,
@@ -74,7 +72,6 @@ function fillSymbolTableWithParams(
           symbolTable,
           errors,
           rest.name,
-          false,
           // TODO
           rest.typeGuard as any,
           rest.description,
@@ -113,7 +110,6 @@ function defineSymbolForField(
     symbolTable,
     errors,
     name,
-    false,
     // TODO check type
     field.typeGuard as any,
     field.description,
@@ -125,7 +121,6 @@ function defineSymbol(
   symbolTable: SymbolTable,
   errors: ParserError[],
   name: Name,
-  isBuiltIn: boolean,
   type: ParseValueExpression,
   description: string | undefined,
   functionParameterIndex: number | undefined,
@@ -141,7 +136,6 @@ function defineSymbol(
     });
   }
   symbolTable[nameString] = {
-    isBuiltIn: isBuiltIn,
     typeExpression: type,
     description: description,
     functionParameterIndex: functionParameterIndex,
