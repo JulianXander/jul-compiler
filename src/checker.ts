@@ -177,6 +177,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	}
 	const foundSymbol = findResult.symbol;
 	// Der oberste Scope ist builtInSymbols.
+	// Außer bei inferFileTypes mit core-lib, was keine Rolle spielt, denn für core-lib werden Fehler ignoriert.
 	const isBuiltIn = findResult.scopeIndex === 0;
 	if (foundSymbol.functionParameterIndex !== undefined) {
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
