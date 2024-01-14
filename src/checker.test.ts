@@ -127,6 +127,68 @@ const expectedResults: {
 		// 		},
 		// 	],
 		// },
+		{
+			name: 'used-before-defined-error',
+			code: `a
+a = 5`,
+			result: [
+				{
+					"endColumnIndex": 1,
+					"endRowIndex": 0,
+					"inferredType": {
+						"type": "any",
+					},
+					"name": {
+						"endColumnIndex": 1,
+						"endRowIndex": 0,
+						"name": "a",
+						"startColumnIndex": 0,
+						"startRowIndex": 0,
+						"type": "name",
+					},
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"type": "reference",
+				},
+				{
+					"description": "",
+					"endColumnIndex": 5,
+					"endRowIndex": 1,
+					"fallback": undefined,
+					"inferredType": 5n,
+					"name": {
+						"endColumnIndex": 1,
+						"endRowIndex": 1,
+						"name": "a",
+						"startColumnIndex": 0,
+						"startRowIndex": 1,
+						"type": "name",
+					},
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+					"type": "definition",
+					"typeGuard": undefined,
+					"value": {
+						"endColumnIndex": 5,
+						"endRowIndex": 1,
+						"inferredType": 5n,
+						"startColumnIndex": 4,
+						"startRowIndex": 1,
+						"type": "integer",
+						"value": 5n,
+					},
+				},
+			],
+			errors: [
+				{
+					"endColumnIndex": 1,
+					"endRowIndex": 0,
+					"message": "a is used before it is defined.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		}
 	];
 
 describe('Checker', () => {
