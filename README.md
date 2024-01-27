@@ -4,6 +4,7 @@ Node installieren: https://nodejs.org
 `npm i` (in den Projekten jul-compiler, jul-language-server, vscode-jul-language-service)  
 `npm i copyfiles -g`  
 `npm i rimraf -g`  
+`npm i @vscode/vsce -g`
 ? `npm link` (in jul-compiler)
 
 ## Build
