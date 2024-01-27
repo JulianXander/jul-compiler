@@ -7,6 +7,10 @@ Node installieren: https://nodejs.org
 `npm i @vscode/vsce -g`  
 ? `npm link` (in jul-compiler)
 
+Damit vsce ausgeführt werden kann:  
+Admin PowerShell öffnen  
+`Set-ExecutionPolicy -ExecutionPolicy Unrestricted`
+
 ## Build
 `npm run build-all`  
 Baut jul-compiler, jul-language-server und vscode-jul-language-server
