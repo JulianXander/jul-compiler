@@ -1,4 +1,5 @@
 ## Setup
+Node installieren: https://nodejs.org  
 `npm i npm -g`  
 `npm i` (in den Projekten jul-compiler, jul-language-server, vscode-jul-language-service)  
 `npm i copyfiles -g`  
