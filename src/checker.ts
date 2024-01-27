@@ -419,6 +419,21 @@ function dereferenceArgumentType(
 	}
 }
 
+export function dereferenceParameter(parameterReference: ParameterReference): RuntimeType {
+	const functionRef = parameterReference.functionRef;
+	if (!functionRef || !(functionRef instanceof FunctionType)) {
+		return Any;
+	}
+	const paramsType = functionRef.paramsType;
+	if (!(paramsType instanceof ParametersType)) {
+		return Any;
+	}
+	const matchedParameter = paramsType.singleNames.find(parameter =>
+		parameter.name === parameterReference.name);
+	// TODO rest
+	return matchedParameter?.type ?? Any;
+}
+
 //#endregion dereference
 
 /**
