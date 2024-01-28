@@ -190,6 +190,54 @@ const expectedResults: {
 		// 		]
 		// 	}]
 		// },
+		{
+			name: 'field-description',
+			code: '(\n\t# hallo\n\tsomeKey = 5\n)\n',
+			result: [
+				{
+					"endColumnIndex": 1,
+					"endRowIndex": 3,
+					"fields": [
+						{
+							"description": " hallo",
+							"endColumnIndex": 12,
+							"endRowIndex": 2,
+							"fallback": undefined,
+							"name": {
+								"endColumnIndex": 8,
+								"endRowIndex": 2,
+								"name": {
+									"endColumnIndex": 8,
+									"endRowIndex": 2,
+									"name": "someKey",
+									"startColumnIndex": 1,
+									"startRowIndex": 2,
+									"type": "name",
+								},
+								"startColumnIndex": 1,
+								"startRowIndex": 2,
+								"type": "reference",
+							},
+							"startColumnIndex": 1,
+							"startRowIndex": 2,
+							"type": "singleDictionaryField",
+							"typeGuard": undefined,
+							"value": {
+								"endColumnIndex": 12,
+								"endRowIndex": 2,
+								"startColumnIndex": 11,
+								"startRowIndex": 2,
+								"type": "integer",
+								"value": 5n,
+							},
+						},
+					],
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"type": "dictionary",
+				},
+			],
+		},
 		// {
 		// 	code: 'someVar = 12',
 		// 	result: [{

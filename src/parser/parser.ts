@@ -1580,7 +1580,7 @@ function bracketedInlineParser<T>(
  * Unmittelbar aufeinanderfolgende Kommentarzeilen zusammenfassen und zur darauffolgenden Definition/Field packen
  */
 function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (string | undefined | T)[]): T[] {
-	let descriptionComment = '';
+	let descriptionComment: string | undefined = undefined;
 	const expressionsWithDescription: any[] = [];
 	expressionsOrComments.forEach(expressionOrComment => {
 		switch (typeof expressionOrComment) {
@@ -1589,20 +1589,23 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 					|| expressionOrComment.type === 'field'
 					? {
 						...expressionOrComment,
-						description: descriptionComment
+						description: descriptionComment,
 					}
 					: expressionOrComment;
 				expressionsWithDescription.push(expressionWithDescription);
-				descriptionComment = '';
+				descriptionComment = undefined;
 				return;
 			case 'string':
 				if (expressionOrComment.startsWith('region') || expressionOrComment.startsWith('endregion')) {
 					// region comments verwerfen
 					return;
 				}
-				return descriptionComment += '\n' + expressionOrComment;
+				descriptionComment = descriptionComment === undefined
+					? expressionOrComment
+					: descriptionComment + '\n' + expressionOrComment;
+				return;
 			case 'undefined':
-				descriptionComment = '';
+				descriptionComment = undefined;
 				return;
 			default: {
 				const assertNever: never = expressionOrComment;
@@ -1844,6 +1847,7 @@ function bracketedExpressionToValueExpression(
 					errors.push(...getEscapableNameErrors(baseName));
 					const singleDictionaryField: ParseSingleDictionaryField = {
 						type: 'singleDictionaryField',
+						description: baseField.description,
 						name: baseName,
 						typeGuard: baseField.typeGuard,
 						value: baseField.assignedValue!,

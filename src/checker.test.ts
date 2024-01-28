@@ -151,7 +151,7 @@ a = 5`,
 					"type": "reference",
 				},
 				{
-					"description": "",
+					"description": undefined,
 					"endColumnIndex": 5,
 					"endRowIndex": 1,
 					"fallback": undefined,

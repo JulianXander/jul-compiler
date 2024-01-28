@@ -187,6 +187,7 @@ export type ParseDictionaryField =
 
 export interface ParseSingleDictionaryField extends PositionedExpressionBase {
 	type: 'singleDictionaryField';
+	description?: string;
 	/**
 	 * escapable
 	 */
