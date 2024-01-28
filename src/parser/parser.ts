@@ -1585,6 +1585,7 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 	expressionsOrComments.forEach(expressionOrComment => {
 		switch (typeof expressionOrComment) {
 			case 'object':
+				// Expression
 				const expressionWithDescription = expressionOrComment.type === 'definition'
 					|| expressionOrComment.type === 'field'
 					? {
@@ -1596,6 +1597,7 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 				descriptionComment = undefined;
 				return;
 			case 'string':
+				// Kommentar
 				if (expressionOrComment.startsWith('region') || expressionOrComment.startsWith('endregion')) {
 					// region comments verwerfen
 					return;
@@ -1605,6 +1607,7 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 					: descriptionComment + '\n' + expressionOrComment;
 				return;
 			case 'undefined':
+				// Leerzeile
 				descriptionComment = undefined;
 				return;
 			default: {
