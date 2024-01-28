@@ -1,6 +1,7 @@
 -autocomplete für DictionaryLiteral felder und feld reference anhand DictionaryLiteralType
 	-vgl test1.jul
 -description in nestedReference hover aus field description
+	-vgl test1.jul
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
