@@ -212,7 +212,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	};
 }
 
-function dereferenceNameFromObject(
+export function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: RuntimeType,
 ): RuntimeType | undefined {
@@ -419,7 +419,23 @@ function dereferenceArgumentType(
 	}
 }
 
-export function dereferenceParameter(parameterReference: ParameterReference): RuntimeType {
+export function dereferenceInferredType(sourceType: RuntimeType | undefined, scopes: SymbolTable[]): RuntimeType {
+	if (!sourceType || !(sourceType instanceof BuiltInTypeBase)) {
+		return Any;
+	}
+	switch (sourceType.type) {
+		case 'dictionaryLiteral':
+			return sourceType;
+		case 'reference': {
+			const dereferenced = dereferenceParameterType(sourceType);
+			return dereferenced;
+		}
+		default:
+			return sourceType;
+	}
+}
+
+function dereferenceParameterType(parameterReference: ParameterReference): RuntimeType {
 	const functionRef = parameterReference.functionRef;
 	if (!functionRef || !(functionRef instanceof FunctionType)) {
 		return Any;

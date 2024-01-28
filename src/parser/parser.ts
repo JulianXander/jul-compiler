@@ -1054,6 +1054,9 @@ function simpleExpressionParser(
 								? nestedKey.endRowIndex
 								: accumulator.endRowIndex,
 						};
+						if (nestedKey) {
+							setParent(nestedKey, nestedReference);
+						}
 						return nestedReference;
 					}
 					default: {
