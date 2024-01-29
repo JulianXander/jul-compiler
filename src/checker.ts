@@ -2222,8 +2222,6 @@ export function getCheckedEscapableName(parseName: PositionedExpression): string
 	switch (parseName.type) {
 		case 'name':
 			return parseName.name;
-		case 'reference':
-			return parseName.name.name;
 		case 'text':
 			if (parseName.values.length > 1) {
 				return undefined;

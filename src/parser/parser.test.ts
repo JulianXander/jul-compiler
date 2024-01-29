@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ParseExpression } from '../syntax-tree.js';
+import { ParseDictionaryTypeLiteral, ParseExpression, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
 import { ParserError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
@@ -193,50 +193,123 @@ const expectedResults: {
 		{
 			name: 'field-description',
 			code: '(\n\t# hallo\n\tsomeKey = 5\n)\n',
-			result: [
-				{
-					"endColumnIndex": 1,
-					"endRowIndex": 3,
-					"fields": [
-						{
-							"description": " hallo",
-							"endColumnIndex": 12,
-							"endRowIndex": 2,
-							"fallback": undefined,
-							"name": {
+			result: (() => {
+				const field: ParseSingleDictionaryField = {
+					"description": " hallo",
+					"endColumnIndex": 12,
+					"endRowIndex": 2,
+					"fallback": undefined,
+					"name": {
+						"endColumnIndex": 8,
+						"endRowIndex": 2,
+						"name": "someKey",
+						"startColumnIndex": 1,
+						"startRowIndex": 2,
+						"type": "name",
+					},
+					"startColumnIndex": 1,
+					"startRowIndex": 2,
+					"type": "singleDictionaryField",
+					"typeGuard": undefined,
+					"value": {
+						"endColumnIndex": 12,
+						"endRowIndex": 2,
+						"startColumnIndex": 11,
+						"startRowIndex": 2,
+						"type": "integer",
+						"value": 5n,
+					},
+				};
+				field.name.parent = field;
+				const result: ParseExpression[] = [
+					{
+						"endColumnIndex": 1,
+						"endRowIndex": 3,
+						"fields": [
+							field,
+						],
+						"startColumnIndex": 0,
+						"startRowIndex": 0,
+						"type": "dictionary",
+					},
+				];
+				return result;
+			})(),
+		},
+		{
+			name: 'dictionary-type',
+			code: '(\n\tsomeKey: Text\n)',
+			result: (() => {
+				const field: ParseSingleDictionaryTypeField = {
+					"endColumnIndex": 14,
+					"endRowIndex": 1,
+					"name": {
+						"endColumnIndex": 8,
+						"endRowIndex": 1,
+						"name": "someKey",
+						"startColumnIndex": 1,
+						"startRowIndex": 1,
+						"type": "name",
+					},
+					"startColumnIndex": 1,
+					"startRowIndex": 1,
+					"type": "singleDictionaryTypeField",
+					"typeGuard": {
+						"endColumnIndex": 14,
+						"endRowIndex": 1,
+						"name": {
+							"endColumnIndex": 14,
+							"endRowIndex": 1,
+							"name": "Text",
+							"startColumnIndex": 10,
+							"startRowIndex": 1,
+							"type": "name",
+						},
+						"startColumnIndex": 10,
+						"startRowIndex": 1,
+						"type": "reference",
+					},
+				}
+				field.name.parent = field;
+				const result: ParseExpression[] = [
+					{
+						"endColumnIndex": 1,
+						"endRowIndex": 2,
+						"fields": [
+							field
+						],
+						"startColumnIndex": 0,
+						"startRowIndex": 0,
+						"symbols": {
+							"someKey": {
+								"description": undefined,
 								"endColumnIndex": 8,
-								"endRowIndex": 2,
-								"name": {
-									"endColumnIndex": 8,
-									"endRowIndex": 2,
-									"name": "someKey",
-									"startColumnIndex": 1,
-									"startRowIndex": 2,
-									"type": "name",
-								},
+								"endRowIndex": 1,
+								"functionParameterIndex": undefined,
 								"startColumnIndex": 1,
-								"startRowIndex": 2,
-								"type": "reference",
-							},
-							"startColumnIndex": 1,
-							"startRowIndex": 2,
-							"type": "singleDictionaryField",
-							"typeGuard": undefined,
-							"value": {
-								"endColumnIndex": 12,
-								"endRowIndex": 2,
-								"startColumnIndex": 11,
-								"startRowIndex": 2,
-								"type": "integer",
-								"value": 5n,
+								"startRowIndex": 1,
+								"typeExpression": {
+									"endColumnIndex": 14,
+									"endRowIndex": 1,
+									"name": {
+										"endColumnIndex": 14,
+										"endRowIndex": 1,
+										"name": "Text",
+										"startColumnIndex": 10,
+										"startRowIndex": 1,
+										"type": "name",
+									},
+									"startColumnIndex": 10,
+									"startRowIndex": 1,
+									"type": "reference",
+								},
 							},
 						},
-					],
-					"startColumnIndex": 0,
-					"startRowIndex": 0,
-					"type": "dictionary",
-				},
-			],
+						"type": "dictionaryType",
+					},
+				];
+				return result;
+			})(),
 		},
 		// {
 		// 	code: 'someVar = 12',

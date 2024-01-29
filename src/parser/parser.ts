@@ -29,6 +29,8 @@ import {
 	ParseFieldBase,
 	ParseFunctionCall,
 	ParseFunctionTypeLiteral,
+	ParseListLiteral,
+	ParseListValue,
 	ParseNestedReference,
 	ParseParameterField,
 	ParseParameterFields,
@@ -39,13 +41,12 @@ import {
 	ParseTextLiteral,
 	ParseValueExpression,
 	ParseValueExpressionBase,
+	PositionedExpression,
+	PositionedExpressionBase,
 	Reference,
 	SimpleExpression,
 	SymbolTable,
-	ParseListLiteral,
-	PositionedExpressionBase,
 	TextToken,
-	ParseListValue,
 } from '../syntax-tree.js';
 import {
 	executingDirectory,
@@ -1848,10 +1849,13 @@ function bracketedExpressionToValueExpression(
 						return spreadDictionaryField;
 					}
 					errors.push(...getEscapableNameErrors(baseName));
+					const name = baseName.type === 'reference'
+						? baseName.name
+						: baseName;
 					const singleDictionaryField: ParseSingleDictionaryField = {
 						type: 'singleDictionaryField',
 						description: baseField.description,
-						name: baseName,
+						name: name,
 						typeGuard: baseField.typeGuard,
 						value: baseField.assignedValue!,
 						fallback: baseField.fallback,
@@ -1860,6 +1864,7 @@ function bracketedExpressionToValueExpression(
 						endRowIndex: baseField.endRowIndex,
 						endColumnIndex: baseField.endColumnIndex,
 					};
+					setParent(name, singleDictionaryField);
 					return singleDictionaryField;
 				}),
 			startRowIndex: bracketedExpression.startRowIndex,
@@ -1873,6 +1878,8 @@ function bracketedExpressionToValueExpression(
 		&& !baseField.fallback)
 		&& baseFields.some(baseField => baseField.typeGuard);
 	if (isDictionaryType) {
+		const symbols: SymbolTable = {};
+		fillSymbolTableWithDictionaryType(symbols, errors, bracketedExpression, false);
 		return {
 			type: 'dictionaryType',
 			fields: mapNonEmpty(
@@ -1921,17 +1928,22 @@ function bracketedExpressionToValueExpression(
 						return spreadDictionaryField;
 					}
 					errors.push(...getEscapableNameErrors(baseName));
+					const name = baseName.type === 'reference'
+						? baseName.name
+						: baseName;
 					const singleDictionaryField: ParseSingleDictionaryTypeField = {
 						type: 'singleDictionaryTypeField',
-						name: baseName,
+						name: name,
 						typeGuard: baseField.typeGuard,
 						startRowIndex: baseField.startRowIndex,
 						startColumnIndex: baseField.startColumnIndex,
 						endRowIndex: baseField.endRowIndex,
 						endColumnIndex: baseField.endColumnIndex,
 					};
+					setParent(name, singleDictionaryField);
 					return singleDictionaryField;
 				}),
+			symbols: symbols,
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
@@ -2016,7 +2028,7 @@ function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError
 
 //#endregion convert
 
-function setParent(expression: PositionedExpressionBase | undefined, parent: ParseExpression): void {
+function setParent(expression: PositionedExpressionBase | undefined, parent: PositionedExpression): void {
 	if (expression) {
 		expression.parent = parent;
 	}
@@ -2154,7 +2166,7 @@ export function getPathExpression(importParams: BracketedExpression): ParseListV
 	}
 }
 
-export function isImportFunctionCall(expression: ParseExpression): expression is ParseFunctionCall {
+export function isImportFunctionCall(expression: PositionedExpression): expression is ParseFunctionCall {
 	if (expression.type !== 'functionCall') {
 		return false;
 	}

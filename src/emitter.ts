@@ -1,4 +1,5 @@
 import {
+	Name,
 	ParseExpression,
 	ParseFunctionCall,
 	ParseParameterFields,
@@ -409,7 +410,7 @@ function dictionaryToJs(fieldsJs: string[]): string {
 	return `{\n${fieldsJs.join('')}}`
 }
 
-function singleDictionaryFieldToJs(name: ParseValueExpressionBase, valueJs: string): string {
+function singleDictionaryFieldToJs(name: ParseValueExpressionBase | Name, valueJs: string): string {
 	const checkedName = getCheckedEscapableName(name);
 	return `${checkedName && stringToJs(checkedName)}: ${valueJs},\n`
 }

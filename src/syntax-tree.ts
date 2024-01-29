@@ -98,10 +98,10 @@ export interface PositionedExpressionBase extends Positioned {
 	/**
 	 * Wird vom parser gesetzt.
 	 */
-	parent?: ParseExpression;
+	parent?: PositionedExpression;
 }
 
-// TODO beil allen parseExpression oder nur bei value expressions?
+// TODO bei allen parseExpressions oder nur bei value expressions?
 interface ParseExpressionBase extends PositionedExpressionBase {
 	/**
 	 * Wird vom checker gesetzt.
@@ -191,7 +191,7 @@ export interface ParseSingleDictionaryField extends PositionedExpressionBase {
 	/**
 	 * escapable
 	 */
-	name: ParseValueExpressionBase;
+	name: ParseValueExpressionBase | Name;
 	typeGuard?: ParseValueExpression;
 	value: ParseValueExpression;
 	fallback?: ParseValueExpression;
@@ -207,6 +207,10 @@ export interface ParseDictionaryTypeLiteral extends ParseExpressionBase {
 	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
 	fields: NonEmptyArray<ParseDictionaryTypeField>;
+	/**
+	 * Die Felder
+	 */
+	symbols: SymbolTable;
 }
 
 export type ParseDictionaryTypeField =
@@ -219,7 +223,7 @@ export interface ParseSingleDictionaryTypeField extends PositionedExpressionBase
 	/**
 	 * escapable
 	 */
-	name: ParseValueExpressionBase;
+	name: ParseValueExpressionBase | Name;
 	typeGuard?: ParseValueExpression;
 }
 
