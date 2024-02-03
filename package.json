@@ -1,47 +1,47 @@
 {
-  "name": "jul-compiler",
-  "version": "0.0.8",
-  "description": "Compiler cli for JUL",
-  "main": "out/cli.js",
-  "type": "module",
-  "bin": {
-    "jul": "out/cli.js"
-  },
-  "author": {
-    "name": "Julian Xander"
-  },
-  "keywords": [
-    "jul",
-    "compiler",
-    "language"
-  ],
-  "license": "ISC",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/JulianXander/jul-compiler.git"
-  },
-  "scripts": {
-    "build": "npx tsc && copyfiles --flat src/core-lib.jul out",
-    "build-all": "npm run build && npx tsc --project ../jul-language-server/tsconfig.json && npx tsc --project ../vscode-jul-language-service/tsconfig.json",
-    "build-all-and-deploy": "npm run build-all && npm run install-cli && npm run test-deploy --prefix ../vscode-jul-language-service",
-    "test": "tsc -p tsconfig.test.json && copyfiles --flat src/core-lib.jul test && mocha 'test-setup.mjs' 'test/**/*.test.js'",
-    "install-cli": "npm i -g"
-  },
-  "devDependencies": {
-    "@types/chai": "^4.3.8",
-    "@types/js-yaml": "^4.0.7",
-    "@types/mocha": "^10.0.2",
-    "@types/node": "^18.18.5",
-    "chai": "^4.3.10",
-    "chai-as-promised": "^7.1.1",
-    "mocha": "^10.2.0",
-    "ts-node": "^10.9.1"
-  },
-  "dependencies": {
-    "ajv": "^6.12.6",
-    "js-yaml": "^4.1.0",
-    "typescript": "^5.2.2",
-    "webpack": "^5.89.0",
-    "webpack-shebang-plugin": "^1.1.8"
-  }
+	"name": "jul-compiler",
+	"version": "0.0.8",
+	"description": "Compiler cli for JUL",
+	"main": "out/cli.js",
+	"type": "module",
+	"bin": {
+		"jul": "out/cli.js"
+	},
+	"author": {
+		"name": "Julian Xander"
+	},
+	"keywords": [
+		"jul",
+		"compiler",
+		"language"
+	],
+	"license": "ISC",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/JulianXander/jul-compiler.git"
+	},
+	"scripts": {
+		"build": "npx tsc && copyfiles --flat src/core-lib.jul out",
+		"build-all": "npm run build && npx tsc --project ../jul-language-server/tsconfig.json && npx tsc --project ../vscode-jul-language-service/tsconfig.json",
+		"build-all-and-deploy": "npm run build-all && npm run install-cli && npm run test-deploy --prefix ../vscode-jul-language-service",
+		"test": "tsc -p tsconfig.test.json && copyfiles --flat src/core-lib.jul test && mocha 'test-setup.mjs' 'test/**/*.test.js'",
+		"install-cli": "npm i -g"
+	},
+	"devDependencies": {
+		"@types/chai": "^4.3.11",
+		"@types/js-yaml": "^4.0.9",
+		"@types/mocha": "^10.0.6",
+		"@types/node": "^20.11.16",
+		"chai": "^4.3.10",
+		"chai-as-promised": "^7.1.1",
+		"mocha": "^10.2.0",
+		"ts-node": "^10.9.2"
+	},
+	"dependencies": {
+		"ajv": "^6.12.6",
+		"js-yaml": "^4.1.0",
+		"typescript": "^5.3.3",
+		"webpack": "^5.90.1",
+		"webpack-shebang-plugin": "^1.1.8"
+	}
 }
