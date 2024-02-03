@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ParseDictionaryTypeLiteral, ParseExpression, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
+import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
 import { ParserError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
@@ -221,17 +221,30 @@ const expectedResults: {
 					},
 				};
 				field.name.parent = field;
-				const result: ParseExpression[] = [
-					{
-						"endColumnIndex": 1,
-						"endRowIndex": 3,
-						"fields": [
-							field,
-						],
-						"startColumnIndex": 0,
-						"startRowIndex": 0,
-						"type": "dictionary",
+				const dictionary: ParseDictionaryLiteral = {
+					"endColumnIndex": 1,
+					"endRowIndex": 3,
+					"fields": [
+						field,
+					],
+					"symbols": {
+						"someKey": {
+							"description": " hallo",
+							"endColumnIndex": 8,
+							"endRowIndex": 2,
+							"functionParameterIndex": undefined,
+							"startColumnIndex": 1,
+							"startRowIndex": 2,
+							"typeExpression": undefined as any,
+						},
 					},
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"type": "dictionary",
+				};
+				dictionary.fields[0].parent = dictionary;
+				const result: ParseExpression[] = [
+					dictionary,
 				];
 				return result;
 			})(),
@@ -271,42 +284,44 @@ const expectedResults: {
 					},
 				}
 				field.name.parent = field;
-				const result: ParseExpression[] = [
-					{
-						"endColumnIndex": 1,
-						"endRowIndex": 2,
-						"fields": [
-							field
-						],
-						"startColumnIndex": 0,
-						"startRowIndex": 0,
-						"symbols": {
-							"someKey": {
-								"description": undefined,
-								"endColumnIndex": 8,
+				const dictionaryType: ParseDictionaryTypeLiteral = {
+					"endColumnIndex": 1,
+					"endRowIndex": 2,
+					"fields": [
+						field
+					],
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"symbols": {
+						"someKey": {
+							"description": undefined,
+							"endColumnIndex": 8,
+							"endRowIndex": 1,
+							"functionParameterIndex": undefined,
+							"startColumnIndex": 1,
+							"startRowIndex": 1,
+							"typeExpression": {
+								"endColumnIndex": 14,
 								"endRowIndex": 1,
-								"functionParameterIndex": undefined,
-								"startColumnIndex": 1,
-								"startRowIndex": 1,
-								"typeExpression": {
+								"name": {
 									"endColumnIndex": 14,
 									"endRowIndex": 1,
-									"name": {
-										"endColumnIndex": 14,
-										"endRowIndex": 1,
-										"name": "Text",
-										"startColumnIndex": 10,
-										"startRowIndex": 1,
-										"type": "name",
-									},
+									"name": "Text",
 									"startColumnIndex": 10,
 									"startRowIndex": 1,
-									"type": "reference",
+									"type": "name",
 								},
+								"startColumnIndex": 10,
+								"startRowIndex": 1,
+								"type": "reference",
 							},
 						},
-						"type": "dictionaryType",
 					},
+					"type": "dictionaryType",
+				};
+				dictionaryType.fields[0].parent = dictionaryType;
+				const result: ParseExpression[] = [
+					dictionaryType,
 				];
 				return result;
 			})(),
