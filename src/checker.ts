@@ -212,7 +212,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	};
 }
 
-export function dereferenceNameFromObject(
+function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: RuntimeType,
 ): RuntimeType | undefined {
@@ -417,37 +417,6 @@ function dereferenceArgumentType(
 		default:
 			return argsType;
 	}
-}
-
-export function dereferenceInferredType(sourceType: RuntimeType | undefined, scopes: SymbolTable[]): RuntimeType {
-	if (!sourceType || !(sourceType instanceof BuiltInTypeBase)) {
-		return Any;
-	}
-	switch (sourceType.type) {
-		case 'dictionaryLiteral':
-			return sourceType;
-		case 'reference': {
-			const dereferenced = dereferenceParameterType(sourceType);
-			return dereferenced;
-		}
-		default:
-			return sourceType;
-	}
-}
-
-function dereferenceParameterType(parameterReference: ParameterReference): RuntimeType {
-	const functionRef = parameterReference.functionRef;
-	if (!functionRef || !(functionRef instanceof FunctionType)) {
-		return Any;
-	}
-	const paramsType = functionRef.paramsType;
-	if (!(paramsType instanceof ParametersType)) {
-		return Any;
-	}
-	const matchedParameter = paramsType.singleNames.find(parameter =>
-		parameter.name === parameterReference.name);
-	// TODO rest
-	return matchedParameter?.type ?? Any;
 }
 
 //#endregion dereference
@@ -657,7 +626,13 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						fieldTypes[fieldName] = field.value.inferredType!;
+						const fieldType = field.value.inferredType!;
+						fieldTypes[fieldName] = fieldType;
+						const fieldSymbol = expression.symbols[fieldName];
+						if (!fieldSymbol) {
+							throw new Error(`fieldSymbol ${fieldName} not found`);
+						}
+						fieldSymbol.normalizedType = fieldType;
 						return;
 					}
 					case 'spread':
@@ -684,7 +659,13 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						fieldTypes[fieldName] = valueOf(field.typeGuard.inferredType);
+						const fieldType = valueOf(field.typeGuard.inferredType);
+						fieldTypes[fieldName] = fieldType;
+						const fieldSymbol = expression.symbols[fieldName];
+						if (!fieldSymbol) {
+							throw new Error(`fieldSymbol ${fieldName} not found`);
+						}
+						fieldSymbol.normalizedType = fieldType;
 						return;
 					}
 					case 'spread':

@@ -365,12 +365,12 @@ export type RuntimeType =
 /**
  * numerator / denominator
  */
-interface Fraction {
+interface RuntimeFraction {
 	numerator: bigint;
 	denominator: bigint;
 }
 
-type Rational = bigint | Fraction;
+type RuntimeRational = bigint | RuntimeFraction;
 
 type CustomType = (value: any) => boolean;
 
@@ -915,7 +915,16 @@ type ParserResult<T> = {
 	endIndex: number;
 } | Error;
 
-export function _parseJson(json: string) {
+export type JsonValue =
+	| null
+	| boolean
+	| RuntimeRational
+	| string
+	| JsonValue[]
+	| { [key: string]: JsonValue }
+	;
+
+export function _parseJson(json: string): JsonValue | Error {
 	const result = parseJsonValue(json, 0);
 	if (result instanceof Error) {
 		return result;
@@ -927,14 +936,14 @@ export function _parseJson(json: string) {
 	return result.parsed;
 }
 
-function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
+function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValue> {
 	let index = parseJsonWhiteSpace(json, startIndex);
-	const character = json[index]
+	const character = json[index];
 	switch (character) {
 		case 'n':
-			return parseJsonToken(json, index, 'null', null)
+			return parseJsonToken(json, index, 'null', null);
 		case 't':
-			return parseJsonToken(json, index, 'true', true)
+			return parseJsonToken(json, index, 'true', true);
 		case 'f':
 			return parseJsonToken(json, index, 'false', false);
 		case '-':
@@ -959,7 +968,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 			}
 			const integerString = (isNegative ? '-' : '') + match.groups!.integer!;
 			const fractionString = match.groups!.fraction;
-			const numerator = BigInt(integerString + (fractionString ?? ''))
+			const numerator = BigInt(integerString + (fractionString ?? ''));
 			const exponentString = match.groups!.exponent;
 			const fractionExponent = fractionString
 				? BigInt('-' + fractionString.length)
@@ -968,7 +977,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<any> {
 				? BigInt(exponentString)
 				: 0n;
 			const combinedExponent = fractionExponent + exponent;
-			const numberValue: Rational = combinedExponent < 0
+			const numberValue: RuntimeRational = combinedExponent < 0
 				// TODO kürzen?
 				? {
 					numerator: numerator,
@@ -1306,7 +1315,7 @@ export const modulo = _createFunction(
 	}
 );
 export const multiply = _createFunction(
-	(...args: Rational[]) =>
+	(...args: RuntimeRational[]) =>
 		args.reduce(
 			(accumulator, current) => {
 				if (typeof accumulator === 'bigint') {
@@ -1357,7 +1366,7 @@ export const multiplyFloat = _createFunction(
 	}
 );
 export const rationalToFloat = _createFunction(
-	(rational: Rational): number => {
+	(rational: RuntimeRational): number => {
 		if (typeof rational === 'bigint') {
 			return Number(rational);
 		}
@@ -1375,7 +1384,7 @@ export const rationalToFloat = _createFunction(
 	}
 );
 export const subtract = _createFunction(
-	(minuend: Rational, subtrahend: Rational): Rational => {
+	(minuend: RuntimeRational, subtrahend: RuntimeRational): RuntimeRational => {
 		if (typeof minuend === 'bigint') {
 			if (typeof subtrahend === 'bigint') {
 				return minuend - subtrahend;
@@ -1433,7 +1442,7 @@ export const subtractFloat = _createFunction(
 	}
 );
 export const add = _createFunction(
-	(...args: Rational[]) =>
+	(...args: RuntimeRational[]) =>
 		args.reduce(
 			(accumulator, current) => {
 				if (typeof accumulator === 'bigint') {

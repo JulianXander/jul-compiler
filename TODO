@@ -1,8 +1,4 @@
--autocomplete für DictionaryLiteral felder und feld reference anhand DictionaryLiteralType
-	-vgl autocomplete.jul
--description in nestedReference hover aus field description
-	-symbolTable für dictionaryTypeLiteral
-		?wohin damit, in dictionaryTypeLiteral expression, oder verschachtelt in scope symboltable
+-autocomplete für DictionaryLiteral felder anhand DictionaryLiteralType
 	-vgl autocomplete.jul
 -debug experience vebessern
 	?sourcemap

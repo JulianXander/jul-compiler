@@ -25,6 +25,8 @@ import {
 	ParseDestructuringDefinition,
 	ParsedExpressions,
 	ParsedFile,
+	ParseDictionaryLiteral,
+	ParseDictionaryTypeLiteral,
 	ParseExpression,
 	ParseFieldBase,
 	ParseFunctionCall,
@@ -58,7 +60,7 @@ import {
 	readTextFile,
 } from '../util.js';
 import { parseTsCode } from './typescript-parser.js';
-import { checkName, createParseFunctionLiteral, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions } from './parser-utils.js';
+import { checkName, createParseFunctionLiteral, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions, setParent, setParentForFields } from './parser-utils.js';
 import { dirname, extname, join } from 'path';
 import { _parseJson } from '../runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
@@ -121,7 +123,7 @@ export function parseCode(
 		case Extension.yaml: {
 			// TODO bigints, Fractions
 			const parsedYaml = load(code);
-			parsedExpressions = jsonValueToParsedExpressions(parsedYaml);
+			parsedExpressions = jsonValueToParsedExpressions(parsedYaml as any);
 			break;
 		}
 		default: {
@@ -1801,7 +1803,9 @@ function bracketedExpressionToValueExpression(
 		baseField.spread || baseField.assignedValue)
 		&& baseFields.some(baseField => baseField.assignedValue);
 	if (isDictionary) {
-		return {
+		const symbols: SymbolTable = {};
+		fillSymbolTableWithDictionaryType(symbols, errors, bracketedExpression, false);
+		const dictionary: ParseDictionaryLiteral = {
 			type: 'dictionary',
 			fields: mapNonEmpty(
 				baseFields,
@@ -1867,11 +1871,14 @@ function bracketedExpressionToValueExpression(
 					setParent(name, singleDictionaryField);
 					return singleDictionaryField;
 				}),
+			symbols: symbols,
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
+		setParentForFields(dictionary);
+		return dictionary;
 	}
 	const isDictionaryType = baseFields.every(baseField =>
 		!baseField.assignedValue
@@ -1880,7 +1887,7 @@ function bracketedExpressionToValueExpression(
 	if (isDictionaryType) {
 		const symbols: SymbolTable = {};
 		fillSymbolTableWithDictionaryType(symbols, errors, bracketedExpression, false);
-		return {
+		const dictionaryType: ParseDictionaryTypeLiteral = {
 			type: 'dictionaryType',
 			fields: mapNonEmpty(
 				baseFields,
@@ -1949,6 +1956,8 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
+		setParentForFields(dictionaryType);
+		return dictionaryType;
 	}
 	const isUnknownObject = baseFields.every(baseField =>
 		baseField.spread
@@ -2027,12 +2036,6 @@ function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError
 }
 
 //#endregion convert
-
-function setParent(expression: PositionedExpressionBase | undefined, parent: PositionedExpression): void {
-	if (expression) {
-		expression.parent = parent;
-	}
-}
 
 //#region import
 

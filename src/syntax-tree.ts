@@ -178,6 +178,10 @@ export interface ParseDictionaryLiteral extends ParseExpressionBase {
 	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
 	fields: NonEmptyArray<ParseDictionaryField>;
+	/**
+	 * Die Felder
+	 */
+	symbols: SymbolTable;
 }
 
 export type ParseDictionaryField =
