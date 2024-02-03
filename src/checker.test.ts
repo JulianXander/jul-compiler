@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ParseExpression } from './syntax-tree.js';
+import { ParseExpression, ParseSingleDefinition } from './syntax-tree.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { parseCode } from './parser/parser.js';
 import { checkTypes } from './checker.js'
@@ -131,26 +131,8 @@ const expectedResults: {
 			name: 'used-before-defined-error',
 			code: `a
 a = 5`,
-			result: [
-				{
-					"endColumnIndex": 1,
-					"endRowIndex": 0,
-					"inferredType": {
-						"type": "any",
-					},
-					"name": {
-						"endColumnIndex": 1,
-						"endRowIndex": 0,
-						"name": "a",
-						"startColumnIndex": 0,
-						"startRowIndex": 0,
-						"type": "name",
-					},
-					"startColumnIndex": 0,
-					"startRowIndex": 0,
-					"type": "reference",
-				},
-				{
+			result: (() => {
+				const definition: ParseSingleDefinition = {
 					"description": undefined,
 					"endColumnIndex": 5,
 					"endRowIndex": 1,
@@ -172,13 +154,53 @@ a = 5`,
 						"endColumnIndex": 5,
 						"endRowIndex": 1,
 						"inferredType": 5n,
+						"parent": {
+							"description": undefined,
+							"endColumnIndex": 5,
+							"endRowIndex": 1,
+							"fallback": undefined,
+							"name": {
+								"endColumnIndex": 1,
+								"endRowIndex": 1,
+								"name": "a",
+								"startColumnIndex": 0,
+								"startRowIndex": 1,
+								"type": "name",
+							},
+							"startColumnIndex": 0,
+							"startRowIndex": 1,
+							"type": "definition",
+							"typeGuard": undefined,
+						} as any,
 						"startColumnIndex": 4,
 						"startRowIndex": 1,
 						"type": "integer",
 						"value": 5n,
 					},
-				},
-			],
+				};
+				(definition.value.parent as any).value = definition.value;
+				return [
+					{
+						"endColumnIndex": 1,
+						"endRowIndex": 0,
+						"inferredType": {
+							"type": "any",
+						},
+						"name": {
+							"endColumnIndex": 1,
+							"endRowIndex": 0,
+							"name": "a",
+							"startColumnIndex": 0,
+							"startRowIndex": 0,
+							"type": "name",
+						},
+						"startColumnIndex": 0,
+						"startRowIndex": 0,
+						"type": "reference",
+					},
+					definition,
+				];
+			})(),
 			errors: [
 				{
 					"endColumnIndex": 1,
