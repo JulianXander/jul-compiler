@@ -452,11 +452,11 @@ function expressionParser(
 	}
 	const errors = result.errors ?? [];
 	const baseName = parsed.name;
-	// bei name = BracketedExpression und assignedValue: DestructuringDefinition
-	// bei name = ref und assignedValue: SingleDefinition
+	// bei name = BracketedExpression und definition: DestructuringDefinition
+	// bei name = ref und definition: SingleDefinition
 	// bei alles außer name leer: valueExpression
 	// sonst Fehler
-	if ((baseName.type === 'bracketed') && parsed.assignedValue) {
+	if ((baseName.type === 'bracketed') && parsed.definition) {
 		if (parsed.spread) {
 			errors.push({
 				message: 'rest not allowed for destructuring',
@@ -473,6 +473,15 @@ function expressionParser(
 				startColumnIndex: parsed.typeGuard.startColumnIndex,
 				endRowIndex: parsed.typeGuard.endRowIndex,
 				endColumnIndex: parsed.typeGuard.endColumnIndex,
+			});
+		}
+		if (!parsed.assignedValue) {
+			errors.push({
+				message: 'assignedValue missing for destructuring',
+				startRowIndex: parsed.startRowIndex,
+				startColumnIndex: parsed.startColumnIndex,
+				endRowIndex: parsed.endRowIndex,
+				endColumnIndex: parsed.endColumnIndex,
 			});
 		}
 		if (parsed.fallback) {
@@ -500,7 +509,16 @@ function expressionParser(
 			parsed: destructuring,
 		};
 	}
-	if (baseName.type === 'reference' && parsed.assignedValue) {
+	if (baseName.type === 'reference' && parsed.definition) {
+		if (!parsed.assignedValue) {
+			errors.push({
+				message: 'assignedValue missing for definition',
+				startRowIndex: parsed.startRowIndex,
+				startColumnIndex: parsed.startColumnIndex,
+				endRowIndex: parsed.endRowIndex,
+				endColumnIndex: parsed.endColumnIndex,
+			});
+		}
 		const definition: ParseSingleDefinition = {
 			type: 'definition',
 			description: parsed.description,
@@ -539,13 +557,14 @@ function expressionParser(
 			endColumnIndex: parsed.typeGuard.endColumnIndex,
 		});
 	}
-	if (parsed.assignedValue) {
+	if (parsed.definition) {
 		errors.push({
-			message: 'assignedValue not allowed for valueExpression',
-			startRowIndex: parsed.assignedValue.startRowIndex,
-			startColumnIndex: parsed.assignedValue.startColumnIndex,
-			endRowIndex: parsed.assignedValue.endRowIndex,
-			endColumnIndex: parsed.assignedValue.endColumnIndex,
+			message: 'definition not allowed for valueExpression',
+			// TODO definition token position?
+			startRowIndex: parsed.startRowIndex,
+			startColumnIndex: parsed.startColumnIndex,
+			endRowIndex: parsed.endRowIndex,
+			endColumnIndex: parsed.endColumnIndex,
 		});
 	}
 	if (parsed.fallback) {
@@ -709,7 +728,12 @@ function fieldParser(
 				predicate: definitionTokenParser,
 				parser: sequenceParser(
 					definitionTokenParser,
-					valueExpressionParser,
+					// nur kein value bei unvollständigem Feld
+					multiplicationParser(
+						0,
+						1,
+						valueExpressionParser,
+					)
 				),
 			},
 			{
@@ -739,7 +763,8 @@ function fieldParser(
 			spread: !!result.parsed[0].length,
 			name: result.parsed[1],
 			typeGuard: result.parsed[2]?.[1],
-			assignedValue: result.parsed[3]?.[1],
+			definition: !!result.parsed[3],
+			assignedValue: result.parsed[3]?.[1][0],
 			fallback: result.parsed[4]?.[1],
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
@@ -1764,7 +1789,7 @@ function bracketedExpressionToValueExpression(
 	}
 	const isList = baseFields.every(baseField =>
 		!baseField.typeGuard
-		&& !baseField.assignedValue
+		&& !baseField.definition
 		// TODO ListLiteral mit Fallback?
 		&& !baseField.fallback)
 		&& baseFields.some(baseField => !baseField.spread);
@@ -1799,9 +1824,9 @@ function bracketedExpressionToValueExpression(
 		return list;
 	}
 	const isDictionary = baseFields.every(baseField =>
-		// singleDictionaryField muss assignedValue haben
-		baseField.spread || baseField.assignedValue)
-		&& baseFields.some(baseField => baseField.assignedValue);
+		// singleDictionaryField muss definition haben
+		baseField.spread || baseField.definition)
+		&& baseFields.some(baseField => baseField.definition);
 	if (isDictionary) {
 		const symbols: SymbolTable = {};
 		fillSymbolTableWithDictionaryType(symbols, errors, bracketedExpression, false);
@@ -1822,14 +1847,14 @@ function bracketedExpressionToValueExpression(
 								endColumnIndex: typeGuard.endColumnIndex,
 							});
 						}
-						const assignedValue = baseField.assignedValue;
-						if (assignedValue) {
+						if (baseField.definition) {
 							errors.push({
-								message: `assignedValue is not allowed for spread dictionary field`,
-								startRowIndex: assignedValue.startRowIndex,
-								startColumnIndex: assignedValue.startColumnIndex,
-								endRowIndex: assignedValue.endRowIndex,
-								endColumnIndex: assignedValue.endColumnIndex,
+								message: `definition is not allowed for spread dictionary field`,
+								// TODO position von definition token?
+								startRowIndex: baseField.startRowIndex,
+								startColumnIndex: baseField.startColumnIndex,
+								endRowIndex: baseField.endRowIndex,
+								endColumnIndex: baseField.endColumnIndex,
 							});
 						}
 						const fallback = baseField.fallback;
@@ -1853,6 +1878,15 @@ function bracketedExpressionToValueExpression(
 						return spreadDictionaryField;
 					}
 					errors.push(...getEscapableNameErrors(baseName));
+					if (!baseField.assignedValue) {
+						errors.push({
+							message: 'assignedValue missing for singleDictionaryField',
+							startRowIndex: baseField.startRowIndex,
+							startColumnIndex: baseField.startColumnIndex,
+							endRowIndex: baseField.endRowIndex,
+							endColumnIndex: baseField.endColumnIndex,
+						});
+					}
 					const name = baseName.type === 'reference'
 						? baseName.name
 						: baseName;
@@ -1861,7 +1895,7 @@ function bracketedExpressionToValueExpression(
 						description: baseField.description,
 						name: name,
 						typeGuard: baseField.typeGuard,
-						value: baseField.assignedValue!,
+						value: baseField.assignedValue,
 						fallback: baseField.fallback,
 						startRowIndex: baseField.startRowIndex,
 						startColumnIndex: baseField.startColumnIndex,
@@ -1881,7 +1915,7 @@ function bracketedExpressionToValueExpression(
 		return dictionary;
 	}
 	const isDictionaryType = baseFields.every(baseField =>
-		!baseField.assignedValue
+		!baseField.definition
 		&& !baseField.fallback)
 		&& baseFields.some(baseField => baseField.typeGuard);
 	if (isDictionaryType) {
@@ -1892,14 +1926,14 @@ function bracketedExpressionToValueExpression(
 			fields: mapNonEmpty(
 				baseFields,
 				baseField => {
-					const assignedValue = baseField.assignedValue;
-					if (assignedValue) {
+					if (baseField.definition) {
 						errors.push({
-							message: `assignedValue is not allowed for dictionaryType field`,
-							startRowIndex: assignedValue.startRowIndex,
-							startColumnIndex: assignedValue.startColumnIndex,
-							endRowIndex: assignedValue.endRowIndex,
-							endColumnIndex: assignedValue.endColumnIndex,
+							message: `definition is not allowed for dictionaryType field`,
+							// TODO position von definition token?
+							startRowIndex: baseField.startRowIndex,
+							startColumnIndex: baseField.startColumnIndex,
+							endRowIndex: baseField.endRowIndex,
+							endColumnIndex: baseField.endColumnIndex,
 						});
 					}
 					const fallback = baseField.fallback;
@@ -2057,7 +2091,7 @@ function getImportedPaths(
 			case 'definition':
 			case 'destructuring':
 				const value = expression.value;
-				if (isImportFunctionCall(value)) {
+				if (value && isImportFunctionCall(value)) {
 					const { fullPath, error } = getPathFromImport(value, sourceFolder);
 					if (error) {
 						errors.push(error);

@@ -51,6 +51,9 @@ function expressionToJs(expression: ParseExpression, topLevel: boolean = false):
 		case 'definition': {
 			// export topLevel definitions
 			const value = expression.value;
+			if (!value) {
+				throw new Error('value missing in definition');
+			}
 			const nameJs = escapeReservedJsVariableName(expression.name.name);
 			const typeGuard = expression.typeGuard;
 			if (isImportFunctionCall(value)) {
@@ -78,6 +81,9 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'destructuring': {
 			const fields = expression.fields.fields;
 			const value = expression.value;
+			if (!value) {
+				throw new Error('value missing in destructuring');
+			}
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
 				// TODO export, typeGuard, fallback
@@ -115,6 +121,9 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'dictionary':
 			// TODO mit Object.create(null), damit leerer prototype? Oder Persistent Data Structure?
 			return dictionaryToJs(expression.fields.map(field => {
+				if (!field.value) {
+					throw new Error('value missing for dictionary field')
+				}
 				const valueJs = expressionToJs(field.value);
 				if (field.type === 'singleDictionaryField') {
 					return singleDictionaryFieldToJs(field.name, field.typeGuard ? checkTypeJs(field.typeGuard, valueJs) : valueJs);

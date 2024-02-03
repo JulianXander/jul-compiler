@@ -1166,7 +1166,68 @@ const expectedResults: {
 					"startRowIndex": 0,
 				},
 			],
-		}
+		},
+		{
+			name: 'uncomplete-dictionary-field',
+			code: '(\n\ta = \n)',
+			result: (() => {
+				const dictionary: ParseDictionaryLiteral = {
+					"endColumnIndex": 1,
+					"endRowIndex": 2,
+					"fields": [
+						{
+							"description": undefined,
+							"endColumnIndex": 5,
+							"endRowIndex": 1,
+							"fallback": undefined,
+							"name": {
+								"endColumnIndex": 2,
+								"endRowIndex": 1,
+								"name": "a",
+								// "parent": [Circular],
+								"startColumnIndex": 1,
+								"startRowIndex": 1,
+								"type": "name",
+							},
+							// "parent": [Circular],
+							"startColumnIndex": 1,
+							"startRowIndex": 1,
+							"type": "singleDictionaryField",
+							"typeGuard": undefined,
+							"value": undefined,
+						},
+					],
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"symbols": {
+						"a": {
+							"description": undefined,
+							"endColumnIndex": 2,
+							"endRowIndex": 1,
+							"functionParameterIndex": undefined,
+							"startColumnIndex": 1,
+							"startRowIndex": 1,
+							"typeExpression": undefined,
+						},
+					},
+					"type": "dictionary",
+				};
+				dictionary.fields[0].parent = dictionary;
+				(dictionary.fields[0] as any).name.parent = dictionary.fields[0];
+				return [
+					dictionary,
+				];
+			})(),
+			errors: [
+				{
+					"endColumnIndex": 5,
+					"endRowIndex": 1,
+					"message": "assignedValue missing for singleDictionaryField",
+					"startColumnIndex": 1,
+					"startRowIndex": 1,
+				},
+			],
+		},
 	];
 
 describe('Parser', () => {

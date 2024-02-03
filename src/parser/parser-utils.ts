@@ -31,7 +31,6 @@ export function fillSymbolTableWithExpressions(
 	expressions.forEach(expression => {
 		switch (expression.type) {
 			case 'definition': {
-				// TODO type
 				defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description, undefined);
 				return;
 			}
@@ -121,7 +120,7 @@ function defineSymbol(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
 	name: Name,
-	type: ParseValueExpression,
+	type: ParseValueExpression | undefined,
 	description: string | undefined,
 	functionParameterIndex: number | undefined,
 ): void {

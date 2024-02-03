@@ -178,7 +178,7 @@ a = 5`,
 						"value": 5n,
 					},
 				};
-				(definition.value.parent as any).value = definition.value;
+				(definition.value!.parent as any).value = definition.value;
 				return [
 					{
 						"endColumnIndex": 1,

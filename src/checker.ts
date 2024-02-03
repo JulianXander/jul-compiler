@@ -527,9 +527,12 @@ function inferType(
 			}));
 		}
 		case 'definition': {
-			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
+			const value = expression.value;
+			if (value) {
+				setInferredType(value, scopes, parsedDocuments, folder, file);
+			}
 			const name = expression.name.name;
-			const inferredType = coreBuiltInSymbolTypes[name] ?? expression.value.inferredType!;
+			const inferredType = coreBuiltInSymbolTypes[name] ?? value?.inferredType ?? Any;
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			const currentScope = last(scopes);
@@ -560,7 +563,9 @@ function inferType(
 		}
 		case 'destructuring': {
 			const value = expression.value;
-			setInferredType(value, scopes, parsedDocuments, folder, file);
+			if (value) {
+				setInferredType(value, scopes, parsedDocuments, folder, file);
+			}
 			const currentScope = last(scopes);
 			expression.fields.fields.forEach(field => {
 				if (field.spread) {
@@ -577,7 +582,7 @@ function inferType(
 					if (pathToDereference.type !== 'reference') {
 						return;
 					}
-					const valueType = value.inferredType!;
+					const valueType = value?.inferredType ?? Any;
 					const referenceName = pathToDereference.name.name;
 					const dereferencedType = dereferenceNameFromObject(referenceName, valueType);
 					if (dereferencedType === undefined) {
@@ -613,7 +618,10 @@ function inferType(
 		case 'dictionary': {
 			const fieldTypes: { [key: string]: RuntimeType; } = {};
 			expression.fields.forEach(field => {
-				setInferredType(field.value, scopes, parsedDocuments, folder, file);
+				const value = field.value;
+				if (value) {
+					setInferredType(value, scopes, parsedDocuments, folder, file);
+				}
 				switch (field.type) {
 					case 'singleDictionaryField': {
 						if (field.fallback) {
@@ -626,7 +634,7 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = field.value.inferredType!;
+						const fieldType = field.value?.inferredType ?? Any;
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
@@ -712,7 +720,7 @@ function inferType(
 				return Any;
 			}
 			//#region infer argument type bei function literal wenn literal inline argument des function calls ist
-			function getAllArgs(): ParseValueExpression[] {
+			function getAllArgs(): (ParseValueExpression | undefined)[] {
 				const prefixArgs = prefixArgument
 					? [prefixArgument]
 					: [];
@@ -746,7 +754,7 @@ function inferType(
 			}
 			const argsExpressions = getAllArgs();
 			argsExpressions.forEach((arg, argIndex) => {
-				if (arg.type === 'functionLiteral') {
+				if (arg?.type === 'functionLiteral') {
 					// TODO get param type by name, spread args berücksichtigen
 					if (paramsType instanceof ParametersType) {
 						const param = paramsType.singleNames[argIndex];

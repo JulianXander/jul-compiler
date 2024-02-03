@@ -32,7 +32,10 @@ export interface SymbolTable {
 
 export interface SymbolDefinition extends Positioned {
 	description?: string;
-	typeExpression: ParseValueExpression;
+	/**
+	 * undefined bei unvollständiger definition
+	 */
+	typeExpression?: ParseValueExpression;
 	// TODO inferred type aus dem value? oder normalize typeguard?
 	normalizedType?: RuntimeType;
 	//#region FunctionParameter
@@ -121,14 +124,20 @@ export interface ParseSingleDefinition extends ParseExpressionBase {
 	name: Name;
 	typeGuard?: ParseValueExpression;
 	normalizedTypeGuard?: RuntimeType;
-	value: ParseValueExpression;
+	/**
+	 * undefined bei unvollständiger Expression
+	 */
+	value?: ParseValueExpression;
 	fallback?: ParseValueExpression;
 }
 
 export interface ParseDestructuringDefinition extends ParseExpressionBase {
 	type: 'destructuring';
 	fields: BracketedExpressionBase;
-	value: ParseValueExpression;
+	/**
+	 * undefined bei unvollständiger Expression
+	 */
+	value?: ParseValueExpression;
 }
 
 //#region Bracketed
@@ -197,7 +206,10 @@ export interface ParseSingleDictionaryField extends PositionedExpressionBase {
 	 */
 	name: ParseValueExpressionBase | Name;
 	typeGuard?: ParseValueExpression;
-	value: ParseValueExpression;
+	/**
+	 * undefined bei unvollständiger Expression
+	 */
+	value?: ParseValueExpression;
 	fallback?: ParseValueExpression;
 }
 
@@ -298,6 +310,10 @@ export interface ParseFieldBase extends ParseExpressionBase {
 	 */
 	name: ParseValueExpressionBase;
 	typeGuard?: ParseValueExpression;
+	/**
+	 * definition token ' = '
+	 */
+	definition: boolean;
 	/**
 	 * source/assignedValue
 	 */
