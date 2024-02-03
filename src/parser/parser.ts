@@ -44,7 +44,6 @@ import {
 	ParseValueExpression,
 	ParseValueExpressionBase,
 	PositionedExpression,
-	PositionedExpressionBase,
 	Reference,
 	SimpleExpression,
 	SymbolTable,
@@ -514,6 +513,7 @@ function expressionParser(
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 		};
+		setParent(definition.value, definition);
 		return {
 			...result,
 			errors: errors,
