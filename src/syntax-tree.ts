@@ -353,6 +353,7 @@ export interface ParseParameterFields extends ParseExpressionBase {
 	singleFields: ParseParameterField[];
 	// TODO rest ohne fallback?
 	rest?: ParseParameterField;
+	symbols: SymbolTable;
 }
 
 export interface ParseParameterField extends ParseExpressionBase {

@@ -1,5 +1,44 @@
-import { BracketedExpressionBase, Name, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterFields, ParseValueExpression, ParseValueExpressionBase, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { BracketedExpressionBase, Name, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, ParseValueExpressionBase, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolDefinition, SymbolTable } from "../syntax-tree.js";
 import { ParserError, Positioned } from "./parser-combinator.js";
+
+export function createParseParameters(
+	singleFields: ParseParameterField[],
+	rest: ParseParameterField | undefined,
+	position: Positioned,
+	errors: ParserError[],
+): ParseParameterFields {
+	const symbols: SymbolTable = {};
+	singleFields.forEach((field, index) => {
+		defineSymbol(
+			symbols,
+			errors,
+			field.name,
+			// TODO
+			field.typeGuard as any,
+			field.description,
+			index);
+	});
+	if (rest) {
+		defineSymbol(
+			symbols,
+			errors,
+			rest.name,
+			// TODO
+			rest.typeGuard as any,
+			rest.description,
+			undefined);
+	}
+	return {
+		type: 'parameters',
+		singleFields: singleFields,
+		rest: rest,
+		symbols: symbols,
+		startRowIndex: position.startRowIndex,
+		startColumnIndex: position.startColumnIndex,
+		endRowIndex: position.endRowIndex,
+		endColumnIndex: position.endColumnIndex,
+	};
+}
 
 export function createParseFunctionLiteral(
 	params: SimpleExpression | ParseParameterFields,
@@ -8,8 +47,14 @@ export function createParseFunctionLiteral(
 	position: Positioned,
 	errors: ParserError[],
 ): ParseFunctionLiteral {
-	const symbols: SymbolTable = {};
-	fillSymbolTableWithParams(symbols, errors, params);
+	const symbols: SymbolTable = params.type === 'parameters'
+		? {
+			...params.symbols,
+		}
+		: {};
+	if (params.type === 'bracketed') {
+		fillSymbolTableWithDictionaryType(symbols, errors, params, true);
+	}
 	fillSymbolTableWithExpressions(symbols, errors, body);
 	return {
 		type: 'functionLiteral',
@@ -43,44 +88,6 @@ export function fillSymbolTableWithExpressions(
 				return;
 		}
 	});
-}
-
-function fillSymbolTableWithParams(
-	symbolTable: SymbolTable,
-	errors: ParserError[],
-	params: SimpleExpression | ParseParameterFields,
-): void {
-	switch (params.type) {
-		case 'bracketed':
-			fillSymbolTableWithDictionaryType(symbolTable, errors, params, true);
-			break;
-		case 'parameters': {
-			params.singleFields.forEach((field, index) => {
-				defineSymbol(
-					symbolTable,
-					errors,
-					field.name,
-					// TODO
-					field.typeGuard as any,
-					field.description,
-					index);
-			});
-			const rest = params.rest;
-			if (rest) {
-				defineSymbol(
-					symbolTable,
-					errors,
-					rest.name,
-					// TODO
-					rest.typeGuard as any,
-					rest.description,
-					undefined);
-			}
-			break;
-		}
-		default:
-			break;
-	}
 }
 
 export function fillSymbolTableWithDictionaryType(
