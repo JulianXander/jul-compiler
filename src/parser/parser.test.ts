@@ -249,6 +249,71 @@ const expectedResults: {
 				return result;
 			})(),
 		},
+
+		{
+			name: 'escaped-field',
+			code: '(\n\t§someKey§ = 5\n)\n',
+			result: (() => {
+				const field: ParseSingleDictionaryField = {
+					"description": undefined,
+					"endColumnIndex": 14,
+					"endRowIndex": 1,
+					"fallback": undefined,
+					"name": {
+						"endColumnIndex": 10,
+						"endRowIndex": 1,
+						"startColumnIndex": 1,
+						"startRowIndex": 1,
+						"type": "text",
+						values: [
+							{
+								type: "textToken",
+								value: "someKey"
+							}
+						]
+					},
+					"startColumnIndex": 1,
+					"startRowIndex": 1,
+					"type": "singleDictionaryField",
+					"typeGuard": undefined,
+					"value": {
+						"endColumnIndex": 14,
+						"endRowIndex": 1,
+						"startColumnIndex": 13,
+						"startRowIndex": 1,
+						"type": "integer",
+						"value": 5n,
+					},
+				};
+				field.name.parent = field;
+				const dictionary: ParseDictionaryLiteral = {
+					"endColumnIndex": 1,
+					"endRowIndex": 2,
+					"fields": [
+						field,
+					],
+					"symbols": {
+						"someKey": {
+							"description": undefined,
+							"endColumnIndex": 10,
+							"endRowIndex": 1,
+							"functionParameterIndex": undefined,
+							"startColumnIndex": 1,
+							"startRowIndex": 1,
+							"typeExpression": undefined as any,
+						},
+					},
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"type": "dictionary",
+				};
+				dictionary.fields[0].parent = dictionary;
+				const result: ParseExpression[] = [
+					dictionary,
+				];
+				return result;
+			})(),
+		},
 		{
 			name: 'dictionary-type',
 			code: '(\n\tsomeKey: Text\n)',
@@ -1112,6 +1177,7 @@ const expectedResults: {
 						"singleFields": [],
 						"startColumnIndex": 0,
 						"startRowIndex": 0,
+						symbols: {},
 						"type": "parameters",
 					},
 					"returnType": {

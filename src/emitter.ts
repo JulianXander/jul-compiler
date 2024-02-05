@@ -11,8 +11,9 @@ import {
 import * as runtime from './runtime.js';
 import { Extension, changeExtension } from './util.js';
 import { extname, isAbsolute } from 'path';
-import { getCheckedEscapableName, getCheckedName } from './checker.js';
+import { getCheckedName } from './checker.js';
 import { getPathExpression, isImportFunction, isImportFunctionCall } from './parser/parser.js';
+import { getCheckedEscapableName } from './parser/parser-utils.js';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');

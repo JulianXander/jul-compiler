@@ -59,7 +59,7 @@ import {
 	readTextFile,
 } from '../util.js';
 import { parseTsCode } from './typescript-parser.js';
-import { checkName, createParseFunctionLiteral, createParseParameters, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions, setParent, setParentForFields } from './parser-utils.js';
+import { createParseFunctionLiteral, createParseParameters, fillSymbolTableWithDictionaryType, fillSymbolTableWithExpressions, setParent, setParentForFields } from './parser-utils.js';
 import { dirname, extname, join } from 'path';
 import { _parseJson } from '../runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
@@ -1753,6 +1753,13 @@ function bracketedExpressionToParameters(
 		}
 	}
 	return createParseParameters(singleFields, rest, bracketedExpression, errors);
+}
+
+function checkName(parseName: ParseValueExpressionBase | ParseValueExpression): Name | undefined {
+	if (parseName.type !== 'reference') {
+		return undefined;
+	}
+	return parseName.name;
 }
 
 function baseValueExpressionToValueExpression(

@@ -12,6 +12,7 @@ export function createParseParameters(
 		defineSymbol(
 			symbols,
 			errors,
+			field.name.name,
 			field.name,
 			// TODO
 			field.typeGuard as any,
@@ -22,6 +23,7 @@ export function createParseParameters(
 		defineSymbol(
 			symbols,
 			errors,
+			rest.name.name,
 			rest.name,
 			// TODO
 			rest.typeGuard as any,
@@ -76,7 +78,14 @@ export function fillSymbolTableWithExpressions(
 	expressions.forEach(expression => {
 		switch (expression.type) {
 			case 'definition': {
-				defineSymbol(symbolTable, errors, expression.name, expression.value, expression.description, undefined);
+				defineSymbol(
+					symbolTable,
+					errors,
+					expression.name.name,
+					expression.name,
+					expression.value,
+					expression.description,
+					undefined);
 				return;
 			}
 			case 'destructuring': {
@@ -107,7 +116,7 @@ function defineSymbolForField(
 	field: ParseFieldBase,
 	functionParameterIndex: number | undefined,
 ): void {
-	const name = checkName(field.name);
+	const name = getCheckedEscapableName(field.name);
 	if (!name) {
 		// TODO error?
 		return;
@@ -116,6 +125,7 @@ function defineSymbolForField(
 		symbolTable,
 		errors,
 		name,
+		field.name,
 		// TODO check type
 		field.typeGuard as any,
 		field.description,
@@ -126,39 +136,52 @@ function defineSymbolForField(
 function defineSymbol(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
-	name: Name,
+	name: string,
+	position: Positioned,
 	type: ParseValueExpression | undefined,
 	description: string | undefined,
 	functionParameterIndex: number | undefined,
 ): void {
-	const nameString = name.name;
-	if (symbolTable[nameString]) {
+	if (symbolTable[name]) {
 		errors.push({
-			message: `${nameString} is already defined`,
-			startRowIndex: name.startRowIndex,
-			startColumnIndex: name.startColumnIndex,
-			endRowIndex: name.endRowIndex,
-			endColumnIndex: name.endColumnIndex,
+			message: `${name} is already defined`,
+			startRowIndex: position.startRowIndex,
+			startColumnIndex: position.startColumnIndex,
+			endRowIndex: position.endRowIndex,
+			endColumnIndex: position.endColumnIndex,
 		});
 	}
-	symbolTable[nameString] = {
+	symbolTable[name] = {
 		typeExpression: type,
 		description: description,
 		functionParameterIndex: functionParameterIndex,
-		startRowIndex: name.startRowIndex,
-		startColumnIndex: name.startColumnIndex,
-		endRowIndex: name.endRowIndex,
-		endColumnIndex: name.endColumnIndex,
+		startRowIndex: position.startRowIndex,
+		startColumnIndex: position.startColumnIndex,
+		endRowIndex: position.endRowIndex,
+		endColumnIndex: position.endColumnIndex,
 	};
 }
 
 //#endregion SymbolTable
 
-export function checkName(parseName: ParseValueExpressionBase | ParseValueExpression): Name | undefined {
-	if (parseName.type !== 'reference') {
-		return undefined;
+export function getCheckedEscapableName(parseName: PositionedExpression): string | undefined {
+	switch (parseName.type) {
+		case 'reference':
+			return parseName.name.name;
+		case 'name':
+			return parseName.name;
+		case 'text':
+			if (parseName.values.length > 1) {
+				return undefined;
+			}
+			const value = parseName.values[0];
+			if (value?.type !== 'textToken') {
+				return undefined;
+			}
+			return value.value;
+		default:
+			return undefined;
 	}
-	return parseName.name;
 }
 
 export function setParent(expression: PositionedExpressionBase | undefined, parent: PositionedExpression): void {
