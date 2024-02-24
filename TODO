@@ -1,5 +1,6 @@
--function signature help
-	-https://code.visualstudio.com/api/language-extensions/programmatic-language-features#help-with-function-and-method-signatures
+-function signature help mit mehreren parametern
+	-parse incomplete bracketed expression mit leerzeichen am ende
+	-vgl autocomplete.jul
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
