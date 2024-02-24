@@ -232,12 +232,12 @@ export function multiplicationParser<T>(
 	};
 }
 
-export function mapParser<T, U>(parser: Parser<T>, transform: (x: T | undefined) => U | undefined): Parser<U> {
+export function mapParser<T, U>(parser: Parser<T>, transform: (x: ParserResult<T>) => U | undefined): Parser<U> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const result = parser(rows, startRowIndex, startColumnIndex, indent);
 		return {
 			...result,
-			parsed: transform(result.parsed),
+			parsed: transform(result),
 		};
 	};
 }

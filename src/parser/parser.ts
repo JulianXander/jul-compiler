@@ -1439,8 +1439,10 @@ function functionBodyParser(
 				predicate: spaceParser,
 				parser: moveColumnIndex(1, mapParser(
 					valueExpressionParser,
-					expression =>
-						expression && [expression])),
+					valueResult => {
+						const expression = valueResult.parsed;
+						return expression && [expression];
+					})),
 			},
 		),
 	)(rows, startRowIndex, startColumnIndex, indent);
@@ -1498,7 +1500,7 @@ function functionTypeBodyParser(
 //#region bracketed
 
 /**
- * Parsed beginnend mit öffnender bis zur 1. schließenden Klammer.
+ * Parst beginnend mit öffnender bis zur 1. schließenden Klammer.
  * Multiline oder inline mit Leerzeichen getrennt.
  */
 function bracketedBaseParser(
@@ -1512,7 +1514,7 @@ function bracketedBaseParser(
 			predicate: tokenParser('()'),
 			parser: mapParser(
 				tokenParser('()'),
-				parsed =>
+				() =>
 					[]),
 		},
 		{
@@ -1570,12 +1572,21 @@ function bracketedMultilineParser(
 	};
 }
 
+interface ParseMissingField {
+	type: 'missingField';
+	rowIndex: number;
+	columnIndex: number;
+}
+
+/**
+ * undefined bei fehlendem Feld
+ */
 function bracketedInlineParser<T>(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ParseFieldBase[]> {
+): ParserResult<(ParseFieldBase | undefined)[]> {
 	const result = sequenceParser(
 		openingBracketParser,
 		fieldParser,
@@ -1584,19 +1595,54 @@ function bracketedInlineParser<T>(
 			undefined,
 			sequenceParser(
 				spaceParser,
-				fieldParser,
-			)
+				discriminatedChoiceParser(
+					// missing field
+					{
+						predicate: choiceParser(spaceParser, closingBracketParser),
+						parser: mapParser(
+							emptyParser,
+							(emptyResult) => {
+								const missingField: ParseMissingField = {
+									type: 'missingField',
+									rowIndex: emptyResult.endRowIndex,
+									columnIndex: emptyResult.endColumnIndex,
+								};
+								return missingField;
+							}),
+					},
+					{
+						predicate: emptyParser,
+						parser: fieldParser,
+					},
+				),
+			),
 		),
 		closingBracketParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
+	const errors = result.errors ?? [];
 	const parsed = result.parsed && [
 		result.parsed[1],
-		...result.parsed[2].map(sequence =>
-			sequence[1]),
+		...result.parsed[2].map(sequence => {
+			const field = sequence[1];
+			if (field.type === 'missingField') {
+				errors.push({
+					// TODO error message abhängig von der Art der erwarteten expression? (field vs value)
+					message: 'expression expected',
+					// TODO get position from empty
+					startRowIndex: field.rowIndex,
+					startColumnIndex: field.columnIndex,
+					endRowIndex: field.rowIndex,
+					endColumnIndex: field.columnIndex,
+				});
+				return undefined;
+			}
+			return field;
+		}),
 	];
 	return {
 		...result,
 		parsed: parsed,
+		errors: errors,
 	};
 }
 

@@ -1,5 +1,4 @@
 -function signature help mit mehreren parametern
-	-parse incomplete bracketed expression mit leerzeichen am ende
 	-vgl autocomplete.jul
 -debug experience vebessern
 	?sourcemap

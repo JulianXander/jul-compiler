@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
+import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseListLiteral, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
 import { ParserError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
@@ -249,7 +249,6 @@ const expectedResults: {
 				return result;
 			})(),
 		},
-
 		{
 			name: 'escaped-field',
 			code: '(\n\t§someKey§ = 5\n)\n',
@@ -1229,6 +1228,40 @@ const expectedResults: {
 					"endRowIndex": 0,
 					"message": "Expected a nested key",
 					"startColumnIndex": 1,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			name: 'uncomplete-list',
+			code: '(4 )',
+			result: (() => {
+				const list: ParseListLiteral = {
+					"endColumnIndex": 4,
+					"endRowIndex": 0,
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+					"type": "list",
+					"values": [
+						{
+							"endColumnIndex": 2,
+							"endRowIndex": 0,
+							"startColumnIndex": 1,
+							"startRowIndex": 0,
+							"type": "integer",
+							"value": 4n,
+						},
+					],
+				};
+				list.values[0].parent = list;
+				return [list];
+			})(),
+			errors: [
+				{
+					"endColumnIndex": 3,
+					"endRowIndex": 0,
+					"message": "expression expected",
+					"startColumnIndex": 3,
 					"startRowIndex": 0,
 				},
 			],
