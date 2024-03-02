@@ -78,27 +78,42 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	Text: new TypeOfType(_Text),
 	Date: new TypeOfType(_Date),
 	Error: new TypeOfType(_Error),
-	List: new FunctionType(
-		new ParametersType([{
-			name: 'ElementType',
-			type: Type,
-		}]),
-		new TypeOfType(new ListType(new ParameterReference('ElementType', 0))),
-	),
-	Dictionary: new FunctionType(
-		new ParametersType([{
-			name: 'ElementType',
-			type: Type,
-		}]),
-		new TypeOfType(new DictionaryType(new ParameterReference('ElementType', 0))),
-	),
-	Stream: new FunctionType(
-		new ParametersType([{
-			name: 'ValueType',
-			type: Type,
-		}]),
-		new TypeOfType(new StreamType(new ParameterReference('ValueType', 0))),
-	),
+	List: (() => {
+		const parameterReference = new ParameterReference('ElementType', 0);
+		const functionType = new FunctionType(
+			new ParametersType([{
+				name: 'ElementType',
+				type: Type,
+			}]),
+			new TypeOfType(new ListType(parameterReference)),
+		);
+		parameterReference.functionRef = functionType;
+		return functionType;
+	})(),
+	Dictionary: (() => {
+		const parameterReference = new ParameterReference('ElementType', 0);
+		const functionType = new FunctionType(
+			new ParametersType([{
+				name: 'ElementType',
+				type: Type,
+			}]),
+			new TypeOfType(new DictionaryType(parameterReference)),
+		);
+		parameterReference.functionRef = functionType;
+		return functionType;
+	})(),
+	Stream: (() => {
+		const parameterReference = new ParameterReference('ValueType', 0);
+		const functionType = new FunctionType(
+			new ParametersType([{
+				name: 'ValueType',
+				type: Type,
+			}]),
+			new TypeOfType(new StreamType(parameterReference)),
+		);
+		parameterReference.functionRef = functionType;
+		return functionType;
+	})(),
 	Type: new TypeOfType(Type),
 	// ValueOf:  new FunctionType(
 	// 		new _ParametersType({
@@ -116,20 +131,25 @@ const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	// 	,
 	// 	new UnionType(),
 	// ),
-	nativeFunction: new FunctionType(
-		new ParametersType([
-			{
-				name: 'FunctionType',
-				// TODO functionType
-				type: Type,
-			},
-			{
-				name: 'js',
-				type: _Text,
-			},
-		]),
-		new ParameterReference('FunctionType', 0),
-	),
+	nativeFunction: (() => {
+		const parameterReference = new ParameterReference('FunctionType', 0);
+		const functionType = new FunctionType(
+			new ParametersType([
+				{
+					name: 'FunctionType',
+					// TODO functionType
+					type: Type,
+				},
+				{
+					name: 'js',
+					type: _Text,
+				},
+			]),
+			parameterReference,
+		);
+		parameterReference.functionRef = functionType;
+		return functionType;
+	})(),
 	nativeValue: new FunctionType(
 		new ParametersType([
 			{

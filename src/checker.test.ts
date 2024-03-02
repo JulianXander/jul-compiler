@@ -8,7 +8,7 @@ import { checkTypes } from './checker.js'
 const expectedResults: {
 	name?: string;
 	code: string;
-	result: ParseExpression[];
+	result?: ParseExpression[];
 	errors?: ParserError[];
 }[] = [
 		{
@@ -210,19 +210,31 @@ a = 5`,
 					"startRowIndex": 0,
 				},
 			],
-		}
+		},
+		{
+			name: 'list-type-error',
+			code: 'a: List(Text) = (4)',
+			errors: [
+				{
+					"endColumnIndex": 19,
+					"endRowIndex": 0,
+					"message": "Can not assign 4 to Text.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		},
 	];
 
 describe('Checker', () => {
 	expectedResults.forEach(({ name, code, result, errors }) => {
 		it(name ?? code, () => {
 			const parserResult = parseCode(code, 'dummy.jul');
-			// if (parserResult.errors?.length) {
-			// 	console.log(parserResult.errors);
-			// }
 			checkTypes(parserResult, {});
 			expect(parserResult.checked?.errors).to.deep.equal(errors ?? []);
-			expect(parserResult.checked?.expressions).to.deep.equal(result);
+			if (result) {
+				expect(parserResult.checked?.expressions).to.deep.equal(result);
+			}
 		});
 	});
 });

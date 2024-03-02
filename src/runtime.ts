@@ -466,10 +466,6 @@ export class FunctionType extends BuiltInTypeBase {
 		public returnType: RuntimeType,
 	) {
 		super();
-		// TODO set functionRef bei params
-		if (returnType instanceof ParameterReference) {
-			returnType.functionRef = this;
-		}
 	}
 	readonly type = 'function';
 }
@@ -482,7 +478,7 @@ export class ParameterReference extends BuiltInTypeBase {
 	) { super(); }
 	readonly type = 'reference';
 	/**
-	 * Wird im constructor von FunctionType gesetzt und sollte immer vorhanden sein.
+	 * Muss nach dem Erzeugen gesetzt werden.
 	 */
 	// TODO functionRef?: FunctionType; ?
 	functionRef?: RuntimeType;
