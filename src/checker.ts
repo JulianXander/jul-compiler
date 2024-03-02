@@ -46,7 +46,7 @@ import {
 	TypedExpression,
 	ParsedExpressions2
 } from './syntax-tree.js';
-import { NonEmptyArray, findMap, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { NonEmptyArray, findMap, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
@@ -552,7 +552,7 @@ function inferType(
 				setInferredType(value, scopes, parsedDocuments, folder, file);
 			}
 			const name = expression.name.name;
-			const inferredType = coreBuiltInSymbolTypes[name] ?? value?.inferredType ?? Any;
+			const inferredType = getValueWithFallback(coreBuiltInSymbolTypes[name], getValueWithFallback(value?.inferredType, Any));
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			const currentScope = last(scopes);
@@ -602,7 +602,7 @@ function inferType(
 					if (pathToDereference.type !== 'reference') {
 						return;
 					}
-					const valueType = value?.inferredType ?? Any;
+					const valueType = getValueWithFallback(value?.inferredType, Any);
 					const referenceName = pathToDereference.name.name;
 					const dereferencedType = dereferenceNameFromObject(referenceName, valueType);
 					if (dereferencedType === undefined) {
@@ -654,7 +654,7 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = field.value?.inferredType ?? Any;
+						const fieldType = getValueWithFallback(field.value?.inferredType, Any);
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
@@ -851,7 +851,7 @@ function inferType(
 							// a dictionary containing all definitions is imported
 							if (Object.keys(importedFile.symbols).length) {
 								const importedTypes = mapDictionary(importedFile.symbols, symbol => {
-									return symbol.normalizedType ?? Any;
+									return getValueWithFallback(symbol.normalizedType, Any);
 								});
 								return new DictionaryLiteralType(importedTypes);
 							}
@@ -860,7 +860,7 @@ function inferType(
 							if (!importedFile.expressions) {
 								return Any;
 							}
-							return last(importedFile.expressions)?.inferredType ?? Any;
+							return getValueWithFallback(last(importedFile.expressions)?.inferredType, Any);
 						}
 						// case 'nativeFunction': {
 						// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
@@ -1008,7 +1008,7 @@ function inferType(
 			switch (nestedKey.type) {
 				case 'index': {
 					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.inferredType!);
-					return dereferencedType ?? Any;
+					return getValueWithFallback(dereferencedType, Any);
 				}
 				case 'name':
 				case 'text': {
@@ -1017,7 +1017,7 @@ function inferType(
 						return Any;
 					}
 					const dereferencedType = dereferenceNameFromObject(fieldName, source.inferredType!);
-					return dereferencedType ?? Any;
+					return getValueWithFallback(dereferencedType, Any);
 				}
 				default: {
 					const assertNever: never = nestedKey;
@@ -1052,7 +1052,7 @@ function inferType(
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
 			// TODO fallback berücksichtigen?
-			const inferredType = expression.inferredTypeFromCall ?? valueOf(expression.typeGuard?.inferredType);
+			const inferredType = getValueWithFallback(expression.inferredTypeFromCall, valueOf(expression.typeGuard?.inferredType));
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			parameterSymbol.normalizedType = inferredType;
@@ -1903,7 +1903,7 @@ function getTypeErrorForWrappedArgs(
 						};
 					}
 					const valueParameterType = valueParameter
-						? valueParameter.type ?? valueRestItemType ?? Any
+						? getValueWithFallback(valueParameter.type, getValueWithFallback(valueRestItemType, Any))
 						: null;
 					const error = targetParameterType
 						? getTypeError(undefined, valueParameterType, targetParameterType)
@@ -1918,7 +1918,7 @@ function getTypeErrorForWrappedArgs(
 				if (targetRestType) {
 					const remainingValueParameters = valueSingleNames.slice(index);
 					for (const valueParameter of remainingValueParameters) {
-						const valueParameterType = valueParameter.type ?? valueRestItemType ?? Any;
+						const valueParameterType = getValueWithFallback(valueParameter.type, getValueWithFallback(valueRestItemType, Any));
 						const error = getTypeError(undefined, valueParameterType, targetRestType);
 						if (error) {
 							// TODO collect inner errors
