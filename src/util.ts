@@ -6,7 +6,7 @@ export function isDefined<T>(value: T | undefined): value is T {
 	return value !== undefined;
 }
 
-export function getValueWithFallback<T>(value: T | undefined, fallback: T) {
+export function getValueWithFallback<T>(value: T | undefined, fallback: T): T {
 	return value === undefined
 		? fallback
 		: value;
