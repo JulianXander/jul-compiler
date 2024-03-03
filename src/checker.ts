@@ -2178,7 +2178,7 @@ function arrayTypeToString(
 		array.map(element =>
 			typeToString(element, newIndent)),
 		multiline,
-		newIndent);
+		indent);
 }
 
 function dictionaryTypeToString(
@@ -2197,7 +2197,7 @@ function dictionaryTypeToString(
 				return `${key}${nameSeparator}${typeToString(element, newIndent)}`;
 			}),
 		multiline,
-		newIndent);
+		indent);
 }
 
 function bracketedExpressionToString(
@@ -2205,19 +2205,17 @@ function bracketedExpressionToString(
 	multiline: boolean,
 	indent: number,
 ): string {
-	const indentString = '\t'.repeat(indent);
-	const elementsWithIndent = multiline
-		? elements.map(element => {
-			return `${indentString}${element}`;
-		})
-		: elements;
-	const bracketSeparator = multiline
-		? '\n'
+	const indentString = '\t'.repeat(indent + 1);
+	const openingBracketSeparator = multiline
+		? '\n' + indentString
 		: '';
 	const elementSeparator = multiline
-		? '\n'
+		? '\n' + indentString
 		: ' ';
-	return `(${bracketSeparator}${elementsWithIndent.join(elementSeparator)}${bracketSeparator})`;
+	const closingBracketSeparator = multiline
+		? '\n' + '\t'.repeat(indent)
+		: '';
+	return `(${openingBracketSeparator}${elements.join(elementSeparator)}${closingBracketSeparator})`;
 }
 
 //#endregion ToString

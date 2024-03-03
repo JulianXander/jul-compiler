@@ -15,6 +15,7 @@ interface Params {
 	};
 }
 
+// TODO ParamsType, ReturnType
 type JulFunction = Function & { params: Params; };
 
 //#region internals
