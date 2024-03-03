@@ -504,11 +504,13 @@ export class TypeType extends BuiltInTypeBase {
 }
 
 export class IntersectionType extends BuiltInTypeBase {
+	// TODO flatten nested IntersectionTypes?
 	constructor(public ChoiceTypes: RuntimeType[]) { super(); }
 	readonly type = 'and';
 }
 
 export class UnionType extends BuiltInTypeBase {
+	// TODO flatten nested UnionTypes?
 	constructor(public ChoiceTypes: RuntimeType[]) { super(); }
 	readonly type = 'or';
 }
@@ -530,377 +532,6 @@ export function _optionalType(...types: RuntimeType[]): UnionType {
 }
 
 //#endregion Types
-
-//#region Stream
-
-type Listener<T> = (value: T) => void;
-
-class Stream<T> {
-	constructor(getValue: () => T) {
-		this.getValue = getValue;
-	}
-
-	lastValue?: T;
-	lastProcessId?: number;
-	completed: boolean = false;
-	listeners: Listener<T>[] = [];
-	onCompletedListeners: (() => void)[] = [];
-
-	push(value: T, processId: number): void {
-		if (processId === this.lastProcessId) {
-			return;
-		}
-		if (deepEquals(value, this.lastValue)) {
-			return;
-		}
-		if (this.completed) {
-			throw new Error('Can not push to completed stream.');
-		}
-		this.lastValue = value;
-		this.lastProcessId = processId;
-		this.listeners.forEach(listener => listener(value));
-	}
-	/**
-	 * Aktualisiert diesen Stream und alle Dependencies und benachrichtigt Subscriber.
-	 */
-	readonly getValue: () => T;
-	/**
-	 * Gibt einen unsubscribe callback zurück.
-	 * Wertet sofort den listener beim subscriben sofort aus, wenn evaluateOnSubscribe = true.
-	 */
-	subscribe(listener: Listener<T>, evaluateOnSubscribe: boolean = true): () => void {
-		if (evaluateOnSubscribe) {
-			listener(this.getValue());
-		}
-		if (this.completed) {
-			return () => { };
-		}
-		this.listeners.push(listener);
-		return () => {
-			if (this.completed) {
-				return;
-			}
-			const index = this.listeners.indexOf(listener);
-			if (index === -1) {
-				throw new Error('Can not unsubscribe listener, because listener was not subscribed.');
-			}
-			this.listeners.splice(index, 1);
-		};
-	}
-	complete(): void {
-		if (this.completed) {
-			return;
-		}
-		this.completed = true;
-		// dispose listeners
-		this.listeners = [];
-		this.onCompletedListeners.forEach(onCompletedListener => {
-			onCompletedListener();
-		});
-		this.onCompletedListeners = [];
-	}
-	/**
-	 * Wenn der Stream schon completed ist wird der callback sofort aufgerufen.
-	 */
-	onCompleted(callback: () => void): void {
-		if (this.completed) {
-			callback();
-		}
-		else {
-			this.onCompletedListeners.push(callback);
-		}
-	}
-}
-
-//#region create
-
-function createStream$<T>(initialValue: T): Stream<T> {
-	const stream$: Stream<T> = new Stream(() => stream$.lastValue as T);
-	stream$.push(initialValue, processId);
-	return stream$;
-}
-
-function of$<T>(value: T): Stream<T> {
-	const $ = createStream$(value);
-	$.complete();
-	return $;
-}
-
-type HttpResponseType =
-	| 'blob'
-	| 'text'
-	;
-
-function httpRequest$(
-	url: string,
-	method: string,
-	headers: { [key: string]: string } | null,
-	body: any,
-	responseType: HttpResponseType,
-): Stream<null | string | Blob | Error> {
-	const abortController = new AbortController();
-	const response$ = createStream$<null | string | Blob | Error>(null);
-	response$.onCompleted(() => {
-		abortController.abort();
-	});
-	fetch(url, {
-		method: method,
-		headers: headers ?? undefined,
-		body: body,
-		signal: abortController.signal,
-	}).then<string | Blob>(response => {
-		if (response.ok) {
-			switch (responseType) {
-				case 'text':
-					return response.text();
-				case 'blob':
-					return response.blob();
-				default: {
-					const assertNever: never = responseType;
-					throw new Error(`Unexpected HttpResponseType ${assertNever}`);
-				}
-			}
-		}
-		else {
-			// TODO improve error handling: return error response body (text)
-			// return response.text();
-			throw new Error(response.statusText);
-		}
-	}).then(responseText => {
-		processId++;
-		response$.push(responseText, processId);
-	}).catch(error => {
-		processId++;
-		response$.push(error, processId);
-	}).finally(() => {
-		response$.complete();
-	});
-	return response$;
-}
-
-//#endregion create
-
-//#region transform
-
-function createDerived$<T>(getValue: () => T): Stream<T> {
-	const derived$: Stream<T> = new Stream(() => {
-		if (processId === derived$.lastProcessId
-			|| derived$.completed) {
-			return derived$.lastValue!;
-		}
-		return getValue();
-	});
-	return derived$;
-}
-
-function _map$<TSource, TTarget>(
-	source$: Stream<TSource>,
-	mapFunction: (value: TSource) => TTarget,
-): Stream<TTarget> {
-	let lastSourceValue: TSource;
-	const mapped$: Stream<TTarget> = createDerived$(() => {
-		const currentSourceValue = source$.getValue();
-		if (deepEquals(currentSourceValue, lastSourceValue)) {
-			mapped$.lastProcessId = processId;
-			return mapped$.lastValue!;
-		}
-		const currentMappedValue = mapFunction(currentSourceValue);
-		lastSourceValue = currentSourceValue;
-		mapped$.push(currentMappedValue, processId);
-		return currentMappedValue;
-	});
-	mapped$.onCompleted(() => {
-		unsubscribe();
-	});
-	const unsubscribe = source$.subscribe(sourceValue => {
-		mapped$.getValue();
-	});
-	source$.onCompleted(() => {
-		mapped$.complete();
-	});
-	return mapped$;
-}
-
-function _combine$<T>(
-	...source$s: Stream<T>[]
-): Stream<T[]> {
-	const combined$: Stream<T[]> = createDerived$(() => {
-		const lastValues = combined$.lastValue!;
-		const currentValues = source$s.map(source$ =>
-			source$.getValue());
-		if (deepEquals(currentValues, lastValues)) {
-			combined$.lastProcessId = processId;
-			return lastValues;
-		}
-		combined$.push(currentValues, processId);
-		return currentValues;
-	});
-	combined$.onCompleted(() => {
-		unsubscribes.forEach((unsubscribe, index) => {
-			unsubscribe();
-		});
-	});
-	const unsubscribes = source$s.map((source$, index) => {
-		source$.onCompleted(() => {
-			// combined ist complete, wenn alle Sources complete sind.
-			if (source$s.every(source$ => source$.completed)) {
-				combined$.complete();
-			}
-		});
-		return source$.subscribe(value => {
-			combined$.getValue();
-		});
-	});
-	return combined$;
-}
-
-// TODO testen
-function takeUntil$<T>(source$: Stream<T>, completed$: Stream<any>): Stream<T> {
-	const mapped$ = _map$(source$, x => x);
-	const unsubscribeCompleted = completed$.subscribe(
-		() => {
-			mapped$.complete();
-		},
-		false);
-	completed$.onCompleted(() => {
-		mapped$.complete();
-	});
-	mapped$.onCompleted(() => {
-		unsubscribeCompleted();
-	});
-	return mapped$;
-}
-
-function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
-	const inner$s: Stream<T>[] = [];
-	const unsubscribeInners: (() => void)[] = [];
-	const flat$: Stream<T> = createDerived$(() => {
-		const lastValue = flat$.lastValue!;
-		const currentValue = source$$.getValue().getValue();
-		if (deepEquals(currentValue, lastValue)) {
-			flat$.lastProcessId = processId;
-			return lastValue;
-		}
-		flat$.push(currentValue, processId);
-		return currentValue;
-	});
-	const unsubscribeOuter = source$$.subscribe(source$ => {
-		inner$s.push(source$);
-		const unsubscribeInner = source$.subscribe(value => {
-			flat$.getValue();
-		});
-		unsubscribeInners.push(unsubscribeInner);
-	});
-	flat$.onCompleted(() => {
-		unsubscribeOuter();
-		unsubscribeInners.forEach(unsubscribeInner => {
-			unsubscribeInner();
-		});
-	});
-	// flat ist complete, wenn outerSource und alle innerSources complete sind
-	source$$.onCompleted(() => {
-		inner$s.forEach(inner$ => {
-			inner$.onCompleted(() => {
-				if (inner$s.every(source$ => source$.completed)) {
-					flat$.complete();
-				}
-			});
-		});
-	});
-	return flat$;
-}
-
-function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
-	let unsubscribeInner: () => void;
-	const flat$: Stream<T> = createDerived$(() => {
-		const lastValue = flat$.lastValue!;
-		const currentValue = source$$.getValue().getValue();
-		if (deepEquals(currentValue, lastValue)) {
-			flat$.lastProcessId = processId;
-			return lastValue;
-		}
-		flat$.push(currentValue, processId);
-		return currentValue;
-	});
-	const unsubscribeOuter = source$$.subscribe(source$ => {
-		unsubscribeInner?.();
-		unsubscribeInner = source$.subscribe(value => {
-			flat$.getValue();
-		});
-	});
-	flat$.onCompleted(() => {
-		unsubscribeOuter();
-		unsubscribeInner?.();
-	});
-	// flat ist complete, wenn outerSource und die aktuelle innerSource complete sind
-	source$$.onCompleted(() => {
-		source$$.getValue().onCompleted(() => {
-			flat$.complete();
-		});
-	});
-	return flat$;
-}
-
-function _flatMap$<T, U>(
-	source$: Stream<T>,
-	transform$: (value: T) => U | Stream<U>,
-	merge: boolean,
-): Stream<U> {
-	const mapped$ = _map$(source$, (value) => {
-		const transformed$ = transform$(value);
-		if (transformed$ instanceof Stream) {
-			return transformed$;
-		}
-		else {
-			return of$(transformed$);
-		}
-	})
-	if (merge) {
-		return flatMerge$(mapped$);
-	}
-	else {
-		return flatSwitch$(mapped$);
-	}
-}
-
-// TODO testen
-function accumulate$<TSource, TAccumulated>(
-	source$: Stream<TSource>,
-	initialAccumulator: TAccumulated,
-	accumulate: (previousAccumulator: TAccumulated, value: TSource) => TAccumulated,
-): Stream<TAccumulated> {
-	const mapped$ = _map$(source$, value => {
-		const newAccumulator = accumulate(
-			mapped$.lastValue === undefined
-				? initialAccumulator
-				: mapped$.lastValue,
-			value);
-		return newAccumulator;
-	});
-	return mapped$;
-}
-
-function retry$<T>(
-	method$: () => Stream<T | Error>,
-	maxAttepmts: number,
-	currentAttempt: number = 1,
-): Stream<T | Error> {
-	if (currentAttempt === maxAttepmts) {
-		return method$();
-	}
-	const withRetry$$ = _map$(method$(), result => {
-		if (result instanceof Error) {
-			console.log('Error! Retrying... Attempt:', currentAttempt, 'process:', processId);
-			return retry$(method$, maxAttepmts, currentAttempt + 1);
-		}
-		return of$<T | Error>(result);
-	});
-	return flatSwitch$(withRetry$$);
-};
-
-//#endregion transform
-
-//#endregion Stream
 
 //#region JSON
 
@@ -1745,6 +1376,418 @@ export const forEach = _createFunction(
 );
 //#endregion List
 //#region Stream
+//#region helper
+type Listener<T> = (value: T) => void;
+
+class Stream<T> {
+	constructor(
+		/**
+		 * Aktualisiert diesen Stream und alle Dependencies und benachrichtigt Subscriber.
+		 */
+		public readonly getValue: () => T,
+		public readonly ValueType: RuntimeType,
+	) {
+		this.getValue = getValue;
+	}
+
+	lastValue?: T;
+	lastProcessId?: number;
+	completed: boolean = false;
+	listeners: Listener<T>[] = [];
+	onCompletedListeners: (() => void)[] = [];
+
+	push(value: T, processId: number): void {
+		if (processId === this.lastProcessId) {
+			return;
+		}
+		if (deepEquals(value, this.lastValue)) {
+			return;
+		}
+		if (this.completed) {
+			throw new Error('Can not push to completed stream.');
+		}
+		this.lastValue = value;
+		this.lastProcessId = processId;
+		this.listeners.forEach(listener => listener(value));
+	}
+	/**
+	 * Gibt einen unsubscribe callback zurück.
+	 * Wertet sofort den listener beim subscriben sofort aus, wenn evaluateOnSubscribe = true.
+	 */
+	subscribe(listener: Listener<T>, evaluateOnSubscribe: boolean = true): () => void {
+		if (evaluateOnSubscribe) {
+			listener(this.getValue());
+		}
+		if (this.completed) {
+			return () => { };
+		}
+		this.listeners.push(listener);
+		return () => {
+			if (this.completed) {
+				return;
+			}
+			const index = this.listeners.indexOf(listener);
+			if (index === -1) {
+				throw new Error('Can not unsubscribe listener, because listener was not subscribed.');
+			}
+			this.listeners.splice(index, 1);
+		};
+	}
+	complete(): void {
+		if (this.completed) {
+			return;
+		}
+		this.completed = true;
+		// dispose listeners
+		this.listeners = [];
+		this.onCompletedListeners.forEach(onCompletedListener => {
+			onCompletedListener();
+		});
+		this.onCompletedListeners = [];
+	}
+	/**
+	 * Wenn der Stream schon completed ist wird der callback sofort aufgerufen.
+	 */
+	onCompleted(callback: () => void): void {
+		if (this.completed) {
+			callback();
+		}
+		else {
+			this.onCompletedListeners.push(callback);
+		}
+	}
+}
+
+//#region create
+
+function createStream$<T>(initialValue: T, valueType: RuntimeType): Stream<T> {
+	const stream$: Stream<T> = new Stream(
+		() =>
+			stream$.lastValue as T,
+		valueType);
+	stream$.push(initialValue, processId);
+	return stream$;
+}
+
+function of$<T>(value: T): Stream<T> {
+	const $ = createStream$(value, new TypeOfType(value));
+	$.complete();
+	return $;
+}
+
+type HttpResponseType =
+	| 'blob'
+	| 'text'
+	;
+
+const httpBlobResponseJulType = new UnionType([null, _Text, _Error]);
+const httpTextResponseJulType = new UnionType([null, _Text, _Error]);
+
+function httpRequest$(
+	url: string,
+	method: string,
+	headers: { [key: string]: string } | null,
+	body: any,
+	responseType: HttpResponseType,
+): Stream<null | string | Blob | Error> {
+	const abortController = new AbortController();
+	const response$ = createStream$<null | string | Blob | Error>(
+		null,
+		responseType === 'text'
+			? httpTextResponseJulType
+			: httpBlobResponseJulType);
+	response$.onCompleted(() => {
+		abortController.abort();
+	});
+	fetch(url, {
+		method: method,
+		headers: headers ?? undefined,
+		body: body,
+		signal: abortController.signal,
+	}).then<string | Blob>(response => {
+		if (response.ok) {
+			switch (responseType) {
+				case 'text':
+					return response.text();
+				case 'blob':
+					return response.blob();
+				default: {
+					const assertNever: never = responseType;
+					throw new Error(`Unexpected HttpResponseType ${assertNever}`);
+				}
+			}
+		}
+		else {
+			// TODO improve error handling: return error response body (text)
+			// return response.text();
+			throw new Error(response.statusText);
+		}
+	}).then(responseText => {
+		processId++;
+		response$.push(responseText, processId);
+	}).catch(error => {
+		processId++;
+		response$.push(error, processId);
+	}).finally(() => {
+		response$.complete();
+	});
+	return response$;
+}
+
+//#endregion create
+
+//#region transform
+
+function createDerived$<T>(getValue: () => T, valueType: RuntimeType): Stream<T> {
+	const derived$: Stream<T> = new Stream(
+		() => {
+			if (processId === derived$.lastProcessId
+				|| derived$.completed) {
+				return derived$.lastValue!;
+			}
+			return getValue();
+		},
+		valueType);
+	return derived$;
+}
+
+function _map$<TSource, TTarget>(
+	source$: Stream<TSource>,
+	mapFunction: (value: TSource) => TTarget,
+	mappedType: RuntimeType,
+): Stream<TTarget> {
+	let lastSourceValue: TSource;
+	const mapped$: Stream<TTarget> = createDerived$(
+		() => {
+			const currentSourceValue = source$.getValue();
+			if (deepEquals(currentSourceValue, lastSourceValue)) {
+				mapped$.lastProcessId = processId;
+				return mapped$.lastValue!;
+			}
+			const currentMappedValue = mapFunction(currentSourceValue);
+			lastSourceValue = currentSourceValue;
+			mapped$.push(currentMappedValue, processId);
+			return currentMappedValue;
+		},
+		mappedType,
+	);
+	mapped$.onCompleted(() => {
+		unsubscribe();
+	});
+	const unsubscribe = source$.subscribe(sourceValue => {
+		mapped$.getValue();
+	});
+	source$.onCompleted(() => {
+		mapped$.complete();
+	});
+	return mapped$;
+}
+
+function _combine$<T>(
+	...source$s: Stream<T>[]
+): Stream<T[]> {
+	const combined$: Stream<T[]> = createDerived$(
+		() => {
+			const lastValues = combined$.lastValue!;
+			const currentValues = source$s.map(source$ =>
+				source$.getValue());
+			if (deepEquals(currentValues, lastValues)) {
+				combined$.lastProcessId = processId;
+				return lastValues;
+			}
+			combined$.push(currentValues, processId);
+			return currentValues;
+		},
+		new UnionType(source$s.map(source$ => source$.ValueType)),
+	);
+	combined$.onCompleted(() => {
+		unsubscribes.forEach((unsubscribe, index) => {
+			unsubscribe();
+		});
+	});
+	const unsubscribes = source$s.map((source$, index) => {
+		source$.onCompleted(() => {
+			// combined ist complete, wenn alle Sources complete sind.
+			if (source$s.every(source$ => source$.completed)) {
+				combined$.complete();
+			}
+		});
+		return source$.subscribe(value => {
+			combined$.getValue();
+		});
+	});
+	return combined$;
+}
+
+// TODO testen
+function takeUntil$<T>(source$: Stream<T>, completed$: Stream<any>): Stream<T> {
+	const mapped$ = _map$(source$, x => x, source$.ValueType);
+	const unsubscribeCompleted = completed$.subscribe(
+		() => {
+			mapped$.complete();
+		},
+		false);
+	completed$.onCompleted(() => {
+		mapped$.complete();
+	});
+	mapped$.onCompleted(() => {
+		unsubscribeCompleted();
+	});
+	return mapped$;
+}
+
+function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
+	const inner$s: Stream<T>[] = [];
+	const unsubscribeInners: (() => void)[] = [];
+	const flat$: Stream<T> = createDerived$(
+		() => {
+			const lastValue = flat$.lastValue!;
+			const currentValue = source$$.getValue().getValue();
+			if (deepEquals(currentValue, lastValue)) {
+				flat$.lastProcessId = processId;
+				return lastValue;
+			}
+			flat$.push(currentValue, processId);
+			return currentValue;
+		},
+		// TODO
+		Any,
+	);
+	const unsubscribeOuter = source$$.subscribe(source$ => {
+		inner$s.push(source$);
+		const unsubscribeInner = source$.subscribe(value => {
+			flat$.getValue();
+		});
+		unsubscribeInners.push(unsubscribeInner);
+	});
+	flat$.onCompleted(() => {
+		unsubscribeOuter();
+		unsubscribeInners.forEach(unsubscribeInner => {
+			unsubscribeInner();
+		});
+	});
+	// flat ist complete, wenn outerSource und alle innerSources complete sind
+	source$$.onCompleted(() => {
+		inner$s.forEach(inner$ => {
+			inner$.onCompleted(() => {
+				if (inner$s.every(source$ => source$.completed)) {
+					flat$.complete();
+				}
+			});
+		});
+	});
+	return flat$;
+}
+
+function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
+	let unsubscribeInner: () => void;
+	const flat$: Stream<T> = createDerived$(
+		() => {
+			const lastValue = flat$.lastValue!;
+			const currentValue = source$$.getValue().getValue();
+			if (deepEquals(currentValue, lastValue)) {
+				flat$.lastProcessId = processId;
+				return lastValue;
+			}
+			flat$.push(currentValue, processId);
+			return currentValue;
+		},
+		// TODO
+		Any,
+	);
+	const unsubscribeOuter = source$$.subscribe(source$ => {
+		unsubscribeInner?.();
+		unsubscribeInner = source$.subscribe(value => {
+			flat$.getValue();
+		});
+	});
+	flat$.onCompleted(() => {
+		unsubscribeOuter();
+		unsubscribeInner?.();
+	});
+	// flat ist complete, wenn outerSource und die aktuelle innerSource complete sind
+	source$$.onCompleted(() => {
+		source$$.getValue().onCompleted(() => {
+			flat$.complete();
+		});
+	});
+	return flat$;
+}
+
+function flatMap$<T, U>(
+	source$: Stream<T>,
+	transform$: (value: T) => U | Stream<U>,
+	merge: boolean,
+): Stream<U> {
+	const mapped$ = _map$(
+		source$,
+		(value) => {
+			const transformed$ = transform$(value);
+			if (transformed$ instanceof Stream) {
+				return transformed$;
+			}
+			else {
+				return of$(transformed$);
+			}
+		},
+		// TODO
+		Any,
+	);
+	if (merge) {
+		return flatMerge$(mapped$);
+	}
+	else {
+		return flatSwitch$(mapped$);
+	}
+}
+
+// TODO testen
+function accumulate$<TSource, TAccumulated>(
+	source$: Stream<TSource>,
+	initialAccumulator: TAccumulated,
+	accumulate: (previousAccumulator: TAccumulated, value: TSource) => TAccumulated,
+): Stream<TAccumulated> {
+	const mapped$ = _map$(
+		source$,
+		value => {
+			const newAccumulator = accumulate(
+				mapped$.lastValue === undefined
+					? initialAccumulator
+					: mapped$.lastValue,
+				value);
+			return newAccumulator;
+		},
+		// TODO
+		Any,
+	);
+	return mapped$;
+}
+
+function retry$<T>(
+	method$: () => Stream<T | Error>,
+	maxAttepmts: number,
+	currentAttempt: number = 1,
+): Stream<T | Error> {
+	if (currentAttempt === maxAttepmts) {
+		return method$();
+	}
+	const withRetry$$ = _map$(
+		method$(),
+		result => {
+			if (result instanceof Error) {
+				console.log('Error! Retrying... Attempt:', currentAttempt, 'process:', processId);
+				return retry$(method$, maxAttepmts, currentAttempt + 1);
+			}
+			return of$<T | Error>(result);
+		},
+		// TODO
+		Any,
+	);
+	return flatSwitch$(withRetry$$);
+};
+
+//#endregion transform
+//#endregion helper
 //#region core
 export const complete = _createFunction(
 	(stream$: Stream<any>) => {
@@ -1873,7 +1916,7 @@ export const httpBlobRequest$ = _createFunction(
 );
 export const timer$ = _createFunction(
 	(delayMs: number): Stream<number> => {
-		const stream$ = createStream$(1);
+		const stream$ = createStream$(1, Float);
 		const cycle = () => {
 			setTimeout(() => {
 				if (stream$.completed) {
@@ -1897,7 +1940,10 @@ export const timer$ = _createFunction(
 //#endregion create
 //#region transform
 export const map$ = _createFunction(
-	_map$,
+	<T, U>(source$: Stream<T>, transform$: (value: T) => U) => {
+		// TODO get ReturnType from JulFunction transForm$
+		return _map$(source$, transform$, Any);
+	},
 	{
 		singleNames: [
 			{
@@ -1914,7 +1960,7 @@ export const map$ = _createFunction(
 );
 export const flatMergeMap$ = _createFunction(
 	<T, U>(source$: Stream<T>, transform$: (value: T) => U | Stream<U>) => {
-		return _flatMap$(source$, transform$, true);
+		return flatMap$(source$, transform$, true);
 	},
 	{
 		singleNames: [
@@ -1932,7 +1978,7 @@ export const flatMergeMap$ = _createFunction(
 );
 export const flatSwitchMap$ = _createFunction(
 	<T, U>(source$: Stream<T>, transform$: (value: T) => U | Stream<U>) => {
-		return _flatMap$(source$, transform$, false);
+		return flatMap$(source$, transform$, false);
 	},
 	{
 		singleNames: [

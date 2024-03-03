@@ -66,6 +66,8 @@ Rational = Or(Integer Fraction)
 Text = nativeValue(§_Text§)
 Date = nativeValue(§_Date§)
 Blob = nativeValue(§_Date§)
+# Instance structure: (message: Text)
+# TODO was wenn message = undefined?
 Error = nativeValue(§_Error§)
 # data structure containing 1 or more key-value-pairs of type ElementType
 Dictionary = nativeFunction(
@@ -74,6 +76,8 @@ Dictionary = nativeFunction(
 	§x => typeof x === 'object'§
 )
 # data structure representing a value of type T changing over time
+# Instance structure: (ValueType: Type)
+# Type structure: (ValueType: Type)
 Stream = nativeFunction(
 	(ValueType: Type): Type
 	# TODO generic Stream check
@@ -403,7 +407,7 @@ map$ = nativeFunction(
 			# TODO Integer vs FloatInteger
 			# index: Integer
 		): Any
-	): Stream(TypeOf(transform$)/ReturnType)
+	): Stream(transform$/ReturnType)
 	§TODO§
 )
 flatMergeMap$ = nativeFunction(

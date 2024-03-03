@@ -248,6 +248,22 @@ function dereferenceNameFromObject(
 				return sourceObjectType.Fields[name];
 			case 'dictionary':
 				return sourceObjectType.ElementType;
+			case 'function':
+				switch (name) {
+					case 'ParamsType':
+						return sourceObjectType.ParamsType;
+					case 'ReturnType':
+						return sourceObjectType.ReturnType;
+					default:
+						return undefined;
+				}
+			case 'stream':
+				switch (name) {
+					case 'ValueType':
+						return sourceObjectType.ValueType;
+					default:
+						return undefined;
+				}
 			// TODO other object types
 			default:
 				return undefined;
