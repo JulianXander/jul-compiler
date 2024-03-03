@@ -102,7 +102,7 @@ const expectedResults: {
 				{
 					"endColumnIndex": 2,
 					"endRowIndex": 1,
-					"message": "Expected branch to be a function.\nCan not assign 4 to Any => Any.",
+					"message": "Expected branch to be a function.\nCan not assign 4 to Any: Any.",
 					"startColumnIndex": 1,
 					"startRowIndex": 1,
 				},

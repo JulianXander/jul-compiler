@@ -1,5 +1,12 @@
 -Stream ValueType subscribe, map$ typeInference
 	-vgl test1.jul
+?function ReturnType syntax
+	(params): Type => value
+	(params):> Type => value
+	(params) :> Type => value
+	Params: Type => value
+	Params:> Type => value
+	Params :> Type => value
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
