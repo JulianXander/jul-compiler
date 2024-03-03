@@ -259,11 +259,13 @@ function dereferenceNameFromObject(
 						return undefined;
 				}
 			case 'reference':
-				const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(sourceObjectType);
-				if (dereferencedParameterType === undefined) {
-					return undefined;
-				}
-				return dereferenceNameFromObject(name, dereferencedParameterType);
+				// TODO???
+				// const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(sourceObjectType);
+				// if (dereferencedParameterType === undefined) {
+				// 	return undefined;
+				// }
+				// return dereferenceNameFromObject(name, dereferencedParameterType);
+				return undefined;
 			case 'stream':
 				switch (name) {
 					case 'ValueType':

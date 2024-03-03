@@ -1,6 +1,9 @@
 -Stream ValueType subscribe, map$ typeInference
 	-vgl test1.jul
 	-dereferenceNameFromObject mit ParameterReference
+	-stattdessen eines von:
+		-dereferenceArgumentTypesNested mit FunctionExpression statt Type, damit nestedReference mit ParameterReference aufgelöst wird
+		-RuntimeType für nestedReference analog zu ParameterReference
 ?function ReturnType syntax
 	(params): ReturnType => returnValue
 	(params):> ReturnType => returnValue
