@@ -71,7 +71,6 @@ const maxElementsPerLine = 5;
 const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	true: true,
 	false: false,
-	cliArguments: _optionalType(new ListType(_Text)),
 	Any: new TypeOfType(Any),
 	Boolean: new TypeOfType(_Boolean),
 	Integer: new TypeOfType(Integer),
