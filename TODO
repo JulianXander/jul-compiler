@@ -1,3 +1,5 @@
+-Stream ValueType subscribe, map$ typeInference
+	-vgl test1.jul
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar

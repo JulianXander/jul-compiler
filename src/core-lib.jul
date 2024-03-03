@@ -399,23 +399,18 @@ map$ = nativeFunction(
 	(
 		source$: Stream(Any)
 		transform$: (
-			value: Any
-			# TODO
-			# value: TypeOf(source$)/ValueType
+			value: source$/ValueType
 			# TODO Integer vs FloatInteger
 			# index: Integer
 		): Any
-		# TODO Stream(TypeOf(transform$)/ReturnType)
-	): Stream(Any)
+	): Stream(TypeOf(transform$)/ReturnType)
 	§TODO§
 )
 flatMergeMap$ = nativeFunction(
 	(
 		source$: Stream(Any)
 		transform$: (
-			value: Any
-			# TODO
-			# value: TypeOf(source$)/ValueType
+			value: source$/ValueType
 			# TODO Integer vs FloatInteger
 			# index: Integer
 		): Or(Stream(Any) Any)
@@ -426,9 +421,7 @@ flatSwitchMap$ = nativeFunction(
 	(
 		source$: Stream(Any)
 		transform$: (
-			value: Any
-			# TODO
-			# value: TypeOf(source$)/ValueType
+			value: source$/ValueType
 			# TODO Integer vs FloatInteger
 			# index: Integer
 		): Or(Stream(Any) Any)
