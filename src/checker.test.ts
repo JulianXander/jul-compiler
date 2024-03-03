@@ -75,7 +75,7 @@ const expectedResults: {
 					"endColumnIndex": 1,
 					"endRowIndex": 2,
 					"inferredType": {
-						"choiceTypes": [
+						"ChoiceTypes": [
 							{
 								"type": "any",
 							},
