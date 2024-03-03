@@ -44,7 +44,8 @@ import {
 	SymbolDefinition,
 	SymbolTable,
 	TypedExpression,
-	ParsedExpressions2
+	ParsedExpressions2,
+	ParseParameterFields
 } from './syntax-tree.js';
 import { NonEmptyArray, findMap, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
@@ -257,6 +258,9 @@ function dereferenceNameFromObject(
 					default:
 						return undefined;
 				}
+			case 'reference':
+				// TODO dereference Parameter Reference
+				return undefined;
 			case 'stream':
 				switch (name) {
 					case 'ValueType':
@@ -952,10 +956,7 @@ function inferType(
 				null,
 			);
 			if (params.type === 'parameters') {
-				params.singleFields.forEach(parameter => {
-					const parameterSymbol = findParameterSymbol(parameter, functionScopes);
-					parameterSymbol.functionRef = functionType;
-				});
+				setFunctionRefForParams(params, functionType, functionScopes);
 			}
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
@@ -982,19 +983,25 @@ function inferType(
 		}
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
-			setInferredType(expression.params, functionScopes, parsedDocuments, folder, file);
-			// TODO parameterReference
+			const params = expression.params;
+			setInferredType(params, functionScopes, parsedDocuments, folder, file);
+			const functionType = new FunctionType(
+				null,
+				null,
+			);
+			if (params.type === 'parameters') {
+				setFunctionRefForParams(params, functionType, functionScopes);
+			}
 			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file);
 			const inferredReturnType = expression.returnType.inferredType;
 			if (inferredReturnType === undefined) {
 				console.log(JSON.stringify(expression, undefined, 4));
 				throw new Error('returnType was not inferred');
 			}
-			return new TypeOfType(new FunctionType(
-				// TODO valueOf bei non Parameters Type?
-				expression.params.inferredType!,
-				valueOf(inferredReturnType),
-			));
+			// TODO valueOf bei non Parameters Type?
+			functionType.ParamsType = params.inferredType!;
+			functionType.ReturnType = valueOf(inferredReturnType);
+			return new TypeOfType(functionType);
 		}
 		case 'integer':
 			return expression.value;
@@ -1148,6 +1155,17 @@ function inferType(
 			throw new Error(`Unexpected valueExpression.type: ${(assertNever as TypedExpression).type}`);
 		}
 	}
+}
+
+function setFunctionRefForParams(
+	params: ParseParameterFields,
+	functionType: FunctionType,
+	functionScopes: NonEmptyArray<SymbolTable>,
+): void {
+	params.singleFields.forEach(parameter => {
+		const parameterSymbol = findParameterSymbol(parameter, functionScopes);
+		parameterSymbol.functionRef = functionType;
+	});
 }
 
 function valueOf(type: RuntimeType | undefined): RuntimeType {
