@@ -113,7 +113,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						if (!isDictionary(value)) {
 							return false;
 						}
-						const elementType = builtInType.elementType;
+						const elementType = builtInType.ElementType;
 						for (const key in value) {
 							const elementValue = value[key] ?? null;
 							if (!isOfType(elementValue, elementType)) {
@@ -126,7 +126,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						if (!isDictionary(value)) {
 							return false;
 						}
-						const fieldTypes = builtInType.fields;
+						const fieldTypes = builtInType.Fields;
 						for (const key in fieldTypes) {
 							const elementValue = value[key] ?? null;
 							const elementType = fieldTypes[key]!;
@@ -140,11 +140,11 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						// TODO check array not empty?
 						return Array.isArray(value)
 							&& value.every(element =>
-								isOfType(element, builtInType.elementType));
+								isOfType(element, builtInType.ElementType));
 					case 'tuple':
 						return Array.isArray(value)
-							&& value.length <= builtInType.elementTypes.length
-							&& builtInType.elementTypes.every((elementType, index) =>
+							&& value.length <= builtInType.ElementTypes.length
+							&& builtInType.ElementTypes.every((elementType, index) =>
 								isOfType(value[index] ?? null, elementType));
 					case 'stream':
 						// TODO check value type
@@ -168,13 +168,13 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						// || typeof value === ;
 						return true;
 					case 'and':
-						return builtInType.choiceTypes.every(coiceType =>
+						return builtInType.ChoiceTypes.every(coiceType =>
 							isOfType(value, coiceType));
 					case 'or':
-						return builtInType.choiceTypes.some(coiceType =>
+						return builtInType.ChoiceTypes.some(coiceType =>
 							isOfType(value, coiceType));
 					case 'not':
-						return !isOfType(value, builtInType.sourceType);
+						return !isOfType(value, builtInType.SourceType);
 					case 'typeOf':
 						return deepEquals(value, builtInType.value);
 					default: {
@@ -435,35 +435,35 @@ class ErrorType extends BuiltInTypeBase {
 }
 
 export class ListType extends BuiltInTypeBase {
-	constructor(public elementType: RuntimeType) { super(); }
+	constructor(public ElementType: RuntimeType) { super(); }
 	readonly type = 'list';
 }
 
 export class TupleType extends BuiltInTypeBase {
-	constructor(public elementTypes: RuntimeType[]) { super(); }
+	constructor(public ElementTypes: RuntimeType[]) { super(); }
 	readonly type = 'tuple';
 }
 
 export class DictionaryType extends BuiltInTypeBase {
-	constructor(public elementType: RuntimeType) { super(); }
+	constructor(public ElementType: RuntimeType) { super(); }
 	readonly type = 'dictionary';
 }
 
 // TODO rename to _DictionaryLiteralType or split builtin exports to other file or importLine contain only builtins?
 export class DictionaryLiteralType extends BuiltInTypeBase {
-	constructor(public fields: { [key: string]: RuntimeType; }) { super(); }
+	constructor(public Fields: { [key: string]: RuntimeType; }) { super(); }
 	readonly type = 'dictionaryLiteral';
 }
 
 export class StreamType extends BuiltInTypeBase {
-	constructor(public valueType: RuntimeType) { super(); }
+	constructor(public ValueType: RuntimeType) { super(); }
 	readonly type = 'stream';
 }
 
 export class FunctionType extends BuiltInTypeBase {
 	constructor(
-		public paramsType: RuntimeType,
-		public returnType: RuntimeType,
+		public ParamsType: RuntimeType,
+		public ReturnType: RuntimeType,
 	) {
 		super();
 	}
@@ -504,17 +504,17 @@ export class TypeType extends BuiltInTypeBase {
 }
 
 export class IntersectionType extends BuiltInTypeBase {
-	constructor(public choiceTypes: RuntimeType[]) { super(); }
+	constructor(public ChoiceTypes: RuntimeType[]) { super(); }
 	readonly type = 'and';
 }
 
 export class UnionType extends BuiltInTypeBase {
-	constructor(public choiceTypes: RuntimeType[]) { super(); }
+	constructor(public ChoiceTypes: RuntimeType[]) { super(); }
 	readonly type = 'or';
 }
 
 export class ComplementType extends BuiltInTypeBase {
-	constructor(public sourceType: RuntimeType) { super(); }
+	constructor(public SourceType: RuntimeType) { super(); }
 	readonly type = 'not';
 }
 

@@ -245,9 +245,9 @@ function dereferenceNameFromObject(
 			case 'any':
 				return Any;
 			case 'dictionaryLiteral':
-				return sourceObjectType.fields[name];
+				return sourceObjectType.Fields[name];
 			case 'dictionary':
-				return sourceObjectType.elementType;
+				return sourceObjectType.ElementType;
 			// TODO other object types
 			default:
 				return undefined;
@@ -274,9 +274,9 @@ function dereferenceIndexFromObject(
 				// TODO error: cant dereference index in dictionary type
 				return undefined;
 			case 'list':
-				return sourceObjectType.elementType;
+				return sourceObjectType.ElementType;
 			case 'tuple':
-				return sourceObjectType.elementTypes[index - 1];
+				return sourceObjectType.ElementTypes[index - 1];
 			// TODO other object types
 			default:
 				return undefined;
@@ -359,20 +359,20 @@ function dereferenceArgumentTypesNested(
 		case 'type':
 			return builtInType;
 		case 'and':
-			return new IntersectionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
+			return new IntersectionType(builtInType.ChoiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
 		case 'dictionary':
-			return new DictionaryType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.elementType));
+			return new DictionaryType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
 		case 'list':
-			return new ListType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.elementType));
+			return new ListType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
 		case 'not':
-			return new ComplementType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.sourceType));
+			return new ComplementType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.SourceType));
 		case 'or':
-			return new UnionType(builtInType.choiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
+			return new UnionType(builtInType.ChoiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
 		case 'reference':
 			// TODO immer valueOf?
 			return valueOf(dereferenceArgumentType(calledFunction, prefixArgumentType, argsType, builtInType));
 		case 'stream':
-			return new StreamType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.valueType));
+			return new StreamType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ValueType));
 		case 'typeOf':
 			return new TypeOfType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.value));
 		// TODO
@@ -408,7 +408,7 @@ function dereferenceArgumentType(
 	switch (argsType.type) {
 		case 'dictionaryLiteral': {
 			const referenceName = parameterReference.name;
-			const argType = argsType.fields[referenceName];
+			const argType = argsType.Fields[referenceName];
 			// TODO error bei unbound ref?
 			if (!argType) {
 				return parameterReference;
@@ -425,7 +425,7 @@ function dereferenceArgumentType(
 			const argIndex = prefixArgumentType === undefined
 				? paramIndex
 				: paramIndex - 1;
-			const argType = argsType.elementTypes[argIndex];
+			const argType = argsType.ElementTypes[argIndex];
 			// TODO error bei unbound ref?
 			if (argType === undefined) {
 				return parameterReference;
@@ -780,7 +780,7 @@ function inferType(
 						const param = paramsType.singleNames[argIndex];
 						if (param !== undefined
 							&& param.type instanceof FunctionType) {
-							const innerParamsType = param.type.paramsType;
+							const innerParamsType = param.type.ParamsType;
 							if (arg.params.type === 'parameters') {
 								arg.params.singleFields.forEach((literalParam, literalParamIndex) => {
 									console.log(innerParamsType);
@@ -828,7 +828,7 @@ function inferType(
 						}
 						const allArgs = [
 							...prefixArgs,
-							...argsType.elementTypes,
+							...argsType.ElementTypes,
 						];
 						return allArgs;
 					}
@@ -960,8 +960,8 @@ function inferType(
 				}
 			}
 			// TODO valueOf?
-			functionType.paramsType = params.inferredType!;
-			functionType.returnType = inferredReturnType;
+			functionType.ParamsType = params.inferredType!;
+			functionType.ReturnType = inferredReturnType;
 			return functionType;
 		}
 		case 'functionTypeLiteral': {
@@ -1145,14 +1145,14 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 			if (type instanceof BuiltInTypeBase) {
 				switch (type.type) {
 					case 'dictionaryLiteral': {
-						const fieldValues = mapDictionary(type.fields, valueOf);
+						const fieldValues = mapDictionary(type.Fields, valueOf);
 						return fieldValues;
 					}
 					case 'reference':
 						// TODO wo deref? wo Type => value auspacken?
 						return type;
 					case 'tuple':
-						return type.elementTypes.map(valueOf);
+						return type.ElementTypes.map(valueOf);
 					case 'typeOf':
 						return type.value;
 					default:
@@ -1363,7 +1363,7 @@ export function getTypeError(
 	if (argumentsType instanceof BuiltInTypeBase) {
 		switch (argumentsType.type) {
 			case 'and': {
-				const subErrors = argumentsType.choiceTypes.map(choiceType =>
+				const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 					getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
 				if (!subErrors.length) {
 					return undefined;
@@ -1375,7 +1375,7 @@ export function getTypeError(
 				};
 			}
 			case 'or': {
-				const subErrors = argumentsType.choiceTypes.map(choiceType =>
+				const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 					getTypeError(prefixArgumentType, choiceType, targetType));
 				if (subErrors.every(isDefined)) {
 					return {
@@ -1422,7 +1422,7 @@ export function getTypeError(
 			if (targetType instanceof BuiltInTypeBase) {
 				switch (targetType.type) {
 					case 'and': {
-						const subErrors = targetType.choiceTypes.map(choiceType =>
+						const subErrors = targetType.ChoiceTypes.map(choiceType =>
 							getTypeError(prefixArgumentType, argumentsType, choiceType)).filter(isDefined);
 						if (!subErrors.length) {
 							return undefined;
@@ -1457,12 +1457,12 @@ export function getTypeError(
 							// TODO null specific error?
 							break;
 						}
-						const elementType = targetType.elementType;
+						const elementType = targetType.ElementType;
 						if (argumentsType instanceof BuiltInTypeBase) {
 							switch (argumentsType.type) {
 								case 'dictionaryLiteral': {
 									const subErrors = map(
-										argumentsType.fields,
+										argumentsType.Fields,
 										(fieldType, fieldName) => {
 											// TODO the field x is missing error?
 											return getDictionaryFieldError(fieldName, elementType, prefixArgumentType, fieldType);
@@ -1505,7 +1505,7 @@ export function getTypeError(
 						};
 					}
 					case 'dictionaryLiteral': {
-						const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType.fields);
+						const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType.Fields);
 						if (error === true) {
 							// Standardfehler
 							break;
@@ -1529,11 +1529,11 @@ export function getTypeError(
 							break;
 						}
 						// check value params obermenge von target params und value returntype teilmenge von target returntype
-						const paramsError = getTypeError(prefixArgumentType, targetType.paramsType, argumentsType.paramsType);
+						const paramsError = getTypeError(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
 						if (paramsError) {
 							return paramsError;
 						}
-						return getTypeError(prefixArgumentType, argumentsType.returnType, targetType.returnType);
+						return getTypeError(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
 					}
 					case 'integer':
 						switch (typeof argumentsType) {
@@ -1545,13 +1545,13 @@ export function getTypeError(
 						}
 						break;
 					case 'list': {
-						const targetElementType = targetType.elementType;
+						const targetElementType = targetType.ElementType;
 						if (argumentsType instanceof BuiltInTypeBase) {
 							switch (argumentsType.type) {
 								case 'list':
-									return getTypeError(prefixArgumentType, argumentsType.elementType, targetElementType);
+									return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementType);
 								case 'tuple':
-									const subErrors = argumentsType.elementTypes.map(valueElement =>
+									const subErrors = argumentsType.ElementTypes.map(valueElement =>
 										getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
 									if (!subErrors.length) {
 										return undefined;
@@ -1580,10 +1580,10 @@ export function getTypeError(
 						break;
 					}
 					case 'not': {
-						const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.sourceType);
+						const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.SourceType);
 						if (sourceError === undefined) {
 							return {
-								message: `${typeToString(argumentsType, 0)} is assignable to ${typeToString(targetType.sourceType, 0)}, but should not be.`
+								message: `${typeToString(argumentsType, 0)} is assignable to ${typeToString(targetType.SourceType, 0)}, but should not be.`
 							};
 						}
 						return undefined;
@@ -1606,7 +1606,7 @@ export function getTypeError(
 						break;
 					}
 					case 'or': {
-						const subErrors = targetType.choiceTypes.map(choiceType =>
+						const subErrors = targetType.ChoiceTypes.map(choiceType =>
 							getTypeError(prefixArgumentType, argumentsType, choiceType));
 						if (subErrors.every(isDefined)) {
 							return {
@@ -1627,7 +1627,7 @@ export function getTypeError(
 						if (!(argumentsType instanceof StreamType)) {
 							break;
 						}
-						return getTypeError(prefixArgumentType, argumentsType.valueType, targetType.valueType);
+						return getTypeError(prefixArgumentType, argumentsType.ValueType, targetType.ValueType);
 					}
 					case 'text':
 						switch (typeof argumentsType) {
@@ -1639,7 +1639,7 @@ export function getTypeError(
 						}
 						break;
 					case 'tuple': {
-						const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType.elementTypes);
+						const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType.ElementTypes);
 						if (error === true) {
 							// Standardfehler
 							break;
@@ -1735,9 +1735,9 @@ function getTupleTypeError(
 						message: `Expected ${targetElementTypes.length} elements, but List may contain less.`,
 					};
 				}
-				return getTypeError(prefixArgumentType, argumentsType.elementType, targetElementTypes[0]!);
+				return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementTypes[0]!);
 			case 'tuple':
-				return getTupleTypeError2(prefixArgumentType, argumentsType.elementTypes, targetElementTypes);
+				return getTupleTypeError2(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
 			default:
 				return true;
 		}
@@ -1798,7 +1798,7 @@ function getDictionaryLiteralTypeError(
 					targetFieldTypes,
 					(fieldType, fieldName) =>
 						// TODO the field x is missing error?
-						getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType.fields[fieldName] ?? null),
+						getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType.Fields[fieldName] ?? null),
 				).filter(isDefined);
 				if (!subErrors.length) {
 					return undefined;
@@ -1877,9 +1877,9 @@ function getTypeErrorForWrappedArgs(
 		// TODO other cases
 		switch (wrappedValue.type) {
 			case 'dictionaryLiteral':
-				return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue.fields, targetType);
+				return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue.Fields, targetType);
 			case 'tuple':
-				return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue.elementTypes, targetType);
+				return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue.ElementTypes, targetType);
 			case 'parameters': {
 				// TODO prefixArgumentType berücksichtigen?
 				let index = 0;
@@ -1889,7 +1889,7 @@ function getTypeErrorForWrappedArgs(
 				const valueRestType = valueRest?.type;
 				const valueRestItemType = valueRest
 					? valueRestType instanceof ListType
-						? valueRestType.elementType
+						? valueRestType.ElementType
 						: Any
 					: undefined;
 				for (; index < targetSingleNames.length; index++) {
@@ -2072,7 +2072,7 @@ export function typeToString(type: RuntimeType, indent: number): string {
 				const builtInType: BuiltInType = type;
 				switch (builtInType.type) {
 					case 'and':
-						return `And${arrayTypeToString(builtInType.choiceTypes, indent)}`;
+						return `And${arrayTypeToString(builtInType.ChoiceTypes, indent)}`;
 					case 'any':
 						return 'Any';
 					case 'blob':
@@ -2082,23 +2082,23 @@ export function typeToString(type: RuntimeType, indent: number): string {
 					case 'date':
 						return 'Date';
 					case 'dictionary':
-						return `Dictionary(${typeToString(builtInType.elementType, indent)})`;
+						return `Dictionary(${typeToString(builtInType.ElementType, indent)})`;
 					case 'dictionaryLiteral':
-						return dictionaryTypeToString(builtInType.fields, ': ', indent);
+						return dictionaryTypeToString(builtInType.Fields, ': ', indent);
 					case 'error':
 						return 'Error';
 					case 'float':
 						return 'Float';
 					case 'function':
-						return `${typeToString(builtInType.paramsType, indent)} => ${typeToString(builtInType.returnType, indent)}`;
+						return `${typeToString(builtInType.ParamsType, indent)} => ${typeToString(builtInType.ReturnType, indent)}`;
 					case 'integer':
 						return 'Integer';
 					case 'list':
-						return `List(${typeToString(builtInType.elementType, indent)})`;
+						return `List(${typeToString(builtInType.ElementType, indent)})`;
 					case 'not':
-						return `Not(${typeToString(builtInType.sourceType, indent)})`;
+						return `Not(${typeToString(builtInType.SourceType, indent)})`;
 					case 'or':
-						return `Or${arrayTypeToString(builtInType.choiceTypes, indent)}`;
+						return `Or${arrayTypeToString(builtInType.ChoiceTypes, indent)}`;
 					case 'parameters': {
 						const rest = builtInType.rest;
 						const multiline = builtInType.singleNames.length + (rest ? 1 : 0) > 1;
@@ -2116,11 +2116,11 @@ export function typeToString(type: RuntimeType, indent: number): string {
 					case 'reference':
 						return builtInType.name;
 					case 'stream':
-						return `Stream(${typeToString(builtInType.valueType, indent)})`;
+						return `Stream(${typeToString(builtInType.ValueType, indent)})`;
 					case 'text':
 						return 'Text';
 					case 'tuple':
-						return arrayTypeToString(builtInType.elementTypes, indent);
+						return arrayTypeToString(builtInType.ElementTypes, indent);
 					case 'type':
 						return 'Type';
 					case 'typeOf':
@@ -2208,14 +2208,14 @@ function bracketedExpressionToString(
 
 function getParamsType(possibleFunctionType: RuntimeType | undefined): RuntimeType {
 	if (possibleFunctionType instanceof FunctionType) {
-		return possibleFunctionType.paramsType;
+		return possibleFunctionType.ParamsType;
 	}
 	return Any;
 }
 
 function getReturnTypeFromFunctionType(possibleFunctionType: RuntimeType | undefined): RuntimeType {
 	if (possibleFunctionType instanceof FunctionType) {
-		return possibleFunctionType.returnType;
+		return possibleFunctionType.ReturnType;
 	}
 	return Any;
 }
