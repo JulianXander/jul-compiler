@@ -481,8 +481,7 @@ export class ParameterReference extends BuiltInTypeBase {
 	/**
 	 * Muss nach dem Erzeugen gesetzt werden.
 	 */
-	// TODO functionRef?: FunctionType; ?
-	functionRef?: RuntimeType;
+	functionRef?: FunctionType;
 }
 
 export class ParametersType extends BuiltInTypeBase {

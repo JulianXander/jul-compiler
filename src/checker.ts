@@ -259,8 +259,11 @@ function dereferenceNameFromObject(
 						return undefined;
 				}
 			case 'reference':
-				// TODO dereference Parameter Reference
-				return undefined;
+				const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(sourceObjectType);
+				if (dereferencedParameterType === undefined) {
+					return undefined;
+				}
+				return dereferenceNameFromObject(name, dereferencedParameterType);
 			case 'stream':
 				switch (name) {
 					case 'ValueType':
@@ -457,6 +460,19 @@ function dereferenceArgumentType(
 		default:
 			return argsType;
 	}
+}
+
+function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): RuntimeType | undefined {
+	const functionType = parameterReference.functionRef;
+	if (functionType) {
+		const paramsType = functionType.ParamsType;
+		if (paramsType instanceof ParametersType) {
+			const matchedParameter = paramsType.singleNames.find(parameter =>
+				parameter.name === parameterReference.name);
+			return matchedParameter?.type;
+		}
+	}
+	return undefined;
 }
 
 //#endregion dereference
@@ -952,7 +968,8 @@ function inferType(
 			const params = expression.params;
 			setInferredType(params, functionScopes, parsedDocuments, folder, file);
 			const functionType = new FunctionType(
-				null,
+				// TODO valueOf?
+				params.inferredType!,
 				null,
 			);
 			if (params.type === 'parameters') {
@@ -976,8 +993,6 @@ function inferType(
 					});
 				}
 			}
-			// TODO valueOf?
-			functionType.ParamsType = params.inferredType!;
 			functionType.ReturnType = inferredReturnType;
 			return functionType;
 		}
@@ -986,7 +1001,8 @@ function inferType(
 			const params = expression.params;
 			setInferredType(params, functionScopes, parsedDocuments, folder, file);
 			const functionType = new FunctionType(
-				null,
+				// TODO valueOf bei non Parameters Type?
+				params.inferredType!,
 				null,
 			);
 			if (params.type === 'parameters') {
@@ -998,8 +1014,6 @@ function inferType(
 				console.log(JSON.stringify(expression, undefined, 4));
 				throw new Error('returnType was not inferred');
 			}
-			// TODO valueOf bei non Parameters Type?
-			functionType.ParamsType = params.inferredType!;
 			functionType.ReturnType = valueOf(inferredReturnType);
 			return new TypeOfType(functionType);
 		}

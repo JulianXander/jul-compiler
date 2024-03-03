@@ -1,5 +1,5 @@
 import { ParserError, Positioned } from './parser/parser-combinator.js';
-import { RuntimeType } from './runtime.js';
+import { FunctionType, RuntimeType } from './runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {
@@ -39,7 +39,7 @@ export interface SymbolDefinition extends Positioned {
 	// TODO inferred type aus dem value? oder normalize typeguard?
 	normalizedType?: RuntimeType;
 	//#region FunctionParameter
-	functionRef?: RuntimeType;
+	functionRef?: FunctionType;
 	functionParameterIndex?: number;
 	//#endregion FunctionParameter
 }
