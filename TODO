@@ -1,4 +1,3 @@
-?flatSwitchMap$ transform$ ReturnType immer Stream statt Or(Stream RawValue)
 -Stream ValueType subscribe function argument typeInference
 	-vgl test1.jul
 ?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
