@@ -1423,6 +1423,7 @@ class Stream<T> {
 		if (this.completed) {
 			throw new Error('Can not push to completed stream.');
 		}
+		// TODO typecheck value
 		this.lastValue = value;
 		this.lastProcessId = processId;
 		this.listeners.forEach(listener => listener(value));
@@ -1477,7 +1478,7 @@ class Stream<T> {
 
 //#region create
 
-function createStream$<T>(initialValue: T, valueType: RuntimeType): Stream<T> {
+function _create$<T>(initialValue: T, valueType: RuntimeType): Stream<T> {
 	const stream$: Stream<T> = new Stream(
 		() =>
 			stream$.lastValue as T,
@@ -1486,8 +1487,8 @@ function createStream$<T>(initialValue: T, valueType: RuntimeType): Stream<T> {
 	return stream$;
 }
 
-function of$<T>(value: T): Stream<T> {
-	const $ = createStream$(value, new TypeOfType(value));
+function _completed$<T>(value: T): Stream<T> {
+	const $ = _create$(value, new TypeOfType(value));
 	$.complete();
 	return $;
 }
@@ -1508,7 +1509,7 @@ function httpRequest$(
 	responseType: HttpResponseType,
 ): Stream<null | string | Blob | Error> {
 	const abortController = new AbortController();
-	const response$ = createStream$<null | string | Blob | Error>(
+	const response$ = _create$<null | string | Blob | Error>(
 		null,
 		responseType === 'text'
 			? httpTextResponseJulType
@@ -1710,6 +1711,7 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 			return currentValue;
 		},
 		// TODO
+		// source$$.ValueType.ValueType,
 		Any,
 	);
 	const unsubscribeOuter = source$$.subscribe(source$ => {
@@ -1733,20 +1735,12 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 
 function flatMap$<T, U>(
 	source$: Stream<T>,
-	transform$: (value: T) => U | Stream<U>,
+	transform$: (value: T) => Stream<U>,
 	merge: boolean,
 ): Stream<U> {
 	const mapped$ = _map$(
 		source$,
-		(value) => {
-			const transformed$ = transform$(value);
-			if (transformed$ instanceof Stream) {
-				return transformed$;
-			}
-			else {
-				return of$(transformed$);
-			}
-		},
+		transform$,
 		// TODO
 		Any,
 	);
@@ -1795,7 +1789,7 @@ function retry$<T>(
 				console.log('Error! Retrying... Attempt:', currentAttempt, 'process:', processId);
 				return retry$(method$, maxAttepmts, currentAttempt + 1);
 			}
-			return of$<T | Error>(result);
+			return _completed$<T | Error>(result);
 		},
 		// TODO
 		Any,
@@ -1863,7 +1857,23 @@ export const subscribe = _createFunction(
 //#endregion core
 //#region create
 export const create$ = _createFunction(
-	createStream$,
+	_create$,
+	{
+		singleNames: [
+			{
+				name: 'ValueType',
+				type: Type
+			},
+			{
+				name: 'initialValue',
+				// TODO parameterReference ValueType
+				type: Any
+			},
+		]
+	}
+)
+export const completed$ = _createFunction(
+	_completed$,
 	{
 		singleNames: [
 			{
@@ -1933,7 +1943,7 @@ export const httpBlobRequest$ = _createFunction(
 );
 export const timer$ = _createFunction(
 	(delayMs: number): Stream<number> => {
-		const stream$ = createStream$(1, Float);
+		const stream$ = _create$(1, Float);
 		const cycle = () => {
 			setTimeout(() => {
 				if (stream$.completed) {
@@ -1976,7 +1986,7 @@ export const map$ = _createFunction(
 	}
 );
 export const flatMergeMap$ = _createFunction(
-	<T, U>(source$: Stream<T>, transform$: (value: T) => U | Stream<U>) => {
+	<T, U>(source$: Stream<T>, transform$: (value: T) => Stream<U>) => {
 		return flatMap$(source$, transform$, true);
 	},
 	{
@@ -1994,7 +2004,7 @@ export const flatMergeMap$ = _createFunction(
 	}
 );
 export const flatSwitchMap$ = _createFunction(
-	<T, U>(source$: Stream<T>, transform$: (value: T) => U | Stream<U>) => {
+	<T, U>(source$: Stream<T>, transform$: (value: T) => Stream<U>) => {
 		return flatMap$(source$, transform$, false);
 	},
 	{

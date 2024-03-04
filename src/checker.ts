@@ -258,6 +258,7 @@ function dereferenceNameFromObject(
 					default:
 						return undefined;
 				}
+			case 'nestedReference':
 			case 'parameterReference':
 				return new NestedReference(sourceObjectType, name);
 			case 'stream':

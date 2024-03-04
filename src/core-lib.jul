@@ -347,8 +347,15 @@ subscribe = nativeFunction(
 #endregion core
 #region create
 # Erzeugt einen Stream mit dem manuell push und complete aufgerufen werden muss.
-# TODO typesafe
 create$ = nativeFunction(
+	(
+		ValueType: Type
+		intitialValue: ValueType
+	): Stream(ValueType)
+	§todo§
+)
+# Erzeugt einen vollendeten Stream, der nur den Startwert liefert.
+completed$ = nativeFunction(
 	(
 		intitialValue: Any
 	): Stream(Any)
@@ -417,8 +424,8 @@ flatMergeMap$ = nativeFunction(
 			value: source$/ValueType
 			# TODO Integer vs FloatInteger
 			# index: Integer
-		): Or(Stream(Any) Any)
-	): Stream(Any)
+		): Stream(Any)
+	): Stream(transform$/ReturnType/ValueType)
 	§TODO§
 )
 flatSwitchMap$ = nativeFunction(
@@ -428,8 +435,8 @@ flatSwitchMap$ = nativeFunction(
 			value: source$/ValueType
 			# TODO Integer vs FloatInteger
 			# index: Integer
-		): Or(Stream(Any) Any)
-	): Stream(Any)
+		): Stream(Any)
+	): Stream(transform$/ReturnType/ValueType)
 	§TODO§
 )
 # Wenn keine sources übergeben, dann wird Empty vom Rückgabestream emittiert.
