@@ -476,19 +476,6 @@ function dereferenceParameterFromArgumentType(
 	}
 }
 
-function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): RuntimeType | undefined {
-	const functionType = parameterReference.functionRef;
-	if (functionType) {
-		const paramsType = functionType.ParamsType;
-		if (paramsType instanceof ParametersType) {
-			const matchedParameter = paramsType.singleNames.find(parameter =>
-				parameter.name === parameterReference.name);
-			return matchedParameter?.type;
-		}
-	}
-	return undefined;
-}
-
 //#endregion dereference
 
 /**
@@ -1211,6 +1198,9 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 						const fieldValues = mapDictionary(type.Fields, valueOf);
 						return fieldValues;
 					}
+					case 'function':
+						// TODO?
+						return type;
 					case 'nestedReference':
 						// TODO?
 						return type;
