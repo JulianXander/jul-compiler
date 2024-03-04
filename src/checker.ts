@@ -1662,23 +1662,8 @@ export function getTypeError(
 						}
 						return undefined;
 					}
-					case 'parameters': {
-						switch (typeof argumentsType) {
-							case 'bigint':
-							case 'boolean':
-							case 'number':
-							case 'string':
-								return getTypeErrorForPrimitiveArg(prefixArgumentType, argumentsType, targetType);
-							case 'object':
-								if (!argumentsType) {
-									return getTypeErrorForPrimitiveArg(prefixArgumentType, argumentsType, targetType);
-								}
-								return getTypeErrorForWrappedArgs(prefixArgumentType, argumentsType, targetType);
-							default:
-								break;
-						}
-						break;
-					}
+					case 'parameters':
+						return getTypeErrorForParameters(prefixArgumentType, argumentsType, targetType);
 					case 'parameterReference': {
 						// TODO
 						// const dereferenced = dereferenceArgumentType(null as any, targetType);
@@ -1917,37 +1902,27 @@ function getDictionaryFieldError(
 	return subError;
 }
 
-function getTypeErrorForPrimitiveArg(
+function getTypeErrorForParameters(
 	prefixArgumentType: undefined | RuntimeType,
-	value: Primitive,
+	argumentsType: RuntimeType,
 	targetType: ParametersType,
 ): TypeError | undefined {
-	const wrappeValue = new TupleType([value]);
-	return getTypeErrorForWrappedArgs(prefixArgumentType, wrappeValue, targetType);
-}
-
-// TODO check mit _ParametersType = plain type
-function getTypeErrorForWrappedArgs(
-	prefixArgumentType: undefined | RuntimeType,
-	wrappedValue: RuntimeType,
-	targetType: ParametersType,
-): TypeError | undefined {
-	if (typeof wrappedValue !== 'object' || !wrappedValue) {
-		throw new Error('wrappedValue should be object but got' + typeof wrappedValue);
+	if (typeof argumentsType !== 'object') {
+		throw new Error('wrappedValue should be object but got' + typeof argumentsType);
 	}
-	if (wrappedValue instanceof BuiltInTypeBase) {
+	if (argumentsType instanceof BuiltInTypeBase) {
 		// TODO other cases
-		switch (wrappedValue.type) {
+		switch (argumentsType.type) {
 			case 'dictionaryLiteral':
-				return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue.Fields, targetType);
+				return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.Fields, targetType);
 			case 'tuple':
-				return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue.ElementTypes, targetType);
+				return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
 			case 'parameters': {
 				// TODO prefixArgumentType berücksichtigen?
 				let index = 0;
 				const targetSingleNames = targetType.singleNames;
-				const valueSingleNames = wrappedValue.singleNames;
-				const valueRest = wrappedValue.rest;
+				const valueSingleNames = argumentsType.singleNames;
+				const valueRest = argumentsType.rest;
 				const valueRestType = valueRest?.type;
 				const valueRestItemType = valueRest
 					? valueRestType instanceof ListType
@@ -1992,37 +1967,39 @@ function getTypeErrorForWrappedArgs(
 				return undefined;
 			}
 			default:
-				return { message: 'getTypeErrorForWrappedArgs not implemented yet for ' + wrappedValue.type };
+				return { message: 'getTypeErrorForWrappedArgs not implemented yet for ' + argumentsType.type };
 		}
 	}
-	return getTypeErrorForCollectionArgs(prefixArgumentType, wrappedValue, targetType);
+	return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType, targetType);
 }
 
-function getTypeErrorForCollectionArgs(
+function getTypeErrorForParametersWithCollectionArgs(
 	prefixArgumentType: undefined | RuntimeType,
-	collectionValue: Collection,
+	argumentsType: Collection | null,
 	targetType: ParametersType,
 ): TypeError | undefined {
 	const hasPrefixArg = prefixArgumentType !== undefined;
-	const isArray = Array.isArray(collectionValue);
+	const isArray = Array.isArray(argumentsType);
 	let paramIndex = 0;
-	let valueIndex = 0;
+	let argumentIndex = 0;
 	const { singleNames, rest } = targetType;
 	for (; paramIndex < singleNames.length; paramIndex++) {
 		const param = singleNames[paramIndex]!;
 		const { name, type } = param;
-		let value: RuntimeType;
+		let argument: RuntimeType;
 		if (hasPrefixArg && !paramIndex) {
-			value = prefixArgumentType;
+			argument = prefixArgumentType;
 		}
 		else {
-			value = (isArray
-				? collectionValue[valueIndex]
-				: collectionValue[name]) ?? null;
-			valueIndex++;
+			argument = argumentsType
+				? (isArray
+					? argumentsType[argumentIndex]
+					: argumentsType[name]) ?? null
+				: null;
+			argumentIndex++;
 		}
 		const error = type
-			? getTypeError(undefined, value, type)
+			? getTypeError(undefined, argument, type)
 			: undefined;
 		if (error) {
 			// TODO collect inner errors
@@ -2032,8 +2009,20 @@ function getTypeErrorForCollectionArgs(
 	}
 	if (rest) {
 		const restType = rest.type;
+		if (!argumentsType) {
+			const remainingArgs = hasPrefixArg && !paramIndex
+				? [prefixArgumentType]
+				: null;
+			const error = restType
+				? getTypeError(undefined, remainingArgs, restType)
+				: undefined;
+			if (error) {
+				return error;
+			}
+			return undefined;
+		}
 		if (isArray) {
-			const remainingArgs = collectionValue.slice(valueIndex);
+			const remainingArgs = argumentsType.slice(argumentIndex);
 			if (hasPrefixArg && !paramIndex) {
 				remainingArgs.unshift(prefixArgumentType);
 			}
