@@ -5,6 +5,7 @@
 		-dereferenceArgumentTypesNested mit FunctionExpression statt Type, damit nestedReference mit ParameterReference aufgelöst wird
 			-dann evtl auch ParameterReference entfernen und betroffene coreBuiltInSymbolTypes nach getReturnTypeFromFunctionCall verchieben
 		-RuntimeType für nestedReference analog zu ParameterReference
+			?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
 ?function ReturnType syntax
 	(params): ReturnType => returnValue
 	(params):> ReturnType => returnValue

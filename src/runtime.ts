@@ -153,11 +153,14 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					case 'function':
 						// TODO check returntype/paramstype
 						return typeof value === 'function';
-					case 'reference':
+					case 'nestedReference':
+						// TODO?
+						return true;
+					case 'parameterReference':
 						// TODO deref?
 						return true;
 					case 'parameters':
-						// TODO
+						// TODO?
 						return true;
 					case 'type':
 						// TODO check primitive value (null/boolean/number/string)/builtintype/function
@@ -392,6 +395,7 @@ export type BuiltInType =
 	| DictionaryLiteralType
 	| StreamType
 	| FunctionType
+	| NestedReference
 	| ParameterReference
 	| ParametersType
 	| TypeType
@@ -471,19 +475,32 @@ export class FunctionType extends BuiltInTypeBase {
 	readonly type = 'function';
 }
 
+export class NestedReference extends BuiltInTypeBase {
+	constructor(
+		public source: RuntimeType,
+		public nestedKey: string | number,
+	) { super(); }
+	readonly type = 'nestedReference';
+}
 
+/**
+ * Wird aktuell nur als CompileTimeType benutzt
+ */
 export class ParameterReference extends BuiltInTypeBase {
 	constructor(
 		public name: string,
 		public index: number,
 	) { super(); }
-	readonly type = 'reference';
+	readonly type = 'parameterReference';
 	/**
 	 * Muss nach dem Erzeugen gesetzt werden.
 	 */
 	functionRef?: FunctionType;
 }
 
+/**
+ * Wird aktuell nur als CompileTimeType benutzt
+ */
 export class ParametersType extends BuiltInTypeBase {
 	constructor(
 		public singleNames: Parameter[],

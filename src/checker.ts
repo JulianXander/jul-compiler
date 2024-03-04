@@ -28,7 +28,8 @@ import {
 	DictionaryType,
 	_Date,
 	Dictionary,
-	_optionalType
+	_optionalType,
+	NestedReference
 } from './runtime.js';
 import {
 	BracketedExpression,
@@ -257,14 +258,8 @@ function dereferenceNameFromObject(
 					default:
 						return undefined;
 				}
-			case 'reference':
-				// TODO???
-				// const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(sourceObjectType);
-				// if (dereferencedParameterType === undefined) {
-				// 	return undefined;
-				// }
-				// return dereferenceNameFromObject(name, dereferencedParameterType);
-				return undefined;
+			case 'parameterReference':
+				return new NestedReference(sourceObjectType, name);
 			case 'stream':
 				switch (name) {
 					case 'ValueType':
@@ -299,6 +294,8 @@ function dereferenceIndexFromObject(
 				return undefined;
 			case 'list':
 				return sourceObjectType.ElementType;
+			case 'parameterReference':
+				return new NestedReference(sourceObjectType, index);
 			case 'tuple':
 				return sourceObjectType.ElementTypes[index - 1];
 			// TODO other object types
@@ -388,13 +385,29 @@ function dereferenceArgumentTypesNested(
 			return new DictionaryType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
 		case 'list':
 			return new ListType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
+		case 'nestedReference': {
+			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.source);
+			const nestedKey = builtInType.nestedKey;
+			const dereferencedNested = typeof nestedKey === 'string'
+				? dereferenceNameFromObject(nestedKey, dereferencedSource)
+				: dereferenceIndexFromObject(nestedKey, dereferencedSource);
+			if (dereferencedNested === undefined) {
+				return Any;
+			}
+			return dereferencedNested;
+		}
 		case 'not':
 			return new ComplementType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.SourceType));
 		case 'or':
 			return new UnionType(builtInType.ChoiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
-		case 'reference':
+		case 'parameterReference': {
+			const dereferencedParameter = dereferenceParameterFromArgumentType(calledFunction, prefixArgumentType, argsType, builtInType);
+			const dereferencedNested = dereferencedParameter === builtInType
+				? dereferencedParameter
+				: dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, dereferencedParameter);
 			// TODO immer valueOf?
-			return valueOf(dereferenceArgumentType(calledFunction, prefixArgumentType, argsType, builtInType));
+			return valueOf(dereferencedNested);
+		}
 		case 'stream':
 			return new StreamType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ValueType));
 		case 'typeOf':
@@ -412,7 +425,7 @@ function dereferenceArgumentTypesNested(
 	}
 }
 
-function dereferenceArgumentType(
+function dereferenceParameterFromArgumentType(
 	calledFunction: RuntimeType,
 	prefixArgumentType: RuntimeType | undefined,
 	argsType: RuntimeType,
@@ -962,6 +975,7 @@ function inferType(
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgument?.inferredType, argsType, returnType);
+			// const dereferencedReturnType2 = dereferenceArgumentTypesNested2(expression, prefixArgument?.inferredType, argsType, returnType);
 			return dereferencedReturnType;
 		}
 		case 'functionLiteral': {
@@ -1197,7 +1211,10 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 						const fieldValues = mapDictionary(type.Fields, valueOf);
 						return fieldValues;
 					}
-					case 'reference':
+					case 'nestedReference':
+						// TODO?
+						return type;
+					case 'parameterReference':
 						// TODO wo deref? wo Type => value auspacken?
 						return type;
 					case 'tuple':
@@ -1423,6 +1440,9 @@ export function getTypeError(
 					// innerError
 				};
 			}
+			case 'nestedReference':
+				// TODO?
+				return undefined;
 			case 'or': {
 				const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 					getTypeError(prefixArgumentType, choiceType, targetType));
@@ -1435,7 +1455,7 @@ export function getTypeError(
 				}
 				return undefined;
 			}
-			case 'reference': {
+			case 'parameterReference': {
 				// TODO
 				// const dereferenced = dereferenceArgumentType(null as any, valueType);
 				// return getTypeError(dereferenced ?? Any, targetType);
@@ -1628,11 +1648,26 @@ export function getTypeError(
 						}
 						break;
 					}
+					case 'nestedReference':
+						// TODO?
+						return undefined;
 					case 'not': {
 						const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.SourceType);
 						if (sourceError === undefined) {
 							return {
 								message: `${typeToString(argumentsType, 0)} is assignable to ${typeToString(targetType.SourceType, 0)}, but should not be.`
+							};
+						}
+						return undefined;
+					}
+					case 'or': {
+						const subErrors = targetType.ChoiceTypes.map(choiceType =>
+							getTypeError(prefixArgumentType, argumentsType, choiceType));
+						if (subErrors.every(isDefined)) {
+							return {
+								// TODO error struktur überdenken
+								message: subErrors.map(typeErrorToString).join('\n'),
+								// innerError
 							};
 						}
 						return undefined;
@@ -1654,19 +1689,7 @@ export function getTypeError(
 						}
 						break;
 					}
-					case 'or': {
-						const subErrors = targetType.ChoiceTypes.map(choiceType =>
-							getTypeError(prefixArgumentType, argumentsType, choiceType));
-						if (subErrors.every(isDefined)) {
-							return {
-								// TODO error struktur überdenken
-								message: subErrors.map(typeErrorToString).join('\n'),
-								// innerError
-							};
-						}
-						return undefined;
-					}
-					case 'reference': {
+					case 'parameterReference': {
 						// TODO
 						// const dereferenced = dereferenceArgumentType(null as any, targetType);
 						// return getTypeError(valueType, dereferenced ?? Any);
@@ -2144,6 +2167,8 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						return 'Integer';
 					case 'list':
 						return `List(${typeToString(builtInType.ElementType, indent)})`;
+					case 'nestedReference':
+						return `${typeToString(builtInType.source, indent)}/${builtInType.nestedKey}`
 					case 'not':
 						return `Not(${typeToString(builtInType.SourceType, indent)})`;
 					case 'or':
@@ -2162,7 +2187,7 @@ export function typeToString(type: RuntimeType, indent: number): string {
 						]
 						return bracketedExpressionToString(elements, multiline, indent);
 					}
-					case 'reference':
+					case 'parameterReference':
 						return builtInType.name;
 					case 'stream':
 						return `Stream(${typeToString(builtInType.ValueType, indent)})`;
