@@ -879,7 +879,7 @@ export const List = _createFunction(
 			},
 		]
 	}
-)
+);
 export const Or = _createFunction(
 	(...args: RuntimeType[]) =>
 		new UnionType(args),
@@ -888,7 +888,20 @@ export const Or = _createFunction(
 			type: new ListType(Type)
 		}
 	}
-)
+);
+export const TypeOf = _createFunction(
+	(value: any) => {
+		return new TypeOfType(value);
+	},
+	{
+		singleNames: [
+			{
+				name: 'value',
+			},
+		]
+	}
+);
+// TODO Not, Without, ValueOf
 //#endregion Types
 //#region Functions
 //#region Any
@@ -932,11 +945,11 @@ export const greater = _createFunction(
 		singleNames: [
 			{
 				name: 'first',
-				type: Or(Integer, Float),
+				type: new UnionType([Integer, Float]),
 			},
 			{
 				name: 'second',
-				type: Or(Integer, Float),
+				type: new UnionType([Integer, Float]),
 			}
 		]
 	}

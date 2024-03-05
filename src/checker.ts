@@ -7,12 +7,10 @@ import {
 	ComplementType,
 	DictionaryLiteralType,
 	Float,
-	// EmptyType,
 	FunctionType,
 	Integer,
 	IntersectionType,
 	ParameterReference,
-	Primitive,
 	RuntimeType,
 	StreamType,
 	TupleType,
@@ -56,18 +54,6 @@ import { getCheckedEscapableName } from './parser/parser-utils.js';
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
 const maxElementsPerLine = 5;
-
-// const anyType: Any = {
-// 	type: 'any'
-// };
-
-// const emptyType: EmptyType = {
-// 	type: 'empty'
-// };
-
-// const stringType: StringType = {
-// 	type: 'string'
-// };
 
 const coreBuiltInSymbolTypes: { [key: string]: RuntimeType; } = {
 	true: true,
@@ -949,14 +935,6 @@ function inferType(
 							}
 							return new TypeOfType(new IntersectionType(argsTypes.map(valueOf)));
 						}
-						case 'Or': {
-							const argsTypes = getAllArgsTypes();
-							if (!argsTypes) {
-								// TODO unknown?
-								return Any;
-							}
-							return new TypeOfType(new UnionType(argsTypes.map(valueOf)));
-						}
 						case 'Not': {
 							const argsTypes = getAllArgsTypes();
 							if (!argsTypes) {
@@ -968,6 +946,26 @@ function inferType(
 								return Any;
 							}
 							return new TypeOfType(new ComplementType(valueOf(argsTypes[0])));
+						}
+						case 'Or': {
+							const argsTypes = getAllArgsTypes();
+							if (!argsTypes) {
+								// TODO unknown?
+								return Any;
+							}
+							return new TypeOfType(new UnionType(argsTypes.map(valueOf)));
+						}
+						case 'TypeOf': {
+							const argsTypes = getAllArgsTypes();
+							if (!argsTypes) {
+								// TODO unknown?
+								return Any;
+							}
+							if (!isNonEmpty(argsTypes)) {
+								// TODO unknown?
+								return Any;
+							}
+							return new TypeOfType(argsTypes[0]);
 						}
 						default:
 							break;
