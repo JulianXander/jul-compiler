@@ -1435,8 +1435,8 @@ export function getTypeError(
 			case 'and': {
 				// TODO nur die Schnittmenge der args Choices muss zum target passen
 				const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
-					getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
-				if (subErrors.length) {
+					getTypeError(prefixArgumentType, choiceType, targetType));
+				if (subErrors.every(isDefined)) {
 					return {
 						// TODO error struktur überdenken
 						message: subErrors.map(typeErrorToString).join('\n'),
