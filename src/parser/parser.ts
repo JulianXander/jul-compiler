@@ -864,16 +864,20 @@ function valueExpressionBaseParser(
 			// 		errors: valueExpression.errors
 			// 	};
 			// }
+			const branches = parsed2.value;
 			const branching: ParseBranching = {
 				type: 'branching',
 				// value: valueExpression.value!,
 				value: parsed1,
-				branches: parsed2.value,
+				branches: branches,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 			};
+			branches.forEach(branch => {
+				setParent(branch, branching);
+			});
 			return {
 				hasParsed: true,
 				endRowIndex: result.endRowIndex,

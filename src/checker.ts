@@ -48,7 +48,7 @@ import {
 	ParsedExpressions2,
 	ParseParameterFields
 } from './syntax-tree.js';
-import { NonEmptyArray, findMap, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { NonEmptyArray, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
@@ -334,7 +334,9 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): {
 	symbol: SymbolDefinition,
 	scopeIndex: number,
 } | undefined {
-	return findMap(scopes, (scope, index) => {
+	// beim untersten scope beginnen, damit ggf narrowed symbol gefunden wird
+	for (let index = scopes.length - 1; index >= 0; index--) {
+		const scope = scopes[index]!;
 		const symbol = scope[name];
 		if (symbol) {
 			return {
@@ -342,7 +344,7 @@ function findSymbolInScopes(name: string, scopes: SymbolTable[]): {
 				scopeIndex: index,
 			};
 		}
-	});
+	}
 }
 
 function findParameterSymbol(
@@ -980,17 +982,37 @@ function inferType(
 			return dereferencedReturnType;
 		}
 		case 'functionLiteral': {
-			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
+			const ownSymbols = expression.symbols;
+			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, ownSymbols];
 			const params = expression.params;
 			setInferredType(params, functionScopes, parsedDocuments, folder, file);
+			const paramsType = params.inferredType!;
 			const functionType = new FunctionType(
 				// TODO valueOf?
-				params.inferredType!,
+				paramsType,
 				null,
 			);
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
+			//#region narrowed type symbol für branching
+			const branching = expression.parent;
+			if (branching?.type === 'branching') {
+				const branchedvalue = branching.value
+				if (branchedvalue.type === 'reference') {
+					const branchedName = branchedvalue.name.name;
+					const branchedSymbol = findSymbolInScopesWithBuiltIns(branchedName, functionScopes)?.symbol;
+					if (branchedSymbol) {
+						// TODO narrowed Hinweis in description?
+						ownSymbols[branchedName] = {
+							...branchedSymbol,
+							// TODO paramsType spreaden?
+							normalizedType: paramsType,
+						};
+					}
+				}
+			}
+			//#endregion narrowed type symbol für branching
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
 			});
