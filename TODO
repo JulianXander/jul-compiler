@@ -1,3 +1,4 @@
+-completed$ Returntype typeInference vgl test1.jul
 -Stream ValueType subscribe function argument typeInference
 	-vgl test1.jul
 ?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
