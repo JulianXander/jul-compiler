@@ -1433,24 +1433,26 @@ export function getTypeError(
 	if (argumentsType instanceof BuiltInTypeBase) {
 		switch (argumentsType.type) {
 			case 'and': {
+				// TODO nur die Schnittmenge der args Choices muss zum target passen
 				const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 					getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
-				if (!subErrors.length) {
-					return undefined;
+				if (subErrors.length) {
+					return {
+						// TODO error struktur überdenken
+						message: subErrors.map(typeErrorToString).join('\n'),
+						// innerError
+					};
 				}
-				return {
-					// TODO error struktur überdenken
-					message: subErrors.map(typeErrorToString).join('\n'),
-					// innerError
-				};
+				return undefined;
 			}
 			case 'nestedReference':
 				// TODO?
 				return undefined;
 			case 'or': {
+				// alle args Choices müssen zum target passen
 				const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
-					getTypeError(prefixArgumentType, choiceType, targetType));
-				if (subErrors.every(isDefined)) {
+					getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
+				if (subErrors.length) {
 					return {
 						// TODO error struktur überdenken
 						message: subErrors.map(typeErrorToString).join('\n'),
@@ -1496,16 +1498,17 @@ export function getTypeError(
 			if (targetType instanceof BuiltInTypeBase) {
 				switch (targetType.type) {
 					case 'and': {
+						// das arg muss zu allen target Choices passen
 						const subErrors = targetType.ChoiceTypes.map(choiceType =>
 							getTypeError(prefixArgumentType, argumentsType, choiceType)).filter(isDefined);
-						if (!subErrors.length) {
-							return undefined;
+						if (subErrors.length) {
+							return {
+								// TODO error struktur überdenken
+								message: subErrors.map(typeErrorToString).join('\n'),
+								// innerError
+							};
 						}
-						return {
-							// TODO error struktur überdenken
-							message: subErrors.map(typeErrorToString).join('\n'),
-							// innerError
-						};
+						return undefined;
 					}
 					case 'any':
 						throw new Error('Unexpected any targetType');
@@ -1602,7 +1605,7 @@ export function getTypeError(
 						if (!(argumentsType instanceof FunctionType)) {
 							break;
 						}
-						// check value params obermenge von target params und value returntype teilmenge von target returntype
+						// check args params obermenge von target params und args returntype teilmenge von target returntype
 						const paramsError = getTypeError(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
 						if (paramsError) {
 							return paramsError;
@@ -1666,6 +1669,7 @@ export function getTypeError(
 						return undefined;
 					}
 					case 'or': {
+						// das arg muss zu mindestens einem target Choice passen
 						const subErrors = targetType.ChoiceTypes.map(choiceType =>
 							getTypeError(prefixArgumentType, argumentsType, choiceType));
 						if (subErrors.every(isDefined)) {
