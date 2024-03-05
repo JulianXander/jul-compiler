@@ -477,6 +477,19 @@ function dereferenceParameterFromArgumentType(
 	}
 }
 
+function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): RuntimeType | undefined {
+	const functionType = parameterReference.functionRef;
+	if (functionType) {
+		const paramsType = functionType.ParamsType;
+		if (paramsType instanceof ParametersType) {
+			const matchedParameter = paramsType.singleNames.find(parameter =>
+				parameter.name === parameterReference.name);
+			return matchedParameter?.type;
+		}
+	}
+	return undefined;
+}
+
 //#endregion dereference
 
 /**
@@ -1447,10 +1460,11 @@ export function getTypeError(
 				return undefined;
 			}
 			case 'parameterReference': {
-				// TODO
-				// const dereferenced = dereferenceArgumentType(null as any, valueType);
-				// return getTypeError(dereferenced ?? Any, targetType);
-				return undefined;
+				const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(argumentsType);
+				if (dereferencedParameterType === undefined) {
+					return undefined
+				}
+				return getTypeError(prefixArgumentType, dereferencedParameterType, targetType);
 			}
 			default:
 				break;
