@@ -357,7 +357,7 @@ create$ = nativeFunction(
 completed$ = nativeFunction(
 	(
 		intitialValue: Any
-	): Stream(Any)
+	): Stream(TypeOf(intitialValue))
 	§todo§
 )
 # Startwert: ()
