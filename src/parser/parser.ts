@@ -912,7 +912,20 @@ function valueExpressionBaseParser(
 		case 'functionTypeBody': {
 			const body = parsed2.body;
 			if (parsed1.type !== 'bracketed') {
-				throw new Error('ReturnType can only follow a bracketed expression.');
+				errors.push({
+					message: `ReturnType can only follow a bracketed expression, but got ${parsed1.type}.`,
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+				});
+				return {
+					hasParsed: true,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+					parsed: parsed1,
+					errors: errors,
+				};
 			}
 			const params: BracketedExpressionBase | ParseParameterFields = bracketedExpressionToParameters(parsed1, errors);
 			if (body) {
