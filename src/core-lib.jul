@@ -322,11 +322,10 @@ complete = nativeFunction(
 		}
 	§
 )
-# TODO typesafe
 push = nativeFunction(
 	(
 		stream$: Stream(Any)
-		value: Any
+		value: stream$/ValueType
 	): ()
 	§todo§
 )
