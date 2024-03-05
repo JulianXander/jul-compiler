@@ -1572,14 +1572,14 @@ export function getTypeError(
 							(fieldType, fieldName) =>
 								getDictionaryFieldError(fieldName, elementType, prefixArgumentType, fieldType),
 						).filter(isDefined);
-						if (!subErrors.length) {
-							return undefined;
+						if (subErrors.length) {
+							return {
+								// TODO error struktur überdenken
+								message: subErrors.map(typeErrorToString).join('\n'),
+								// innerError
+							};
 						}
-						return {
-							// TODO error struktur überdenken
-							message: subErrors.map(typeErrorToString).join('\n'),
-							// innerError
-						};
+						return undefined;
 					}
 					case 'dictionaryLiteral': {
 						const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType.Fields);
@@ -1630,14 +1630,14 @@ export function getTypeError(
 								case 'tuple':
 									const subErrors = argumentsType.ElementTypes.map(valueElement =>
 										getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
-									if (!subErrors.length) {
-										return undefined;
+									if (subErrors.length) {
+										return {
+											// TODO error struktur überdenken
+											message: subErrors.map(typeErrorToString).join('\n'),
+											// innerError
+										};
 									}
-									return {
-										// TODO error struktur überdenken
-										message: subErrors.map(typeErrorToString).join('\n'),
-										// innerError
-									};
+									return undefined;
 								default:
 									break;
 							}
@@ -1645,14 +1645,14 @@ export function getTypeError(
 						if (Array.isArray(argumentsType)) {
 							const subErrors = argumentsType.map(valueElement =>
 								getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
-							if (!subErrors.length) {
-								return undefined;
+							if (subErrors.length) {
+								return {
+									// TODO error struktur überdenken
+									message: subErrors.map(typeErrorToString).join('\n'),
+									// innerError
+								};
 							}
-							return {
-								// TODO error struktur überdenken
-								message: subErrors.map(typeErrorToString).join('\n'),
-								// innerError
-							};
+							return undefined;
 						}
 						break;
 					}
@@ -1831,14 +1831,14 @@ function getTupleTypeError2(
 		}
 		return getTypeError(prefixArgumentType, valueElement, targetElementType)
 	}).filter(isDefined);
-	if (!subErrors.length) {
-		return undefined;
+	if (subErrors.length) {
+		return {
+			// TODO error struktur überdenken
+			message: subErrors.map(typeErrorToString).join('\n'),
+			// innerError
+		};
 	}
-	return {
-		// TODO error struktur überdenken
-		message: subErrors.map(typeErrorToString).join('\n'),
-		// innerError
-	};
+	return undefined;
 }
 
 /**
@@ -1866,14 +1866,14 @@ function getDictionaryLiteralTypeError(
 						// TODO the field x is missing error?
 						getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType.Fields[fieldName] ?? null),
 				).filter(isDefined);
-				if (!subErrors.length) {
-					return undefined;
+				if (subErrors.length) {
+					return {
+						// TODO error struktur überdenken
+						message: subErrors.map(typeErrorToString).join('\n'),
+						// innerError
+					};
 				}
-				return {
-					// TODO error struktur überdenken
-					message: subErrors.map(typeErrorToString).join('\n'),
-					// innerError
-				};
+				return undefined;
 			}
 			default:
 				// TODO type specific error?
@@ -1894,14 +1894,14 @@ function getDictionaryLiteralTypeError(
 			// TODO the field x is missing error?
 			getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType[fieldName] ?? null),
 	).filter(isDefined);
-	if (!subErrors.length) {
-		return undefined;
+	if (subErrors.length) {
+		return {
+			// TODO error struktur überdenken
+			message: subErrors.map(typeErrorToString).join('\n'),
+			// innerError
+		};
 	}
-	return {
-		// TODO error struktur überdenken
-		message: subErrors.map(typeErrorToString).join('\n'),
-		// innerError
-	};
+	return undefined;
 }
 
 function getDictionaryFieldError(
