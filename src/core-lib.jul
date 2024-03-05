@@ -462,7 +462,7 @@ import = nativeFunction(
 )
 # Gibt die args in der Konsole aus.
 log = nativeFunction(
-	(...args: List(Any)): ()
+	(...args: Or(() List(Any))): ()
 	§console.log§
 )
 # Führt den iteratee count mal aus, beginnend mit index 1.
