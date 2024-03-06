@@ -580,10 +580,10 @@ function inferType(
 					// }
 				}
 			});
-			// TODO normalize (flatten) UnionType, wenn any verodert => return any
-			return new UnionType(expression.branches.map(branch => {
+			const branchReturnTypes = expression.branches.map(branch => {
 				return getReturnTypeFromFunctionType(branch.inferredType);
-			}));
+			});
+			return createNormalizedUnionType(branchReturnTypes);
 		}
 		case 'definition': {
 			const value = expression.value;
@@ -1004,6 +1004,7 @@ function inferType(
 						// TODO narrowed Hinweis in description?
 						ownSymbols[branchedName] = {
 							...branchedSymbol,
+							functionParameterIndex: undefined,
 							// TODO paramsType spreaden?
 							normalizedType: valueOf(paramsType),
 						};
@@ -1205,6 +1206,25 @@ function inferType(
 			throw new Error(`Unexpected valueExpression.type: ${(assertNever as TypedExpression).type}`);
 		}
 	}
+}
+
+// TODO normalize (flatten) UnionType
+// TODO überlappende choices zusammenfassen (Wenn A Teilmenge von B, dann ist Or(A B) = B)
+function createNormalizedUnionType(choiceTypes: RuntimeType[]): RuntimeType {
+	if (choiceTypes.includes(Any)) {
+		return Any;
+	}
+	const uniqueChoices: RuntimeType[] = [];
+	choiceTypes.forEach(choice => {
+		if (!uniqueChoices.some(uniqueChoice =>
+			deepEquals(choice, uniqueChoice))) {
+			uniqueChoices.push(choice);
+		}
+	});
+	if (uniqueChoices.length === 1) {
+		return uniqueChoices[0]!;
+	}
+	return new UnionType(uniqueChoices);
 }
 
 function setFunctionRefForParams(

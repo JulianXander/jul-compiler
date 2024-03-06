@@ -303,7 +303,6 @@ export function deepEquals(value1: any, value2: any): boolean {
 		case 'symbol':
 		case 'undefined':
 			return value1 === value2;
-
 		case 'object':
 			if (value1 === null || value2 === null) {
 				return value1 === value2;
@@ -334,7 +333,6 @@ export function deepEquals(value1: any, value2: any): boolean {
 				}
 				return true;
 			}
-
 		default: {
 			const assertNever: never = type1;
 			throw new Error('Unexpected type for deepEquals: ' + assertNever);
