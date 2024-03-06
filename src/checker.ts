@@ -1005,7 +1005,7 @@ function inferType(
 						ownSymbols[branchedName] = {
 							...branchedSymbol,
 							// TODO paramsType spreaden?
-							normalizedType: paramsType,
+							normalizedType: valueOf(paramsType),
 						};
 					}
 				}
