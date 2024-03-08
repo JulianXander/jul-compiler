@@ -189,7 +189,8 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}
 			const functionJs = `(${argsJs}) => {\n${functionBodyToJs(expression.body)}\n}`;
 			const parent = expression.parent;
-			if (parent?.type === 'definition') {
+			if (parent?.type === 'definition'
+				&& expression === parent.value) {
 				// named function
 				const nameJs = escapeReservedJsVariableName(parent.name.name);
 				return `${functionJs}\n${callCreateFuntionJs(nameJs, paramsJs)}`;
