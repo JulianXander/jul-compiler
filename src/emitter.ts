@@ -193,10 +193,10 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				&& expression === parent.value) {
 				// named function
 				const nameJs = escapeReservedJsVariableName(parent.name.name);
-				return `${functionJs}\n${callCreateFuntionJs(nameJs, paramsJs)}`;
+				return `${functionJs}\n${callCreateFunctionJs(nameJs, paramsJs)}`;
 			}
 			// anonymous function
-			return callCreateFuntionJs(functionJs, paramsJs);
+			return callCreateFunctionJs(functionJs, paramsJs);
 		}
 		case 'functionTypeLiteral': {
 			// TODO params to type
@@ -453,6 +453,6 @@ function stringToJs(value: string): string {
 	return `'${escapeStringForSingleQuoteJs(value)}'`;
 }
 
-function callCreateFuntionJs(functionJs: string, paramsJs: string): string {
+function callCreateFunctionJs(functionJs: string, paramsJs: string): string {
 	return `_createFunction(${functionJs}, ${paramsJs})`;
 }
