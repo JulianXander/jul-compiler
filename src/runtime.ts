@@ -563,7 +563,7 @@ export type JsonValue =
 	| RuntimeRational
 	| string
 	| JsonValue[]
-	| { [key: string]: JsonValue }
+	| { [key: string]: JsonValue; }
 	;
 
 export function _parseJson(json: string): JsonValue | Error {
@@ -678,7 +678,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 		}
 		case '{': {
 			index++;
-			let object: { [key: string]: any } | null = null;
+			let object: { [key: string]: any; } | null = null;
 			index = parseJsonWhiteSpace(json, index);
 			if (json[index] === '}') {
 				return {
@@ -700,14 +700,14 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 							return {
 								parsed: object,
 								endIndex: index + 1,
-							}
+							};
 						default:
 							return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing object.`);
 					}
 				}
 				else {
 					if (objectCharacter !== '"') {
-						return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing object key.`)
+						return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing object key.`);
 					}
 					const keyResult = parseJsonString(json, index + 1);
 					if (keyResult instanceof Error) {
@@ -716,7 +716,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 					const colonIndex = parseJsonWhiteSpace(json, keyResult.endIndex);
 					const colonCharacter = json[colonIndex];
 					if (colonCharacter !== ':') {
-						return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing colon.`)
+						return new Error(`Invalid JSON. Unexpected character ${objectCharacter} at position ${index} while parsing colon.`);
 					}
 					const valueResult = parseJsonValue(json, colonIndex + 1);
 					if (valueResult instanceof Error) {
@@ -785,7 +785,7 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 						stringValue += escapedCharacter;
 						break;
 					case 'u':
-						index++
+						index++;
 						const hexEndIndex = index + 4;
 						if (hexEndIndex >= json.length) {
 							return new Error('Invalid JSON. String not terminated.');
@@ -828,7 +828,7 @@ function _toJson(value: RuntimeType): string | Error {
 				return `[${value.map(_toJson).join()}]`;
 			}
 			return `{${Object.entries(value).map(([key, innerValue]) => {
-				return `${_toJson(key)}:${_toJson(innerValue)}`
+				return `${_toJson(key)}:${_toJson(innerValue)}`;
 			}).join()}}`;
 		};
 		case 'symbol':
@@ -866,9 +866,10 @@ export const _Text = new TextType();
 export const _Date = new DateType();
 export const _Blob = new BlobType();
 export const _Error = new ErrorType();
-export const List = _createFunction(
-	(ElementType: RuntimeType) =>
-		new ListType(ElementType),
+export const List = (ElementType: RuntimeType) =>
+	new ListType(ElementType);
+_createFunction(
+	List,
 	{
 		singleNames: [
 			{
@@ -878,19 +879,21 @@ export const List = _createFunction(
 		]
 	}
 );
-export const Or = _createFunction(
-	(...args: RuntimeType[]) =>
-		new UnionType(args),
+export const Or = (...args: RuntimeType[]) =>
+	new UnionType(args);
+_createFunction(
+	Or,
 	{
 		rest: {
 			type: new ListType(Type)
 		}
 	}
 );
-export const TypeOf = _createFunction(
-	(value: any) => {
-		return new TypeOfType(value);
-	},
+export const TypeOf = (value: any) => {
+	return new TypeOfType(value);
+};
+_createFunction(
+	TypeOf,
 	{
 		singleNames: [
 			{
@@ -903,9 +906,10 @@ export const TypeOf = _createFunction(
 //#endregion Types
 //#region Functions
 //#region Any
-export const equal = _createFunction(
-	(first: any, second: any) =>
-		first === second,
+export const equal = (first: any, second: any) =>
+	first === second;
+_createFunction(
+	equal,
 	{
 		singleNames: [
 			{
@@ -919,9 +923,10 @@ export const equal = _createFunction(
 );
 //#endregion Any
 //#region Number
-export const divideFloat = _createFunction(
-	(dividend: number, divisor: number) =>
-		dividend / divisor,
+export const divideFloat = (dividend: number, divisor: number) =>
+	dividend / divisor;
+_createFunction(
+	divideFloat,
 	{
 		singleNames: [
 			{
@@ -936,9 +941,10 @@ export const divideFloat = _createFunction(
 	}
 );
 // TODO support Rational values
-export const greater = _createFunction(
-	(first: number | bigint, second: number | bigint) =>
-		first > second,
+export const greater = (first: number | bigint, second: number | bigint) =>
+	first > second;
+_createFunction(
+	greater,
 	{
 		singleNames: [
 			{
@@ -953,9 +959,10 @@ export const greater = _createFunction(
 	}
 );
 // TODO moduloFloat
-export const modulo = _createFunction(
-	(dividend: bigint, divisor: bigint) =>
-		dividend % divisor,
+export const modulo = (dividend: bigint, divisor: bigint) =>
+	dividend % divisor;
+_createFunction(
+	modulo,
 	{
 		singleNames: [
 			{
@@ -969,66 +976,69 @@ export const modulo = _createFunction(
 		]
 	}
 );
-export const multiply = _createFunction(
-	(...args: RuntimeRational[]) =>
-		args.reduce(
-			(accumulator, current) => {
-				if (typeof accumulator === 'bigint') {
-					if (typeof current === 'bigint') {
-						return accumulator * current;
-					}
-					else {
-						return {
-							numerator: accumulator * current.numerator,
-							denominator: current.denominator,
-						};
-					}
+export const multiply = (...args: RuntimeRational[]) =>
+	args.reduce(
+		(accumulator, current) => {
+			if (typeof accumulator === 'bigint') {
+				if (typeof current === 'bigint') {
+					return accumulator * current;
 				}
 				else {
-					if (typeof current === 'bigint') {
-						return {
-							numerator: accumulator.numerator * current,
-							denominator: accumulator.denominator,
-						};
-					}
-					else {
-						// TODO kleinstes gemeinsames Vielfaches, kürzen
-						return {
-							numerator: accumulator.numerator * current.numerator,
-							denominator: accumulator.denominator * current.denominator,
-						};
-					}
+					return {
+						numerator: accumulator * current.numerator,
+						denominator: current.denominator,
+					};
 				}
-			},
-			1n),
+			}
+			else {
+				if (typeof current === 'bigint') {
+					return {
+						numerator: accumulator.numerator * current,
+						denominator: accumulator.denominator,
+					};
+				}
+				else {
+					// TODO kleinstes gemeinsames Vielfaches, kürzen
+					return {
+						numerator: accumulator.numerator * current.numerator,
+						denominator: accumulator.denominator * current.denominator,
+					};
+				}
+			}
+		},
+		1n);
+_createFunction(
+	multiply,
 	{
 		rest: {
 			type: new ListType(Rational)
 		}
 	}
 );
-export const multiplyFloat = _createFunction(
-	(...args: number[]) =>
-		args.reduce(
-			(accumulator, current) => {
-				return accumulator * current;
-			},
-			1),
+export const multiplyFloat = (...args: number[]) =>
+	args.reduce(
+		(accumulator, current) => {
+			return accumulator * current;
+		},
+		1);
+_createFunction(
+	multiplyFloat,
 	{
 		rest: {
 			type: new ListType(Float)
 		}
 	}
 );
-export const rationalToFloat = _createFunction(
-	(rational: RuntimeRational): number => {
-		if (typeof rational === 'bigint') {
-			return Number(rational);
-		}
-		else {
-			return Number(rational.numerator) / Number(rational.denominator);
-		}
-	},
+export const rationalToFloat = (rational: RuntimeRational): number => {
+	if (typeof rational === 'bigint') {
+		return Number(rational);
+	}
+	else {
+		return Number(rational.numerator) / Number(rational.denominator);
+	}
+};
+_createFunction(
+	rationalToFloat,
 	{
 		singleNames: [
 			{
@@ -1038,35 +1048,36 @@ export const rationalToFloat = _createFunction(
 		]
 	}
 );
-export const subtract = _createFunction(
-	(minuend: RuntimeRational, subtrahend: RuntimeRational): RuntimeRational => {
-		if (typeof minuend === 'bigint') {
-			if (typeof subtrahend === 'bigint') {
-				return minuend - subtrahend;
-			}
-			else {
-				return {
-					numerator: minuend * subtrahend.denominator - subtrahend.numerator,
-					denominator: subtrahend.denominator,
-				};
-			}
+export const subtract = (minuend: RuntimeRational, subtrahend: RuntimeRational): RuntimeRational => {
+	if (typeof minuend === 'bigint') {
+		if (typeof subtrahend === 'bigint') {
+			return minuend - subtrahend;
 		}
 		else {
-			if (typeof subtrahend === 'bigint') {
-				return {
-					numerator: minuend.numerator - subtrahend * minuend.denominator,
-					denominator: minuend.denominator,
-				};
-			}
-			else {
-				// TODO kleinstes gemeinsames Vielfaches, kürzen
-				return {
-					numerator: minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
-					denominator: minuend.denominator * subtrahend.denominator,
-				};
-			}
+			return {
+				numerator: minuend * subtrahend.denominator - subtrahend.numerator,
+				denominator: subtrahend.denominator,
+			};
 		}
-	},
+	}
+	else {
+		if (typeof subtrahend === 'bigint') {
+			return {
+				numerator: minuend.numerator - subtrahend * minuend.denominator,
+				denominator: minuend.denominator,
+			};
+		}
+		else {
+			// TODO kleinstes gemeinsames Vielfaches, kürzen
+			return {
+				numerator: minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
+				denominator: minuend.denominator * subtrahend.denominator,
+			};
+		}
+	}
+};
+_createFunction(
+	subtract,
 	{
 		singleNames: [
 			{
@@ -1080,9 +1091,10 @@ export const subtract = _createFunction(
 		]
 	}
 );
-export const subtractFloat = _createFunction(
-	(minuend: number, subtrahend: number) =>
-		minuend - subtrahend,
+export const subtractFloat = (minuend: number, subtrahend: number) =>
+	minuend - subtrahend;
+_createFunction(
+	subtractFloat,
 	{
 		singleNames: [
 			{
@@ -1096,50 +1108,52 @@ export const subtractFloat = _createFunction(
 		]
 	}
 );
-export const add = _createFunction(
-	(...args: RuntimeRational[]) =>
-		args.reduce(
-			(accumulator, current) => {
-				if (typeof accumulator === 'bigint') {
-					if (typeof current === 'bigint') {
-						return accumulator + current;
-					}
-					else {
-						return {
-							numerator: accumulator * current.denominator + current.numerator,
-							denominator: current.denominator,
-						};
-					}
+export const add = (...args: RuntimeRational[]) =>
+	args.reduce(
+		(accumulator, current) => {
+			if (typeof accumulator === 'bigint') {
+				if (typeof current === 'bigint') {
+					return accumulator + current;
 				}
 				else {
-					if (typeof current === 'bigint') {
-						return {
-							numerator: accumulator.numerator + current * accumulator.denominator,
-							denominator: accumulator.denominator,
-						};
-					}
-					else {
-						// TODO kleinstes gemeinsames Vielfaches, kürzen
-						return {
-							numerator: accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
-							denominator: accumulator.denominator * current.denominator,
-						};
-					}
+					return {
+						numerator: accumulator * current.denominator + current.numerator,
+						denominator: current.denominator,
+					};
 				}
-			},
-			0n),
+			}
+			else {
+				if (typeof current === 'bigint') {
+					return {
+						numerator: accumulator.numerator + current * accumulator.denominator,
+						denominator: accumulator.denominator,
+					};
+				}
+				else {
+					// TODO kleinstes gemeinsames Vielfaches, kürzen
+					return {
+						numerator: accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
+						denominator: accumulator.denominator * current.denominator,
+					};
+				}
+			}
+		},
+		0n);
+_createFunction(
+	add,
 	{
 		rest: {
 			type: new ListType(Rational)
 		}
 	}
 );
-export const addFloat = _createFunction(
-	(...args: number[]) =>
-		args.reduce(
-			(accumulator, current) =>
-				accumulator + current,
-			0),
+export const addFloat = (...args: number[]) =>
+	args.reduce(
+		(accumulator, current) =>
+			accumulator + current,
+		0);
+_createFunction(
+	addFloat,
 	{
 		rest: {
 			type: new ListType(Float)
@@ -1148,10 +1162,11 @@ export const addFloat = _createFunction(
 );
 //#endregion Number
 //#region Text
-export const combineTexts = _createFunction(
-	(texts: string[] | null, separator: string | null) => {
-		return texts?.join(separator ?? '') ?? '';
-	},
+export const combineTexts = (texts: string[] | null, separator: string | null) => {
+	return texts?.join(separator ?? '') ?? '';
+};
+_createFunction(
+	combineTexts,
 	{
 		singleNames: [
 			{
@@ -1165,14 +1180,15 @@ export const combineTexts = _createFunction(
 		]
 	}
 );
-export const parseFloat = _createFunction(
-	(stringNumber: string) => {
-		const result = +stringNumber;
-		if (Number.isNaN(result)) {
-			return new Error(`Invalid number.`);
-		}
-		return result;
-	},
+export const parseFloat = (stringNumber: string) => {
+	const result = +stringNumber;
+	if (Number.isNaN(result)) {
+		return new Error(`Invalid number.`);
+	}
+	return result;
+};
+_createFunction(
+	parseFloat,
 	{
 		singleNames: [
 			{
@@ -1205,20 +1221,21 @@ export const toJson = _createFunction(
 		]
 	}
 );
-export const regex = _createFunction(
-	(text: string, regex1: string) => {
-		try {
-			const match = text.match(regex1);
-			return {
-				isMatch: !!match,
-				unnamedCaptures: match ? Array.from(match) : null,
-				namedCaptures: match?.groups ?? null,
-			};
-		}
-		catch (error) {
-			return error;
-		}
-	},
+export const regex = (text: string, regex1: string) => {
+	try {
+		const match = text.match(regex1);
+		return {
+			isMatch: !!match,
+			unnamedCaptures: match ? Array.from(match) : null,
+			namedCaptures: match?.groups ?? null,
+		};
+	}
+	catch (error) {
+		return error;
+	}
+};
+_createFunction(
+	regex,
 	{
 		singleNames: [
 			{
@@ -1234,25 +1251,26 @@ export const regex = _createFunction(
 );
 //#endregion Text
 //#region Date
-export const addDate = _createFunction(
-	(
-		date: Date,
-		years: bigint | null,
-		months: bigint | null,
-		days: bigint | null,
-		hours: bigint | null,
-		minutes: bigint | null,
-		seconds: bigint | null,
-		milliseconds: bigint | null
-	) => new Date(
-		date.getFullYear() + Number(years ?? 0),
-		date.getMonth() + Number(months ?? 0),
-		date.getDate() + Number(days ?? 0),
-		date.getHours() + Number(hours ?? 0),
-		date.getMinutes() + Number(minutes ?? 0),
-		date.getSeconds() + Number(seconds ?? 0),
-		date.getMilliseconds() + Number(milliseconds ?? 0),
-	),
+export const addDate = (
+	date: Date,
+	years: bigint | null,
+	months: bigint | null,
+	days: bigint | null,
+	hours: bigint | null,
+	minutes: bigint | null,
+	seconds: bigint | null,
+	milliseconds: bigint | null
+) => new Date(
+	date.getFullYear() + Number(years ?? 0),
+	date.getMonth() + Number(months ?? 0),
+	date.getDate() + Number(days ?? 0),
+	date.getHours() + Number(hours ?? 0),
+	date.getMinutes() + Number(minutes ?? 0),
+	date.getSeconds() + Number(seconds ?? 0),
+	date.getMilliseconds() + Number(milliseconds ?? 0),
+);
+_createFunction(
+	addDate,
 	{
 		singleNames: [
 			{
@@ -1290,14 +1308,16 @@ export const addDate = _createFunction(
 		]
 	}
 );
-export const currentDate = _createFunction(
-	() => new Date(),
+export const currentDate = () => new Date();
+_createFunction(
+	currentDate,
 	{}
 );
-export const toIsoDateText = _createFunction(
-	(
-		date: Date,
-	) => date.toISOString(),
+export const toIsoDateText = (
+	date: Date,
+) => date.toISOString();
+_createFunction(
+	toIsoDateText,
 	{
 		singleNames: [
 			{
@@ -1309,15 +1329,16 @@ export const toIsoDateText = _createFunction(
 );
 //#endregion Date
 //#region List
-export const length = _createFunction(
-	(
-		values: any[] | null,
-	): bigint => {
-		if (values === null) {
-			return 0n;
-		}
-		return BigInt(values.length);
-	},
+export const length = (
+	values: any[] | null,
+): bigint => {
+	if (values === null) {
+		return 0n;
+	}
+	return BigInt(values.length);
+};
+_createFunction(
+	length,
 	{
 		singleNames: [
 			{
@@ -1327,13 +1348,14 @@ export const length = _createFunction(
 		]
 	}
 );
-export const elementAt = _createFunction(
-	<T>(
-		values: T[],
-		index: bigint,
-	): T | null => {
-		return values[Number(index) - 1] ?? null;
-	},
+export const elementAt = <T>(
+	values: T[],
+	index: bigint,
+): T | null => {
+	return values[Number(index) - 1] ?? null;
+};
+_createFunction(
+	elementAt,
 	{
 		singleNames: [
 			{
@@ -1347,25 +1369,26 @@ export const elementAt = _createFunction(
 		]
 	}
 );
-export const filterMap = _createFunction(
-	<T, U>(
-		values: T[] | null,
-		callback: (value: T) => U | null,
-	): U[] | null => {
-		if (!values) {
-			return null;
+export const filterMap = <T, U>(
+	values: T[] | null,
+	callback: (value: T) => U | null,
+): U[] | null => {
+	if (!values) {
+		return null;
+	}
+	const mappedValues: U[] = [];
+	values.forEach(value => {
+		const mapped = callback(value);
+		if (mapped !== null) {
+			mappedValues.push(mapped);
 		}
-		const mappedValues: U[] = [];
-		values.forEach(value => {
-			const mapped = callback(value);
-			if (mapped !== null) {
-				mappedValues.push(mapped);
-			}
-		});
-		return mappedValues.length
-			? mappedValues
-			: null;
-	},
+	});
+	return mappedValues.length
+		? mappedValues
+		: null;
+};
+_createFunction(
+	filterMap,
 	{
 		singleNames: [
 			{
@@ -1380,14 +1403,15 @@ export const filterMap = _createFunction(
 		]
 	}
 );
-export const forEach = _createFunction(
-	(
-		values: any[],
-		callback: (value: any) => void,
-	) => {
-		values.forEach(callback);
-		return null;
-	},
+export const forEach = (
+	values: any[],
+	callback: (value: any) => void,
+) => {
+	values.forEach(callback);
+	return null;
+};
+_createFunction(
+	forEach,
 	{
 		singleNames: [
 			{
@@ -1515,7 +1539,7 @@ const httpTextResponseJulType = new UnionType([null, _Text, _Error]);
 function httpRequest$(
 	url: string,
 	method: string,
-	headers: { [key: string]: string } | null,
+	headers: { [key: string]: string; } | null,
 	body: any,
 	responseType: HttpResponseType,
 ): Stream<null | string | Blob | Error> {
@@ -1811,11 +1835,12 @@ function retry$<T>(
 //#endregion transform
 //#endregion helper
 //#region core
-export const complete = _createFunction(
-	(stream$: Stream<any>) => {
-		stream$.complete();
-		return null;
-	},
+export const complete = (stream$: Stream<any>) => {
+	stream$.complete();
+	return null;
+};
+_createFunction(
+	complete,
 	{
 		singleNames: [
 			{
@@ -1825,12 +1850,13 @@ export const complete = _createFunction(
 		]
 	}
 );
-export const push = _createFunction(
-	(stream$: Stream<any>, value: any) => {
-		processId++;
-		stream$.push(value, processId);
-		return null;
-	},
+export const push = (stream$: Stream<any>, value: any) => {
+	processId++;
+	stream$.push(value, processId);
+	return null;
+};
+_createFunction(
+	push,
 	{
 		singleNames: [
 			{
@@ -1844,13 +1870,14 @@ export const push = _createFunction(
 		]
 	}
 );
-export const subscribe = _createFunction(
-	(stream$: Stream<any>, listener: JulFunction) => {
-		const listenerFunction: Listener<any> = (value: any) => {
-			_callFunction(listener, undefined, [value]);
-		};
-		return stream$.subscribe(listenerFunction);
-	},
+export const subscribe = (stream$: Stream<any>, listener: JulFunction) => {
+	const listenerFunction: Listener<any> = (value: any) => {
+		_callFunction(listener, undefined, [value]);
+	};
+	return stream$.subscribe(listenerFunction);
+};
+_createFunction(
+	subscribe,
 	{
 		singleNames: [
 			{
@@ -1882,7 +1909,7 @@ export const create$ = _createFunction(
 			},
 		]
 	}
-)
+);
 export const completed$ = _createFunction(
 	_completed$,
 	{
@@ -1893,16 +1920,17 @@ export const completed$ = _createFunction(
 			},
 		]
 	}
-)
-export const httpTextRequest$ = _createFunction(
-	(
-		url: string,
-		method: string,
-		headers: { [key: string]: string } | null,
-		body: any,
-	) => {
-		return httpRequest$(url, method, headers, body, 'text');
-	},
+);
+export const httpTextRequest$ = (
+	url: string,
+	method: string,
+	headers: { [key: string]: string; } | null,
+	body: any,
+) => {
+	return httpRequest$(url, method, headers, body, 'text');
+};
+_createFunction(
+	httpTextRequest$,
 	{
 		singleNames: [
 			{
@@ -1923,15 +1951,16 @@ export const httpTextRequest$ = _createFunction(
 		]
 	}
 );
-export const httpBlobRequest$ = _createFunction(
-	(
-		url: string,
-		method: string,
-		headers: { [key: string]: string } | null,
-		body: any,
-	) => {
-		return httpRequest$(url, method, headers, body, 'blob');
-	},
+export const httpBlobRequest$ = (
+	url: string,
+	method: string,
+	headers: { [key: string]: string; } | null,
+	body: any,
+) => {
+	return httpRequest$(url, method, headers, body, 'blob');
+};
+_createFunction(
+	httpBlobRequest$,
 	{
 		singleNames: [
 			{
@@ -1952,22 +1981,23 @@ export const httpBlobRequest$ = _createFunction(
 		]
 	}
 );
-export const timer$ = _createFunction(
-	(delayMs: number): Stream<number> => {
-		const stream$ = _create$(1, Float);
-		const cycle = () => {
-			setTimeout(() => {
-				if (stream$.completed) {
-					return;
-				}
-				processId++;
-				stream$.push(stream$.lastValue! + 1, processId);
-				cycle();
-			}, delayMs);
-		};
-		cycle();
-		return stream$;
-	},
+export const timer$ = (delayMs: number): Stream<number> => {
+	const stream$ = _create$(1, Float);
+	const cycle = () => {
+		setTimeout(() => {
+			if (stream$.completed) {
+				return;
+			}
+			processId++;
+			stream$.push(stream$.lastValue! + 1, processId);
+			cycle();
+		}, delayMs);
+	};
+	cycle();
+	return stream$;
+};
+_createFunction(
+	timer$,
 	{
 		singleNames: [{
 			name: 'delayMs',
@@ -1977,11 +2007,12 @@ export const timer$ = _createFunction(
 );
 //#endregion create
 //#region transform
-export const map$ = _createFunction(
-	<T, U>(source$: Stream<T>, transform$: (value: T) => U) => {
-		// TODO get ReturnType from JulFunction transForm$
-		return _map$(source$, transform$, Any);
-	},
+export const map$ = <T, U>(source$: Stream<T>, transform$: (value: T) => U) => {
+	// TODO get ReturnType from JulFunction transForm$
+	return _map$(source$, transform$, Any);
+};
+_createFunction(
+	map$,
 	{
 		singleNames: [
 			{
@@ -1996,10 +2027,11 @@ export const map$ = _createFunction(
 		]
 	}
 );
-export const flatMergeMap$ = _createFunction(
-	<T, U>(source$: Stream<T>, transform$: (value: T) => Stream<U>) => {
-		return flatMap$(source$, transform$, true);
-	},
+export const flatMergeMap$ = <T, U>(source$: Stream<T>, transform$: (value: T) => Stream<U>) => {
+	return flatMap$(source$, transform$, true);
+};
+_createFunction(
+	flatMergeMap$,
 	{
 		singleNames: [
 			{
@@ -2014,10 +2046,11 @@ export const flatMergeMap$ = _createFunction(
 		]
 	}
 );
-export const flatSwitchMap$ = _createFunction(
-	<T, U>(source$: Stream<T>, transform$: (value: T) => Stream<U>) => {
-		return flatMap$(source$, transform$, false);
-	},
+export const flatSwitchMap$ = <T, U>(source$: Stream<T>, transform$: (value: T) => Stream<U>) => {
+	return flatMap$(source$, transform$, false);
+};
+_createFunction(
+	flatSwitchMap$,
 	{
 		singleNames: [
 			{
@@ -2043,24 +2076,26 @@ export const combine$ = _createFunction(
 //#endregion transform
 //#endregion Stream
 //#region Utility
-export const log = _createFunction(
-	(...args: any[]) => {
-		console.log(...args);
-		return null;
-	},
+export const log = (...args: any[]) => {
+	console.log(...args);
+	return null;
+};
+_createFunction(
+	log,
 	{
 		rest: {}
 	}
 );
-export const repeat = _createFunction(
-	(
-		count: bigint,
-		iteratee: (index: bigint) => void,
-	) => {
-		for (let index = 1n; index <= count; index++) {
-			iteratee(index);
-		}
-	},
+export const repeat = (
+	count: bigint,
+	iteratee: (index: bigint) => void,
+) => {
+	for (let index = 1n; index <= count; index++) {
+		iteratee(index);
+	}
+};
+_createFunction(
+	repeat,
 	{
 		singleNames: [
 			{

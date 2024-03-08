@@ -336,7 +336,6 @@ export interface ParseFunctionCall extends ParseExpressionBase {
 
 export interface ParseFunctionLiteral extends ParseExpressionBase {
 	type: 'functionLiteral';
-	// TODO functionName? für StackTrace
 	params: SimpleExpression | ParseParameterFields;
 	returnType?: ParseValueExpression;
 	body: ParseExpression[];

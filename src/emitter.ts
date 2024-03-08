@@ -95,14 +95,14 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 					const checkedSource = source && getCheckedName(source);
 					return checkedSource
 						? `${escapeReservedJsVariableName(checkedSource)} as ${nameJs}`
-						: nameJs
+						: nameJs;
 				}).join(', ')}}`, importPath);
 			}
 			// TODO rest
 
 			const declarations = fields.map(field => {
 				const name = getCheckedEscapableName(field.name);
-				return `let ${name && escapeReservedJsVariableName(name)};`
+				return `let ${name && escapeReservedJsVariableName(name)};`;
 			}).join('\n');
 			const assignments = fields.map((singleName, index) => {
 				const { name, assignedValue, fallback, typeGuard } = singleName;
@@ -123,7 +123,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			// TODO mit Object.create(null), damit leerer prototype? Oder Persistent Data Structure?
 			return dictionaryToJs(expression.fields.map(field => {
 				if (!field.value) {
-					throw new Error('value missing for dictionary field')
+					throw new Error('value missing for dictionary field');
 				}
 				const valueJs = expressionToJs(field.value);
 				if (field.type === 'singleDictionaryField') {
@@ -172,7 +172,6 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		}
 		case 'functionLiteral': {
 			// TODO params(DefinitionNames) to Type
-			// TODO return statement
 			const params = expression.params;
 			let argsJs: string;
 			let paramsJs: string;
@@ -188,7 +187,15 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				argsJs = '';
 				paramsJs = `{type:${expressionToJs(params)}}`;
 			}
-			return `_createFunction((${argsJs}) => {${functionBodyToJs(expression.body)}}, ${paramsJs})`;
+			const functionJs = `(${argsJs}) => {\n${functionBodyToJs(expression.body)}\n}`;
+			const parent = expression.parent;
+			if (parent?.type === 'definition') {
+				// named function
+				const nameJs = escapeReservedJsVariableName(parent.name.name);
+				return `${functionJs}\n${callCreateFuntionJs(nameJs, paramsJs)}`;
+			}
+			// anonymous function
+			return callCreateFuntionJs(functionJs, paramsJs);
 		}
 		case 'functionTypeLiteral': {
 			// TODO params to type
@@ -417,12 +424,12 @@ function textLiteralToJs(stringLiteral: ParseTextLiteral): string {
 }
 
 function dictionaryToJs(fieldsJs: string[]): string {
-	return `{\n${fieldsJs.join('')}}`
+	return `{\n${fieldsJs.join('')}}`;
 }
 
 function singleDictionaryFieldToJs(name: ParseValueExpressionBase | Name, valueJs: string): string {
 	const checkedName = getCheckedEscapableName(name);
-	return `${checkedName && stringToJs(checkedName)}: ${valueJs},\n`
+	return `${checkedName && stringToJs(checkedName)}: ${valueJs},\n`;
 }
 
 function spreadDictionaryFieldToJs(valueJs: string): string {
@@ -443,4 +450,8 @@ function escapeStringForSingleQuoteJs(value: string): string {
 
 function stringToJs(value: string): string {
 	return `'${escapeStringForSingleQuoteJs(value)}'`;
+}
+
+function callCreateFuntionJs(functionJs: string, paramsJs: string): string {
+	return `_createFunction(${functionJs}, ${paramsJs})`;
 }
