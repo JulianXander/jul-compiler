@@ -2,9 +2,15 @@
 	-vgl test1.jul
 ?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
 ?function ReturnType syntax
+	(params): ReturnType
+	(params):> ReturnType
+	(params) :> ReturnType
 	(params): ReturnType => returnValue
 	(params):> ReturnType => returnValue
 	(params) :> ReturnType => returnValue
+	Params: ReturnType
+	Params:> ReturnType
+	Params :> ReturnType
 	Params: ReturnType => returnValue
 	Params:> ReturnType => returnValue
 	Params :> ReturnType => returnValue
