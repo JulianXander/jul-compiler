@@ -816,7 +816,10 @@ function inferType(
 				if (arg?.type === 'functionLiteral') {
 					// TODO get param type by name, spread args berücksichtigen
 					if (paramsType instanceof ParametersType) {
-						const param = paramsType.singleNames[argIndex];
+						const paramIndex = argIndex + (prefixArgument
+							? 1
+							: 0);
+						const param = paramsType.singleNames[paramIndex];
 						if (param !== undefined
 							&& param.type instanceof FunctionType) {
 							const innerParamsType = param.type.ParamsType;
