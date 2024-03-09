@@ -8,6 +8,16 @@ export function createParseParameters(
 	errors: ParserError[],
 ): ParseParameterFields {
 	const symbols: SymbolTable = {};
+	const parameters: ParseParameterFields = {
+		type: 'parameters',
+		singleFields: singleFields,
+		rest: rest,
+		symbols: symbols,
+		startRowIndex: position.startRowIndex,
+		startColumnIndex: position.startColumnIndex,
+		endRowIndex: position.endRowIndex,
+		endColumnIndex: position.endColumnIndex,
+	};
 	singleFields.forEach((field, index) => {
 		defineSymbol(
 			symbols,
@@ -18,6 +28,7 @@ export function createParseParameters(
 			field.typeGuard as any,
 			field.description,
 			index);
+		setParent(field, parameters);
 	});
 	if (rest) {
 		defineSymbol(
@@ -29,17 +40,9 @@ export function createParseParameters(
 			rest.typeGuard as any,
 			rest.description,
 			undefined);
+		setParent(rest, parameters);
 	}
-	return {
-		type: 'parameters',
-		singleFields: singleFields,
-		rest: rest,
-		symbols: symbols,
-		startRowIndex: position.startRowIndex,
-		startColumnIndex: position.startColumnIndex,
-		endRowIndex: position.endRowIndex,
-		endColumnIndex: position.endColumnIndex,
-	};
+	return parameters;
 }
 
 export function createParseFunctionLiteral(
@@ -58,7 +61,7 @@ export function createParseFunctionLiteral(
 		fillSymbolTableWithDictionaryType(symbols, errors, params, true);
 	}
 	fillSymbolTableWithExpressions(symbols, errors, body);
-	return {
+	const functionLiteral: ParseFunctionLiteral = {
 		type: 'functionLiteral',
 		params: params,
 		returnType: returnType,
@@ -66,6 +69,8 @@ export function createParseFunctionLiteral(
 		symbols: symbols,
 		...position,
 	};
+	setParent(params, functionLiteral);
+	return functionLiteral;
 }
 
 //#region SymbolTable

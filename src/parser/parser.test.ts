@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseListLiteral, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
+import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
 import { ParserError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
@@ -1156,8 +1156,8 @@ const expectedResults: {
 		{
 			name: 'function-literal-return-type',
 			code: '(): () => ()',
-			result: [
-				{
+			result: (() => {
+				const functionLiteral: ParseFunctionLiteral = {
 					"body": [
 						{
 							"endColumnIndex": 12,
@@ -1191,8 +1191,12 @@ const expectedResults: {
 					"startRowIndex": 0,
 					"symbols": {},
 					"type": "functionLiteral",
-				},
-			],
+				};
+				functionLiteral.params.parent = functionLiteral;
+				return [
+					functionLiteral,
+				];
+			})(),
 		},
 		{
 			name: 'uncomplete-nested-reference',
