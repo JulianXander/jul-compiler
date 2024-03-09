@@ -911,16 +911,16 @@ function inferType(
 							return new TypeOfType(new IntersectionType(argTypes.map(valueOf)));
 						}
 						case 'Not': {
-							const argsTypes = getAllArgTypes();
-							if (!argsTypes) {
+							const argTypes = getAllArgTypes();
+							if (!argTypes) {
 								// TODO unknown?
 								return Any;
 							}
-							if (!isNonEmpty(argsTypes)) {
+							if (!isNonEmpty(argTypes)) {
 								// TODO unknown?
 								return Any;
 							}
-							return new TypeOfType(new ComplementType(valueOf(argsTypes[0])));
+							return new TypeOfType(new ComplementType(valueOf(argTypes[0])));
 						}
 						case 'Or': {
 							const argTypes = getAllArgTypes();
