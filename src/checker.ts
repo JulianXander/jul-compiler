@@ -829,22 +829,22 @@ function inferType(
 				// TODO statt functionname functionref value/inferred type prüfen?
 				if (functionExpression.type === 'reference') {
 					const functionName = functionExpression.name.name;
-					function getAllArgsTypes(): (RuntimeType[] | undefined) {
-						const prefixArgs = prefixArgument
+					function getAllArgTypes(): (RuntimeType[] | undefined) {
+						const prefixArgTypes = prefixArgument
 							? [prefixArgument.inferredType!]
 							: [];
 						if (argsType == null) {
-							return prefixArgs;
+							return prefixArgTypes;
 						}
 						if (!(argsType instanceof TupleType)) {
 							// TODO other types
 							return undefined;
 						}
-						const allArgs = [
-							...prefixArgs,
+						const allArgTypes = [
+							...prefixArgTypes,
 							...argsType.ElementTypes,
 						];
-						return allArgs;
+						return allArgTypes;
 					}
 					switch (functionName) {
 						case 'import': {
@@ -903,15 +903,15 @@ function inferType(
 						// 	return _any;
 						// }
 						case 'And': {
-							const argsTypes = getAllArgsTypes();
-							if (!argsTypes) {
+							const argTypes = getAllArgTypes();
+							if (!argTypes) {
 								// TODO unknown?
 								return Any;
 							}
-							return new TypeOfType(new IntersectionType(argsTypes.map(valueOf)));
+							return new TypeOfType(new IntersectionType(argTypes.map(valueOf)));
 						}
 						case 'Not': {
-							const argsTypes = getAllArgsTypes();
+							const argsTypes = getAllArgTypes();
 							if (!argsTypes) {
 								// TODO unknown?
 								return Any;
@@ -923,24 +923,24 @@ function inferType(
 							return new TypeOfType(new ComplementType(valueOf(argsTypes[0])));
 						}
 						case 'Or': {
-							const argsTypes = getAllArgsTypes();
-							if (!argsTypes) {
+							const argTypes = getAllArgTypes();
+							if (!argTypes) {
 								// TODO unknown?
 								return Any;
 							}
-							return new TypeOfType(new UnionType(argsTypes.map(valueOf)));
+							return new TypeOfType(new UnionType(argTypes.map(valueOf)));
 						}
 						case 'TypeOf': {
-							const argsTypes = getAllArgsTypes();
-							if (!argsTypes) {
+							const argTypes = getAllArgTypes();
+							if (!argTypes) {
 								// TODO unknown?
 								return Any;
 							}
-							if (!isNonEmpty(argsTypes)) {
+							if (!isNonEmpty(argTypes)) {
 								// TODO unknown?
 								return Any;
 							}
-							return new TypeOfType(argsTypes[0]);
+							return new TypeOfType(argTypes[0]);
 						}
 						default:
 							break;
