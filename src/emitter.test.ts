@@ -75,9 +75,11 @@ const expectedResults: {
 		},
 		{
 			code: '(a b) => log(a)',
-			result: `export default _createFunction((a, b) => {return _callFunction(log, undefined, [
+			result: `export default _createFunction((a, b) => {
+return _callFunction(log, undefined, [
 a,
-])}, {
+])
+}, {
 singleNames: [
 {
 name: 'a'},
@@ -90,8 +92,10 @@ name: 'b'}
 			name: 'function-return-type-check',
 			code: `() =>
 	a: Integer = 1`,
-			result: `export default _createFunction(() => {const a = _checkType(Integer, 1n);
-return a;}, {
+			result: `export default _createFunction(() => {
+const a = _checkType(Integer, 1n);
+return a;
+}, {
 })`,
 		},
 		// {
