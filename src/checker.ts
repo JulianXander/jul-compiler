@@ -779,47 +779,19 @@ function inferType(
 				return Any;
 			}
 			//#region infer argument type bei function literal wenn literal inline argument des function calls ist
-			function getAllArgs(): (ParseValueExpression | undefined)[] {
-				const prefixArgs = prefixArgument
-					? [prefixArgument]
-					: [];
-				if (args == undefined) {
-					return prefixArgs;
-				}
-				switch (args.type) {
-					case 'bracketed':
-						return prefixArgs;
-					case 'dictionary':
-						return args.fields.map(field => field.value);
-					case 'dictionaryType':
-						return prefixArgs;
-					case 'empty':
-						return prefixArgs;
-					case 'list':
-						return args.values.map(value => {
-							return value.type === 'spread'
-								? value.value
-								: value;
-						});
-					case 'object':
-						return args.values.map(value => {
-							return value.value;
-						});
-					default: {
-						const assertNever: never = args;
-						throw new Error(`Unexpected args.type: ${(assertNever as BracketedExpression).type}`);
-					}
-				}
-			}
-			const argsExpressions = getAllArgs();
-			argsExpressions.forEach((arg, argIndex) => {
+			const prefixArgs = prefixArgument
+				? [prefixArgument]
+				: [];
+			const argValues = getArgValueExpressions(args);
+			const allArgExpressions = [
+				...prefixArgs,
+				...argValues,
+			];
+			allArgExpressions.forEach((arg, argIndex) => {
 				if (arg?.type === 'functionLiteral') {
 					// TODO get param type by name, spread args berücksichtigen
 					if (paramsType instanceof ParametersType) {
-						const paramIndex = argIndex + (prefixArgument
-							? 1
-							: 0);
-						const param = paramsType.singleNames[paramIndex];
+						const param = paramsType.singleNames[argIndex];
 						if (param !== undefined
 							&& param.type instanceof FunctionType) {
 							const innerParamsType = param.type.ParamsType;
@@ -2135,6 +2107,33 @@ function getReturnTypeFromFunctionType(possibleFunctionType: RuntimeType | undef
 		return possibleFunctionType.ReturnType;
 	}
 	return Any;
+}
+
+function getArgValueExpressions(args: BracketedExpression): (ParseValueExpression | undefined)[] {
+	switch (args.type) {
+		case 'bracketed':
+			return [];
+		case 'dictionary':
+			return args.fields.map(field => field.value);
+		case 'dictionaryType':
+			return [];
+		case 'empty':
+			return [];
+		case 'list':
+			return args.values.map(value => {
+				return value.type === 'spread'
+					? value.value
+					: value;
+			});
+		case 'object':
+			return args.values.map(value => {
+				return value.value;
+			});
+		default: {
+			const assertNever: never = args;
+			throw new Error(`Unexpected args.type: ${(assertNever as BracketedExpression).type}`);
+		}
+	}
 }
 
 export function getCheckedName(parseName: ParseValueExpression): string | undefined {
