@@ -1217,14 +1217,24 @@ function inferType(
 	}
 }
 
-// TODO normalize (flatten) UnionType
 // TODO überlappende choices zusammenfassen (Wenn A Teilmenge von B, dann ist Or(A B) = B)
 function createNormalizedUnionType(choiceTypes: RuntimeType[]): RuntimeType {
-	if (choiceTypes.includes(Any)) {
+	//#region flatten UnionTypes
+	// Or(1 Or(2 3)) => Or(1 2 3)
+	const flatChoices = choiceTypes.filter(choiceType =>
+		!(choiceType instanceof UnionType));
+	const unionChoices = choiceTypes.filter((choiceType): choiceType is UnionType =>
+		choiceType instanceof UnionType);
+	unionChoices.forEach(union => {
+		flatChoices.push(...union.ChoiceTypes);
+	});
+	//#endregion flatten UnionTypes
+	if (flatChoices.includes(Any)) {
 		return Any;
 	}
+	//#region remove duplicates
 	const uniqueChoices: RuntimeType[] = [];
-	choiceTypes.forEach(choice => {
+	flatChoices.forEach(choice => {
 		if (!uniqueChoices.some(uniqueChoice =>
 			deepEquals(choice, uniqueChoice))) {
 			uniqueChoices.push(choice);
@@ -1233,7 +1243,30 @@ function createNormalizedUnionType(choiceTypes: RuntimeType[]): RuntimeType {
 	if (uniqueChoices.length === 1) {
 		return uniqueChoices[0]!;
 	}
-	return new UnionType(uniqueChoices);
+	//#endregion remove duplicates
+	//#region collapse Streams
+	// Or(Stream(1) Stream(2)) => Stream(Or(1 2))
+	const streamChoices = uniqueChoices.filter((choiceType): choiceType is StreamType =>
+		choiceType instanceof StreamType);
+	let collapsedStreamChoices: RuntimeType[];
+	if (streamChoices.length > 1) {
+		collapsedStreamChoices = [];
+		const streamValueChoices = streamChoices.map(stream => stream.ValueType);
+		const collapsedValueType = createNormalizedUnionType(streamValueChoices);
+		collapsedStreamChoices.push(
+			new StreamType(collapsedValueType),
+			...uniqueChoices.filter(choiceType =>
+				!(choiceType instanceof StreamType)),
+		);
+		if (collapsedStreamChoices.length === 1) {
+			return collapsedStreamChoices[0]!;
+		}
+	}
+	else {
+		collapsedStreamChoices = uniqueChoices;
+	}
+	//#endregion collapse Streams
+	return new UnionType(collapsedStreamChoices);
 }
 
 function setFunctionRefForParams(

@@ -1,3 +1,4 @@
+-fix infer empty returntype bei functionTypeLiteral (): () vgl test1.jul
 ?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
 ?function ReturnType syntax
 	1. (paramName: ParamType): ReturnType
