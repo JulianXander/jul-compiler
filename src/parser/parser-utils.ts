@@ -1,4 +1,5 @@
 import { BracketedExpression, BracketedExpressionBase, DefinitionExpression, ParseDictionaryField, ParseDictionaryLiteral, ParseDictionaryTypeField, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { forEach } from "../util.js";
 import { ParserError, Positioned } from "./parser-combinator.js";
 
 export function createParseParameters(
@@ -25,8 +26,7 @@ export function createParseParameters(
 			field.name.name,
 			field,
 			field.name,
-			// TODO
-			field.typeGuard as any,
+			field.typeGuard,
 			field.description,
 			index);
 		setParent(field, parameters);
@@ -38,8 +38,7 @@ export function createParseParameters(
 			rest.name.name,
 			rest,
 			rest.name,
-			// TODO
-			rest.typeGuard as any,
+			rest.typeGuard,
 			rest.description,
 			undefined);
 		setParent(rest, parameters);
@@ -54,12 +53,9 @@ export function createParseFunctionLiteral(
 	position: Positioned,
 	errors: ParserError[],
 ): ParseFunctionLiteral {
-	const symbols: SymbolTable = params.type === 'parameters'
-		? {
-			...params.symbols,
-		}
-		: {};
-	if (params.type === 'bracketed' || params.type === 'parameters') {
+	const symbols: SymbolTable = {};
+	if (params.type === 'bracketed'
+		|| params.type === 'parameters') {
 		fillSymbolTableWithParams(symbols, errors, params);
 	}
 	fillSymbolTableWithExpressions(symbols, errors, body);
@@ -112,16 +108,18 @@ export function fillSymbolTableWithParams(
 	errors: ParserError[],
 	params: BracketedExpressionBase | ParseParameterFields,
 ): void {
-	fillSymbolTableWithFields(
-		symbolTable,
-		errors,
-		params.type === 'bracketed'
-			? params.fields
-			: [
-				...params.singleFields,
-				...(params.rest ? [params.rest] : [])
-			],
-		true);
+	if (params.type === 'bracketed') {
+		fillSymbolTableWithFields(
+			symbolTable,
+			errors,
+			params.fields,
+			true);
+	}
+	else {
+		forEach(params.symbols, (symbol, name) => {
+			symbolTable[name] = symbol;
+		});
+	}
 }
 
 export function fillSymbolTableWithFields(
@@ -146,8 +144,7 @@ export function fillSymbolTableWithFields(
 			name,
 			field,
 			field.name,
-			// TODO check type
-			field.typeGuard as any,
+			field.typeGuard,
 			field.description,
 			isFunctionParameter ? index : undefined,
 		);
