@@ -1,3 +1,4 @@
+-Fix typeinference completed$(): Stream(())
 ?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
 ?function ReturnType syntax
 	1. (paramName: ParamType): ReturnType
