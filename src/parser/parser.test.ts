@@ -243,6 +243,7 @@ const expectedResults: {
 					"type": "dictionary",
 				};
 				dictionary.fields[0].parent = dictionary;
+				dictionary.symbols.someKey.definition = field;
 				const result: ParseExpression[] = [
 					dictionary,
 				];
@@ -307,6 +308,7 @@ const expectedResults: {
 					"type": "dictionary",
 				};
 				dictionary.fields[0].parent = dictionary;
+				dictionary.symbols.someKey.definition = field;
 				const result: ParseExpression[] = [
 					dictionary,
 				];
@@ -318,6 +320,7 @@ const expectedResults: {
 			code: '(\n\tsomeKey: Text\n)',
 			result: (() => {
 				const field: ParseSingleDictionaryTypeField = {
+					description: undefined,
 					"endColumnIndex": 14,
 					"endRowIndex": 1,
 					"name": {
@@ -384,6 +387,7 @@ const expectedResults: {
 					"type": "dictionaryType",
 				};
 				dictionaryType.fields[0].parent = dictionaryType;
+				dictionaryType.symbols.someKey.definition = field;
 				const result: ParseExpression[] = [
 					dictionaryType,
 				];
@@ -1316,6 +1320,7 @@ const expectedResults: {
 				};
 				dictionary.fields[0].parent = dictionary;
 				(dictionary.fields[0] as any).name.parent = dictionary.fields[0];
+				dictionary.symbols.a.definition = dictionary.fields[0] as any;
 				return [
 					dictionary,
 				];

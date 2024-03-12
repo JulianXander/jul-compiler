@@ -72,6 +72,8 @@ export type DefinitionExpression =
 	| ParseFieldBase
 	| ParseParameterField
 	| ParseSingleDefinition
+	| ParseSingleDictionaryField
+	| ParseSingleDictionaryTypeField
 	;
 
 export type PositionedExpression =
@@ -230,6 +232,7 @@ export type ParseDictionaryTypeField =
 
 export interface ParseSingleDictionaryTypeField extends PositionedExpressionBase {
 	type: 'singleDictionaryTypeField';
+	description?: string;
 	/**
 	 * escapable
 	 */

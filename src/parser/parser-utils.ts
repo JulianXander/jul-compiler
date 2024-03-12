@@ -1,4 +1,4 @@
-import { BracketedExpressionBase, DefinitionExpression, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseSingleDefinition, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { BracketedExpression, BracketedExpressionBase, DefinitionExpression, ParseDictionaryField, ParseDictionaryLiteral, ParseDictionaryTypeField, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { ParserError, Positioned } from "./parser-combinator.js";
 
 export function createParseParameters(
@@ -59,8 +59,8 @@ export function createParseFunctionLiteral(
 			...params.symbols,
 		}
 		: {};
-	if (params.type === 'bracketed') {
-		fillSymbolTableWithDictionaryType(symbols, errors, params, true);
+	if (params.type === 'bracketed' || params.type === 'parameters') {
+		fillSymbolTableWithParams(symbols, errors, params);
 	}
 	fillSymbolTableWithExpressions(symbols, errors, body);
 	const functionLiteral: ParseFunctionLiteral = {
@@ -98,7 +98,7 @@ export function fillSymbolTableWithExpressions(
 			}
 			case 'destructuring': {
 				// TODO type über value ermitteln
-				fillSymbolTableWithDictionaryType(symbolTable, errors, expression.fields, false);
+				fillSymbolTableWithFields(symbolTable, errors, expression.fields.fields, false);
 				return;
 			}
 			default:
@@ -107,39 +107,51 @@ export function fillSymbolTableWithExpressions(
 	});
 }
 
-export function fillSymbolTableWithDictionaryType(
+export function fillSymbolTableWithParams(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
-	dictionaryType: BracketedExpressionBase,
-	isFunctionParameter: boolean,
+	params: BracketedExpressionBase | ParseParameterFields,
 ): void {
-	dictionaryType.fields.forEach((field, index) => {
-		defineSymbolForField(symbolTable, errors, field, isFunctionParameter ? index : undefined);
-	});
-}
-
-function defineSymbolForField(
-	symbolTable: SymbolTable,
-	errors: ParserError[],
-	field: ParseFieldBase,
-	functionParameterIndex: number | undefined,
-): void {
-	const name = getCheckedEscapableName(field.name);
-	if (!name) {
-		// TODO error?
-		return;
-	}
-	defineSymbol(
+	fillSymbolTableWithFields(
 		symbolTable,
 		errors,
-		name,
-		field,
-		field.name,
-		// TODO check type
-		field.typeGuard as any,
-		field.description,
-		functionParameterIndex,
-	);
+		params.type === 'bracketed'
+			? params.fields
+			: [
+				...params.singleFields,
+				...(params.rest ? [params.rest] : [])
+			],
+		true);
+}
+
+export function fillSymbolTableWithFields(
+	symbolTable: SymbolTable,
+	errors: ParserError[],
+	fields: (ParseDictionaryField | ParseDictionaryTypeField | ParseFieldBase | ParseParameterField)[],
+	isFunctionParameter: boolean,
+): void {
+	fields.forEach((field, index) => {
+		if (field.type === 'spread') {
+			// TODO?
+			return;
+		}
+		const name = getCheckedEscapableName(field.name);
+		if (!name) {
+			// TODO error?
+			return;
+		}
+		defineSymbol(
+			symbolTable,
+			errors,
+			name,
+			field,
+			field.name,
+			// TODO check type
+			field.typeGuard as any,
+			field.description,
+			isFunctionParameter ? index : undefined,
+		);
+	});
 }
 
 function defineSymbol(
@@ -147,7 +159,7 @@ function defineSymbol(
 	errors: ParserError[],
 	name: string,
 	definition: DefinitionExpression,
-	position: Positioned,
+	namePosition: Positioned,
 	type: ParseValueExpression | undefined,
 	description: string | undefined,
 	functionParameterIndex: number | undefined,
@@ -155,10 +167,10 @@ function defineSymbol(
 	if (symbolTable[name]) {
 		errors.push({
 			message: `${name} is already defined`,
-			startRowIndex: position.startRowIndex,
-			startColumnIndex: position.startColumnIndex,
-			endRowIndex: position.endRowIndex,
-			endColumnIndex: position.endColumnIndex,
+			startRowIndex: namePosition.startRowIndex,
+			startColumnIndex: namePosition.startColumnIndex,
+			endRowIndex: namePosition.endRowIndex,
+			endColumnIndex: namePosition.endColumnIndex,
 		});
 	}
 	symbolTable[name] = {
@@ -166,10 +178,10 @@ function defineSymbol(
 		description: description,
 		typeExpression: type,
 		functionParameterIndex: functionParameterIndex,
-		startRowIndex: position.startRowIndex,
-		startColumnIndex: position.startColumnIndex,
-		endRowIndex: position.endRowIndex,
-		endColumnIndex: position.endColumnIndex,
+		startRowIndex: namePosition.startRowIndex,
+		startColumnIndex: namePosition.startColumnIndex,
+		endRowIndex: namePosition.endRowIndex,
+		endColumnIndex: namePosition.endColumnIndex,
 	};
 }
 
