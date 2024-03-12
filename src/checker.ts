@@ -226,8 +226,10 @@ function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: RuntimeType,
 ): RuntimeType | undefined {
-	if (typeof sourceObjectType !== 'object'
-		|| !sourceObjectType) {
+	if (sourceObjectType === null) {
+		return null;
+	}
+	if (typeof sourceObjectType !== 'object') {
 		return undefined;
 	}
 	if (sourceObjectType instanceof BuiltInTypeBase) {
@@ -273,8 +275,10 @@ function dereferenceIndexFromObject(
 	index: number,
 	sourceObjectType: RuntimeType,
 ): RuntimeType | undefined {
-	if (typeof sourceObjectType !== 'object'
-		|| !sourceObjectType) {
+	if (sourceObjectType === null) {
+		return null;
+	}
+	if (typeof sourceObjectType !== 'object') {
 		return undefined;
 	}
 	if (sourceObjectType instanceof BuiltInTypeBase) {
@@ -430,6 +434,9 @@ function dereferenceParameterFromArgumentType(
 	const paramIndex = parameterReference.index;
 	if (prefixArgumentType !== undefined && paramIndex === 0) {
 		return prefixArgumentType;
+	}
+	if (argsType === null) {
+		return null;
 	}
 	if (!(argsType instanceof BuiltInTypeBase)) {
 		return parameterReference;
