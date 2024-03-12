@@ -42,7 +42,6 @@ import {
 	ParseSpreadValueExpression,
 	ParseTextLiteral,
 	ParseValueExpression,
-	ParseValueExpressionBase,
 	PositionedExpression,
 	Reference,
 	SimpleExpression,
@@ -801,13 +800,13 @@ function valueExpressionBaseParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ParseValueExpressionBase> {
+): ParserResult<ParseValueExpression> {
 	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'expression');
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
 	const result = sequenceParser(
-		simpleExpressionParser,
+		simpleExpressionBaseParser,
 		discriminatedChoiceParser(
 			// Branching
 			{
@@ -931,12 +930,13 @@ function valueExpressionBaseParser(
 					errors: errors,
 				};
 			}
+			const returnType = baseValueExpressionToValueExpression(parsed2.returnTypeBase, errors);
 			const params: BracketedExpressionBase | ParseParameterFields = bracketedExpressionToParameters(parsed1, errors);
 			if (body) {
 				// FunctionLiteral mit ReturnType
 				const functionLiteral = createParseFunctionLiteral(
 					params,
-					parsed2.returnType,
+					returnType,
 					body,
 					{
 						startRowIndex: startRowIndex,
@@ -960,7 +960,7 @@ function valueExpressionBaseParser(
 			const functionTypeLiteral: ParseFunctionTypeLiteral = {
 				type: 'functionTypeLiteral',
 				params: params,
-				returnType: parsed2.returnType,
+				returnType: returnType,
 				symbols: symbols,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -984,7 +984,7 @@ function valueExpressionBaseParser(
 
 //#region SimpleExpression
 
-function simpleExpressionParser(
+function simpleExpressionBaseParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
@@ -1483,12 +1483,12 @@ function functionTypeBodyParser(
 	indent: number,
 ): ParserResult<{
 	type: 'functionTypeBody';
-	returnType: SimpleExpression;
+	returnTypeBase: SimpleExpression;
 	body?: ParseExpression[];
 }> {
 	const result = sequenceParser(
 		typeGuardTokenParser,
-		simpleExpressionParser,
+		simpleExpressionBaseParser,
 		discriminatedChoiceParser(
 			// FunctionLiteral mit ReturnType
 			{
@@ -1506,7 +1506,7 @@ function functionTypeBodyParser(
 		...result,
 		parsed: result.parsed && {
 			type: 'functionTypeBody',
-			returnType: result.parsed[1],
+			returnTypeBase: result.parsed[1],
 			body: result.parsed[2]?.body,
 		},
 	};
@@ -1818,7 +1818,7 @@ function bracketedExpressionToParameters(
 	return createParseParameters(singleFields, rest, bracketedExpression, errors);
 }
 
-function checkName(parseName: ParseValueExpressionBase | ParseValueExpression): Name | undefined {
+function checkName(parseName: ParseValueExpression): Name | undefined {
 	if (parseName.type !== 'reference') {
 		return undefined;
 	}
@@ -1826,7 +1826,7 @@ function checkName(parseName: ParseValueExpressionBase | ParseValueExpression): 
 }
 
 function baseValueExpressionToValueExpression(
-	baseExpression: ParseValueExpressionBase,
+	baseExpression: ParseValueExpression,
 	errors: ParserError[],
 ): ParseValueExpression {
 	if (baseExpression.type === 'bracketed') {
@@ -1861,7 +1861,7 @@ function bracketedExpressionToValueExpression(
 			values: mapNonEmpty(
 				baseFields,
 				baseField => {
-					const value = baseValueExpressionToValueExpression(baseField.name, errors)
+					const value = baseValueExpressionToValueExpression(baseField.name, errors);
 					if (baseField.spread) {
 						const spreadValue: ParseSpreadValueExpression = {
 							type: 'spread',
@@ -1870,7 +1870,7 @@ function bracketedExpressionToValueExpression(
 							startColumnIndex: baseField.startColumnIndex,
 							endRowIndex: baseField.endRowIndex,
 							endColumnIndex: baseField.endColumnIndex,
-						}
+						};
 						return spreadValue;
 					}
 					return value;
@@ -2079,7 +2079,7 @@ function bracketedExpressionToValueExpression(
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
-		}
+		};
 	}
 	// TODO bessere Fehlermeldung
 	errors.push({
@@ -2092,7 +2092,7 @@ function bracketedExpressionToValueExpression(
 	return bracketedExpression;
 }
 
-function getEscapableNameErrors(baseName: ParseValueExpressionBase): ParserError[] {
+function getEscapableNameErrors(baseName: ParseValueExpression): ParserError[] {
 	const errors: ParserError[] = [];
 	switch (baseName.type) {
 		case 'reference':
@@ -2228,7 +2228,7 @@ export function getPathFromImport(
 				startColumnIndex: pathExpression.startColumnIndex,
 				endRowIndex: pathExpression.endRowIndex,
 				endColumnIndex: pathExpression.endColumnIndex,
-			}
+			};
 		return {
 			path: importedPath,
 			fullPath: fullPath,

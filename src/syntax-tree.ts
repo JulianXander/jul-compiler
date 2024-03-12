@@ -52,18 +52,6 @@ export type ParseExpression =
 	;
 
 export type ParseValueExpression =
-	| BracketedExpression
-	| NumberLiteral
-	| ParseBranching
-	| ParseFunctionCall
-	| ParseFunctionLiteral
-	| ParseFunctionTypeLiteral
-	| ParseTextLiteral
-	| Reference
-	| ParseNestedReference
-	;
-
-export type ParseValueExpressionBase =
 	| ParseBranching
 	| ParseFunctionLiteral
 	| ParseFunctionTypeLiteral
@@ -72,7 +60,6 @@ export type ParseValueExpressionBase =
 
 export type SimpleExpression =
 	| BracketedExpression
-	| BracketedExpressionBase
 	| NumberLiteral
 	| ParseFunctionCall
 	| ParseTextLiteral
@@ -204,7 +191,7 @@ export interface ParseSingleDictionaryField extends PositionedExpressionBase {
 	/**
 	 * escapable
 	 */
-	name: ParseValueExpressionBase | Name;
+	name: ParseValueExpression | Name;
 	typeGuard?: ParseValueExpression;
 	/**
 	 * undefined bei unvollständiger Expression
@@ -239,7 +226,7 @@ export interface ParseSingleDictionaryTypeField extends PositionedExpressionBase
 	/**
 	 * escapable
 	 */
-	name: ParseValueExpressionBase | Name;
+	name: ParseValueExpression | Name;
 	typeGuard?: ParseValueExpression;
 }
 
@@ -308,7 +295,7 @@ export interface ParseFieldBase extends ParseExpressionBase {
 	/**
 	 * name/single value/definitionNames
 	 */
-	name: ParseValueExpressionBase;
+	name: ParseValueExpression;
 	typeGuard?: ParseValueExpression;
 	/**
 	 * definition token ' = '

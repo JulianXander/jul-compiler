@@ -346,7 +346,7 @@ const expectedResults: {
 						"startRowIndex": 1,
 						"type": "reference",
 					},
-				}
+				};
 				field.name.parent = field;
 				const dictionaryType: ParseDictionaryTypeLiteral = {
 					"endColumnIndex": 1,
@@ -1182,10 +1182,9 @@ const expectedResults: {
 					"returnType": {
 						"endColumnIndex": 6,
 						"endRowIndex": 0,
-						"fields": [],
 						"startColumnIndex": 4,
 						"startRowIndex": 0,
-						"type": "bracketed",
+						"type": "empty",
 					},
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
