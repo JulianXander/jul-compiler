@@ -1,4 +1,4 @@
-import { BracketedExpression, BracketedExpressionBase, DefinitionExpression, ParseDictionaryField, ParseDictionaryLiteral, ParseDictionaryTypeField, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { BracketedExpressionBase, DefinitionExpression, ParseDictionaryField, ParseDictionaryLiteral, ParseDictionaryTypeField, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { ParserError, Positioned } from "./parser-combinator.js";
 
