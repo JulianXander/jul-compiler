@@ -1,4 +1,4 @@
-import { BracketedExpressionBase, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { BracketedExpressionBase, DefinitionExpression, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseSingleDefinition, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { ParserError, Positioned } from "./parser-combinator.js";
 
 export function createParseParameters(
@@ -23,6 +23,7 @@ export function createParseParameters(
 			symbols,
 			errors,
 			field.name.name,
+			field,
 			field.name,
 			// TODO
 			field.typeGuard as any,
@@ -35,6 +36,7 @@ export function createParseParameters(
 			symbols,
 			errors,
 			rest.name.name,
+			rest,
 			rest.name,
 			// TODO
 			rest.typeGuard as any,
@@ -87,6 +89,7 @@ export function fillSymbolTableWithExpressions(
 					symbolTable,
 					errors,
 					expression.name.name,
+					expression,
 					expression.name,
 					expression.value,
 					expression.description,
@@ -130,6 +133,7 @@ function defineSymbolForField(
 		symbolTable,
 		errors,
 		name,
+		field,
 		field.name,
 		// TODO check type
 		field.typeGuard as any,
@@ -142,6 +146,7 @@ function defineSymbol(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
 	name: string,
+	definition: DefinitionExpression,
 	position: Positioned,
 	type: ParseValueExpression | undefined,
 	description: string | undefined,
@@ -157,8 +162,9 @@ function defineSymbol(
 		});
 	}
 	symbolTable[name] = {
-		typeExpression: type,
+		definition: definition,
 		description: description,
+		typeExpression: type,
 		functionParameterIndex: functionParameterIndex,
 		startRowIndex: position.startRowIndex,
 		startColumnIndex: position.startColumnIndex,

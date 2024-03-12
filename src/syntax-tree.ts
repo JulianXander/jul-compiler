@@ -31,6 +31,7 @@ export interface SymbolTable {
 }
 
 export interface SymbolDefinition extends Positioned {
+	definition?: DefinitionExpression;
 	description?: string;
 	/**
 	 * undefined bei unvollständiger definition
@@ -65,6 +66,12 @@ export type SimpleExpression =
 	| ParseTextLiteral
 	| Reference
 	| ParseNestedReference
+	;
+
+export type DefinitionExpression =
+	| ParseFieldBase
+	| ParseParameterField
+	| ParseSingleDefinition
 	;
 
 export type PositionedExpression =

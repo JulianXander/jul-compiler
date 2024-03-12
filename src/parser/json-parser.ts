@@ -21,7 +21,7 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 		startRowIndex: 0,
 		endColumnIndex: 0,
 		endRowIndex: 0,
-	}
+	};
 	switch (typeof jsonValue) {
 		case 'bigint':
 			return {
@@ -70,8 +70,9 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 					setParent(name, field);
 					return field;
 				}) as any,
-				symbols: mapDictionary(jsonValue as { [key: string]: JsonValue }, (value, key) => {
+				symbols: mapDictionary(jsonValue as { [key: string]: JsonValue; }, (value, key) => {
 					const symbolDefinition: SymbolDefinition = {
+						// TODO definition? zumindest range für DocumentSymbol?
 						typeExpression: jsonValueToJulAst(value) as any,
 						...position,
 					};
