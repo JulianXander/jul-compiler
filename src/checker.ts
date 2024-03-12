@@ -1246,7 +1246,7 @@ function createNormalizedUnionType(choiceTypes: RuntimeType[]): RuntimeType {
 	//#endregion remove duplicates
 	//#region collapse Streams
 	// Or(Stream(1) Stream(2)) => Stream(Or(1 2))
-	// TODO? diese Zusammenfassung ist eigentlich inhaltlich falsch, denn es geht Information verloren
+	// TODO? diese Zusammenfassung ist eigentlich inhaltlich falsch, denn der Typ ist ungenauer
 	// Or([1 1] [2 2]) != [Or(1 2) Or(1 2)] wegen Mischungen wie [1 2], [2 1] obwohl nur [1 1] oder [2 2] erlaubt sein sollten
 	const streamChoices = uniqueChoices.filter((choiceType): choiceType is StreamType =>
 		choiceType instanceof StreamType);
