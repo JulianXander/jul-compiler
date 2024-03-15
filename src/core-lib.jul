@@ -7,23 +7,23 @@ Any = nativeValue(§Any§)
 Type = nativeValue(§Type§)
 # data structure containing 1 or more elements of type ElementType
 List = nativeFunction(
-	(ElementType: Type): Type
+	(ElementType: Type) :> Type
 	# TODO generic List check
 	§Array.isArray§
 )
 # IntersectionType
 And = nativeFunction(
-	(...ChoiceTypes: List(Type)): Type
+	(...ChoiceTypes: List(Type)) :> Type
 	§(...args) => new IntersectionType(args)§
 )
 # UnionType
 Or = nativeFunction(
-	(...ChoiceTypes: List(Type)): Type
+	(...ChoiceTypes: List(Type)) :> Type
 	§(...args) => new UnionType(args)§
 )
 # ComplementType
 Not = nativeFunction(
-	(T: Type): Type
+	(T: Type) :> Type
 	§(type) => new ComplementType(type)§
 )
 # SubtractionType
@@ -34,13 +34,13 @@ Without = (
 ) => Minuend.And(Not(Subtrahend))
 # The Type that only contains the given value.
 TypeOf = nativeFunction(
-	(value: Any): Type
+	(value: Any) :> Type
 	§value => new TypeOfType(value)§
 )
 # The set of values that is of the given Type
 # The inverse of TypeOf
 ValueOf = nativeFunction(
-	(T: TypeOf(Any)): T/value
+	(T: TypeOf(Any)) :> T/value
 	§T => new ValueOfType(T)§
 )
 # true or false
@@ -71,7 +71,7 @@ Blob = nativeValue(§_Date§)
 Error = nativeValue(§_Error§)
 # data structure containing 1 or more key-value-pairs of type ElementType
 Dictionary = nativeFunction(
-	(ElementType: Type): Type
+	(ElementType: Type) :> Type
 	# TODO ???
 	§x => typeof x === 'object'§
 )
@@ -79,7 +79,7 @@ Dictionary = nativeFunction(
 # Instance structure: (ValueType: Type)
 # Type structure: (ValueType: Type)
 Stream = nativeFunction(
-	(ValueType: Type): Type
+	(ValueType: Type) :> Type
 	# TODO generic Stream check
 	§x => x instanceof Stream§
 )
@@ -93,7 +93,7 @@ Stream = nativeFunction(
 # )
 
 # Or(
-# 	(...args: List(Any)): Boolean
+# 	(...args: List(Any)) :> Boolean
 # 	# Literals (Number, Text, Boolean, Dictionary, List)
 # 	# DictionaryType/DictionaryLiteralType/DictionaryTypeLiteral?
 # 	FunctionType
@@ -108,7 +108,7 @@ Stream = nativeFunction(
 # Liefert true, wenn die beiden Werte gleich sind (Referenzgleichheit)
 # TODO deepEqual?
 equal = nativeFunction(
-	(first second): Boolean
+	(first second) :> Boolean
 	§(first, second) => first === second§
 )
 #endregion Any
@@ -116,7 +116,7 @@ equal = nativeFunction(
 #region arithmetic
 # Liefert die Summe der args.
 add = nativeFunction(
-	(...args: List(Rational)): Rational
+	(...args: List(Rational)) :> Rational
 	§
 		(...args) =>
 			args.reduce(
@@ -127,7 +127,7 @@ add = nativeFunction(
 )
 # Liefert die Summe der args.
 addFloat = nativeFunction(
-	(...args: List(Float)): Float
+	(...args: List(Float)) :> Float
 	§
 		(...args) =>
 			args.reduce(
@@ -138,17 +138,17 @@ addFloat = nativeFunction(
 )
 # minuend - subtrahend
 subtract = nativeFunction(
-	(minuend: Rational subtrahend: Rational): Rational
+	(minuend: Rational subtrahend: Rational) :> Rational
 	§(minuend, subtrahend) => minuend - subtrahend§
 )
 # minuend - subtrahend
 subtractFloat = nativeFunction(
-	(minuend: Float subtrahend: Float): Float
+	(minuend: Float subtrahend: Float) :> Float
 	§(minuend, subtrahend) => minuend - subtrahend§
 )
 # Liefert das Produkt der args
 multiply = nativeFunction(
-	(...args: List(Rational)): Rational
+	(...args: List(Rational)) :> Rational
 	§
 		(...args) =>
 			args.reduce(
@@ -159,7 +159,7 @@ multiply = nativeFunction(
 )
 # Liefert das Produkt der args
 multiplyFloat = nativeFunction(
-	(...args: List(Float)): Float
+	(...args: List(Float)) :> Float
 	§
 		(...args) =>
 			args.reduce(
@@ -170,24 +170,24 @@ multiplyFloat = nativeFunction(
 )
 # dividend / divisor
 divideFloat = nativeFunction(
-	(dividend: Float divisor: NonZeroFloat): Float
+	(dividend: Float divisor: NonZeroFloat) :> Float
 	§(dividend, divisor) => dividend / divisor§
 )
 # Liefert den Rest bei ganzzahliger Division.
 # TODO moduloFloat?
 modulo = nativeFunction(
-	(dividend: Integer divisor: NonZeroInteger): Integer
+	(dividend: Integer divisor: NonZeroInteger) :> Integer
 	§(dividend, divisor) => dividend % divisor§
 )
 #endregion arithmetic
 # TODO support Rational values
 # Liefert true, wenn first größer als second ist.
 greater = nativeFunction(
-	(first: Or(Integer Float) second: Or(Integer Float)): Boolean
+	(first: Or(Integer Float) second: Or(Integer Float)) :> Boolean
 	§(first, second) => first > second§
 )
 rationalToFloat = nativeFunction(
-	(rational: Rational): Float
+	(rational: Rational) :> Float
 	§Todo§
 )
 #endregion Number
@@ -196,12 +196,12 @@ combineTexts = nativeFunction(
 	(
 		texts: Or(() List(Text))
 		separator: Or(() Text)
-	): Text
+	) :> Text
 	§String.join§
 )
 # Liefert Error, wenn die gegebene TextNumber keine valide Zahl ist.
 parseFloat = nativeFunction(
-	(textNumber: Text): Or(Float Error)
+	(textNumber: Text) :> Or(Float Error)
 	§TODO§
 )
 #region JSON
@@ -209,11 +209,11 @@ JsonPrimitive = Or(() Boolean Rational Text)
 JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
 # Liefert Error, wenn das gegebene json kein valides JSON ist.
 parseJson = nativeFunction(
-	(json: Text): Or(JsonValue Error)
+	(json: Text) :> Or(JsonValue Error)
 	§TODO§
 )
 toJson = nativeFunction(
-	(value: JsonValue): Text
+	(value: JsonValue) :> Text
 	§TODO§
 )
 #endregion JSON
@@ -226,7 +226,7 @@ regex = nativeFunction(
 	(
 		text: Text
 		regex: Text
-	): (
+	) :> (
 		isMatch: Boolean
 		namedCaptures: Or(() Dictionary(Text))
 		unnamedCaptures: Or(() List(Text))
@@ -245,16 +245,16 @@ addDate = nativeFunction(
 		minutes: Or(() Integer)
 		seconds: Or(() Integer)
 		milliseconds: Or(() Integer)
-	): Date
+	) :> Date
 	§TODO§
 )
 currentDate = nativeFunction(
-	(): Date
+	() :> Date
 	§() => new Date()§
 )
 # ISO 8601
 toIsoDateText = nativeFunction(
-	(date: Date): Text
+	(date: Date) :> Text
 	§date => date.toISOString()§
 )
 #endregion Date
@@ -265,7 +265,7 @@ toIsoDateText = nativeFunction(
 length = nativeFunction(
 	(
 		values: Or(() List(Any))
-	): Integer
+	) :> Integer
 	# TODO positive
 	§TODO§
 )
@@ -276,7 +276,7 @@ elementAt = nativeFunction(
 		# 1 basiert
 		# TODO positive
 		index: NonZeroInteger
-	): Any
+	) :> Any
 	# TODO Or(() TypeOf(values)/ElementType)
 	§TODO§
 )
@@ -290,10 +290,10 @@ filterMap = nativeFunction(
 			# value: TypeOf(values)/ElementType
 			# TODO Integer vs FloatInteger
 			# index: Integer
-		): Any
-	): Or(() List(Any))
+		) :> Any
+	) :> Or(() List(Any))
 	# TODO
-	# ): List(Without(TypeOf(callback)/ReturnType ()))
+	# ) :> List(Without(TypeOf(callback)/ReturnType ()))
 	§TODO§
 )
 forEach = nativeFunction(
@@ -305,8 +305,8 @@ forEach = nativeFunction(
 			# value: TypeOf(values)/ElementType
 			# TODO Integer vs FloatInteger
 			# index: Integer
-		): Any
-	): ()
+		) :> Any
+	) :> ()
 	§TODO§
 )
 #endregion List
@@ -314,7 +314,7 @@ forEach = nativeFunction(
 #region core
 # Beendet den Stream.
 complete = nativeFunction(
-	(stream$: Stream(Any)): ()
+	(stream$: Stream(Any)) :> ()
 	§
 		(stream$) => {
 			stream$.complete();
@@ -326,14 +326,14 @@ push = nativeFunction(
 	(
 		stream$: Stream(Any)
 		value: stream$/ValueType
-	): ()
+	) :> ()
 	§todo§
 )
 subscribe = nativeFunction(
 	(
 		stream$: Stream(Any)
-		listener: (value: stream$/ValueType): Any
-	): ()
+		listener: (value: stream$/ValueType) :> Any
+	) :> ()
 	§
 		(stream$, listener) => {
 			const listenerFunction = (value) => {
@@ -350,14 +350,14 @@ create$ = nativeFunction(
 	(
 		ValueType: Type
 		intitialValue: ValueType
-	): Stream(ValueType)
+	) :> Stream(ValueType)
 	§todo§
 )
 # Erzeugt einen vollendeten Stream, der nur den Startwert liefert.
 completed$ = nativeFunction(
 	(
 		intitialValue: Any
-	): Stream(TypeOf(intitialValue))
+	) :> Stream(TypeOf(intitialValue))
 	§todo§
 )
 # Startwert: ()
@@ -368,7 +368,7 @@ httpTextRequest$ = nativeFunction(
 		method: Text
 		headers: Or(() Dictionary(Text))
 		body: Any
-	): Stream(Or(() Text Error))
+	) :> Stream(Or(() Text Error))
 	§[...]§
 )
 # Startwert: ()
@@ -379,12 +379,12 @@ httpBlobRequest$ = nativeFunction(
 		method: Text
 		headers: Or(() Dictionary(Text))
 		body: Any
-	): Stream(Or(() Blob Error))
+	) :> Stream(Or(() Blob Error))
 	§[...]§
 )
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1
 timer$ = nativeFunction(
-	(delayMs: Float): Stream(Float)
+	(delayMs: Float) :> Stream(Float)
 	§
 		(delayMs) => {
 			const stream$ = createSource$(1);
@@ -412,8 +412,8 @@ map$ = nativeFunction(
 			value: source$/ValueType
 			# TODO Integer vs FloatInteger
 			# index: Integer
-		): Any
-	): Stream(transform$/ReturnType)
+		) :> Any
+	) :> Stream(transform$/ReturnType)
 	§TODO§
 )
 flatMergeMap$ = nativeFunction(
@@ -423,8 +423,8 @@ flatMergeMap$ = nativeFunction(
 			value: source$/ValueType
 			# TODO Integer vs FloatInteger
 			# index: Integer
-		): Stream(Any)
-	): Stream(transform$/ReturnType/ValueType)
+		) :> Stream(Any)
+	) :> Stream(transform$/ReturnType/ValueType)
 	§TODO§
 )
 flatSwitchMap$ = nativeFunction(
@@ -434,8 +434,8 @@ flatSwitchMap$ = nativeFunction(
 			value: source$/ValueType
 			# TODO Integer vs FloatInteger
 			# index: Integer
-		): Stream(Any)
-	): Stream(transform$/ReturnType/ValueType)
+		) :> Stream(Any)
+	) :> Stream(transform$/ReturnType/ValueType)
 	§TODO§
 )
 # Wenn keine sources übergeben, dann wird Empty vom Rückgabestream emittiert.
@@ -444,7 +444,7 @@ combine$ = nativeFunction(
 		...sources: Or(() List(Stream(Any)))
 		# TODO generic returntype
 		# Stream(List(sources/ElementType))
-	): Stream(Or(() List(Any)))
+	) :> Stream(Or(() List(Any)))
 	§TODO§
 )
 #endregion transform
@@ -456,43 +456,43 @@ combine$ = nativeFunction(
 # .json
 # .yaml
 import = nativeFunction(
-	(path: Text): Any
+	(path: Text) :> Any
 	§require§
 )
 # Gibt die args in der Konsole aus.
 log = nativeFunction(
-	(...args: Or(() List(Any))): ()
+	(...args: Or(() List(Any))) :> ()
 	§console.log§
 )
 # Führt den iteratee count mal aus, beginnend mit index 1.
 repeat = nativeFunction(
 	(
 		count: Integer
-		iteratee: (index: Integer): Any
-	): ()
+		iteratee: (index: Integer) :> Any
+	) :> ()
 	§repeat§
 )
 #region JavaScript
 # Führt den gegebenen Text als JavaScript aus und liefert dessen Rückgabe.
 runJs = nativeFunction(
-	(js: Text): Any
+	(js: Text) :> Any
 	§eval§
 )
 # Interprets the given Text as js Code and yields the return value,
 # assuming the specified type without checking. Make sure the Type fits under all circumstances
 nativeFunction = nativeFunction(
-	# (FunctionType: (x: Any): x is (): Any js: Text): FunctionType
-	(FunctionType: Type js: Text): ValueOf(FunctionType)
+	# (FunctionType: (x: Any) :> x is () :> Any js: Text) :> FunctionType
+	(FunctionType: Type js: Text) :> ValueOf(FunctionType)
 	§[...]§
 )
 # Interprets the given Text as js Code and yields the return value,
 # type???
 nativeValue = nativeFunction(
-	(js: Text): Any
+	(js: Text) :> Any
 	§[...]§
 )
 #endregion JavaScript
 #endregion Utility
 #endregion Functions
 # Type = Any: Boolean
-# FunctionType = (x: Any): x is (): Any
+# FunctionType = (x: Any) :> x is () :> Any

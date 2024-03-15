@@ -2051,7 +2051,7 @@ export function typeToString(type: RuntimeType, indent: number): string {
 					case 'float':
 						return 'Float';
 					case 'function':
-						return `${typeToString(builtInType.ParamsType, indent)}: ${typeToString(builtInType.ReturnType, indent)}`;
+						return `${typeToString(builtInType.ParamsType, indent)} :> ${typeToString(builtInType.ReturnType, indent)}`;
 					case 'integer':
 						return 'Integer';
 					case 'list':

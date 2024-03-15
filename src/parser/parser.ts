@@ -181,6 +181,7 @@ const branchingTokenParser = tokenParser(' ?');
 const functionTokenParser = tokenParser(' =>');
 const definitionTokenParser = tokenParser(' = ');
 const typeGuardTokenParser = tokenParser(': ');
+const returnTypeTokenParser = tokenParser(' :> ');
 const fallbackTokenParser = tokenParser(' ?? ');
 
 //#endregion Tokens
@@ -824,7 +825,7 @@ function valueExpressionBaseParser(
 			{
 				predicate: sequenceParser(
 					moveColumnIndex(-1, closingBracketParser),
-					typeGuardTokenParser,
+					returnTypeTokenParser,
 				),
 				parser: functionTypeBodyParser,
 			},
@@ -1487,7 +1488,7 @@ function functionTypeBodyParser(
 	body?: ParseExpression[];
 }> {
 	const result = sequenceParser(
-		typeGuardTokenParser,
+		returnTypeTokenParser,
 		simpleExpressionBaseParser,
 		discriminatedChoiceParser(
 			// FunctionLiteral mit ReturnType
