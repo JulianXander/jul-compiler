@@ -367,7 +367,7 @@ export interface ParseParameterField extends ParseExpressionBase {
 
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
 	type: 'functionTypeLiteral';
-	params: BracketedExpressionBase | ParseParameterFields;
+	params: SimpleExpression | ParseParameterFields;
 	returnType: ParseValueExpression;
 	symbols: SymbolTable;
 }

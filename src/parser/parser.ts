@@ -459,7 +459,7 @@ function expressionParser(
 	if ((baseName.type === 'bracketed') && parsed.definition) {
 		if (parsed.spread) {
 			errors.push({
-				message: 'rest not allowed for destructuring',
+				message: 'spread not allowed for destructuring',
 				startRowIndex: parsed.startRowIndex,
 				startColumnIndex: parsed.startColumnIndex,
 				endRowIndex: parsed.startRowIndex,
@@ -541,7 +541,7 @@ function expressionParser(
 	// valueExpression
 	if (parsed.spread) {
 		errors.push({
-			message: 'rest not allowed for valueExpression',
+			message: 'spread not allowed for valueExpression',
 			startRowIndex: parsed.startRowIndex,
 			startColumnIndex: parsed.startColumnIndex,
 			endRowIndex: parsed.startRowIndex,
@@ -823,10 +823,7 @@ function valueExpressionBaseParser(
 			},
 			// FunctionTypeLiteral/FunctionLiteral mit ReturnType
 			{
-				predicate: sequenceParser(
-					moveColumnIndex(-1, closingBracketParser),
-					returnTypeTokenParser,
-				),
+				predicate: returnTypeTokenParser,
 				parser: functionTypeBodyParser,
 			},
 			// SimpleValueExpression
@@ -915,24 +912,11 @@ function valueExpressionBaseParser(
 		}
 		case 'functionTypeBody': {
 			const body = parsed2.body;
-			if (parsed1.type !== 'bracketed') {
-				errors.push({
-					message: `ReturnType can only follow a bracketed expression, but got ${parsed1.type}.`,
-					startRowIndex: startRowIndex,
-					startColumnIndex: startColumnIndex,
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
-				});
-				return {
-					hasParsed: true,
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
-					parsed: parsed1,
-					errors: errors,
-				};
-			}
 			const returnType = baseValueExpressionToValueExpression(parsed2.returnTypeBase, errors);
-			const params: BracketedExpressionBase | ParseParameterFields = bracketedExpressionToParameters(parsed1, errors);
+			let params: SimpleExpression | ParseParameterFields = parsed1;
+			if (params.type === 'bracketed') {
+				params = bracketedExpressionToParameters(params, errors);
+			}
 			if (body) {
 				// FunctionLiteral mit ReturnType
 				const functionLiteral = createParseFunctionLiteral(
@@ -957,7 +941,10 @@ function valueExpressionBaseParser(
 			}
 			// FunctionTypeLiteral
 			const symbols: SymbolTable = {};
-			fillSymbolTableWithParams(symbols, errors, params);
+			if (params.type === 'bracketed'
+				|| params.type === 'parameters') {
+				fillSymbolTableWithParams(symbols, errors, params);
+			}
 			const functionTypeLiteral: ParseFunctionTypeLiteral = {
 				type: 'functionTypeLiteral',
 				params: params,

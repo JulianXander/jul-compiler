@@ -1202,6 +1202,10 @@ const expectedResults: {
 			})(),
 		},
 		{
+			name: 'type-function-type-literal',
+			code: 'true :> ()',
+		},
+		{
 			name: 'uncomplete-nested-reference',
 			code: 'a/',
 			result: [
