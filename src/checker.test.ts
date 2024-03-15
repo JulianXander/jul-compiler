@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { ParseExpression, ParseSingleDefinition } from './syntax-tree.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { parseCode } from './parser/parser.js';
-import { checkTypes } from './checker.js'
+import { checkTypes } from './checker.js';
 
 const expectedResults: {
 	name?: string;
@@ -102,7 +102,7 @@ const expectedResults: {
 				{
 					"endColumnIndex": 2,
 					"endRowIndex": 1,
-					"message": "Expected branch to be a function.\nCan not assign 4 to Any: Any.",
+					"message": "Expected branch to be a function.\nCan not assign 4 to Any :> Any.",
 					"startColumnIndex": 1,
 					"startRowIndex": 1,
 				},

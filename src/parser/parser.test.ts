@@ -1159,19 +1159,19 @@ const expectedResults: {
 		},
 		{
 			name: 'function-literal-return-type',
-			code: '(): () => ()',
+			code: '() :> () => ()',
 			result: (() => {
 				const functionLiteral: ParseFunctionLiteral = {
 					"body": [
 						{
-							"endColumnIndex": 12,
+							"endColumnIndex": 14,
 							"endRowIndex": 0,
-							"startColumnIndex": 10,
+							"startColumnIndex": 12,
 							"startRowIndex": 0,
 							"type": "empty",
 						},
 					],
-					"endColumnIndex": 12,
+					"endColumnIndex": 14,
 					"endRowIndex": 0,
 					"params": {
 						"endColumnIndex": 2,
@@ -1184,9 +1184,9 @@ const expectedResults: {
 						"type": "parameters",
 					},
 					"returnType": {
-						"endColumnIndex": 6,
+						"endColumnIndex": 8,
 						"endRowIndex": 0,
-						"startColumnIndex": 4,
+						"startColumnIndex": 6,
 						"startRowIndex": 0,
 						"type": "empty",
 					},
