@@ -1,17 +1,4 @@
 ?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
-?function ReturnType syntax
-	1. (paramName: ParamType): ReturnType
-	2. (paramName: ParamType):> ReturnType
-	3. (paramName: ParamType) :> ReturnType
-	1. (paramName: ParamType): ReturnType => returnValue
-	2. (paramName: ParamType):> ReturnType => returnValue
-	3. (paramName: ParamType) :> ReturnType => returnValue
-	1. ParamsType: ReturnType
-	2. ParamsType:> ReturnType
-	3. ParamsType :> ReturnType
-	1. ParamsType: ReturnType => returnValue
-	2. ParamsType:> ReturnType => returnValue
-	3. ParamsType :> ReturnType => returnValue
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
