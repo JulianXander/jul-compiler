@@ -182,7 +182,6 @@ const functionTokenParser = tokenParser(' =>');
 const definitionTokenParser = tokenParser(' = ');
 const typeGuardTokenParser = tokenParser(': ');
 const returnTypeTokenParser = tokenParser(' :> ');
-const fallbackTokenParser = tokenParser(' ?? ');
 
 //#endregion Tokens
 
@@ -484,15 +483,6 @@ function expressionParser(
 				endColumnIndex: parsed.endColumnIndex,
 			});
 		}
-		if (parsed.fallback) {
-			errors.push({
-				message: 'typeGuard not allowed for destructuring',
-				startRowIndex: parsed.fallback.startRowIndex,
-				startColumnIndex: parsed.fallback.startColumnIndex,
-				endRowIndex: parsed.fallback.endRowIndex,
-				endColumnIndex: parsed.fallback.endColumnIndex,
-			});
-		}
 		bracketedExpressionToDestructuringFields(baseName, errors);
 		const destructuring: ParseDestructuringDefinition = {
 			type: 'destructuring',
@@ -525,7 +515,6 @@ function expressionParser(
 			name: baseName.name,
 			typeGuard: parsed.typeGuard,
 			value: parsed.assignedValue,
-			fallback: parsed.fallback,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
@@ -565,15 +554,6 @@ function expressionParser(
 			startColumnIndex: parsed.startColumnIndex,
 			endRowIndex: parsed.endRowIndex,
 			endColumnIndex: parsed.endColumnIndex,
-		});
-	}
-	if (parsed.fallback) {
-		errors.push({
-			message: 'fallback not allowed for valueExpression',
-			startRowIndex: parsed.fallback.startRowIndex,
-			startColumnIndex: parsed.fallback.startColumnIndex,
-			endRowIndex: parsed.fallback.endRowIndex,
-			endColumnIndex: parsed.fallback.endColumnIndex,
 		});
 	}
 	if (baseName.type === 'bracketed') {
@@ -741,20 +721,6 @@ function fieldParser(
 				parser: emptyParser,
 			}
 		),
-		// fallback
-		discriminatedChoiceParser(
-			{
-				predicate: fallbackTokenParser,
-				parser: sequenceParser(
-					fallbackTokenParser,
-					valueExpressionParser,
-				),
-			},
-			{
-				predicate: emptyParser,
-				parser: emptyParser,
-			}
-		),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
@@ -765,7 +731,6 @@ function fieldParser(
 			typeGuard: result.parsed[2]?.[1],
 			definition: !!result.parsed[3],
 			assignedValue: result.parsed[3]?.[1][0],
-			fallback: result.parsed[4]?.[1],
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
@@ -1726,7 +1691,7 @@ function bracketedExpressionToDestructuringFields(
 			});
 		}
 		if (baseField.spread) {
-			// TODO spread ohne source, fallback, typeGuard?
+			// TODO spread ohne source, typeGuard?
 		}
 	});
 }
@@ -1768,7 +1733,6 @@ function bracketedExpressionToParameters(
 			name: checkedName,
 			typeGuard: baseField.typeGuard,
 			source: source,
-			fallback: baseField.fallback,
 			startRowIndex: baseField.startRowIndex,
 			startColumnIndex: baseField.startColumnIndex,
 			endRowIndex: baseField.endRowIndex,
@@ -1786,17 +1750,6 @@ function bracketedExpressionToParameters(
 				// TODO collect all errors before returning?
 				return bracketedExpression;
 			}
-			// TODO ?
-			// const fallback = field.fallback;
-			// if (fallback) {
-			// 	errors.push({
-			// 		message: 'fallback is not allowed for rest parameter.',
-			// 		startRowIndex: fallback.startRowIndex,
-			// 		startColumnIndex: fallback.startColumnIndex,
-			// 		endRowIndex: fallback.endRowIndex,
-			// 		endColumnIndex: fallback.endColumnIndex,
-			// 	});
-			// }
 			rest = parameterField;
 		}
 		else {
@@ -1839,9 +1792,7 @@ function bracketedExpressionToValueExpression(
 	}
 	const isList = baseFields.every(baseField =>
 		!baseField.typeGuard
-		&& !baseField.definition
-		// TODO ListLiteral mit Fallback?
-		&& !baseField.fallback)
+		&& !baseField.definition)
 		&& baseFields.some(baseField => !baseField.spread);
 	if (isList) {
 		const list: ParseListLiteral = {
@@ -1903,16 +1854,6 @@ function bracketedExpressionToValueExpression(
 							endColumnIndex: baseField.endColumnIndex,
 						});
 					}
-					const fallback = baseField.fallback;
-					if (fallback) {
-						errors.push({
-							message: `fallback is not allowed for spread dictionary field`,
-							startRowIndex: fallback.startRowIndex,
-							startColumnIndex: fallback.startColumnIndex,
-							endRowIndex: fallback.endRowIndex,
-							endColumnIndex: fallback.endColumnIndex,
-						});
-					}
 					const spreadDictionaryField: ParseSpreadValueExpression = {
 						type: 'spread',
 						value: baseName,
@@ -1942,7 +1883,6 @@ function bracketedExpressionToValueExpression(
 					name: name,
 					typeGuard: baseField.typeGuard,
 					value: baseField.assignedValue,
-					fallback: baseField.fallback,
 					startRowIndex: baseField.startRowIndex,
 					startColumnIndex: baseField.startColumnIndex,
 					endRowIndex: baseField.endRowIndex,
@@ -1966,8 +1906,7 @@ function bracketedExpressionToValueExpression(
 		return dictionary;
 	}
 	const isDictionaryType = baseFields.every(baseField =>
-		!baseField.definition
-		&& !baseField.fallback)
+		!baseField.definition)
 		&& baseFields.some(baseField => baseField.typeGuard);
 	if (isDictionaryType) {
 		const fields = mapNonEmpty(
@@ -1981,16 +1920,6 @@ function bracketedExpressionToValueExpression(
 						startColumnIndex: baseField.startColumnIndex,
 						endRowIndex: baseField.endRowIndex,
 						endColumnIndex: baseField.endColumnIndex,
-					});
-				}
-				const fallback = baseField.fallback;
-				if (fallback) {
-					errors.push({
-						message: `fallback is not allowed for dictionaryType field`,
-						startRowIndex: fallback.startRowIndex,
-						startColumnIndex: fallback.startColumnIndex,
-						endRowIndex: fallback.endRowIndex,
-						endColumnIndex: fallback.endColumnIndex,
 					});
 				}
 				const baseName = baseField.name;

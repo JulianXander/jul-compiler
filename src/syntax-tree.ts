@@ -124,7 +124,6 @@ export interface ParseSingleDefinition extends ParseExpressionBase {
 	 * undefined bei unvollständiger Expression
 	 */
 	value?: ParseValueExpression;
-	fallback?: ParseValueExpression;
 }
 
 export interface ParseDestructuringDefinition extends ParseExpressionBase {
@@ -206,7 +205,6 @@ export interface ParseSingleDictionaryField extends PositionedExpressionBase {
 	 * undefined bei unvollständiger Expression
 	 */
 	value?: ParseValueExpression;
-	fallback?: ParseValueExpression;
 }
 
 //#endregion Dictionary
@@ -315,7 +313,6 @@ export interface ParseFieldBase extends ParseExpressionBase {
 	 * source/assignedValue
 	 */
 	assignedValue?: ParseValueExpression;
-	fallback?: ParseValueExpression;
 }
 
 export interface ParseFunctionCall extends ParseExpressionBase {
@@ -347,7 +344,6 @@ export interface ParseFunctionLiteral extends ParseExpressionBase {
 export interface ParseParameterFields extends ParseExpressionBase {
 	type: 'parameters';
 	singleFields: ParseParameterField[];
-	// TODO rest ohne fallback?
 	rest?: ParseParameterField;
 	symbols: SymbolTable;
 }
@@ -358,7 +354,6 @@ export interface ParseParameterField extends ParseExpressionBase {
 	name: Name;
 	typeGuard?: ParseValueExpression;
 	source?: string;
-	fallback?: ParseValueExpression;
 	/**
 	 * Wird vom checker gesetzt.
 	 */

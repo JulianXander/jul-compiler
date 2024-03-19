@@ -668,7 +668,7 @@ function inferType(
 					const typeGuard = field.typeGuard;
 					if (typeGuard) {
 						setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
-						// TODO check value, check fallback?
+						// TODO check value?
 						const error = areArgsAssignableTo(undefined, dereferencedType, valueOf(typeGuard.inferredType));
 						if (error) {
 							errors.push({
@@ -693,9 +693,6 @@ function inferType(
 				}
 				switch (field.type) {
 					case 'singleDictionaryField': {
-						if (field.fallback) {
-							setInferredType(field.fallback, scopes, parsedDocuments, folder, file);
-						}
 						if (field.typeGuard) {
 							setInferredType(field.typeGuard, scopes, parsedDocuments, folder, file);
 						}
@@ -1107,9 +1104,6 @@ function inferType(
 			if (expression.typeGuard) {
 				setInferredType(expression.typeGuard, scopes, parsedDocuments, folder, file);
 			}
-			if (expression.fallback) {
-				setInferredType(expression.fallback, scopes, parsedDocuments, folder, file);
-			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
 			//#region infer argument type bei function literal welches inline argument eines function calls ist
 			const inferredTypeFromCall = expression.inferredTypeFromCall;
@@ -1133,7 +1127,6 @@ function inferType(
 				}
 			}
 			//#endregion
-			// TODO fallback berücksichtigen?
 			const inferredType = getValueWithFallback(dereferencedTypeFromCall, valueOf(expression.typeGuard?.inferredType));
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);

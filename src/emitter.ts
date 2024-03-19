@@ -86,7 +86,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
-				// TODO export, typeGuard, fallback
+				// TODO export, typeGuard
 				return getImportJs(`{${fields.map(field => {
 					const name = getCheckedName(field.name);
 					const nameJs = name && escapeReservedJsVariableName(name);
@@ -104,13 +104,12 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				return `let ${name && escapeReservedJsVariableName(name)};`;
 			}).join('\n');
 			const assignments = fields.map((singleName, index) => {
-				const { name, assignedValue, fallback, typeGuard } = singleName;
+				const { name, assignedValue, typeGuard } = singleName;
 				const checkedName = getCheckedName(name);
 				const checkedSource = (assignedValue && getCheckedName(assignedValue)) ?? checkedName;
 				const nameJs = checkedName && escapeReservedJsVariableName(checkedName);
 				const sourceJs = checkedSource && escapeReservedJsVariableName(checkedSource);
-				const fallbackJs = fallback ? ` ?? ${expressionToJs(fallback)}` : '';
-				const rawValue = `_isArray ? _temp[${index}] : _temp.${sourceJs}${fallbackJs}`;
+				const rawValue = `_isArray ? _temp[${index}] : _temp.${sourceJs}`;
 				const checkedValue = typeGuard
 					? `_checkType(${expressionToJs(typeGuard)}, ${rawValue})`
 					: rawValue;
