@@ -807,7 +807,6 @@ function inferType(
 							const innerParamsType = param.type.ParamsType;
 							if (arg.params.type === 'parameters') {
 								arg.params.singleFields.forEach((literalParam, literalParamIndex) => {
-									console.log(innerParamsType);
 									if (innerParamsType instanceof ParametersType) {
 										const innerParam = innerParamsType.singleNames[literalParamIndex];
 										literalParam.inferredTypeFromCall = innerParam?.type;
