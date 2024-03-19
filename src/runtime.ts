@@ -1513,7 +1513,7 @@ class Stream<T> {
 
 //#region create
 
-function _create$<T>(initialValue: T, valueType: RuntimeType): Stream<T> {
+function _create$<T>(valueType: RuntimeType, initialValue: T): Stream<T> {
 	const stream$: Stream<T> = new Stream(
 		() =>
 			stream$.lastValue as T,
@@ -1523,7 +1523,7 @@ function _create$<T>(initialValue: T, valueType: RuntimeType): Stream<T> {
 }
 
 function _completed$<T>(value: T): Stream<T> {
-	const $ = _create$(value, new TypeOfType(value));
+	const $ = _create$(new TypeOfType(value), value);
 	$.complete();
 	return $;
 }
@@ -1545,10 +1545,10 @@ function httpRequest$(
 ): Stream<null | string | Blob | Error> {
 	const abortController = new AbortController();
 	const response$ = _create$<null | string | Blob | Error>(
-		null,
 		responseType === 'text'
 			? httpTextResponseJulType
-			: httpBlobResponseJulType);
+			: httpBlobResponseJulType,
+		null);
 	response$.onCompleted(() => {
 		abortController.abort();
 	});
@@ -1982,7 +1982,7 @@ _createFunction(
 	}
 );
 export const timer$ = (delayMs: number): Stream<number> => {
-	const stream$ = _create$(1, Float);
+	const stream$ = _create$(Float, 1);
 	const cycle = () => {
 		setTimeout(() => {
 			if (stream$.completed) {
