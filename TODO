@@ -1,3 +1,4 @@
+-Fix TypeFunction vgl test1.jul
 ?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
 -debug experience vebessern
 	?sourcemap
