@@ -178,8 +178,8 @@ const nestedReferenceTokenParser = tokenParser('/');
 // SVO InfixFunctionCall
 const infixFunctionTokenParser = tokenParser('.');
 const branchingTokenParser = tokenParser(' ?');
-const functionTokenParser = tokenParser(' =>');
 const definitionTokenParser = tokenParser(' = ');
+const functionTokenParser = tokenParser(' =>');
 const typeGuardTokenParser = tokenParser(': ');
 const returnTypeTokenParser = tokenParser(' :> ');
 
