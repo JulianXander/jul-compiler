@@ -108,14 +108,12 @@ return a;
 		// 				{
 		// 					type: 'name',
 		// 					name: 'a',
-		// 					fallback: undefined,
 		// 					source: undefined,
 		// 					typeGuard: undefined,
 		// 				},
 		// 				{
 		// 					type: 'name',
 		// 					name: 'b',
-		// 					fallback: undefined,
 		// 					source: undefined,
 		// 					typeGuard: undefined,
 		// 				}
@@ -175,6 +173,13 @@ return a;
 		{
 			code: '(testVar) = import(§./some-file.jul§)',
 			result: 'export default import {testVar} from \'./some-file.js\';\n'
+		},
+		{
+			name: 'type-function',
+			code: 'Any => ()',
+			result: `export default _createFunction(() => {
+return null
+}, {type:Any})`,
 		},
 	];
 

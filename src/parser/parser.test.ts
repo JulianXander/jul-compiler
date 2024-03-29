@@ -126,7 +126,6 @@ const expectedResults: {
 		// 				endRowIndex: 2,
 		// 				endColumnIndex: 6,
 		// 			},
-		// 			fallback: undefined,
 		// 			startRowIndex: 2,
 		// 			startColumnIndex: 1,
 		// 			endRowIndex: 2,
@@ -198,7 +197,6 @@ const expectedResults: {
 					"description": " hallo",
 					"endColumnIndex": 12,
 					"endRowIndex": 2,
-					"fallback": undefined,
 					"name": {
 						"endColumnIndex": 8,
 						"endRowIndex": 2,
@@ -258,7 +256,6 @@ const expectedResults: {
 					"description": undefined,
 					"endColumnIndex": 14,
 					"endRowIndex": 1,
-					"fallback": undefined,
 					"name": {
 						"endColumnIndex": 10,
 						"endRowIndex": 1,
@@ -451,14 +448,12 @@ const expectedResults: {
 		// 					{
 		// 						type: 'name',
 		// 						name: 'var',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					},
 		// 					{
 		// 						type: 'name',
 		// 						name: 'var2',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					}
@@ -531,14 +526,12 @@ const expectedResults: {
 		// 					{
 		// 						type: 'name',
 		// 						name: 'a',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					},
 		// 					{
 		// 						type: 'name',
 		// 						name: 'b',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					}
@@ -572,14 +565,12 @@ const expectedResults: {
 		// 					{
 		// 						type: 'name',
 		// 						name: 'a',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					},
 		// 					{
 		// 						type: 'name',
 		// 						name: 'b',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					}
@@ -637,7 +628,6 @@ const expectedResults: {
 		// 							{
 		// 								type: 'name',
 		// 								name: 'a',
-		// 								fallback: undefined,
 		// 								source: undefined,
 		// 								typeGuard: undefined,
 		// 							},
@@ -666,7 +656,6 @@ const expectedResults: {
 		// 							{
 		// 								type: 'name',
 		// 								name: 'b',
-		// 								fallback: undefined,
 		// 								source: undefined,
 		// 								typeGuard: undefined,
 		// 							}
@@ -718,7 +707,6 @@ const expectedResults: {
 		// 							{
 		// 								type: 'name',
 		// 								name: 'a',
-		// 								fallback: undefined,
 		// 								source: undefined,
 		// 								typeGuard: undefined,
 		// 							},
@@ -747,7 +735,6 @@ const expectedResults: {
 		// 							{
 		// 								type: 'name',
 		// 								name: 'b',
-		// 								fallback: undefined,
 		// 								source: undefined,
 		// 								typeGuard: undefined,
 		// 							}
@@ -783,7 +770,6 @@ const expectedResults: {
 		// 					{
 		// 						type: 'name',
 		// 						name: 'a',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: {
 		// 							type: 'reference',
@@ -813,7 +799,6 @@ const expectedResults: {
 		// 					{
 		// 						type: 'name',
 		// 						name: 'a',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					},
@@ -842,7 +827,6 @@ const expectedResults: {
 		// 					{
 		// 						type: 'name',
 		// 						name: 'a',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					},
@@ -869,7 +853,6 @@ const expectedResults: {
 		// 					{
 		// 						type: 'name',
 		// 						name: 'a',
-		// 						fallback: undefined,
 		// 						source: undefined,
 		// 						typeGuard: undefined,
 		// 					},
@@ -901,7 +884,6 @@ const expectedResults: {
 		// 						singleNames: [{
 		// 							type: 'name',
 		// 							name: 'n',
-		// 							fallback: undefined,
 		// 							source: undefined,
 		// 							typeGuard: {
 		// 								type: 'number',
@@ -924,7 +906,6 @@ const expectedResults: {
 		// 						singleNames: [{
 		// 							type: 'name',
 		// 							name: 'n',
-		// 							fallback: undefined,
 		// 							source: undefined,
 		// 							typeGuard: {
 		// 								type: 'number',
@@ -947,7 +928,6 @@ const expectedResults: {
 		// 						singleNames: [{
 		// 							type: 'name',
 		// 							name: 'n',
-		// 							fallback: undefined,
 		// 							source: undefined,
 		// 							typeGuard: undefined,
 		// 						}],
@@ -1289,7 +1269,6 @@ const expectedResults: {
 							"description": undefined,
 							"endColumnIndex": 5,
 							"endRowIndex": 1,
-							"fallback": undefined,
 							"name": {
 								"endColumnIndex": 2,
 								"endRowIndex": 1,
