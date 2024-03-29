@@ -212,7 +212,12 @@ function isDictionary(value: any): value is Dictionary {
 		&& !Array.isArray(value);
 }
 
-function tryAssignArgs(params: Params, prefixArg: any, args: Collection | null, rawArgs: any): any[] | Error {
+function tryAssignArgs(
+	params: Params,
+	prefixArg: any,
+	args: Collection | null,
+	rawArgs: any,
+): any[] | Error {
 	const assignedValues: any[] = [];
 	const { type: paramsType, singleNames, rest } = params;
 	const hasPrefixArg = prefixArg !== undefined;
