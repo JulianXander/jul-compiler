@@ -972,9 +972,8 @@ function inferType(
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
 			setInferredType(params, functionScopes, parsedDocuments, folder, file);
-			const paramsType = params.inferredType!;
-			// TODO valueOf?
-			functionType.ParamsType = paramsType;
+			const paramsTypeValue = valueOf(params.inferredType);
+			functionType.ParamsType = paramsTypeValue;
 			//#region narrowed type symbol für branching
 			const branching = expression.parent;
 			if (branching?.type === 'branching') {
@@ -988,7 +987,7 @@ function inferType(
 							...branchedSymbol,
 							functionParameterIndex: undefined,
 							// TODO paramsType spreaden?
-							normalizedType: valueOf(paramsType),
+							normalizedType: paramsTypeValue,
 						};
 					}
 				}
@@ -1026,8 +1025,7 @@ function inferType(
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
 			setInferredType(params, functionScopes, parsedDocuments, folder, file);
-			// TODO valueOf bei non Parameters Type?
-			functionType.ParamsType = params.inferredType!;
+			functionType.ParamsType = valueOf(params.inferredType);
 			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file);
 			const inferredReturnType = expression.returnType.inferredType;
 			if (inferredReturnType === undefined) {
@@ -1294,6 +1292,8 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 					case 'nestedReference':
 						// TODO?
 						return type;
+					case 'parameters':
+						return type;
 					case 'parameterReference':
 						// TODO wo deref? wo Type => value auspacken?
 						return type;
@@ -1306,7 +1306,8 @@ function valueOf(type: RuntimeType | undefined): RuntimeType {
 						return type.value;
 					default:
 						// TODO error?
-						return Any;
+						// return Any;
+						return type;
 				}
 			}
 			// null/array/dictionary

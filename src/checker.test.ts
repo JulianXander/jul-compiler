@@ -222,6 +222,11 @@ a = 5`,
 				},
 			],
 		},
+		{
+			name: 'type-function',
+			code: `t = Any => ()
+t(1)`,
+		},
 	];
 
 describe('Checker', () => {
