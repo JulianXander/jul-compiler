@@ -140,7 +140,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						return isOfTupleType(value, builtInType.ElementTypes);
 					case 'stream':
 						// TODO check value type
-						return value instanceof Stream;
+						return value instanceof StreamClass;
 					case 'function':
 						// TODO check returntype/paramstype
 						return typeof value === 'function';
@@ -324,7 +324,7 @@ export function deepEquals(value1: any, value2: any): boolean {
 			if (value1 === null || value2 === null) {
 				return value1 === value2;
 			}
-			else if (value1 instanceof Stream || value2 instanceof Stream) {
+			else if (value1 instanceof StreamClass || value2 instanceof StreamClass) {
 				return value1 === value2;
 			}
 			else if (Array.isArray(value1) || Array.isArray(value2)) {
@@ -935,7 +935,19 @@ _createFunction(
 		]
 	}
 );
-// TODO Stream
+export const Stream = (ValueType: RuntimeType) =>
+	new StreamType(ValueType);
+_createFunction(
+	Stream,
+	{
+		singleNames: [
+			{
+				name: 'ValueType',
+				type: Type,
+			},
+		]
+	}
+);
 //#endregion Types
 //#region Functions
 //#region Any
@@ -1487,7 +1499,7 @@ _createFunction(
 //#region helper
 type Listener<T> = (value: T) => void;
 
-class Stream<T> {
+class StreamClass<T> {
 	constructor(
 		/**
 		 * Aktualisiert diesen Stream und alle Dependencies und benachrichtigt Subscriber.
@@ -1569,8 +1581,8 @@ class Stream<T> {
 
 //#region create
 
-function _create$<T>(valueType: RuntimeType, initialValue: T): Stream<T> {
-	const stream$: Stream<T> = new Stream(
+function _create$<T>(valueType: RuntimeType, initialValue: T): StreamClass<T> {
+	const stream$: StreamClass<T> = new StreamClass(
 		() =>
 			stream$.lastValue as T,
 		valueType);
@@ -1578,7 +1590,7 @@ function _create$<T>(valueType: RuntimeType, initialValue: T): Stream<T> {
 	return stream$;
 }
 
-function _completed$<T>(value: T): Stream<T> {
+function _completed$<T>(value: T): StreamClass<T> {
 	const $ = _create$(new TypeOfType(value), value);
 	$.complete();
 	return $;
@@ -1598,7 +1610,7 @@ function httpRequest$(
 	headers: { [key: string]: string; } | null,
 	body: any,
 	responseType: HttpResponseType,
-): Stream<null | string | Blob | Error> {
+): StreamClass<null | string | Blob | Error> {
 	const abortController = new AbortController();
 	const response$ = _create$<null | string | Blob | Error>(
 		responseType === 'text'
@@ -1647,8 +1659,8 @@ function httpRequest$(
 
 //#region transform
 
-function createDerived$<T>(getValue: () => T, valueType: RuntimeType): Stream<T> {
-	const derived$: Stream<T> = new Stream(
+function createDerived$<T>(getValue: () => T, valueType: RuntimeType): StreamClass<T> {
+	const derived$: StreamClass<T> = new StreamClass(
 		() => {
 			if (processId === derived$.lastProcessId
 				|| derived$.completed) {
@@ -1661,12 +1673,12 @@ function createDerived$<T>(getValue: () => T, valueType: RuntimeType): Stream<T>
 }
 
 function _map$<TSource, TTarget>(
-	source$: Stream<TSource>,
+	source$: StreamClass<TSource>,
 	mapFunction: (value: TSource) => TTarget,
 	mappedType: RuntimeType,
-): Stream<TTarget> {
+): StreamClass<TTarget> {
 	let lastSourceValue: TSource;
-	const mapped$: Stream<TTarget> = createDerived$(
+	const mapped$: StreamClass<TTarget> = createDerived$(
 		() => {
 			const currentSourceValue = source$.getValue();
 			if (deepEquals(currentSourceValue, lastSourceValue)) {
@@ -1693,9 +1705,9 @@ function _map$<TSource, TTarget>(
 }
 
 function _combine$<T>(
-	...source$s: Stream<T>[]
-): Stream<T[]> {
-	const combined$: Stream<T[]> = createDerived$(
+	...source$s: StreamClass<T>[]
+): StreamClass<T[]> {
+	const combined$: StreamClass<T[]> = createDerived$(
 		() => {
 			const lastValues = combined$.lastValue!;
 			const currentValues = source$s.map(source$ =>
@@ -1729,7 +1741,7 @@ function _combine$<T>(
 }
 
 // TODO testen
-function takeUntil$<T>(source$: Stream<T>, completed$: Stream<any>): Stream<T> {
+function takeUntil$<T>(source$: StreamClass<T>, completed$: StreamClass<any>): StreamClass<T> {
 	const mapped$ = _map$(source$, x => x, source$.ValueType);
 	const unsubscribeCompleted = completed$.subscribe(
 		() => {
@@ -1745,10 +1757,10 @@ function takeUntil$<T>(source$: Stream<T>, completed$: Stream<any>): Stream<T> {
 	return mapped$;
 }
 
-function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
-	const inner$s: Stream<T>[] = [];
+function flatMerge$<T>(source$$: StreamClass<StreamClass<T>>): StreamClass<T> {
+	const inner$s: StreamClass<T>[] = [];
 	const unsubscribeInners: (() => void)[] = [];
-	const flat$: Stream<T> = createDerived$(
+	const flat$: StreamClass<T> = createDerived$(
 		() => {
 			const lastValue = flat$.lastValue!;
 			const currentValue = source$$.getValue().getValue();
@@ -1788,9 +1800,9 @@ function flatMerge$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 	return flat$;
 }
 
-function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
+function flatSwitch$<T>(source$$: StreamClass<StreamClass<T>>): StreamClass<T> {
 	let unsubscribeInner: () => void;
-	const flat$: Stream<T> = createDerived$(
+	const flat$: StreamClass<T> = createDerived$(
 		() => {
 			const lastValue = flat$.lastValue!;
 			const currentValue = source$$.getValue().getValue();
@@ -1825,10 +1837,10 @@ function flatSwitch$<T>(source$$: Stream<Stream<T>>): Stream<T> {
 }
 
 function flatMap$<T, U>(
-	source$: Stream<T>,
-	transform$: (value: T) => Stream<U>,
+	source$: StreamClass<T>,
+	transform$: (value: T) => StreamClass<U>,
 	merge: boolean,
-): Stream<U> {
+): StreamClass<U> {
 	const mapped$ = _map$(
 		source$,
 		transform$,
@@ -1845,10 +1857,10 @@ function flatMap$<T, U>(
 
 // TODO testen
 function accumulate$<TSource, TAccumulated>(
-	source$: Stream<TSource>,
+	source$: StreamClass<TSource>,
 	initialAccumulator: TAccumulated,
 	accumulate: (previousAccumulator: TAccumulated, value: TSource) => TAccumulated,
-): Stream<TAccumulated> {
+): StreamClass<TAccumulated> {
 	const mapped$ = _map$(
 		source$,
 		value => {
@@ -1866,10 +1878,10 @@ function accumulate$<TSource, TAccumulated>(
 }
 
 function retry$<T>(
-	method$: () => Stream<T | Error>,
+	method$: () => StreamClass<T | Error>,
 	maxAttepmts: number,
 	currentAttempt: number = 1,
-): Stream<T | Error> {
+): StreamClass<T | Error> {
 	if (currentAttempt === maxAttepmts) {
 		return method$();
 	}
@@ -1891,7 +1903,7 @@ function retry$<T>(
 //#endregion transform
 //#endregion helper
 //#region core
-export const complete = (stream$: Stream<any>) => {
+export const complete = (stream$: StreamClass<any>) => {
 	stream$.complete();
 	return null;
 };
@@ -1906,7 +1918,7 @@ _createFunction(
 		]
 	}
 );
-export const push = (stream$: Stream<any>, value: any) => {
+export const push = (stream$: StreamClass<any>, value: any) => {
 	processId++;
 	stream$.push(value, processId);
 	return null;
@@ -1926,7 +1938,7 @@ _createFunction(
 		]
 	}
 );
-export const subscribe = (stream$: Stream<any>, listener: JulFunction) => {
+export const subscribe = (stream$: StreamClass<any>, listener: JulFunction) => {
 	const listenerFunction: Listener<any> = (value: any) => {
 		_callFunction(listener, undefined, [value]);
 	};
@@ -2037,7 +2049,7 @@ _createFunction(
 		]
 	}
 );
-export const timer$ = (delayMs: number): Stream<number> => {
+export const timer$ = (delayMs: number): StreamClass<number> => {
 	const stream$ = _create$(Float, 1);
 	const cycle = () => {
 		setTimeout(() => {
@@ -2063,7 +2075,7 @@ _createFunction(
 );
 //#endregion create
 //#region transform
-export const map$ = <T, U>(source$: Stream<T>, transform$: (value: T) => U) => {
+export const map$ = <T, U>(source$: StreamClass<T>, transform$: (value: T) => U) => {
 	// TODO get ReturnType from JulFunction transForm$
 	return _map$(source$, transform$, Any);
 };
@@ -2083,7 +2095,7 @@ _createFunction(
 		]
 	}
 );
-export const flatMergeMap$ = <T, U>(source$: Stream<T>, transform$: (value: T) => Stream<U>) => {
+export const flatMergeMap$ = <T, U>(source$: StreamClass<T>, transform$: (value: T) => StreamClass<U>) => {
 	return flatMap$(source$, transform$, true);
 };
 _createFunction(
@@ -2102,7 +2114,7 @@ _createFunction(
 		]
 	}
 );
-export const flatSwitchMap$ = <T, U>(source$: Stream<T>, transform$: (value: T) => Stream<U>) => {
+export const flatSwitchMap$ = <T, U>(source$: StreamClass<T>, transform$: (value: T) => StreamClass<U>) => {
 	return flatMap$(source$, transform$, false);
 };
 _createFunction(
