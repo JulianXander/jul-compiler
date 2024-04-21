@@ -880,7 +880,16 @@ _createFunction(
 		]
 	}
 );
-// TODO And
+export const And = (...args: RuntimeType[]) =>
+	new IntersectionType(args);
+_createFunction(
+	And,
+	{
+		rest: {
+			type: new ListType(Type)
+		}
+	}
+);
 export const Or = (...args: RuntimeType[]) =>
 	new UnionType(args);
 _createFunction(
