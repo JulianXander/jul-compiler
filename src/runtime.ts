@@ -197,7 +197,7 @@ function isOfTupleType(value: any, elementTypes: RuntimeType[]): boolean {
 			isOfType(value[index] ?? null, elementType));
 }
 
-function isOfDictionaryLiteralType(value: any, fieldTypes: Dictionary): boolean {
+function isOfDictionaryLiteralType(value: any, fieldTypes: RuntimeDictionary): boolean {
 	if (!isDictionary(value)) {
 		return false;
 	}
@@ -217,7 +217,7 @@ function isRealObject(value: any): value is Collection {
 }
 
 // TODO check empty prototype?
-function isDictionary(value: any): value is Dictionary {
+function isDictionary(value: any): value is RuntimeDictionary {
 	return isRealObject(value)
 		&& !(value instanceof BuiltInTypeBase)
 		&& !(value instanceof Error)
@@ -367,11 +367,11 @@ export type Primitive =
 	| string
 	;
 
-export interface Dictionary { [key: string]: RuntimeType; }
+export interface RuntimeDictionary { [key: string]: RuntimeType; }
 
 export type Collection =
 	| RuntimeType[]
-	| Dictionary
+	| RuntimeDictionary
 	;
 
 export type RuntimeType =
@@ -471,7 +471,7 @@ export class DictionaryType extends BuiltInTypeBase {
 
 // TODO rename to _DictionaryLiteralType or split builtin exports to other file or importLine contain only builtins?
 export class DictionaryLiteralType extends BuiltInTypeBase {
-	constructor(public Fields: Dictionary) { super(); }
+	constructor(public Fields: RuntimeDictionary) { super(); }
 	readonly type = 'dictionaryLiteral';
 }
 
@@ -867,6 +867,45 @@ function _toJson(value: RuntimeType): string | Error {
 //#region Types
 export const Any = new AnyType();
 export const Type = new TypeType();
+export const List = (ElementType: RuntimeType) =>
+	new ListType(ElementType);
+_createFunction(
+	List,
+	{
+		singleNames: [
+			{
+				name: 'ElementType',
+				type: Type,
+			},
+		]
+	}
+);
+// TODO And
+export const Or = (...args: RuntimeType[]) =>
+	new UnionType(args);
+_createFunction(
+	Or,
+	{
+		rest: {
+			type: new ListType(Type)
+		}
+	}
+);
+// TODO Not, Without
+export const TypeOf = (value: any) => {
+	return new TypeOfType(value);
+};
+_createFunction(
+	TypeOf,
+	{
+		singleNames: [
+			{
+				name: 'value',
+			},
+		]
+	}
+);
+// TODO ValueOf
 export const _Boolean = new BooleanType();
 //#region Number
 export const Float = new FloatType();
@@ -883,10 +922,10 @@ export const _Text = new TextType();
 export const _Date = new DateType();
 export const _Blob = new BlobType();
 export const _Error = new ErrorType();
-export const List = (ElementType: RuntimeType) =>
-	new ListType(ElementType);
+export const Dictionary = (ElementType: RuntimeType) =>
+	new DictionaryType(ElementType);
 _createFunction(
-	List,
+	Dictionary,
 	{
 		singleNames: [
 			{
@@ -896,30 +935,7 @@ _createFunction(
 		]
 	}
 );
-export const Or = (...args: RuntimeType[]) =>
-	new UnionType(args);
-_createFunction(
-	Or,
-	{
-		rest: {
-			type: new ListType(Type)
-		}
-	}
-);
-export const TypeOf = (value: any) => {
-	return new TypeOfType(value);
-};
-_createFunction(
-	TypeOf,
-	{
-		singleNames: [
-			{
-				name: 'value',
-			},
-		]
-	}
-);
-// TODO Not, Without, ValueOf
+// TODO Stream
 //#endregion Types
 //#region Functions
 //#region Any

@@ -1,3 +1,5 @@
+-autoComplete bei Dictionary(DictionaryLiteralType), vgl test1.jul
+-typeInference für filterMap verbessern mit mapped List type
 ?tuple builtInType vs type Array, DictionaryLiteralType vs type Dictionary
 ?CompileTimeType, runtime.ts bereinigen: ParameterReference, NestedReference, ParametersType verschieben nach syntax-tree.ts
 -debug experience vebessern

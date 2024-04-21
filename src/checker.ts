@@ -25,7 +25,7 @@ import {
 	deepEquals,
 	DictionaryType,
 	_Date,
-	Dictionary,
+	RuntimeDictionary,
 	_optionalType,
 	NestedReference
 } from './runtime.js';
@@ -1776,7 +1776,7 @@ function getTupleTypeError2(
 function getDictionaryLiteralTypeError(
 	prefixArgumentType: undefined | RuntimeType,
 	argumentsType: RuntimeType,
-	targetFieldTypes: Dictionary,
+	targetFieldTypes: RuntimeDictionary,
 ): TypeError | true | undefined {
 	if (typeof argumentsType !== 'object') {
 		// TODO type specific error?
