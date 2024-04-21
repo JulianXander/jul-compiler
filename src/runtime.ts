@@ -900,7 +900,20 @@ _createFunction(
 		}
 	}
 );
-// TODO Not, Without
+export const Not = (T: RuntimeType[]) =>
+	new ComplementType(T);
+_createFunction(
+	Not,
+	{
+		singleNames: [
+			{
+				name: 'T',
+				type: Type,
+			},
+		]
+	}
+);
+// TODO Without
 export const TypeOf = (value: any) => {
 	return new TypeOfType(value);
 };
