@@ -91,6 +91,12 @@ function isOfType(value: any, type: RuntimeType): boolean {
 		case 'string':
 			return value === type;
 		case 'object': {
+			if (type === null) {
+				return value === null;
+			}
+			if (Array.isArray(type)) {
+				return isOfTupleType(value, type);
+			}
 			if (type instanceof BuiltInTypeBase) {
 				const builtInType = type as BuiltInType;
 				switch (builtInType.type) {
@@ -123,30 +129,15 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						}
 						return true;
 					}
-					case 'dictionaryLiteral': {
-						if (!isDictionary(value)) {
-							return false;
-						}
-						const fieldTypes = builtInType.Fields;
-						for (const key in fieldTypes) {
-							const elementValue = value[key] ?? null;
-							const elementType = fieldTypes[key]!;
-							if (!isOfType(elementValue, elementType)) {
-								return false;
-							}
-						}
-						return true;
-					}
+					case 'dictionaryLiteral':
+						return isOfDictionaryLiteralType(value, builtInType.Fields);
 					case 'list':
-						// TODO check array not empty?
 						return Array.isArray(value)
+							&& value.length > 0
 							&& value.every(element =>
 								isOfType(element, builtInType.ElementType));
 					case 'tuple':
-						return Array.isArray(value)
-							&& value.length <= builtInType.ElementTypes.length
-							&& builtInType.ElementTypes.every((elementType, index) =>
-								isOfType(value[index] ?? null, elementType));
+						return isOfTupleType(value, builtInType.ElementTypes);
 					case 'stream':
 						// TODO check value type
 						return value instanceof Stream;
@@ -187,8 +178,8 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					}
 				}
 			}
-			// null/Dictionary/Array
-			return deepEquals(value, type);
+			// Dictionary
+			return isOfDictionaryLiteralType(value, type);
 		}
 		case 'function':
 			return type(value);
@@ -197,6 +188,27 @@ function isOfType(value: any, type: RuntimeType): boolean {
 			throw new Error(`Unexpected type ${typeof assertNever}`);
 		}
 	}
+}
+
+function isOfTupleType(value: any, elementTypes: RuntimeType[]): boolean {
+	return Array.isArray(value)
+		&& value.length >= elementTypes.length
+		&& elementTypes.every((elementType, index) =>
+			isOfType(value[index] ?? null, elementType));
+}
+
+function isOfDictionaryLiteralType(value: any, fieldTypes: Dictionary): boolean {
+	if (!isDictionary(value)) {
+		return false;
+	}
+	for (const key in fieldTypes) {
+		const elementValue = value[key] ?? null;
+		const elementType = fieldTypes[key]!;
+		if (!isOfType(elementValue, elementType)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function isRealObject(value: any): value is Collection {
@@ -459,7 +471,7 @@ export class DictionaryType extends BuiltInTypeBase {
 
 // TODO rename to _DictionaryLiteralType or split builtin exports to other file or importLine contain only builtins?
 export class DictionaryLiteralType extends BuiltInTypeBase {
-	constructor(public Fields: { [key: string]: RuntimeType; }) { super(); }
+	constructor(public Fields: Dictionary) { super(); }
 	readonly type = 'dictionaryLiteral';
 }
 
