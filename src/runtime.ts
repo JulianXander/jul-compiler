@@ -1460,6 +1460,29 @@ _createFunction(
 	}
 );
 //#endregion List
+//#region Dictionary
+export const getFieldValue = <T>(
+	dictionary: { [key: string]: T; },
+	key: string,
+): T | null => {
+	return dictionary[key] ?? null;
+};
+_createFunction(
+	getFieldValue,
+	{
+		singleNames: [
+			{
+				name: 'dictionary',
+				type: new DictionaryType(Any)
+			},
+			{
+				name: 'key',
+				type: _Text
+			},
+		]
+	}
+);
+//#endregion Dictionary
 //#region Stream
 //#region helper
 type Listener<T> = (value: T) => void;

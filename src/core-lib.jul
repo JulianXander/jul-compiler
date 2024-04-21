@@ -293,7 +293,7 @@ filterMap = nativeFunction(
 		) :> Any
 	) :> Or(() List(Any))
 	# TODO
-	# ) :> List(Without(TypeOf(callback)/ReturnType ()))
+	# ) :> Or(() List(Without(TypeOf(callback)/ReturnType ())))
 	§TODO§
 )
 forEach = nativeFunction(
@@ -310,6 +310,16 @@ forEach = nativeFunction(
 	§TODO§
 )
 #endregion List
+#region Dictionary
+getFieldValue = nativeFunction(
+	(
+		dictionary: Dictionary(Any)
+		key: Text
+	) :> Any
+	# TODO Or(() TypeOf(dictionary)/ElementType)
+	§TODO§
+)
+#endregion Dictionary
 #region Stream
 #region core
 # Beendet den Stream.
