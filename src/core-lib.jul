@@ -323,7 +323,7 @@ getField = nativeFunction(
 # Creates a new Dictionary without mutating the given dictionary
 setField = nativeFunction(
 	(
-		dictionary: Dictionary(Any)
+		dictionary: Or(() Dictionary(Any))
 		key: Text
 		value: Any
 	) :> Dictionary(Any)

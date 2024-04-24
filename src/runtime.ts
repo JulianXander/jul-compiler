@@ -1517,7 +1517,7 @@ _createFunction(
 	}
 );
 export const setField = <T>(
-	dictionary: { [key: string]: T; },
+	dictionary: { [key: string]: T; } | null,
 	key: string,
 	value: T,
 ): { [key: string]: T; } => {
