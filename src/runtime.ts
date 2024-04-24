@@ -1532,7 +1532,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'dictionary',
-				type: new DictionaryType(Any)
+				type: _optionalType(new DictionaryType(Any))
 			},
 			{
 				name: 'key',
