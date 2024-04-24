@@ -1538,6 +1538,9 @@ _createFunction(
 				name: 'key',
 				type: _Text
 			},
+			{
+				name: 'value',
+			},
 		]
 	}
 );
