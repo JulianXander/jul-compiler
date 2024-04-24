@@ -311,12 +311,22 @@ forEach = nativeFunction(
 )
 #endregion List
 #region Dictionary
-getFieldValue = nativeFunction(
+# Returns the value of the field
+getField = nativeFunction(
 	(
 		dictionary: Dictionary(Any)
 		key: Text
 	) :> Any
 	# TODO Or(() TypeOf(dictionary)/ElementType)
+	§TODO§
+)
+# Creates a new Dictionary without mutating the given dictionary
+setField = nativeFunction(
+	(
+		dictionary: Dictionary(Any)
+		key: Text
+		value: Any
+	) :> Dictionary(Any)
 	§TODO§
 )
 #endregion Dictionary

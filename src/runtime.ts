@@ -1495,14 +1495,39 @@ _createFunction(
 );
 //#endregion List
 //#region Dictionary
-export const getFieldValue = <T>(
+export const getField = <T>(
 	dictionary: { [key: string]: T; },
 	key: string,
 ): T | null => {
 	return dictionary[key] ?? null;
 };
 _createFunction(
-	getFieldValue,
+	getField,
+	{
+		singleNames: [
+			{
+				name: 'dictionary',
+				type: new DictionaryType(Any)
+			},
+			{
+				name: 'key',
+				type: _Text
+			},
+		]
+	}
+);
+export const setField = <T>(
+	dictionary: { [key: string]: T; },
+	key: string,
+	value: T,
+): { [key: string]: T; } => {
+	return {
+		...dictionary,
+		[key]: value,
+	};
+};
+_createFunction(
+	setField,
 	{
 		singleNames: [
 			{
