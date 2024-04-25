@@ -467,6 +467,15 @@ combine$ = nativeFunction(
 	) :> Stream(Or(() List(Any)))
 	§TODO§
 )
+# Liefert die nächsten count Wertänderungen.
+# Beginnt mit dem aktuellen Wert von source$.
+take$ = nativeFunction(
+	(
+		source$: Stream(Any)
+		count: NonZeroInteger
+	) :> Stream(source$/ValueType)
+	§TODO§
+)
 #endregion transform
 #endregion Stream
 #region Utility

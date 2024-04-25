@@ -1709,6 +1709,7 @@ function httpRequest$(
 
 //#region transform
 
+// TODO warum?
 function createDerived$<T>(getValue: () => T, valueType: RuntimeType): StreamClass<T> {
 	const derived$: StreamClass<T> = new StreamClass(
 		() => {
@@ -1788,6 +1789,25 @@ function _combine$<T>(
 		});
 	});
 	return combined$;
+}
+
+function _take$<T>(source$: StreamClass<T>, count: bigint): StreamClass<T> {
+	let counter = 0n;
+	const mapped$ = _create$<T>(source$.ValueType, source$.lastValue!);
+	const unsubscribe = source$.subscribe(
+		(value) => {
+			mapped$.push(value, processId);
+			counter++;
+			if (counter === count) {
+				unsubscribe();
+				mapped$.complete();
+			}
+		},
+		false);
+	source$.onCompleted(() => {
+		mapped$.complete();
+	});
+	return mapped$;
 }
 
 // TODO testen
@@ -2189,6 +2209,21 @@ export const combine$ = _createFunction(
 		rest: {
 			type: _optionalType(new ListType(new StreamType(Any)))
 		}
+	}
+);
+export const take$ = _createFunction(
+	_take$,
+	{
+		singleNames: [
+			{
+				name: 'source$',
+				type: new StreamType(Any)
+			},
+			{
+				name: 'count',
+				type: NonZeroInteger
+			}
+		]
 	}
 );
 //#endregion transform
