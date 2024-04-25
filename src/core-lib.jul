@@ -270,7 +270,7 @@ length = nativeFunction(
 	§TODO§
 )
 # TODO conditional return type, sodass null nur geliefert wird, wenn index > values.Length
-elementAt = nativeFunction(
+getElement = nativeFunction(
 	(
 		values: List(Any)
 		# 1 basiert
@@ -278,6 +278,17 @@ elementAt = nativeFunction(
 		index: NonZeroInteger
 	) :> Any
 	# TODO Or(() TypeOf(values)/ElementType)
+	§TODO§
+)
+# Creates a new List without mutating the given List
+setElement = nativeFunction(
+	(
+		values: Or(() List(Any))
+		# 1 basiert
+		# TODO positive
+		index: NonZeroInteger
+		value: Any
+	) :> List(Any)
 	§TODO§
 )
 # filtert empty Werte raus

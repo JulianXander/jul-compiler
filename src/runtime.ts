@@ -1415,14 +1415,14 @@ _createFunction(
 		]
 	}
 );
-export const elementAt = <T>(
+export const getElement = <T>(
 	values: T[],
 	index: bigint,
 ): T | null => {
 	return values[Number(index) - 1] ?? null;
 };
 _createFunction(
-	elementAt,
+	getElement,
 	{
 		singleNames: [
 			{
@@ -1432,6 +1432,35 @@ _createFunction(
 			{
 				name: 'index',
 				type: NonZeroInteger
+			},
+		]
+	}
+);
+export const setElement = <T>(
+	values: T[] | null,
+	index: bigint,
+	value: T,
+): T[] => {
+	const copy = values
+		? [...values]
+		: [];
+	copy[Number(index) - 1] = value;
+	return copy;
+};
+_createFunction(
+	getElement,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: _optionalType(new ListType(Any))
+			},
+			{
+				name: 'index',
+				type: NonZeroInteger
+			},
+			{
+				name: 'value',
 			},
 		]
 	}
