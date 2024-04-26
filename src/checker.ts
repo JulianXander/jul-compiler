@@ -686,6 +686,7 @@ function inferType(
 		}
 		case 'dictionary': {
 			const fieldTypes: { [key: string]: RuntimeType; } = {};
+			let isUnknownType = false;
 			expression.fields.forEach(field => {
 				const value = field.value;
 				if (value) {
@@ -710,7 +711,17 @@ function inferType(
 						return;
 					}
 					case 'spread':
-						// TODO spread fields flach machen
+						const valueType = value?.inferredType;
+						// TODO DictionaryType, ChoiceType etc ?
+						if (valueType instanceof DictionaryLiteralType) {
+							const valueFieldTypes = valueType.Fields;
+							for (const key in valueType.Fields) {
+								fieldTypes[key] = valueFieldTypes[key]!;
+							}
+						}
+						else {
+							isUnknownType = true;
+						}
 						return;
 					default: {
 						const assertNever: never = field;
@@ -718,6 +729,9 @@ function inferType(
 					}
 				}
 			});
+			if (isUnknownType) {
+				return Any;
+			}
 			return new DictionaryLiteralType(fieldTypes);
 		}
 		case 'dictionaryType': {
