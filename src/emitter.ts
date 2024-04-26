@@ -216,14 +216,14 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			}
 			switch (nestedKey.type) {
 				case 'index':
-					return `${expressionToJs(expression.source)}?.[${nestedKey.name} - 1]`;
+					return `(${expressionToJs(expression.source)}?.[${nestedKey.name} - 1] ?? null)`;
 				case 'name':
 				case 'text':
 					const field = getCheckedEscapableName(nestedKey);
 					if (!field) {
 						throw new Error(`Invalid field.`);
 					}
-					return `${expressionToJs(expression.source)}?.[${stringToJs(field)}]`;
+					return `(${expressionToJs(expression.source)}?.[${stringToJs(field)}] ?? null)`;
 				default: {
 					const assertNever: never = nestedKey;
 					throw new Error(`Unexpected nestedKey.type ${(assertNever as ParseExpression).type}`);
