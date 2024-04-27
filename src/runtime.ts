@@ -1499,6 +1499,28 @@ _createFunction(
 		]
 	}
 );
+export const findElement = <T>(
+	values: T[] | null,
+	predicate: (value: T) => boolean,
+): T | null => {
+	return values?.find(predicate) ?? null;
+};
+_createFunction(
+	findElement,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: _optionalType(new ListType(Any))
+			},
+			{
+				name: 'callback',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['Function'] }
+			},
+		]
+	}
+);
 export const forEach = (
 	values: any[],
 	callback: (value: any) => void,

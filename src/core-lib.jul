@@ -307,6 +307,22 @@ filterMap = nativeFunction(
 	# ) :> Or(() List(Without(TypeOf(callback)/ReturnType ())))
 	§TODO§
 )
+# Liefert das erste Element, für das predicate true liefert.
+findElement = nativeFunction(
+	(
+		values: Or(() List(Any))
+		predicate: (
+			value: Any
+			# TODO
+			# value: TypeOf(values)/ElementType
+			# TODO Integer vs FloatInteger
+			# index: Integer
+		) :> Boolean
+	) :> Any
+	# TODO
+	# ) :> Or(() values/ElementType)
+	§TODO§
+)
 forEach = nativeFunction(
 	(
 		values: List(Any)
