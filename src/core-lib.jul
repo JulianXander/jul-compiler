@@ -112,6 +112,18 @@ equal = nativeFunction(
 	§(first, second) => first === second§
 )
 #endregion Any
+#region Boolean
+# Liefert true, wenn alle args true sind
+and = nativeFunction(
+	(...args: List(Boolean)) :> Boolean
+	§TODO§
+)
+# Liefert true, wenn mindestens ein arg true ist
+or = nativeFunction(
+	(...args: List(Boolean)) :> Boolean
+	§TODO§
+)
+#endregion Boolean
 #region Number
 #region arithmetic
 # Liefert die Summe der args.
@@ -334,6 +346,20 @@ forEach = nativeFunction(
 			# index: Integer
 		) :> Any
 	) :> ()
+	§TODO§
+)
+# Liefert true, falls predicate für einen value true liefert.
+contains = nativeFunction(
+	(
+		values: List(Any)
+		predicate: (
+			value: Any
+			# TODO
+			# value: TypeOf(values)/ElementType
+			# TODO Integer vs FloatInteger
+			# index: Integer
+		) :> Any
+	) :> Boolean
 	§TODO§
 )
 #endregion List

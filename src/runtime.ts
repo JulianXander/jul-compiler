@@ -989,6 +989,28 @@ _createFunction(
 	}
 );
 //#endregion Any
+//#region Boolean
+export const and = (...args: boolean[]): boolean =>
+	!args.includes(false);
+_createFunction(
+	and,
+	{
+		rest: {
+			type: new ListType(_Boolean)
+		}
+	}
+);
+export const or = (...args: boolean[]): boolean =>
+	args.includes(true);
+_createFunction(
+	or,
+	{
+		rest: {
+			type: new ListType(_Boolean)
+		}
+	}
+);
+//#endregion Boolean
 //#region Number
 export const divideFloat = (dividend: number, divisor: number) =>
 	dividend / divisor;
@@ -1538,6 +1560,28 @@ _createFunction(
 			},
 			{
 				name: 'callback',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['Function'] }
+			},
+		]
+	}
+);
+export const contains = <T>(
+	values: T[],
+	predicate: (value: T) => boolean,
+): boolean => {
+	return values.some(predicate);
+};
+_createFunction(
+	contains,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: new ListType(Any)
+			},
+			{
+				name: 'predicate',
 				// TODO
 				// typeGuard: { type: 'reference', names: ['Function'] }
 			},
