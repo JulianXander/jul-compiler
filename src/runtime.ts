@@ -1060,6 +1060,16 @@ _createFunction(
 		]
 	}
 );
+export const maxFloat = (...args: number[]) =>
+	Math.max(...args);
+_createFunction(
+	maxFloat,
+	{
+		rest: {
+			type: new ListType(Float)
+		}
+	}
+);
 // TODO moduloFloat
 export const modulo = (dividend: bigint, divisor: bigint) =>
 	dividend % divisor;
