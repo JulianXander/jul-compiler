@@ -239,6 +239,8 @@ function dereferenceNameFromObject(
 			case 'dictionaryLiteral':
 				return sourceObjectType.Fields[name];
 			case 'dictionary':
+				// TODO Or(() sourceObjectType.ElementType)
+				// ? oder nur ElementType liefern, wenn name = 'ElementType'
 				return sourceObjectType.ElementType;
 			case 'function':
 				switch (name) {
@@ -246,6 +248,13 @@ function dereferenceNameFromObject(
 						return sourceObjectType.ParamsType;
 					case 'ReturnType':
 						return sourceObjectType.ReturnType;
+					default:
+						return undefined;
+				}
+			case 'list':
+				switch (name) {
+					case 'ElementType':
+						return sourceObjectType.ElementType;
 					default:
 						return undefined;
 				}

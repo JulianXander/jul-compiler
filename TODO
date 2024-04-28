@@ -1,3 +1,4 @@
+-Fix elementType inference für getElement, getField
 -autoComplete bei Dictionary(DictionaryLiteralType), vgl test1.jul
 -typeInference für filterMap verbessern mit mapped List type
 ?slice in corelib

@@ -288,7 +288,7 @@ getElement = nativeFunction(
 		# 1 basiert
 		# TODO positive
 		index: NonZeroInteger
-	) :> Any
+	) :> Or(() TypeOf(values)/ElementType)
 	# TODO Or(() TypeOf(values)/ElementType)
 	§TODO§
 )
