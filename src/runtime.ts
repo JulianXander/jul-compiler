@@ -1594,7 +1594,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: new ListType(Any)
+				type: _optionalType(new ListType(Any))
 			},
 			{
 				name: 'predicate',
