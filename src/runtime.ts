@@ -1580,9 +1580,12 @@ _createFunction(
 	}
 );
 export const contains = <T>(
-	values: T[],
+	values: T[] | null,
 	predicate: (value: T) => boolean,
 ): boolean => {
+	if (!values) {
+		return false;
+	}
 	return values.some(predicate);
 };
 _createFunction(

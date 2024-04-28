@@ -356,7 +356,7 @@ forEach = nativeFunction(
 # Liefert true, falls predicate für einen value true liefert.
 contains = nativeFunction(
 	(
-		values: List(Any)
+		values: Or(() List(Any))
 		predicate: (
 			value: Any
 			# TODO
