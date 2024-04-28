@@ -990,6 +990,19 @@ _createFunction(
 );
 //#endregion Any
 //#region Boolean
+export const not = (value: boolean): boolean =>
+	!value;
+_createFunction(
+	not,
+	{
+		singleNames: [
+			{
+				name: 'value',
+				type: _Boolean
+			},
+		]
+	}
+);
 export const and = (...args: boolean[]): boolean =>
 	!args.includes(false);
 _createFunction(

@@ -113,6 +113,11 @@ equal = nativeFunction(
 )
 #endregion Any
 #region Boolean
+# Liefert die Negation des value
+not = nativeFunction(
+	(value: Boolean) :> Boolean
+	§value => !value§
+)
 # Liefert true, wenn alle args true sind
 and = nativeFunction(
 	(...args: List(Boolean)) :> Boolean
