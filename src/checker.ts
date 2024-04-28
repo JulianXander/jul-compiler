@@ -240,7 +240,6 @@ function dereferenceNameFromObject(
 				return sourceObjectType.Fields[name];
 			case 'dictionary':
 				// TODO Or(() sourceObjectType.ElementType)
-				// ? oder nur ElementType liefern, wenn name = 'ElementType'
 				return sourceObjectType.ElementType;
 			case 'function':
 				switch (name) {
@@ -252,12 +251,8 @@ function dereferenceNameFromObject(
 						return undefined;
 				}
 			case 'list':
-				switch (name) {
-					case 'ElementType':
-						return sourceObjectType.ElementType;
-					default:
-						return undefined;
-				}
+				// TODO error: cant dereference name in list 
+				return undefined;
 			case 'nestedReference':
 			case 'parameterReference':
 				return new NestedReference(sourceObjectType, name);
@@ -267,6 +262,28 @@ function dereferenceNameFromObject(
 						return sourceObjectType.ValueType;
 					default:
 						return undefined;
+				}
+			case 'typeOf':
+				const innerType = sourceObjectType.value;
+				if (innerType instanceof BuiltInTypeBase) {
+					switch (innerType.type) {
+						case 'dictionary':
+							switch (name) {
+								case 'ElementType':
+									return innerType.ElementType;
+								default:
+									return undefined;
+							}
+						case 'list':
+							switch (name) {
+								case 'ElementType':
+									return innerType.ElementType;
+								default:
+									return undefined;
+							}
+						default:
+							return undefined;
+					}
 				}
 			// TODO other object types
 			default:

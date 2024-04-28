@@ -553,7 +553,7 @@ export class ComplementType extends BuiltInTypeBase {
 }
 
 export class TypeOfType extends BuiltInTypeBase {
-	constructor(public value: any) { super(); }
+	constructor(public value: RuntimeType) { super(); }
 	readonly type = 'typeOf';
 }
 
@@ -1736,7 +1736,7 @@ function _create$<T>(valueType: RuntimeType, initialValue: T): StreamClass<T> {
 }
 
 function _completed$<T>(value: T): StreamClass<T> {
-	const $ = _create$(new TypeOfType(value), value);
+	const $ = _create$(new TypeOfType(value as RuntimeType), value);
 	$.complete();
 	return $;
 }
