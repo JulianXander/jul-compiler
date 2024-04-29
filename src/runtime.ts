@@ -1060,6 +1060,24 @@ _createFunction(
 		]
 	}
 );
+export function maxInteger(...args: bigint[]): bigint {
+	let max = args[0]!;
+	for (let index = 1; index < args.length; index++) {
+		const element = args[index]!;
+		if (element > max) {
+			max = element;
+		}
+	}
+	return max;
+}
+_createFunction(
+	maxInteger,
+	{
+		rest: {
+			type: new ListType(Integer)
+		}
+	}
+);
 export const maxFloat = (...args: number[]) =>
 	Math.max(...args);
 _createFunction(

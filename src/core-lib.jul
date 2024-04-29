@@ -203,8 +203,13 @@ greater = nativeFunction(
 	(first: Or(Integer Float) second: Or(Integer Float)) :> Boolean
 	§(first, second) => first > second§
 )
+# TODO support Rational values
+maxInteger = nativeFunction(
+	(...args: List(Integer)) :> Integer
+	§TODO§
+)
 maxFloat = nativeFunction(
-	(...args: Float) :> Float
+	(...args: List(Float)) :> Float
 	§(...args) => Math.max(...args)§
 )
 rationalToFloat = nativeFunction(
