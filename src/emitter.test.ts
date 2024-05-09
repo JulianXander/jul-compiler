@@ -71,7 +71,7 @@ const expectedResults: {
 		// },
 		{
 			code: 'someVar/1/test',
-			result: 'export default someVar?.[1 - 1]?.[\'test\']'
+			result: 'export default ((someVar?.[1 - 1] ?? null)?.[\'test\'] ?? null)'
 		},
 		{
 			code: '(a b) => log(a)',
