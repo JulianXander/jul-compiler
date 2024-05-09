@@ -1756,9 +1756,12 @@ function bracketedExpressionToDestructuringFields(
 		setParent(checkedSource, destructuringField);
 		fields.push(destructuringField);
 	});
+	const symbols: SymbolTable = {};
+	fillSymbolTableWithFields(symbols, errors, fields, false);
 	const parseFields: ParseDestructuringFields = {
 		type: 'destructuringFields',
 		fields: fields,
+		symbols: symbols,
 		startRowIndex: bracketedExpression.startRowIndex,
 		startColumnIndex: bracketedExpression.startColumnIndex,
 		endRowIndex: bracketedExpression.endRowIndex,

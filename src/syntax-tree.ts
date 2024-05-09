@@ -141,6 +141,10 @@ export interface ParseDestructuringDefinition extends ParseExpressionBase {
 export interface ParseDestructuringFields extends ParseExpressionBase {
 	type: 'destructuringFields';
 	fields: ParseDestructuringField[];
+	/**
+	 * Die Felder
+	 */
+	symbols: SymbolTable;
 }
 
 export interface ParseDestructuringField extends ParseExpressionBase {
