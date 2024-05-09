@@ -69,6 +69,7 @@ export type SimpleExpression =
 	;
 
 export type DefinitionExpression =
+	| ParseDestructuringField
 	| ParseFieldBase
 	| ParseParameterField
 	| ParseSingleDefinition
@@ -79,12 +80,14 @@ export type DefinitionExpression =
 export type PositionedExpression =
 	| Index
 	| Name
+	| ParseDestructuringField
+	| ParseDestructuringFields
 	| ParseDictionaryField
 	| ParseDictionaryTypeField
 	| ParseExpression
 	| ParseFieldBase
-	| ParseParameterFields
 	| ParseParameterField
+	| ParseParameterFields
 	;
 
 export type TypedExpression =
@@ -128,11 +131,24 @@ export interface ParseSingleDefinition extends ParseExpressionBase {
 
 export interface ParseDestructuringDefinition extends ParseExpressionBase {
 	type: 'destructuring';
-	fields: BracketedExpressionBase;
+	fields: ParseDestructuringFields;
 	/**
 	 * undefined bei unvollständiger Expression
 	 */
 	value?: ParseValueExpression;
+}
+
+export interface ParseDestructuringFields extends ParseExpressionBase {
+	type: 'destructuringFields';
+	fields: ParseDestructuringField[];
+}
+
+export interface ParseDestructuringField extends ParseExpressionBase {
+	type: 'destructuringField';
+	description?: string;
+	name: Name;
+	typeGuard?: ParseValueExpression;
+	source?: Name;
 }
 
 //#region Bracketed

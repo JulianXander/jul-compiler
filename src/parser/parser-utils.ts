@@ -1,4 +1,4 @@
-import { BracketedExpressionBase, DefinitionExpression, ParseDictionaryField, ParseDictionaryLiteral, ParseDictionaryTypeField, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { BracketedExpressionBase, DefinitionExpression, ParseDestructuringField, ParseDictionaryField, ParseDictionaryLiteral, ParseDictionaryTypeField, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { ParserError, Positioned } from "./parser-combinator.js";
 
@@ -125,7 +125,7 @@ export function fillSymbolTableWithParams(
 export function fillSymbolTableWithFields(
 	symbolTable: SymbolTable,
 	errors: ParserError[],
-	fields: (ParseDictionaryField | ParseDictionaryTypeField | ParseFieldBase | ParseParameterField)[],
+	fields: (ParseDestructuringField | ParseDictionaryField | ParseDictionaryTypeField | ParseFieldBase | ParseParameterField)[],
 	isFunctionParameter: boolean,
 ): void {
 	fields.forEach((field, index) => {
@@ -204,14 +204,14 @@ export function getCheckedEscapableName(parseName: PositionedExpression): string
 	}
 }
 
-export function setParent(expression: PositionedExpressionBase | undefined, parent: PositionedExpression): void {
-	if (expression) {
-		expression.parent = parent;
+export function setParent(child: PositionedExpressionBase | undefined, parent: PositionedExpression): void {
+	if (child) {
+		child.parent = parent;
 	}
 }
 
-export function setParentForFields(dictionary: ParseDictionaryLiteral | ParseDictionaryTypeLiteral): void {
-	dictionary.fields.forEach(field => {
-		setParent(field, dictionary);
+export function setParents(children: PositionedExpressionBase[], parent: PositionedExpression): void {
+	children.forEach(child => {
+		child.parent = parent;
 	});
 }

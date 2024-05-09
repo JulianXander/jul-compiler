@@ -2,7 +2,7 @@ import { JsonValue } from "../runtime.js";
 import { Name, ParseDictionaryLiteral, ParseExpression, ParseSingleDictionaryField, ParsedExpressions, ParsedFile, SymbolDefinition } from "../syntax-tree.js";
 import { mapDictionary } from "../util.js";
 import { Positioned } from "./parser-combinator.js";
-import { setParent, setParentForFields } from "./parser-utils.js";
+import { setParent, setParents } from "./parser-utils.js";
 
 export function jsonValueToParsedExpressions(jsonValue: JsonValue): ParsedExpressions {
 	const ast = jsonValueToJulAst(jsonValue);
@@ -80,7 +80,7 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 				}),
 				...position,
 			};
-			setParentForFields(dictionary);
+			setParents(dictionary.fields, dictionary);
 			return dictionary;
 		}
 		case 'string':

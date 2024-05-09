@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
+import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
 import { ParserError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
@@ -1188,8 +1188,8 @@ const expectedResults: {
 		{
 			name: 'uncomplete-nested-reference',
 			code: 'a/',
-			result: [
-				{
+			result: (() => {
+				const nestedReference: ParseNestedReference = {
 					"endColumnIndex": 2,
 					"endRowIndex": 0,
 					"nestedKey": undefined,
@@ -1211,8 +1211,12 @@ const expectedResults: {
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
 					"type": "nestedReference",
-				},
-			],
+				};
+				nestedReference.source.parent = nestedReference;
+				return [
+					nestedReference,
+				];
+			})(),
 			errors: [
 				{
 					"endColumnIndex": 2,

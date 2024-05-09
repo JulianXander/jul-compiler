@@ -663,48 +663,39 @@ function inferType(
 			}
 			const currentScope = last(scopes);
 			expression.fields.fields.forEach(field => {
-				if (field.spread) {
-					// TODO?
+				// TODO spread
+				const fieldName = field.name.name;
+				if (!fieldName) {
+					return;
 				}
-				else {
-					const fieldName = getCheckedName(field.name);
-					if (!fieldName) {
-						return;
-					}
-					checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
-					const pathToDereference = field.assignedValue ?? field.name;
-					// TODO nested deref/complex expressions?
-					if (pathToDereference.type !== 'reference') {
-						return;
-					}
-					const valueType = getValueWithFallback(value?.inferredType, Any);
-					const referenceName = pathToDereference.name.name;
-					const dereferencedType = dereferenceNameFromObject(referenceName, valueType);
-					if (dereferencedType === undefined) {
+				checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
+				const referenceName = field.source?.name ?? fieldName;
+				const valueType = getValueWithFallback(value?.inferredType, Any);
+				const dereferencedType = dereferenceNameFromObject(referenceName, valueType);
+				if (dereferencedType === undefined) {
+					errors.push({
+						message: `Failed to dereference ${referenceName} in type ${typeToString(valueType, 0)}`,
+						startRowIndex: field.startRowIndex,
+						startColumnIndex: field.startColumnIndex,
+						endRowIndex: field.endRowIndex,
+						endColumnIndex: field.endColumnIndex,
+					});
+					return;
+				}
+				currentScope[fieldName]!.normalizedType = dereferencedType;
+				const typeGuard = field.typeGuard;
+				if (typeGuard) {
+					setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+					// TODO check value?
+					const error = areArgsAssignableTo(undefined, dereferencedType, valueOf(typeGuard.inferredType));
+					if (error) {
 						errors.push({
-							message: `Failed to dereference ${referenceName} in type ${typeToString(valueType, 0)}`,
+							message: error,
 							startRowIndex: field.startRowIndex,
 							startColumnIndex: field.startColumnIndex,
 							endRowIndex: field.endRowIndex,
 							endColumnIndex: field.endColumnIndex,
 						});
-						return;
-					}
-					currentScope[fieldName]!.normalizedType = dereferencedType;
-					const typeGuard = field.typeGuard;
-					if (typeGuard) {
-						setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
-						// TODO check value?
-						const error = areArgsAssignableTo(undefined, dereferencedType, valueOf(typeGuard.inferredType));
-						if (error) {
-							errors.push({
-								message: error,
-								startRowIndex: field.startRowIndex,
-								startColumnIndex: field.startColumnIndex,
-								endRowIndex: field.endRowIndex,
-								endColumnIndex: field.endColumnIndex,
-							});
-						}
 					}
 				}
 			});

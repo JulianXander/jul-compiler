@@ -23,6 +23,8 @@ import {
 	NumberLiteral,
 	ParseBranching,
 	ParseDestructuringDefinition,
+	ParseDestructuringField,
+	ParseDestructuringFields,
 	ParsedExpressions,
 	ParsedFile,
 	ParseDictionaryLiteral,
@@ -58,7 +60,15 @@ import {
 	readTextFile,
 } from '../util.js';
 import { parseTsCode } from './typescript-parser.js';
-import { createParseFunctionLiteral, createParseParameters, fillSymbolTableWithFields, fillSymbolTableWithExpressions, fillSymbolTableWithParams, setParent, setParentForFields } from './parser-utils.js';
+import {
+	createParseFunctionLiteral,
+	createParseParameters,
+	fillSymbolTableWithFields,
+	fillSymbolTableWithExpressions,
+	fillSymbolTableWithParams,
+	setParent,
+	setParents,
+} from './parser-utils.js';
 import { dirname, extname, join } from 'path';
 import { _parseJson } from '../runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
@@ -474,7 +484,8 @@ function expressionParser(
 				endColumnIndex: parsed.typeGuard.endColumnIndex,
 			});
 		}
-		if (!parsed.assignedValue) {
+		const value = parsed.assignedValue;
+		if (!value) {
 			errors.push({
 				message: 'assignedValue missing for destructuring',
 				startRowIndex: parsed.startRowIndex,
@@ -483,16 +494,18 @@ function expressionParser(
 				endColumnIndex: parsed.endColumnIndex,
 			});
 		}
-		bracketedExpressionToDestructuringFields(baseName, errors);
+		const fields = bracketedExpressionToDestructuringFields(baseName, errors);
 		const destructuring: ParseDestructuringDefinition = {
 			type: 'destructuring',
-			fields: baseName,
-			value: parsed.assignedValue,
+			fields: fields,
+			value: value,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 		};
+		setParent(fields, destructuring);
+		setParent(value, destructuring);
 		return {
 			...result,
 			errors: errors,
@@ -722,20 +735,28 @@ function fieldParser(
 			}
 		),
 	)(rows, startRowIndex, startColumnIndex, indent);
+	const parsed = result.parsed;
+	if (!parsed) {
+		return {
+			...result,
+			parsed: undefined,
+		};
+	}
+	const field: ParseFieldBase = {
+		type: 'field',
+		spread: !!parsed[0].length,
+		name: parsed[1],
+		typeGuard: parsed[2]?.[1],
+		definition: !!parsed[3],
+		assignedValue: parsed[3]?.[1][0],
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+	};
 	return {
 		...result,
-		parsed: result.parsed && {
-			type: 'field',
-			spread: !!result.parsed[0].length,
-			name: result.parsed[1],
-			typeGuard: result.parsed[2]?.[1],
-			definition: !!result.parsed[3],
-			assignedValue: result.parsed[3]?.[1][0],
-			startRowIndex: startRowIndex,
-			startColumnIndex: startColumnIndex,
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
-		},
+		parsed: field,
 	};
 }
 
@@ -837,9 +858,7 @@ function valueExpressionBaseParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 			};
-			branches.forEach(branch => {
-				setParent(branch, branching);
-			});
+			setParents(branches, branching);
 			return {
 				hasParsed: true,
 				endRowIndex: result.endRowIndex,
@@ -1052,6 +1071,7 @@ function simpleExpressionBaseParser(
 								? nestedKey.endRowIndex
 								: accumulator.endRowIndex,
 						};
+						setParent(accumulator, nestedReference);
 						if (nestedKey) {
 							setParent(nestedKey, nestedReference);
 						}
@@ -1506,15 +1526,16 @@ function bracketedBaseParser(
 			parsed: undefined,
 		};
 	}
-	const withDescriptions = assignDescriptions(parsed);
+	const fieldsWithDescription = assignDescriptions(parsed);
 	const bracketed: BracketedExpressionBase = {
 		type: 'bracketed',
-		fields: withDescriptions,
+		fields: fieldsWithDescription,
 		startRowIndex: startRowIndex,
 		startColumnIndex: startColumnIndex,
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 	};
+	// setParents(fieldsWithDescription, bracketed);
 	return {
 		...result,
 		parsed: bracketed,
@@ -1668,7 +1689,7 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 function bracketedExpressionToDestructuringFields(
 	bracketedExpression: BracketedExpressionBase,
 	errors: ParserError[],
-): void {
+): ParseDestructuringFields {
 	if (!bracketedExpression.fields.length) {
 		errors.push({
 			message: 'destructuring fields must not be empty',
@@ -1678,10 +1699,11 @@ function bracketedExpressionToDestructuringFields(
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		});
 	}
+	const fields: ParseDestructuringField[] = [];
 	bracketedExpression.fields.forEach(baseField => {
 		const baseName = baseField.name;
-		if (baseName.type !== 'reference') {
-			// TODO nested destructuring?
+		const checkedName = checkName(baseName);
+		if (!checkedName) {
 			errors.push({
 				message: `${baseName.type} is not a valid expression for destructuring field name`,
 				startRowIndex: baseName.startRowIndex,
@@ -1692,8 +1714,58 @@ function bracketedExpressionToDestructuringFields(
 		}
 		if (baseField.spread) {
 			// TODO spread ohne source, typeGuard?
+			errors.push({
+				message: `spread is not yet supported for destructuring`,
+				startRowIndex: baseName.startRowIndex,
+				startColumnIndex: baseName.startColumnIndex,
+				endRowIndex: baseName.endRowIndex,
+				endColumnIndex: baseName.endColumnIndex,
+			});
 		}
+		const parseSource = baseField.assignedValue;
+		let checkedSource: | Name | undefined;
+		if (parseSource) {
+			// TODO nested destructuring?
+			checkedSource = checkName(parseSource);
+			if (!checkedSource) {
+				errors.push({
+					message: `${parseSource.type} is not a valid expression for parameter source.`,
+					startRowIndex: parseSource.startRowIndex,
+					startColumnIndex: parseSource.startColumnIndex,
+					endRowIndex: parseSource.endRowIndex,
+					endColumnIndex: parseSource.endColumnIndex,
+				});
+			}
+		}
+		if (!checkedName) {
+			return;
+		}
+		const destructuringField: ParseDestructuringField = {
+			type: 'destructuringField',
+			description: baseField.description,
+			name: checkedName,
+			typeGuard: baseField.typeGuard,
+			source: checkedSource,
+			startRowIndex: baseField.startRowIndex,
+			startColumnIndex: baseField.startColumnIndex,
+			endRowIndex: baseField.endRowIndex,
+			endColumnIndex: baseField.endColumnIndex,
+		};
+		setParent(checkedName, destructuringField);
+		setParent(destructuringField.typeGuard, destructuringField);
+		setParent(checkedSource, destructuringField);
+		fields.push(destructuringField);
 	});
+	const parseFields: ParseDestructuringFields = {
+		type: 'destructuringFields',
+		fields: fields,
+		startRowIndex: bracketedExpression.startRowIndex,
+		startColumnIndex: bracketedExpression.startColumnIndex,
+		endRowIndex: bracketedExpression.endRowIndex,
+		endColumnIndex: bracketedExpression.endColumnIndex,
+	};
+	setParents(fields, parseFields);
+	return parseFields;
 }
 
 function bracketedExpressionToParameters(
@@ -1819,9 +1891,7 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
-		list.values.forEach(value => {
-			setParent(value, list);
-		});
+		setParents(list.values, list);
 		return list;
 	}
 	const isDictionary = baseFields.every(baseField =>
@@ -1902,7 +1972,7 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
-		setParentForFields(dictionary);
+		setParents(fields, dictionary);
 		return dictionary;
 	}
 	const isDictionaryType = baseFields.every(baseField =>
@@ -1972,7 +2042,7 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
-		setParentForFields(dictionaryType);
+		setParents(fields, dictionaryType);
 		return dictionaryType;
 	}
 	const isUnknownObject = baseFields.every(baseField =>

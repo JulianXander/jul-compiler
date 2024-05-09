@@ -88,27 +88,26 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				const importPath = getPathFromImport(value);
 				// TODO export, typeGuard
 				return getImportJs(`{${fields.map(field => {
-					const name = getCheckedName(field.name);
-					const nameJs = name && escapeReservedJsVariableName(name);
-					const source = field.assignedValue;
-					const checkedSource = source && getCheckedName(source);
-					return checkedSource
-						? `${escapeReservedJsVariableName(checkedSource)} as ${nameJs}`
+					const name = field.name.name;
+					const nameJs = escapeReservedJsVariableName(name);
+					const source = field.source?.name;
+					return source
+						? `${escapeReservedJsVariableName(source)} as ${nameJs}`
 						: nameJs;
 				}).join(', ')}}`, importPath);
 			}
-			// TODO rest
+			// TODO spread
 
 			const declarations = fields.map(field => {
 				const name = getCheckedEscapableName(field.name);
 				return `let ${name && escapeReservedJsVariableName(name)};`;
 			}).join('\n');
 			const assignments = fields.map((singleName, index) => {
-				const { name, assignedValue, typeGuard } = singleName;
-				const checkedName = getCheckedName(name);
-				const checkedSource = (assignedValue && getCheckedName(assignedValue)) ?? checkedName;
-				const nameJs = checkedName && escapeReservedJsVariableName(checkedName);
-				const sourceJs = checkedSource && escapeReservedJsVariableName(checkedSource);
+				const { name, source, typeGuard } = singleName;
+				const nameString = name.name;
+				const sourceString = source?.name ?? nameString;
+				const nameJs = escapeReservedJsVariableName(nameString);
+				const sourceJs = escapeReservedJsVariableName(sourceString);
 				const rawValue = `_isArray ? _temp[${index}] : _temp.${sourceJs}`;
 				const checkedValue = typeGuard
 					? `_checkType(${expressionToJs(typeGuard)}, ${rawValue})`
