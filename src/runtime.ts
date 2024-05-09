@@ -1530,14 +1530,14 @@ _createFunction(
 );
 export const filterMap = <T, U>(
 	values: T[] | null,
-	callback: (value: T) => U | null,
+	callback: (value: T, index: bigint) => U | null,
 ): U[] | null => {
 	if (!values) {
 		return null;
 	}
 	const mappedValues: U[] = [];
-	values.forEach(value => {
-		const mapped = callback(value);
+	values.forEach((value, index) => {
+		const mapped = callback(value, BigInt(index + 1));
 		if (mapped !== null) {
 			mappedValues.push(mapped);
 		}

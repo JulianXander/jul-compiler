@@ -325,8 +325,8 @@ filterMap = nativeFunction(
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO positive
+			index: NonZeroInteger
 		) :> Any
 	) :> Or(() List(Any))
 	# TODO
