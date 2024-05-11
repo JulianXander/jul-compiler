@@ -376,6 +376,26 @@ contains = nativeFunction(
 	) :> Boolean
 	§TODO§
 )
+toDictionary = nativeFunction(
+	(
+		values: Or(() List(Any))
+		getKey: (
+			value: Any
+			# TODO
+			# value: TypeOf(values)/ElementType
+			# TODO Integer vs FloatInteger
+			# index: Integer
+		) :> Text
+		getValue: (
+			value: Any
+			# TODO
+			# value: TypeOf(values)/ElementType
+			# TODO Integer vs FloatInteger
+			# index: Integer
+		) :> Any
+	) :> Or(() Dictionary(Any))
+	§TODO§
+)
 #endregion List
 #region Dictionary
 # Returns the value of the field
@@ -394,6 +414,12 @@ setField = nativeFunction(
 		key: Text
 		value: Any
 	) :> Dictionary(Any)
+	§TODO§
+)
+toList = nativeFunction(
+	(
+		dictionary: Or(() Dictionary(Any))
+	) :> Or(() List(Any))
 	§TODO§
 )
 #endregion Dictionary

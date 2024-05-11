@@ -1632,6 +1632,43 @@ _createFunction(
 		]
 	}
 );
+export const toDictionary = (
+	values: any[] | null,
+	getKey: (value: any) => string,
+	getValue: (value: any) => any,
+): RuntimeDictionary | null => {
+	if (!values) {
+		return null;
+	}
+	const dictionary: RuntimeDictionary = {};
+	for (const oldValue of values) {
+		const key = getKey(oldValue);
+		const newValue = getValue(oldValue);
+		dictionary[key] = newValue;
+	}
+	return dictionary;
+};
+_createFunction(
+	toDictionary,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: _optionalType(new ListType(Any))
+			},
+			{
+				name: 'getKey',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['Function'] }
+			},
+			{
+				name: 'getValue',
+				// TODO
+				// typeGuard: { type: 'reference', names: ['Function'] }
+			},
+		]
+	}
+);
 //#endregion List
 //#region Dictionary
 export const getField = <T>(
@@ -1679,6 +1716,25 @@ _createFunction(
 			},
 			{
 				name: 'value',
+			},
+		]
+	}
+);
+export const toList = <T>(
+	dictionary: { [key: string]: T; } | null,
+): T[] | null => {
+	if (!dictionary) {
+		return null;
+	}
+	return Object.values(dictionary);
+};
+_createFunction(
+	toList,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: _optionalType(new ListType(Any))
 			},
 		]
 	}
