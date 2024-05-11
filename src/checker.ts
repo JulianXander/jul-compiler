@@ -1497,6 +1497,10 @@ export function getTypeError(
 						const elementType = targetType.ElementType;
 						if (argumentsType instanceof BuiltInTypeBase) {
 							switch (argumentsType.type) {
+								case 'dictionary': {
+									const subError = getTypeError(prefixArgumentType, argumentsType.ElementType, elementType);
+									return subError;
+								}
 								case 'dictionaryLiteral': {
 									const subErrors = map(
 										argumentsType.Fields,
