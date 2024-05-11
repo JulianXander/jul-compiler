@@ -794,12 +794,22 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 					case '"':
 					case '\\':
 					case '/':
-					case 'b':
-					case 'f':
-					case 'n':
-					case 'r':
-					case 't':
 						stringValue += escapedCharacter;
+						break;
+					case 'b':
+						stringValue += '\b';
+						break;
+					case 'f':
+						stringValue += '\f';
+						break;
+					case 'n':
+						stringValue += '\n';
+						break;
+					case 'r':
+						stringValue += '\r';
+						break;
+					case 't':
+						stringValue += '\t';
 						break;
 					case 'u':
 						index++;
