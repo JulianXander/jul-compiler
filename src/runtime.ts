@@ -1734,7 +1734,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: _optionalType(new ListType(Any))
+				type: _optionalType(new DictionaryType(Any))
 			},
 		]
 	}
