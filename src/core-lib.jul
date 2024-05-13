@@ -384,14 +384,14 @@ toDictionary = nativeFunction(
 			# TODO
 			# value: TypeOf(values)/ElementType
 			# TODO Integer vs FloatInteger
-			# index: Integer
+			index: Integer
 		) :> Text
 		getValue: (
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
 			# TODO Integer vs FloatInteger
-			# index: Integer
+			index: Integer
 		) :> Any
 	) :> Or(() Dictionary(Any))
 	§TODO§

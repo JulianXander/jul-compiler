@@ -1644,17 +1644,20 @@ _createFunction(
 );
 export const toDictionary = (
 	values: any[] | null,
-	getKey: (value: any) => string,
-	getValue: (value: any) => any,
+	getKey: (value: any, index: bigint) => string,
+	getValue: (value: any, index: bigint) => any,
 ): RuntimeDictionary | null => {
 	if (!values) {
 		return null;
 	}
 	const dictionary: RuntimeDictionary = {};
-	for (const oldValue of values) {
-		const key = getKey(oldValue);
-		const newValue = getValue(oldValue);
+	let indexBigint = 1n;
+	for (let index = 0; index < values.length; index++) {
+		const oldValue = values[index];
+		const key = getKey(oldValue, indexBigint);
+		const newValue = getValue(oldValue, indexBigint);
 		dictionary[key] = newValue;
+		indexBigint++;
 	}
 	return dictionary;
 };
