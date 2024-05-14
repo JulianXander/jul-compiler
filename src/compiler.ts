@@ -4,7 +4,6 @@ import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
 import { ParsedDocuments, checkTypes } from './checker.js';
 import { parseCode } from './parser/parser.js';
-import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
@@ -30,6 +29,11 @@ export function compileProject(
 		runtimePath: runtimePath,
 		shebang: cli,
 	}, {});
+	if (outFilePath instanceof Error) {
+		console.error(outFilePath);
+		process.exitCode = -1;
+		return;
+	}
 	if (!outFilePath) {
 		return;
 	}
@@ -68,8 +72,9 @@ export function compileProject(
 		const hasErrors = stats?.hasErrors();
 		stopSpinner();
 		if (hasErrors) {
-			console.log(stats?.compilation.errors);
-			throw new Error('bundling failed.')
+			console.error('bundling failed.');
+			console.error(stats?.compilation.errors);
+			process.exitCode = -1;
 		}
 		else {
 			console.log('build finished successfully');
@@ -91,7 +96,7 @@ interface JulCompilerOptions {
 function compileFile(
 	options: JulCompilerOptions,
 	compiledDocuments: ParsedDocuments,
-): string | undefined {
+): string | undefined | Error {
 	const {
 		sourceFilePath,
 		outputFolderPath,
@@ -153,7 +158,7 @@ function compileFile(
 		}
 		default: {
 			const assertNever: never = extension;
-			throw new Error(`Unexpected extension for compileFile: ${assertNever}`);
+			return new Error(`Unexpected extension for compileFile: ${assertNever}`);
 		}
 	}
 	//#endregion 3. compile
@@ -168,27 +173,29 @@ function compileFile(
 		//#region 5. compile dependencies
 		// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
 		const importedFilePaths = parsed.dependencies;
-		importedFilePaths?.forEach(importedPath => {
-			compileFile({
-				...options,
-				shebang: false,
-				sourceFilePath: importedPath,
-			}, compiledDocuments);
-		});
+		if (importedFilePaths) {
+			for (const importedPath of importedFilePaths) {
+				const importedResult = compileFile({
+					...options,
+					shebang: false,
+					sourceFilePath: importedPath,
+				}, compiledDocuments);
+				if (importedResult instanceof Error) {
+					return importedResult;
+				}
+			}
+		}
 		//#endregion 5. compile dependencies
 
 		//#region 6. check
 		checkTypes(parsed, compiledDocuments);
-		outputErrors(parsed.checked!.errors);
+		const errors = parsed.checked?.errors;
+		if (errors?.length) {
+			return new Error(`CompilerError in file ${parsed.filePath}\n` + JSON.stringify(errors, undefined, 2));
+		}
 		//#endregion 6. check
 	}
 	return outFilePath;
-}
-
-function outputErrors(errors: ParserError[]): void {
-	if (errors.length) {
-		throw new Error(JSON.stringify(errors, undefined, 2));
-	}
 }
 
 function busySpinner() {
