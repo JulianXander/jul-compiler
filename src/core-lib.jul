@@ -75,8 +75,12 @@ Dictionary = nativeFunction(
 	# TODO ???
 	§x => typeof x === 'object'§
 )
-# data structure representing a value of type T changing over time
-# Instance structure: (ValueType: Type)
+# data structure representing a value of type ValueType changing over time
+# Instance structure: (
+#	ValueType: Type
+# lastValue: ValueType
+#	completed: Boolean
+# )
 # Type structure: (ValueType: Type)
 Stream = nativeFunction(
 	(ValueType: Type) :> Type
