@@ -31,7 +31,7 @@ export function compileProject(
 	}, {});
 	if (outFilePath instanceof Error) {
 		console.error(outFilePath);
-		process.exitCode = -1;
+		process.exitCode = 1;
 		return;
 	}
 	if (!outFilePath) {
@@ -74,7 +74,7 @@ export function compileProject(
 		if (hasErrors) {
 			console.error('bundling failed.');
 			console.error(stats?.compilation.errors);
-			process.exitCode = -1;
+			process.exitCode = 1;
 		}
 		else {
 			console.log('build finished successfully');
