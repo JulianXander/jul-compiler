@@ -304,6 +304,10 @@ getElement = nativeFunction(
 		index: NonZeroInteger
 	) :> Any
 	# TODO Or(() TypeOf(values)/ElementType)
+	# TODO
+	# index.greater(values.length()) ?
+	# 	true => ()
+	# 	false => TypeOf(values)/ElementType
 	§TODO§
 )
 # Creates a new List without mutating the given List
@@ -403,8 +407,7 @@ getField = nativeFunction(
 	(
 		dictionary: Dictionary(Any)
 		key: Text
-	) :> Any
-	# TODO Or(() TypeOf(dictionary)/ElementType)
+	) :> Or(() TypeOf(dictionary)/ElementType)
 	§TODO§
 )
 # Creates a new Dictionary without mutating the given dictionary

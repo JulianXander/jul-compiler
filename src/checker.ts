@@ -265,24 +265,47 @@ function dereferenceNameFromObject(
 				}
 			case 'typeOf': {
 				const innerType = sourceObjectType.value;
-				if (innerType instanceof BuiltInTypeBase) {
-					switch (innerType.type) {
-						case 'dictionary':
-							switch (name) {
-								case 'ElementType':
-									return innerType.ElementType;
-								default:
-									return undefined;
-							}
-						case 'list':
-							switch (name) {
-								case 'ElementType':
-									return innerType.ElementType;
-								default:
-									return undefined;
-							}
-						case 'parameterReference':
-							return new NestedReference(sourceObjectType, name);
+				if (typeof innerType === 'object') {
+					if (!innerType) {
+						// TODO?
+						return undefined;
+					}
+					if (innerType instanceof BuiltInTypeBase) {
+						switch (innerType.type) {
+							case 'dictionary':
+								switch (name) {
+									case 'ElementType':
+										return innerType.ElementType;
+									default:
+										return undefined;
+								}
+							case 'list':
+								switch (name) {
+									case 'ElementType':
+										return innerType.ElementType;
+									default:
+										return undefined;
+								}
+							case 'parameterReference':
+								return new NestedReference(sourceObjectType, name);
+							default:
+								return undefined;
+						}
+					}
+					if (Array.isArray(innerType)) {
+						// TODO?
+						switch (name) {
+							case 'ElementType':
+								return createNormalizedUnionType(innerType);
+							default:
+								return undefined;
+						}
+					}
+					// case dictionary
+					// TODO?
+					switch (name) {
+						case 'ElementType':
+							return createNormalizedUnionType(Object.values(innerType));
 						default:
 							return undefined;
 					}
