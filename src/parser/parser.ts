@@ -826,32 +826,25 @@ function valueExpressionBaseParser(
 		};
 	}
 	const [parsed1, parsed2] = result.parsed!;
-	if (!parsed2) {
-		// SimpleExpression
-		return {
-			...result,
-			parsed: parsed1,
-		};
-	}
 	const errors = result.errors
 		? [...result.errors]
 		: [];
+	if (!parsed2) {
+		// SimpleExpression
+		const value = simpleExpressionBaseToSimpleExpression(parsed1, errors);
+		return {
+			...result,
+			parsed: value,
+			errors: errors,
+		};
+	}
 	switch (parsed2.type) {
 		case 'branches': {
-			// TODO
-			// const valueExpression = dictionaryTypeToObjectLiteral(parsed1);
-			// if (valueExpression.errors?.length) {
-			// 	return {
-			// 		endRowIndex: result.endRowIndex,
-			// 		endColumnIndex: result.endColumnIndex,
-			// 		errors: valueExpression.errors
-			// 	};
-			// }
+			const value = simpleExpressionBaseToSimpleExpression(parsed1, errors);
 			const branches = parsed2.value;
 			const branching: ParseBranching = {
 				type: 'branching',
-				// value: valueExpression.value!,
-				value: parsed1,
+				value: value,
 				branches: branches,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -1026,9 +1019,7 @@ function simpleExpressionBaseParser(
 	let expression: SimpleExpression = parsed1;
 	if (parsed2.length) {
 		// (Nested Ref/Function Call) Chain
-		if (expression.type === 'bracketed') {
-			expression = bracketedExpressionToValueExpression(expression, errors);
-		}
+		expression = simpleExpressionBaseToSimpleExpression(expression, errors);
 		function setParentForFunctionCall(functionCall: ParseFunctionCall): void {
 			setParent(functionCall.prefixArgument, functionCall);
 			setParent(functionCall.functionExpression, functionCall);
@@ -1839,6 +1830,16 @@ function checkName(parseName: ParseValueExpression): Name | undefined {
 		return undefined;
 	}
 	return parseName.name;
+}
+
+function simpleExpressionBaseToSimpleExpression(
+	simpleExpressionBase: SimpleExpression,
+	errors: ParserError[],
+): SimpleExpression {
+	if (simpleExpressionBase.type === 'bracketed') {
+		return bracketedExpressionToValueExpression(simpleExpressionBase, errors);
+	}
+	return simpleExpressionBase;
 }
 
 function baseValueExpressionToValueExpression(
