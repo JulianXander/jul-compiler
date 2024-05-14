@@ -501,7 +501,7 @@ function dereferenceParameterFromArgumentType(
 	}
 }
 
-function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): RuntimeType | undefined {
+export function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): RuntimeType | undefined {
 	const functionType = parameterReference.functionRef;
 	if (functionType) {
 		const paramsType = functionType.ParamsType;
