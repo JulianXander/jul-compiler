@@ -263,7 +263,7 @@ function dereferenceNameFromObject(
 					default:
 						return undefined;
 				}
-			case 'typeOf':
+			case 'typeOf': {
 				const innerType = sourceObjectType.value;
 				if (innerType instanceof BuiltInTypeBase) {
 					switch (innerType.type) {
@@ -281,10 +281,14 @@ function dereferenceNameFromObject(
 								default:
 									return undefined;
 							}
+						case 'parameterReference':
+							return new NestedReference(sourceObjectType, name);
 						default:
 							return undefined;
 					}
 				}
+				return undefined;
+			}
 			// TODO other object types
 			default:
 				return undefined;
