@@ -1,3 +1,4 @@
+?dictionary literal field completion mit runtimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
 -Fix elementType inference für getElement, getField
 -autoComplete bei Dictionary(DictionaryLiteralType), vgl test1.jul
 -typeInference für filterMap verbessern mit mapped List type
