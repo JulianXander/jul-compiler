@@ -1791,7 +1791,7 @@ class StreamClass<T> {
 	}
 	/**
 	 * Gibt einen unsubscribe callback zurück.
-	 * Wertet sofort den listener beim subscriben sofort aus, wenn evaluateOnSubscribe = true.
+	 * Wertet den listener beim subscriben sofort aus, wenn evaluateOnSubscribe = true.
 	 */
 	subscribe(listener: Listener<T>, evaluateOnSubscribe: boolean = true): () => void {
 		if (evaluateOnSubscribe) {
