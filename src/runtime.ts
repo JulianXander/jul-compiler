@@ -2160,8 +2160,11 @@ _createFunction(
 );
 //#endregion core
 //#region create
-export const create$ = _createFunction(
-	_create$,
+export const create$ = (ValueType: any, initialValue: any) => {
+	return _create$(initialValue);
+};
+_createFunction(
+	create$,
 	{
 		singleNames: [
 			{
