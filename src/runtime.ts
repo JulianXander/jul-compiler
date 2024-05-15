@@ -2132,7 +2132,6 @@ _createFunction(
 			},
 			{
 				name: 'value',
-				type: Any
 			},
 		]
 	}
@@ -2173,7 +2172,6 @@ _createFunction(
 			},
 			{
 				name: 'initialValue',
-				type: Any
 			},
 		]
 	}
@@ -2184,7 +2182,6 @@ export const completed$ = _createFunction(
 		singleNames: [
 			{
 				name: 'initialValue',
-				type: Any
 			},
 		]
 	}
