@@ -28,11 +28,11 @@
 	?rest args anonym
 ?shared code? libraries?
 ?dereference parameterReference in getTypeError oder infer paramterReference type mit path?
+?fully dereferenced type und nicht dereferenced inferred type in expression speichern, fully dereferenced für hover info nutzen
 ?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion
+	?interpreter oder runtime benutzen
 	-vgl. type-checking-test.jul Zeile 50 vs 51 variable type
-	?wie erkennt man dass ein argument statisch bekannt ist
-	?pure functions kennzeichnen
-		?wie
+	-statisch bekannt <=> type = primitive/collection
 -examples sortieren, aufräumen, organisieren?
 -homepage
 	?deutsch vs englisch
