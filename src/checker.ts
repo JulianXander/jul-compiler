@@ -974,6 +974,11 @@ function inferType(
 						// 	}
 						// 	return _any;
 						// }
+						case 'length': {
+							const argTypes = getAllArgTypes();
+							const firstArgType = argTypes?.[0];
+							return getLengthFromType(firstArgType);
+						}
 						case 'And': {
 							const argTypes = getAllArgTypes();
 							if (!argTypes) {
@@ -1391,6 +1396,41 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			throw new Error(`Unexpected type ${typeof assertNever} for valueOf`);
 		}
 	}
+}
+
+function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
+	if (typeof argType !== 'object') {
+		// TODO non negative
+		return Integer;
+	}
+	if (argType === null) {
+		return 0n;
+	}
+	if (argType instanceof BuiltInTypeBase) {
+		switch (argType.type) {
+			case 'tuple':
+				return BigInt(argType.ElementTypes.length);
+			case 'list':
+				// TODO positive
+				return Integer;
+			case 'or': {
+				const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
+				return createNormalizedUnionType(lengthChoices);
+			}
+			case 'parameterReference': {
+				const dereferenced = dereferenceParameterTypeFromFunctionRef(argType);
+				return getLengthFromType(dereferenced);
+			}
+			default:
+				// TODO non negative
+				return Integer;
+		}
+	}
+	if (Array.isArray(argType)) {
+		return BigInt(argType.length);
+	}
+	// TODO non negative
+	return Integer;
 }
 
 //#region TypeError
