@@ -195,7 +195,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			return callCreateFunctionJs(functionJs, paramsJs);
 		}
 		case 'functionTypeLiteral':
-			return `new FunctionType()`;
+			return `_Function`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':

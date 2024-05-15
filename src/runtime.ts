@@ -454,7 +454,10 @@ class DictionaryType extends BuiltInTypeBase {
 	readonly type = 'dictionary';
 }
 
-class DictionaryLiteralType extends BuiltInTypeBase {
+/**
+ * Wird vom emitter benutzt
+ */
+export class DictionaryLiteralType extends BuiltInTypeBase {
 	constructor(public Fields: RuntimeDictionary) { super(); }
 	readonly type = 'dictionaryLiteral';
 }
@@ -473,7 +476,10 @@ class FunctionType extends BuiltInTypeBase {
 	readonly type = 'function';
 }
 
-const _Function = new FunctionType();
+/**
+ * Wird vom emitter benutzt
+ */
+export const _Function = new FunctionType();
 
 export class TypeType extends BuiltInTypeBase {
 	readonly type = 'type';
