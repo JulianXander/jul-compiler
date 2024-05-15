@@ -1,5 +1,5 @@
 import { ParserError, Positioned } from './parser/parser-combinator.js';
-import { FunctionType, RuntimeType } from './runtime.js';
+import { AnyType, BlobType, BooleanType, BuiltInTypeBase, DateType, ErrorType, FloatType, IntegerType, Primitive, TextType, TypeType } from './runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {
@@ -38,12 +38,14 @@ export interface SymbolDefinition extends Positioned {
 	 */
 	typeExpression?: ParseValueExpression;
 	// TODO inferred type aus dem value? oder normalize typeguard?
-	normalizedType?: RuntimeType;
+	normalizedType?: CompileTimeType;
 	//#region FunctionParameter
-	functionRef?: FunctionType;
+	functionRef?: CompileTimeFunctionType;
 	functionParameterIndex?: number;
 	//#endregion FunctionParameter
 }
+
+//#region ParseExpression
 
 export type ParseExpression =
 	| ParseDestructuringDefinition
@@ -108,7 +110,7 @@ interface ParseExpressionBase extends PositionedExpressionBase {
 	/**
 	 * Wird vom checker gesetzt.
 	 */
-	inferredType?: RuntimeType;
+	inferredType?: CompileTimeType;
 }
 
 export interface ParseSpreadValueExpression extends PositionedExpressionBase {
@@ -122,7 +124,7 @@ export interface ParseSingleDefinition extends ParseExpressionBase {
 	// TODO spread?
 	name: Name;
 	typeGuard?: ParseValueExpression;
-	normalizedTypeGuard?: RuntimeType;
+	normalizedTypeGuard?: CompileTimeType;
 	/**
 	 * undefined bei unvollständiger Expression
 	 */
@@ -377,7 +379,7 @@ export interface ParseParameterField extends ParseExpressionBase {
 	/**
 	 * Wird vom checker gesetzt.
 	 */
-	inferredTypeFromCall?: RuntimeType;
+	inferredTypeFromCall?: CompileTimeType;
 }
 
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
@@ -416,3 +418,145 @@ export interface Index extends PositionedExpressionBase {
 	 */
 	name: number;
 }
+
+//#endregion ParseExpression
+
+//#region CompileTimeType
+
+export interface CompileTimeDictionary { [key: string]: CompileTimeType; }
+
+export type CompileTimeCollection =
+	| CompileTimeType[]
+	| CompileTimeDictionary
+	;
+
+export type CompileTimeType =
+	| Primitive
+	| CompileTimeCollection
+	| BuiltInCompileTimeType
+	;
+
+export type BuiltInCompileTimeType =
+	| AnyType
+	| BooleanType
+	| IntegerType
+	| FloatType
+	| TextType
+	| DateType
+	| BlobType
+	| ErrorType
+	| CompileTimeListType
+	| CompileTimeTupleType
+	| CompileTimeDictionaryType
+	| CompileTimeDictionaryLiteralType
+	| CompileTimeStreamType
+	| CompileTimeFunctionType
+	| NestedReference
+	| ParameterReference
+	| ParametersType
+	| TypeType
+	| CompileTimeIntersectionType
+	| CompileTimeUnionType
+	| CompileTimeComplementType
+	| CompileTimeTypeOfType
+	;
+
+export class CompileTimeComplementType extends BuiltInTypeBase {
+	constructor(public SourceType: CompileTimeType) { super(); }
+	readonly type = 'not';
+}
+
+export class CompileTimeDictionaryLiteralType extends BuiltInTypeBase {
+	constructor(public Fields: CompileTimeDictionary) { super(); }
+	readonly type = 'dictionaryLiteral';
+}
+
+export class CompileTimeDictionaryType extends BuiltInTypeBase {
+	constructor(public ElementType: CompileTimeType) { super(); }
+	readonly type = 'dictionary';
+}
+
+export class CompileTimeFunctionType extends BuiltInTypeBase {
+	constructor(
+		public ParamsType: CompileTimeType,
+		public ReturnType: CompileTimeType,
+		public pure: boolean,
+	) {
+		super();
+	}
+	readonly type = 'function';
+}
+
+export class CompileTimeIntersectionType extends BuiltInTypeBase {
+	// TODO flatten nested IntersectionTypes?
+	constructor(public ChoiceTypes: CompileTimeType[]) { super(); }
+	readonly type = 'and';
+}
+
+export class CompileTimeListType extends BuiltInTypeBase {
+	constructor(public ElementType: CompileTimeType) { super(); }
+	readonly type = 'list';
+}
+
+export class CompileTimeStreamType extends BuiltInTypeBase {
+	constructor(public ValueType: CompileTimeType) { super(); }
+	readonly type = 'stream';
+}
+
+export class CompileTimeTupleType extends BuiltInTypeBase {
+	constructor(public ElementTypes: CompileTimeType[]) { super(); }
+	readonly type = 'tuple';
+}
+
+export class CompileTimeTypeOfType extends BuiltInTypeBase {
+	constructor(public value: CompileTimeType) { super(); }
+	readonly type = 'typeOf';
+}
+
+export class CompileTimeUnionType extends BuiltInTypeBase {
+	constructor(public ChoiceTypes: CompileTimeType[]) { super(); }
+	readonly type = 'or';
+}
+
+export class NestedReference extends BuiltInTypeBase {
+	constructor(
+		public source: CompileTimeType,
+		public nestedKey: string | number,
+	) { super(); }
+	readonly type = 'nestedReference';
+}
+
+/**
+ * Wird aktuell nur als CompileTimeType benutzt
+ */
+export class ParameterReference extends BuiltInTypeBase {
+	constructor(
+		public name: string,
+		public index: number,
+	) { super(); }
+	readonly type = 'parameterReference';
+	/**
+	 * Muss nach dem Erzeugen gesetzt werden.
+	 */
+	functionRef?: CompileTimeFunctionType;
+}
+
+/**
+ * Wird aktuell nur als CompileTimeType benutzt
+ */
+export class ParametersType extends BuiltInTypeBase {
+	constructor(
+		public singleNames: Parameter[],
+		public rest?: Parameter,
+	) {
+		super();
+	}
+	readonly type = 'parameters';
+}
+
+interface Parameter {
+	name: string;
+	type?: CompileTimeType;
+}
+
+//#endregion CompileTimeType

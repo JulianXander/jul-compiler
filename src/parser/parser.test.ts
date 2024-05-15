@@ -438,38 +438,10 @@ const expectedResults: {
 		// 		},
 		// 	]
 		// },
-		// {
-		// 	code: '(var var2) = (4 5)',
-		// 	result: [
-		// 		{
-		// 			type: 'destructuring',
-		// 			names: {
-		// 				singleNames: [
-		// 					{
-		// 						type: 'name',
-		// 						name: 'var',
-		// 						source: undefined,
-		// 						typeGuard: undefined,
-		// 					},
-		// 					{
-		// 						type: 'name',
-		// 						name: 'var2',
-		// 						source: undefined,
-		// 						typeGuard: undefined,
-		// 					}
-		// 				],
-		// 				rest: undefined
-		// 			},
-		// 			value: {
-		// 				type: 'list',
-		// 				values: [
-		// 					{ type: 'number', value: 4 },
-		// 					{ type: 'number', value: 5 }
-		// 				]
-		// 			},
-		// 		},
-		// 	]
-		// },
+		{
+			name: 'destructuring',
+			code: '(var var2) = (4 5)',
+		},
 		// {
 		// 	code: 'log(§hallo welt§)',
 		// 	result: [

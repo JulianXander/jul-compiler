@@ -812,7 +812,7 @@ function valueExpressionBaseParser(
 				predicate: returnTypeTokenParser,
 				parser: functionTypeBodyParser,
 			},
-			// SimpleValueExpression
+			// SimpleExpressionBase
 			{
 				predicate: emptyParser,
 				parser: emptyParser
@@ -830,11 +830,10 @@ function valueExpressionBaseParser(
 		? [...result.errors]
 		: [];
 	if (!parsed2) {
-		// SimpleExpression
-		const value = simpleExpressionBaseToSimpleExpression(parsed1, errors);
+		// SimpleExpressionBase
 		return {
 			...result,
-			parsed: value,
+			parsed: parsed1,
 			errors: errors,
 		};
 	}

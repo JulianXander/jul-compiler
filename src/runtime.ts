@@ -15,7 +15,6 @@ interface Params {
 	};
 }
 
-// TODO ParamsType, ReturnType
 type JulFunction = Function & { params: Params; };
 
 //#region internals
@@ -139,20 +138,9 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					case 'tuple':
 						return isOfTupleType(value, builtInType.ElementTypes);
 					case 'stream':
-						// TODO check value type
 						return value instanceof StreamClass;
 					case 'function':
-						// TODO check returntype/paramstype
 						return typeof value === 'function';
-					case 'nestedReference':
-						// TODO?
-						return true;
-					case 'parameterReference':
-						// TODO deref?
-						return true;
-					case 'parameters':
-						// TODO?
-						return true;
 					case 'type':
 						// TODO check primitive value (null/boolean/number/string)/builtintype/function
 						// return value === null
@@ -367,14 +355,14 @@ export type Primitive =
 	| string
 	;
 
-export interface RuntimeDictionary { [key: string]: RuntimeType; }
+interface RuntimeDictionary { [key: string]: RuntimeType; }
 
-export type Collection =
+type Collection =
 	| RuntimeType[]
 	| RuntimeDictionary
 	;
 
-export type RuntimeType =
+type RuntimeType =
 	| Primitive
 	| Collection
 	| BuiltInType
@@ -395,7 +383,7 @@ type CustomType = (value: any) => boolean;
 
 //#region BuiltInType
 
-export type BuiltInType =
+type BuiltInType =
 	| AnyType
 	| BooleanType
 	| IntegerType
@@ -410,9 +398,6 @@ export type BuiltInType =
 	| DictionaryLiteralType
 	| StreamType
 	| FunctionType
-	| NestedReference
-	| ParameterReference
-	| ParametersType
 	| TypeType
 	| IntersectionType
 	| UnionType
@@ -450,109 +435,66 @@ export class BlobType extends BuiltInTypeBase {
 	readonly type = 'blob';
 }
 
-class ErrorType extends BuiltInTypeBase {
+export class ErrorType extends BuiltInTypeBase {
 	readonly type = 'error';
 }
 
-export class ListType extends BuiltInTypeBase {
+class ListType extends BuiltInTypeBase {
 	constructor(public ElementType: RuntimeType) { super(); }
 	readonly type = 'list';
 }
 
-export class TupleType extends BuiltInTypeBase {
+class TupleType extends BuiltInTypeBase {
 	constructor(public ElementTypes: RuntimeType[]) { super(); }
 	readonly type = 'tuple';
 }
 
-export class DictionaryType extends BuiltInTypeBase {
+class DictionaryType extends BuiltInTypeBase {
 	constructor(public ElementType: RuntimeType) { super(); }
 	readonly type = 'dictionary';
 }
 
-// TODO rename to _DictionaryLiteralType or split builtin exports to other file or importLine contain only builtins?
-export class DictionaryLiteralType extends BuiltInTypeBase {
+class DictionaryLiteralType extends BuiltInTypeBase {
 	constructor(public Fields: RuntimeDictionary) { super(); }
 	readonly type = 'dictionaryLiteral';
 }
 
-export class StreamType extends BuiltInTypeBase {
-	constructor(public ValueType: RuntimeType) { super(); }
+class StreamType extends BuiltInTypeBase {
+	constructor() { super(); }
 	readonly type = 'stream';
 }
 
-export class FunctionType extends BuiltInTypeBase {
-	constructor(
-		public ParamsType: RuntimeType,
-		public ReturnType: RuntimeType,
-	) {
+const _StreamType = new StreamType();
+
+class FunctionType extends BuiltInTypeBase {
+	constructor() {
 		super();
 	}
 	readonly type = 'function';
-}
-
-export class NestedReference extends BuiltInTypeBase {
-	constructor(
-		public source: RuntimeType,
-		public nestedKey: string | number,
-	) { super(); }
-	readonly type = 'nestedReference';
-}
-
-/**
- * Wird aktuell nur als CompileTimeType benutzt
- */
-export class ParameterReference extends BuiltInTypeBase {
-	constructor(
-		public name: string,
-		public index: number,
-	) { super(); }
-	readonly type = 'parameterReference';
-	/**
-	 * Muss nach dem Erzeugen gesetzt werden.
-	 */
-	functionRef?: FunctionType;
-}
-
-/**
- * Wird aktuell nur als CompileTimeType benutzt
- */
-export class ParametersType extends BuiltInTypeBase {
-	constructor(
-		public singleNames: Parameter[],
-		public rest?: Parameter,
-	) {
-		super();
-	}
-	readonly type = 'parameters';
-}
-
-interface Parameter {
-	name: string;
-	type?: RuntimeType;
 }
 
 export class TypeType extends BuiltInTypeBase {
 	readonly type = 'type';
 }
 
-export class IntersectionType extends BuiltInTypeBase {
+class IntersectionType extends BuiltInTypeBase {
 	// TODO flatten nested IntersectionTypes?
 	constructor(public ChoiceTypes: RuntimeType[]) { super(); }
 	readonly type = 'and';
 }
 
-export class UnionType extends BuiltInTypeBase {
+class UnionType extends BuiltInTypeBase {
 	// TODO flatten nested UnionTypes?
 	constructor(public ChoiceTypes: RuntimeType[]) { super(); }
 	readonly type = 'or';
 }
 
-export class ComplementType extends BuiltInTypeBase {
+class ComplementType extends BuiltInTypeBase {
 	constructor(public SourceType: RuntimeType) { super(); }
 	readonly type = 'not';
 }
 
-export class TypeOfType extends BuiltInTypeBase {
+class TypeOfType extends BuiltInTypeBase {
 	constructor(public value: RuntimeType) { super(); }
 	readonly type = 'typeOf';
 }
@@ -968,7 +910,7 @@ _createFunction(
 	}
 );
 export const Stream = (ValueType: RuntimeType) =>
-	new StreamType(ValueType);
+	_StreamType;
 _createFunction(
 	Stream,
 	{
@@ -2191,7 +2133,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'stream$',
-				type: new StreamType(Any)
+				type: _StreamType
 			},
 		]
 	}
@@ -2207,7 +2149,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'stream$',
-				type: new StreamType(Any)
+				type: _StreamType
 			},
 			{
 				name: 'value',
@@ -2228,7 +2170,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'stream$',
-				type: new StreamType(Any)
+				type: _StreamType
 			},
 			{
 				name: 'listener',
@@ -2363,7 +2305,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'source$',
-				type: new StreamType(Any)
+				type: _StreamType
 			},
 			{
 				name: 'transform$',
@@ -2382,7 +2324,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'source$',
-				type: new StreamType(Any)
+				type: _StreamType
 			},
 			{
 				name: 'transform$',
@@ -2401,7 +2343,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'source$',
-				type: new StreamType(Any)
+				type: _StreamType
 			},
 			{
 				name: 'transform$',
@@ -2415,7 +2357,7 @@ export const combine$ = _createFunction(
 	_combine$,
 	{
 		rest: {
-			type: _optionalType(new ListType(new StreamType(Any)))
+			type: _optionalType(new ListType(_StreamType))
 		}
 	}
 );
@@ -2425,7 +2367,7 @@ export const take$ = _createFunction(
 		singleNames: [
 			{
 				name: 'source$',
-				type: new StreamType(Any)
+				type: _StreamType
 			},
 			{
 				name: 'count',

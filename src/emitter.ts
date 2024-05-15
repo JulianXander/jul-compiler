@@ -10,7 +10,6 @@ import {
 import * as runtime from './runtime.js';
 import { Extension, changeExtension } from './util.js';
 import { extname, isAbsolute } from 'path';
-import { getCheckedName } from './checker.js';
 import { getPathExpression, isImportFunction, isImportFunctionCall } from './parser/parser.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
 
@@ -195,10 +194,8 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			// anonymous function
 			return callCreateFunctionJs(functionJs, paramsJs);
 		}
-		case 'functionTypeLiteral': {
-			// TODO params to type
-			return `new FunctionType(Any, ${expressionToJs(expression.returnType)})`;
-		}
+		case 'functionTypeLiteral':
+			return `new FunctionType()`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':
