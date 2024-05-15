@@ -1701,7 +1701,6 @@ class StreamClass<T> {
 		 * Aktualisiert diesen Stream und alle Dependencies und benachrichtigt Subscriber.
 		 */
 		public readonly getValue: () => T,
-		public readonly ValueType: RuntimeType,
 	) {
 		this.getValue = getValue;
 	}
@@ -1776,17 +1775,17 @@ class StreamClass<T> {
 
 //#region create
 
-function _create$<T>(valueType: RuntimeType, initialValue: T): StreamClass<T> {
+function _create$<T>(initialValue: T): StreamClass<T> {
 	const stream$: StreamClass<T> = new StreamClass(
 		() =>
 			stream$.lastValue as T,
-		valueType);
+	);
 	stream$.push(initialValue, processId);
 	return stream$;
 }
 
 function _completed$<T>(value: T): StreamClass<T> {
-	const $ = _create$(new TypeOfType(value as RuntimeType), value);
+	const $ = _create$(value);
 	$.complete();
 	return $;
 }
@@ -1796,9 +1795,6 @@ type HttpResponseType =
 	| 'text'
 	;
 
-const httpBlobResponseJulType = new UnionType([null, _Text, _Error]);
-const httpTextResponseJulType = new UnionType([null, _Text, _Error]);
-
 function httpRequest$(
 	url: string,
 	method: string,
@@ -1807,11 +1803,7 @@ function httpRequest$(
 	responseType: HttpResponseType,
 ): StreamClass<null | string | Blob | Error> {
 	const abortController = new AbortController();
-	const response$ = _create$<null | string | Blob | Error>(
-		responseType === 'text'
-			? httpTextResponseJulType
-			: httpBlobResponseJulType,
-		null);
+	const response$ = _create$<null | string | Blob | Error>(null);
 	response$.onCompleted(() => {
 		abortController.abort();
 	});
@@ -1855,7 +1847,7 @@ function httpRequest$(
 //#region transform
 
 // TODO warum?
-function createDerived$<T>(getValue: () => T, valueType: RuntimeType): StreamClass<T> {
+function createDerived$<T>(getValue: () => T): StreamClass<T> {
 	const derived$: StreamClass<T> = new StreamClass(
 		() => {
 			if (processId === derived$.lastProcessId
@@ -1864,14 +1856,13 @@ function createDerived$<T>(getValue: () => T, valueType: RuntimeType): StreamCla
 			}
 			return getValue();
 		},
-		valueType);
+	);
 	return derived$;
 }
 
 function _map$<TSource, TTarget>(
 	source$: StreamClass<TSource>,
 	mapFunction: (value: TSource) => TTarget,
-	mappedType: RuntimeType,
 ): StreamClass<TTarget> {
 	let lastSourceValue: TSource;
 	const mapped$: StreamClass<TTarget> = createDerived$(
@@ -1886,7 +1877,6 @@ function _map$<TSource, TTarget>(
 			mapped$.push(currentMappedValue, processId);
 			return currentMappedValue;
 		},
-		mappedType,
 	);
 	mapped$.onCompleted(() => {
 		unsubscribe();
@@ -1915,7 +1905,6 @@ function _combine$<T>(
 			combined$.push(currentValues, processId);
 			return currentValues;
 		},
-		new UnionType(source$s.map(source$ => source$.ValueType)),
 	);
 	combined$.onCompleted(() => {
 		unsubscribes.forEach((unsubscribe, index) => {
@@ -1938,7 +1927,7 @@ function _combine$<T>(
 
 function _take$<T>(source$: StreamClass<T>, count: bigint): StreamClass<T> {
 	let counter = 0n;
-	const mapped$ = _create$<T>(source$.ValueType, source$.lastValue!);
+	const mapped$ = _create$<T>(source$.lastValue!);
 	const unsubscribe = source$.subscribe(
 		(value) => {
 			mapped$.push(value, processId);
@@ -1957,7 +1946,7 @@ function _take$<T>(source$: StreamClass<T>, count: bigint): StreamClass<T> {
 
 // TODO testen
 function takeUntil$<T>(source$: StreamClass<T>, completed$: StreamClass<any>): StreamClass<T> {
-	const mapped$ = _map$(source$, x => x, source$.ValueType);
+	const mapped$ = _map$(source$, x => x);
 	const unsubscribeCompleted = completed$.subscribe(
 		() => {
 			mapped$.complete();
@@ -1986,8 +1975,6 @@ function flatMerge$<T>(source$$: StreamClass<StreamClass<T>>): StreamClass<T> {
 			flat$.push(currentValue, processId);
 			return currentValue;
 		},
-		// TODO
-		Any,
 	);
 	const unsubscribeOuter = source$$.subscribe(source$ => {
 		inner$s.push(source$);
@@ -2028,9 +2015,6 @@ function flatSwitch$<T>(source$$: StreamClass<StreamClass<T>>): StreamClass<T> {
 			flat$.push(currentValue, processId);
 			return currentValue;
 		},
-		// TODO
-		// source$$.ValueType.ValueType,
-		Any,
 	);
 	const unsubscribeOuter = source$$.subscribe(source$ => {
 		unsubscribeInner?.();
@@ -2059,8 +2043,6 @@ function flatMap$<T, U>(
 	const mapped$ = _map$(
 		source$,
 		transform$,
-		// TODO
-		Any,
 	);
 	if (merge) {
 		return flatMerge$(mapped$);
@@ -2086,8 +2068,6 @@ function accumulate$<TSource, TAccumulated>(
 				value);
 			return newAccumulator;
 		},
-		// TODO
-		Any,
 	);
 	return mapped$;
 }
@@ -2109,8 +2089,6 @@ function retry$<T>(
 			}
 			return _completed$<T | Error>(result);
 		},
-		// TODO
-		Any,
 	);
 	return flatSwitch$(withRetry$$);
 };
@@ -2263,7 +2241,7 @@ _createFunction(
 	}
 );
 export const timer$ = (delayMs: number): StreamClass<number> => {
-	const stream$ = _create$(Float, 1);
+	const stream$ = _create$(1);
 	const cycle = () => {
 		setTimeout(() => {
 			if (stream$.completed) {
@@ -2289,8 +2267,7 @@ _createFunction(
 //#endregion create
 //#region transform
 export const map$ = <T, U>(source$: StreamClass<T>, transform$: (value: T) => U) => {
-	// TODO get ReturnType from JulFunction transForm$
-	return _map$(source$, transform$, Any);
+	return _map$(source$, transform$);
 };
 _createFunction(
 	map$,

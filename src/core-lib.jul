@@ -98,7 +98,6 @@ Dictionary = nativeFunction(
 )
 # data structure representing a value of type ValueType changing over time
 # Instance structure: (
-#	ValueType: Type
 # lastValue: ValueType
 #	completed: Boolean
 # )
