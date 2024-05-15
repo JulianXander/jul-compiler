@@ -501,7 +501,7 @@ class TypeOfType extends BuiltInTypeBase {
 
 //#endregion BuiltInType
 
-export function _optionalType(...types: RuntimeType[]): UnionType {
+function optionalType(...types: RuntimeType[]): UnionType {
 	return new UnionType([null, ...types]);
 }
 
@@ -1253,11 +1253,11 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'texts',
-				type: _optionalType(new ListType(_Text)),
+				type: optionalType(new ListType(_Text)),
 			},
 			{
 				name: 'separator',
-				type: _optionalType(_Text),
+				type: optionalType(_Text),
 			},
 		]
 	}
@@ -1361,31 +1361,31 @@ _createFunction(
 			},
 			{
 				name: 'years',
-				type: _optionalType(Integer)
+				type: optionalType(Integer)
 			},
 			{
 				name: 'months',
-				type: _optionalType(Integer)
+				type: optionalType(Integer)
 			},
 			{
 				name: 'days',
-				type: _optionalType(Integer)
+				type: optionalType(Integer)
 			},
 			{
 				name: 'hours',
-				type: _optionalType(Integer)
+				type: optionalType(Integer)
 			},
 			{
 				name: 'minutes',
-				type: _optionalType(Integer)
+				type: optionalType(Integer)
 			},
 			{
 				name: 'seconds',
-				type: _optionalType(Integer)
+				type: optionalType(Integer)
 			},
 			{
 				name: 'milliseconds',
-				type: _optionalType(Integer)
+				type: optionalType(Integer)
 			},
 		]
 	}
@@ -1425,7 +1425,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: _optionalType(new ListType(Any))
+				type: optionalType(new ListType(Any))
 			},
 		]
 	}
@@ -1468,7 +1468,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: _optionalType(new ListType(Any))
+				type: optionalType(new ListType(Any))
 			},
 			{
 				name: 'index',
@@ -1504,7 +1504,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: _optionalType(new ListType(Any))
+				type: optionalType(new ListType(Any))
 			},
 			{
 				name: 'callback',
@@ -1526,7 +1526,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: _optionalType(new ListType(Any))
+				type: optionalType(new ListType(Any))
 			},
 			{
 				name: 'callback',
@@ -1574,7 +1574,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: _optionalType(new ListType(Any))
+				type: optionalType(new ListType(Any))
 			},
 			{
 				name: 'predicate',
@@ -1609,7 +1609,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: _optionalType(new ListType(Any))
+				type: optionalType(new ListType(Any))
 			},
 			{
 				name: 'getKey',
@@ -1663,7 +1663,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'dictionary',
-				type: _optionalType(new DictionaryType(Any))
+				type: optionalType(new DictionaryType(Any))
 			},
 			{
 				name: 'key',
@@ -1689,7 +1689,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: _optionalType(new DictionaryType(Any))
+				type: optionalType(new DictionaryType(Any))
 			},
 		]
 	}
@@ -2231,7 +2231,7 @@ _createFunction(
 			},
 			{
 				name: 'headers',
-				type: _optionalType(new DictionaryType(_Text))
+				type: optionalType(new DictionaryType(_Text))
 			},
 			{
 				name: 'body',
@@ -2261,7 +2261,7 @@ _createFunction(
 			},
 			{
 				name: 'headers',
-				type: _optionalType(new DictionaryType(_Text))
+				type: optionalType(new DictionaryType(_Text))
 			},
 			{
 				name: 'body',
@@ -2357,7 +2357,7 @@ export const combine$ = _createFunction(
 	_combine$,
 	{
 		rest: {
-			type: _optionalType(new ListType(_StreamType))
+			type: optionalType(new ListType(_StreamType))
 		}
 	}
 );

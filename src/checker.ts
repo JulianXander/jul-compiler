@@ -9,7 +9,6 @@ import {
 	_Boolean,
 	_Date,
 	_Error,
-	_optionalType,
 	_Text,
 } from './runtime.js';
 import {
