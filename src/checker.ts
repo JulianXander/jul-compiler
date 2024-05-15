@@ -455,8 +455,10 @@ function dereferenceArgumentTypesNested(
 		}
 		case 'not':
 			return new CompileTimeComplementType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.SourceType));
-		case 'or':
-			return new CompileTimeUnionType(builtInType.ChoiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
+		case 'or': {
+			const dereferencedChoices = builtInType.ChoiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType));
+			return createNormalizedUnionType(dereferencedChoices);
+		}
 		case 'parameterReference': {
 			const dereferencedParameter = dereferenceParameterFromArgumentType(calledFunction, prefixArgumentType, argsType, builtInType);
 			const dereferencedNested = dereferencedParameter === builtInType
@@ -1005,7 +1007,9 @@ function inferType(
 								// TODO unknown?
 								return Any;
 							}
-							return new CompileTimeTypeOfType(new CompileTimeUnionType(argTypes.map(valueOf)));
+							const choices = argTypes.map(valueOf);
+							const unionType = createNormalizedUnionType(choices);
+							return new CompileTimeTypeOfType(unionType);
 						}
 						case 'TypeOf': {
 							const argTypes = getAllArgTypes();
