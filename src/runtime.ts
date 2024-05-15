@@ -2181,7 +2181,7 @@ function retry$<T>(
 //#endregion transform
 //#endregion helper
 //#region core
-export const complete = (stream$: StreamClass<any>) => {
+export const complete = (stream$: StreamClass<any>): null => {
 	stream$.complete();
 	return null;
 };
