@@ -473,6 +473,8 @@ class FunctionType extends BuiltInTypeBase {
 	readonly type = 'function';
 }
 
+const _Function = new FunctionType();
+
 export class TypeType extends BuiltInTypeBase {
 	readonly type = 'type';
 }
@@ -1508,8 +1510,7 @@ _createFunction(
 			},
 			{
 				name: 'callback',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Function'] }
+				type: _Function
 			},
 		]
 	}
@@ -1530,8 +1531,7 @@ _createFunction(
 			},
 			{
 				name: 'callback',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Function'] }
+				type: _Function
 			},
 		]
 	}
@@ -1553,8 +1553,7 @@ _createFunction(
 			},
 			{
 				name: 'callback',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Function'] }
+				type: _Function
 			},
 		]
 	}
@@ -1578,8 +1577,7 @@ _createFunction(
 			},
 			{
 				name: 'predicate',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Function'] }
+				type: _Function
 			},
 		]
 	}
@@ -1613,13 +1611,11 @@ _createFunction(
 			},
 			{
 				name: 'getKey',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Function'] }
+				type: _Function
 			},
 			{
 				name: 'getValue',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Function'] }
+				type: _Function
 			},
 		]
 	}
@@ -1726,7 +1722,6 @@ class StreamClass<T> {
 		if (this.completed) {
 			throw new Error('Can not push to completed stream.');
 		}
-		// TODO typecheck value
 		this.lastValue = value;
 		this.lastProcessId = processId;
 		this.listeners.forEach(listener => listener(value));
@@ -2174,8 +2169,7 @@ _createFunction(
 			},
 			{
 				name: 'listener',
-				// TODO
-				// typeGuard: { type: 'reference', names: ['Function'] }
+				type: _Function
 			},
 		]
 	}
@@ -2192,7 +2186,6 @@ export const create$ = _createFunction(
 			},
 			{
 				name: 'initialValue',
-				// TODO parameterReference ValueType
 				type: Any
 			},
 		]
@@ -2309,8 +2302,7 @@ _createFunction(
 			},
 			{
 				name: 'transform$',
-				// TODO
-				// type: function source$/ValueType => Any
+				type: _Function
 			}
 		]
 	}
@@ -2328,8 +2320,7 @@ _createFunction(
 			},
 			{
 				name: 'transform$',
-				// TODO
-				// type: function source$/ValueType => Any
+				type: _Function
 			}
 		]
 	}
@@ -2347,8 +2338,7 @@ _createFunction(
 			},
 			{
 				name: 'transform$',
-				// TODO
-				// type: function source$/ValueType => Any
+				type: _Function
 			}
 		]
 	}
@@ -2407,8 +2397,7 @@ _createFunction(
 			},
 			{
 				name: 'iteratee',
-				// TODO
-				// type: Function
+				type: _Function
 			},
 		]
 	}
