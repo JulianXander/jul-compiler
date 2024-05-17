@@ -143,7 +143,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 							return true;
 						}
 						return value.every(element =>
-							isOfType(element, builtInType.ElementType));
+							isOfType(element, elementType));
 					}
 					case 'tuple':
 						return isOfTupleType(value, builtInType.ElementTypes);
