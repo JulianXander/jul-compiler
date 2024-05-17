@@ -1439,10 +1439,10 @@ _createFunction(
 	}
 );
 export const getElement = <T>(
-	values: T[],
+	values: T[] | null,
 	index: bigint,
 ): T | null => {
-	return values[Number(index) - 1] ?? null;
+	return values?.[Number(index) - 1] ?? null;
 };
 _createFunction(
 	getElement,
@@ -1450,7 +1450,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: new ListType(Any)
+				type: optionalType(new ListType(Any))
 			},
 			{
 				name: 'index',
@@ -1629,10 +1629,10 @@ _createFunction(
 //#endregion List
 //#region Dictionary
 export const getField = <T>(
-	dictionary: { [key: string]: T; },
+	dictionary: { [key: string]: T; } | null,
 	key: string,
 ): T | null => {
-	return dictionary[key] ?? null;
+	return dictionary?.[key] ?? null;
 };
 _createFunction(
 	getField,
@@ -1640,7 +1640,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'dictionary',
-				type: new DictionaryType(Any)
+				type: optionalType(new DictionaryType(Any))
 			},
 			{
 				name: 'key',

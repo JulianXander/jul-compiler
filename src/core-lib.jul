@@ -376,7 +376,7 @@ length = nativeFunction(
 # TODO conditional return type, sodass null nur geliefert wird, wenn index > values.Length
 getElement = nativeFunction(
 	(
-		values: List(Any)
+		values: Or(() List(Any))
 		# 1 basiert
 		# TODO positive
 		index: NonZeroInteger
@@ -494,7 +494,7 @@ toDictionary = nativeFunction(
 # Returns the value of the field
 getField = nativeFunction(
 	(
-		dictionary: Dictionary(Any)
+		dictionary: Or(() Dictionary(Any))
 		key: Text
 	) :> Or(() TypeOf(dictionary)/ElementType)
 	true
