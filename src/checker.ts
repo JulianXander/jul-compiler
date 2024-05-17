@@ -230,6 +230,10 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 	};
 }
 
+export function getStreamGetValueType(streamType: CompileTimeStreamType): CompileTimeFunctionType {
+	return new CompileTimeFunctionType(null, streamType.ValueType, false);
+}
+
 function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
@@ -267,7 +271,7 @@ function dereferenceNameFromObject(
 			case 'stream':
 				switch (name) {
 					case 'getValue':
-						return new CompileTimeFunctionType(null, sourceObjectType.ValueType, false);
+						return getStreamGetValueType(sourceObjectType);
 					case 'ValueType':
 						return sourceObjectType.ValueType;
 					default:
