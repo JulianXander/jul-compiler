@@ -98,7 +98,7 @@ Dictionary = nativeFunction(
 )
 # data structure representing a value of type ValueType changing over time
 # Instance structure: (
-# lastValue: ValueType
+# getValue: () :> ValueType
 #	completed: Boolean
 # )
 # Type structure: (ValueType: Type)
@@ -107,7 +107,7 @@ Stream = nativeFunction(
 	true
 	# TODO generic Stream check
 	§js
-		x => x instanceof Stream
+		x => x instanceof StreamClass
 	§
 )
 # Function = nativeFunction(

@@ -266,6 +266,8 @@ function dereferenceNameFromObject(
 				return new NestedReference(sourceObjectType, name);
 			case 'stream':
 				switch (name) {
+					case 'getValue':
+						return new CompileTimeFunctionType(null, sourceObjectType.ValueType, false);
 					case 'ValueType':
 						return sourceObjectType.ValueType;
 					default:
