@@ -120,6 +120,9 @@ function isOfType(value: any, type: RuntimeType): boolean {
 							return false;
 						}
 						const elementType = builtInType.ElementType;
+						if (elementType === Any) {
+							return true;
+						}
 						for (const key in value) {
 							const elementValue = value[key] ?? null;
 							if (!isOfType(elementValue, elementType)) {
@@ -130,11 +133,18 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					}
 					case 'dictionaryLiteral':
 						return isOfDictionaryLiteralType(value, builtInType.Fields);
-					case 'list':
-						return Array.isArray(value)
-							&& value.length > 0
-							&& value.every(element =>
-								isOfType(element, builtInType.ElementType));
+					case 'list': {
+						if (!Array.isArray(value)
+							|| !value.length) {
+							return false;
+						}
+						const elementType = builtInType.ElementType;
+						if (elementType === Any) {
+							return true;
+						}
+						return value.every(element =>
+							isOfType(element, builtInType.ElementType));
+					}
 					case 'tuple':
 						return isOfTupleType(value, builtInType.ElementTypes);
 					case 'stream':
