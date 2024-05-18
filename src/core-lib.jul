@@ -420,7 +420,7 @@ filterMap = nativeFunction(
 	§TODO§
 )
 # Liefert das erste Element, für das predicate true liefert.
-findElement = nativeFunction(
+findFirst = nativeFunction(
 	(
 		values: Or(() List(Any))
 		predicate: (
@@ -435,7 +435,29 @@ findElement = nativeFunction(
 	# ) :> Or(() values/ElementType)
 	# TODO pure wenn die args pure sind
 	false
-	§TODO§
+	§js
+		(values, predicate) => values?.find(predicate) ?? null
+	§
+)
+# Liefert das letzte Element, für das predicate true liefert.
+findLast = nativeFunction(
+	(
+		values: Or(() List(Any))
+		predicate: (
+			value: Any
+			# TODO
+			# value: TypeOf(values)/ElementType
+			# TODO Integer vs FloatInteger
+			# index: Integer
+		) :> Boolean
+	) :> Any
+	# TODO
+	# ) :> Or(() values/ElementType)
+	# TODO pure wenn die args pure sind
+	false
+	§js
+		(values, predicate) => values?.findLast(predicate) ?? null
+	§
 )
 forEach = nativeFunction(
 	(

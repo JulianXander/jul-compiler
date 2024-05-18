@@ -1531,14 +1531,14 @@ _createFunction(
 		]
 	}
 );
-export const findElement = <T>(
+export const findFirst = <T>(
 	values: T[] | null,
 	predicate: (value: T) => boolean,
 ): T | null => {
 	return values?.find(predicate) ?? null;
 };
 _createFunction(
-	findElement,
+	findFirst,
 	{
 		singleNames: [
 			{
@@ -1546,7 +1546,28 @@ _createFunction(
 				type: optionalType(new ListType(Any))
 			},
 			{
-				name: 'callback',
+				name: 'predicate',
+				type: _Function
+			},
+		]
+	}
+);
+export const findLast = <T>(
+	values: T[] | null,
+	predicate: (value: T) => boolean,
+): T | null => {
+	return values?.findLast(predicate) ?? null;
+};
+_createFunction(
+	findLast,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(new ListType(Any))
+			},
+			{
+				name: 'predicate',
 				type: _Function
 			},
 		]
