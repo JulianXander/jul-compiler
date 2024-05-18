@@ -982,6 +982,10 @@ function inferType(
 						// 	}
 						// 	return _any;
 						// }
+						case 'getElement': {
+							const argTypes = getAllArgTypes();
+							return getElementFromTypes(argTypes);
+						}
 						case 'length': {
 							const argTypes = getAllArgTypes();
 							const firstArgType = argTypes?.[0];
@@ -1406,6 +1410,49 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			throw new Error(`Unexpected type ${typeof assertNever} for valueOf`);
 		}
 	}
+}
+
+function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileTimeType {
+	if (!argsTypes) {
+		return null;
+	}
+	const [valuesType, indexType] = argsTypes;
+	if (valuesType === undefined
+		|| valuesType === null
+		|| indexType === undefined) {
+		return null;
+	}
+	if (typeof indexType === 'bigint') {
+		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType), valuesType);
+		if (dereferencedIndex !== undefined) {
+			return dereferencedIndex;
+		}
+	}
+	if (valuesType instanceof BuiltInTypeBase) {
+		switch (valuesType.type) {
+			case 'tuple':
+				return createNormalizedUnionType([null, ...valuesType.ElementTypes]);
+			case 'list':
+				return createNormalizedUnionType([null, valuesType.ElementType]);
+			case 'or': {
+				const getElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getElementFromTypes([valuesChoice, indexType]));
+				return createNormalizedUnionType(getElementChoices);
+			}
+			case 'parameterReference': {
+				const dereferenced = dereferenceParameterTypeFromFunctionRef(valuesType);
+				if (dereferenced === undefined) {
+					return Any;
+				}
+				return getElementFromTypes([dereferenced, indexType]);
+			}
+			default:
+				return Any;
+		}
+	}
+	if (Array.isArray(valuesType)) {
+		return createNormalizedUnionType([null, ...valuesType]);
+	}
+	return Any;
 }
 
 function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
