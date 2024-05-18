@@ -169,7 +169,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					case 'not':
 						return !isOfType(value, builtInType.SourceType);
 					case 'typeOf':
-						return deepEquals(value, builtInType.value);
+						return deepEqual(value, builtInType.value);
 					default: {
 						const assertNever: never = builtInType;
 						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType).type}`);
@@ -304,7 +304,7 @@ function tryAssignArgs(
 
 // TODO toString
 
-export function deepEquals(value1: any, value2: any): boolean {
+export function deepEqual(value1: any, value2: any): boolean {
 	const type1 = typeof value1;
 	if (type1 !== typeof value2) {
 		return false;
@@ -350,7 +350,7 @@ export function deepEquals(value1: any, value2: any): boolean {
 			}
 		default: {
 			const assertNever: never = type1;
-			throw new Error('Unexpected type for deepEquals: ' + assertNever);
+			throw new Error('Unexpected type for deepEqual: ' + assertNever);
 		}
 	}
 }
@@ -947,6 +947,19 @@ export const equal = (first: any, second: any) =>
 	first === second;
 _createFunction(
 	equal,
+	{
+		singleNames: [
+			{
+				name: 'first',
+			},
+			{
+				name: 'second',
+			}
+		]
+	}
+);
+_createFunction(
+	deepEqual,
 	{
 		singleNames: [
 			{
@@ -1752,7 +1765,7 @@ class StreamClass<T> {
 		if (processId === this.lastProcessId) {
 			return;
 		}
-		if (deepEquals(value, this.lastValue)) {
+		if (deepEqual(value, this.lastValue)) {
 			return;
 		}
 		if (this.completed) {
@@ -1905,7 +1918,7 @@ function _map$<TSource, TTarget>(
 	const mapped$: StreamClass<TTarget> = createDerived$(
 		() => {
 			const currentSourceValue = source$.getValue();
-			if (deepEquals(currentSourceValue, lastSourceValue)) {
+			if (deepEqual(currentSourceValue, lastSourceValue)) {
 				mapped$.lastProcessId = processId;
 				return mapped$.lastValue!;
 			}
@@ -1935,7 +1948,7 @@ function _combine$<T>(
 			const lastValues = combined$.lastValue!;
 			const currentValues = source$s.map(source$ =>
 				source$.getValue());
-			if (deepEquals(currentValues, lastValues)) {
+			if (deepEqual(currentValues, lastValues)) {
 				combined$.lastProcessId = processId;
 				return lastValues;
 			}
@@ -2005,7 +2018,7 @@ function flatMerge$<T>(source$$: StreamClass<StreamClass<T>>): StreamClass<T> {
 		() => {
 			const lastValue = flat$.lastValue!;
 			const currentValue = source$$.getValue().getValue();
-			if (deepEquals(currentValue, lastValue)) {
+			if (deepEqual(currentValue, lastValue)) {
 				flat$.lastProcessId = processId;
 				return lastValue;
 			}
@@ -2045,7 +2058,7 @@ function flatSwitch$<T>(source$$: StreamClass<StreamClass<T>>): StreamClass<T> {
 		() => {
 			const lastValue = flat$.lastValue!;
 			const currentValue = source$$.getValue().getValue();
-			if (deepEquals(currentValue, lastValue)) {
+			if (deepEqual(currentValue, lastValue)) {
 				flat$.lastProcessId = processId;
 				return lastValue;
 			}

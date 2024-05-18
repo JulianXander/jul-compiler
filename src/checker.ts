@@ -5,7 +5,7 @@ import {
 	Float,
 	Integer,
 	Type,
-	deepEquals,
+	deepEqual,
 	_Boolean,
 	_Date,
 	_Error,
@@ -1311,7 +1311,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	const uniqueChoices: CompileTimeType[] = [];
 	flatChoices.forEach(choice => {
 		if (!uniqueChoices.some(uniqueChoice =>
-			deepEquals(choice, uniqueChoice))) {
+			deepEqual(choice, uniqueChoice))) {
 			uniqueChoices.push(choice);
 		}
 	});
@@ -1476,7 +1476,7 @@ export function getTypeError(
 		// maybe return value?
 		return undefined;
 	}
-	if (deepEquals(argumentsType, targetType)) {
+	if (deepEqual(argumentsType, targetType)) {
 		return undefined;
 	}
 	if (argumentsType instanceof BuiltInTypeBase) {

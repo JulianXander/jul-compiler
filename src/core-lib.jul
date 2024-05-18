@@ -134,13 +134,17 @@ Stream = nativeFunction(
 #region Functions
 #region Any
 # Liefert true, wenn die beiden Werte gleich sind (Referenzgleichheit)
-# TODO deepEqual?
 equal = nativeFunction(
 	(first second) :> Boolean
 	true
 	§js
 		(first, second) => first === second
 	§
+)
+deepEqual = nativeFunction(
+	(first second) :> Boolean
+	true
+	§TODO§
 )
 #endregion Any
 #region Boolean
