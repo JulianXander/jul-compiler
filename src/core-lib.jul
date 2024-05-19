@@ -199,6 +199,12 @@ addFloat = nativeFunction(
 subtract = nativeFunction(
 	(minuend: Rational subtrahend: Rational) :> Rational
 	true
+	§TODO§
+)
+# minuend - subtrahend
+subtractInteger = nativeFunction(
+	(minuend: Integer subtrahend: Integer) :> Integer
+	true
 	§js
 		(minuend, subtrahend) => minuend - subtrahend
 	§
