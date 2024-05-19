@@ -423,6 +423,28 @@ filterMap = nativeFunction(
 	false
 	§TODO§
 )
+# Liefert einen Teilbereich der Liste von start bis end, oder bis zum Ende der Liste falls kein end angegeben.
+slice = nativeFunction(
+	(
+		values: Or(() List(Any))
+		start: Integer
+		end: Or(() Integer)
+	) :> Or(() List(Any))
+	true
+	§js
+		(values, start, end) => {
+			if (!values) {
+				return null;
+			}
+			return values.slice(
+				Number(start) - 1,
+				end === null
+					? undefined
+					: Number(end) - 1
+			);
+		}
+	§
+)
 # Liefert das erste Element, für das predicate true liefert.
 findFirst = nativeFunction(
 	(

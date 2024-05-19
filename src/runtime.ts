@@ -1544,6 +1544,40 @@ _createFunction(
 		]
 	}
 );
+export const slice = <T>(
+	values: T[] | null,
+	start: bigint,
+	end: bigint | null,
+): T[] | null => {
+	if (!values) {
+		return null;
+	}
+	return values.slice(
+		Number(start) - 1,
+		end === null
+			? undefined
+			: Number(end) - 1
+	);
+};
+_createFunction(
+	slice,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(new ListType(Any))
+			},
+			{
+				name: 'start',
+				type: Integer
+			},
+			{
+				name: 'end',
+				type: optionalType(Integer)
+			},
+		]
+	}
+);
 export const findFirst = <T>(
 	values: T[] | null,
 	predicate: (value: T) => boolean,
