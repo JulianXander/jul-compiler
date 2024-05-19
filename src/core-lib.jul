@@ -411,6 +411,35 @@ setElement = nativeFunction(
 	true
 	§TODO§
 )
+map = nativeFunction(
+	(
+		values: Or(() List(Any))
+		callback: (
+			value: Any
+			# TODO
+			# value: TypeOf(values)/ElementType
+			# TODO positive
+			index: NonZeroInteger
+		) :> Any
+	) :> Or(() List(Any))
+	# TODO
+	# ) :> Or(() List(TypeOf(callback)/ReturnType))
+	# TODO pure wenn die args pure sind
+	false
+	§js
+		(values, callback) => {
+			if (!values) {
+				return null;
+			}
+			const mappedValues = values.map((value, index) => {
+				return callback(value, BigInt(index + 1));
+			});
+			return mappedValues.length
+				? mappedValues
+				: null;
+		}
+	§
+)
 # filtert empty Werte raus
 filterMap = nativeFunction(
 	(

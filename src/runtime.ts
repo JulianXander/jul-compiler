@@ -1528,6 +1528,35 @@ _createFunction(
 		]
 	}
 );
+export const map = <T, U>(
+	values: T[] | null,
+	callback: (value: T, index: bigint) => U,
+): U[] | null => {
+	if (!values) {
+		return null;
+	}
+	const mappedValues = values.map((value, index) => {
+		return callback(value, BigInt(index + 1));
+	});
+	return mappedValues.length
+		? mappedValues
+		: null;
+};
+_createFunction(
+	map,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(new ListType(Any))
+			},
+			{
+				name: 'callback',
+				type: _Function
+			},
+		]
+	}
+);
 export const filterMap = <T, U>(
 	values: T[] | null,
 	callback: (value: T, index: bigint) => U | null,
