@@ -1670,6 +1670,38 @@ _createFunction(
 		]
 	}
 );
+export const aggregate = <T, U>(
+	values: T[] | null,
+	initalValue: U,
+	callback: (accumulator: U, value: T, index: bigint) => U,
+): U => {
+	if (!values) {
+		return initalValue;
+	}
+	return values.reduce(
+		(accumulator, value, index) => {
+			return callback(accumulator, value, BigInt(index + 1));
+		},
+		initalValue);
+};
+_createFunction(
+	aggregate,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(new ListType(Any))
+			},
+			{
+				name: 'initalValue',
+			},
+			{
+				name: 'callback',
+				type: _Function
+			},
+		]
+	}
+);
 //#endregion List
 //#region Dictionary
 export const getField = <T>(

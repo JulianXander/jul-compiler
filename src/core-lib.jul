@@ -515,6 +515,22 @@ toDictionary = nativeFunction(
 	false
 	§TODO§
 )
+aggregate = nativeFunction(
+	(
+		values: Or(() List(Any))
+		initialValue: Any
+		callback: (
+			accumulator: Any
+			value: Any
+			index: Integer
+		) :> Any
+	) :> Any
+	# TODO pure wenn die args pure sind
+	false
+	§js
+		(values, initialValue, callback) => values.reduce(callback, initialValue)
+	§
+)
 #endregion List
 #region Dictionary
 # Returns the value of the field
