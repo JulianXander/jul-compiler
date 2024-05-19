@@ -477,8 +477,8 @@ forEach = nativeFunction(
 	false
 	§TODO§
 )
-# Liefert true, falls predicate für einen value true liefert.
-contains = nativeFunction(
+# Liefert true, falls predicate für mindestens einen value true liefert.
+exists = nativeFunction(
 	(
 		values: Or(() List(Any))
 		predicate: (
@@ -491,7 +491,37 @@ contains = nativeFunction(
 	) :> Boolean
 	# TODO pure wenn die args pure sind
 	false
-	§TODO§
+	§js
+		(values, predicate) => {
+			if (!values) {
+				return false;
+			}
+			return values.some(predicate);
+		}
+	§
+)
+# Liefert true, falls predicate für alle value true liefert.
+all = nativeFunction(
+	(
+		values: Or(() List(Any))
+		predicate: (
+			value: Any
+			# TODO
+			# value: TypeOf(values)/ElementType
+			# TODO Integer vs FloatInteger
+			# index: Integer
+		) :> Any
+	) :> Boolean
+	# TODO pure wenn die args pure sind
+	false
+	§js
+		(values, predicate) => {
+			if (!values) {
+				return true;
+			}
+			return values.every(predicate);
+		}
+	§
 )
 toDictionary = nativeFunction(
 	(

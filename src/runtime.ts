@@ -1608,7 +1608,7 @@ _createFunction(
 		]
 	}
 );
-export const contains = <T>(
+export const exists = <T>(
 	values: T[] | null,
 	predicate: (value: T) => boolean,
 ): boolean => {
@@ -1618,7 +1618,32 @@ export const contains = <T>(
 	return values.some(predicate);
 };
 _createFunction(
-	contains,
+	exists,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(new ListType(Any))
+			},
+			{
+				name: 'predicate',
+				type: _Function
+			},
+		]
+	}
+);
+
+export const all = <T>(
+	values: T[] | null,
+	predicate: (value: T) => boolean,
+): boolean => {
+	if (!values) {
+		return true;
+	}
+	return values.every(predicate);
+};
+_createFunction(
+	all,
 	{
 		singleNames: [
 			{
