@@ -424,6 +424,7 @@ filterMap = nativeFunction(
 	§TODO§
 )
 # Liefert einen Teilbereich der Liste von start bis end, oder bis zum Ende der Liste falls kein end angegeben.
+# TODO rename sublist?
 slice = nativeFunction(
 	(
 		values: Or(() List(Any))
