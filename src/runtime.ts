@@ -1569,12 +1569,13 @@ export const slice = <T>(
 	if (!values) {
 		return null;
 	}
-	return values.slice(
+	const sliced = values.slice(
 		Number(start) - 1,
 		end === null
 			? undefined
 			: Number(end) - 1
 	);
+	return sliced.length ? sliced : null;
 };
 _createFunction(
 	slice,
