@@ -236,6 +236,12 @@ export function getStreamGetValueType(streamType: CompileTimeStreamType): Compil
 	return new CompileTimeFunctionType(null, streamType.ValueType, false);
 }
 
+function dereferenceNestedKeyFromObject(nestedKey: string | number, source: CompileTimeType): CompileTimeType | undefined {
+	return typeof nestedKey === 'string'
+		? dereferenceNameFromObject(nestedKey, source)
+		: dereferenceIndexFromObject(nestedKey, source);
+}
+
 function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
@@ -452,10 +458,7 @@ function dereferenceArgumentTypesNested(
 			return new CompileTimeListType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
 		case 'nestedReference': {
 			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.source);
-			const nestedKey = builtInType.nestedKey;
-			const dereferencedNested = typeof nestedKey === 'string'
-				? dereferenceNameFromObject(nestedKey, dereferencedSource)
-				: dereferenceIndexFromObject(nestedKey, dereferencedSource);
+			const dereferencedNested = dereferenceNestedKeyFromObject(builtInType.nestedKey, dereferencedSource);
 			if (dereferencedNested === undefined) {
 				return Any;
 			}
@@ -581,10 +584,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 			}
 			case 'nestedReference': {
 				const dereferencedSource = dereferenceNested(rawType.source);
-				const nestedKey = rawType.nestedKey;
-				const dereferencedNested = typeof nestedKey === 'string'
-					? dereferenceNameFromObject(nestedKey, dereferencedSource)
-					: dereferenceIndexFromObject(nestedKey, dereferencedSource);
+				const dereferencedNested = dereferenceNestedKeyFromObject(rawType.nestedKey, dereferencedSource);
 				if (dereferencedNested === undefined) {
 					return Any;
 				}
@@ -1086,7 +1086,8 @@ function inferType(
 						// }
 						case 'getElement': {
 							const argTypes = getAllArgTypes();
-							return getElementFromTypes(argTypes);
+							const dereferencedArgTypes = argTypes?.map(dereferenceNested);
+							return getElementFromTypes(dereferencedArgTypes);
 						}
 						case 'length': {
 							const argTypes = getAllArgTypes();
@@ -1540,13 +1541,6 @@ function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 			case 'or': {
 				const getElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getElementFromTypes([valuesChoice, indexType]));
 				return createNormalizedUnionType(getElementChoices);
-			}
-			case 'parameterReference': {
-				const dereferenced = dereferenceParameterTypeFromFunctionRef(valuesType);
-				if (dereferenced === undefined) {
-					return Any;
-				}
-				return getElementFromTypes([dereferenced, indexType]);
 			}
 			default:
 				return Any;
