@@ -37,8 +37,11 @@ export interface SymbolDefinition extends Positioned {
 	 * undefined bei unvollständiger definition
 	 */
 	typeExpression?: ParseValueExpression;
-	// TODO inferred type aus dem value? oder normalize typeguard?
-	normalizedType?: CompileTimeType;
+	/**
+	 * inferred type aus dem value
+	 */
+	inferredType?: CompileTimeType;
+	dereferencedType?: CompileTimeType;
 	//#region FunctionParameter
 	functionRef?: CompileTimeFunctionType;
 	functionParameterIndex?: number;

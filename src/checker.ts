@@ -209,7 +209,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 			isBuiltIn: isBuiltIn,
 		};
 	}
-	const referencedType = foundSymbol.normalizedType;
+	const referencedType = foundSymbol.inferredType;
 	if (referencedType === undefined) {
 		// TODO was wenn referencedsymbol type noch nicht inferred ist?
 		// tritt vermutlich bei rekursion auf
@@ -774,7 +774,8 @@ function inferType(
 			if (!symbol) {
 				throw new Error(`Definition Symbol ${name} not found`);
 			}
-			symbol.normalizedType = inferredType;
+			symbol.inferredType = inferredType;
+			symbol.dereferencedType = dereferenceNested(inferredType);
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
@@ -821,7 +822,9 @@ function inferType(
 					});
 					return;
 				}
-				currentScope[fieldName]!.normalizedType = dereferencedType;
+				const symbol = currentScope[fieldName]!;
+				symbol.inferredType = dereferencedType;
+				symbol.dereferencedType = dereferenceNested(dereferencedType);
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
 					setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
@@ -863,7 +866,8 @@ function inferType(
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
 						}
-						fieldSymbol.normalizedType = fieldType;
+						fieldSymbol.inferredType = fieldType;
+						fieldSymbol.dereferencedType = dereferenceNested(fieldType);
 						return;
 					}
 					case 'spread':
@@ -909,7 +913,8 @@ function inferType(
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
 						}
-						fieldSymbol.normalizedType = fieldType;
+						fieldSymbol.inferredType = fieldType;
+						fieldSymbol.dereferencedType = dereferenceNested(fieldType);
 						return;
 					}
 					case 'spread':
@@ -1041,7 +1046,7 @@ function inferType(
 							// a dictionary containing all definitions is imported
 							if (Object.keys(importedFile.symbols).length) {
 								const importedTypes = mapDictionary(importedFile.symbols, symbol => {
-									return getValueWithFallback(symbol.normalizedType, Any);
+									return getValueWithFallback(symbol.inferredType, Any);
 								});
 								return new CompileTimeDictionaryLiteralType(importedTypes);
 							}
@@ -1170,7 +1175,7 @@ function inferType(
 							...branchedSymbol,
 							functionParameterIndex: undefined,
 							// TODO paramsType spreaden?
-							normalizedType: paramsTypeValue,
+							inferredType: paramsTypeValue,
 						};
 					}
 				}
@@ -1313,7 +1318,8 @@ function inferType(
 			const inferredType = getValueWithFallback(dereferencedTypeFromCall, valueOf(expression.typeGuard?.inferredType));
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
-			parameterSymbol.normalizedType = inferredType;
+			parameterSymbol.inferredType = inferredType;
+			parameterSymbol.dereferencedType = dereferenceNested(inferredType);
 			return inferredType;
 		}
 		case 'parameters': {
