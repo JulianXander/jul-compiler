@@ -22,6 +22,7 @@ import {
 	CompileTimeFunctionType,
 	CompileTimeIntersectionType,
 	CompileTimeListType,
+	CompileTimeNonZeroInteger,
 	CompileTimeStreamType,
 	CompileTimeTupleType,
 	CompileTimeType,
@@ -1571,7 +1572,7 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 				return BigInt(argType.ElementTypes.length);
 			case 'list':
 				// TODO positive
-				return Integer;
+				return CompileTimeNonZeroInteger;
 			case 'or': {
 				const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
 				return createNormalizedUnionType(lengthChoices);

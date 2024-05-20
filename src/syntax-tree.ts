@@ -1,5 +1,5 @@
 import { ParserError, Positioned } from './parser/parser-combinator.js';
-import { AnyType, BlobType, BooleanType, BuiltInTypeBase, DateType, ErrorType, FloatType, IntegerType, Primitive, TextType, TypeType } from './runtime.js';
+import { AnyType, BlobType, BooleanType, BuiltInTypeBase, DateType, ErrorType, FloatType, Integer, IntegerType, Primitive, TextType, TypeType } from './runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {
@@ -566,5 +566,7 @@ export interface Parameter {
 	name: string;
 	type?: CompileTimeType;
 }
+
+export const CompileTimeNonZeroInteger = new CompileTimeIntersectionType([Integer, new CompileTimeComplementType(0n)]);
 
 //#endregion CompileTimeType
