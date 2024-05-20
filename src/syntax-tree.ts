@@ -111,6 +111,11 @@ interface ParseExpressionBase extends PositionedExpressionBase {
 	 * Wird vom checker gesetzt.
 	 */
 	inferredType?: CompileTimeType;
+	/**
+	 * Wird vom checker gesetzt.
+	 * inferredType mit aufgelösten ParamterReferences.
+	 */
+	dereferencedType?: CompileTimeType;
 }
 
 export interface ParseSpreadValueExpression extends PositionedExpressionBase {
@@ -554,7 +559,7 @@ export class ParametersType extends BuiltInTypeBase {
 	readonly type = 'parameters';
 }
 
-interface Parameter {
+export interface Parameter {
 	name: string;
 	type?: CompileTimeType;
 }

@@ -28,6 +28,7 @@ import {
 	CompileTimeTypeOfType,
 	CompileTimeUnionType,
 	NestedReference,
+	Parameter,
 	ParameterReference,
 	ParametersType,
 	ParsedExpressions2,
@@ -544,7 +545,100 @@ function dereferenceParameterFromArgumentType(
 	}
 }
 
-export function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): CompileTimeType | undefined {
+/**
+ * dereferenced nestedReference und parameterReference über dereferenceParameterTypeFromFunctionRef
+ */
+function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
+	if (typeof rawType !== 'object') {
+		return rawType;
+	}
+	if (rawType === null) {
+		return rawType;
+	}
+	if (rawType instanceof BuiltInTypeBase) {
+		switch (rawType.type) {
+			case 'and': {
+				const dereferencedChoices = rawType.ChoiceTypes.map(dereferenceNested);
+				return new CompileTimeIntersectionType(dereferencedChoices);
+			}
+			case 'dictionary': {
+				const dereferencedElementType = dereferenceNested(rawType.ElementType);
+				return new CompileTimeDictionaryType(dereferencedElementType);
+			}
+			case 'dictionaryLiteral': {
+				const dereferencedElementTypes = mapDictionary(rawType.Fields, dereferenceNested);
+				return new CompileTimeDictionaryLiteralType(dereferencedElementTypes);
+			}
+			case 'function': {
+				const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
+				const dereferencedReturnType = dereferenceNested(rawType.ReturnType);
+				return new CompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure);
+			}
+			case 'list': {
+				const dereferencedElementType = dereferenceNested(rawType.ElementType);
+				return new CompileTimeListType(dereferencedElementType);
+			}
+			case 'nestedReference': {
+				const dereferencedSource = dereferenceNested(rawType.source);
+				const nestedKey = rawType.nestedKey;
+				const dereferencedNested = typeof nestedKey === 'string'
+					? dereferenceNameFromObject(nestedKey, dereferencedSource)
+					: dereferenceIndexFromObject(nestedKey, dereferencedSource);
+				if (dereferencedNested === undefined) {
+					return Any;
+				}
+				return dereferencedNested;
+			}
+			case 'not': {
+				const dereferencedSourceType = dereferenceNested(rawType.SourceType);
+				return new CompileTimeComplementType(dereferencedSourceType);
+			}
+			case 'or': {
+				const dereferencedChoices = rawType.ChoiceTypes.map(dereferenceNested);
+				return createNormalizedUnionType(dereferencedChoices);
+			}
+			case 'parameterReference': {
+				const dereferenced = dereferenceParameterTypeFromFunctionRef(rawType);
+				return dereferenced === undefined
+					? Any
+					: dereferenced;
+			}
+			case 'parameters': {
+				const dereferencedSingleNames = rawType.singleNames.map(dereferenceNestedParameter);
+				const dereferencedRest = rawType.rest === undefined
+					? undefined
+					: dereferenceNestedParameter(rawType.rest);
+				return new ParametersType(dereferencedSingleNames, dereferencedRest);
+			}
+			case 'stream': {
+				const dereferencedValueType = dereferenceNested(rawType.ValueType);
+				return new CompileTimeStreamType(dereferencedValueType);
+			}
+			case 'tuple': {
+				const dereferencedElementTypes = rawType.ElementTypes.map(dereferenceNested);
+				return new CompileTimeTupleType(dereferencedElementTypes);
+			}
+			case 'typeOf': {
+				const dereferencedValue = dereferenceNested(rawType.value);
+				return new CompileTimeTypeOfType(dereferencedValue);
+			}
+			default:
+				return rawType;
+		}
+	}
+	return rawType;
+}
+
+function dereferenceNestedParameter(parameter: Parameter): Parameter {
+	return {
+		name: parameter.name,
+		type: parameter.type === undefined
+			? undefined
+			: dereferenceNested(parameter.type),
+	};
+}
+
+function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): CompileTimeType | undefined {
 	const functionType = parameterReference.functionRef;
 	if (functionType) {
 		const paramsType = functionType.ParamsType;
@@ -597,7 +691,9 @@ function setInferredType(
 	if (expression.inferredType) {
 		return;
 	}
-	expression.inferredType = inferType(expression, scopes, parsedDocuments, sourceFolder, file);
+	const rawType = inferType(expression, scopes, parsedDocuments, sourceFolder, file);
+	expression.inferredType = rawType;
+	expression.dereferencedType = dereferenceNested(rawType);
 }
 
 // TODO flatten nested or/and
