@@ -1837,6 +1837,7 @@ export function getTypeError(
 							&& argumentsType > greaterValue) {
 							return undefined;
 						}
+						break;
 					}
 					case 'integer':
 						switch (typeof argumentsType) {
