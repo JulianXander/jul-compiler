@@ -453,6 +453,8 @@ export type BuiltInCompileTimeType =
 	| DateType
 	| BlobType
 	| ErrorType
+	| TypeType
+	| CompileTimeGreaterType
 	| CompileTimeListType
 	| CompileTimeTupleType
 	| CompileTimeDictionaryType
@@ -462,7 +464,6 @@ export type BuiltInCompileTimeType =
 	| NestedReference
 	| ParameterReference
 	| ParametersType
-	| TypeType
 	| CompileTimeIntersectionType
 	| CompileTimeUnionType
 	| CompileTimeComplementType
@@ -472,6 +473,11 @@ export type BuiltInCompileTimeType =
 export class CompileTimeComplementType extends BuiltInTypeBase {
 	constructor(public SourceType: CompileTimeType) { super(); }
 	readonly type = 'not';
+}
+
+export class CompileTimeGreaterType extends BuiltInTypeBase {
+	constructor(public Value: CompileTimeType) { super(); }
+	readonly type = 'greater';
 }
 
 export class CompileTimeDictionaryLiteralType extends BuiltInTypeBase {

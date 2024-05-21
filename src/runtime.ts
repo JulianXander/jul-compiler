@@ -107,6 +107,8 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						return typeof value === 'bigint';
 					case 'float':
 						return typeof value === 'number';
+					case 'greater':
+						return value > builtInType.Value;
 					case 'text':
 						return typeof value === 'string';
 					case 'date':
@@ -398,6 +400,7 @@ type BuiltInType =
 	| BooleanType
 	| IntegerType
 	| FloatType
+	| GreaterType
 	| TextType
 	| DateType
 	| BlobType
@@ -431,6 +434,11 @@ export class IntegerType extends BuiltInTypeBase {
 
 export class FloatType extends BuiltInTypeBase {
 	readonly type = 'float';
+}
+
+class GreaterType extends BuiltInTypeBase {
+	constructor(public Value: bigint | number) { super(); }
+	readonly type = 'greater';
 }
 
 export class TextType extends BuiltInTypeBase {
@@ -904,6 +912,19 @@ export const Float = new FloatType();
 export const NonZeroFloat = new IntersectionType([Float, new ComplementType(0)]);
 export const Integer = new IntegerType();
 export const NonZeroInteger = new IntersectionType([Integer, new ComplementType(0n)]);
+export const Greater = (Value: bigint | number) =>
+	new GreaterType(Value);
+_createFunction(
+	Greater,
+	{
+		singleNames: [
+			{
+				name: 'Value',
+				type: Or(Integer, Float),
+			},
+		]
+	}
+);
 export const Fraction = new DictionaryLiteralType({
 	numerator: Integer,
 	denominator: Integer

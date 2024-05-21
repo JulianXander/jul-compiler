@@ -20,6 +20,7 @@ import {
 	CompileTimeDictionaryLiteralType,
 	CompileTimeDictionaryType,
 	CompileTimeFunctionType,
+	CompileTimeGreaterType,
 	CompileTimeIntersectionType,
 	CompileTimeListType,
 	CompileTimeNonZeroInteger,
@@ -454,6 +455,8 @@ function dereferenceArgumentTypesNested(
 			return new CompileTimeIntersectionType(builtInType.ChoiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
 		case 'dictionary':
 			return new CompileTimeDictionaryType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
+		case 'greater':
+			return new CompileTimeGreaterType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.Value));
 		case 'list':
 			return new CompileTimeListType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
 		case 'nestedReference': {
@@ -1136,6 +1139,18 @@ function inferType(
 							}
 							return new CompileTimeTypeOfType(argTypes[0]);
 						}
+						case 'Greater': {
+							const argTypes = getAllArgTypes();
+							if (!argTypes) {
+								// TODO unknown?
+								return Any;
+							}
+							if (!isNonEmpty(argTypes)) {
+								// TODO unknown?
+								return Any;
+							}
+							return new CompileTimeTypeOfType(new CompileTimeGreaterType(valueOf(argTypes[0])));
+						}
 						default:
 							break;
 					}
@@ -1813,6 +1828,16 @@ export function getTypeError(
 						}
 						return getTypeError(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
 					}
+					case 'greater': {
+						const greaterValue = targetType.Value;
+						if (((typeof greaterValue === 'bigint'
+							&& typeof argumentsType === 'bigint')
+							|| (typeof greaterValue === 'number'
+								&& typeof argumentsType === 'number'))
+							&& argumentsType > greaterValue) {
+							return undefined;
+						}
+					}
 					case 'integer':
 						switch (typeof argumentsType) {
 							case 'bigint':
@@ -2317,6 +2342,8 @@ export function typeToString(type: CompileTimeType, indent: number): string {
 						return 'Float';
 					case 'function':
 						return `${typeToString(builtInType.ParamsType, indent)} :> ${typeToString(builtInType.ReturnType, indent)}`;
+					case 'greater':
+						return `Greater(${typeToString(builtInType.Value, indent)})`;
 					case 'integer':
 						return 'Integer';
 					case 'list':

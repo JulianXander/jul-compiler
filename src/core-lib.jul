@@ -72,13 +72,22 @@ NonZeroFloat = Float.Without(0f)
 # Ganzzahl beliebiger Größe
 Integer = nativeValue(§Integer§)
 NonZeroInteger = Integer.Without(0)
+# x is part of Greater(y) <=> x > y
+# TODO Greater Rational vs GreaterInteger, GreaterFloat
+Greater = nativeFunction(
+	(Value: Or(Integer Float)) :> Type
+	true
+	§TODO§
+)
+PositiveInteger = And(
+	Integer
+	Greater(0)
+)
 Fraction = (
 	numerator: Integer
 	denominator: Integer
 )
 Rational = Or(Integer Fraction)
-# TODO nonzero/positive
-# TODO Number = Or(Float Rational)?
 #endregion Number
 # sequence of characters (String)
 Text = nativeValue(§_Text§)
