@@ -23,14 +23,14 @@ export function compileProject(
 
 	//#region 2. compile
 	const runtimePath = resolve(join(outputFolderPath, runtimeFileName));
-	const outFilePath = compileFile({
+	const { outFilePath, error } = compileFile({
 		sourceFilePath: entryFilePath,
 		outputFolderPath: outputFolderPath,
 		runtimePath: runtimePath,
 		shebang: cli,
 	}, {});
-	if (outFilePath instanceof Error) {
-		console.error(outFilePath);
+	if (error) {
+		console.error(error);
 		process.exitCode = 1;
 		return;
 	}
@@ -72,12 +72,12 @@ export function compileProject(
 		const hasErrors = stats?.hasErrors();
 		stopSpinner();
 		if (hasErrors) {
-			console.error('bundling failed.');
+			console.error(colorize('bundling failed.', ConsoleColor.lightRed));
 			console.error(stats?.compilation.errors);
 			process.exitCode = 1;
 		}
 		else {
-			console.log('build finished successfully');
+			console.log(colorize('build finished successfully', ConsoleColor.green));
 		}
 	});
 	//#endregion 4. bundle
@@ -90,13 +90,16 @@ interface JulCompilerOptions {
 	shebang: boolean;
 }
 
-/**
- * Gibt den outFilePath zurück bei success, undefined wenn schon compiled.
- */
 function compileFile(
 	options: JulCompilerOptions,
 	compiledDocuments: ParsedDocuments,
-): string | undefined | Error {
+): {
+	/**
+	 * undefined wenn schon compiled und bei error.
+	 */
+	outFilePath?: string;
+	error?: string;
+} {
 	const {
 		sourceFilePath,
 		outputFolderPath,
@@ -104,7 +107,7 @@ function compileFile(
 		shebang,
 	} = options;
 	if (compiledDocuments[sourceFilePath]) {
-		return undefined;
+		return {};
 	}
 	console.log(`compiling ${sourceFilePath} ...`);
 
@@ -158,7 +161,7 @@ function compileFile(
 		}
 		default: {
 			const assertNever: never = extension;
-			return new Error(`Unexpected extension for compileFile: ${assertNever}`);
+			return { error: `Unexpected extension for compileFile: ${assertNever}` };
 		}
 	}
 	//#endregion 3. compile
@@ -180,7 +183,7 @@ function compileFile(
 					shebang: false,
 					sourceFilePath: importedPath,
 				}, compiledDocuments);
-				if (importedResult instanceof Error) {
+				if (importedResult.error) {
 					return importedResult;
 				}
 			}
@@ -191,11 +194,19 @@ function compileFile(
 		checkTypes(parsed, compiledDocuments);
 		const errors = parsed.checked?.errors;
 		if (errors?.length) {
-			return new Error(`CompilerError in file ${parsed.filePath}\n` + JSON.stringify(errors, undefined, 2));
+			return {
+				error: errors.map(error => {
+					const errorPath = colorize(parsed.filePath, ConsoleColor.cyan);
+					const errorRow = colorize(error.startRowIndex, ConsoleColor.yellow);
+					const errorColumn = colorize(error.startColumnIndex, ConsoleColor.yellow);
+					const errorLabel = colorize('CompilerError', ConsoleColor.lightRed);
+					return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel}: ${error.message}`;
+				}).join('\n'),
+			};
 		}
 		//#endregion 6. check
 	}
-	return outFilePath;
+	return { outFilePath: outFilePath };
 }
 
 function busySpinner() {
@@ -212,4 +223,23 @@ function busySpinner() {
 		clearInterval(timer);
 		process.stdout.write('\b\b  \n');
 	};
+}
+
+// https://askubuntu.com/questions/558280/changing-colour-of-text-and-background-of-terminal
+enum ConsoleColor {
+	// red = 31,
+	green = 32,
+	yellow = 33,
+	// blue = 34,
+	// purple = 35,
+	cyan = 36,
+	// lightGray = 37,
+	// darkGrey = 90,
+	lightRed = 91,
+	// lightBlue = 94,
+	// lightCyan = 96,
+}
+
+function colorize(text: any, color: ConsoleColor): string {
+	return `\x1b[${color}m${text}\x1b[0m`;
 }
