@@ -114,7 +114,6 @@ Dictionary = nativeFunction(
 Stream = nativeFunction(
 	(ValueType: Type) :> Type
 	true
-	# TODO generic Stream check
 	§js
 		x => x instanceof StreamClass
 	§
