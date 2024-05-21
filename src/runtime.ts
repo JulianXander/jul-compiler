@@ -1286,7 +1286,7 @@ _createFunction(
 	addInteger,
 	{
 		rest: {
-			type: new ListType(Float)
+			type: new ListType(Integer)
 		}
 	}
 );
