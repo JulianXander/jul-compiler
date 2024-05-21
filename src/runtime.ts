@@ -1602,7 +1602,7 @@ export const slice = <T>(
 		Number(start) - 1,
 		end === null
 			? undefined
-			: Number(end) - 1
+			: Number(end)
 	);
 	return sliced.length ? sliced : null;
 };

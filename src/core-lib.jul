@@ -459,6 +459,7 @@ filterMap = nativeFunction(
 	§TODO§
 )
 # Liefert einen Teilbereich der Liste von start bis end, oder bis zum Ende der Liste falls kein end angegeben.
+# Inklusive start und end.
 # TODO rename subList?
 slice = nativeFunction(
 	(
@@ -476,7 +477,7 @@ slice = nativeFunction(
 				Number(start) - 1,
 				end === null
 					? undefined
-					: Number(end) - 1
+					: Number(end)
 			);
 			return sliced.length ? sliced : null;
 		}
