@@ -311,6 +311,13 @@ function dereferenceNameFromObject(
 								}
 							case 'parameterReference':
 								return new NestedReference(sourceObjectType, name);
+							case 'tuple':
+								switch (name) {
+									case 'ElementType':
+										return createNormalizedUnionType(innerType.ElementTypes);
+									default:
+										return undefined;
+								}
 							default:
 								return undefined;
 						}
