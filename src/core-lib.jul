@@ -175,12 +175,18 @@ or = nativeFunction(
 add = nativeFunction(
 	(...args: List(Rational)) :> Rational
 	true
+	§TODO§
+)
+# Liefert die Summe der args.
+addInteger = nativeFunction(
+	(...args: List(Integer)) :> Integer
+	true
 	§js
 		(...args) =>
 			args.reduce(
 				(accumulator, current) =>
 					accumulator + current,
-				0)
+				0n)
 	§
 )
 # Liefert die Summe der args.

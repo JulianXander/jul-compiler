@@ -1532,6 +1532,10 @@ function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 			return dereferencedIndex;
 		}
 	}
+	if (indexType instanceof CompileTimeUnionType) {
+		const getElementChoices = indexType.ChoiceTypes.map(indexChoice => getElementFromTypes([valuesType, indexChoice]));
+		return createNormalizedUnionType(getElementChoices);
+	}
 	if (valuesType instanceof BuiltInTypeBase) {
 		switch (valuesType.type) {
 			case 'tuple':

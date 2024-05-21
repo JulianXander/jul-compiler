@@ -1277,7 +1277,20 @@ _createFunction(
 		}
 	}
 );
-export const addFloat = (...args: number[]) =>
+export const addInteger = (...args: bigint[]): bigint =>
+	args.reduce(
+		(accumulator, current) =>
+			accumulator + current,
+		0n);
+_createFunction(
+	addInteger,
+	{
+		rest: {
+			type: new ListType(Float)
+		}
+	}
+);
+export const addFloat = (...args: number[]): number =>
 	args.reduce(
 		(accumulator, current) =>
 			accumulator + current,
