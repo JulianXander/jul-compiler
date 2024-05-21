@@ -925,6 +925,7 @@ _createFunction(
 		]
 	}
 );
+export const PositiveInteger = new IntersectionType([Integer, new GreaterType(0n)]);
 export const Fraction = new DictionaryLiteralType({
 	numerator: Integer,
 	denominator: Integer
@@ -1554,7 +1555,7 @@ _createFunction(
 			},
 			{
 				name: 'index',
-				type: NonZeroInteger
+				type: PositiveInteger
 			},
 			{
 				name: 'value',

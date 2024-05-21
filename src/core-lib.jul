@@ -393,8 +393,7 @@ toIsoDateText = nativeFunction(
 length = nativeFunction(
 	(
 		values: Or(() List(Any))
-	) :> Integer
-	# TODO positive
+	) :> PositiveInteger
 	true
 	§TODO§
 )
@@ -403,9 +402,8 @@ getElement = nativeFunction(
 	(
 		values: Or(() List(Any))
 		# 1 basiert
-		# TODO positive
-		index: NonZeroInteger
-	) :> Any
+		index: PositiveInteger
+	) :> Or(() TypeOf(values)/ElementType)
 	# TODO Or(() TypeOf(values)/ElementType)
 	# TODO
 	# index.greater(values.length()) ?
@@ -419,8 +417,7 @@ setElement = nativeFunction(
 	(
 		values: Or(() List(Any))
 		# 1 basiert
-		# TODO positive
-		index: NonZeroInteger
+		index: PositiveInteger
 		value: Any
 	) :> List(Any)
 	true
@@ -433,8 +430,7 @@ map = nativeFunction(
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO positive
-			index: NonZeroInteger
+			index: PositiveInteger
 		) :> Any
 	) :> Or(() List(Any))
 	# TODO
@@ -463,8 +459,7 @@ filterMap = nativeFunction(
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO positive
-			index: NonZeroInteger
+			index: PositiveInteger
 		) :> Any
 	) :> Or(() List(Any))
 	# TODO
@@ -539,7 +534,7 @@ findLast = nativeFunction(
 	§
 )
 lastElement = nativeFunction(
-	(values: Or(() List(Any))) :> Any
+	(values: Or(() List(Any))) :> Or(() TypeOf(values)/ElementType)
 	true
 	§TODO§
 )
@@ -611,14 +606,14 @@ toDictionary = nativeFunction(
 			# TODO
 			# value: TypeOf(values)/ElementType
 			# TODO Integer vs FloatInteger
-			index: Integer
+			index: PositiveInteger
 		) :> Text
 		getValue: (
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
 			# TODO Integer vs FloatInteger
-			index: Integer
+			index: PositiveInteger
 		) :> Any
 	) :> Or(() Dictionary(Any))
 	# TODO pure wenn die args pure sind
@@ -632,7 +627,7 @@ aggregate = nativeFunction(
 		callback: (
 			accumulator: Any
 			value: Any
-			index: Integer
+			index: PositiveInteger
 		) :> Any
 	) :> Any
 	# TODO pure wenn die args pure sind
@@ -856,7 +851,7 @@ log = nativeFunction(
 repeat = nativeFunction(
 	(
 		count: Integer
-		iteratee: (index: Integer) :> Any
+		iteratee: (index: PositiveInteger) :> Any
 	) :> ()
 	false
 	§js

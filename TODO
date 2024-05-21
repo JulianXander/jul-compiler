@@ -1,8 +1,5 @@
--length returntype sodass getElement nicht empty liefert
-	-getElement returntype nicht empty wenn index <= list.length()
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
--Fix elementType inference für getElement, getField
 -autoComplete bei Dictionary(DictionaryLiteralType), vgl test1.jul
 -typeInference für filterMap verbessern mit mapped List type
 ?slice in corelib
