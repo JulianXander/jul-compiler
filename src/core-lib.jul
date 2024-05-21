@@ -538,9 +538,14 @@ findLast = nativeFunction(
 		(values, predicate) => values?.findLast(predicate) ?? null
 	§
 )
+lastElement = nativeFunction(
+	(values: Or(() List(Any))) :> Any
+	true
+	§TODO§
+)
 forEach = nativeFunction(
 	(
-		values: List(Any)
+		values: Or(() List(Any))
 		callback: (
 			value: Any
 			# TODO

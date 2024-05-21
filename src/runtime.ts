@@ -1701,11 +1701,25 @@ _createFunction(
 		]
 	}
 );
-export const forEach = (
-	values: any[],
-	callback: (value: any) => void,
+export const lastElement = <T>(values: T[] | null): T | null => {
+	return values?.[values.length - 1] ?? null;
+};
+_createFunction(
+	lastElement,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(new ListType(Any))
+			},
+		]
+	}
+);
+export const forEach = <T>(
+	values: T[] | null,
+	callback: (value: T) => void,
 ) => {
-	values.forEach(callback);
+	values?.forEach(callback);
 	return null;
 };
 _createFunction(
@@ -1714,7 +1728,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: new ListType(Any)
+				type: optionalType(new ListType(Any))
 			},
 			{
 				name: 'callback',
