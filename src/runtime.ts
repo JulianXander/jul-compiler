@@ -307,10 +307,10 @@ function tryAssignArgs(
 // TODO toString
 
 export function deepEqual(value1: any, value2: any): boolean {
-	const type1 = typeof value1;
-	if (type1 !== typeof value2) {
-		return false;
+	if (value1 === value2) {
+		return true;
 	}
+	const type1 = typeof value1;
 	switch (type1) {
 		case 'bigint':
 		case 'boolean':
@@ -319,13 +319,16 @@ export function deepEqual(value1: any, value2: any): boolean {
 		case 'string':
 		case 'symbol':
 		case 'undefined':
-			return value1 === value2;
+			return false;
 		case 'object':
+			if (typeof value2 !== 'object') {
+				return false;
+			}
 			if (value1 === null || value2 === null) {
-				return value1 === value2;
+				return false;
 			}
 			else if (value1 instanceof StreamClass || value2 instanceof StreamClass) {
-				return value1 === value2;
+				return false;
 			}
 			else if (Array.isArray(value1) || Array.isArray(value2)) {
 				if (!Array.isArray(value1)
@@ -334,7 +337,8 @@ export function deepEqual(value1: any, value2: any): boolean {
 					return false;
 				}
 				for (let index = 0; index < value1.length; index++) {
-					if (value1[index] !== value2[index]) {
+					const elementValuesEqual = deepEqual(value1[index], value2[index]);
+					if (!elementValuesEqual) {
 						return false;
 					}
 				}
@@ -342,9 +346,12 @@ export function deepEqual(value1: any, value2: any): boolean {
 			}
 			else {
 				// Dictionary/Function Object
-				const typedValue1 = value1 as any;
-				for (const key in typedValue1) {
-					if (typedValue1[key] !== (value2 as any)[key]) {
+				if (Object.keys(value1).length !== Object.keys(value2).length) {
+					return false;
+				}
+				for (const key in value1) {
+					const fieldValuesEqual = deepEqual(value1[key], value2[key]);
+					if (!fieldValuesEqual) {
 						return false;
 					}
 				}
