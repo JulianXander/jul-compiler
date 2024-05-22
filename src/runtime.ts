@@ -1358,10 +1358,10 @@ _createFunction(
 		]
 	}
 );
-export const parseFloat = (stringNumber: string) => {
-	const result = +stringNumber;
+export const parseFloat = (textNumber: string) => {
+	const result = +textNumber;
 	if (Number.isNaN(result)) {
-		return new Error(`Invalid number.`);
+		return new Error('Invalid number.');
 	}
 	return result;
 };
@@ -1370,7 +1370,7 @@ _createFunction(
 	{
 		singleNames: [
 			{
-				name: 'stringNumber',
+				name: 'textNumber',
 				type: _Text,
 			},
 		]

@@ -312,7 +312,18 @@ greater = nativeFunction(
 maxInteger = nativeFunction(
 	(...args: List(Integer)) :> Integer
 	true
-	§TODO§
+	§js
+		(...args) {
+			let max = args[0];
+			for (let index = 1; index < args.length; index++) {
+				const element = args[index]!;
+				if (element > max) {
+					max = element;
+				}
+			}
+			return max;
+		}
+	§
 )
 maxFloat = nativeFunction(
 	(...args: List(Float)) :> Float
@@ -342,7 +353,15 @@ combineTexts = nativeFunction(
 parseFloat = nativeFunction(
 	(textNumber: Text) :> Or(Float Error)
 	true
-	§TODO§
+	§js
+		(textNumber) => {
+			const result = +textNumber;
+			if (Number.isNaN(result)) {
+				return new Error('Invalid number.');
+			}
+			return result;
+		}
+	§
 )
 #region JSON
 JsonPrimitive = Or(() Boolean Rational Text)
