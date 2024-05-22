@@ -1759,12 +1759,14 @@ _createFunction(
 );
 export const exists = <T>(
 	values: T[] | null,
-	predicate: (value: T) => boolean,
+	predicate: (value: T, index: bigint) => boolean,
 ): boolean => {
 	if (!values) {
 		return false;
 	}
-	return values.some(predicate);
+	return values.some((value, index) => {
+		return predicate(value, BigInt(index + 1));
+	});
 };
 _createFunction(
 	exists,
@@ -1784,12 +1786,14 @@ _createFunction(
 
 export const all = <T>(
 	values: T[] | null,
-	predicate: (value: T) => boolean,
+	predicate: (value: T, index: bigint) => boolean,
 ): boolean => {
 	if (!values) {
 		return true;
 	}
-	return values.every(predicate);
+	return values.every((value, index) => {
+		return predicate(value, BigInt(index + 1));
+	});
 };
 _createFunction(
 	all,

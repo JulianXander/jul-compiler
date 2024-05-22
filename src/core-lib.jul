@@ -565,7 +565,9 @@ findLast = nativeFunction(
 lastElement = nativeFunction(
 	(values: Or(() List(Any))) :> Or(() TypeOf(values)/ElementType)
 	true
-	§TODO§
+	§js
+		values => values?.[values.length - 1] ?? null
+	§
 )
 forEach = nativeFunction(
 	(
@@ -591,8 +593,7 @@ exists = nativeFunction(
 		values: Or(() List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
-			# TODO
-			# index: PositiveInteger
+			index: PositiveInteger
 		) :> Any
 	) :> Boolean
 	# TODO pure wenn die args pure sind
@@ -602,7 +603,9 @@ exists = nativeFunction(
 			if (!values) {
 				return false;
 			}
-			return values.some(predicate);
+			return values.some((value, index) => {
+				return predicate(value, BigInt(index + 1));
+			});
 		}
 	§
 )
@@ -612,8 +615,7 @@ all = nativeFunction(
 		values: Or(() List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
-			# TODO
-			# index: PositiveInteger
+			index: PositiveInteger
 		) :> Boolean
 	) :> Boolean
 	# TODO pure wenn die args pure sind
@@ -623,7 +625,9 @@ all = nativeFunction(
 			if (!values) {
 				return true;
 			}
-			return values.every(predicate);
+			return values.every((value, index) => {
+				return predicate(value, BigInt(index + 1));
+			});
 		}
 	§
 )
