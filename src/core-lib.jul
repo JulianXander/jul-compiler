@@ -911,8 +911,8 @@ combine$ = nativeFunction(
 	(
 		...sources: Or(() List(Stream(Any)))
 		# TODO generic returntype
-		# Stream(List(sources/ElementType))
-	) :> Stream(Or(() List(Any)))
+		# Stream(Or(() List(TypeOf(sources)/ElementType/ValueType)))
+	) :> Stream(Or(() List(TypeOf(sources)/ElementType/ValueType)))
 	false
 	§TODO§
 )
