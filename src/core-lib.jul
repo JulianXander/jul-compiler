@@ -470,7 +470,15 @@ setElement = nativeFunction(
 		value: Any
 	) :> List(Any)
 	true
-	§TODO§
+	§js
+		(values, index, value) => {
+			const copy = values
+				? [...values]
+				: [];
+			copy[Number(index) - 1] = value;
+			return copy;
+		}
+	§
 )
 map = nativeFunction(
 	(
@@ -480,8 +488,6 @@ map = nativeFunction(
 			index: PositiveInteger
 		) :> Any
 	) :> Or(() List(callback/ReturnType))
-	# TODO
-	# ) :> Or(() List(TypeOf(callback)/ReturnType))
 	# TODO pure wenn die args pure sind
 	false
 	§js
