@@ -436,7 +436,14 @@ length = nativeFunction(
 		values: Or(() List(Any))
 	) :> PositiveInteger
 	true
-	§TODO§
+	§js
+		(values) => {
+			if (values === null) {
+				return 0n;
+			}
+			return BigInt(values.length);
+		}
+	§
 )
 # TODO conditional return type, sodass null nur geliefert wird, wenn index > values.Length
 getElement = nativeFunction(
