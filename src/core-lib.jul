@@ -497,9 +497,7 @@ findFirst = nativeFunction(
 	(
 		values: Or(() List(Any))
 		predicate: (
-			value: Any
-			# TODO
-			# value: TypeOf(values)/ElementType
+			value: TypeOf(values)/ElementType
 			# TODO
 			# index: PositiveInteger
 		) :> Boolean
@@ -517,9 +515,7 @@ findLast = nativeFunction(
 	(
 		values: Or(() List(Any))
 		predicate: (
-			value: Any
-			# TODO
-			# value: TypeOf(values)/ElementType
+			value: TypeOf(values)/ElementType
 			# TODO
 			# index: PositiveInteger
 		) :> Boolean
@@ -541,9 +537,7 @@ forEach = nativeFunction(
 	(
 		values: Or(() List(Any))
 		callback: (
-			value: Any
-			# TODO
-			# value: TypeOf(values)/ElementType
+			value: TypeOf(values)/ElementType
 			# TODO
 			# index: PositiveInteger
 		) :> Any
@@ -556,9 +550,7 @@ exists = nativeFunction(
 	(
 		values: Or(() List(Any))
 		predicate: (
-			value: Any
-			# TODO
-			# value: TypeOf(values)/ElementType
+			value: TypeOf(values)/ElementType
 			# TODO
 			# index: PositiveInteger
 		) :> Any
@@ -579,12 +571,10 @@ all = nativeFunction(
 	(
 		values: Or(() List(Any))
 		predicate: (
-			value: Any
-			# TODO
-			# value: TypeOf(values)/ElementType
+			value: TypeOf(values)/ElementType
 			# TODO
 			# index: PositiveInteger
-		) :> Any
+		) :> Boolean
 	) :> Boolean
 	# TODO pure wenn die args pure sind
 	false
@@ -602,14 +592,10 @@ toDictionary = nativeFunction(
 		values: Or(() List(Any))
 		getKey: (
 			value: TypeOf(values)/ElementType
-			# TODO
-			# value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Text
 		getValue: (
 			value: TypeOf(values)/ElementType
-			# TODO
-			# value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
 	) :> Or(() Dictionary(Any))
