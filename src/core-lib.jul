@@ -479,8 +479,6 @@ filterMap = nativeFunction(
 			index: PositiveInteger
 		) :> Any
 	) :> Or(() List(Without(callback/ReturnType ())))
-	# TODO
-	# ) :> Or(() List(Without(TypeOf(callback)/ReturnType ())))
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -534,9 +532,7 @@ findFirst = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> Any
-	# TODO
-	# ) :> Or(() values/ElementType)
+	) :> Or(() TypeOf(values)/ElementType)
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -553,16 +549,17 @@ findLast = nativeFunction(
 		values: Or(() List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
-			# TODO
-			# index: PositiveInteger
+			index: PositiveInteger
 		) :> Boolean
-	) :> Any
-	# TODO
-	# ) :> Or(() values/ElementType)
+	) :> Or(() TypeOf(values)/ElementType)
 	# TODO pure wenn die args pure sind
 	false
 	§js
-		(values, predicate) => values?.findLast(predicate) ?? null
+		(values, predicate) => {
+			return values?.findLast((value, index) => {
+				return predicate(value, BigInt(index + 1));
+			}) ?? null;
+		}
 	§
 )
 lastElement = nativeFunction(
@@ -575,12 +572,18 @@ forEach = nativeFunction(
 		values: Or(() List(Any))
 		callback: (
 			value: TypeOf(values)/ElementType
-			# TODO
-			# index: PositiveInteger
+			index: PositiveInteger
 		) :> Any
 	) :> ()
 	false
-	§TODO§
+	§js
+		(values, callback) => {
+			values?.forEach((value, index) => {
+				return callback(value, BigInt(index + 1));
+			});
+			return null;
+		}
+	§
 )
 # Liefert true, falls predicate für mindestens einen value true liefert.
 exists = nativeFunction(

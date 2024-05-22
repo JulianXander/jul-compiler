@@ -1698,9 +1698,11 @@ _createFunction(
 );
 export const findLast = <T>(
 	values: T[] | null,
-	predicate: (value: T) => boolean,
+	predicate: (value: T, index: bigint) => boolean,
 ): T | null => {
-	return values?.findLast(predicate) ?? null;
+	return values?.findLast((value, index) => {
+		return predicate(value, BigInt(index + 1));
+	}) ?? null;
 };
 _createFunction(
 	findLast,
@@ -1733,9 +1735,11 @@ _createFunction(
 );
 export const forEach = <T>(
 	values: T[] | null,
-	callback: (value: T) => void,
+	callback: (value: T, index: bigint) => void,
 ) => {
-	values?.forEach(callback);
+	values?.forEach((value, index) => {
+		return callback(value, BigInt(index + 1));
+	});
 	return null;
 };
 _createFunction(
