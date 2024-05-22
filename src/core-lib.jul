@@ -457,7 +457,9 @@ getElement = nativeFunction(
 	# 	true => ()
 	# 	false => TypeOf(values)/ElementType
 	true
-	§TODO§
+	§js
+		(values, index) => values?.[Number(index) - 1] ?? null
+	§
 )
 # Creates a new List without mutating the given List
 setElement = nativeFunction(
