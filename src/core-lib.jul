@@ -500,8 +500,8 @@ findFirst = nativeFunction(
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO
+			# index: PositiveInteger
 		) :> Boolean
 	) :> Any
 	# TODO
@@ -520,8 +520,8 @@ findLast = nativeFunction(
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO
+			# index: PositiveInteger
 		) :> Boolean
 	) :> Any
 	# TODO
@@ -544,8 +544,8 @@ forEach = nativeFunction(
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO
+			# index: PositiveInteger
 		) :> Any
 	) :> ()
 	false
@@ -559,8 +559,8 @@ exists = nativeFunction(
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO
+			# index: PositiveInteger
 		) :> Any
 	) :> Boolean
 	# TODO pure wenn die args pure sind
@@ -582,8 +582,8 @@ all = nativeFunction(
 			value: Any
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO
+			# index: PositiveInteger
 		) :> Any
 	) :> Boolean
 	# TODO pure wenn die args pure sind
@@ -601,17 +601,15 @@ toDictionary = nativeFunction(
 	(
 		values: Or(() List(Any))
 		getKey: (
-			value: Any
+			value: TypeOf(values)/ElementType
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO Integer vs FloatInteger
 			index: PositiveInteger
 		) :> Text
 		getValue: (
-			value: Any
+			value: TypeOf(values)/ElementType
 			# TODO
 			# value: TypeOf(values)/ElementType
-			# TODO Integer vs FloatInteger
 			index: PositiveInteger
 		) :> Any
 	) :> Or(() Dictionary(Any))
@@ -772,8 +770,8 @@ map$ = nativeFunction(
 		source$: Stream(Any)
 		transform$: (
 			value: source$/ValueType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO
+			# index: PositiveInteger
 		) :> Any
 	) :> Stream(transform$/ReturnType)
 	false
@@ -784,8 +782,8 @@ flatMergeMap$ = nativeFunction(
 		source$: Stream(Any)
 		transform$: (
 			value: source$/ValueType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO
+			# index: PositiveInteger
 		) :> Stream(Any)
 	) :> Stream(transform$/ReturnType/ValueType)
 	false
@@ -796,8 +794,8 @@ flatSwitchMap$ = nativeFunction(
 		source$: Stream(Any)
 		transform$: (
 			value: source$/ValueType
-			# TODO Integer vs FloatInteger
-			# index: Integer
+			# TODO
+			# index: PositiveInteger
 		) :> Stream(Any)
 	) :> Stream(transform$/ReturnType/ValueType)
 	false
