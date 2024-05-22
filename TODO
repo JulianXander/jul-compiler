@@ -1,7 +1,10 @@
+-builtinTypes mit symbol statt class
+-normalize intersection type:
+	And(Or(1 2) Not(2)) => 1
+	And(Or(1 2) Not(2)) => Or(And(1 Not(2)) And(2 Not(2))) => Or(1 Never) => 1
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
 -autoComplete bei Dictionary(DictionaryLiteralType), vgl test1.jul
--typeInference für filterMap verbessern mit mapped List type
 ?slice in corelib
 ?tuple builtInType vs type Array, DictionaryLiteralType vs type Dictionary
 -debug experience vebessern

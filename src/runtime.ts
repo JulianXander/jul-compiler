@@ -448,6 +448,12 @@ class GreaterType extends BuiltInTypeBase {
 	readonly type = 'greater';
 }
 
+// TODO BuiltInTypes ohne class
+// export const _julTypeSymbol = Symbol.for('julType');
+// export const _Text = {
+// 	[_julTypeSymbol]: 'text',
+// }
+
 export class TextType extends BuiltInTypeBase {
 	readonly type = 'text';
 }
