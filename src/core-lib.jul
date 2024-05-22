@@ -455,9 +455,7 @@ filterMap = nativeFunction(
 	(
 		values: Or(() List(Any))
 		callback: (
-			value: Any
-			# TODO
-			# value: TypeOf(values)/ElementType
+			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
 	) :> Or(() List(Any))
@@ -465,7 +463,23 @@ filterMap = nativeFunction(
 	# ) :> Or(() List(Without(TypeOf(callback)/ReturnType ())))
 	# TODO pure wenn die args pure sind
 	false
-	§TODO§
+	§js
+		(values, callback) => {
+			if (!values) {
+				return null;
+			}
+			const mappedValues = [];
+			values.forEach((value, index) => {
+				const mapped = callback(value, BigInt(index + 1));
+				if (mapped !== null) {
+					mappedValues.push(mapped);
+				}
+			});
+			return mappedValues.length
+				? mappedValues
+				: null;
+		}
+	§
 )
 # Liefert einen Teilbereich der Liste von start bis end, oder bis zum Ende der Liste falls kein end angegeben.
 # Inklusive start und end.
@@ -498,8 +512,7 @@ findFirst = nativeFunction(
 		values: Or(() List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
-			# TODO
-			# index: PositiveInteger
+			index: PositiveInteger
 		) :> Boolean
 	) :> Any
 	# TODO
@@ -507,7 +520,11 @@ findFirst = nativeFunction(
 	# TODO pure wenn die args pure sind
 	false
 	§js
-		(values, predicate) => values?.find(predicate) ?? null
+		(values, predicate) => {
+			return values?.find((value, index) => {
+				return predicate(value, BigInt(index + 1));
+			}) ?? null;
+		}
 	§
 )
 # Liefert das letzte Element, für das predicate true liefert.

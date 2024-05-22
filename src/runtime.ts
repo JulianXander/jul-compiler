@@ -1669,9 +1669,11 @@ _createFunction(
 );
 export const findFirst = <T>(
 	values: T[] | null,
-	predicate: (value: T) => boolean,
+	predicate: (value: T, index: bigint) => boolean,
 ): T | null => {
-	return values?.find(predicate) ?? null;
+	return values?.find((value, index) => {
+		return predicate(value, BigInt(index + 1));
+	}) ?? null;
 };
 _createFunction(
 	findFirst,
