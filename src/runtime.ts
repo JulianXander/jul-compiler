@@ -1957,6 +1957,13 @@ class StreamClass<T> {
 		this.getValue = getValue;
 	}
 
+	/**
+	 * Falls abgeleiteter Stream (createDerived$, map$, combine$, etc):
+	 * lastValue wird lazy gesetzt.
+	 * Wenn getValue noch nicht aufgerufen wurde, dann ist lastValue noch undefined.
+	 * 
+	 * Bei Quell-Streams (z.B. mit timer$ oder create$) wird immer sofort ein Startwert mit push eingetragen.
+	 */
 	lastValue?: T;
 	lastProcessId?: number;
 	completed: boolean = false;
@@ -2098,7 +2105,6 @@ function httpRequest$(
 
 //#region transform
 
-// TODO warum?
 function createDerived$<T>(getValue: () => T): StreamClass<T> {
 	const derived$: StreamClass<T> = new StreamClass(
 		() => {
