@@ -1850,17 +1850,17 @@ _createFunction(
 );
 export const aggregate = <T, U>(
 	values: T[] | null,
-	initalValue: U,
+	initialValue: U,
 	callback: (accumulator: U, value: T, index: bigint) => U,
 ): U => {
 	if (!values) {
-		return initalValue;
+		return initialValue;
 	}
 	return values.reduce(
 		(accumulator, value, index) => {
 			return callback(accumulator, value, BigInt(index + 1));
 		},
-		initalValue);
+		initialValue);
 };
 _createFunction(
 	aggregate,
@@ -1871,7 +1871,7 @@ _createFunction(
 				type: optionalType(new ListType(Any))
 			},
 			{
-				name: 'initalValue',
+				name: 'initialValue',
 			},
 			{
 				name: 'callback',

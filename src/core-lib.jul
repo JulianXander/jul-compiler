@@ -645,7 +645,23 @@ toDictionary = nativeFunction(
 	) :> Or(() Dictionary(Any))
 	# TODO pure wenn die args pure sind
 	false
-	§TODO§
+	§js
+		(values, getKey, getValue) => {
+			if (!values) {
+				return null;
+			}
+			const dictionary = {};
+			let indexBigint = 1n;
+			for (let index = 0; index < values.length; index++) {
+				const oldValue = values[index];
+				const key = getKey(oldValue, indexBigint);
+				const newValue = getValue(oldValue, indexBigint);
+				dictionary[key] = newValue;
+				indexBigint++;
+			}
+			return dictionary;
+		}
+	§
 )
 aggregate = nativeFunction(
 	(
@@ -660,7 +676,16 @@ aggregate = nativeFunction(
 	# TODO pure wenn die args pure sind
 	false
 	§js
-		(values, initialValue, callback) => values.reduce(callback, initialValue)
+		(values, initialValue, callback) => {
+			if (!values) {
+				return initialValue;
+			}
+			return values.reduce(
+				(accumulator, value, index) => {
+					return callback(accumulator, value, BigInt(index + 1));
+				},
+				initialValue);
+		}
 	§
 )
 #endregion List
@@ -672,7 +697,9 @@ getField = nativeFunction(
 		key: Text
 	) :> Or(() TypeOf(dictionary)/ElementType)
 	true
-	§TODO§
+	§js
+		(dictionary, key) => dictionary?.[key] ?? null
+	§
 )
 # Creates a new Dictionary without mutating the given dictionary
 setField = nativeFunction(
@@ -682,14 +709,28 @@ setField = nativeFunction(
 		value: Any
 	) :> Dictionary(Any)
 	true
-	§TODO§
+	§js
+		(dictionary, key, value) => {
+			return {
+				...dictionary,
+				[key]: value,
+			};
+		}
+	§
 )
 toList = nativeFunction(
 	(
 		dictionary: Or(() Dictionary(Any))
 	) :> Or(() List(Any))
 	true
-	§TODO§
+	§js
+		dictionary => {
+			if (!dictionary) {
+				return null;
+			}
+			return Object.values(dictionary);
+		}
+	§
 )
 #endregion Dictionary
 #region Stream
