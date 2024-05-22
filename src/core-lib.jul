@@ -9,10 +9,19 @@ Type = nativeValue(§Type§)
 # data structure containing 1 or more elements of type ElementType
 List = nativeFunction(
 	(ElementType: Type) :> Type
-	# TODO generic List check
 	true
 	§js
-		Array.isArray
+		x => {
+			if (!Array.isArray(x)
+				|| !x.length) {
+				return false;
+			}
+			if (ElementType === Any) {
+				return true;
+			}
+			return x.every(element =>
+				isOfType(element, ElementType));
+		}
 	§
 )
 # IntersectionType
@@ -68,7 +77,6 @@ Boolean = nativeValue(§_Boolean§)
 # Erlaubt performante Hardware-Rechenoperationen
 Float = nativeValue(§Float§)
 NonZeroFloat = Float.Without(0f)
-# TODO FloatInteger = And(Float ?)
 # Ganzzahl beliebiger Größe
 Integer = nativeValue(§Integer§)
 NonZeroInteger = Integer.Without(0)
@@ -77,7 +85,9 @@ NonZeroInteger = Integer.Without(0)
 Greater = nativeFunction(
 	(Value: Or(Integer Float)) :> Type
 	true
-	§TODO§
+	§js
+		x => x > Value
+	§
 )
 PositiveInteger = And(
 	Integer
@@ -100,9 +110,22 @@ Error = nativeValue(§_Error§)
 Dictionary = nativeFunction(
 	(ElementType: Type) :> Type
 	true
-	# TODO ???
 	§js
-		x => typeof x === 'object'
+		x => {
+			if (!isDictionary(value)) {
+				return false;
+			}
+			if (ElementType === Any) {
+				return true;
+			}
+			for (const key in value) {
+				const elementValue = value[key] ?? null;
+				if (!isOfType(elementValue, ElementType)) {
+					return false;
+				}
+			}
+			return true;
+		}
 	§
 )
 # data structure representing a value of type ValueType changing over time
@@ -403,7 +426,6 @@ getElement = nativeFunction(
 		# 1 basiert
 		index: PositiveInteger
 	) :> Or(() TypeOf(values)/ElementType)
-	# TODO Or(() TypeOf(values)/ElementType)
 	# TODO
 	# index.greater(values.length()) ?
 	# 	true => ()
@@ -426,12 +448,10 @@ map = nativeFunction(
 	(
 		values: Or(() List(Any))
 		callback: (
-			value: Any
-			# TODO
-			# value: TypeOf(values)/ElementType
+			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or(() List(Any))
+	) :> Or(() List(callback/ReturnType))
 	# TODO
 	# ) :> Or(() List(TypeOf(callback)/ReturnType))
 	# TODO pure wenn die args pure sind
@@ -458,7 +478,7 @@ filterMap = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or(() List(Any))
+	) :> Or(() List(Without(callback/ReturnType ())))
 	# TODO
 	# ) :> Or(() List(Without(TypeOf(callback)/ReturnType ())))
 	# TODO pure wenn die args pure sind

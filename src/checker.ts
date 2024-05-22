@@ -683,12 +683,12 @@ function inferFileTypes(
 	parsedDocuments: ParsedDocuments,
 	sourceFolder: string,
 ): void {
-	const scopes2 = [
+	const fileScopes = [
 		...scopes,
 		file.symbols,
 	] as any as NonEmptyArray<SymbolTable>;
 	file.expressions?.forEach(expression => {
-		setInferredType(expression, scopes2, parsedDocuments, sourceFolder, file);
+		setInferredType(expression, fileScopes, parsedDocuments, sourceFolder, file);
 	});
 }
 
