@@ -906,12 +906,12 @@ flatSwitchMap$ = nativeFunction(
 	false
 	§TODO§
 )
+# Wie RxJS combineLatest
 # Wenn keine sources übergeben, dann wird Empty vom Rückgabestream emittiert.
 combine$ = nativeFunction(
 	(
 		...sources: Or(() List(Stream(Any)))
-		# TODO generic returntype
-		# Stream(Or(() List(TypeOf(sources)/ElementType/ValueType)))
+		# TODO Mapped tuple returntype: combine$(Stream(A) Stream(B) Stream(C)) => Stream((A B C))
 	) :> Stream(Or(() List(TypeOf(sources)/ElementType/ValueType)))
 	false
 	§TODO§

@@ -505,6 +505,30 @@ function dereferenceArgumentTypesNested(
 	}
 }
 
+/**
+ * combine prefixArgumentType and argsType
+ */
+function getAllArgTypes(
+	prefixArgumentType: CompileTimeType | undefined,
+	argsType: CompileTimeType,
+): CompileTimeType[] | undefined {
+	const prefixArgTypes = prefixArgumentType === undefined
+		? []
+		: [prefixArgumentType];
+	if (argsType == null) {
+		return prefixArgTypes;
+	}
+	if (argsType instanceof CompileTimeTupleType) {
+		const allArgTypes = [
+			...prefixArgTypes,
+			...argsType.ElementTypes,
+		];
+		return allArgTypes;
+	}
+	// TODO other argsType types
+	return undefined;
+}
+
 function dereferenceParameterFromArgumentType(
 	calledFunction: CompileTimeType,
 	prefixArgumentType: CompileTimeType | undefined,
@@ -516,6 +540,17 @@ function dereferenceParameterFromArgumentType(
 	}
 	// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
 	const paramIndex = parameterReference.index;
+	const isRest = calledFunction.ParamsType instanceof ParametersType
+		? calledFunction.ParamsType.singleNames.length === paramIndex
+		// TODO?
+		: false;
+	if (isRest) {
+		const allArgTypes = getAllArgTypes(prefixArgumentType, argsType);
+		if (allArgTypes === undefined) {
+			return Any;
+		}
+		return allArgTypes.slice(paramIndex);
+	}
 	if (prefixArgumentType !== undefined && paramIndex === 0) {
 		return prefixArgumentType;
 	}
@@ -1014,157 +1049,7 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			function getReturnTypeFromFunctionCall(
-				functionCall: ParseFunctionCall,
-				functionExpression: SimpleExpression,
-			): CompileTimeType {
-				// TODO statt functionname functionref value/inferred type prüfen?
-				if (functionExpression.type === 'reference') {
-					const functionName = functionExpression.name.name;
-					function getAllArgTypes(): (CompileTimeType[] | undefined) {
-						const prefixArgTypes = prefixArgument
-							? [prefixArgument.inferredType!]
-							: [];
-						if (argsType == null) {
-							return prefixArgTypes;
-						}
-						if (!(argsType instanceof CompileTimeTupleType)) {
-							// TODO other types
-							return undefined;
-						}
-						const allArgTypes = [
-							...prefixArgTypes,
-							...argsType.ElementTypes,
-						];
-						return allArgTypes;
-					}
-					switch (functionName) {
-						case 'import': {
-							const { path, error } = getPathFromImport(functionCall, folder);
-							if (error) {
-								errors.push(error);
-							}
-							if (!path) {
-								return Any;
-							}
-							// TODO get full path, get type from parsedfile
-							const fullPath = join(folder, path);
-							const importedFile = parsedDocuments[fullPath]?.checked;
-							if (!importedFile) {
-								return Any;
-							}
-							// definitions import
-							// a dictionary containing all definitions is imported
-							if (Object.keys(importedFile.symbols).length) {
-								const importedTypes = mapDictionary(importedFile.symbols, symbol => {
-									return getValueWithFallback(symbol.inferredType, Any);
-								});
-								return new CompileTimeDictionaryLiteralType(importedTypes);
-							}
-							// value import
-							// the last expression is imported
-							if (!importedFile.expressions) {
-								return Any;
-							}
-							return getValueWithFallback(last(importedFile.expressions)?.inferredType, Any);
-						}
-						// case 'nativeFunction': {
-						// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
-						// 		type: 'name',
-						// 		name: 'FunctionType',
-						// 	}]));
-						// 	return valueOf(argumentType);
-						// }
-
-						// case 'nativeValue': {
-						// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
-						// 		type: 'name',
-						// 		name: 'js',
-						// 	}]));
-						// 	if (typeof argumentType === 'string') {
-						// 		console.log('stg', argumentType);
-						// 		// const test = (global as any)['_string'];
-						// 		try {
-						// 			const test = eval(argumentType);
-						// 			console.log(test);
-
-						// 		} catch (error) {
-						// 			console.error(error);
-						// 		}
-						// 	}
-						// 	return _any;
-						// }
-						case 'getElement': {
-							const argTypes = getAllArgTypes();
-							const dereferencedArgTypes = argTypes?.map(dereferenceNested);
-							return getElementFromTypes(dereferencedArgTypes);
-						}
-						case 'length': {
-							const argTypes = getAllArgTypes();
-							const firstArgType = argTypes?.[0];
-							return getLengthFromType(firstArgType);
-						}
-						case 'And': {
-							const argTypes = getAllArgTypes();
-							if (!argTypes) {
-								// TODO unknown?
-								return Any;
-							}
-							return new CompileTimeTypeOfType(new CompileTimeIntersectionType(argTypes.map(valueOf)));
-						}
-						case 'Not': {
-							const argTypes = getAllArgTypes();
-							if (!argTypes) {
-								// TODO unknown?
-								return Any;
-							}
-							if (!isNonEmpty(argTypes)) {
-								// TODO unknown?
-								return Any;
-							}
-							return new CompileTimeTypeOfType(new CompileTimeComplementType(valueOf(argTypes[0])));
-						}
-						case 'Or': {
-							const argTypes = getAllArgTypes();
-							if (!argTypes) {
-								// TODO unknown?
-								return Any;
-							}
-							const choices = argTypes.map(valueOf);
-							const unionType = createNormalizedUnionType(choices);
-							return new CompileTimeTypeOfType(unionType);
-						}
-						case 'TypeOf': {
-							const argTypes = getAllArgTypes();
-							if (!argTypes) {
-								// TODO unknown?
-								return Any;
-							}
-							if (!isNonEmpty(argTypes)) {
-								// TODO unknown?
-								return Any;
-							}
-							return new CompileTimeTypeOfType(argTypes[0]);
-						}
-						case 'Greater': {
-							const argTypes = getAllArgTypes();
-							if (!argTypes) {
-								// TODO unknown?
-								return Any;
-							}
-							if (!isNonEmpty(argTypes)) {
-								// TODO unknown?
-								return Any;
-							}
-							return new CompileTimeTypeOfType(new CompileTimeGreaterType(valueOf(argTypes[0])));
-						}
-						default:
-							break;
-					}
-				}
-				return getReturnTypeFromFunctionType(functionType);
-			}
-			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression);
+			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, parsedDocuments, folder, errors);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgument?.inferredType, argsType, returnType);
 			// const dereferencedReturnType2 = dereferenceArgumentTypesNested2(expression, prefixArgument?.inferredType, argsType, returnType);
@@ -1422,6 +1307,146 @@ function inferType(
 	}
 }
 
+function getReturnTypeFromFunctionCall(
+	functionCall: ParseFunctionCall,
+	functionExpression: SimpleExpression,
+	parsedDocuments: ParsedDocuments,
+	folder: string,
+	errors: ParserError[],
+): CompileTimeType {
+	const prefixArgument = functionCall.prefixArgument;
+	const argsType = functionCall.arguments?.inferredType!;
+	// TODO statt functionname functionref value/inferred type prüfen?
+	if (functionExpression.type === 'reference') {
+		const functionName = functionExpression.name.name;
+		switch (functionName) {
+			case 'import': {
+				const { path, error } = getPathFromImport(functionCall, folder);
+				if (error) {
+					errors.push(error);
+				}
+				if (!path) {
+					return Any;
+				}
+				// TODO get full path, get type from parsedfile
+				const fullPath = join(folder, path);
+				const importedFile = parsedDocuments[fullPath]?.checked;
+				if (!importedFile) {
+					return Any;
+				}
+				// definitions import
+				// a dictionary containing all definitions is imported
+				if (Object.keys(importedFile.symbols).length) {
+					const importedTypes = mapDictionary(importedFile.symbols, symbol => {
+						return getValueWithFallback(symbol.inferredType, Any);
+					});
+					return new CompileTimeDictionaryLiteralType(importedTypes);
+				}
+				// value import
+				// the last expression is imported
+				if (!importedFile.expressions) {
+					return Any;
+				}
+				return getValueWithFallback(last(importedFile.expressions)?.inferredType, Any);
+			}
+			// case 'nativeFunction': {
+			// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
+			// 		type: 'name',
+			// 		name: 'FunctionType',
+			// 	}]));
+			// 	return valueOf(argumentType);
+			// }
+
+			// case 'nativeValue': {
+			// 	const argumentType = dereferenceArgumentType(argsType, new ParameterReference([{
+			// 		type: 'name',
+			// 		name: 'js',
+			// 	}]));
+			// 	if (typeof argumentType === 'string') {
+			// 		console.log('stg', argumentType);
+			// 		// const test = (global as any)['_string'];
+			// 		try {
+			// 			const test = eval(argumentType);
+			// 			console.log(test);
+
+			// 		} catch (error) {
+			// 			console.error(error);
+			// 		}
+			// 	}
+			// 	return _any;
+			// }
+			case 'getElement': {
+				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const dereferencedArgTypes = argTypes?.map(dereferenceNested);
+				return getElementFromTypes(dereferencedArgTypes);
+			}
+			case 'length': {
+				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const firstArgType = argTypes?.[0];
+				return getLengthFromType(firstArgType);
+			}
+			case 'And': {
+				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				if (!argTypes) {
+					// TODO unknown?
+					return Any;
+				}
+				return new CompileTimeTypeOfType(new CompileTimeIntersectionType(argTypes.map(valueOf)));
+			}
+			case 'Not': {
+				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				if (!argTypes) {
+					// TODO unknown?
+					return Any;
+				}
+				if (!isNonEmpty(argTypes)) {
+					// TODO unknown?
+					return Any;
+				}
+				return new CompileTimeTypeOfType(new CompileTimeComplementType(valueOf(argTypes[0])));
+			}
+			case 'Or': {
+				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				if (!argTypes) {
+					// TODO unknown?
+					return Any;
+				}
+				const choices = argTypes.map(valueOf);
+				const unionType = createNormalizedUnionType(choices);
+				return new CompileTimeTypeOfType(unionType);
+			}
+			case 'TypeOf': {
+				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				if (!argTypes) {
+					// TODO unknown?
+					return Any;
+				}
+				if (!isNonEmpty(argTypes)) {
+					// TODO unknown?
+					return Any;
+				}
+				return new CompileTimeTypeOfType(argTypes[0]);
+			}
+			case 'Greater': {
+				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				if (!argTypes) {
+					// TODO unknown?
+					return Any;
+				}
+				if (!isNonEmpty(argTypes)) {
+					// TODO unknown?
+					return Any;
+				}
+				return new CompileTimeTypeOfType(new CompileTimeGreaterType(valueOf(argTypes[0])));
+			}
+			default:
+				break;
+		}
+	}
+	const functionType = functionExpression.inferredType!;
+	return getReturnTypeFromFunctionType(functionType);
+}
+
 // TODO überlappende choices zusammenfassen (Wenn A Teilmenge von B, dann ist Or(A B) = B)
 function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeType {
 	//#region flatten UnionTypes
@@ -1485,6 +1510,11 @@ function setFunctionRefForParams(
 		const parameterSymbol = findParameterSymbol(parameter, functionScopes);
 		parameterSymbol.functionRef = functionType;
 	});
+	const restParameter = params.rest;
+	if (restParameter) {
+		const parameterSymbol = findParameterSymbol(restParameter, functionScopes);
+		parameterSymbol.functionRef = functionType;
+	}
 }
 
 function valueOf(type: CompileTimeType | undefined): CompileTimeType {

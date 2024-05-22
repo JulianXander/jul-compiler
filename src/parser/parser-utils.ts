@@ -1,4 +1,4 @@
-import { BracketedExpressionBase, DefinitionExpression, ParseDestructuringField, ParseDictionaryField, ParseDictionaryLiteral, ParseDictionaryTypeField, ParseDictionaryTypeLiteral, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { BracketedExpressionBase, DefinitionExpression, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { ParserError, Positioned } from "./parser-combinator.js";
 
@@ -40,7 +40,7 @@ export function createParseParameters(
 			rest.name,
 			rest.typeGuard,
 			rest.description,
-			undefined);
+			singleFields.length);
 		setParent(rest, parameters);
 	}
 	return parameters;
