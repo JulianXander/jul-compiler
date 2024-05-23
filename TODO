@@ -1,3 +1,4 @@
+-typeToString in runtime
 -builtinTypes mit symbol statt class
 -normalize intersection type:
 	And(Or(1 2) Not(2)) => 1
