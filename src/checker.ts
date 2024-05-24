@@ -5,7 +5,6 @@ import {
 	Float,
 	Integer,
 	Type,
-	deepEqual,
 	_Boolean,
 	_Date,
 	_Error,
@@ -48,7 +47,7 @@ import {
 	TextToken,
 	TypedExpression,
 } from './syntax-tree.js';
-import { NonEmptyArray, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { NonEmptyArray, elementsEqual, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
@@ -458,14 +457,38 @@ function dereferenceArgumentTypesNested(
 		case 'text':
 		case 'type':
 			return builtInType;
-		case 'and':
-			return new CompileTimeIntersectionType(builtInType.ChoiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType)));
-		case 'dictionary':
-			return new CompileTimeDictionaryType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
-		case 'greater':
-			return new CompileTimeGreaterType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.Value));
-		case 'list':
-			return new CompileTimeListType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ElementType));
+		case 'and': {
+			const rawChoices = builtInType.ChoiceTypes;
+			const dereferencedChoices = rawChoices.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType));
+			if (elementsEqual(rawChoices, dereferencedChoices)) {
+				return builtInType;
+			}
+			return new CompileTimeIntersectionType(dereferencedChoices);
+		}
+		case 'dictionary': {
+			const rawElement = builtInType.ElementType;
+			const dereferencedElement = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawElement);
+			if (dereferencedElement === rawElement) {
+				return builtInType;
+			}
+			return new CompileTimeDictionaryType(dereferencedElement);
+		}
+		case 'greater': {
+			const rawValue = builtInType.Value;
+			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
+			if (dereferencedValue === rawValue) {
+				return builtInType;
+			}
+			return new CompileTimeGreaterType(dereferencedValue);
+		}
+		case 'list': {
+			const rawElement = builtInType.ElementType;
+			const dereferencedElement = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawElement);
+			if (dereferencedElement === rawElement) {
+				return builtInType;
+			}
+			return new CompileTimeListType(dereferencedElement);
+		}
 		case 'nestedReference': {
 			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.source);
 			const dereferencedNested = dereferenceNestedKeyFromObject(builtInType.nestedKey, dereferencedSource);
@@ -474,10 +497,20 @@ function dereferenceArgumentTypesNested(
 			}
 			return dereferencedNested;
 		}
-		case 'not':
-			return new CompileTimeComplementType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.SourceType));
+		case 'not': {
+			const rawSource = builtInType.SourceType;
+			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawSource);
+			if (dereferencedSource === rawSource) {
+				return builtInType;
+			}
+			return new CompileTimeComplementType(dereferencedSource);
+		}
 		case 'or': {
-			const dereferencedChoices = builtInType.ChoiceTypes.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType));
+			const rawChoices = builtInType.ChoiceTypes;
+			const dereferencedChoices = rawChoices.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType));
+			if (elementsEqual(rawChoices, dereferencedChoices)) {
+				return builtInType;
+			}
 			return createNormalizedUnionType(dereferencedChoices);
 		}
 		case 'parameterReference': {
@@ -488,10 +521,22 @@ function dereferenceArgumentTypesNested(
 			// TODO immer valueOf?
 			return valueOf(dereferencedNested);
 		}
-		case 'stream':
-			return new CompileTimeStreamType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.ValueType));
-		case 'typeOf':
-			return new CompileTimeTypeOfType(dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.value));
+		case 'stream': {
+			const rawValue = builtInType.ValueType;
+			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
+			if (dereferencedValue === rawValue) {
+				return builtInType;
+			}
+			return new CompileTimeStreamType(dereferencedValue);
+		}
+		case 'typeOf': {
+			const rawValue = builtInType.value;
+			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
+			if (dereferencedValue === rawValue) {
+				return builtInType;
+			}
+			return new CompileTimeTypeOfType(dereferencedValue);
+		}
 		// TODO
 		case 'dictionaryLiteral':
 		case 'function':
@@ -607,25 +652,42 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 	if (rawType instanceof BuiltInTypeBase) {
 		switch (rawType.type) {
 			case 'and': {
-				const dereferencedChoices = rawType.ChoiceTypes.map(dereferenceNested);
+				const rawChoices = rawType.ChoiceTypes;
+				const dereferencedChoices = rawChoices.map(dereferenceNested);
+				if (elementsEqual(rawChoices, dereferencedChoices)) {
+					return rawType;
+				}
 				return new CompileTimeIntersectionType(dereferencedChoices);
 			}
 			case 'dictionary': {
-				const dereferencedElementType = dereferenceNested(rawType.ElementType);
-				return new CompileTimeDictionaryType(dereferencedElementType);
+				const rawElement = rawType.ElementType;
+				const dereferencedElement = dereferenceNested(rawElement);
+				if (dereferencedElement === rawElement) {
+					return rawType;
+				}
+				return new CompileTimeDictionaryType(dereferencedElement);
 			}
 			case 'dictionaryLiteral': {
+				// TODO check fields equal
 				const dereferencedElementTypes = mapDictionary(rawType.Fields, dereferenceNested);
 				return new CompileTimeDictionaryLiteralType(dereferencedElementTypes);
 			}
 			case 'function': {
 				const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
 				const dereferencedReturnType = dereferenceNested(rawType.ReturnType);
+				if (dereferencedParamsType === rawType.ParamsType
+					&& dereferencedReturnType === rawType.ReturnType) {
+					return rawType;
+				}
 				return new CompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure);
 			}
 			case 'list': {
-				const dereferencedElementType = dereferenceNested(rawType.ElementType);
-				return new CompileTimeListType(dereferencedElementType);
+				const rawElement = rawType.ElementType;
+				const dereferencedElement = dereferenceNested(rawElement);
+				if (dereferencedElement === rawElement) {
+					return rawType;
+				}
+				return new CompileTimeListType(dereferencedElement);
 			}
 			case 'nestedReference': {
 				const dereferencedSource = dereferenceNested(rawType.source);
@@ -636,11 +698,19 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				return dereferencedNested;
 			}
 			case 'not': {
-				const dereferencedSourceType = dereferenceNested(rawType.SourceType);
-				return new CompileTimeComplementType(dereferencedSourceType);
+				const rawSource = rawType.SourceType;
+				const dereferencedSource = dereferenceNested(rawSource);
+				if (dereferencedSource === rawSource) {
+					return rawType;
+				}
+				return new CompileTimeComplementType(dereferencedSource);
 			}
 			case 'or': {
-				const dereferencedChoices = rawType.ChoiceTypes.map(dereferenceNested);
+				const rawChoices = rawType.ChoiceTypes;
+				const dereferencedChoices = rawChoices.map(dereferenceNested);
+				if (elementsEqual(rawChoices, dereferencedChoices)) {
+					return rawType;
+				}
 				return createNormalizedUnionType(dereferencedChoices);
 			}
 			case 'parameterReference': {
@@ -650,6 +720,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 					: dereferenced;
 			}
 			case 'parameters': {
+				// TODO check equals
 				const dereferencedSingleNames = rawType.singleNames.map(dereferenceNestedParameter);
 				const dereferencedRest = rawType.rest === undefined
 					? undefined
@@ -657,15 +728,27 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				return new ParametersType(dereferencedSingleNames, dereferencedRest);
 			}
 			case 'stream': {
-				const dereferencedValueType = dereferenceNested(rawType.ValueType);
-				return new CompileTimeStreamType(dereferencedValueType);
+				const rawValue = rawType.ValueType;
+				const dereferencedValue = dereferenceNested(rawValue);
+				if (dereferencedValue === rawValue) {
+					return rawType;
+				}
+				return new CompileTimeStreamType(dereferencedValue);
 			}
 			case 'tuple': {
-				const dereferencedElementTypes = rawType.ElementTypes.map(dereferenceNested);
-				return new CompileTimeTupleType(dereferencedElementTypes);
+				const rawElements = rawType.ElementTypes;
+				const dereferencedElements = rawElements.map(dereferenceNested);
+				if (elementsEqual(rawElements, dereferencedElements)) {
+					return rawType;
+				}
+				return new CompileTimeTupleType(dereferencedElements);
 			}
 			case 'typeOf': {
-				const dereferencedValue = dereferenceNested(rawType.value);
+				const rawValue = rawType.value;
+				const dereferencedValue = dereferenceNested(rawValue);
+				if (dereferencedValue === rawValue) {
+					return rawType;
+				}
 				return new CompileTimeTypeOfType(dereferencedValue);
 			}
 			default:
@@ -1466,7 +1549,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	const uniqueChoices: CompileTimeType[] = [];
 	flatChoices.forEach(choice => {
 		if (!uniqueChoices.some(uniqueChoice =>
-			deepEqual(choice, uniqueChoice))) {
+			choice === uniqueChoice)) {
 			uniqueChoices.push(choice);
 		}
 	});
@@ -1500,6 +1583,28 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	//#endregion collapse Streams
 	return new CompileTimeUnionType(collapsedStreamChoices);
 }
+
+// function typeEquals(type1: CompileTimeType, type2: CompileTimeType): boolean {
+// 	if(type1 === type2) {
+// 		return true;
+// 	}
+// 	if(typeof type1 !== 'object' || typeof type2 !== 'object'){
+// 		return false;
+// 	}
+// 	if(type1 instanceof BuiltInTypeBase && type2 instanceof BuiltInTypeBase){
+// 		if(type1.type !== type2.type){
+// 			return false;
+// 		}
+// 		switch (type1.type) {
+// 			case 'or':
+// 				return typeEquals(type1.ChoiceTypes, (type2 as CompileTimeUnionType).ChoiceTypes);
+
+// 			default:
+// 				break;
+// 		}
+// 	}
+// 	return false;
+// }
 
 function setFunctionRefForParams(
 	params: ParseParameterFields,
@@ -1676,7 +1781,7 @@ export function getTypeError(
 		// maybe return value?
 		return undefined;
 	}
-	if (deepEqual(argumentsType, targetType)) {
+	if (argumentsType === targetType) {
 		return undefined;
 	}
 	if (argumentsType instanceof BuiltInTypeBase) {

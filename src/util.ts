@@ -44,6 +44,20 @@ export function toDictionary<T, U>(
 	return dictionary;
 }
 
+export function elementsEqual(values1: any[], values2: any[]): boolean {
+	if (values1.length !== values2.length) {
+		return false;
+	}
+	for (let index = 0; index < values1.length; index++) {
+		const value1 = values1[index];
+		const value2 = values2[index];
+		if (value1 !== value2) {
+			return false;
+		}
+	}
+	return true;
+}
+
 //#endregion Array
 
 //#region Dictionary
