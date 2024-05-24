@@ -96,6 +96,20 @@ export function mapDictionary<T, U>(
 	return mapped;
 }
 
+export function fieldsEqual(values1: { [key: string]: any; }, values2: { [key: string]: any; }): boolean {
+	if (Object.keys(values1).length !== Object.keys(values2).length) {
+		return false;
+	}
+	for (const key in values1) {
+		const value1 = values1[key];
+		const value2 = values2[key];
+		if (value1 !== value2) {
+			return false;
+		}
+	}
+	return true;
+}
+
 //#endregion Dictionary
 
 // function mapFn<Args extends any[], Result1, Result2>(

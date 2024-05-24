@@ -47,7 +47,7 @@ import {
 	TextToken,
 	TypedExpression,
 } from './syntax-tree.js';
-import { NonEmptyArray, elementsEqual, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { NonEmptyArray, elementsEqual, fieldsEqual, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
@@ -668,9 +668,12 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				return new CompileTimeDictionaryType(dereferencedElement);
 			}
 			case 'dictionaryLiteral': {
-				// TODO check fields equal
-				const dereferencedElementTypes = mapDictionary(rawType.Fields, dereferenceNested);
-				return new CompileTimeDictionaryLiteralType(dereferencedElementTypes);
+				const rawFields = rawType.Fields;
+				const dereferencedFields = mapDictionary(rawFields, dereferenceNested);
+				if (fieldsEqual(rawFields, dereferencedFields)) {
+					return rawType;
+				}
+				return new CompileTimeDictionaryLiteralType(dereferencedFields);
 			}
 			case 'function': {
 				const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
@@ -720,11 +723,15 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 					: dereferenced;
 			}
 			case 'parameters': {
-				// TODO check equals
 				const dereferencedSingleNames = rawType.singleNames.map(dereferenceNestedParameter);
-				const dereferencedRest = rawType.rest === undefined
+				const rawRest = rawType.rest;
+				const dereferencedRest = rawRest === undefined
 					? undefined
-					: dereferenceNestedParameter(rawType.rest);
+					: dereferenceNestedParameter(rawRest);
+				if (rawRest === dereferencedRest
+					&& elementsEqual(rawType.singleNames, dereferencedSingleNames)) {
+					return rawType;
+				}
 				return new ParametersType(dereferencedSingleNames, dereferencedRest);
 			}
 			case 'stream': {
