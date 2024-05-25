@@ -916,20 +916,8 @@ function inferType(
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
-
-				const typeGuardType = typeGuard.inferredType!;
-				// typeGuard muss ein Type sein
-				const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, Type);
-				if (typeGuardTypeError) {
-					errors.push({
-						message: typeGuardTypeError,
-						startRowIndex: typeGuard.startRowIndex,
-						startColumnIndex: typeGuard.startColumnIndex,
-						endRowIndex: typeGuard.endRowIndex,
-						endColumnIndex: typeGuard.endColumnIndex,
-					});
-				}
-
+				checkTypeGuardIsType(typeGuard, errors);
+				const typeGuardType = typeGuard.inferredType;
 				const assignmentError = areArgsAssignableTo(undefined, inferredType, valueOf(typeGuardType));
 				if (assignmentError) {
 					errors.push({
@@ -975,6 +963,7 @@ function inferType(
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
 					setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
 					const error = areArgsAssignableTo(undefined, dereferencedType, valueOf(typeGuard.inferredType));
 					if (error) {
@@ -1000,8 +989,10 @@ function inferType(
 				}
 				switch (field.type) {
 					case 'singleDictionaryField': {
-						if (field.typeGuard) {
-							setInferredType(field.typeGuard, scopes, parsedDocuments, folder, file);
+						const typeGuard = field.typeGuard;
+						if (typeGuard) {
+							setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+							checkTypeGuardIsType(typeGuard, errors);
 						}
 						const fieldName = getCheckedEscapableName(field.name);
 						if (!fieldName) {
@@ -1046,15 +1037,17 @@ function inferType(
 			expression.fields.forEach(field => {
 				switch (field.type) {
 					case 'singleDictionaryTypeField': {
-						if (!field.typeGuard) {
+						const typeGuard = field.typeGuard;
+						if (!typeGuard) {
 							return;
 						}
-						setInferredType(field.typeGuard, scopes, parsedDocuments, folder, file);
+						setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+						checkTypeGuardIsType(typeGuard, errors);
 						const fieldName = getCheckedEscapableName(field.name);
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = valueOf(field.typeGuard.inferredType);
+						const fieldType = valueOf(typeGuard.inferredType);
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
@@ -1299,8 +1292,10 @@ function inferType(
 			return Any;
 		}
 		case 'parameter': {
-			if (expression.typeGuard) {
-				setInferredType(expression.typeGuard, scopes, parsedDocuments, folder, file);
+			const typeGuard = expression.typeGuard;
+			if (typeGuard) {
+				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+				checkTypeGuardIsType(typeGuard, errors);
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
 			//#region infer argument type bei function literal welches inline argument eines function calls ist
@@ -1325,7 +1320,7 @@ function inferType(
 				}
 			}
 			//#endregion
-			const inferredType = getValueWithFallback(dereferencedTypeFromCall, valueOf(expression.typeGuard?.inferredType));
+			const inferredType = getValueWithFallback(dereferencedTypeFromCall, valueOf(typeGuard?.inferredType));
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			parameterSymbol.inferredType = inferredType;
@@ -2736,6 +2731,26 @@ function checkNameDefinedInUpperScope(
 			startColumnIndex: expression.startColumnIndex,
 			endRowIndex: expression.endRowIndex,
 			endColumnIndex: expression.endColumnIndex,
+		});
+	}
+}
+
+/**
+ * typeGuard.inferredType muss gesetzt sein
+ */
+function checkTypeGuardIsType(
+	typeGuard: ParseValueExpression,
+	errors: ParserError[],
+): void {
+	const typeGuardType = typeGuard.inferredType!;
+	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, Type);
+	if (typeGuardTypeError) {
+		errors.push({
+			message: typeGuardTypeError,
+			startRowIndex: typeGuard.startRowIndex,
+			startColumnIndex: typeGuard.startColumnIndex,
+			endRowIndex: typeGuard.endRowIndex,
+			endColumnIndex: typeGuard.endColumnIndex,
 		});
 	}
 }
