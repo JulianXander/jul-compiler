@@ -132,7 +132,6 @@ export interface ParseSingleDefinition extends ParseExpressionBase {
 	// TODO spread?
 	name: Name;
 	typeGuard?: ParseValueExpression;
-	normalizedTypeGuard?: CompileTimeType;
 	/**
 	 * undefined bei unvollständiger Expression
 	 */

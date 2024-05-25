@@ -916,14 +916,24 @@ function inferType(
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
-				// TODO fix normalizeType
-				// expression.normalizedTypeGuard = typeGuard.inferredType
-				// valueExpression.normalizedTypeGuard = normalizeType(valueExpression.typeGuard);
 
-				const error = areArgsAssignableTo(undefined, inferredType, valueOf(typeGuard.inferredType));
-				if (error) {
+				const typeGuardType = typeGuard.inferredType!;
+				// typeGuard muss ein Type sein
+				const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, Type);
+				if (typeGuardTypeError) {
 					errors.push({
-						message: error,
+						message: typeGuardTypeError,
+						startRowIndex: typeGuard.startRowIndex,
+						startColumnIndex: typeGuard.startColumnIndex,
+						endRowIndex: typeGuard.endRowIndex,
+						endColumnIndex: typeGuard.endColumnIndex,
+					});
+				}
+
+				const assignmentError = areArgsAssignableTo(undefined, inferredType, valueOf(typeGuardType));
+				if (assignmentError) {
+					errors.push({
+						message: assignmentError,
 						startRowIndex: expression.startRowIndex,
 						startColumnIndex: expression.startColumnIndex,
 						endRowIndex: expression.endRowIndex,
@@ -1398,6 +1408,8 @@ function inferType(
 	}
 }
 
+//#region get Type from FunctionCall
+
 function getReturnTypeFromFunctionCall(
 	functionCall: ParseFunctionCall,
 	functionExpression: SimpleExpression,
@@ -1471,6 +1483,14 @@ function getReturnTypeFromFunctionCall(
 				const dereferencedArgTypes = argTypes?.map(dereferenceNested);
 				return getElementFromTypes(dereferencedArgTypes);
 			}
+			case 'lastElement': {
+				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const firstArgType = argTypes?.[0];
+				const dereferencedArgType = firstArgType === undefined
+					? undefined
+					: dereferenceNested(firstArgType);
+				return getLastElementFromType(dereferencedArgType);
+			}
 			case 'length': {
 				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
 				const firstArgType = argTypes?.[0];
@@ -1537,6 +1557,109 @@ function getReturnTypeFromFunctionCall(
 	const functionType = functionExpression.inferredType!;
 	return getReturnTypeFromFunctionType(functionType);
 }
+
+function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileTimeType {
+	if (!argsTypes) {
+		return null;
+	}
+	const [valuesType, indexType] = argsTypes;
+	if (valuesType === undefined
+		|| valuesType === null
+		|| indexType === undefined) {
+		return null;
+	}
+	if (typeof indexType === 'bigint') {
+		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType), valuesType);
+		if (dereferencedIndex !== undefined) {
+			return dereferencedIndex;
+		}
+	}
+	if (indexType instanceof CompileTimeUnionType) {
+		const getElementChoices = indexType.ChoiceTypes.map(indexChoice => getElementFromTypes([valuesType, indexChoice]));
+		return createNormalizedUnionType(getElementChoices);
+	}
+	if (valuesType instanceof BuiltInTypeBase) {
+		switch (valuesType.type) {
+			case 'tuple':
+				return createNormalizedUnionType([null, ...valuesType.ElementTypes]);
+			case 'list':
+				return createNormalizedUnionType([null, valuesType.ElementType]);
+			case 'or': {
+				const getElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getElementFromTypes([valuesChoice, indexType]));
+				return createNormalizedUnionType(getElementChoices);
+			}
+			default:
+				return Any;
+		}
+	}
+	if (Array.isArray(valuesType)) {
+		return createNormalizedUnionType([null, ...valuesType]);
+	}
+	return Any;
+}
+
+function getLastElementFromType(valuesType: CompileTimeType | undefined): CompileTimeType {
+	if (typeof valuesType !== 'object'
+		|| valuesType === null
+	) {
+		return null;
+	}
+	if (valuesType instanceof BuiltInTypeBase) {
+		switch (valuesType.type) {
+			case 'tuple':
+				return last(valuesType.ElementTypes) ?? null;
+			case 'list':
+				return valuesType.ElementType;
+			case 'or': {
+				const lastElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getLastElementFromType(valuesChoice));
+				return createNormalizedUnionType(lastElementChoices);
+			}
+			default:
+				return Any;
+		}
+	}
+	if (Array.isArray(valuesType)) {
+		return last(valuesType) ?? null;
+	}
+	return Any;
+}
+
+function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
+	if (typeof argType !== 'object') {
+		// TODO non negative
+		return Integer;
+	}
+	if (argType === null) {
+		return 0n;
+	}
+	if (argType instanceof BuiltInTypeBase) {
+		switch (argType.type) {
+			case 'tuple':
+				return BigInt(argType.ElementTypes.length);
+			case 'list':
+				// TODO positive
+				return CompileTimeNonZeroInteger;
+			case 'or': {
+				const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
+				return createNormalizedUnionType(lengthChoices);
+			}
+			case 'parameterReference': {
+				const dereferenced = dereferenceParameterTypeFromFunctionRef(argType);
+				return getLengthFromType(dereferenced);
+			}
+			default:
+				// TODO non negative
+				return Integer;
+		}
+	}
+	if (Array.isArray(argType)) {
+		return BigInt(argType.length);
+	}
+	// TODO non negative
+	return Integer;
+}
+
+//#endregion get Type from FunctionCall
 
 // TODO überlappende choices zusammenfassen (Wenn A Teilmenge von B, dann ist Or(A B) = B)
 function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeType {
@@ -1679,81 +1802,6 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			throw new Error(`Unexpected type ${typeof assertNever} for valueOf`);
 		}
 	}
-}
-
-function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileTimeType {
-	if (!argsTypes) {
-		return null;
-	}
-	const [valuesType, indexType] = argsTypes;
-	if (valuesType === undefined
-		|| valuesType === null
-		|| indexType === undefined) {
-		return null;
-	}
-	if (typeof indexType === 'bigint') {
-		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType), valuesType);
-		if (dereferencedIndex !== undefined) {
-			return dereferencedIndex;
-		}
-	}
-	if (indexType instanceof CompileTimeUnionType) {
-		const getElementChoices = indexType.ChoiceTypes.map(indexChoice => getElementFromTypes([valuesType, indexChoice]));
-		return createNormalizedUnionType(getElementChoices);
-	}
-	if (valuesType instanceof BuiltInTypeBase) {
-		switch (valuesType.type) {
-			case 'tuple':
-				return createNormalizedUnionType([null, ...valuesType.ElementTypes]);
-			case 'list':
-				return createNormalizedUnionType([null, valuesType.ElementType]);
-			case 'or': {
-				const getElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getElementFromTypes([valuesChoice, indexType]));
-				return createNormalizedUnionType(getElementChoices);
-			}
-			default:
-				return Any;
-		}
-	}
-	if (Array.isArray(valuesType)) {
-		return createNormalizedUnionType([null, ...valuesType]);
-	}
-	return Any;
-}
-
-function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
-	if (typeof argType !== 'object') {
-		// TODO non negative
-		return Integer;
-	}
-	if (argType === null) {
-		return 0n;
-	}
-	if (argType instanceof BuiltInTypeBase) {
-		switch (argType.type) {
-			case 'tuple':
-				return BigInt(argType.ElementTypes.length);
-			case 'list':
-				// TODO positive
-				return CompileTimeNonZeroInteger;
-			case 'or': {
-				const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
-				return createNormalizedUnionType(lengthChoices);
-			}
-			case 'parameterReference': {
-				const dereferenced = dereferenceParameterTypeFromFunctionRef(argType);
-				return getLengthFromType(dereferenced);
-			}
-			default:
-				// TODO non negative
-				return Integer;
-		}
-	}
-	if (Array.isArray(argType)) {
-		return BigInt(argType.length);
-	}
-	// TODO non negative
-	return Integer;
 }
 
 //#region TypeError
@@ -2108,11 +2156,24 @@ export function getTypeError(
 										case 'text':
 										case 'typeOf':
 											return undefined;
+										case 'tuple': {
+											// alle ElementTypes müssen Typen sein
+											const subErrors = argumentsType.ElementTypes.map(elementType =>
+												getTypeError(undefined, elementType, targetType)).filter(isDefined);
+											if (subErrors.length) {
+												return {
+													// TODO error struktur überdenken
+													message: subErrors.map(typeErrorToString).join('\n'),
+													// innerError
+												};
+											}
+											return undefined;
+										}
 										// TODO check inner types rekursiv
 										case 'dictionary':
 										case 'dictionaryLiteral':
 										case 'list':
-										case 'tuple':
+											return undefined;
 										default:
 											// TODO type specific error?
 											break;
