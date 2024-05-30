@@ -68,6 +68,7 @@ export function createParseFunctionLiteral(
 		...position,
 	};
 	setParent(params, functionLiteral);
+	setParents(body, functionLiteral);
 	return functionLiteral;
 }
 
