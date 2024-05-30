@@ -1,4 +1,3 @@
-?_callFunction ohne typecheck
 -typeToString in runtime
 -builtinTypes mit symbol statt class
 -normalize intersection type:

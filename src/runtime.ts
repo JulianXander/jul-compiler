@@ -37,7 +37,7 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: any) {
 	if ('params' in fn) {
 		// jul function
-		const assignedParams = tryAssignArgs(fn.params, prefixArg, args, args);
+		const assignedParams = assignArgs(fn.params, prefixArg, args);
 		if (assignedParams instanceof Error) {
 			return assignedParams;
 		}
@@ -224,6 +224,66 @@ function isDictionary(value: any): value is RuntimeDictionary {
 		&& !Array.isArray(value);
 }
 
+/**
+ * Ohne type check
+ */
+function assignArgs(
+	params: Params,
+	prefixArg: any,
+	args: Collection | null,
+): any[] | Error {
+	const assignedValues: any[] = [];
+	const { type: paramsType, singleNames, rest } = params;
+	const hasPrefixArg = prefixArg !== undefined;
+	if (paramsType !== undefined) {
+		return assignedValues;
+	}
+	const isArray = Array.isArray(args);
+	let paramIndex = 0;
+	let argIndex = 0;
+	if (singleNames) {
+		for (; paramIndex < singleNames.length; paramIndex++) {
+			const param = singleNames[paramIndex]!;
+			const { name, source } = param;
+			const sourceWithFallback = source ?? name;
+			let arg;
+			if (hasPrefixArg && !paramIndex) {
+				arg = prefixArg;
+			}
+			else {
+				arg = (isArray
+					? args[argIndex]
+					: args?.[sourceWithFallback]) ?? null;
+				argIndex++;
+			}
+			assignedValues.push(arg);
+		}
+	}
+	if (rest) {
+		if (args === null) {
+			const remainingArgs = hasPrefixArg && !paramIndex
+				? [prefixArg]
+				: null;
+			assignedValues.push(...remainingArgs ?? []);
+		}
+		else if (isArray) {
+			const remainingArgs = args.slice(argIndex);
+			if (hasPrefixArg && !paramIndex) {
+				remainingArgs.unshift(prefixArg);
+			}
+			assignedValues.push(...remainingArgs);
+		}
+		else {
+			// TODO rest dictionary??
+			throw new Error('tryAssignArgs not implemented yet for rest dictionary');
+		}
+	}
+	return assignedValues;
+}
+
+/**
+ * Mit type check
+ */
 function tryAssignArgs(
 	params: Params,
 	prefixArg: any,
