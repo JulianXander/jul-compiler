@@ -5,7 +5,6 @@
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
 -autoComplete bei Dictionary(DictionaryLiteralType), vgl test1.jul
-?slice in corelib
 ?tuple builtInType vs type Array, DictionaryLiteralType vs type Dictionary
 -debug experience vebessern
 	?sourcemap
