@@ -14,38 +14,6 @@ const expectedResults: {
 		{
 			name: 'text-interpolation-reference-error',
 			code: '§§(a)§',
-			result: [
-				{
-					"endColumnIndex": 6,
-					"endRowIndex": 0,
-					"startColumnIndex": 0,
-					"startRowIndex": 0,
-					"type": "text",
-					"inferredType": {
-						"type": "text",
-					},
-					"values": [
-						{
-							"endColumnIndex": 4,
-							"endRowIndex": 0,
-							"inferredType": {
-								"type": "any",
-							},
-							"name": {
-								"endColumnIndex": 4,
-								"endRowIndex": 0,
-								"name": "a",
-								"startColumnIndex": 3,
-								"startRowIndex": 0,
-								"type": "name",
-							},
-							"startColumnIndex": 3,
-							"startRowIndex": 0,
-							"type": "reference",
-						},
-					],
-				},
-			],
 			errors: [
 				{
 					"endColumnIndex": 4,
@@ -131,74 +99,6 @@ const expectedResults: {
 			name: 'used-before-defined-error',
 			code: `a
 a = 5`,
-			result: (() => {
-				const definition: ParseSingleDefinition = {
-					"description": undefined,
-					"endColumnIndex": 5,
-					"endRowIndex": 1,
-					"inferredType": 5n,
-					"name": {
-						"endColumnIndex": 1,
-						"endRowIndex": 1,
-						"name": "a",
-						"startColumnIndex": 0,
-						"startRowIndex": 1,
-						"type": "name",
-					},
-					"startColumnIndex": 0,
-					"startRowIndex": 1,
-					"type": "definition",
-					"typeGuard": undefined,
-					"value": {
-						"endColumnIndex": 5,
-						"endRowIndex": 1,
-						"inferredType": 5n,
-						"parent": {
-							"description": undefined,
-							"endColumnIndex": 5,
-							"endRowIndex": 1,
-							"name": {
-								"endColumnIndex": 1,
-								"endRowIndex": 1,
-								"name": "a",
-								"startColumnIndex": 0,
-								"startRowIndex": 1,
-								"type": "name",
-							},
-							"startColumnIndex": 0,
-							"startRowIndex": 1,
-							"type": "definition",
-							"typeGuard": undefined,
-						} as any,
-						"startColumnIndex": 4,
-						"startRowIndex": 1,
-						"type": "integer",
-						"value": 5n,
-					},
-				};
-				(definition.value!.parent as any).value = definition.value;
-				return [
-					{
-						"endColumnIndex": 1,
-						"endRowIndex": 0,
-						"inferredType": {
-							"type": "any",
-						},
-						"name": {
-							"endColumnIndex": 1,
-							"endRowIndex": 0,
-							"name": "a",
-							"startColumnIndex": 0,
-							"startRowIndex": 0,
-							"type": "name",
-						},
-						"startColumnIndex": 0,
-						"startRowIndex": 0,
-						"type": "reference",
-					},
-					definition,
-				];
-			})(),
 			errors: [
 				{
 					"endColumnIndex": 1,

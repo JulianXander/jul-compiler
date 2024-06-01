@@ -160,11 +160,22 @@ return a;
 		// },
 		{
 			code: '(a: String)',
-			result: 'export default new DictionaryLiteralType({\n\'a\': _String,\n})'
+			result: `export default {
+[_julTypeSymbol]: 'dictionaryLiteral',
+Fields: {
+'a': _String,
+},
+}`
 		},
 		{
 			code: '(a: String b)',
-			result: 'export default new DictionaryLiteralType({\n\'a\': _String,\n\'b\': Any,\n})'
+			result: `export default {
+[_julTypeSymbol]: 'dictionaryLiteral',
+Fields: {
+'a': _String,
+'b': Any,
+},
+}`
 		},
 		{
 			code: '(1 ...a ...b)',

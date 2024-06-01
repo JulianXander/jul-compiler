@@ -96,9 +96,8 @@ function isOfType(value: any, type: RuntimeType): boolean {
 			if (Array.isArray(type)) {
 				return isOfTupleType(value, type);
 			}
-			if (type instanceof BuiltInTypeBase) {
-				const builtInType = type as BuiltInType;
-				switch (builtInType.type) {
+			if (_julTypeSymbol in type) {
+				switch (type[_julTypeSymbol]) {
 					case 'any':
 						return true;
 					case 'boolean':
@@ -108,7 +107,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					case 'float':
 						return typeof value === 'number';
 					case 'greater':
-						return value > builtInType.Value;
+						return value > type.Value;
 					case 'text':
 						return typeof value === 'string';
 					case 'date':
@@ -121,7 +120,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						if (!isDictionary(value)) {
 							return false;
 						}
-						const elementType = builtInType.ElementType;
+						const elementType = type.ElementType;
 						if (elementType === Any) {
 							return true;
 						}
@@ -134,13 +133,13 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						return true;
 					}
 					case 'dictionaryLiteral':
-						return isOfDictionaryLiteralType(value, builtInType.Fields);
+						return isOfDictionaryLiteralType(value, type.Fields);
 					case 'list': {
 						if (!Array.isArray(value)
 							|| !value.length) {
 							return false;
 						}
-						const elementType = builtInType.ElementType;
+						const elementType = type.ElementType;
 						if (elementType === Any) {
 							return true;
 						}
@@ -148,7 +147,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 							isOfType(element, elementType));
 					}
 					case 'tuple':
-						return isOfTupleType(value, builtInType.ElementTypes);
+						return isOfTupleType(value, type.ElementTypes);
 					case 'stream':
 						return value instanceof StreamClass;
 					case 'function':
@@ -159,22 +158,22 @@ function isOfType(value: any, type: RuntimeType): boolean {
 						// || typeof value === 'boolean'
 						// || typeof value === 'number'
 						// || typeof value === 'string'
-						// || value instanceof BuiltInTypeBase
+						// || _julTypeSymbol in value
 						// || typeof value === ;
 						return true;
 					case 'and':
-						return builtInType.ChoiceTypes.every(coiceType =>
+						return type.ChoiceTypes.every(coiceType =>
 							isOfType(value, coiceType));
 					case 'or':
-						return builtInType.ChoiceTypes.some(coiceType =>
+						return type.ChoiceTypes.some(coiceType =>
 							isOfType(value, coiceType));
 					case 'not':
-						return !isOfType(value, builtInType.SourceType);
+						return !isOfType(value, type.SourceType);
 					case 'typeOf':
-						return deepEqual(value, builtInType.value);
+						return deepEqual(value, type.value);
 					default: {
-						const assertNever: never = builtInType;
-						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType).type}`);
+						const assertNever: never = type;
+						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType)[_julTypeSymbol]}`);
 					}
 				}
 			}
@@ -219,7 +218,7 @@ function isRealObject(value: any): value is Collection {
 // TODO check empty prototype?
 function isDictionary(value: any): value is RuntimeDictionary {
 	return isRealObject(value)
-		&& !(value instanceof BuiltInTypeBase)
+		&& !(_julTypeSymbol in value)
 		&& !(value instanceof Error)
 		&& !Array.isArray(value);
 }
@@ -485,123 +484,126 @@ type BuiltInType =
 	| TypeOfType
 	;
 
-export class BuiltInTypeBase { }
 
-export class AnyType extends BuiltInTypeBase {
-	readonly type = 'any';
+/**
+ * Wird vom emitter benutzt
+ */
+export const _julTypeSymbol = Symbol.for('julType');
+
+export interface AnyType {
+	readonly [_julTypeSymbol]: 'any';
 }
 
-export class BooleanType extends BuiltInTypeBase {
-	readonly type = 'boolean';
+export interface BooleanType {
+	readonly [_julTypeSymbol]: 'boolean';
 }
 
-export class IntegerType extends BuiltInTypeBase {
-	readonly type = 'integer';
+export interface IntegerType {
+	readonly [_julTypeSymbol]: 'integer';
 }
 
-export class FloatType extends BuiltInTypeBase {
-	readonly type = 'float';
+export interface FloatType {
+	readonly [_julTypeSymbol]: 'float';
 }
 
-class GreaterType extends BuiltInTypeBase {
-	constructor(public Value: bigint | number) { super(); }
-	readonly type = 'greater';
+interface GreaterType {
+	readonly [_julTypeSymbol]: 'greater';
+	readonly Value: bigint | number;
 }
 
-// TODO BuiltInTypes ohne class
-// export const _julTypeSymbol = Symbol.for('julType');
-// export const _Text = {
-// 	[_julTypeSymbol]: 'text',
-// }
-
-export class TextType extends BuiltInTypeBase {
-	readonly type = 'text';
+export interface TextType {
+	readonly [_julTypeSymbol]: 'text';
 }
 
-export class DateType extends BuiltInTypeBase {
-	readonly type = 'date';
+export interface DateType {
+	readonly [_julTypeSymbol]: 'date';
 }
 
-export class BlobType extends BuiltInTypeBase {
-	readonly type = 'blob';
+export interface BlobType {
+	readonly [_julTypeSymbol]: 'blob';
 }
 
-export class ErrorType extends BuiltInTypeBase {
-	readonly type = 'error';
+export interface ErrorType {
+	readonly [_julTypeSymbol]: 'error';
 }
 
-class ListType extends BuiltInTypeBase {
-	constructor(public ElementType: RuntimeType) { super(); }
-	readonly type = 'list';
+interface ListType {
+	readonly [_julTypeSymbol]: 'list';
+	readonly ElementType: RuntimeType;
 }
 
-class TupleType extends BuiltInTypeBase {
-	constructor(public ElementTypes: RuntimeType[]) { super(); }
-	readonly type = 'tuple';
+interface TupleType {
+	readonly [_julTypeSymbol]: 'tuple';
+	readonly ElementTypes: RuntimeType[];
 }
 
-class DictionaryType extends BuiltInTypeBase {
-	constructor(public ElementType: RuntimeType) { super(); }
-	readonly type = 'dictionary';
+interface DictionaryType {
+	readonly [_julTypeSymbol]: 'dictionary';
+	readonly ElementType: RuntimeType;
+}
+
+interface DictionaryLiteralType {
+	readonly [_julTypeSymbol]: 'dictionaryLiteral';
+	readonly Fields: RuntimeDictionary;
+}
+
+interface StreamType {
+	readonly [_julTypeSymbol]: 'stream';
+}
+
+const _StreamType: StreamType = { [_julTypeSymbol]: 'stream' };
+
+interface FunctionType {
+	readonly [_julTypeSymbol]: 'function';
 }
 
 /**
  * Wird vom emitter benutzt
  */
-export class DictionaryLiteralType extends BuiltInTypeBase {
-	constructor(public Fields: RuntimeDictionary) { super(); }
-	readonly type = 'dictionaryLiteral';
+export const _Function: FunctionType = { [_julTypeSymbol]: 'function' };
+
+export interface TypeType {
+	readonly [_julTypeSymbol]: 'type';
 }
 
-class StreamType extends BuiltInTypeBase {
-	constructor() { super(); }
-	readonly type = 'stream';
+interface IntersectionType {
+	readonly [_julTypeSymbol]: 'and';
+	readonly ChoiceTypes: RuntimeType[];
 }
 
-const _StreamType = new StreamType();
-
-class FunctionType extends BuiltInTypeBase {
-	constructor() {
-		super();
-	}
-	readonly type = 'function';
+interface UnionType {
+	readonly [_julTypeSymbol]: 'or';
+	readonly ChoiceTypes: RuntimeType[];
 }
-
-/**
- * Wird vom emitter benutzt
- */
-export const _Function = new FunctionType();
-
-export class TypeType extends BuiltInTypeBase {
-	readonly type = 'type';
-}
-
-class IntersectionType extends BuiltInTypeBase {
-	// TODO flatten nested IntersectionTypes?
-	constructor(public ChoiceTypes: RuntimeType[]) { super(); }
-	readonly type = 'and';
-}
-
-class UnionType extends BuiltInTypeBase {
+export const Or = (...ChoiceTypes: RuntimeType[]): UnionType => {
 	// TODO flatten nested UnionTypes?
-	constructor(public ChoiceTypes: RuntimeType[]) { super(); }
-	readonly type = 'or';
+	return {
+		[_julTypeSymbol]: 'or',
+		ChoiceTypes: ChoiceTypes,
+	};
+};
+
+interface ComplementType {
+	readonly [_julTypeSymbol]: 'not';
+	readonly SourceType: RuntimeType;
 }
 
-class ComplementType extends BuiltInTypeBase {
-	constructor(public SourceType: RuntimeType) { super(); }
-	readonly type = 'not';
-}
+export const Not = (T: RuntimeType) => {
+	return {
+		[_julTypeSymbol]: 'not',
+		SourceType: T,
+	};
+};
 
-class TypeOfType extends BuiltInTypeBase {
-	constructor(public value: RuntimeType) { super(); }
-	readonly type = 'typeOf';
+interface TypeOfType {
+	readonly [_julTypeSymbol]: 'typeOf';
+	readonly value: RuntimeType;
 }
 
 //#endregion BuiltInType
 
 function optionalType(...types: RuntimeType[]): UnionType {
-	return new UnionType([null, ...types]);
+	return Or(null, ...types);
 }
 
 //#endregion Types
@@ -916,10 +918,14 @@ function _toJson(value: RuntimeType): string | Error {
 
 //#region builtins
 //#region Types
-export const Any = new AnyType();
-export const Type = new TypeType();
-export const List = (ElementType: RuntimeType) =>
-	new ListType(ElementType);
+export const Any: AnyType = { [_julTypeSymbol]: 'any' };
+export const Type: TypeType = { [_julTypeSymbol]: 'type' };
+export const List = (ElementType: RuntimeType): ListType => {
+	return {
+		[_julTypeSymbol]: 'list',
+		ElementType: ElementType,
+	};
+};
 _createFunction(
 	List,
 	{
@@ -931,28 +937,29 @@ _createFunction(
 		]
 	}
 );
-export const And = (...args: RuntimeType[]) =>
-	new IntersectionType(args);
+export const And = (...ChoiceTypes: RuntimeType[]): IntersectionType => {
+	// TODO flatten nested IntersectionTypes?
+	return {
+		[_julTypeSymbol]: 'and',
+		ChoiceTypes: ChoiceTypes,
+	};
+};
 _createFunction(
 	And,
 	{
 		rest: {
-			type: new ListType(Type)
+			type: List(Type)
 		}
 	}
 );
-export const Or = (...args: RuntimeType[]) =>
-	new UnionType(args);
 _createFunction(
 	Or,
 	{
 		rest: {
-			type: new ListType(Type)
+			type: List(Type)
 		}
 	}
 );
-export const Not = (T: RuntimeType[]) =>
-	new ComplementType(T);
 _createFunction(
 	Not,
 	{
@@ -965,8 +972,11 @@ _createFunction(
 	}
 );
 // TODO Without
-export const TypeOf = (value: any) => {
-	return new TypeOfType(value);
+export const TypeOf = (value: any): TypeOfType => {
+	return {
+		[_julTypeSymbol]: 'typeOf',
+		value: value,
+	};
 };
 _createFunction(
 	TypeOf,
@@ -979,14 +989,18 @@ _createFunction(
 	}
 );
 // TODO ValueOf
-export const _Boolean = new BooleanType();
+export const _Boolean: BooleanType = { [_julTypeSymbol]: 'boolean' };
 //#region Number
-export const Float = new FloatType();
-export const NonZeroFloat = new IntersectionType([Float, new ComplementType(0)]);
-export const Integer = new IntegerType();
-export const NonZeroInteger = new IntersectionType([Integer, new ComplementType(0n)]);
-export const Greater = (Value: bigint | number) =>
-	new GreaterType(Value);
+export const Float: FloatType = { [_julTypeSymbol]: 'float' };
+export const NonZeroFloat = And(Float, Not(0));
+export const Integer: IntegerType = { [_julTypeSymbol]: 'integer' };
+export const NonZeroInteger = And(Integer, Not(0n));
+export const Greater = (Value: bigint | number): GreaterType => {
+	return {
+		[_julTypeSymbol]: 'greater',
+		Value: Value,
+	};
+};
 _createFunction(
 	Greater,
 	{
@@ -998,19 +1012,26 @@ _createFunction(
 		]
 	}
 );
-export const PositiveInteger = new IntersectionType([Integer, new GreaterType(0n)]);
-export const Fraction = new DictionaryLiteralType({
-	numerator: Integer,
-	denominator: Integer
-});
-export const Rational = new UnionType([Integer, Fraction]);
+export const PositiveInteger = And(Integer, Greater(0n));
+export const Fraction: DictionaryLiteralType = {
+	[_julTypeSymbol]: 'dictionaryLiteral',
+	Fields: {
+		numerator: Integer,
+		denominator: Integer
+	},
+};
+export const Rational = Or(Integer, Fraction);
 //#endregion Number
-export const _Text = new TextType();
-export const _Date = new DateType();
-export const _Blob = new BlobType();
-export const _Error = new ErrorType();
-export const Dictionary = (ElementType: RuntimeType) =>
-	new DictionaryType(ElementType);
+export const _Text: TextType = { [_julTypeSymbol]: 'text' };
+export const _Date: DateType = { [_julTypeSymbol]: 'date' };
+export const _Blob: BlobType = { [_julTypeSymbol]: 'blob' };
+export const _Error: ErrorType = { [_julTypeSymbol]: 'error' };
+export const Dictionary = (ElementType: RuntimeType): DictionaryType => {
+	return {
+		[_julTypeSymbol]: 'dictionary',
+		ElementType: ElementType,
+	};
+};
 _createFunction(
 	Dictionary,
 	{
@@ -1087,7 +1108,7 @@ _createFunction(
 	and,
 	{
 		rest: {
-			type: new ListType(_Boolean)
+			type: List(_Boolean)
 		}
 	}
 );
@@ -1097,7 +1118,7 @@ _createFunction(
 	or,
 	{
 		rest: {
-			type: new ListType(_Boolean)
+			type: List(_Boolean)
 		}
 	}
 );
@@ -1129,11 +1150,11 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'first',
-				type: new UnionType([Integer, Float]),
+				type: Or(Integer, Float),
 			},
 			{
 				name: 'second',
-				type: new UnionType([Integer, Float]),
+				type: Or(Integer, Float),
 			}
 		]
 	}
@@ -1152,7 +1173,7 @@ _createFunction(
 	maxInteger,
 	{
 		rest: {
-			type: new ListType(Integer)
+			type: List(Integer)
 		}
 	}
 );
@@ -1162,7 +1183,7 @@ _createFunction(
 	maxFloat,
 	{
 		rest: {
-			type: new ListType(Float)
+			type: List(Float)
 		}
 	}
 );
@@ -1219,7 +1240,7 @@ _createFunction(
 	multiply,
 	{
 		rest: {
-			type: new ListType(Rational)
+			type: List(Rational)
 		}
 	}
 );
@@ -1233,7 +1254,7 @@ _createFunction(
 	multiplyFloat,
 	{
 		rest: {
-			type: new ListType(Float)
+			type: List(Float)
 		}
 	}
 );
@@ -1368,7 +1389,7 @@ _createFunction(
 	add,
 	{
 		rest: {
-			type: new ListType(Rational)
+			type: List(Rational)
 		}
 	}
 );
@@ -1381,7 +1402,7 @@ _createFunction(
 	addInteger,
 	{
 		rest: {
-			type: new ListType(Integer)
+			type: List(Integer)
 		}
 	}
 );
@@ -1394,7 +1415,7 @@ _createFunction(
 	addFloat,
 	{
 		rest: {
-			type: new ListType(Float)
+			type: List(Float)
 		}
 	}
 );
@@ -1409,7 +1430,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'texts',
-				type: optionalType(new ListType(_Text)),
+				type: optionalType(List(_Text)),
 			},
 			{
 				name: 'separator',
@@ -1581,7 +1602,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 		]
 	}
@@ -1598,7 +1619,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'index',
@@ -1624,7 +1645,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'index',
@@ -1656,7 +1677,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'callback',
@@ -1689,7 +1710,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'callback',
@@ -1720,7 +1741,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'start',
@@ -1747,7 +1768,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'predicate',
@@ -1770,7 +1791,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'predicate',
@@ -1788,7 +1809,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 		]
 	}
@@ -1808,7 +1829,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'callback',
@@ -1834,7 +1855,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'predicate',
@@ -1861,7 +1882,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'predicate',
@@ -1895,7 +1916,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'getKey',
@@ -1928,7 +1949,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new ListType(Any))
+				type: optionalType(List(Any))
 			},
 			{
 				name: 'initialValue',
@@ -1954,7 +1975,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'dictionary',
-				type: optionalType(new DictionaryType(Any))
+				type: optionalType(Dictionary(Any))
 			},
 			{
 				name: 'key',
@@ -1979,7 +2000,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'dictionary',
-				type: optionalType(new DictionaryType(Any))
+				type: optionalType(Dictionary(Any))
 			},
 			{
 				name: 'key',
@@ -2005,7 +2026,7 @@ _createFunction(
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(new DictionaryType(Any))
+				type: optionalType(Dictionary(Any))
 			},
 		]
 	}
@@ -2528,7 +2549,7 @@ _createFunction(
 			},
 			{
 				name: 'headers',
-				type: optionalType(new DictionaryType(_Text))
+				type: optionalType(Dictionary(_Text))
 			},
 			{
 				name: 'body',
@@ -2558,7 +2579,7 @@ _createFunction(
 			},
 			{
 				name: 'headers',
-				type: optionalType(new DictionaryType(_Text))
+				type: optionalType(Dictionary(_Text))
 			},
 			{
 				name: 'body',
@@ -2650,7 +2671,7 @@ export const combine$ = _createFunction(
 	_combine$,
 	{
 		rest: {
-			type: optionalType(new ListType(_StreamType))
+			type: optionalType(List(_StreamType))
 		}
 	}
 );

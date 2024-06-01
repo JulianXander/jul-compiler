@@ -130,7 +130,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				}
 			}));
 		case 'dictionaryType':
-			return `new DictionaryLiteralType(${dictionaryToJs(expression.fields.map(field => {
+			const fieldsJs = dictionaryToJs(expression.fields.map(field => {
 				if (field.type === 'singleDictionaryTypeField') {
 					const typeGuardJs = field.typeGuard
 						? expressionToJs(field.typeGuard)
@@ -140,7 +140,11 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				else {
 					return spreadDictionaryFieldToJs(expressionToJs(field.value));
 				}
-			}))})`;
+			}));
+			return dictionaryToJs([
+				singleDictionaryFieldToJsInternal('[_julTypeSymbol]', '\'dictionaryLiteral\''),
+				singleDictionaryFieldToJsInternal('Fields', fieldsJs),
+			]);
 		case 'empty':
 			return 'null';
 		case 'float':
@@ -424,7 +428,14 @@ function dictionaryToJs(fieldsJs: string[]): string {
 
 function singleDictionaryFieldToJs(name: ParseValueExpression | Name, valueJs: string): string {
 	const checkedName = getCheckedEscapableName(name);
-	return `${checkedName && stringToJs(checkedName)}: ${valueJs},\n`;
+	if (checkedName === undefined) {
+		throw new Error('checkedName mising for DictionaryField');
+	}
+	return singleDictionaryFieldToJsInternal(stringToJs(checkedName), valueJs);
+}
+
+function singleDictionaryFieldToJsInternal(nameJs: string, valueJs: string): string {
+	return `${nameJs}: ${valueJs},\n`;
 }
 
 function spreadDictionaryFieldToJs(valueJs: string): string {

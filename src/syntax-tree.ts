@@ -1,5 +1,5 @@
 import { ParserError, Positioned } from './parser/parser-combinator.js';
-import { AnyType, BlobType, BooleanType, BuiltInTypeBase, DateType, ErrorType, FloatType, Integer, IntegerType, Primitive, TextType, TypeType } from './runtime.js';
+import { AnyType, BlobType, BooleanType, DateType, ErrorType, FloatType, Integer, IntegerType, Primitive, TextType, TypeType, _julTypeSymbol } from './runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {
@@ -469,102 +469,192 @@ export type BuiltInCompileTimeType =
 	| CompileTimeTypeOfType
 	;
 
-export class CompileTimeComplementType extends BuiltInTypeBase {
-	constructor(public SourceType: CompileTimeType) { super(); }
-	readonly type = 'not';
+export interface CompileTimeComplementType {
+	readonly [_julTypeSymbol]: 'not';
+	SourceType: CompileTimeType;
 }
 
-export class CompileTimeGreaterType extends BuiltInTypeBase {
-	constructor(public Value: CompileTimeType) { super(); }
-	readonly type = 'greater';
+export function createCompileTimeComplementType(SourceType: CompileTimeType): CompileTimeComplementType {
+	return {
+		[_julTypeSymbol]: 'not',
+		SourceType: SourceType,
+	};
 }
 
-export class CompileTimeDictionaryLiteralType extends BuiltInTypeBase {
-	constructor(public Fields: CompileTimeDictionary) { super(); }
-	readonly type = 'dictionaryLiteral';
+export interface CompileTimeGreaterType {
+	readonly [_julTypeSymbol]: 'greater';
+	Value: CompileTimeType;
 }
 
-export class CompileTimeDictionaryType extends BuiltInTypeBase {
-	constructor(public ElementType: CompileTimeType) { super(); }
-	readonly type = 'dictionary';
+export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTimeGreaterType {
+	return {
+		[_julTypeSymbol]: 'greater',
+		Value: Value,
+	};
 }
 
-export class CompileTimeFunctionType extends BuiltInTypeBase {
-	constructor(
-		public ParamsType: CompileTimeType,
-		public ReturnType: CompileTimeType,
-		public pure: boolean,
-	) {
-		super();
-	}
-	readonly type = 'function';
+export interface CompileTimeDictionaryLiteralType {
+	readonly [_julTypeSymbol]: 'dictionaryLiteral';
+	Fields: CompileTimeDictionary;
 }
 
-export class CompileTimeIntersectionType extends BuiltInTypeBase {
+export function createCompileTimeDictionaryLiteralType(Fields: CompileTimeDictionary): CompileTimeDictionaryLiteralType {
+	return {
+		[_julTypeSymbol]: 'dictionaryLiteral',
+		Fields: Fields,
+	};
+}
+
+export interface CompileTimeDictionaryType {
+	readonly [_julTypeSymbol]: 'dictionary';
+	ElementType: CompileTimeType;
+}
+
+export function createCompileTimeDictionaryType(
+	ElementType: CompileTimeType,
+): CompileTimeDictionaryType {
+	return {
+		[_julTypeSymbol]: 'dictionary',
+		ElementType: ElementType,
+	};
+}
+
+export interface CompileTimeFunctionType {
+	readonly [_julTypeSymbol]: 'function';
+	ParamsType: CompileTimeType;
+	ReturnType: CompileTimeType;
+	pure: boolean;
+}
+
+export function createCompileTimeFunctionType(
+	ParamsType: CompileTimeType,
+	ReturnType: CompileTimeType,
+	pure: boolean,
+): CompileTimeFunctionType {
+	return {
+		[_julTypeSymbol]: 'function',
+		ParamsType: ParamsType,
+		ReturnType: ReturnType,
+		pure: pure,
+	};
+}
+
+export interface CompileTimeIntersectionType {
+	readonly [_julTypeSymbol]: 'and';
+	ChoiceTypes: CompileTimeType[];
+}
+
+export function createCompileTimeIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeIntersectionType {
 	// TODO flatten nested IntersectionTypes?
-	constructor(public ChoiceTypes: CompileTimeType[]) { super(); }
-	readonly type = 'and';
+	return {
+		[_julTypeSymbol]: 'and',
+		ChoiceTypes: ChoiceTypes,
+	};
 }
 
-export class CompileTimeListType extends BuiltInTypeBase {
-	constructor(public ElementType: CompileTimeType) { super(); }
-	readonly type = 'list';
+export interface CompileTimeListType {
+	readonly [_julTypeSymbol]: 'list';
+	ElementType: CompileTimeType;
 }
 
-export class CompileTimeStreamType extends BuiltInTypeBase {
-	constructor(public ValueType: CompileTimeType) { super(); }
-	readonly type = 'stream';
+export function createCompileTimeListType(ElementType: CompileTimeType): CompileTimeListType {
+	return {
+		[_julTypeSymbol]: 'list',
+		ElementType: ElementType,
+	};
 }
 
-export class CompileTimeTupleType extends BuiltInTypeBase {
-	constructor(public ElementTypes: CompileTimeType[]) { super(); }
-	readonly type = 'tuple';
+export interface CompileTimeStreamType {
+	readonly [_julTypeSymbol]: 'stream';
+	ValueType: CompileTimeType;
 }
 
-export class CompileTimeTypeOfType extends BuiltInTypeBase {
-	constructor(public value: CompileTimeType) { super(); }
-	readonly type = 'typeOf';
+export function createCompileTimeStreamType(ValueType: CompileTimeType): CompileTimeStreamType {
+	return {
+		[_julTypeSymbol]: 'stream',
+		ValueType: ValueType,
+	};
 }
 
-export class CompileTimeUnionType extends BuiltInTypeBase {
-	constructor(public ChoiceTypes: CompileTimeType[]) { super(); }
-	readonly type = 'or';
+export interface CompileTimeTupleType {
+	readonly [_julTypeSymbol]: 'tuple';
+	ElementTypes: CompileTimeType[];
 }
 
-export class NestedReference extends BuiltInTypeBase {
-	constructor(
-		public source: CompileTimeType,
-		public nestedKey: string | number,
-	) { super(); }
-	readonly type = 'nestedReference';
+export function createCompileTimeTupleType(ElementTypes: CompileTimeType[]): CompileTimeTupleType {
+	return {
+		[_julTypeSymbol]: 'tuple',
+		ElementTypes: ElementTypes,
+	};
+}
+
+export interface CompileTimeTypeOfType {
+	readonly [_julTypeSymbol]: 'typeOf';
+	value: CompileTimeType;
+}
+
+export function createCompileTimeTypeOfType(value: CompileTimeType) {
+	return {
+		[_julTypeSymbol]: 'typeOf',
+		value: value,
+	};
+}
+
+export interface CompileTimeUnionType {
+	readonly [_julTypeSymbol]: 'or';
+	ChoiceTypes: CompileTimeType[];
+}
+
+export interface NestedReference {
+	readonly [_julTypeSymbol]: 'nestedReference';
+	source: CompileTimeType;
+	nestedKey: string | number;
+}
+
+export function createNestedReference(source: CompileTimeType, nestedKey: string | number) {
+	return {
+		[_julTypeSymbol]: 'nestedReference',
+		source: source,
+		nestedKey: nestedKey,
+	};
 }
 
 /**
  * Wird aktuell nur als CompileTimeType benutzt
  */
-export class ParameterReference extends BuiltInTypeBase {
-	constructor(
-		public name: string,
-		public index: number,
-	) { super(); }
-	readonly type = 'parameterReference';
+export interface ParameterReference {
+	readonly [_julTypeSymbol]: 'parameterReference';
+	name: string;
+	index: number;
 	/**
 	 * Muss nach dem Erzeugen gesetzt werden.
 	 */
 	functionRef?: CompileTimeFunctionType;
 }
 
+export function createParameterReference(name: string, index: number): ParameterReference {
+	return {
+		[_julTypeSymbol]: 'parameterReference',
+		name: name,
+		index: index,
+	};
+}
+
 /**
  * Wird aktuell nur als CompileTimeType benutzt
  */
-export class ParametersType extends BuiltInTypeBase {
-	constructor(
-		public singleNames: Parameter[],
-		public rest?: Parameter,
-	) {
-		super();
-	}
-	readonly type = 'parameters';
+export interface ParametersType {
+	readonly [_julTypeSymbol]: 'parameters';
+	singleNames: Parameter[];
+	rest?: Parameter;
+}
+
+export function createParametersType(singleNames: Parameter[], rest?: Parameter): ParametersType {
+	return {
+		[_julTypeSymbol]: 'parameters',
+		singleNames: singleNames,
+		rest: rest,
+	};
 }
 
 export interface Parameter {
@@ -572,6 +662,6 @@ export interface Parameter {
 	type?: CompileTimeType;
 }
 
-export const CompileTimeNonZeroInteger = new CompileTimeIntersectionType([Integer, new CompileTimeComplementType(0n)]);
+export const CompileTimeNonZeroInteger = createCompileTimeIntersectionType([Integer, createCompileTimeComplementType(0n)]);
 
 //#endregion CompileTimeType

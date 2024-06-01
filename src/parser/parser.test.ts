@@ -1147,6 +1147,7 @@ const expectedResults: {
 					"symbols": {},
 					"type": "functionLiteral",
 				};
+				functionLiteral.body[0].parent = functionLiteral;
 				functionLiteral.params.parent = functionLiteral;
 				return [
 					functionLiteral,

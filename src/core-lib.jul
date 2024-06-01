@@ -45,7 +45,12 @@ Not = nativeFunction(
 	(T: Type) :> Type
 	true
 	§js
-		(type) => new ComplementType(type)
+		(T) => {
+			return {
+				[_julTypeSymbol]: 'not',
+				SourceType: T,
+			};
+		}
 	§
 )
 # SubtractionType
