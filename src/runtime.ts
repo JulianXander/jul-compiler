@@ -1800,6 +1800,35 @@ _createFunction(
 		]
 	}
 );
+export const findLastIndex = <T>(
+	values: T[] | null,
+	predicate: (value: T, index: bigint) => boolean,
+): bigint | null => {
+	if (!values) {
+		return null;
+	}
+	const lastIndexFloat = values.findLastIndex((value, index) => {
+		return predicate(value, BigInt(index + 1));
+	});
+	return lastIndexFloat === -1
+		? null
+		: BigInt(lastIndexFloat + 1);
+};
+_createFunction(
+	findLastIndex,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(List(Any))
+			},
+			{
+				name: 'predicate',
+				type: _Function
+			},
+		]
+	}
+);
 export const lastElement = <T>(values: T[] | null): T | null => {
 	return values?.[values.length - 1] ?? null;
 };

@@ -601,6 +601,21 @@ findLast = nativeFunction(
 		}
 	§
 )
+# Liefert den index des letzten Elements, für das predicate true liefert.
+findLastIndex = nativeFunction(
+	(
+		values: Or(() List(Any))
+		predicate: (
+			value: TypeOf(values)/ElementType
+			index: PositiveInteger
+		) :> Boolean
+	) :> Or(() PositiveInteger)
+	# TODO pure wenn die args pure sind
+	false
+	§js
+		TODO
+	§
+)
 lastElement = nativeFunction(
 	(values: Or(() List(Any))) :> Or(() TypeOf(values)/ElementType)
 	true
