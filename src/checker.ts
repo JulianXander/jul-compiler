@@ -792,10 +792,12 @@ function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterRe
 		if (isParamtersType(paramsType)) {
 			const matchedParameter = paramsType.singleNames.find(parameter =>
 				parameter.name === parameterReference.name);
-			return matchedParameter?.type;
+			return matchedParameter
+				? matchedParameter.type
+				: null;
 		}
 	}
-	return undefined;
+	return null;
 }
 
 //#endregion dereference
@@ -959,7 +961,9 @@ function inferType(
 				}
 				checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
 				const referenceName = field.source?.name ?? fieldName;
-				const valueType = getValueWithFallback(value?.inferredType, Any);
+				const valueType = value
+					? getValueWithFallback(value.inferredType, Any)
+					: Any;
 				const dereferencedType = dereferenceNameFromObject(referenceName, valueType);
 				if (dereferencedType === null) {
 					errors.push({
@@ -1012,7 +1016,9 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = getValueWithFallback(field.value?.inferredType, Any);
+						const fieldType = field.value
+							? getValueWithFallback(field.value.inferredType, Any)
+							: Any;
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
