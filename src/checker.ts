@@ -1231,10 +1231,6 @@ function inferType(
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file);
 			const inferredReturnType = expression.returnType.inferredType;
-			if (inferredReturnType === undefined) {
-				console.log(JSON.stringify(expression, undefined, 4));
-				throw new Error('returnType was not inferred');
-			}
 			functionType.ReturnType = valueOf(inferredReturnType);
 			return createCompileTimeTypeOfType(functionType);
 		}
