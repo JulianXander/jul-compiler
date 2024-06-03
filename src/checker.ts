@@ -2376,7 +2376,7 @@ function getTypeErrorForParameters(
 					? isListType(valueRestType)
 						? valueRestType.ElementType
 						: Any
-					: undefined;
+					: null;
 				for (; index < targetSingleNames.length; index++) {
 					const targetParameter = targetSingleNames[index]!;
 					const targetParameterName = targetParameter.name;
