@@ -55,15 +55,23 @@ const expectedResults: {
 		// },
 		{
 			code: 'log()',
-			result: 'export default _callFunction(log, undefined, null)'
+			result: 'export default log()'
 		},
 		{
 			code: 'log(())',
-			result: 'export default _callFunction(log, undefined, [\nnull,\n])'
+			result: 'export default log(\nnull,\n)'
 		},
 		{
 			code: 'log(1)',
-			result: 'export default _callFunction(log, undefined, [\n1n,\n])'
+			result: 'export default log(\n1n,\n)'
+		},
+		{
+			code: '1.log()',
+			result: 'export default log(1n)'
+		},
+		{
+			code: '1.log(1)',
+			result: 'export default log(1n,\n1n,\n)'
 		},
 		{
 			name: 'function-call-named-args',

@@ -224,7 +224,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':
-			return `[\n${expression.values}]`;
+			return `[\n${listValuesToJs(expression.values)}]`;
 		case 'nestedReference': {
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
