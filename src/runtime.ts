@@ -1564,7 +1564,7 @@ _createFunction(
 export const length = (
 	values: any[] | null,
 ): bigint => {
-	if (values === null) {
+	if (!values) {
 		return 0n;
 	}
 	return BigInt(values.length);
@@ -1693,18 +1693,18 @@ _createFunction(
 	}
 );
 export const slice = <T>(
-	values: T[] | null,
+	values: T[] | null | undefined,
 	start: bigint,
-	end: bigint | null,
+	end: bigint | null | undefined,
 ): T[] | null => {
 	if (!values) {
 		return null;
 	}
 	const sliced = values.slice(
 		Number(start) - 1,
-		end === null
-			? undefined
-			: Number(end)
+		typeof end === 'bigint'
+			? Number(end)
+			: undefined
 	);
 	return sliced.length ? sliced : null;
 };

@@ -443,7 +443,7 @@ length = nativeFunction(
 	true
 	§js
 		(values) => {
-			if (values === null) {
+			if (!values) {
 				return 0n;
 			}
 			return BigInt(values.length);
@@ -555,9 +555,9 @@ slice = nativeFunction(
 			}
 			const sliced = values.slice(
 				Number(start) - 1,
-				end === null
-					? undefined
-					: Number(end)
+				typeof end === 'bigint'
+					? Number(end)
+					: undefined
 			);
 			return sliced.length ? sliced : null;
 		}
