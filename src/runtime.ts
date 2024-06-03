@@ -53,11 +53,11 @@ export function _checkType(type: RuntimeType, value: any) {
 		: new Error(`${value} is not of type ${type}`);
 }
 
-export function _combineObject(...parts: (Collection | null)[]): Collection | null {
-	const nonEmptyParts = parts.filter(part => part !== null);
+export function _combineObject(...parts: (Collection | undefined)[]): Collection | undefined {
+	const nonEmptyParts = parts.filter(part => part !== undefined);
 	const firstNonEmptyPart = nonEmptyParts[0];
 	if (!firstNonEmptyPart) {
-		return null;
+		return;
 	}
 	if (Array.isArray(firstNonEmptyPart)) {
 		return ([] as any[]).concat(...nonEmptyParts);
@@ -82,6 +82,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 		case 'boolean':
 		case 'number':
 		case 'string':
+		case 'undefined':
 			return value === type;
 		case 'object': {
 			if (type === null) {
@@ -119,7 +120,7 @@ function isOfType(value: any, type: RuntimeType): boolean {
 							return true;
 						}
 						for (const key in value) {
-							const elementValue = value[key] ?? null;
+							const elementValue = value[key];
 							if (!isOfType(elementValue, elementType)) {
 								return false;
 							}
@@ -147,8 +148,8 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					case 'function':
 						return typeof value === 'function';
 					case 'type':
-						// TODO check primitive value (null/boolean/number/string)/builtintype/function
-						// return value === null
+						// TODO check primitive value (undefined/boolean/number/string)/builtintype/function
+						// return value === undefined
 						// || typeof value === 'boolean'
 						// || typeof value === 'number'
 						// || typeof value === 'string'
@@ -187,7 +188,7 @@ function isOfTupleType(value: any, elementTypes: RuntimeType[]): boolean {
 	return Array.isArray(value)
 		&& value.length >= elementTypes.length
 		&& elementTypes.every((elementType, index) =>
-			isOfType(value[index] ?? null, elementType));
+			isOfType(value[index], elementType));
 }
 
 function isOfDictionaryLiteralType(value: any, fieldTypes: RuntimeDictionary): boolean {
@@ -195,7 +196,7 @@ function isOfDictionaryLiteralType(value: any, fieldTypes: RuntimeDictionary): b
 		return false;
 	}
 	for (const key in fieldTypes) {
-		const elementValue = value[key] ?? null;
+		const elementValue = value[key];
 		const elementType = fieldTypes[key]!;
 		if (!isOfType(elementValue, elementType)) {
 			return false;
@@ -241,7 +242,7 @@ function assignArgs(
 				arg = prefixArg;
 			}
 			else {
-				arg = args?.[sourceWithFallback] ?? null;
+				arg = args?.[sourceWithFallback];
 			}
 			assignedValues.push(arg);
 		}
@@ -259,7 +260,7 @@ function assignArgs(
 function tryAssignArgs(
 	params: Params,
 	prefixArg: any,
-	args: Collection | null,
+	args: Collection | undefined,
 	rawArgs: any,
 ): any[] | Error {
 	const assignedValues: any[] = [];
@@ -287,9 +288,9 @@ function tryAssignArgs(
 				arg = prefixArg;
 			}
 			else {
-				arg = (isArray
+				arg = isArray
 					? args[argIndex]
-					: args?.[sourceWithFallback]) ?? null;
+					: args?.[sourceWithFallback];
 				argIndex++;
 			}
 			const isValid = type
@@ -303,10 +304,10 @@ function tryAssignArgs(
 	}
 	if (rest) {
 		const restType = rest.type;
-		if (args === null) {
+		if (args === undefined) {
 			const remainingArgs = hasPrefixArg && !paramIndex
 				? [prefixArg]
-				: null;
+				: undefined;
 			const isValid = restType
 				? isOfType(remainingArgs, restType)
 				: true;
@@ -399,7 +400,7 @@ export function deepEqual(value1: any, value2: any): boolean {
 //#region Types
 
 export type Primitive =
-	| null
+	| undefined
 	| boolean
 	| number
 	| bigint
@@ -576,7 +577,7 @@ interface TypeOfType {
 //#endregion BuiltInType
 
 function optionalType(...types: RuntimeType[]): UnionType {
-	return Or(null, ...types);
+	return Or(undefined, ...types);
 }
 
 //#endregion Types
@@ -591,7 +592,7 @@ type ParserResult<T> = {
 } | Error;
 
 export type JsonValue =
-	| null
+	| undefined
 	| boolean
 	| RuntimeRational
 	| string
@@ -616,7 +617,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 	const character = json[index];
 	switch (character) {
 		case 'n':
-			return parseJsonToken(json, index, 'null', null);
+			return parseJsonToken(json, index, 'null', undefined);
 		case 't':
 			return parseJsonToken(json, index, 'true', true);
 		case 'f':
@@ -668,7 +669,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 			return parseJsonString(json, index + 1);
 		case '[': {
 			index++;
-			let array: any[] | null = null;
+			let array: any[] | undefined = undefined;
 			index = parseJsonWhiteSpace(json, index);
 			if (json[index] === ']') {
 				return {
@@ -700,7 +701,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 					if (elementResult instanceof Error) {
 						return elementResult;
 					}
-					if (array === null) {
+					if (!array) {
 						array = [];
 					}
 					array.push(elementResult.parsed);
@@ -711,7 +712,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 		}
 		case '{': {
 			index++;
-			let object: { [key: string]: any; } | null = null;
+			let object: { [key: string]: any; } | undefined = undefined;
 			index = parseJsonWhiteSpace(json, index);
 			if (json[index] === '}') {
 				return {
@@ -755,7 +756,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 					if (valueResult instanceof Error) {
 						return valueResult;
 					}
-					if (object === null) {
+					if (!object) {
 						object = {};
 					}
 					object[keyResult.parsed] = valueResult.parsed;
@@ -864,7 +865,7 @@ function _toJson(value: RuntimeType): string | Error {
 			return JSON.stringify(value);
 		case 'function':
 		case 'object': {
-			if (value === null) {
+			if (!value) {
 				return 'null';
 			}
 			if (Array.isArray(value)) {
@@ -877,7 +878,7 @@ function _toJson(value: RuntimeType): string | Error {
 		case 'symbol':
 			return new Error('Can not convert symbol to JSON');
 		case 'undefined':
-			return new Error('Can not convert undefined to JSON');
+			return 'null';
 		default: {
 			const assertNever: never = value;
 			return new Error(`Unexpected type ${typeof assertNever}`);
@@ -1394,7 +1395,7 @@ _createFunction(
 );
 //#endregion Number
 //#region Text
-export const combineTexts = (texts: string[] | null, separator: string | null) => {
+export const combineTexts = (texts: string[] | undefined, separator: string | undefined) => {
 	return texts?.join(separator ?? '') ?? '';
 };
 _createFunction(
@@ -1458,8 +1459,8 @@ export const regex = (text: string, regex1: string) => {
 		const match = text.match(regex1);
 		return {
 			isMatch: !!match,
-			unnamedCaptures: match ? Array.from(match) : null,
-			namedCaptures: match?.groups ?? null,
+			unnamedCaptures: match ? Array.from(match) : undefined,
+			namedCaptures: match?.groups,
 		};
 	}
 	catch (error) {
@@ -1485,13 +1486,13 @@ _createFunction(
 //#region Date
 export const addDate = (
 	date: Date,
-	years: bigint | null,
-	months: bigint | null,
-	days: bigint | null,
-	hours: bigint | null,
-	minutes: bigint | null,
-	seconds: bigint | null,
-	milliseconds: bigint | null
+	years: bigint | undefined,
+	months: bigint | undefined,
+	days: bigint | undefined,
+	hours: bigint | undefined,
+	minutes: bigint | undefined,
+	seconds: bigint | undefined,
+	milliseconds: bigint | undefined
 ) => new Date(
 	date.getFullYear() + Number(years ?? 0),
 	date.getMonth() + Number(months ?? 0),
@@ -1562,7 +1563,7 @@ _createFunction(
 //#endregion Date
 //#region List
 export const length = (
-	values: any[] | null,
+	values: any[] | undefined,
 ): bigint => {
 	if (!values) {
 		return 0n;
@@ -1581,10 +1582,10 @@ _createFunction(
 	}
 );
 export const getElement = <T>(
-	values: T[] | null,
+	values: T[] | undefined,
 	index: bigint,
-): T | null => {
-	return values?.[Number(index) - 1] ?? null;
+): T | undefined => {
+	return values?.[Number(index) - 1];
 };
 _createFunction(
 	getElement,
@@ -1602,7 +1603,7 @@ _createFunction(
 	}
 );
 export const setElement = <T>(
-	values: T[] | null,
+	values: T[] | undefined,
 	index: bigint,
 	value: T,
 ): T[] => {
@@ -1631,18 +1632,18 @@ _createFunction(
 	}
 );
 export const map = <T, U>(
-	values: T[] | null,
+	values: T[] | undefined,
 	callback: (value: T, index: bigint) => U,
-): U[] | null => {
+): U[] | undefined => {
 	if (!values) {
-		return null;
+		return;
 	}
 	const mappedValues = values.map((value, index) => {
 		return callback(value, BigInt(index + 1));
 	});
 	return mappedValues.length
 		? mappedValues
-		: null;
+		: undefined;
 };
 _createFunction(
 	map,
@@ -1660,22 +1661,22 @@ _createFunction(
 	}
 );
 export const filterMap = <T, U>(
-	values: T[] | null,
-	callback: (value: T, index: bigint) => U | null,
-): U[] | null => {
+	values: T[] | undefined,
+	callback: (value: T, index: bigint) => U | undefined,
+): U[] | undefined => {
 	if (!values) {
-		return null;
+		return;
 	}
 	const mappedValues: U[] = [];
 	values.forEach((value, index) => {
 		const mapped = callback(value, BigInt(index + 1));
-		if (mapped !== null) {
+		if (mapped !== undefined) {
 			mappedValues.push(mapped);
 		}
 	});
 	return mappedValues.length
 		? mappedValues
-		: null;
+		: undefined;
 };
 _createFunction(
 	filterMap,
@@ -1693,12 +1694,12 @@ _createFunction(
 	}
 );
 export const slice = <T>(
-	values: T[] | null | undefined,
+	values: T[] | undefined,
 	start: bigint,
-	end: bigint | null | undefined,
-): T[] | null => {
+	end: bigint | undefined,
+): T[] | undefined => {
 	if (!values) {
-		return null;
+		return;
 	}
 	const sliced = values.slice(
 		Number(start) - 1,
@@ -1706,7 +1707,7 @@ export const slice = <T>(
 			? Number(end)
 			: undefined
 	);
-	return sliced.length ? sliced : null;
+	return sliced.length ? sliced : undefined;
 };
 _createFunction(
 	slice,
@@ -1728,12 +1729,12 @@ _createFunction(
 	}
 );
 export const findFirst = <T>(
-	values: T[] | null,
+	values: T[] | undefined,
 	predicate: (value: T, index: bigint) => boolean,
-): T | null => {
+): T | undefined => {
 	return values?.find((value, index) => {
 		return predicate(value, BigInt(index + 1));
-	}) ?? null;
+	});
 };
 _createFunction(
 	findFirst,
@@ -1751,12 +1752,12 @@ _createFunction(
 	}
 );
 export const findLast = <T>(
-	values: T[] | null,
+	values: T[] | undefined,
 	predicate: (value: T, index: bigint) => boolean,
-): T | null => {
+): T | undefined => {
 	return values?.findLast((value, index) => {
 		return predicate(value, BigInt(index + 1));
-	}) ?? null;
+	});
 };
 _createFunction(
 	findLast,
@@ -1774,17 +1775,17 @@ _createFunction(
 	}
 );
 export const findLastIndex = <T>(
-	values: T[] | null,
+	values: T[] | undefined,
 	predicate: (value: T, index: bigint) => boolean,
-): bigint | null => {
+): bigint | undefined => {
 	if (!values) {
-		return null;
+		return;
 	}
 	const lastIndexFloat = values.findLastIndex((value, index) => {
 		return predicate(value, BigInt(index + 1));
 	});
 	return lastIndexFloat === -1
-		? null
+		? undefined
 		: BigInt(lastIndexFloat + 1);
 };
 _createFunction(
@@ -1802,8 +1803,8 @@ _createFunction(
 		]
 	}
 );
-export const lastElement = <T>(values: T[] | null): T | null => {
-	return values?.[values.length - 1] ?? null;
+export const lastElement = <T>(values: T[] | undefined): T | undefined => {
+	return values?.[values.length - 1];
 };
 _createFunction(
 	lastElement,
@@ -1817,13 +1818,12 @@ _createFunction(
 	}
 );
 export const forEach = <T>(
-	values: T[] | null,
+	values: T[] | undefined,
 	callback: (value: T, index: bigint) => void,
 ) => {
 	values?.forEach((value, index) => {
 		return callback(value, BigInt(index + 1));
 	});
-	return null;
 };
 _createFunction(
 	forEach,
@@ -1841,7 +1841,7 @@ _createFunction(
 	}
 );
 export const exists = <T>(
-	values: T[] | null,
+	values: T[] | undefined,
 	predicate: (value: T, index: bigint) => boolean,
 ): boolean => {
 	if (!values) {
@@ -1868,7 +1868,7 @@ _createFunction(
 );
 
 export const all = <T>(
-	values: T[] | null,
+	values: T[] | undefined,
 	predicate: (value: T, index: bigint) => boolean,
 ): boolean => {
 	if (!values) {
@@ -1894,12 +1894,12 @@ _createFunction(
 	}
 );
 export const toDictionary = (
-	values: any[] | null,
+	values: any[] | undefined,
 	getKey: (value: any, index: bigint) => string,
 	getValue: (value: any, index: bigint) => any,
-): RuntimeDictionary | null => {
+): RuntimeDictionary | undefined => {
 	if (!values) {
-		return null;
+		return;
 	}
 	const dictionary: RuntimeDictionary = {};
 	let indexBigint = 1n;
@@ -1932,7 +1932,7 @@ _createFunction(
 	}
 );
 export const aggregate = <T, U>(
-	values: T[] | null,
+	values: T[] | undefined,
 	initialValue: U,
 	callback: (accumulator: U, value: T, index: bigint) => U,
 ): U => {
@@ -1966,10 +1966,10 @@ _createFunction(
 //#endregion List
 //#region Dictionary
 export const getField = <T>(
-	dictionary: { [key: string]: T; } | null,
+	dictionary: { [key: string]: T; } | undefined,
 	key: string,
-): T | null => {
-	return dictionary?.[key] ?? null;
+): T | undefined => {
+	return dictionary?.[key];
 };
 _createFunction(
 	getField,
@@ -1987,7 +1987,7 @@ _createFunction(
 	}
 );
 export const setField = <T>(
-	dictionary: { [key: string]: T; } | null,
+	dictionary: { [key: string]: T; } | undefined,
 	key: string,
 	value: T,
 ): { [key: string]: T; } => {
@@ -2015,10 +2015,10 @@ _createFunction(
 	}
 );
 export const toList = <T>(
-	dictionary: { [key: string]: T; } | null,
-): T[] | null => {
+	dictionary: { [key: string]: T; } | undefined,
+): T[] | undefined => {
 	if (!dictionary) {
-		return null;
+		return;
 	}
 	return Object.values(dictionary);
 };
@@ -2148,12 +2148,12 @@ type HttpResponseType =
 function httpRequest$(
 	url: string,
 	method: string,
-	headers: { [key: string]: string; } | null,
+	headers: { [key: string]: string; } | undefined,
 	body: any,
 	responseType: HttpResponseType,
-): StreamClass<null | string | Blob | Error> {
+): StreamClass<undefined | string | Blob | Error> {
 	const abortController = new AbortController();
-	const response$ = _create$<null | string | Blob | Error>(null);
+	const response$ = _create$<undefined | string | Blob | Error>(undefined);
 	response$.onCompleted(() => {
 		abortController.abort();
 	});
@@ -2445,9 +2445,8 @@ function retry$<T>(
 //#endregion transform
 //#endregion helper
 //#region core
-export const complete = (stream$: StreamClass<any>): null => {
+export const complete = (stream$: StreamClass<any>): undefined => {
 	stream$.complete();
-	return null;
 };
 _createFunction(
 	complete,
@@ -2463,7 +2462,6 @@ _createFunction(
 export const push = (stream$: StreamClass<any>, value: any) => {
 	processId++;
 	stream$.push(value, processId);
-	return null;
 };
 _createFunction(
 	push,
@@ -2529,7 +2527,7 @@ export const completed$ = _createFunction(
 export const httpTextRequest$ = (
 	url: string,
 	method: string,
-	headers: { [key: string]: string; } | null,
+	headers: { [key: string]: string; } | undefined,
 	body: any,
 ) => {
 	return httpRequest$(url, method, headers, body, 'text');
@@ -2559,7 +2557,7 @@ _createFunction(
 export const httpBlobRequest$ = (
 	url: string,
 	method: string,
-	headers: { [key: string]: string; } | null,
+	headers: { [key: string]: string; } | undefined,
 	body: any,
 ) => {
 	return httpRequest$(url, method, headers, body, 'blob');
@@ -2694,7 +2692,6 @@ export const take$ = _createFunction(
 //#region Utility
 export const log = (...args: any[]) => {
 	console.log(...args);
-	return null;
 };
 _createFunction(
 	log,

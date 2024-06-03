@@ -124,7 +124,7 @@ Dictionary = nativeFunction(
 				return true;
 			}
 			for (const key in value) {
-				const elementValue = value[key] ?? null;
+				const elementValue = value[key];
 				if (!isOfType(elementValue, ElementType)) {
 					return false;
 				}
@@ -450,7 +450,7 @@ length = nativeFunction(
 		}
 	§
 )
-# TODO conditional return type, sodass null nur geliefert wird, wenn index > values.Length
+# TODO conditional return type, sodass empty nur geliefert wird, wenn index > values.Length
 getElement = nativeFunction(
 	(
 		values: Or(() List(Any))
@@ -463,7 +463,7 @@ getElement = nativeFunction(
 	# 	false => TypeOf(values)/ElementType
 	true
 	§js
-		(values, index) => values?.[Number(index) - 1] ?? null
+		(values, index) => values?.[Number(index) - 1]
 	§
 )
 # Creates a new List without mutating the given List
@@ -498,14 +498,14 @@ map = nativeFunction(
 	§js
 		(values, callback) => {
 			if (!values) {
-				return null;
+				return;
 			}
 			const mappedValues = values.map((value, index) => {
 				return callback(value, BigInt(index + 1));
 			});
 			return mappedValues.length
 				? mappedValues
-				: null;
+				: undefined;
 		}
 	§
 )
@@ -523,18 +523,18 @@ filterMap = nativeFunction(
 	§js
 		(values, callback) => {
 			if (!values) {
-				return null;
+				return;
 			}
 			const mappedValues = [];
 			values.forEach((value, index) => {
 				const mapped = callback(value, BigInt(index + 1));
-				if (mapped !== null) {
+				if (mapped !== undefined) {
 					mappedValues.push(mapped);
 				}
 			});
 			return mappedValues.length
 				? mappedValues
-				: null;
+				: undefined;
 		}
 	§
 )
@@ -551,7 +551,7 @@ slice = nativeFunction(
 	§js
 		(values, start, end) => {
 			if (!values) {
-				return null;
+				return;
 			}
 			const sliced = values.slice(
 				Number(start) - 1,
@@ -559,7 +559,7 @@ slice = nativeFunction(
 					? Number(end)
 					: undefined
 			);
-			return sliced.length ? sliced : null;
+			return sliced.length ? sliced : undefined;
 		}
 	§
 )
@@ -578,7 +578,7 @@ findFirst = nativeFunction(
 		(values, predicate) => {
 			return values?.find((value, index) => {
 				return predicate(value, BigInt(index + 1));
-			}) ?? null;
+			});
 		}
 	§
 )
@@ -597,7 +597,7 @@ findLast = nativeFunction(
 		(values, predicate) => {
 			return values?.findLast((value, index) => {
 				return predicate(value, BigInt(index + 1));
-			}) ?? null;
+			});
 		}
 	§
 )
@@ -620,7 +620,7 @@ lastElement = nativeFunction(
 	(values: Or(() List(Any))) :> Or(() TypeOf(values)/ElementType)
 	true
 	§js
-		values => values?.[values.length - 1] ?? null
+		values => values?.[values.length - 1]
 	§
 )
 forEach = nativeFunction(
@@ -637,7 +637,6 @@ forEach = nativeFunction(
 			values?.forEach((value, index) => {
 				return callback(value, BigInt(index + 1));
 			});
-			return null;
 		}
 	§
 )
@@ -702,7 +701,7 @@ toDictionary = nativeFunction(
 	§js
 		(values, getKey, getValue) => {
 			if (!values) {
-				return null;
+				return;
 			}
 			const dictionary = {};
 			let indexBigint = 1n;
@@ -752,7 +751,7 @@ getField = nativeFunction(
 	) :> Or(() TypeOf(dictionary)/ElementType)
 	true
 	§js
-		(dictionary, key) => dictionary?.[key] ?? null
+		(dictionary, key) => dictionary?.[key]
 	§
 )
 # Creates a new Dictionary without mutating the given dictionary
@@ -780,7 +779,7 @@ toList = nativeFunction(
 	§js
 		dictionary => {
 			if (!dictionary) {
-				return null;
+				return;
 			}
 			return Object.values(dictionary);
 		}
@@ -796,7 +795,6 @@ complete = nativeFunction(
 	§js
 		(stream$) => {
 			stream$.complete();
-			return null;
 		}
 	§
 )
