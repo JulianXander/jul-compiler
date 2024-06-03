@@ -1340,7 +1340,10 @@ function inferType(
 				}
 			}
 			//#endregion
-			const inferredType = getValueWithFallback(dereferencedTypeFromCall, valueOf(typeGuard?.inferredType));
+			const typeGuardType = typeGuard
+				? typeGuard.inferredType
+				: null;
+			const inferredType = getValueWithFallback(dereferencedTypeFromCall, valueOf(typeGuardType));
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			parameterSymbol.inferredType = inferredType;
@@ -1760,7 +1763,7 @@ function valueOf(type: CompileTimeType | null): CompileTimeType {
 			return type;
 		case 'object':
 			if (type === null) {
-				throw new Error(`Unexpected type null for valueOf`);
+				return Any;
 			}
 			if (isBuiltInType(type)) {
 				switch (type[_julTypeSymbol]) {
