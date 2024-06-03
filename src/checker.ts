@@ -2221,13 +2221,6 @@ function getTupleTypeError2(
 	// TODO fehler wenn argument mehr elemente entfält als target?
 	const subErrors = targetElementTypes.map((targetElementType, index) => {
 		const valueElement = argumentElementTypes[index];
-		if (valueElement === undefined) {
-			// TODO kein Fehler bei empty target?
-			const error: TypeError = {
-				message: `Missing element at position ${index + 1}. Expected ${typeToString(targetElementType, 0)}.`,
-			};
-			return error;
-		}
 		return getTypeError(prefixArgumentType, valueElement, targetElementType);
 	}).filter(isDefined);
 	if (subErrors.length) {
