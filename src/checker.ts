@@ -242,7 +242,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 }
 
 export function getStreamGetValueType(streamType: CompileTimeStreamType): CompileTimeFunctionType {
-	return createCompileTimeFunctionType(null, streamType.ValueType, false);
+	return createCompileTimeFunctionType(undefined, streamType.ValueType, false);
 }
 
 function dereferenceNestedKeyFromObject(nestedKey: string | number, source: CompileTimeType): CompileTimeType | undefined {
@@ -255,8 +255,8 @@ function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
 ): CompileTimeType | undefined {
-	if (sourceObjectType === null) {
-		return null;
+	if (sourceObjectType === undefined) {
+		return undefined;
 	}
 	if (typeof sourceObjectType !== 'object') {
 		return undefined;
@@ -367,8 +367,8 @@ function dereferenceIndexFromObject(
 	index: number,
 	sourceObjectType: CompileTimeType,
 ): CompileTimeType | undefined {
-	if (sourceObjectType === null) {
-		return null;
+	if (sourceObjectType === undefined) {
+		return undefined;
 	}
 	if (typeof sourceObjectType !== 'object') {
 		return undefined;
@@ -570,7 +570,7 @@ function getAllArgTypes(
 	const prefixArgTypes = prefixArgumentType === undefined
 		? []
 		: [prefixArgumentType];
-	if (argsType === null) {
+	if (argsType === undefined) {
 		return prefixArgTypes;
 	}
 	if (isTupleType(argsType)) {
@@ -590,7 +590,7 @@ function dereferenceParameterFromArgumentType(
 	argsType: CompileTimeType,
 	parameterReference: ParameterReference,
 ): CompileTimeType {
-	if (parameterReference.functionRef !== calledFunction) {
+	if (!calledFunction || parameterReference.functionRef !== calledFunction) {
 		return parameterReference;
 	}
 	// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
@@ -610,8 +610,8 @@ function dereferenceParameterFromArgumentType(
 	if (prefixArgumentType !== undefined && paramIndex === 0) {
 		return prefixArgumentType;
 	}
-	if (argsType === null) {
-		return null;
+	if (argsType === undefined) {
+		return undefined;
 	}
 	if (!isBuiltInType(argsType)) {
 		return parameterReference;
@@ -1081,7 +1081,7 @@ function inferType(
 			return createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes));
 		}
 		case 'empty':
-			return null;
+			return undefined;
 		case 'field':
 			// TODO?
 			return Any;
@@ -1164,8 +1164,8 @@ function inferType(
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, ownSymbols];
 			const params = expression.params;
 			const functionType = createCompileTimeFunctionType(
-				null,
-				null,
+				undefined,
+				undefined,
 				// TODO pure, wenn der body pure ist
 				false,
 			);
@@ -1197,7 +1197,7 @@ function inferType(
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
 			});
-			const inferredReturnType = last(expression.body)?.inferredType ?? null;
+			const inferredReturnType = last(expression.body)?.inferredType;
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
@@ -1219,8 +1219,8 @@ function inferType(
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			const params = expression.params;
 			const functionType = createCompileTimeFunctionType(
-				null,
-				null,
+				undefined,
+				undefined,
 				true,
 			);
 			if (params.type === 'parameters') {
@@ -1326,7 +1326,7 @@ function inferType(
 					// TODO rest berücksichtigen
 					// const paramIndex = expression.parent.singleFields.indexOf(expression);
 					// TODO previous arg types
-					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgument?.inferredType, null, inferredTypeFromCall);
+					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgument?.inferredType, undefined, inferredTypeFromCall);
 				}
 			}
 			//#endregion
@@ -1565,13 +1565,13 @@ function getReturnTypeFromFunctionCall(
 
 function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileTimeType {
 	if (!argsTypes) {
-		return null;
+		return;
 	}
 	const [valuesType, indexType] = argsTypes;
 	if (valuesType === undefined
 		|| valuesType === null
 		|| indexType === undefined) {
-		return null;
+		return;
 	}
 	if (typeof indexType === 'bigint') {
 		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType), valuesType);
@@ -1586,9 +1586,9 @@ function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 	if (isBuiltInType(valuesType)) {
 		switch (valuesType[_julTypeSymbol]) {
 			case 'tuple':
-				return createNormalizedUnionType([null, ...valuesType.ElementTypes]);
+				return createNormalizedUnionType([undefined, ...valuesType.ElementTypes]);
 			case 'list':
-				return createNormalizedUnionType([null, valuesType.ElementType]);
+				return createNormalizedUnionType([undefined, valuesType.ElementType]);
 			case 'or': {
 				const getElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getElementFromTypes([valuesChoice, indexType]));
 				return createNormalizedUnionType(getElementChoices);
@@ -1598,7 +1598,7 @@ function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 		}
 	}
 	if (Array.isArray(valuesType)) {
-		return createNormalizedUnionType([null, ...valuesType]);
+		return createNormalizedUnionType([undefined, ...valuesType]);
 	}
 	return Any;
 }
@@ -1607,12 +1607,12 @@ function getLastElementFromType(valuesType: CompileTimeType | undefined): Compil
 	if (typeof valuesType !== 'object'
 		|| valuesType === null
 	) {
-		return null;
+		return;
 	}
 	if (_julTypeSymbol in valuesType) {
 		switch (valuesType[_julTypeSymbol]) {
 			case 'tuple':
-				return last(valuesType.ElementTypes) ?? null;
+				return last(valuesType.ElementTypes);
 			case 'list':
 				return valuesType.ElementType;
 			case 'or': {
@@ -1624,7 +1624,7 @@ function getLastElementFromType(valuesType: CompileTimeType | undefined): Compil
 		}
 	}
 	if (Array.isArray(valuesType)) {
-		return last(valuesType) ?? null;
+		return last(valuesType);
 	}
 	return Any;
 }
@@ -1743,6 +1743,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'bigint':
 		case 'number':
 		case 'string':
+		case 'undefined':
 			return type;
 		case 'object':
 			if (isBuiltInType(type)) {
@@ -1779,7 +1780,6 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			return type;
 		case 'function':
 		case 'symbol':
-		case 'undefined':
 			return Any;
 		default: {
 			const assertNever: never = type;
@@ -2266,7 +2266,7 @@ function getDictionaryLiteralTypeError(
 					targetFieldTypes,
 					(fieldType, fieldName) =>
 						// TODO the field x is missing error?
-						getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType.Fields[fieldName] ?? null),
+						getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType.Fields[fieldName]),
 				).filter(isDefined);
 				if (subErrors.length) {
 					return {
@@ -2294,7 +2294,7 @@ function getDictionaryLiteralTypeError(
 		targetFieldTypes,
 		(fieldType, fieldName) =>
 			// TODO the field x is missing error?
-			getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType[fieldName] ?? null),
+			getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType[fieldName]),
 	).filter(isDefined);
 	if (subErrors.length) {
 		return {
@@ -2360,9 +2360,7 @@ function getTypeErrorForParameters(
 							message: `Parameter name mismatch. Got ${valueParameter.name} but expected ${targetParameterName}`,
 						};
 					}
-					const valueParameterType = valueParameter
-						? getValueWithFallback(valueParameter.type, getValueWithFallback(valueRestItemType, Any))
-						: null;
+					const valueParameterType = valueParameter && getValueWithFallback(valueParameter.type, getValueWithFallback(valueRestItemType, Any));
 					const error = targetParameterType
 						? getTypeError(undefined, valueParameterType, targetParameterType)
 						: undefined;
@@ -2396,7 +2394,7 @@ function getTypeErrorForParameters(
 
 function getTypeErrorForParametersWithCollectionArgs(
 	prefixArgumentType: undefined | CompileTimeType,
-	argumentsType: CompileTimeCollection | null,
+	argumentsType: CompileTimeCollection | undefined,
 	targetType: ParametersType,
 ): TypeError | undefined {
 	const hasPrefixArg = prefixArgumentType !== undefined;
@@ -2412,11 +2410,9 @@ function getTypeErrorForParametersWithCollectionArgs(
 			argument = prefixArgumentType;
 		}
 		else {
-			argument = argumentsType
-				? (isArray
-					? argumentsType[argumentIndex]
-					: argumentsType[name]) ?? null
-				: null;
+			argument = argumentsType && (isArray
+				? argumentsType[argumentIndex]
+				: argumentsType[name]);
 			argumentIndex++;
 		}
 		const error = type
@@ -2433,7 +2429,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 		if (!argumentsType) {
 			const remainingArgs = hasPrefixArg && !paramIndex
 				? [prefixArgumentType]
-				: null;
+				: undefined;
 			const error = restType
 				? getTypeError(undefined, remainingArgs, restType)
 				: undefined;
@@ -2568,6 +2564,8 @@ export function typeToString(type: CompileTimeType, indent: number): string {
 		case 'function':
 			// TODO?
 			throw new Error('typeToString not implemented yet for CustomFunction');
+		case 'undefined':
+			return '()';
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected type ${typeof assertNever}`);
