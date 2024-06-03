@@ -172,7 +172,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				case 'list': {
 					const valuesJs = listValuesToJs(args.values);
 					if (expression.prefixArgument) {
-						return `${functionJs}(${prefixArgJs}, ${valuesJs})`;
+						return `${functionJs}(${prefixArgJs},${valuesJs})`;
 					}
 					return `${functionJs}(${valuesJs})`;
 				}
@@ -224,7 +224,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':
-			return `[\n${listValuesToJs(expression.values)}]`;
+			return `[${listValuesToJs(expression.values)}]`;
 		case 'nestedReference': {
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
@@ -266,7 +266,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 }
 
 function listValuesToJs(values: NonEmptyArray<ParseListValue>): string {
-	return values.map(value => {
+	return '\n' + values.map(value => {
 		const valueJs = value.type === 'spread'
 			? `...${expressionToJs(value.value)} ?? []`
 			: expressionToJs(value);

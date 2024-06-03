@@ -91,9 +91,9 @@ const expectedResults: {
 		{
 			code: '(a b) => log(a)',
 			result: `export default _createFunction((a, b) => {
-return _callFunction(log, undefined, [
+return log(
 a,
-])
+)
 }, {
 singleNames: [
 {
