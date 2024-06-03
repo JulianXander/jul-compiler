@@ -2103,6 +2103,7 @@ export function getTypeError(
 							case 'boolean':
 							case 'number':
 							case 'string':
+							case 'undefined':
 								return undefined;
 							case 'object':
 								if (!argumentsType) {
