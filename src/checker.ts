@@ -913,7 +913,11 @@ function inferType(
 				setInferredType(value, scopes, parsedDocuments, folder, file);
 			}
 			const name = expression.name.name;
-			const inferredType = getValueWithFallback(coreBuiltInSymbolTypes[name], getValueWithFallback(value?.inferredType, Any));
+			const inferredType = name in coreBuiltInSymbolTypes
+				? coreBuiltInSymbolTypes[name]
+				: (value
+					? getValueWithFallback(value.inferredType, Any)
+					: Any);
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			const currentScope = last(scopes);
