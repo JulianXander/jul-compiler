@@ -18,6 +18,8 @@ export function createParseParameters(
 		startColumnIndex: position.startColumnIndex,
 		endRowIndex: position.endRowIndex,
 		endColumnIndex: position.endColumnIndex,
+		inferredType: null,
+		dereferencedType: null,
 	};
 	singleFields.forEach((field, index) => {
 		defineSymbol(
@@ -66,6 +68,8 @@ export function createParseFunctionLiteral(
 		body: body,
 		symbols: symbols,
 		...position,
+		inferredType: null,
+		dereferencedType: null,
 	};
 	setParent(params, functionLiteral);
 	setParents(body, functionLiteral);
@@ -180,6 +184,8 @@ function defineSymbol(
 		startColumnIndex: namePosition.startColumnIndex,
 		endRowIndex: namePosition.endRowIndex,
 		endColumnIndex: namePosition.endColumnIndex,
+		inferredType: null,
+		dereferencedType: null,
 	};
 }
 
