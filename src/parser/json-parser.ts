@@ -92,6 +92,11 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 				}],
 				...position,
 			};
+		case 'undefined':
+			return {
+				type: 'empty',
+				...position
+			};
 		default:
 			throw new Error(`Unexpected jsonValue type: ${typeof jsonValue}`);
 	}
