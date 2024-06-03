@@ -34,22 +34,16 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 	return new Error(`${value} did not match any branch`);
 }
 
-export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: any) {
+export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: RuntimeDictionary) {
 	if ('params' in fn) {
 		// jul function
 		const assignedParams = assignArgs(fn.params, prefixArg, args);
-		if (assignedParams instanceof Error) {
-			return assignedParams;
-		}
 		return fn(...assignedParams);
 	}
 	// js function
-	const wrappedArgs = Array.isArray(args)
-		? args
-		: [args];
 	const argsWithPrefix = prefixArg === undefined
-		? wrappedArgs
-		: [prefixArg, ...wrappedArgs];
+		? [args]
+		: [prefixArg, args];
 	return fn(...argsWithPrefix);
 }
 
@@ -229,19 +223,16 @@ function isDictionary(value: any): value is RuntimeDictionary {
 function assignArgs(
 	params: Params,
 	prefixArg: any,
-	args: Collection | null,
-): any[] | Error {
+	args: RuntimeDictionary,
+): any[] {
 	const assignedValues: any[] = [];
 	const { type: paramsType, singleNames, rest } = params;
 	const hasPrefixArg = prefixArg !== undefined;
 	if (paramsType !== undefined) {
 		return assignedValues;
 	}
-	const isArray = Array.isArray(args);
-	let paramIndex = 0;
-	let argIndex = 0;
 	if (singleNames) {
-		for (; paramIndex < singleNames.length; paramIndex++) {
+		for (let paramIndex = 0; paramIndex < singleNames.length; paramIndex++) {
 			const param = singleNames[paramIndex]!;
 			const { name, source } = param;
 			const sourceWithFallback = source ?? name;
@@ -250,32 +241,14 @@ function assignArgs(
 				arg = prefixArg;
 			}
 			else {
-				arg = (isArray
-					? args[argIndex]
-					: args?.[sourceWithFallback]) ?? null;
-				argIndex++;
+				arg = args?.[sourceWithFallback] ?? null;
 			}
 			assignedValues.push(arg);
 		}
 	}
 	if (rest) {
-		if (args === null) {
-			const remainingArgs = hasPrefixArg && !paramIndex
-				? [prefixArg]
-				: null;
-			assignedValues.push(...remainingArgs ?? []);
-		}
-		else if (isArray) {
-			const remainingArgs = args.slice(argIndex);
-			if (hasPrefixArg && !paramIndex) {
-				remainingArgs.unshift(prefixArg);
-			}
-			assignedValues.push(...remainingArgs);
-		}
-		else {
-			// TODO rest dictionary??
-			throw new Error('tryAssignArgs not implemented yet for rest dictionary');
-		}
+		// TODO rest dictionary??
+		throw new Error('assignArgs not implemented yet for rest dictionary');
 	}
 	return assignedValues;
 }
@@ -2506,11 +2479,8 @@ _createFunction(
 		]
 	}
 );
-export const subscribe = (stream$: StreamClass<any>, listener: JulFunction) => {
-	const listenerFunction: Listener<any> = (value: any) => {
-		_callFunction(listener, undefined, [value]);
-	};
-	return stream$.subscribe(listenerFunction);
+export const subscribe = <T>(stream$: StreamClass<T>, listener: Listener<T>) => {
+	return stream$.subscribe(listener);
 };
 _createFunction(
 	subscribe,

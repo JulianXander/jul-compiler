@@ -2,13 +2,14 @@ import {
 	Name,
 	ParseExpression,
 	ParseFunctionCall,
+	ParseListValue,
 	ParseParameterFields,
 	ParseTextLiteral,
 	ParseValueExpression,
 	Reference,
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
-import { Extension, changeExtension } from './util.js';
+import { Extension, NonEmptyArray, changeExtension } from './util.js';
 import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall } from './parser/parser.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
@@ -167,8 +168,28 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				? expressionToJs(expression.prefixArgument)
 				: 'undefined';
 			const args = expression.arguments;
-			const argsJs = args && expressionToJs(args);
-			return `_callFunction(${functionJs}, ${prefixArgJs}, ${argsJs})`;
+			switch (args?.type) {
+				case 'list': {
+					const valuesJs = listValuesToJs(args.values);
+					if (expression.prefixArgument) {
+						return `${functionJs}(${prefixArgJs}, ${valuesJs})`;
+					}
+					return `${functionJs}(${valuesJs})`;
+				}
+				case 'dictionary': {
+					const argsJs = expressionToJs(args);
+					return `_callFunction(${functionJs}, ${prefixArgJs}, ${argsJs})`;
+				}
+				case undefined:
+				case 'empty': {
+					if (expression.prefixArgument) {
+						return `${functionJs}(${prefixArgJs})`;
+					}
+					return `${functionJs}()`;
+				}
+				default:
+					throw new Error('unexpected arguments.type for functionCall: ' + args?.type);
+			}
 		}
 		case 'functionLiteral': {
 			// TODO params(DefinitionNames) to Type
@@ -203,12 +224,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list':
-			return `[\n${expression.values.map(value => {
-				const valueJs = value.type === 'spread'
-					? `...${expressionToJs(value.value)} ?? []`
-					: expressionToJs(value);
-				return `${valueJs},\n`;
-			}).join('')}]`;
+			return `[\n${expression.values}]`;
 		case 'nestedReference': {
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
@@ -247,6 +263,15 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 			throw new Error(`Unexpected expression.type: ${(assertNever as ParseExpression).type}`);
 		}
 	}
+}
+
+function listValuesToJs(values: NonEmptyArray<ParseListValue>): string {
+	return values.map(value => {
+		const valueJs = value.type === 'spread'
+			? `...${expressionToJs(value.value)} ?? []`
+			: expressionToJs(value);
+		return `${valueJs},\n`;
+	}).join('');
 }
 
 //#region import
