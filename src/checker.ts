@@ -2325,12 +2325,9 @@ function getTypeErrorForParameters(
 	argumentsType: CompileTimeType,
 	targetType: ParametersType,
 ): TypeError | undefined {
-	if (argumentsType === undefined) {
-		// TODO?
-		return undefined;
-	}
-	if (typeof argumentsType !== 'object') {
-		throw new Error('argumentsType should be object but got' + typeof argumentsType);
+	if (argumentsType !== undefined
+		&& typeof argumentsType !== 'object') {
+		throw new Error('argumentsType should be undefined or object but got' + typeof argumentsType);
 	}
 	if (isBuiltInType(argumentsType)) {
 		// TODO other cases
