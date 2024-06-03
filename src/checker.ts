@@ -1141,7 +1141,9 @@ function inferType(
 								arg.params.singleFields.forEach((literalParam, literalParamIndex) => {
 									if (isParamtersType(innerParamsType)) {
 										const innerParam = innerParamsType.singleNames[literalParamIndex];
-										literalParam.inferredTypeFromCall = innerParam?.type;
+										literalParam.inferredTypeFromCall = innerParam
+											? innerParam.type
+											: null;
 									}
 								});
 							}
@@ -1516,15 +1518,16 @@ function getReturnTypeFromFunctionCall(
 			}
 			case 'lastElement': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const firstArgType = argTypes?.[0];
-				const dereferencedArgType = firstArgType === undefined
-					? undefined
-					: dereferenceNested(firstArgType);
+				const dereferencedArgType = argTypes?.length
+					? dereferenceNested(argTypes[0])
+					: null;
 				return getLastElementFromType(dereferencedArgType);
 			}
 			case 'length': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const firstArgType = argTypes?.[0];
+				const firstArgType = argTypes?.length
+					? argTypes[0]
+					: null;
 				return getLengthFromType(firstArgType);
 			}
 			case 'And': {
