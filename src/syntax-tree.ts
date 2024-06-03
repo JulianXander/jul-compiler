@@ -40,8 +40,8 @@ export interface SymbolDefinition extends Positioned {
 	/**
 	 * inferred type aus dem value
 	 */
-	inferredType?: CompileTimeType;
-	dereferencedType?: CompileTimeType;
+	inferredType: CompileTimeType | null;
+	dereferencedType: CompileTimeType | null;
 	//#region FunctionParameter
 	functionRef?: CompileTimeFunctionType;
 	functionParameterIndex?: number;
@@ -113,12 +113,12 @@ interface ParseExpressionBase extends PositionedExpressionBase {
 	/**
 	 * Wird vom checker gesetzt.
 	 */
-	inferredType?: CompileTimeType;
+	inferredType: CompileTimeType | null;
 	/**
 	 * Wird vom checker gesetzt.
 	 * inferredType mit aufgelösten ParamterReferences.
 	 */
-	dereferencedType?: CompileTimeType;
+	dereferencedType: CompileTimeType | null;
 }
 
 export interface ParseSpreadValueExpression extends PositionedExpressionBase {
@@ -386,7 +386,7 @@ export interface ParseParameterField extends ParseExpressionBase {
 	/**
 	 * Wird vom checker gesetzt.
 	 */
-	inferredTypeFromCall?: CompileTimeType;
+	inferredTypeFromCall: CompileTimeType | null;
 }
 
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
@@ -659,7 +659,7 @@ export function createParametersType(singleNames: Parameter[], rest?: Parameter)
 
 export interface Parameter {
 	name: string;
-	type?: CompileTimeType;
+	type: CompileTimeType | null;
 }
 
 export const CompileTimeNonZeroInteger = createCompileTimeIntersectionType([Integer, createCompileTimeComplementType(0n)]);

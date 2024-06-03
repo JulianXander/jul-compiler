@@ -220,7 +220,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 		};
 	}
 	const referencedType = foundSymbol.inferredType;
-	if (referencedType === undefined) {
+	if (referencedType === null) {
 		// TODO was wenn referencedsymbol type noch nicht inferred ist?
 		// tritt vermutlich bei rekursion auf
 		// setInferredType(referencedSymbol)
@@ -448,7 +448,7 @@ function findParameterSymbol(
 
 function dereferenceArgumentTypesNested(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
+	prefixArgumentType: CompileTimeType | null,
 	argsType: CompileTimeType,
 	typeToDereference: CompileTimeType,
 ): CompileTimeType {
@@ -564,10 +564,10 @@ function dereferenceArgumentTypesNested(
  * combine prefixArgumentType and argsType
  */
 function getAllArgTypes(
-	prefixArgumentType: CompileTimeType | undefined,
+	prefixArgumentType: CompileTimeType | null,
 	argsType: CompileTimeType,
 ): CompileTimeType[] | undefined {
-	const prefixArgTypes = prefixArgumentType === undefined
+	const prefixArgTypes = prefixArgumentType === null
 		? []
 		: [prefixArgumentType];
 	if (argsType === undefined) {
@@ -586,7 +586,7 @@ function getAllArgTypes(
 
 function dereferenceParameterFromArgumentType(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
+	prefixArgumentType: CompileTimeType | null,
 	argsType: CompileTimeType,
 	parameterReference: ParameterReference,
 ): CompileTimeType {
@@ -607,7 +607,7 @@ function dereferenceParameterFromArgumentType(
 		}
 		return allArgTypes.slice(paramIndex);
 	}
-	if (prefixArgumentType !== undefined && paramIndex === 0) {
+	if (prefixArgumentType !== null && paramIndex === 0) {
 		return prefixArgumentType;
 	}
 	if (argsType === undefined) {
@@ -633,7 +633,7 @@ function dereferenceParameterFromArgumentType(
 		case 'tuple': {
 			// TODO dereference nested path
 			// const referenceName = parameterReference.path[0].name;
-			const argIndex = prefixArgumentType === undefined
+			const argIndex = prefixArgumentType === null
 				? paramIndex
 				: paramIndex - 1;
 			const argType = argsType.ElementTypes[argIndex];
@@ -729,7 +729,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 			}
 			case 'parameterReference': {
 				const dereferenced = dereferenceParameterTypeFromFunctionRef(rawType);
-				return dereferenced === undefined
+				return dereferenced === null
 					? Any
 					: dereferenced;
 			}
@@ -779,13 +779,13 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 function dereferenceNestedParameter(parameter: Parameter): Parameter {
 	return {
 		name: parameter.name,
-		type: parameter.type === undefined
-			? undefined
+		type: parameter.type === null
+			? null
 			: dereferenceNested(parameter.type),
 	};
 }
 
-function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): CompileTimeType | undefined {
+function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): CompileTimeType | null {
 	const functionType = parameterReference.functionRef;
 	if (functionType) {
 		const paramsType = functionType.ParamsType;
@@ -835,7 +835,7 @@ function setInferredType(
 	sourceFolder: string,
 	file: ParsedExpressions2,
 ): void {
-	if (expression.inferredType) {
+	if (expression.inferredType !== null) {
 		return;
 	}
 	const rawType = inferType(expression, scopes, parsedDocuments, sourceFolder, file);
@@ -871,7 +871,7 @@ function inferType(
 				setInferredType(branch, scopes, parsedDocuments, folder, file);
 				// Fehler, wenn branch type != function
 				const functionType = createCompileTimeFunctionType(Any, Any, false);
-				const nonFunctionError = areArgsAssignableTo(undefined, branch.inferredType!, functionType);
+				const nonFunctionError = areArgsAssignableTo(null, branch.inferredType!, functionType);
 				if (nonFunctionError) {
 					errors.push({
 						message: 'Expected branch to be a function.\n' + nonFunctionError,
@@ -890,7 +890,7 @@ function inferType(
 					// });
 					// const combinedPreviousType = new UnionType(previousTypes);
 					// const currentParamsType = getParamsType(branch.inferredType);
-					// const error = areArgsAssignableTo(undefined, currentParamsType, combinedPreviousType);
+					// const error = areArgsAssignableTo(null, currentParamsType, combinedPreviousType);
 					// if (!error) {
 					// 	errors.push({
 					// 		message: 'Unreachable branch detected.',
@@ -903,7 +903,7 @@ function inferType(
 				}
 			});
 			const branchReturnTypes = expression.branches.map(branch => {
-				return getReturnTypeFromFunctionType(branch.inferredType);
+				return getReturnTypeFromFunctionType(branch.inferredType!);
 			});
 			return createNormalizedUnionType(branchReturnTypes);
 		}
@@ -928,7 +928,7 @@ function inferType(
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.inferredType;
-				const assignmentError = areArgsAssignableTo(undefined, inferredType, valueOf(typeGuardType));
+				const assignmentError = areArgsAssignableTo(null, inferredType, valueOf(typeGuardType));
 				if (assignmentError) {
 					errors.push({
 						message: assignmentError,
@@ -957,7 +957,7 @@ function inferType(
 				const referenceName = field.source?.name ?? fieldName;
 				const valueType = getValueWithFallback(value?.inferredType, Any);
 				const dereferencedType = dereferenceNameFromObject(referenceName, valueType);
-				if (dereferencedType === undefined) {
+				if (dereferencedType === null) {
 					errors.push({
 						message: `Failed to dereference ${referenceName} in type ${typeToString(valueType, 0)}`,
 						startRowIndex: field.startRowIndex,
@@ -975,7 +975,7 @@ function inferType(
 					setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
 					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
-					const error = areArgsAssignableTo(undefined, dereferencedType, valueOf(typeGuard.inferredType));
+					const error = areArgsAssignableTo(null, dereferencedType, valueOf(typeGuard.inferredType));
 					if (error) {
 						errors.push({
 							message: error,
@@ -1197,11 +1197,11 @@ function inferType(
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
 			});
-			const inferredReturnType = last(expression.body)?.inferredType;
+			const inferredReturnType = last(expression.body)?.inferredType!;
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
-				const error = areArgsAssignableTo(undefined, inferredReturnType, valueOf(declaredReturnType.inferredType));
+				const error = areArgsAssignableTo(null, inferredReturnType, valueOf(declaredReturnType.inferredType));
 				if (error) {
 					errors.push({
 						message: error,
@@ -1231,6 +1231,10 @@ function inferType(
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file);
 			const inferredReturnType = expression.returnType.inferredType;
+			if (inferredReturnType === null) {
+				console.log(JSON.stringify(expression, undefined, 4));
+				throw new Error('returnType was not inferred');
+			}
 			functionType.ReturnType = valueOf(inferredReturnType);
 			return createCompileTimeTypeOfType(functionType);
 		}
@@ -1307,7 +1311,7 @@ function inferType(
 			//#region infer argument type bei function literal welches inline argument eines function calls ist
 			const inferredTypeFromCall = expression.inferredTypeFromCall;
 			let dereferencedTypeFromCall = inferredTypeFromCall;
-			if (inferredTypeFromCall !== undefined
+			if (inferredTypeFromCall !== null
 				&& expression.parent?.type === 'parameters'
 				&& expression.parent.parent?.type === 'functionLiteral'
 				&& expression.parent.parent.parent?.type === 'list'
@@ -1625,7 +1629,7 @@ function getLastElementFromType(valuesType: CompileTimeType | undefined): Compil
 	return Any;
 }
 
-function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
+function getLengthFromType(argType: CompileTimeType | null): CompileTimeType {
 	if (typeof argType !== 'object') {
 		// TODO non negative
 		return Integer;
@@ -1733,7 +1737,7 @@ function setFunctionRefForParams(
 	}
 }
 
-function valueOf(type: CompileTimeType | undefined): CompileTimeType {
+function valueOf(type: CompileTimeType | null): CompileTimeType {
 	switch (typeof type) {
 		case 'boolean':
 		case 'bigint':
@@ -1742,6 +1746,9 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'undefined':
 			return type;
 		case 'object':
+			if (type === null) {
+				throw new Error(`Unexpected type null for valueOf`);
+			}
 			if (isBuiltInType(type)) {
 				switch (type[_julTypeSymbol]) {
 					case 'dictionaryLiteral': {
@@ -1772,7 +1779,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 						return type;
 				}
 			}
-			// null/array/dictionary
+			// array/dictionary
 			return type;
 		case 'function':
 		case 'symbol':
@@ -1788,7 +1795,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 
 // TODO return true/false = always/never, sometimes/maybe?
 function areArgsAssignableTo(
-	prefixArgumentType: undefined | CompileTimeType,
+	prefixArgumentType: null | CompileTimeType,
 	argumentsType: CompileTimeType,
 	parametersType: CompileTimeType,
 ): string | undefined {
@@ -1804,7 +1811,7 @@ function areArgsAssignableTo(
  * valueType muss also Teilmenge von targetType sein.
  */
 export function getTypeError(
-	prefixArgumentType: undefined | CompileTimeType,
+	prefixArgumentType: null | CompileTimeType,
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
 ): TypeError | undefined {
@@ -1853,7 +1860,7 @@ export function getTypeError(
 			}
 			case 'parameterReference': {
 				const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(argumentsType);
-				if (dereferencedParameterType === undefined) {
+				if (dereferencedParameterType === null) {
 					return undefined;
 				}
 				return getTypeError(prefixArgumentType, dereferencedParameterType, targetType);
@@ -2120,7 +2127,7 @@ export function getTypeError(
 										case 'tuple': {
 											// alle ElementTypes müssen Typen sein
 											const subErrors = argumentsType.ElementTypes.map(elementType =>
-												getTypeError(undefined, elementType, targetType)).filter(isDefined);
+												getTypeError(null, elementType, targetType)).filter(isDefined);
 											if (subErrors.length) {
 												return {
 													// TODO error struktur überdenken
@@ -2188,7 +2195,7 @@ export function getTypeError(
  * Liefert true bei Standardfehler, undefined bei keinem Fehler.
  */
 function getTupleTypeError(
-	prefixArgumentType: undefined | CompileTimeType,
+	prefixArgumentType: null | CompileTimeType,
 	argumentsType: CompileTimeType,
 	targetElementTypes: CompileTimeType[],
 ): TypeError | true | undefined {
@@ -2214,7 +2221,7 @@ function getTupleTypeError(
 }
 
 function getTupleTypeError2(
-	prefixArgumentType: undefined | CompileTimeType,
+	prefixArgumentType: null | CompileTimeType,
 	argumentElementTypes: CompileTimeType[],
 	targetElementTypes: CompileTimeType[],
 ): TypeError | undefined {
@@ -2237,7 +2244,7 @@ function getTupleTypeError2(
  * Liefert true bei Standardfehler, undefined bei keinem Fehler.
  */
 function getDictionaryLiteralTypeError(
-	prefixArgumentType: undefined | CompileTimeType,
+	prefixArgumentType: null | CompileTimeType,
 	argumentsType: CompileTimeType,
 	targetFieldTypes: CompileTimeDictionary,
 ): TypeError | true | undefined {
@@ -2299,7 +2306,7 @@ function getDictionaryLiteralTypeError(
 function getDictionaryFieldError(
 	fieldName: string,
 	fieldTargetType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
+	prefixArgumentType: CompileTimeType | null,
 	fieldValueType: CompileTimeType,
 ): TypeError | undefined {
 	const subError = getTypeError(prefixArgumentType, fieldValueType, fieldTargetType);
@@ -2314,7 +2321,7 @@ function getDictionaryFieldError(
 }
 
 function getTypeErrorForParameters(
-	prefixArgumentType: undefined | CompileTimeType,
+	prefixArgumentType: null | CompileTimeType,
 	argumentsType: CompileTimeType,
 	targetType: ParametersType,
 ): TypeError | undefined {
@@ -2353,7 +2360,7 @@ function getTypeErrorForParameters(
 					}
 					const valueParameterType = valueParameter && getValueWithFallback(valueParameter.type, getValueWithFallback(valueRestItemType, Any));
 					const error = targetParameterType
-						? getTypeError(undefined, valueParameterType, targetParameterType)
+						? getTypeError(null, valueParameterType, targetParameterType)
 						: undefined;
 					if (error) {
 						// TODO collect inner errors
@@ -2366,7 +2373,7 @@ function getTypeErrorForParameters(
 					const remainingValueParameters = valueSingleNames.slice(index);
 					for (const valueParameter of remainingValueParameters) {
 						const valueParameterType = getValueWithFallback(valueParameter.type, getValueWithFallback(valueRestItemType, Any));
-						const error = getTypeError(undefined, valueParameterType, targetRestType);
+						const error = getTypeError(null, valueParameterType, targetRestType);
 						if (error) {
 							// TODO collect inner errors
 							return error;
@@ -2384,11 +2391,11 @@ function getTypeErrorForParameters(
 }
 
 function getTypeErrorForParametersWithCollectionArgs(
-	prefixArgumentType: undefined | CompileTimeType,
+	prefixArgumentType: null | CompileTimeType,
 	argumentsType: CompileTimeCollection | undefined,
 	targetType: ParametersType,
 ): TypeError | undefined {
-	const hasPrefixArg = prefixArgumentType !== undefined;
+	const hasPrefixArg = prefixArgumentType !== null;
 	const isArray = Array.isArray(argumentsType);
 	let paramIndex = 0;
 	let argumentIndex = 0;
@@ -2407,7 +2414,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 			argumentIndex++;
 		}
 		const error = type
-			? getTypeError(undefined, argument, type)
+			? getTypeError(null, argument, type)
 			: undefined;
 		if (error) {
 			// TODO collect inner errors
@@ -2422,7 +2429,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 				? [prefixArgumentType]
 				: undefined;
 			const error = restType
-				? getTypeError(undefined, remainingArgs, restType)
+				? getTypeError(null, remainingArgs, restType)
 				: undefined;
 			if (error) {
 				return error;
@@ -2435,7 +2442,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 				remainingArgs.unshift(prefixArgumentType);
 			}
 			const error = restType
-				? getTypeError(undefined, remainingArgs, restType)
+				? getTypeError(null, remainingArgs, restType)
 				: undefined;
 			if (error) {
 				// TODO collect inner errors
@@ -2564,7 +2571,7 @@ export function typeToString(type: CompileTimeType, indent: number): string {
 	}
 }
 
-function optionalTypeGuardToString(type: CompileTimeType | undefined, indent: number): string {
+function optionalTypeGuardToString(type: CompileTimeType | null, indent: number): string {
 	return type
 		? `: ${typeToString(type, indent)}`
 		: '';
@@ -2701,7 +2708,7 @@ function checkTypeGuardIsType(
 	errors: ParserError[],
 ): void {
 	const typeGuardType = typeGuard.inferredType!;
-	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, Type);
+	const typeGuardTypeError = areArgsAssignableTo(null, typeGuardType, Type);
 	if (typeGuardTypeError) {
 		errors.push({
 			message: typeGuardTypeError,
@@ -2715,58 +2722,58 @@ function checkTypeGuardIsType(
 
 //#region BuiltInType guards
 
-export function isBuiltInType(type: CompileTimeType | undefined): type is BuiltInCompileTimeType {
+export function isBuiltInType(type: CompileTimeType | null): type is BuiltInCompileTimeType {
 	return typeof type === 'object'
 		&& !!type
 		&& _julTypeSymbol in type;
 }
 
-function isDictionaryType(type: CompileTimeType | undefined): type is CompileTimeDictionaryType {
+function isDictionaryType(type: CompileTimeType | null): type is CompileTimeDictionaryType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'dictionary';
 }
 
-export function isDictionaryLiteralType(type: CompileTimeType | undefined): type is CompileTimeDictionaryLiteralType {
+export function isDictionaryLiteralType(type: CompileTimeType | null): type is CompileTimeDictionaryLiteralType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'dictionaryLiteral';
 }
 
-export function isFunctionType(type: CompileTimeType | undefined): type is CompileTimeFunctionType {
+export function isFunctionType(type: CompileTimeType | null): type is CompileTimeFunctionType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'function';
 }
 
-export function isListType(type: CompileTimeType | undefined): type is CompileTimeListType {
+export function isListType(type: CompileTimeType | null): type is CompileTimeListType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'list';
 }
 
-export function isParamtersType(type: CompileTimeType | undefined): type is ParametersType {
+export function isParamtersType(type: CompileTimeType | null): type is ParametersType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'parameters';
 }
 
-export function isParamterReference(type: CompileTimeType | undefined): type is ParameterReference {
+export function isParamterReference(type: CompileTimeType | null): type is ParameterReference {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'parameterReference';
 }
 
-function isStreamType(type: CompileTimeType | undefined): type is CompileTimeStreamType {
+function isStreamType(type: CompileTimeType | null): type is CompileTimeStreamType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'stream';
 }
 
-export function isTupleType(type: CompileTimeType | undefined): type is CompileTimeTupleType {
+export function isTupleType(type: CompileTimeType | null): type is CompileTimeTupleType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'tuple';
 }
 
-export function isTypeOfType(type: CompileTimeType | undefined): type is CompileTimeTypeOfType {
+export function isTypeOfType(type: CompileTimeType | null): type is CompileTimeTypeOfType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'typeOf';
 }
 
-function isUnionType(type: CompileTimeType | undefined): type is CompileTimeUnionType {
+function isUnionType(type: CompileTimeType | null): type is CompileTimeUnionType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'or';
 }

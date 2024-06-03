@@ -28,6 +28,8 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 				type: 'integer',
 				value: jsonValue,
 				...position,
+				inferredType: null,
+				dereferencedType: null,
 			};
 		case 'boolean':
 			return {
@@ -38,12 +40,16 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 					...position,
 				},
 				...position,
+				inferredType: null,
+				dereferencedType: null,
 			};
 		case 'object': {
 			if (jsonValue === null) {
 				return {
 					type: 'empty',
-					...position
+					...position,
+					inferredType: null,
+					dereferencedType: null,
 				};
 			}
 			if (Array.isArray(jsonValue)) {
@@ -51,6 +57,8 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 					type: 'list',
 					values: jsonValue.map(jsonValueToJulAst) as any,
 					...position,
+					inferredType: null,
+					dereferencedType: null,
 				};
 			}
 			const dictionary: ParseDictionaryLiteral = {
@@ -75,10 +83,14 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 						// TODO definition? zumindest range für DocumentSymbol?
 						typeExpression: jsonValueToJulAst(value) as any,
 						...position,
+						inferredType: null,
+						dereferencedType: null,
 					};
 					return symbolDefinition;
 				}),
 				...position,
+				inferredType: null,
+				dereferencedType: null,
 			};
 			setParents(dictionary.fields, dictionary);
 			return dictionary;
@@ -91,11 +103,15 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 					value: jsonValue,
 				}],
 				...position,
+				inferredType: null,
+				dereferencedType: null,
 			};
 		case 'undefined':
 			return {
 				type: 'empty',
-				...position
+				...position,
+				inferredType: null,
+				dereferencedType: null,
 			};
 		default:
 			throw new Error(`Unexpected jsonValue type: ${typeof jsonValue}`);
