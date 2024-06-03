@@ -625,7 +625,7 @@ function dereferenceParameterFromArgumentType(
 				return parameterReference;
 			}
 			const dereferenced = dereferenceNameFromObject(referenceName, argType);
-			if (dereferenced === undefined) {
+			if (dereferenced === null) {
 				return parameterReference;
 			}
 			return dereferenced;
@@ -1579,7 +1579,7 @@ function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 	}
 	if (typeof indexType === 'bigint') {
 		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType), valuesType);
-		if (dereferencedIndex !== undefined) {
+		if (dereferencedIndex !== null) {
 			return dereferencedIndex;
 		}
 	}
