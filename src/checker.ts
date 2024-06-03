@@ -245,7 +245,7 @@ export function getStreamGetValueType(streamType: CompileTimeStreamType): Compil
 	return createCompileTimeFunctionType(undefined, streamType.ValueType, false);
 }
 
-function dereferenceNestedKeyFromObject(nestedKey: string | number, source: CompileTimeType): CompileTimeType | undefined {
+function dereferenceNestedKeyFromObject(nestedKey: string | number, source: CompileTimeType): CompileTimeType | null {
 	return typeof nestedKey === 'string'
 		? dereferenceNameFromObject(nestedKey, source)
 		: dereferenceIndexFromObject(nestedKey, source);
@@ -254,12 +254,12 @@ function dereferenceNestedKeyFromObject(nestedKey: string | number, source: Comp
 function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
-): CompileTimeType | undefined {
+): CompileTimeType | null {
 	if (sourceObjectType === undefined) {
 		return undefined;
 	}
 	if (typeof sourceObjectType !== 'object') {
-		return undefined;
+		return null;
 	}
 	if (_julTypeSymbol in sourceObjectType) {
 		switch (sourceObjectType[_julTypeSymbol]) {
@@ -277,11 +277,11 @@ function dereferenceNameFromObject(
 					case 'ReturnType':
 						return sourceObjectType.ReturnType;
 					default:
-						return undefined;
+						return null;
 				}
 			case 'list':
 				// TODO error: cant dereference name in list 
-				return undefined;
+				return null;
 			case 'nestedReference':
 			case 'parameterReference':
 				return createNestedReference(sourceObjectType, name);
@@ -292,14 +292,14 @@ function dereferenceNameFromObject(
 					case 'ValueType':
 						return sourceObjectType.ValueType;
 					default:
-						return undefined;
+						return null;
 				}
 			case 'typeOf': {
 				const innerType = sourceObjectType.value;
 				if (typeof innerType === 'object') {
 					if (!innerType) {
 						// TODO?
-						return undefined;
+						return null;
 					}
 					if (_julTypeSymbol in innerType) {
 						switch (innerType[_julTypeSymbol]) {
@@ -308,14 +308,14 @@ function dereferenceNameFromObject(
 									case 'ElementType':
 										return innerType.ElementType;
 									default:
-										return undefined;
+										return null;
 								}
 							case 'list':
 								switch (name) {
 									case 'ElementType':
 										return innerType.ElementType;
 									default:
-										return undefined;
+										return null;
 								}
 							case 'nestedReference':
 							case 'parameterReference':
@@ -325,10 +325,10 @@ function dereferenceNameFromObject(
 									case 'ElementType':
 										return createNormalizedUnionType(innerType.ElementTypes);
 									default:
-										return undefined;
+										return null;
 								}
 							default:
-								return undefined;
+								return null;
 						}
 					}
 					if (Array.isArray(innerType)) {
@@ -337,7 +337,7 @@ function dereferenceNameFromObject(
 							case 'ElementType':
 								return createNormalizedUnionType(innerType);
 							default:
-								return undefined;
+								return null;
 						}
 					}
 					// case dictionary
@@ -346,19 +346,19 @@ function dereferenceNameFromObject(
 						case 'ElementType':
 							return createNormalizedUnionType(Object.values(innerType));
 						default:
-							return undefined;
+							return null;
 					}
 				}
-				return undefined;
+				return null;
 			}
 			// TODO other object types
 			default:
-				return undefined;
+				return null;
 		}
 	}
 	if (Array.isArray(sourceObjectType)) {
 		// TODO error: cant dereference name in list 
-		return undefined;
+		return null;
 	}
 	return sourceObjectType[name];
 }
@@ -366,18 +366,18 @@ function dereferenceNameFromObject(
 function dereferenceIndexFromObject(
 	index: number,
 	sourceObjectType: CompileTimeType,
-): CompileTimeType | undefined {
+): CompileTimeType | null {
 	if (sourceObjectType === undefined) {
 		return undefined;
 	}
 	if (typeof sourceObjectType !== 'object') {
-		return undefined;
+		return null;
 	}
 	if (_julTypeSymbol in sourceObjectType) {
 		switch (sourceObjectType[_julTypeSymbol]) {
 			case 'dictionaryLiteral':
 				// TODO error: cant dereference index in dictionary type
-				return undefined;
+				return null;
 			case 'list':
 				return sourceObjectType.ElementType;
 			case 'parameterReference':
@@ -386,7 +386,7 @@ function dereferenceIndexFromObject(
 				return sourceObjectType.ElementTypes[index - 1];
 			// TODO other object types
 			default:
-				return undefined;
+				return null;
 		}
 	}
 	if (Array.isArray(sourceObjectType)) {
@@ -394,7 +394,7 @@ function dereferenceIndexFromObject(
 		return sourceObjectType[index - 1];
 	}
 	// TODO error: cant dereference index in dictionary
-	return undefined;
+	return null;
 }
 
 export function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable[]): {
@@ -502,7 +502,7 @@ function dereferenceArgumentTypesNested(
 		case 'nestedReference': {
 			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.source);
 			const dereferencedNested = dereferenceNestedKeyFromObject(builtInType.nestedKey, dereferencedSource);
-			if (dereferencedNested === undefined) {
+			if (dereferencedNested === null) {
 				return Any;
 			}
 			return dereferencedNested;
@@ -706,7 +706,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 			case 'nestedReference': {
 				const dereferencedSource = dereferenceNested(rawType.source);
 				const dereferencedNested = dereferenceNestedKeyFromObject(rawType.nestedKey, dereferencedSource);
-				if (dereferencedNested === undefined) {
+				if (dereferencedNested === null) {
 					return Any;
 				}
 				return dereferencedNested;
