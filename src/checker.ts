@@ -903,7 +903,7 @@ function inferType(
 				}
 			});
 			const branchReturnTypes = expression.branches.map(branch => {
-				return getReturnTypeFromFunctionType(branch.inferredType!);
+				return getReturnTypeFromFunctionType(branch.inferredType);
 			});
 			return createNormalizedUnionType(branchReturnTypes);
 		}
@@ -1147,7 +1147,10 @@ function inferType(
 			//#endregion
 			setInferredType(args, scopes, parsedDocuments, folder, file);
 			const argsType = args.inferredType!;
-			const assignArgsError = areArgsAssignableTo(prefixArgument?.inferredType, argsType, paramsType);
+			const prefixArgumentType = prefixArgument
+				? prefixArgument.inferredType
+				: null;
+			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
 			if (assignArgsError) {
 				errors.push({
 					message: assignArgsError,
@@ -1159,8 +1162,8 @@ function inferType(
 			}
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, parsedDocuments, folder, errors);
 			// evaluate generic ReturnType
-			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgument?.inferredType, argsType, returnType);
-			// const dereferencedReturnType2 = dereferenceArgumentTypesNested2(expression, prefixArgument?.inferredType, argsType, returnType);
+			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, returnType);
+			// const dereferencedReturnType2 = dereferenceArgumentTypesNested2(expression, prefixArgumentType, argsType, returnType);
 			return dereferencedReturnType;
 		}
 		case 'functionLiteral': {
@@ -1330,7 +1333,10 @@ function inferType(
 					// TODO rest berücksichtigen
 					// const paramIndex = expression.parent.singleFields.indexOf(expression);
 					// TODO previous arg types
-					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgument?.inferredType, undefined, inferredTypeFromCall);
+					const prefixArgumentType = prefixArgument
+						? prefixArgument.inferredType
+						: null;
+					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgumentType, undefined, inferredTypeFromCall);
 				}
 			}
 			//#endregion
@@ -1427,6 +1433,9 @@ function getReturnTypeFromFunctionCall(
 	errors: ParserError[],
 ): CompileTimeType {
 	const prefixArgument = functionCall.prefixArgument;
+	const prefixArgumentType = prefixArgument
+		? prefixArgument.inferredType
+		: null;
 	const argsType = functionCall.arguments?.inferredType!;
 	// TODO statt functionname functionref value/inferred type prüfen?
 	if (functionExpression.type === 'reference') {
@@ -1488,12 +1497,12 @@ function getReturnTypeFromFunctionCall(
 			// 	return _any;
 			// }
 			case 'getElement': {
-				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const dereferencedArgTypes = argTypes?.map(dereferenceNested);
 				return getElementFromTypes(dereferencedArgTypes);
 			}
 			case 'lastElement': {
-				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const firstArgType = argTypes?.[0];
 				const dereferencedArgType = firstArgType === undefined
 					? undefined
@@ -1501,12 +1510,12 @@ function getReturnTypeFromFunctionCall(
 				return getLastElementFromType(dereferencedArgType);
 			}
 			case 'length': {
-				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const firstArgType = argTypes?.[0];
 				return getLengthFromType(firstArgType);
 			}
 			case 'And': {
-				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return Any;
@@ -1514,7 +1523,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(createCompileTimeIntersectionType(argTypes.map(valueOf)));
 			}
 			case 'Not': {
-				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return Any;
@@ -1526,7 +1535,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(createCompileTimeComplementType(valueOf(argTypes[0])));
 			}
 			case 'Or': {
-				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return Any;
@@ -1536,7 +1545,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(unionType);
 			}
 			case 'TypeOf': {
-				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return Any;
@@ -1548,7 +1557,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(argTypes[0]);
 			}
 			case 'Greater': {
-				const argTypes = getAllArgTypes(prefixArgument?.inferredType, argsType);
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return Any;
@@ -1563,7 +1572,7 @@ function getReturnTypeFromFunctionCall(
 				break;
 		}
 	}
-	const functionType = functionExpression.inferredType!;
+	const functionType = functionExpression.inferredType;
 	return getReturnTypeFromFunctionType(functionType);
 }
 
@@ -1607,7 +1616,7 @@ function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 	return Any;
 }
 
-function getLastElementFromType(valuesType: CompileTimeType | undefined): CompileTimeType {
+function getLastElementFromType(valuesType: CompileTimeType | null): CompileTimeType {
 	if (typeof valuesType !== 'object'
 		|| valuesType === null
 	) {
@@ -2635,14 +2644,14 @@ function bracketedExpressionToString(
 
 //#endregion ToString
 
-function getParamsType(possibleFunctionType: CompileTimeType | undefined): CompileTimeType {
+function getParamsType(possibleFunctionType: CompileTimeType | null): CompileTimeType {
 	if (isFunctionType(possibleFunctionType)) {
 		return possibleFunctionType.ParamsType;
 	}
 	return Any;
 }
 
-function getReturnTypeFromFunctionType(possibleFunctionType: CompileTimeType | undefined): CompileTimeType {
+function getReturnTypeFromFunctionType(possibleFunctionType: CompileTimeType | null): CompileTimeType {
 	if (isFunctionType(possibleFunctionType)) {
 		return possibleFunctionType.ReturnType;
 	}
