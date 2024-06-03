@@ -1471,7 +1471,11 @@ function getReturnTypeFromFunctionCall(
 				if (!importedFile.expressions) {
 					return Any;
 				}
-				return getValueWithFallback(last(importedFile.expressions)?.inferredType, Any);
+				const lastExpression = last(importedFile.expressions);
+				if (!lastExpression) {
+					return Any;
+				}
+				return getValueWithFallback(lastExpression.inferredType, Any);
 			}
 			// case 'nativeFunction': {
 			// 	const argumentType = dereferenceArgumentType(argsType, createParameterReference([{
