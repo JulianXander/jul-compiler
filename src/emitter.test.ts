@@ -66,6 +66,10 @@ const expectedResults: {
 			result: 'export default log(\n1n,\n)'
 		},
 		{
+			code: 'log(...())',
+			result: 'export default log(...undefined)'
+		},
+		{
 			code: '1.log()',
 			result: 'export default log(1n)'
 		},
