@@ -59,7 +59,7 @@ const expectedResults: {
 		},
 		{
 			code: 'log(())',
-			result: 'export default log(\nnull,\n)'
+			result: 'export default log(\nundefined,\n)'
 		},
 		{
 			code: 'log(1)',
@@ -90,7 +90,7 @@ const expectedResults: {
 		// },
 		{
 			code: 'someVar/1/test',
-			result: 'export default ((someVar?.[1 - 1] ?? null)?.[\'test\'] ?? null)'
+			result: 'export default someVar?.[1 - 1]?.[\'test\']'
 		},
 		{
 			code: '(a b) => log(a)',
@@ -208,7 +208,7 @@ Fields: {
 			name: 'type-function',
 			code: 'Any => ()',
 			result: `export default _createFunction(() => {
-return null
+return undefined
 }, {type:Any})`,
 		},
 	];
