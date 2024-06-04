@@ -53,12 +53,6 @@ export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: 
 	return fn(...argsWithPrefix);
 }
 
-export function _checkType(type: RuntimeType, value: any) {
-	return isOfType(value, type)
-		? value
-		: new Error(`${value} is not of type ${type}`);
-}
-
 export function _combineObject(...parts: (Collection | undefined)[]): Collection | undefined {
 	const nonEmptyParts = parts.filter(part => part !== undefined);
 	const firstNonEmptyPart = nonEmptyParts[0];

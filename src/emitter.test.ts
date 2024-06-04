@@ -113,7 +113,7 @@ name: 'b'}
 			code: `() =>
 	a: Integer = 1`,
 			result: `export default _createFunction(() => {
-const a = _checkType(Integer, 1n);
+const a = 1n;
 return a;
 }, {
 })`,

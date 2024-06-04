@@ -23,7 +23,7 @@ export function getRuntimeImportJs(runtimePath: string): string {
 
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
 export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: string): string {
-	// _branch, _callFunction, _checkType, _createFunction, log
+	// _branch, _callFunction, _createFunction, log
 	let hasDefinition = false;
 	return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
 		const expressionJs = expressionToJs(expression, true);
@@ -55,7 +55,6 @@ function expressionToJs(expression: ParseExpression, topLevel: boolean = false):
 				throw new Error('value missing in definition');
 			}
 			const nameJs = escapeReservedJsVariableName(expression.name.name);
-			const typeGuard = expression.typeGuard;
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
 				// const useDefinitionLine = typeGuard || topLevel;
@@ -66,17 +65,11 @@ function expressionToJs(expression: ParseExpression, topLevel: boolean = false):
 					? aliasJs
 					// default export automatisch liefern, wenn vorhanden (value import)
 					: `${aliasJs}.default ?? ${aliasJs}`;
-				const checkedValueJs = typeGuard
-					? checkTypeJs(typeGuard, valueJs)
-					: valueJs;
 				return `${importJs}
-${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
+${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 			const valueJs = expressionToJs(value);
-			const checkedValueJs = typeGuard
-				? checkTypeJs(typeGuard, valueJs)
-				: valueJs;
-			return getDefinitionJs(topLevel, nameJs, checkedValueJs);
+			return getDefinitionJs(topLevel, nameJs, valueJs);
 		}
 		case 'destructuring': {
 			const fields = expression.fields.fields;
@@ -103,16 +96,13 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				return `let ${name && escapeReservedJsVariableName(name)};`;
 			}).join('\n');
 			const assignments = fields.map((singleName, index) => {
-				const { name, source, typeGuard } = singleName;
+				const { name, source } = singleName;
 				const nameString = name.name;
 				const sourceString = source?.name ?? nameString;
 				const nameJs = escapeReservedJsVariableName(nameString);
 				const sourceJs = escapeReservedJsVariableName(sourceString);
-				const rawValue = `_isArray ? _temp[${index}] : _temp.${sourceJs}`;
-				const checkedValue = typeGuard
-					? `_checkType(${expressionToJs(typeGuard)}, ${rawValue})`
-					: rawValue;
-				return `${nameJs} = ${checkedValue};`;
+				const valueJs = `_isArray ? _temp[${index}] : _temp.${sourceJs}`;
+				return `${nameJs} = ${valueJs};`;
 			}).join('\n');
 			return `${declarations}\n{\nconst _temp = ${expressionToJs(value)};\nconst _isArray = Array.isArray(_temp);\n${assignments}\n}`;
 		}
@@ -124,7 +114,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 				}
 				const valueJs = expressionToJs(field.value);
 				if (field.type === 'singleDictionaryField') {
-					return singleDictionaryFieldToJs(field.name, field.typeGuard ? checkTypeJs(field.typeGuard, valueJs) : valueJs);
+					return singleDictionaryFieldToJs(field.name, valueJs);
 				}
 				else {
 					return spreadDictionaryFieldToJs(valueJs);
@@ -324,9 +314,7 @@ function functionBodyToJs(expressions: ParseExpression[]): string {
 			}
 			return `return ${expressionJs}`;
 		}
-		else {
-			return expressionJs;
-		}
+		return expressionJs;
 	}).join('\n');
 	return js;
 }
@@ -432,10 +420,6 @@ function parametersToJs(parameters: ParseParameterFields): string {
 		? `rest: {${parameters.rest.typeGuard ? 'type: ' + expressionToJs(parameters.rest.typeGuard) : ''}}\n`
 		: '';
 	return `{\n${singleNamesJs}${restJs}}`;
-}
-
-function checkTypeJs(type: ParseValueExpression, valueJs: string): string {
-	return `_checkType(${expressionToJs(type)}, ${valueJs})`;
 }
 
 function textLiteralToJs(stringLiteral: ParseTextLiteral): string {
