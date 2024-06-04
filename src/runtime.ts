@@ -34,16 +34,22 @@ export function _branch(value: any, ...branches: JulFunction[]) {
 	return new Error(`${value} did not match any branch`);
 }
 
-export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: RuntimeDictionary) {
+/**
+ * Wird aufgerufen mit args = dictionary, oder unknown object, also Ergebnis von _combineObject
+ */
+export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: Collection | undefined) {
 	if ('params' in fn) {
 		// jul function
 		const assignedParams = assignArgs(fn.params, prefixArg, args);
 		return fn(...assignedParams);
 	}
 	// js function
+	const wrappedArgs = Array.isArray(args)
+		? args
+		: [args];
 	const argsWithPrefix = prefixArg === undefined
-		? [args]
-		: [prefixArg, args];
+		? wrappedArgs
+		: [prefixArg, ...wrappedArgs];
 	return fn(...argsWithPrefix);
 }
 
@@ -224,7 +230,7 @@ function isDictionary(value: any): value is RuntimeDictionary {
 function assignArgs(
 	params: Params,
 	prefixArg: any,
-	args: RuntimeDictionary,
+	args: Collection | undefined,
 ): any[] {
 	const assignedValues: any[] = [];
 	const { type: paramsType, singleNames, rest } = params;
@@ -232,8 +238,11 @@ function assignArgs(
 	if (paramsType !== undefined) {
 		return assignedValues;
 	}
+	const isArray = Array.isArray(args);
+	let paramIndex = 0;
+	let argIndex = 0;
 	if (singleNames) {
-		for (let paramIndex = 0; paramIndex < singleNames.length; paramIndex++) {
+		for (; paramIndex < singleNames.length; paramIndex++) {
 			const param = singleNames[paramIndex]!;
 			const { name, source } = param;
 			const sourceWithFallback = source ?? name;
@@ -242,14 +251,32 @@ function assignArgs(
 				arg = prefixArg;
 			}
 			else {
-				arg = args?.[sourceWithFallback];
+				arg = isArray
+					? args[argIndex]
+					: args?.[sourceWithFallback];
+				argIndex++;
 			}
 			assignedValues.push(arg);
 		}
 	}
 	if (rest) {
-		// TODO rest dictionary??
-		throw new Error('assignArgs not implemented yet for rest dictionary');
+		if (args === undefined) {
+			const remainingArgs = hasPrefixArg && !paramIndex
+				? [prefixArg]
+				: undefined;
+			assignedValues.push(...remainingArgs ?? []);
+		}
+		else if (isArray) {
+			const remainingArgs = args.slice(argIndex);
+			if (hasPrefixArg && !paramIndex) {
+				remainingArgs.unshift(prefixArg);
+			}
+			assignedValues.push(...remainingArgs);
+		}
+		else {
+			// TODO rest dictionary??
+			throw new Error('tryAssignArgs not implemented yet for rest dictionary');
+		}
 	}
 	return assignedValues;
 }

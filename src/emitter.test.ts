@@ -66,8 +66,9 @@ const expectedResults: {
 			result: 'export default log(\n1n,\n)'
 		},
 		{
+			name: 'functionCall-unknown-object',
 			code: 'log(...())',
-			result: 'export default log(...undefined)'
+			result: 'export default _callFunction(log, undefined, _combineObject(undefined))'
 		},
 		{
 			code: '1.log()',

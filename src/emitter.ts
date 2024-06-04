@@ -176,6 +176,7 @@ ${getDefinitionJs(topLevel, nameJs, checkedValueJs)}`;
 					}
 					return `${functionJs}(${valuesJs})`;
 				}
+				case 'object':
 				case 'dictionary': {
 					const argsJs = expressionToJs(args);
 					return `_callFunction(${functionJs}, ${prefixArgJs}, ${argsJs})`;

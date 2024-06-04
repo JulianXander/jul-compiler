@@ -2102,9 +2102,10 @@ function bracketedExpressionToValueExpression(
 			values: mapNonEmpty(
 				baseFields,
 				baseField => {
+					const value = baseValueExpressionToValueExpression(baseField.name, errors);
 					const spreadValue: ParseSpreadValueExpression = {
 						type: 'spread',
-						value: baseField.name,
+						value: value,
 						startRowIndex: baseField.startRowIndex,
 						startColumnIndex: baseField.startColumnIndex,
 						endRowIndex: baseField.endRowIndex,
