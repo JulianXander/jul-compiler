@@ -2074,9 +2074,9 @@ class StreamClass<T> {
 	 * 
 	 * Falls abgeleiteter Stream (createDerived$, map$, combine$, etc):
 	 * lastValue wird lazy gesetzt.
-	 * Wenn getValue noch nicht aufgerufen wurde, dann ist lastValue noch undefined.
+	 * Wenn getValue noch nicht aufgerufen wurde, dann ist lastValue noch null.
 	 */
-	lastValue?: T;
+	lastValue: T | null = null;
 	lastProcessId?: number;
 	completed: boolean = false;
 	listeners: Listener<T>[] = [];
@@ -2432,7 +2432,7 @@ function accumulate$<TSource, TAccumulated>(
 		source$,
 		value => {
 			const newAccumulator = accumulate(
-				mapped$.lastValue === undefined
+				mapped$.lastValue === null
 					? initialAccumulator
 					: mapped$.lastValue,
 				value);
@@ -2444,10 +2444,10 @@ function accumulate$<TSource, TAccumulated>(
 
 function retry$<T>(
 	method$: () => StreamClass<T | Error>,
-	maxAttepmts: number,
+	maxAttempts: number,
 	currentAttempt: number = 1,
 ): StreamClass<T | Error> {
-	if (currentAttempt === maxAttepmts) {
+	if (currentAttempt === maxAttempts) {
 		return method$();
 	}
 	const withRetry$$ = _map$(
@@ -2455,7 +2455,7 @@ function retry$<T>(
 		result => {
 			if (result instanceof Error) {
 				console.log('Error! Retrying... Attempt:', currentAttempt, 'process:', processId);
-				return retry$(method$, maxAttepmts, currentAttempt + 1);
+				return retry$(method$, maxAttempts, currentAttempt + 1);
 			}
 			return _completed$<T | Error>(result);
 		},
