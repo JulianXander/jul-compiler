@@ -2234,7 +2234,7 @@ function _map$<TSource, TTarget>(
 	source$: StreamClass<TSource>,
 	mapFunction: (value: TSource) => TTarget,
 ): StreamClass<TTarget> {
-	let lastSourceValue: TSource;
+	let lastSourceValue: TSource | null = null;
 	const mapped$: StreamClass<TTarget> = createDerived$(
 		() => {
 			const currentSourceValue = source$.getValue();
