@@ -1,4 +1,4 @@
--fix filterMap vgl test1.jul
+-fix Without vgl test1.jul
 ?filter in corelib
 -typeToString in runtime
 -normalize intersection type:
