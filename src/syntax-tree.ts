@@ -445,6 +445,7 @@ export type CompileTimeType =
 	;
 
 export type BuiltInCompileTimeType =
+	| NeverType
 	| AnyType
 	| BooleanType
 	| IntegerType
@@ -469,6 +470,14 @@ export type BuiltInCompileTimeType =
 	| CompileTimeComplementType
 	| CompileTimeTypeOfType
 	;
+
+export interface NeverType {
+	readonly [_julTypeSymbol]: 'never';
+}
+
+export const Never: NeverType = {
+	[_julTypeSymbol]: 'never',
+};
 
 export interface CompileTimeComplementType {
 	readonly [_julTypeSymbol]: 'not';

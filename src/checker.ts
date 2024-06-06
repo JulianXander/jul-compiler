@@ -14,11 +14,11 @@ import {
 	BracketedExpression,
 	BuiltInCompileTimeType,
 	CompileTimeCollection,
+	CompileTimeComplementType,
 	CompileTimeDictionary,
 	CompileTimeDictionaryLiteralType,
 	CompileTimeDictionaryType,
 	CompileTimeFunctionType,
-	CompileTimeIntersectionType,
 	CompileTimeListType,
 	CompileTimeStreamType,
 	CompileTimeTupleType,
@@ -37,6 +37,7 @@ import {
 	createNestedReference,
 	createParameterReference,
 	createParametersType,
+	Never,
 	Parameter,
 	ParameterReference,
 	ParametersType,
@@ -465,6 +466,7 @@ function dereferenceArgumentTypesNested(
 		case 'error':
 		case 'float':
 		case 'integer':
+		case 'never':
 		case 'text':
 		case 'type':
 			return builtInType;
@@ -597,7 +599,7 @@ function dereferenceParameterFromArgumentType(
 	// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
 	const paramIndex = parameterReference.index;
 	const paramsType = calledFunction.ParamsType;
-	const isRest = isParamtersType(paramsType)
+	const isRest = isParametersType(paramsType)
 		? paramsType.singleNames.length === paramIndex
 		// TODO?
 		: false;
@@ -795,7 +797,7 @@ function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterRe
 	const functionType = parameterReference.functionRef;
 	if (functionType) {
 		const paramsType = functionType.ParamsType;
-		if (isParamtersType(paramsType)) {
+		if (isParametersType(paramsType)) {
 			const matchedParameter = paramsType.singleNames.find(parameter =>
 				parameter.name === parameterReference.name);
 			return matchedParameter
@@ -1149,13 +1151,13 @@ function inferType(
 			allArgExpressions.forEach((arg, argIndex) => {
 				if (arg?.type === 'functionLiteral') {
 					// TODO get param type by name, spread args berücksichtigen
-					if (isParamtersType(paramsType)) {
+					if (isParametersType(paramsType)) {
 						const param = paramsType.singleNames[argIndex];
 						if (param && isFunctionType(param.type)) {
 							const innerParamsType = param.type.ParamsType;
 							if (arg.params.type === 'parameters') {
 								arg.params.singleFields.forEach((literalParam, literalParamIndex) => {
-									if (isParamtersType(innerParamsType)) {
+									if (isParametersType(innerParamsType)) {
 										const innerParam = innerParamsType.singleNames[literalParamIndex];
 										literalParam.inferredTypeFromCall = innerParam
 											? innerParam.type
@@ -1725,16 +1727,26 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	if (flatChoices.includes(Any)) {
 		return Any;
 	}
+	//#region remove Never
+	const choicesWithoutNever = flatChoices.filter(choice =>
+		choice !== Never);
+	if (!choicesWithoutNever.length) {
+		return Never;
+	}
+	if (choicesWithoutNever.length === 1) {
+		return choicesWithoutNever[0];
+	}
+	//#endregion remove Never
 	//#region remove duplicates
 	const uniqueChoices: CompileTimeType[] = [];
-	flatChoices.forEach(choice => {
+	choicesWithoutNever.forEach(choice => {
 		if (!uniqueChoices.some(uniqueChoice =>
 			choice === uniqueChoice)) {
 			uniqueChoices.push(choice);
 		}
 	});
 	if (uniqueChoices.length === 1) {
-		return uniqueChoices[0]!;
+		return uniqueChoices[0];
 	}
 	//#endregion remove duplicates
 	//#region collapse Streams
@@ -1753,7 +1765,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 				!isStreamType(choiceType)),
 		);
 		if (collapsedStreamChoices.length === 1) {
-			return collapsedStreamChoices[0]!;
+			return collapsedStreamChoices[0];
 		}
 	}
 	else {
@@ -1780,6 +1792,13 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		});
 		const distributedType = createNormalizedUnionType(distributedChoices);
 		return distributedType;
+	}
+
+	// And(A Not(A)) => Never
+	if (ChoiceTypes.length === 2
+		&& isComplementType(ChoiceTypes[1])
+		&& ChoiceTypes[0] === ChoiceTypes[1].SourceType) {
+		return Never;
 	}
 
 	return {
@@ -2118,6 +2137,8 @@ export function getTypeError(
 					case 'nestedReference':
 						// TODO?
 						return undefined;
+					case 'never':
+						break;
 					case 'not': {
 						const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.SourceType);
 						if (sourceError === undefined) {
@@ -2587,6 +2608,8 @@ export function typeToString(type: CompileTimeType, indent: number): string {
 						return `List(${typeToString(builtInType.ElementType, indent)})`;
 					case 'nestedReference':
 						return `${typeToString(builtInType.source, indent)}/${builtInType.nestedKey}`;
+					case 'never':
+						return 'Never';
 					case 'not':
 						return `Not(${typeToString(builtInType.SourceType, indent)})`;
 					case 'or':
@@ -2795,6 +2818,11 @@ export function isBuiltInType(type: CompileTimeType | null): type is BuiltInComp
 		&& _julTypeSymbol in type;
 }
 
+function isComplementType(type: CompileTimeType | null): type is CompileTimeComplementType {
+	return isBuiltInType(type)
+		&& type[_julTypeSymbol] === 'not';
+}
+
 function isDictionaryType(type: CompileTimeType | null): type is CompileTimeDictionaryType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'dictionary';
@@ -2815,7 +2843,7 @@ export function isListType(type: CompileTimeType | null): type is CompileTimeLis
 		&& type[_julTypeSymbol] === 'list';
 }
 
-export function isParamtersType(type: CompileTimeType | null): type is ParametersType {
+export function isParametersType(type: CompileTimeType | null): type is ParametersType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'parameters';
 }
