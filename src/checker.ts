@@ -636,11 +636,11 @@ function dereferenceParameterFromArgumentType(
 			const argIndex = prefixArgumentType === null
 				? paramIndex
 				: paramIndex - 1;
-			const argType = argsType.ElementTypes[argIndex];
-			// TODO error bei unbound ref?
-			if (argType === undefined) {
+			if (argIndex > argsType.ElementTypes.length) {
+				// TODO error bei unbound ref?
 				return parameterReference;
 			}
+			const argType = argsType.ElementTypes[argIndex];
 			return argType;
 		}
 		case 'list':
@@ -1150,8 +1150,7 @@ function inferType(
 					// TODO get param type by name, spread args berücksichtigen
 					if (isParamtersType(paramsType)) {
 						const param = paramsType.singleNames[argIndex];
-						if (param !== undefined
-							&& isFunctionType(param.type)) {
+						if (param && isFunctionType(param.type)) {
 							const innerParamsType = param.type.ParamsType;
 							if (arg.params.type === 'parameters') {
 								arg.params.singleFields.forEach((literalParam, literalParamIndex) => {
