@@ -651,7 +651,7 @@ function dereferenceParameterFromArgumentType(
 }
 
 /**
- * dereferenced nestedReference und parameterReference über dereferenceParameterTypeFromFunctionRef
+ * Dereferenziert nestedReference und parameterReference über dereferenceParameterTypeFromFunctionRef rekursiv soweit wie möglich.
  */
 function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 	if (typeof rawType !== 'object') {
@@ -728,10 +728,15 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				return createNormalizedUnionType(dereferencedChoices);
 			}
 			case 'parameterReference': {
-				const dereferenced = dereferenceParameterTypeFromFunctionRef(rawType);
-				return dereferenced === null
-					? Any
-					: dereferenced;
+				const dereferenced1 = dereferenceParameterTypeFromFunctionRef(rawType);
+				if (dereferenced1 === null) {
+					return Any;
+				}
+				if (dereferenced1 === rawType) {
+					return rawType;
+				}
+				const dereferenced2 = dereferenceNested(dereferenced1);
+				return dereferenced2;
 			}
 			case 'parameters': {
 				const dereferencedSingleNames = rawType.singleNames.map(dereferenceNestedParameter);
@@ -915,11 +920,22 @@ function inferType(
 				setInferredType(value, scopes, parsedDocuments, folder, file);
 			}
 			const name = expression.name.name;
-			const inferredType = name in coreBuiltInSymbolTypes
-				? coreBuiltInSymbolTypes[name]
-				: (value
-					? getValueWithFallback(value.inferredType, Any)
-					: Any);
+			let inferredType: CompileTimeType;
+			let dereferencedType: CompileTimeType;
+			if (name in coreBuiltInSymbolTypes) {
+				inferredType = coreBuiltInSymbolTypes[name];
+				dereferencedType = inferredType;
+			}
+			else {
+				if (value && value.inferredType !== null) {
+					inferredType = value.inferredType;
+					dereferencedType = value.dereferencedType!;
+				}
+				else {
+					inferredType = Any;
+					dereferencedType = Any;
+				}
+			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			const currentScope = last(scopes);
@@ -928,13 +944,13 @@ function inferType(
 				throw new Error(`Definition Symbol ${name} not found`);
 			}
 			symbol.inferredType = inferredType;
-			symbol.dereferencedType = dereferenceNested(inferredType);
+			symbol.dereferencedType = dereferencedType;
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
 				checkTypeGuardIsType(typeGuard, errors);
-				const typeGuardType = typeGuard.inferredType;
-				const assignmentError = areArgsAssignableTo(null, inferredType, valueOf(typeGuardType));
+				const typeGuardType = typeGuard.dereferencedType;
+				const assignmentError = areArgsAssignableTo(null, dereferencedType, valueOf(typeGuardType));
 				if (assignmentError) {
 					errors.push({
 						message: assignmentError,

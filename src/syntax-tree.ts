@@ -110,6 +110,7 @@ export interface PositionedExpressionBase extends Positioned {
 
 // TODO bei allen parseExpressions oder nur bei value expressions?
 interface ParseExpressionBase extends PositionedExpressionBase {
+	// TODO? inferredType?: {rawType: CompileTimeType; dereferencedType: CompileTimeType;};
 	/**
 	 * Wird vom checker gesetzt.
 	 */
