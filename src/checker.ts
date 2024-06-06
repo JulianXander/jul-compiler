@@ -18,8 +18,8 @@ import {
 	CompileTimeDictionaryLiteralType,
 	CompileTimeDictionaryType,
 	CompileTimeFunctionType,
+	CompileTimeIntersectionType,
 	CompileTimeListType,
-	CompileTimeNonZeroInteger,
 	CompileTimeStreamType,
 	CompileTimeTupleType,
 	CompileTimeType,
@@ -30,7 +30,6 @@ import {
 	createCompileTimeDictionaryType,
 	createCompileTimeFunctionType,
 	createCompileTimeGreaterType,
-	createCompileTimeIntersectionType,
 	createCompileTimeListType,
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
@@ -64,6 +63,8 @@ import { getCheckedEscapableName } from './parser/parser-utils.js';
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
 const maxElementsPerLine = 5;
+
+const CompileTimeNonZeroInteger = createNormalizedIntersectionType([Integer, createCompileTimeComplementType(0n)]);
 
 const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	true: true,
@@ -473,7 +474,7 @@ function dereferenceArgumentTypesNested(
 			if (elementsEqual(rawChoices, dereferencedChoices)) {
 				return builtInType;
 			}
-			return createCompileTimeIntersectionType(dereferencedChoices);
+			return createNormalizedIntersectionType(dereferencedChoices);
 		}
 		case 'dictionary': {
 			const rawElement = builtInType.ElementType;
@@ -668,7 +669,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				if (elementsEqual(rawChoices, dereferencedChoices)) {
 					return rawType;
 				}
-				return createCompileTimeIntersectionType(dereferencedChoices);
+				return createNormalizedIntersectionType(dereferencedChoices);
 			}
 			case 'dictionary': {
 				const rawElement = rawType.ElementType;
@@ -1551,7 +1552,7 @@ function getReturnTypeFromFunctionCall(
 					// TODO unknown?
 					return Any;
 				}
-				return createCompileTimeTypeOfType(createCompileTimeIntersectionType(argTypes.map(valueOf)));
+				return createCompileTimeTypeOfType(createNormalizedIntersectionType(argTypes.map(valueOf)));
 			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
@@ -1762,6 +1763,28 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	return {
 		[_julTypeSymbol]: 'or',
 		ChoiceTypes: collapsedStreamChoices,
+	};
+}
+
+function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeType {
+	// TODO flatten nested IntersectionTypes?
+
+	// Distributivgesetz anwenden:
+	// And(Or(A B) C) => Or(And(A C) And(B C)
+	if (ChoiceTypes.length === 2
+		&& isUnionType(ChoiceTypes[0])) {
+		const firstUnionChoices = ChoiceTypes[0].ChoiceTypes;
+		const secondIntersectionType = ChoiceTypes[1];
+		const distributedChoices = firstUnionChoices.map(choice => {
+			return createNormalizedIntersectionType([choice, secondIntersectionType]);
+		});
+		const distributedType = createNormalizedUnionType(distributedChoices);
+		return distributedType;
+	}
+
+	return {
+		[_julTypeSymbol]: 'and',
+		ChoiceTypes: ChoiceTypes,
 	};
 }
 

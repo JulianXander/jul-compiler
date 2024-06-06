@@ -545,14 +545,6 @@ export interface CompileTimeIntersectionType {
 	ChoiceTypes: CompileTimeType[];
 }
 
-export function createCompileTimeIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeIntersectionType {
-	// TODO flatten nested IntersectionTypes?
-	return {
-		[_julTypeSymbol]: 'and',
-		ChoiceTypes: ChoiceTypes,
-	};
-}
-
 export interface CompileTimeListType {
 	readonly [_julTypeSymbol]: 'list';
 	ElementType: CompileTimeType;
@@ -662,7 +654,5 @@ export interface Parameter {
 	name: string;
 	type: CompileTimeType | null;
 }
-
-export const CompileTimeNonZeroInteger = createCompileTimeIntersectionType([Integer, createCompileTimeComplementType(0n)]);
 
 //#endregion CompileTimeType
