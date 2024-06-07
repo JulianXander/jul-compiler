@@ -1,4 +1,3 @@
--fix filterMap vgl test1.jul
 ?filter in corelib
 -normalize intersection type:
 	And(Or(1 2) Not(2)) => 1
