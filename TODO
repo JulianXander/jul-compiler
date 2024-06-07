@@ -1,6 +1,5 @@
 -fix filterMap vgl test1.jul
 ?filter in corelib
--typeToString in runtime
 -normalize intersection type:
 	And(Or(1 2) Not(2)) => 1
 	(1 + 2) * !2 = 1 * !2 + 2 * !2 = 1 * !2 + 0 = 1 * !2

@@ -2563,15 +2563,17 @@ function typeErrorToString(typeError: TypeError): string {
 
 export function typeToString(type: CompileTimeType, indent: number): string {
 	switch (typeof type) {
-		case 'string':
-			return `§${type.replaceAll('§', '§§')}§`;
 		case 'bigint':
 		case 'boolean':
 			return type.toString();
+		case 'function':
+			// TODO?
+			throw new Error('typeToString not implemented yet for CustomFunction');
 		case 'number':
 			return type.toString() + 'f';
 		case 'object': {
 			if (type === null) {
+				// TODO throw error?
 				return '()';
 			}
 			if (Array.isArray(type)) {
@@ -2649,9 +2651,8 @@ export function typeToString(type: CompileTimeType, indent: number): string {
 			// Dictionary
 			return dictionaryTypeToString(type, ' = ', indent);
 		}
-		case 'function':
-			// TODO?
-			throw new Error('typeToString not implemented yet for CustomFunction');
+		case 'string':
+			return `§${type.replaceAll('§', '§§')}§`;
 		case 'undefined':
 			return '()';
 		default: {
@@ -2683,7 +2684,7 @@ function arrayTypeToString(
 }
 
 function dictionaryTypeToString(
-	dictionary: { [key: string]: CompileTimeType; },
+	dictionary: CompileTimeDictionary,
 	nameSeparator: string,
 	indent: number,
 ): string {

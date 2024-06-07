@@ -75,78 +75,259 @@ export function _createFunction(fn: Function, params: Params): JulFunction {
 
 //#endregion internals
 
-function isOfType(value: any, type: RuntimeType): boolean {
+//#region toString
+
+function typeToString(type: RuntimeType, indent: number): string {
+	switch (typeof type) {
+		case 'bigint':
+		case 'boolean':
+			return type.toString();
+		case 'function':
+			return 'CustomType: ' + type;
+		case 'number':
+			return type.toString() + 'f';
+		case 'object': {
+			if (type === null) {
+				// TODO throw error?
+				return '()';
+			}
+			if (Array.isArray(type)) {
+				return arrayTypeToString(type, indent);
+			}
+			if (_julTypeSymbol in type) {
+				switch (type[_julTypeSymbol]) {
+					case 'and':
+						return `And${arrayTypeToString(type.ChoiceTypes, indent)}`;
+					case 'any':
+						return 'Any';
+					case 'blob':
+						return 'Blob';
+					case 'boolean':
+						return 'Boolean';
+					case 'date':
+						return 'Date';
+					case 'dictionary':
+						return `Dictionary(${typeToString(type.ElementType, indent)})`;
+					case 'dictionaryLiteral':
+						return dictionaryTypeToString(type.Fields, ': ', indent);
+					case 'error':
+						return 'Error';
+					case 'float':
+						return 'Float';
+					case 'function':
+						return 'Function';
+					case 'greater':
+						return `Greater(${typeToString(type.Value, indent)})`;
+					case 'integer':
+						return 'Integer';
+					case 'list':
+						return `List(${typeToString(type.ElementType, indent)})`;
+					case 'not':
+						return `Not(${typeToString(type.SourceType, indent)})`;
+					case 'or':
+						return `Or${arrayTypeToString(type.ChoiceTypes, indent)}`;
+					case 'stream':
+						return 'Stream';
+					case 'text':
+						return 'Text';
+					case 'tuple':
+						return arrayTypeToString(type.ElementTypes, indent);
+					case 'type':
+						return 'Type';
+					case 'typeOf':
+						return `TypeOf(${typeToString(type.value, indent)})`;
+					default: {
+						const assertNever: never = type;
+						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType)[_julTypeSymbol]}`);
+					}
+				}
+			}
+			// Dictionary
+			return dictionaryTypeToString(type, ' = ', indent);;
+		}
+		case 'string':
+			return `§${type.replaceAll('§', '§§')}§`;
+		case 'undefined':
+			return '()';
+		default: {
+			const assertNever: never = type;
+			throw new Error(`Unexpected type ${typeof assertNever}`);
+		}
+	}
+}
+
+const maxElementsPerLine = 5;
+function arrayTypeToString(
+	array: RuntimeType[],
+	indent: number,
+): string {
+	const multiline = array.length > maxElementsPerLine;
+	const newIndent = multiline
+		? indent + 1
+		: indent;
+	return bracketedExpressionToString(
+		array.map(element =>
+			typeToString(element, newIndent)),
+		multiline,
+		indent);
+}
+
+function dictionaryTypeToString(
+	dictionary: RuntimeDictionary,
+	nameSeparator: string,
+	indent: number,
+): string {
+	const multiline = Object.keys(dictionary).length > 1;
+	const newIndent = multiline
+		? indent + 1
+		: indent;
+	return bracketedExpressionToString(
+		Object.entries(dictionary).map(([key, element]) => {
+			return `${key}${nameSeparator}${typeToString(element, newIndent)}`;
+		}),
+		multiline,
+		indent);
+}
+
+function bracketedExpressionToString(
+	elements: string[],
+	multiline: boolean,
+	indent: number,
+): string {
+	const indentString = '\t'.repeat(indent + 1);
+	const openingBracketSeparator = multiline
+		? '\n' + indentString
+		: '';
+	const elementSeparator = multiline
+		? '\n' + indentString
+		: ' ';
+	const closingBracketSeparator = multiline
+		? '\n' + '\t'.repeat(indent)
+		: '';
+	return `(${openingBracketSeparator}${elements.join(elementSeparator)}${closingBracketSeparator})`;
+}
+
+//#endregion toString
+
+//#region check type
+
+function getTypeError(value: any, type: RuntimeType): string | undefined {
 	switch (typeof type) {
 		case 'bigint':
 		case 'boolean':
 		case 'number':
 		case 'string':
 		case 'undefined':
-			return value === type;
+			if (value === type) {
+				return undefined;
+			}
+			break;
 		case 'object': {
 			if (type === null) {
-				return value === null;
+				if (value === null) {
+					return undefined;
+				}
+				break;
 			}
 			if (Array.isArray(type)) {
-				return isOfTupleType(value, type);
+				return getTupleTypeError(value, type);
 			}
 			if (_julTypeSymbol in type) {
 				switch (type[_julTypeSymbol]) {
 					case 'any':
-						return true;
+						return undefined;
 					case 'boolean':
-						return typeof value === 'boolean';
+						if (typeof value === 'boolean') {
+							return undefined;
+						}
+						break;
 					case 'integer':
-						return typeof value === 'bigint';
+						if (typeof value === 'bigint') {
+							return undefined;
+						}
+						break;
 					case 'float':
-						return typeof value === 'number';
+						if (typeof value === 'number') {
+							return undefined;
+						}
+						break;
 					case 'greater':
-						return value > type.Value;
+						if (value > type.Value) {
+							return undefined;
+						}
+						break;
 					case 'text':
-						return typeof value === 'string';
+						if (typeof value === 'string') {
+							return undefined;
+						}
+						break;
 					case 'date':
-						return value instanceof Date;
+						if (value instanceof Date) {
+							return undefined;
+						}
+						break;
 					case 'blob':
-						return value instanceof Blob;
+						if (value instanceof Blob) {
+							return undefined;
+						}
+						break;
 					case 'error':
-						return value instanceof Error;
+						if (value instanceof Error) {
+							return undefined;
+						}
+						break;
 					case 'dictionary': {
 						if (!isDictionary(value)) {
-							return false;
+							return `The value ${value} is not a Dictionary.`;
 						}
 						const elementType = type.ElementType;
 						if (elementType === Any) {
-							return true;
+							return undefined;
 						}
 						for (const key in value) {
 							const elementValue = value[key];
-							if (!isOfType(elementValue, elementType)) {
-								return false;
+							const elementError = getTypeError(elementValue, elementType);
+							if (elementError) {
+								return `Invalid value for field ${key}.\n${elementError}`;
 							}
 						}
-						return true;
+						return undefined;
 					}
 					case 'dictionaryLiteral':
-						return isOfDictionaryLiteralType(value, type.Fields);
+						return getDictionaryLiteralTypeError(value, type.Fields);
 					case 'list': {
-						if (!Array.isArray(value)
-							|| !value.length) {
-							return false;
+						if (!Array.isArray(value)) {
+							return `The value ${value} is not an Array.`;
+						}
+						if (!value.length) {
+							return 'The value has no elements.';
 						}
 						const elementType = type.ElementType;
 						if (elementType === Any) {
-							return true;
+							return undefined;
 						}
-						return value.every(element =>
-							isOfType(element, elementType));
+						for (let index = 0; index < value.length; index++) {
+							const elementValue = value[index];
+							const elementError = getTypeError(elementValue, elementType);
+							if (elementError) {
+								return `Invalid value at index ${index + 1}.\n${elementError}`;
+							}
+						}
+						return undefined;
 					}
 					case 'tuple':
-						return isOfTupleType(value, type.ElementTypes);
+						return getTupleTypeError(value, type.ElementTypes);
 					case 'stream':
-						return value instanceof StreamClass;
+						if (value instanceof StreamClass) {
+							return undefined;
+						}
+						break;
 					case 'function':
-						return typeof value === 'function';
-					case 'type':
+						if (typeof value === 'function') {
+							return undefined;
+						}
+						break;
+					case 'type': {
 						const valueType = typeof value;
 						switch (valueType) {
 							case 'bigint':
@@ -155,63 +336,101 @@ function isOfType(value: any, type: RuntimeType): boolean {
 							case 'number':
 							case 'string':
 							case 'undefined':
-								return true;
+								return undefined;
 							case 'object':
-								return _julTypeSymbol in value;
+								if (_julTypeSymbol in value) {
+									return undefined;
+								}
+								break;
 							case 'symbol':
-								return false;
+								break;
 							default: {
 								const assertNever: never = valueType;
 								throw new Error(`Unexpected type ${assertNever}`);
 							}
 						}
+						break;
+					}
 					case 'and':
-						return type.ChoiceTypes.every(coiceType =>
-							isOfType(value, coiceType));
+						for (const coiceType of type.ChoiceTypes) {
+							const choiceError = getTypeError(value, coiceType);
+							if (choiceError) {
+								return choiceError;
+							}
+						}
+						return undefined;
 					case 'or':
-						return type.ChoiceTypes.some(coiceType =>
-							isOfType(value, coiceType));
+						const choiceErrors = [];
+						for (const coiceType of type.ChoiceTypes) {
+							const choiceError = getTypeError(value, coiceType);
+							if (!choiceError) {
+								return undefined;
+							}
+							choiceErrors.push(choiceError);
+						}
+						return 'No choice is valid.\n' + choiceErrors.join('\n');
 					case 'not':
-						return !isOfType(value, type.SourceType);
+						if (getTypeError(value, type.SourceType)) {
+							return undefined;
+						}
+						break;
 					case 'typeOf':
-						return deepEqual(value, type.value);
+						if (deepEqual(value, type.value)) {
+							return undefined;
+						}
+						break;
 					default: {
 						const assertNever: never = type;
 						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType)[_julTypeSymbol]}`);
 					}
 				}
+				break;
 			}
 			// Dictionary
-			return isOfDictionaryLiteralType(value, type);
+			return getDictionaryLiteralTypeError(value, type);
 		}
 		case 'function':
-			return type(value);
+			if (type(value)) {
+				return undefined;
+			}
+			break;
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected type ${typeof assertNever}`);
 		}
 	}
+	return `Can not assign the value ${value} to type ${typeToString(type, 0)}`;
 }
 
-function isOfTupleType(value: any, elementTypes: RuntimeType[]): boolean {
-	return Array.isArray(value)
-		&& value.length >= elementTypes.length
-		&& elementTypes.every((elementType, index) =>
-			isOfType(value[index], elementType));
+function getTupleTypeError(value: any, elementTypes: RuntimeType[]): string | undefined {
+	if (!Array.isArray(value)) {
+		return `The value ${value} is not an Array.`;
+	}
+	if (value.length < elementTypes.length) {
+		return `The value has too few elements. Expected ${elementTypes.length} but got ${value.length}.`;
+	}
+	for (let index = 0; index < elementTypes.length; index++) {
+		const elementType = elementTypes[index];
+		const elementValue = value[index];
+		const elementError = getTypeError(elementValue, elementType);
+		if (elementError) {
+			return `Invalid value at index ${index + 1}.\n${elementError}`;
+		}
+	}
 }
 
-function isOfDictionaryLiteralType(value: any, fieldTypes: RuntimeDictionary): boolean {
+function getDictionaryLiteralTypeError(value: any, fieldTypes: RuntimeDictionary): string | undefined {
 	if (!isDictionary(value)) {
-		return false;
+		return `The value ${value} is not a Dictionary.`;
 	}
 	for (const key in fieldTypes) {
 		const elementValue = value[key];
-		const elementType = fieldTypes[key]!;
-		if (!isOfType(elementValue, elementType)) {
-			return false;
+		const elementType = fieldTypes[key];
+		const elementError = getTypeError(elementValue, elementType);
+		if (elementError) {
+			return `Invalid value for field ${key}.\n${elementError}`;
 		}
 	}
-	return true;
 }
 
 function isRealObject(value: any): value is Collection {
@@ -226,6 +445,8 @@ function isDictionary(value: any): value is RuntimeDictionary {
 		&& !(value instanceof Error)
 		&& !Array.isArray(value);
 }
+
+//#endregion check type
 
 /**
  * Ohne type check
@@ -299,9 +520,9 @@ function tryAssignArgs(
 	if (paramsType !== undefined) {
 		// TODO typecheck prefixArg with paramsType?
 		// TODO typecheck paramsType wrappedArgs unwrappen? also nur 1. arg checken?
-		const isValid = isOfType(rawArgs, paramsType);
-		if (!isValid) {
-			return new Error(`Can not assign the value ${rawArgs} to params because it is not of type ${paramsType}`);
+		const typeError = getTypeError(rawArgs, paramsType);
+		if (typeError) {
+			return new Error(`Can not assign the value to params.\n${typeError}`);
 		}
 		return assignedValues;
 	}
@@ -323,11 +544,11 @@ function tryAssignArgs(
 					: args?.[sourceWithFallback];
 				argIndex++;
 			}
-			const isValid = type
-				? isOfType(arg, type)
-				: true;
-			if (!isValid) {
-				return new Error(`Can not assign the value ${arg} to param ${sourceWithFallback} because it is not of type ${type}`);
+			const typeError = type
+				? getTypeError(arg, type)
+				: undefined;
+			if (typeError) {
+				return new Error(`Can not assign the value to param ${sourceWithFallback}.\n${typeError}`);
 			}
 			assignedValues.push(arg);
 		}
@@ -338,11 +559,11 @@ function tryAssignArgs(
 			const remainingArgs = hasPrefixArg && !paramIndex
 				? [prefixArg]
 				: undefined;
-			const isValid = restType
-				? isOfType(remainingArgs, restType)
+			const typeError = restType
+				? getTypeError(remainingArgs, restType)
 				: true;
-			if (!isValid) {
-				return new Error(`Can not assign the value ${remainingArgs} to rest param because it is not of type ${rest}`);
+			if (typeError) {
+				return new Error(`Can not assign the value to rest param.\n${typeError}`);
 			}
 			assignedValues.push(...remainingArgs ?? []);
 		}
@@ -351,11 +572,11 @@ function tryAssignArgs(
 			if (hasPrefixArg && !paramIndex) {
 				remainingArgs.unshift(prefixArg);
 			}
-			const isValid = restType
-				? isOfType(remainingArgs, restType)
+			const typeError = restType
+				? getTypeError(remainingArgs, restType)
 				: true;
-			if (!isValid) {
-				return new Error(`Can not assign the value ${remainingArgs} to rest param because it is not of type ${rest}`);
+			if (typeError) {
+				return new Error(`Can not assign the value to rest param.\n${typeError}`);
 			}
 			assignedValues.push(...remainingArgs);
 		}
