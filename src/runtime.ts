@@ -75,7 +75,6 @@ export function _createFunction(fn: Function, params: Params): JulFunction {
 
 //#endregion internals
 
-// TODO value: RuntimeValue, RuntimeValue = RuntimeType | Stream ...
 function isOfType(value: any, type: RuntimeType): boolean {
 	switch (typeof type) {
 		case 'bigint':
@@ -148,14 +147,24 @@ function isOfType(value: any, type: RuntimeType): boolean {
 					case 'function':
 						return typeof value === 'function';
 					case 'type':
-						// TODO check primitive value (undefined/boolean/number/string)/builtintype/function
-						// return value === undefined
-						// || typeof value === 'boolean'
-						// || typeof value === 'number'
-						// || typeof value === 'string'
-						// || _julTypeSymbol in value
-						// || typeof value === ;
-						return true;
+						const valueType = typeof value;
+						switch (valueType) {
+							case 'bigint':
+							case 'boolean':
+							case 'function':
+							case 'number':
+							case 'string':
+							case 'undefined':
+								return true;
+							case 'object':
+								return _julTypeSymbol in value;
+							case 'symbol':
+								return false;
+							default: {
+								const assertNever: never = valueType;
+								throw new Error(`Unexpected type ${assertNever}`);
+							}
+						}
 					case 'and':
 						return type.ChoiceTypes.every(coiceType =>
 							isOfType(value, coiceType));
