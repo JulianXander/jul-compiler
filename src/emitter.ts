@@ -344,17 +344,17 @@ function getPathFromImport(importExpression: ParseFunctionCall): string {
 
 function functionBodyToJs(expressions: ParseExpression[], indent: number): string {
 	const delimiter = getRowDelimiterJs(indent);
-	const js = expressions.map((expression, index) => {
+	const js = delimiter + expressions.map((expression, index) => {
 		const expressionJs = expressionToJs(expression, indent);
 		// Die letzte Expression ist der Rückgabewert
 		if (index === expressions.length - 1) {
 			if (expression.type === 'definition') {
-				return `${delimiter}${expressionJs}${delimiter}return ${escapeReservedJsVariableName(expression.name.name)};`;
+				return `${expressionJs}${delimiter}return ${escapeReservedJsVariableName(expression.name.name)};`;
 			}
-			return `${delimiter}return ${expressionJs}`;
+			return `return ${expressionJs}`;
 		}
-		return `${delimiter}${expressionJs}`;
-	}).join('');
+		return expressionJs;
+	}).join(delimiter);
 	return js;
 }
 
