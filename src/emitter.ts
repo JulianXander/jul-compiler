@@ -353,7 +353,7 @@ function functionBodyToJs(expressions: ParseExpression[], indent: number): strin
 			}
 			return `${delimiter}return ${expressionJs}`;
 		}
-		return expressionJs;
+		return `${delimiter}${expressionJs}`;
 	}).join('');
 	return js;
 }
