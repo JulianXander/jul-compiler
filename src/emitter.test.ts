@@ -35,7 +35,10 @@ const expectedResults: {
 		},
 		{
 			code: '(1 2)',
-			result: 'export default [\n1n,\n2n,\n]'
+			result: `export default [
+	1n,
+	2n,
+]`
 		},
 		// {
 		// 	code: '(\n\t1\n\t2\n)\n',
@@ -58,17 +61,22 @@ const expectedResults: {
 			result: 'export default log()'
 		},
 		{
+			name: 'log-empty',
 			code: 'log(())',
-			result: 'export default log(\nundefined,\n)'
+			result: `export default log(undefined)`
 		},
 		{
 			code: 'log(1)',
-			result: 'export default log(\n1n,\n)'
+			result: `export default log(1n)`
 		},
 		{
 			name: 'functionCall-unknown-object',
 			code: 'log(...())',
-			result: 'export default _callFunction(log, undefined, _combineObject(undefined))'
+			result: `export default _callFunction(
+	log,
+	undefined,
+	_combineObject(undefined),
+)`
 		},
 		{
 			code: '1.log()',
@@ -76,14 +84,19 @@ const expectedResults: {
 		},
 		{
 			code: '1.log(1)',
-			result: 'export default log(1n,\n1n,\n)'
+			result: `export default log(
+	1n,
+	1n,
+)`
 		},
 		{
 			name: 'function-call-named-args',
 			code: 'log(a = 1)',
-			result: `export default _callFunction(log, undefined, {
-'a': 1n,
-})`
+			result: `export default _callFunction(
+	log,
+	undefined,
+	{'a': 1n},
+)`
 		},
 		// {
 		// 	code: 'log(§hallo welt§)',
@@ -94,29 +107,29 @@ const expectedResults: {
 			result: 'export default someVar?.[1 - 1]?.[\'test\']'
 		},
 		{
+			name: 'functionLiteral',
 			code: '(a b) => log(a)',
-			result: `export default _createFunction((a, b) => {
-return log(
-a,
-)
-}, {
-singleNames: [
-{
-name: 'a'},
-{
-name: 'b'}
-],
-})`,
+			result: `export default _createFunction(
+	(a, b) => {
+		return log(a)
+	},
+	{singleNames: [
+		{name: 'a'},
+		{name: 'b'},
+	]},
+)`,
 		},
 		{
 			name: 'function-return-type-check',
 			code: `() =>
 	a: Integer = 1`,
-			result: `export default _createFunction(() => {
-const a = 1n;
-return a;
-}, {
-})`,
+			result: `export default _createFunction(
+	() => {
+		const a = 1n;
+		return a;
+	},
+	{},
+)`,
 		},
 		// {
 		// 	code: '(a b) =>\n\tlog(a)\n\tlog(b)',
@@ -181,25 +194,27 @@ return a;
 		{
 			code: '(a: String)',
 			result: `export default {
-[_julTypeSymbol]: 'dictionaryLiteral',
-Fields: {
-'a': _String,
-},
+	[_julTypeSymbol]: 'dictionaryLiteral',
+	Fields: {'a': _String},
 }`
 		},
 		{
 			code: '(a: String b)',
 			result: `export default {
-[_julTypeSymbol]: 'dictionaryLiteral',
-Fields: {
-'a': _String,
-'b': Any,
-},
+	[_julTypeSymbol]: 'dictionaryLiteral',
+	Fields: {
+		'a': _String,
+		'b': Any,
+	},
 }`
 		},
 		{
 			code: '(1 ...a ...b)',
-			result: 'export default [\n1n,\n...a ?? [],\n...b ?? [],\n]'
+			result: `export default [
+	1n,
+	...a ?? [],
+	...b ?? [],
+]`
 		},
 		{
 			code: '(testVar) = import(§./some-file.jul§)',
@@ -208,9 +223,12 @@ Fields: {
 		{
 			name: 'type-function',
 			code: 'Any => ()',
-			result: `export default _createFunction(() => {
-return undefined
-}, {type:Any})`,
+			result: `export default _createFunction(
+	() => {
+		return undefined
+	},
+	{type: Any},
+)`,
 		},
 	];
 

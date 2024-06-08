@@ -26,7 +26,7 @@ export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: stri
 	// _branch, _callFunction, _createFunction, log
 	let hasDefinition = false;
 	return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
-		const expressionJs = expressionToJs(expression, true);
+		const expressionJs = expressionToJs(expression, 0, true);
 		if (expression.type === 'definition') {
 			hasDefinition = true;
 		}
@@ -43,11 +43,17 @@ function getDefinitionJs(isExport: boolean, nameJs: string, valueJs: string): st
 	return `${isExport ? 'export ' : ''}const ${nameJs} = ${valueJs};`;
 }
 
-function expressionToJs(expression: ParseExpression, topLevel: boolean = false): string {
+function expressionToJs(
+	expression: ParseExpression,
+	indent: number,
+	topLevel: boolean = false,
+): string {
 	switch (expression.type) {
-		case 'branching':
-			return `_branch(\n${expressionToJs(expression.value)},\n${expression.branches.map(branch =>
-				expressionToJs(branch)).join(',\n')},\n)`;
+		case 'branching': {
+			const delimiterJs = getRowDelimiterJs(indent);
+			return `_branch(${delimiterJs}${expressionToJs(expression.value, indent)},${delimiterJs}${expression.branches.map(branch =>
+				expressionToJs(branch, indent)).join(`,${delimiterJs}`)},${delimiterJs})`;
+		}
 		case 'definition': {
 			// export topLevel definitions
 			const value = expression.value;
@@ -68,7 +74,7 @@ function expressionToJs(expression: ParseExpression, topLevel: boolean = false):
 				return `${importJs}
 ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
-			const valueJs = expressionToJs(value);
+			const valueJs = expressionToJs(value, indent);
 			return getDefinitionJs(topLevel, nameJs, valueJs);
 		}
 		case 'destructuring': {
@@ -90,11 +96,11 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				}).join(', ')}}`, importPath);
 			}
 			// TODO spread
-
+			const delimiterJs = getRowDelimiterJs(indent);
 			const declarations = fields.map(field => {
 				const name = getCheckedEscapableName(field.name);
 				return `let ${name && escapeReservedJsVariableName(name)};`;
-			}).join('\n');
+			}).join(delimiterJs);
 			const assignments = fields.map((singleName, index) => {
 				const { name, source } = singleName;
 				const nameString = name.name;
@@ -103,39 +109,44 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				const sourceJs = escapeReservedJsVariableName(sourceString);
 				const valueJs = `_isArray ? _temp[${index}] : _temp.${sourceJs}`;
 				return `${nameJs} = ${valueJs};`;
-			}).join('\n');
-			return `${declarations}\n{\nconst _temp = ${expressionToJs(value)};\nconst _isArray = Array.isArray(_temp);\n${assignments}\n}`;
+			}).join(delimiterJs);
+			return `${declarations}${delimiterJs}{${delimiterJs}const _temp = ${expressionToJs(value, indent)};${delimiterJs}const _isArray = Array.isArray(_temp);${delimiterJs}${assignments}${delimiterJs}}`;
 		}
-		case 'dictionary':
+		case 'dictionary': {
+			const newIndent = indent + 1;
 			// TODO mit Object.create(null), damit leerer prototype? Oder Persistent Data Structure?
 			return dictionaryToJs(expression.fields.map(field => {
 				if (!field.value) {
 					throw new Error('value missing for dictionary field');
 				}
-				const valueJs = expressionToJs(field.value);
+				const valueJs = expressionToJs(field.value, newIndent);
 				if (field.type === 'singleDictionaryField') {
 					return singleDictionaryFieldToJs(field.name, valueJs);
 				}
 				else {
 					return spreadDictionaryFieldToJs(valueJs);
 				}
-			}));
-		case 'dictionaryType':
+			}), indent);
+		}
+		case 'dictionaryType': {
+			const newIndent = indent + 1;
+			const fieldsIndent = newIndent + 1;
 			const fieldsJs = dictionaryToJs(expression.fields.map(field => {
 				if (field.type === 'singleDictionaryTypeField') {
 					const typeGuardJs = field.typeGuard
-						? expressionToJs(field.typeGuard)
+						? expressionToJs(field.typeGuard, fieldsIndent)
 						: 'Any';
 					return singleDictionaryFieldToJs(field.name, typeGuardJs);
 				}
 				else {
-					return spreadDictionaryFieldToJs(expressionToJs(field.value));
+					return spreadDictionaryFieldToJs(expressionToJs(field.value, fieldsIndent));
 				}
-			}));
+			}), newIndent);
 			return dictionaryToJs([
 				singleDictionaryFieldToJsInternal('[_julTypeSymbol]', '\'dictionaryLiteral\''),
 				singleDictionaryFieldToJsInternal('Fields', fieldsJs),
-			]);
+			], indent);
+		}
 		case 'empty':
 			return 'undefined';
 		case 'float':
@@ -153,23 +164,29 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				// 	: path;
 				// return `require("${outPath}")`;
 			}
-			const functionJs = functionExpression && expressionToJs(functionExpression);
+			if (!functionExpression) {
+				throw new Error('functionExpression missing for functionCall.');
+			}
+			const functionJs = expressionToJs(functionExpression, indent);
 			const prefixArgJs = expression.prefixArgument
-				? expressionToJs(expression.prefixArgument)
+				? expressionToJs(expression.prefixArgument, indent)
 				: 'undefined';
 			const args = expression.arguments;
 			switch (args?.type) {
 				case 'list': {
-					const valuesJs = listValuesToJs(args.values);
+					const jsValues = parseListValuesToJs(args.values, indent);
 					if (expression.prefixArgument) {
-						return `${functionJs}(${prefixArgJs},${valuesJs})`;
+						jsValues.unshift(prefixArgJs);
 					}
+					const valuesJs = listValuesToJs(jsValues, indent);
 					return `${functionJs}(${valuesJs})`;
 				}
 				case 'object':
 				case 'dictionary': {
-					const argsJs = expressionToJs(args);
-					return `_callFunction(${functionJs}, ${prefixArgJs}, ${argsJs})`;
+					const argsJs = expressionToJs(args, indent);
+					const jsValues = [functionJs, prefixArgJs, argsJs];
+					const valuesJs = listValuesToJs(jsValues, indent);
+					return `_callFunction(${valuesJs})`;
 				}
 				case undefined:
 				case 'empty': {
@@ -193,29 +210,33 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				if (rest) {
 					argsJs += '...' + escapeReservedJsVariableName(rest.name.name);
 				}
-				paramsJs = parametersToJs(params);
+				paramsJs = parametersToJs(params, indent);
 			}
 			else {
 				argsJs = '';
-				paramsJs = `{type:${expressionToJs(params)}}`;
+				const typeFieldJs = singleDictionaryFieldToJsInternal('type', expressionToJs(params, indent));
+				paramsJs = dictionaryToJs([typeFieldJs], indent);
 			}
-			const functionJs = `(${argsJs}) => {\n${functionBodyToJs(expression.body)}\n}`;
+			const delimiterJs = getRowDelimiterJs(indent + 1);
+			const functionJs = `(${argsJs}) => {${functionBodyToJs(expression.body, indent + 2)}${delimiterJs}}`;
 			const parent = expression.parent;
 			if (parent?.type === 'definition'
 				&& expression === parent.value) {
 				// named function
 				const nameJs = escapeReservedJsVariableName(parent.name.name);
-				return `${functionJs}\n${callCreateFunctionJs(nameJs, paramsJs)}`;
+				return `${functionJs}${delimiterJs}${callCreateFunctionJs(nameJs, paramsJs, indent)}`;
 			}
 			// anonymous function
-			return callCreateFunctionJs(functionJs, paramsJs);
+			return callCreateFunctionJs(functionJs, paramsJs, indent);
 		}
 		case 'functionTypeLiteral':
 			return `_Function`;
 		case 'integer':
 			return `${expression.value}n`;
-		case 'list':
-			return `[${listValuesToJs(expression.values)}]`;
+		case 'list': {
+			const jsValues = parseListValuesToJs(expression.values, indent);
+			return listToJs(jsValues, indent);
+		}
 		case 'nestedReference': {
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
@@ -223,14 +244,14 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 			switch (nestedKey.type) {
 				case 'index':
-					return `${expressionToJs(expression.source)}?.[${nestedKey.name} - 1]`;
+					return `${expressionToJs(expression.source, indent)}?.[${nestedKey.name} - 1]`;
 				case 'name':
 				case 'text':
 					const field = getCheckedEscapableName(nestedKey);
 					if (!field) {
 						throw new Error(`Invalid field.`);
 					}
-					return `${expressionToJs(expression.source)}?.[${stringToJs(field)}]`;
+					return `${expressionToJs(expression.source, indent)}?.[${stringToJs(field)}]`;
 				default: {
 					const assertNever: never = nestedKey;
 					throw new Error(`Unexpected nestedKey.type ${(assertNever as ParseExpression).type}`);
@@ -239,12 +260,12 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 		}
 		case 'object':
 			return `_combineObject(${expression.values.map(value => {
-				return expressionToJs(value.value);
-			}).join(',\n')})`;
+				return expressionToJs(value.value, indent);
+			}).join(`,${getRowDelimiterJs(indent)}`)})`;
 		case 'reference':
 			return referenceToJs(expression);
 		case 'text':
-			return textLiteralToJs(expression);
+			return textLiteralToJs(expression, indent);
 		case 'bracketed':
 		case 'field': {
 			throw new Error(`Unexpected expression.type: ${expression.type}`);
@@ -256,13 +277,32 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 	}
 }
 
-function listValuesToJs(values: NonEmptyArray<ParseListValue>): string {
-	return '\n' + values.map(value => {
+function parseListValuesToJs(values: NonEmptyArray<ParseListValue>, indent: number): string[] {
+	const innerIndent = indent + 1;
+	const jsValues = values.map(value => {
 		const valueJs = value.type === 'spread'
-			? `...${expressionToJs(value.value)} ?? []`
-			: expressionToJs(value);
-		return `${valueJs},\n`;
-	}).join('');
+			? `...${expressionToJs(value.value, innerIndent)} ?? []`
+			: expressionToJs(value, innerIndent);
+		return valueJs;
+	});
+	return jsValues;
+}
+
+function listValuesToJs(jsValues: string[], indent: number): string {
+	if (!jsValues.length) {
+		return '';
+	}
+	if (jsValues.length === 1) {
+		return jsValues[0]!;
+	}
+	const delimiterJs = getRowDelimiterJs(indent);
+	const innerIndent = indent + 1;
+	const innerDelimiter = getRowDelimiterJs(innerIndent);
+	return `${innerDelimiter}${jsValues.join(',' + innerDelimiter)},${delimiterJs}`;
+}
+
+function listToJs(valuesJs: string[], indent: number) {
+	return `[${listValuesToJs(valuesJs, indent)}]`;
 }
 
 //#region import
@@ -304,18 +344,19 @@ function getPathFromImport(importExpression: ParseFunctionCall): string {
 
 //#endregion import
 
-function functionBodyToJs(expressions: ParseExpression[]): string {
+function functionBodyToJs(expressions: ParseExpression[], indent: number): string {
+	const delimiter = getRowDelimiterJs(indent);
 	const js = expressions.map((expression, index) => {
-		const expressionJs = expressionToJs(expression);
+		const expressionJs = expressionToJs(expression, indent);
 		// Die letzte Expression ist der Rückgabewert
 		if (index === expressions.length - 1) {
 			if (expression.type === 'definition') {
-				return `${expressionJs}\nreturn ${escapeReservedJsVariableName(expression.name.name)};`;
+				return `${delimiter}${expressionJs}${delimiter}return ${escapeReservedJsVariableName(expression.name.name)};`;
 			}
-			return `return ${expressionJs}`;
+			return `${delimiter}return ${expressionJs}`;
 		}
 		return expressionJs;
-	}).join('\n');
+	}).join('');
 	return js;
 }
 
@@ -404,39 +445,54 @@ function escapeReservedJsVariableName(name: string): string {
 	return name;
 }
 
-function parametersToJs(parameters: ParseParameterFields): string {
-	const singleNamesJs = parameters.singleFields.length
-		? `singleNames: [\n${parameters.singleFields.map(field => {
-			const typeJs = field.typeGuard
-				? `,\ntype: ${expressionToJs(field.typeGuard)}`
-				: '';
-			const sourceJs = field.source
-				? `,\nsource: ${stringToJs(field.source)}`
-				: '';
-			return `{\nname: ${stringToJs(field.name.name)}${typeJs}${sourceJs}}`;
-		}).join(',\n')}\n],\n`
-		: '';
-	const restJs = parameters.rest
-		? `rest: {${parameters.rest.typeGuard ? 'type: ' + expressionToJs(parameters.rest.typeGuard) : ''}}\n`
-		: '';
-	return `{\n${singleNamesJs}${restJs}}`;
+function parametersToJs(parameters: ParseParameterFields, indent: number): string {
+	const innerIndent = indent + 1;
+	const innerIndent2 = indent + 2;
+	const innerIndent3 = indent + 3;
+	const parametersFieldsJs: string[] = [];
+	if (parameters.singleFields.length) {
+		const singleNamesValuesJs = parameters.singleFields.map(field => {
+			const fieldsJs: string[] = [singleDictionaryFieldToJsInternal('name', stringToJs(field.name.name))];
+			if (field.source) {
+				fieldsJs.push(singleDictionaryFieldToJsInternal('source', stringToJs(field.source)));
+			}
+			if (field.typeGuard) {
+				fieldsJs.push(singleDictionaryFieldToJsInternal('type', expressionToJs(field.typeGuard, innerIndent3)));
+			}
+			return dictionaryToJs(fieldsJs, innerIndent2);
+		});
+		const singleNamesJs = listToJs(singleNamesValuesJs, innerIndent);
+		parametersFieldsJs.push(singleDictionaryFieldToJsInternal('singleNames', singleNamesJs));
+	}
+	if (parameters.rest) {
+		const restFieldsJs: string[] = [];
+		if (parameters.rest.typeGuard) {
+			restFieldsJs.push(singleDictionaryFieldToJsInternal('type', expressionToJs(parameters.rest.typeGuard, innerIndent2)));
+		}
+		const restJs = dictionaryToJs(restFieldsJs, innerIndent);
+		parametersFieldsJs.push(singleDictionaryFieldToJsInternal('rest', restJs));
+	}
+	return dictionaryToJs(parametersFieldsJs, indent);
 }
 
-function textLiteralToJs(stringLiteral: ParseTextLiteral): string {
+function textLiteralToJs(stringLiteral: ParseTextLiteral, indent: number): string {
 	const stringValue = stringLiteral.values.map(value => {
 		if (value.type === 'textToken') {
 			return escapeStringForBacktickJs(value.value);
 		}
-		return `\${${expressionToJs(value)}}`;
+		return `\${${expressionToJs(value, indent)}}`;
 	}).join('');
 	return `\`${stringValue}\``;
 }
 
-function dictionaryToJs(fieldsJs: string[]): string {
-	return `{\n${fieldsJs.join('')}}`;
+function dictionaryToJs(fieldsJs: string[], indent: number): string {
+	return `{${listValuesToJs(fieldsJs, indent)}}`;
 }
 
-function singleDictionaryFieldToJs(name: ParseValueExpression | Name, valueJs: string): string {
+function singleDictionaryFieldToJs(
+	name: ParseValueExpression | Name,
+	valueJs: string,
+): string {
 	const checkedName = getCheckedEscapableName(name);
 	if (checkedName === undefined) {
 		throw new Error('checkedName mising for DictionaryField');
@@ -444,12 +500,15 @@ function singleDictionaryFieldToJs(name: ParseValueExpression | Name, valueJs: s
 	return singleDictionaryFieldToJsInternal(stringToJs(checkedName), valueJs);
 }
 
-function singleDictionaryFieldToJsInternal(nameJs: string, valueJs: string): string {
-	return `${nameJs}: ${valueJs},\n`;
+function singleDictionaryFieldToJsInternal(
+	nameJs: string,
+	valueJs: string,
+): string {
+	return `${nameJs}: ${valueJs}`;
 }
 
 function spreadDictionaryFieldToJs(valueJs: string): string {
-	return `...${valueJs},\n`;
+	return `...${valueJs}`;
 }
 
 function escapeStringForBacktickJs(value: string): string {
@@ -468,6 +527,11 @@ function stringToJs(value: string): string {
 	return `'${escapeStringForSingleQuoteJs(value)}'`;
 }
 
-function callCreateFunctionJs(functionJs: string, paramsJs: string): string {
-	return `_createFunction(${functionJs}, ${paramsJs})`;
+function callCreateFunctionJs(functionJs: string, paramsJs: string, indent: number): string {
+	const argsJs = listValuesToJs([functionJs, paramsJs], indent);
+	return `_createFunction(${argsJs})`;
+}
+
+function getRowDelimiterJs(indent: number): string {
+	return '\n' + '\t'.repeat(indent);
 }
