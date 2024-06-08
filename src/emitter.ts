@@ -199,7 +199,6 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 		}
 		case 'functionLiteral': {
-			// TODO params(DefinitionNames) to Type
 			const params = expression.params;
 			let argsJs: string;
 			let paramsJs: string;
