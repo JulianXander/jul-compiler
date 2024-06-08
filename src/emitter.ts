@@ -63,7 +63,6 @@ function expressionToJs(
 			const nameJs = escapeReservedJsVariableName(expression.name.name);
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
-				// const useDefinitionLine = typeGuard || topLevel;
 				const aliasJs = `_${nameJs}`;
 				const isJson = importPath.endsWith(Extension.json);
 				const importJs = getImportJs(`${isJson ? '' : '* as '}${aliasJs}`, importPath);
@@ -85,7 +84,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
-				// TODO export, typeGuard
+				// TODO export
 				return getImportJs(`{${fields.map(field => {
 					const name = field.name.name;
 					const nameJs = escapeReservedJsVariableName(name);
