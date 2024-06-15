@@ -287,6 +287,13 @@ export function dereferenceNameFromObject(
 			case 'nestedReference':
 			case 'parameterReference':
 				return createNestedReference(sourceObjectType, name);
+			case 'parameters': {
+				const matchedParameter = sourceObjectType.singleNames.find(parameter => parameter.name === name);
+				if (matchedParameter) {
+					return matchedParameter.type;
+				}
+				return null;
+			}
 			case 'stream':
 				switch (name) {
 					case 'getValue':
