@@ -1,3 +1,8 @@
+-refactor CompileTimeType inferredType/dereferencedType
+	-in wrapper objekt, damit nicht sonderbehandlung für undefined/null erforderlich
+	-mit SourceExpression anreichern für Descriptions, Symbole
+		-vgl server OnCompletion, findSymbol
+		-ggf sourceFilePath berücksichtigen wegen imports
 ?filter in corelib
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
