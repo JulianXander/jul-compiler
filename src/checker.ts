@@ -253,7 +253,7 @@ function dereferenceNestedKeyFromObject(nestedKey: string | number, source: Comp
 		: dereferenceIndexFromObject(nestedKey, source);
 }
 
-function dereferenceNameFromObject(
+export function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
 ): CompileTimeType | null {
@@ -2869,7 +2869,7 @@ export function isTypeOfType(type: CompileTimeType | null): type is CompileTimeT
 		&& type[_julTypeSymbol] === 'typeOf';
 }
 
-function isUnionType(type: CompileTimeType | null): type is CompileTimeUnionType {
+export function isUnionType(type: CompileTimeType | null): type is CompileTimeUnionType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'or';
 }

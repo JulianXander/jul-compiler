@@ -1947,8 +1947,8 @@ function bracketedExpressionToValueExpression(
 			baseFields,
 			baseField => {
 				const baseName = baseField.name;
+				const typeGuard = baseField.typeGuard;
 				if (baseField.spread) {
-					const typeGuard = baseField.typeGuard;
 					if (typeGuard) {
 						errors.push({
 							message: `typeGuard is not allowed for spread dictionary field`,
@@ -1979,7 +1979,8 @@ function bracketedExpressionToValueExpression(
 					return spreadDictionaryField;
 				}
 				errors.push(...getEscapableNameErrors(baseName));
-				if (!baseField.assignedValue) {
+				const value = baseField.assignedValue;
+				if (!value) {
 					errors.push({
 						message: 'assignedValue missing for singleDictionaryField',
 						startRowIndex: baseField.startRowIndex,
@@ -1995,14 +1996,16 @@ function bracketedExpressionToValueExpression(
 					type: 'singleDictionaryField',
 					description: baseField.description,
 					name: name,
-					typeGuard: baseField.typeGuard,
-					value: baseField.assignedValue,
+					typeGuard: typeGuard,
+					value: value,
 					startRowIndex: baseField.startRowIndex,
 					startColumnIndex: baseField.startColumnIndex,
 					endRowIndex: baseField.endRowIndex,
 					endColumnIndex: baseField.endColumnIndex,
 				};
 				setParent(name, singleDictionaryField);
+				setParent(typeGuard, singleDictionaryField);
+				setParent(value, singleDictionaryField);
 				return singleDictionaryField;
 			});
 		const symbols: SymbolTable = {};
@@ -2039,8 +2042,8 @@ function bracketedExpressionToValueExpression(
 					});
 				}
 				const baseName = baseField.name;
+				const typeGuard = baseField.typeGuard;
 				if (baseField.spread) {
-					const typeGuard = baseField.typeGuard;
 					if (typeGuard) {
 						errors.push({
 							message: `typeGuard is not allowed for spread dictionaryType field`,
@@ -2068,13 +2071,14 @@ function bracketedExpressionToValueExpression(
 					type: 'singleDictionaryTypeField',
 					description: baseField.description,
 					name: name,
-					typeGuard: baseField.typeGuard,
+					typeGuard: typeGuard,
 					startRowIndex: baseField.startRowIndex,
 					startColumnIndex: baseField.startColumnIndex,
 					endRowIndex: baseField.endRowIndex,
 					endColumnIndex: baseField.endColumnIndex,
 				};
 				setParent(name, singleDictionaryField);
+				setParent(typeGuard, singleDictionaryField);
 				return singleDictionaryField;
 			});
 		const symbols: SymbolTable = {};
