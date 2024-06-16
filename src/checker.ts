@@ -372,7 +372,7 @@ export function dereferenceNameFromObject(
 	return sourceObjectType[name];
 }
 
-function dereferenceIndexFromObject(
+export function dereferenceIndexFromObject(
 	index: number,
 	sourceObjectType: CompileTimeType,
 ): CompileTimeType | null {
