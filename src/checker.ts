@@ -395,6 +395,12 @@ export function dereferenceIndexFromObject(
 				return null;
 			case 'list':
 				return sourceObjectType.ElementType;
+			case 'or': {
+				const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
+					return dereferenceIndexFromObject(index, choiceType);
+				}).filter((type): type is CompileTimeType => type !== null);
+				return createNormalizedUnionType(dereferencedChoices);
+			}
 			case 'parameterReference':
 				return createNestedReference(sourceObjectType, index);
 			case 'tuple':
