@@ -6,7 +6,7 @@ import {
 	ParseParameterFields,
 	ParseTextLiteral,
 	ParseValueExpression,
-	Reference,
+	ParseReference,
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
 import { Extension, NonEmptyArray, changeExtension } from './util.js';
@@ -358,7 +358,7 @@ function functionBodyToJs(expressions: ParseExpression[], indent: number): strin
 	return js;
 }
 
-function referenceToJs(reference: Reference): string {
+function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;
 	return escapeReservedJsVariableName(name);
 }

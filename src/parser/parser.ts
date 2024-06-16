@@ -45,7 +45,7 @@ import {
 	ParseTextLiteral,
 	ParseValueExpression,
 	PositionedExpression,
-	Reference,
+	ParseReference,
 	SimpleExpression,
 	SymbolTable,
 	TextToken,
@@ -503,8 +503,6 @@ function expressionParser(
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		};
 		setParent(fields, destructuring);
 		setParent(value, destructuring);
@@ -534,8 +532,6 @@ function expressionParser(
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		};
 		setParent(definition.value, definition);
 		return {
@@ -615,7 +611,7 @@ function referenceParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<Reference> {
+): ParserResult<ParseReference> {
 	const result = nameParser(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
@@ -626,8 +622,6 @@ function referenceParser(
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		}
 	};
 }
@@ -759,8 +753,6 @@ function fieldParser(
 		startColumnIndex: startColumnIndex,
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
-		inferredType: null,
-		dereferencedType: null,
 	};
 	return {
 		...result,
@@ -857,8 +849,6 @@ function valueExpressionBaseParser(
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-				inferredType: null,
-				dereferencedType: null,
 			};
 			setParents(branches, branching);
 			return {
@@ -940,8 +930,6 @@ function valueExpressionBaseParser(
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-				inferredType: null,
-				dereferencedType: null,
 			};
 			return {
 				hasParsed: true,
@@ -1050,8 +1038,6 @@ function simpleExpressionBaseParser(
 							startColumnIndex: accumulator.startColumnIndex,
 							endRowIndex: currentValue.endRowIndex,
 							endColumnIndex: currentValue.endColumnIndex,
-							inferredType: null,
-							dereferencedType: null,
 						};
 						setParentForFunctionCall(functionCall);
 						return functionCall;
@@ -1074,8 +1060,6 @@ function simpleExpressionBaseParser(
 							endRowIndex: nestedKey
 								? nestedKey.endRowIndex
 								: accumulator.endRowIndex,
-							inferredType: null,
-							dereferencedType: null,
 						};
 						setParent(accumulator, nestedReference);
 						if (nestedKey) {
@@ -1092,8 +1076,6 @@ function simpleExpressionBaseParser(
 							startColumnIndex: accumulator.startColumnIndex,
 							endRowIndex: currentValue.endRowIndex,
 							endColumnIndex: currentValue.endColumnIndex,
-							inferredType: null,
-							dereferencedType: null,
 						};
 						setParentForFunctionCall(functionCall);
 						return functionCall;
@@ -1137,8 +1119,6 @@ function numberParser(
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-				inferredType: null,
-				dereferencedType: null,
 			},
 		};
 	}
@@ -1156,8 +1136,6 @@ function numberParser(
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-				inferredType: null,
-				dereferencedType: null,
 			},
 		};
 	}
@@ -1170,8 +1148,6 @@ function numberParser(
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		},
 	};
 }
@@ -1202,8 +1178,6 @@ function inlineTextParser(
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-				inferredType: null,
-				dereferencedType: null,
 			},
 	};
 }
@@ -1258,8 +1232,6 @@ function multilineTextParser(
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-				inferredType: null,
-				dereferencedType: null,
 			},
 	};
 }
@@ -1318,7 +1290,7 @@ function infixFunctionArgumentsParser(
 ): ParserResult<{
 	type: 'infixFunctionArgs',
 	arguments?: BracketedExpression;
-	infixFunctionReference?: Reference;
+	infixFunctionReference?: ParseReference;
 	endRowIndex: number,
 	endColumnIndex: number,
 }> {
@@ -1552,8 +1524,6 @@ function bracketedBaseParser(
 		startColumnIndex: startColumnIndex,
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
-		inferredType: null,
-		dereferencedType: null,
 	};
 	// setParents(fieldsWithDescription, bracketed);
 	return {
@@ -1770,8 +1740,6 @@ function bracketedExpressionToDestructuringFields(
 			startColumnIndex: baseField.startColumnIndex,
 			endRowIndex: baseField.endRowIndex,
 			endColumnIndex: baseField.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		};
 		setParent(checkedName, destructuringField);
 		setParent(destructuringField.typeGuard, destructuringField);
@@ -1788,8 +1756,6 @@ function bracketedExpressionToDestructuringFields(
 		startColumnIndex: bracketedExpression.startColumnIndex,
 		endRowIndex: bracketedExpression.endRowIndex,
 		endColumnIndex: bracketedExpression.endColumnIndex,
-		inferredType: null,
-		dereferencedType: null,
 	};
 	setParents(fields, parseFields);
 	return parseFields;
@@ -1836,8 +1802,6 @@ function bracketedExpressionToParameters(
 			startColumnIndex: baseField.startColumnIndex,
 			endRowIndex: baseField.endRowIndex,
 			endColumnIndex: baseField.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 			inferredTypeFromCall: null,
 		};
 		if (baseField.spread) {
@@ -1900,8 +1864,6 @@ function bracketedExpressionToValueExpression(
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		};
 	}
 	const isList = baseFields.every(baseField =>
@@ -1932,8 +1894,6 @@ function bracketedExpressionToValueExpression(
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		};
 		setParents(list.values, list);
 		return list;
@@ -2018,8 +1978,6 @@ function bracketedExpressionToValueExpression(
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		};
 		setParents(fields, dictionary);
 		return dictionary;
@@ -2091,8 +2049,6 @@ function bracketedExpressionToValueExpression(
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		};
 		setParents(fields, dictionaryType);
 		return dictionaryType;
@@ -2122,8 +2078,6 @@ function bracketedExpressionToValueExpression(
 			startColumnIndex: bracketedExpression.startColumnIndex,
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
-			inferredType: null,
-			dereferencedType: null,
 		};
 	}
 	// TODO bessere Fehlermeldung

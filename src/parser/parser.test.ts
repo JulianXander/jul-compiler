@@ -216,11 +216,10 @@ const expectedResults: {
 						"startRowIndex": 2,
 						"type": "integer",
 						"value": 5n,
-						inferredType: null,
-						dereferencedType: null,
 					},
 				};
 				field.name.parent = field;
+				field.value!.parent = field;
 				const dictionary: ParseDictionaryLiteral = {
 					"endColumnIndex": 1,
 					"endRowIndex": 3,
@@ -236,15 +235,11 @@ const expectedResults: {
 							"startColumnIndex": 1,
 							"startRowIndex": 2,
 							"typeExpression": undefined as any,
-							inferredType: null,
-							dereferencedType: null,
 						},
 					},
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
 					"type": "dictionary",
-					inferredType: null,
-					dereferencedType: null,
 				};
 				dictionary.fields[0].parent = dictionary;
 				dictionary.symbols.someKey.definition = field;
@@ -274,8 +269,6 @@ const expectedResults: {
 								value: "someKey"
 							}
 						],
-						inferredType: null,
-						dereferencedType: null,
 					},
 					"startColumnIndex": 1,
 					"startRowIndex": 1,
@@ -288,11 +281,10 @@ const expectedResults: {
 						"startRowIndex": 1,
 						"type": "integer",
 						"value": 5n,
-						inferredType: null,
-						dereferencedType: null,
 					},
 				};
 				field.name.parent = field;
+				field.value!.parent = field;
 				const dictionary: ParseDictionaryLiteral = {
 					"endColumnIndex": 1,
 					"endRowIndex": 2,
@@ -308,15 +300,11 @@ const expectedResults: {
 							"startColumnIndex": 1,
 							"startRowIndex": 1,
 							"typeExpression": undefined as any,
-							inferredType: null,
-							dereferencedType: null,
 						},
 					},
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
 					"type": "dictionary",
-					inferredType: null,
-					dereferencedType: null,
 				};
 				dictionary.fields[0].parent = dictionary;
 				dictionary.symbols.someKey.definition = field;
@@ -359,11 +347,10 @@ const expectedResults: {
 						"startColumnIndex": 10,
 						"startRowIndex": 1,
 						"type": "reference",
-						inferredType: null,
-						dereferencedType: null,
 					},
 				};
 				field.name.parent = field;
+				field.typeGuard!.parent = field;
 				const dictionaryType: ParseDictionaryTypeLiteral = {
 					"endColumnIndex": 1,
 					"endRowIndex": 2,
@@ -394,19 +381,14 @@ const expectedResults: {
 								"startColumnIndex": 10,
 								"startRowIndex": 1,
 								"type": "reference",
-								inferredType: null,
-								dereferencedType: null,
 							},
-							inferredType: null,
-							dereferencedType: null,
 						},
 					},
 					"type": "dictionaryType",
-					inferredType: null,
-					dereferencedType: null,
 				};
 				dictionaryType.fields[0].parent = dictionaryType;
 				dictionaryType.symbols.someKey.definition = field;
+				dictionaryType.symbols.someKey.typeExpression!.parent = field;
 				const result: ParseExpression[] = [
 					dictionaryType,
 				];
@@ -1143,8 +1125,6 @@ const expectedResults: {
 							"startColumnIndex": 12,
 							"startRowIndex": 0,
 							"type": "empty",
-							inferredType: null,
-							dereferencedType: null,
 						},
 					],
 					"endColumnIndex": 14,
@@ -1158,8 +1138,6 @@ const expectedResults: {
 						"startRowIndex": 0,
 						symbols: {},
 						"type": "parameters",
-						inferredType: null,
-						dereferencedType: null,
 					},
 					"returnType": {
 						"endColumnIndex": 8,
@@ -1167,15 +1145,11 @@ const expectedResults: {
 						"startColumnIndex": 6,
 						"startRowIndex": 0,
 						"type": "empty",
-						inferredType: null,
-						dereferencedType: null,
 					},
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
 					"symbols": {},
 					"type": "functionLiteral",
-					inferredType: null,
-					dereferencedType: null,
 				};
 				functionLiteral.body[0].parent = functionLiteral;
 				functionLiteral.params.parent = functionLiteral;
@@ -1210,14 +1184,10 @@ const expectedResults: {
 						"startColumnIndex": 0,
 						"startRowIndex": 0,
 						"type": "reference",
-						inferredType: null,
-						dereferencedType: null,
 					},
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
 					"type": "nestedReference",
-					inferredType: null,
-					dereferencedType: null,
 				};
 				nestedReference.source.parent = nestedReference;
 				return [
@@ -1252,12 +1222,8 @@ const expectedResults: {
 							"startRowIndex": 0,
 							"type": "integer",
 							"value": 4n,
-							inferredType: null,
-							dereferencedType: null,
 						},
 					],
-					inferredType: null,
-					dereferencedType: null,
 				};
 				list.values[0].parent = list;
 				return [list];
@@ -1312,13 +1278,9 @@ const expectedResults: {
 							"startColumnIndex": 1,
 							"startRowIndex": 1,
 							"typeExpression": undefined,
-							inferredType: null,
-							dereferencedType: null,
 						},
 					},
 					"type": "dictionary",
-					inferredType: null,
-					dereferencedType: null,
 				};
 				dictionary.fields[0].parent = dictionary;
 				(dictionary.fields[0] as any).name.parent = dictionary.fields[0];

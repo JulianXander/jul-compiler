@@ -28,8 +28,6 @@ const expectedResults: {
 							"value": "hallo\nWelt",
 						},
 					],
-					inferredType: null,
-					dereferencedType: null,
 				},
 			],
 		}

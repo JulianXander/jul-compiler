@@ -37,6 +37,7 @@ import {
 	createNestedReference,
 	createParameterReference,
 	createParametersType,
+	createReferenceType,
 	Never,
 	Parameter,
 	ParameterReference,
@@ -49,12 +50,14 @@ import {
 	ParseParameterField,
 	ParseParameterFields,
 	ParseValueExpression,
-	Reference,
+	ParseReference,
 	SimpleExpression,
 	SymbolDefinition,
 	SymbolTable,
 	TextToken,
 	TypedExpression,
+	TypeInfo,
+	ReferenceType,
 } from './syntax-tree.js';
 import { NonEmptyArray, elementsEqual, fieldsEqual, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
@@ -176,7 +179,7 @@ export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
 
 //#region dereference
 
-function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
+function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	type: CompileTimeType;
 	found: boolean;
 	/**
@@ -221,8 +224,8 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 			isBuiltIn: isBuiltIn,
 		};
 	}
-	const referencedType = foundSymbol.inferredType;
-	if (referencedType === null) {
+	const referencedType = foundSymbol.typeInfo;
+	if (!referencedType) {
 		// TODO was wenn referencedsymbol type noch nicht inferred ist?
 		// tritt vermutlich bei rekursion auf
 		// setInferredType(referencedSymbol)
@@ -236,7 +239,7 @@ function dereferenceType(reference: Reference, scopes: SymbolTable[]): {
 		};
 	}
 	return {
-		type: referencedType,
+		type: referencedType.rawType,
 		found: true,
 		foundSymbol: foundSymbol,
 		isBuiltIn: isBuiltIn,
@@ -573,6 +576,7 @@ function dereferenceArgumentTypesNested(
 		case 'dictionaryLiteral':
 		case 'function':
 		case 'parameters':
+		case 'reference':
 		case 'tuple':
 			return builtInType;
 		default: {
@@ -612,12 +616,15 @@ function dereferenceParameterFromArgumentType(
 	argsType: CompileTimeType,
 	parameterReference: ParameterReference,
 ): CompileTimeType {
-	if (!calledFunction || parameterReference.functionRef !== calledFunction) {
+	const dereferencedFunction = isReferenceType(calledFunction)
+		? calledFunction.dereferencedType
+		: calledFunction;
+	if (!dereferencedFunction || parameterReference.functionRef !== dereferencedFunction) {
 		return parameterReference;
 	}
 	// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
 	const paramIndex = parameterReference.index;
-	const paramsType = calledFunction.ParamsType;
+	const paramsType = dereferencedFunction.ParamsType;
 	const isRest = isParametersType(paramsType)
 		? paramsType.singleNames.length === paramIndex
 		// TODO?
@@ -772,6 +779,9 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				}
 				return createParametersType(dereferencedSingleNames, dereferencedRest);
 			}
+			case 'reference': {
+				return dereferenceNested(rawType.dereferencedType);
+			}
 			case 'stream': {
 				const rawValue = rawType.ValueType;
 				const dereferencedValue = dereferenceNested(rawValue);
@@ -864,12 +874,10 @@ function setInferredType(
 	sourceFolder: string,
 	file: ParsedExpressions2,
 ): void {
-	if (expression.inferredType !== null) {
+	if (expression.typeInfo) {
 		return;
 	}
-	const rawType = inferType(expression, scopes, parsedDocuments, sourceFolder, file);
-	expression.inferredType = rawType;
-	expression.dereferencedType = dereferenceNested(rawType);
+	expression.typeInfo = inferType(expression, scopes, parsedDocuments, sourceFolder, file);
 }
 
 // TODO flatten nested or/and
@@ -885,12 +893,15 @@ function inferType(
 	parsedDocuments: ParsedDocuments,
 	folder: string,
 	file: ParsedExpressions2,
-): CompileTimeType {
+): TypeInfo {
 	const errors = file.errors;
 	switch (expression.type) {
 		case 'bracketed':
 			// TODO?
-			return Any;
+			return {
+				rawType: Any,
+				dereferencedType: Any,
+			};
 		case 'branching': {
 			// union branch return types
 			// TODO conditional type?
@@ -900,7 +911,7 @@ function inferType(
 				setInferredType(branch, scopes, parsedDocuments, folder, file);
 				// Fehler, wenn branch type != function
 				const functionType = createCompileTimeFunctionType(Any, Any, false);
-				const nonFunctionError = areArgsAssignableTo(null, branch.inferredType!, functionType);
+				const nonFunctionError = areArgsAssignableTo(null, branch.typeInfo!.dereferencedType, functionType);
 				if (nonFunctionError) {
 					errors.push({
 						message: 'Expected branch to be a function.\n' + nonFunctionError,
@@ -932,9 +943,13 @@ function inferType(
 				}
 			});
 			const branchReturnTypes = expression.branches.map(branch => {
-				return getReturnTypeFromFunctionType(branch.inferredType);
+				return getReturnTypeFromFunctionType(branch.typeInfo);
 			});
-			return createNormalizedUnionType(branchReturnTypes);
+			const rawType = createNormalizedUnionType(branchReturnTypes);
+			return {
+				rawType: rawType,
+				dereferencedType: dereferenceNested(rawType),
+			};
 		}
 		case 'definition': {
 			const value = expression.value;
@@ -942,20 +957,23 @@ function inferType(
 				setInferredType(value, scopes, parsedDocuments, folder, file);
 			}
 			const name = expression.name.name;
-			let inferredType: CompileTimeType;
-			let dereferencedType: CompileTimeType;
+			let typeInfo: TypeInfo;
 			if (name in coreBuiltInSymbolTypes) {
-				inferredType = coreBuiltInSymbolTypes[name];
-				dereferencedType = inferredType;
+				const rawType = coreBuiltInSymbolTypes[name];
+				typeInfo = {
+					rawType: rawType,
+					dereferencedType: rawType,
+				};
 			}
 			else {
-				if (value && value.inferredType !== null) {
-					inferredType = value.inferredType;
-					dereferencedType = value.dereferencedType!;
+				if (value?.typeInfo) {
+					typeInfo = value.typeInfo;
 				}
 				else {
-					inferredType = Any;
-					dereferencedType = Any;
+					typeInfo = {
+						rawType: Any,
+						dereferencedType: Any,
+					};
 				}
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
@@ -965,14 +983,13 @@ function inferType(
 			if (!symbol) {
 				throw new Error(`Definition Symbol ${name} not found`);
 			}
-			symbol.inferredType = inferredType;
-			symbol.dereferencedType = dereferencedType;
+			symbol.typeInfo = typeInfo;
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
 				checkTypeGuardIsType(typeGuard, errors);
-				const typeGuardType = typeGuard.dereferencedType;
-				const assignmentError = areArgsAssignableTo(null, dereferencedType, valueOf(typeGuardType));
+				const typeGuardType = typeGuard.typeInfo;
+				const assignmentError = typeGuardType && areArgsAssignableTo(null, typeInfo.dereferencedType, valueOf(typeGuardType.dereferencedType));
 				if (assignmentError) {
 					errors.push({
 						message: assignmentError,
@@ -983,7 +1000,7 @@ function inferType(
 					});
 				}
 			}
-			return inferredType;
+			return typeInfo;
 		}
 		case 'destructuring': {
 			const value = expression.value;
@@ -999,11 +1016,11 @@ function inferType(
 				}
 				checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
 				const referenceName = field.source?.name ?? fieldName;
-				const valueType = value
-					? getValueWithFallback(value.inferredType, Any)
+				const valueType = value?.typeInfo
+					? value.typeInfo.rawType
 					: Any;
-				const dereferencedType = dereferenceNameFromObject(referenceName, valueType);
-				if (dereferencedType === null) {
+				const fieldType = dereferenceNameFromObject(referenceName, valueType);
+				if (fieldType === null) {
 					errors.push({
 						message: `Failed to dereference ${referenceName} in type ${typeToString(valueType, 0)}`,
 						startRowIndex: field.startRowIndex,
@@ -1014,14 +1031,16 @@ function inferType(
 					return;
 				}
 				const symbol = currentScope[fieldName]!;
-				symbol.inferredType = dereferencedType;
-				symbol.dereferencedType = dereferenceNested(dereferencedType);
+				symbol.typeInfo = {
+					rawType: fieldType,
+					dereferencedType: dereferenceNested(fieldType)
+				};
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
 					setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
 					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
-					const error = areArgsAssignableTo(null, dereferencedType, valueOf(typeGuard.inferredType));
+					const error = typeGuard.typeInfo && areArgsAssignableTo(null, fieldType, valueOf(typeGuard.typeInfo.dereferencedType));
 					if (error) {
 						errors.push({
 							message: error,
@@ -1033,7 +1052,10 @@ function inferType(
 					}
 				}
 			});
-			return Any;
+			return {
+				rawType: Any,
+				dereferencedType: Any,
+			};
 		}
 		case 'dictionary': {
 			const fieldTypes: CompileTimeDictionary = {};
@@ -1054,20 +1076,22 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = field.value
-							? getValueWithFallback(field.value.inferredType, Any)
+						const fieldType = field.value?.typeInfo
+							? getValueWithFallback(field.value.typeInfo.rawType, Any)
 							: Any;
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
 						}
-						fieldSymbol.inferredType = fieldType;
-						fieldSymbol.dereferencedType = dereferenceNested(fieldType);
+						fieldSymbol.typeInfo = {
+							rawType: fieldType,
+							dereferencedType: dereferenceNested(fieldType),
+						};
 						return;
 					}
 					case 'spread':
-						const valueType = value?.inferredType;
+						const valueType = value?.typeInfo?.rawType;
 						// TODO DictionaryType, ChoiceType etc ?
 						if (isDictionaryLiteralType(valueType)) {
 							const valueFieldTypes = valueType.Fields;
@@ -1086,9 +1110,16 @@ function inferType(
 				}
 			});
 			if (isUnknownType) {
-				return Any;
+				return {
+					rawType: Any,
+					dereferencedType: Any,
+				};
 			}
-			return createCompileTimeDictionaryLiteralType(fieldTypes);
+			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes);
+			return {
+				rawType: rawType,
+				dereferencedType: dereferenceNested(rawType),
+			};
 		}
 		case 'dictionaryType': {
 			const fieldTypes: CompileTimeDictionary = {};
@@ -1105,14 +1136,16 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = valueOf(typeGuard.inferredType);
+						const fieldType = valueOf(typeGuard.typeInfo?.rawType);
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
 						}
-						fieldSymbol.inferredType = fieldType;
-						fieldSymbol.dereferencedType = dereferenceNested(fieldType);
+						fieldSymbol.typeInfo = {
+							rawType: fieldType,
+							dereferencedType: dereferenceNested(fieldType),
+						};
 						return;
 					}
 					case 'spread':
@@ -1126,20 +1159,38 @@ function inferType(
 					}
 				}
 			});
-			return createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes));
+			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes));
+			return {
+				rawType: rawType,
+				dereferencedType: dereferenceNested(rawType),
+			};
 		}
 		case 'empty':
-			return undefined;
+			return {
+				rawType: undefined,
+				dereferencedType: undefined,
+			};
 		case 'field':
 			// TODO?
-			return Any;
+			return {
+				rawType: Any,
+				dereferencedType: Any,
+			};
 		case 'float':
-			return expression.value;
-		case 'fraction':
-			return createCompileTimeDictionaryLiteralType({
+			return {
+				rawType: expression.value,
+				dereferencedType: expression.value,
+			};
+		case 'fraction': {
+			const rawType = createCompileTimeDictionaryLiteralType({
 				numerator: expression.numerator,
 				denominator: expression.denominator,
 			});
+			return {
+				rawType: rawType,
+				dereferencedType: rawType,
+			};
+		}
 		case 'functionCall': {
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
@@ -1149,14 +1200,20 @@ function inferType(
 			}
 			const functionExpression = expression.functionExpression;
 			if (!functionExpression) {
-				return Any;
+				return {
+					rawType: Any,
+					dereferencedType: Any,
+				};
 			}
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file);
-			const functionType = functionExpression.inferredType!;
+			const functionType = functionExpression.typeInfo!.rawType;
 			const paramsType = getParamsType(functionType);
 			const args = expression.arguments;
 			if (!args) {
-				return Any;
+				return {
+					rawType: Any,
+					dereferencedType: Any,
+				};
 			}
 			//#region infer argument type bei function literal welches inline argument eines function calls ist
 			const prefixArgs = prefixArgument
@@ -1191,9 +1248,9 @@ function inferType(
 			});
 			//#endregion
 			setInferredType(args, scopes, parsedDocuments, folder, file);
-			const argsType = args.inferredType!;
-			const prefixArgumentType = prefixArgument
-				? prefixArgument.inferredType
+			const argsType = args.typeInfo!.rawType;
+			const prefixArgumentType = prefixArgument?.typeInfo
+				? prefixArgument.typeInfo.rawType
 				: null;
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
 			if (assignArgsError) {
@@ -1208,8 +1265,10 @@ function inferType(
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, parsedDocuments, folder, errors);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, returnType);
-			// const dereferencedReturnType2 = dereferenceArgumentTypesNested2(expression, prefixArgumentType, argsType, returnType);
-			return dereferencedReturnType;
+			return {
+				rawType: dereferencedReturnType,
+				dereferencedType: dereferenceNested(dereferencedReturnType),
+			};
 		}
 		case 'functionLiteral': {
 			const ownSymbols = expression.symbols;
@@ -1225,7 +1284,7 @@ function inferType(
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
 			setInferredType(params, functionScopes, parsedDocuments, folder, file);
-			const paramsTypeValue = valueOf(params.inferredType);
+			const paramsTypeValue = valueOf(params.typeInfo!.rawType);
 			functionType.ParamsType = paramsTypeValue;
 			//#region narrowed type symbol für branching
 			const branching = expression.parent;
@@ -1240,7 +1299,10 @@ function inferType(
 							...branchedSymbol,
 							functionParameterIndex: undefined,
 							// TODO paramsType spreaden?
-							inferredType: paramsTypeValue,
+							typeInfo: {
+								rawType: paramsTypeValue,
+								dereferencedType: valueOf(params.typeInfo!.dereferencedType),
+							},
 						};
 					}
 				}
@@ -1249,11 +1311,11 @@ function inferType(
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
 			});
-			const inferredReturnType = last(expression.body)?.inferredType!;
+			const inferredReturnType = last(expression.body)?.typeInfo!;
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
-				const error = areArgsAssignableTo(null, inferredReturnType, valueOf(declaredReturnType.inferredType));
+				const error = areArgsAssignableTo(null, inferredReturnType.dereferencedType, valueOf(declaredReturnType.typeInfo!.dereferencedType));
 				if (error) {
 					errors.push({
 						message: error,
@@ -1264,8 +1326,11 @@ function inferType(
 					});
 				}
 			}
-			functionType.ReturnType = inferredReturnType;
-			return functionType;
+			functionType.ReturnType = inferredReturnType.rawType;
+			return {
+				rawType: functionType,
+				dereferencedType: dereferenceNested(functionType),
+			};
 		}
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
@@ -1279,20 +1344,23 @@ function inferType(
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
 			setInferredType(params, functionScopes, parsedDocuments, folder, file);
-			functionType.ParamsType = valueOf(params.inferredType);
+			functionType.ParamsType = valueOf(params.typeInfo!.rawType);
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file);
-			const inferredReturnType = expression.returnType.inferredType;
-			if (inferredReturnType === null) {
-				console.log(JSON.stringify(expression, undefined, 4));
-				throw new Error('returnType was not inferred');
-			}
+			const inferredReturnType = expression.returnType.typeInfo!.rawType;
 			functionType.ReturnType = valueOf(inferredReturnType);
-			return createCompileTimeTypeOfType(functionType);
+			const rawType = createCompileTimeTypeOfType(functionType);
+			return {
+				rawType: rawType,
+				dereferencedType: dereferenceNested(rawType),
+			};
 		}
 		case 'integer':
-			return expression.value;
-		case 'list':
+			return {
+				rawType: expression.value,
+				dereferencedType: expression.value,
+			};
+		case 'list': {
 			// TODO spread elements
 			// TODO error when spread dictionary
 			expression.values.forEach(element => {
@@ -1301,33 +1369,52 @@ function inferType(
 					: element;
 				setInferredType(typedExpression, scopes, parsedDocuments, folder, file);
 			});
-			return createCompileTimeTupleType(expression.values.map(element => {
+			const rawType = createCompileTimeTupleType(expression.values.map(element => {
 				if (element.type === 'spread') {
 					// TODO flatten spread tuple value type
 					return Any;
 				}
-				return element.inferredType!;
+				return element.typeInfo!.rawType;
 			}));
+			return {
+				rawType: rawType,
+				dereferencedType: dereferenceNested(rawType),
+			};
+		}
 		case 'nestedReference': {
 			const source = expression.source;
 			setInferredType(source, scopes, parsedDocuments, folder, file);
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
-				return Any;
+				return {
+					rawType: Any,
+					dereferencedType: Any,
+				};
 			}
 			switch (nestedKey.type) {
 				case 'index': {
-					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.inferredType!);
-					return getValueWithFallback(dereferencedType, Any);
+					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.typeInfo!.rawType);
+					const rawType = getValueWithFallback(dereferencedType, Any);
+					return {
+						rawType: rawType,
+						dereferencedType: dereferenceNested(rawType),
+					};
 				}
 				case 'name':
 				case 'text': {
 					const fieldName = getCheckedEscapableName(nestedKey);
 					if (!fieldName) {
-						return Any;
+						return {
+							rawType: Any,
+							dereferencedType: Any,
+						};
 					}
-					const dereferencedType = dereferenceNameFromObject(fieldName, source.inferredType!);
-					return getValueWithFallback(dereferencedType, Any);
+					const dereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.rawType);
+					const rawType = getValueWithFallback(dereferencedType, Any);
+					return {
+						rawType: rawType,
+						dereferencedType: dereferenceNested(rawType),
+					};
 				}
 				default: {
 					const assertNever: never = nestedKey;
@@ -1344,14 +1431,17 @@ function inferType(
 			expression.values.forEach(element => {
 				const typedExpression = element.value;
 				setInferredType(typedExpression, scopes, parsedDocuments, folder, file);
-				const inferredType = typedExpression.inferredType;
+				const inferredType = typedExpression.typeInfo?.rawType;
 				// TODO
 				if (isDictionaryType(inferredType)
 					|| isDictionaryLiteralType(inferredType)) {
 					hasDictionary = true;
 				}
 			});
-			return Any;
+			return {
+				rawType: Any,
+				dereferencedType: Any,
+			};
 		}
 		case 'parameter': {
 			const typeGuard = expression.typeGuard;
@@ -1373,27 +1463,30 @@ function inferType(
 				const functionExpression = functionCall.functionExpression;
 				const args = functionCall.arguments;
 				if (functionExpression && args) {
-					const functionType = functionExpression.inferredType!;
+					const functionType = functionExpression.typeInfo!.rawType;
 					const prefixArgument = functionCall.prefixArgument;
 					// TODO rest berücksichtigen
 					// const paramIndex = expression.parent.singleFields.indexOf(expression);
 					// TODO previous arg types
-					const prefixArgumentType = prefixArgument
-						? prefixArgument.inferredType
+					const prefixArgumentType = prefixArgument?.typeInfo
+						? prefixArgument.typeInfo.rawType
 						: null;
 					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgumentType, undefined, inferredTypeFromCall);
 				}
 			}
 			//#endregion
-			const typeGuardType = typeGuard
-				? typeGuard.inferredType
+			const typeGuardType = typeGuard?.typeInfo
+				? typeGuard.typeInfo.rawType
 				: null;
 			const inferredType = getValueWithFallback(dereferencedTypeFromCall, valueOf(typeGuardType));
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
-			parameterSymbol.inferredType = inferredType;
-			parameterSymbol.dereferencedType = dereferenceNested(inferredType);
-			return inferredType;
+			const typeInfo: TypeInfo = {
+				rawType: inferredType,
+				dereferencedType: dereferenceNested(inferredType),
+			};
+			parameterSymbol.typeInfo = typeInfo;
+			return typeInfo;
 		}
 		case 'parameters': {
 			expression.singleFields.forEach(field => {
@@ -1404,18 +1497,26 @@ function inferType(
 				setInferredType(rest, scopes, parsedDocuments, folder, file);
 				// TODO check rest type is list type
 			}
-			return createParametersType(
+			const rawType = createParametersType(
 				expression.singleFields.map(field => {
 					return {
 						name: field.source ?? field.name.name,
-						type: field.inferredType
+						type: field.typeInfo
+							? field.typeInfo.rawType
+							: null
 					};
 				}),
 				rest && {
 					name: rest.name.name,
-					type: rest.inferredType,
+					type: rest.typeInfo
+						? rest.typeInfo.rawType
+						: null,
 				},
 			);
+			return {
+				rawType: rawType,
+				dereferencedType: dereferenceNested(rawType),
+			};
 		}
 		case 'reference': {
 			const {
@@ -1424,9 +1525,10 @@ function inferType(
 				type,
 				isBuiltIn,
 			} = dereferenceType(expression, scopes);
+			const name = expression.name.name;
 			if (!found) {
 				errors.push({
-					message: `${expression.name.name} is not defined.`,
+					message: `${name} is not defined.`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,
@@ -1441,28 +1543,38 @@ function inferType(
 					|| (expression.startRowIndex === foundSymbol.startRowIndex
 						&& expression.startColumnIndex < foundSymbol.startColumnIndex))) {
 				errors.push({
-					message: `${expression.name.name} is used before it is defined.`,
+					message: `${name} is used before it is defined.`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			return type;
+			return {
+				rawType: createReferenceType(name, type),
+				dereferencedType: dereferenceNested(type),
+			};
 		}
 		case 'text': {
 			// TODO string template type?
 			if (expression.values.every((part): part is TextToken => part.type === 'textToken')) {
 				// string literal type
 				// TODO sollte hier überhaupt mehrelementiger string möglich sein?
-				return expression.values.map(part => part.value).join('\n');
+				const rawType = expression.values.map(part => part.value).join('\n');
+				return {
+					rawType: rawType,
+					dereferencedType: dereferenceNested(rawType),
+				};
 			}
 			expression.values.forEach(part => {
 				if (part.type !== 'textToken') {
 					setInferredType(part, scopes, parsedDocuments, folder, file);
 				}
 			});
-			return _Text;
+			return {
+				rawType: _Text,
+				dereferencedType: _Text,
+			};
 		}
 		default: {
 			const assertNever: never = expression;
@@ -1481,10 +1593,10 @@ function getReturnTypeFromFunctionCall(
 	errors: ParserError[],
 ): CompileTimeType {
 	const prefixArgument = functionCall.prefixArgument;
-	const prefixArgumentType = prefixArgument
-		? prefixArgument.inferredType
+	const prefixArgumentType = prefixArgument?.typeInfo
+		? prefixArgument.typeInfo.rawType
 		: null;
-	const argsType = functionCall.arguments?.inferredType!;
+	const argsType = functionCall.arguments?.typeInfo!.rawType;
 	// TODO statt functionname functionref value/inferred type prüfen?
 	if (functionExpression.type === 'reference') {
 		const functionName = functionExpression.name.name;
@@ -1507,7 +1619,9 @@ function getReturnTypeFromFunctionCall(
 				// a dictionary containing all definitions is imported
 				if (Object.keys(importedFile.symbols).length) {
 					const importedTypes = mapDictionary(importedFile.symbols, symbol => {
-						return getValueWithFallback(symbol.inferredType, Any);
+						return symbol.typeInfo
+							? symbol.typeInfo.rawType
+							: Any;
 					});
 					return createCompileTimeDictionaryLiteralType(importedTypes);
 				}
@@ -1520,7 +1634,9 @@ function getReturnTypeFromFunctionCall(
 				if (!lastExpression) {
 					return Any;
 				}
-				return getValueWithFallback(lastExpression.inferredType, Any);
+				return lastExpression.typeInfo
+					? lastExpression.typeInfo.rawType
+					: Any;
 			}
 			// case 'nativeFunction': {
 			// 	const argumentType = dereferenceArgumentType(argsType, createParameterReference([{
@@ -1625,7 +1741,7 @@ function getReturnTypeFromFunctionCall(
 				break;
 		}
 	}
-	const functionType = functionExpression.inferredType;
+	const functionType = functionExpression.typeInfo;
 	return getReturnTypeFromFunctionType(functionType);
 }
 
@@ -2261,6 +2377,7 @@ export function getTypeError(
 						}
 						break;
 					// TODO
+					case 'reference':
 					case 'typeOf':
 						break;
 					default: {
@@ -2580,6 +2697,7 @@ function typeErrorToString(typeError: TypeError): string {
 
 //#region ToString
 
+// TODO expand ReferenceType 1 level deep?
 export function typeToString(type: CompileTimeType, indent: number): string {
 	switch (typeof type) {
 		case 'bigint':
@@ -2650,6 +2768,8 @@ export function typeToString(type: CompileTimeType, indent: number): string {
 						return bracketedExpressionToString(elements, multiline, indent);
 					}
 					case 'parameterReference':
+						return builtInType.name;
+					case 'reference':
 						return builtInType.name;
 					case 'stream':
 						return `Stream(${typeToString(builtInType.ValueType, indent)})`;
@@ -2748,9 +2868,16 @@ function getParamsType(possibleFunctionType: CompileTimeType | null): CompileTim
 	return Any;
 }
 
-function getReturnTypeFromFunctionType(possibleFunctionType: CompileTimeType | null): CompileTimeType {
-	if (isFunctionType(possibleFunctionType)) {
-		return possibleFunctionType.ReturnType;
+function getReturnTypeFromFunctionType(possibleFunctionType: TypeInfo | undefined): CompileTimeType {
+	if (!possibleFunctionType) {
+		return Any;
+	}
+	const rawType = possibleFunctionType.rawType;
+	const dereferenced = isReferenceType(rawType)
+		? rawType.dereferencedType
+		: rawType;
+	if (isFunctionType(dereferenced)) {
+		return dereferenced.ReturnType;
 	}
 	return Any;
 }
@@ -2817,7 +2944,7 @@ function checkTypeGuardIsType(
 	typeGuard: ParseValueExpression,
 	errors: ParserError[],
 ): void {
-	const typeGuardType = typeGuard.inferredType!;
+	const typeGuardType = typeGuard.typeInfo!.dereferencedType;
 	const typeGuardTypeError = areArgsAssignableTo(null, typeGuardType, Type);
 	if (typeGuardTypeError) {
 		errors.push({
@@ -2871,6 +2998,11 @@ export function isParametersType(type: CompileTimeType | null): type is Paramete
 export function isParamterReference(type: CompileTimeType | null): type is ParameterReference {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'parameterReference';
+}
+
+function isReferenceType(type: CompileTimeType | null): type is ReferenceType {
+	return isBuiltInType(type)
+		&& type[_julTypeSymbol] === 'reference';
 }
 
 function isStreamType(type: CompileTimeType | null): type is CompileTimeStreamType {

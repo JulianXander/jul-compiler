@@ -1,5 +1,7 @@
--refactor CompileTimeType inferredType/dereferencedType
-	-in wrapper objekt, damit nicht sonderbehandlung für undefined/null erforderlich
+-fix checker test list-type-error
+	-Can not assign 4 to TypeOf(Text)
+?typeToString expand references 1 level deep
+-refactor CompileTimeType TypeInfo
 	-mit SourceExpression anreichern für Descriptions, Symbole
 		-vgl server OnCompletion, findSymbol
 		-ggf sourceFilePath berücksichtigen wegen imports

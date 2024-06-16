@@ -27,8 +27,6 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
 				type: 'float',
 				value: +numericLiteral.text,
 				...position,
-				inferredType: null,
-				dereferencedType: null,
 			};
 		}
 		case SyntaxKind.StringLiteral: {
@@ -40,16 +38,12 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
 					value: stringLiteral.text,
 				}],
 				...position,
-				inferredType: null,
-				dereferencedType: null,
 			};
 		}
 		case SyntaxKind.NullKeyword:
 			return {
 				type: 'empty',
 				...position,
-				inferredType: null,
-				dereferencedType: null,
 			};
 		case SyntaxKind.ArrowFunction: {
 			const arrowFunction = tsNode as ArrowFunction;
@@ -76,8 +70,6 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
 				name: test1.name,
 				value: test1.value as any,
 				...position,
-				inferredType: null,
-				dereferencedType: null,
 			};
 		}
 		case SyntaxKind.FunctionDeclaration: {
@@ -95,8 +87,6 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
 				name: julName,
 				value: tsFunctionToJulAst(position, functionDeclaration.parameters),
 				...position,
-				inferredType: null,
-				dereferencedType: null,
 			};
 		}
 		case SyntaxKind.TypeAliasDeclaration:
@@ -126,8 +116,6 @@ function tsFunctionToJulAst(
 						...position,
 					},
 					...position,
-					inferredType: null,
-					dereferencedType: null,
 				},
 				arguments: {
 					type: 'list',
@@ -141,17 +129,11 @@ function tsFunctionToJulAst(
 								}
 							],
 							...position,
-							inferredType: null,
-							dereferencedType: null,
 						}
 					],
 					...position,
-					inferredType: null,
-					dereferencedType: null,
 				},
 				...position,
-				inferredType: null,
-				dereferencedType: null,
 			}
 		],
 		position,
@@ -172,8 +154,6 @@ function tsParametersToJulParameters(
 			type: 'parameter',
 			name: julName,
 			...getPositionFromTsNode(tsParameter),
-			inferredType: null,
-			dereferencedType: null,
 			inferredTypeFromCall: null,
 		};
 		return julParameter;

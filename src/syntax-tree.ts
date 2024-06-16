@@ -1,5 +1,5 @@
 import { ParserError, Positioned } from './parser/parser-combinator.js';
-import { AnyType, BlobType, BooleanType, DateType, ErrorType, FloatType, Integer, IntegerType, Primitive, TextType, TypeType, _julTypeSymbol } from './runtime.js';
+import { AnyType, BlobType, BooleanType, DateType, ErrorType, FloatType, IntegerType, Primitive, TextType, TypeType, _julTypeSymbol } from './runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {
@@ -40,8 +40,7 @@ export interface SymbolDefinition extends Positioned {
 	/**
 	 * inferred type aus dem value
 	 */
-	inferredType: CompileTimeType | null;
-	dereferencedType: CompileTimeType | null;
+	typeInfo?: TypeInfo;
 	//#region FunctionParameter
 	functionRef?: CompileTimeFunctionType;
 	functionParameterIndex?: number;
@@ -69,7 +68,7 @@ export type SimpleExpression =
 	| NumberLiteral
 	| ParseFunctionCall
 	| ParseTextLiteral
-	| Reference
+	| ParseReference
 	| ParseNestedReference
 	;
 
@@ -110,16 +109,10 @@ export interface PositionedExpressionBase extends Positioned {
 
 // TODO bei allen parseExpressions oder nur bei value expressions?
 interface ParseExpressionBase extends PositionedExpressionBase {
-	// TODO? inferredType?: {rawType: CompileTimeType; dereferencedType: CompileTimeType;};
 	/**
 	 * Wird vom checker gesetzt.
 	 */
-	inferredType: CompileTimeType | null;
-	/**
-	 * Wird vom checker gesetzt.
-	 * inferredType mit aufgelösten ParamterReferences.
-	 */
-	dereferencedType: CompileTimeType | null;
+	typeInfo?: TypeInfo;
 }
 
 export interface ParseSpreadValueExpression extends PositionedExpressionBase {
@@ -399,7 +392,7 @@ export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
 
 //#endregion FunctionLiteral
 
-export interface Reference extends ParseExpressionBase {
+export interface ParseReference extends ParseExpressionBase {
 	type: 'reference';
 	name: Name;
 }
@@ -430,6 +423,18 @@ export interface Index extends PositionedExpressionBase {
 //#endregion ParseExpression
 
 //#region CompileTimeType
+
+export interface TypeInfo {
+	// TODO?
+	// filePath: string;
+	// TODO?
+	// typeExpression: ParseValueExpression;
+	rawType: CompileTimeType;
+	/**
+	 * rawType mit aufgelösten References, ParameterReferences.
+	 */
+	dereferencedType: CompileTimeType;
+}
 
 export interface CompileTimeDictionary { [key: string]: CompileTimeType; }
 
@@ -462,13 +467,14 @@ export type BuiltInCompileTimeType =
 	| CompileTimeDictionaryLiteralType
 	| CompileTimeStreamType
 	| CompileTimeFunctionType
-	| NestedReference
-	| ParameterReference
-	| ParametersType
 	| CompileTimeIntersectionType
 	| CompileTimeUnionType
 	| CompileTimeComplementType
 	| CompileTimeTypeOfType
+	| NestedReferenceType
+	| ParameterReference
+	| ParametersType
+	| ReferenceType
 	;
 
 export interface NeverType {
@@ -607,7 +613,7 @@ export interface CompileTimeUnionType {
 	ChoiceTypes: CompileTimeType[];
 }
 
-export interface NestedReference {
+export interface NestedReferenceType {
 	readonly [_julTypeSymbol]: 'nestedReference';
 	source: CompileTimeType;
 	nestedKey: string | number;
@@ -662,6 +668,23 @@ export function createParametersType(singleNames: Parameter[], rest?: Parameter)
 export interface Parameter {
 	name: string;
 	type: CompileTimeType | null;
+}
+
+/**
+ * Wird aktuell nur als CompileTimeType benutzt, und nur als rawType.
+ */
+export interface ReferenceType {
+	readonly [_julTypeSymbol]: 'reference';
+	name: string;
+	dereferencedType: CompileTimeType;
+}
+
+export function createReferenceType(name: string, dereferencedType: CompileTimeType): ReferenceType {
+	return {
+		[_julTypeSymbol]: 'reference',
+		name: name,
+		dereferencedType: dereferencedType,
+	};
 }
 
 //#endregion CompileTimeType
