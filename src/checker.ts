@@ -287,6 +287,12 @@ export function dereferenceNameFromObject(
 			case 'nestedReference':
 			case 'parameterReference':
 				return createNestedReference(sourceObjectType, name);
+			case 'or': {
+				const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
+					return dereferenceNameFromObject(name, choiceType);
+				}).filter((type): type is CompileTimeType => type !== null);
+				return createNormalizedUnionType(dereferencedChoices);
+			}
 			case 'parameters': {
 				const matchedParameter = sourceObjectType.singleNames.find(parameter => parameter.name === name);
 				if (matchedParameter) {
