@@ -330,6 +330,8 @@ export function dereferenceNameFromObject(
 									default:
 										return null;
 								}
+							case 'dictionaryLiteral':
+								return innerType.Fields[name];
 							case 'list':
 								switch (name) {
 									case 'ElementType':
