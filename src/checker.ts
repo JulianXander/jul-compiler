@@ -787,7 +787,8 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				return createParametersType(dereferencedSingleNames, dereferencedRest);
 			}
 			case 'reference': {
-				return dereferenceNested(rawType.dereferencedType);
+				const dereferenced = dereferenceNested(rawType.dereferencedType);
+				return createReferenceType(rawType.name, dereferenced);
 			}
 			case 'stream': {
 				const rawValue = rawType.ValueType;

@@ -1,3 +1,4 @@
+?dereferenceNested reference beibehalten oder rawType nicht auflösen, evtl zusätzlich partlyDereferencedType in TypeInfo
 ?typeToString expand references 1 level deep
 -refactor CompileTimeType TypeInfo
 	-mit SourceExpression anreichern für Descriptions, Symbole
