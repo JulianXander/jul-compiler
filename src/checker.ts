@@ -562,8 +562,10 @@ function dereferenceArgumentTypesNested(
 			// TODO immer valueOf?
 			return valueOf(dereferencedNested);
 		}
-		case 'reference':
-			return dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.dereferencedType);
+		case 'reference': {
+			const dereferenced = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.dereferencedType);
+			return createReferenceType(builtInType.name, dereferenced);
+		}
 		case 'stream': {
 			const rawValue = builtInType.ValueType;
 			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
@@ -1558,9 +1560,10 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
+			const rawType = createReferenceType(name, type);
 			return {
-				rawType: createReferenceType(name, type),
-				dereferencedType: dereferenceNested(type),
+				rawType: rawType,
+				dereferencedType: dereferenceNested(rawType),
 			};
 		}
 		case 'text': {
