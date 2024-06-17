@@ -303,6 +303,8 @@ export function dereferenceNameFromObject(
 				}
 				return null;
 			}
+			case 'reference':
+				return dereferenceNameFromObject(name, sourceObjectType.dereferencedType);
 			case 'stream':
 				switch (name) {
 					case 'getValue':
@@ -406,6 +408,8 @@ export function dereferenceIndexFromObject(
 			}
 			case 'parameterReference':
 				return createNestedReference(sourceObjectType, index);
+			case 'reference':
+				return dereferenceIndexFromObject(index, sourceObjectType.dereferencedType);
 			case 'tuple':
 				return sourceObjectType.ElementTypes[index - 1];
 			// TODO other object types
@@ -1989,7 +1993,7 @@ function valueOf(type: CompileTimeType | null): CompileTimeType {
 						return type;
 					// TODO?
 					case 'reference':
-						return valueOf(type.dereferencedType);
+						return createReferenceType(type.name, valueOf(type.dereferencedType));
 					case 'stream':
 						// TODO?
 						return type;
@@ -2066,6 +2070,8 @@ export function getTypeError(
 				}
 				return undefined;
 			}
+			case 'reference':
+				return getTypeError(prefixArgumentType, argumentsType.dereferencedType, targetType);
 			case 'nestedReference':
 				// TODO?
 				return undefined;
@@ -2307,6 +2313,8 @@ export function getTypeError(
 						// return getTypeError(valueType, dereferenced ?? Any);
 						return undefined;
 					}
+					case 'reference':
+						return getTypeError(prefixArgumentType, argumentsType, targetType.dereferencedType);
 					case 'stream': {
 						if (!isStreamType(argumentsType)) {
 							break;
@@ -2380,7 +2388,6 @@ export function getTypeError(
 						}
 						break;
 					// TODO
-					case 'reference':
 					case 'typeOf':
 						break;
 					default: {
