@@ -1807,6 +1807,8 @@ function getLastElementFromType(valuesType: CompileTimeType | null): CompileTime
 	}
 	if (_julTypeSymbol in valuesType) {
 		switch (valuesType[_julTypeSymbol]) {
+			case 'reference':
+				return getLastElementFromType(valuesType.dereferencedType);
 			case 'tuple':
 				return last(valuesType.ElementTypes);
 			case 'list':
