@@ -425,10 +425,11 @@ export interface Index extends PositionedExpressionBase {
 //#region CompileTimeType
 
 export interface TypeInfo {
+	// symbol?: SymbolDefinition;
 	// TODO?
 	// filePath: string;
 	// TODO?
-	// typeExpression: ParseValueExpression;
+	// typeExpression?: ParseValueExpression;
 	rawType: CompileTimeType;
 	/**
 	 * rawType mit aufgelösten References, ParameterReferences.
@@ -512,12 +513,17 @@ export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTim
 export interface CompileTimeDictionaryLiteralType {
 	readonly [_julTypeSymbol]: 'dictionaryLiteral';
 	Fields: CompileTimeDictionary;
+	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral;
 }
 
-export function createCompileTimeDictionaryLiteralType(Fields: CompileTimeDictionary): CompileTimeDictionaryLiteralType {
+export function createCompileTimeDictionaryLiteralType(
+	Fields: CompileTimeDictionary,
+	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral,
+): CompileTimeDictionaryLiteralType {
 	return {
 		[_julTypeSymbol]: 'dictionaryLiteral',
 		Fields: Fields,
+		expression: expression,
 	};
 }
 

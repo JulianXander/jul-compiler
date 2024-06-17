@@ -724,7 +724,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				if (fieldsEqual(rawFields, dereferencedFields)) {
 					return rawType;
 				}
-				return createCompileTimeDictionaryLiteralType(dereferencedFields);
+				return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.expression);
 			}
 			case 'function': {
 				const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
@@ -1127,8 +1127,9 @@ function inferType(
 					dereferencedType: Any,
 				};
 			}
-			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes);
+			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes, expression);
 			return {
+				// typeExpression: expression,
 				rawType: rawType,
 				dereferencedType: dereferenceNested(rawType),
 			};
@@ -1171,7 +1172,7 @@ function inferType(
 					}
 				}
 			});
-			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes));
+			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes, expression));
 			return {
 				rawType: rawType,
 				dereferencedType: dereferenceNested(rawType),
@@ -3014,12 +3015,12 @@ export function isParametersType(type: CompileTimeType | null): type is Paramete
 		&& type[_julTypeSymbol] === 'parameters';
 }
 
-export function isParamterReference(type: CompileTimeType | null): type is ParameterReference {
+export function isParameterReference(type: CompileTimeType | null): type is ParameterReference {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'parameterReference';
 }
 
-function isReferenceType(type: CompileTimeType | null): type is ReferenceType {
+export function isReferenceType(type: CompileTimeType | null): type is ReferenceType {
 	return isBuiltInType(type)
 		&& type[_julTypeSymbol] === 'reference';
 }
