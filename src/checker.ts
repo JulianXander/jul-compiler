@@ -1987,6 +1987,9 @@ function valueOf(type: CompileTimeType | null): CompileTimeType {
 					case 'parameterReference':
 						// TODO wo deref? wo Type => value auspacken?
 						return type;
+					// TODO?
+					case 'reference':
+						return valueOf(type.dereferencedType);
 					case 'stream':
 						// TODO?
 						return type;
