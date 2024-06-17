@@ -340,6 +340,8 @@ export function dereferenceNameFromObject(
 							case 'nestedReference':
 							case 'parameterReference':
 								return createNestedReference(sourceObjectType, name);
+							case 'reference':
+								return dereferenceNameFromObject(name, innerType);
 							case 'tuple':
 								switch (name) {
 									case 'ElementType':
@@ -560,6 +562,8 @@ function dereferenceArgumentTypesNested(
 			// TODO immer valueOf?
 			return valueOf(dereferencedNested);
 		}
+		case 'reference':
+			return dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.dereferencedType);
 		case 'stream': {
 			const rawValue = builtInType.ValueType;
 			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
@@ -580,7 +584,6 @@ function dereferenceArgumentTypesNested(
 		case 'dictionaryLiteral':
 		case 'function':
 		case 'parameters':
-		case 'reference':
 		case 'tuple':
 			return builtInType;
 		default: {
