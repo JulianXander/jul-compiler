@@ -174,7 +174,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 
 const parsedCoreLib = parseFile(coreLibPath);
 const parsedCoreLib2 = parsedCoreLib.unchecked;
-inferFileTypes(parsedCoreLib2, [], {}, '');
+inferFileTypes(parsedCoreLib2, [], {}, '', '');
 export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
 
 //#region dereference
@@ -724,7 +724,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				if (fieldsEqual(rawFields, dereferencedFields)) {
 					return rawType;
 				}
-				return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.expression);
+				return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.expression, rawType.filePath);
 			}
 			case 'function': {
 				const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
@@ -861,7 +861,7 @@ export function checkTypes(
 ): void {
 	const checked = structuredClone(document.unchecked);
 	document.checked = checked;
-	inferFileTypes(checked, [builtInSymbols], documents, document.sourceFolder);
+	inferFileTypes(checked, [builtInSymbols], documents, document.sourceFolder, document.filePath);
 }
 
 function inferFileTypes(
@@ -869,13 +869,14 @@ function inferFileTypes(
 	scopes: SymbolTable[],
 	parsedDocuments: ParsedDocuments,
 	sourceFolder: string,
+	filePath: string,
 ): void {
 	const fileScopes = [
 		...scopes,
 		file.symbols,
 	] as any as NonEmptyArray<SymbolTable>;
 	file.expressions?.forEach(expression => {
-		setInferredType(expression, fileScopes, parsedDocuments, sourceFolder, file);
+		setInferredType(expression, fileScopes, parsedDocuments, sourceFolder, file, filePath);
 	});
 }
 
@@ -885,11 +886,12 @@ function setInferredType(
 	parsedDocuments: ParsedDocuments,
 	sourceFolder: string,
 	file: ParsedExpressions2,
+	filePath: string,
 ): void {
 	if (expression.typeInfo) {
 		return;
 	}
-	expression.typeInfo = inferType(expression, scopes, parsedDocuments, sourceFolder, file);
+	expression.typeInfo = inferType(expression, scopes, parsedDocuments, sourceFolder, file, filePath);
 }
 
 // TODO flatten nested or/and
@@ -905,6 +907,7 @@ function inferType(
 	parsedDocuments: ParsedDocuments,
 	folder: string,
 	file: ParsedExpressions2,
+	filePath: string,
 ): TypeInfo {
 	const errors = file.errors;
 	switch (expression.type) {
@@ -917,10 +920,10 @@ function inferType(
 		case 'branching': {
 			// union branch return types
 			// TODO conditional type?
-			setInferredType(expression.value, scopes, parsedDocuments, folder, file);
+			setInferredType(expression.value, scopes, parsedDocuments, folder, file, filePath);
 			const branches = expression.branches;
 			branches.forEach((branch, index) => {
-				setInferredType(branch, scopes, parsedDocuments, folder, file);
+				setInferredType(branch, scopes, parsedDocuments, folder, file, filePath);
 				// Fehler, wenn branch type != function
 				const functionType = createCompileTimeFunctionType(Any, Any, false);
 				const nonFunctionError = areArgsAssignableTo(null, branch.typeInfo!.dereferencedType, functionType);
@@ -966,7 +969,7 @@ function inferType(
 		case 'definition': {
 			const value = expression.value;
 			if (value) {
-				setInferredType(value, scopes, parsedDocuments, folder, file);
+				setInferredType(value, scopes, parsedDocuments, folder, file, filePath);
 			}
 			const name = expression.name.name;
 			let typeInfo: TypeInfo;
@@ -998,7 +1001,7 @@ function inferType(
 			symbol.typeInfo = typeInfo;
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
-				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+				setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.typeInfo;
 				const assignmentError = typeGuardType && areArgsAssignableTo(null, typeInfo.dereferencedType, valueOf(typeGuardType.dereferencedType));
@@ -1017,7 +1020,7 @@ function inferType(
 		case 'destructuring': {
 			const value = expression.value;
 			if (value) {
-				setInferredType(value, scopes, parsedDocuments, folder, file);
+				setInferredType(value, scopes, parsedDocuments, folder, file, filePath);
 			}
 			const currentScope = last(scopes);
 			expression.fields.fields.forEach(field => {
@@ -1049,7 +1052,7 @@ function inferType(
 				};
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
-					setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+					setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
 					const error = typeGuard.typeInfo && areArgsAssignableTo(null, fieldType, valueOf(typeGuard.typeInfo.dereferencedType));
@@ -1075,13 +1078,13 @@ function inferType(
 			expression.fields.forEach(field => {
 				const value = field.value;
 				if (value) {
-					setInferredType(value, scopes, parsedDocuments, folder, file);
+					setInferredType(value, scopes, parsedDocuments, folder, file, filePath);
 				}
 				switch (field.type) {
 					case 'singleDictionaryField': {
 						const typeGuard = field.typeGuard;
 						if (typeGuard) {
-							setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+							setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 							checkTypeGuardIsType(typeGuard, errors);
 						}
 						const fieldName = getCheckedEscapableName(field.name);
@@ -1127,7 +1130,7 @@ function inferType(
 					dereferencedType: Any,
 				};
 			}
-			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes, expression);
+			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath);
 			return {
 				// typeExpression: expression,
 				rawType: rawType,
@@ -1143,7 +1146,7 @@ function inferType(
 						if (!typeGuard) {
 							return;
 						}
-						setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+						setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 						checkTypeGuardIsType(typeGuard, errors);
 						const fieldName = getCheckedEscapableName(field.name);
 						if (!fieldName) {
@@ -1162,7 +1165,7 @@ function inferType(
 						return;
 					}
 					case 'spread':
-						setInferredType(field.value, scopes, parsedDocuments, folder, file);
+						setInferredType(field.value, scopes, parsedDocuments, folder, file, filePath);
 						// TODO spread fields flach machen
 						// TODO error when spread list
 						return;
@@ -1172,7 +1175,7 @@ function inferType(
 					}
 				}
 			});
-			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes, expression));
+			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath));
 			return {
 				rawType: rawType,
 				dereferencedType: dereferenceNested(rawType),
@@ -1209,7 +1212,7 @@ function inferType(
 			// TODO infer last body expression type for returnType
 			const prefixArgument = expression.prefixArgument;
 			if (prefixArgument) {
-				setInferredType(prefixArgument, scopes, parsedDocuments, folder, file);
+				setInferredType(prefixArgument, scopes, parsedDocuments, folder, file, filePath);
 			}
 			const functionExpression = expression.functionExpression;
 			if (!functionExpression) {
@@ -1218,7 +1221,7 @@ function inferType(
 					dereferencedType: Any,
 				};
 			}
-			setInferredType(functionExpression, scopes, parsedDocuments, folder, file);
+			setInferredType(functionExpression, scopes, parsedDocuments, folder, file, filePath);
 			const functionType = functionExpression.typeInfo!.rawType;
 			const paramsType = getParamsType(functionType);
 			const args = expression.arguments;
@@ -1260,7 +1263,7 @@ function inferType(
 				}
 			});
 			//#endregion
-			setInferredType(args, scopes, parsedDocuments, folder, file);
+			setInferredType(args, scopes, parsedDocuments, folder, file, filePath);
 			const argsType = args.typeInfo!.rawType;
 			const prefixArgumentType = prefixArgument?.typeInfo
 				? prefixArgument.typeInfo.rawType
@@ -1296,7 +1299,7 @@ function inferType(
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
-			setInferredType(params, functionScopes, parsedDocuments, folder, file);
+			setInferredType(params, functionScopes, parsedDocuments, folder, file, filePath);
 			const paramsTypeValue = valueOf(params.typeInfo!.rawType);
 			functionType.ParamsType = paramsTypeValue;
 			//#region narrowed type symbol für branching
@@ -1322,12 +1325,12 @@ function inferType(
 			}
 			//#endregion narrowed type symbol für branching
 			expression.body.forEach(bodyExpression => {
-				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file);
+				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file, filePath);
 			});
 			const inferredReturnType = last(expression.body)?.typeInfo!;
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
-				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file);
+				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file, filePath);
 				const error = areArgsAssignableTo(null, inferredReturnType.dereferencedType, valueOf(declaredReturnType.typeInfo!.dereferencedType));
 				if (error) {
 					errors.push({
@@ -1356,10 +1359,10 @@ function inferType(
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
-			setInferredType(params, functionScopes, parsedDocuments, folder, file);
+			setInferredType(params, functionScopes, parsedDocuments, folder, file, filePath);
 			functionType.ParamsType = valueOf(params.typeInfo!.rawType);
 			// TODO check returnType muss pure sein
-			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file);
+			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file, filePath);
 			const inferredReturnType = expression.returnType.typeInfo!.rawType;
 			functionType.ReturnType = valueOf(inferredReturnType);
 			const rawType = createCompileTimeTypeOfType(functionType);
@@ -1380,7 +1383,7 @@ function inferType(
 				const typedExpression = element.type === 'spread'
 					? element.value
 					: element;
-				setInferredType(typedExpression, scopes, parsedDocuments, folder, file);
+				setInferredType(typedExpression, scopes, parsedDocuments, folder, file, filePath);
 			});
 			const rawType = createCompileTimeTupleType(expression.values.map(element => {
 				if (element.type === 'spread') {
@@ -1396,7 +1399,7 @@ function inferType(
 		}
 		case 'nestedReference': {
 			const source = expression.source;
-			setInferredType(source, scopes, parsedDocuments, folder, file);
+			setInferredType(source, scopes, parsedDocuments, folder, file, filePath);
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
 				return {
@@ -1443,7 +1446,7 @@ function inferType(
 			let hasDictionary: boolean = false;
 			expression.values.forEach(element => {
 				const typedExpression = element.value;
-				setInferredType(typedExpression, scopes, parsedDocuments, folder, file);
+				setInferredType(typedExpression, scopes, parsedDocuments, folder, file, filePath);
 				const inferredType = typedExpression.typeInfo?.rawType;
 				// TODO
 				if (isDictionaryType(inferredType)
@@ -1459,7 +1462,7 @@ function inferType(
 		case 'parameter': {
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
-				setInferredType(typeGuard, scopes, parsedDocuments, folder, file);
+				setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
@@ -1503,11 +1506,11 @@ function inferType(
 		}
 		case 'parameters': {
 			expression.singleFields.forEach(field => {
-				setInferredType(field, scopes, parsedDocuments, folder, file);
+				setInferredType(field, scopes, parsedDocuments, folder, file, filePath);
 			});
 			const rest = expression.rest;
 			if (rest) {
-				setInferredType(rest, scopes, parsedDocuments, folder, file);
+				setInferredType(rest, scopes, parsedDocuments, folder, file, filePath);
 				// TODO check rest type is list type
 			}
 			const rawType = createParametersType(
@@ -1582,7 +1585,7 @@ function inferType(
 			}
 			expression.values.forEach(part => {
 				if (part.type !== 'textToken') {
-					setInferredType(part, scopes, parsedDocuments, folder, file);
+					setInferredType(part, scopes, parsedDocuments, folder, file, filePath);
 				}
 			});
 			return {
@@ -1637,6 +1640,7 @@ function getReturnTypeFromFunctionCall(
 							? symbol.typeInfo.rawType
 							: Any;
 					});
+					// TODO exrepssion, filePath?
 					return createCompileTimeDictionaryLiteralType(importedTypes);
 				}
 				// value import

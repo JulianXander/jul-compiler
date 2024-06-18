@@ -514,16 +514,19 @@ export interface CompileTimeDictionaryLiteralType {
 	readonly [_julTypeSymbol]: 'dictionaryLiteral';
 	Fields: CompileTimeDictionary;
 	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral;
+	filePath?: string;
 }
 
 export function createCompileTimeDictionaryLiteralType(
 	Fields: CompileTimeDictionary,
 	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral,
+	filePath?: string,
 ): CompileTimeDictionaryLiteralType {
 	return {
 		[_julTypeSymbol]: 'dictionaryLiteral',
 		Fields: Fields,
 		expression: expression,
+		filePath: filePath,
 	};
 }
 
