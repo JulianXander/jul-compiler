@@ -1911,6 +1911,35 @@ _createFunction(
 		]
 	}
 );
+export const filter = <T>(
+	values: T[] | undefined,
+	predicate: (value: T, index: bigint) => boolean,
+): T[] | undefined => {
+	if (!values) {
+		return;
+	}
+	const filtered = values.filter((value, index) => {
+		return predicate(value, BigInt(index + 1));
+	});
+	return filtered.length
+		? filtered
+		: undefined;
+};
+_createFunction(
+	filter,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(List(Any))
+			},
+			{
+				name: 'predicate',
+				type: _Function
+			},
+		]
+	}
+);
 export const filterMap = <T, U>(
 	values: T[] | undefined,
 	callback: (value: T, index: bigint) => U | undefined,

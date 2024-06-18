@@ -509,6 +509,31 @@ map = nativeFunction(
 		}
 	§
 )
+# filter Werte raus, für die predicate false liefert
+filter = nativeFunction(
+	(
+		values: Or(() List(Any))
+		predicate: (
+			value: TypeOf(values)/ElementType
+			index: PositiveInteger
+		) :> Boolean
+	) :> TypeOf(values)
+	# TODO pure wenn die args pure sind
+	false
+	§js
+		(values, predicate) => {
+			if (!values) {
+				return;
+			}
+			const filtered = values.filter((value, index) => {
+				return predicate(value, BigInt(index + 1));
+			});
+			return filtered.length
+				? filtered
+				: undefined;
+		}
+	§
+)
 # filtert empty Werte raus
 filterMap = nativeFunction(
 	(

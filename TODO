@@ -2,7 +2,6 @@
 	-mit SourceExpression anreichern für Descriptions, Symbole
 		-vgl server OnCompletion, findSymbol
 		-ggf sourceFilePath berücksichtigen wegen imports
-?filter in corelib
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
 ?tuple builtInType vs type Array, DictionaryLiteralType vs type Dictionary
