@@ -1812,7 +1812,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	}
 	//#region remove Never
 	const choicesWithoutNever = flatChoices.filter(choice =>
-		choice !== Never);
+		choice.julType !== 'never');
 	if (!choicesWithoutNever.length) {
 		return Never;
 	}
@@ -1824,7 +1824,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	const uniqueChoices: CompileTimeType[] = [];
 	choicesWithoutNever.forEach(choice => {
 		if (!uniqueChoices.some(uniqueChoice =>
-			choice === uniqueChoice)) {
+			typeEquals(choice, uniqueChoice))) {
 			uniqueChoices.push(choice);
 		}
 	});
