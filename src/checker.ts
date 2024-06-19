@@ -2249,9 +2249,14 @@ export function getTypeError(
 		case 'type':
 			switch (argumentsType.julType) {
 				case 'boolean':
+				case 'booleanLiteral':
+				case 'empty':
 				case 'float':
+				case 'floatLiteral':
 				case 'integer':
+				case 'integerLiteral':
 				case 'text':
+				case 'textLiteral':
 				case 'typeOf':
 					return undefined;
 				case 'tuple': {
