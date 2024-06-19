@@ -2460,6 +2460,8 @@ function getTypeErrorForParameters(
 	switch (argumentsType.julType) {
 		case 'dictionaryLiteral':
 			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.Fields, targetType);
+		case 'empty':
+			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, undefined, targetType);
 		case 'tuple':
 			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
 		case 'parameters': {
@@ -2510,7 +2512,7 @@ function getTypeErrorForParameters(
 			return undefined;
 		}
 		default:
-			return { message: 'getTypeErrorForWrappedArgs not implemented yet for ' + argumentsType.julType };
+			return { message: 'getTypeErrorForParameters not implemented yet for ' + argumentsType.julType };
 	}
 }
 
