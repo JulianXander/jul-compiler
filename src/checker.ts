@@ -2452,10 +2452,6 @@ function getTypeErrorForParameters(
 	argumentsType: CompileTimeType,
 	targetType: ParametersType,
 ): TypeError | undefined {
-	if (argumentsType !== undefined
-		&& typeof argumentsType !== 'object') {
-		throw new Error('argumentsType should be undefined or object but got' + typeof argumentsType);
-	}
 	// TODO other cases
 	switch (argumentsType.julType) {
 		case 'dictionaryLiteral':
