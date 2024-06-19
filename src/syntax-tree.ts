@@ -500,10 +500,6 @@ interface EmptyType extends CompileTimeTypeBase {
 	readonly julType: 'empty';
 }
 
-export const Empty: EmptyType = {
-	julType: 'empty',
-};
-
 interface BooleanLiteralType extends CompileTimeTypeBase {
 	julType: 'booleanLiteral';
 	value: boolean;
@@ -551,10 +547,6 @@ export interface FloatType extends CompileTimeTypeBase {
 	readonly julType: 'float';
 }
 
-export const Float: FloatType = {
-	julType: 'float'
-};
-
 export interface TextType extends CompileTimeTypeBase {
 	readonly julType: 'text';
 }
@@ -567,10 +559,6 @@ export interface DateType extends CompileTimeTypeBase {
 	readonly julType: 'date';
 }
 
-export const _Date: DateType = {
-	julType: 'date'
-};
-
 export interface BlobType extends CompileTimeTypeBase {
 	readonly julType: 'blob';
 }
@@ -578,10 +566,6 @@ export interface BlobType extends CompileTimeTypeBase {
 interface ErrorType extends CompileTimeTypeBase {
 	readonly julType: 'error';
 }
-
-export const _Error: ErrorType = {
-	julType: 'error'
-};
 
 export interface TypeType extends CompileTimeTypeBase {
 	readonly julType: 'type';

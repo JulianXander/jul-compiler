@@ -1,8 +1,6 @@
 import { join } from 'path';
 import {
 	_Boolean,
-	_Date,
-	_Error,
 	_Text,
 	BracketedExpression,
 	CompileTimeCollection,
@@ -29,8 +27,6 @@ import {
 	createNestedReference,
 	createParameterReference,
 	createParametersType,
-	Empty,
-	Float,
 	Integer,
 	Never,
 	Parameter,
@@ -77,10 +73,10 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	Any: createCompileTimeTypeOfType({ julType: 'any' }),
 	Boolean: createCompileTimeTypeOfType(_Boolean),
 	Integer: createCompileTimeTypeOfType(Integer),
-	Float: createCompileTimeTypeOfType(Float),
+	Float: createCompileTimeTypeOfType({ julType: 'float' }),
 	Text: createCompileTimeTypeOfType(_Text),
-	Date: createCompileTimeTypeOfType(_Date),
-	Error: createCompileTimeTypeOfType(_Error),
+	Date: createCompileTimeTypeOfType({ julType: 'date' }),
+	Error: createCompileTimeTypeOfType({ julType: 'error' }),
 	List: (() => {
 		const parameterReference = createParameterReference('ElementType', 0);
 		const functionType = createCompileTimeFunctionType(
@@ -248,7 +244,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 }
 
 export function getStreamGetValueType(streamType: CompileTimeStreamType): CompileTimeFunctionType {
-	return createCompileTimeFunctionType(Empty, streamType.ValueType, false);
+	return createCompileTimeFunctionType({ julType: 'empty' }, streamType.ValueType, false);
 }
 
 function dereferenceNestedKeyFromObject(nestedKey: string | number, source: CompileTimeType): CompileTimeType | undefined {
@@ -367,7 +363,7 @@ export function dereferenceIndexFromObject(
 	}
 	switch (sourceObjectType.julType) {
 		case 'empty':
-			return Empty;
+			return { julType: 'empty' };
 		case 'dictionaryLiteral':
 			// TODO error: cant dereference index in dictionary type
 			return undefined;
