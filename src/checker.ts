@@ -1901,6 +1901,9 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 }
 
 function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
+	if (first === second) {
+		return true;
+	}
 	switch (first.julType) {
 		case 'empty':
 		case 'any':
