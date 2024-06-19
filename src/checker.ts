@@ -1,7 +1,5 @@
 import { join } from 'path';
 import {
-	_Boolean,
-	_Text,
 	BracketedExpression,
 	CompileTimeCollection,
 	CompileTimeComplementType,
@@ -44,7 +42,6 @@ import {
 	SymbolTable,
 	TextLiteralType,
 	TextToken,
-	Type,
 	TypedExpression,
 	TypeInfo,
 } from './syntax-tree.js';
@@ -72,10 +69,10 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		value: false,
 	},
 	Any: createCompileTimeTypeOfType({ julType: 'any' }),
-	Boolean: createCompileTimeTypeOfType(_Boolean),
+	Boolean: createCompileTimeTypeOfType({ julType: 'boolean' }),
 	Integer: createCompileTimeTypeOfType({ julType: 'integer' }),
 	Float: createCompileTimeTypeOfType({ julType: 'float' }),
-	Text: createCompileTimeTypeOfType(_Text),
+	Text: createCompileTimeTypeOfType({ julType: 'text' }),
 	Date: createCompileTimeTypeOfType({ julType: 'date' }),
 	Error: createCompileTimeTypeOfType({ julType: 'error' }),
 	List: (() => {
@@ -83,7 +80,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ElementType',
-				type: Type,
+				type: { julType: 'type' },
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeListType(parameterReference)),
 			true,
@@ -96,7 +93,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ElementType',
-				type: Type,
+				type: { julType: 'type' },
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeDictionaryType(parameterReference)),
 			true,
@@ -109,7 +106,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ValueType',
-				type: Type,
+				type: { julType: 'type' },
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeStreamType(parameterReference)),
 			true,
@@ -117,7 +114,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		parameterReference.functionRef = functionType;
 		return functionType;
 	})(),
-	Type: createCompileTimeTypeOfType(Type),
+	Type: createCompileTimeTypeOfType({ julType: 'type' }),
 	// ValueOf:  new FunctionType(
 	// 		new _ParametersType({
 	// 			T: _type,
@@ -141,15 +138,15 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 				{
 					name: 'FunctionType',
 					// TODO functionType
-					type: Type,
+					type: { julType: 'type' },
 				},
 				{
 					name: 'pure',
-					type: _Boolean,
+					type: { julType: 'boolean' },
 				},
 				{
 					name: 'js',
-					type: _Text,
+					type: { julType: 'text' },
 				},
 			]),
 			parameterReference,
@@ -162,7 +159,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		createParametersType([
 			{
 				name: 'js',
-				type: _Text,
+				type: { julType: 'text' },
 			},
 		]),
 		{ julType: 'any' },
@@ -1527,8 +1524,8 @@ function inferType(
 				}
 			});
 			return {
-				rawType: _Text,
-				dereferencedType: _Text,
+				rawType: { julType: 'text' },
+				dereferencedType: { julType: 'text' },
 			};
 		}
 		default: {
@@ -2822,7 +2819,7 @@ function checkTypeGuardIsType(
 	errors: ParserError[],
 ): void {
 	const typeGuardType = typeGuard.typeInfo!.dereferencedType;
-	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, Type);
+	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, { julType: 'type' });
 	if (typeGuardTypeError) {
 		errors.push({
 			message: typeGuardTypeError,

@@ -527,10 +527,6 @@ export interface BooleanType extends CompileTimeTypeBase {
 	readonly julType: 'boolean';
 }
 
-export const _Boolean: BooleanType = {
-	julType: 'boolean'
-};
-
 export interface IntegerType extends CompileTimeTypeBase {
 	readonly julType: 'integer';
 }
@@ -542,10 +538,6 @@ export interface FloatType extends CompileTimeTypeBase {
 export interface TextType extends CompileTimeTypeBase {
 	readonly julType: 'text';
 }
-
-export const _Text: TextType = {
-	julType: 'text'
-};
 
 export interface DateType extends CompileTimeTypeBase {
 	readonly julType: 'date';
@@ -562,10 +554,6 @@ interface ErrorType extends CompileTimeTypeBase {
 export interface TypeType extends CompileTimeTypeBase {
 	readonly julType: 'type';
 }
-
-export const Type: TypeType = {
-	julType: 'type'
-};
 
 export interface CompileTimeComplementType extends CompileTimeTypeBase {
 	readonly julType: 'not';
