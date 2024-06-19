@@ -1878,9 +1878,10 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 	}
 
 	// And(A Not(A)) => Never
+	// TODO leere Schnittemenge ermitteln? A assignable to B und B assignable to A?
 	if (ChoiceTypes.length === 2
 		&& isComplementType(ChoiceTypes[1])
-		&& ChoiceTypes[0] === ChoiceTypes[1].SourceType) {
+		&& typeEquals(ChoiceTypes[0]!, ChoiceTypes[1].SourceType)) {
 		return Never;
 	}
 
@@ -1888,6 +1889,60 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		julType: 'and',
 		ChoiceTypes: ChoiceTypes,
 	};
+}
+
+function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
+	switch (first.julType) {
+		case 'empty':
+		case 'any':
+		case 'blob':
+		case 'boolean':
+		case 'date':
+		case 'error':
+		case 'integer':
+		case 'float':
+		case 'never':
+		case 'text':
+		case 'type':
+			return first.julType === second.julType;
+		case 'booleanLiteral':
+		case 'integerLiteral':
+		case 'floatLiteral':
+		case 'textLiteral':
+			return first.julType === second.julType
+				&& first.value === second.value;
+		case 'dictionary':
+			return second.julType === 'dictionary'
+				&& typeEquals(first.ElementType, second.ElementType);
+		case 'greater':
+			return second.julType === 'greater'
+				&& typeEquals(first.Value, second.Value);
+		case 'list':
+			return second.julType === 'list'
+				&& typeEquals(first.ElementType, second.ElementType);
+		case 'not':
+			return second.julType === 'not'
+				&& typeEquals(first.SourceType, second.SourceType);
+		case 'stream':
+			return second.julType === 'stream'
+				&& typeEquals(first.ValueType, second.ValueType);
+		case 'typeOf':
+			return second.julType === 'typeOf'
+				&& typeEquals(first.value, second.value);
+		// TODO
+		case 'and':
+		case 'dictionaryLiteral':
+		case 'function':
+		case 'nestedReference':
+		case 'or':
+		case 'parameterReference':
+		case 'parameters':
+		case 'tuple':
+			return false;
+		default:
+			const assertNever: never = first;
+			throw new Error('Unexpected julType: ' + (assertNever as CompileTimeType).julType);
+	}
 }
 
 function setFunctionRefForParams(
