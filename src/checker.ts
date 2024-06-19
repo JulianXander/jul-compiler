@@ -1714,8 +1714,8 @@ function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 		|| indexType === undefined) {
 		return { julType: 'empty' };
 	}
-	if (typeof indexType === 'bigint') {
-		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType), valuesType);
+	if (indexType.julType === 'integerLiteral') {
+		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType.value), valuesType);
 		if (dereferencedIndex) {
 			return dereferencedIndex;
 		}
