@@ -1887,7 +1887,8 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 			return Never;
 		}
 		// And(A Not(B))
-		// Wenn B nicht Teilmenge von A ist: nur A liefern
+		// Wenn B keine Schnittmenge mit A hat: nur A liefern
+		// TODO Schnittmengenprüfung bauen, areArgsAssignableTo liefert nur Teilmengen
 		const secondAssignToFirstError = areArgsAssignableTo(undefined, second, first);
 		if (secondAssignToFirstError) {
 			return first;
