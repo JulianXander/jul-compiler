@@ -486,10 +486,6 @@ export interface NeverType extends CompileTimeTypeBase {
 	readonly julType: 'never';
 }
 
-export const Never: NeverType = {
-	julType: 'never',
-};
-
 export interface AnyType extends CompileTimeTypeBase {
 	readonly julType: 'any';
 }

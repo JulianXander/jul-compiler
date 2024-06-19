@@ -28,7 +28,6 @@ import {
 	createParameterReference,
 	createParametersType,
 	Integer,
-	Never,
 	Parameter,
 	ParameterReference,
 	ParametersType,
@@ -1814,7 +1813,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	const choicesWithoutNever = flatChoices.filter(choice =>
 		choice.julType !== 'never');
 	if (!choicesWithoutNever.length) {
-		return Never;
+		return { julType: 'never' };
 	}
 	if (choicesWithoutNever.length === 1) {
 		return choicesWithoutNever[0]!;
@@ -1884,7 +1883,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		const second = ChoiceTypes[1].SourceType;
 		if (typeEquals(first, second)) {
 			// And(A Not(A)) => Never
-			return Never;
+			return { julType: 'never' };
 		}
 		// And(A Not(B))
 		// Wenn B keine Schnittmenge mit A hat: nur A liefern
