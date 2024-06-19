@@ -309,43 +309,36 @@ export function dereferenceNameFromObject(
 			}
 		case 'typeOf': {
 			const innerType = sourceObjectType.value;
-			if (typeof innerType === 'object') {
-				if (!innerType) {
-					// TODO?
+			switch (innerType.julType) {
+				case 'dictionary':
+					switch (name) {
+						case 'ElementType':
+							return innerType.ElementType;
+						default:
+							return undefined;
+					}
+				case 'dictionaryLiteral':
+					return innerType.Fields[name];
+				case 'list':
+					switch (name) {
+						case 'ElementType':
+							return innerType.ElementType;
+						default:
+							return undefined;
+					}
+				case 'nestedReference':
+				case 'parameterReference':
+					return createNestedReference(sourceObjectType, name);
+				case 'tuple':
+					switch (name) {
+						case 'ElementType':
+							return createNormalizedUnionType(innerType.ElementTypes);
+						default:
+							return undefined;
+					}
+				default:
 					return undefined;
-				}
-				switch (innerType.julType) {
-					case 'dictionary':
-						switch (name) {
-							case 'ElementType':
-								return innerType.ElementType;
-							default:
-								return undefined;
-						}
-					case 'dictionaryLiteral':
-						return innerType.Fields[name];
-					case 'list':
-						switch (name) {
-							case 'ElementType':
-								return innerType.ElementType;
-							default:
-								return undefined;
-						}
-					case 'nestedReference':
-					case 'parameterReference':
-						return createNestedReference(sourceObjectType, name);
-					case 'tuple':
-						switch (name) {
-							case 'ElementType':
-								return createNormalizedUnionType(innerType.ElementTypes);
-							default:
-								return undefined;
-						}
-					default:
-						return undefined;
-				}
 			}
-			return undefined;
 		}
 		// TODO other object types
 		default:
