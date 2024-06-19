@@ -1877,12 +1877,21 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		return distributedType;
 	}
 
-	// And(A Not(A)) => Never
-	// TODO leere Schnittemenge ermitteln? A assignable to B und B assignable to A?
+	// TODO leere Schnittemenge ermitteln? A not assignable to B und B not assignable to A
 	if (ChoiceTypes.length === 2
-		&& isComplementType(ChoiceTypes[1])
-		&& typeEquals(ChoiceTypes[0]!, ChoiceTypes[1].SourceType)) {
-		return Never;
+		&& isComplementType(ChoiceTypes[1])) {
+		const first = ChoiceTypes[0]!;
+		const second = ChoiceTypes[1].SourceType;
+		if (typeEquals(first, second)) {
+			// And(A Not(A)) => Never
+			return Never;
+		}
+		// And(A Not(B))
+		// Wenn B nicht Teilmenge von A ist: nur A liefern
+		const secondAssignToFirstError = areArgsAssignableTo(undefined, second, first);
+		if (secondAssignToFirstError) {
+			return first;
+		}
 	}
 
 	return {
