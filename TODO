@@ -1,3 +1,4 @@
+?definition name (symbol) in TypeInfo/CompileTimeType statt ReferenceType
 -fix filterMap return type vgl test1.jul
 -refactor CompileTimeType TypeInfo
 	-mit SourceExpression anreichern für Descriptions, Symbole
