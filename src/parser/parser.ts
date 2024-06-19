@@ -1802,7 +1802,6 @@ function bracketedExpressionToParameters(
 			startColumnIndex: baseField.startColumnIndex,
 			endRowIndex: baseField.endRowIndex,
 			endColumnIndex: baseField.endColumnIndex,
-			inferredTypeFromCall: null,
 		};
 		if (baseField.spread) {
 			if (index < baseFields.length - 1) {

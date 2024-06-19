@@ -1,12 +1,9 @@
-?definition name (symbol) in TypeInfo/CompileTimeType statt ReferenceType
--fix filterMap return type vgl test1.jul
 -refactor CompileTimeType TypeInfo
 	-mit SourceExpression anreichern für Descriptions, Symbole
 		-vgl server OnCompletion, findSymbol
 		-ggf sourceFilePath berücksichtigen wegen imports
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
-?tuple builtInType vs type Array, DictionaryLiteralType vs type Dictionary
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar

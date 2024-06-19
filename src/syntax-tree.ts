@@ -1,5 +1,4 @@
 import { ParserError, Positioned } from './parser/parser-combinator.js';
-import { AnyType, BlobType, BooleanType, DateType, ErrorType, FloatType, IntegerType, Primitive, TextType, TypeType, _julTypeSymbol } from './runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {
@@ -380,7 +379,7 @@ export interface ParseParameterField extends ParseExpressionBase {
 	/**
 	 * Wird vom checker gesetzt.
 	 */
-	inferredTypeFromCall: CompileTimeType | null;
+	inferredTypeFromCall?: CompileTimeType;
 }
 
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
@@ -444,15 +443,21 @@ export type CompileTimeCollection =
 	| CompileTimeDictionary
 	;
 
-export type CompileTimeType =
-	| Primitive
-	| CompileTimeCollection
-	| BuiltInCompileTimeType
-	;
+interface CompileTimeTypeBase {
+	/**
+	 * Der Name der Definition, wenn der Typ als Wert einer Definition verwendet wird.
+	 */
+	name?: string;
+}
 
-export type BuiltInCompileTimeType =
+export type CompileTimeType =
 	| NeverType
 	| AnyType
+	| EmptyType
+	| BooleanLiteralType
+	| IntegerLiteralType
+	| FloatLiteralType
+	| TextLiteralType
 	| BooleanType
 	| IntegerType
 	| FloatType
@@ -475,43 +480,143 @@ export type BuiltInCompileTimeType =
 	| NestedReferenceType
 	| ParameterReference
 	| ParametersType
-	| ReferenceType
 	;
 
-export interface NeverType {
-	readonly [_julTypeSymbol]: 'never';
+export interface NeverType extends CompileTimeTypeBase {
+	readonly julType: 'never';
 }
 
 export const Never: NeverType = {
-	[_julTypeSymbol]: 'never',
+	julType: 'never',
 };
 
-export interface CompileTimeComplementType {
-	readonly [_julTypeSymbol]: 'not';
+export interface AnyType extends CompileTimeTypeBase {
+	readonly julType: 'any';
+}
+
+//#region Primitive
+
+interface EmptyType extends CompileTimeTypeBase {
+	readonly julType: 'empty';
+}
+
+export const Empty: EmptyType = {
+	julType: 'empty',
+};
+
+interface BooleanLiteralType extends CompileTimeTypeBase {
+	julType: 'booleanLiteral';
+	value: boolean;
+}
+
+interface FloatLiteralType extends CompileTimeTypeBase {
+	julType: 'floatLiteral';
+	value: number;
+}
+
+interface FloatLiteralType extends CompileTimeTypeBase {
+	julType: 'floatLiteral';
+	value: number;
+}
+
+interface IntegerLiteralType extends CompileTimeTypeBase {
+	julType: 'integerLiteral';
+	value: bigint;
+}
+
+export interface TextLiteralType extends CompileTimeTypeBase {
+	julType: 'textLiteral';
+	value: string;
+}
+
+//#endregion Primitive
+
+export interface BooleanType extends CompileTimeTypeBase {
+	readonly julType: 'boolean';
+}
+
+export const _Boolean: BooleanType = {
+	julType: 'boolean'
+};
+
+export interface IntegerType extends CompileTimeTypeBase {
+	readonly julType: 'integer';
+}
+
+export const Integer: IntegerType = {
+	julType: 'integer'
+};
+
+export interface FloatType extends CompileTimeTypeBase {
+	readonly julType: 'float';
+}
+
+export const Float: FloatType = {
+	julType: 'float'
+};
+
+export interface TextType extends CompileTimeTypeBase {
+	readonly julType: 'text';
+}
+
+export const _Text: TextType = {
+	julType: 'text'
+};
+
+export interface DateType extends CompileTimeTypeBase {
+	readonly julType: 'date';
+}
+
+export const _Date: DateType = {
+	julType: 'date'
+};
+
+export interface BlobType extends CompileTimeTypeBase {
+	readonly julType: 'blob';
+}
+
+interface ErrorType extends CompileTimeTypeBase {
+	readonly julType: 'error';
+}
+
+export const _Error: ErrorType = {
+	julType: 'error'
+};
+
+export interface TypeType extends CompileTimeTypeBase {
+	readonly julType: 'type';
+}
+
+export const Type: TypeType = {
+	julType: 'type'
+};
+
+export interface CompileTimeComplementType extends CompileTimeTypeBase {
+	readonly julType: 'not';
 	SourceType: CompileTimeType;
 }
 
 export function createCompileTimeComplementType(SourceType: CompileTimeType): CompileTimeComplementType {
 	return {
-		[_julTypeSymbol]: 'not',
+		julType: 'not',
 		SourceType: SourceType,
 	};
 }
 
-export interface CompileTimeGreaterType {
-	readonly [_julTypeSymbol]: 'greater';
+export interface CompileTimeGreaterType extends CompileTimeTypeBase {
+	readonly julType: 'greater';
 	Value: CompileTimeType;
 }
 
 export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTimeGreaterType {
 	return {
-		[_julTypeSymbol]: 'greater',
+		julType: 'greater',
 		Value: Value,
 	};
 }
 
-export interface CompileTimeDictionaryLiteralType {
-	readonly [_julTypeSymbol]: 'dictionaryLiteral';
+export interface CompileTimeDictionaryLiteralType extends CompileTimeTypeBase {
+	readonly julType: 'dictionaryLiteral';
 	Fields: CompileTimeDictionary;
 	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral;
 	filePath?: string;
@@ -523,15 +628,15 @@ export function createCompileTimeDictionaryLiteralType(
 	filePath?: string,
 ): CompileTimeDictionaryLiteralType {
 	return {
-		[_julTypeSymbol]: 'dictionaryLiteral',
+		julType: 'dictionaryLiteral',
 		Fields: Fields,
 		expression: expression,
 		filePath: filePath,
 	};
 }
 
-export interface CompileTimeDictionaryType {
-	readonly [_julTypeSymbol]: 'dictionary';
+export interface CompileTimeDictionaryType extends CompileTimeTypeBase {
+	readonly julType: 'dictionary';
 	ElementType: CompileTimeType;
 }
 
@@ -539,13 +644,13 @@ export function createCompileTimeDictionaryType(
 	ElementType: CompileTimeType,
 ): CompileTimeDictionaryType {
 	return {
-		[_julTypeSymbol]: 'dictionary',
+		julType: 'dictionary',
 		ElementType: ElementType,
 	};
 }
 
-export interface CompileTimeFunctionType {
-	readonly [_julTypeSymbol]: 'function';
+export interface CompileTimeFunctionType extends CompileTimeTypeBase {
+	readonly julType: 'function';
 	ParamsType: CompileTimeType;
 	ReturnType: CompileTimeType;
 	pure: boolean;
@@ -557,80 +662,81 @@ export function createCompileTimeFunctionType(
 	pure: boolean,
 ): CompileTimeFunctionType {
 	return {
-		[_julTypeSymbol]: 'function',
+		julType: 'function',
 		ParamsType: ParamsType,
 		ReturnType: ReturnType,
 		pure: pure,
 	};
 }
 
-export interface CompileTimeIntersectionType {
-	readonly [_julTypeSymbol]: 'and';
+export interface CompileTimeIntersectionType extends CompileTimeTypeBase {
+	readonly julType: 'and';
 	ChoiceTypes: CompileTimeType[];
 }
 
-export interface CompileTimeListType {
-	readonly [_julTypeSymbol]: 'list';
+export interface CompileTimeListType extends CompileTimeTypeBase {
+	readonly julType: 'list';
 	ElementType: CompileTimeType;
 }
 
 export function createCompileTimeListType(ElementType: CompileTimeType): CompileTimeListType {
 	return {
-		[_julTypeSymbol]: 'list',
+		julType: 'list',
 		ElementType: ElementType,
 	};
 }
 
-export interface CompileTimeStreamType {
-	readonly [_julTypeSymbol]: 'stream';
+export interface CompileTimeStreamType extends CompileTimeTypeBase {
+	readonly julType: 'stream';
 	ValueType: CompileTimeType;
 }
 
 export function createCompileTimeStreamType(ValueType: CompileTimeType): CompileTimeStreamType {
 	return {
-		[_julTypeSymbol]: 'stream',
+		julType: 'stream',
 		ValueType: ValueType,
 	};
 }
 
-export interface CompileTimeTupleType {
-	readonly [_julTypeSymbol]: 'tuple';
+export interface CompileTimeTupleType extends CompileTimeTypeBase {
+	readonly julType: 'tuple';
+	// TODO nonEmpty?
 	ElementTypes: CompileTimeType[];
 }
 
 export function createCompileTimeTupleType(ElementTypes: CompileTimeType[]): CompileTimeTupleType {
 	return {
-		[_julTypeSymbol]: 'tuple',
+		julType: 'tuple',
 		ElementTypes: ElementTypes,
 	};
 }
 
-export interface CompileTimeTypeOfType {
-	readonly [_julTypeSymbol]: 'typeOf';
+export interface CompileTimeTypeOfType extends CompileTimeTypeBase {
+	readonly julType: 'typeOf';
 	value: CompileTimeType;
 }
 
-export function createCompileTimeTypeOfType(value: CompileTimeType) {
+export function createCompileTimeTypeOfType(value: CompileTimeType): CompileTimeTypeOfType {
 	return {
-		[_julTypeSymbol]: 'typeOf',
+		julType: 'typeOf',
 		value: value,
 	};
 }
 
-export interface CompileTimeUnionType {
-	readonly [_julTypeSymbol]: 'or';
+export interface CompileTimeUnionType extends CompileTimeTypeBase {
+	readonly julType: 'or';
 	ChoiceTypes: CompileTimeType[];
 }
 
-export interface NestedReferenceType {
-	readonly [_julTypeSymbol]: 'nestedReference';
+export interface NestedReferenceType extends CompileTimeTypeBase {
+	readonly julType: 'nestedReference';
 	source: CompileTimeType;
 	nestedKey: string | number;
 }
 
-export function createNestedReference(source: CompileTimeType, nestedKey: string | number) {
+export function createNestedReference(source: CompileTimeType, nestedKey: string | number): NestedReferenceType {
 	return {
-		[_julTypeSymbol]: 'nestedReference',
+		julType: 'nestedReference',
 		source: source,
 		nestedKey: nestedKey,
 	};
@@ -639,8 +745,8 @@ export function createNestedReference(source: CompileTimeType, nestedKey: string
 /**
  * Wird aktuell nur als CompileTimeType benutzt
  */
-export interface ParameterReference {
-	readonly [_julTypeSymbol]: 'parameterReference';
+export interface ParameterReference extends CompileTimeTypeBase {
+	readonly julType: 'parameterReference';
 	name: string;
 	index: number;
 	/**
@@ -651,7 +757,7 @@ export interface ParameterReference {
 
 export function createParameterReference(name: string, index: number): ParameterReference {
 	return {
-		[_julTypeSymbol]: 'parameterReference',
+		julType: 'parameterReference',
 		name: name,
 		index: index,
 	};
@@ -660,15 +766,15 @@ export function createParameterReference(name: string, index: number): Parameter
 /**
  * Wird aktuell nur als CompileTimeType benutzt
  */
-export interface ParametersType {
-	readonly [_julTypeSymbol]: 'parameters';
+export interface ParametersType extends CompileTimeTypeBase {
+	readonly julType: 'parameters';
 	singleNames: Parameter[];
 	rest?: Parameter;
 }
 
 export function createParametersType(singleNames: Parameter[], rest?: Parameter): ParametersType {
 	return {
-		[_julTypeSymbol]: 'parameters',
+		julType: 'parameters',
 		singleNames: singleNames,
 		rest: rest,
 	};
@@ -676,24 +782,7 @@ export function createParametersType(singleNames: Parameter[], rest?: Parameter)
 
 export interface Parameter {
 	name: string;
-	type: CompileTimeType | null;
-}
-
-/**
- * Wird aktuell nur als CompileTimeType benutzt, und nur als rawType.
- */
-export interface ReferenceType {
-	readonly [_julTypeSymbol]: 'reference';
-	name: string;
-	dereferencedType: CompileTimeType;
-}
-
-export function createReferenceType(name: string, dereferencedType: CompileTimeType): ReferenceType {
-	return {
-		[_julTypeSymbol]: 'reference',
-		name: name,
-		dereferencedType: dereferencedType,
-	};
+	type?: CompileTimeType;
 }
 
 //#endregion CompileTimeType

@@ -1,18 +1,10 @@
 import { join } from 'path';
 import {
-	Any,
-	Float,
-	Integer,
-	Type,
 	_Boolean,
 	_Date,
 	_Error,
 	_Text,
-	_julTypeSymbol,
-} from './runtime.js';
-import {
 	BracketedExpression,
-	BuiltInCompileTimeType,
 	CompileTimeCollection,
 	CompileTimeComplementType,
 	CompileTimeDictionary,
@@ -37,7 +29,9 @@ import {
 	createNestedReference,
 	createParameterReference,
 	createParametersType,
-	createReferenceType,
+	Empty,
+	Float,
+	Integer,
 	Never,
 	Parameter,
 	ParameterReference,
@@ -54,12 +48,13 @@ import {
 	SimpleExpression,
 	SymbolDefinition,
 	SymbolTable,
+	TextLiteralType,
 	TextToken,
+	Type,
 	TypedExpression,
 	TypeInfo,
-	ReferenceType,
 } from './syntax-tree.js';
-import { NonEmptyArray, elementsEqual, fieldsEqual, getValueWithFallback, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
+import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
 import { ParserError } from './parser/parser-combinator.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
@@ -68,12 +63,18 @@ export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
 const maxElementsPerLine = 5;
 
-const CompileTimeNonZeroInteger = createNormalizedIntersectionType([Integer, createCompileTimeComplementType(0n)]);
+const CompileTimeNonZeroInteger = createNormalizedIntersectionType([Integer, createCompileTimeComplementType({ julType: 'integerLiteral', value: 0n })]);
 
 const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
-	true: true,
-	false: false,
-	Any: createCompileTimeTypeOfType(Any),
+	true: {
+		julType: 'booleanLiteral',
+		value: true,
+	},
+	false: {
+		julType: 'booleanLiteral',
+		value: false,
+	},
+	Any: createCompileTimeTypeOfType({ julType: 'any' }),
 	Boolean: createCompileTimeTypeOfType(_Boolean),
 	Integer: createCompileTimeTypeOfType(Integer),
 	Float: createCompileTimeTypeOfType(Float),
@@ -167,7 +168,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 				type: _Text,
 			},
 		]),
-		Any,
+		{ julType: 'any' },
 		false,
 	),
 };
@@ -200,7 +201,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	const findResult = findSymbolInScopes(name, scopes);
 	if (!findResult) {
 		return {
-			type: Any,
+			type: { julType: 'any' },
 			found: false,
 			isBuiltIn: false,
 		};
@@ -232,7 +233,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 		// console.log(reference);
 		// throw new Error('symbol type was not inferred');
 		return {
-			type: Any,
+			type: { julType: 'any' },
 			found: true,
 			foundSymbol: foundSymbol,
 			isBuiltIn: isBuiltIn,
@@ -247,10 +248,10 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 }
 
 export function getStreamGetValueType(streamType: CompileTimeStreamType): CompileTimeFunctionType {
-	return createCompileTimeFunctionType(undefined, streamType.ValueType, false);
+	return createCompileTimeFunctionType(Empty, streamType.ValueType, false);
 }
 
-function dereferenceNestedKeyFromObject(nestedKey: string | number, source: CompileTimeType): CompileTimeType | null {
+function dereferenceNestedKeyFromObject(nestedKey: string | number, source: CompileTimeType): CompileTimeType | undefined {
 	return typeof nestedKey === 'string'
 		? dereferenceNameFromObject(nestedKey, source)
 		: dereferenceIndexFromObject(nestedKey, source);
@@ -259,174 +260,133 @@ function dereferenceNestedKeyFromObject(nestedKey: string | number, source: Comp
 export function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
-): CompileTimeType | null {
-	if (sourceObjectType === undefined) {
-		return undefined;
-	}
-	if (typeof sourceObjectType !== 'object') {
-		return null;
-	}
-	if (_julTypeSymbol in sourceObjectType) {
-		switch (sourceObjectType[_julTypeSymbol]) {
-			case 'any':
-				return Any;
-			case 'dictionaryLiteral':
-				return sourceObjectType.Fields[name];
-			case 'dictionary':
-				// TODO Or(() sourceObjectType.ElementType)
-				return sourceObjectType.ElementType;
-			case 'function':
-				switch (name) {
-					case 'ParamsType':
-						return sourceObjectType.ParamsType;
-					case 'ReturnType':
-						return sourceObjectType.ReturnType;
-					default:
-						return null;
-				}
-			case 'list':
-				// TODO error: cant dereference name in list 
-				return null;
-			case 'nestedReference':
-			case 'parameterReference':
-				return createNestedReference(sourceObjectType, name);
-			case 'or': {
-				const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
-					return dereferenceNameFromObject(name, choiceType);
-				}).filter((type): type is CompileTimeType => type !== null);
-				return createNormalizedUnionType(dereferencedChoices);
+): CompileTimeType | undefined {
+	switch (sourceObjectType.julType) {
+		case 'empty':
+			return {
+				julType: 'empty'
+			};
+		case 'any':
+			return {
+				julType: 'any'
+			};
+		case 'dictionaryLiteral':
+			return sourceObjectType.Fields[name];
+		case 'dictionary':
+			// TODO Or(() sourceObjectType.ElementType)
+			return sourceObjectType.ElementType;
+		case 'function':
+			switch (name) {
+				case 'ParamsType':
+					return sourceObjectType.ParamsType;
+				case 'ReturnType':
+					return sourceObjectType.ReturnType;
+				default:
+					return undefined;
 			}
-			case 'parameters': {
-				const matchedParameter = sourceObjectType.singleNames.find(parameter => parameter.name === name);
-				if (matchedParameter) {
-					return matchedParameter.type;
-				}
-				return null;
+		case 'list':
+			// TODO error: cant dereference name in list 
+			return undefined;
+		case 'nestedReference':
+		case 'parameterReference':
+			return createNestedReference(sourceObjectType, name);
+		case 'or': {
+			const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
+				return dereferenceNameFromObject(name, choiceType);
+			}).filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(dereferencedChoices);
+		}
+		case 'parameters': {
+			const matchedParameter = sourceObjectType.singleNames.find(parameter => parameter.name === name);
+			if (matchedParameter) {
+				return matchedParameter.type;
 			}
-			case 'reference':
-				return dereferenceNameFromObject(name, sourceObjectType.dereferencedType);
-			case 'stream':
-				switch (name) {
-					case 'getValue':
-						return getStreamGetValueType(sourceObjectType);
-					case 'ValueType':
-						return sourceObjectType.ValueType;
-					default:
-						return null;
+			return undefined;
+		}
+		case 'stream':
+			switch (name) {
+				case 'getValue':
+					return getStreamGetValueType(sourceObjectType);
+				case 'ValueType':
+					return sourceObjectType.ValueType;
+				default:
+					return undefined;
+			}
+		case 'typeOf': {
+			const innerType = sourceObjectType.value;
+			if (typeof innerType === 'object') {
+				if (!innerType) {
+					// TODO?
+					return undefined;
 				}
-			case 'typeOf': {
-				const innerType = sourceObjectType.value;
-				if (typeof innerType === 'object') {
-					if (!innerType) {
-						// TODO?
-						return null;
-					}
-					if (_julTypeSymbol in innerType) {
-						switch (innerType[_julTypeSymbol]) {
-							case 'dictionary':
-								switch (name) {
-									case 'ElementType':
-										return innerType.ElementType;
-									default:
-										return null;
-								}
-							case 'dictionaryLiteral':
-								return innerType.Fields[name];
-							case 'list':
-								switch (name) {
-									case 'ElementType':
-										return innerType.ElementType;
-									default:
-										return null;
-								}
-							case 'nestedReference':
-							case 'parameterReference':
-								return createNestedReference(sourceObjectType, name);
-							case 'reference':
-								return dereferenceNameFromObject(name, innerType);
-							case 'tuple':
-								switch (name) {
-									case 'ElementType':
-										return createNormalizedUnionType(innerType.ElementTypes);
-									default:
-										return null;
-								}
-							default:
-								return null;
-						}
-					}
-					if (Array.isArray(innerType)) {
-						// TODO?
+				switch (innerType.julType) {
+					case 'dictionary':
 						switch (name) {
 							case 'ElementType':
-								return createNormalizedUnionType(innerType);
+								return innerType.ElementType;
 							default:
-								return null;
+								return undefined;
 						}
-					}
-					// case dictionary
-					// TODO?
-					switch (name) {
-						case 'ElementType':
-							return createNormalizedUnionType(Object.values(innerType));
-						default:
-							return null;
-					}
+					case 'dictionaryLiteral':
+						return innerType.Fields[name];
+					case 'list':
+						switch (name) {
+							case 'ElementType':
+								return innerType.ElementType;
+							default:
+								return undefined;
+						}
+					case 'nestedReference':
+					case 'parameterReference':
+						return createNestedReference(sourceObjectType, name);
+					case 'tuple':
+						switch (name) {
+							case 'ElementType':
+								return createNormalizedUnionType(innerType.ElementTypes);
+							default:
+								return undefined;
+						}
+					default:
+						return undefined;
 				}
-				return null;
 			}
-			// TODO other object types
-			default:
-				return null;
+			return undefined;
 		}
+		// TODO other object types
+		default:
+			return undefined;
 	}
-	if (Array.isArray(sourceObjectType)) {
-		// TODO error: cant dereference name in list 
-		return null;
-	}
-	return sourceObjectType[name];
 }
 
 export function dereferenceIndexFromObject(
 	index: number,
 	sourceObjectType: CompileTimeType,
-): CompileTimeType | null {
+): CompileTimeType | undefined {
 	if (sourceObjectType === undefined) {
 		return undefined;
 	}
-	if (typeof sourceObjectType !== 'object') {
-		return null;
-	}
-	if (_julTypeSymbol in sourceObjectType) {
-		switch (sourceObjectType[_julTypeSymbol]) {
-			case 'dictionaryLiteral':
-				// TODO error: cant dereference index in dictionary type
-				return null;
-			case 'list':
-				return sourceObjectType.ElementType;
-			case 'or': {
-				const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
-					return dereferenceIndexFromObject(index, choiceType);
-				}).filter((type): type is CompileTimeType => type !== null);
-				return createNormalizedUnionType(dereferencedChoices);
-			}
-			case 'parameterReference':
-				return createNestedReference(sourceObjectType, index);
-			case 'reference':
-				return dereferenceIndexFromObject(index, sourceObjectType.dereferencedType);
-			case 'tuple':
-				return sourceObjectType.ElementTypes[index - 1];
-			// TODO other object types
-			default:
-				return null;
+	switch (sourceObjectType.julType) {
+		case 'empty':
+			return Empty;
+		case 'dictionaryLiteral':
+			// TODO error: cant dereference index in dictionary type
+			return undefined;
+		case 'list':
+			return sourceObjectType.ElementType;
+		case 'or': {
+			const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
+				return dereferenceIndexFromObject(index, choiceType);
+			}).filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(dereferencedChoices);
 		}
+		case 'parameterReference':
+			return createNestedReference(sourceObjectType, index);
+		case 'tuple':
+			return sourceObjectType.ElementTypes[index - 1];
+		// TODO other object types
+		default:
+			return undefined;
 	}
-	if (Array.isArray(sourceObjectType)) {
-		// TODO dereference by index
-		return sourceObjectType[index - 1];
-	}
-	// TODO error: cant dereference index in dictionary
-	return null;
 }
 
 export function findSymbolInScopesWithBuiltIns(name: string, scopes: SymbolTable[]): {
@@ -480,107 +440,104 @@ function findParameterSymbol(
 
 function dereferenceArgumentTypesNested(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | null,
+	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 	typeToDereference: CompileTimeType,
 ): CompileTimeType {
-	if (!isBuiltInType(typeToDereference)) {
-		return typeToDereference;
-	}
-	const builtInType: BuiltInCompileTimeType = typeToDereference;
-	switch (builtInType[_julTypeSymbol]) {
+	switch (typeToDereference.julType) {
 		case 'any':
 		case 'blob':
 		case 'boolean':
+		case 'booleanLiteral':
 		case 'date':
+		case 'empty':
 		case 'error':
 		case 'float':
+		case 'floatLiteral':
 		case 'integer':
+		case 'integerLiteral':
 		case 'never':
 		case 'text':
+		case 'textLiteral':
 		case 'type':
-			return builtInType;
+			return typeToDereference;
 		case 'and': {
-			const rawChoices = builtInType.ChoiceTypes;
+			const rawChoices = typeToDereference.ChoiceTypes;
 			const dereferencedChoices = rawChoices.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType));
 			if (elementsEqual(rawChoices, dereferencedChoices)) {
-				return builtInType;
+				return typeToDereference;
 			}
 			return createNormalizedIntersectionType(dereferencedChoices);
 		}
 		case 'dictionary': {
-			const rawElement = builtInType.ElementType;
+			const rawElement = typeToDereference.ElementType;
 			const dereferencedElement = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawElement);
 			if (dereferencedElement === rawElement) {
-				return builtInType;
+				return typeToDereference;
 			}
 			return createCompileTimeDictionaryType(dereferencedElement);
 		}
 		case 'greater': {
-			const rawValue = builtInType.Value;
+			const rawValue = typeToDereference.Value;
 			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
 			if (dereferencedValue === rawValue) {
-				return builtInType;
+				return typeToDereference;
 			}
 			return createCompileTimeGreaterType(dereferencedValue);
 		}
 		case 'list': {
-			const rawElement = builtInType.ElementType;
+			const rawElement = typeToDereference.ElementType;
 			const dereferencedElement = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawElement);
 			if (dereferencedElement === rawElement) {
-				return builtInType;
+				return typeToDereference;
 			}
 			return createCompileTimeListType(dereferencedElement);
 		}
 		case 'nestedReference': {
-			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.source);
-			const dereferencedNested = dereferenceNestedKeyFromObject(builtInType.nestedKey, dereferencedSource);
-			if (dereferencedNested === null) {
-				return Any;
+			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, typeToDereference.source);
+			const dereferencedNested = dereferenceNestedKeyFromObject(typeToDereference.nestedKey, dereferencedSource);
+			if (!dereferencedNested) {
+				return { julType: 'any' };
 			}
 			return dereferencedNested;
 		}
 		case 'not': {
-			const rawSource = builtInType.SourceType;
+			const rawSource = typeToDereference.SourceType;
 			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawSource);
 			if (dereferencedSource === rawSource) {
-				return builtInType;
+				return typeToDereference;
 			}
 			return createCompileTimeComplementType(dereferencedSource);
 		}
 		case 'or': {
-			const rawChoices = builtInType.ChoiceTypes;
+			const rawChoices = typeToDereference.ChoiceTypes;
 			const dereferencedChoices = rawChoices.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType));
 			if (elementsEqual(rawChoices, dereferencedChoices)) {
-				return builtInType;
+				return typeToDereference;
 			}
 			return createNormalizedUnionType(dereferencedChoices);
 		}
 		case 'parameterReference': {
-			const dereferencedParameter = dereferenceParameterFromArgumentType(calledFunction, prefixArgumentType, argsType, builtInType);
-			const dereferencedNested = dereferencedParameter === builtInType
+			const dereferencedParameter = dereferenceParameterFromArgumentType(calledFunction, prefixArgumentType, argsType, typeToDereference);
+			const dereferencedNested = dereferencedParameter === typeToDereference
 				? dereferencedParameter
 				: dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, dereferencedParameter);
 			// TODO immer valueOf?
 			return valueOf(dereferencedNested);
 		}
-		case 'reference': {
-			const dereferenced = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, builtInType.dereferencedType);
-			return createReferenceType(builtInType.name, dereferenced);
-		}
 		case 'stream': {
-			const rawValue = builtInType.ValueType;
+			const rawValue = typeToDereference.ValueType;
 			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
 			if (dereferencedValue === rawValue) {
-				return builtInType;
+				return typeToDereference;
 			}
 			return createCompileTimeStreamType(dereferencedValue);
 		}
 		case 'typeOf': {
-			const rawValue = builtInType.value;
+			const rawValue = typeToDereference.value;
 			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
 			if (dereferencedValue === rawValue) {
-				return builtInType;
+				return typeToDereference;
 			}
 			return createCompileTimeTypeOfType(dereferencedValue);
 		}
@@ -589,10 +546,10 @@ function dereferenceArgumentTypesNested(
 		case 'function':
 		case 'parameters':
 		case 'tuple':
-			return builtInType;
+			return typeToDereference;
 		default: {
-			const assertNever: never = builtInType;
-			throw new Error('Unexpected BuiltInType.type: ' + (assertNever as BuiltInCompileTimeType)[_julTypeSymbol]);
+			const assertNever: never = typeToDereference;
+			throw new Error('Unexpected typeToDereference.type: ' + (assertNever as CompileTimeType).julType);
 		}
 	}
 }
@@ -601,13 +558,13 @@ function dereferenceArgumentTypesNested(
  * combine prefixArgumentType and argsType
  */
 function getAllArgTypes(
-	prefixArgumentType: CompileTimeType | null,
+	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 ): CompileTimeType[] | undefined {
-	const prefixArgTypes = prefixArgumentType === null
-		? []
-		: [prefixArgumentType];
-	if (argsType === undefined) {
+	const prefixArgTypes = prefixArgumentType
+		? [prefixArgumentType]
+		: [];
+	if (argsType.julType === 'empty') {
 		return prefixArgTypes;
 	}
 	if (isTupleType(argsType)) {
@@ -623,19 +580,16 @@ function getAllArgTypes(
 
 function dereferenceParameterFromArgumentType(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | null,
+	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 	parameterReference: ParameterReference,
 ): CompileTimeType {
-	const dereferencedFunction = isReferenceType(calledFunction)
-		? calledFunction.dereferencedType
-		: calledFunction;
-	if (!dereferencedFunction || parameterReference.functionRef !== dereferencedFunction) {
+	if (!calledFunction || parameterReference.functionRef !== calledFunction) {
 		return parameterReference;
 	}
 	// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
 	const paramIndex = parameterReference.index;
-	const paramsType = dereferencedFunction.ParamsType;
+	const paramsType = calledFunction.ParamsType;
 	const isRest = isParametersType(paramsType)
 		? paramsType.singleNames.length === paramIndex
 		// TODO?
@@ -643,20 +597,22 @@ function dereferenceParameterFromArgumentType(
 	if (isRest) {
 		const allArgTypes = getAllArgTypes(prefixArgumentType, argsType);
 		if (allArgTypes === undefined) {
-			return Any;
+			return { julType: 'any' };
 		}
-		return allArgTypes.slice(paramIndex);
+		return {
+			julType: 'tuple',
+			ElementTypes: allArgTypes.slice(paramIndex)
+		};
 	}
-	if (prefixArgumentType !== null && paramIndex === 0) {
+	if (prefixArgumentType && paramIndex === 0) {
 		return prefixArgumentType;
 	}
-	if (argsType === undefined) {
-		return undefined;
+	if (argsType.julType === 'empty') {
+		return {
+			julType: 'empty'
+		};
 	}
-	if (!isBuiltInType(argsType)) {
-		return parameterReference;
-	}
-	switch (argsType[_julTypeSymbol]) {
+	switch (argsType.julType) {
 		case 'dictionaryLiteral': {
 			const referenceName = parameterReference.name;
 			const argType = argsType.Fields[referenceName];
@@ -665,7 +621,7 @@ function dereferenceParameterFromArgumentType(
 				return parameterReference;
 			}
 			const dereferenced = dereferenceNameFromObject(referenceName, argType);
-			if (dereferenced === null) {
+			if (!dereferenced) {
 				return parameterReference;
 			}
 			return dereferenced;
@@ -673,14 +629,14 @@ function dereferenceParameterFromArgumentType(
 		case 'tuple': {
 			// TODO dereference nested path
 			// const referenceName = parameterReference.path[0].name;
-			const argIndex = prefixArgumentType === null
-				? paramIndex
-				: paramIndex - 1;
+			const argIndex = prefixArgumentType
+				? paramIndex - 1
+				: paramIndex;
 			if (argIndex > argsType.ElementTypes.length) {
 				// TODO error bei unbound ref?
 				return parameterReference;
 			}
-			const argType = argsType.ElementTypes[argIndex];
+			const argType = argsType.ElementTypes[argIndex]!;
 			return argType;
 		}
 		case 'list':
@@ -694,159 +650,141 @@ function dereferenceParameterFromArgumentType(
  * Dereferenziert nestedReference und parameterReference über dereferenceParameterTypeFromFunctionRef rekursiv soweit wie möglich.
  */
 function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
-	if (typeof rawType !== 'object') {
-		return rawType;
-	}
-	if (rawType === null) {
-		return rawType;
-	}
-	if (_julTypeSymbol in rawType) {
-		switch (rawType[_julTypeSymbol]) {
-			case 'and': {
-				const rawChoices = rawType.ChoiceTypes;
-				const dereferencedChoices = rawChoices.map(dereferenceNested);
-				if (elementsEqual(rawChoices, dereferencedChoices)) {
-					return rawType;
-				}
-				return createNormalizedIntersectionType(dereferencedChoices);
-			}
-			case 'dictionary': {
-				const rawElement = rawType.ElementType;
-				const dereferencedElement = dereferenceNested(rawElement);
-				if (dereferencedElement === rawElement) {
-					return rawType;
-				}
-				return createCompileTimeDictionaryType(dereferencedElement);
-			}
-			case 'dictionaryLiteral': {
-				const rawFields = rawType.Fields;
-				const dereferencedFields = mapDictionary(rawFields, dereferenceNested);
-				if (fieldsEqual(rawFields, dereferencedFields)) {
-					return rawType;
-				}
-				return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.expression, rawType.filePath);
-			}
-			case 'function': {
-				const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
-				const dereferencedReturnType = dereferenceNested(rawType.ReturnType);
-				if (dereferencedParamsType === rawType.ParamsType
-					&& dereferencedReturnType === rawType.ReturnType) {
-					return rawType;
-				}
-				return createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure);
-			}
-			case 'list': {
-				const rawElement = rawType.ElementType;
-				const dereferencedElement = dereferenceNested(rawElement);
-				if (dereferencedElement === rawElement) {
-					return rawType;
-				}
-				return createCompileTimeListType(dereferencedElement);
-			}
-			case 'nestedReference': {
-				const dereferencedSource = dereferenceNested(rawType.source);
-				const dereferencedNested = dereferenceNestedKeyFromObject(rawType.nestedKey, dereferencedSource);
-				if (dereferencedNested === null) {
-					return Any;
-				}
-				return dereferencedNested;
-			}
-			case 'not': {
-				const rawSource = rawType.SourceType;
-				const dereferencedSource = dereferenceNested(rawSource);
-				if (dereferencedSource === rawSource) {
-					return rawType;
-				}
-				return createCompileTimeComplementType(dereferencedSource);
-			}
-			case 'or': {
-				const rawChoices = rawType.ChoiceTypes;
-				const dereferencedChoices = rawChoices.map(dereferenceNested);
-				if (elementsEqual(rawChoices, dereferencedChoices)) {
-					return rawType;
-				}
-				return createNormalizedUnionType(dereferencedChoices);
-			}
-			case 'parameterReference': {
-				const dereferenced1 = dereferenceParameterTypeFromFunctionRef(rawType);
-				if (dereferenced1 === null) {
-					return Any;
-				}
-				if (dereferenced1 === rawType) {
-					return rawType;
-				}
-				const dereferenced2 = dereferenceNested(dereferenced1);
-				return dereferenced2;
-			}
-			case 'parameters': {
-				const dereferencedSingleNames = rawType.singleNames.map(dereferenceNestedParameter);
-				const rawRest = rawType.rest;
-				const dereferencedRest = rawRest === undefined
-					? undefined
-					: dereferenceNestedParameter(rawRest);
-				if (rawRest === dereferencedRest
-					&& elementsEqual(rawType.singleNames, dereferencedSingleNames)) {
-					return rawType;
-				}
-				return createParametersType(dereferencedSingleNames, dereferencedRest);
-			}
-			case 'reference': {
-				const dereferenced = dereferenceNested(rawType.dereferencedType);
-				return createReferenceType(rawType.name, dereferenced);
-			}
-			case 'stream': {
-				const rawValue = rawType.ValueType;
-				const dereferencedValue = dereferenceNested(rawValue);
-				if (dereferencedValue === rawValue) {
-					return rawType;
-				}
-				return createCompileTimeStreamType(dereferencedValue);
-			}
-			case 'tuple': {
-				const rawElements = rawType.ElementTypes;
-				const dereferencedElements = rawElements.map(dereferenceNested);
-				if (elementsEqual(rawElements, dereferencedElements)) {
-					return rawType;
-				}
-				return createCompileTimeTupleType(dereferencedElements);
-			}
-			case 'typeOf': {
-				const rawValue = rawType.value;
-				const dereferencedValue = dereferenceNested(rawValue);
-				if (dereferencedValue === rawValue) {
-					return rawType;
-				}
-				return createCompileTimeTypeOfType(dereferencedValue);
-			}
-			default:
+	switch (rawType.julType) {
+		case 'and': {
+			const rawChoices = rawType.ChoiceTypes;
+			const dereferencedChoices = rawChoices.map(dereferenceNested);
+			if (elementsEqual(rawChoices, dereferencedChoices)) {
 				return rawType;
+			}
+			return createNormalizedIntersectionType(dereferencedChoices);
 		}
+		case 'dictionary': {
+			const rawElement = rawType.ElementType;
+			const dereferencedElement = dereferenceNested(rawElement);
+			if (dereferencedElement === rawElement) {
+				return rawType;
+			}
+			return createCompileTimeDictionaryType(dereferencedElement);
+		}
+		case 'dictionaryLiteral': {
+			const rawFields = rawType.Fields;
+			const dereferencedFields = mapDictionary(rawFields, dereferenceNested);
+			if (fieldsEqual(rawFields, dereferencedFields)) {
+				return rawType;
+			}
+			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.expression, rawType.filePath);
+		}
+		case 'function': {
+			const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
+			const dereferencedReturnType = dereferenceNested(rawType.ReturnType);
+			if (dereferencedParamsType === rawType.ParamsType
+				&& dereferencedReturnType === rawType.ReturnType) {
+				return rawType;
+			}
+			return createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure);
+		}
+		case 'list': {
+			const rawElement = rawType.ElementType;
+			const dereferencedElement = dereferenceNested(rawElement);
+			if (dereferencedElement === rawElement) {
+				return rawType;
+			}
+			return createCompileTimeListType(dereferencedElement);
+		}
+		case 'nestedReference': {
+			const dereferencedSource = dereferenceNested(rawType.source);
+			const dereferencedNested = dereferenceNestedKeyFromObject(rawType.nestedKey, dereferencedSource);
+			if (!dereferencedNested) {
+				return { julType: 'any' };
+			}
+			return dereferencedNested;
+		}
+		case 'not': {
+			const rawSource = rawType.SourceType;
+			const dereferencedSource = dereferenceNested(rawSource);
+			if (dereferencedSource === rawSource) {
+				return rawType;
+			}
+			return createCompileTimeComplementType(dereferencedSource);
+		}
+		case 'or': {
+			const rawChoices = rawType.ChoiceTypes;
+			const dereferencedChoices = rawChoices.map(dereferenceNested);
+			if (elementsEqual(rawChoices, dereferencedChoices)) {
+				return rawType;
+			}
+			return createNormalizedUnionType(dereferencedChoices);
+		}
+		case 'parameterReference': {
+			const dereferenced1 = dereferenceParameterTypeFromFunctionRef(rawType);
+			if (!dereferenced1) {
+				return { julType: 'any' };
+			}
+			if (dereferenced1 === rawType) {
+				return rawType;
+			}
+			const dereferenced2 = dereferenceNested(dereferenced1);
+			return dereferenced2;
+		}
+		case 'parameters': {
+			const dereferencedSingleNames = rawType.singleNames.map(dereferenceNestedParameter);
+			const rawRest = rawType.rest;
+			const dereferencedRest = rawRest
+				? dereferenceNestedParameter(rawRest)
+				: undefined;
+			if (rawRest === dereferencedRest
+				&& elementsEqual(rawType.singleNames, dereferencedSingleNames)) {
+				return rawType;
+			}
+			return createParametersType(dereferencedSingleNames, dereferencedRest);
+		}
+		case 'stream': {
+			const rawValue = rawType.ValueType;
+			const dereferencedValue = dereferenceNested(rawValue);
+			if (dereferencedValue === rawValue) {
+				return rawType;
+			}
+			return createCompileTimeStreamType(dereferencedValue);
+		}
+		case 'tuple': {
+			const rawElements = rawType.ElementTypes;
+			const dereferencedElements = rawElements.map(dereferenceNested);
+			if (elementsEqual(rawElements, dereferencedElements)) {
+				return rawType;
+			}
+			return createCompileTimeTupleType(dereferencedElements);
+		}
+		case 'typeOf': {
+			const rawValue = rawType.value;
+			const dereferencedValue = dereferenceNested(rawValue);
+			if (dereferencedValue === rawValue) {
+				return rawType;
+			}
+			return createCompileTimeTypeOfType(dereferencedValue);
+		}
+		default:
+			return rawType;
 	}
-	return rawType;
 }
 
 function dereferenceNestedParameter(parameter: Parameter): Parameter {
 	return {
 		name: parameter.name,
-		type: parameter.type === null
-			? null
-			: dereferenceNested(parameter.type),
+		type: parameter.type && dereferenceNested(parameter.type),
 	};
 }
 
-function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): CompileTimeType | null {
+function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): CompileTimeType | undefined {
 	const functionType = parameterReference.functionRef;
 	if (functionType) {
 		const paramsType = functionType.ParamsType;
 		if (isParametersType(paramsType)) {
 			const matchedParameter = paramsType.singleNames.find(parameter =>
 				parameter.name === parameterReference.name);
-			return matchedParameter
-				? matchedParameter.type
-				: null;
+			return matchedParameter?.type;
 		}
 	}
-	return null;
 }
 
 //#endregion dereference
@@ -914,8 +852,8 @@ function inferType(
 		case 'bracketed':
 			// TODO?
 			return {
-				rawType: Any,
-				dereferencedType: Any,
+				rawType: { julType: 'any' },
+				dereferencedType: { julType: 'any' },
 			};
 		case 'branching': {
 			// union branch return types
@@ -925,8 +863,8 @@ function inferType(
 			branches.forEach((branch, index) => {
 				setInferredType(branch, scopes, parsedDocuments, folder, file, filePath);
 				// Fehler, wenn branch type != function
-				const functionType = createCompileTimeFunctionType(Any, Any, false);
-				const nonFunctionError = areArgsAssignableTo(null, branch.typeInfo!.dereferencedType, functionType);
+				const functionType = createCompileTimeFunctionType({ julType: 'any' }, { julType: 'any' }, false);
+				const nonFunctionError = areArgsAssignableTo(undefined, branch.typeInfo!.dereferencedType, functionType);
 				if (nonFunctionError) {
 					errors.push({
 						message: 'Expected branch to be a function.\n' + nonFunctionError,
@@ -945,7 +883,7 @@ function inferType(
 					// });
 					// const combinedPreviousType = new UnionType(previousTypes);
 					// const currentParamsType = getParamsType(branch.inferredType);
-					// const error = areArgsAssignableTo(null, currentParamsType, combinedPreviousType);
+					// const error = areArgsAssignableTo(undefined, currentParamsType, combinedPreviousType);
 					// if (!error) {
 					// 	errors.push({
 					// 		message: 'Unreachable branch detected.',
@@ -974,7 +912,7 @@ function inferType(
 			const name = expression.name.name;
 			let typeInfo: TypeInfo;
 			if (name in coreBuiltInSymbolTypes) {
-				const rawType = coreBuiltInSymbolTypes[name];
+				const rawType = coreBuiltInSymbolTypes[name]!;
 				typeInfo = {
 					rawType: rawType,
 					dereferencedType: rawType,
@@ -986,10 +924,16 @@ function inferType(
 				}
 				else {
 					typeInfo = {
-						rawType: Any,
-						dereferencedType: Any,
+						rawType: { julType: 'any' },
+						dereferencedType: { julType: 'any' },
 					};
 				}
+			}
+			if (!typeInfo.rawType.name) {
+				typeInfo.rawType.name = name;
+			}
+			if (!typeInfo.dereferencedType.name) {
+				typeInfo.dereferencedType.name = name;
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
 			// TODO typecheck mit typeguard, ggf union mit Error type
@@ -1004,7 +948,7 @@ function inferType(
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.typeInfo;
-				const assignmentError = typeGuardType && areArgsAssignableTo(null, typeInfo.dereferencedType, valueOf(typeGuardType.dereferencedType));
+				const assignmentError = typeGuardType && areArgsAssignableTo(undefined, typeInfo.dereferencedType, valueOf(typeGuardType.dereferencedType));
 				if (assignmentError) {
 					errors.push({
 						message: assignmentError,
@@ -1031,13 +975,13 @@ function inferType(
 				}
 				checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
 				const referenceName = field.source?.name ?? fieldName;
-				const valueType = value?.typeInfo
+				const valueType: CompileTimeType = value?.typeInfo
 					? value.typeInfo.rawType
-					: Any;
+					: { julType: 'any' };
 				const fieldType = dereferenceNameFromObject(referenceName, valueType);
-				if (fieldType === null) {
+				if (!fieldType) {
 					errors.push({
-						message: `Failed to dereference ${referenceName} in type ${typeToString(valueType, 0)}`,
+						message: `Failed to dereference ${referenceName} in type ${typeToString(value?.typeInfo?.dereferencedType ?? { julType: 'any' }, 0, 0)}`,
 						startRowIndex: field.startRowIndex,
 						startColumnIndex: field.startColumnIndex,
 						endRowIndex: field.endRowIndex,
@@ -1055,7 +999,7 @@ function inferType(
 					setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
-					const error = typeGuard.typeInfo && areArgsAssignableTo(null, fieldType, valueOf(typeGuard.typeInfo.dereferencedType));
+					const error = typeGuard.typeInfo && areArgsAssignableTo(undefined, fieldType, valueOf(typeGuard.typeInfo.dereferencedType));
 					if (error) {
 						errors.push({
 							message: error,
@@ -1068,8 +1012,8 @@ function inferType(
 				}
 			});
 			return {
-				rawType: Any,
-				dereferencedType: Any,
+				rawType: { julType: 'any' },
+				dereferencedType: { julType: 'any' },
 			};
 		}
 		case 'dictionary': {
@@ -1091,9 +1035,7 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = field.value?.typeInfo
-							? getValueWithFallback(field.value.typeInfo.rawType, Any)
-							: Any;
+						const fieldType = field.value?.typeInfo?.rawType ?? { julType: 'any' };
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
@@ -1126,8 +1068,8 @@ function inferType(
 			});
 			if (isUnknownType) {
 				return {
-					rawType: Any,
-					dereferencedType: Any,
+					rawType: { julType: 'any' },
+					dereferencedType: { julType: 'any' },
 				};
 			}
 			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath);
@@ -1183,24 +1125,35 @@ function inferType(
 		}
 		case 'empty':
 			return {
-				rawType: undefined,
-				dereferencedType: undefined,
+				rawType: { julType: 'empty' },
+				dereferencedType: { julType: 'empty' },
 			};
 		case 'field':
 			// TODO?
 			return {
-				rawType: Any,
-				dereferencedType: Any,
+				rawType: { julType: 'empty' },
+				dereferencedType: { julType: 'empty' },
 			};
-		case 'float':
+		case 'float': {
+			const rawType: CompileTimeType = {
+				julType: 'floatLiteral',
+				value: expression.value
+			};
 			return {
-				rawType: expression.value,
-				dereferencedType: expression.value,
+				rawType: rawType,
+				dereferencedType: rawType,
 			};
+		}
 		case 'fraction': {
 			const rawType = createCompileTimeDictionaryLiteralType({
-				numerator: expression.numerator,
-				denominator: expression.denominator,
+				numerator: {
+					julType: 'integerLiteral',
+					value: expression.numerator,
+				},
+				denominator: {
+					julType: 'integerLiteral',
+					value: expression.denominator,
+				},
 			});
 			return {
 				rawType: rawType,
@@ -1217,8 +1170,8 @@ function inferType(
 			const functionExpression = expression.functionExpression;
 			if (!functionExpression) {
 				return {
-					rawType: Any,
-					dereferencedType: Any,
+					rawType: { julType: 'any' },
+					dereferencedType: { julType: 'any' },
 				};
 			}
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file, filePath);
@@ -1227,8 +1180,8 @@ function inferType(
 			const args = expression.arguments;
 			if (!args) {
 				return {
-					rawType: Any,
-					dereferencedType: Any,
+					rawType: { julType: 'any' },
+					dereferencedType: { julType: 'any' },
 				};
 			}
 			//#region infer argument type bei function literal welches inline argument eines function calls ist
@@ -1251,9 +1204,7 @@ function inferType(
 								arg.params.singleFields.forEach((literalParam, literalParamIndex) => {
 									if (isParametersType(innerParamsType)) {
 										const innerParam = innerParamsType.singleNames[literalParamIndex];
-										literalParam.inferredTypeFromCall = innerParam
-											? innerParam.type
-											: null;
+										literalParam.inferredTypeFromCall = innerParam?.type;
 									}
 								});
 							}
@@ -1265,9 +1216,7 @@ function inferType(
 			//#endregion
 			setInferredType(args, scopes, parsedDocuments, folder, file, filePath);
 			const argsType = args.typeInfo!.rawType;
-			const prefixArgumentType = prefixArgument?.typeInfo
-				? prefixArgument.typeInfo.rawType
-				: null;
+			const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
 			if (assignArgsError) {
 				errors.push({
@@ -1291,8 +1240,8 @@ function inferType(
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, ownSymbols];
 			const params = expression.params;
 			const functionType = createCompileTimeFunctionType(
-				undefined,
-				undefined,
+				{ julType: 'empty' },
+				{ julType: 'empty' },
 				// TODO pure, wenn der body pure ist
 				false,
 			);
@@ -1331,7 +1280,7 @@ function inferType(
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file, filePath);
-				const error = areArgsAssignableTo(null, inferredReturnType.dereferencedType, valueOf(declaredReturnType.typeInfo!.dereferencedType));
+				const error = areArgsAssignableTo(undefined, inferredReturnType.dereferencedType, valueOf(declaredReturnType.typeInfo!.dereferencedType));
 				if (error) {
 					errors.push({
 						message: error,
@@ -1352,8 +1301,8 @@ function inferType(
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			const params = expression.params;
 			const functionType = createCompileTimeFunctionType(
-				undefined,
-				undefined,
+				{ julType: 'empty' },
+				{ julType: 'empty' },
 				true,
 			);
 			if (params.type === 'parameters') {
@@ -1371,11 +1320,16 @@ function inferType(
 				dereferencedType: dereferenceNested(rawType),
 			};
 		}
-		case 'integer':
-			return {
-				rawType: expression.value,
-				dereferencedType: expression.value,
+		case 'integer': {
+			const rawType: CompileTimeType = {
+				julType: 'integerLiteral',
+				value: expression.value,
 			};
+			return {
+				rawType: rawType,
+				dereferencedType: rawType,
+			};
+		}
 		case 'list': {
 			// TODO spread elements
 			// TODO error when spread dictionary
@@ -1388,7 +1342,7 @@ function inferType(
 			const rawType = createCompileTimeTupleType(expression.values.map(element => {
 				if (element.type === 'spread') {
 					// TODO flatten spread tuple value type
-					return Any;
+					return { julType: 'any' };
 				}
 				return element.typeInfo!.rawType;
 			}));
@@ -1403,14 +1357,14 @@ function inferType(
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
 				return {
-					rawType: Any,
-					dereferencedType: Any,
+					rawType: { julType: 'any' },
+					dereferencedType: { julType: 'any' },
 				};
 			}
 			switch (nestedKey.type) {
 				case 'index': {
 					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.typeInfo!.rawType);
-					const rawType = getValueWithFallback(dereferencedType, Any);
+					const rawType = dereferencedType ?? { julType: 'any' };
 					return {
 						rawType: rawType,
 						dereferencedType: dereferenceNested(rawType),
@@ -1421,12 +1375,12 @@ function inferType(
 					const fieldName = getCheckedEscapableName(nestedKey);
 					if (!fieldName) {
 						return {
-							rawType: Any,
-							dereferencedType: Any,
+							rawType: { julType: 'any' },
+							dereferencedType: { julType: 'any' },
 						};
 					}
 					const dereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.rawType);
-					const rawType = getValueWithFallback(dereferencedType, Any);
+					const rawType = dereferencedType ?? { julType: 'any' };
 					return {
 						rawType: rawType,
 						dereferencedType: dereferenceNested(rawType),
@@ -1455,8 +1409,8 @@ function inferType(
 				}
 			});
 			return {
-				rawType: Any,
-				dereferencedType: Any,
+				rawType: { julType: 'any' },
+				dereferencedType: { julType: 'any' },
 			};
 		}
 		case 'parameter': {
@@ -1469,7 +1423,7 @@ function inferType(
 			//#region infer argument type bei function literal welches inline argument eines function calls ist
 			const inferredTypeFromCall = expression.inferredTypeFromCall;
 			let dereferencedTypeFromCall = inferredTypeFromCall;
-			if (inferredTypeFromCall !== null
+			if (inferredTypeFromCall
 				&& expression.parent?.type === 'parameters'
 				&& expression.parent.parent?.type === 'functionLiteral'
 				&& expression.parent.parent.parent?.type === 'list'
@@ -1484,17 +1438,13 @@ function inferType(
 					// TODO rest berücksichtigen
 					// const paramIndex = expression.parent.singleFields.indexOf(expression);
 					// TODO previous arg types
-					const prefixArgumentType = prefixArgument?.typeInfo
-						? prefixArgument.typeInfo.rawType
-						: null;
-					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgumentType, undefined, inferredTypeFromCall);
+					const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
+					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgumentType, { julType: 'empty' }, inferredTypeFromCall);
 				}
 			}
 			//#endregion
-			const typeGuardType = typeGuard?.typeInfo
-				? typeGuard.typeInfo.rawType
-				: null;
-			const inferredType = getValueWithFallback(dereferencedTypeFromCall, valueOf(typeGuardType));
+			const typeGuardType = typeGuard?.typeInfo?.rawType;
+			const inferredType = dereferencedTypeFromCall ?? valueOf(typeGuardType);
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			const typeInfo: TypeInfo = {
@@ -1517,16 +1467,12 @@ function inferType(
 				expression.singleFields.map(field => {
 					return {
 						name: field.source ?? field.name.name,
-						type: field.typeInfo
-							? field.typeInfo.rawType
-							: null
+						type: field.typeInfo?.rawType
 					};
 				}),
 				rest && {
 					name: rest.name.name,
-					type: rest.typeInfo
-						? rest.typeInfo.rawType
-						: null,
+					type: rest.typeInfo?.rawType
 				},
 			);
 			return {
@@ -1566,10 +1512,9 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			const rawType = createReferenceType(name, type);
 			return {
-				rawType: rawType,
-				dereferencedType: dereferenceNested(rawType),
+				rawType: type,
+				dereferencedType: dereferenceNested(type),
 			};
 		}
 		case 'text': {
@@ -1577,10 +1522,13 @@ function inferType(
 			if (expression.values.every((part): part is TextToken => part.type === 'textToken')) {
 				// string literal type
 				// TODO sollte hier überhaupt mehrelementiger string möglich sein?
-				const rawType = expression.values.map(part => part.value).join('\n');
+				const rawType: CompileTimeType = {
+					julType: 'textLiteral',
+					value: expression.values.map(part => part.value).join('\n'),
+				};
 				return {
 					rawType: rawType,
-					dereferencedType: dereferenceNested(rawType),
+					dereferencedType: rawType,
 				};
 			}
 			expression.values.forEach(part => {
@@ -1610,10 +1558,8 @@ function getReturnTypeFromFunctionCall(
 	errors: ParserError[],
 ): CompileTimeType {
 	const prefixArgument = functionCall.prefixArgument;
-	const prefixArgumentType = prefixArgument?.typeInfo
-		? prefixArgument.typeInfo.rawType
-		: null;
-	const argsType = functionCall.arguments?.typeInfo!.rawType;
+	const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
+	const argsType = functionCall.arguments?.typeInfo?.rawType ?? { julType: 'any' };
 	// TODO statt functionname functionref value/inferred type prüfen?
 	if (functionExpression.type === 'reference') {
 		const functionName = functionExpression.name.name;
@@ -1624,21 +1570,22 @@ function getReturnTypeFromFunctionCall(
 					errors.push(error);
 				}
 				if (!path) {
-					return Any;
+					return { julType: 'any' };
 				}
 				// TODO get full path, get type from parsedfile
 				const fullPath = join(folder, path);
 				const importedFile = parsedDocuments[fullPath]?.checked;
 				if (!importedFile) {
-					return Any;
+					return { julType: 'any' };
 				}
 				// definitions import
 				// a dictionary containing all definitions is imported
 				if (Object.keys(importedFile.symbols).length) {
 					const importedTypes = mapDictionary(importedFile.symbols, symbol => {
-						return symbol.typeInfo
+						const symbolType: CompileTimeType = symbol.typeInfo
 							? symbol.typeInfo.rawType
-							: Any;
+							: { julType: 'any' };
+						return symbolType;
 					});
 					// TODO exrepssion, filePath?
 					return createCompileTimeDictionaryLiteralType(importedTypes);
@@ -1646,15 +1593,15 @@ function getReturnTypeFromFunctionCall(
 				// value import
 				// the last expression is imported
 				if (!importedFile.expressions) {
-					return Any;
+					return { julType: 'any' };
 				}
 				const lastExpression = last(importedFile.expressions);
 				if (!lastExpression) {
-					return Any;
+					return { julType: 'any' };
 				}
 				return lastExpression.typeInfo
 					? lastExpression.typeInfo.rawType
-					: Any;
+					: { julType: 'any' };
 			}
 			// case 'nativeFunction': {
 			// 	const argumentType = dereferenceArgumentType(argsType, createParameterReference([{
@@ -1690,22 +1637,22 @@ function getReturnTypeFromFunctionCall(
 			case 'lastElement': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const dereferencedArgType = argTypes?.length
-					? dereferenceNested(argTypes[0])
-					: null;
+					? dereferenceNested(argTypes[0]!)
+					: undefined;
 				return getLastElementFromType(dereferencedArgType);
 			}
 			case 'length': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const firstArgType = argTypes?.length
 					? argTypes[0]
-					: null;
+					: undefined;
 				return getLengthFromType(firstArgType);
 			}
 			case 'And': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return Any;
+					return { julType: 'any' };
 				}
 				return createCompileTimeTypeOfType(createNormalizedIntersectionType(argTypes.map(valueOf)));
 			}
@@ -1713,11 +1660,11 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return Any;
+					return { julType: 'any' };
 				}
 				if (!isNonEmpty(argTypes)) {
 					// TODO unknown?
-					return Any;
+					return { julType: 'any' };
 				}
 				return createCompileTimeTypeOfType(createCompileTimeComplementType(valueOf(argTypes[0])));
 			}
@@ -1725,7 +1672,7 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return Any;
+					return { julType: 'any' };
 				}
 				const choices = argTypes.map(valueOf);
 				const unionType = createNormalizedUnionType(choices);
@@ -1735,11 +1682,11 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return Any;
+					return { julType: 'any' };
 				}
 				if (!isNonEmpty(argTypes)) {
 					// TODO unknown?
-					return Any;
+					return { julType: 'any' };
 				}
 				return createCompileTimeTypeOfType(argTypes[0]);
 			}
@@ -1747,11 +1694,11 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return Any;
+					return { julType: 'any' };
 				}
 				if (!isNonEmpty(argTypes)) {
 					// TODO unknown?
-					return Any;
+					return { julType: 'any' };
 				}
 				return createCompileTimeTypeOfType(createCompileTimeGreaterType(valueOf(argTypes[0])));
 			}
@@ -1765,17 +1712,16 @@ function getReturnTypeFromFunctionCall(
 
 function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileTimeType {
 	if (!argsTypes) {
-		return;
+		return { julType: 'empty' };
 	}
 	const [valuesType, indexType] = argsTypes;
 	if (valuesType === undefined
-		|| valuesType === null
 		|| indexType === undefined) {
-		return;
+		return { julType: 'empty' };
 	}
 	if (typeof indexType === 'bigint') {
 		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType), valuesType);
-		if (dereferencedIndex !== null) {
+		if (dereferencedIndex) {
 			return dereferencedIndex;
 		}
 	}
@@ -1783,87 +1729,73 @@ function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 		const getElementChoices = indexType.ChoiceTypes.map(indexChoice => getElementFromTypes([valuesType, indexChoice]));
 		return createNormalizedUnionType(getElementChoices);
 	}
-	if (isBuiltInType(valuesType)) {
-		switch (valuesType[_julTypeSymbol]) {
-			case 'tuple':
-				return createNormalizedUnionType([undefined, ...valuesType.ElementTypes]);
-			case 'list':
-				return createNormalizedUnionType([undefined, valuesType.ElementType]);
-			case 'or': {
-				const getElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getElementFromTypes([valuesChoice, indexType]));
-				return createNormalizedUnionType(getElementChoices);
-			}
-			default:
-				return Any;
+	switch (valuesType.julType) {
+		case 'tuple':
+			return createNormalizedUnionType([{ julType: 'empty' }, ...valuesType.ElementTypes]);
+		case 'list':
+			return createNormalizedUnionType([{ julType: 'empty' }, valuesType.ElementType]);
+		case 'or': {
+			const getElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getElementFromTypes([valuesChoice, indexType]));
+			return createNormalizedUnionType(getElementChoices);
 		}
+		default:
+			return { julType: 'any' };
 	}
-	if (Array.isArray(valuesType)) {
-		return createNormalizedUnionType([undefined, ...valuesType]);
-	}
-	return Any;
 }
 
-function getLastElementFromType(valuesType: CompileTimeType | null): CompileTimeType {
-	if (typeof valuesType !== 'object'
-		|| valuesType === null
-	) {
-		return;
+function getLastElementFromType(valuesType: CompileTimeType | undefined): CompileTimeType {
+	if (!valuesType) {
+		return {
+			julType: 'empty'
+		};
 	}
-	if (_julTypeSymbol in valuesType) {
-		switch (valuesType[_julTypeSymbol]) {
-			case 'reference':
-				return getLastElementFromType(valuesType.dereferencedType);
-			case 'tuple':
-				return last(valuesType.ElementTypes);
-			case 'list':
-				return valuesType.ElementType;
-			case 'or': {
-				const lastElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getLastElementFromType(valuesChoice));
-				return createNormalizedUnionType(lastElementChoices);
-			}
-			default:
-				return Any;
+	switch (valuesType.julType) {
+		case 'tuple':
+			return last(valuesType.ElementTypes) ?? {
+				julType: 'empty'
+			};
+		case 'list':
+			return valuesType.ElementType;
+		case 'or': {
+			const lastElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getLastElementFromType(valuesChoice));
+			return createNormalizedUnionType(lastElementChoices);
 		}
+		default:
+			return { julType: 'any' };
 	}
-	if (Array.isArray(valuesType)) {
-		return last(valuesType);
-	}
-	return Any;
 }
 
-function getLengthFromType(argType: CompileTimeType | null): CompileTimeType {
-	if (typeof argType !== 'object') {
+function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
+	if (!argType) {
 		// TODO non negative
 		return Integer;
 	}
-	if (argType === null) {
-		return 0n;
-	}
-	if (_julTypeSymbol in argType) {
-		switch (argType[_julTypeSymbol]) {
-			case 'tuple':
-				return BigInt(argType.ElementTypes.length);
-			case 'list':
-				// TODO positive
-				return CompileTimeNonZeroInteger;
-			case 'or': {
-				const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
-				return createNormalizedUnionType(lengthChoices);
-			}
-			case 'parameterReference': {
-				const dereferenced = dereferenceParameterTypeFromFunctionRef(argType);
-				return getLengthFromType(dereferenced);
-			}
-			default:
-				// TODO non negative
-				return Integer;
+	switch (argType.julType) {
+		case 'empty':
+			return {
+				julType: 'integerLiteral',
+				value: 0n
+			};
+		case 'tuple':
+			return {
+				julType: 'integerLiteral',
+				value: BigInt(argType.ElementTypes.length)
+			};
+		case 'list':
+			// TODO positive
+			return CompileTimeNonZeroInteger;
+		case 'or': {
+			const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
+			return createNormalizedUnionType(lengthChoices);
 		}
+		case 'parameterReference': {
+			const dereferenced = dereferenceParameterTypeFromFunctionRef(argType);
+			return getLengthFromType(dereferenced);
+		}
+		default:
+			// TODO non negative
+			return Integer;
 	}
-	if (Array.isArray(argType)) {
-		return BigInt(argType.length);
-	}
-	// TODO non negative
-	return Integer;
 }
 
 //#endregion get Type from FunctionCall
@@ -1879,8 +1811,8 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		flatChoices.push(...union.ChoiceTypes);
 	});
 	//#endregion flatten UnionTypes
-	if (flatChoices.includes(Any)) {
-		return Any;
+	if (flatChoices.some(choice => choice.julType === 'any')) {
+		return { julType: 'any' };
 	}
 	//#region remove Never
 	const choicesWithoutNever = flatChoices.filter(choice =>
@@ -1889,7 +1821,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		return Never;
 	}
 	if (choicesWithoutNever.length === 1) {
-		return choicesWithoutNever[0];
+		return choicesWithoutNever[0]!;
 	}
 	//#endregion remove Never
 	//#region remove duplicates
@@ -1901,7 +1833,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		}
 	});
 	if (uniqueChoices.length === 1) {
-		return uniqueChoices[0];
+		return uniqueChoices[0]!;
 	}
 	//#endregion remove duplicates
 	//#region collapse Streams
@@ -1920,7 +1852,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 				!isStreamType(choiceType)),
 		);
 		if (collapsedStreamChoices.length === 1) {
-			return collapsedStreamChoices[0];
+			return collapsedStreamChoices[0]!;
 		}
 	}
 	else {
@@ -1928,7 +1860,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	}
 	//#endregion collapse Streams
 	return {
-		[_julTypeSymbol]: 'or',
+		julType: 'or',
 		ChoiceTypes: collapsedStreamChoices,
 	};
 }
@@ -1941,7 +1873,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 	if (ChoiceTypes.length === 2
 		&& isUnionType(ChoiceTypes[0])) {
 		const firstUnionChoices = ChoiceTypes[0].ChoiceTypes;
-		const secondIntersectionType = ChoiceTypes[1];
+		const secondIntersectionType = ChoiceTypes[1]!;
 		const distributedChoices = firstUnionChoices.map(choice => {
 			return createNormalizedIntersectionType([choice, secondIntersectionType]);
 		});
@@ -1957,7 +1889,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 	}
 
 	return {
-		[_julTypeSymbol]: 'and',
+		julType: 'and',
 		ChoiceTypes: ChoiceTypes,
 	};
 }
@@ -1978,60 +1910,40 @@ function setFunctionRefForParams(
 	}
 }
 
-function valueOf(type: CompileTimeType | null): CompileTimeType {
-	switch (typeof type) {
-		case 'boolean':
-		case 'bigint':
-		case 'number':
-		case 'string':
-		case 'undefined':
-			return type;
-		case 'object':
-			if (type === null) {
-				return Any;
-			}
-			if (isBuiltInType(type)) {
-				switch (type[_julTypeSymbol]) {
-					case 'dictionaryLiteral': {
-						const fieldValues = mapDictionary(type.Fields, valueOf);
-						return fieldValues;
-					}
-					case 'function':
-						// TODO?
-						return type;
-					case 'nestedReference':
-						// TODO?
-						return type;
-					case 'parameters':
-						return type;
-					case 'parameterReference':
-						// TODO wo deref? wo Type => value auspacken?
-						return type;
-					// TODO?
-					case 'reference':
-						return createReferenceType(type.name, valueOf(type.dereferencedType));
-					case 'stream':
-						// TODO?
-						return type;
-					case 'tuple':
-						return type.ElementTypes.map(valueOf);
-					case 'typeOf':
-						return type.value;
-					default:
-						// TODO error?
-						// return Any;
-						return type;
-				}
-			}
-			// array/dictionary
-			return type;
-		case 'function':
-		case 'symbol':
-			return Any;
-		default: {
-			const assertNever: never = type;
-			throw new Error(`Unexpected type ${typeof assertNever} for valueOf`);
+function valueOf(type: CompileTimeType | undefined): CompileTimeType {
+	if (!type) {
+		return { julType: 'any' };
+	}
+	switch (type.julType) {
+		case 'dictionaryLiteral': {
+			const fieldValues = mapDictionary(type.Fields, valueOf);
+			return createCompileTimeDictionaryLiteralType(fieldValues);
 		}
+		case 'function':
+			// TODO?
+			return type;
+		case 'nestedReference':
+			// TODO?
+			return type;
+		case 'parameters':
+			return type;
+		case 'parameterReference':
+			// TODO wo deref? wo Type => value auspacken?
+			return type;
+		case 'stream':
+			// TODO?
+			return type;
+		case 'tuple':
+			return {
+				julType: 'tuple',
+				ElementTypes: type.ElementTypes.map(valueOf)
+			};
+		case 'typeOf':
+			return type.value;
+		default:
+			// TODO error?
+			// return { julType: 'any' };
+			return type;
 	}
 }
 
@@ -2039,7 +1951,7 @@ function valueOf(type: CompileTimeType | null): CompileTimeType {
 
 // TODO return true/false = always/never, sometimes/maybe?
 function areArgsAssignableTo(
-	prefixArgumentType: null | CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	parametersType: CompileTimeType,
 ): string | undefined {
@@ -2055,14 +1967,14 @@ function areArgsAssignableTo(
  * valueType muss also Teilmenge von targetType sein.
  */
 export function getTypeError(
-	prefixArgumentType: null | CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
 ): TypeError | undefined {
-	if (targetType === Any) {
+	if (targetType.julType === 'any') {
 		return undefined;
 	}
-	if (argumentsType === Any) {
+	if (argumentsType.julType === 'any') {
 		// TODO error/warning bei any?
 		// error type bei assignment/function call?
 		// maybe return value?
@@ -2071,413 +1983,342 @@ export function getTypeError(
 	if (argumentsType === targetType) {
 		return undefined;
 	}
-	if (isBuiltInType(argumentsType)) {
-		switch (argumentsType[_julTypeSymbol]) {
-			case 'and': {
-				// TODO nur die Schnittmenge der args Choices muss zum target passen
-				const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
-					getTypeError(prefixArgumentType, choiceType, targetType));
-				if (subErrors.every(isDefined)) {
-					return {
-						// TODO error struktur überdenken
-						message: subErrors.map(typeErrorToString).join('\n'),
-						// innerError
-					};
-				}
-				return undefined;
+	switch (argumentsType.julType) {
+		case 'and': {
+			// TODO nur die Schnittmenge der args Choices muss zum target passen
+			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
+				getTypeError(prefixArgumentType, choiceType, targetType));
+			if (subErrors.every(isDefined)) {
+				return {
+					// TODO error struktur überdenken
+					message: subErrors.map(typeErrorToString).join('\n'),
+					// innerError
+				};
 			}
-			case 'reference':
-				return getTypeError(prefixArgumentType, argumentsType.dereferencedType, targetType);
-			case 'nestedReference':
-				// TODO?
-				return undefined;
-			case 'or': {
-				// alle args Choices müssen zum target passen
-				const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
-					getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
-				if (subErrors.length) {
-					return {
-						// TODO error struktur überdenken
-						message: subErrors.map(typeErrorToString).join('\n'),
-						// innerError
-					};
-				}
-				return undefined;
-			}
-			case 'parameterReference': {
-				const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(argumentsType);
-				if (dereferencedParameterType === null) {
-					return undefined;
-				}
-				return getTypeError(prefixArgumentType, dereferencedParameterType, targetType);
-			}
-			default:
-				break;
+			return undefined;
 		}
-	}
-	// TODO generic types (customType, union/intersection, ...?)
-	switch (typeof targetType) {
-		case 'object': {
-			if (isBuiltInType(targetType)) {
-				switch (targetType[_julTypeSymbol]) {
-					case 'and': {
-						// das arg muss zu allen target Choices passen
-						const subErrors = targetType.ChoiceTypes.map(choiceType =>
-							getTypeError(prefixArgumentType, argumentsType, choiceType)).filter(isDefined);
-						if (subErrors.length) {
-							return {
-								// TODO error struktur überdenken
-								message: subErrors.map(typeErrorToString).join('\n'),
-								// innerError
-							};
-						}
-						return undefined;
-					}
-					case 'any':
-						throw new Error('Unexpected any targetType');
-					case 'blob':
-						break;
-					case 'boolean':
-						switch (typeof argumentsType) {
-							case 'boolean':
-								return undefined;
-
-							default:
-								break;
-						}
-						break;
-					case 'date':
-						break;
-					case 'dictionary': {
-						if (typeof argumentsType !== 'object') {
-							// TODO type specific error?
-							break;
-						}
-						if (!argumentsType) {
-							// TODO null specific error?
-							break;
-						}
-						const elementType = targetType.ElementType;
-						if (_julTypeSymbol in argumentsType) {
-							switch (argumentsType[_julTypeSymbol]) {
-								case 'dictionary': {
-									const subError = getTypeError(prefixArgumentType, argumentsType.ElementType, elementType);
-									return subError;
-								}
-								case 'dictionaryLiteral': {
-									const subErrors = map(
-										argumentsType.Fields,
-										(fieldType, fieldName) => {
-											// TODO the field x is missing error?
-											return getDictionaryFieldError(fieldName, elementType, prefixArgumentType, fieldType);
-										},
-									).filter(isDefined);
-									if (!subErrors.length) {
-										return undefined;
-									}
-									return {
-										// TODO error struktur überdenken
-										message: subErrors.map(typeErrorToString).join('\n'),
-										// innerError
-									};
-								}
-								default:
-									// TODO type specific error?
-									break;
-							}
-							break;
-						}
-						if (Array.isArray(argumentsType)) {
-							// TODO array specific error?
-							break;
-						}
-						// plain Dictionary
-						// TODO wird das gebraucht? aktuell wird dictionary type immer als dictionaryLiteralType inferred
-						// wann tritt also dieser case ein? ggf ebenso mit array/tuple?
-						const subErrors = map(
-							argumentsType,
-							(fieldType, fieldName) =>
-								getDictionaryFieldError(fieldName, elementType, prefixArgumentType, fieldType),
-						).filter(isDefined);
-						if (subErrors.length) {
-							return {
-								// TODO error struktur überdenken
-								message: subErrors.map(typeErrorToString).join('\n'),
-								// innerError
-							};
-						}
-						return undefined;
-					}
-					case 'dictionaryLiteral': {
-						const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType.Fields);
-						if (error === true) {
-							// Standardfehler
-							break;
-						}
-						return error;
-					}
-					case 'error':
-						break;
-					case 'float':
-						switch (typeof argumentsType) {
-							case 'number':
-								return undefined;
-
-							default:
-								break;
-						}
-						break;
-					case 'function': {
-						// TODO types als function interpretieren?
-						if (!isFunctionType(argumentsType)) {
-							break;
-						}
-						// check args params obermenge von target params und args returntype teilmenge von target returntype
-						const paramsError = getTypeError(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
-						if (paramsError) {
-							return paramsError;
-						}
-						return getTypeError(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
-					}
-					case 'greater': {
-						const greaterValue = targetType.Value;
-						if (((typeof greaterValue === 'bigint'
-							&& typeof argumentsType === 'bigint')
-							|| (typeof greaterValue === 'number'
-								&& typeof argumentsType === 'number'))
-							&& argumentsType > greaterValue) {
-							return undefined;
-						}
-						break;
-					}
-					case 'integer':
-						switch (typeof argumentsType) {
-							case 'bigint':
-								return undefined;
-
-							default:
-								break;
-						}
-						break;
-					case 'list': {
-						const targetElementType = targetType.ElementType;
-						if (isBuiltInType(argumentsType)) {
-							switch (argumentsType[_julTypeSymbol]) {
-								case 'list':
-									return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementType);
-								case 'tuple':
-									const subErrors = argumentsType.ElementTypes.map(valueElement =>
-										getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
-									if (subErrors.length) {
-										return {
-											// TODO error struktur überdenken
-											message: subErrors.map(typeErrorToString).join('\n'),
-											// innerError
-										};
-									}
-									return undefined;
-								default:
-									break;
-							}
-						}
-						if (Array.isArray(argumentsType)) {
-							const subErrors = argumentsType.map(valueElement =>
-								getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
-							if (subErrors.length) {
-								return {
-									// TODO error struktur überdenken
-									message: subErrors.map(typeErrorToString).join('\n'),
-									// innerError
-								};
-							}
-							return undefined;
-						}
-						break;
-					}
-					case 'nestedReference':
-						// TODO?
-						return undefined;
-					case 'never':
-						break;
-					case 'not': {
-						const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.SourceType);
-						if (sourceError === undefined) {
-							return {
-								message: `${typeToString(argumentsType, 0)} is assignable to ${typeToString(targetType.SourceType, 0)}, but should not be.`
-							};
-						}
-						return undefined;
-					}
-					case 'or': {
-						// das arg muss zu mindestens einem target Choice passen
-						const subErrors = targetType.ChoiceTypes.map(choiceType =>
-							getTypeError(prefixArgumentType, argumentsType, choiceType));
-						if (subErrors.every(isDefined)) {
-							return {
-								// TODO error struktur überdenken
-								message: subErrors.map(typeErrorToString).join('\n'),
-								// innerError
-							};
-						}
-						return undefined;
-					}
-					case 'parameters':
-						return getTypeErrorForParameters(prefixArgumentType, argumentsType, targetType);
-					case 'parameterReference': {
-						// TODO
-						// const dereferenced = dereferenceArgumentType(null as any, targetType);
-						// return getTypeError(valueType, dereferenced ?? Any);
-						return undefined;
-					}
-					case 'reference':
-						return getTypeError(prefixArgumentType, argumentsType, targetType.dereferencedType);
-					case 'stream': {
-						if (!isStreamType(argumentsType)) {
-							break;
-						}
-						return getTypeError(prefixArgumentType, argumentsType.ValueType, targetType.ValueType);
-					}
-					case 'text':
-						switch (typeof argumentsType) {
-							case 'string':
-								return undefined;
-
-							default:
-								break;
-						}
-						break;
-					case 'tuple': {
-						const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType.ElementTypes);
-						if (error === true) {
-							// Standardfehler
-							break;
-						}
-						return error;
-					}
-					case 'type':
-						switch (typeof argumentsType) {
-							case 'bigint':
-							case 'boolean':
-							case 'number':
-							case 'string':
-							case 'undefined':
-								return undefined;
-							case 'object':
-								if (!argumentsType) {
-									return undefined;
-								}
-								if (_julTypeSymbol in argumentsType) {
-									switch (argumentsType[_julTypeSymbol]) {
-										case 'boolean':
-										case 'float':
-										case 'integer':
-										case 'text':
-										case 'typeOf':
-											return undefined;
-										case 'tuple': {
-											// alle ElementTypes müssen Typen sein
-											const subErrors = argumentsType.ElementTypes.map(elementType =>
-												getTypeError(null, elementType, targetType)).filter(isDefined);
-											if (subErrors.length) {
-												return {
-													// TODO error struktur überdenken
-													message: subErrors.map(typeErrorToString).join('\n'),
-													// innerError
-												};
-											}
-											return undefined;
-										}
-										// TODO check inner types rekursiv
-										case 'dictionary':
-										case 'dictionaryLiteral':
-										case 'list':
-											return undefined;
-										default:
-											// TODO type specific error?
-											break;
-									}
-									break;
-								}
-								break;
-							default:
-								break;
-						}
-						break;
-					// TODO
-					case 'typeOf':
-						break;
-					default: {
-						const assertNever: never = targetType;
-						throw new Error(`Unexpected targetType.type: ${(assertNever as BuiltInCompileTimeType)[_julTypeSymbol]}`);
-					}
-				}
+		case 'nestedReference':
+			// TODO?
+			return undefined;
+		case 'or': {
+			// alle args Choices müssen zum target passen
+			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
+				getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
+			if (subErrors.length) {
+				return {
+					// TODO error struktur überdenken
+					message: subErrors.map(typeErrorToString).join('\n'),
+					// innerError
+				};
 			}
-			else {
-				// null/array/dictionary
-				if (targetType === null) {
-					break;
-				}
-				if (Array.isArray(targetType)) {
-					const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType);
-					if (error === true) {
-						// Standardfehler
-						break;
-					}
-					return error;
-				}
-				// dictionary
-				const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType);
-				if (error === true) {
-					// Standardfehler
-					break;
-				}
-				return error;
+			return undefined;
+		}
+		case 'parameterReference': {
+			const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(argumentsType);
+			if (!dereferencedParameterType) {
+				return undefined;
 			}
-			break;
+			return getTypeError(prefixArgumentType, dereferencedParameterType, targetType);
 		}
 		default:
 			break;
 	}
-	return { message: `Can not assign ${typeToString(argumentsType, 0)} to ${typeToString(targetType, 0)}.` };
+	// TODO generic types (customType, union/intersection, ...?)
+	switch (targetType.julType) {
+		case 'and': {
+			// das arg muss zu allen target Choices passen
+			const subErrors = targetType.ChoiceTypes.map(choiceType =>
+				getTypeError(prefixArgumentType, argumentsType, choiceType)).filter(isDefined);
+			if (subErrors.length) {
+				return {
+					// TODO error struktur überdenken
+					message: subErrors.map(typeErrorToString).join('\n'),
+					// innerError
+				};
+			}
+			return undefined;
+		}
+		case 'blob':
+			break;
+		case 'boolean':
+			switch (argumentsType.julType) {
+				case 'boolean':
+					return undefined;
+				case 'booleanLiteral':
+					return undefined;
+				default:
+					break;
+			}
+			break;
+		case 'booleanLiteral':
+			if (argumentsType.julType === 'booleanLiteral'
+				&& argumentsType.value === targetType.value) {
+				return undefined;
+			}
+			break;
+		case 'date':
+			break;
+		case 'dictionary': {
+			const elementType = targetType.ElementType;
+			switch (argumentsType.julType) {
+				case 'dictionary': {
+					const subError = getTypeError(prefixArgumentType, argumentsType.ElementType, elementType);
+					return subError;
+				}
+				case 'dictionaryLiteral': {
+					const subErrors = map(
+						argumentsType.Fields,
+						(fieldType, fieldName) => {
+							// TODO the field x is missing error?
+							return getDictionaryFieldError(fieldName, elementType, prefixArgumentType, fieldType);
+						},
+					).filter(isDefined);
+					if (!subErrors.length) {
+						return undefined;
+					}
+					return {
+						// TODO error struktur überdenken
+						message: subErrors.map(typeErrorToString).join('\n'),
+						// innerError
+					};
+				}
+				default:
+					// TODO type specific error?
+					break;
+			}
+			break;
+		}
+		case 'dictionaryLiteral': {
+			const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType.Fields);
+			if (error === true) {
+				// Standardfehler
+				break;
+			}
+			return error;
+		}
+		case 'empty':
+			if (argumentsType.julType === 'empty') {
+				return undefined;
+			}
+			break;
+		case 'error':
+			break;
+		case 'float':
+			switch (argumentsType.julType) {
+				case 'float':
+					return undefined;
+				case 'floatLiteral':
+					return undefined;
+				default:
+					break;
+			}
+			break;
+		case 'floatLiteral':
+			if (argumentsType.julType === 'floatLiteral'
+				&& argumentsType.value === targetType.value) {
+				return undefined;
+			}
+			break;
+		case 'function': {
+			// TODO types als function interpretieren?
+			if (!isFunctionType(argumentsType)) {
+				break;
+			}
+			// check args params obermenge von target params und args returntype teilmenge von target returntype
+			const paramsError = getTypeError(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
+			if (paramsError) {
+				return paramsError;
+			}
+			return getTypeError(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
+		}
+		case 'greater': {
+			const greaterValue = targetType.Value;
+			if (((greaterValue.julType === 'integerLiteral'
+				&& argumentsType.julType === 'integerLiteral')
+				|| (greaterValue.julType === 'floatLiteral'
+					&& argumentsType.julType === 'floatLiteral'))
+				&& argumentsType.value > greaterValue.value) {
+				return undefined;
+			}
+			break;
+		}
+		case 'integer':
+			switch (argumentsType.julType) {
+				case 'integer':
+					return undefined;
+				case 'integerLiteral':
+					return undefined;
+				default:
+					break;
+			}
+			break;
+		case 'integerLiteral':
+			if (argumentsType.julType === 'integerLiteral'
+				&& argumentsType.value === targetType.value) {
+				return undefined;
+			}
+			break;
+		case 'list': {
+			const targetElementType = targetType.ElementType;
+			switch (argumentsType.julType) {
+				case 'list':
+					return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementType);
+				case 'tuple':
+					const subErrors = argumentsType.ElementTypes.map(valueElement =>
+						getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
+					if (subErrors.length) {
+						return {
+							// TODO error struktur überdenken
+							message: subErrors.map(typeErrorToString).join('\n'),
+							// innerError
+						};
+					}
+					return undefined;
+				default:
+					break;
+			}
+			break;
+		}
+		case 'nestedReference':
+			// TODO?
+			return undefined;
+		case 'never':
+			break;
+		case 'not': {
+			const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.SourceType);
+			if (sourceError === undefined) {
+				// TODO
+				// return {
+				// 	message: `${typeToString(argumentsType, 0)} is assignable to ${typeToString(targetType.SourceType, 0)}, but should not be.`
+				// };
+			}
+			return undefined;
+		}
+		case 'or': {
+			// das arg muss zu mindestens einem target Choice passen
+			const subErrors = targetType.ChoiceTypes.map(choiceType =>
+				getTypeError(prefixArgumentType, argumentsType, choiceType));
+			if (subErrors.every(isDefined)) {
+				return {
+					// TODO error struktur überdenken
+					message: subErrors.map(typeErrorToString).join('\n'),
+					// innerError
+				};
+			}
+			return undefined;
+		}
+		case 'parameters':
+			return getTypeErrorForParameters(prefixArgumentType, argumentsType, targetType);
+		case 'parameterReference': {
+			// TODO
+			// const dereferenced = dereferenceArgumentType(null as any, targetType);
+			// return getTypeError(valueType, dereferenced ?? { julType: 'any' });
+			return undefined;
+		}
+		case 'stream': {
+			if (!isStreamType(argumentsType)) {
+				break;
+			}
+			return getTypeError(prefixArgumentType, argumentsType.ValueType, targetType.ValueType);
+		}
+		case 'text':
+			switch (argumentsType.julType) {
+				case 'text':
+					return undefined;
+				case 'textLiteral':
+					return undefined;
+				default:
+					break;
+			}
+			break;
+		case 'textLiteral': {
+			if (argumentsType.julType === 'textLiteral'
+				&& argumentsType.value === targetType.value) {
+				return undefined;
+			}
+			break;
+		}
+		case 'tuple': {
+			const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType.ElementTypes);
+			if (error === true) {
+				// Standardfehler
+				break;
+			}
+			return error;
+		}
+		case 'type':
+			switch (argumentsType.julType) {
+				case 'boolean':
+				case 'float':
+				case 'integer':
+				case 'text':
+				case 'typeOf':
+					return undefined;
+				case 'tuple': {
+					// alle ElementTypes müssen Typen sein
+					const subErrors = argumentsType.ElementTypes.map(elementType =>
+						getTypeError(undefined, elementType, targetType)).filter(isDefined);
+					if (subErrors.length) {
+						return {
+							// TODO error struktur überdenken
+							message: subErrors.map(typeErrorToString).join('\n'),
+							// innerError
+						};
+					}
+					return undefined;
+				}
+				// TODO check inner types rekursiv
+				case 'dictionary':
+				case 'dictionaryLiteral':
+				case 'list':
+					return undefined;
+				default:
+					// TODO type specific error?
+					break;
+			}
+			break;
+		// TODO
+		case 'typeOf':
+			break;
+		default: {
+			const assertNever: never = targetType;
+			throw new Error(`Unexpected targetType.type: ${(assertNever as CompileTimeType).julType}`);
+		}
+	}
+	return { message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.` };
 }
 
 /**
  * Liefert true bei Standardfehler, undefined bei keinem Fehler.
  */
 function getTupleTypeError(
-	prefixArgumentType: null | CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetElementTypes: CompileTimeType[],
 ): TypeError | true | undefined {
-	if (isBuiltInType(argumentsType)) {
-		switch (argumentsType[_julTypeSymbol]) {
-			case 'list':
-				if (targetElementTypes.length > 1) {
-					return {
-						message: `Expected ${targetElementTypes.length} elements, but List may contain less.`,
-					};
-				}
-				return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementTypes[0]!);
-			case 'tuple':
-				return getTupleTypeError2(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
-			default:
-				return true;
-		}
+	switch (argumentsType.julType) {
+		case 'list':
+			if (targetElementTypes.length > 1) {
+				return {
+					message: `Expected ${targetElementTypes.length} elements, but List may contain less.`,
+				};
+			}
+			return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementTypes[0]!);
+		case 'tuple':
+			return getTupleTypeError2(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
+		default:
+			return true;
 	}
-	if (Array.isArray(argumentsType)) {
-		return getTupleTypeError2(prefixArgumentType, argumentsType, targetElementTypes);
-	}
-	return true;
 }
 
 function getTupleTypeError2(
-	prefixArgumentType: null | CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
 	argumentElementTypes: CompileTimeType[],
 	targetElementTypes: CompileTimeType[],
 ): TypeError | undefined {
 	// TODO fehler wenn argument mehr elemente entfält als target?
 	const subErrors = targetElementTypes.map((targetElementType, index) => {
-		const valueElement = argumentElementTypes[index];
+		const valueElement = argumentElementTypes[index] ?? { julType: 'empty' };
 		return getTypeError(prefixArgumentType, valueElement, targetElementType);
 	}).filter(isDefined);
 	if (subErrors.length) {
@@ -2494,69 +2335,39 @@ function getTupleTypeError2(
  * Liefert true bei Standardfehler, undefined bei keinem Fehler.
  */
 function getDictionaryLiteralTypeError(
-	prefixArgumentType: null | CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetFieldTypes: CompileTimeDictionary,
 ): TypeError | true | undefined {
-	if (typeof argumentsType !== 'object') {
-		// TODO type specific error?
-		return true;
-	}
-	if (!argumentsType) {
-		// TODO null specific error?
-		return true;
-	}
-	if (_julTypeSymbol in argumentsType) {
-		switch (argumentsType[_julTypeSymbol]) {
-			case 'dictionaryLiteral': {
-				const subErrors = map(
-					targetFieldTypes,
-					(fieldType, fieldName) =>
-						// TODO the field x is missing error?
-						getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType.Fields[fieldName]),
-				).filter(isDefined);
-				if (subErrors.length) {
-					return {
-						// TODO error struktur überdenken
-						message: subErrors.map(typeErrorToString).join('\n'),
-						// innerError
-					};
-				}
-				return undefined;
+	switch (argumentsType.julType) {
+		case 'dictionaryLiteral': {
+			const subErrors = map(
+				targetFieldTypes,
+				(fieldType, fieldName) => {
+					// TODO the field x is missing error?
+					const argument: CompileTimeType = argumentsType.Fields[fieldName] ?? { julType: 'empty' };
+					return getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argument);
+				},
+			).filter(isDefined);
+			if (subErrors.length) {
+				return {
+					// TODO error struktur überdenken
+					message: subErrors.map(typeErrorToString).join('\n'),
+					// innerError
+				};
 			}
-			default:
-				// TODO type specific error?
-				break;
+			return undefined;
 		}
-		return true;
+		default:
+			// TODO type specific error?
+			return true;
 	}
-	if (Array.isArray(argumentsType)) {
-		// TODO array specific error?
-		return true;
-	}
-	// plain Dictionary
-	// TODO wird das gebraucht? aktuell wird dictionary type immer als dictionaryLiteralType inferred
-	// wann tritt also dieser case ein? ggf ebenso mit array/tuple?
-	const subErrors = map(
-		targetFieldTypes,
-		(fieldType, fieldName) =>
-			// TODO the field x is missing error?
-			getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argumentsType[fieldName]),
-	).filter(isDefined);
-	if (subErrors.length) {
-		return {
-			// TODO error struktur überdenken
-			message: subErrors.map(typeErrorToString).join('\n'),
-			// innerError
-		};
-	}
-	return undefined;
 }
 
 function getDictionaryFieldError(
 	fieldName: string,
 	fieldTargetType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | null,
+	prefixArgumentType: CompileTimeType | undefined,
 	fieldValueType: CompileTimeType,
 ): TypeError | undefined {
 	const subError = getTypeError(prefixArgumentType, fieldValueType, fieldTargetType);
@@ -2571,7 +2382,7 @@ function getDictionaryFieldError(
 }
 
 function getTypeErrorForParameters(
-	prefixArgumentType: null | CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: ParametersType,
 ): TypeError | undefined {
@@ -2579,73 +2390,70 @@ function getTypeErrorForParameters(
 		&& typeof argumentsType !== 'object') {
 		throw new Error('argumentsType should be undefined or object but got' + typeof argumentsType);
 	}
-	if (isBuiltInType(argumentsType)) {
-		// TODO other cases
-		switch (argumentsType[_julTypeSymbol]) {
-			case 'dictionaryLiteral':
-				return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.Fields, targetType);
-			case 'tuple':
-				return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
-			case 'parameters': {
-				// TODO prefixArgumentType berücksichtigen?
-				let index = 0;
-				const targetSingleNames = targetType.singleNames;
-				const valueSingleNames = argumentsType.singleNames;
-				const valueRest = argumentsType.rest;
-				const valueRestType = valueRest?.type;
-				const valueRestItemType = valueRest
-					? isListType(valueRestType)
-						? valueRestType.ElementType
-						: Any
-					: null;
-				for (; index < targetSingleNames.length; index++) {
-					const targetParameter = targetSingleNames[index]!;
-					const targetParameterName = targetParameter.name;
-					const targetParameterType = targetParameter.type;
-					const valueParameter = valueSingleNames[index];
-					if (valueParameter && valueParameter.name !== targetParameterName) {
-						return {
-							message: `Parameter name mismatch. Got ${valueParameter.name} but expected ${targetParameterName}`,
-						};
-					}
-					const valueParameterType = valueParameter && getValueWithFallback(valueParameter.type, getValueWithFallback(valueRestItemType, Any));
-					const error = targetParameterType
-						? getTypeError(null, valueParameterType, targetParameterType)
-						: undefined;
+	// TODO other cases
+	switch (argumentsType.julType) {
+		case 'dictionaryLiteral':
+			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.Fields, targetType);
+		case 'tuple':
+			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
+		case 'parameters': {
+			// TODO prefixArgumentType berücksichtigen?
+			let index = 0;
+			const targetSingleNames = targetType.singleNames;
+			const valueSingleNames = argumentsType.singleNames;
+			const valueRest = argumentsType.rest;
+			const valueRestType = valueRest?.type;
+			const valueRestItemType: CompileTimeType | undefined = valueRest
+				? isListType(valueRestType)
+					? valueRestType.ElementType
+					: { julType: 'any' }
+				: undefined;
+			for (; index < targetSingleNames.length; index++) {
+				const targetParameter = targetSingleNames[index]!;
+				const targetParameterName = targetParameter.name;
+				const targetParameterType = targetParameter.type;
+				const valueParameter = valueSingleNames[index];
+				if (valueParameter && valueParameter.name !== targetParameterName) {
+					return {
+						message: `Parameter name mismatch. Got ${valueParameter.name} but expected ${targetParameterName}`,
+					};
+				}
+				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? { julType: 'any' };
+				const error = targetParameterType
+					? getTypeError(undefined, valueParameterType, targetParameterType)
+					: undefined;
+				if (error) {
+					// TODO collect inner errors
+					return error;
+					// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
+				}
+			}
+			const targetRestType = targetType.rest?.type;
+			if (targetRestType) {
+				const remainingValueParameters = valueSingleNames.slice(index);
+				for (const valueParameter of remainingValueParameters) {
+					const valueParameterType = valueParameter.type ?? valueRestItemType ?? { julType: 'any' };
+					const error = getTypeError(undefined, valueParameterType, targetRestType);
 					if (error) {
 						// TODO collect inner errors
 						return error;
 						// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
 					}
 				}
-				const targetRestType = targetType.rest?.type;
-				if (targetRestType) {
-					const remainingValueParameters = valueSingleNames.slice(index);
-					for (const valueParameter of remainingValueParameters) {
-						const valueParameterType = getValueWithFallback(valueParameter.type, getValueWithFallback(valueRestItemType, Any));
-						const error = getTypeError(null, valueParameterType, targetRestType);
-						if (error) {
-							// TODO collect inner errors
-							return error;
-							// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
-						}
-					}
-				}
-				return undefined;
 			}
-			default:
-				return { message: 'getTypeErrorForWrappedArgs not implemented yet for ' + argumentsType[_julTypeSymbol] };
+			return undefined;
 		}
+		default:
+			return { message: 'getTypeErrorForWrappedArgs not implemented yet for ' + argumentsType.julType };
 	}
-	return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType, targetType);
 }
 
 function getTypeErrorForParametersWithCollectionArgs(
-	prefixArgumentType: null | CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeCollection | undefined,
 	targetType: ParametersType,
 ): TypeError | undefined {
-	const hasPrefixArg = prefixArgumentType !== null;
+	const hasPrefixArg = !!prefixArgumentType;
 	const isArray = Array.isArray(argumentsType);
 	let paramIndex = 0;
 	let argumentIndex = 0;
@@ -2658,13 +2466,13 @@ function getTypeErrorForParametersWithCollectionArgs(
 			argument = prefixArgumentType;
 		}
 		else {
-			argument = argumentsType && (isArray
+			argument = (argumentsType && (isArray
 				? argumentsType[argumentIndex]
-				: argumentsType[name]);
+				: argumentsType[name])) ?? { julType: 'empty' };
 			argumentIndex++;
 		}
 		const error = type
-			? getTypeError(null, argument, type)
+			? getTypeError(undefined, argument, type)
 			: undefined;
 		if (error) {
 			// TODO collect inner errors
@@ -2675,11 +2483,11 @@ function getTypeErrorForParametersWithCollectionArgs(
 	if (rest) {
 		const restType = rest.type;
 		if (!argumentsType) {
-			const remainingArgs = hasPrefixArg && !paramIndex
-				? [prefixArgumentType]
-				: undefined;
+			const remainingArgs: CompileTimeType = hasPrefixArg && !paramIndex
+				? { julType: 'tuple', ElementTypes: [prefixArgumentType] }
+				: { julType: 'empty' };
 			const error = restType
-				? getTypeError(null, remainingArgs, restType)
+				? getTypeError(undefined, remainingArgs, restType)
 				: undefined;
 			if (error) {
 				return error;
@@ -2692,7 +2500,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 				remainingArgs.unshift(prefixArgumentType);
 			}
 			const error = restType
-				? getTypeError(null, remainingArgs, restType)
+				? getTypeError(undefined, { julType: 'tuple', ElementTypes: remainingArgs }, restType)
 				: undefined;
 			if (error) {
 				// TODO collect inner errors
@@ -2724,118 +2532,102 @@ function typeErrorToString(typeError: TypeError): string {
 //#region ToString
 
 // TODO expand ReferenceType 1 level deep?
-export function typeToString(type: CompileTimeType, indent: number): string {
-	switch (typeof type) {
-		case 'bigint':
+export function typeToString(type: CompileTimeType, indent: number, depth: number): string {
+	if (depth && type.name) {
+		return type.name;
+	}
+	switch (type.julType) {
+		case 'and':
+			return `And${arrayTypeToString(type.ChoiceTypes, indent, depth + 1)}`;
+		case 'any':
+			return 'Any';
+		case 'blob':
+			return 'Blob';
 		case 'boolean':
-			return type.toString();
-		case 'function':
-			// TODO?
-			throw new Error('typeToString not implemented yet for CustomFunction');
-		case 'number':
-			return type.toString() + 'f';
-		case 'object': {
-			if (type === null) {
-				// TODO throw error?
-				return '()';
-			}
-			if (Array.isArray(type)) {
-				return arrayTypeToString(type, indent);
-			}
-			if (_julTypeSymbol in type) {
-				const builtInType: BuiltInCompileTimeType = type;
-				switch (builtInType[_julTypeSymbol]) {
-					case 'and':
-						return `And${arrayTypeToString(builtInType.ChoiceTypes, indent)}`;
-					case 'any':
-						return 'Any';
-					case 'blob':
-						return 'Blob';
-					case 'boolean':
-						return 'Boolean';
-					case 'date':
-						return 'Date';
-					case 'dictionary':
-						return `Dictionary(${typeToString(builtInType.ElementType, indent)})`;
-					case 'dictionaryLiteral':
-						return dictionaryTypeToString(builtInType.Fields, ': ', indent);
-					case 'error':
-						return 'Error';
-					case 'float':
-						return 'Float';
-					case 'function':
-						return `${typeToString(builtInType.ParamsType, indent)} :> ${typeToString(builtInType.ReturnType, indent)}`;
-					case 'greater':
-						return `Greater(${typeToString(builtInType.Value, indent)})`;
-					case 'integer':
-						return 'Integer';
-					case 'list':
-						return `List(${typeToString(builtInType.ElementType, indent)})`;
-					case 'nestedReference':
-						return `${typeToString(builtInType.source, indent)}/${builtInType.nestedKey}`;
-					case 'never':
-						return 'Never';
-					case 'not':
-						return `Not(${typeToString(builtInType.SourceType, indent)})`;
-					case 'or':
-						return `Or${arrayTypeToString(builtInType.ChoiceTypes, indent)}`;
-					case 'parameters': {
-						const rest = builtInType.rest;
-						const multiline = builtInType.singleNames.length + (rest ? 1 : 0) > 1;
-						const newIndent = multiline
-							? indent + 1
-							: indent;
-						const elements = [
-							...builtInType.singleNames.map(element => {
-								return `${element.name}${optionalTypeGuardToString(element.type, newIndent)}`;
-							}),
-							...(rest ? [`...${rest.name}${optionalTypeGuardToString(rest.type, newIndent)}`] : []),
-						];
-						return bracketedExpressionToString(elements, multiline, indent);
-					}
-					case 'parameterReference':
-						return builtInType.name;
-					case 'reference':
-						return builtInType.name;
-					case 'stream':
-						return `Stream(${typeToString(builtInType.ValueType, indent)})`;
-					case 'text':
-						return 'Text';
-					case 'tuple':
-						return arrayTypeToString(builtInType.ElementTypes, indent);
-					case 'type':
-						return 'Type';
-					case 'typeOf':
-						return `TypeOf(${typeToString(builtInType.value, indent)})`;
-					default: {
-						const assertNever: never = builtInType;
-						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInCompileTimeType)[_julTypeSymbol]}`);
-					}
-				}
-			}
-			// Dictionary
-			return dictionaryTypeToString(type, ' = ', indent);
-		}
-		case 'string':
-			return `§${type.replaceAll('§', '§§')}§`;
-		case 'undefined':
+			return 'Boolean';
+		case 'integerLiteral':
+		case 'booleanLiteral':
+			return type.value.toString();
+		case 'date':
+			return 'Date';
+		case 'dictionary':
+			return `Dictionary(${typeToString(type.ElementType, indent, depth + 1)})`;
+		case 'dictionaryLiteral':
+			return dictionaryTypeToString(type.Fields, ': ', indent, depth + 1);
+		case 'empty':
 			return '()';
+		case 'error':
+			return 'Error';
+		case 'float':
+			return 'Float';
+		case 'floatLiteral':
+			return type.value.toString() + 'f';
+		case 'function': {
+			const paramsString = typeToString(type.ParamsType, indent, depth + 1);
+			const returnString = typeToString(type.ReturnType, indent, depth + 1);
+			return `${paramsString} :> ${returnString}`;
+		}
+		case 'greater':
+			return `Greater(${typeToString(type.Value, indent, depth + 1)})`;
+		case 'integer':
+			return 'Integer';
+		case 'list':
+			return `List(${typeToString(type.ElementType, indent, depth + 1)})`;
+		case 'nestedReference':
+			return `${typeToString(type.source, indent, depth + 1)}/${type.nestedKey}`;
+		case 'never':
+			return 'Never';
+		case 'not':
+			return `Not(${typeToString(type.SourceType, indent, depth + 1)})`;
+		case 'or':
+			return `Or${arrayTypeToString(type.ChoiceTypes, indent, depth + 1)}`;
+		case 'parameters': {
+			const rest = type.rest;
+			const multiline = type.singleNames.length + (rest ? 1 : 0) > 1;
+			const newIndent = multiline
+				? indent + 1
+				: indent;
+			const elements = [
+				...type.singleNames.map(element => {
+					return `${element.name}${optionalTypeGuardToString(element.type, newIndent, depth + 1)}`;
+				}),
+				...(rest
+					? [`...${rest.name}${optionalTypeGuardToString(rest.type, newIndent, depth + 1)}`]
+					: []),
+			];
+			return bracketedExpressionToString(elements, multiline, indent);
+		}
+		case 'parameterReference':
+			return type.name;
+		case 'stream':
+			return `Stream(${typeToString(type.ValueType, indent, depth + 1)})`;
+		case 'text':
+			return 'Text';
+		case 'textLiteral':
+			return `§${type.value.replaceAll('§', '§§')}§`;
+		case 'tuple':
+			return arrayTypeToString(type.ElementTypes, indent, depth + 1);
+		case 'type':
+			return 'Type';
+		case 'typeOf':
+			return `TypeOf(${typeToString(type.value, indent, depth)})`;
 		default: {
 			const assertNever: never = type;
-			throw new Error(`Unexpected type ${typeof assertNever}`);
+			throw new Error(`Unexpected BuiltInType ${(assertNever as CompileTimeType).julType}`);
 		}
 	}
 }
 
-function optionalTypeGuardToString(type: CompileTimeType | null, indent: number): string {
+function optionalTypeGuardToString(type: CompileTimeType | undefined, indent: number, depth: number): string {
 	return type
-		? `: ${typeToString(type, indent)}`
+		? `: ${typeToString(type, indent, depth)}`
 		: '';
 }
 
 function arrayTypeToString(
 	array: CompileTimeType[],
 	indent: number,
+	depth: number,
 ): string {
 	const multiline = array.length > maxElementsPerLine;
 	const newIndent = multiline
@@ -2843,7 +2635,7 @@ function arrayTypeToString(
 		: indent;
 	return bracketedExpressionToString(
 		array.map(element =>
-			typeToString(element, newIndent)),
+			typeToString(element, newIndent, depth)),
 		multiline,
 		indent);
 }
@@ -2852,6 +2644,7 @@ function dictionaryTypeToString(
 	dictionary: CompileTimeDictionary,
 	nameSeparator: string,
 	indent: number,
+	depth: number,
 ): string {
 	const multiline = Object.keys(dictionary).length > 1;
 	const newIndent = multiline
@@ -2861,7 +2654,7 @@ function dictionaryTypeToString(
 		map(
 			dictionary,
 			(element, key) => {
-				return `${key}${nameSeparator}${typeToString(element, newIndent)}`;
+				return `${key}${nameSeparator}${typeToString(element, newIndent, depth)}`;
 			}),
 		multiline,
 		indent);
@@ -2887,25 +2680,22 @@ function bracketedExpressionToString(
 
 //#endregion ToString
 
-function getParamsType(possibleFunctionType: CompileTimeType | null): CompileTimeType {
+function getParamsType(possibleFunctionType: CompileTimeType | undefined): CompileTimeType {
 	if (isFunctionType(possibleFunctionType)) {
 		return possibleFunctionType.ParamsType;
 	}
-	return Any;
+	return { julType: 'any' };
 }
 
 function getReturnTypeFromFunctionType(possibleFunctionType: TypeInfo | undefined): CompileTimeType {
 	if (!possibleFunctionType) {
-		return Any;
+		return { julType: 'any' };
 	}
 	const rawType = possibleFunctionType.rawType;
-	const dereferenced = isReferenceType(rawType)
-		? rawType.dereferencedType
-		: rawType;
-	if (isFunctionType(dereferenced)) {
-		return dereferenced.ReturnType;
+	if (isFunctionType(rawType)) {
+		return rawType.ReturnType;
 	}
-	return Any;
+	return { julType: 'any' };
 }
 
 function getArgValueExpressions(args: BracketedExpression): (ParseValueExpression | undefined)[] {
@@ -2971,7 +2761,7 @@ function checkTypeGuardIsType(
 	errors: ParserError[],
 ): void {
 	const typeGuardType = typeGuard.typeInfo!.dereferencedType;
-	const typeGuardTypeError = areArgsAssignableTo(null, typeGuardType, Type);
+	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, Type);
 	if (typeGuardTypeError) {
 		errors.push({
 			message: typeGuardTypeError,
@@ -2983,72 +2773,54 @@ function checkTypeGuardIsType(
 	}
 }
 
-//#region BuiltInType guards
+//#region CompileTimeType guards
 
-export function isBuiltInType(type: CompileTimeType | null): type is BuiltInCompileTimeType {
-	return typeof type === 'object'
-		&& !!type
-		&& _julTypeSymbol in type;
+function isComplementType(type: CompileTimeType | undefined): type is CompileTimeComplementType {
+	return !!type && type.julType === 'not';
 }
 
-function isComplementType(type: CompileTimeType | null): type is CompileTimeComplementType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'not';
+function isDictionaryType(type: CompileTimeType | undefined): type is CompileTimeDictionaryType {
+	return !!type && type.julType === 'dictionary';
 }
 
-function isDictionaryType(type: CompileTimeType | null): type is CompileTimeDictionaryType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'dictionary';
+export function isDictionaryLiteralType(type: CompileTimeType | undefined): type is CompileTimeDictionaryLiteralType {
+	return !!type && type.julType === 'dictionaryLiteral';
 }
 
-export function isDictionaryLiteralType(type: CompileTimeType | null): type is CompileTimeDictionaryLiteralType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'dictionaryLiteral';
+export function isFunctionType(type: CompileTimeType | undefined): type is CompileTimeFunctionType {
+	return !!type && type.julType === 'function';
 }
 
-export function isFunctionType(type: CompileTimeType | null): type is CompileTimeFunctionType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'function';
+export function isListType(type: CompileTimeType | undefined): type is CompileTimeListType {
+	return !!type && type.julType === 'list';
 }
 
-export function isListType(type: CompileTimeType | null): type is CompileTimeListType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'list';
+export function isParametersType(type: CompileTimeType | undefined): type is ParametersType {
+	return !!type && type.julType === 'parameters';
 }
 
-export function isParametersType(type: CompileTimeType | null): type is ParametersType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'parameters';
+export function isParameterReference(type: CompileTimeType | undefined): type is ParameterReference {
+	return !!type && type.julType === 'parameterReference';
 }
 
-export function isParameterReference(type: CompileTimeType | null): type is ParameterReference {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'parameterReference';
+function isStreamType(type: CompileTimeType | undefined): type is CompileTimeStreamType {
+	return !!type && type.julType === 'stream';
 }
 
-export function isReferenceType(type: CompileTimeType | null): type is ReferenceType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'reference';
+export function isTextLiteralType(type: CompileTimeType | undefined): type is TextLiteralType {
+	return !!type && type.julType === 'textLiteral';
 }
 
-function isStreamType(type: CompileTimeType | null): type is CompileTimeStreamType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'stream';
+export function isTupleType(type: CompileTimeType | undefined): type is CompileTimeTupleType {
+	return !!type && type.julType === 'tuple';
 }
 
-export function isTupleType(type: CompileTimeType | null): type is CompileTimeTupleType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'tuple';
+export function isTypeOfType(type: CompileTimeType | undefined): type is CompileTimeTypeOfType {
+	return !!type && type.julType === 'typeOf';
 }
 
-export function isTypeOfType(type: CompileTimeType | null): type is CompileTimeTypeOfType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'typeOf';
+export function isUnionType(type: CompileTimeType | undefined): type is CompileTimeUnionType {
+	return !!type && type.julType === 'or';
 }
 
-export function isUnionType(type: CompileTimeType | null): type is CompileTimeUnionType {
-	return isBuiltInType(type)
-		&& type[_julTypeSymbol] === 'or';
-}
-
-//#endregion BuiltInType guards
+//#endregion CompileTimeType guards

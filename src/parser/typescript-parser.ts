@@ -154,7 +154,6 @@ function tsParametersToJulParameters(
 			type: 'parameter',
 			name: julName,
 			...getPositionFromTsNode(tsParameter),
-			inferredTypeFromCall: null,
 		};
 		return julParameter;
 	}).filter(isDefined);
