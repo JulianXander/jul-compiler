@@ -27,7 +27,6 @@ import {
 	createNestedReference,
 	createParameterReference,
 	createParametersType,
-	Integer,
 	Parameter,
 	ParameterReference,
 	ParametersType,
@@ -58,7 +57,10 @@ export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
 const maxElementsPerLine = 5;
 
-const CompileTimeNonZeroInteger = createNormalizedIntersectionType([Integer, createCompileTimeComplementType({ julType: 'integerLiteral', value: 0n })]);
+const CompileTimeNonZeroInteger = createNormalizedIntersectionType([
+	{ julType: 'integer' },
+	createCompileTimeComplementType({ julType: 'integerLiteral', value: 0n }),
+]);
 
 const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	true: {
@@ -71,7 +73,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	},
 	Any: createCompileTimeTypeOfType({ julType: 'any' }),
 	Boolean: createCompileTimeTypeOfType(_Boolean),
-	Integer: createCompileTimeTypeOfType(Integer),
+	Integer: createCompileTimeTypeOfType({ julType: 'integer' }),
 	Float: createCompileTimeTypeOfType({ julType: 'float' }),
 	Text: createCompileTimeTypeOfType(_Text),
 	Date: createCompileTimeTypeOfType({ julType: 'date' }),
@@ -1756,7 +1758,7 @@ function getLastElementFromType(valuesType: CompileTimeType | undefined): Compil
 function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
 	if (!argType) {
 		// TODO non negative
-		return Integer;
+		return { julType: 'integer' };
 	}
 	switch (argType.julType) {
 		case 'empty':
@@ -1782,7 +1784,7 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 		}
 		default:
 			// TODO non negative
-			return Integer;
+			return { julType: 'integer' };
 	}
 }
 

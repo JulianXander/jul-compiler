@@ -535,10 +535,6 @@ export interface IntegerType extends CompileTimeTypeBase {
 	readonly julType: 'integer';
 }
 
-export const Integer: IntegerType = {
-	julType: 'integer'
-};
-
 export interface FloatType extends CompileTimeTypeBase {
 	readonly julType: 'float';
 }
