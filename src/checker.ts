@@ -652,7 +652,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 			if (dereferencedElement === rawElement) {
 				return rawType;
 			}
-			return createCompileTimeDictionaryType(dereferencedElement);
+			return createCompileTimeDictionaryType(dereferencedElement, rawType.name);
 		}
 		case 'dictionaryLiteral': {
 			const rawFields = rawType.Fields;
@@ -660,7 +660,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 			if (fieldsEqual(rawFields, dereferencedFields)) {
 				return rawType;
 			}
-			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.expression, rawType.filePath);
+			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.expression, rawType.filePath, rawType.name);
 		}
 		case 'function': {
 			const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
@@ -669,7 +669,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 				&& dereferencedReturnType === rawType.ReturnType) {
 				return rawType;
 			}
-			return createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure);
+			return createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure, rawType.name);
 		}
 		case 'list': {
 			const rawElement = rawType.ElementType;
@@ -1059,7 +1059,8 @@ function inferType(
 					dereferencedType: { julType: 'any' },
 				};
 			}
-			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath);
+			const name = getNameFromValue(expression);
+			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath, name);
 			return {
 				// typeExpression: expression,
 				rawType: rawType,
@@ -1104,7 +1105,8 @@ function inferType(
 					}
 				}
 			});
-			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath));
+			const name = getNameFromValue(expression);
+			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath, name));
 			return {
 				rawType: rawType,
 				dereferencedType: dereferenceNested(rawType),
@@ -1532,6 +1534,13 @@ function inferType(
 			const assertNever: never = expression;
 			throw new Error(`Unexpected valueExpression.type: ${(assertNever as TypedExpression).type}`);
 		}
+	}
+}
+
+function getNameFromValue(expression: TypedExpression): string | undefined {
+	if (expression.parent?.type === 'definition'
+		&& expression.parent.value === expression) {
+		return expression.parent.name.name;
 	}
 }
 

@@ -590,12 +590,14 @@ export function createCompileTimeDictionaryLiteralType(
 	Fields: CompileTimeDictionary,
 	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral,
 	filePath?: string,
+	name?: string,
 ): CompileTimeDictionaryLiteralType {
 	return {
 		julType: 'dictionaryLiteral',
 		Fields: Fields,
 		expression: expression,
 		filePath: filePath,
+		name: name,
 	};
 }
 
@@ -606,10 +608,12 @@ export interface CompileTimeDictionaryType extends CompileTimeTypeBase {
 
 export function createCompileTimeDictionaryType(
 	ElementType: CompileTimeType,
+	name?: string,
 ): CompileTimeDictionaryType {
 	return {
 		julType: 'dictionary',
 		ElementType: ElementType,
+		name: name,
 	};
 }
 
@@ -624,12 +628,14 @@ export function createCompileTimeFunctionType(
 	ParamsType: CompileTimeType,
 	ReturnType: CompileTimeType,
 	pure: boolean,
+	name?: string,
 ): CompileTimeFunctionType {
 	return {
 		julType: 'function',
 		ParamsType: ParamsType,
 		ReturnType: ReturnType,
 		pure: pure,
+		name: name,
 	};
 }
 
