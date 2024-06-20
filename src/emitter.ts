@@ -167,7 +167,14 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				// return `require("${outPath}")`;
 			}
 			const args = expression.arguments;
+			const prefixArgument = expression.prefixArgument;
+			const prefixArgJs = prefixArgument
+				? expressionToJs(prefixArgument, indent)
+				: 'undefined';
 			if (isNamedFunction(functionExpression, 'assume')) {
+				if (prefixArgument) {
+					return prefixArgJs;
+				}
 				switch (args?.type) {
 					case 'list': {
 						const firstValue = args.values[0];
@@ -183,13 +190,10 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				}
 			}
 			const functionJs = expressionToJs(functionExpression, indent);
-			const prefixArgJs = expression.prefixArgument
-				? expressionToJs(expression.prefixArgument, indent)
-				: 'undefined';
 			switch (args?.type) {
 				case 'list': {
 					const jsValues = parseListValuesToJs(args.values, indent);
-					if (expression.prefixArgument) {
+					if (prefixArgument) {
 						jsValues.unshift(prefixArgJs);
 					}
 					const valuesJs = listValuesToJs(jsValues, indent);
@@ -204,7 +208,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				}
 				case undefined:
 				case 'empty': {
-					if (expression.prefixArgument) {
+					if (prefixArgument) {
 						return `${functionJs}(${prefixArgJs})`;
 					}
 					return `${functionJs}()`;
