@@ -67,13 +67,6 @@ TypeOf = nativeFunction(
 		value => new TypeOfType(value)
 	§
 )
-# The set of values that is of the given Type
-# The inverse of TypeOf
-ValueOf = nativeFunction(
-	(T: TypeOf(Any)) :> T/value
-	true
-	§TODO§
-)
 # true or false
 Boolean = nativeValue(§_Boolean§)
 #region Number
@@ -1019,7 +1012,7 @@ nativeFunction = nativeFunction(
 		FunctionType: Type
 		pure: Boolean
 		js: Text
-	) :> ValueOf(FunctionType)
+	) :> FunctionType
 	false
 	§[...]§
 )

@@ -1213,7 +1213,6 @@ _createFunction(
 		]
 	}
 );
-// TODO ValueOf
 export const _Boolean: BooleanType = { [_julTypeSymbol]: 'boolean' };
 //#region Number
 export const Float: FloatType = { [_julTypeSymbol]: 'float' };
