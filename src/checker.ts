@@ -916,12 +916,6 @@ function inferType(
 					};
 				}
 			}
-			if (!typeInfo.rawType.name) {
-				typeInfo.rawType.name = name;
-			}
-			if (!typeInfo.dereferencedType.name) {
-				typeInfo.dereferencedType.name = name;
-			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
 			// TODO typecheck mit typeguard, ggf union mit Error type
 			const currentScope = last(scopes);
