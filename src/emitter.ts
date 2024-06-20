@@ -11,7 +11,7 @@ import {
 import * as runtime from './runtime.js';
 import { Extension, NonEmptyArray, changeExtension } from './util.js';
 import { extname, isAbsolute } from 'path';
-import { getPathExpression, isImportFunction, isImportFunctionCall } from './parser/parser.js';
+import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from './parser/parser.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
 
 const runtimeKeys = Object.keys(runtime);
@@ -154,6 +154,9 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			return `{numerator:${expression.numerator}n,denominator:${expression.denominator}n}`;
 		case 'functionCall': {
 			const functionExpression = expression.functionExpression;
+			if (!functionExpression) {
+				throw new Error('functionExpression missing for functionCall.');
+			}
 			if (isImportFunction(functionExpression)) {
 				// TODO dynamic import/parser error?
 				throw new Error('import at unexpected location.');
@@ -163,14 +166,26 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				// 	: path;
 				// return `require("${outPath}")`;
 			}
-			if (!functionExpression) {
-				throw new Error('functionExpression missing for functionCall.');
+			const args = expression.arguments;
+			if (isNamedFunction(functionExpression, 'assume')) {
+				switch (args?.type) {
+					case 'list': {
+						const firstValue = args.values[0];
+						if (firstValue.type === 'spread') {
+							throw new Error('spread not implemented yet for assume');
+						}
+						else {
+							return expressionToJs(firstValue, indent);
+						}
+					}
+					default:
+						throw new Error('unexpected arguments.type for assume functionCall: ' + args?.type);
+				}
 			}
 			const functionJs = expressionToJs(functionExpression, indent);
 			const prefixArgJs = expression.prefixArgument
 				? expressionToJs(expression.prefixArgument, indent)
 				: 'undefined';
-			const args = expression.arguments;
 			switch (args?.type) {
 				case 'list': {
 					const jsValues = parseListValuesToJs(args.values, indent);

@@ -71,9 +71,8 @@ TypeOf = nativeFunction(
 # The inverse of TypeOf
 ValueOf = nativeFunction(
 	(T: TypeOf(Any)) :> T/value
-	§js
-		T => new ValueOfType(T)
-	§
+	true
+	§TODO§
 )
 # true or false
 Boolean = nativeValue(§_Boolean§)
@@ -1013,7 +1012,7 @@ runJs = nativeFunction(
 	§
 )
 # Interprets the given Text as js Code and yields the return value,
-# assuming the specified type without checking. Make sure the Type fits under all circumstances
+# assuming the specified type without checking. Make sure the Type fits under all circumstances.
 nativeFunction = nativeFunction(
 	# (FunctionType: (x: Any) :> x is () :> Any js: Text) :> FunctionType
 	(
@@ -1032,5 +1031,14 @@ nativeValue = nativeFunction(
 	§[...]§
 )
 #endregion JavaScript
+# Assume that the value is of type ValueType without checking.
+# Make sure the Type fits under all circumstances.
+assume = nativeFunction(
+	(value: Any ValueType: Type) :> ValueType
+	true
+	§js
+		(value) => value
+	§
+)
 #endregion Utility
 #endregion Functions

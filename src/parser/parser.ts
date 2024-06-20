@@ -2267,13 +2267,17 @@ export function isImportFunctionCall(expression: PositionedExpression): expressi
 	if (expression.type !== 'functionCall') {
 		return false;
 	}
-	return isImportFunction(expression.functionExpression);
+	const functionExpression = expression.functionExpression;
+	return !!functionExpression && isImportFunction(functionExpression);
 }
 
-export function isImportFunction(functionExpression: SimpleExpression | undefined): boolean {
-	return !!functionExpression
-		&& functionExpression.type === 'reference'
-		&& functionExpression.name.name === 'import';
+export function isImportFunction(functionExpression: SimpleExpression): boolean {
+	return isNamedFunction(functionExpression, 'import');
+}
+
+export function isNamedFunction(functionExpression: SimpleExpression, name: string): boolean {
+	return functionExpression.type === 'reference'
+		&& functionExpression.name.name === name;
 }
 
 //#endregion import

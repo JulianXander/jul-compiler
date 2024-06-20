@@ -619,11 +619,11 @@ function dereferenceParameterFromArgumentType(
 			const argIndex = prefixArgumentType
 				? paramIndex - 1
 				: paramIndex;
-			if (argIndex > argsType.ElementTypes.length) {
+			const argType = argsType.ElementTypes[argIndex];
+			if (!argType) {
 				// TODO error bei unbound ref?
 				return parameterReference;
 			}
-			const argType = argsType.ElementTypes[argIndex]!;
 			return argType;
 		}
 		case 'list':
