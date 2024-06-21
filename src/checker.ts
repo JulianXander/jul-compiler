@@ -69,6 +69,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		value: false,
 	},
 	Any: createCompileTimeTypeOfType({ julType: 'any' }),
+	Type: createCompileTimeTypeOfType({ julType: 'type' }),
 	Empty: createCompileTimeTypeOfType({ julType: 'empty' }),
 	Boolean: createCompileTimeTypeOfType({ julType: 'boolean' }),
 	Integer: createCompileTimeTypeOfType({ julType: 'integer' }),
@@ -115,23 +116,6 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		parameterReference.functionRef = functionType;
 		return functionType;
 	})(),
-	Type: createCompileTimeTypeOfType({ julType: 'type' }),
-	// ValueOf:  new FunctionType(
-	// 		new _ParametersType({
-	// 			T: _type,
-	// 		}),
-	// 		createParameterReference([{
-	// 			type: 'name',
-	// 			name: 'FunctionType',
-	// 		}]),
-	// 	),
-	// TODO And
-	// TODO hier? oder customlogik case in inferType?
-	// Or: new FunctionType(
-	// 	// TODO rest args type?
-	// 	,
-	// 	new UnionType(),
-	// ),
 	nativeFunction: (() => {
 		const parameterReference = createParameterReference('FunctionType', 0);
 		const functionType = createCompileTimeFunctionType(
