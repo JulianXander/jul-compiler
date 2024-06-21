@@ -110,6 +110,8 @@ function typeToString(type: RuntimeType, indent: number): string {
 						return `Dictionary(${typeToString(type.ElementType, indent)})`;
 					case 'dictionaryLiteral':
 						return dictionaryTypeToString(type.Fields, ': ', indent);
+					case 'empty':
+						return 'Empty';
 					case 'error':
 						return 'Error';
 					case 'float':
@@ -236,6 +238,11 @@ function getTypeError(value: any, type: RuntimeType): string | undefined {
 				switch (type[_julTypeSymbol]) {
 					case 'any':
 						return undefined;
+					case 'empty':
+						if (value === undefined) {
+							return undefined;
+						}
+						break;
 					case 'boolean':
 						if (typeof value === 'boolean') {
 							return undefined;
@@ -650,7 +657,7 @@ export function deepEqual(value1: any, value2: any): boolean {
 
 //#region Types
 
-export type Primitive =
+type Primitive =
 	| undefined
 	| boolean
 	| number
@@ -688,6 +695,7 @@ type CustomType = (value: any) => boolean;
 
 type BuiltInType =
 	| AnyType
+	| EmptyType
 	| BooleanType
 	| IntegerType
 	| FloatType
@@ -715,19 +723,23 @@ type BuiltInType =
  */
 export const _julTypeSymbol = Symbol.for('julType');
 
-export interface AnyType {
+interface AnyType {
 	readonly [_julTypeSymbol]: 'any';
 }
 
-export interface BooleanType {
+interface EmptyType {
+	readonly [_julTypeSymbol]: 'empty';
+}
+
+interface BooleanType {
 	readonly [_julTypeSymbol]: 'boolean';
 }
 
-export interface IntegerType {
+interface IntegerType {
 	readonly [_julTypeSymbol]: 'integer';
 }
 
-export interface FloatType {
+interface FloatType {
 	readonly [_julTypeSymbol]: 'float';
 }
 
@@ -736,19 +748,19 @@ interface GreaterType {
 	readonly Value: bigint | number;
 }
 
-export interface TextType {
+interface TextType {
 	readonly [_julTypeSymbol]: 'text';
 }
 
-export interface DateType {
+interface DateType {
 	readonly [_julTypeSymbol]: 'date';
 }
 
-export interface BlobType {
+interface BlobType {
 	readonly [_julTypeSymbol]: 'blob';
 }
 
-export interface ErrorType {
+interface ErrorType {
 	readonly [_julTypeSymbol]: 'error';
 }
 
@@ -787,7 +799,7 @@ interface FunctionType {
  */
 export const _Function: FunctionType = { [_julTypeSymbol]: 'function' };
 
-export interface TypeType {
+interface TypeType {
 	readonly [_julTypeSymbol]: 'type';
 }
 
@@ -1144,6 +1156,7 @@ function _toJson(value: RuntimeType): string | Error {
 //#region builtins
 //#region Types
 export const Any: AnyType = { [_julTypeSymbol]: 'any' };
+export const Empty: EmptyType = { [_julTypeSymbol]: 'empty' };
 export const Type: TypeType = { [_julTypeSymbol]: 'type' };
 export const List = (ElementType: RuntimeType): ListType => {
 	return {

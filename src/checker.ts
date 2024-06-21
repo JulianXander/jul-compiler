@@ -69,6 +69,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		value: false,
 	},
 	Any: createCompileTimeTypeOfType({ julType: 'any' }),
+	Empty: createCompileTimeTypeOfType({ julType: 'empty' }),
 	Boolean: createCompileTimeTypeOfType({ julType: 'boolean' }),
 	Integer: createCompileTimeTypeOfType({ julType: 'integer' }),
 	Float: createCompileTimeTypeOfType({ julType: 'float' }),
