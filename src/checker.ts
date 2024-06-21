@@ -2601,7 +2601,7 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'dictionaryLiteral':
 			return dictionaryTypeToString(type.Fields, ': ', indent, depth + 1);
 		case 'empty':
-			return '()';
+			return 'Empty';
 		case 'error':
 			return 'Error';
 		case 'float':

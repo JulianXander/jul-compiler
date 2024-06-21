@@ -230,6 +230,16 @@ const expectedResults: {
 	{type: Any},
 )`,
 		},
+		{
+			name: 'empty-type-function',
+			code: 'Empty => ()',
+			result: `export default _createFunction(
+	() => {
+		return undefined
+	},
+	{type: Empty},
+)`,
+		},
 	];
 
 describe('Emitter', () => {
