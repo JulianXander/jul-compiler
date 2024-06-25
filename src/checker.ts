@@ -351,6 +351,7 @@ export function dereferenceIndexFromObject(
 			}).filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(dereferencedChoices);
 		}
+		case 'nestedReference':
 		case 'parameterReference':
 			return createNestedReference(sourceObjectType, index);
 		case 'tuple':
