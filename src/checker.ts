@@ -1656,6 +1656,11 @@ function getReturnTypeFromFunctionCall(
 					: undefined;
 				return getLengthFromType(firstArgType);
 			}
+			case 'setElement': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const dereferencedArgTypes = argTypes?.map(dereferenceNested);
+				return setElementFromTypes(dereferencedArgTypes);
+			}
 			case 'And': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
@@ -1803,6 +1808,49 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 		default:
 			// TODO non negative
 			return { julType: 'integer' };
+	}
+}
+
+function setElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileTimeType {
+	if (!argsTypes) {
+		return { julType: 'empty' };
+	}
+	const [valuesType, indexType, valueType] = argsTypes;
+	if (valuesType === undefined) {
+		return { julType: 'empty' };
+	}
+	if (indexType === undefined
+		|| valueType === undefined) {
+		return valuesType;
+	}
+	if (isUnionType(indexType)) {
+		const setElementChoices = indexType.ChoiceTypes.map(indexChoice => setElementFromTypes([valuesType, indexChoice, valueType]));
+		return createNormalizedUnionType(setElementChoices);
+	}
+	switch (valuesType.julType) {
+		case 'tuple': {
+			if (indexType.julType === 'integerLiteral') {
+				const elementTypes = [
+					...valuesType.ElementTypes,
+				];
+				elementTypes[Number(indexType.value) - 1] = valueType;
+				return createCompileTimeTupleType(elementTypes);
+			}
+			const elementTypes = valuesType.ElementTypes.map(elementType => {
+				return createNormalizedUnionType([elementType, valueType]);
+			});
+			return createCompileTimeTupleType(elementTypes);
+		}
+		case 'list': {
+			const elementType = createNormalizedUnionType([valuesType.ElementType, valueType]);
+			return createCompileTimeListType(elementType);
+		}
+		case 'or': {
+			const setElementChoices = valuesType.ChoiceTypes.map(valuesChoice => setElementFromTypes([valuesChoice, indexType, valueType]));
+			return createNormalizedUnionType(setElementChoices);
+		}
+		default:
+			return { julType: 'any' };
 	}
 }
 
