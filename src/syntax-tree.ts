@@ -583,6 +583,9 @@ export interface CompileTimeDictionaryLiteralType extends CompileTimeTypeBase {
 	readonly julType: 'dictionaryLiteral';
 	Fields: CompileTimeDictionary;
 	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral;
+	/**
+	 * Leerstring, wenn builtin.
+	 */
 	filePath?: string;
 }
 

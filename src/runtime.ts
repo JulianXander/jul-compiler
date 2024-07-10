@@ -2519,11 +2519,11 @@ function _map$<TSource, TTarget>(
 			return currentMappedValue;
 		},
 	);
-	mapped$.onCompleted(() => {
-		unsubscribe();
-	});
 	const unsubscribe = source$.subscribe(sourceValue => {
 		mapped$.getValue();
+	});
+	mapped$.onCompleted(() => {
+		unsubscribe();
 	});
 	source$.onCompleted(() => {
 		mapped$.complete();
@@ -2547,11 +2547,6 @@ function _combine$<T>(
 			return currentValues;
 		},
 	);
-	combined$.onCompleted(() => {
-		unsubscribes.forEach((unsubscribe, index) => {
-			unsubscribe();
-		});
-	});
 	const unsubscribes = source$s.map((source$, index) => {
 		source$.onCompleted(() => {
 			// combined ist complete, wenn alle Sources complete sind.
@@ -2561,6 +2556,11 @@ function _combine$<T>(
 		});
 		return source$.subscribe(value => {
 			combined$.getValue();
+		});
+	});
+	combined$.onCompleted(() => {
+		unsubscribes.forEach((unsubscribe, index) => {
+			unsubscribe();
 		});
 	});
 	return combined$;

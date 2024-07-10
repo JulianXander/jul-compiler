@@ -793,7 +793,13 @@ function inferFileTypes(
 	file: ParsedExpressions2,
 	scopes: SymbolTable[],
 	parsedDocuments: ParsedDocuments,
+	/**
+	 * Leerstring, wenn builtin.
+	 */
 	sourceFolder: string,
+	/**
+	 * Leerstring, wenn builtin.
+	 */
 	filePath: string,
 ): void {
 	const fileScopes = [
@@ -809,8 +815,14 @@ function setInferredType(
 	expression: TypedExpression,
 	scopes: NonEmptyArray<SymbolTable>,
 	parsedDocuments: ParsedDocuments,
+	/**
+	 * Leerstring, wenn builtin.
+	 */
 	sourceFolder: string,
 	file: ParsedExpressions2,
+	/**
+	 * Leerstring, wenn builtin.
+	 */
 	filePath: string,
 ): void {
 	if (expression.typeInfo) {
@@ -830,8 +842,14 @@ function inferType(
 	expression: TypedExpression,
 	scopes: NonEmptyArray<SymbolTable>,
 	parsedDocuments: ParsedDocuments,
+	/**
+	 * Leerstring, wenn builtin.
+	 */
 	folder: string,
 	file: ParsedExpressions2,
+	/**
+	 * Leerstring, wenn builtin.
+	 */
 	filePath: string,
 ): TypeInfo {
 	const errors = file.errors;
