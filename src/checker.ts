@@ -293,38 +293,52 @@ export function dereferenceNameFromObject(
 			}
 		case 'typeOf': {
 			const innerType = sourceObjectType.value;
-			switch (innerType.julType) {
-				case 'dictionary':
-					switch (name) {
-						case 'ElementType':
-							return innerType.ElementType;
-						default:
-							return undefined;
-					}
-				case 'dictionaryLiteral':
-					return innerType.Fields[name];
-				case 'list':
-					switch (name) {
-						case 'ElementType':
-							return innerType.ElementType;
-						default:
-							return undefined;
-					}
-				case 'nestedReference':
-				case 'parameterReference':
-					return createNestedReference(sourceObjectType, name);
-				case 'tuple':
-					switch (name) {
-						case 'ElementType':
-							return createNormalizedUnionType(innerType.ElementTypes);
-						default:
-							return undefined;
-					}
+			return dereferenceNameFromObjectType(name, innerType, sourceObjectType);
+		}
+		// TODO other object types
+		default:
+			return undefined;
+	}
+}
+
+function dereferenceNameFromObjectType(
+	name: string,
+	innerType: CompileTimeType,
+	sourceObjectType: CompileTimeType,
+): CompileTimeType | undefined {
+	switch (innerType.julType) {
+		case 'dictionary':
+			switch (name) {
+				case 'ElementType':
+					return innerType.ElementType;
 				default:
 					return undefined;
 			}
+		case 'dictionaryLiteral':
+			return innerType.Fields[name];
+		case 'list':
+			switch (name) {
+				case 'ElementType':
+					return innerType.ElementType;
+				default:
+					return undefined;
+			}
+		case 'nestedReference':
+		case 'parameterReference':
+			return createNestedReference(sourceObjectType, name);
+		case 'or': {
+			const dereferencedChoices = innerType.ChoiceTypes.map(choiceType => {
+				return dereferenceNameFromObjectType(name, choiceType, choiceType);
+			}).filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(dereferencedChoices);
 		}
-		// TODO other object types
+		case 'tuple':
+			switch (name) {
+				case 'ElementType':
+					return createNormalizedUnionType(innerType.ElementTypes);
+				default:
+					return undefined;
+			}
 		default:
 			return undefined;
 	}
