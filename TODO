@@ -1,3 +1,4 @@
+-fix aggregate returntype, value type inference
 -refactor CompileTimeType TypeInfo
 	-mit SourceExpression anreichern für Descriptions, Symbole
 		-vgl server OnCompletion, findSymbol

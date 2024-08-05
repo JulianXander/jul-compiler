@@ -741,10 +741,10 @@ aggregate = nativeFunction(
 		initialValue: Any
 		callback: (
 			accumulator: Any
-			value: Any
+			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Any
+	) :> callback/ReturnType
 	# TODO pure wenn die args pure sind
 	false
 	§js
