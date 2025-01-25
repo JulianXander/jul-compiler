@@ -44,6 +44,7 @@ import {
 	TextToken,
 	TypedExpression,
 	TypeInfo,
+	ParseExpressionBase,
 } from './syntax-tree.js';
 import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
@@ -1438,9 +1439,13 @@ function inferType(
 					const prefixArgument = functionCall.prefixArgument;
 					// TODO rest berücksichtigen
 					// const paramIndex = expression.parent.singleFields.indexOf(expression);
-					// TODO previous arg types
 					const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
-					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgumentType, { julType: 'empty' }, inferredTypeFromCall);
+					// argsType.typeInfo ist hier noch nicht gesetzt, denn der aktuelle parameter befindet sich in einem arg
+					// daher die typeInfo aus den values nehmen und vorläufigen argsType konstruieren (typeInfo ist bei vorherigen args schon gesetzt)
+					const argsType: CompileTimeType = args.type === 'list'
+						? createCompileTimeTupleType(args.values.map(value => (value as ParseExpressionBase).typeInfo?.rawType ?? { julType: 'any' }))
+						: { julType: 'any' };
+					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, inferredTypeFromCall);
 				}
 			}
 			//#endregion

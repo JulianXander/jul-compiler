@@ -107,7 +107,7 @@ export interface PositionedExpressionBase extends Positioned {
 }
 
 // TODO bei allen parseExpressions oder nur bei value expressions?
-interface ParseExpressionBase extends PositionedExpressionBase {
+export interface ParseExpressionBase extends PositionedExpressionBase {
 	/**
 	 * Wird vom checker gesetzt.
 	 */
