@@ -24,7 +24,9 @@
 		"build": "npx tsc && copyfiles --flat src/core-lib.jul out",
 		"build-all": "npm run build && npx tsc --project ../jul-language-server/tsconfig.json && npx tsc --project ../vscode-jul-language-service/tsconfig.json",
 		"build-all-and-deploy": "npm run build-all && npm run install-cli && npm run test-deploy --prefix ../vscode-jul-language-service",
-		"test": "tsc -p tsconfig.test.json && copyfiles --flat src/core-lib.jul test && mocha --require ./test-setup.mjs \"test/**/*.test.js\"",
+		"test": "mocha --import=tsx --require ./test-setup.mjs \"src/**/*.test.ts\"",
+		"test-watch": "mocha --import=tsx --require ./test-setup.mjs --watch --watch-files src --extension ts \"src/**/*.test.ts\"",
+		"typecheck": "tsc --noEmit -p tsconfig.test.json",
 		"install-cli": "npm i -g"
 	},
 	"devDependencies": {
@@ -34,7 +36,7 @@
 		"chai": "^6.2.2",
 		"chai-as-promised": "^8.0.2",
 		"mocha": "^12.0.0",
-		"ts-node": "^10.9.2"
+		"tsx": "^4.23.13"
 	},
 	"dependencies": {
 		"ajv": "^8.20.0",
