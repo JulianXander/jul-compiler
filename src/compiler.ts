@@ -4,6 +4,7 @@ import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
 import { ParsedDocuments, checkTypes } from './checker.js';
 import { parseCode } from './parser/parser.js';
+import { ParserError } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
@@ -121,6 +122,18 @@ function compileFile(
 	const extension = parsed.extension;
 	//#endregion 2. parse
 
+	//#region 2b. check syntax
+	// Bei Syntaxfehlern abbrechen, bevor der Emitter einen unvollständigen Baum zu sehen bekommt.
+	// Parser und Checker tolerieren unvollständige Ausdrücke bewusst, damit der Language Server
+	// beim Tippen weiterarbeiten kann - für die CLI gilt das nicht.
+	const syntaxErrors = parsed.unchecked.errors;
+	if (syntaxErrors?.length) {
+		return {
+			error: formatErrors(parsed.filePath, syntaxErrors, 'SyntaxError'),
+		};
+	}
+	//#endregion 2b. check syntax
+
 	//#region 3. compile
 	let compiled;
 	let outFilePath;
@@ -195,14 +208,7 @@ function compileFile(
 		const errors = parsed.checked?.errors;
 		if (errors?.length) {
 			return {
-				error: errors.map(error => {
-					const errorPath = colorize(parsed.filePath, ConsoleColor.cyan);
-					// Row/Column sind intern 0-basiert (Array-Indizes), für die Ausgabe 1-basiert wie in Editoren
-					const errorRow = colorize(error.startRowIndex + 1, ConsoleColor.yellow);
-					const errorColumn = colorize(error.startColumnIndex + 1, ConsoleColor.yellow);
-					const errorLabel = colorize('CompilerError', ConsoleColor.lightRed);
-					return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel}: ${error.message}`;
-				}).join('\n'),
+				error: formatErrors(parsed.filePath, errors, 'CompilerError'),
 			};
 		}
 		//#endregion 6. check
@@ -210,6 +216,20 @@ function compileFile(
 	return { outFilePath: outFilePath };
 }
 
+
+/**
+ * Formatiert Fehler für die Konsolenausgabe.
+ * Row/Column sind intern 0-basiert (Array-Indizes), für die Ausgabe 1-basiert wie in Editoren.
+ */
+function formatErrors(filePath: string, errors: ParserError[], label: string): string {
+	return errors.map(error => {
+		const errorPath = colorize(filePath, ConsoleColor.cyan);
+		const errorRow = colorize(error.startRowIndex + 1, ConsoleColor.yellow);
+		const errorColumn = colorize(error.startColumnIndex + 1, ConsoleColor.yellow);
+		const errorLabel = colorize(label, ConsoleColor.lightRed);
+		return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel}: ${error.message}`;
+	}).join('\n');
+}
 function busySpinner() {
 	let step = 0;
 	// const characters = '⡀⠄⠂⠁⠈⠐⠠⢀';
