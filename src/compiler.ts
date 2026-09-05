@@ -197,8 +197,9 @@ function compileFile(
 			return {
 				error: errors.map(error => {
 					const errorPath = colorize(parsed.filePath, ConsoleColor.cyan);
-					const errorRow = colorize(error.startRowIndex, ConsoleColor.yellow);
-					const errorColumn = colorize(error.startColumnIndex, ConsoleColor.yellow);
+					// Row/Column sind intern 0-basiert (Array-Indizes), für die Ausgabe 1-basiert wie in Editoren
+					const errorRow = colorize(error.startRowIndex + 1, ConsoleColor.yellow);
+					const errorColumn = colorize(error.startColumnIndex + 1, ConsoleColor.yellow);
 					const errorLabel = colorize('CompilerError', ConsoleColor.lightRed);
 					return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel}: ${error.message}`;
 				}).join('\n'),
