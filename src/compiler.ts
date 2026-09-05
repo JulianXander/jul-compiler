@@ -4,7 +4,7 @@ import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
 import { ParsedDocuments, checkTypes } from './checker.js';
 import { parseCode } from './parser/parser.js';
-import { ParserError } from './parser/parser-combinator.js';
+import { CompilerError, CompilerErrorType } from './parser/parser-combinator.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
@@ -122,17 +122,18 @@ function compileFile(
 	const extension = parsed.extension;
 	//#endregion 2. parse
 
-	//#region 2b. check syntax
-	// Bei Syntaxfehlern abbrechen, bevor der Emitter einen unvollständigen Baum zu sehen bekommt.
+	//#region 2b. check parse errors
+	// Abbrechen, bevor der Emitter einen unvollständigen Baum zu sehen bekommt.
 	// Parser und Checker tolerieren unvollständige Ausdrücke bewusst, damit der Language Server
 	// beim Tippen weiterarbeiten kann - für die CLI gilt das nicht.
-	const syntaxErrors = parsed.unchecked.errors;
-	if (syntaxErrors?.length) {
+	// Enthält nicht nur syntax, sondern auch semantic (z.B. File not found, already defined).
+	const parseErrors = parsed.unchecked.errors;
+	if (parseErrors?.length) {
 		return {
-			error: formatErrors(parsed.filePath, syntaxErrors, 'SyntaxError'),
+			error: formatErrors(parsed.filePath, parseErrors),
 		};
 	}
-	//#endregion 2b. check syntax
+	//#endregion 2b. check parse errors
 
 	//#region 3. compile
 	let compiled;
@@ -208,7 +209,7 @@ function compileFile(
 		const errors = parsed.checked?.errors;
 		if (errors?.length) {
 			return {
-				error: formatErrors(parsed.filePath, errors, 'CompilerError'),
+				error: formatErrors(parsed.filePath, errors),
 			};
 		}
 		//#endregion 6. check
@@ -216,17 +217,26 @@ function compileFile(
 	return { outFilePath: outFilePath };
 }
 
+/**
+ * Anzeigenamen der Fehlerkategorien für die Konsolenausgabe.
+ * Als Record über CompilerErrorType, damit eine neue Kategorie hier einen Compile-Fehler erzwingt.
+ */
+const errorTypeLabels: { [Type in CompilerErrorType]: string; } = {
+	syntax: 'SyntaxError',
+	semantic: 'SemanticError',
+	type: 'TypeError',
+};
 
 /**
  * Formatiert Fehler für die Konsolenausgabe.
  * Row/Column sind intern 0-basiert (Array-Indizes), für die Ausgabe 1-basiert wie in Editoren.
  */
-function formatErrors(filePath: string, errors: ParserError[], label: string): string {
+function formatErrors(filePath: string, errors: CompilerError[]): string {
 	return errors.map(error => {
 		const errorPath = colorize(filePath, ConsoleColor.cyan);
 		const errorRow = colorize(error.startRowIndex + 1, ConsoleColor.yellow);
 		const errorColumn = colorize(error.startColumnIndex + 1, ConsoleColor.yellow);
-		const errorLabel = colorize(label, ConsoleColor.lightRed);
+		const errorLabel = colorize(errorTypeLabels[error.type], ConsoleColor.lightRed);
 		return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel}: ${error.message}`;
 	}).join('\n');
 }

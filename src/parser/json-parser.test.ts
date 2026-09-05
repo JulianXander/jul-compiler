@@ -3,14 +3,14 @@
 import { expect } from 'chai';
 
 import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
-import { ParserError } from './parser-combinator.js';
+import { CompilerError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
 const expectedResults: {
 	name?: string;
 	code: string;
 	result?: ParseExpression[];
-	errors?: ParserError[];
+	errors?: CompilerError[];
 }[] = [
 		{
 			name: 'newline',

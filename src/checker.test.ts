@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { ParseExpression, ParseSingleDefinition } from './syntax-tree.js';
-import { ParserError } from './parser/parser-combinator.js';
+import { CompilerError } from './parser/parser-combinator.js';
 import { parseCode } from './parser/parser.js';
 import { checkTypes } from './checker.js';
 
@@ -9,13 +9,14 @@ const expectedResults: {
 	name?: string;
 	code: string;
 	result?: ParseExpression[];
-	errors?: ParserError[];
+	errors?: CompilerError[];
 }[] = [
 		{
 			name: 'text-interpolation-reference-error',
 			code: '§§(a)§',
 			errors: [
 				{
+					"type": "semantic",
 					"endColumnIndex": 4,
 					"endRowIndex": 0,
 					"message": "a is not defined.",
@@ -68,6 +69,7 @@ const expectedResults: {
 			// ],
 			errors: [
 				{
+					"type": "type",
 					"endColumnIndex": 2,
 					"endRowIndex": 1,
 					"message": "Expected branch to be a function.\nCan not assign 4 to Any :> Any.",
@@ -101,6 +103,7 @@ const expectedResults: {
 a = 5`,
 			errors: [
 				{
+					"type": "semantic",
 					"endColumnIndex": 1,
 					"endRowIndex": 0,
 					"message": "a is used before it is defined.",
@@ -114,6 +117,7 @@ a = 5`,
 			code: 'a: List(Text) = (4)',
 			errors: [
 				{
+					"type": "type",
 					"endColumnIndex": 19,
 					"endRowIndex": 0,
 					"message": "Can not assign 4 to Text.",

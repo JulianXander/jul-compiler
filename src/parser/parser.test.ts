@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 
 import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
-import { ParserError } from './parser-combinator.js';
+import { CompilerError } from './parser-combinator.js';
 import { parseCode } from './parser.js';
 
 const expectedResults: {
 	name?: string;
 	code: string;
 	result?: ParseExpression[];
-	errors?: ParserError[];
+	errors?: CompilerError[];
 }[] = [
 		// {
 		// 	code: 'true',
@@ -1098,6 +1098,7 @@ const expectedResults: {
 			// ],
 			errors: [
 				{
+					type: 'syntax',
 					message: "multilineParser should parse until end of row",
 					startRowIndex: 2,
 					startColumnIndex: 5,
@@ -1105,6 +1106,7 @@ const expectedResults: {
 					endColumnIndex: 5,
 				},
 				{
+					type: 'syntax',
 					startRowIndex: 3,
 					startColumnIndex: 2,
 					endRowIndex: 3,
@@ -1196,6 +1198,7 @@ const expectedResults: {
 			})(),
 			errors: [
 				{
+					"type": "syntax",
 					"endColumnIndex": 2,
 					"endRowIndex": 0,
 					"message": "Expected a nested key",
@@ -1230,6 +1233,7 @@ const expectedResults: {
 			})(),
 			errors: [
 				{
+					"type": "syntax",
 					"endColumnIndex": 3,
 					"endRowIndex": 0,
 					"message": "expression expected",
@@ -1291,6 +1295,7 @@ const expectedResults: {
 			})(),
 			errors: [
 				{
+					"type": "semantic",
 					"endColumnIndex": 5,
 					"endRowIndex": 1,
 					"message": "assignedValue missing for singleDictionaryField",

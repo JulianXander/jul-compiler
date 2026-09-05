@@ -1,4 +1,4 @@
-import { ParserError, Positioned } from './parser/parser-combinator.js';
+import { CompilerError, Positioned } from './parser/parser-combinator.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {
@@ -21,7 +21,7 @@ export interface ParsedExpressions2 extends ParsedExpressions {
 }
 
 export interface ParsedExpressions {
-	errors: ParserError[];
+	errors: CompilerError[];
 	expressions?: ParseExpression[];
 }
 

@@ -1,12 +1,12 @@
 import { BracketedExpressionBase, DefinitionExpression, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
-import { ParserError, Positioned } from "./parser-combinator.js";
+import { CompilerError, Positioned } from "./parser-combinator.js";
 
 export function createParseParameters(
 	singleFields: ParseParameterField[],
 	rest: ParseParameterField | undefined,
 	position: Positioned,
-	errors: ParserError[],
+	errors: CompilerError[],
 ): ParseParameterFields {
 	const symbols: SymbolTable = {};
 	const parameters: ParseParameterFields = {
@@ -51,7 +51,7 @@ export function createParseFunctionLiteral(
 	returnType: ParseValueExpression | undefined,
 	body: ParseExpression[],
 	position: Positioned,
-	errors: ParserError[],
+	errors: CompilerError[],
 ): ParseFunctionLiteral {
 	const symbols: SymbolTable = {};
 	if (params.type === 'bracketed'
@@ -76,7 +76,7 @@ export function createParseFunctionLiteral(
 
 export function fillSymbolTableWithExpressions(
 	symbolTable: SymbolTable,
-	errors: ParserError[],
+	errors: CompilerError[],
 	expressions: ParseExpression[],
 ): void {
 	expressions.forEach(expression => {
@@ -106,7 +106,7 @@ export function fillSymbolTableWithExpressions(
 
 export function fillSymbolTableWithParams(
 	symbolTable: SymbolTable,
-	errors: ParserError[],
+	errors: CompilerError[],
 	params: BracketedExpressionBase | ParseParameterFields,
 ): void {
 	if (params.type === 'bracketed') {
@@ -125,7 +125,7 @@ export function fillSymbolTableWithParams(
 
 export function fillSymbolTableWithFields(
 	symbolTable: SymbolTable,
-	errors: ParserError[],
+	errors: CompilerError[],
 	fields: (ParseDestructuringField | ParseDictionaryField | ParseDictionaryTypeField | ParseFieldBase | ParseParameterField)[],
 	isFunctionParameter: boolean,
 ): void {
@@ -154,7 +154,7 @@ export function fillSymbolTableWithFields(
 
 function defineSymbol(
 	symbolTable: SymbolTable,
-	errors: ParserError[],
+	errors: CompilerError[],
 	name: string,
 	definition: DefinitionExpression,
 	namePosition: Positioned,
@@ -164,6 +164,7 @@ function defineSymbol(
 ): void {
 	if (symbolTable[name]) {
 		errors.push({
+			type: 'semantic',
 			message: `${name} is already defined`,
 			startRowIndex: namePosition.startRowIndex,
 			startColumnIndex: namePosition.startColumnIndex,

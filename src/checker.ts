@@ -48,7 +48,7 @@ import {
 } from './syntax-tree.js';
 import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
 import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
-import { ParserError } from './parser/parser-combinator.js';
+import { CompilerError } from './parser/parser-combinator.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
@@ -873,6 +873,7 @@ function inferType(
 				const nonFunctionError = areArgsAssignableTo(undefined, branch.typeInfo!.dereferencedType, functionType);
 				if (nonFunctionError) {
 					errors.push({
+						type: 'type',
 						message: 'Expected branch to be a function.\n' + nonFunctionError,
 						startRowIndex: branch.startRowIndex,
 						startColumnIndex: branch.startColumnIndex,
@@ -951,6 +952,7 @@ function inferType(
 				const assignmentError = typeGuardType && areArgsAssignableTo(undefined, typeInfo.dereferencedType, valueOf(typeGuardType.dereferencedType));
 				if (assignmentError) {
 					errors.push({
+						type: 'type',
 						message: assignmentError,
 						startRowIndex: expression.startRowIndex,
 						startColumnIndex: expression.startColumnIndex,
@@ -981,6 +983,7 @@ function inferType(
 				const fieldType = dereferenceNameFromObject(referenceName, valueType);
 				if (!fieldType) {
 					errors.push({
+						type: 'type',
 						message: `Failed to dereference ${referenceName} in type ${typeToString(value?.typeInfo?.dereferencedType ?? { julType: 'any' }, 0, 0)}`,
 						startRowIndex: field.startRowIndex,
 						startColumnIndex: field.startColumnIndex,
@@ -1002,6 +1005,7 @@ function inferType(
 					const error = typeGuard.typeInfo && areArgsAssignableTo(undefined, fieldType, valueOf(typeGuard.typeInfo.dereferencedType));
 					if (error) {
 						errors.push({
+							type: 'type',
 							message: error,
 							startRowIndex: field.startRowIndex,
 							startColumnIndex: field.startColumnIndex,
@@ -1222,6 +1226,7 @@ function inferType(
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
 			if (assignArgsError) {
 				errors.push({
+					type: 'type',
 					message: assignArgsError,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
@@ -1285,6 +1290,7 @@ function inferType(
 				const error = areArgsAssignableTo(undefined, inferredReturnType.dereferencedType, valueOf(declaredReturnType.typeInfo!.dereferencedType));
 				if (error) {
 					errors.push({
+						type: 'type',
 						message: error,
 						startRowIndex: expression.startRowIndex,
 						startColumnIndex: expression.startColumnIndex,
@@ -1496,6 +1502,7 @@ function inferType(
 			const name = expression.name.name;
 			if (!found) {
 				errors.push({
+					type: 'semantic',
 					message: `${name} is not defined.`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
@@ -1511,6 +1518,7 @@ function inferType(
 					|| (expression.startRowIndex === foundSymbol.startRowIndex
 						&& expression.startColumnIndex < foundSymbol.startColumnIndex))) {
 				errors.push({
+					type: 'semantic',
 					message: `${name} is used before it is defined.`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
@@ -1568,7 +1576,7 @@ function getReturnTypeFromFunctionCall(
 	functionExpression: SimpleExpression,
 	parsedDocuments: ParsedDocuments,
 	folder: string,
-	errors: ParserError[],
+	errors: CompilerError[],
 ): CompileTimeType {
 	const prefixArgument = functionCall.prefixArgument;
 	const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
@@ -2867,7 +2875,7 @@ export function getCheckedName(parseName: ParseValueExpression): string | undefi
 function checkNameDefinedInUpperScope(
 	expression: TypedExpression,
 	scopes: NonEmptyArray<SymbolTable>,
-	errors: ParserError[],
+	errors: CompilerError[],
 	name: string,
 ): void {
 	const alreadyDefined = scopes.some((scope, index) =>
@@ -2876,6 +2884,7 @@ function checkNameDefinedInUpperScope(
 		&& scope[name] !== undefined);
 	if (alreadyDefined) {
 		errors.push({
+			type: 'semantic',
 			message: `${name} is already defined in upper scope`,
 			startRowIndex: expression.startRowIndex,
 			startColumnIndex: expression.startColumnIndex,
@@ -2890,12 +2899,13 @@ function checkNameDefinedInUpperScope(
  */
 function checkTypeGuardIsType(
 	typeGuard: ParseValueExpression,
-	errors: ParserError[],
+	errors: CompilerError[],
 ): void {
 	const typeGuardType = typeGuard.typeInfo!.dereferencedType;
 	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, { julType: 'type' });
 	if (typeGuardTypeError) {
 		errors.push({
+			type: 'type',
 			message: typeGuardTypeError,
 			startRowIndex: typeGuard.startRowIndex,
 			startColumnIndex: typeGuard.startColumnIndex,
