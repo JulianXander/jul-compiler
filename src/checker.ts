@@ -1865,7 +1865,7 @@ function setElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeType {
 	//#region flatten UnionTypes
 	// Or(1 Or(2 3)) => Or(1 2 3)
-	const flatChoices = choiceTypes.filter(choiceType =>
+	const flatChoices: CompileTimeType[] = choiceTypes.filter(choiceType =>
 		!isUnionType(choiceType));
 	const unionChoices = choiceTypes.filter(isUnionType);
 	unionChoices.forEach(union => {

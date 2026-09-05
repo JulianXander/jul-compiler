@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import Ajv from 'ajv';
+import { Ajv } from 'ajv';
 import { load } from 'js-yaml';
 import { dirname, join } from 'path';
 import { compileProject } from './compiler.js';
-import configSchema from './jul-config-schema.json' assert { type: 'json' };
+import configSchema from './jul-config-schema.json' with { type: 'json' };
 import { readTextFile } from './util.js';
 
 interface JulCompilerConfiguration {

@@ -1,6 +1,4 @@
-import chai from 'chai';
+import { use } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-// const chai = require('chai')
-// const chaiAsPromised = require('chai-as-promised')
 
-chai.use(chaiAsPromised)
+use(chaiAsPromised);
