@@ -1,0 +1,14 @@
+{
+  /* Build-Config: erzeugt die Artefakte in out/ und schließt dafür die Tests aus.
+     Alles andere kommt aus tsconfig.json — die deckt src inklusive Tests ab und ist
+     die Config, die der Editor (VSCode findet nur den Namen tsconfig.json) und
+     npm run typecheck verwenden. */
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "src/**/*.test.ts"
+  ],
+  "compilerOptions": {
+    "noEmit": false,
+    "types": ["node"]
+  }
+}
