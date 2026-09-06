@@ -2823,6 +2823,7 @@ export function getTypeError(
 				case 'integerLiteral':
 				case 'text':
 				case 'textLiteral':
+				case 'type':
 				case 'typeOf':
 					return undefined;
 				case 'tuple': {
