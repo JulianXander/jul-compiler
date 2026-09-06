@@ -2011,8 +2011,8 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		// Teilmenge liefern:
 		// And(A B) => A, wenn A Teilmenge von B ist
 		// z.B. And(Integer Rational) => Integer, And(Integer Integer) => Integer
-		if (canCollapseIntersection(first)
-			&& canCollapseIntersection(second)) {
+		if (hasReliableTypeError(first)
+			&& hasReliableTypeError(second)) {
 			if (!areArgsAssignableTo(undefined, first, second)) {
 				return first;
 			}
@@ -2021,14 +2021,10 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 			}
 		}
 
-		// leere Schnittmenge ermitteln:
-		// And(A B) => Never, wenn A und B zu verschiedenen Laufzeit-Familien gehören
+		// leere Schnittmenge:
+		// And(A B) => Never, wenn A und B keinen gemeinsamen Wert haben
 		// z.B. And(Integer Text) => Never
-		const firstFamily = getTypeFamily(first);
-		const secondFamily = getTypeFamily(second);
-		if (firstFamily
-			&& secondFamily
-			&& firstFamily !== secondFamily) {
+		if (typesOverlap(first, second) === false) {
 			return { julType: 'never' };
 		}
 	}
@@ -2040,20 +2036,15 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 }
 
 /**
- * getTypeError ist für manche Typen bewusst permissiv (any, nestedReference, nicht auflösbare
- * parameterReference). Für diese darf der Teilmengen-Kollaps in createNormalizedIntersectionType
- * nicht greifen, sonst kollabiert der Schnitt zu optimistisch.
- * not ist ebenfalls ausgenommen, obwohl case 'not' in getTypeError inzwischen prüft: die Prüfung
- * dort ist nur für Einzelwerte tragfähig, denn areArgsAssignableTo liefert Teilmengen, keine
- * Schnittmengen. Integer ist keine Teilmenge von 0, überlappt aber mit 0, gilt gegen Not(0) also
- * fälschlich als zuweisbar. And(Integer Not(0)) würde sonst zu Integer kollabieren und
- * NonZeroInteger damit wirkungslos.
+ * Sagt getTypeError für diesen Typ überhaupt etwas aus?
+ * Für any, nestedReference, parameterReference und parameters ist die Prüfung bewusst permissiv,
+ * "kein Fehler" heißt dort also nicht "ist zuweisbar". Wer aus einem ausbleibenden Fehler etwas
+ * folgert, muss diese Typen ausnehmen.
  */
-function canCollapseIntersection(type: CompileTimeType): boolean {
+function hasReliableTypeError(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'any':
 		case 'nestedReference':
-		case 'not':
 		case 'parameterReference':
 		case 'parameters':
 			return false;
@@ -2102,6 +2093,123 @@ function getTypeFamily(type: CompileTimeType): string | undefined {
 		// greater kann Integer oder Float sein, daher keine Aussage
 		default:
 			return undefined;
+	}
+}
+
+/**
+ * Haben die beiden Typen mindestens einen gemeinsamen Wert?
+ * Das ist eine andere Relation als die Zuweisbarkeit (getTypeError), die nur Teilmengen prüft:
+ * Integer ist keine Teilmenge von 0, überlappt mit 0 aber sehr wohl.
+ * undefined = unbekannt. Aufrufer müssen dann permissiv sein, sonst entstehen Falschfehler.
+ */
+function typesOverlap(first: CompileTimeType, second: CompileTimeType): boolean | undefined {
+	// never enthält keinen Wert, any alle
+	if (first.julType === 'never'
+		|| second.julType === 'never') {
+		return false;
+	}
+	if (first.julType === 'any'
+		|| second.julType === 'any') {
+		return true;
+	}
+	// Or überlappt, wenn ein Choice überlappt, und ist disjunkt, wenn alle Choices disjunkt sind
+	if (isUnionType(first)) {
+		return someTypeOverlaps(first.ChoiceTypes, second);
+	}
+	if (isUnionType(second)) {
+		return someTypeOverlaps(second.ChoiceTypes, first);
+	}
+	// And ist disjunkt, sobald ein Choice disjunkt ist.
+	// Überlappung lässt sich aus den Teilen dagegen nicht bestätigen.
+	if (first.julType === 'and') {
+		return everyTypeOverlaps(first.ChoiceTypes, second);
+	}
+	if (second.julType === 'and') {
+		return everyTypeOverlaps(second.ChoiceTypes, first);
+	}
+	// A überlappt Not(B) genau dann, wenn A keine Teilmenge von B ist.
+	// Hier fällt die Überlappung auf die vorhandene Zuweisbarkeit zurück.
+	if (isComplementType(first)) {
+		return isNotAssignableTo(second, first.SourceType);
+	}
+	if (isComplementType(second)) {
+		return isNotAssignableTo(first, second.SourceType);
+	}
+	const firstFamily = getTypeFamily(first);
+	const secondFamily = getTypeFamily(second);
+	if (!firstFamily
+		|| !secondFamily) {
+		return undefined;
+	}
+	if (firstFamily !== secondFamily) {
+		return false;
+	}
+	//#region gleiche Familie
+	const firstIsLiteral = isLiteralType(first);
+	const secondIsLiteral = isLiteralType(second);
+	if (firstIsLiteral
+		&& secondIsLiteral) {
+		return typeEquals(first, second);
+	}
+	if (firstIsLiteral
+		|| secondIsLiteral) {
+		// ein Literal gegen den Basistyp derselben Familie: das Literal ist enthalten
+		return true;
+	}
+	switch (firstFamily) {
+		// strukturierte Typen derselben Familie können sich beliebig überschneiden,
+		// z.B. enthalten List(Integer) und List(Text) beide die leere Liste
+		case 'dictionary':
+		case 'function':
+		case 'list':
+		case 'stream':
+			return undefined;
+		default:
+			// zwei Basistypen derselben Familie, z.B. Integer und Integer
+			return true;
+	}
+	//#endregion gleiche Familie
+}
+
+function someTypeOverlaps(choiceTypes: CompileTimeType[], other: CompileTimeType): boolean | undefined {
+	const results = choiceTypes.map(choiceType => typesOverlap(choiceType, other));
+	if (results.some(result => result === true)) {
+		return true;
+	}
+	return results.every(result => result === false)
+		? false
+		: undefined;
+}
+
+function everyTypeOverlaps(choiceTypes: CompileTimeType[], other: CompileTimeType): boolean | undefined {
+	const results = choiceTypes.map(choiceType => typesOverlap(choiceType, other));
+	return results.some(result => result === false)
+		? false
+		: undefined;
+}
+
+/**
+ * Ist der Wert dem Zieltyp sicher nicht zuweisbar?
+ * undefined, wenn die Zuweisbarkeitsprüfung für einen der beiden Typen nichts aussagt —
+ * "kein Fehler" heißt dort eben nicht "ist zuweisbar".
+ */
+function isNotAssignableTo(type: CompileTimeType, targetType: CompileTimeType): boolean | undefined {
+	if (!hasReliableTypeError(type)
+		|| !hasReliableTypeError(targetType)) {
+		return undefined;
+	}
+	return !!areArgsAssignableTo(undefined, type, targetType);
+}
+
+function isLiteralType(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'booleanLiteral':
+		case 'floatLiteral':
+		case 'integerLiteral':
+		case 'textLiteral':
+			return true;
+		default:
+			return false;
 	}
 }
 
@@ -2346,7 +2454,14 @@ export function getTypeError(
 	}
 	switch (argumentsType.julType) {
 		case 'and': {
-			// TODO nur die Schnittmenge der args Choices muss zum target passen
+			if (targetType.julType === 'and') {
+				// Erst das target zerlegen, das ist exakt: der Wert muss zu jedem target Choice
+				// passen. Sonst müsste ein einzelner args Choice für das ganze target reichen,
+				// was z.B. And(Integer Greater(0)) gegen And(Integer Not(0)) fälschlich ablehnt.
+				break;
+			}
+			// Es genügt, wenn ein args Choice zum target passt, denn der Wert erfüllt alle.
+			// TODO die Schnittmenge der args Choices kann passen, obwohl es kein einzelner tut
 			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 				getTypeError(prefixArgumentType, choiceType, targetType));
 			if (subErrors.every(isDefined)) {
@@ -2548,10 +2663,10 @@ export function getTypeError(
 		case 'never':
 			break;
 		case 'not': {
-			// Der Wert darf gerade nicht zum SourceType passen.
-			// Kein Fehler heißt hier also: der Wert ist zuweisbar und damit verboten.
-			const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.SourceType);
-			if (sourceError === undefined) {
+			// Der Wert darf den SourceType nicht überlappen. Zuweisbarkeit genügt hier nicht:
+			// Integer ist keine Teilmenge von 0, enthält 0 aber und ist damit unzulässig.
+			// Bei unbekannter Überlappung wird nichts gemeldet.
+			if (typesOverlap(argumentsType, targetType.SourceType)) {
 				return {
 					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
 				};

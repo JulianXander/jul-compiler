@@ -276,6 +276,13 @@ f = (someVar: Or(Text Integer)) =>
 				},
 			],
 		},
+		{
+			// PositiveInteger ist And(Integer Greater(0)) und damit nie 0, passt also zu
+			// NonZeroInteger. Kein einzelner der beiden Choices reicht dafür aus: Integer
+			// scheitert an Not(0), Greater(0) an Integer. Erst das Zerlegen des targets zeigt es.
+			name: 'not-type-accepts-intersection-without-single-matching-choice',
+			code: 'f = (x: PositiveInteger) => modulo(1 x)',
+		},
 		//#endregion Not
 	];
 

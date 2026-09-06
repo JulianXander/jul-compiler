@@ -242,7 +242,7 @@ const expectedResults: {
 					"type": "dictionary",
 				};
 				dictionary.fields[0].parent = dictionary;
-				dictionary.symbols.someKey.definition = field;
+				dictionary.symbols.someKey!.definition = field;
 				const result: ParseExpression[] = [
 					dictionary,
 				];
@@ -307,7 +307,7 @@ const expectedResults: {
 					"type": "dictionary",
 				};
 				dictionary.fields[0].parent = dictionary;
-				dictionary.symbols.someKey.definition = field;
+				dictionary.symbols.someKey!.definition = field;
 				const result: ParseExpression[] = [
 					dictionary,
 				];
@@ -387,8 +387,8 @@ const expectedResults: {
 					"type": "dictionaryType",
 				};
 				dictionaryType.fields[0].parent = dictionaryType;
-				dictionaryType.symbols.someKey.definition = field;
-				dictionaryType.symbols.someKey.typeExpression!.parent = field;
+				dictionaryType.symbols.someKey!.definition = field;
+				dictionaryType.symbols.someKey!.typeExpression!.parent = field;
 				const result: ParseExpression[] = [
 					dictionaryType,
 				];
@@ -1153,7 +1153,7 @@ const expectedResults: {
 					"symbols": {},
 					"type": "functionLiteral",
 				};
-				functionLiteral.body[0].parent = functionLiteral;
+				functionLiteral.body[0]!.parent = functionLiteral;
 				functionLiteral.params.parent = functionLiteral;
 				return [
 					functionLiteral,
@@ -1288,7 +1288,7 @@ const expectedResults: {
 				};
 				dictionary.fields[0].parent = dictionary;
 				(dictionary.fields[0] as any).name.parent = dictionary.fields[0];
-				dictionary.symbols.a.definition = dictionary.fields[0] as any;
+				dictionary.symbols.a!.definition = dictionary.fields[0] as any;
 				return [
 					dictionary,
 				];
