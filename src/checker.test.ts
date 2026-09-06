@@ -366,6 +366,13 @@ f = (values: T) :> T =>
 		},
 		//#endregion generische Rückgabetypen
 		{
+			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
+			// Der type Zweig in getTypeError kannte julType 'type' nicht und meldete
+			// "Can not assign Type to Type." (core-lib.jul create$).
+			name: 'type-parameter-as-type-argument',
+			code: 'f = (ValueType: Type) :> Stream(ValueType) => nativeValue(§0§)',
+		},
+		{
 			// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
 			// eines core-lib Namens weiterhin ein Fehler sein.
 			name: 'redefinition-of-core-lib-name-still-errors',
@@ -394,17 +401,13 @@ describe('Checker', () => {
 			}
 		});
 	});
+	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
 	// Scope gecheckt werden. Sonst stand ihre Symboltabelle doppelt im Scope Stack und jede
 	// Definition wurde als alreadyDefinedInUpperScope gemeldet (94 Scheinfehler im Editor).
-	it('core-lib checks without duplicate upper scope errors', () => {
+	it('core-lib checks without errors', () => {
 		const parsed = parseFile(coreLibPath);
 		checkTypes(parsed, {});
-		const scopeErrors = parsed.checked!.errors
-			.filter(error => error.code === ErrorCode.alreadyDefinedInUpperScope);
-		// nur das echte Shadowing des regex Parameters bleibt (core-lib.jul Zeile 388)
-		expect(scopeErrors.map(error => error.message)).to.deep.equal([
-			'regex is already defined in upper scope',
-		]);
+		expect(parsed.checked!.errors).to.deep.equal([]);
 	});
 });
