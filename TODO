@@ -44,6 +44,10 @@
 	-1. check args assignable
 	-2. check returnValue = true
 ?catchAll default case in branching mit () oder Any?
+	-seit der Datenklammer nur noch eine Stilfrage, keine Mehrdeutigkeit mehr:
+		() => x   bindet nichts, verwirft alles, matcht jeden Wert
+		[] => x   matcht nur das Empty-Literal
+		Any => x  matcht jeden Wert, sagt es ausdrücklich
 -taschenrechner demo app
 ?fix dictionary value als type typeChecking?
 	?wie soll sich das verhalten? wird das gebraucht?

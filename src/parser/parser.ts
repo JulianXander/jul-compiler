@@ -17,7 +17,8 @@ import {
 } from './parser-combinator.js';
 import {
 	BracketedExpression,
-	BracketedExpressionBase,
+	ParseBindingExpression,
+	ParseDataExpression,
 	Index,
 	Name,
 	NumberLiteral,
@@ -183,8 +184,38 @@ function parseJulCode(code: string): ParsedExpressions {
 //#region Tokens
 
 const spaceParser = tokenParser(' ');
-const openingBracketParser = tokenParser('(');
-const closingBracketParser = tokenParser(')');
+const openingRoundBracketParser = tokenParser('(');
+const closingRoundBracketParser = tokenParser(')');
+const openingSquareBracketParser = tokenParser('[');
+const closingSquareBracketParser = tokenParser(']');
+
+/**
+ * Die beiden Klammerarten. Rund ist eine Bindungsstelle (Aufruf, Parameterliste,
+ * Destructuring), eckig ein Datenliteral.
+ * Indiziert nach der Art, die auch den erzeugten Knotentyp bestimmt.
+ */
+const brackets = {
+	round: {
+		opening: openingRoundBracketParser,
+		closing: closingRoundBracketParser,
+		nodeType: 'binding',
+	},
+	square: {
+		opening: openingSquareBracketParser,
+		closing: closingSquareBracketParser,
+		nodeType: 'data',
+	},
+} as const;
+
+type BracketKind = keyof typeof brackets;
+
+/**
+ * Eine noch nicht aufgelöste Klammer, gleich welcher Art.
+ */
+function isBracketed(expression: { type: string; }): expression is ParseBindingExpression | ParseDataExpression {
+	return expression.type === 'binding'
+		|| expression.type === 'data';
+}
 const paragraphParser = tokenParser('§');
 const nestedReferenceTokenParser = tokenParser('/');
 // SVO InfixFunctionCall
@@ -471,7 +502,7 @@ function expressionParser(
 	// bei name = ref und definition: SingleDefinition
 	// bei alles außer name leer: valueExpression
 	// sonst Fehler
-	if ((baseName.type === 'bracketed') && parsed.definition) {
+	if ((baseName.type === 'binding') && parsed.definition) {
 		if (parsed.spread) {
 			errors.push({
 				type: 'semantic',
@@ -503,7 +534,7 @@ function expressionParser(
 				endColumnIndex: parsed.endColumnIndex,
 			});
 		}
-		const fields = bracketedExpressionToDestructuringFields(baseName, errors);
+		const fields = bindingToDestructuringFields(baseName, errors);
 		const destructuring: ParseDestructuringDefinition = {
 			type: 'destructuring',
 			fields: fields,
@@ -582,7 +613,7 @@ function expressionParser(
 			endColumnIndex: parsed.endColumnIndex,
 		});
 	}
-	if (baseName.type === 'bracketed') {
+	if (isBracketed(baseName)) {
 		const bracketedValueExpression = bracketedExpressionToValueExpression(baseName, errors);
 		return {
 			...result,
@@ -875,10 +906,7 @@ function valueExpressionBaseParser(
 		}
 		case 'functionBody': {
 			const body = parsed2.body;
-			let params: SimpleExpression | ParseParameterFields = parsed1;
-			if (params.type === 'bracketed') {
-				params = bracketedExpressionToParameters(params, errors);
-			}
+			const params = bracketedParamsToParams(parsed1, errors);
 			// TODO im Fall dass params TypeExpression ist: Code Flow Typing berücksichtigen
 			const functionLiteral = createParseFunctionLiteral(
 				params,
@@ -903,10 +931,7 @@ function valueExpressionBaseParser(
 		case 'functionTypeBody': {
 			const body = parsed2.body;
 			const returnType = baseValueExpressionToValueExpression(parsed2.returnTypeBase, errors);
-			let params: SimpleExpression | ParseParameterFields = parsed1;
-			if (params.type === 'bracketed') {
-				params = bracketedExpressionToParameters(params, errors);
-			}
+			const params = bracketedParamsToParams(parsed1, errors);
 			if (body) {
 				// FunctionLiteral mit ReturnType
 				const functionLiteral = createParseFunctionLiteral(
@@ -931,7 +956,7 @@ function valueExpressionBaseParser(
 			}
 			// FunctionTypeLiteral
 			const symbols: SymbolTable = {};
-			if (params.type === 'bracketed'
+			if (params.type === 'binding'
 				|| params.type === 'parameters') {
 				fillSymbolTableWithParams(symbols, errors, params);
 			}
@@ -970,10 +995,16 @@ function simpleExpressionBaseParser(
 ): ParserResult<SimpleExpression> {
 	const result = sequenceParser(
 		discriminatedChoiceParser(
-			// BracketedExpression
+			// Bindungsstelle: Parameterliste oder Destructuring-Ziel.
+			// Was davon, entscheidet erst das Token nach der schließenden Klammer.
 			{
-				predicate: openingBracketParser,
-				parser: bracketedBaseParser,
+				predicate: openingRoundBracketParser,
+				parser: roundBracketedBaseParser,
+			},
+			// Datenliteral
+			{
+				predicate: openingSquareBracketParser,
+				parser: squareBracketedBaseParser,
 			},
 			// NumberLiteral
 			{
@@ -1005,7 +1036,7 @@ function simpleExpressionBaseParser(
 				},
 				// FunctionCall
 				{
-					predicate: openingBracketParser,
+					predicate: openingRoundBracketParser,
 					// ObjectLiteral
 					parser: functionArgumentsParser
 				},
@@ -1265,7 +1296,7 @@ function textLineContentParser(
 				sequenceParser(
 					tokenParser('§('),
 					valueExpressionParser,
-					closingBracketParser,
+					closingRoundBracketParser,
 				),
 			)
 		)(rows, startRowIndex, startColumnIndex, indent);
@@ -1364,13 +1395,14 @@ function functionArgumentsParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<BracketedExpression> {
-	const result = bracketedBaseParser(rows, startRowIndex, startColumnIndex, indent);
+	// Die Argumentliste eines Aufrufs ist eine Bindungsstelle und bleibt rund.
+	const result = roundBracketedBaseParser(rows, startRowIndex, startColumnIndex, indent);
 	const parsed = result.parsed;
 	if (!parsed) {
 		return result;
 	}
 	const errors = result.errors ?? [];
-	const args = bracketedExpressionToValueExpression(parsed, errors);
+	const args = bracketedExpressionToValueExpression(parsed, errors, true);
 	return {
 		...result,
 		parsed: args,
@@ -1496,74 +1528,84 @@ function functionTypeBodyParser(
 /**
  * Parst beginnend mit öffnender bis zur 1. schließenden Klammer.
  * Multiline oder inline mit Leerzeichen getrennt.
+ * Die Klammerart bestimmt den Knotentyp: rund = Bindung, eckig = Daten.
  */
-function bracketedBaseParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<BracketedExpressionBase> {
-	const result = discriminatedChoiceParser(
-		{
-			predicate: tokenParser('()'),
-			parser: mapParser(
-				tokenParser('()'),
-				() =>
-					[]),
-		},
-		{
-			predicate: sequenceParser(
-				openingBracketParser,
-				newLineParser,
-			),
-			parser: bracketedMultilineParser,
-		},
-		{
-			predicate: emptyParser,
-			parser: bracketedInlineParser,
-		},
-	)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed = result.parsed;
-	if (!parsed) {
+function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpression | ParseDataExpression> {
+	const { opening, closing, nodeType } = brackets[kind];
+	// Die leere Klammer braucht einen eigenen Zweig, weil bracketedInlineParser
+	// mindestens ein Feld verlangt und bracketedMultilineParser einen Zeilenumbruch.
+	const emptyBracketsParser = sequenceParser(opening, closing);
+	const multilineParser2 = createBracketedMultilineParser(kind);
+	const inlineParser = createBracketedInlineParser(kind);
+	const parser = (
+		rows: string[],
+		startRowIndex: number,
+		startColumnIndex: number,
+		indent: number,
+	): ParserResult<ParseBindingExpression | ParseDataExpression> => {
+		const result = discriminatedChoiceParser(
+			{
+				predicate: emptyBracketsParser,
+				parser: mapParser(
+					emptyBracketsParser,
+					() =>
+						[]),
+			},
+			{
+				predicate: sequenceParser(
+					opening,
+					newLineParser,
+				),
+				parser: multilineParser2,
+			},
+			{
+				predicate: emptyParser,
+				parser: inlineParser,
+			},
+		)(rows, startRowIndex, startColumnIndex, indent);
+		const parsed = result.parsed;
+		if (!parsed) {
+			return {
+				...result,
+				parsed: undefined,
+			};
+		}
+		const fieldsWithDescription = assignDescriptions(parsed);
+		const bracketed: ParseBindingExpression | ParseDataExpression = {
+			type: nodeType,
+			fields: fieldsWithDescription,
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+		};
+		// setParents(fieldsWithDescription, bracketed);
 		return {
 			...result,
-			parsed: undefined,
+			parsed: bracketed,
 		};
-	}
-	const fieldsWithDescription = assignDescriptions(parsed);
-	const bracketed: BracketedExpressionBase = {
-		type: 'bracketed',
-		fields: fieldsWithDescription,
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
 	};
-	// setParents(fieldsWithDescription, bracketed);
-	return {
-		...result,
-		parsed: bracketed,
-	};
+	// choiceParser baut seine Fehlermeldung aus parser.name
+	Object.defineProperty(parser, 'name', { value: `${kind}BracketedBaseParser` });
+	return parser;
 }
 
-function bracketedMultilineParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<(ParseFieldBase | string | undefined)[]> {
-	const result = sequenceParser(
-		openingBracketParser,
-		newLineParser,
-		incrementIndent(multilineParser(fieldParser)),
-		newLineParser,
-		indentParser,
-		closingBracketParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed = result.parsed?.[2];
-	return {
-		...result,
-		parsed: parsed,
+function createBracketedMultilineParser(kind: BracketKind): Parser<(ParseFieldBase | string | undefined)[]> {
+	const { opening, closing } = brackets[kind];
+	return (rows, startRowIndex, startColumnIndex, indent) => {
+		const result = sequenceParser(
+			opening,
+			newLineParser,
+			incrementIndent(multilineParser(fieldParser)),
+			newLineParser,
+			indentParser,
+			closing,
+		)(rows, startRowIndex, startColumnIndex, indent);
+		const parsed = result.parsed?.[2];
+		return {
+			...result,
+			parsed: parsed,
+		};
 	};
 }
 
@@ -1576,14 +1618,11 @@ interface ParseMissingField {
 /**
  * undefined bei fehlendem Feld
  */
-function bracketedInlineParser<T>(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<(ParseFieldBase | undefined)[]> {
+function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase | undefined)[]> {
+	const { opening, closing } = brackets[kind];
+	return (rows, startRowIndex, startColumnIndex, indent) => {
 	const result = sequenceParser(
-		openingBracketParser,
+		opening,
 		fieldParser,
 		multiplicationParser(
 			0,
@@ -1593,7 +1632,7 @@ function bracketedInlineParser<T>(
 				discriminatedChoiceParser(
 					// missing field
 					{
-						predicate: choiceParser(spaceParser, closingBracketParser),
+						predicate: choiceParser(spaceParser, closing),
 						parser: mapParser(
 							emptyParser,
 							(emptyResult) => {
@@ -1612,7 +1651,7 @@ function bracketedInlineParser<T>(
 				),
 			),
 		),
-		closingBracketParser,
+		closing,
 	)(rows, startRowIndex, startColumnIndex, indent);
 	const errors = result.errors ?? [];
 	const parsed = result.parsed && [
@@ -1640,7 +1679,11 @@ function bracketedInlineParser<T>(
 		parsed: parsed,
 		errors: errors,
 	};
+	};
 }
+
+const roundBracketedBaseParser = createBracketedBaseParser('round');
+const squareBracketedBaseParser = createBracketedBaseParser('square');
 
 //#endregion bracketed
 
@@ -1691,8 +1734,8 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 
 //#region convert
 
-function bracketedExpressionToDestructuringFields(
-	bracketedExpression: BracketedExpressionBase,
+function bindingToDestructuringFields(
+	bracketedExpression: ParseBindingExpression,
 	errors: CompilerError[],
 ): ParseDestructuringFields {
 	if (!bracketedExpression.fields.length) {
@@ -1780,10 +1823,30 @@ function bracketedExpressionToDestructuringFields(
 	return parseFields;
 }
 
-function bracketedExpressionToParameters(
-	bracketedExpression: BracketedExpressionBase,
+/**
+ * Deutet die Klammer vor ` => ` bzw. ` :> ` nach ihrer Art:
+ * rund ist eine Parameterliste, eckig ein Datenliteral und damit der Parametertyp
+ * (die beklammerte Entsprechung zu `Text => true`).
+ * Alles andere ist bereits ein Wert und bleibt unverändert.
+ */
+function bracketedParamsToParams(
+	params: SimpleExpression | ParseParameterFields,
 	errors: CompilerError[],
-): BracketedExpressionBase | ParseParameterFields {
+): SimpleExpression | ParseParameterFields {
+	switch (params.type) {
+		case 'binding':
+			return bindingToParameters(params, errors);
+		case 'data':
+			return bracketedExpressionToValueExpression(params, errors);
+		default:
+			return params;
+	}
+}
+
+function bindingToParameters(
+	bracketedExpression: ParseBindingExpression,
+	errors: CompilerError[],
+): ParseBindingExpression | ParseParameterFields {
 	const baseFields = bracketedExpression.fields;
 	let rest: ParseParameterField | undefined;
 	const singleFields: ParseParameterField[] = [];
@@ -1856,7 +1919,7 @@ function simpleExpressionBaseToSimpleExpression(
 	simpleExpressionBase: SimpleExpression,
 	errors: CompilerError[],
 ): SimpleExpression {
-	if (simpleExpressionBase.type === 'bracketed') {
+	if (isBracketed(simpleExpressionBase)) {
 		return bracketedExpressionToValueExpression(simpleExpressionBase, errors);
 	}
 	return simpleExpressionBase;
@@ -1866,16 +1929,33 @@ function baseValueExpressionToValueExpression(
 	baseExpression: ParseValueExpression,
 	errors: CompilerError[],
 ): ParseValueExpression {
-	if (baseExpression.type === 'bracketed') {
+	if (isBracketed(baseExpression)) {
 		return bracketedExpressionToValueExpression(baseExpression, errors);
 	}
 	return baseExpression;
 }
 
+/**
+ * @param isFunctionArguments Argumentlisten sind rund geschrieben, ihr Inhalt ist aber
+ * eine Kollektion und wird daher wie ein Datenliteral konvertiert.
+ */
 function bracketedExpressionToValueExpression(
-	bracketedExpression: BracketedExpressionBase,
+	bracketedExpression: ParseBindingExpression | ParseDataExpression,
 	errors: CompilerError[],
+	isFunctionArguments: boolean = false,
 ): BracketedExpression {
+	// Datenliterale werden eckig geschrieben. Der Fehler wird gemeldet, die Konvertierung
+	// läuft trotzdem weiter, damit der Language Server einen brauchbaren Baum behält.
+	if (bracketedExpression.type === 'binding' && !isFunctionArguments) {
+		errors.push({
+			type: 'semantic',
+			message: 'data literal must use square brackets [ ]',
+			startRowIndex: bracketedExpression.startRowIndex,
+			startColumnIndex: bracketedExpression.startColumnIndex,
+			endRowIndex: bracketedExpression.endRowIndex,
+			endColumnIndex: bracketedExpression.endColumnIndex,
+		});
+	}
 	const baseFields = bracketedExpression.fields;
 	if (!isNonEmpty(baseFields)) {
 		return {
@@ -2283,7 +2363,8 @@ export function getPathExpression(importParams: BracketedExpression): ParseListV
 	switch (importParams.type) {
 		case 'dictionary':
 			return importParams.fields[0].value;
-		case 'bracketed':
+		case 'binding':
+		case 'data':
 		case 'dictionaryType':
 		case 'empty':
 		case 'object':

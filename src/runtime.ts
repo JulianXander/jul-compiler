@@ -89,7 +89,7 @@ function typeToString(type: RuntimeType, indent: number): string {
 		case 'object': {
 			if (type === null) {
 				// TODO throw error?
-				return '()';
+				return '[]';
 			}
 			if (Array.isArray(type)) {
 				return arrayTypeToString(type, indent);
@@ -97,7 +97,7 @@ function typeToString(type: RuntimeType, indent: number): string {
 			if (_julTypeSymbol in type) {
 				switch (type[_julTypeSymbol]) {
 					case 'and':
-						return `And${arrayTypeToString(type.ChoiceTypes, indent)}`;
+						return `And${arrayTypeToString(type.ChoiceTypes, indent, 'round')}`;
 					case 'any':
 						return 'Any';
 					case 'blob':
@@ -127,7 +127,7 @@ function typeToString(type: RuntimeType, indent: number): string {
 					case 'not':
 						return `Not(${typeToString(type.SourceType, indent)})`;
 					case 'or':
-						return `Or${arrayTypeToString(type.ChoiceTypes, indent)}`;
+						return `Or${arrayTypeToString(type.ChoiceTypes, indent, 'round')}`;
 					case 'stream':
 						return 'Stream';
 					case 'text':
@@ -150,7 +150,7 @@ function typeToString(type: RuntimeType, indent: number): string {
 		case 'string':
 			return `§${type.replaceAll('§', '§§')}§`;
 		case 'undefined':
-			return '()';
+			return '[]';
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected type ${typeof assertNever}`);
@@ -162,6 +162,7 @@ const maxElementsPerLine = 5;
 function arrayTypeToString(
 	array: RuntimeType[],
 	indent: number,
+	kind: 'round' | 'square' = 'square',
 ): string {
 	const multiline = array.length > maxElementsPerLine;
 	const newIndent = multiline
@@ -171,7 +172,8 @@ function arrayTypeToString(
 		array.map(element =>
 			typeToString(element, newIndent)),
 		multiline,
-		indent);
+		indent,
+		kind);
 }
 
 function dictionaryTypeToString(
@@ -191,10 +193,15 @@ function dictionaryTypeToString(
 		indent);
 }
 
+/**
+ * @param kind Daten werden eckig geschrieben, die Argumentliste eines Typaufrufs
+ * wie Or/And rund.
+ */
 function bracketedExpressionToString(
 	elements: string[],
 	multiline: boolean,
 	indent: number,
+	kind: 'round' | 'square' = 'square',
 ): string {
 	const indentString = '\t'.repeat(indent + 1);
 	const openingBracketSeparator = multiline
@@ -206,7 +213,10 @@ function bracketedExpressionToString(
 	const closingBracketSeparator = multiline
 		? '\n' + '\t'.repeat(indent)
 		: '';
-	return `(${openingBracketSeparator}${elements.join(elementSeparator)}${closingBracketSeparator})`;
+	const [opening, closing] = kind === 'round'
+		? ['(', ')']
+		: ['[', ']'];
+	return `${opening}${openingBracketSeparator}${elements.join(elementSeparator)}${closingBracketSeparator}${closing}`;
 }
 
 //#endregion toString

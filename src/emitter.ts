@@ -283,7 +283,8 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			return referenceToJs(expression);
 		case 'text':
 			return textLiteralToJs(expression, indent);
-		case 'bracketed':
+		case 'binding':
+		case 'data':
 		case 'field': {
 			throw new Error(`Unexpected expression.type: ${expression.type}`);
 		}

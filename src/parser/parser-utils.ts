@@ -1,4 +1,4 @@
-import { BracketedExpressionBase, DefinitionExpression, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, Positioned } from "./parser-combinator.js";
 
@@ -54,7 +54,7 @@ export function createParseFunctionLiteral(
 	errors: CompilerError[],
 ): ParseFunctionLiteral {
 	const symbols: SymbolTable = {};
-	if (params.type === 'bracketed'
+	if (params.type === 'binding'
 		|| params.type === 'parameters') {
 		fillSymbolTableWithParams(symbols, errors, params);
 	}
@@ -107,9 +107,9 @@ export function fillSymbolTableWithExpressions(
 export function fillSymbolTableWithParams(
 	symbolTable: SymbolTable,
 	errors: CompilerError[],
-	params: BracketedExpressionBase | ParseParameterFields,
+	params: ParseBindingExpression | ParseParameterFields,
 ): void {
-	if (params.type === 'bracketed') {
+	if (params.type === 'binding') {
 		fillSymbolTableWithFields(
 			symbolTable,
 			errors,

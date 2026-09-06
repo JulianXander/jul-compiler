@@ -34,7 +34,7 @@ const expectedResults: {
 			result: 'export default 12n'
 		},
 		{
-			code: '(1 2)',
+			code: '[1 2]',
 			result: `export default [
 	1n,
 	2n,
@@ -62,7 +62,7 @@ const expectedResults: {
 		},
 		{
 			name: 'log-empty',
-			code: 'log(())',
+			code: 'log([])',
 			result: `export default log(undefined)`
 		},
 		{
@@ -71,7 +71,7 @@ const expectedResults: {
 		},
 		{
 			name: 'functionCall-unknown-object',
-			code: 'log(...())',
+			code: 'log(...[])',
 			result: `export default _callFunction(
 	log,
 	undefined,
@@ -192,14 +192,14 @@ const expectedResults: {
 		// 	result: 144
 		// },
 		{
-			code: '(a: String)',
+			code: '[a: String]',
 			result: `export default {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {'a': _String},
 }`
 		},
 		{
-			code: '(a: String b)',
+			code: '[a: String b]',
 			result: `export default {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {
@@ -209,7 +209,7 @@ const expectedResults: {
 }`
 		},
 		{
-			code: '(1 ...a ...b)',
+			code: '[1 ...a ...b]',
 			result: `export default [
 	1n,
 	...a ?? [],
@@ -222,7 +222,7 @@ const expectedResults: {
 		},
 		{
 			name: 'type-function',
-			code: 'Any => ()',
+			code: 'Any => []',
 			result: `export default _createFunction(
 	() => {
 		return undefined
@@ -232,7 +232,7 @@ const expectedResults: {
 		},
 		{
 			name: 'empty-type-function',
-			code: 'Empty => ()',
+			code: 'Empty => []',
 			result: `export default _createFunction(
 	() => {
 		return undefined

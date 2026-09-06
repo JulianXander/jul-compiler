@@ -191,7 +191,7 @@ const expectedResults: {
 		// },
 		{
 			name: 'field-description',
-			code: '(\n\t# hallo\n\tsomeKey = 5\n)\n',
+			code: '[\n\t# hallo\n\tsomeKey = 5\n]\n',
 			result: (() => {
 				const field: ParseSingleDictionaryField = {
 					"description": " hallo",
@@ -251,7 +251,7 @@ const expectedResults: {
 		},
 		{
 			name: 'escaped-field',
-			code: '(\n\t§someKey§ = 5\n)\n',
+			code: '[\n\t§someKey§ = 5\n]\n',
 			result: (() => {
 				const field: ParseSingleDictionaryField = {
 					"description": undefined,
@@ -316,7 +316,7 @@ const expectedResults: {
 		},
 		{
 			name: 'dictionary-type',
-			code: '(\n\tsomeKey: Text\n)',
+			code: '[\n\tsomeKey: Text\n]',
 			result: (() => {
 				const field: ParseSingleDictionaryTypeField = {
 					description: undefined,
@@ -444,7 +444,7 @@ const expectedResults: {
 		// },
 		{
 			name: 'destructuring',
-			code: '(var var2) = (4 5)',
+			code: '(var var2) = [4 5]',
 		},
 		// {
 		// 	code: 'log(§hallo welt§)',
@@ -1111,13 +1111,13 @@ const expectedResults: {
 					startColumnIndex: 2,
 					endRowIndex: 3,
 					endColumnIndex: 2,
-					message: "Expected one of: bracketedBaseParser,numberParser,,referenceParser",
+					message: "Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser",
 				},
 			],
 		},
 		{
 			name: 'function-literal-return-type',
-			code: '() :> () => ()',
+			code: '() :> [] => []',
 			result: (() => {
 				const functionLiteral: ParseFunctionLiteral = {
 					"body": [
@@ -1162,7 +1162,7 @@ const expectedResults: {
 		},
 		{
 			name: 'type-function-type-literal',
-			code: 'true :> ()',
+			code: 'true :> []',
 		},
 		{
 			name: 'uncomplete-nested-reference',
@@ -1209,7 +1209,7 @@ const expectedResults: {
 		},
 		{
 			name: 'uncomplete-list',
-			code: '(4 )',
+			code: '[4 ]',
 			result: (() => {
 				const list: ParseListLiteral = {
 					"endColumnIndex": 4,
@@ -1244,7 +1244,7 @@ const expectedResults: {
 		},
 		{
 			name: 'uncomplete-dictionary-field',
-			code: '(\n\ta = \n)',
+			code: '[\n\ta = \n]',
 			result: (() => {
 				const dictionary: ParseDictionaryLiteral = {
 					"endColumnIndex": 1,
@@ -1304,6 +1304,39 @@ const expectedResults: {
 				},
 			],
 		},
+		//#region Datenklammer
+		{
+			// Ein Datenliteral muss eckig sein. Rund ist eine Bindungsstelle.
+			name: 'data-literal-must-be-square',
+			code: 'x = (1 2)',
+			errors: [
+				{
+					"type": "semantic",
+					"message": "data literal must use square brackets [ ]",
+					"startRowIndex": 0,
+					"startColumnIndex": 4,
+					"endRowIndex": 0,
+					"endColumnIndex": 9,
+				},
+			],
+		},
+		{
+			// Die Argumentliste ist rund geschrieben, ihr Inhalt bleibt eine Kollektion.
+			name: 'argument-list-stays-round',
+			code: 'f(1 2)',
+		},
+		{
+			// Leere Parameterliste: bindet nichts, matcht jeden Wert.
+			name: 'empty-parameter-list-stays-round',
+			code: '() => 1',
+		},
+		{
+			// Eckig vor => ist kein Fehler, sondern der Parametertyp -
+			// die beklammerte Entsprechung zu `Text => true`.
+			name: 'square-before-arrow-is-parameter-type',
+			code: '[Text Float] => true',
+		},
+		//#endregion Datenklammer
 	];
 
 describe('Parser', () => {

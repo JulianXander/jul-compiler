@@ -92,10 +92,10 @@ PositiveInteger = And(
 	Integer
 	Greater(0)
 )
-Fraction = (
+Fraction = [
 	numerator: Integer
 	denominator: Integer
-)
+]
 Rational = Or(Integer Fraction)
 #endregion Number
 # sequence of characters (String)
@@ -340,8 +340,8 @@ rationalToFloat = nativeFunction(
 #region Text
 combineTexts = nativeFunction(
 	(
-		texts: Or(() List(Text))
-		separator: Or(() Text)
+		texts: Or([] List(Text))
+		separator: Or([] Text)
 	) :> Text
 	true
 	§js
@@ -363,7 +363,7 @@ parseFloat = nativeFunction(
 	§
 )
 #region JSON
-JsonPrimitive = Or(() Boolean Rational Text)
+JsonPrimitive = Or([] Boolean Rational Text)
 JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
 # Liefert Error, wenn das gegebene json kein valides JSON ist.
 parseJson = nativeFunction(
@@ -386,11 +386,11 @@ regex = nativeFunction(
 	(
 		text: Text
 		regex: Text
-	) :> (
+	) :> [
 		isMatch: Boolean
-		namedCaptures: Or(() Dictionary(Text))
-		unnamedCaptures: Or(() List(Text))
-	)
+		namedCaptures: Or([] Dictionary(Text))
+		unnamedCaptures: Or([] List(Text))
+	]
 	true
 	§TODO§
 )
@@ -399,13 +399,13 @@ regex = nativeFunction(
 addDate = nativeFunction(
 	(
 		date: Date
-		years: Or(() Integer)
-		months: Or(() Integer)
-		days: Or(() Integer)
-		hours: Or(() Integer)
-		minutes: Or(() Integer)
-		seconds: Or(() Integer)
-		milliseconds: Or(() Integer)
+		years: Or([] Integer)
+		months: Or([] Integer)
+		days: Or([] Integer)
+		hours: Or([] Integer)
+		minutes: Or([] Integer)
+		seconds: Or([] Integer)
+		milliseconds: Or([] Integer)
 	) :> Date
 	true
 	§TODO§
@@ -432,7 +432,7 @@ toIsoDateText = nativeFunction(
 # Achtung: List/length liefert die javascript Array.length als Float
 length = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 	) :> PositiveInteger
 	true
 	§js
@@ -447,10 +447,10 @@ length = nativeFunction(
 # TODO conditional return type, sodass empty nur geliefert wird, wenn index > values.Length
 getElement = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		# 1 basiert
 		index: PositiveInteger
-	) :> Or(() TypeOf(values)/ElementType)
+	) :> Or([] TypeOf(values)/ElementType)
 	# TODO
 	# index.greater(values.length()) ?
 	# 	true => ()
@@ -463,7 +463,7 @@ getElement = nativeFunction(
 # Creates a new List without mutating the given List
 setElement = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		# 1 basiert
 		index: PositiveInteger
 		value: Any
@@ -481,12 +481,12 @@ setElement = nativeFunction(
 )
 map = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		callback: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or(() List(callback/ReturnType))
+	) :> Or([] List(callback/ReturnType))
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -506,7 +506,7 @@ map = nativeFunction(
 # filter Werte raus, für die predicate false liefert
 filter = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
@@ -531,12 +531,12 @@ filter = nativeFunction(
 # filtert empty Werte raus
 filterMap = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		callback: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or(() List(Without(callback/ReturnType ())))
+	) :> Or([] List(Without(callback/ReturnType [])))
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -562,10 +562,10 @@ filterMap = nativeFunction(
 # TODO rename subList?
 slice = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		start: Integer
-		end: Or(() Integer)
-	) :> Or(() List(Any))
+		end: Or([] Integer)
+	) :> Or([] List(Any))
 	true
 	§js
 		(values, start, end) => {
@@ -585,12 +585,12 @@ slice = nativeFunction(
 # Liefert das erste Element, für das predicate true liefert.
 findFirst = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> Or(() TypeOf(values)/ElementType)
+	) :> Or([] TypeOf(values)/ElementType)
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -604,12 +604,12 @@ findFirst = nativeFunction(
 # Liefert das letzte Element, für das predicate true liefert.
 findLast = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> Or(() TypeOf(values)/ElementType)
+	) :> Or([] TypeOf(values)/ElementType)
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -623,12 +623,12 @@ findLast = nativeFunction(
 # Liefert den index des letzten Elements, für das predicate true liefert.
 findLastIndex = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> Or(() PositiveInteger)
+	) :> Or([] PositiveInteger)
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -636,7 +636,7 @@ findLastIndex = nativeFunction(
 	§
 )
 lastElement = nativeFunction(
-	(values: Or(() List(Any))) :> Or(() TypeOf(values)/ElementType)
+	(values: Or([] List(Any))) :> Or([] TypeOf(values)/ElementType)
 	true
 	§js
 		values => values?.[values.length - 1]
@@ -644,12 +644,12 @@ lastElement = nativeFunction(
 )
 forEach = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		callback: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> ()
+	) :> []
 	false
 	§js
 		(values, callback) => {
@@ -662,7 +662,7 @@ forEach = nativeFunction(
 # Liefert true, falls predicate für mindestens einen value true liefert.
 exists = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
@@ -684,7 +684,7 @@ exists = nativeFunction(
 # Liefert true, falls predicate für alle value true liefert.
 all = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		predicate: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
@@ -705,7 +705,7 @@ all = nativeFunction(
 )
 toDictionary = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		getKey: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
@@ -714,7 +714,7 @@ toDictionary = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or(() Dictionary(Any))
+	) :> Or([] Dictionary(Any))
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -737,7 +737,7 @@ toDictionary = nativeFunction(
 )
 aggregate = nativeFunction(
 	(
-		values: Or(() List(Any))
+		values: Or([] List(Any))
 		initialValue: Any
 		callback: (
 			accumulator: Any
@@ -765,9 +765,9 @@ aggregate = nativeFunction(
 # Returns the value of the field
 getField = nativeFunction(
 	(
-		dictionary: Or(() Dictionary(Any))
+		dictionary: Or([] Dictionary(Any))
 		key: Text
-	) :> Or(() TypeOf(dictionary)/ElementType)
+	) :> Or([] TypeOf(dictionary)/ElementType)
 	true
 	§js
 		(dictionary, key) => dictionary?.[key]
@@ -776,7 +776,7 @@ getField = nativeFunction(
 # Creates a new Dictionary without mutating the given dictionary
 setField = nativeFunction(
 	(
-		dictionary: Or(() Dictionary(Any))
+		dictionary: Or([] Dictionary(Any))
 		key: Text
 		value: Any
 	) :> Dictionary(Any)
@@ -792,8 +792,8 @@ setField = nativeFunction(
 )
 toList = nativeFunction(
 	(
-		dictionary: Or(() Dictionary(Any))
-	) :> Or(() List(Any))
+		dictionary: Or([] Dictionary(Any))
+	) :> Or([] List(Any))
 	true
 	§js
 		dictionary => {
@@ -809,7 +809,7 @@ toList = nativeFunction(
 #region core
 # Beendet den Stream.
 complete = nativeFunction(
-	(stream$: Stream(Any)) :> ()
+	(stream$: Stream(Any)) :> []
 	false
 	§js
 		(stream$) => {
@@ -821,7 +821,7 @@ push = nativeFunction(
 	(
 		stream$: Stream(Any)
 		value: stream$/ValueType
-	) :> ()
+	) :> []
 	false
 	§todo§
 )
@@ -829,7 +829,7 @@ subscribe = nativeFunction(
 	(
 		stream$: Stream(Any)
 		listener: (value: stream$/ValueType) :> Any
-	) :> ()
+	) :> []
 	false
 	§js
 		(stream$, listener) => {
@@ -865,9 +865,9 @@ httpTextRequest$ = nativeFunction(
 	(
 		url: Text
 		method: Text
-		headers: Or(() Dictionary(Text))
+		headers: Or([] Dictionary(Text))
 		body: Any
-	) :> Stream(Or(() Text Error))
+	) :> Stream(Or([] Text Error))
 	false
 	§[...]§
 )
@@ -877,9 +877,9 @@ httpBlobRequest$ = nativeFunction(
 	(
 		url: Text
 		method: Text
-		headers: Or(() Dictionary(Text))
+		headers: Or([] Dictionary(Text))
 		body: Any
-	) :> Stream(Or(() Blob Error))
+	) :> Stream(Or([] Blob Error))
 	false
 	§[...]§
 )
@@ -947,9 +947,9 @@ flatSwitchMap$ = nativeFunction(
 # Wenn keine sources übergeben, dann wird Empty vom Rückgabestream emittiert.
 combine$ = nativeFunction(
 	(
-		...sources: Or(() List(Stream(Any)))
+		...sources: Or([] List(Stream(Any)))
 		# TODO Mapped tuple returntype: combine$(Stream(A) Stream(B) Stream(C)) => Stream((A B C))
-	) :> Stream(Or(() List(TypeOf(sources)/ElementType/ValueType)))
+	) :> Stream(Or([] List(TypeOf(sources)/ElementType/ValueType)))
 	false
 	§TODO§
 )
@@ -980,7 +980,7 @@ import = nativeFunction(
 )
 # Gibt die args in der Konsole aus.
 log = nativeFunction(
-	(...args: Or(() List(Any))) :> ()
+	(...args: Or([] List(Any))) :> []
 	false
 	§js
 		console.log
@@ -991,7 +991,7 @@ repeat = nativeFunction(
 	(
 		count: Integer
 		iteratee: (index: PositiveInteger) :> Any
-	) :> ()
+	) :> []
 	false
 	§js
 		repeat

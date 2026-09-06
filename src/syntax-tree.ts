@@ -165,7 +165,8 @@ export type BracketedExpression =
 	| ParseListLiteral
 	| ParseDictionaryLiteral
 	| ParseDictionaryTypeLiteral
-	| BracketedExpressionBase
+	| ParseBindingExpression
+	| ParseDataExpression
 	;
 
 export interface ParseEmptyLiteral extends ParseExpressionBase {
@@ -262,8 +263,23 @@ export interface ParseSingleDictionaryTypeField extends PositionedExpressionBase
 
 //#endregion DictionaryType
 
-export interface BracketedExpressionBase extends ParseExpressionBase {
-	type: 'bracketed';
+/**
+ * Runde Klammer: eine Bindungsstelle.
+ * Wird je nach Folgetoken zu Parameterliste, Destructuring-Ziel oder Argumentliste.
+ * Bleibt nur im Fehlerfall unaufgelöst im Baum stehen.
+ */
+export interface ParseBindingExpression extends ParseExpressionBase {
+	type: 'binding';
+	fields: ParseFieldBase[];
+}
+
+/**
+ * Eckige Klammer: ein Datenliteral.
+ * Wird zu List, Dictionary, DictionaryType, Empty oder UnknownObject aufgelöst.
+ * Bleibt nur im Fehlerfall unaufgelöst im Baum stehen.
+ */
+export interface ParseDataExpression extends ParseExpressionBase {
+	type: 'data';
 	fields: ParseFieldBase[];
 }
 

@@ -855,7 +855,8 @@ function inferType(
 ): TypeInfo {
 	const errors = file.errors;
 	switch (expression.type) {
-		case 'bracketed':
+		case 'binding':
+		case 'data':
 			// TODO?
 			return {
 				rawType: { julType: 'any' },
@@ -2678,7 +2679,7 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 	}
 	switch (type.julType) {
 		case 'and':
-			return `And${arrayTypeToString(type.ChoiceTypes, indent, depth + 1)}`;
+			return `And${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, 'round')}`;
 		case 'any':
 			return 'Any';
 		case 'blob':
@@ -2720,7 +2721,7 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'not':
 			return `Not(${typeToString(type.SourceType, indent, depth + 1)})`;
 		case 'or':
-			return `Or${arrayTypeToString(type.ChoiceTypes, indent, depth + 1)}`;
+			return `Or${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, 'round')}`;
 		case 'parameters': {
 			const rest = type.rest;
 			const multiline = type.singleNames.length + (rest ? 1 : 0) > 1;
@@ -2735,7 +2736,7 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 					? [`...${rest.name}${optionalTypeGuardToString(rest.type, newIndent, depth + 1)}`]
 					: []),
 			];
-			return bracketedExpressionToString(elements, multiline, indent);
+			return bracketedExpressionToString(elements, multiline, indent, 'round');
 		}
 		case 'parameterReference':
 			return type.name;
@@ -2768,6 +2769,7 @@ function arrayTypeToString(
 	array: CompileTimeType[],
 	indent: number,
 	depth: number,
+	kind: 'round' | 'square' = 'square',
 ): string {
 	const multiline = array.length > maxElementsPerLine;
 	const newIndent = multiline
@@ -2777,7 +2779,8 @@ function arrayTypeToString(
 		array.map(element =>
 			typeToString(element, newIndent, depth)),
 		multiline,
-		indent);
+		indent,
+		kind);
 }
 
 function dictionaryTypeToString(
@@ -2800,10 +2803,15 @@ function dictionaryTypeToString(
 		indent);
 }
 
+/**
+ * @param kind Daten werden eckig geschrieben, Bindungsstellen (Parameterliste,
+ * Argumentliste eines Typaufrufs wie Or/And) rund.
+ */
 function bracketedExpressionToString(
 	elements: string[],
 	multiline: boolean,
 	indent: number,
+	kind: 'round' | 'square' = 'square',
 ): string {
 	const indentString = '\t'.repeat(indent + 1);
 	const openingBracketSeparator = multiline
@@ -2815,7 +2823,10 @@ function bracketedExpressionToString(
 	const closingBracketSeparator = multiline
 		? '\n' + '\t'.repeat(indent)
 		: '';
-	return `(${openingBracketSeparator}${elements.join(elementSeparator)}${closingBracketSeparator})`;
+	const [opening, closing] = kind === 'round'
+		? ['(', ')']
+		: ['[', ']'];
+	return `${opening}${openingBracketSeparator}${elements.join(elementSeparator)}${closingBracketSeparator}${closing}`;
 }
 
 //#endregion ToString
@@ -2840,7 +2851,8 @@ function getReturnTypeFromFunctionType(possibleFunctionType: TypeInfo | undefine
 
 function getArgValueExpressions(args: BracketedExpression): (ParseValueExpression | undefined)[] {
 	switch (args.type) {
-		case 'bracketed':
+		case 'binding':
+		case 'data':
 			return [];
 		case 'dictionary':
 			return args.fields.map(field => field.value);

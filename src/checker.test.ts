@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { ParseExpression, ParseSingleDefinition } from './syntax-tree.js';
 import { CompilerError } from './parser/parser-combinator.js';
-import { parseCode } from './parser/parser.js';
+import { coreLibPath, parseCode, parseFile } from './parser/parser.js';
 import { checkTypes } from './checker.js';
 
 const expectedResults: {
@@ -27,7 +27,7 @@ const expectedResults: {
 		},
 		{
 			name: 'branch-non-function-error',
-			code: '() ?\n\t4',
+			code: '[] ?\n\t4',
 			// result: [
 			// 	{
 			// 		"branches": [
@@ -114,7 +114,7 @@ a = 5`,
 		},
 		{
 			name: 'list-type-error',
-			code: 'a: List(Text) = (4)',
+			code: 'a: List(Text) = [4]',
 			errors: [
 				{
 					"type": "type",
@@ -128,7 +128,7 @@ a = 5`,
 		},
 		{
 			name: 'type-function',
-			code: `t = Any => ()
+			code: `t = Any => []
 t(1)`,
 		},
 	];
@@ -143,5 +143,11 @@ describe('Checker', () => {
 				expect(parserResult.checked?.expressions).to.deep.equal(result);
 			}
 		});
+	});
+	// Die core-lib ist der beste Einzelindikator für die Grammatik: gut 1000 Zeilen
+	// realistischer JUL-Code mit Parameterlisten, FunctionTypeLiterals, DictionaryTypes,
+	// Spread/Rest, Multiline und Interpolation. Fehler dort werden sonst still ignoriert.
+	it('core-lib parses without errors', () => {
+		expect(parseFile(coreLibPath).unchecked.errors).to.deep.equal([]);
 	});
 });
