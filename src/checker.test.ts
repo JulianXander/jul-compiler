@@ -236,9 +236,8 @@ f = (someVar: Or(Text Integer)) =>
 		//#endregion branch narrowing
 		//#region Not
 		{
-			// Not(X) wird zurzeit nie geprüft: der Fehler in getTypeError case 'not' ist
-			// auskommentiert, der Zweig liefert immer undefined. Damit ist NonZeroInteger
-			// wirkungslos und z.B. modulo(1 0) kompiliert.
+			// Not(X) schließt X aus. NonZeroInteger ist Integer.Without(0), also
+			// And(Integer Not(0)) — 0 muss daran scheitern, obwohl es zu Integer passt.
 			name: 'not-type-is-checked',
 			code: 'a: NonZeroInteger = 0',
 			errors: [
@@ -256,6 +255,25 @@ f = (someVar: Or(Text Integer)) =>
 			// Gegenprobe: die Prüfung darf nicht zu streng werden
 			name: 'not-type-accepts-other-values',
 			code: 'a: NonZeroInteger = 5',
+		},
+		{
+			// Not(X) muss auch für Mengentypen greifen, nicht nur für Literale. Der Unterschied:
+			// verboten ist alles, was X überlappt — bei einem Literal ist das dasselbe wie
+			// "ist Teilmenge von X", bei Integer gegen Not(0) nicht. Integer ist keine Teilmenge
+			// von 0, enthält 0 aber, ist also unzulässig. Deshalb dieser Fall zusätzlich zu
+			// not-type-is-checked.
+			name: 'not-type-is-checked-for-set-types',
+			code: 'f = (x: Integer) => modulo(1 x)',
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 31,
+					"endRowIndex": 0,
+					"message": "Can not assign Integer to Not(0).",
+					"startColumnIndex": 20,
+					"startRowIndex": 0,
+				},
+			],
 		},
 		//#endregion Not
 	];
