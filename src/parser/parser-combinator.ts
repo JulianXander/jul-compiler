@@ -1,4 +1,9 @@
-// Abstrakte Parser Library
+// Parser-Kombinatoren für JUL.
+// Grammatik-unabhängig, aber nicht allgemein wiederverwendbar: Parser arbeiten auf Zeilen (rows)
+// mit Einrückungstiefe (indent) - JULs zeilen- und einrückungsbasiertes Parsierungsmodell.
+// Die Kombinatoren erzeugen selbst CompilerError mit Codes aus ErrorCode.
+import { CompilerError, ErrorCode } from '../compiler-errors.js';
+
 export type Parser<T> = (
 	rows: string[],
 	startRowIndex: number,
@@ -18,42 +23,6 @@ export interface ParserResult<T> {
 	errors?: CompilerError[];
 }
 
-export type CompilerErrorType =
-	/**
-	 * Der Code ließ sich grammatikalisch nicht lesen, es entsteht kein brauchbarer Baum.
-	 */
-	| 'syntax'
-	/**
-	 * Der Baum steht, aber das Konstrukt ist regelwidrig:
-	 * an dieser Stelle nicht erlaubt, Namenskollision oder unauflösbarer Import.
-	 */
-	| 'semantic'
-	/**
-	 * Typfehler, erzeugt vom Checker.
-	 */
-	| 'type';
-
-/**
- * Ein Fehler im kompilierten Quelltext, an dessen Position.
- * Wird von allen Phasen erzeugt (Parser wie Checker) - deshalb sagt `type`, um welche Art es sich handelt,
- * und nicht die Liste, in der der Fehler landet: derselbe Fehler kann in unchecked und checked errors stehen.
- *
- * Nicht gemeint sind Fehler des Compilers selbst (verletzte Invarianten).
- * Die werden geworfen und nicht gesammelt.
- */
-export interface CompilerError extends Positioned {
-	type: CompilerErrorType;
-	message: string;
-	// TODO isFatal?
-	// TODO id/number/code: number;?
-}
-
-export interface Positioned {
-	startRowIndex: number;
-	startColumnIndex: number;
-	endRowIndex: number;
-	endColumnIndex: number;
-}
 
 //#region Errors
 
@@ -101,7 +70,7 @@ export function choiceParser<T extends any[]>(...parsers: Parsers<T>): Parser<T[
 				// TODO end indices
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
-				type: 'syntax',
+				code: ErrorCode.expectedOneOf,
 				message: `Expected one of: ${parsers.map(parser => parser.name).join(',')}`
 			}],
 		};
@@ -141,7 +110,7 @@ export function discriminatedChoiceParser<T extends any[]>(
 				// TODO end indices
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
-				type: 'syntax',
+				code: ErrorCode.expectedOneOf,
 				message: `Expected one of: ${choices.map(({ parser }) => parser.name).join(',')}`
 			}],
 		};
@@ -216,7 +185,7 @@ export function multiplicationParser<T>(
 							startColumnIndex: columnIndex,
 							endRowIndex: rowIndex,
 							endColumnIndex: columnIndex,
-							type: 'syntax',
+							code: ErrorCode.endOfCode,
 							message: endOfCodeError(parser.name),
 						}],
 					};
@@ -298,7 +267,7 @@ export function tokenParser(token: string): Parser<undefined> {
 					startColumnIndex: startColumnIndex,
 					endRowIndex: startRowIndex,
 					endColumnIndex: startColumnIndex,
-					type: 'syntax',
+					code: ErrorCode.endOfCode,
 					message: endOfCodeError(token),
 				}],
 			};
@@ -317,7 +286,7 @@ export function tokenParser(token: string): Parser<undefined> {
 						startColumnIndex: startColumnIndex,
 						endRowIndex: startRowIndex,
 						endColumnIndex: columnIndex,
-						type: 'syntax',
+						code: ErrorCode.endOfCode,
 						message: endOfCodeError(token)
 					}]
 				};
@@ -332,7 +301,7 @@ export function tokenParser(token: string): Parser<undefined> {
 						startColumnIndex: startColumnIndex,
 						endRowIndex: startRowIndex,
 						endColumnIndex: columnIndex,
-						type: 'syntax',
+						code: ErrorCode.unexpectedCharacter,
 						message: `Unexpected character: ${codeChar} while looking for: ${token}`
 					}]
 				};
@@ -351,7 +320,17 @@ export function tokenParser(token: string): Parser<undefined> {
 /**
  * Achtung: regex muss y (sticky) flag haben!
  */
-export function regexParser(regex: RegExp, errorMessage: string): Parser<string> {
+export function regexParser(
+	regex: RegExp,
+	/**
+	 * Undefined bei Prädikat-Parsern: deren Fehler verwirft der discriminatedChoiceParser ohnehin,
+	 * sie sollen also gar keinen erzeugen.
+	 */
+	error?: {
+		code: ErrorCode;
+		message: string;
+	},
+): Parser<string> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		regex.lastIndex = startColumnIndex;
 		const row = rows[startRowIndex];
@@ -366,7 +345,7 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 					startColumnIndex: startColumnIndex,
 					endRowIndex: startRowIndex,
 					endColumnIndex: startColumnIndex,
-					type: 'syntax',
+					code: ErrorCode.regexAtEndOfCode,
 					message: 'Can not match regex at end of code',
 				}],
 			};
@@ -377,13 +356,13 @@ export function regexParser(regex: RegExp, errorMessage: string): Parser<string>
 				hasParsed: false,
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
-				errors: [{
+				errors: error && [{
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
 					endRowIndex: startRowIndex,
 					endColumnIndex: startColumnIndex,
-					type: 'syntax',
-					message: errorMessage,
+					code: error.code,
+					message: error.message,
 				}],
 			};
 		}

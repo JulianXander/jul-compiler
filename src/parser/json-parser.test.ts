@@ -3,7 +3,7 @@
 import { expect } from 'chai';
 
 import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
-import { CompilerError } from './parser-combinator.js';
+import { CompilerError } from '../compiler-errors.js';
 import { parseCode } from './parser.js';
 
 const expectedResults: {

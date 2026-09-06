@@ -4,7 +4,7 @@ import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
 import { ParsedDocuments, checkTypes } from './checker.js';
 import { parseCode } from './parser/parser.js';
-import { CompilerError, CompilerErrorType } from './parser/parser-combinator.js';
+import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos } from './compiler-errors.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
@@ -222,9 +222,15 @@ function compileFile(
  * Als Record über CompilerErrorType, damit eine neue Kategorie hier einen Compile-Fehler erzwingt.
  */
 const errorTypeLabels: { [Type in CompilerErrorType]: string; } = {
-	syntax: 'SyntaxError',
-	semantic: 'SemanticError',
-	type: 'TypeError',
+	syntax: 'Syntax',
+	semantic: 'Semantic',
+	type: 'Type',
+};
+
+const errorSeverityLabels: { [Severity in CompilerErrorSeverity]: string; } = {
+	error: 'Error',
+	warning: 'Warning',
+	hint: 'Hint',
 };
 
 /**
@@ -236,8 +242,10 @@ function formatErrors(filePath: string, errors: CompilerError[]): string {
 		const errorPath = colorize(filePath, ConsoleColor.cyan);
 		const errorRow = colorize(error.startRowIndex + 1, ConsoleColor.yellow);
 		const errorColumn = colorize(error.startColumnIndex + 1, ConsoleColor.yellow);
-		const errorLabel = colorize(errorTypeLabels[error.type], ConsoleColor.lightRed);
-		return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel}: ${error.message}`;
+		const { type, severity } = errorInfos[error.code];
+		const errorLabel = colorize(errorTypeLabels[type] + errorSeverityLabels[severity], ConsoleColor.lightRed);
+		const errorCode = colorize(`JUL${error.code}`, ConsoleColor.lightRed);
+		return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel} ${errorCode}: ${error.message}`;
 	}).join('\n');
 }
 function busySpinner() {

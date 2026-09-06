@@ -9,7 +9,6 @@ import {
 	moveToNextLine,
 	multiplicationParser,
 	Parser,
-	CompilerError,
 	ParserResult,
 	regexParser,
 	sequenceParser,
@@ -60,6 +59,7 @@ import {
 	mapNonEmpty,
 	readTextFile,
 } from '../util.js';
+import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { parseTsCode } from './typescript-parser.js';
 import {
 	createParseFunctionLiteral,
@@ -107,7 +107,7 @@ export function parseCode(
 			if (parsedJson instanceof Error) {
 				parsedExpressions = {
 					errors: [{
-						type: 'syntax',
+						code: ErrorCode.invalidJson,
 						message: parsedJson.message,
 						// TODO position?
 						startColumnIndex: 0,
@@ -167,7 +167,7 @@ function parseJulCode(code: string): ParsedExpressions {
 	// check end of code reached
 	if (parserResult.endRowIndex !== rows.length) {
 		errors.push({
-			type: 'syntax',
+			code: ErrorCode.unparsedCode,
 			message: 'Failed to parse until end of code',
 			startRowIndex: parserResult.endRowIndex,
 			startColumnIndex: parserResult.endColumnIndex,
@@ -245,7 +245,7 @@ function checkEndOfCode(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
-				type: 'syntax',
+				code: ErrorCode.endOfCode,
 				message: endOfCodeError(searched),
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -271,7 +271,7 @@ function startOfLineParser(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
-				type: 'syntax',
+				code: ErrorCode.expectedStartOfLine,
 				message: `columnIndex=${startColumnIndex}, but should be at start of line`,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -312,7 +312,7 @@ function endOfLineParser(
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
 			errors: [{
-				type: 'syntax',
+				code: ErrorCode.expectedEndOfLine,
 				message: `columnIndex=${startColumnIndex}, but should be at end of line (${rowLength})`,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
@@ -434,7 +434,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 			}
 			if (result.endColumnIndex !== endRow.length) {
 				errors.push({
-					type: 'syntax',
+					code: ErrorCode.unparsedRestOfRow,
 					message: 'multilineParser should parse until end of row',
 					startRowIndex: rowIndex,
 					startColumnIndex: result.endColumnIndex,
@@ -505,7 +505,7 @@ function expressionParser(
 	if ((baseName.type === 'binding') && parsed.definition) {
 		if (parsed.spread) {
 			errors.push({
-				type: 'semantic',
+				code: ErrorCode.spreadNotAllowedForDestructuring,
 				message: 'spread not allowed for destructuring',
 				startRowIndex: parsed.startRowIndex,
 				startColumnIndex: parsed.startColumnIndex,
@@ -515,7 +515,7 @@ function expressionParser(
 		}
 		if (parsed.typeGuard) {
 			errors.push({
-				type: 'semantic',
+				code: ErrorCode.typeGuardNotAllowedForDestructuring,
 				message: 'typeGuard not allowed for destructuring',
 				startRowIndex: parsed.typeGuard.startRowIndex,
 				startColumnIndex: parsed.typeGuard.startColumnIndex,
@@ -526,7 +526,7 @@ function expressionParser(
 		const value = parsed.assignedValue;
 		if (!value) {
 			errors.push({
-				type: 'semantic',
+				code: ErrorCode.assignedValueMissingForDestructuring,
 				message: 'assignedValue missing for destructuring',
 				startRowIndex: parsed.startRowIndex,
 				startColumnIndex: parsed.startColumnIndex,
@@ -555,7 +555,7 @@ function expressionParser(
 	if (baseName.type === 'reference' && parsed.definition) {
 		if (!parsed.assignedValue) {
 			errors.push({
-				type: 'semantic',
+				code: ErrorCode.assignedValueMissingForDefinition,
 				message: 'assignedValue missing for definition',
 				startRowIndex: parsed.startRowIndex,
 				startColumnIndex: parsed.startColumnIndex,
@@ -584,7 +584,7 @@ function expressionParser(
 	// valueExpression
 	if (parsed.spread) {
 		errors.push({
-			type: 'semantic',
+			code: ErrorCode.spreadNotAllowedForValueExpression,
 			message: 'spread not allowed for valueExpression',
 			startRowIndex: parsed.startRowIndex,
 			startColumnIndex: parsed.startColumnIndex,
@@ -594,7 +594,7 @@ function expressionParser(
 	}
 	if (parsed.typeGuard) {
 		errors.push({
-			type: 'semantic',
+			code: ErrorCode.typeGuardNotAllowedForValueExpression,
 			message: 'typeGuard not allowed for valueExpression',
 			startRowIndex: parsed.typeGuard.startRowIndex,
 			startColumnIndex: parsed.typeGuard.startColumnIndex,
@@ -604,7 +604,7 @@ function expressionParser(
 	}
 	if (parsed.definition) {
 		errors.push({
-			type: 'semantic',
+			code: ErrorCode.definitionNotAllowedForValueExpression,
 			message: 'definition not allowed for valueExpression',
 			// TODO definition token position?
 			startRowIndex: parsed.startRowIndex,
@@ -634,7 +634,7 @@ function nameParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Name> {
-	const result = regexParser(/[a-zA-Z][0-9a-zA-Z]*\$?/y, 'Invalid name')(rows, startRowIndex, startColumnIndex, indent);
+	const result = regexParser(/[a-zA-Z][0-9a-zA-Z]*\$?/y, { code: ErrorCode.invalidName, message: 'Invalid name' })(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
 		parsed: result.parsed
@@ -690,7 +690,7 @@ function nestedReferenceKeyParser(
 		: [];
 	if (result.parsed === undefined) {
 		errors.push({
-			type: 'syntax',
+			code: ErrorCode.expectedNestedKey,
 			message: 'Expected a nested key',
 			startRowIndex: result.endRowIndex,
 			startColumnIndex: result.endColumnIndex - 1,
@@ -715,7 +715,7 @@ function indexParser(
 	indent: number,
 ): ParserResult<Index> {
 	// TODO parse number, and check number > 0 für bessere Fehlermeldung?
-	const result = regexParser(/[1-9][0-9]*/y, 'Invalid index syntax')(rows, startRowIndex, startColumnIndex, indent);
+	const result = regexParser(/[1-9][0-9]*/y, { code: ErrorCode.invalidIndexSyntax, message: 'Invalid index syntax' })(rows, startRowIndex, startColumnIndex, indent);
 	return {
 		...result,
 		parsed: result.parsed === undefined
@@ -1008,7 +1008,7 @@ function simpleExpressionBaseParser(
 			},
 			// NumberLiteral
 			{
-				predicate: regexParser(/[-0-9]/y, ''),
+				predicate: regexParser(/[-0-9]/y),
 				parser: numberParser,
 			},
 			// TextLiteral
@@ -1021,7 +1021,7 @@ function simpleExpressionBaseParser(
 			},
 			// Reference
 			{
-				predicate: regexParser(/[a-zA-Z]/y, ''),
+				predicate: regexParser(/[a-zA-Z]/y),
 				parser: referenceParser,
 			},
 		),
@@ -1144,7 +1144,7 @@ function numberParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<NumberLiteral> {
-	const result = regexParser(/-?(0|[1-9][0-9]*)(\.[0-9]+)?f?/y, 'not a valid number')(rows, startRowIndex, startColumnIndex, indent);
+	const result = regexParser(/-?(0|[1-9][0-9]*)(\.[0-9]+)?f?/y, { code: ErrorCode.invalidNumber, message: 'not a valid number' })(rows, startRowIndex, startColumnIndex, indent);
 	if (!result.hasParsed) {
 		return {
 			...result,
@@ -1237,7 +1237,7 @@ function multilineTextParser(
 		paragraphParser,
 		// language identifier
 		// TODO nur unterstützte sprachen? validieren?
-		regexParser(/[a-z]*/y, 'language identifier'),
+		regexParser(/[a-z]*/y, { code: ErrorCode.invalidLanguageIdentifier, message: 'language identifier' }),
 		newLineParser,
 		incrementIndent(multilineParser(textLineContentParser)),
 		newLineParser,
@@ -1292,7 +1292,7 @@ function textLineContentParser(
 			0,
 			undefined,
 			choiceParser(
-				regexParser(/([^§]+|§§|§#)/y, 'Invalid String Syntax'),
+				regexParser(/([^§]+|§§|§#)/y, { code: ErrorCode.invalidTextSyntax, message: 'Invalid String Syntax' }),
 				sequenceParser(
 					tokenParser('§('),
 					valueExpressionParser,
@@ -1661,7 +1661,7 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 			if (field.type === 'missingField') {
 				errors.push({
 					// TODO error message abhängig von der Art der erwarteten expression? (field vs value)
-					type: 'syntax',
+					code: ErrorCode.expectedExpression,
 					message: 'expression expected',
 					// TODO get position from empty
 					startRowIndex: field.rowIndex,
@@ -1740,7 +1740,7 @@ function bindingToDestructuringFields(
 ): ParseDestructuringFields {
 	if (!bracketedExpression.fields.length) {
 		errors.push({
-			type: 'semantic',
+			code: ErrorCode.emptyDestructuring,
 			message: 'destructuring fields must not be empty',
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
@@ -1754,7 +1754,7 @@ function bindingToDestructuringFields(
 		const checkedName = checkName(baseName);
 		if (!checkedName) {
 			errors.push({
-				type: 'semantic',
+				code: ErrorCode.invalidDestructuringFieldName,
 				message: `${baseName.type} is not a valid expression for destructuring field name`,
 				startRowIndex: baseName.startRowIndex,
 				startColumnIndex: baseName.startColumnIndex,
@@ -1765,7 +1765,7 @@ function bindingToDestructuringFields(
 		if (baseField.spread) {
 			// TODO spread ohne source, typeGuard?
 			errors.push({
-				type: 'semantic',
+				code: ErrorCode.spreadNotSupportedForDestructuring,
 				message: `spread is not yet supported for destructuring`,
 				startRowIndex: baseName.startRowIndex,
 				startColumnIndex: baseName.startColumnIndex,
@@ -1780,7 +1780,7 @@ function bindingToDestructuringFields(
 			checkedSource = checkName(parseSource);
 			if (!checkedSource) {
 				errors.push({
-					type: 'semantic',
+					code: ErrorCode.invalidParameterSource,
 					message: `${parseSource.type} is not a valid expression for parameter source.`,
 					startRowIndex: parseSource.startRowIndex,
 					startColumnIndex: parseSource.startColumnIndex,
@@ -1861,7 +1861,7 @@ function bindingToParameters(
 			}
 			else {
 				errors.push({
-					type: 'semantic',
+					code: ErrorCode.invalidParameterSource,
 					message: `${parseSource.type} is not a valid expression for parameter source.`,
 					startRowIndex: parseSource.startRowIndex,
 					startColumnIndex: parseSource.startColumnIndex,
@@ -1889,7 +1889,7 @@ function bindingToParameters(
 		if (baseField.spread) {
 			if (index < baseFields.length - 1) {
 				errors.push({
-					type: 'semantic',
+					code: ErrorCode.restArgumentNotLast,
 					message: 'Rest argument must be last.',
 					startRowIndex: baseField.startRowIndex,
 					startColumnIndex: baseField.startColumnIndex,
@@ -1948,7 +1948,7 @@ function bracketedExpressionToValueExpression(
 	// läuft trotzdem weiter, damit der Language Server einen brauchbaren Baum behält.
 	if (bracketedExpression.type === 'binding' && !isFunctionArguments) {
 		errors.push({
-			type: 'semantic',
+			code: ErrorCode.dataLiteralMustUseSquareBrackets,
 			message: 'data literal must use square brackets [ ]',
 			startRowIndex: bracketedExpression.startRowIndex,
 			startColumnIndex: bracketedExpression.startColumnIndex,
@@ -2011,7 +2011,7 @@ function bracketedExpressionToValueExpression(
 				if (baseField.spread) {
 					if (typeGuard) {
 						errors.push({
-							type: 'semantic',
+							code: ErrorCode.typeGuardNotAllowedForSpreadDictionaryField,
 							message: `typeGuard is not allowed for spread dictionary field`,
 							startRowIndex: typeGuard.startRowIndex,
 							startColumnIndex: typeGuard.startColumnIndex,
@@ -2021,7 +2021,7 @@ function bracketedExpressionToValueExpression(
 					}
 					if (baseField.definition) {
 						errors.push({
-							type: 'semantic',
+							code: ErrorCode.definitionNotAllowedForSpreadDictionaryField,
 							message: `definition is not allowed for spread dictionary field`,
 							// TODO position von definition token?
 							startRowIndex: baseField.startRowIndex,
@@ -2044,7 +2044,7 @@ function bracketedExpressionToValueExpression(
 				const value = baseField.assignedValue;
 				if (!value) {
 					errors.push({
-						type: 'semantic',
+						code: ErrorCode.assignedValueMissingForDictionaryField,
 						message: 'assignedValue missing for singleDictionaryField',
 						startRowIndex: baseField.startRowIndex,
 						startColumnIndex: baseField.startColumnIndex,
@@ -2094,7 +2094,7 @@ function bracketedExpressionToValueExpression(
 			baseField => {
 				if (baseField.definition) {
 					errors.push({
-						type: 'semantic',
+						code: ErrorCode.definitionNotAllowedForDictionaryTypeField,
 						message: `definition is not allowed for dictionaryType field`,
 						// TODO position von definition token?
 						startRowIndex: baseField.startRowIndex,
@@ -2108,7 +2108,7 @@ function bracketedExpressionToValueExpression(
 				if (baseField.spread) {
 					if (typeGuard) {
 						errors.push({
-							type: 'semantic',
+							code: ErrorCode.typeGuardNotAllowedForSpreadDictionaryTypeField,
 							message: `typeGuard is not allowed for spread dictionaryType field`,
 							startRowIndex: typeGuard.startRowIndex,
 							startColumnIndex: typeGuard.startColumnIndex,
@@ -2187,7 +2187,7 @@ function bracketedExpressionToValueExpression(
 	}
 	// TODO bessere Fehlermeldung
 	errors.push({
-		type: 'semantic',
+		code: ErrorCode.invalidBracketedExpression,
 		message: 'could not convert bracketedExpression to ValueExpression',
 		startRowIndex: bracketedExpression.startRowIndex,
 		startColumnIndex: bracketedExpression.startColumnIndex,
@@ -2206,7 +2206,7 @@ function getEscapableNameErrors(baseName: ParseValueExpression): CompilerError[]
 			if (baseName.values.length > 1) {
 				// TODO string parser combine multiline string to single token and allow multiline string for escaped name?
 				errors.push({
-					type: 'semantic',
+					code: ErrorCode.escapedNameIsMultilineText,
 					message: `escaped name can not be a multiline string literal`,
 					startRowIndex: baseName.startRowIndex,
 					startColumnIndex: baseName.startColumnIndex,
@@ -2216,7 +2216,7 @@ function getEscapableNameErrors(baseName: ParseValueExpression): CompilerError[]
 			}
 			if (baseName.values.some(value => value.type !== 'textToken')) {
 				errors.push({
-					type: 'semantic',
+					code: ErrorCode.escapedNameHasInterpolation,
 					message: `escaped name can not contain string interpolation`,
 					startRowIndex: baseName.startRowIndex,
 					startColumnIndex: baseName.startColumnIndex,
@@ -2227,7 +2227,7 @@ function getEscapableNameErrors(baseName: ParseValueExpression): CompilerError[]
 			break;
 		default:
 			errors.push({
-				type: 'semantic',
+				code: ErrorCode.invalidEscapableName,
 				message: `${baseName.type} is not a valid expression for escapable name`,
 				startRowIndex: baseName.startRowIndex,
 				startColumnIndex: baseName.startColumnIndex,
@@ -2302,7 +2302,7 @@ export function getPathFromImport(
 	if (!importExpression.arguments) {
 		return {
 			error: {
-				type: 'semantic',
+				code: ErrorCode.importArgumentsMissing,
 				message: 'arguments missing for import',
 				startRowIndex: importExpression.startRowIndex,
 				startColumnIndex: importExpression.startColumnIndex,
@@ -2320,7 +2320,7 @@ export function getPathFromImport(
 		if (!isValidExtension(extension)) {
 			return {
 				error: {
-					type: 'semantic',
+					code: ErrorCode.invalidImportExtension,
 					message: `Unexpected extension for import: ${extension}`,
 					startRowIndex: pathExpression.startRowIndex,
 					startColumnIndex: pathExpression.startColumnIndex,
@@ -2333,7 +2333,7 @@ export function getPathFromImport(
 		const fileNotFoundError: CompilerError | undefined = existsSync(fullPath)
 			? undefined
 			: {
-				type: 'semantic',
+				code: ErrorCode.fileNotFound,
 				message: `File not found: ${fullPath}`,
 				startRowIndex: pathExpression.startRowIndex,
 				startColumnIndex: pathExpression.startColumnIndex,
@@ -2349,7 +2349,7 @@ export function getPathFromImport(
 	// TODO dynamische imports verbieten???
 	return {
 		error: {
-			type: 'semantic',
+			code: ErrorCode.dynamicImportNotAllowed,
 			message: 'dynamic import not allowed',
 			startRowIndex: importExpression.startRowIndex,
 			startColumnIndex: importExpression.startColumnIndex,

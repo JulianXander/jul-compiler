@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
-import { CompilerError } from './parser-combinator.js';
+import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { parseCode } from './parser.js';
 
 const expectedResults: {
@@ -1098,7 +1098,7 @@ const expectedResults: {
 			// ],
 			errors: [
 				{
-					type: 'syntax',
+					code: ErrorCode.unparsedRestOfRow,
 					message: "multilineParser should parse until end of row",
 					startRowIndex: 2,
 					startColumnIndex: 5,
@@ -1106,7 +1106,7 @@ const expectedResults: {
 					endColumnIndex: 5,
 				},
 				{
-					type: 'syntax',
+					code: ErrorCode.expectedOneOf,
 					startRowIndex: 3,
 					startColumnIndex: 2,
 					endRowIndex: 3,
@@ -1198,7 +1198,7 @@ const expectedResults: {
 			})(),
 			errors: [
 				{
-					"type": "syntax",
+					"code": ErrorCode.expectedNestedKey,
 					"endColumnIndex": 2,
 					"endRowIndex": 0,
 					"message": "Expected a nested key",
@@ -1233,7 +1233,7 @@ const expectedResults: {
 			})(),
 			errors: [
 				{
-					"type": "syntax",
+					"code": ErrorCode.expectedExpression,
 					"endColumnIndex": 3,
 					"endRowIndex": 0,
 					"message": "expression expected",
@@ -1295,7 +1295,7 @@ const expectedResults: {
 			})(),
 			errors: [
 				{
-					"type": "semantic",
+					"code": ErrorCode.assignedValueMissingForDictionaryField,
 					"endColumnIndex": 5,
 					"endRowIndex": 1,
 					"message": "assignedValue missing for singleDictionaryField",
@@ -1311,7 +1311,7 @@ const expectedResults: {
 			code: 'x = (1 2)',
 			errors: [
 				{
-					"type": "semantic",
+					"code": ErrorCode.dataLiteralMustUseSquareBrackets,
 					"message": "data literal must use square brackets [ ]",
 					"startRowIndex": 0,
 					"startColumnIndex": 4,

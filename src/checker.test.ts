@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { ParseExpression, ParseSingleDefinition } from './syntax-tree.js';
-import { CompilerError } from './parser/parser-combinator.js';
+import { CompilerError, ErrorCode } from './compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from './parser/parser.js';
 import { checkTypes } from './checker.js';
 
@@ -16,7 +16,7 @@ const expectedResults: {
 			code: '§§(a)§',
 			errors: [
 				{
-					"type": "semantic",
+					"code": ErrorCode.notDefined,
 					"endColumnIndex": 4,
 					"endRowIndex": 0,
 					"message": "a is not defined.",
@@ -69,7 +69,7 @@ const expectedResults: {
 			// ],
 			errors: [
 				{
-					"type": "type",
+					"code": ErrorCode.branchIsNotFunction,
 					"endColumnIndex": 2,
 					"endRowIndex": 1,
 					"message": "Expected branch to be a function.\nCan not assign 4 to Any :> Any.",
@@ -103,7 +103,7 @@ const expectedResults: {
 a = 5`,
 			errors: [
 				{
-					"type": "semantic",
+					"code": ErrorCode.usedBeforeDefined,
 					"endColumnIndex": 1,
 					"endRowIndex": 0,
 					"message": "a is used before it is defined.",
@@ -117,7 +117,7 @@ a = 5`,
 			code: 'a: List(Text) = [4]',
 			errors: [
 				{
-					"type": "type",
+					"code": ErrorCode.definitionTypeMismatch,
 					"endColumnIndex": 19,
 					"endRowIndex": 0,
 					"message": "Can not assign 4 to Text.",

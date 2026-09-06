@@ -1,4 +1,4 @@
-import { CompilerError, Positioned } from './parser/parser-combinator.js';
+import { CompilerError, Positioned } from './compiler-errors.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {

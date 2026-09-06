@@ -1,6 +1,6 @@
 import { ParseBindingExpression, DefinitionExpression, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
-import { CompilerError, Positioned } from "./parser-combinator.js";
+import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
 export function createParseParameters(
 	singleFields: ParseParameterField[],
@@ -164,7 +164,7 @@ function defineSymbol(
 ): void {
 	if (symbolTable[name]) {
 		errors.push({
-			type: 'semantic',
+			code: ErrorCode.alreadyDefined,
 			message: `${name} is already defined`,
 			startRowIndex: namePosition.startRowIndex,
 			startColumnIndex: namePosition.startColumnIndex,

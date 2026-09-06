@@ -1,6 +1,6 @@
 import { Name, ParseExpression, ParseParameterField, ParseParameterFields, ParsedExpressions } from '../syntax-tree.js';
 import { isDefined } from '../util.js';
-import { Positioned } from './parser-combinator.js';
+import { Positioned } from '../compiler-errors.js';
 import typescript, { ArrowFunction, BindingName, FunctionDeclaration, Node, NodeArray, NumericLiteral, ParameterDeclaration, StringLiteral, VariableStatement } from 'typescript';
 import { createParseFunctionLiteral, createParseParameters } from './parser-utils.js';
 const { createSourceFile, ScriptTarget, SyntaxKind } = typescript;
