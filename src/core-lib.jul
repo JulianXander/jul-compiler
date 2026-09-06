@@ -385,7 +385,7 @@ toJson = nativeFunction(
 regex = nativeFunction(
 	(
 		text: Text
-		regex: Text
+		pattern: Text
 	) :> [
 		isMatch: Boolean
 		namedCaptures: Or([] Dictionary(Text))

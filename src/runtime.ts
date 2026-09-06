@@ -1727,9 +1727,9 @@ export const toJson = _createFunction(
 		]
 	}
 );
-export const regex = (text: string, regex1: string) => {
+export const regex = (text: string, pattern: string) => {
 	try {
-		const match = text.match(regex1);
+		const match = text.match(pattern);
 		return {
 			isMatch: !!match,
 			unnamedCaptures: match ? Array.from(match) : undefined,
@@ -1749,7 +1749,7 @@ _createFunction(
 				type: _Text,
 			},
 			{
-				name: 'regex',
+				name: 'pattern',
 				type: _Text,
 			},
 		]
