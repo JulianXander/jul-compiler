@@ -2041,13 +2041,17 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 
 /**
  * getTypeError ist für manche Typen bewusst permissiv (any, nestedReference, nicht auflösbare
- * parameterReference). Für diese darf der Teilmengen-Kollaps in createNormalizedIntersectionType
- * nicht greifen, sonst kollabiert der Schnitt zu optimistisch.
+ * parameterReference) bzw. noch nicht implementiert (not, siehe case 'not' in getTypeError).
+ * Für diese darf der Teilmengen-Kollaps in createNormalizedIntersectionType nicht greifen,
+ * sonst kollabiert der Schnitt zu optimistisch.
+ * Bei not würde sonst z.B. And(Integer Not(0)) zu Integer kollabieren, weil Integer gegen
+ * Not(0) keinen Fehler liefert. NonZeroInteger würde damit zu Integer.
  */
 function canCollapseIntersection(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'any':
 		case 'nestedReference':
+		case 'not':
 		case 'parameterReference':
 		case 'parameters':
 			return false;
