@@ -397,6 +397,34 @@ d/a`,
 			name: 'dictionary-field-on-unknown-type',
 			code: `f = (d: Any) => d/b`,
 		},
+		{
+			// Die Länge eines Tuples ist bekannt, ein Zugriff dahinter also nachweisbar falsch.
+			// Indizes sind 1-basiert.
+			name: 'index-out-of-tuple-range',
+			code: `a = [1 2]
+a/5`,
+			errors: [
+				{
+					"code": ErrorCode.dereferenceFailed,
+					"endColumnIndex": 3,
+					"endRowIndex": 1,
+					"message": "Failed to dereference 5 in type [1 2]",
+					"startColumnIndex": 2,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Gegenprobe: ein gültiger Index darf nicht melden.
+			name: 'index-in-tuple-range',
+			code: `a = [1 2]
+a/2`,
+		},
+		{
+			// Gegenprobe: eine List hat keine bekannte Länge, dort ist kein Index zu weit.
+			name: 'index-on-list',
+			code: `f = (x: List(Integer)) => x/5`,
+		},
 		//#endregion dereference
 		{
 			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
