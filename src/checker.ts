@@ -240,6 +240,24 @@ function dereferenceNestedKeyFromObject(nestedKey: string | number, source: Comp
 		: dereferenceIndexFromObject(nestedKey, source);
 }
 
+/**
+ * Kennt dieser Typ seine Feldmenge?
+ * Nur dann heißt ein fehlgeschlagenes dereferenceNameFromObject "das Feld gibt es nicht".
+ * Bei allen anderen liefert es undefined, weil der Typ noch nicht ausgewertet ist oder
+ * dereferenceNameFromObject ihn nicht behandelt — daraus darf kein Fehler werden.
+ */
+function hasKnownFields(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'dictionaryLiteral':
+		case 'function':
+		case 'parameters':
+		case 'stream':
+			return true;
+		default:
+			return false;
+	}
+}
+
 export function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
@@ -1418,11 +1436,35 @@ function inferType(
 							dereferencedType: { julType: 'any' },
 						};
 					}
-					const dereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.rawType);
-					const rawType = dereferencedType ?? { julType: 'any' };
+					const sourceType = source.typeInfo!.dereferencedType;
+					// Der rawType kann eine Form sein, die dereferenceNameFromObject nicht behandelt,
+					// z.B. das and aus der Verengung eines branches. Dann auf dem aufgelösten Typ
+					// nachsehen, bevor das Feld als fehlend gilt.
+					const dereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.rawType)
+						?? dereferenceNameFromObject(fieldName, sourceType);
+					if (!dereferencedType) {
+						// Nur melden, wenn der Quelltyp seine Feldmenge kennt. Sonst würde aus
+						// "weiß ich nicht" ein "gibt es nicht" und jeder noch unaufgelöste Typ
+						// lieferte Falschfehler.
+						if (hasKnownFields(sourceType)) {
+							errors.push({
+								code: ErrorCode.dereferenceFailed,
+								message: `Failed to dereference ${fieldName} in type ${typeToString(sourceType, 0, 0)}`,
+								startRowIndex: nestedKey.startRowIndex,
+								startColumnIndex: nestedKey.startColumnIndex,
+								endRowIndex: nestedKey.endRowIndex,
+								endColumnIndex: nestedKey.endColumnIndex,
+							});
+						}
+						// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
+						return {
+							rawType: { julType: 'any' },
+							dereferencedType: { julType: 'any' },
+						};
+					}
 					return {
-						rawType: rawType,
-						dereferencedType: dereferenceNested(rawType),
+						rawType: dereferencedType,
+						dereferencedType: dereferenceNested(dereferencedType),
 					};
 				}
 				default: {
