@@ -1337,6 +1337,31 @@ const expectedResults: {
 			code: '[Text Float] => true',
 		},
 		//#endregion Datenklammer
+		//#region Index
+		{
+			// Indizes sind 1-basiert, 0 ist also nie gültig. Die Meldung soll das sagen und auf
+			// der 0 sitzen. Heute akzeptiert indexParser die 0 gar nicht erst, der choiceParser
+			// fällt durch und meldet stattdessen "Expected a nested key" auf dem / — plus eine
+			// zweite Meldung mit interner Parser-Formulierung.
+			name: 'index-zero',
+			code: 'a/0',
+			errors: [
+				{
+					"code": ErrorCode.invalidIndexSyntax,
+					"endColumnIndex": 3,
+					"endRowIndex": 0,
+					"message": "Invalid index 0, indexes start at 1",
+					"startColumnIndex": 2,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Gegenprobe: ein gültiger Index parst fehlerfrei
+			name: 'index-one',
+			code: 'a/1',
+		},
+		//#endregion Index
 	];
 
 describe('Parser', () => {
