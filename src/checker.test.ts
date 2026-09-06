@@ -234,6 +234,36 @@ f = (someVar: Or(Text Integer)) =>
 				},
 			],
 		},
+		{
+			// _branch probiert die branches der Reihe nach. Wer den Empty-branch passiert hat,
+			// kann kein Empty mehr sein — die Verengung muss die Typen der vorherigen branches
+			// also abziehen. Siehe yugioh/src/main.jul beim loadGame-Event.
+			name: 'branch-narrowing-excludes-previous-branches',
+			code: `g = (x: Integer) => x
+f = (value: Or([] Integer)) =>
+	value ?
+		Empty => 0
+		Any => g(value)`,
+		},
+		{
+			// Gegenprobe: ohne vorherigen branch bleibt Empty möglich und muss gemeldet werden.
+			// Die Verengung darf also nicht pauschal Empty abziehen.
+			name: 'branch-narrowing-keeps-unhandled-types',
+			code: `g = (x: Integer) => x
+f = (value: Or([] Integer)) =>
+	value ?
+		Any => g(value)`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 17,
+					"endRowIndex": 3,
+					"message": "Can not assign Empty to Integer.",
+					"startColumnIndex": 9,
+					"startRowIndex": 3,
+				},
+			],
+		},
 		//#endregion branch narrowing
 		//#region Not
 		{
