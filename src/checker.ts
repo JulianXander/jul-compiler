@@ -329,7 +329,11 @@ function dereferenceNameFromObjectType(
 			return createNestedReference(sourceObjectType, name);
 		case 'or': {
 			const dereferencedChoices = innerType.ChoiceTypes.map(choiceType => {
-				return dereferenceNameFromObjectType(name, choiceType, choiceType);
+				// Der choice braucht seine eigene TypeOf Hülle: sonst entsteht für einen noch
+				// nicht aufgelösten choice die Referenz values/ElementType statt
+				// TypeOf(values)/ElementType, und die ist nicht auflösbar, weil ElementType
+				// eine Eigenschaft des Typs ist und nicht des Werts.
+				return dereferenceNameFromObjectType(name, choiceType, createCompileTimeTypeOfType(choiceType));
 			}).filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(dereferencedChoices);
 		}
