@@ -258,6 +258,15 @@ function hasKnownFields(type: CompileTimeType): boolean {
 	}
 }
 
+/**
+ * Kennt dieser Typ seine Länge?
+ * Nur dann heißt ein fehlgeschlagenes dereferenceIndexFromObject "der Index liegt daneben".
+ * Eine List hat keine bekannte Länge, dort ist kein Index zu weit.
+ */
+function hasKnownLength(type: CompileTimeType): boolean {
+	return type.julType === 'tuple';
+}
+
 export function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
@@ -1420,11 +1429,33 @@ function inferType(
 			}
 			switch (nestedKey.type) {
 				case 'index': {
-					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.typeInfo!.rawType);
-					const rawType = dereferencedType ?? { julType: 'any' };
+					const sourceType = source.typeInfo!.dereferencedType;
+					// Der rawType kann eine Form sein, die dereferenceIndexFromObject nicht
+					// behandelt, z.B. das and aus der Verengung eines branches. Dann auf dem
+					// aufgelösten Typ nachsehen, bevor der Index als daneben gilt.
+					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.typeInfo!.rawType)
+						?? dereferenceIndexFromObject(nestedKey.name, sourceType);
+					if (!dereferencedType) {
+						// Nur melden, wenn die Länge feststeht
+						if (hasKnownLength(sourceType)) {
+							errors.push({
+								code: ErrorCode.dereferenceFailed,
+								message: `Failed to dereference ${nestedKey.name} in type ${typeToString(sourceType, 0, 0)}`,
+								startRowIndex: nestedKey.startRowIndex,
+								startColumnIndex: nestedKey.startColumnIndex,
+								endRowIndex: nestedKey.endRowIndex,
+								endColumnIndex: nestedKey.endColumnIndex,
+							});
+						}
+						// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
+						return {
+							rawType: { julType: 'any' },
+							dereferencedType: { julType: 'any' },
+						};
+					}
 					return {
-						rawType: rawType,
-						dereferencedType: dereferenceNested(rawType),
+						rawType: dereferencedType,
+						dereferencedType: dereferenceNested(dereferencedType),
 					};
 				}
 				case 'name':
