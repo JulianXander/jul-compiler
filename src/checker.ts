@@ -31,6 +31,7 @@ import {
 	ParsedExpressions2,
 	ParsedFile,
 	ParseDictionaryField,
+	ParseBranching,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
 	ParseParameterField,
@@ -1278,17 +1279,23 @@ function inferType(
 						const branchedDereferencedType: CompileTimeType = branchedTypeInfo?.dereferencedType ?? { julType: 'any' };
 						// Die Verengung muss die auto wrap/spread Logik von _branch berücksichtigen
 						const branchRawType = getBranchValueType(paramsTypeValue, branchedDereferencedType);
-						if (branchRawType) {
-							const branchDereferencedType = getBranchValueType(valueOf(params.typeInfo!.dereferencedType), branchedDereferencedType)
-								?? dereferenceNested(branchRawType);
+						// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
+						// Für raw und dereferenced derselbe Wert, weil die Auswertung ohnehin
+						// auf dem dereferenzierten Typ des gebranchten Werts beruht.
+						const previousBranchValueType = getPreviousBranchValueType(branching, expression, branchedDereferencedType);
+						if (branchRawType
+							|| previousBranchValueType) {
+							const branchDereferencedType = branchRawType
+								&& (getBranchValueType(valueOf(params.typeInfo!.dereferencedType), branchedDereferencedType)
+									?? dereferenceNested(branchRawType));
 							// TODO narrowed Hinweis in description?
 							ownSymbols[branchedName] = {
 								...branchedSymbol,
 								functionParameterIndex: undefined,
 								// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
 								typeInfo: {
-									rawType: createNormalizedIntersectionType([branchedRawType, branchRawType]),
-									dereferencedType: createNormalizedIntersectionType([branchedDereferencedType, branchDereferencedType]),
+									rawType: narrowBranchedType(branchedRawType, branchRawType, previousBranchValueType),
+									dereferencedType: narrowBranchedType(branchedDereferencedType, branchDereferencedType, previousBranchValueType),
 								},
 							};
 						}
@@ -2316,6 +2323,52 @@ function getBranchValueType(
 }
 
 /**
+ * Die Veroderung dessen, was die branches vor diesem bereits abfangen. _branch probiert die
+ * branches der Reihe nach, wer hier ankommt hat also alle vorherigen nicht gematcht.
+ * undefined, wenn es keine vorherigen branches gibt oder einer davon jeden Wert matcht bzw.
+ * nicht bestimmbar ist — dann wird nichts abgezogen. Ein solcher branch macht diesen hier
+ * unerreichbar, das ist aber eine eigene Diagnose und kein Fall für die Verengung.
+ */
+function getPreviousBranchValueType(
+	branching: ParseBranching,
+	branch: ParseValueExpression,
+	branchedValueType: CompileTimeType,
+): CompileTimeType | undefined {
+	const branchIndex = branching.branches.indexOf(branch);
+	if (branchIndex < 1) {
+		return undefined;
+	}
+	const previousValueTypes: CompileTimeType[] = [];
+	for (const previousBranch of branching.branches.slice(0, branchIndex)) {
+		const previousParamsType = getParamsType(previousBranch.typeInfo?.dereferencedType);
+		const previousValueType = getBranchValueType(previousParamsType, branchedValueType);
+		if (!previousValueType
+			|| previousValueType.julType === 'any') {
+			return undefined;
+		}
+		previousValueTypes.push(previousValueType);
+	}
+	return createNormalizedUnionType(previousValueTypes);
+}
+
+/**
+ * Verengt den Typ des gebranchten Werts: schneidet mit dem Typ, den dieser branch matcht,
+ * und zieht ab, was die vorherigen branches schon abgefangen haben.
+ */
+function narrowBranchedType(
+	branchedType: CompileTimeType,
+	branchValueType: CompileTimeType | undefined,
+	previousBranchValueType: CompileTimeType | undefined,
+): CompileTimeType {
+	const intersectedType = branchValueType
+		? createNormalizedIntersectionType([branchedType, branchValueType])
+		: branchedType;
+	return previousBranchValueType
+		? createNormalizedIntersectionType([intersectedType, createCompileTimeComplementType(previousBranchValueType)])
+		: intersectedType;
+}
+
+/**
  * Liefert den Elementtyp, wenn der übergebene Typ eine Liste mit genau einem Element beschreibt.
  */
 function getSingleElementType(restType: CompileTimeType | undefined): CompileTimeType | undefined {
@@ -2465,10 +2518,16 @@ export function getTypeError(
 				break;
 			}
 			// Es genügt, wenn ein args Choice zum target passt, denn der Wert erfüllt alle.
-			// TODO die Schnittmenge der args Choices kann passen, obwohl es kein einzelner tut
 			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 				getTypeError(prefixArgumentType, choiceType, targetType));
 			if (subErrors.every(isDefined)) {
+				// Kein einzelner choice reicht. Die Schnittmenge kann trotzdem passen, sichtbar
+				// wird das aber erst nach dem Auflösen: And(value Not(Empty)) mit
+				// value: Or([] Integer) ist Integer, kein einzelner choice sagt das.
+				const dereferencedArgumentsType = dereferenceNested(argumentsType);
+				if (dereferencedArgumentsType !== argumentsType) {
+					return getTypeError(prefixArgumentType, dereferencedArgumentsType, targetType);
+				}
 				// Choices, die sich zum selben Typ auflösen, liefern dieselbe Meldung
 				const uniqueMessages = [...new Set(subErrors.map(typeErrorToString))];
 				return {
