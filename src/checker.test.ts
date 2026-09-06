@@ -341,6 +341,29 @@ f = (value: Or([] Integer)) =>
 		false => values
 	picked.filterMap((value) => value)`,
 		},
+		{
+			// map liefert laut Implementierung nur dann empty, wenn schon die Eingabe empty war.
+			// Empty ist ein eigener Typ, List und Tuple schließen es also aus: für beide darf
+			// im Ergebnis kein Empty stehen.
+			// Siehe yugioh/src/game-logic/game-logic.jul removeGameCardIdsFromCardRow.
+			name: 'map-adds-no-empty-for-list',
+			code: `f = (values: List(Integer)) :> List(Integer) =>
+	values.map((value) => value)`,
+		},
+		{
+			// Zusätzlich zum Empty muss bei einem Tuple die Arity erhalten bleiben: map bildet
+			// elementweise ab, die Länge ändert sich nicht.
+			name: 'map-keeps-tuple-arity',
+			code: `T = [Integer Integer]
+f = (values: T) :> T =>
+	values.map((value) => value)`,
+		},
+		{
+			// Gegenprobe: kann die Eingabe empty sein, ist das Empty im Ergebnis korrekt.
+			name: 'map-keeps-empty-for-possibly-empty-input',
+			code: `f = (values: Or([] List(Integer))) :> Or([] List(Integer)) =>
+	values.map((value) => value)`,
+		},
 		//#endregion generische Rückgabetypen
 	];
 
