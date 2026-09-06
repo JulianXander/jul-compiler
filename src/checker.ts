@@ -1692,6 +1692,22 @@ function getReturnTypeFromFunctionCall(
 					: undefined;
 				return getLengthFromType(firstArgType);
 			}
+			case 'map': {
+				// map bildet elementweise ab, die Länge bleibt also erhalten. Nur beim Tuple
+				// ist das genauer als der deklarierte Typ, sonst trägt die Deklaration.
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const valuesType = argTypes?.length
+					? dereferenceNested(argTypes[0]!)
+					: undefined;
+				if (valuesType?.julType !== 'tuple') {
+					break;
+				}
+				const callbackType = argTypes?.[1];
+				const elementType: CompileTimeType = isFunctionType(callbackType)
+					? callbackType.ReturnType
+					: { julType: 'any' };
+				return createCompileTimeTupleType(valuesType.ElementTypes.map(() => elementType));
+			}
 			case 'setElement': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const dereferencedArgTypes = argTypes?.map(dereferenceNested);

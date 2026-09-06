@@ -479,6 +479,10 @@ setElement = nativeFunction(
 		}
 	§
 )
+# Bildet jedes Element mit callback ab.
+# empty liefert map nur bei empty Eingabe, denn die Länge bleibt gleich. Deshalb steht im
+# Ergebnis And(TypeOf(values) []): das ist Empty, wenn die Eingabe empty sein kann, sonst
+# Never, und Never fällt aus der Or heraus.
 map = nativeFunction(
 	(
 		values: Or([] List(Any))
@@ -486,7 +490,7 @@ map = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or([] List(callback/ReturnType))
+	) :> Or(And(TypeOf(values) []) List(callback/ReturnType))
 	# TODO pure wenn die args pure sind
 	false
 	§js
