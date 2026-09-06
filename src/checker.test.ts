@@ -137,10 +137,9 @@ t(1)`,
 		// abbilden: ein primitiver Wert wird zu [value] gewrappt und landet im 1. Parameter,
 		// eine Collection wird auf die Parameter gespreadet.
 		{
-			// Regression: Die Typverengung des gebranchten Namens im Branch-Scope übernahm die
-			// komplette Parameterliste der Branch-Funktion statt des Typs des gematchten Werts.
-			// Im catchAll-Branch () => ... wurde countdown dadurch zu () (empty).
-			// Siehe jul-examples/fibonacci/fibonacci.jul.
+			// Der catchAll () => ... bindet nichts und matcht jeden Wert, sagt über den Wert
+			// also nichts aus. countdown behält daher Integer und ist weiter an einen
+			// Integer-Parameter zuweisbar. Vgl. jul-examples/fibonacci/fibonacci.jul.
 			name: 'branch-narrowing-catch-all',
 			code: `g = (x: Integer) => x
 f = (countdown: Integer) =>
@@ -149,8 +148,8 @@ f = (countdown: Integer) =>
 		() => g(countdown)`,
 		},
 		{
-			// Dieselbe Ursache mit benanntem Branch-Parameter: countdown wird zu (y: Integer)
-			// statt zu Integer.
+			// Ein primitiver Wert landet im 1. Parameter, verengt wird also auf dessen Typ —
+			// nicht auf die Parameterliste als Ganzes. countdown wird Integer, nicht (y: Integer).
 			name: 'branch-narrowing-named-param',
 			code: `g = (x: Integer) => x
 f = (countdown: Integer) =>
@@ -159,7 +158,8 @@ f = (countdown: Integer) =>
 		(y: Integer) => g(countdown)`,
 		},
 		{
-			// Der rest bekommt den auto wrapped Wert, also [countdown].
+			// Ohne Einzelparameter bekommt der rest den auto wrapped Wert, also [countdown].
+			// Verengt wird daher auf den Elementtyp der rest-Liste, hier Integer.
 			name: 'branch-narrowing-rest-param',
 			code: `g = (x: Integer) => x
 f = (countdown: Integer) =>
@@ -186,7 +186,8 @@ f = (countdown: Integer) =>
 		Any => g(countdown)`,
 		},
 		{
-			// Regressionsschutz: Typ-Params sollen weiterhin verengen.
+			// Bei Typ-Params wird der rohe Wert gegen den ParamsType geprüft und nichts gebunden,
+			// der ParamsType ist also direkt der Branch-Typ: someVar wird hier zu Integer.
 			name: 'branch-narrowing-type-param',
 			code: `g = (x: Integer) => x
 f = (someVar: Any) =>
