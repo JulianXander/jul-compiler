@@ -234,6 +234,30 @@ f = (someVar: Or(Text Integer)) =>
 			],
 		},
 		//#endregion branch narrowing
+		//#region Not
+		{
+			// Not(X) wird zurzeit nie geprüft: der Fehler in getTypeError case 'not' ist
+			// auskommentiert, der Zweig liefert immer undefined. Damit ist NonZeroInteger
+			// wirkungslos und z.B. modulo(1 0) kompiliert.
+			name: 'not-type-is-checked',
+			code: 'a: NonZeroInteger = 0',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 21,
+					"endRowIndex": 0,
+					"message": "Can not assign 0 to Not(0).",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Gegenprobe: die Prüfung darf nicht zu streng werden
+			name: 'not-type-accepts-other-values',
+			code: 'a: NonZeroInteger = 5',
+		},
+		//#endregion Not
 	];
 
 describe('Checker', () => {

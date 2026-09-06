@@ -2041,11 +2041,13 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 
 /**
  * getTypeError ist für manche Typen bewusst permissiv (any, nestedReference, nicht auflösbare
- * parameterReference) bzw. noch nicht implementiert (not, siehe case 'not' in getTypeError).
- * Für diese darf der Teilmengen-Kollaps in createNormalizedIntersectionType nicht greifen,
- * sonst kollabiert der Schnitt zu optimistisch.
- * Bei not würde sonst z.B. And(Integer Not(0)) zu Integer kollabieren, weil Integer gegen
- * Not(0) keinen Fehler liefert. NonZeroInteger würde damit zu Integer.
+ * parameterReference). Für diese darf der Teilmengen-Kollaps in createNormalizedIntersectionType
+ * nicht greifen, sonst kollabiert der Schnitt zu optimistisch.
+ * not ist ebenfalls ausgenommen, obwohl case 'not' in getTypeError inzwischen prüft: die Prüfung
+ * dort ist nur für Einzelwerte tragfähig, denn areArgsAssignableTo liefert Teilmengen, keine
+ * Schnittmengen. Integer ist keine Teilmenge von 0, überlappt aber mit 0, gilt gegen Not(0) also
+ * fälschlich als zuweisbar. And(Integer Not(0)) würde sonst zu Integer kollabieren und
+ * NonZeroInteger damit wirkungslos.
  */
 function canCollapseIntersection(type: CompileTimeType): boolean {
 	switch (type.julType) {
@@ -2546,12 +2548,13 @@ export function getTypeError(
 		case 'never':
 			break;
 		case 'not': {
+			// Der Wert darf gerade nicht zum SourceType passen.
+			// Kein Fehler heißt hier also: der Wert ist zuweisbar und damit verboten.
 			const sourceError = getTypeError(prefixArgumentType, argumentsType, targetType.SourceType);
 			if (sourceError === undefined) {
-				// TODO
-				// return {
-				// 	message: `${typeToString(argumentsType, 0)} is assignable to ${typeToString(targetType.SourceType, 0)}, but should not be.`
-				// };
+				return {
+					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+				};
 			}
 			return undefined;
 		}
