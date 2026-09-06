@@ -365,6 +365,39 @@ f = (values: T) :> T =>
 	values.map((value) => value)`,
 		},
 		//#endregion generische Rückgabetypen
+		//#region dereference
+		{
+			// Ein Feld, das der Dictionary-Typ nicht hat, ist ein Fehler und nicht Any.
+			// Der stille Rückfall auf Any schaltet in getTypeError alle Folgeprüfungen ab,
+			// ein einziger blinder Ausdruck macht damit die ganze Kette darunter blind.
+			// Der Fehler sitzt auf dem Schlüssel, wie beim Destructuring.
+			name: 'unknown-dictionary-field',
+			code: `d = [a = 1]
+d/b`,
+			errors: [
+				{
+					"code": ErrorCode.dereferenceFailed,
+					"endColumnIndex": 3,
+					"endRowIndex": 1,
+					"message": "Failed to dereference b in type [a: 1]",
+					"startColumnIndex": 2,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Gegenprobe: ein vorhandenes Feld darf nicht melden.
+			name: 'known-dictionary-field',
+			code: `d = [a = 1]
+d/a`,
+		},
+		{
+			// Gegenprobe: bei Any kann der Checker nicht wissen, ob es das Feld gibt.
+			// "weiß ich nicht" darf nicht zu "gibt es nicht" werden.
+			name: 'dictionary-field-on-unknown-type',
+			code: `f = (d: Any) => d/b`,
+		},
+		//#endregion dereference
 		{
 			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
 			name: 'type-parameter-as-type-argument',
