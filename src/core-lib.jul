@@ -565,7 +565,7 @@ slice = nativeFunction(
 		values: Or([] List(Any))
 		start: Integer
 		end: Or([] Integer)
-	) :> Or([] List(Any))
+	) :> Or([] List(TypeOf(values)/ElementType))
 	true
 	§js
 		(values, start, end) => {

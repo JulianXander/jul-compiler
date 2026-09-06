@@ -284,6 +284,19 @@ f = (someVar: Or(Text Integer)) =>
 			code: 'f = (x: PositiveInteger) => modulo(1 x)',
 		},
 		//#endregion Not
+		//#region generische Rückgabetypen
+		{
+			// slice liefert eine Teilliste, der Elementtyp bleibt also erhalten: aus
+			// List(Integer) wird Or([] List(Integer)), nicht Or([] List(Any)).
+			// Der Verlust wird erst über filterMap sichtbar, dessen Rückgabetyp
+			// Or([] List(Without(callback/ReturnType []))) ist: aus einem Any wird dabei
+			// Not(Empty), und das passt zu keinem konkreten Elementtyp mehr.
+			name: 'slice-keeps-element-type',
+			code: `f = (values: List(Integer)) :> Or([] List(Integer)) =>
+	sliced = values.slice(1)
+	sliced.filterMap((value) => value)`,
+		},
+		//#endregion generische Rückgabetypen
 	];
 
 describe('Checker', () => {
