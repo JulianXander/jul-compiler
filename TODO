@@ -48,6 +48,8 @@
 		() => x   bindet nichts, verwirft alles, matcht jeden Wert
 		[] => x   matcht nur das Empty-Literal
 		Any => x  matcht jeden Wert, sagt es ausdrücklich
+	-für die Typverengung sind () und Any gleichwertig: () liefert keinen branch Typ,
+	 Any ist das neutrale Element des Schnitts. Beide lassen den Typ also unverändert.
 -taschenrechner demo app
 ?fix dictionary value als type typeChecking?
 	?wie soll sich das verhalten? wird das gebraucht?

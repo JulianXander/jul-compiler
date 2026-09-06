@@ -131,6 +131,11 @@ a = 5`,
 			code: `t = Any => []
 t(1)`,
 		},
+		//#region branch narrowing
+		// Der gebranchte Name wird im Scope des jeweiligen Branches verengt. Die Verengung
+		// schneidet (sie ersetzt nicht) und muss die auto wrap/spread Logik von _branch
+		// abbilden: ein primitiver Wert wird zu [value] gewrappt und landet im 1. Parameter,
+		// eine Collection wird auf die Parameter gespreadet.
 		{
 			// Regression: Die Typverengung des gebranchten Namens im Branch-Scope übernahm die
 			// komplette Parameterliste der Branch-Funktion statt des Typs des gematchten Werts.
@@ -153,6 +158,82 @@ f = (countdown: Integer) =>
 		0 => 0
 		(y: Integer) => g(countdown)`,
 		},
+		{
+			// Der rest bekommt den auto wrapped Wert, also [countdown].
+			name: 'branch-narrowing-rest-param',
+			code: `g = (x: Integer) => x
+f = (countdown: Integer) =>
+	countdown ?
+		0 => 0
+		(...rest: List(Integer)) => g(countdown)`,
+		},
+		{
+			// Ein Parameter ohne TypeGuard hat den Typ Any, das darf nicht verbreitern.
+			name: 'branch-narrowing-untyped-param',
+			code: `g = (x: Integer) => x
+f = (countdown: Integer) =>
+	countdown ?
+		0 => 0
+		(y) => g(countdown)`,
+		},
+		{
+			// Any als branch Typ darf nicht verbreitern, der Schnitt behält Integer.
+			name: 'branch-narrowing-any-branch',
+			code: `g = (x: Integer) => x
+f = (countdown: Integer) =>
+	countdown ?
+		0 => 0
+		Any => g(countdown)`,
+		},
+		{
+			// Regressionsschutz: Typ-Params sollen weiterhin verengen.
+			name: 'branch-narrowing-type-param',
+			code: `g = (x: Integer) => x
+f = (someVar: Any) =>
+	someVar ?
+		Integer => g(someVar)
+		() => 0`,
+		},
+		{
+			// Distributivgesetz: And(Or(Text Integer) Text) => Or(Text Never) => Text
+			name: 'branch-narrowing-union',
+			code: `t = (x: Text) => x
+f = (someVar: Or(Text Integer)) =>
+	someVar ?
+		(y: Text) => t(someVar)
+		() => §§`,
+		},
+		{
+			// Bei einem Collection Wert wird auf die Parameter gespreadet, die Parameter
+			// beschreiben also die Elemente. Es darf nicht auf Integer verengt werden.
+			name: 'branch-narrowing-collection',
+			code: `h = (x: List(Integer)) => x
+f = (someVar: List(Integer)) =>
+	someVar ?
+		(a: Integer) => h(someVar)
+		() => []`,
+		},
+		{
+			// Gegenprobe: die Verengung muss auch wirklich greifen. Im Text-Branch ist someVar
+			// auf Text verengt und damit nicht mehr an einen Integer-Parameter zuweisbar.
+			name: 'branch-narrowing-applies',
+			code: `g = (x: Integer) => x
+f = (someVar: Or(Text Integer)) =>
+	someVar ?
+		(y: Text) => g(someVar)
+		() => 0`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 25,
+					"endRowIndex": 3,
+					"message": "Can not assign Text to Integer.",
+					"startColumnIndex": 15,
+					"startRowIndex": 3,
+				},
+			],
+		},
+		//#endregion branch narrowing
 	];
 
 describe('Checker', () => {

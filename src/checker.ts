@@ -1267,16 +1267,27 @@ function inferType(
 					const branchedName = branchedvalue.name.name;
 					const branchedSymbol = findSymbolInScopesWithBuiltIns(branchedName, functionScopes)?.symbol;
 					if (branchedSymbol) {
-						// TODO narrowed Hinweis in description?
-						ownSymbols[branchedName] = {
-							...branchedSymbol,
-							functionParameterIndex: undefined,
-							// TODO paramsType spreaden?
-							typeInfo: {
-								rawType: paramsTypeValue,
-								dereferencedType: valueOf(params.typeInfo!.dereferencedType),
-							},
-						};
+						// branching.value wird in case 'branching' vor den branches inferiert
+						const branchedTypeInfo = branchedvalue.typeInfo ?? branchedSymbol.typeInfo;
+						const branchedRawType: CompileTimeType = branchedTypeInfo?.rawType ?? { julType: 'any' };
+						// dereferencedType, damit eine parameterReference für die Collection-Prüfung aufgelöst ist
+						const branchedDereferencedType: CompileTimeType = branchedTypeInfo?.dereferencedType ?? { julType: 'any' };
+						// Die Verengung muss die auto wrap/spread Logik von _branch berücksichtigen
+						const branchRawType = getBranchValueType(paramsTypeValue, branchedDereferencedType);
+						if (branchRawType) {
+							const branchDereferencedType = getBranchValueType(valueOf(params.typeInfo!.dereferencedType), branchedDereferencedType)
+								?? dereferenceNested(branchRawType);
+							// TODO narrowed Hinweis in description?
+							ownSymbols[branchedName] = {
+								...branchedSymbol,
+								functionParameterIndex: undefined,
+								// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
+								typeInfo: {
+									rawType: createNormalizedIntersectionType([branchedRawType, branchRawType]),
+									dereferencedType: createNormalizedIntersectionType([branchedDereferencedType, branchDereferencedType]),
+								},
+							};
+						}
 					}
 				}
 			}
@@ -1870,6 +1881,8 @@ function setElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 
 //#endregion get Type from FunctionCall
 
+//#region Typ Arithmetik
+
 // TODO überlappende choices zusammenfassen (Wenn A Teilmenge von B, dann ist Or(A B) = B)
 function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeType {
 	//#region flatten UnionTypes
@@ -1938,20 +1951,43 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeType {
 	// TODO flatten nested IntersectionTypes?
 
-	// Distributivgesetz anwenden:
-	// And(Or(A B) C) => Or(And(A C) And(B C)
-	if (ChoiceTypes.length === 2
-		&& isUnionType(ChoiceTypes[0])) {
-		const firstUnionChoices = ChoiceTypes[0].ChoiceTypes;
-		const secondIntersectionType = ChoiceTypes[1]!;
-		const distributedChoices = firstUnionChoices.map(choice => {
-			return createNormalizedIntersectionType([choice, secondIntersectionType]);
-		});
-		const distributedType = createNormalizedUnionType(distributedChoices);
-		return distributedType;
+	if (ChoiceTypes.length === 2) {
+		const first = ChoiceTypes[0]!;
+		const second = ChoiceTypes[1]!;
+
+		// Never ist das absorbierende Element:
+		// And(A Never) => Never
+		if (first.julType === 'never'
+			|| second.julType === 'never') {
+			return { julType: 'never' };
+		}
+
+		// Any ist das neutrale Element:
+		// And(A Any) => A
+		if (first.julType === 'any') {
+			return second;
+		}
+		if (second.julType === 'any') {
+			return first;
+		}
 	}
 
-	// TODO leere Schnittemenge ermitteln? A not assignable to B und B not assignable to A
+	// Distributivgesetz anwenden:
+	// And(Or(A B) C) => Or(And(A C) And(B C)
+	if (ChoiceTypes.length === 2) {
+		// beide Seiten prüfen, damit die Reihenfolge der Argumente egal ist
+		const unionIndex = ChoiceTypes.findIndex(isUnionType);
+		if (unionIndex >= 0) {
+			const unionType = ChoiceTypes[unionIndex] as CompileTimeUnionType;
+			const otherIntersectionType = ChoiceTypes[unionIndex ? 0 : 1]!;
+			const distributedChoices = unionType.ChoiceTypes.map(choice => {
+				return createNormalizedIntersectionType([choice, otherIntersectionType]);
+			});
+			const distributedType = createNormalizedUnionType(distributedChoices);
+			return distributedType;
+		}
+	}
+
 	if (ChoiceTypes.length === 2
 		&& isComplementType(ChoiceTypes[1])) {
 		const first = ChoiceTypes[0]!;
@@ -1962,10 +1998,38 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		}
 		// And(A Not(B))
 		// Wenn B keine Schnittmenge mit A hat: nur A liefern
-		// TODO Schnittmengenprüfung bauen, areArgsAssignableTo liefert nur Teilmengen
 		const secondAssignToFirstError = areArgsAssignableTo(undefined, second, first);
 		if (secondAssignToFirstError) {
 			return first;
+		}
+	}
+
+	if (ChoiceTypes.length === 2) {
+		const first = ChoiceTypes[0]!;
+		const second = ChoiceTypes[1]!;
+
+		// Teilmenge liefern:
+		// And(A B) => A, wenn A Teilmenge von B ist
+		// z.B. And(Integer Rational) => Integer, And(Integer Integer) => Integer
+		if (canCollapseIntersection(first)
+			&& canCollapseIntersection(second)) {
+			if (!areArgsAssignableTo(undefined, first, second)) {
+				return first;
+			}
+			if (!areArgsAssignableTo(undefined, second, first)) {
+				return second;
+			}
+		}
+
+		// leere Schnittmenge ermitteln:
+		// And(A B) => Never, wenn A und B zu verschiedenen Laufzeit-Familien gehören
+		// z.B. And(Integer Text) => Never
+		const firstFamily = getTypeFamily(first);
+		const secondFamily = getTypeFamily(second);
+		if (firstFamily
+			&& secondFamily
+			&& firstFamily !== secondFamily) {
+			return { julType: 'never' };
 		}
 	}
 
@@ -1973,6 +2037,66 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		julType: 'and',
 		ChoiceTypes: ChoiceTypes,
 	};
+}
+
+/**
+ * getTypeError ist für manche Typen bewusst permissiv (any, nestedReference, nicht auflösbare
+ * parameterReference). Für diese darf der Teilmengen-Kollaps in createNormalizedIntersectionType
+ * nicht greifen, sonst kollabiert der Schnitt zu optimistisch.
+ */
+function canCollapseIntersection(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'any':
+		case 'nestedReference':
+		case 'parameterReference':
+		case 'parameters':
+			return false;
+		default:
+			return true;
+	}
+}
+
+/**
+ * Die grobe Laufzeit-Familie eines Typs. Werte aus verschiedenen Familien sind disjunkt,
+ * ihr Schnitt ist also leer.
+ * undefined = Familie unbekannt, dann ist keine Aussage über Disjunktheit möglich.
+ */
+function getTypeFamily(type: CompileTimeType): string | undefined {
+	switch (type.julType) {
+		case 'blob':
+			return 'blob';
+		case 'boolean':
+		case 'booleanLiteral':
+			return 'boolean';
+		case 'date':
+			return 'date';
+		case 'dictionary':
+		case 'dictionaryLiteral':
+			return 'dictionary';
+		case 'empty':
+			return 'empty';
+		case 'error':
+			return 'error';
+		case 'float':
+		case 'floatLiteral':
+			return 'float';
+		case 'function':
+			return 'function';
+		case 'integer':
+		case 'integerLiteral':
+			return 'integer';
+		case 'list':
+		case 'tuple':
+			return 'list';
+		case 'stream':
+			return 'stream';
+		case 'text':
+		case 'textLiteral':
+			return 'text';
+		// greater kann Integer oder Float sein, daher keine Aussage
+		default:
+			return undefined;
+	}
 }
 
 function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
@@ -2031,6 +2155,99 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 			throw new Error('Unexpected julType: ' + (assertNever as CompileTimeType).julType);
 	}
 }
+
+//#endregion Typ Arithmetik
+
+//#region branch narrowing
+
+/**
+ * Bildet die auto wrap/spread Logik des branchings (_branch/tryAssignArgs in runtime.ts)
+ * auf Typebene ab: liefert den Typ, den der gebranchte Wert in diesem branch erfüllen muss.
+ * undefined = der branch sagt nichts über den Wert aus, es wird also nicht verengt.
+ */
+function getBranchValueType(
+	paramsType: CompileTimeType,
+	branchedValueType: CompileTimeType,
+): CompileTimeType | undefined {
+	if (!isParametersType(paramsType)) {
+		// Typ-/Literal-Params (0 => ..., Any => ..., [] => ..., MyType => ...):
+		// tryAssignArgs prüft den rohen Wert gegen den paramsType und bindet nichts
+		return paramsType;
+	}
+	const singleNames = paramsType.singleNames;
+	const rest = paramsType.rest;
+	if (!singleNames.length
+		&& !rest) {
+		// catchAll () => ...: matcht jeden Wert und bindet nichts
+		return undefined;
+	}
+	if (!isDefinitelyNonCollectionType(branchedValueType)) {
+		// Der Wert könnte eine Collection sein und wird dann auf die Parameter gespreadet.
+		// Die Parameter beschreiben in dem Fall die Elemente, nicht den Wert selbst.
+		// TODO den Wert-Typ aus den Parametern rekonstruieren? Die Arity ist dabei offen,
+		// denn tryAssignArgs erlaubt überzählige und fehlende Argumente.
+		return undefined;
+	}
+	const firstParam = singleNames[0];
+	if (firstParam) {
+		// _branch wrappt den Wert zu [value], also bekommt nur der erste Parameter den Wert
+		return firstParam.type;
+	}
+	// nur rest: der rest bekommt [value]
+	return getSingleElementType(rest!.type);
+}
+
+/**
+ * Liefert den Elementtyp, wenn der übergebene Typ eine Liste mit genau einem Element beschreibt.
+ */
+function getSingleElementType(restType: CompileTimeType | undefined): CompileTimeType | undefined {
+	switch (restType?.julType) {
+		case 'list':
+			return restType.ElementType;
+		case 'tuple':
+			return restType.ElementTypes.length === 1
+				? restType.ElementTypes[0]
+				: undefined;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * true, wenn Werte dieses Typs zur Laufzeit garantiert keine Collection sind,
+ * isRealObject (runtime.ts) also false liefert und _branch den Wert zu [value] wrappt,
+ * statt ihn auf die Parameter zu spreaden.
+ * Im Zweifel false, dann wird nicht verengt.
+ */
+function isDefinitelyNonCollectionType(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		// typeof !== 'object'
+		case 'boolean':
+		case 'booleanLiteral':
+		// empty wird als undefined emittiert
+		case 'empty':
+		// Float ist eine js number, Brüche sind dagegen dictionaryLiteral
+		case 'float':
+		case 'floatLiteral':
+		case 'function':
+		case 'greater':
+		case 'integer':
+		case 'integerLiteral':
+		case 'text':
+		case 'textLiteral':
+			return true;
+		case 'or':
+			// nur wenn alle Choices garantiert keine Collection sind
+			return type.ChoiceTypes.every(isDefinitelyNonCollectionType);
+		case 'and':
+			// es genügt, wenn ein Choice garantiert keine Collection ist
+			return type.ChoiceTypes.some(isDefinitelyNonCollectionType);
+		default:
+			return false;
+	}
+}
+
+//#endregion branch narrowing
 
 function setFunctionRefForParams(
 	params: ParseParameterFields,
@@ -2127,9 +2344,11 @@ export function getTypeError(
 			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 				getTypeError(prefixArgumentType, choiceType, targetType));
 			if (subErrors.every(isDefined)) {
+				// Choices, die sich zum selben Typ auflösen, liefern dieselbe Meldung
+				const uniqueMessages = [...new Set(subErrors.map(typeErrorToString))];
 				return {
 					// TODO error struktur überdenken
-					message: subErrors.map(typeErrorToString).join('\n'),
+					message: uniqueMessages.join('\n'),
 					// innerError
 				};
 			}
