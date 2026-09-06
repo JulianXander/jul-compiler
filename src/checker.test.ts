@@ -296,6 +296,21 @@ f = (someVar: Or(Text Integer)) =>
 	sliced = values.slice(1)
 	sliced.filterMap((value) => value)`,
 		},
+		{
+			// Ein generischer Rückgabetyp muss auch dann noch auflösbar sein, wenn der Wert
+			// vorher durch ein branching gelaufen ist. Die Union der branch Rückgabetypen
+			// enthält im rawType noch das unaufgelöste TypeOf(values)/ElementType aus slice,
+			// und der folgende filterMap-Aufruf leitet seinen Callback-Parametertyp aus genau
+			// diesem rawType ab. Scheitert das, wird der Elementtyp zu Any und über
+			// Without(Any []) zu Not(Empty).
+			// Siehe yugioh/src/game-logic/game-logic.jul getThisTurnInputs.
+			name: 'generic-return-type-survives-branching',
+			code: `f = (values: List(Integer) flag: Boolean) :> Or([] List(Integer)) =>
+	picked = flag ?
+		true => values.slice(1)
+		false => values
+	picked.filterMap((value) => value)`,
+		},
 		//#endregion generische Rückgabetypen
 	];
 
