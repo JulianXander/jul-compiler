@@ -365,6 +365,22 @@ f = (values: T) :> T =>
 	values.map((value) => value)`,
 		},
 		//#endregion generische Rückgabetypen
+		{
+			// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
+			// eines core-lib Namens weiterhin ein Fehler sein.
+			name: 'redefinition-of-core-lib-name-still-errors',
+			code: 'add = 4',
+			errors: [
+				{
+					"code": ErrorCode.alreadyDefinedInUpperScope,
+					"endColumnIndex": 7,
+					"endRowIndex": 0,
+					"message": "add is already defined in upper scope",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		},
 	];
 
 describe('Checker', () => {
@@ -378,10 +394,17 @@ describe('Checker', () => {
 			}
 		});
 	});
-	// Die core-lib ist der beste Einzelindikator für die Grammatik: gut 1000 Zeilen
-	// realistischer JUL-Code mit Parameterlisten, FunctionTypeLiterals, DictionaryTypes,
-	// Spread/Rest, Multiline und Interpolation. Fehler dort werden sonst still ignoriert.
-	it('core-lib parses without errors', () => {
-		expect(parseFile(coreLibPath).unchecked.errors).to.deep.equal([]);
+	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
+	// Scope gecheckt werden. Sonst stand ihre Symboltabelle doppelt im Scope Stack und jede
+	// Definition wurde als alreadyDefinedInUpperScope gemeldet (94 Scheinfehler im Editor).
+	it('core-lib checks without duplicate upper scope errors', () => {
+		const parsed = parseFile(coreLibPath);
+		checkTypes(parsed, {});
+		const scopeErrors = parsed.checked!.errors
+			.filter(error => error.code === ErrorCode.alreadyDefinedInUpperScope);
+		// nur das echte Shadowing des regex Parameters bleibt (core-lib.jul Zeile 388)
+		expect(scopeErrors.map(error => error.message)).to.deep.equal([
+			'regex is already defined in upper scope',
+		]);
 	});
 });

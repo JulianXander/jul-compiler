@@ -48,7 +48,7 @@ import {
 	ParseExpressionBase,
 } from './syntax-tree.js';
 import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
-import { coreLibPath, getPathFromImport, parseFile } from './parser/parser.js';
+import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from './parser/parser.js';
 import { CompilerError, ErrorCode } from './compiler-errors.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
 
@@ -189,7 +189,9 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	}
 	const foundSymbol = findResult.symbol;
 	// Der oberste Scope ist builtInSymbols.
-	// Außer bei inferFileTypes mit core-lib, was keine Rolle spielt, denn für core-lib werden Fehler ignoriert.
+	// Beim Checken der core-lib selbst ist der oberste Scope ihre eigene Symboltabelle
+	// (sie wird ohne builtInSymbols gecheckt). Auch dann ist isBuiltIn korrekt:
+	// innerhalb der core-lib sind Vorwärtsreferenzen erlaubt (kein usedBeforeDefined).
 	const isBuiltIn = findResult.scopeIndex === 0;
 	if (foundSymbol.functionParameterIndex !== undefined) {
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
@@ -792,7 +794,13 @@ export function checkTypes(
 ): void {
 	const checked = structuredClone(document.unchecked);
 	document.checked = checked;
-	inferFileTypes(checked, [builtInSymbols], documents, document.sourceFolder, document.filePath);
+	// Die core-lib definiert die builtInSymbols selbst. Bekäme sie sie zusätzlich als oberen
+	// Scope, stünde ihre Symboltabelle zweimal im Stack und jede Definition wäre
+	// alreadyDefinedInUpperScope. Daher ohne Scopes checken, genau wie beim initialen Laden.
+	const scopes = isCoreLibPath(document.filePath)
+		? []
+		: [builtInSymbols];
+	inferFileTypes(checked, scopes, documents, document.sourceFolder, document.filePath);
 }
 
 function inferFileTypes(

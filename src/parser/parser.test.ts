@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
-import { parseCode } from './parser.js';
+import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
 
 const expectedResults: {
 	name?: string;
@@ -1351,5 +1351,20 @@ describe('Parser', () => {
 				expect(parserResult.unchecked.expressions).to.deep.equal(result);
 			}
 		});
+	});
+	// Die core-lib ist der beste Einzelindikator für die Grammatik: gut 1000 Zeilen
+	// realistischer JUL-Code mit Parameterlisten, FunctionTypeLiterals, DictionaryTypes,
+	// Spread/Rest, Multiline und Interpolation. Fehler dort werden sonst still ignoriert.
+	it('core-lib parses without errors', () => {
+		expect(parseFile(coreLibPath).unchecked.errors).to.deep.equal([]);
+	});
+	// Die Erkennung darf nicht an coreLibPath hängen: der Sprachserver läuft aus dem out
+	// Verzeichnis der installierten Extension, geöffnet wird aber die Quelldatei im Repo.
+	it('isCoreLibPath erkennt die core-lib unabhängig vom Verzeichnis', () => {
+		expect(isCoreLibPath(coreLibPath)).to.equal(true);
+		expect(isCoreLibPath('C:\\Projects\\privat\\JUL\\jul-compiler\\src\\core-lib.jul')).to.equal(true);
+		expect(isCoreLibPath('/home/user/jul-compiler/src/core-lib.jul')).to.equal(true);
+		expect(isCoreLibPath('C:\\Projects\\privat\\yugioh\\src\\game-logic.jul')).to.equal(false);
+		expect(isCoreLibPath('dummy.jul')).to.equal(false);
 	});
 });

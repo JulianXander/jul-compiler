@@ -70,13 +70,32 @@ import {
 	setParent,
 	setParents,
 } from './parser-utils.js';
-import { dirname, extname, join } from 'path';
+import { basename, dirname, extname, join } from 'path';
 import { _parseJson } from '../runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
 import { existsSync } from 'fs';
 
-export const coreLibPath = join(executingDirectory, 'core-lib.jul');
+const coreLibFileName = 'core-lib.jul';
+export const coreLibPath = join(executingDirectory, coreLibFileName);
+
+/**
+ * Ist die Datei die core-lib?
+ * Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen Scope gecheckt
+ * werden, sonst stünde ihre Symboltabelle doppelt im Scope Stack.
+ *
+ * Erkennung über den Dateinamen und nicht über coreLibPath: der Sprachserver läuft aus dem out
+ * Verzeichnis der installierten Extension, im Editor wird aber die Quelldatei aus dem Repo
+ * geöffnet. Von der Extension aus ist deren Pfad nicht ableitbar, ein Pfadvergleich würde die
+ * Quelldatei also nie erkennen.
+ */
+export function isCoreLibPath(filePath: string): boolean {
+	// unter win32 sind Dateinamen case insensitiv
+	const fileName = process.platform === 'win32'
+		? basename(filePath).toLowerCase()
+		: basename(filePath);
+	return fileName === coreLibFileName;
+}
 
 /**
  * @throws Wirft Error wenn Datei nicht gelesen werden kann.
