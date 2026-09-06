@@ -31,6 +31,40 @@
 	?interpreter oder runtime benutzen
 	-vgl. type-checking-test.jul Zeile 50 vs 51 variable type
 	-statisch bekannt <=> type = primitive/collection
+-branching constant folding: zweig auswählen statt union, wenn der gebranchte wert feststeht
+	-feststehend <=> singleton type: integerLiteral, textLiteral, booleanLiteral, floatLiteral, typeOf
+	-die info liegt vor: x = 5 hat den typ 5, T = Integer hat den typ TypeOf(Integer)
+	-x = 5 gefolgt von x ? 1 => a; 5 => b liefert heute Or(a b) statt b
+	-erster treffer gewinnt, so wie _branch zur laufzeit
+	-nur falten wenn das matching entscheidbar ist, sonst weiter union.
+	 "nicht entscheidbar" darf nie zu "passt nicht" werden
+	-liefert den unerreichbaren branch mit, vgl checker case 'branching'
+	-für laufzeitwerte bleibt die union richtig: x: Integer kann 1 sein oder nicht
+?bedingte typen: eigener operator :? für branching über typen
+	-? kann das nicht: es liefert die union aller branch returnTypes und wählt nie einen zweig
+	-constant folding allein reicht auch nicht: das liefert die auswahl, nicht die relation
+	-gebraucht für arithmetik: subtract(Integer Integer) ist Integer, deklariert ist Rational
+	-matching als teilmenge, nicht als zuweisbarkeit eines werts.
+	 sonst matcht PositiveInteger nicht gegen Integer und fällt in den catchAll
+	-über unions verteilen, dann wird Rational - Integer zu Or(Integer Fraction)
+	-nicht auflösbarer typ => union aller zweig ergebnisse, nie "passt nicht"
+	-mehrere operanden als datenliteral, liest sich als wahrheitstabelle:
+		[A B] :?
+			[Integer Integer] => Integer
+			() => Fraction
+	-typfunktionen gibt es schon, vgl Without in der core-lib. nur die fallunterscheidung fehlt
+	?zweige liefern typen oder typwerte? F(Integer) liefert heute TypeOf(Integer)
+	-heute schon ausdrückbar, aber unlesbar, weil Never aus der Or herausfällt:
+	 Or(And(And(TypeOf(a) Integer) And(TypeOf(b) Integer)) And(Or(TypeOf(a) TypeOf(b)) Fraction))
+	-map arity löst das nicht, dafür bräuchte es mapped types
+-n-stellige And/Or in createNormalizedIntersectionType paarweise reduzieren
+	-die regeln greifen heute nur bei genau zwei choices
+	-And(TypeOf(a) TypeOf(b) Integer) bleibt sonst als knoten stehen statt zu Integer zu werden
+	-macht das Never idiom für bedingte typen erst lesbar
+?mapped types über tuples
+	-würde die checker sonderfälle getElement, lastElement, length, setElement, map ersetzen
+	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
+	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
 -examples sortieren, aufräumen, organisieren?
 -homepage
 	?deutsch vs englisch
