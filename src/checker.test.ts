@@ -131,6 +131,28 @@ a = 5`,
 			code: `t = Any => []
 t(1)`,
 		},
+		{
+			// Regression: Die Typverengung des gebranchten Namens im Branch-Scope übernahm die
+			// komplette Parameterliste der Branch-Funktion statt des Typs des gematchten Werts.
+			// Im catchAll-Branch () => ... wurde countdown dadurch zu () (empty).
+			// Siehe jul-examples/fibonacci/fibonacci.jul.
+			name: 'branch-narrowing-catch-all',
+			code: `g = (x: Integer) => x
+f = (countdown: Integer) =>
+	countdown ?
+		0 => 0
+		() => g(countdown)`,
+		},
+		{
+			// Dieselbe Ursache mit benanntem Branch-Parameter: countdown wird zu (y: Integer)
+			// statt zu Integer.
+			name: 'branch-narrowing-named-param',
+			code: `g = (x: Integer) => x
+f = (countdown: Integer) =>
+	countdown ?
+		0 => 0
+		(y: Integer) => g(countdown)`,
+		},
 	];
 
 describe('Checker', () => {
