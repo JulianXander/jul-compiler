@@ -367,10 +367,8 @@ f = (values: T) :> T =>
 		//#endregion generische Rückgabetypen
 		{
 			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
-			// Der type Zweig in getTypeError kannte julType 'type' nicht und meldete
-			// "Can not assign Type to Type." (core-lib.jul create$).
 			name: 'type-parameter-as-type-argument',
-			code: 'f = (ValueType: Type) :> Stream(ValueType) => nativeValue(§0§)',
+			code: 'f = (T: Type) => Stream(T)',
 		},
 		{
 			// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
