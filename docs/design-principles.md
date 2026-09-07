@@ -20,7 +20,7 @@ an `isRealObject` —, die Arity-Regel für `?(...myList)`, stille Leerwerte
 (`myStream ? (a) => a` bindet `()`).
 
 **Nichtlokale.** Auch eine statisch feste Regel ist Magie, wenn man zum Verstehen woanders
-hinsehen muss. `export default` hängt in [src/emitter.ts](src/emitter.ts) daran, ob *irgendwo
+hinsehen muss. `export default` hängt in [src/emitter.ts](../src/emitter.ts) daran, ob *irgendwo
 sonst* in der Datei eine Definition steht — dieselbe letzte Zeile ist mal Export, mal nicht, und
 man sieht es ihr nicht an.
 
@@ -50,7 +50,7 @@ ohne.
   fünf Sonderfällen.
 - **Kostet:** Umstellung der gesamten Codebasis. Die Klammer-Regel hat genau das ausgelöst und
   ein eigenes Migrationswerkzeug nötig gemacht
-  ([scripts/migrate-brackets.mjs](scripts/migrate-brackets.mjs)).
+  ([scripts/migrate-brackets.mjs](../scripts/migrate-brackets.mjs)).
 - **Entschied:** rund = Bindungsstelle, eckig = Daten — ausnahmslos, statt der vorherigen
   Mehrdeutigkeit. Ergebnis: `() => x` und `[] => x` bedeuten heute Verschiedenes, ohne dass eine
   Zusatzregel das erklären muss.
@@ -66,7 +66,7 @@ ein eigener Zweck zu geben, sodass es wieder zwei Sachen sind.
   aus `function-call.jul` ist und keine zweite Spread-Regel einführt.
 - **Kostet:** Bequemlichkeit im Einzelfall, und es erzeugt Arbeit an Altlasten, die niemanden
   stören. `() => x` und `Any => x` matchen beide jeden Wert und sind für die Typverengung
-  gleichwertig — in [TODO](TODO) steht dazu „nur noch eine Stilfrage". Nach diesem Prinzip ist es
+  gleichwertig — in [TODO](../TODO) steht dazu „nur noch eine Stilfrage". Nach diesem Prinzip ist es
   keine Stilfrage, sondern ein offener Punkt.
 - **Offen:** ob `(a: MyType) => …` und `MyType => …` immer äquivalent sind. Wenn ja, ist eine der
   beiden Formen zu viel.
@@ -85,7 +85,7 @@ zu „passt nicht" werden.
 - **Entschied:** Branching-Constant-Folding — nur falten, wenn das Matching entscheidbar ist,
   sonst weiter Union.
 
-Beleg: [TODO](TODO), Abschnitte zu Constant Folding und bedingten Typen.
+Beleg: [TODO](../TODO), Abschnitte zu Constant Folding und bedingten Typen.
 
 ### 5. Kein Feature, das nur Typen können
 
@@ -93,7 +93,7 @@ Alles, was für Typen gebraucht wird, wird zuerst als gewöhnlicher Wert bzw. ge
 versucht. Eine zweite Sprache neben der Sprache gibt es nicht.
 
 - **Verbietet:** Typkonstrukte mit eigener Syntax, solange eine Funktion in
-  [src/core-lib.jul](src/core-lib.jul) reicht. `Or`, `And`, `Not`, `TypeOf`, `Without` sind
+  [src/core-lib.jul](../src/core-lib.jul) reicht. `Or`, `And`, `Not`, `TypeOf`, `Without` sind
   normale Funktionen.
 - **Kostet:** Lesbarkeit an der Grenze. Bedingte Typen sind heute schon ausdrückbar, aber nur als
   `Or(And(And(TypeOf(a) Integer) …) …)` — unbenutzbar. Erst wenn ein realer Fall so weit
@@ -122,7 +122,7 @@ mehrzeiligen Block klammern oder abschließen muss, ist kein JUL-Konstrukt.
   in Option D nur den gebranchten Wert — die Branches bleiben im eingerückten Block darunter,
   ohne Abschluss.
 - **Kostet:** der Parser trägt `rows`, `rowIndex`, `columnIndex` und `indent` durch alle
-  Kombinatoren, und mehrzeilige Konstrukte (vgl. `multiline returntype parser` in [TODO](TODO))
+  Kombinatoren, und mehrzeilige Konstrukte (vgl. `multiline returntype parser` in [TODO](../TODO))
   sind einzeln zu bauen statt gratis zu bekommen.
 
 ### 8. Halbfertiger Code ist der Normalfall
@@ -183,12 +183,12 @@ Sie tun es regelmäßig. Die bisher praktizierte Rangfolge:
    nicht gibt.
 3. **Optionen ausschreiben, inklusive „alles bleibt"**, alle an demselben Beispielcode.
    Verworfene bleiben mit Begründung stehen.
-4. **An echtem Code auszählen** — yugioh (~5800 Zeilen) und [../jul-examples](../jul-examples).
+4. **An echtem Code auszählen** — yugioh (~5800 Zeilen) und [../jul-examples](../../jul-examples).
    Die Zahlen sagen, *was anzufassen ist*, nicht *was sich lohnt* (Prinzip 10).
 5. **Abhängigkeiten zu offenen Punkten prüfen.** Ein anderer Fix kann die Frage vorwegnehmen: bei
    Auto-Spread hat die fehlende Verengung für Feldpfade fast alle typbezogenen Argumente
    aufgelöst.
 6. **Empfehlung mit Begründung**, und benennen, welches Prinzip den Ausschlag gab.
 
-Große Fragen bekommen ein eigenes Dokument neben diesem, kleine bleiben in [TODO](TODO). Die
+Große Fragen bekommen ein eigenes Dokument neben diesem, kleine bleiben in [TODO](../TODO). Die
 Grenze ist praktisch: sobald es Optionen mit Kosten auf beiden Seiten gibt, lohnt das Dokument.

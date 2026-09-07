@@ -3,7 +3,7 @@
 Internes Arbeitsdokument. Zweck: den Umbau von `TypeInfo` und der Typ-Auflösung in eine Reihenfolge
 bringen, die einzeln committbar ist und sich für die geplanten LSP-Features nichts verbaut.
 
-Bezug: [design-principles.md](design-principles.md), [TODO](TODO) (Zeile 1: „refactor CompileTimeType
+Bezug: [design-principles.md](design-principles.md), [TODO](../TODO) (Zeile 1: „refactor CompileTimeType
 TypeInfo").
 
 ## Der Befund
