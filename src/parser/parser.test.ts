@@ -289,6 +289,31 @@ const expectedResults: {
 			name: 'function-call-multiline-argument',
 			code: 'myFunc(\n\t§someValue§\n)',
 		},
+		{
+			// Steht nach => gar nichts, gibt es keinen Wert für die Definition. Gegenstück in
+			// checker.test.ts: mit einer Kommentarzeile darunter parst das Funktionsliteral durch
+			// und hat einen leeren body.
+			name: 'function-without-body',
+			code: 'f = () =>',
+			errors: [
+				{
+					"code": ErrorCode.assignedValueMissingForDefinition,
+					"endColumnIndex": 4,
+					"endRowIndex": 0,
+					"message": "assignedValue missing for definition",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+				{
+					"code": ErrorCode.unparsedRestOfRow,
+					"endColumnIndex": 4,
+					"endRowIndex": 0,
+					"message": "multilineParser should parse until end of row",
+					"startColumnIndex": 4,
+					"startRowIndex": 0,
+				},
+			],
+		},
 		//#endregion Funktionen
 		{
 			name: 'branching-error',

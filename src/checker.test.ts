@@ -10,8 +10,6 @@ const expectedResults: {
 	code: string;
 	result?: ParseExpression[];
 	errors?: CompilerError[];
-	/** Erwartete Parse-Fehler. Ohne Angabe muss der Code fehlerfrei parsen. */
-	parseErrors?: CompilerError[];
 }[] = [
 		{
 			name: 'text-interpolation-reference-error',
@@ -494,33 +492,6 @@ a/2`,
 			name: 'index-on-list',
 			code: `f = (x: List(Integer)) => x/5`,
 		},
-		{
-			// Ein Index kleiner 1 ist ungültig, nicht "daneben" — der Parser meldet das bereits.
-			// Der Checker darf nicht zusätzlich dereferenceFailed melden.
-			name: 'index-zero-reports-once',
-			code: `a = [1 2]
-a/0`,
-			parseErrors: [
-				{
-					"code": ErrorCode.invalidIndexSyntax,
-					"endColumnIndex": 3,
-					"endRowIndex": 1,
-					"message": "Invalid index 0, indexes start at 1",
-					"startColumnIndex": 2,
-					"startRowIndex": 1,
-				},
-			],
-			errors: [
-				{
-					"code": ErrorCode.invalidIndexSyntax,
-					"endColumnIndex": 3,
-					"endRowIndex": 1,
-					"message": "Invalid index 0, indexes start at 1",
-					"startColumnIndex": 2,
-					"startRowIndex": 1,
-				},
-			],
-		},
 		//#endregion dereference
 		//#region Aufruf
 		{
@@ -609,6 +580,19 @@ g: Integer = f(3)`,
 g: Text = f(3)`,
 		},
 		{
+			// Ein Funktionsliteral, dessen body nur aus einem Kommentar besteht, ist ungültig -
+			// der Parser meldet das aber nicht, und der Checker wirft daran:
+			// "Cannot read properties of undefined (reading 'type')" in case 'functionLiteral',
+			// weil last(expression.body) undefined ist und das ! darüber hinwegtäuscht.
+			// Prinzip 8: halbfertiger Code ist der Normalfall, der Checker darf nicht werfen.
+			// Beim Tippen entsteht der Zustand bei jedem Funktionsliteral, und im Sprachserver
+			// fällt dann die Diagnostik für die ganze Datei aus.
+			// Vgl. jul-examples/ui/dialog/dialog.jul, das deshalb nicht gecheckt werden kann.
+			// Abgrenzung in parser.test.ts: function-without-body - ohne Folgezeile greift der Parser.
+			name: 'function-with-only-comment-body-does-not-throw',
+			code: 'f = () =>\n\t# TODO',
+		},
+		{
 			// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
 			// eines core-lib Namens weiterhin ein Fehler sein.
 			name: 'redefinition-of-core-lib-name-still-errors',
@@ -627,18 +611,28 @@ g: Text = f(3)`,
 	];
 
 describe('Checker', () => {
-	expectedResults.forEach(({ name, code, result, errors, parseErrors }) => {
+	expectedResults.forEach(({ name, code, result, errors }) => {
 		it(name ?? code, () => {
 			const parserResult = parseCode(code, 'dummy.jul');
 			checkTypes(parserResult, {});
 			// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
 			// unvollständigen Baum schlicht nichts zu melden hat.
-			expect(parserResult.unchecked.errors).to.deep.equal(parseErrors ?? []);
+			expect(parserResult.unchecked.errors).to.deep.equal([]);
 			expect(parserResult.checked?.errors).to.deep.equal(errors ?? []);
 			if (result) {
 				expect(parserResult.checked?.expressions).to.deep.equal(result);
 			}
 		});
+	});
+	// Ein Index kleiner 1 ist ungültig, nicht "daneben" - der Parser meldet das bereits
+	// (parser.test.ts: index-zero). Der Checker darf nicht zusätzlich dereferenceFailed melden.
+	// Eigener Test, weil die Tabelle oben fehlerfrei parsenden Code voraussetzt.
+	it('index-zero-reports-once', () => {
+		const parsed = parseCode('a = [1 2]\na/0', 'dummy.jul');
+		const parseErrors = parsed.unchecked.errors;
+		expect(parseErrors, 'Parse-Fehler erwartet').to.have.lengthOf(1);
+		checkTypes(parsed, {});
+		expect(parsed.checked!.errors).to.deep.equal(parseErrors);
 	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
