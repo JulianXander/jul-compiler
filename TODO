@@ -121,6 +121,12 @@
 	-würde die checker sonderfälle getElement, lastElement, length, setElement, map ersetzen
 	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
 	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
+-cross-file rename (language server)
+	-heute nicht gebaut (TODO in server.ts)
+	-fehlt: filePath an SymbolDefinition (Identität hängt an Objektidentität der definition)
+	-fehlt: reverse-index "wer importiert mich" (dependencies zeigt nur vorwärts)
+	-fehlt: behandlung des import-alias (destructuringField mit source)
+	-derselbe reverse-index wird für Find-References und Document Highlight gebraucht
 -fehlermeldungen für ungültige syntax verbessern, vermessen an 14 invaliden snippets
 	-"multilineParser should parse until end of row" ist die sammelmeldung: in 7 von 14 fällen
 	 das einzige, was der nutzer sieht, u.a. bei f(1 2 / a = / a = 1 2 / a = 0x10.
