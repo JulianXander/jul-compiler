@@ -26,6 +26,14 @@ export type CompilerErrorSeverity = 'error' | 'warning' | 'hint';
 /**
  * Nummern werden nie wiederverwendet, auch nicht nach dem Entfernen eines Fehlers -
  * sonst brechen Unterdrückungskommentare und Links in die Dokumentation.
+ *
+ * Ein neuer Code braucht drei Einträge, sonst ist er unvollständig:
+ * 1. hier im Enum,
+ * 2. in errorInfos darunter - der Mapped Type erzwingt das,
+ * 3. einen Abschnitt in jul-homepage/docs/docs/documentation/error-codes.md
+ *    (`### JUL<nr> — Titel {#jul<nr>}`, darunter `type` · `severity` · `Message` und ein Beispiel).
+ * Schritt 3 erzwingt kein Compiler, wird also am leichtesten vergessen - die Doku ist aber
+ * das, was der Nutzer zum Code in der Fehlermeldung findet.
  */
 export enum ErrorCode {
 	//#region 1000 syntax
@@ -103,6 +111,7 @@ export enum ErrorCode {
 	argumentTypeMismatch = 5050,
 	returnTypeMismatch = 5100,
 	branchIsNotFunction = 5150,
+	valueIsNotFunction = 5151,
 	dereferenceFailed = 5160,
 	//#endregion 5000 type: Typprüfung
 }
@@ -169,6 +178,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.argumentTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.returnTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.branchIsNotFunction]: { type: 'type', severity: 'error' },
+	[ErrorCode.valueIsNotFunction]: { type: 'type', severity: 'error' },
 	[ErrorCode.dereferenceFailed]: { type: 'type', severity: 'error' },
 };
 

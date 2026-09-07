@@ -443,6 +443,38 @@ a/0`,
 			],
 		},
 		//#endregion dereference
+		//#region Aufruf
+		{
+			// Ein Wert, der keine Funktion ist, kann nicht aufgerufen werden. Heute liefert
+			// getParamsType dafür Any, damit ist auch die Argumentprüfung wirkungslos und der
+			// Fehler bleibt still. Die Meldung folgt dem Muster von branchIsNotFunction.
+			// Der Fehler sitzt auf dem aufgerufenen Ausdruck, nicht auf dem ganzen Aufruf.
+			name: 'call-of-non-function',
+			code: `a = 1
+a(1)`,
+			errors: [
+				{
+					"code": ErrorCode.valueIsNotFunction,
+					"endColumnIndex": 1,
+					"endRowIndex": 1,
+					"message": "Expected a function to call.\nCan not assign 1 to Any :> Any.",
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Gegenprobe: der Aufruf einer Funktion darf nicht melden.
+			name: 'call-of-function',
+			code: `a = (x: Integer) => x
+a(1)`,
+		},
+		{
+			// Gegenprobe: bei Any kann der Checker nicht wissen, ob der Wert aufrufbar ist.
+			name: 'call-of-unknown-type',
+			code: `f = (a: Any) => a(1)`,
+		},
+		//#endregion Aufruf
 		{
 			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
 			name: 'type-parameter-as-type-argument',
