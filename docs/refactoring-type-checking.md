@@ -1,7 +1,11 @@
 # Aufräumung Type Checking
 
-Internes Arbeitsdokument. Zweck: den Umbau von `TypeInfo` und der Typ-Auflösung in eine Reihenfolge
-bringen, die einzeln committbar ist und sich für die geplanten LSP-Features nichts verbaut.
+Internes Arbeitsdokument mit begrenzter Lebensdauer: Nach Abschluss von Phase 2 wird es gelöscht,
+der bleibende Ertrag wandert in [design-principles.md](design-principles.md) und die offen
+gebliebenen Punkte in [TODO](../TODO).
+
+Zweck: den Umbau von `TypeInfo` und der Typ-Auflösung in eine Reihenfolge bringen, die einzeln
+committbar ist und sich für die geplanten LSP-Features nichts verbaut.
 
 Bezug: [design-principles.md](design-principles.md), [TODO](../TODO) (Zeile 1: „refactor CompileTimeType
 TypeInfo").
