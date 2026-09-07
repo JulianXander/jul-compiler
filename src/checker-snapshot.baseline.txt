@@ -1,0 +1,332 @@
+=== autocomplete.jul ===
+MyType: TypeOf([ 	field1: Integer 	someOtherField: Text 	function: () :> Text ])
+a: [ 	f1: 4 	f2: §asdf§ 	f3: () :> 4 ]
+myFn: ( 	par1: MyType 	par2: Integer ) :> Integer
+myValue: [field1: Any]
+  error 1151 at 10:2 Expected a nested key
+  error 1151 at 29:6 Expected a nested key
+  error 1050 at 35:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 2202 at 37:2 assignedValue missing for singleDictionaryField
+  error 1050 at 42:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 5000 at 33:1 Can not assign Empty to Text. | Invalid value for field someOtherField | Can not assign Empty to () :> Text. | Invalid value for field function
+  error 5050 at 40:1 Can not assign Empty to [ | 	field1: Integer | 	someOtherField: Text | 	function: () :> Text | ].
+  error 5050 at 49:1 Can not assign Empty to [ | 	field1: Integer | 	someOtherField: Text | 	function: () :> Text | ].
+=== bracketed-expression-example.jul ===
+inlineList: [1 4]
+inlineObj: [ 	a: 1 	b: 4 ]
+multiLineList: [1 2 5 Any]
+multiLineObj: Any
+someVar: [1 2 Any 4 5]
+  error 2401 at 52:4 Rest argument must be last.
+  error 4001 at 69:3 a is not defined.
+  error 4001 at 69:5 b is not defined.
+=== branching.jul ===
+myEmpty: Empty
+myFunction: (a: Integer) :> Empty
+myList: [1 2]
+myVal: 6
+=== cli/cli.jul ===
+cliArguments: Any
+=== console-progress/console-progress.jul ===
+progress$: Stream(Float)
+timer1$: Stream(Float)
+=== counter/counter.jul ===
+counter$: Stream(Float)
+=== fibonacci/fibonacci.jul ===
+fibonacci: (x: Integer) :> Any
+fibonacciHelper: ( 	countdown: Integer 	current: Integer 	previous: Integer ) :> Any
+test: Any
+=== fizz-buzz/fizz-buzz-recursive.jul ===
+divisibleBy: (divisor: And(Integer Not(0))) :> (dividend: Integer) :> Boolean
+fizzBuzz: (index: And(Integer Greater(0))) :> Empty
+=== fizz-buzz/fizz-buzz.jul ===
+divisibleBy: (divisor: And(Integer Not(0))) :> (dividend: Integer) :> Boolean
+=== function-call.jul ===
+MyType: TypeOf([ 	a: 1 	b: 2 ])
+aliasFn: ( 	a: Boolean 	b: Any ) :> Empty
+fn1: ( 	a: Boolean 	b: Text ) :> Empty
+fn2: ( 	b: Text 	a: Boolean ) :> Empty
+higherOrderFn: (fn: ( 	a: Boolean 	b: Text ) :> Empty) :> Empty
+myDictionary: [ 	a: 1 	b: 2 ]
+myDictionary1: [ 	b: 2 	a: 1 ]
+myFunction: ( 	a: Any 	b: Any ) :> Empty
+myFunction1: (a: MyType) :> Empty
+myFunction4: ( 	a: 1 	b: 2 ) :> Empty
+myList: [1 2]
+primitiveTypeFunction: Integer :> Empty
+restFunction: (...restParameter: Any) :> Empty
+restFunction2: (...restParameter: MyType) :> Empty
+typeFunction: MyType :> Empty
+  error 5050 at 48:1 Can not assign [[ | 	a: 1 | 	b: 2 | ]] to [ | 	a: 1 | 	b: 2 | ].
+  error 5003 at 53:25 Expected the params type to describe an argument collection. Did you mean [Integer]?
+  error 5050 at 54:1 Can not assign [1] to Integer.
+  error 5050 at 70:1 Can not assign dictionary to rest parameter
+=== http-request/http-request.jul ===
+=== import/file1.jul ===
+=== import/file2.jul ===
+MyType: TypeOf([hallo: Integer])
+logText: (value: Text) :> Empty
+someText: §test token 1§
+=== import/import.jul ===
+MyType: TypeOf([hallo: Integer])
+alias: (value: Text) :> Empty
+file2: [ 	someText: §test token 1§ 	logText: (value: Text) :> Empty 	MyType: TypeOf(MyType) ]
+javascriptImport: [ 	testfn1: (par1: Any) :> Any 	testfn2: (par1: Any) :> Any 	test: §hello js§ 	test2: 4f ]
+jsonImport: §hello json§
+someText: §test token 1§
+test1: [hallo: 1]
+typescriptImport: [ 	test: §hello ts§ 	test2: 4f 	testfn1: (par1: Any) :> Any 	testfn2: (par1: Any) :> Any ]
+valueImport: 15
+yamlImport: §hello yaml§
+  error 1151 at 20:3 Expected a nested key
+=== object-example.jul ===
+myDictValue1: 1
+myDictValue2: 1234
+myDictionary: [ 	a: 1 	b: 2 	c: 3 ]
+myDictionary2: [ 	a: 1 	b: [ 		b1: 1 		b2: 112344 		b3: 1234 	] 	c: 3 ]
+myDictionary3: [ 	a: 1 	b: 2 	c: 30 ]
+myDictionary4: [ 	a: 1 	b: [ 		b1: 1 		b2: 112344 		a: 1 		b: 2 		c: 3 		b3: 1234 	] 	c: 3 ]
+myList: [1 2 3]
+myList2: [1 [21 22 23] 3]
+myList3: [10 20 Any 30]
+myList4: [1 2 Any 4]
+myListValue: 1
+myListValue2: 21
+=== stream.jul ===
+combined$: Stream(Or(Empty List(Or(Float Integer))))
+mapped1$: Stream(Integer)
+mapped2$: Stream(Integer)
+source$: Stream(Float)
+  error 5050 at 1:11 Can not assign 2000 to Float.
+  error 4001 at 4:3 console is not defined.
+  error 5050 at 2:1 Parameter name mismatch. Got value but expected x
+  error 5050 at 7:36 Can not assign Float to Integer.
+  error 5050 at 7:12 Parameter name mismatch. Got value but expected count
+  error 4001 at 8:27 console is not defined.
+  error 5050 at 8:1 Parameter name mismatch. Got value but expected x
+  error 5050 at 10:36 Can not assign Float to Integer.
+  error 5050 at 10:12 Parameter name mismatch. Got value but expected count
+  error 4001 at 11:27 console is not defined.
+  error 5050 at 11:1 Parameter name mismatch. Got value but expected x
+  error 4001 at 14:28 console is not defined.
+  error 5050 at 14:1 Parameter name mismatch. Got value but expected x
+  error 4001 at 15:11 onCompleted is not defined.
+  error 4001 at 15:29 console is not defined.
+=== test1.jul ===
+a: Any
+  error 1011 at 2:11 Invalid index 0, indexes start at 1
+  error 1102 at 2:12 multilineParser should parse until end of row
+=== text-example.jul ===
+inline: §Hallo Welt§
+mitInterpolation: Text
+multiLine: Text
+multiLineHtml: Text
+pageSize: 10
+sql: Text
+table: §Customer§
+=== type-checking-test.jul ===
+t1: TypeOf(true)
+t2: TypeOf(And(Boolean Not(true)))
+t3: TypeOf(And(Boolean Not(true)))
+testAnd1: 4
+testAnd2: 5
+testAnd3: 6
+testAnd4: [ 	a: 4 	b: 5 ]
+testAnd5: [ 	a: 4 	b: 6 ]
+testBoolean1: true
+testBoolean2: 6
+testBooleanLiteral: 4
+testDictionary1: [a: §4§]
+testDictionary2: [a: 4]
+testDictionary3: Empty
+testDictionaryLiteral1: [a: 4]
+testDictionaryLiteral2: [a: 6]
+testDictionaryLiteral3: [ 	a: 4 	b: 6 ]
+testDictionaryLiteral3a: [ 	a: 4 	b: 6 ]
+testDictionaryLiteral4: [a: [b: 4]]
+testDictionaryLiteral5: [a: [b: 5]]
+testDictionaryLiteral6: [a: [b: 4f]]
+testDictionaryLiteral7: [a: 4f]
+testEmpty1: Empty
+testEmpty2: TypeOf(Empty)
+testEmpty3: [1]
+testEmptyLiteral1: Empty
+testEmptyLiteral2: 4
+testEmptyLiteral3: [4]
+testEmptyLiteral4: [a: 4]
+testFloat1: 6f
+testFloat2: 6
+testInteger1: 4
+testInteger2: 4f
+testIntegerLiteral1: 4
+testIntegerLiteral2: 5
+testList1: [§aa§]
+testList2: [§aa§ 4]
+testList3: Empty
+testNonZeroInteger1: -2
+testNonZeroInteger2: [ 	numerator: 35 	denominator: 10 ]
+testNot1: true
+testNot2: false
+testOr1: 4
+testOr2: 6
+testOr3: 6
+testText1: §§
+testText2: §hallo welt§
+testText3: 4
+testTuple1: [4f 1]
+testTuple2: [4f 1]
+testWithout1: false
+testWithout11: false
+testWithout2: true
+testWithout21: true
+  error 4000 at 34:1 testNonZeroInteger2 is already defined
+  error 5000 at 4:1 Can not assign TypeOf(Empty) to Empty.
+  error 5000 at 6:1 Can not assign [1] to Empty.
+  error 5000 at 10:1 Can not assign 4 to Empty.
+  error 5000 at 12:1 Can not assign [4] to Empty.
+  error 5000 at 14:1 Can not assign [a: 4] to Empty.
+  error 5000 at 18:1 Can not assign 5 to 4.
+  error 5000 at 20:1 Can not assign 4 to true.
+  error 5000 at 24:1 Can not assign 6 to Boolean.
+  error 5000 at 28:1 Can not assign 4f to Integer.
+  error 5000 at 32:1 Can not assign 0 to Not(0).
+  error 5000 at 34:1 Can not assign [ | 	numerator: 35 | 	denominator: 10 | ] to Integer.
+  error 5000 at 38:1 Can not assign 6 to Float.
+  error 5000 at 44:1 Can not assign 4 to Text.
+  error 5000 at 48:1 Can not assign 6 to 4. | Can not assign 6 to 5.
+  error 5000 at 54:1 Can not assign 5 to Never.
+  error 5000 at 56:1 Can not assign 6 to Never.
+  error 5000 at 66:1 Can not assign 6 to 5. | Invalid value for field b
+  error 5000 at 74:1 Can not assign true to Not(true).
+  error 5000 at 84:1 Can not assign true to Not(true).
+  error 5000 at 85:1 Can not assign true to Not(true).
+  error 5000 at 89:1 Can not assign 1 to 2.
+  error 5000 at 93:1 Can not assign 4 to Text.
+  error 5000 at 95:1 Can not assign Empty to List(Text).
+  error 5000 at 99:1 Can not assign 6 to 4. | Invalid value for field a
+  error 5000 at 118:1 Can not assign 5 to 4. | Invalid value for field b | Invalid value for field a
+  error 5000 at 120:1 Can not assign [b: 4f] to Float. | Invalid value for field a
+  error 5000 at 126:1 Can not assign 4 to Text. | Invalid value for field a
+  error 5000 at 128:1 Can not assign Empty to Dictionary(Text).
+  error 5050 at 132:1 Can not assign Empty to Integer. | Can not assign Empty to [ | 	numerator: Integer | 	denominator: Integer | ].
+=== type-function.jul ===
+BlubType: TypeOf([ 	a: List(Text) 	b: Or(Empty Text) ])
+arg1: true
+b: 2
+higherOrderFn: (lowerFn: ( 	arg1: Text 	arg2: Boolean ) :> Empty) :> Empty
+myA1: NO TYPE
+parameterFn2: (x: [ 	blobNames: List(Text) 	nextMarker: Or(Empty Text) ]) :> Empty
+paramterFn: ( 	blobNames: List(Text) 	nextMarker: Or(Empty Text) ) :> Empty
+typeFnLong: Any
+typeFnShort: BlubType :> Empty
+  error 2100 at 7:1 assignedValue missing for definition
+  error 1102 at 7:14 multilineParser should parse until end of row
+  error 2400 at 19:9 nestedReference is not a valid expression for parameter source.
+  error 1102 at 30:14 multilineParser should parse until end of row
+  error 1050 at 31:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1050 at 32:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1050 at 33:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 2101 at 35:1 spread not allowed for valueExpression
+  error 1102 at 35:17 multilineParser should parse until end of row
+  error 1050 at 36:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1050 at 37:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 5160 at 19:2 Failed to dereference myA1 in type [ | 	a: [ | 		a1: 1 | 		b1: 3 | 	] | 	b: 2 | ]
+  error 4003 at 24:28 arg1 is already defined in upper scope
+  error 5002 at 24:27 Can not assign ( | 	arg1: Text | 	arg2: Boolean | ) :> Empty to Type.
+  error 5050 at 27:1 Parameter name mismatch. Got arg1 but expected arg2
+=== type-switch.jul ===
+someVar: 32
+  error 4001 at 6:3 Number is not defined.
+=== types.jul ===
+Article: TypeOf([ 	name: Text 	price: Any 	color: Text ])
+Even: Any :> Boolean
+Number: Boolean
+ParserResult: (TypeParam: Text) :> Any :> Boolean
+addNums: (T: Boolean) :> ( 	num1: Boolean 	num2: Boolean ) :> [Boolean Boolean]
+myVar: 3
+myVarIsText: Any
+  error 1102 at 15:26 multilineParser should parse until end of row
+  error 1102 at 24:8 multilineParser should parse until end of row
+  error 1102 at 30:13 multilineParser should parse until end of row
+  error 1102 at 34:33 multilineParser should parse until end of row
+  error 1050 at 35:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1050 at 36:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1050 at 37:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1050 at 38:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1102 at 42:14 multilineParser should parse until end of row
+  error 1050 at 43:3 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1050 at 44:3 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1050 at 45:3 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
+  error 1102 at 50:14 multilineParser should parse until end of row
+  error 2103 at 48:1 definition not allowed for valueExpression
+  error 1000 at 59:23 Unexpected character: ) while looking for: (
+  error 1000 at 59:44 Unexpected character: ) while looking for: (
+  error 4000 at 8:1 myVar is already defined
+  error 4000 at 10:1 myVar is already defined
+  error 4000 at 29:1 myVar is already defined
+  error 4000 at 30:1 myVar is already defined
+  error 4000 at 40:1 addNums is already defined
+  error 4000 at 57:1 ParserResult is already defined
+  error 5000 at 8:1 Can not assign 4 to Text.
+  error 4001 at 11:9 TypeError is not defined.
+  error 5151 at 15:15 Expected a function to call. | Can not assign TypeOf(Text) to Any :> Any.
+  error 4002 at 15:20 myVar is used before it is defined.
+  error 4001 at 20:9 Decimal is not defined.
+  error 4001 at 26:13 Int32 is not defined.
+  error 4001 at 26:19 Int64 is not defined.
+  error 4001 at 26:39 Decimal is not defined.
+  error 4001 at 26:47 Real0 is not defined.
+  error 5050 at 26:10 Can not assign TypeOf(Integer) to Boolean. | Can not assign TypeOf(Float) to Boolean.
+  error 5000 at 30:1 Can not assign 3 to 4.
+  error 4001 at 34:18 T is not defined.
+  error 4001 at 34:26 T is not defined.
+  error 4001 at 34:32 T is not defined.
+  error 5100 at 41:2 Can not assign [Boolean Boolean] to Boolean.
+  error 4002 at 48:1 ParserResult is used before it is defined.
+  error 4001 at 58:2 x is not defined.
+  error 5151 at 59:7 Expected a function to call. | Can not assign Text to Any :> Any.
+  error 4001 at 59:17 x is not defined.
+  error 4001 at 59:19 type is not defined.
+  error 5151 at 59:25 Expected a function to call. | Can not assign TypeOf(List(Text)) to Any :> Any.
+  error 4001 at 59:36 x is not defined.
+  error 4001 at 59:38 errors is not defined.
+  error 4001 at 62:8 num is not defined.
+  error 4001 at 63:15 num is not defined.
+=== ui/dialog/dialog.jul ===
+THREW Cannot read properties of undefined (reading 'rawType')
+=== ui/dynamic-form/dynamic-form.jul ===
+body: Any
+booleanInput: Any
+htmlIf: Any
+inputValue$: Any
+label: Any
+numberInput: Any
+stackPanel: Any
+textInput: Any
+  error 3010 at 1:88 Unexpected extension for import: 
+  error 3010 at 1:88 Unexpected extension for import: 
+=== ui/dynamic-form/dynamic-form2.jul ===
+ageInput: Any
+body: Any
+booleanInput: Any
+data$: Stream(Or(Empty List(Any)))
+htmlIf: Any
+inputValue$: Any
+label: Any
+nameInput: Any
+numberInput: Any
+stackPanel: Any
+textInput: Any
+visibleInput: Any
+  error 3010 at 1:88 Unexpected extension for import: 
+  error 3010 at 1:88 Unexpected extension for import: 
+  error 5050 at 6:9 Can not assign dictionary to rest parameter
+  error 4001 at 29:3 button is not defined.
+  error 5160 at 32:15 Failed to dereference value in type Stream(Or(Empty List(Any)))
+=== ui/preserve-dom/main.jul ===
+addMessage: (message: Any) :> Any
+=== ui/todo-list/todo-list.jul ===
+addHtml: (html: Any) :> Any
+removeElement: (element: Any) :> Any
+subscribeEvent: (listener: Any) :> Any
+todoItemHtml: §<div>  	<input type="checkbox">  	<input>  	<button onclick="emit(this, 'delete')">x</button>  </div> §

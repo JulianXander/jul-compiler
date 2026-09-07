@@ -1,0 +1,3 @@
+inferType: 1982
+dereferenceNested: 5158
+getTypeError: 2179

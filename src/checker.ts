@@ -54,6 +54,30 @@ import { getCheckedEscapableName } from './parser/parser-utils.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
+//#region stats
+
+/**
+ * Zählt die Arbeit des Checkers, damit ein Umbau der Typauflösung messbar bleibt.
+ * Deterministisch, im Gegensatz zu einer Zeitmessung.
+ * Muss vor der core-lib Initialisierung stehen, die den Checker bereits benutzt.
+ */
+export const checkerStats = {
+	/** Bezugsgröße: inferierte Ausdrücke. */
+	inferType: 0,
+	/** Der eager Auflösungspass über jeden Typbaum. */
+	dereferenceNested: 0,
+	/** Relationsprüfungen inklusive Rekursion über Choices. */
+	getTypeError: 0,
+};
+
+export function resetCheckerStats(): void {
+	checkerStats.inferType = 0;
+	checkerStats.dereferenceNested = 0;
+	checkerStats.getTypeError = 0;
+}
+
+//#endregion stats
+
 const maxElementsPerLine = 5;
 
 const CompileTimeNonZeroInteger = createNormalizedIntersectionType([
@@ -197,9 +221,6 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
 		// da ParameterReference auf höhere Funktionen problematisch ist?
 		const parameterReference = createParameterReference(reference.name.name, foundSymbol.functionParameterIndex);
-		if (foundSymbol.functionRef === undefined) {
-			console.log('functionRef missing');
-		}
 		parameterReference.functionRef = foundSymbol.functionRef;
 		return {
 			type: parameterReference,
@@ -454,7 +475,6 @@ function findParameterSymbol(
 	const parameterName = expression.name.name;
 	const parameterSymbol = currentScope[parameterName];
 	if (!parameterSymbol) {
-		console.log(scopes);
 		throw new Error(`parameterSymbol ${parameterName} not found`);
 	}
 	return parameterSymbol;
@@ -672,6 +692,7 @@ function dereferenceParameterFromArgumentType(
  * Dereferenziert nestedReference und parameterReference über dereferenceParameterTypeFromFunctionRef rekursiv soweit wie möglich.
  */
 function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
+	checkerStats.dereferenceNested++;
 	switch (rawType.julType) {
 		case 'and': {
 			const rawChoices = rawType.ChoiceTypes;
@@ -893,6 +914,7 @@ function inferType(
 	 */
 	filePath: string,
 ): TypeInfo {
+	checkerStats.inferType++;
 	const errors = file.errors;
 	switch (expression.type) {
 		case 'binding':
@@ -2646,6 +2668,7 @@ export function getTypeError(
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
 ): TypeError | undefined {
+	checkerStats.getTypeError++;
 	if (targetType.julType === 'any') {
 		return undefined;
 	}

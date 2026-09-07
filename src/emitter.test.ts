@@ -40,22 +40,10 @@ const expectedResults: {
 	2n,
 ]`
 		},
-		// {
-		// 	code: '(\n\t1\n\t2\n)\n',
-		// 	result: [1, 2]
-		// },
 		{
 			code: 'someVar = 12',
 			result: 'export const someVar = 12n;'
 		},
-		// {
-		// 	code: 'someVar = (1 2)',
-		// 	result: [1, 2]
-		// },
-		// {
-		// 	code: 'someVar = (1 2)\ntest = 4',
-		// 	result: 4
-		// },
 		{
 			code: 'log()',
 			result: 'export default log()'
@@ -98,10 +86,11 @@ const expectedResults: {
 	{'a': 1n},
 )`
 		},
-		// {
-		// 	code: 'log(§hallo welt§)',
-		// 	result: null
-		// },
+		{
+			name: 'text-argument',
+			code: 'log(§hallo welt§)',
+			result: 'export default log(`hallo welt`)'
+		},
 		{
 			code: 'someVar/1/test',
 			result: 'export default someVar?.[1 - 1]?.[\'test\']'
@@ -131,66 +120,39 @@ const expectedResults: {
 	{},
 )`,
 		},
-		// {
-		// 	code: '(a b) =>\n\tlog(a)\n\tlog(b)',
-		// 	result: {
-		// 		type: 'functionLiteral',
-		// 		pure: true,
-		// 		params: {
-		// 			singleNames: [
-		// 				{
-		// 					type: 'name',
-		// 					name: 'a',
-		// 					source: undefined,
-		// 					typeGuard: undefined,
-		// 				},
-		// 				{
-		// 					type: 'name',
-		// 					name: 'b',
-		// 					source: undefined,
-		// 					typeGuard: undefined,
-		// 				}
-		// 			],
-		// 			rest: undefined
-		// 		},
-		// 		body: [
-		// 			{
-		// 				type: 'functionCall',
-		// 				functionReference: ['log'],
-		// 				params: {
-		// 					type: 'list',
-		// 					values: [{
-		// 						type: 'reference',
-		// 						names: ['a']
-		// 					}],
-		// 				},
-		// 			},
-		// 			{
-		// 				type: 'functionCall',
-		// 				functionReference: ['log'],
-		// 				params: {
-		// 					type: 'list',
-		// 					values: [{
-		// 						type: 'reference',
-		// 						names: ['b']
-		// 					}],
-		// 				},
-		// 			},
-		// 		]
-		// 	},
-		// },
-		// {
-		// 	code: '4 ?\n\t(a) => log(a)\n\t(b) => log(b)',
-		// 	result: 'null'
-		// },
-		// {
-		// 	code: 'test = 4\ntest ?\n\t(a:String) => log(a)\n\t(b) => log(b)',
-		// 	result: null
-		// },
-		// {
-		// 	code: 'fibonacci = (number:NonNegativeInteger) =>\n\tnumber ?\n\t\t(n:0) => 0\n\t\t(n:1) => 1\n\t\t(n) => add(fibonacci(subtract(n 2)) fibonacci(subtract(n 1)))\nfibonacci(12)',
-		// 	result: 144
-		// },
+		{
+			name: 'multiline-function-body',
+			code: '(a b) =>\n\tlog(a)\n\tlog(b)',
+			result: `export default _createFunction(
+	(a, b) => {
+		log(a)
+		return log(b)
+	},
+	{singleNames: [
+		{name: 'a'},
+		{name: 'b'},
+	]},
+)`,
+		},
+		{
+			name: 'branching',
+			code: '?(4)\n\t(a) => log(a)\n\t(b) => log(b)',
+			result: `export default _branch(
+	[4n],
+	_createFunction(
+		(a) => {
+			return log(a)
+		},
+		{singleNames: [{name: 'a'}]},
+	),
+	_createFunction(
+		(b) => {
+			return log(b)
+		},
+		{singleNames: [{name: 'b'}]},
+	),
+)`,
+		},
 		{
 			code: '[a: String]',
 			result: `export default {

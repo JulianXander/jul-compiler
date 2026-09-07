@@ -54,9 +54,12 @@ function expressionToJs(
 			if (!args) {
 				throw new Error('args missing in branching');
 			}
-			const delimiterJs = getRowDelimiterJs(indent);
-			return `_branch(${delimiterJs}${expressionToJs(args, indent)},${delimiterJs}${expression.branches.map(branch =>
-				expressionToJs(branch, indent)).join(`,${delimiterJs}`)},${delimiterJs})`;
+			const innerIndent = indent + 1;
+			const jsValues = [
+				expressionToJs(args, innerIndent),
+				...expression.branches.map(branch => expressionToJs(branch, innerIndent)),
+			];
+			return `_branch(${listValuesToJs(jsValues, indent)})`;
 		}
 		case 'definition': {
 			// export topLevel definitions
