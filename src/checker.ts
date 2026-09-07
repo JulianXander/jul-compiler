@@ -1210,7 +1210,7 @@ function inferType(
 				};
 			}
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file, filePath);
-			checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
+			const isFunction = checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
 			const functionType = functionExpression.typeInfo!.rawType;
 			const paramsType = getParamsType(functionType);
 			const args = expression.arguments;
@@ -1251,6 +1251,17 @@ function inferType(
 			});
 			//#endregion
 			setInferredType(args, scopes, parsedDocuments, folder, file, filePath);
+			if (!isFunction) {
+				// Die Argumente sind inferiert, ihre eigenen Fehler also gemeldet. Alles weitere
+				// setzt eine Funktion voraus: paramsType ist Any und die Argumentprüfung damit
+				// wirkungslos, und der Rückgabetyp darf nicht aus dem Namen abgeleitet werden —
+				// getReturnTypeFromFunctionCall verzweigt allein darüber und würde für
+				// length = 1 gefolgt von length([1 2]) den Typ 2 liefern.
+				return {
+					rawType: { julType: 'any' },
+					dereferencedType: { julType: 'any' },
+				};
+			}
 			const argsType = args.typeInfo!.rawType;
 			const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
@@ -3431,26 +3442,29 @@ function checkTypeGuardIsType(
  * aufgerufenen Ausdruck eines functionCalls — beide unterscheiden sich nur in code und message.
  * areArgsAssignableTo ist für any und unaufgelöste Referenzen bewusst permissiv, gemeldet wird
  * also nur, wenn es feststeht.
+ * Liefert false, wenn gemeldet wurde. Der Aufrufer kann daran erkennen, dass die weitere
+ * Auswertung als Funktion sinnlos ist.
  */
 function checkIsFunction(
 	expression: TypedExpression,
 	code: ErrorCode,
 	message: string,
 	errors: CompilerError[],
-): void {
+): boolean {
 	const anyFunctionType = createCompileTimeFunctionType({ julType: 'any' }, { julType: 'any' }, false);
 	const nonFunctionError = areArgsAssignableTo(undefined, expression.typeInfo!.dereferencedType, anyFunctionType);
-	if (!nonFunctionError) {
-		return;
+	if (nonFunctionError) {
+		errors.push({
+			code: code,
+			message: `${message}\n${nonFunctionError}`,
+			startRowIndex: expression.startRowIndex,
+			startColumnIndex: expression.startColumnIndex,
+			endRowIndex: expression.endRowIndex,
+			endColumnIndex: expression.endColumnIndex,
+		});
+		return false;
 	}
-	errors.push({
-		code: code,
-		message: `${message}\n${nonFunctionError}`,
-		startRowIndex: expression.startRowIndex,
-		startColumnIndex: expression.startColumnIndex,
-		endRowIndex: expression.endRowIndex,
-		endColumnIndex: expression.endColumnIndex,
-	});
+	return true;
 }
 
 //#region CompileTimeType guards

@@ -474,6 +474,32 @@ a(1)`,
 			name: 'call-of-unknown-type',
 			code: `f = (a: Any) => a(1)`,
 		},
+		{
+			// Argumente werden auch dann geprüft, wenn der Aufruf selbst ungültig ist —
+			// sie sind eigene Ausdrücke mit eigenen Fehlern.
+			name: 'call-of-non-function-still-checks-arguments',
+			code: `g = (x: Text) => x
+a = 1
+a(g(5))`,
+			errors: [
+				{
+					"code": ErrorCode.valueIsNotFunction,
+					"endColumnIndex": 1,
+					"endRowIndex": 2,
+					"message": "Expected a function to call.\nCan not assign 1 to Any :> Any.",
+					"startColumnIndex": 0,
+					"startRowIndex": 2,
+				},
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 6,
+					"endRowIndex": 2,
+					"message": "Can not assign 5 to Text.",
+					"startColumnIndex": 2,
+					"startRowIndex": 2,
+				},
+			],
+		},
 		//#endregion Aufruf
 		{
 			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
