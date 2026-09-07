@@ -1252,11 +1252,8 @@ function inferType(
 			//#endregion
 			setInferredType(args, scopes, parsedDocuments, folder, file, filePath);
 			if (!isFunction) {
-				// Die Argumente sind inferiert, ihre eigenen Fehler also gemeldet. Alles weitere
-				// setzt eine Funktion voraus: paramsType ist Any und die Argumentprüfung damit
-				// wirkungslos, und der Rückgabetyp darf nicht aus dem Namen abgeleitet werden —
-				// getReturnTypeFromFunctionCall verzweigt allein darüber und würde für
-				// length = 1 gefolgt von length([1 2]) den Typ 2 liefern.
+				// Die Argumente sind inferiert, ihre eigenen Fehler also gemeldet.
+				// Alles weitere setzt eine Funktion voraus und wäre wirkungslos.
 				return {
 					rawType: { julType: 'any' },
 					dereferencedType: { julType: 'any' },
