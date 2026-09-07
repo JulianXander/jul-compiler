@@ -586,6 +586,29 @@ a(g(5))`,
 			code: 'f = (T: Type) => Stream(T)',
 		},
 		{
+			// Der functionType wird mit Platzhaltern erzeugt, an die Parameter-Symbole gehängt und
+			// erst danach mutiert (ParamsType, ReturnType). Wer ihn zwischendurch auflöst - hier die
+			// Selbstreferenz im body - darf kein Zwischenergebnis festhalten.
+			name: 'recursive-function-return-type',
+			code: `f = (x: Integer) :> Integer =>
+	?(x)
+		[0] => 0
+		() => f(x)
+g: Integer = f(3)`,
+		},
+		{
+			// Noch nicht umgesetzt: bei der Selbstreferenz im body ist das Symbol f noch nicht
+			// inferiert, dereferenceType fällt auf Any zurück (vgl. das TODO dort) und der
+			// deklarierte Rückgabetyp wird nicht durchgereicht. g: Text = f(3) müsste melden.
+			// Der Test hält die Lücke fest — fängt er an zu melden, ist sie geschlossen.
+			name: 'recursive-function-return-type-is-not-checked',
+			code: `f = (x: Integer) :> Integer =>
+	?(x)
+		[0] => 0
+		() => f(x)
+g: Text = f(3)`,
+		},
+		{
 			// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
 			// eines core-lib Namens weiterhin ein Fehler sein.
 			name: 'redefinition-of-core-lib-name-still-errors',

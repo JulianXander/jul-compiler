@@ -64,15 +64,15 @@ export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 export const checkerStats = {
 	/** Bezugsgröße: inferierte Ausdrücke. */
 	inferType: 0,
-	/** Der eager Auflösungspass über jeden Typbaum. */
-	dereferenceNested: 0,
+	/** Auflösung von Platzhaltern für Prüfung und Anzeige. */
+	resolvePlaceholders: 0,
 	/** Relationsprüfungen inklusive Rekursion über Choices. */
 	getTypeError: 0,
 };
 
 export function resetCheckerStats(): void {
 	checkerStats.inferType = 0;
-	checkerStats.dereferenceNested = 0;
+	checkerStats.resolvePlaceholders = 0;
 	checkerStats.getTypeError = 0;
 }
 
@@ -244,7 +244,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 		};
 	}
 	return {
-		type: referencedType.rawType,
+		type: referencedType.type,
 		found: true,
 		foundSymbol: foundSymbol,
 		isBuiltIn: isBuiltIn,
@@ -689,14 +689,16 @@ function dereferenceParameterFromArgumentType(
 }
 
 /**
- * Dereferenziert nestedReference und parameterReference über dereferenceParameterTypeFromFunctionRef rekursiv soweit wie möglich.
+ * Löst parameterReference und nestedReference über ihre Deklaration rekursiv soweit wie möglich auf.
+ * Nicht Auflösbares wird zu Any — daher nur für Prüfung und Anzeige geeignet, nie zur
+ * Weiterverarbeitung eines Typs, der seine Generizität behalten muss.
  */
-function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
-	checkerStats.dereferenceNested++;
+export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
+	checkerStats.resolvePlaceholders++;
 	switch (rawType.julType) {
 		case 'and': {
 			const rawChoices = rawType.ChoiceTypes;
-			const dereferencedChoices = rawChoices.map(dereferenceNested);
+			const dereferencedChoices = rawChoices.map(resolvePlaceholders);
 			if (elementsEqual(rawChoices, dereferencedChoices)) {
 				return rawType;
 			}
@@ -704,39 +706,39 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'dictionary': {
 			const rawElement = rawType.ElementType;
-			const dereferencedElement = dereferenceNested(rawElement);
+			const dereferencedElement = resolvePlaceholders(rawElement);
 			if (dereferencedElement === rawElement) {
 				return rawType;
 			}
-			return createCompileTimeDictionaryType(dereferencedElement, rawType.name);
+			return createCompileTimeDictionaryType(dereferencedElement, rawType.aliasName);
 		}
 		case 'dictionaryLiteral': {
 			const rawFields = rawType.Fields;
-			const dereferencedFields = mapDictionary(rawFields, dereferenceNested);
+			const dereferencedFields = mapDictionary(rawFields, resolvePlaceholders);
 			if (fieldsEqual(rawFields, dereferencedFields)) {
 				return rawType;
 			}
-			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.expression, rawType.filePath, rawType.name);
+			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.declaration, rawType.aliasName);
 		}
 		case 'function': {
-			const dereferencedParamsType = dereferenceNested(rawType.ParamsType);
-			const dereferencedReturnType = dereferenceNested(rawType.ReturnType);
+			const dereferencedParamsType = resolvePlaceholders(rawType.ParamsType);
+			const dereferencedReturnType = resolvePlaceholders(rawType.ReturnType);
 			if (dereferencedParamsType === rawType.ParamsType
 				&& dereferencedReturnType === rawType.ReturnType) {
 				return rawType;
 			}
-			return createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure, rawType.name);
+			return createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure, rawType.aliasName);
 		}
 		case 'list': {
 			const rawElement = rawType.ElementType;
-			const dereferencedElement = dereferenceNested(rawElement);
+			const dereferencedElement = resolvePlaceholders(rawElement);
 			if (dereferencedElement === rawElement) {
 				return rawType;
 			}
 			return createCompileTimeListType(dereferencedElement);
 		}
 		case 'nestedReference': {
-			const dereferencedSource = dereferenceNested(rawType.source);
+			const dereferencedSource = resolvePlaceholders(rawType.source);
 			const dereferencedNested = dereferenceNestedKeyFromObject(rawType.nestedKey, dereferencedSource);
 			if (!dereferencedNested) {
 				return { julType: 'any' };
@@ -745,7 +747,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'not': {
 			const rawSource = rawType.SourceType;
-			const dereferencedSource = dereferenceNested(rawSource);
+			const dereferencedSource = resolvePlaceholders(rawSource);
 			if (dereferencedSource === rawSource) {
 				return rawType;
 			}
@@ -753,7 +755,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'or': {
 			const rawChoices = rawType.ChoiceTypes;
-			const dereferencedChoices = rawChoices.map(dereferenceNested);
+			const dereferencedChoices = rawChoices.map(resolvePlaceholders);
 			if (elementsEqual(rawChoices, dereferencedChoices)) {
 				return rawType;
 			}
@@ -767,7 +769,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 			if (dereferenced1 === rawType) {
 				return rawType;
 			}
-			const dereferenced2 = dereferenceNested(dereferenced1);
+			const dereferenced2 = resolvePlaceholders(dereferenced1);
 			return dereferenced2;
 		}
 		case 'parameters': {
@@ -784,7 +786,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'stream': {
 			const rawValue = rawType.ValueType;
-			const dereferencedValue = dereferenceNested(rawValue);
+			const dereferencedValue = resolvePlaceholders(rawValue);
 			if (dereferencedValue === rawValue) {
 				return rawType;
 			}
@@ -792,7 +794,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'tuple': {
 			const rawElements = rawType.ElementTypes;
-			const dereferencedElements = rawElements.map(dereferenceNested);
+			const dereferencedElements = rawElements.map(resolvePlaceholders);
 			if (elementsEqual(rawElements, dereferencedElements)) {
 				return rawType;
 			}
@@ -800,7 +802,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'typeOf': {
 			const rawValue = rawType.value;
-			const dereferencedValue = dereferenceNested(rawValue);
+			const dereferencedValue = resolvePlaceholders(rawValue);
 			if (dereferencedValue === rawValue) {
 				return rawType;
 			}
@@ -814,7 +816,7 @@ function dereferenceNested(rawType: CompileTimeType): CompileTimeType {
 function dereferenceNestedParameter(parameter: Parameter): Parameter {
 	return {
 		name: parameter.name,
-		type: parameter.type && dereferenceNested(parameter.type),
+		type: parameter.type && resolvePlaceholders(parameter.type),
 	};
 }
 
@@ -920,10 +922,7 @@ function inferType(
 		case 'binding':
 		case 'data':
 			// TODO?
-			return {
-				rawType: { julType: 'any' },
-				dereferencedType: { julType: 'any' },
-			};
+			return { type: { julType: 'any' } };
 		case 'branching': {
 			// union branch return types
 			// TODO conditional type?
@@ -960,10 +959,7 @@ function inferType(
 				return getReturnTypeFromFunctionType(branch.typeInfo);
 			});
 			const rawType = createNormalizedUnionType(branchReturnTypes);
-			return {
-				rawType: rawType,
-				dereferencedType: dereferenceNested(rawType),
-			};
+			return { type: rawType };
 		}
 		case 'definition': {
 			const value = expression.value;
@@ -974,20 +970,14 @@ function inferType(
 			let typeInfo: TypeInfo;
 			if (name in coreBuiltInSymbolTypes) {
 				const rawType = coreBuiltInSymbolTypes[name]!;
-				typeInfo = {
-					rawType: rawType,
-					dereferencedType: rawType,
-				};
+				typeInfo = { type: rawType };
 			}
 			else {
 				if (value?.typeInfo) {
 					typeInfo = value.typeInfo;
 				}
 				else {
-					typeInfo = {
-						rawType: { julType: 'any' },
-						dereferencedType: { julType: 'any' },
-					};
+					typeInfo = { type: { julType: 'any' } };
 				}
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
@@ -1003,7 +993,7 @@ function inferType(
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.typeInfo;
-				const assignmentError = typeGuardType && areArgsAssignableTo(undefined, typeInfo.dereferencedType, valueOf(typeGuardType.dereferencedType));
+				const assignmentError = typeGuardType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), valueOf(resolvePlaceholders(typeGuardType.type)));
 				if (assignmentError) {
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
@@ -1032,13 +1022,13 @@ function inferType(
 				checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
 				const referenceName = field.source?.name ?? fieldName;
 				const valueType: CompileTimeType = value?.typeInfo
-					? value.typeInfo.rawType
+					? value.typeInfo.type
 					: { julType: 'any' };
 				const fieldType = dereferenceNameFromObject(referenceName, valueType);
 				if (!fieldType) {
 					errors.push({
 						code: ErrorCode.dereferenceFailed,
-						message: `Failed to dereference ${referenceName} in type ${typeToString(value?.typeInfo?.dereferencedType ?? { julType: 'any' }, 0, 0)}`,
+						message: `Failed to dereference ${referenceName} in type ${typeToString(resolvePlaceholders(valueType), 0, 0)}`,
 						startRowIndex: field.startRowIndex,
 						startColumnIndex: field.startColumnIndex,
 						endRowIndex: field.endRowIndex,
@@ -1047,16 +1037,13 @@ function inferType(
 					return;
 				}
 				const symbol = currentScope[fieldName]!;
-				symbol.typeInfo = {
-					rawType: fieldType,
-					dereferencedType: dereferenceNested(fieldType)
-				};
+				symbol.typeInfo = { type: fieldType };
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
 					setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
-					const error = typeGuard.typeInfo && areArgsAssignableTo(undefined, fieldType, valueOf(typeGuard.typeInfo.dereferencedType));
+					const error = typeGuard.typeInfo && areArgsAssignableTo(undefined, fieldType, valueOf(resolvePlaceholders(typeGuard.typeInfo.type)));
 					if (error) {
 						errors.push({
 							code: ErrorCode.destructuringFieldTypeMismatch,
@@ -1069,10 +1056,7 @@ function inferType(
 					}
 				}
 			});
-			return {
-				rawType: { julType: 'any' },
-				dereferencedType: { julType: 'any' },
-			};
+			return { type: { julType: 'any' } };
 		}
 		case 'dictionary': {
 			const fieldTypes: CompileTimeDictionary = {};
@@ -1093,20 +1077,17 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = field.value?.typeInfo?.rawType ?? { julType: 'any' };
+						const fieldType = field.value?.typeInfo?.type ?? { julType: 'any' };
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
 						}
-						fieldSymbol.typeInfo = {
-							rawType: fieldType,
-							dereferencedType: dereferenceNested(fieldType),
-						};
+						fieldSymbol.typeInfo = { type: fieldType };
 						return;
 					}
 					case 'spread':
-						const valueType = value?.typeInfo?.rawType;
+						const valueType = value?.typeInfo?.type;
 						// TODO DictionaryType, ChoiceType etc ?
 						if (isDictionaryLiteralType(valueType)) {
 							const valueFieldTypes = valueType.Fields;
@@ -1125,18 +1106,14 @@ function inferType(
 				}
 			});
 			if (isUnknownType) {
-				return {
-					rawType: { julType: 'any' },
-					dereferencedType: { julType: 'any' },
-				};
+				return { type: { julType: 'any' } };
 			}
-			const name = getNameFromValue(expression);
-			const rawType = createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath, name);
-			return {
-				// typeExpression: expression,
-				rawType: rawType,
-				dereferencedType: dereferenceNested(rawType),
-			};
+			const aliasName = getNameFromValue(expression);
+			const rawType = createCompileTimeDictionaryLiteralType(
+				fieldTypes,
+				{ expression: expression, filePath: filePath },
+				aliasName);
+			return { type: rawType };
 		}
 		case 'dictionaryType': {
 			const fieldTypes: CompileTimeDictionary = {};
@@ -1153,16 +1130,13 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = valueOf(typeGuard.typeInfo?.rawType);
+						const fieldType = valueOf(typeGuard.typeInfo?.type);
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
 						}
-						fieldSymbol.typeInfo = {
-							rawType: fieldType,
-							dereferencedType: dereferenceNested(fieldType),
-						};
+						fieldSymbol.typeInfo = { type: fieldType };
 						return;
 					}
 					case 'spread':
@@ -1176,33 +1150,24 @@ function inferType(
 					}
 				}
 			});
-			const name = getNameFromValue(expression);
-			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(fieldTypes, expression, filePath, name));
-			return {
-				rawType: rawType,
-				dereferencedType: dereferenceNested(rawType),
-			};
+			const aliasName = getNameFromValue(expression);
+			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(
+				fieldTypes,
+				{ expression: expression, filePath: filePath },
+				aliasName));
+			return { type: rawType };
 		}
 		case 'empty':
-			return {
-				rawType: { julType: 'empty' },
-				dereferencedType: { julType: 'empty' },
-			};
+			return { type: { julType: 'empty' } };
 		case 'field':
 			// TODO?
-			return {
-				rawType: { julType: 'empty' },
-				dereferencedType: { julType: 'empty' },
-			};
+			return { type: { julType: 'empty' } };
 		case 'float': {
 			const rawType: CompileTimeType = {
 				julType: 'floatLiteral',
 				value: expression.value
 			};
-			return {
-				rawType: rawType,
-				dereferencedType: rawType,
-			};
+			return { type: rawType };
 		}
 		case 'fraction': {
 			const rawType = createCompileTimeDictionaryLiteralType({
@@ -1215,10 +1180,7 @@ function inferType(
 					value: expression.denominator,
 				},
 			});
-			return {
-				rawType: rawType,
-				dereferencedType: rawType,
-			};
+			return { type: rawType };
 		}
 		case 'functionCall': {
 			// TODO provide args types for conditional/generic/derived type?
@@ -1229,21 +1191,15 @@ function inferType(
 			}
 			const functionExpression = expression.functionExpression;
 			if (!functionExpression) {
-				return {
-					rawType: { julType: 'any' },
-					dereferencedType: { julType: 'any' },
-				};
+				return { type: { julType: 'any' } };
 			}
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file, filePath);
 			const isFunction = checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
-			const functionType = functionExpression.typeInfo!.rawType;
+			const functionType = functionExpression.typeInfo!.type;
 			const paramsType = getParamsType(functionType);
 			const args = expression.arguments;
 			if (!args) {
-				return {
-					rawType: { julType: 'any' },
-					dereferencedType: { julType: 'any' },
-				};
+				return { type: { julType: 'any' } };
 			}
 			//#region infer argument type bei function literal welches inline argument eines function calls ist
 			const prefixArgs = prefixArgument
@@ -1279,13 +1235,10 @@ function inferType(
 			if (!isFunction) {
 				// Die Argumente sind inferiert, ihre eigenen Fehler also gemeldet.
 				// Alles weitere setzt eine Funktion voraus und wäre wirkungslos.
-				return {
-					rawType: { julType: 'any' },
-					dereferencedType: { julType: 'any' },
-				};
+				return { type: { julType: 'any' } };
 			}
-			const argsType = args.typeInfo!.rawType;
-			const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
+			const argsType = args.typeInfo!.type;
+			const prefixArgumentType = prefixArgument?.typeInfo?.type;
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
 			if (assignArgsError) {
 				errors.push({
@@ -1300,10 +1253,7 @@ function inferType(
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, parsedDocuments, folder, errors);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, returnType);
-			return {
-				rawType: dereferencedReturnType,
-				dereferencedType: dereferenceNested(dereferencedReturnType),
-			};
+			return { type: dereferencedReturnType };
 		}
 		case 'functionLiteral': {
 			const ownSymbols = expression.symbols;
@@ -1319,7 +1269,7 @@ function inferType(
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
 			setInferredType(params, functionScopes, parsedDocuments, folder, file, filePath);
-			const paramsTypeValue = valueOf(params.typeInfo!.rawType);
+			const paramsTypeValue = valueOf(params.typeInfo!.type);
 			checkParamsTypeIsCollection(params, errors);
 			functionType.ParamsType = paramsTypeValue;
 			//#region narrowed type symbol für branching
@@ -1336,8 +1286,7 @@ function inferType(
 					}
 					// branching.args wird in case 'branching' vor den branches inferiert
 					const branchedTypeInfo = argument.typeInfo ?? branchedSymbol.typeInfo;
-					const branchedRawType: CompileTimeType = branchedTypeInfo?.rawType ?? { julType: 'any' };
-					const branchedDereferencedType: CompileTimeType = branchedTypeInfo?.dereferencedType ?? { julType: 'any' };
+					const branchedRawType: CompileTimeType = branchedTypeInfo?.type ?? { julType: 'any' };
 					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex);
 					// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
 					const previousBranchValueType = getPreviousBranchArgumentType(branching, expression, argumentIndex);
@@ -1345,17 +1294,13 @@ function inferType(
 						&& !previousBranchValueType) {
 						return;
 					}
-					const branchDereferencedType = branchRawType
-						&& (getBranchArgumentType(valueOf(params.typeInfo!.dereferencedType), argumentIndex)
-							?? dereferenceNested(branchRawType));
 					// TODO narrowed Hinweis in description?
 					ownSymbols[branchedName] = {
 						...branchedSymbol,
 						functionParameterIndex: undefined,
 						// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
 						typeInfo: {
-							rawType: narrowBranchedType(branchedRawType, branchRawType, previousBranchValueType),
-							dereferencedType: narrowBranchedType(branchedDereferencedType, branchDereferencedType, previousBranchValueType),
+							type: narrowBranchedType(branchedRawType, branchRawType, previousBranchValueType),
 						},
 					};
 				});
@@ -1368,7 +1313,7 @@ function inferType(
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file, filePath);
-				const error = areArgsAssignableTo(undefined, inferredReturnType.dereferencedType, valueOf(declaredReturnType.typeInfo!.dereferencedType));
+				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType.type), valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type)));
 				if (error) {
 					errors.push({
 						code: ErrorCode.returnTypeMismatch,
@@ -1380,11 +1325,8 @@ function inferType(
 					});
 				}
 			}
-			functionType.ReturnType = inferredReturnType.rawType;
-			return {
-				rawType: functionType,
-				dereferencedType: dereferenceNested(functionType),
-			};
+			functionType.ReturnType = inferredReturnType.type;
+			return { type: functionType };
 		}
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
@@ -1398,27 +1340,21 @@ function inferType(
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
 			setInferredType(params, functionScopes, parsedDocuments, folder, file, filePath);
-			functionType.ParamsType = valueOf(params.typeInfo!.rawType);
+			functionType.ParamsType = valueOf(params.typeInfo!.type);
 			checkParamsTypeIsCollection(params, errors);
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file, filePath);
-			const inferredReturnType = expression.returnType.typeInfo!.rawType;
+			const inferredReturnType = expression.returnType.typeInfo!.type;
 			functionType.ReturnType = valueOf(inferredReturnType);
 			const rawType = createCompileTimeTypeOfType(functionType);
-			return {
-				rawType: rawType,
-				dereferencedType: dereferenceNested(rawType),
-			};
+			return { type: rawType };
 		}
 		case 'integer': {
 			const rawType: CompileTimeType = {
 				julType: 'integerLiteral',
 				value: expression.value,
 			};
-			return {
-				rawType: rawType,
-				dereferencedType: rawType,
-			};
+			return { type: rawType };
 		}
 		case 'list': {
 			// TODO spread elements
@@ -1434,38 +1370,29 @@ function inferType(
 					// TODO flatten spread tuple value type
 					return { julType: 'any' };
 				}
-				return element.typeInfo!.rawType;
+				return element.typeInfo!.type;
 			}));
-			return {
-				rawType: rawType,
-				dereferencedType: dereferenceNested(rawType),
-			};
+			return { type: rawType };
 		}
 		case 'nestedReference': {
 			const source = expression.source;
 			setInferredType(source, scopes, parsedDocuments, folder, file, filePath);
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
-				return {
-					rawType: { julType: 'any' },
-					dereferencedType: { julType: 'any' },
-				};
+				return { type: { julType: 'any' } };
 			}
 			switch (nestedKey.type) {
 				case 'index': {
 					// Ein ungültiger Index kann nichts dereferenzieren. Der Parser hat ihn schon
 					// gemeldet, hier also gar nicht erst nachsehen.
 					if (nestedKey.name < 1) {
-						return {
-							rawType: { julType: 'any' },
-							dereferencedType: { julType: 'any' },
-						};
+						return { type: { julType: 'any' } };
 					}
-					const sourceType = source.typeInfo!.dereferencedType;
+					const sourceType = resolvePlaceholders(source.typeInfo!.type);
 					// Der rawType kann eine Form sein, die dereferenceIndexFromObject nicht
 					// behandelt, z.B. das and aus der Verengung eines branches. Dann auf dem
 					// aufgelösten Typ nachsehen, bevor der Index als daneben gilt.
-					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.typeInfo!.rawType)
+					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.typeInfo!.type)
 						?? dereferenceIndexFromObject(nestedKey.name, sourceType);
 					if (!dereferencedType) {
 						// Nur melden, wenn die Länge feststeht
@@ -1480,30 +1407,21 @@ function inferType(
 							});
 						}
 						// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
-						return {
-							rawType: { julType: 'any' },
-							dereferencedType: { julType: 'any' },
-						};
+						return { type: { julType: 'any' } };
 					}
-					return {
-						rawType: dereferencedType,
-						dereferencedType: dereferenceNested(dereferencedType),
-					};
+					return { type: dereferencedType };
 				}
 				case 'name':
 				case 'text': {
 					const fieldName = getCheckedEscapableName(nestedKey);
 					if (!fieldName) {
-						return {
-							rawType: { julType: 'any' },
-							dereferencedType: { julType: 'any' },
-						};
+						return { type: { julType: 'any' } };
 					}
-					const sourceType = source.typeInfo!.dereferencedType;
+					const sourceType = resolvePlaceholders(source.typeInfo!.type);
 					// Der rawType kann eine Form sein, die dereferenceNameFromObject nicht behandelt,
 					// z.B. das and aus der Verengung eines branches. Dann auf dem aufgelösten Typ
 					// nachsehen, bevor das Feld als fehlend gilt.
-					const dereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.rawType)
+					const dereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.type)
 						?? dereferenceNameFromObject(fieldName, sourceType);
 					if (!dereferencedType) {
 						// Nur melden, wenn der Quelltyp seine Feldmenge kennt. Sonst würde aus
@@ -1520,15 +1438,9 @@ function inferType(
 							});
 						}
 						// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
-						return {
-							rawType: { julType: 'any' },
-							dereferencedType: { julType: 'any' },
-						};
+						return { type: { julType: 'any' } };
 					}
-					return {
-						rawType: dereferencedType,
-						dereferencedType: dereferenceNested(dereferencedType),
-					};
+					return { type: dereferencedType };
 				}
 				default: {
 					const assertNever: never = nestedKey;
@@ -1545,17 +1457,14 @@ function inferType(
 			expression.values.forEach(element => {
 				const typedExpression = element.value;
 				setInferredType(typedExpression, scopes, parsedDocuments, folder, file, filePath);
-				const inferredType = typedExpression.typeInfo?.rawType;
+				const inferredType = typedExpression.typeInfo?.type;
 				// TODO
 				if (isDictionaryType(inferredType)
 					|| isDictionaryLiteralType(inferredType)) {
 					hasDictionary = true;
 				}
 			});
-			return {
-				rawType: { julType: 'any' },
-				dereferencedType: { julType: 'any' },
-			};
+			return { type: { julType: 'any' } };
 		}
 		case 'parameter': {
 			const typeGuard = expression.typeGuard;
@@ -1577,28 +1486,25 @@ function inferType(
 				const functionExpression = functionCall.functionExpression;
 				const args = functionCall.arguments;
 				if (functionExpression && args) {
-					const functionType = functionExpression.typeInfo!.rawType;
+					const functionType = functionExpression.typeInfo!.type;
 					const prefixArgument = functionCall.prefixArgument;
 					// TODO rest berücksichtigen
 					// const paramIndex = expression.parent.singleFields.indexOf(expression);
-					const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
+					const prefixArgumentType = prefixArgument?.typeInfo?.type;
 					// argsType.typeInfo ist hier noch nicht gesetzt, denn der aktuelle parameter befindet sich in einem arg
 					// daher die typeInfo aus den values nehmen und vorläufigen argsType konstruieren (typeInfo ist bei vorherigen args schon gesetzt)
 					const argsType: CompileTimeType = args.type === 'list'
-						? createCompileTimeTupleType(args.values.map(value => (value as ParseExpressionBase).typeInfo?.rawType ?? { julType: 'any' }))
+						? createCompileTimeTupleType(args.values.map(value => (value as ParseExpressionBase).typeInfo?.type ?? { julType: 'any' }))
 						: { julType: 'any' };
 					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, inferredTypeFromCall);
 				}
 			}
 			//#endregion
-			const typeGuardType = typeGuard?.typeInfo?.rawType;
+			const typeGuardType = typeGuard?.typeInfo?.type;
 			const inferredType = dereferencedTypeFromCall ?? valueOf(typeGuardType);
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
-			const typeInfo: TypeInfo = {
-				rawType: inferredType,
-				dereferencedType: dereferenceNested(inferredType),
-			};
+			const typeInfo: TypeInfo = { type: inferredType };
 			parameterSymbol.typeInfo = typeInfo;
 			return typeInfo;
 		}
@@ -1615,18 +1521,15 @@ function inferType(
 				expression.singleFields.map(field => {
 					return {
 						name: field.source ?? field.name.name,
-						type: field.typeInfo?.rawType
+						type: field.typeInfo?.type
 					};
 				}),
 				rest && {
 					name: rest.name.name,
-					type: rest.typeInfo?.rawType
+					type: rest.typeInfo?.type
 				},
 			);
-			return {
-				rawType: rawType,
-				dereferencedType: dereferenceNested(rawType),
-			};
+			return { type: rawType };
 		}
 		case 'reference': {
 			const {
@@ -1662,10 +1565,7 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			return {
-				rawType: type,
-				dereferencedType: dereferenceNested(type),
-			};
+			return { type: type };
 		}
 		case 'text': {
 			// TODO string template type?
@@ -1676,20 +1576,14 @@ function inferType(
 					julType: 'textLiteral',
 					value: expression.values.map(part => part.value).join('\n'),
 				};
-				return {
-					rawType: rawType,
-					dereferencedType: rawType,
-				};
+				return { type: rawType };
 			}
 			expression.values.forEach(part => {
 				if (part.type !== 'textToken') {
 					setInferredType(part, scopes, parsedDocuments, folder, file, filePath);
 				}
 			});
-			return {
-				rawType: { julType: 'text' },
-				dereferencedType: { julType: 'text' },
-			};
+			return { type: { julType: 'text' } };
 		}
 		default: {
 			const assertNever: never = expression;
@@ -1715,8 +1609,8 @@ function getReturnTypeFromFunctionCall(
 	errors: CompilerError[],
 ): CompileTimeType {
 	const prefixArgument = functionCall.prefixArgument;
-	const prefixArgumentType = prefixArgument?.typeInfo?.rawType;
-	const argsType = functionCall.arguments?.typeInfo?.rawType ?? { julType: 'any' };
+	const prefixArgumentType = prefixArgument?.typeInfo?.type;
+	const argsType = functionCall.arguments?.typeInfo?.type ?? { julType: 'any' };
 	// TODO statt functionname functionref value/inferred type prüfen?
 	if (functionExpression.type === 'reference') {
 		const functionName = functionExpression.name.name;
@@ -1740,7 +1634,7 @@ function getReturnTypeFromFunctionCall(
 				if (Object.keys(importedFile.symbols).length) {
 					const importedTypes = mapDictionary(importedFile.symbols, symbol => {
 						const symbolType: CompileTimeType = symbol.typeInfo
-							? symbol.typeInfo.rawType
+							? symbol.typeInfo.type
 							: { julType: 'any' };
 						return symbolType;
 					});
@@ -1757,7 +1651,7 @@ function getReturnTypeFromFunctionCall(
 					return { julType: 'any' };
 				}
 				return lastExpression.typeInfo
-					? lastExpression.typeInfo.rawType
+					? lastExpression.typeInfo.type
 					: { julType: 'any' };
 			}
 			// case 'nativeFunction': {
@@ -1788,13 +1682,13 @@ function getReturnTypeFromFunctionCall(
 			// }
 			case 'getElement': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const dereferencedArgTypes = argTypes?.map(dereferenceNested);
+				const dereferencedArgTypes = argTypes?.map(resolvePlaceholders);
 				return getElementFromTypes(dereferencedArgTypes);
 			}
 			case 'lastElement': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const dereferencedArgType = argTypes?.length
-					? dereferenceNested(argTypes[0]!)
+					? resolvePlaceholders(argTypes[0]!)
 					: undefined;
 				return getLastElementFromType(dereferencedArgType);
 			}
@@ -1810,7 +1704,7 @@ function getReturnTypeFromFunctionCall(
 				// ist das genauer als der deklarierte Typ, sonst trägt die Deklaration.
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const valuesType = argTypes?.length
-					? dereferenceNested(argTypes[0]!)
+					? resolvePlaceholders(argTypes[0]!)
 					: undefined;
 				if (valuesType?.julType !== 'tuple') {
 					break;
@@ -1823,7 +1717,7 @@ function getReturnTypeFromFunctionCall(
 			}
 			case 'setElement': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const dereferencedArgTypes = argTypes?.map(dereferenceNested);
+				const dereferencedArgTypes = argTypes?.map(resolvePlaceholders);
 				return setElementFromTypes(dereferencedArgTypes);
 			}
 			case 'And': {
@@ -2507,7 +2401,7 @@ function getPreviousBranchArgumentType(
 	}
 	const previousValueTypes: CompileTimeType[] = [];
 	for (const previousBranch of branching.branches.slice(0, branchIndex)) {
-		const previousParamsType = getParamsType(previousBranch.typeInfo?.dereferencedType);
+		const previousParamsType = getParamsType(previousBranch.typeInfo && resolvePlaceholders(previousBranch.typeInfo.type));
 		const previousValueType = getBranchArgumentType(previousParamsType, argumentIndex);
 		if (!previousValueType
 			|| previousValueType.julType === 'any') {
@@ -2548,7 +2442,7 @@ function checkParamsTypeIsCollection(
 	if (params.type === 'parameters') {
 		return;
 	}
-	const paramsType = valueOf(params.typeInfo?.dereferencedType);
+	const paramsType = valueOf(params.typeInfo && resolvePlaceholders(params.typeInfo.type));
 	if (!isDefinitelyNotCollectionType(paramsType)) {
 		return;
 	}
@@ -2696,7 +2590,7 @@ export function getTypeError(
 				// Kein einzelner choice reicht. Die Schnittmenge kann trotzdem passen, sichtbar
 				// wird das aber erst nach dem Auflösen: And(value Not(Empty)) mit
 				// value: Or([] Integer) ist Integer, kein einzelner choice sagt das.
-				const dereferencedArgumentsType = dereferenceNested(argumentsType);
+				const dereferencedArgumentsType = resolvePlaceholders(argumentsType);
 				if (dereferencedArgumentsType !== argumentsType) {
 					return getTypeError(prefixArgumentType, dereferencedArgumentsType, targetType);
 				}
@@ -3251,8 +3145,8 @@ function typeErrorToString(typeError: TypeError): string {
 
 // TODO expand ReferenceType 1 level deep?
 export function typeToString(type: CompileTimeType, indent: number, depth: number): string {
-	if (depth && type.name) {
-		return type.name;
+	if (depth && type.aliasName) {
+		return type.aliasName;
 	}
 	switch (type.julType) {
 		case 'and':
@@ -3419,7 +3313,7 @@ function getReturnTypeFromFunctionType(possibleFunctionType: TypeInfo | undefine
 	if (!possibleFunctionType) {
 		return { julType: 'any' };
 	}
-	const rawType = possibleFunctionType.rawType;
+	const rawType = possibleFunctionType.type;
 	if (isFunctionType(rawType)) {
 		return rawType.ReturnType;
 	}
@@ -3490,7 +3384,7 @@ function checkTypeGuardIsType(
 	typeGuard: ParseValueExpression,
 	errors: CompilerError[],
 ): void {
-	const typeGuardType = typeGuard.typeInfo!.dereferencedType;
+	const typeGuardType = resolvePlaceholders(typeGuard.typeInfo!.type);
 	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, { julType: 'type' });
 	if (typeGuardTypeError) {
 		errors.push({
@@ -3519,7 +3413,7 @@ function checkIsFunction(
 	errors: CompilerError[],
 ): boolean {
 	const anyFunctionType = createCompileTimeFunctionType({ julType: 'any' }, { julType: 'any' }, false);
-	const nonFunctionError = areArgsAssignableTo(undefined, expression.typeInfo!.dereferencedType, anyFunctionType);
+	const nonFunctionError = areArgsAssignableTo(undefined, resolvePlaceholders(expression.typeInfo!.type), anyFunctionType);
 	if (nonFunctionError) {
 		errors.push({
 			code: code,

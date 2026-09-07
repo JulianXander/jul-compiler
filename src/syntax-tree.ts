@@ -441,16 +441,12 @@ export interface Index extends PositionedExpressionBase {
 //#region CompileTimeType
 
 export interface TypeInfo {
-	// symbol?: SymbolDefinition;
-	// TODO?
-	// filePath: string;
-	// TODO?
-	// typeExpression?: ParseValueExpression;
-	rawType: CompileTimeType;
 	/**
-	 * rawType mit aufgelösten References, ParameterReferences.
+	 * Der Typ mit intakten Platzhaltern (parameterReference, nestedReference).
+	 * Für Prüfung und Anzeige stattdessen resolvePlaceholders() aufrufen - das löst die Platzhalter
+	 * auf, wirft dabei aber Nicht-Auflösbares auf Any.
 	 */
-	dereferencedType: CompileTimeType;
+	type: CompileTimeType;
 }
 
 export interface CompileTimeDictionary { [key: string]: CompileTimeType; }
@@ -462,9 +458,23 @@ export type CompileTimeCollection =
 
 interface CompileTimeTypeBase {
 	/**
-	 * Der Name der Definition, wenn der Typ als Wert einer Definition verwendet wird.
+	 * Der Name der Definition, unter der der Typ an dieser Stelle geschrieben wurde.
+	 * Gilt pro Schreibstelle und wird beim Auflösen verworfen, wenn der Typ ein anderer wird.
 	 */
-	name?: string;
+	aliasName?: string;
+	/**
+	 * Woher die Struktur des Typs stammt. Bleibt über Auflösungen hinweg erhalten und ist die
+	 * einzige Brücke vom Typ zurück zu Symbolen, Descriptions und Positionen.
+	 */
+	declaration?: TypeDeclaration;
+}
+
+export interface TypeDeclaration {
+	expression: ParseDictionaryTypeLiteral | ParseDictionaryLiteral;
+	/**
+	 * Leerstring, wenn builtin.
+	 */
+	filePath: string;
 }
 
 export type CompileTimeType =
@@ -599,25 +609,18 @@ export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTim
 export interface CompileTimeDictionaryLiteralType extends CompileTimeTypeBase {
 	readonly julType: 'dictionaryLiteral';
 	Fields: CompileTimeDictionary;
-	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral;
-	/**
-	 * Leerstring, wenn builtin.
-	 */
-	filePath?: string;
 }
 
 export function createCompileTimeDictionaryLiteralType(
 	Fields: CompileTimeDictionary,
-	expression?: ParseDictionaryTypeLiteral | ParseDictionaryLiteral,
-	filePath?: string,
-	name?: string,
+	declaration?: TypeDeclaration,
+	aliasName?: string,
 ): CompileTimeDictionaryLiteralType {
 	return {
 		julType: 'dictionaryLiteral',
 		Fields: Fields,
-		expression: expression,
-		filePath: filePath,
-		name: name,
+		declaration: declaration,
+		aliasName: aliasName,
 	};
 }
 
@@ -628,12 +631,12 @@ export interface CompileTimeDictionaryType extends CompileTimeTypeBase {
 
 export function createCompileTimeDictionaryType(
 	ElementType: CompileTimeType,
-	name?: string,
+	aliasName?: string,
 ): CompileTimeDictionaryType {
 	return {
 		julType: 'dictionary',
 		ElementType: ElementType,
-		name: name,
+		aliasName: aliasName,
 	};
 }
 
@@ -648,14 +651,14 @@ export function createCompileTimeFunctionType(
 	ParamsType: CompileTimeType,
 	ReturnType: CompileTimeType,
 	pure: boolean,
-	name?: string,
+	aliasName?: string,
 ): CompileTimeFunctionType {
 	return {
 		julType: 'function',
 		ParamsType: ParamsType,
 		ReturnType: ReturnType,
 		pure: pure,
-		name: name,
+		aliasName: aliasName,
 	};
 }
 

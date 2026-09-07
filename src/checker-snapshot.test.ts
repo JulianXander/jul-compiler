@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { existsSync } from 'fs';
 import { basename, join, relative, resolve } from 'path';
 
-import { checkerStats, checkTypes, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
+import { resolvePlaceholders, checkerStats, checkTypes, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
 import { parseCode } from './parser/parser.js';
 import { ParsedFile } from './syntax-tree.js';
 
@@ -77,7 +77,7 @@ function snapshotFile(filePath: string): string[] {
 	Object.keys(checked.symbols).sort().forEach(name => {
 		const typeInfo = checked.symbols[name]!.typeInfo;
 		const typeString = typeInfo
-			? typeToString(typeInfo.dereferencedType, 0, 0)
+			? typeToString(resolvePlaceholders(typeInfo.type), 0, 0)
 			: 'NO TYPE';
 		lines.push(`${name}: ${typeString.replaceAll('\n', ' ')}`);
 	});

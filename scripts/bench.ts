@@ -67,7 +67,7 @@ function benchFolder(folder: string): void {
 	console.log(`${folder}`);
 	console.log(`  ${julFiles.length} Dateien, ${lineCount} Zeilen`);
 	console.log(`  median ${median.toFixed(1)} ms  (min ${durations[0]!.toFixed(1)}, max ${durations[runCount - 1]!.toFixed(1)})`);
-	console.log(`  inferType ${checkerStats.inferType}, dereferenceNested ${checkerStats.dereferenceNested}, getTypeError ${checkerStats.getTypeError}`);
+	console.log(`  inferType ${checkerStats.inferType}, resolvePlaceholders ${checkerStats.resolvePlaceholders}, getTypeError ${checkerStats.getTypeError}`);
 }
 
 const folders = process.argv.slice(2);

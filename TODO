@@ -56,6 +56,33 @@
 	 "nicht entscheidbar" darf nie zu "passt nicht" werden
 	-liefert den unerreichbaren branch mit, vgl checker case 'branching'
 	-für laufzeitwerte bleibt die union richtig: x: Integer kann 1 sein oder nicht
+-rekursive funktionen: deklarierter rückgabetyp wird nicht durchgereicht
+	-bei der selbstreferenz im body ist das symbol noch nicht inferiert, dereferenceType
+	 fällt auf Any zurück. vgl das TODO dort: "was wenn referencedsymbol type noch nicht
+	 inferred ist? tritt vermutlich bei rekursion auf"
+	-folge: f = (x: Integer) :> Integer => ... f(x) ... liefert am aufruf Any statt Integer,
+	 g: Text = f(3) meldet nichts
+	-vgl test recursive-function-return-type-is-not-checked, der die lücke festhält
+	-der deklarierte returnType steht schon da, er müsste nur vor dem body ins symbol
+	-hängt mit der cache idee weiter unten zusammen: solange die lücke besteht, ist der
+	 halbfertige functionType nicht erreichbar
+?cache für resolvePlaceholders
+	-gemessen (07.09.2026, WeakMap auf dem eingabetyp): yugioh 2664581 -> 22861 echte
+	 berechnungen, laufzeit 3800ms -> 3158ms. also 99% weniger auflösungsarbeit, aber nur 17%
+	 zeit - die auflösung ist nach dem umbau nicht mehr der flaschenhals
+	-wieder entfernt: 17% verschieben keine schwelle, beides ist für interaktives tippen träge
+	-risiko: typen sind nicht immutable. ein functionType wird mit platzhaltern erzeugt, an die
+	 parameter symbole gehängt und erst danach mutiert (ParamsType, ReturnType). ein vor der
+	 mutation gecachtes ergebnis wäre falsch
+	-beim experiment war er nur aus zwei zufälligen gründen unauffällig:
+		-parameterReference wird bei jedem dereferenceType neu erzeugt, trifft den cache also nie
+		-der halbfertige functionType ist nicht erreichbar, weil dereferenceType bei der
+		 selbstreferenz auf Any fällt - also wegen des rekursions bugs oben
+	-vor einem neuen anlauf: erst die mutation beseitigen, sonst hängt die korrektheit an
+	 einem defekt
+	-lohnt sich erst wieder, wenn getTypeError (193000 aufrufe in yugioh) angegangen ist und
+	 die auflösung dadurch relativ teurer wird
+	-messen mit npm run bench
 -exhaustivitätsprüfung für branching: melden, wenn nicht alle fälle abgedeckt sind
 	-die info liegt vor: getPreviousBranchArgumentType zieht schon ab, was vorherige branches
 	 abfangen. nach dem letzten branch bleibt ein resttyp übrig
