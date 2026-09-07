@@ -2290,16 +2290,58 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 		case 'typeOf':
 			return second.julType === 'typeOf'
 				&& typeEquals(first.value, second.value);
-		// TODO
-		case 'and':
-		case 'dictionaryLiteral':
 		case 'function':
-		case 'nestedReference':
-		case 'or':
-		case 'parameterReference':
-		case 'parameters':
+			return second.julType === 'function'
+				&& typeEquals(first.ParamsType, second.ParamsType)
+				&& typeEquals(first.ReturnType, second.ReturnType)
+				&& first.pure === second.pure;
 		case 'tuple':
-			return false;
+			return second.julType === 'tuple'
+				&& first.ElementTypes.length === second.ElementTypes.length
+				&& first.ElementTypes.every((elem, i) => typeEquals(elem, second.ElementTypes[i]!));
+		case 'or':
+			// Or-Typen sind Mengen, nicht Sequenzen: Reihenfolge ist egal,
+			// aber jede Choice muss in beiden vorhanden sein.
+			return second.julType === 'or'
+				&& first.ChoiceTypes.length === second.ChoiceTypes.length
+				&& first.ChoiceTypes.every(choice =>
+					second.ChoiceTypes.some(otherChoice => typeEquals(choice, otherChoice)));
+		case 'and':
+			// Wie 'or': Schnittmengen sind kommutativ
+			return second.julType === 'and'
+				&& first.ChoiceTypes.length === second.ChoiceTypes.length
+				&& first.ChoiceTypes.every(choice =>
+					second.ChoiceTypes.some(otherChoice => typeEquals(choice, otherChoice)));
+		case 'dictionaryLiteral':
+			return second.julType === 'dictionaryLiteral'
+				&& Object.keys(first.Fields).length === Object.keys(second.Fields).length
+				&& Object.entries(first.Fields).every(([key, value]) => {
+					const otherValue = second.Fields[key];
+					return otherValue !== undefined && typeEquals(value.type, otherValue.type);
+				});
+		case 'parameterReference':
+			return second.julType === 'parameterReference'
+				&& first.name === second.name
+				&& first.index === second.index;
+		case 'nestedReference':
+			return second.julType === 'nestedReference'
+				&& first.nestedKey === second.nestedKey
+				&& typeEquals(first.source, second.source);
+		case 'parameters':
+			return second.julType === 'parameters'
+				&& first.singleNames.length === second.singleNames.length
+				&& first.singleNames.every((param, i) => {
+					const otherParam = second.singleNames[i];
+					return otherParam !== undefined
+						&& param.name === otherParam.name
+						&& (param.type === undefined && otherParam.type === undefined
+							|| param.type !== undefined && otherParam.type !== undefined && typeEquals(param.type, otherParam.type));
+				})
+				&& (first.rest === undefined && second.rest === undefined
+					|| first.rest !== undefined && second.rest !== undefined
+						&& first.rest.name === second.rest.name
+						&& (first.rest.type === undefined && second.rest.type === undefined
+							|| first.rest.type !== undefined && second.rest.type !== undefined && typeEquals(first.rest.type, second.rest.type)));
 		default:
 			const assertNever: never = first;
 			throw new Error('Unexpected julType: ' + (assertNever as CompileTimeType).julType);

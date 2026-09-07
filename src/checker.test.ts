@@ -634,6 +634,23 @@ describe('Checker', () => {
 		checkTypes(parsed, {});
 		expect(parsed.checked!.errors).to.deep.equal(parseErrors);
 	});
+	it('union-deduplicates-function-types', () => {
+		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
+		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.
+		const code = `x = ?(5)
+	[1] => (a) => a
+	[2] => (a) => a`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+		
+		// Prüfe, dass der Rückgabetyp des Branchings kein 'or' Typ ist
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		expect(definition).to.exist;
+		expect(definition.value?.typeInfo?.type.julType).to.not.equal('or', 
+			'Union sollte dedupliziert werden — erwarteter Typ: function, tatsächlich: ' + definition.value?.typeInfo?.type.julType);
+		expect(definition.value?.typeInfo?.type.julType).to.equal('function');
+	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
 	// Scope gecheckt werden. Sonst stand ihre Symboltabelle doppelt im Scope Stack und jede
