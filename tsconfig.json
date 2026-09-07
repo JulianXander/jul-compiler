@@ -4,12 +4,13 @@
     // "src/interpreter.ts"
   ],
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "scripts/**/*.ts"
   ],
   "compilerOptions": {
-    /* Diese Config deckt src inklusive der Tests ab: VSCode ordnet einer geöffneten Datei
-       nur eine Config namens tsconfig.json zu, und der Typecheck soll beides prüfen.
-       Emittiert wird hier nichts — das macht tsconfig.build.json (ohne die Tests). */
+    /* Diese Config deckt src inklusive der Tests sowie scripts ab: VSCode ordnet einer geöffneten
+       Datei nur eine Config namens tsconfig.json zu, und der Typecheck soll alles prüfen.
+       Emittiert wird hier nichts — das macht tsconfig.build.json (ohne Tests und scripts). */
     "noEmit": true,
     /* Visit https://aka.ms/tsconfig.json to read more about this file */
     /* Basic Options */
@@ -25,7 +26,8 @@
     "sourceMap": true, /* Generates corresponding '.map' file. */
     // "outFile": "./",                             /* Concatenate and emit output to single file. */
     "outDir": "out", /* Redirect output structure to the directory. */
-    "rootDir": "src", /* Specify the root directory of input files. Use to control the output directory structure with --outDir. */
+    /* rootDir steht in tsconfig.build.json: nur dort wird emittiert, und nur dort ist src
+       die alleinige Quelle. Hier würde es scripts aus dem Typecheck aussperren. */
     // "composite": true,                           /* Enable project compilation */
     // "tsBuildInfoFile": "./",                     /* Specify file to store incremental compilation information */
     // "removeComments": true,                      /* Do not emit comments to output. */

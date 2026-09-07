@@ -26,6 +26,7 @@
 		"build-all-and-deploy": "npm run build-all && npm run install-cli && npm run test-deploy --prefix ../vscode-jul-language-service",
 		"test": "mocha --import=tsx --require ./test-setup.mjs \"src/**/*.test.ts\"",
 		"test-watch": "mocha --import=tsx --require ./test-setup.mjs --watch --watch-files src --extension ts \"src/**/*.test.ts\"",
+		"bench": "tsx scripts/bench.ts",
 		"typecheck": "tsc -p tsconfig.json",
 		"install-cli": "npm i -g"
 	},

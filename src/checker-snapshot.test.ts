@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { existsSync } from 'fs';
-import { join, relative, resolve } from 'path';
+import { basename, join, relative, resolve } from 'path';
 
-import { checkerStats, checkTypes, resetCheckerStats, typeToString } from './checker.js';
+import { checkerStats, checkTypes, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
 import { parseCode } from './parser/parser.js';
-import { ParsedDocuments, ParsedFile } from './syntax-tree.js';
+import { ParsedFile } from './syntax-tree.js';
 
 /**
  * Hält das nutzersichtbare Checker-Verhalten über alle Beispiele fest: inferierter Typ je
@@ -88,17 +88,28 @@ function snapshotFile(filePath: string): string[] {
 	return lines;
 }
 
+/**
+ * Eine fehlende Baseline ist ein Fehler, kein Grund sie stillschweigend zu erzeugen -
+ * sonst wird der Test grün, wenn die Datei nicht eingecheckt oder versehentlich gelöscht wurde.
+ */
+function compareToBaseline(actual: string, baselineFilePath: string): void {
+	if (process.env['UPDATE_SNAPSHOT']) {
+		writeFileSync(baselineFilePath, actual);
+		return;
+	}
+	if (!existsSync(baselineFilePath)) {
+		throw new Error(`Baseline ${basename(baselineFilePath)} fehlt. Neu schreiben mit: UPDATE_SNAPSHOT=1 npm test`);
+	}
+	const expected = readFileSync(baselineFilePath, { encoding: 'utf8' });
+	expect(actual).to.equal(expected);
+}
+
 describe('checker snapshot', () => {
 	it('matches the baseline', () => {
 		const julFiles = findJulFiles(examplesFolder);
 		expect(julFiles.length, 'no example files found').to.be.greaterThan(0);
 		const actual = julFiles.flatMap(snapshotFile).join('\n') + '\n';
-		if (process.env['UPDATE_SNAPSHOT'] || !existsSync(baselinePath)) {
-			writeFileSync(baselinePath, actual);
-			return;
-		}
-		const expected = readFileSync(baselinePath, { encoding: 'utf8' });
-		expect(actual).to.equal(expected);
+		compareToBaseline(actual, baselinePath);
 	});
 
 	it('matches the stats baseline', () => {
@@ -115,11 +126,6 @@ describe('checker snapshot', () => {
 		const actual = Object.entries(checkerStats)
 			.map(([name, count]) => `${name}: ${count}`)
 			.join('\n') + '\n';
-		if (process.env['UPDATE_SNAPSHOT'] || !existsSync(statsBaselinePath)) {
-			writeFileSync(statsBaselinePath, actual);
-			return;
-		}
-		const expected = readFileSync(statsBaselinePath, { encoding: 'utf8' });
-		expect(actual).to.equal(expected);
+		compareToBaseline(actual, statsBaselinePath);
 	});
 });

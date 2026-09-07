@@ -5,10 +5,12 @@
      npm run typecheck verwenden. */
   "extends": "./tsconfig.json",
   "exclude": [
-    "src/**/*.test.ts"
+    "src/**/*.test.ts",
+    "scripts/**/*.ts"
   ],
   "compilerOptions": {
     "noEmit": false,
+    "rootDir": "src",
     "types": ["node"]
   }
 }
