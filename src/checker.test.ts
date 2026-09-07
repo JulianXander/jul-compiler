@@ -177,7 +177,6 @@ f()`,
 f = T => 0`,
 		},
 		//#region branch narrowing
-		// Zieltests für den Umbau auf Argumentlisten, vgl. auto-spread-branching.md.
 		// ? ist ein Präfix-Operator mit runder Argumentliste, ein Typ-Kopf prüft ausnahmslos
 		// gegen die Argumentkollektion, und der gebranchte Wert ist deren Element 0.
 		// Die Verengung schneidet (sie ersetzt nicht).

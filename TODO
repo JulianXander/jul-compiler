@@ -38,8 +38,8 @@
 	 'dictionary' und es wird gar nicht verengt
 	-verifiziert: f = (someVar: Or(Text Integer)) => ?(v = someVar) (v: Integer) => g(someVar)
 	 meldet "Can not assign Text to Integer", obwohl v: Integer bereits geprüft hat
-	-sicher (keine falschen freigaben), aber die zielzustand-tabelle in
-	 auto-spread-branching.md zeigt benannte argumente als zu positionalen gleichwertig
+	-sicher (keine falschen freigaben), aber ?(a = 4 b = 6) ist laut sprachregel
+	 (?, Argumentliste, Zielzustand) zu ?(4 6) gleichwertig
 -paramsTypeIsNotCollection erkennt and-typen nicht
 	-isDefinitelyNotCollectionType lässt 'and' bewusst durch, weil ein disjunkter schnitt zu
 	 Never normalisiert und dort nichts gemeldet werden darf

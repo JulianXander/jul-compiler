@@ -32,11 +32,11 @@ und würde die Sprache treffen, die es schützen soll.
 - **Kostet:** Zeichen und Wiederholung. `?` ist die häufigste Kontrollstruktur der Sprache, und
   die diskutierte Lösung macht jedes Branching um ein bis zwei Zeichen schwerer; konsequent
   angewandt braucht auch der Default-Export ein eigenes Wort statt der Regel „letzter Ausdruck".
-- **Entschied:** Auto-Spread gegen Option A, obwohl A nichts gekostet hätte.
+- **Entschied:** Auto-Spread im Branching abgeschafft, obwohl Beibehalten nichts gekostet hätte.
+  `_branch` entschied bislang an `isRealObject`, ob ein Wert als Argumentkollektion oder als
+  Einzelwert behandelt wird — dieselbe Zeile `x ?` bedeutete je nach Laufzeitwert etwas anderes.
 - **Offen:** der Default-Export. Nach diesem Prinzip ist die aktuelle Regel ein Verstoß, der noch
   in keiner Liste steht.
-
-Beleg: [auto-spread-branching.md](auto-spread-branching.md).
 
 ### 2. Bei einer Ausnahme ist die Regel falsch, nicht der Fall
 
@@ -177,10 +177,8 @@ Sie tun es regelmäßig. Die bisher praktizierte Rangfolge:
 
 ## Wie eine Entscheidung getroffen wird
 
-Vorlage ist [auto-spread-branching.md](auto-spread-branching.md):
-
-1. **Ist-Zustand am Code beschreiben**, nicht aus der Erinnerung. `isRealObject` war anders, als
-   es gemeint war.
+1. **Ist-Zustand am Code beschreiben**, nicht aus der Erinnerung. Beim Auto-Spread im Branching
+   stellte sich heraus, dass `isRealObject` etwas anderes prüfte als gemeint war.
 2. **Die begrenzende Randbedingung vorab benennen**, sonst wird eine Option diskutiert, die es
    nicht gibt.
 3. **Optionen ausschreiben, inklusive „alles bleibt"**, alle an demselben Beispielcode.

@@ -5,7 +5,7 @@
 //
 // Hintergrund: Der ?-Operator bekommt eine runde Argumentliste (Bindungsstelle), und ein
 // Typ-Kopf wird ausnahmslos gegen die Argumentkollektion geprueft - einstellige Koepfe
-// werden damit zu Tupeln. Siehe auto-spread-branching.md.
+// werden damit zu Tupeln.
 //
 // AST-basiert wie migrate-brackets.mjs: jede Datei wird mit dem ALTEN Parser geparst, die
 // Branching-Knoten eingesammelt und genau deren Zeichen getauscht.
