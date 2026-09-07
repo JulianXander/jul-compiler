@@ -909,19 +909,7 @@ function inferType(
 			const branches = expression.branches;
 			branches.forEach((branch, index) => {
 				setInferredType(branch, scopes, parsedDocuments, folder, file, filePath);
-				// Fehler, wenn branch type != function
-				const functionType = createCompileTimeFunctionType({ julType: 'any' }, { julType: 'any' }, false);
-				const nonFunctionError = areArgsAssignableTo(undefined, branch.typeInfo!.dereferencedType, functionType);
-				if (nonFunctionError) {
-					errors.push({
-						code: ErrorCode.branchIsNotFunction,
-						message: 'Expected branch to be a function.\n' + nonFunctionError,
-						startRowIndex: branch.startRowIndex,
-						startColumnIndex: branch.startColumnIndex,
-						endRowIndex: branch.endRowIndex,
-						endColumnIndex: branch.endColumnIndex,
-					});
-				}
+				checkIsFunction(branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
 				if (index) {
 					// Fehler, wenn ParameterTyp des Branches schon von vorherigen Branches abgedeckt.
 					// Also wenn aktueller ParamterTyp Teilmenge der Veroderung der vorherigen ParameterTypen ist.
@@ -1222,22 +1210,7 @@ function inferType(
 				};
 			}
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file, filePath);
-			//#region Fehler, wenn der aufgerufene Wert keine Funktion ist
-			// areArgsAssignableTo ist für any und unaufgelöste Referenzen bewusst permissiv,
-			// gemeldet wird also nur, wenn feststeht, dass der Wert keine Funktion ist.
-			const anyFunctionType = createCompileTimeFunctionType({ julType: 'any' }, { julType: 'any' }, false);
-			const nonFunctionError = areArgsAssignableTo(undefined, functionExpression.typeInfo!.dereferencedType, anyFunctionType);
-			if (nonFunctionError) {
-				errors.push({
-					code: ErrorCode.valueIsNotFunction,
-					message: 'Expected a function to call.\n' + nonFunctionError,
-					startRowIndex: functionExpression.startRowIndex,
-					startColumnIndex: functionExpression.startColumnIndex,
-					endRowIndex: functionExpression.endRowIndex,
-					endColumnIndex: functionExpression.endColumnIndex,
-				});
-			}
-			//#endregion Fehler, wenn der aufgerufene Wert keine Funktion ist
+			checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
 			const functionType = functionExpression.typeInfo!.rawType;
 			const paramsType = getParamsType(functionType);
 			const args = expression.arguments;
@@ -3451,6 +3424,33 @@ function checkTypeGuardIsType(
 			endColumnIndex: typeGuard.endColumnIndex,
 		});
 	}
+}
+
+/**
+ * Meldet, wenn der Ausdruck sicher keine Funktion ist. Genutzt für branches und für den
+ * aufgerufenen Ausdruck eines functionCalls — beide unterscheiden sich nur in code und message.
+ * areArgsAssignableTo ist für any und unaufgelöste Referenzen bewusst permissiv, gemeldet wird
+ * also nur, wenn es feststeht.
+ */
+function checkIsFunction(
+	expression: TypedExpression,
+	code: ErrorCode,
+	message: string,
+	errors: CompilerError[],
+): void {
+	const anyFunctionType = createCompileTimeFunctionType({ julType: 'any' }, { julType: 'any' }, false);
+	const nonFunctionError = areArgsAssignableTo(undefined, expression.typeInfo!.dereferencedType, anyFunctionType);
+	if (!nonFunctionError) {
+		return;
+	}
+	errors.push({
+		code: code,
+		message: `${message}\n${nonFunctionError}`,
+		startRowIndex: expression.startRowIndex,
+		startColumnIndex: expression.startColumnIndex,
+		endRowIndex: expression.endRowIndex,
+		endColumnIndex: expression.endColumnIndex,
+	});
 }
 
 //#region CompileTimeType guards
