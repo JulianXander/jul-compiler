@@ -287,8 +287,9 @@ export interface ParseDataExpression extends ParseExpressionBase {
 
 export interface ParseBranching extends ParseExpressionBase {
 	type: 'branching';
-	value: ParseValueExpression;
-	// TODO check FunctionExpression: exclude number, text, object, dictionaryType? oder primitives/types als function auswerten?
+	/** Die Argumentkollektion, gegen die die branches geprüft werden - wie die arguments eines Aufrufs. */
+	args?: BracketedExpression;
+	/** Nicht auf Funktionen eingeengt: der checker meldet den Rest als branchIsNotFunction. */
 	branches: ParseValueExpression[];
 }
 

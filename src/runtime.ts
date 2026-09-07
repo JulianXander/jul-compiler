@@ -19,19 +19,15 @@ type JulFunction = Function & { params: Params; };
 
 //#region internals
 
-export function _branch(value: any, ...branches: JulFunction[]) {
+export function _branch(args: Collection | undefined, ...branches: JulFunction[]) {
 	// TODO collect inner Errors?
 	for (const branch of branches) {
-		// primitive value in Array wrappen
-		const wrappedArgs: Collection = isRealObject(value)
-			? value
-			: [value];
-		const assignedParams = tryAssignArgs(branch.params, undefined, wrappedArgs, value);
+		const assignedParams = tryAssignArgs(branch.params, undefined, args);
 		if (!(assignedParams instanceof Error)) {
 			return branch(...assignedParams);
 		}
 	}
-	return new Error(`${value} did not match any branch`);
+	return new Error(`${args} did not match any branch`);
 }
 
 /**
@@ -529,15 +525,13 @@ function tryAssignArgs(
 	params: Params,
 	prefixArg: any,
 	args: Collection | undefined,
-	rawArgs: any,
 ): any[] | Error {
 	const assignedValues: any[] = [];
 	const { type: paramsType, singleNames, rest } = params;
 	const hasPrefixArg = prefixArg !== undefined;
 	if (paramsType !== undefined) {
 		// TODO typecheck prefixArg with paramsType?
-		// TODO typecheck paramsType wrappedArgs unwrappen? also nur 1. arg checken?
-		const typeError = getTypeError(rawArgs, paramsType);
+		const typeError = getTypeError(args, paramsType);
 		if (typeError) {
 			return new Error(`Can not assign the value to params.\n${typeError}`);
 		}

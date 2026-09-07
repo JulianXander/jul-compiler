@@ -239,7 +239,7 @@ const paragraphParser = tokenParser('§');
 const nestedReferenceTokenParser = tokenParser('/');
 // SVO InfixFunctionCall
 const infixFunctionTokenParser = tokenParser('.');
-const branchingTokenParser = tokenParser(' ?');
+const branchingTokenParser = tokenParser('?');
 const definitionTokenParser = tokenParser(' = ');
 const functionTokenParser = tokenParser(' =>');
 const typeGuardTokenParser = tokenParser(': ');
@@ -879,15 +879,13 @@ function valueExpressionBaseParser(
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
+	// Branching steht praefix und kann daher nicht hinter der simpleExpression haengen.
+	if (branchingTokenParser(rows, startRowIndex, startColumnIndex, indent).hasParsed) {
+		return branchingParser(rows, startRowIndex, startColumnIndex, indent);
+	}
 	const result = sequenceParser(
 		simpleExpressionBaseParser,
 		discriminatedChoiceParser(
-			// Branching
-			{
-				predicate: branchingTokenParser,
-				// function list
-				parser: branchesParser,
-			},
 			// FunctionLiteral
 			{
 				predicate: functionTokenParser,
@@ -925,27 +923,6 @@ function valueExpressionBaseParser(
 		};
 	}
 	switch (parsed2.type) {
-		case 'branches': {
-			const value = simpleExpressionBaseToSimpleExpression(parsed1, errors);
-			const branches = parsed2.value;
-			const branching: ParseBranching = {
-				type: 'branching',
-				value: value,
-				branches: branches,
-				startRowIndex: startRowIndex,
-				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-			};
-			setParents(branches, branching);
-			return {
-				hasParsed: true,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-				parsed: branching,
-				errors: errors,
-			};
-		}
 		case 'functionBody': {
 			const body = parsed2.body;
 			const params = bracketedParamsToParams(parsed1, errors);
@@ -1454,31 +1431,46 @@ function functionArgumentsParser(
 
 //#endregion SimpleExpression
 
-function branchesParser(
+function branchingParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<{
-	type: 'branches';
-	value: ParseValueExpression[];
-}> {
+): ParserResult<ParseBranching> {
 	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'branching');
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
 	const result = sequenceParser(
 		branchingTokenParser,
+		// dieselbe Argumentliste wie beim Aufruf, damit ... und benannte Argumente hier gelten
+		functionArgumentsParser,
 		newLineParser,
-		incrementIndent(multilineParser(valueExpressionParser))
+		incrementIndent(multilineParser(valueExpressionParser)),
 	)(rows, startRowIndex, startColumnIndex, indent);
+	const parsed = result.parsed;
+	if (!parsed) {
+		return {
+			...result,
+			parsed: undefined,
+		};
+	}
+	const branches = parsed[3].filter((x): x is ParseValueExpression =>
+		typeof x === 'object');
+	const branching: ParseBranching = {
+		type: 'branching',
+		args: parsed[1],
+		branches: branches,
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+	};
+	setParent(branching.args, branching);
+	setParents(branches, branching);
 	return {
 		...result,
-		parsed: result.parsed && {
-			type: 'branches',
-			value: result.parsed[2].filter((x): x is ParseValueExpression =>
-				typeof x === 'object'),
-		}
+		parsed: branching,
 	};
 }
 

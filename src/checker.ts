@@ -905,7 +905,10 @@ function inferType(
 		case 'branching': {
 			// union branch return types
 			// TODO conditional type?
-			setInferredType(expression.value, scopes, parsedDocuments, folder, file, filePath);
+			const args = expression.args;
+			if (args) {
+				setInferredType(args, scopes, parsedDocuments, folder, file, filePath);
+			}
 			const branches = expression.branches;
 			branches.forEach((branch, index) => {
 				setInferredType(branch, scopes, parsedDocuments, folder, file, filePath);
@@ -1295,44 +1298,45 @@ function inferType(
 			}
 			setInferredType(params, functionScopes, parsedDocuments, folder, file, filePath);
 			const paramsTypeValue = valueOf(params.typeInfo!.rawType);
+			checkParamsTypeIsCollection(params, errors);
 			functionType.ParamsType = paramsTypeValue;
 			//#region narrowed type symbol für branching
 			const branching = expression.parent;
 			if (branching?.type === 'branching') {
-				const branchedvalue = branching.value;
-				if (branchedvalue.type === 'reference') {
-					const branchedName = branchedvalue.name.name;
-					const branchedSymbol = findSymbolInScopesWithBuiltIns(branchedName, functionScopes)?.symbol;
-					if (branchedSymbol) {
-						// branching.value wird in case 'branching' vor den branches inferiert
-						const branchedTypeInfo = branchedvalue.typeInfo ?? branchedSymbol.typeInfo;
-						const branchedRawType: CompileTimeType = branchedTypeInfo?.rawType ?? { julType: 'any' };
-						// dereferencedType, damit eine parameterReference für die Collection-Prüfung aufgelöst ist
-						const branchedDereferencedType: CompileTimeType = branchedTypeInfo?.dereferencedType ?? { julType: 'any' };
-						// Die Verengung muss die auto wrap/spread Logik von _branch berücksichtigen
-						const branchRawType = getBranchValueType(paramsTypeValue, branchedDereferencedType);
-						// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
-						// Für raw und dereferenced derselbe Wert, weil die Auswertung ohnehin
-						// auf dem dereferenzierten Typ des gebranchten Werts beruht.
-						const previousBranchValueType = getPreviousBranchValueType(branching, expression, branchedDereferencedType);
-						if (branchRawType
-							|| previousBranchValueType) {
-							const branchDereferencedType = branchRawType
-								&& (getBranchValueType(valueOf(params.typeInfo!.dereferencedType), branchedDereferencedType)
-									?? dereferenceNested(branchRawType));
-							// TODO narrowed Hinweis in description?
-							ownSymbols[branchedName] = {
-								...branchedSymbol,
-								functionParameterIndex: undefined,
-								// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
-								typeInfo: {
-									rawType: narrowBranchedType(branchedRawType, branchRawType, previousBranchValueType),
-									dereferencedType: narrowBranchedType(branchedDereferencedType, branchDereferencedType, previousBranchValueType),
-								},
-							};
-						}
+				getWrittenArguments(branching.args)?.forEach((argument, argumentIndex) => {
+					if (argument.type !== 'reference') {
+						return;
 					}
-				}
+					const branchedName = argument.name.name;
+					const branchedSymbol = findSymbolInScopesWithBuiltIns(branchedName, functionScopes)?.symbol;
+					if (!branchedSymbol) {
+						return;
+					}
+					// branching.args wird in case 'branching' vor den branches inferiert
+					const branchedTypeInfo = argument.typeInfo ?? branchedSymbol.typeInfo;
+					const branchedRawType: CompileTimeType = branchedTypeInfo?.rawType ?? { julType: 'any' };
+					const branchedDereferencedType: CompileTimeType = branchedTypeInfo?.dereferencedType ?? { julType: 'any' };
+					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex);
+					// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
+					const previousBranchValueType = getPreviousBranchArgumentType(branching, expression, argumentIndex);
+					if (!branchRawType
+						&& !previousBranchValueType) {
+						return;
+					}
+					const branchDereferencedType = branchRawType
+						&& (getBranchArgumentType(valueOf(params.typeInfo!.dereferencedType), argumentIndex)
+							?? dereferenceNested(branchRawType));
+					// TODO narrowed Hinweis in description?
+					ownSymbols[branchedName] = {
+						...branchedSymbol,
+						functionParameterIndex: undefined,
+						// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
+						typeInfo: {
+							rawType: narrowBranchedType(branchedRawType, branchRawType, previousBranchValueType),
+							dereferencedType: narrowBranchedType(branchedDereferencedType, branchDereferencedType, previousBranchValueType),
+						},
+					};
+				});
 			}
 			//#endregion narrowed type symbol für branching
 			expression.body.forEach(bodyExpression => {
@@ -1373,6 +1377,7 @@ function inferType(
 			}
 			setInferredType(params, functionScopes, parsedDocuments, folder, file, filePath);
 			functionType.ParamsType = valueOf(params.typeInfo!.rawType);
+			checkParamsTypeIsCollection(params, errors);
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file, filePath);
 			const inferredReturnType = expression.returnType.typeInfo!.rawType;
@@ -2388,53 +2393,91 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 //#region branch narrowing
 
 /**
- * Bildet die auto wrap/spread Logik des branchings (_branch/tryAssignArgs in runtime.ts)
- * auf Typebene ab: liefert den Typ, den der gebranchte Wert in diesem branch erfüllen muss.
- * undefined = der branch sagt nichts über den Wert aus, es wird also nicht verengt.
+ * Die geschriebenen Argumente eines branchings, Index für Index.
+ * undefined, wenn sich kein Ausdruck zuordnen lässt - dann wird nicht verengt.
  */
-function getBranchValueType(
+function getWrittenArguments(args: BracketedExpression | undefined): ParseValueExpression[] | undefined {
+	if (args?.type !== 'list') {
+		return undefined;
+	}
+	// Ein Spread verschiebt alle folgenden Indizes unbekannt weit, damit ist keinem Element
+	// mehr ein Ausdruck zuzuordnen.
+	if (args.values.some(value => value.type === 'spread')) {
+		return undefined;
+	}
+	return args.values as ParseValueExpression[];
+}
+
+/**
+ * Der Typ, den Argument argumentIndex in diesem branch erfüllen muss.
+ * undefined = der branch sagt nichts über dieses Argument aus, es wird also nicht verengt.
+ */
+function getBranchArgumentType(
 	paramsType: CompileTimeType,
-	branchedValueType: CompileTimeType,
+	argumentIndex: number,
 ): CompileTimeType | undefined {
 	if (!isParametersType(paramsType)) {
-		// Typ-/Literal-Params (0 => ..., Any => ..., [] => ..., MyType => ...):
-		// tryAssignArgs prüft den rohen Wert gegen den paramsType und bindet nichts
-		return paramsType;
+		// Typ-Kopf: beschreibt die Argumentkollektion, das Argument ist deren Element
+		return getElementTypeAtIndex(paramsType, argumentIndex);
 	}
 	const singleNames = paramsType.singleNames;
 	const rest = paramsType.rest;
 	if (!singleNames.length
 		&& !rest) {
-		// catchAll () => ...: matcht jeden Wert und bindet nichts
+		// catchAll () => ...: matcht jede Kollektion und bindet nichts
 		return undefined;
 	}
-	if (!isDefinitelyNonCollectionType(branchedValueType)) {
-		// Der Wert könnte eine Collection sein und wird dann auf die Parameter gespreadet.
-		// Die Parameter beschreiben in dem Fall die Elemente, nicht den Wert selbst.
-		// TODO den Wert-Typ aus den Parametern rekonstruieren? Die Arity ist dabei offen,
-		// denn tryAssignArgs erlaubt überzählige und fehlende Argumente.
-		return undefined;
+	const singleName = singleNames[argumentIndex];
+	if (singleName) {
+		return singleName.type;
 	}
-	const firstParam = singleNames[0];
-	if (firstParam) {
-		// _branch wrappt den Wert zu [value], also bekommt nur der erste Parameter den Wert
-		return firstParam.type;
-	}
-	// nur rest: der rest bekommt [value]
-	return getSingleElementType(rest!.type);
+	return rest
+		? getElementTypeAtIndex(rest.type, argumentIndex - singleNames.length)
+		: undefined;
 }
 
 /**
- * Die Veroderung dessen, was die branches vor diesem bereits abfangen. _branch probiert die
- * branches der Reihe nach, wer hier ankommt hat also alle vorherigen nicht gematcht.
- * undefined, wenn es keine vorherigen branches gibt oder einer davon jeden Wert matcht bzw.
+ * Der Typ des Elements an dieser Stelle einer Kollektion.
+ * undefined, wenn er sich nicht bestimmen lässt - dann wird nicht verengt.
+ */
+function getElementTypeAtIndex(
+	type: CompileTimeType | undefined,
+	index: number,
+): CompileTimeType | undefined {
+	switch (type?.julType) {
+		case 'any':
+			return type;
+		case 'list':
+			return type.ElementType;
+		case 'tuple':
+			return type.ElementTypes[index];
+		case 'or': {
+			const choiceTypes: CompileTimeType[] = [];
+			for (const choiceType of type.ChoiceTypes) {
+				const elementType = getElementTypeAtIndex(choiceType, index);
+				if (!elementType) {
+					return undefined;
+				}
+				choiceTypes.push(elementType);
+			}
+			return createNormalizedUnionType(choiceTypes);
+		}
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Die Veroderung dessen, was die branches vor diesem an dieser Argumentstelle bereits abfangen.
+ * _branch probiert die branches der Reihe nach, wer hier ankommt hat also alle vorherigen nicht
+ * gematcht. undefined, wenn es keine vorherigen branches gibt oder einer davon alles matcht bzw.
  * nicht bestimmbar ist — dann wird nichts abgezogen. Ein solcher branch macht diesen hier
  * unerreichbar, das ist aber eine eigene Diagnose und kein Fall für die Verengung.
  */
-function getPreviousBranchValueType(
+function getPreviousBranchArgumentType(
 	branching: ParseBranching,
 	branch: ParseValueExpression,
-	branchedValueType: CompileTimeType,
+	argumentIndex: number,
 ): CompileTimeType | undefined {
 	const branchIndex = branching.branches.indexOf(branch);
 	if (branchIndex < 1) {
@@ -2443,7 +2486,7 @@ function getPreviousBranchValueType(
 	const previousValueTypes: CompileTimeType[] = [];
 	for (const previousBranch of branching.branches.slice(0, branchIndex)) {
 		const previousParamsType = getParamsType(previousBranch.typeInfo?.dereferencedType);
-		const previousValueType = getBranchValueType(previousParamsType, branchedValueType);
+		const previousValueType = getBranchArgumentType(previousParamsType, argumentIndex);
 		if (!previousValueType
 			|| previousValueType.julType === 'any') {
 			return undefined;
@@ -2470,36 +2513,44 @@ function narrowBranchedType(
 		: intersectedType;
 }
 
+//#endregion branch narrowing
+
 /**
- * Liefert den Elementtyp, wenn der übergebene Typ eine Liste mit genau einem Element beschreibt.
+ * Ein Params-Typ wird gegen die Argumentkollektion geprüft. Kann keiner seiner Werte eine
+ * Kollektion sein, ist die Funktion nicht aufrufbar und greift auch als branch nie.
  */
-function getSingleElementType(restType: CompileTimeType | undefined): CompileTimeType | undefined {
-	switch (restType?.julType) {
-		case 'list':
-			return restType.ElementType;
-		case 'tuple':
-			return restType.ElementTypes.length === 1
-				? restType.ElementTypes[0]
-				: undefined;
-		default:
-			return undefined;
+function checkParamsTypeIsCollection(
+	params: SimpleExpression | ParseParameterFields,
+	errors: CompilerError[],
+): void {
+	if (params.type === 'parameters') {
+		return;
 	}
+	const paramsType = valueOf(params.typeInfo?.dereferencedType);
+	if (!isDefinitelyNotCollectionType(paramsType)) {
+		return;
+	}
+	errors.push({
+		code: ErrorCode.paramsTypeIsNotCollection,
+		message: `Expected the params type to describe an argument collection. Did you mean [${typeToString(paramsType, 0, 0)}]?`,
+		startRowIndex: params.startRowIndex,
+		startColumnIndex: params.startColumnIndex,
+		endRowIndex: params.endRowIndex,
+		endColumnIndex: params.endColumnIndex,
+	});
 }
 
 /**
- * true, wenn Werte dieses Typs zur Laufzeit garantiert keine Collection sind,
- * isRealObject (runtime.ts) also false liefert und _branch den Wert zu [value] wrappt,
- * statt ihn auf die Parameter zu spreaden.
- * Im Zweifel false, dann wird nicht verengt.
+ * true, wenn kein Wert dieses Typs eine Argumentkollektion sein kann.
+ * Empty gehört dazu (der Aufruf ohne Argumente) und fällt daher nicht darunter.
+ * Im Zweifel false: nicht aufgelöste Typen und Never bleiben ungemeldet.
  */
-function isDefinitelyNonCollectionType(type: CompileTimeType): boolean {
+function isDefinitelyNotCollectionType(type: CompileTimeType): boolean {
 	switch (type.julType) {
-		// typeof !== 'object'
+		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
-		// empty wird als undefined emittiert
-		case 'empty':
-		// Float ist eine js number, Brüche sind dagegen dictionaryLiteral
+		case 'date':
 		case 'float':
 		case 'floatLiteral':
 		case 'function':
@@ -2510,17 +2561,13 @@ function isDefinitelyNonCollectionType(type: CompileTimeType): boolean {
 		case 'textLiteral':
 			return true;
 		case 'or':
-			// nur wenn alle Choices garantiert keine Collection sind
-			return type.ChoiceTypes.every(isDefinitelyNonCollectionType);
-		case 'and':
-			// es genügt, wenn ein Choice garantiert keine Collection ist
-			return type.ChoiceTypes.some(isDefinitelyNonCollectionType);
+			// nur wenn keiner der Choices eine Kollektion sein kann
+			return type.ChoiceTypes.every(isDefinitelyNotCollectionType);
 		default:
+			// and bleibt bewusst draußen: ein unbewohnter Schnitt wäre sonst ein Fehler
 			return false;
 	}
 }
-
-//#endregion branch narrowing
 
 function setFunctionRefForParams(
 	params: ParseParameterFields,

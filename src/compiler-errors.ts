@@ -108,6 +108,13 @@ export enum ErrorCode {
 	definitionTypeMismatch = 5000,
 	destructuringFieldTypeMismatch = 5001,
 	typeGuardIsNotType = 5002,
+	/**
+	 * Der Params-Typ einer Funktion wird gegen die Argumentkollektion geprüft, und die ist List,
+	 * Dictionary oder Empty. Gemeldet wird, wenn der Typ bewohnt ist und keiner seiner Werte eine
+	 * Kollektion sein kann - dann ist die Funktion nicht aufrufbar. Never ist unbewohnt und fällt
+	 * daher nicht darunter, ohne dass es dazu eine Ausnahme braucht.
+	 */
+	paramsTypeIsNotCollection = 5003,
 	argumentTypeMismatch = 5050,
 	returnTypeMismatch = 5100,
 	branchIsNotFunction = 5150,
@@ -175,6 +182,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.definitionTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.destructuringFieldTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.typeGuardIsNotType]: { type: 'type', severity: 'error' },
+	[ErrorCode.paramsTypeIsNotCollection]: { type: 'type', severity: 'error' },
 	[ErrorCode.argumentTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.returnTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.branchIsNotFunction]: { type: 'type', severity: 'error' },

@@ -10,6 +10,8 @@ const expectedResults: {
 	code: string;
 	result?: ParseExpression[];
 	errors?: CompilerError[];
+	/** Erwartete Parse-Fehler. Ohne Angabe muss der Code fehlerfrei parsen. */
+	parseErrors?: CompilerError[];
 }[] = [
 		{
 			name: 'text-interpolation-reference-error',
@@ -27,7 +29,7 @@ const expectedResults: {
 		},
 		{
 			name: 'branch-non-function-error',
-			code: '[] ?\n\t4',
+			code: '?([])\n\t4',
 			// result: [
 			// 	{
 			// 		"branches": [
@@ -131,11 +133,54 @@ a = 5`,
 			code: `t = Any => []
 t(1)`,
 		},
+		{
+			// Der Params-Typ wird gegen die Argumentkollektion geprüft, und die ist List,
+			// Dictionary oder Empty. Integer kann das nie sein, die Funktion ist also nicht
+			// aufrufbar — unabhängig davon, ob sie je in einem branching auftaucht.
+			name: 'params-type-must-be-collection',
+			code: 'f = Integer => 0',
+			errors: [
+				{
+					"code": ErrorCode.paramsTypeIsNotCollection,
+					"endColumnIndex": 11,
+					"endRowIndex": 0,
+					"message": "Expected the params type to describe an argument collection. Did you mean [Integer]?",
+					"startColumnIndex": 4,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Gegenprobe: gewickelt ist derselbe Typ aufrufbar.
+			name: 'params-type-collection-is-callable',
+			code: `f = [Integer] => 0
+f(1)`,
+		},
+		{
+			// Empty ist die Kollektion eines Aufrufs ohne Argumente und damit gültig.
+			name: 'params-type-empty-is-collection',
+			code: `f = Empty => 0
+f()`,
+		},
+		{
+			// Never ist unbewohnt, es gibt also keinen Wert, der keine Kollektion sein könnte.
+			// Schreibbar ist Never nicht, es entsteht nur aus Typarithmetik — ein Fehler hier
+			// träfe niemanden, der etwas Falsches geschrieben hat.
+			name: 'params-type-never-is-not-reported',
+			code: 'f = And(Integer Text) => 0',
+		},
+		{
+			// Unwissen ist keine Ablehnung: ein nicht auflösbarer Params-Typ darf nicht gemeldet
+			// werden, sonst wird aus "nicht entscheidbar" ein "passt nicht".
+			name: 'params-type-unknown-is-not-reported',
+			code: `T = Any
+f = T => 0`,
+		},
 		//#region branch narrowing
-		// Der gebranchte Name wird im Scope des jeweiligen Branches verengt. Die Verengung
-		// schneidet (sie ersetzt nicht) und muss die auto wrap/spread Logik von _branch
-		// abbilden: ein primitiver Wert wird zu [value] gewrappt und landet im 1. Parameter,
-		// eine Collection wird auf die Parameter gespreadet.
+		// Zieltests für den Umbau auf Argumentlisten, vgl. auto-spread-branching.md.
+		// ? ist ein Präfix-Operator mit runder Argumentliste, ein Typ-Kopf prüft ausnahmslos
+		// gegen die Argumentkollektion, und der gebranchte Wert ist deren Element 0.
+		// Die Verengung schneidet (sie ersetzt nicht).
 		{
 			// Der catchAll () => ... bindet nichts und matcht jeden Wert, sagt über den Wert
 			// also nichts aus. countdown behält daher Integer und ist weiter an einen
@@ -143,28 +188,28 @@ t(1)`,
 			name: 'branch-narrowing-catch-all',
 			code: `g = (x: Integer) => x
 f = (countdown: Integer) =>
-	countdown ?
-		0 => 0
+	?(countdown)
+		[0] => 0
 		() => g(countdown)`,
 		},
 		{
-			// Ein primitiver Wert landet im 1. Parameter, verengt wird also auf dessen Typ —
-			// nicht auf die Parameterliste als Ganzes. countdown wird Integer, nicht (y: Integer).
+			// Die Parameterliste beschreibt die Argumentkollektion, der 1. Parameter bekommt
+			// also das 1. Argument. Verengt wird auf dessen Typ, nicht auf die Liste als Ganzes.
 			name: 'branch-narrowing-named-param',
 			code: `g = (x: Integer) => x
 f = (countdown: Integer) =>
-	countdown ?
-		0 => 0
+	?(countdown)
+		[0] => 0
 		(y: Integer) => g(countdown)`,
 		},
 		{
-			// Ohne Einzelparameter bekommt der rest den auto wrapped Wert, also [countdown].
+			// Ohne Einzelparameter bekommt der rest die ganze Kollektion, also [countdown].
 			// Verengt wird daher auf den Elementtyp der rest-Liste, hier Integer.
 			name: 'branch-narrowing-rest-param',
 			code: `g = (x: Integer) => x
 f = (countdown: Integer) =>
-	countdown ?
-		0 => 0
+	?(countdown)
+		[0] => 0
 		(...rest: List(Integer)) => g(countdown)`,
 		},
 		{
@@ -172,27 +217,28 @@ f = (countdown: Integer) =>
 			name: 'branch-narrowing-untyped-param',
 			code: `g = (x: Integer) => x
 f = (countdown: Integer) =>
-	countdown ?
-		0 => 0
+	?(countdown)
+		[0] => 0
 		(y) => g(countdown)`,
 		},
 		{
-			// Any als branch Typ darf nicht verbreitern, der Schnitt behält Integer.
+			// Any matcht auch die Kollektion und bleibt daher ungewickelt. Verbreitern darf
+			// es nicht, der Schnitt behält Integer.
 			name: 'branch-narrowing-any-branch',
 			code: `g = (x: Integer) => x
 f = (countdown: Integer) =>
-	countdown ?
-		0 => 0
+	?(countdown)
+		[0] => 0
 		Any => g(countdown)`,
 		},
 		{
-			// Bei Typ-Params wird der rohe Wert gegen den ParamsType geprüft und nichts gebunden,
-			// der ParamsType ist also direkt der Branch-Typ: someVar wird hier zu Integer.
+			// Ein Typ-Kopf bindet nichts und prüft die Kollektion. Verengt wird auf sein
+			// Element 0: someVar wird hier zu Integer.
 			name: 'branch-narrowing-type-param',
 			code: `g = (x: Integer) => x
 f = (someVar: Any) =>
-	someVar ?
-		Integer => g(someVar)
+	?(someVar)
+		[Integer] => g(someVar)
 		() => 0`,
 		},
 		{
@@ -200,19 +246,29 @@ f = (someVar: Any) =>
 			name: 'branch-narrowing-union',
 			code: `t = (x: Text) => x
 f = (someVar: Or(Text Integer)) =>
-	someVar ?
+	?(someVar)
 		(y: Text) => t(someVar)
 		() => §§`,
 		},
 		{
-			// Bei einem Collection Wert wird auf die Parameter gespreadet, die Parameter
-			// beschreiben also die Elemente. Es darf nicht auf Integer verengt werden.
-			name: 'branch-narrowing-collection',
+			// Kein Auto-Spread mehr: ein geschriebenes Argument bleibt ein Argument, auch wenn
+			// es eine Collection ist. Der 1. Parameter bekommt die ganze Liste.
+			name: 'branch-binds-whole-collection',
 			code: `h = (x: List(Integer)) => x
 f = (someVar: List(Integer)) =>
-	someVar ?
-		(a: Integer) => h(someVar)
+	?(someVar)
+		(a: List(Integer)) => h(a)
 		() => []`,
+		},
+		{
+			// Gegenstück: gespreadet wird nur mit geschriebenem ..., dann beschreiben die
+			// Parameter die Elemente.
+			name: 'branch-spread-binds-elements',
+			code: `g = (x: Integer) => x
+f = (pair: [Integer Integer]) =>
+	?(...pair)
+		(a: Integer b: Integer) => g(a)
+		() => 0`,
 		},
 		{
 			// Gegenprobe: die Verengung muss auch wirklich greifen. Im Text-Branch ist someVar
@@ -220,7 +276,7 @@ f = (someVar: List(Integer)) =>
 			name: 'branch-narrowing-applies',
 			code: `g = (x: Integer) => x
 f = (someVar: Or(Text Integer)) =>
-	someVar ?
+	?(someVar)
 		(y: Text) => g(someVar)
 		() => 0`,
 			errors: [
@@ -241,8 +297,8 @@ f = (someVar: Or(Text Integer)) =>
 			name: 'branch-narrowing-excludes-previous-branches',
 			code: `g = (x: Integer) => x
 f = (value: Or([] Integer)) =>
-	value ?
-		Empty => 0
+	?(value)
+		[Empty] => 0
 		Any => g(value)`,
 		},
 		{
@@ -251,7 +307,7 @@ f = (value: Or([] Integer)) =>
 			name: 'branch-narrowing-keeps-unhandled-types',
 			code: `g = (x: Integer) => x
 f = (value: Or([] Integer)) =>
-	value ?
+	?(value)
 		Any => g(value)`,
 			errors: [
 				{
@@ -263,6 +319,73 @@ f = (value: Or([] Integer)) =>
 					"startRowIndex": 3,
 				},
 			],
+		},
+		{
+			// Ein leerer Wert ist kein leeres Argument: ?(value) schreibt ein Argument, die
+			// Kollektion ist also [()] und der passende Kopf [Empty], nicht Empty.
+			name: 'branch-empty-value-is-one-argument',
+			code: `f = (value: Or([] Integer)) =>
+	?(value)
+		[Empty] => 0
+		Any => 1`,
+		},
+		{
+			// Umgekehrt: ohne geschriebenes Argument ist die Kollektion selbst Empty.
+			name: 'branch-empty-collection-matches-empty-head',
+			code: `?()
+	Empty => 0
+	() => 1`,
+		},
+		{
+			// Ein Kopf, der keine Argumentkollektion sein kann, ist eine nicht aufrufbare
+			// Funktion — gemeldet wird das an der Funktion, nicht am branching.
+			name: 'branch-head-must-be-collection',
+			code: `f = (x: Integer) =>
+	?(x)
+		Integer => 0
+		() => 1`,
+			errors: [
+				{
+					"code": ErrorCode.paramsTypeIsNotCollection,
+					"endColumnIndex": 9,
+					"endRowIndex": 2,
+					"message": "Expected the params type to describe an argument collection. Did you mean [Integer]?",
+					"startColumnIndex": 2,
+					"startRowIndex": 2,
+				},
+			],
+		},
+		{
+			// Noch nicht umgesetzt: die Verengung hängt an einem einfachen Namen, ein Feldpfad
+			// ist ein nestedReference und hat kein Symbol zum Shadowen (TODO Zeile 34).
+			// Der erwartete Fehler dokumentiert die Lücke — fällt er weg, ist sie geschlossen
+			// und dieser Test gehört auf "keine Fehler" umgestellt.
+			name: 'branch-narrowing-field-path-is-missing',
+			code: `f = (d: [a: Or(Text Integer)]) =>
+	?(d/a)
+		(y: Integer) =>
+			narrowed: Integer = d/a
+			narrowed
+		() => 0`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 26,
+					"endRowIndex": 3,
+					"message": "Can not assign Text to Integer.",
+					"startColumnIndex": 3,
+					"startRowIndex": 3,
+				},
+			],
+		},
+		{
+			// Branching über mehrere Werte: Element i des Kopfes verengt das i-te Argument.
+			name: 'branch-narrowing-multiple-values',
+			code: `g = (x: Integer y: Integer) => x
+f = (a: Or(Text Integer) b: Or(Text Integer)) =>
+	?(a b)
+		[Integer Integer] => g(a b)
+		() => 0`,
 		},
 		//#endregion branch narrowing
 		//#region Not
@@ -336,9 +459,9 @@ f = (value: Or([] Integer)) =>
 			// Siehe yugioh/src/game-logic/game-logic.jul getThisTurnInputs.
 			name: 'generic-return-type-survives-branching',
 			code: `f = (values: List(Integer) flag: Boolean) :> Or([] List(Integer)) =>
-	picked = flag ?
-		true => values.slice(1)
-		false => values
+	picked = ?(flag)
+		[true] => values.slice(1)
+		[false] => values
 	picked.filterMap((value) => value)`,
 		},
 		{
@@ -431,6 +554,16 @@ a/2`,
 			name: 'index-zero-reports-once',
 			code: `a = [1 2]
 a/0`,
+			parseErrors: [
+				{
+					"code": ErrorCode.invalidIndexSyntax,
+					"endColumnIndex": 3,
+					"endRowIndex": 1,
+					"message": "Invalid index 0, indexes start at 1",
+					"startColumnIndex": 2,
+					"startRowIndex": 1,
+				},
+			],
 			errors: [
 				{
 					"code": ErrorCode.invalidIndexSyntax,
@@ -525,10 +658,13 @@ a(g(5))`,
 	];
 
 describe('Checker', () => {
-	expectedResults.forEach(({ name, code, result, errors }) => {
+	expectedResults.forEach(({ name, code, result, errors, parseErrors }) => {
 		it(name ?? code, () => {
 			const parserResult = parseCode(code, 'dummy.jul');
 			checkTypes(parserResult, {});
+			// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
+			// unvollständigen Baum schlicht nichts zu melden hat.
+			expect(parserResult.unchecked.errors).to.deep.equal(parseErrors ?? []);
 			expect(parserResult.checked?.errors).to.deep.equal(errors ?? []);
 			if (result) {
 				expect(parserResult.checked?.expressions).to.deep.equal(result);

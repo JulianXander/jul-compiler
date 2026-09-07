@@ -50,8 +50,12 @@ function expressionToJs(
 ): string {
 	switch (expression.type) {
 		case 'branching': {
+			const args = expression.args;
+			if (!args) {
+				throw new Error('args missing in branching');
+			}
 			const delimiterJs = getRowDelimiterJs(indent);
-			return `_branch(${delimiterJs}${expressionToJs(expression.value, indent)},${delimiterJs}${expression.branches.map(branch =>
+			return `_branch(${delimiterJs}${expressionToJs(args, indent)},${delimiterJs}${expression.branches.map(branch =>
 				expressionToJs(branch, indent)).join(`,${delimiterJs}`)},${delimiterJs})`;
 		}
 		case 'definition': {

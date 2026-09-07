@@ -1041,7 +1041,7 @@ const expectedResults: {
 		// },
 		{
 			name: 'branching-error',
-			code: '4 ?\n\t4 =>\n\t\tlog(\n\t\t\t4)',
+			code: '?(4)\n\t[4] =>\n\t\tlog(\n\t\t\t4)',
 			// result: [
 			// 	{
 			// 		type: "branching",
