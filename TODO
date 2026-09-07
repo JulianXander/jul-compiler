@@ -1,7 +1,3 @@
--refactor CompileTimeType TypeInfo
-	-mit SourceExpression anreichern für Descriptions, Symbole
-		-vgl server OnCompletion, findSymbol
-		-ggf sourceFilePath berücksichtigen wegen imports
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
 -debug experience vebessern
@@ -67,22 +63,14 @@
 	-hängt mit der cache idee weiter unten zusammen: solange die lücke besteht, ist der
 	 halbfertige functionType nicht erreichbar
 ?cache für resolvePlaceholders
-	-gemessen (07.09.2026, WeakMap auf dem eingabetyp): yugioh 2664581 -> 22861 echte
-	 berechnungen, laufzeit 3800ms -> 3158ms. also 99% weniger auflösungsarbeit, aber nur 17%
-	 zeit - die auflösung ist nach dem umbau nicht mehr der flaschenhals
-	-wieder entfernt: 17% verschieben keine schwelle, beides ist für interaktives tippen träge
-	-risiko: typen sind nicht immutable. ein functionType wird mit platzhaltern erzeugt, an die
-	 parameter symbole gehängt und erst danach mutiert (ParamsType, ReturnType). ein vor der
-	 mutation gecachtes ergebnis wäre falsch
-	-beim experiment war er nur aus zwei zufälligen gründen unauffällig:
-		-parameterReference wird bei jedem dereferenceType neu erzeugt, trifft den cache also nie
-		-der halbfertige functionType ist nicht erreichbar, weil dereferenceType bei der
-		 selbstreferenz auf Any fällt - also wegen des rekursions bugs oben
-	-vor einem neuen anlauf: erst die mutation beseitigen, sonst hängt die korrektheit an
-	 einem defekt
-	-lohnt sich erst wieder, wenn getTypeError (193000 aufrufe in yugioh) angegangen ist und
-	 die auflösung dadurch relativ teurer wird
-	-messen mit npm run bench
+	-gemessen (2026-09-07): yugioh 2664581 → 22861 aufrufe, laufzeit 3800ms → 3158ms
+	 = 99% weniger aufrufe, aber nur 17% zeit. apparentType ist nach dem umbau nicht
+	 mehr der flaschenhals. 17% verschieben keine schwelle für das risiko
+	-risiko: typen sind nicht immutable. functionType wird mit platzhaltern erzeugt,
+	 parameter-symbole gehängt und erst danach mutiert. vor der mutation gecachtes
+	 ergebnis wäre falsch
+	-neu messen, wenn getTypeError (193000 aufrufe in yugioh) teurer wird oder neue
+	 features die performance-ratio verschieben. entscheidung ist an messungen gebunden
 -exhaustivitätsprüfung für branching: melden, wenn nicht alle fälle abgedeckt sind
 	-die info liegt vor: getPreviousBranchArgumentType zieht schon ab, was vorherige branches
 	 abfangen. nach dem letzten branch bleibt ein resttyp übrig
@@ -148,9 +136,6 @@
 	-gehört zum Any fallback: dereferenceIndexFromObject kennt integerLiteral nicht,
 	 hasKnownLength ist false, also wird nichts gemeldet
 	?soll 1/2 ein bruch sein oder ein fehler?
--vergessene console.log aus dem checker entfernen
-	-checker.ts 201 'functionRef missing' und checker.ts 457 console.log(scopes)
-	-landet in der cli mitten in der compiler ausgabe, im language server im lsp kanal
 -examples sortieren, aufräumen, organisieren?
 -homepage
 	?deutsch vs englisch
