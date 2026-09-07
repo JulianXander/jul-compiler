@@ -1222,6 +1222,22 @@ function inferType(
 				};
 			}
 			setInferredType(functionExpression, scopes, parsedDocuments, folder, file, filePath);
+			//#region Fehler, wenn der aufgerufene Wert keine Funktion ist
+			// areArgsAssignableTo ist für any und unaufgelöste Referenzen bewusst permissiv,
+			// gemeldet wird also nur, wenn feststeht, dass der Wert keine Funktion ist.
+			const anyFunctionType = createCompileTimeFunctionType({ julType: 'any' }, { julType: 'any' }, false);
+			const nonFunctionError = areArgsAssignableTo(undefined, functionExpression.typeInfo!.dereferencedType, anyFunctionType);
+			if (nonFunctionError) {
+				errors.push({
+					code: ErrorCode.valueIsNotFunction,
+					message: 'Expected a function to call.\n' + nonFunctionError,
+					startRowIndex: functionExpression.startRowIndex,
+					startColumnIndex: functionExpression.startColumnIndex,
+					endRowIndex: functionExpression.endRowIndex,
+					endColumnIndex: functionExpression.endColumnIndex,
+				});
+			}
+			//#endregion Fehler, wenn der aufgerufene Wert keine Funktion ist
 			const functionType = functionExpression.typeInfo!.rawType;
 			const paramsType = getParamsType(functionType);
 			const args = expression.arguments;
