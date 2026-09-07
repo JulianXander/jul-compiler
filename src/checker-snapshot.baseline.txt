@@ -293,7 +293,11 @@ myVarIsText: Any
   error 4001 at 62:8 num is not defined.
   error 4001 at 63:15 num is not defined.
 === ui/dialog/dialog.jul ===
-THREW Cannot read properties of undefined (reading 'type')
+  error 4001 at 2:1 body is not defined.
+  error 4001 at 3:2 button is not defined.
+  error 4001 at 6:4 createDialog is not defined.
+  error 4001 at 8:15 stackPanel is not defined.
+  error 4001 at 9:6 button is not defined.
 === ui/dynamic-form/dynamic-form.jul ===
 body: Any
 booleanInput: Any

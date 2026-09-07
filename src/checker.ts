@@ -1309,11 +1309,13 @@ function inferType(
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file, filePath);
 			});
-			const inferredReturnType = last(expression.body)?.typeInfo!;
+			// Ein leerer body ist ungültig, nicht leer (Empty). Any als Ergebnis, damit sich der
+			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
+			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? { julType: 'any' };
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file, filePath);
-				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType.type), valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type)));
+				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type)));
 				if (error) {
 					errors.push({
 						code: ErrorCode.returnTypeMismatch,
@@ -1325,7 +1327,7 @@ function inferType(
 					});
 				}
 			}
-			functionType.ReturnType = inferredReturnType.type;
+			functionType.ReturnType = inferredReturnType;
 			return { type: functionType };
 		}
 		case 'functionTypeLiteral': {
