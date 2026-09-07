@@ -56,6 +56,19 @@
 	 "nicht entscheidbar" darf nie zu "passt nicht" werden
 	-liefert den unerreichbaren branch mit, vgl checker case 'branching'
 	-für laufzeitwerte bleibt die union richtig: x: Integer kann 1 sein oder nicht
+-exhaustivitätsprüfung für branching: melden, wenn nicht alle fälle abgedeckt sind
+	-die info liegt vor: getPreviousBranchArgumentType zieht schon ab, was vorherige branches
+	 abfangen. nach dem letzten branch bleibt ein resttyp übrig
+	-ist der resttyp nicht Never, gibt es werte, die keinen branch treffen
+	-zur laufzeit liefert _branch dafür new Error(`... did not match any branch`), also ein
+	 stiller fehlerwert statt einer meldung beim schreiben
+	-gegenrichtung (unerreichbare branches) steht als auskommentierter block im checker,
+	 case 'branching'. beide brauchen dieselbe rechnung
+	-hängt an der catchAll frage weiter unten: () und Any decken beide alles ab, ein branching
+	 mit einem davon ist immer exhaustiv
+	-vorbild: rust non-exhaustive patterns. ts hat nur das never idiom von hand
+	-vorsicht bei Or über streams/generics: nicht auflösbarer resttyp darf nicht als
+	 "fall fehlt" gemeldet werden, sonst wird aus unwissen eine falschmeldung
 ?bedingte typen: eigener operator :? für branching über typen
 	-? kann das nicht: es liefert die union aller branch returnTypes und wählt nie einen zweig
 	-constant folding allein reicht auch nicht: das liefert die auswahl, nicht die relation
