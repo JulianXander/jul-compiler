@@ -1361,6 +1361,32 @@ const expectedResults: {
 			name: 'index-one',
 			code: 'a/1',
 		},
+		{
+			// Führende Nullen lehnt die Regex selbst ab, dafür braucht es keine eigene Regel.
+			// Die Meldung ist hier bewusst nicht poliert: die 1 bleibt liegen und zieht eine
+			// Folgemeldung nach sich. Das nimmt der Test in Kauf, weil niemand einen Index mit
+			// führender Null tippt — er hält nur fest, dass die Schreibweise ungültig bleibt.
+			name: 'index-leading-zero',
+			code: 'a/01',
+			errors: [
+				{
+					"code": ErrorCode.invalidIndexSyntax,
+					"endColumnIndex": 3,
+					"endRowIndex": 0,
+					"message": "Invalid index 0, indexes start at 1",
+					"startColumnIndex": 2,
+					"startRowIndex": 0,
+				},
+				{
+					"code": ErrorCode.unparsedRestOfRow,
+					"endColumnIndex": 3,
+					"endRowIndex": 0,
+					"message": "multilineParser should parse until end of row",
+					"startColumnIndex": 3,
+					"startRowIndex": 0,
+				},
+			],
+		},
 		//#endregion Index
 	];
 

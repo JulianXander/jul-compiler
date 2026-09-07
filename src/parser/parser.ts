@@ -733,20 +733,43 @@ function indexParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Index> {
-	// TODO parse number, and check number > 0 für bessere Fehlermeldung?
-	const result = regexParser(/[1-9][0-9]*/y, { code: ErrorCode.invalidIndexSyntax, message: 'Invalid index syntax' })(rows, startRowIndex, startColumnIndex, indent);
-	return {
-		...result,
-		parsed: result.parsed === undefined
-			? undefined
-			: {
-				type: 'index',
-				name: +result.parsed,
+	// Ein Index ist eine positive Ganzzahl ohne führende Nullen. Die 0 wird trotzdem geparst,
+	// weil sie getippt wird: nur wenn sie konsumiert ist, kann die Meldung auf ihr sitzen —
+	// sonst fällt der choiceParser durch und nestedReferenceKeyParser meldet generisch
+	// "Expected a nested key" auf dem vorangehenden /.
+	const result = regexParser(/0|[1-9][0-9]*/y, { code: ErrorCode.invalidIndexSyntax, message: 'Invalid index syntax' })(rows, startRowIndex, startColumnIndex, indent);
+	if (result.parsed === undefined) {
+		return {
+			...result,
+			parsed: undefined,
+		};
+	}
+	const index = +result.parsed;
+	// Indizes sind 1-basiert
+	const errors = index < 1
+		? [
+			...result.errors ?? [],
+			{
+				code: ErrorCode.invalidIndexSyntax,
+				message: `Invalid index ${index}, indexes start at 1`,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
-			}
+			},
+		]
+		: result.errors;
+	return {
+		...result,
+		errors: errors,
+		parsed: {
+			type: 'index',
+			name: index,
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: result.endRowIndex,
+			endColumnIndex: result.endColumnIndex,
+		},
 	};
 }
 

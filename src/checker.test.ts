@@ -425,6 +425,23 @@ a/2`,
 			name: 'index-on-list',
 			code: `f = (x: List(Integer)) => x/5`,
 		},
+		{
+			// Ein Index kleiner 1 ist ungültig, nicht "daneben" — der Parser meldet das bereits.
+			// Der Checker darf nicht zusätzlich dereferenceFailed melden.
+			name: 'index-zero-reports-once',
+			code: `a = [1 2]
+a/0`,
+			errors: [
+				{
+					"code": ErrorCode.invalidIndexSyntax,
+					"endColumnIndex": 3,
+					"endRowIndex": 1,
+					"message": "Invalid index 0, indexes start at 1",
+					"startColumnIndex": 2,
+					"startRowIndex": 1,
+				},
+			],
+		},
 		//#endregion dereference
 		{
 			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.

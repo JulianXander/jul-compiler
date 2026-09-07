@@ -1429,6 +1429,14 @@ function inferType(
 			}
 			switch (nestedKey.type) {
 				case 'index': {
+					// Ein ungültiger Index kann nichts dereferenzieren. Der Parser hat ihn schon
+					// gemeldet, hier also gar nicht erst nachsehen.
+					if (nestedKey.name < 1) {
+						return {
+							rawType: { julType: 'any' },
+							dereferencedType: { julType: 'any' },
+						};
+					}
 					const sourceType = source.typeInfo!.dereferencedType;
 					// Der rawType kann eine Form sein, die dereferenceIndexFromObject nicht
 					// behandelt, z.B. das and aus der Verengung eines branches. Dann auf dem
