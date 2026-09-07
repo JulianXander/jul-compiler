@@ -65,6 +65,30 @@
 	-würde die checker sonderfälle getElement, lastElement, length, setElement, map ersetzen
 	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
 	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
+-fehlermeldungen für ungültige syntax verbessern, vermessen an 14 invaliden snippets
+	-"multilineParser should parse until end of row" ist die sammelmeldung: in 7 von 14 fällen
+	 das einzige, was der nutzer sieht, u.a. bei f(1 2 / a = / a = 1 2 / a = 0x10.
+	 der text nennt einen kombinator und ist als behauptung formuliert. gemeint ist je nach
+	 fall "Expected )" oder "assignedValue missing". größter hebel, weil fast jeder
+	 syntaxfehler hier landet
+	-"Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser"
+	 leakt funktionsnamen, das doppelte komma verrät einen unbenannten kombinator.
+	 tritt auf bei a: = 1 und bei /a
+	-falsche diagnose bei unabgeschlossenen werten: a = §abc und a = [1 2 melden
+	 "assignedValue missing for definition", obwohl ein wert dasteht und nur nicht
+	 geschlossen ist. richtig wäre "text nicht geschlossen" bzw. "] erwartet"
+	-vgl indexParser: erst großzügig konsumieren, dann prüfen. eine strenge regex lehnt
+	 korrekt ab, hinterlässt aber restzeichen, und die erzeugen genau diese sammelmeldung
+-1/2 wird still zu Any
+	-parst als index zugriff 2 auf die ganzzahl 1, kein fehler, kein hinweis
+	-sieht wie eine zahl aus und ist damit eine plausible eingabe. 1.5 liefert dagegen
+	 einen bruch, allerdings ungekürzt als [numerator: 15 denominator: 10]
+	-gehört zum Any fallback: dereferenceIndexFromObject kennt integerLiteral nicht,
+	 hasKnownLength ist false, also wird nichts gemeldet
+	?soll 1/2 ein bruch sein oder ein fehler?
+-vergessene console.log aus dem checker entfernen
+	-checker.ts 201 'functionRef missing' und checker.ts 457 console.log(scopes)
+	-landet in der cli mitten in der compiler ausgabe, im language server im lsp kanal
 -examples sortieren, aufräumen, organisieren?
 -homepage
 	?deutsch vs englisch
