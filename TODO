@@ -33,10 +33,24 @@
 	-die argumentprüfung greift bei feldpfaden auf parametern ohnehin nicht:
 	 g(d/a) meldet nichts, x: Integer = d/a schon. siehe dereference parameterReference oben
 	?was gilt für felder auf einem stream
+-branch verengung auch für benannte argumente
+	-getWrittenArguments liefert nur bei args.type === 'list', bei ?(a = someVar) ist es
+	 'dictionary' und es wird gar nicht verengt
+	-verifiziert: f = (someVar: Or(Text Integer)) => ?(v = someVar) (v: Integer) => g(someVar)
+	 meldet "Can not assign Text to Integer", obwohl v: Integer bereits geprüft hat
+	-sicher (keine falschen freigaben), aber die zielzustand-tabelle in
+	 auto-spread-branching.md zeigt benannte argumente als zu positionalen gleichwertig
+-paramsTypeIsNotCollection erkennt and-typen nicht
+	-isDefinitelyNotCollectionType lässt 'and' bewusst durch, weil ein disjunkter schnitt zu
+	 Never normalisiert und dort nichts gemeldet werden darf
+	-kehrseite: ein bewohnter, aber trotzdem garantiert skalarer schnitt fällt mit durch
+	-verifiziert: f = PositiveInteger => 0 (= And(Integer Greater(0))) wird nicht gemeldet,
+	 obwohl PositiveInteger nie Liste/Dictionary/Empty sein kann
+	-false negative, keine falschmeldung - aber ungenutzte schärfe
 -branching constant folding: zweig auswählen statt union, wenn der gebranchte wert feststeht
 	-feststehend <=> singleton type: integerLiteral, textLiteral, booleanLiteral, floatLiteral, typeOf
 	-die info liegt vor: x = 5 hat den typ 5, T = Integer hat den typ TypeOf(Integer)
-	-x = 5 gefolgt von x ? 1 => a; 5 => b liefert heute Or(a b) statt b
+	-x = 5 gefolgt von ?(x) [1] => a; [5] => b liefert heute Or(a b) statt b
 	-erster treffer gewinnt, so wie _branch zur laufzeit
 	-nur falten wenn das matching entscheidbar ist, sonst weiter union.
 	 "nicht entscheidbar" darf nie zu "passt nicht" werden
