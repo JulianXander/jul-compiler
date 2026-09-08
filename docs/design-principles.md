@@ -203,10 +203,15 @@ Sie tun es regelmäßig. Die bisher praktizierte Rangfolge:
    Verworfene bleiben mit Begründung stehen.
 4. **An echtem Code auszählen** — yugioh (~5800 Zeilen) und [../jul-examples](../../jul-examples).
    Die Zahlen sagen, *was anzufassen ist*, nicht *was sich lohnt* (Prinzip 10).
-5. **Abhängigkeiten zu offenen Punkten prüfen.** Ein anderer Fix kann die Frage vorwegnehmen: bei
+5. **Performance-Behauptungen messen, nicht schätzen**, vor und nach dem Umbau und am größeren
+   Ziel. Aufrufzahlen und Laufzeit sind verschiedene Größen und stehen nicht füreinander ein:
+   Der Cache für `resolvePlaceholders` sparte 99 % der Aufrufe und nur 17 % der Zeit — zu wenig
+   gegen das Risiko, dass Typen nach dem Erzeugen noch mutiert werden. Das kostet zwei Messläufe
+   je Umbau, und niemand ruft sie automatisch auf.
+6. **Abhängigkeiten zu offenen Punkten prüfen.** Ein anderer Fix kann die Frage vorwegnehmen: bei
    Auto-Spread hat die fehlende Verengung für Feldpfade fast alle typbezogenen Argumente
    aufgelöst.
-6. **Empfehlung mit Begründung**, und benennen, welches Prinzip den Ausschlag gab.
+7. **Empfehlung mit Begründung**, und benennen, welches Prinzip den Ausschlag gab.
 
 Große Fragen bekommen ein eigenes Dokument neben diesem, kleine bleiben in [TODO](../TODO). Die
 Grenze ist praktisch: sobald es Optionen mit Kosten auf beiden Seiten gibt, lohnt das Dokument.
