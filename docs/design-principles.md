@@ -30,11 +30,14 @@ Diese Grenze ist die eigentliche Aussage des Prinzips; „keine Magie" allein w�
 und würde die Sprache treffen, die es schützen soll.
 
 - **Kostet:** Zeichen und Wiederholung. `?` ist die häufigste Kontrollstruktur der Sprache, und
-  die diskutierte Lösung macht jedes Branching um ein bis zwei Zeichen schwerer; konsequent
+  die gewählte Form `?(x)` macht jedes Branching um ein bis zwei Zeichen schwerer; konsequent
   angewandt braucht auch der Default-Export ein eigenes Wort statt der Regel „letzter Ausdruck".
 - **Entschied:** Auto-Spread im Branching abgeschafft, obwohl Beibehalten nichts gekostet hätte.
   `_branch` entschied bislang an `isRealObject`, ob ein Wert als Argumentkollektion oder als
   Einzelwert behandelt wird — dieselbe Zeile `x ?` bedeutete je nach Laufzeitwert etwas anderes.
+  Das Branching steht seitdem präfix mit runder Argumentliste, `x ?` wurde zu `?(x)`; was die
+  Umstellung im Einzelnen bedeutete, steht im Kopfkommentar von
+  [scripts/migrate-branching.mjs](../scripts/migrate-branching.mjs).
 - **Offen:** der Default-Export. Nach diesem Prinzip ist die aktuelle Regel ein Verstoß, der noch
   in keiner Liste steht.
 
@@ -61,9 +64,10 @@ Zwei Schreibweisen für dasselbe sind kein Komfort, sondern eine Entscheidung, d
 jeder Schreiber jedes Mal neu treffen muss. Wo es zwei gibt, ist eine zu streichen — oder beiden
 ein eigener Zweck zu geben, sodass es wieder zwei Sachen sind.
 
-- **Verbietet:** einen neuen Mechanismus neben einem bestehenden, der dasselbe kann. Option D im
-  Branching wurde auch deshalb vorgezogen, weil ihr Spread der bestehende Argumentlisten-Spread
-  aus `function-call.jul` ist und keine zweite Spread-Regel einführt.
+- **Verbietet:** einen neuen Mechanismus neben einem bestehenden, der dasselbe kann. Die runde
+  Argumentliste am Branching wurde auch deshalb gewählt, weil ihr Spread — `?(...myList)` — der
+  bestehende Argumentlisten-Spread aus `function-call.jul` ist und keine zweite Spread-Regel
+  einführt.
 - **Kostet:** Bequemlichkeit im Einzelfall, und es erzeugt Arbeit an Altlasten, die niemanden
   stören. `() => x` und `Any => x` matchen beide jeden Wert und sind für die Typverengung
   gleichwertig — in [TODO](../TODO) steht dazu „nur noch eine Stilfrage". Nach diesem Prinzip ist es
@@ -118,8 +122,8 @@ schließen das Leere aus; wer beides zulässt, schreibt `Or([] List(X))`.
 Was die Einrückung schon zeigt, wird nicht noch einmal geschrieben. Ein Konstrukt, das einen
 mehrzeiligen Block klammern oder abschließen muss, ist kein JUL-Konstrukt.
 
-- **Verbietet:** schließende Klammern über Blockgrenzen. Deshalb umfasst die diskutierte Klammer
-  in Option D nur den gebranchten Wert — die Branches bleiben im eingerückten Block darunter,
+- **Verbietet:** schließende Klammern über Blockgrenzen. Deshalb umfasst die runde Klammer des
+  Branchings nur den gebranchten Wert — die Branches bleiben im eingerückten Block darunter,
   ohne Abschluss.
 - **Kostet:** der Parser trägt `rows`, `rowIndex`, `columnIndex` und `indent` durch alle
   Kombinatoren, und mehrzeilige Konstrukte (vgl. `multiline returntype parser` in [TODO](../TODO))
@@ -154,8 +158,9 @@ ist Teil des Sprachentwurfs, nicht Ausgabe des Compilers.
 Umstellungskosten sind kein Kriterium. Zu bewerten ist allein, welche Sprache dauerhaft besser zu
 schreiben und zu erklären ist.
 
-- **Verbietet:** „bleibt so, weil eine Änderung teuer wäre" als Argument. Genau daran ist
-  Option A gescheitert: sie war nur vertretbar, weil sie nichts kostet.
+- **Verbietet:** „bleibt so, weil eine Änderung teuer wäre" als Argument. Genau daran ist der
+  Vorschlag gescheitert, das Infix-Branching mit Auto-Spread zu belassen: er war nur vertretbar,
+  weil er nichts kostet.
 - **Kostet:** wiederholte Migrationen fremder Codebasen. `C:\Projects\privat\yugioh` hängt
   ungepinnt an diesem Compiler und bricht bei jeder Sprachänderung.
 - **Gilt so lange**, wie die Sprache in Entwicklung ist. Dieses Prinzip hat ein Verfallsdatum,
