@@ -86,6 +86,29 @@ Es fehlt also keine Kenntnis der Baumstruktur, sondern nur die Verallgemeinerung
 das Kind ab, das die Position enthält" zu „besuche alle Kinder". Derselbe `switch`, mit dem
 Positionsfilter als Prädikat statt fest verdrahtet.
 
+### Wie TypeScript es macht
+
+`ts.forEachChild(node, cbNode)` ist dort die einzige zentrale Kind-Aufzählung, ebenfalls ein
+handgeschriebener `switch`. Drei Eigenschaften sind zu übernehmen:
+
+- **Kinder einzeln an den Callback**, kein `getChildren(): Expression[]`. Ein Array pro Knoten
+  allokiert auf einem Pfad, der pro Tastendruck läuft.
+- **Der Rückgabewert bricht ab.** Liefert der Callback etwas anderes als `undefined`, endet die
+  Traversierung und reicht den Wert durch. Damit bedient dieselbe Funktion „besuche alles" und
+  „finde das erste passende" — ohne zweite Implementierung.
+- **Knoten kennen ihre Spanne**, `getTokenAtPosition` steigt nur in den Zweig ab, der die
+  Position enthält. Genau die Beschneidung, die `isPositionInRange` heute fest verdrahtet.
+
+Scala geht den OO-Weg (`Traverser` mit `super.traverse`, in Dotty `TreeAccumulator.foldOver`)
+und leistet sich über Scalameta ein generisches `children: List[Tree]`. Das ist bequem und
+kostet pro Knoten eine Liste — tragbar für Compilerläufe, nicht für Editor-Latenz.
+
+**Wichtiger Nebenpunkt:** Bei TypeScript liegt `forEachChild` im Compiler, nicht im Language
+Service. Übertragen gehört der Visitor nach [syntax-tree.ts](../src/syntax-tree.ts), wo die
+Knotenarten definiert sind — dann können Checker, Emitter und Server dieselbe Aufzählung
+nutzen, statt sie ein viertes Mal zu schreiben. Und dort ist er als reine Funktion über einen
+Baum direkt unit-testbar, mit der Mocha-Infrastruktur, die im Compiler schon steht.
+
 ---
 
 ## 4. Kostet der Umbau Performance?
@@ -130,50 +153,85 @@ dadurch abmildern, dass die Grammatik schon nah am Ergebnis liegt.
 
 ### Zu messen
 
-`scripts/bench.ts` deckt den Compiler ab, nicht den Server. Für den Server gibt es jetzt
+`scripts/bench.ts` deckt den Compiler ab, nicht den Server. Für den Server gibt es
 [jul-language-server/scripts/bench.mjs](../../jul-language-server/scripts/bench.mjs) (`npm run bench`
 dort): ein minimaler LSP-Client über Node-IPC, der einen echten Serverprozess startet und misst,
 was der Editor merkt — Zeit von `didOpen` bzw. `didChange` bis `publishDiagnostics` und die
-Antwortzeit der positionsbasierten Features an vielen Positionen der größten Datei.
+Antwortzeit der positionsbasierten Features an vielen Positionen der größten Datei. Mit
+`--save --note "grund"` wird die Messung an `scripts/bench-log-lsp.tsv` angehängt, mit Commit,
+Compiler-Commit, Maschine und Ziel; ohne `--save` wird nur gegen den letzten Eintrag verglichen.
 
-Baseline vor dem Umbau, gegen `C:\Projects\privat\yugioh` (10 Dateien, größte 2856 Zeilen):
+Messung vor dem Umbau, gegen `C:\Projects\privat\yugioh` (10 Dateien, größte 2856 Zeilen),
+Notiz „vor visitor umbau":
 
 ```
-didOpen -> diagnostics    median  10.78 ms   p95 123.98 ms
-didChange -> diagnostics  median  67.24 ms   p95 109.23 ms
-hover                     median   0.12 ms   p95   0.27 ms
-definition                median   0.11 ms   p95   0.25 ms
-completion                median   2.13 ms   p95   3.15 ms
-signatureHelp             median   0.06 ms   p95   0.18 ms
-documentSymbol            median   4.16 ms   p95   4.48 ms
+didOpen -> diagnostics    median  18.92 ms   p95 140.42 ms
+didChange -> diagnostics  median  64.50 ms   p95 106.02 ms
+hover                     median   0.15 ms   p95   0.35 ms
+definition                median   0.08 ms   p95   0.21 ms
+completion                median   2.32 ms   p95   4.16 ms
+signatureHelp             median   0.06 ms   p95   0.20 ms
+documentSymbol            median   4.66 ms   p95   4.67 ms
 ```
 
-Das ordnet beide Fragen ein. **Parse und Check dominieren mit Abstand**: 67 ms pro Änderung
+Das ordnet beide Fragen ein. **Parse und Check dominieren mit Abstand**: 65 ms pro Änderung
 gegen 0,1 ms für eine positionsbasierte Suche. Ein zusätzlicher vollständiger Baumdurchlauf für
-Semantic Tokens liegt zwischen beiden Größenordnungen und ist gegenüber den 67 ms, die ohnehin
-pro Tastendruck anfallen, nicht der bestimmende Posten. Und selbst ein versehentlich zu
-O(Knoten) verallgemeinertes `findExpressionInExpression` bliebe absolut gesehen unter der
+Semantic Tokens liegt zwischen beiden Größenordnungen und ist gegenüber dem, was ohnehin pro
+Tastendruck anfällt, nicht der bestimmende Posten. Und selbst ein versehentlich zu O(Knoten)
+verallgemeinertes `findExpressionInExpression` bliebe absolut gesehen unter der
 Wahrnehmungsschwelle — es wäre unsauber, aber kein spürbarer Schaden. Die Sorge aus 4a ist damit
 kleiner als zunächst gedacht.
+
+Die Werte für `hover`, `definition` und `signatureHelp` liegen unter der Bewertungsgrenze des
+Bench: sie werden protokolliert, aber nicht in Prozent verglichen. Ausgerechnet sie sind die
+Zeilen, an denen ein O(Knoten)-Fehler sichtbar würde — nach dem Umbau also die absoluten Zahlen
+lesen, nicht die Abweichungsspalte.
 
 Auffällig ist stattdessen `completion` mit 2,13 ms Median, rund zwanzigmal teurer als `hover`
 bei gleicher Baumsuche. Das ist ein eigener Faden, nicht Teil dieses Dokuments.
 
 ---
 
-## 5. Was zu tun ist
+## 5. Womit der Umbau abgesichert ist
 
-0. **Erledigt:** Server-Bench und Baseline, siehe Abschnitt 4. Vor und nach jedem folgenden
-   Schritt wiederholen.
-1. `findExpressionInExpression` zu einem Visitor verallgemeinern, der beide Nutzungen bedient —
-   mit Abbruchsignal und ohne Kind-Arrays
+Der Bench sagt nur, dass es gleich schnell bleibt. Ob dieselbe Position noch denselben Ausdruck
+findet, sagt [jul-language-server/scripts/snapshot.mjs](../../jul-language-server/scripts/snapshot.mjs)
+(`npm test` dort, neu schreiben mit `UPDATE_SNAPSHOT=1`). Er fährt über alle Dateien in
+`jul-examples` und hält DocumentSymbols sowie Hover, Definition, Completion und SignatureHelp
+an verteilten Positionen fest. Den LSP-Client teilt er sich mit dem Bench
+([lsp-client.mjs](../../jul-language-server/scripts/lsp-client.mjs)).
+
+Zwei Grenzen sind beim Lesen der Ergebnisse zu beachten:
+
+- **Er zementiert das Ist-Verhalten.** Niemand hat die Baseline auf Richtigkeit geprüft. Ein
+  beim ersten Lauf gefundener `ENOTDIR`-Fehler in der Import-Pfad-Completion steht jetzt als
+  Sollzustand darin. Der Test schützt vor Veränderung, nicht vor Fehlern.
+- **Der Inhalt stammt größtenteils aus dem Compiler** — Hover-Text ist `typeToString`, die
+  Definition zeigt auf eine `SymbolDefinition`. Änderungen dort schlagen durch, ohne etwas
+  über den Server gesagt zu haben. Die Diagnostics stehen deshalb nicht drin, sie wären reine
+  Doppelung zum `checker-snapshot`.
+
+Es ist ein Integrationstest, weil heute nichts anderes möglich ist: [server.ts](../../jul-language-server/src/server.ts)
+hat keinen einzigen `export` und baut beim Laden sofort eine Connection auf. Sobald der Visitor
+nach `syntax-tree.ts` gewandert ist, gehören dorthin Unit-Tests; der Snapshot bleibt das grobe
+Netz für alles, was im Server darüber liegt.
+
+---
+
+## 6. Was zu tun ist
+
+0. **Erledigt:** Server-Bench mit Protokoll (Abschnitt 4) und Snapshot-Test (Abschnitt 5).
+   Vor und nach jedem folgenden Schritt messen, nach jedem Schritt `npm test`.
+1. Visitor nach [syntax-tree.ts](../src/syntax-tree.ts), nach dem Vorbild von `forEachChild`:
+   Kinder einzeln, Rückgabewert bricht ab. `findExpressionInExpression` im Server darauf
+   umstellen, Unit-Tests im Compiler dazu.
 2. Custom-Request `jul/emptyLiterals` im Server, Decoration in der Extension, Farbe als
    `ThemeColor` mit Contribution in `package.json`, damit es themefest bleibt
 3. Danach, unabhängig: Semantic-Tokens-Provider im Server, Capability in der Extension,
    100-kB-Grenze übernehmen
 
-Stand heute ist nur die Grammatik-Regel `constant.language.empty.jul` vorhanden. Sie ist
-wirkungslos, solange Schritt 2 fehlt — und wird von der Decoration auch nicht gebraucht.
+In der Grammatik steht nichts mehr zum Empty-Literal; die Regel `constant.language.empty.jul`
+war wirkungslos und wurde wieder entfernt. Die Decoration braucht sie nicht.
 
 Stand heute ist nur die Grammatik-Regel `constant.language.empty.jul` vorhanden. Sie ist
 wirkungslos, solange Schritt 3 fehlt.

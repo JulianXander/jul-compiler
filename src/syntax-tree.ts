@@ -436,6 +436,118 @@ export interface Index extends PositionedExpressionBase {
 	name: number;
 }
 
+//#region forEachChild
+
+/**
+ * Die einzige Stelle, die weiß, welche Kinder ein Knoten hat. Ruft callback für jedes Kind in
+ * Quelltextreihenfolge auf; liefert der callback etwas anderes als undefined, bricht die
+ * Aufzählung ab und reicht den Wert durch.
+ * Kinder werden einzeln übergeben und nicht als Array, weil die positionsbasierte Suche im
+ * language server bei jedem Tastendruck läuft.
+ */
+export function forEachChild<T>(
+	expression: PositionedExpression,
+	callback: (child: PositionedExpression) => T | undefined,
+): T | undefined {
+	switch (expression.type) {
+		case 'binding':
+		case 'data':
+		case 'destructuringFields':
+		case 'dictionary':
+		case 'dictionaryType':
+			return forEachOf(expression.fields, callback);
+		case 'branching':
+			return visit(expression.args, callback)
+				?? forEachOf(expression.branches, callback);
+		case 'definition':
+			return visit(expression.name, callback)
+				?? visit(expression.typeGuard, callback)
+				?? visit(expression.value, callback);
+		case 'destructuring':
+			return visit(expression.fields, callback)
+				?? visit(expression.value, callback);
+		case 'destructuringField':
+			return visit(expression.name, callback)
+				?? visit(expression.typeGuard, callback)
+				?? visit(expression.source, callback);
+		case 'empty':
+		case 'float':
+		case 'fraction':
+		case 'index':
+		case 'integer':
+		case 'name':
+		case 'reference':
+			return undefined;
+		case 'field':
+			return visit(expression.name, callback)
+				?? visit(expression.typeGuard, callback)
+				?? visit(expression.assignedValue, callback);
+		case 'functionCall':
+			return visit(expression.prefixArgument, callback)
+				?? visit(expression.functionExpression, callback)
+				?? visit(expression.arguments, callback);
+		case 'functionLiteral':
+			return visit(expression.params, callback)
+				?? visit(expression.returnType, callback)
+				?? forEachOf(expression.body, callback);
+		case 'functionTypeLiteral':
+			return visit(expression.params, callback)
+				?? visit(expression.returnType, callback);
+		case 'list':
+		case 'object':
+			return forEachOf(expression.values, callback);
+		case 'nestedReference':
+			return visit(expression.source, callback)
+				?? visit(expression.nestedKey, callback);
+		case 'parameter':
+			return visit(expression.name, callback)
+				?? visit(expression.typeGuard, callback);
+		case 'parameters':
+			return forEachOf(expression.singleFields, callback)
+				?? visit(expression.rest, callback);
+		case 'singleDictionaryField':
+			return visit(expression.name, callback)
+				?? visit(expression.typeGuard, callback)
+				?? visit(expression.value, callback);
+		case 'singleDictionaryTypeField':
+			return visit(expression.name, callback)
+				?? visit(expression.typeGuard, callback);
+		case 'spread':
+			return visit(expression.value, callback);
+		case 'text':
+			return forEachOf(
+				expression.values.filter((value): value is ParseValueExpression =>
+					value.type !== 'textToken'),
+				callback);
+		default: {
+			const assertNever: never = expression;
+			throw new Error(`Unexpected expression.type: ${(assertNever as PositionedExpression).type}`);
+		}
+	}
+}
+
+function visit<T>(
+	child: PositionedExpression | undefined,
+	callback: (child: PositionedExpression) => T | undefined,
+): T | undefined {
+	return child && callback(child);
+}
+
+function forEachOf<T>(
+	children: readonly PositionedExpression[],
+	callback: (child: PositionedExpression) => T | undefined,
+): T | undefined {
+	for (let index = 0; index < children.length; index++) {
+		const result = callback(children[index]!);
+		if (result !== undefined) {
+			return result;
+		}
+	}
+	return undefined;
+}
+
+//#endregion forEachChild
+
 //#endregion ParseExpression
 
 //#region CompileTimeType
