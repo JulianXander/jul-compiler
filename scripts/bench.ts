@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { existsSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { basename, join, resolve } from 'path';
 
 import { checkerStats, checkTypes, ParsedDocuments, resetCheckerStats } from '../src/checker.js';
@@ -21,12 +22,16 @@ import {
 
 /**
  * Wall-Clock Messung von parse + check. Kein Test-Gate, nur Beleg für Umbauten am Checker.
- * Aufruf: npm run bench [--save] [--note "grund"] [ordner...]  (Default: jul-examples)
+ * Aufruf: npm run bench [--save] [--note "grund"] [ordner...]
  * Mit --save wird die Messung an scripts/bench-log-compiler.tsv angehängt, ohne nur verglichen.
  */
 
 const runCount = 5;
 const logPath = resolve(import.meta.dirname, 'bench-log-compiler.tsv');
+const chartScript = resolve(import.meta.dirname, 'bench-chart.mjs');
+// jul-examples ist mit 886 Zeilen zu klein: dort schwankt der Median um mehr als die Alarmschwelle
+const preferredTarget = resolve('C:/Projects/privat/yugioh');
+const fallbackTarget = resolve(import.meta.dirname, '../../jul-examples');
 
 function findJulFiles(folder: string): string[] {
 	return readdirSync(folder).flatMap(entry => {
@@ -117,6 +122,7 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 	if (save) {
 		appendEntries(logPath, results, target, note);
 		console.log(`  protokolliert: ${logPath}`);
+		execFileSync(process.execPath, [chartScript], { stdio: 'inherit' });
 	}
 	else {
 		console.log('  zum Protokollieren: npm run bench -- --save --note "grund"');
@@ -126,5 +132,5 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 const { save, note, targets: folders } = parseArgs(process.argv.slice(2));
 const targets = folders.length
 	? folders.map(folder => resolve(folder))
-	: [resolve(import.meta.dirname, '../../jul-examples')];
+	: [existsSync(preferredTarget) ? preferredTarget : fallbackTarget];
 targets.forEach(folder => benchFolder(folder, save, note));
