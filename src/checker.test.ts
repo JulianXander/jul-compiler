@@ -829,9 +829,12 @@ describe('Checker', () => {
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.
+		// catchAll im 2. branch, damit das Ergebnis nicht durch das neue Error-in-Union
+		// Verhalten (branching-error-return-type.md) verfälscht wird - das ist hier nicht das
+		// Thema des Tests.
 		const code = `x = ?(5)
 	[1] => (a) => a
-	[2] => (a) => a`;
+	() => (a) => a`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
@@ -842,6 +845,76 @@ describe('Checker', () => {
 		expect(definition.value?.typeInfo?.type.julType).to.not.equal('or', 
 			'Union sollte dedupliziert werden — erwarteter Typ: function, tatsächlich: ' + definition.value?.typeInfo?.type.julType);
 		expect(definition.value?.typeInfo?.type.julType).to.equal('function');
+	});
+	// branching-error-return-type.md, Phase 1: Fehlt ein catchAll-Branch, kann `_branch` zur
+	// Laufzeit ein Error zurückgeben (siehe runtime.ts). Der Rückgabetyp muss das zeigen.
+	it('branching-without-catchall-adds-error-to-union', () => {
+		const code = `x = ?(5)
+	[1] => §eins§
+	[2] => §zwei§`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const type = definition.value?.typeInfo?.type;
+		expect(type?.julType).to.equal('or',
+			'Ohne catchAll muss Error Teil der Union sein — tatsächlich: ' + type?.julType);
+		const choiceTypes = type?.julType === 'or' ? type.ChoiceTypes : [];
+		expect(choiceTypes.some(choice => choice.julType === 'error')).to.equal(true,
+			'Error fehlt in der Union: ' + choiceTypes.map(choice => choice.julType).join(', '));
+	});
+	// Gegenstück: Mit catchAll ist _branch nie ohne Match, Error gehört also nicht in den Typ.
+	it('branching-with-catchall-has-no-error-in-union', () => {
+		const code = `x = ?(5)
+	[1] => §eins§
+	() => §andere§`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const type = definition.value?.typeInfo?.type;
+		// Zwei verschiedene Textliterale ergeben unabhängig vom catchAll ein 'or' — geprüft wird
+		// hier nur, dass darin kein 'error' als Choice auftaucht.
+		const choiceTypes = type?.julType === 'or' ? type.ChoiceTypes : [type];
+		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(false,
+			'Mit catchAll darf kein Error in der Union stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
+	});
+	// Ohne catchAll, aber die branches decken den ganzen deklarierten Eingabetyp bereits ab -
+	// _branch kann dann nie Error zurückgeben, das muss der Checker beweisen können.
+	it('branching-without-catchall-but-exhaustive-has-no-error-in-union', () => {
+		const code = `f = (x: Or(1 2)) => ?(x)
+	[1] => §eins§
+	[2] => §zwei§`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const returnType = definition.value?.typeInfo?.type.julType === 'function'
+			? definition.value.typeInfo.type.ReturnType
+			: undefined;
+		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
+		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(false,
+			'Vollständig abgedeckter Eingabetyp darf kein Error erzeugen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
+	});
+	// Das Motivbeispiel aus branching-error-return-type.md: Fall 3 fehlt, ohne catchAll.
+	it('branching-without-catchall-non-exhaustive-has-error-in-union', () => {
+		const code = `f = (x: Or(1 2 3)) => ?(x)
+	[1] => §eins§
+	[2] => §zwei§`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const returnType = definition.value?.typeInfo?.type.julType === 'function'
+			? definition.value.typeInfo.type.ReturnType
+			: undefined;
+		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
+		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(true,
+			'Fall 3 fehlt, Error muss im Rückgabetyp stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
 	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen

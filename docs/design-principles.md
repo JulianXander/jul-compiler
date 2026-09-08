@@ -17,9 +17,9 @@ sondern eine Beschreibung. Belegt sind sie an Fragen, die tatsächlich so entsch
 Die Reihenfolge ist die praktizierte Rangfolge aus dem Kollisions-Abschnitt unten; wo dort nichts
 belegt ist, ist die Position ein Erfahrungswert, kein gemessener Wert.
 
-## Die Prinzipien (Vollversion)
+## Die Prinzipien im Detail
 
-### 1. Was der Code bedeutet, muss im Code stehen
+### 1. Klarheit
 
 Der Leser muss die Bedeutung einer Stelle aus dem ableiten können, was dort steht. WYSIWYG: Es gibt keine verborgene Regel, die die Bedeutung von außen ändert.
 
@@ -92,7 +92,7 @@ Umstellung der gesamten Codebasis (die Klammer-Regel brauchte ein Migrationswerk
 
 ---
 
-### 4. Der Endzustand zählt, nicht der Weg dahin
+### 4. Endzustand
 
 Umstellungskosten sind kein Kriterium. Zu bewerten ist allein, welche Sprache dauerhaft besser zu schreiben und zu erklären ist.
 

@@ -961,7 +961,20 @@ function inferType(
 			const branchReturnTypes = expression.branches.map(branch => {
 				return getReturnTypeFromFunctionType(branch.typeInfo);
 			});
-			const rawType = createNormalizedUnionType(branchReturnTypes);
+			// _branch (runtime.ts) gibt Error zurück, wenn kein branch matcht. Das gehört nur
+			// dann nicht in den Typ, wenn beweisbar kein Wert von args durchrutschen kann:
+			// entweder ein branch matcht syntaktisch alles (catchAll), oder die branches decken
+			// den ganzen args-Typ ab. Nicht entscheidbar zählt als nicht exhaustiv - lieber
+			// Error zu viel im Typ als ein unsound weggelassenes Error (Prinzip Freiheit).
+			const isExhaustive = branches.some(branch => {
+				const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
+				return paramsType.julType === 'any'
+					|| (isParametersType(paramsType) && !paramsType.singleNames.length && !paramsType.rest);
+			}) || isBranchingExhaustive(args, branches);
+			const rawType = createNormalizedUnionType(
+				isExhaustive
+					? branchReturnTypes
+					: [...branchReturnTypes, { julType: 'error' }]);
 			return { type: rawType };
 		}
 		case 'definition': {
@@ -2406,6 +2419,45 @@ function getBranchArgumentType(
 	return rest
 		? getElementTypeAtIndex(rest.type, argumentIndex - singleNames.length)
 		: undefined;
+}
+
+/**
+ * Ob die branches beweisbar jeden möglichen Wert von args abdecken - nur für den Fall eines
+ * einzelnen, nicht destrukturierten Arguments (?(x)). Bei mehreren Argumenten oder wenn sich
+ * args/branch-Typen nicht auflösen lassen, konservativ false: dann bleibt Error im Rückgabetyp.
+ * Syntaktisches catchAll ((), Any) wird vom Aufrufer schon vorher geprüft.
+ */
+function isBranchingExhaustive(
+	args: ParseValueExpression | undefined,
+	branches: ParseValueExpression[],
+): boolean {
+	const argsType = args?.typeInfo && resolvePlaceholders(args.typeInfo.type);
+	if (!argsType) {
+		return false;
+	}
+	// args ist die Argumentkollektion (Tuple/List/...), nicht der Wert selbst - dieselbe
+	// Auflösung wie getBranchArgumentType für den Typ-Kopf-Fall.
+	const argValueType = getElementTypeAtIndex(argsType, 0);
+	if (!argValueType) {
+		return false;
+	}
+	const branchValueTypes = branches.map(branch => {
+		const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
+		return getBranchArgumentType(paramsType, 0);
+	});
+	if (branchValueTypes.some(valueType => !valueType)) {
+		// undefined heißt hier: nicht bestimmbar (catchAll wurde vom Aufrufer schon ausgeschlossen)
+		return false;
+	}
+	const combinedType = createNormalizedUnionType(branchValueTypes as CompileTimeType[]);
+	if (argValueType.julType === 'boolean') {
+		// Boolean ist im Typsystem kein Or(true false), sondern ein eigener julType - sonst
+		// bekäme jedes if(flag)-artige Branching mit [true]/[false] fälschlich ein Error, weil
+		// getTypeError nicht weiß, dass beide Literale den ganzen Boolean-Typ ausschöpfen.
+		return !getTypeError(undefined, { julType: 'booleanLiteral', value: true }, combinedType)
+			&& !getTypeError(undefined, { julType: 'booleanLiteral', value: false }, combinedType);
+	}
+	return !getTypeError(undefined, argValueType, combinedType);
 }
 
 /**
