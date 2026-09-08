@@ -800,6 +800,20 @@ g: Text = f(3)`,
 				},
 			],
 		},
+		{
+			name: 'filterMap-returns-any-not-callback-type',
+			// CHECKER-AUDIT Punkt 4: filterMap ist nicht wie map/slice gefixt.
+			// Rückgabetyp hängt vom Callback-Return-Type ab (wie bei map),
+			// aber core-lib deklariert hardcoded :> Any statt :> callback/ReturnType.
+			//
+			// ROTE TEST: Zeigt, was kaputt ist.
+			// Erwartet: filterMap(..., (value: Integer) :> Integer) = List(Integer)
+			// Aktuell: gibt Empty zurück (komplett kaputt)
+			code: `f = (callback: (value: Integer) :> Integer) => [1 2 3].filterMap(callback)
+result = f((value) => value)
+target: List(Integer) = result`,
+			errors: [],
+		},
 	];
 
 describe('Checker', () => {
