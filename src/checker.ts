@@ -31,9 +31,12 @@ import {
 	ParsedExpressions2,
 	ParsedFile,
 	ParseDictionaryField,
+	ParseDictionaryLiteral,
 	ParseBranching,
+	ParseDestructuringField,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
+	ParseListLiteral,
 	ParseParameterField,
 	ParseParameterFields,
 	ParseValueExpression,
@@ -993,8 +996,7 @@ function inferType(
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.typeInfo;
-				const targetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
-				const assignmentError = targetType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), targetType);
+				const assignmentError = typeGuardType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), valueOf(resolvePlaceholders(typeGuardType.type)));
 				if (assignmentError) {
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
@@ -1005,9 +1007,6 @@ function inferType(
 						endColumnIndex: expression.endColumnIndex,
 					});
 				}
-				if (targetType) {
-					checkDiscardedValues(getWrittenArguments(value), targetType, 0, 'element', errors);
-				}
 			}
 			return typeInfo;
 		}
@@ -1017,10 +1016,12 @@ function inferType(
 				setInferredType(value, scopes, parsedDocuments, folder, file, filePath);
 			}
 			const currentScope = last(scopes);
+			let allFieldsResolved = true;
 			expression.fields.fields.forEach(field => {
 				// TODO spread
 				const fieldName = field.name.name;
 				if (!fieldName) {
+					allFieldsResolved = false;
 					return;
 				}
 				checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
@@ -1030,6 +1031,7 @@ function inferType(
 					: { julType: 'any' };
 				const fieldType = dereferenceNameFromObject(referenceName, valueType);
 				if (!fieldType) {
+					allFieldsResolved = false;
 					errors.push({
 						code: ErrorCode.dereferenceFailed,
 						message: `Failed to dereference ${referenceName} in type ${typeToString(resolvePlaceholders(valueType), 0, 0)}`,
@@ -1060,6 +1062,11 @@ function inferType(
 					}
 				}
 			});
+			// Erst wenn jeder gewünschte Name im Wert steht, heißt ein übriges Feld "niemand
+			// bindet es". Sonst ist der gemeldete Name die Ursache und diese Warnung nur ihre Folge.
+			if (allFieldsResolved) {
+				checkDiscardedDestructuringFields(value, expression.fields.fields, errors);
+			}
 			return { type: { julType: 'any' } };
 		}
 		case 'dictionary': {
@@ -1254,13 +1261,7 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			checkDiscardedValues(
-				getWrittenArguments(args),
-				paramsType,
-				prefixArgument ? 1 : 0,
-				'argument',
-				errors,
-			);
+			checkDiscardedArguments(args, paramsType, prefixArgument ? 1 : 0, errors);
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, parsedDocuments, folder, errors);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, returnType);
@@ -2489,37 +2490,70 @@ function narrowBranchedType(
 //#region verworfene Werte
 
 /**
- * Meldet Werte, die im Quelltext stehen und nirgends ankommen, weil das Ziel nur die vorderen
- * aufnimmt. Dass ein längerer Wert überhaupt zulässig ist, ist die Regel der Sprache und kein
- * Fehler: ein Typ nennt Anforderungen, kein vollständiges Bild. Gemeldet wird deshalb nur, was
- * an dieser Stelle geschrieben steht und gelöscht werden kann.
+ * Meldet Argumente, die im Quelltext stehen und nirgends ankommen, weil die Parameterliste sie
+ * nicht aufnimmt. Dass mehr Argumente überhaupt zulässig sind, ist die Regel der Sprache und kein
+ * Fehler: ein Typ nennt Anforderungen, kein vollständiges Bild. Gemeldet wird deshalb nur, was an
+ * dieser Stelle geschrieben steht und gelöscht werden kann.
+ *
+ * Nur beim Aufruf: assignArgs bindet ausschließlich die deklarierten Parameter, alles weitere
+ * fällt weg. Eine Zuweisung verwirft dagegen nichts - der TypeGuard prüft, er formt nicht um,
+ * und das Symbol behält den Typ des Werts samt aller Elemente und Felder.
  */
-function checkDiscardedValues(
-	writtenValues: ParseValueExpression[] | undefined,
-	targetType: CompileTimeType,
+function checkDiscardedArguments(
+	writtenArgs: BracketedExpression,
+	paramsType: CompileTimeType,
 	prefixArgumentCount: number,
-	subject: 'argument' | 'element',
 	errors: CompilerError[],
 ): void {
-	if (!writtenValues) {
+	switch (writtenArgs.type) {
+		case 'list':
+			checkDiscardedElements(writtenArgs, paramsType, prefixArgumentCount, errors);
+			return;
+		case 'dictionary': {
+			const knownNames = getKnownFieldNames(paramsType);
+			if (knownNames) {
+				checkDiscardedFields(
+					writtenArgs,
+					knownNames,
+					fieldName => `There is no parameter named ${fieldName}.`,
+					errors,
+				);
+			}
+			return;
+		}
+		default:
+			return;
+	}
+}
+
+function checkDiscardedElements(
+	writtenList: ParseListLiteral,
+	paramsType: CompileTimeType,
+	prefixArgumentCount: number,
+	errors: CompilerError[],
+): void {
+	// Ein Spread verschiebt alle folgenden Indizes unbekannt weit, damit steht nicht fest,
+	// welches Element überzählig wäre.
+	if (writtenList.values.some(value => value.type === 'spread')) {
 		return;
 	}
-	const arity = getKnownArity(targetType);
+	const arity = getKnownArity(paramsType);
 	if (arity === undefined) {
 		return;
 	}
+	const writtenValues = writtenList.values as ParseValueExpression[];
 	const writtenFrom = arity - prefixArgumentCount;
 	if (writtenFrom >= writtenValues.length) {
 		return;
 	}
 	const totalCount = writtenValues.length + prefixArgumentCount;
-	const subjectPlural = arity === 1
-		? subject
-		: subject + 's';
+	const subject = arity === 1
+		? 'argument'
+		: 'arguments';
 	writtenValues.slice(Math.max(0, writtenFrom)).forEach(writtenValue => {
 		errors.push({
 			code: ErrorCode.discardedValue,
-			message: `This value is discarded. Expected ${arity} ${subjectPlural}, got ${totalCount}.`,
+			message: `This value is discarded. Expected ${arity} ${subject}, got ${totalCount}.`,
 			startRowIndex: writtenValue.startRowIndex,
 			startColumnIndex: writtenValue.startColumnIndex,
 			endRowIndex: writtenValue.endRowIndex,
@@ -2528,19 +2562,88 @@ function checkDiscardedValues(
 	});
 }
 
+function checkDiscardedFields(
+	writtenDictionary: ParseDictionaryLiteral,
+	knownNames: string[],
+	getMessage: (fieldName: string) => string,
+	errors: CompilerError[],
+): void {
+	// Ein Spread bringt unbekannte Felder mit, damit steht nicht fest, welches überzählig wäre.
+	if (writtenDictionary.fields.some(field => field.type === 'spread')) {
+		return;
+	}
+	writtenDictionary.fields.forEach(field => {
+		if (field.type !== 'singleDictionaryField') {
+			return;
+		}
+		const fieldName = getCheckedEscapableName(field.name);
+		if (!fieldName
+			|| knownNames.includes(fieldName)) {
+			return;
+		}
+		errors.push({
+			code: ErrorCode.discardedValue,
+			message: `This value is discarded. ${getMessage(fieldName)}`,
+			startRowIndex: field.startRowIndex,
+			startColumnIndex: field.startColumnIndex,
+			endRowIndex: field.endRowIndex,
+			endColumnIndex: field.endColumnIndex,
+		});
+	});
+}
+
 /**
- * Wie viele Werte das Ziel positionell aufnimmt.
+ * Meldet Felder eines Literals, die beim Destructuring niemand bindet. Anders als bei einer
+ * Definition hält hier keine Variable den ganzen Wert - gebunden werden nur die genannten Namen,
+ * alles andere ist danach unerreichbar.
+ */
+function checkDiscardedDestructuringFields(
+	writtenValue: ParseValueExpression | undefined,
+	fields: ParseDestructuringField[],
+	errors: CompilerError[],
+): void {
+	if (writtenValue?.type !== 'dictionary') {
+		return;
+	}
+	const boundNames = fields.map(field => field.source?.name ?? field.name.name);
+	checkDiscardedFields(
+		writtenValue,
+		boundNames,
+		fieldName => `${fieldName} is not destructured.`,
+		errors,
+	);
+}
+
+/**
+ * Wie viele Argumente die Parameterliste positionell aufnimmt.
  * undefined heißt "nicht entscheidbar" - ein rest nimmt beliebig viele, und bei List, Any, Or
  * oder einem Platzhalter ist die Stelligkeit unbekannt.
  */
-function getKnownArity(targetType: CompileTimeType): number | undefined {
-	if (isParametersType(targetType)) {
-		return targetType.rest
+function getKnownArity(paramsType: CompileTimeType): number | undefined {
+	if (isParametersType(paramsType)) {
+		return paramsType.rest
 			? undefined
-			: targetType.singleNames.length;
+			: paramsType.singleNames.length;
 	}
-	if (targetType.julType === 'tuple') {
-		return targetType.ElementTypes.length;
+	if (paramsType.julType === 'tuple') {
+		return paramsType.ElementTypes.length;
+	}
+	return undefined;
+}
+
+/**
+ * Welche Namen die Parameterliste aufnimmt.
+ * undefined heißt "nicht entscheidbar" - ein rest nimmt beliebige, und bei Dictionary, Any oder
+ * einem Platzhalter ist die Feldmenge unbekannt.
+ */
+function getKnownFieldNames(paramsType: CompileTimeType): string[] | undefined {
+	if (isParametersType(paramsType)) {
+		return paramsType.rest
+			? undefined
+			: paramsType.singleNames.map(parameter => parameter.name);
+	}
+	if (isDictionaryLiteralType(paramsType)) {
+		return Object.keys(paramsType.Fields);
 	}
 	return undefined;
 }

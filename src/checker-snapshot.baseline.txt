@@ -114,6 +114,7 @@ source$: Stream(Float)
   error 4001 at 15:29 console is not defined.
 === test1.jul ===
 a: Any
+b: [§a§ §b§]
   error 1011 at 2:11 Invalid index 0, indexes start at 1
   error 1102 at 2:12 multilineParser should parse until end of row
   warning 2500 at 1:14 This value is discarded. Expected 2 arguments, got 3.

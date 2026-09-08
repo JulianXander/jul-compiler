@@ -143,35 +143,37 @@ nicht vorhanden.
 
 ## 4. Was die Warnung erkennen soll
 
-Zwei Formen, beide syntaktisch entscheidbar:
+**Nur beim Aufruf.** `assignArgs` bindet ausschließlich die deklarierten Parameter, alles weitere
+fällt weg:
 
 ```jul
-x: [Integer Integer] = [1 2 3]   # die 3 steht da und verfällt
 f = (a: Integer) => a
-f(1 2)                           # die 2 steht da und verfällt
+f(1 2)                  # die 2 steht da und verfällt
+f(a = 1 b = 2)          # b = 2 steht da und verfällt
+```
+
+**Nicht bei der Zuweisung.** Der TypeGuard prüft, er formt nicht um: `x` behält den Typ des
+Werts samt allem, was darüber hinausgeht.
+
+```jul
+x: [a: Integer] = [a = 1 b = 2]
+x/b                     # 2 - nichts verworfen
 ```
 
 Bedingungen, alle nötig:
 
-1. Der überzählige Wert ist **geschriebener Ausdruck**, kein Spread.
-   [getWrittenArguments](../src/checker.ts#L2359) liefert genau das und `undefined`, sobald ein
-   Spread im Spiel ist.
-2. Die Stelligkeit des Ziels ist **bekannt**: `singleNames.length` ohne `rest`, oder die Länge
-   eines Tupel-Typkopfs. `List`, `Any`, `Or`, `parameterReference` heißen „unbekannt" und
-   schweigen (Prinzip 4).
+1. Der überzählige Wert ist **geschriebener Ausdruck**, kein Spread. Ein Spread verschiebt die
+   Zuordnung unbekannt weit bzw. bringt unbekannte Felder mit.
+2. Die Parameterliste ist **bekannt**: `singleNames` ohne `rest`, oder ein Tupel- bzw.
+   Dictionary-Typkopf. `List`, `Any`, `Or`, `parameterReference` heißen „unbekannt" und schweigen
+   (Prinzip 4).
 3. Kein `rest` — der verbraucht alles.
 4. Das Prefix-Argument zählt als erstes Argument (`1.f()`).
 5. **Branchings sind ausgenommen.** Bei `?(1 2)` gehört die Werteliste dem Branching, nicht einem
    Zweig; ein späterer Zweig darf das zweite Element konsumieren.
 
-Die Meldung sitzt auf dem überzähligen Ausdruck, nicht auf dem ganzen Aufruf — sonst weiß der
-Leser nicht, was er löschen soll.
-
-**Benannte Argumente und Dictionary-Literale kommen mit** — `f(a = 1 b = 2)` und
-`x: [a: Integer] = [a = 1 b = 2]` verwerfen `b` genauso, und es ist exakt der TypeScript-Fall
-(*excess property check*: nur beim Literal, nicht über eine Variable). Prinzip 2 verlangt es:
-sonst gälte für Namen und Positionen wieder Verschiedenes. Umgesetzt wird es als eigener Schritt
-nach dem positionellen Fall, damit jeweils eine Sache fertig wird.
+Die Meldung sitzt auf dem überzähligen Ausdruck bzw. dem ganzen Feld — der Einheit, die gelöscht
+wird.
 
 ---
 
@@ -218,20 +220,68 @@ ergänzt und der Satz „Derzeit sind alle Codes `error`" korrigiert.
 
 ### Schritt 3 — Prüfung im Checker, positionell ✔ erledigt
 
-`checkDiscardedValues` und `getKnownArity` in [checker.ts](../src/checker.ts), aufgerufen an zwei
-Stellen: im `functionCall`-Zweig nach `areArgsAssignableTo`, und bei einer `definition` mit
-`typeGuard`. `getWrittenArguments` liefert die geschriebenen Ausdrücke und `undefined` bei einem
-Spread — der Helfer stammt aus der branch narrowing und ist jetzt allgemein benannt.
+`checkDiscardedArguments` in [checker.ts](../src/checker.ts), aufgerufen im `functionCall`-Zweig
+nach `areArgsAssignableTo`. Die Stelligkeit kommt aus `getKnownArity`, das bei einem `rest` und
+bei allem, was keine Parameterliste und kein Tupel ist, `undefined` liefert — unbekannt heißt
+schweigen (Prinzip 4). Jeder überzählige Ausdruck wird einzeln auf seiner eigenen Position
+gemeldet: er ist einzeln löschbar.
 
-Jeder überzählige Ausdruck wird einzeln gemeldet, auf seiner eigenen Position: er ist einzeln
-löschbar. `getKnownArity` liefert `undefined` bei einem `rest` und bei allem, was keine
-Parameterliste und kein Tupel ist — unbekannt heißt schweigen (Prinzip 4).
+**Korrektur während der Umsetzung.** Der Plan sah eine zweite Fundstelle bei der Zuweisung vor.
+Die ist falsch: Der TypeGuard prüft, er formt nicht um. Nach `x: [Integer Integer] = [1 2 3]` hat
+`x` den Typ `[1 2 3]`, das emittierte JS enthält alle drei Elemente, und `x/3` bleibt lesbar. Bei
+einer Zuweisung wird also nichts verworfen. Aufgefallen ist es an
+`jul-examples/type-checking-test.jul`, wo `testDictionaryLiteral3a` genau diesen Fall mit
+`# should not error` festhält — die Abnahme gegen echten Code hat den Fehler gefangen, die Tests
+allein hätten ihn durchgelassen.
 
-Acht Tests in `checker.test.ts`, drei positive und fünf Gegentests. Die Gegentests halten die
-Entscheidung fest: Spread, Variable, gebranchter Wert und Rest-Parameter melden nicht.
+Die Warnung gilt daher **nur für Aufrufe**, wo `assignArgs` überzählige Argumente tatsächlich
+fallen lässt.
 
 **Nebenher:** Der Snapshot schrieb pauschal `error` vor jeden Code. Jetzt, wo Severities sich
 unterscheiden, verdeckte das die Unterscheidung im Diff — er gibt die tatsächliche Severity aus.
+
+### Schritt 4 — Benannte Argumente ✔ erledigt
+
+`checkDiscardedFields` für Argumentkollektionen, die als Dictionary geschrieben sind:
+`f(a = 1 b = 2)` gegen `(a: Integer)` meldet `b = 2`. Gemeldet wird das ganze Feld, denn das ist
+die Einheit, die gelöscht wird. `getKnownFieldNames` liefert die Namen aus der Parameterliste
+oder einem Dictionary-Typkopf, sonst `undefined`.
+
+Zwölf Tests in `checker.test.ts`, zwei positive und zehn Gegentests. Die Gegentests halten die
+Entscheidung fest: Spread, Variable, gebranchter Wert, Rest-Parameter und **Zuweisung** melden
+nicht.
+
+**Dabei gefunden:** Benannte Argumente gegen einen `rest`-Parameter sind gar nicht umgesetzt —
+der Checker meldet `Can not assign dictionary to rest parameter`, die Laufzeit wirft
+`tryAssignArgs not implemented yet for rest dictionary`. Als Test
+`named-arguments-with-rest-parameter-are-not-supported` festgehalten.
+
+**Nicht abgedeckt:** Bindet ein Prefix-Argument den ersten Parameter, gewinnt es zur Laufzeit
+gegen ein gleichnamiges Feld (`1.f(a = 2)` verwirft die `2`). Das bleibt still — ein verpasster
+Fall, keine Falschmeldung.
+
+### Schritt 5 — Destructuring ✔ erledigt
+
+Beim Destructuring hält **keine** Variable den ganzen Wert: `_temp` ist blocklokal, nur die
+gebundenen Namen kommen heraus. Ein übriges Feld ist danach unerreichbar — anders als bei der
+Definition, wo das Symbol alles behält.
+
+```jul
+(a) = [a = 1 b = 2]     # b ist danach unerreichbar
+```
+
+`checkDiscardedDestructuringFields` liest die Namen über die Quelle (`(x = a)` bindet `a`), nicht
+über den neuen Namen.
+
+**Absicherung, die ein Fehlalarm erzwungen hat:** Gemeldet wird nur, wenn **jeder** gewünschte
+Name im Wert steht. Sonst ist der nicht auflösbare Name die Ursache und das übrige Feld nur ihre
+Folge — `(myA1 b) = [a = 1 b = 2]` lieferte sonst zwei Meldungen für einen Fehler. Aufgefallen an
+`jul-examples/type-function.jul`, wo `(myA1 = a/a1 b)` steht: Ein Pfad als Destructuring-Quelle
+ist ungültige Syntax (JUL2400), und die Warnung stapelte sich auf den bestehenden Parse-Fehler.
+
+**Dabei gefunden:** Positionelles Destructuring ist im Checker nicht umgesetzt. `(a b) = [1 2]`
+meldet `Failed to dereference a in type [1 2]`, obwohl das emittierte JS es kann
+(`_isArray ? _temp[0] : _temp.a`). Gehört ins [Checker-Audit](CHECKER-AUDIT.md), nicht hierher.
 
 #### Messung gegen echten Code
 
@@ -249,26 +299,19 @@ yugioh wurde in Post-Order mit gemeinsamem `documents`-Record geprüft und ist d
 vollständig meldungsfrei — ein erster Lauf ohne diese Reihenfolge hätte nichts gemessen, genau
 wie im [Checker-Audit](CHECKER-AUDIT.md) beschrieben.
 
-### Schritt 4 — Benannte Argumente und Dictionary-Literale nachziehen
+### Schritt 6 — Die Regel aufschreiben ✔ erledigt
 
-Entschieden (Abschnitt 4), aber bewusst getrennt, damit Schritt 3 zuerst fertig wird.
+- `jul-homepage/docs/docs/documentation/handbook.md`, Abschnitt „Typen": ein Unterabschnitt
+  „Ein Typ nennt Anforderungen" mit je einem Beispiel für Feld und Position, dem Gegenstück für
+  Fehlendes, und dem Hinweis auf `List(X)` bzw. den Rest-Parameter. Alle fünf Beispiele wurden
+  ausgeführt, bevor sie in die Doku kamen. Ohne Verweis auf `JUL2500`: Das Handbuch beschreibt
+  die Sprache, die Fehlercode-Doku beschreibt die Meldungen, und verwiesen wird von dort hierher
+  — nicht umgekehrt.
+- [CLAUDE.md](../../CLAUDE.md), Sprachkern: ein Absatz neben dem zu `Empty`, mit dem
+  core-lib-Fall (einstelliger Callback an `map`) und der Abgrenzung Zuweisung/Aufruf.
 
-- `f(a = 1 b = 2)` gegen `(a: Integer)`: `b` kommt nirgends an.
-- `x: [a: Integer] = [a = 1 b = 2]`: dasselbe für die Zuweisung.
-- Die Bedingungen aus Abschnitt 4 gelten unverändert; statt der Stelligkeit zählt die Menge der
-  bekannten Feldnamen. Ein Spread im Dictionary-Literal schließt die Prüfung aus, ein
-  Rest-Parameter ebenso.
-- Meldung auf dem überzähligen Feld, nicht auf dem Literal.
+Damit ist der Plan abgearbeitet.
 
-### Schritt 5 — Die Regel aufschreiben
-
-Ohne das bleibt sie die unsichtbare Regel, die diese Frage überhaupt ausgelöst hat. Ein Teil steht
-schon in `JUL2500`, das ersetzt aber nicht die Stelle bei den Typen.
-
-- `jul-homepage/docs` bei den Typen: der Satz aus Abschnitt 1, mit je einem Beispiel für Feld und
-  Position, und dem Hinweis auf `List(X)` und `...rest` für geforderte variable Länge.
-- [CLAUDE.md](../../CLAUDE.md), Sprachkern: ein Satz neben dem zu `Empty`. Die beiden gehören
-  zusammen — `Empty` ist ein eigener Typ, und ein Typ nennt Anforderungen.
 
 ### Abnahme insgesamt
 

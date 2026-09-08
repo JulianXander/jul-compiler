@@ -1,3 +1,3 @@
-inferType: 1982
-resolvePlaceholders: 2665
-getTypeError: 1947
+inferType: 1988
+resolvePlaceholders: 2674
+getTypeError: 1951

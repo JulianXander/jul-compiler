@@ -571,21 +571,6 @@ f(1 2)`,
 			],
 		},
 		{
-			// Dasselbe für die Zuweisung eines Listen-Literals an einen Tupeltyp.
-			name: 'list-literal-surplus-element-is-discarded',
-			code: 'x: [Integer Integer] = [1 2 3]',
-			errors: [
-				{
-					"code": ErrorCode.discardedValue,
-					"endColumnIndex": 29,
-					"endRowIndex": 0,
-					"message": "This value is discarded. Expected 2 elements, got 3.",
-					"startColumnIndex": 28,
-					"startRowIndex": 0,
-				},
-			],
-		},
-		{
 			// Jeder überzählige Ausdruck ist einzeln löschbar und wird einzeln gemeldet.
 			name: 'every-surplus-argument-is-reported',
 			code: `f = (a: Integer) => a
@@ -618,11 +603,12 @@ f = (a: Integer) => a
 f(...values)`,
 		},
 		{
-			// Eine Variable darf legitim mehr enthalten, als das Ziel fordert - das ist die
-			// Regel der Sprache, kein Versehen an dieser Stelle.
+			// Eine Variable darf legitim mehr enthalten, als die Parameterliste fordert - das ist
+			// die Regel der Sprache, und im Quelltext steht an dieser Stelle nichts zu löschen.
 			name: 'variable-with-longer-tuple-is-not-discarded',
 			code: `v = [1 2 3]
-x: [Integer Integer] = v`,
+f = (a: Integer) => a
+f(...v)`,
 		},
 		{
 			// Die Werteliste gehört dem branching, nicht einem einzelnen branch: ein späterer
@@ -642,6 +628,119 @@ f(1 2 3)`,
 			name: 'matching-argument-count-is-not-discarded',
 			code: `f = (a: Integer b: Integer) => a
 f(1 2)`,
+		},
+		{
+			// Dasselbe für ein Dictionary-Literal als Argumentkollektion: b kommt nirgends an,
+			// weil die Parameterliste kein b hat. Gemeldet wird das ganze Feld, denn das ist
+			// die Einheit, die gelöscht wird.
+			name: 'call-surplus-named-argument-is-discarded',
+			code: `f = (a: Integer) => a
+f(a = 1 b = 2)`,
+			errors: [
+				{
+					"code": ErrorCode.discardedValue,
+					"endColumnIndex": 13,
+					"endRowIndex": 1,
+					"message": "This value is discarded. There is no parameter named b.",
+					"startColumnIndex": 8,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Eine Zuweisung verwirft nichts: der TypeGuard prüft, er formt nicht um. x behält
+			// den Typ des Werts samt drittem Element, x/3 bleibt lesbar und das emittierte JS
+			// enthält alle drei. Nur der Aufruf lässt überzählige Werte fallen.
+			name: 'assignment-discards-nothing',
+			code: 'x: [Integer Integer] = [1 2 3]',
+		},
+		{
+			// Dasselbe für Felder: x behält b, der TypeGuard schneidet es nicht weg.
+			// Vgl. jul-examples/type-checking-test.jul testDictionaryLiteral3a.
+			name: 'assignment-keeps-surplus-field',
+			code: 'x: [a: Integer] = [a = 1 b = 2]',
+		},
+		{
+			// Gegenprobe: ein Feld, das die Parameterliste kennt, meldet nicht.
+			name: 'known-named-argument-is-not-discarded',
+			code: `f = (a: Integer b: Integer) => a
+f(a = 1 b = 2)`,
+		},
+		{
+			// Benannte Argumente gegen einen rest-Parameter sind nicht umgesetzt: der Checker
+			// meldet es, und tryAssignArgs wirft zur Laufzeit. Der Test hält den Zustand fest -
+			// verschwindet die Meldung, ist die Lücke geschlossen.
+			name: 'named-arguments-with-rest-parameter-are-not-supported',
+			code: `f = (a: Integer ...args: Or([] List(Any))) => a
+f(a = 1 b = 2)`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 14,
+					"endRowIndex": 1,
+					"message": "Can not assign dictionary to rest parameter",
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Beim Destructuring hält keine Variable den ganzen Wert: _temp ist blocklokal, nur
+			// die gebundenen Namen kommen heraus. b ist danach unerreichbar.
+			name: 'destructuring-surplus-field-is-discarded',
+			code: '(a) = [a = 1 b = 2]',
+			errors: [
+				{
+					"code": ErrorCode.discardedValue,
+					"endColumnIndex": 18,
+					"endRowIndex": 0,
+					"message": "This value is discarded. b is not destructured.",
+					"startColumnIndex": 13,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Gelesen wird über die Quelle, nicht über den neuen Namen: (x = a) bindet a.
+			name: 'destructuring-alias-uses-source-name',
+			code: '(x = a) = [a = 1 b = 2]',
+			errors: [
+				{
+					"code": ErrorCode.discardedValue,
+					"endColumnIndex": 22,
+					"endRowIndex": 0,
+					"message": "This value is discarded. b is not destructured.",
+					"startColumnIndex": 17,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Gegenprobe: alle Felder werden gebunden.
+			name: 'destructuring-known-fields-are-not-discarded',
+			code: '(a b) = [a = 1 b = 2]',
+		},
+		{
+			// Eine Variable darf legitim mehr Felder haben, und zu löschen gäbe es hier nichts.
+			name: 'destructuring-from-variable-is-not-discarded',
+			code: `v = [a = 1 b = 2]
+(a) = v`,
+		},
+		{
+			// Löst ein gewünschter Name nicht auf, ist das die Ursache - dass a übrig bleibt,
+			// ist nur ihre Folge. Gemeldet wird deshalb nur der Name, nicht zusätzlich das Feld.
+			name: 'unresolved-destructuring-name-suppresses-discarded-warning',
+			code: '(myA1 b) = [a = 1 b = 2]',
+			errors: [
+				{
+					"code": ErrorCode.dereferenceFailed,
+					"endColumnIndex": 5,
+					"endRowIndex": 0,
+					"message": "Failed to dereference myA1 in type [\n\ta: 1\n\tb: 2\n]",
+					"startColumnIndex": 1,
+					"startRowIndex": 0,
+				},
+			],
 		},
 		//#endregion verworfene Werte
 		{
