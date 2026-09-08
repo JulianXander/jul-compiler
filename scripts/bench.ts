@@ -1,16 +1,32 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { existsSync } from 'fs';
-import { join, resolve } from 'path';
+import { basename, join, resolve } from 'path';
 
 import { checkerStats, checkTypes, ParsedDocuments, resetCheckerStats } from '../src/checker.js';
 import { parseCode } from '../src/parser/parser.js';
+import {
+	alarmingDeviation,
+	appendEntries,
+	BenchResult,
+	formatResult,
+	getDeviation,
+	getDrift,
+	getMachine,
+	isComparable,
+	noticeableDeviation,
+	parseArgs,
+	readPrevious,
+	stats,
+} from './bench-log.js';
 
 /**
  * Wall-Clock Messung von parse + check. Kein Test-Gate, nur Beleg für Umbauten am Checker.
- * Aufruf: npm run bench [ordner...]  (Default: jul-examples)
+ * Aufruf: npm run bench [--save] [--note "grund"] [ordner...]  (Default: jul-examples)
+ * Mit --save wird die Messung an scripts/bench-log.tsv angehängt, ohne nur verglichen.
  */
 
 const runCount = 5;
+const logPath = resolve(import.meta.dirname, 'bench-log.tsv');
 
 function findJulFiles(folder: string): string[] {
 	return readdirSync(folder).flatMap(entry => {
@@ -40,7 +56,7 @@ function parseAndCheck(filePath: string, parsedDocuments: ParsedDocuments): void
 	checkTypes(parsed, parsedDocuments);
 }
 
-function benchFolder(folder: string): void {
+function benchFolder(folder: string, save: boolean, note: string): void {
 	if (!existsSync(folder)) {
 		console.log(`${folder}: nicht gefunden, übersprungen`);
 		return;
@@ -62,16 +78,53 @@ function benchFolder(folder: string): void {
 		});
 		durations.push(performance.now() - start);
 	}
-	durations.sort((a, b) => a - b);
-	const median = durations[Math.floor(runCount / 2)]!;
-	console.log(`${folder}`);
-	console.log(`  ${julFiles.length} Dateien, ${lineCount} Zeilen`);
-	console.log(`  median ${median.toFixed(1)} ms  (min ${durations[0]!.toFixed(1)}, max ${durations[runCount - 1]!.toFixed(1)})`);
+	const target = basename(folder);
+	const machine = getMachine();
+	const results: BenchResult[] = [{
+		label: 'parse+check',
+		values: stats(durations),
+	}];
+	const previous = readPrevious(logPath, target, machine);
+
+	console.log(folder);
+	console.log(`  ${julFiles.length} Dateien, ${lineCount} Zeilen, ${runCount} Durchläufe`);
+	results.forEach(({ label, values }) =>
+		console.log(formatResult(label, values, previous?.[label])));
 	console.log(`  inferType ${checkerStats.inferType}, resolvePlaceholders ${checkerStats.resolvePlaceholders}, getTypeError ${checkerStats.getTypeError}`);
+
+	results.forEach(({ label, values }) => {
+		const drift = getDrift(logPath, target, machine, label, values);
+		if (drift && Math.abs(drift.deviation) >= noticeableDeviation) {
+			const sign = drift.deviation >= 0 ? '+' : '';
+			console.log(`  seit ${drift.first.timestamp} (${drift.first.commit}):`
+				+ ` ${drift.first.median.toFixed(2)} ms -> ${values.median.toFixed(2)} ms`
+				+ ` (${sign}${(drift.deviation * 100).toFixed(0)}%)`);
+		}
+	});
+
+	const alarming = previous
+		? results.filter(({ label, values }) =>
+			previous[label]
+			&& isComparable(values, previous[label]!)
+			&& getDeviation(values, previous[label]!) >= alarmingDeviation)
+		: [];
+	if (alarming.length) {
+		console.log(`  ALARM: ${alarming.map(result => result.label).join(', ')}`
+			+ ` über ${(alarmingDeviation * 100).toFixed(0)}% langsamer als die letzte Messung.`
+			+ ' Wall-Clock schwankt, aber nicht so weit - vor dem Protokollieren prüfen.');
+	}
+
+	if (save) {
+		appendEntries(logPath, results, target, note);
+		console.log(`  protokolliert: ${logPath}`);
+	}
+	else {
+		console.log('  zum Protokollieren: npm run bench -- --save --note "grund"');
+	}
 }
 
-const folders = process.argv.slice(2);
+const { save, note, targets: folders } = parseArgs(process.argv.slice(2));
 const targets = folders.length
 	? folders.map(folder => resolve(folder))
 	: [resolve(import.meta.dirname, '../../jul-examples')];
-targets.forEach(benchFolder);
+targets.forEach(folder => benchFolder(folder, save, note));

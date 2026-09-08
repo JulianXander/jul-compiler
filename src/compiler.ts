@@ -18,6 +18,7 @@ export function compileProject(
 	outputFolderPath: string,
 	cli: boolean = false,
 ): void {
+	const startTime = performance.now();
 	//#region 1. cleanup out
 	rmSync(outputFolderPath, { recursive: true, force: true });
 	//#endregion 1. cleanup out
@@ -32,10 +33,12 @@ export function compileProject(
 	}, {});
 	if (error) {
 		console.error(error);
+		console.log(formatDuration(startTime));
 		process.exitCode = 1;
 		return;
 	}
 	if (!outFilePath) {
+		console.log(formatDuration(startTime));
 		return;
 	}
 	//#endregion 2. compile
@@ -80,6 +83,7 @@ export function compileProject(
 		else {
 			console.log(colorize('build finished successfully', ConsoleColor.green));
 		}
+		console.log(formatDuration(startTime));
 	});
 	//#endregion 4. bundle
 }
@@ -253,6 +257,14 @@ function formatErrors(filePath: string, errors: CompilerError[]): string {
 		return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel} ${errorCode}: ${error.message}`;
 	}).join('\n');
 }
+function formatDuration(startTime: number): string {
+	const duration = performance.now() - startTime;
+	const formatted = duration < 1000
+		? `${duration.toFixed(0)}ms`
+		: `${(duration / 1000).toFixed(2)}s`;
+	return colorize(`compiler took ${formatted}`, ConsoleColor.cyan);
+}
+
 function busySpinner() {
 	let step = 0;
 	// const characters = '⡀⠄⠂⠁⠈⠐⠠⢀';
