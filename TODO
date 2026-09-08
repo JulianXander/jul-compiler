@@ -169,4 +169,10 @@
 	-js
 	?Language Services vs Request Forwarding
 	-https://code.visualstudio.com/api/language-extensions/embedded-languages
+-colorization und scopes sauber konzipieren
+	-eigene farben für parameter, aliase, felder, importe statt geliehener theme-farben,
+	 vgl jul.emptyLiteralForeground als color-contribution
+	-jetziger stand ist gewachsen und nicht entworfen: grammatik-scopes, semantic tokens und
+	 die semanticTokenScopes-abbildung wurden einzeln aneinander angepasst
+	-mitentscheiden: welche unterscheidungen sind es dem leser wert, welche sind nur möglich
 -anführungsstriche in paragaph umwandeln
