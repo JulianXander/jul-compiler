@@ -3,7 +3,7 @@ import { hostname } from 'os';
 import { resolve } from 'path';
 
 /**
- * Zeichnet den Verlauf aus bench-log.tsv als SVG, ein Diagramm je Label.
+ * Zeichnet den Verlauf aus bench-log-compiler.tsv als SVG, ein Diagramm je Label.
  * Getrennte y-Achsen statt einer gemeinsamen: die Labels liegen zwei Größenordnungen
  * auseinander, in einem Bild wären die schnellen Werte eine flache Linie auf der Nulllinie.
  * Aufruf: node scripts/bench-chart.mjs [--log pfad] [--target name] [--out pfad]
@@ -23,7 +23,7 @@ function parseArgs(argv) {
 			: undefined;
 	};
 	return {
-		logPath: resolve(getValue('--log') ?? resolve(import.meta.dirname, 'bench-log.tsv')),
+		logPath: resolve(getValue('--log') ?? resolve(import.meta.dirname, 'bench-log-compiler.tsv')),
 		target: getValue('--target'),
 		machine: getValue('--machine') ?? hostname(),
 		outPath: getValue('--out'),

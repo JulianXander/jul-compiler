@@ -22,11 +22,11 @@ import {
 /**
  * Wall-Clock Messung von parse + check. Kein Test-Gate, nur Beleg für Umbauten am Checker.
  * Aufruf: npm run bench [--save] [--note "grund"] [ordner...]  (Default: jul-examples)
- * Mit --save wird die Messung an scripts/bench-log.tsv angehängt, ohne nur verglichen.
+ * Mit --save wird die Messung an scripts/bench-log-compiler.tsv angehängt, ohne nur verglichen.
  */
 
 const runCount = 5;
-const logPath = resolve(import.meta.dirname, 'bench-log.tsv');
+const logPath = resolve(import.meta.dirname, 'bench-log-compiler.tsv');
 
 function findJulFiles(folder: string): string[] {
 	return readdirSync(folder).flatMap(entry => {
