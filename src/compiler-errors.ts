@@ -88,6 +88,13 @@ export enum ErrorCode {
 	// Parameter
 	invalidParameterSource = 2400,
 	restArgumentNotLast = 2401,
+	/**
+	 * Ein Wert steht im Quelltext und kommt nirgends an, weil das Ziel ihn nicht aufnimmt.
+	 * Keine Typverletzung: Längere Werte sind zulässig, ein Typ nennt Anforderungen.
+	 * Gemeldet wird nur, was an derselben Stelle geschrieben steht und gelöscht werden kann -
+	 * nicht ein Spread und nicht eine Variable, die zufällig mehr enthält.
+	 */
+	discardedValue = 2500,
 	//#endregion 2000 semantic: Sprachregeln
 
 	//#region 3000 semantic: Import und Modulauflösung
@@ -171,6 +178,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.invalidEscapableName]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidParameterSource]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.restArgumentNotLast]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.discardedValue]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },

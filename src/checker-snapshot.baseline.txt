@@ -116,6 +116,7 @@ source$: Stream(Float)
 a: Any
   error 1011 at 2:11 Invalid index 0, indexes start at 1
   error 1102 at 2:12 multilineParser should parse until end of row
+  warning 2500 at 1:14 This value is discarded. Expected 2 arguments, got 3.
 === text-example.jul ===
 inline: §Hallo Welt§
 mitInterpolation: Text

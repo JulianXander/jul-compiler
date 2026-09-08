@@ -551,6 +551,99 @@ a(g(5))`,
 			],
 		},
 		//#endregion Aufruf
+		//#region verworfene Werte
+		{
+			// Ein längerer Wert ist zulässig - ein Typ nennt Anforderungen, kein vollständiges
+			// Bild. Die 2 steht aber im Quelltext und kommt nirgends an. Gemeldet wird der
+			// überzählige Ausdruck selbst, damit der Leser sieht, was er löschen kann.
+			name: 'call-surplus-argument-is-discarded',
+			code: `f = (a: Integer) => a
+f(1 2)`,
+			errors: [
+				{
+					"code": ErrorCode.discardedValue,
+					"endColumnIndex": 5,
+					"endRowIndex": 1,
+					"message": "This value is discarded. Expected 1 argument, got 2.",
+					"startColumnIndex": 4,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Dasselbe für die Zuweisung eines Listen-Literals an einen Tupeltyp.
+			name: 'list-literal-surplus-element-is-discarded',
+			code: 'x: [Integer Integer] = [1 2 3]',
+			errors: [
+				{
+					"code": ErrorCode.discardedValue,
+					"endColumnIndex": 29,
+					"endRowIndex": 0,
+					"message": "This value is discarded. Expected 2 elements, got 3.",
+					"startColumnIndex": 28,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Jeder überzählige Ausdruck ist einzeln löschbar und wird einzeln gemeldet.
+			name: 'every-surplus-argument-is-reported',
+			code: `f = (a: Integer) => a
+f(1 2 3)`,
+			errors: [
+				{
+					"code": ErrorCode.discardedValue,
+					"endColumnIndex": 5,
+					"endRowIndex": 1,
+					"message": "This value is discarded. Expected 1 argument, got 3.",
+					"startColumnIndex": 4,
+					"startRowIndex": 1,
+				},
+				{
+					"code": ErrorCode.discardedValue,
+					"endColumnIndex": 7,
+					"endRowIndex": 1,
+					"message": "This value is discarded. Expected 1 argument, got 3.",
+					"startColumnIndex": 6,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Ein Spread verschiebt die Zuordnung unbekannt weit: welcher Wert überzählig wäre,
+			// steht nicht im Quelltext, und zu löschen gäbe es nichts.
+			name: 'spread-argument-is-not-discarded',
+			code: `values = [1 2 3]
+f = (a: Integer) => a
+f(...values)`,
+		},
+		{
+			// Eine Variable darf legitim mehr enthalten, als das Ziel fordert - das ist die
+			// Regel der Sprache, kein Versehen an dieser Stelle.
+			name: 'variable-with-longer-tuple-is-not-discarded',
+			code: `v = [1 2 3]
+x: [Integer Integer] = v`,
+		},
+		{
+			// Die Werteliste gehört dem branching, nicht einem einzelnen branch: ein späterer
+			// branch darf das zweite Element aufnehmen.
+			name: 'branch-value-list-is-not-discarded',
+			code: `x = ?(1 2)
+	(a: Integer) => a`,
+		},
+		{
+			// Der Rest-Parameter nimmt alles auf, überzählig ist damit nichts.
+			name: 'rest-parameter-consumes-surplus',
+			code: `f = (...args: Or([] List(Integer))) => args
+f(1 2 3)`,
+		},
+		{
+			// Gegenprobe: genau so viele Argumente wie Parameter meldet nicht.
+			name: 'matching-argument-count-is-not-discarded',
+			code: `f = (a: Integer b: Integer) => a
+f(1 2)`,
+		},
+		//#endregion verworfene Werte
 		{
 			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
 			name: 'type-parameter-as-type-argument',

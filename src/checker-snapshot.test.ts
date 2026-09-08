@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { basename, join, relative, resolve } from 'path';
 
 import { resolvePlaceholders, checkerStats, checkTypes, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
+import { errorInfos } from './compiler-errors.js';
 import { parseCode } from './parser/parser.js';
 import { ParsedFile } from './syntax-tree.js';
 
@@ -83,7 +84,8 @@ function snapshotFile(filePath: string): string[] {
 	});
 	checked.errors.forEach(error => {
 		const position = `${error.startRowIndex + 1}:${error.startColumnIndex + 1}`;
-		lines.push(`  error ${error.code} at ${position} ${error.message.replaceAll('\n', ' | ')}`);
+		const severity = errorInfos[error.code].severity;
+		lines.push(`  ${severity} ${error.code} at ${position} ${error.message.replaceAll('\n', ' | ')}`);
 	});
 	return lines;
 }

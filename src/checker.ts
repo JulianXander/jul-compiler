@@ -993,7 +993,8 @@ function inferType(
 				setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.typeInfo;
-				const assignmentError = typeGuardType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), valueOf(resolvePlaceholders(typeGuardType.type)));
+				const targetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
+				const assignmentError = targetType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), targetType);
 				if (assignmentError) {
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
@@ -1003,6 +1004,9 @@ function inferType(
 						endRowIndex: expression.endRowIndex,
 						endColumnIndex: expression.endColumnIndex,
 					});
+				}
+				if (targetType) {
+					checkDiscardedValues(getWrittenArguments(value), targetType, 0, 'element', errors);
 				}
 			}
 			return typeInfo;
@@ -1250,6 +1254,13 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
+			checkDiscardedValues(
+				getWrittenArguments(args),
+				paramsType,
+				prefixArgument ? 1 : 0,
+				'argument',
+				errors,
+			);
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, parsedDocuments, folder, errors);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, returnType);
@@ -2317,7 +2328,7 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 				&& Object.keys(first.Fields).length === Object.keys(second.Fields).length
 				&& Object.entries(first.Fields).every(([key, value]) => {
 					const otherValue = second.Fields[key];
-					return otherValue !== undefined && typeEquals(value.type, otherValue.type);
+					return otherValue !== undefined && typeEquals(value, otherValue);
 				});
 		case 'parameterReference':
 			return second.julType === 'parameterReference'
@@ -2353,10 +2364,10 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 //#region branch narrowing
 
 /**
- * Die geschriebenen Argumente eines branchings, Index für Index.
- * undefined, wenn sich kein Ausdruck zuordnen lässt - dann wird nicht verengt.
+ * Die geschriebenen Werte einer Kollektion, Index für Index.
+ * undefined, wenn sich kein Ausdruck zuordnen lässt - dann wird weder verengt noch gemeldet.
  */
-function getWrittenArguments(args: BracketedExpression | undefined): ParseValueExpression[] | undefined {
+function getWrittenArguments(args: ParseValueExpression | undefined): ParseValueExpression[] | undefined {
 	if (args?.type !== 'list') {
 		return undefined;
 	}
@@ -2474,6 +2485,67 @@ function narrowBranchedType(
 }
 
 //#endregion branch narrowing
+
+//#region verworfene Werte
+
+/**
+ * Meldet Werte, die im Quelltext stehen und nirgends ankommen, weil das Ziel nur die vorderen
+ * aufnimmt. Dass ein längerer Wert überhaupt zulässig ist, ist die Regel der Sprache und kein
+ * Fehler: ein Typ nennt Anforderungen, kein vollständiges Bild. Gemeldet wird deshalb nur, was
+ * an dieser Stelle geschrieben steht und gelöscht werden kann.
+ */
+function checkDiscardedValues(
+	writtenValues: ParseValueExpression[] | undefined,
+	targetType: CompileTimeType,
+	prefixArgumentCount: number,
+	subject: 'argument' | 'element',
+	errors: CompilerError[],
+): void {
+	if (!writtenValues) {
+		return;
+	}
+	const arity = getKnownArity(targetType);
+	if (arity === undefined) {
+		return;
+	}
+	const writtenFrom = arity - prefixArgumentCount;
+	if (writtenFrom >= writtenValues.length) {
+		return;
+	}
+	const totalCount = writtenValues.length + prefixArgumentCount;
+	const subjectPlural = arity === 1
+		? subject
+		: subject + 's';
+	writtenValues.slice(Math.max(0, writtenFrom)).forEach(writtenValue => {
+		errors.push({
+			code: ErrorCode.discardedValue,
+			message: `This value is discarded. Expected ${arity} ${subjectPlural}, got ${totalCount}.`,
+			startRowIndex: writtenValue.startRowIndex,
+			startColumnIndex: writtenValue.startColumnIndex,
+			endRowIndex: writtenValue.endRowIndex,
+			endColumnIndex: writtenValue.endColumnIndex,
+		});
+	});
+}
+
+/**
+ * Wie viele Werte das Ziel positionell aufnimmt.
+ * undefined heißt "nicht entscheidbar" - ein rest nimmt beliebig viele, und bei List, Any, Or
+ * oder einem Platzhalter ist die Stelligkeit unbekannt.
+ */
+function getKnownArity(targetType: CompileTimeType): number | undefined {
+	if (isParametersType(targetType)) {
+		return targetType.rest
+			? undefined
+			: targetType.singleNames.length;
+	}
+	if (targetType.julType === 'tuple') {
+		return targetType.ElementTypes.length;
+	}
+	return undefined;
+}
+
+//#endregion verworfene Werte
 
 /**
  * Ein Params-Typ wird gegen die Argumentkollektion geprüft. Kann keiner seiner Werte eine

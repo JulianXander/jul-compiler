@@ -167,65 +167,103 @@ Bedingungen, alle nötig:
 Die Meldung sitzt auf dem überzähligen Ausdruck, nicht auf dem ganzen Aufruf — sonst weiß der
 Leser nicht, was er löschen soll.
 
-**Offen, vor Schritt 3 zu entscheiden:** ob benannte Argumente und Dictionary-Literale mitkommen.
-`f(a = 1 b = 2)` und `x: [a: Integer] = [a = 1 b = 2]` verwerfen `b` genauso, und es ist exakt
-der TypeScript-Fall (*excess property check*: nur beim Literal, nicht über eine Variable). Dafür
-spricht Prinzip 2 — sonst gilt für Namen und Positionen wieder Verschiedenes.
+**Benannte Argumente und Dictionary-Literale kommen mit** — `f(a = 1 b = 2)` und
+`x: [a: Integer] = [a = 1 b = 2]` verwerfen `b` genauso, und es ist exakt der TypeScript-Fall
+(*excess property check*: nur beim Literal, nicht über eine Variable). Prinzip 2 verlangt es:
+sonst gälte für Namen und Positionen wieder Verschiedenes. Umgesetzt wird es als eigener Schritt
+nach dem positionellen Fall, damit jeweils eine Sache fertig wird.
 
 ---
 
 ## 5. Umsetzungsplan
 
-Jeder Schritt einzeln, roter Test vor dem Fix. Die Reihenfolge ist bindend: ohne Schritt 1 bricht
-jede Warnung den Build.
+Jeder Schritt einzeln, roter Test vor dem Fix.
 
-### Schritt 1 — Severity respektieren
+**Reihenfolge:** Schritt 2 kam vor Schritt 1, weil sich der Severity-Filter nicht rot testen
+lässt, solange kein einziger Code eine Warnung ist. Das Emittieren der Warnung (Schritt 3) bleibt
+hinten — vorher bräche sie den Build.
 
-Heute bricht [compileFile](../src/compiler.ts#L212) bei `errors?.length` ab, ohne die Severity
-anzusehen; alle 55 Codes stehen ohnehin auf `'error'`. Eine Warnung würde den Build genauso
-scheitern lassen wie ein Fehler.
+### Schritt 1 — Severity respektieren ✔ erledigt
 
-- `compileFile`, Abschnitt „6. check": abbrechen nur, wenn ein Eintrag
-  `errorInfos[code].severity === 'error'` hat. Warnungen und Hints trotzdem ausgeben.
-- Abschnitt „2b. check parse errors" bleibt unverändert — dort ist heute alles `'error'`.
-- **Abnahme:** Eine Datei, die nur eine Warnung erzeugt, kompiliert erfolgreich, und die Warnung
-  steht in der Ausgabe.
+[compileFile](../src/compiler.ts#L212) brach bei `errors?.length` ab, ohne die Severity
+anzusehen. Eine Warnung hätte den Build genauso scheitern lassen wie ein Fehler.
+
+- `compileFile`, Abschnitt „6. check": abbrechen nur, wenn ein Eintrag `severity === 'error'` hat.
+  Warnungen werden ausgegeben, das Ergebnis entsteht trotzdem. Abschnitt „2b. check parse errors"
+  bleibt unverändert — dort ist alles `'error'`.
+- **Kein eigener Test.** Ein erster Anlauf hatte die Bedingung als `hasBlockingError` extrahiert
+  und unit-getestet; der Test prüfte damit im Wesentlichen `Array.some` und die `errorInfos`-
+  Tabelle, und die Extraktion existierte nur für ihn. Beides zurückgebaut, die Bedingung steht
+  jetzt bei ihrem einzigen Aufrufer.
+- **Abnahme erfüllt** (nach Schritt 3): eine Datei mit `f = (a: Integer) => a` und `log(f(1 2))`
+  meldet `SemanticWarning JUL2500`, baut erfolgreich durch, Exit-Code 0, und das Bundle gibt `1n`
+  aus — genau das, was die Warnung ankündigt.
 - Vgl. [Checker-Audit](CHECKER-AUDIT.md), Punkt 7.
 
-### Schritt 2 — ErrorCode anlegen
+### Schritt 2 — ErrorCode anlegen ✔ erledigt
 
-Ein neuer Code braucht drei Einträge, sonst ist er unvollständig (Kopfkommentar in
-[compiler-errors.ts](../src/compiler-errors.ts)):
+`discardedValue = 2500`, `{ type: 'semantic', severity: 'warning' }`.
 
-1. Enum. Vorschlag `discardedValue = 5200` — eigene Gruppe; die 5000er sind nach Anlass
-   gegliedert (5050 Argumente, 5100 Rückgabe, 5150 Funktion, 5160 Dereferenzierung).
-2. `errorInfos`: `{ type: 'semantic', severity: 'warning' }`. **`semantic`, nicht `type`** — die
-   Aussage ist „dieser Wert kommt nie an", keine Typverletzung. Der Mapped Type erzwingt den
-   Eintrag.
-3. Abschnitt in `jul-homepage/docs/docs/documentation/error-codes.md`. Erzwingt kein Compiler,
-   wird deshalb am leichtesten vergessen.
+**Korrektur am ursprünglichen Vorschlag:** `5200` wäre falsch gewesen. Die Tausenderblöcke folgen
+der Kategorie — die 5000er sind `type`. Ein `semantic`-Code gehört in den 2000er-Block, und
+2500–2599 ist als „Verworfene Werte" frei.
 
-Meldungstext nach Prinzip 9 — über das, was dasteht, nicht über den Compiler. Etwa:
-`This value is discarded. f expects 1 argument.`
+`semantic`, nicht `type`: Die Aussage ist „dieser Wert kommt nie an", keine Typverletzung. Ein
+längerer Wert ist ja zulässig. Präzedenz für einen im Checker erzeugten `semantic`-Code ist
+`alreadyDefinedInUpperScope`.
 
-### Schritt 3 — Prüfung im Checker
+Alle drei Pflichteinträge gesetzt: Enum, `errorInfos`, Abschnitt `JUL2500` in
+`jul-homepage/docs/docs/documentation/error-codes.md`. Dort auch die Nummernbereichs-Tabelle
+ergänzt und der Satz „Derzeit sind alle Codes `error`" korrigiert.
 
-Zwei Aufrufstellen, eine gemeinsame Hilfsfunktion. Vorher entscheiden, ob benannte Argumente
-mitkommen (Abschnitt 4).
+### Schritt 3 — Prüfung im Checker, positionell ✔ erledigt
 
-- **Aufruf:** im `functionCall`-Zweig von `setInferredType`, nachdem die Argumente inferiert sind.
-  `getWrittenArguments` für die geschriebenen Ausdrücke, Stelligkeit aus `getParamsType`.
-- **Zuweisung:** bei einer `definition` mit `typeGuard`, deren Wert ein Listen-Literal ist, gegen
-  einen Tupel-Zieltyp.
-- Rote Tests je Form in `checker.test.ts`, mit vollständigem `errors`-Objekt:
-  `call-surplus-argument-is-discarded`, `list-literal-surplus-element-is-discarded`.
-- Gegentests, die **nichts** melden dürfen — sie halten die Entscheidung fest:
-  `spread-argument-is-not-discarded`, `variable-with-longer-tuple-is-not-discarded`,
-  `branch-value-list-is-not-discarded`, `rest-parameter-consumes-surplus`.
+`checkDiscardedValues` und `getKnownArity` in [checker.ts](../src/checker.ts), aufgerufen an zwei
+Stellen: im `functionCall`-Zweig nach `areArgsAssignableTo`, und bei einer `definition` mit
+`typeGuard`. `getWrittenArguments` liefert die geschriebenen Ausdrücke und `undefined` bei einem
+Spread — der Helfer stammt aus der branch narrowing und ist jetzt allgemein benannt.
 
-### Schritt 4 — Die Regel aufschreiben
+Jeder überzählige Ausdruck wird einzeln gemeldet, auf seiner eigenen Position: er ist einzeln
+löschbar. `getKnownArity` liefert `undefined` bei einem `rest` und bei allem, was keine
+Parameterliste und kein Tupel ist — unbekannt heißt schweigen (Prinzip 4).
 
-Ohne das bleibt sie die unsichtbare Regel, die diese Frage überhaupt ausgelöst hat.
+Acht Tests in `checker.test.ts`, drei positive und fünf Gegentests. Die Gegentests halten die
+Entscheidung fest: Spread, Variable, gebranchter Wert und Rest-Parameter melden nicht.
+
+**Nebenher:** Der Snapshot schrieb pauschal `error` vor jeden Code. Jetzt, wo Severities sich
+unterscheiden, verdeckte das die Unterscheidung im Diff — er gibt die tatsächliche Severity aus.
+
+#### Messung gegen echten Code
+
+| | Aufrufe | JUL2500 |
+|---|---|---|
+| jul-examples | 214 | 1 |
+| yugioh | 1398 | 0 |
+
+Der eine Treffer ist echt: `subtract(1 2 3)` in `jul-examples/test1.jul` — `subtract` nimmt zwei
+Parameter, die `3` verfällt. Die Datei ist eine Kladde und enthält schon andere absichtliche
+Fehler; die Warnung steht daher in der Snapshot-Baseline. **Kein einziger Fehlalarm.**
+
+Alle Beispielprojekte bauen weiterhin, außer `./import` mit seinem vorbestehenden `JUL1151`.
+yugioh wurde in Post-Order mit gemeinsamem `documents`-Record geprüft und ist derzeit
+vollständig meldungsfrei — ein erster Lauf ohne diese Reihenfolge hätte nichts gemessen, genau
+wie im [Checker-Audit](CHECKER-AUDIT.md) beschrieben.
+
+### Schritt 4 — Benannte Argumente und Dictionary-Literale nachziehen
+
+Entschieden (Abschnitt 4), aber bewusst getrennt, damit Schritt 3 zuerst fertig wird.
+
+- `f(a = 1 b = 2)` gegen `(a: Integer)`: `b` kommt nirgends an.
+- `x: [a: Integer] = [a = 1 b = 2]`: dasselbe für die Zuweisung.
+- Die Bedingungen aus Abschnitt 4 gelten unverändert; statt der Stelligkeit zählt die Menge der
+  bekannten Feldnamen. Ein Spread im Dictionary-Literal schließt die Prüfung aus, ein
+  Rest-Parameter ebenso.
+- Meldung auf dem überzähligen Feld, nicht auf dem Literal.
+
+### Schritt 5 — Die Regel aufschreiben
+
+Ohne das bleibt sie die unsichtbare Regel, die diese Frage überhaupt ausgelöst hat. Ein Teil steht
+schon in `JUL2500`, das ersetzt aber nicht die Stelle bei den Typen.
 
 - `jul-homepage/docs` bei den Typen: der Satz aus Abschnitt 1, mit je einem Beispiel für Feld und
   Position, und dem Hinweis auf `List(X)` und `...rest` für geforderte variable Länge.

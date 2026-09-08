@@ -208,9 +208,14 @@ function compileFile(
 		checkTypes(parsed, compiledDocuments);
 		const errors = parsed.checked?.errors;
 		if (errors?.length) {
-			return {
-				error: formatErrors(parsed.filePath, errors),
-			};
+			const formattedErrors = formatErrors(parsed.filePath, errors);
+			// Warnungen sagen etwas über den Code, machen das Ergebnis aber nicht unbrauchbar.
+			if (errors.some(error => errorInfos[error.code].severity === 'error')) {
+				return {
+					error: formattedErrors,
+				};
+			}
+			console.log(formattedErrors);
 		}
 		//#endregion 6. check
 	}
