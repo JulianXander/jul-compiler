@@ -59,26 +59,17 @@ sortiert.
 | # | Lücke | Schaden | Aufwand |
 |---|---|---|---|
 | 1 | branching ohne catchAll: `Error` fehlt im Rückgabetyp ([src/checker.ts:905-912](../src/checker.ts#L905-L912)) | unsound — `_branch` liefert `new Error(...)` | mittel, **Designentscheidung offen** ([TODO:56](../TODO#L56)) |
-| 2 | Tupel-Länge: zu wenige Elemente werden gemeldet, zu viele nicht — **keine Checker-Lücke, sondern offene Sprachentscheidung**, siehe [tuple-length-semantics.md](tuple-length-semantics.md) | überzählige Werte still verworfen, auch bei `x: [Integer Integer] = [1 2 3]` | Entscheidung offen, Umsetzung klein |
+| 2 | Ein **hingeschriebener** überzähliger Wert verfällt still: `x: [Integer Integer] = [1 2 3]`, `f(1 2)`. Dass längere Werte zulässig sind, ist dagegen die Regel der Sprache und keine Lücke | toter Code ohne Meldung | **entschieden**, Umsetzungsplan in [width-subtyping.md](width-subtyping.md) Abschnitt 5 |
 | 3 | Nie matchender branch ([src/checker.ts:885-903](../src/checker.ts#L885-L903) auskommentiert) | reine Diagnose | **klein** — `typesOverlap` liegt vor, `getPreviousBranchValueType` ebenfalls |
 | 4 | `getTypeErrorForParameters` „not implemented yet" ([src/checker.ts:2807](../src/checker.ts#L2807)) | unklar | unklar |
 | 5 | **Weitere core-lib-Funktionen mit zu grobem Rückgabetyp** — `slice` und `map` sind gefixt, `filterMap`, `findFirst`, `removeElements` etc. sind ungeprüft | dieselbe Klasse: `Empty` zu viel oder Struktur verloren | je Funktion klein |
+| 6 | Untypisierter Rest-Parameter matcht zur Laufzeit **nie**: in [tryAssignArgs](../src/runtime.ts#L570) liefert `restType ? getTypeError(…) : true` ohne Typ ein `true`, also einen Fehler | unsound — der Checker sagt für `?(1 2)` mit Branch `(...args) => §rest§` den Typ `§rest§` zu, zur Laufzeit kommt `did not match any branch`. Trifft die Catch-all-Schreibweise | **klein** — `true` zu `undefined`, wie im `singleNames`-Pfad und wie im Checker |
+| 7 | Severity ist gebaut, aber ungenutzt: alle 55 Codes stehen auf `'error'`, und [compileFile](../src/compiler.ts#L212) bricht bei `errors?.length` ab, ohne sie anzusehen | die Sprache kennt nur „geht nicht". Befunde, die berechtigt sind, aber nichts verbieten sollen (Punkt 3, überlange Tupel), haben keine Stufe | **klein** — Abbruch auf `severity === 'error'` einschränken; Infrastruktur ist bis in den Sprachserver fertig |
+| 8 | „Parameter name mismatch" nennt die Rollen verkehrt herum ([checker.ts:3074](../src/checker.ts#L3074)) | `map(l (value: Integer i: PositiveInteger) => value)` meldet „Got index but expected i" — geschrieben wurde `i`, erwartet war `index`. Verstößt gegen Prinzip 9 | **klein** — Ursache ist die Kontravarianz: `case 'function'` vertauscht Ziel und Wert, die Meldung rechnet das nicht zurück |
 
-Zu 2: Es ist keine Aufruf-Regel, sondern Zuweisbarkeit von Tupeln — der Aufruf mit zu vielen
-Argumenten fällt als Sonderfall mit ab. Der Checker bildet damit die Laufzeit korrekt ab:
-[getTupleTypeError](../src/runtime.ts#L418) meldet nur `value.length < elementTypes.length`, und
-[tryAssignArgs](../src/runtime.ts#L524) sieht nach dem letzten deklarierten Parameter nicht weiter.
-Ein Branch `[Integer Integer]` matcht zur Laufzeit also `[1 2 3]`, `[1]` dagegen nicht. Die heutige
-Semantik ist damit **Präfix, nicht exakte Länge** — konsistent, nur nirgends festgeschrieben.
-
-Auf exakte Länge umzustellen ist deshalb keine reine Checker-Änderung: die Laufzeit müsste mit,
-und das verschärft `_branch`-Matching. Erst entscheiden, dann fixen. Betroffen wären
-[getTupleTypeError2](../src/checker.ts#L2972) (iteriert nur über `targetElementTypes`) und
-[getTypeErrorForParametersWithCollectionArgs](../src/checker.ts#L3106) (nur über `singleNames`).
-
-Ein Spread im Aufruf bleibt in beiden Varianten ungeprüft: `f(...args)` hat als Argumenttyp `any`
-(Spread-Elemente werden in [case 'list'](../src/checker.ts#L1371) zu `any`), und `getTypeError` steigt
-bei `any` aus. Erst wenn das Flatten dort kommt, greift eine Längenprüfung auch für Spread.
+Zu 2 und 7: Beide gehören zum selben Umsetzungsplan — die Warnung braucht eine Severity, die den
+Build nicht bricht. Reihenfolge und Abnahme stehen in [width-subtyping.md](width-subtyping.md),
+Abschnitt 5.
 
 ---
 
