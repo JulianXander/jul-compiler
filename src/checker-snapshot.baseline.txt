@@ -114,7 +114,6 @@ source$: Stream(Float)
   error 4001 at 15:29 console is not defined.
 === test1.jul ===
 a: Any
-b: [§a§ §b§]
   error 1011 at 2:11 Invalid index 0, indexes start at 1
   error 1102 at 2:12 multilineParser should parse until end of row
   warning 2500 at 1:14 This value is discarded. Expected 2 arguments, got 3.
@@ -241,7 +240,7 @@ someVar: 32
   error 4001 at 6:3 Number is not defined.
 === types.jul ===
 Article: TypeOf([ 	name: Text 	price: Any 	color: Text ])
-Even: Any :> Boolean
+Even: (num: Integer) :> Boolean
 Number: Boolean
 ParserResult: (TypeParam: Text) :> Any :> Boolean
 addNums: (T: Boolean) :> ( 	num1: Boolean 	num2: Boolean ) :> [Boolean Boolean]
@@ -292,8 +291,6 @@ myVarIsText: Any
   error 5151 at 59:25 Expected a function to call. | Can not assign TypeOf(List(Text)) to Any :> Any.
   error 4001 at 59:36 x is not defined.
   error 4001 at 59:38 errors is not defined.
-  error 4001 at 62:8 num is not defined.
-  error 4001 at 63:15 num is not defined.
 === ui/dialog/dialog.jul ===
   error 4001 at 2:1 body is not defined.
   error 4001 at 3:2 button is not defined.
