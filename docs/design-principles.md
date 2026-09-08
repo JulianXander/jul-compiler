@@ -57,6 +57,15 @@ ohne.
 - **Entschied:** rund = Bindungsstelle, eckig = Daten — ausnahmslos, statt der vorherigen
   Mehrdeutigkeit. Ergebnis: `() => x` und `[] => x` bedeuten heute Verschiedenes, ohne dass eine
   Zusatzregel das erklären muss.
+- **Entschied:** Ein Typ nennt Anforderungen, kein vollständiges Bild — ein Wert darf sie
+  übertreffen. Verworfen wurde, Tupel in ihrer Länge exakt zu machen: Dictionaries lassen
+  überzählige Felder zu, exakte Positionen wären also die Ausnahme von einer Regel, der die Namen
+  folgen — und in JUL sind `f(1 2)` und `f(a = 1 b = 2)` derselbe Aufruf gegen dieselbe
+  Parameterliste. Dass andere Sprachen das trennen (TypeScript: Objekte weit, Tupel exakt), trägt
+  hier nicht: dort sind es zwei Konstrukte, hier wäre es eine Ausnahme innerhalb eines einzigen.
+  Zusätzlich hängt die core-lib daran — ein einstelliger Callback an `map` ist nur zulässig, weil
+  weniger zu fordern erlaubt ist. Gemeldet wird deshalb nicht der längere Wert, sondern nur das
+  hingeschriebene Argument, das nirgends ankommt (`JUL2500`).
 
 ### 3. Ein Weg pro Sache
 
@@ -183,7 +192,11 @@ Sie tun es regelmäßig. Die bisher praktizierte Rangfolge:
 ## Wie eine Entscheidung getroffen wird
 
 1. **Ist-Zustand am Code beschreiben**, nicht aus der Erinnerung. Beim Auto-Spread im Branching
-   stellte sich heraus, dass `isRealObject` etwas anderes prüfte als gemeint war.
+   stellte sich heraus, dass `isRealObject` etwas anderes prüfte als gemeint war. Dazu gehört,
+   die **benachbarten Konstrukte danebenzulegen**: Ob an einem Konstrukt etwas fehlt oder ob dort
+   die Regel der Sprache steht, sieht man erst im Vergleich. Bei der Tupel-Länge sah „zu kurz
+   meldet, zu lang nicht" nach einer Lücke aus — bis Dictionary und Parameterliste danebenlagen
+   und dasselbe taten.
 2. **Die begrenzende Randbedingung vorab benennen**, sonst wird eine Option diskutiert, die es
    nicht gibt.
 3. **Optionen ausschreiben, inklusive „alles bleibt"**, alle an demselben Beispielcode.

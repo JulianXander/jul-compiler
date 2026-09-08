@@ -59,7 +59,7 @@ sortiert.
 | # | Lücke | Schaden | Aufwand |
 |---|---|---|---|
 | 1 | branching ohne catchAll: `Error` fehlt im Rückgabetyp ([src/checker.ts:905-912](../src/checker.ts#L905-L912)) | unsound — `_branch` liefert `new Error(...)` | mittel, **Designentscheidung offen** ([TODO:56](../TODO#L56)) |
-| 2 | Ein **hingeschriebener** überzähliger Wert verfällt still: `x: [Integer Integer] = [1 2 3]`, `f(1 2)`. Dass längere Werte zulässig sind, ist dagegen die Regel der Sprache und keine Lücke | toter Code ohne Meldung | **positionell erledigt** (JUL2500), benannte Argumente offen — [width-subtyping.md](width-subtyping.md) Schritt 4 |
+| 2 | ~~Ein hingeschriebener überzähliger Wert verfällt still~~ — **erledigt** als `JUL2500` für Aufrufe (positionell und benannt) und für Destructuring. Die Zuweisung verwirft nichts, dort gibt es die Warnung bewusst nicht | — | — |
 | 3 | Nie matchender branch ([src/checker.ts:885-903](../src/checker.ts#L885-L903) auskommentiert) | reine Diagnose | **klein** — `typesOverlap` liegt vor, `getPreviousBranchValueType` ebenfalls |
 | 4 | `getTypeErrorForParameters` „not implemented yet" ([src/checker.ts:2807](../src/checker.ts#L2807)) | unklar | unklar |
 | 5 | **Weitere core-lib-Funktionen mit zu grobem Rückgabetyp** — `slice` und `map` sind gefixt, `filterMap`, `findFirst`, `removeElements` etc. sind ungeprüft | dieselbe Klasse: `Empty` zu viel oder Struktur verloren | je Funktion klein |
@@ -67,10 +67,14 @@ sortiert.
 | 7 | ~~Severity ist gebaut, aber ungenutzt~~ — **erledigt**: [compileFile](../src/compiler.ts#L212) bricht nur noch bei `severity === 'error'` ab, `discardedValue` (JUL2500) ist die erste Warnung | — | — |
 | 8 | „Parameter name mismatch" nennt die Rollen verkehrt herum ([checker.ts:3074](../src/checker.ts#L3074)) | `map(l (value: Integer i: PositiveInteger) => value)` meldet „Got index but expected i" — geschrieben wurde `i`, erwartet war `index`. Verstößt gegen Prinzip 9 | **klein** — Ursache ist die Kontravarianz: `case 'function'` vertauscht Ziel und Wert, die Meldung rechnet das nicht zurück |
 | 9 | Positionelles Destructuring ist im Checker nicht umgesetzt: `case 'destructuring'` löst nur über Namen auf (`dereferenceNameFromObject`) | `(a b) = [1 2]` meldet `Failed to dereference a in type [1 2]`, obwohl das emittierte JS es kann (`_isArray ? _temp[0] : _temp.a`). Laufzeit und Checker sind sich uneinig | **klein** — bei einer Liste über den Index auflösen statt über den Namen |
+| 10 | **Spread-Argumente werden gar nicht geprüft.** Spread-Elemente werden in [case 'list'](../src/checker.ts#L1371) zu `any`, damit ist der ganze Argumenttyp `any` und `getTypeError` steigt aus | verifiziert: `f(§x§)` gegen `(a: Integer)` meldet, `args = [§x§]` · `f(...args)` meldet nichts. Betrifft jede Typprüfung am Aufruf, nicht nur die Stelligkeit | mittel — Tupel-Elementtypen beim Spread flach machen (`TODO flatten spread tuple value type`) |
+| 11 | Ein Zweig mit Tupel-Typkopf bekommt **keine Argumente**: im `paramsType`-Pfad geben [assignArgs](../src/runtime.ts#L467) und [tryAssignArgs](../src/runtime.ts#L524) ein leeres Array zurück | `[Integer Integer] => …` matcht `[1 2 3]`, der Body sieht aber `[]`. Ein Typkopf hat keine Parameternamen, insofern konsequent — nur kommt der Body an die gematchten Werte nicht heran | unklar, hängt an der Frage, ob ein Typkopf überhaupt binden soll |
+| 12 | Benannte Argumente gegen einen `rest`-Parameter sind nicht umgesetzt | `f(a = 1 b = 2)` gegen `(a: Integer ...args)` meldet `Can not assign dictionary to rest parameter`, die Laufzeit wirft `not implemented yet for rest dictionary`. Test `named-arguments-with-rest-parameter-are-not-supported` hält es fest | unklar — zuerst zu klären, was ein rest aus benannten Argumenten überhaupt aufnehmen soll |
+| 13 | Ein Prefix-Argument überdeckt ein gleichnamiges Feld, ohne dass es auffällt | `1.f(a = 2)` bindet `a = 1` aus dem Prefix, die geschriebene `2` verfällt still. Verpasster Fall von `JUL2500`, keine Falschmeldung | klein — die vom Prefix belegten Namen aus der bekannten Namensmenge nehmen |
 
-Zu 2 und 7: Beide gehören zum selben Umsetzungsplan — die Warnung braucht eine Severity, die den
-Build nicht bricht. Reihenfolge und Abnahme stehen in [width-subtyping.md](width-subtyping.md),
-Abschnitt 5.
+Zu 2 und 7: Beide sind mit `JUL2500` erledigt. Die Entscheidung dahinter — ein Typ nennt
+Anforderungen, ein Wert darf sie übertreffen — steht als Beleg bei Prinzip 2 in
+[design-principles.md](design-principles.md), das Verhalten in `CLAUDE.md` und im Handbuch.
 
 ---
 
