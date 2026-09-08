@@ -409,6 +409,22 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 	picked.filterMap((value) => value)`,
 		},
 		{
+			// Branching innerhalb des filterMap-callback selbst: callback/ReturnType wird zu
+			// Or(Integer Empty), Without(... Empty) muss davon Integer übrig lassen. Statt
+			// dessen wird der Parametertyp offenbar zu Never aufgelöst, sobald values ein
+			// Funktionsparameter ist (ein Literal oder eine lokale Variable mit derselben
+			// Deklaration lösen den Fehler nicht aus).
+			// Siehe yugioh/src/game-logic/game-logic.jul getResolvedTransientGameCardIds.
+			name: 'generic-return-type-survives-branching-inside-callback',
+			code: `f = (values: List(Integer)) :> Or([] List(Integer)) =>
+	values.filterMap(
+		(value) =>
+			?(value)
+				[Integer] => value
+				() => []
+	)`,
+		},
+		{
 			// map liefert laut Implementierung nur dann empty, wenn schon die Eingabe empty war.
 			// Empty ist ein eigener Typ, List und Tuple schließen es also aus: für beide darf
 			// im Ergebnis kein Empty stehen.
