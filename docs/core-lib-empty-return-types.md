@@ -2,14 +2,24 @@
 
 ## Stand
 
-`filterMap` ist geprüft und **kein Fund**: der rote Test dafür war falsch, nicht der Checker. Siehe
-[Ergebnis filterMap](#ergebnis-filtermap). Die verbleibenden Kandidaten aus der Audit-Zeile
-(`findFirst`, `lastElement`, `toDictionary`, `toList`, ggf. weitere) sind noch nicht einzeln
-geprüft — dafür ist das Kriterium unten gedacht.
+**FUND, gefixt:** Generische Rückgabetypen mit Branching im Callback wurden falsch zu `Never`
+aufgelöst, obwohl der deklarierte Rückgabetyp korrekt war — siehe Test
+`generic-return-type-survives-branching-inside-callback` in [checker.test.ts](../src/checker.test.ts).
+Der Test ist jetzt grün.
 
-Neben dem konkreten Typverhalten je Builtin ist eine zweite, unabhängige Frage offen: **wo der Fix
-für einen bestätigten Fund reinkommt** — siehe
-[Architekturfrage](#architekturfrage-sonderbehandlung-im-checker-vs-typsystem).
+**Root Cause:** nicht die Callback-Parameter-Typisierung (die funktioniert bereits generisch über
+`inferredTypeFromCall` + `dereferenceArgumentTypesNested`/`resolvePlaceholders`), sondern
+`removeSubtypes` in [checker.ts](../src/checker.ts): `getTypeError` behandelt einen unaufgelösten
+`parameterReference`/`nestedReference` bewusst permissiv (liefert immer „kein Fehler"). Steckte ein
+solcher Platzhalter nicht an oberster Stelle eines Union-Choice, sondern eingebettet (z.B.
+`And(nestedReference Integer)` aus einer Branch-Verengung), erkannte `isUnresolvedPlaceholderType`
+das nicht — der Choice wurde fälschlich als Teilmenge von `Empty` eliminiert, noch bevor er über
+`resolvePlaceholders` aufgelöst werden konnte. Fix: `isUnresolvedPlaceholderType` prüft jetzt
+rekursiv auf einen enthaltenen Platzhalter, nicht nur den obersten `julType`.
+
+Nebenergebnis: `filterMap` selbst ist korrekt typisiert — der ursprüngliche rote Test dafür war falsch, nicht der Checker. Siehe [Ergebnis filterMap](#ergebnis-filtermap).
+
+Die verbleibenden Kandidaten aus der ursprünglichen Audit-Zeile (`findFirst`, `lastElement`, `toDictionary`, `toList`, ggf. weitere) sind noch nicht einzeln geprüft — dafür ist das Kriterium unten gedacht.
 
 ## Architekturfrage: Sonderbehandlung im Checker vs. Typsystem
 
@@ -144,6 +154,44 @@ immer `Empty` liefern. Der Test testete damit keinen Fehler mehr und wurde ersat
 Dereferenzierung (`dereferenceArgumentTypesNested`) funktioniert bereits korrekt, auch über eine
 Zwischenfunktion hinweg (Parameter, der seinerseits ein Callback weiterreicht).
 
+## Echter Fund: Branching im Callback (gefixt)
+
+Sobald der Callback-Body selbst ein Branching enthält (`?(value) [Integer] => value; () => []`),
+wurde der generische Typ `callback/ReturnType` nicht korrekt aufgelöst:
+
+- Mit der Eingabe als Literal (`[1 2 3].filterMap(...)`) funktionierte es
+- Mit der Eingabe als Funktionsparameter (`(values: List(Integer)) => values.filterMap(...)`) wurde
+  `callback/ReturnType` zu `Never` statt zum erwarteten `Or(Integer Empty)`
+
+**Roter Test (jetzt grün):** `generic-return-type-survives-branching-inside-callback` in
+[checker.test.ts](../src/checker.test.ts). Fehlermeldung war:
+```
+Can not assign List(Never) to Empty.
+Can not assign Never to Integer.
+```
+
+**Root Cause:** Die implizite Typisierung des Callback-Parameters `value` funktioniert bereits
+korrekt (`inferredTypeFromCall` liefert `TypeOf(values)/ElementType`, generisch über
+`dereferenceArgumentTypesNested` an `values`' tatsächlichen Argumenttyp gebunden — auch über eine
+Zwischenfunktion wie `f`s eigenen `values`-Parameter hinweg, aufgelöst durch `resolvePlaceholders`
+über `parameterReference.functionRef.ParamsType`). Der eigentliche Fehler saß in
+`removeSubtypes`/`createNormalizedUnionType`: Die Branch-Verengung erzeugt einen Zwischentyp wie
+`And(nestedReference(...) Integer)` — ein Choice, der einen Platzhalter *eingebettet*, nicht an
+oberster Stelle trägt. `isUnresolvedPlaceholderType` prüfte bisher nur den obersten `julType`, sah
+den `And`-Choice also nicht als „noch unaufgelöst" an. Weil `getTypeError` für `nestedReference`/
+`parameterReference` bewusst permissiv ist (liefert immer „kein Fehler"), wurde dieser Choice
+fälschlich als Teilmenge von `Empty` erkannt und aus der Union eliminiert — der `Integer`-Zweig
+ging verloren, bevor `resolvePlaceholders` ihn auflösen konnte.
+
+**Fix:** `isUnresolvedPlaceholderType` prüft jetzt rekursiv (And/Or/Not/TypeOf/List/Dictionary/
+Stream/Greater/Tuple/Function), ob irgendwo ein `parameterReference`/`nestedReference` steckt, statt
+nur den obersten Knoten. Damit wird kein Choice mehr eliminiert, der seine Generizität noch nicht
+verloren hat — die spätere `resolvePlaceholders`-Auflösung bekommt die Chance, ihn korrekt
+aufzulösen (im Test zu `Integer`).
+
+Betrifft nicht nur `filterMap`, sondern jede Funktion mit generischem Callback-Rückgabetyp
+(`map`, `filter`, `forEach`, `aggregate`, etc.), sobald der Callback ein Branching enthält.
+
 ## Offene Kandidaten und Einordnung (Hypothese, noch zu verifizieren)
 
 | Funktion | Klasse | Hypothese | Nächster Schritt |
@@ -167,16 +215,10 @@ Schritt für Schritt, ein Kandidat nach dem anderen:
    `map` (`And(TypeOf(values) [])`-Konditionierung).
 4. Verifikation wie in [CHECKER-AUDIT.md](CHECKER-AUDIT.md#verifikation-nach-jedem-schritt).
 
-## Entscheidung
+## Entscheidung und Priorisierung
 
-Noch offen, auf zwei Ebenen:
+1. **Erledigt — Echter Fund (Branching im Callback):** `generic-return-type-survives-branching-inside-callback` ist grün, siehe [Root Cause und Fix](#echter-fund-branching-im-callback-gefixt).
 
-1. **Architekturfrage** (siehe oben): Sonderbehandlung je Builtin fortführen (A), bedingte Typen als
-   Sprachkonstrukt einführen (B), oder ein einziger nativer Mechanismus statt fünf (C). Betrifft vor
-   allem zukünftige Funde, die wie `map`s Tuple-Fall echte Typ-Transformation brauchen — die
-   `And(TypeOf(values) [])`-Konditionierung selbst ist schon heute rein in core-lib ausdrückbar und
-   braucht keinen Checker-Sonderfall.
-2. **Je Kandidat**: ob überhaupt ein Fund vorliegt, bevor Zeit in einen Fix fließt. `lastElement`,
-   `toDictionary` und `toList` sind die wahrscheinlichsten Kandidaten für einen echten Fund und
-   sollten zuerst geprüft werden — mit der `And(TypeOf(values) [])`-Konditionierung ließen sie sich
-   voraussichtlich ohne Architekturentscheidung (Option A/B/C) fixen, rein in core-lib.jul.
+2. **Dann Architekturfrage** (siehe [Architekturfrage](#architekturfrage-sonderbehandlung-im-checker-vs-typsystem)): Sonderbehandlung je Builtin fortführen (A), bedingte Typen als Sprachkonstrukt einführen (B), oder ein einziger nativer Mechanismus statt fünf (C). Betrifft vor allem zukünftige Funde, die wie `map`s Tuple-Fall echte Typ-Transformation brauchen — die `And(TypeOf(values) [])`-Konditionierung selbst ist schon heute rein in core-lib ausdrückbar und braucht keinen Checker-Sonderfall.
+
+3. **Dann die Kandidaten:** `lastElement`, `toDictionary` und `toList` sind die wahrscheinlichsten Kandidaten für einen echten Fund (analog zu Punkt 1) und sollten danach geprüft werden — mit der `And(TypeOf(values) [])`-Konditionierung ließen sie sich voraussichtlich ohne Architekturentscheidung (Option A/B/C) fixen, rein in core-lib.jul.

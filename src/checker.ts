@@ -693,8 +693,16 @@ function dereferenceParameterFromArgumentType(
 			}
 			return argType;
 		}
+		case 'function':
+			// Wenn der Parameter ein Callback ist und sein Typ dereferenziert wird (z. B. callback/ReturnType),
+			// muss der ReturnType der Funktion extrahiert werden, nicht die Funktion selbst.
+			return argsType.ReturnType;
 		case 'list':
-		// TODO?
+			// Eine List hat keine bekannte Länge, aber alle Elemente haben denselben Typ.
+			// Wenn Argumente als Spread hereinkommen (...values), hat jedes Argument den ElementType.
+			// Der erste Parameterindex (0) ist nach prefixArgument (falls vorhanden), alle anderen
+			// sind Spread-Elemente und haben also den ElementType.
+			return argsType.ElementType;
 		default:
 			return argsType;
 	}
@@ -1956,10 +1964,37 @@ function setElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 /**
  * Choices, die sicher nicht ohne Weiteres auflösbar sind - werden nie verworfen und verwerfen
  * auch nichts, damit die Elimination im Zweifel keine Information wegwirft (Prinzip Freiheit).
+ * Rekursiv, denn ein Platzhalter bleibt unauflösbar, auch wenn er nicht an oberster Stelle steht
+ * (z.B. And(nestedReference Integer) aus einer Verengung) - getTypeError behandelt
+ * parameterReference/nestedReference permissiv (immer "kein Fehler"), das würde sonst hier eine
+ * Elimination vortäuschen, die den Platzhalter-Anteil verwirft, bevor er aufgelöst ist.
  */
 function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
-	return type.julType === 'parameterReference'
-		|| type.julType === 'nestedReference';
+	switch (type.julType) {
+		case 'parameterReference':
+		case 'nestedReference':
+			return true;
+		case 'and':
+		case 'or':
+			return type.ChoiceTypes.some(isUnresolvedPlaceholderType);
+		case 'not':
+			return isUnresolvedPlaceholderType(type.SourceType);
+		case 'typeOf':
+			return isUnresolvedPlaceholderType(type.value);
+		case 'list':
+		case 'dictionary':
+			return isUnresolvedPlaceholderType(type.ElementType);
+		case 'stream':
+			return isUnresolvedPlaceholderType(type.ValueType);
+		case 'greater':
+			return isUnresolvedPlaceholderType(type.Value);
+		case 'tuple':
+			return type.ElementTypes.some(isUnresolvedPlaceholderType);
+		case 'function':
+			return isUnresolvedPlaceholderType(type.ParamsType) || isUnresolvedPlaceholderType(type.ReturnType);
+		default:
+			return false;
+	}
 }
 
 /**
