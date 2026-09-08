@@ -83,6 +83,15 @@ export function resetCheckerStats(): void {
 
 const maxElementsPerLine = 5;
 
+/**
+ * Ab wie vielen Choices die Teilmengen-Elimination in createNormalizedUnionType übersprungen
+ * wird, um O(n²) getTypeError-Aufrufe bei großen Unions zu vermeiden (wie TypeScript es bei
+ * getUnionType(..., UnionReduction.Subtype) macht). Wert durch Messung belegt, nicht geschätzt.
+ * Muss vor CompileTimeNonZeroInteger stehen, weil das schon beim Modul-Load
+ * createNormalizedUnionType aufruft.
+ */
+const subtypeReductionLimit = 20;
+
 const CompileTimeNonZeroInteger = createNormalizedIntersectionType([
 	{ julType: 'integer' },
 	createCompileTimeComplementType({ julType: 'integerLiteral', value: 0n }),
@@ -1944,7 +1953,43 @@ function setElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileT
 
 //#region Typ Arithmetik
 
-// TODO überlappende choices zusammenfassen (Wenn A Teilmenge von B, dann ist Or(A B) = B)
+/**
+ * Choices, die sicher nicht ohne Weiteres auflösbar sind - werden nie verworfen und verwerfen
+ * auch nichts, damit die Elimination im Zweifel keine Information wegwirft (Prinzip Freiheit).
+ */
+function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
+	return type.julType === 'parameterReference'
+		|| type.julType === 'nestedReference';
+}
+
+/**
+ * Entfernt Choices, die bereits Teilmenge eines anderen Choice in derselben Liste sind:
+ * Or(Boolean False) => [Boolean]. Bei struktureller Gleichwertigkeit (a Teilmenge von b und b
+ * Teilmenge von a) gewinnt der frühere Index - sollte durch die Duplikat-Entfernung davor aber
+ * ohnehin nicht mehr vorkommen.
+ */
+function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
+	return choices.filter((choice, index) => {
+		if (isUnresolvedPlaceholderType(choice)) {
+			return true;
+		}
+		return !choices.some((otherChoice, otherIndex) => {
+			if (index === otherIndex
+				|| isUnresolvedPlaceholderType(otherChoice)) {
+				return false;
+			}
+			const isSubtype = !getTypeError(undefined, choice, otherChoice);
+			if (!isSubtype) {
+				return false;
+			}
+			const otherIsAlsoSubtype = !getTypeError(undefined, otherChoice, choice);
+			return otherIsAlsoSubtype
+				? otherIndex < index
+				: true;
+		});
+	});
+}
+
 function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeType {
 	//#region flatten UnionTypes
 	// Or(1 Or(2 3)) => Or(1 2 3)
@@ -1980,11 +2025,25 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		return uniqueChoices[0]!;
 	}
 	//#endregion remove duplicates
+	//#region remove subtypes
+	// Or(Boolean False) => Boolean: ein Choice, der schon Teilmenge eines anderen ist, trägt
+	// keine zusätzliche Information mehr. Nur bis zu einer
+	// Größenschwelle, sonst O(n²) mit getTypeError - einem der teuersten Checker-Aufrufe (wie
+	// TypeScript es bei getUnionType(..., UnionReduction.Subtype) macht). Choices, die nicht
+	// sicher aufgelöst sind (parameterReference/nestedReference), werden nie verworfen und
+	// verwerfen auch nichts - im Zweifel nicht kollabieren (Prinzip Freiheit).
+	const reducedChoices = uniqueChoices.length <= subtypeReductionLimit
+		? removeSubtypes(uniqueChoices)
+		: uniqueChoices;
+	if (reducedChoices.length === 1) {
+		return reducedChoices[0]!;
+	}
+	//#endregion remove subtypes
 	//#region collapse Streams
 	// Or(Stream(1) Stream(2)) => Stream(Or(1 2))
 	// TODO? diese Zusammenfassung ist eigentlich inhaltlich falsch, denn der Typ ist ungenauer
 	// Or([1 1] [2 2]) != [Or(1 2) Or(1 2)] wegen Mischungen wie [1 2], [2 1] obwohl nur [1 1] oder [2 2] erlaubt sein sollten
-	const streamChoices = uniqueChoices.filter(isStreamType);
+	const streamChoices = reducedChoices.filter(isStreamType);
 	let collapsedStreamChoices: CompileTimeType[];
 	if (streamChoices.length > 1) {
 		collapsedStreamChoices = [];
@@ -1992,7 +2051,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		const collapsedValueType = createNormalizedUnionType(streamValueChoices);
 		collapsedStreamChoices.push(
 			createCompileTimeStreamType(collapsedValueType),
-			...uniqueChoices.filter(choiceType =>
+			...reducedChoices.filter(choiceType =>
 				!isStreamType(choiceType)),
 		);
 		if (collapsedStreamChoices.length === 1) {
@@ -2000,7 +2059,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		}
 	}
 	else {
-		collapsedStreamChoices = uniqueChoices;
+		collapsedStreamChoices = reducedChoices;
 	}
 	//#endregion collapse Streams
 	return {
@@ -2450,13 +2509,6 @@ function isBranchingExhaustive(
 		return false;
 	}
 	const combinedType = createNormalizedUnionType(branchValueTypes as CompileTimeType[]);
-	if (argValueType.julType === 'boolean') {
-		// Boolean ist im Typsystem kein Or(true false), sondern ein eigener julType - sonst
-		// bekäme jedes if(flag)-artige Branching mit [true]/[false] fälschlich ein Error, weil
-		// getTypeError nicht weiß, dass beide Literale den ganzen Boolean-Typ ausschöpfen.
-		return !getTypeError(undefined, { julType: 'booleanLiteral', value: true }, combinedType)
-			&& !getTypeError(undefined, { julType: 'booleanLiteral', value: false }, combinedType);
-	}
 	return !getTypeError(undefined, argValueType, combinedType);
 }
 
@@ -3078,6 +3130,22 @@ export function getTypeError(
 			const subErrors = targetType.ChoiceTypes.map(choiceType =>
 				getTypeError(prefixArgumentType, argumentsType, choiceType));
 			if (subErrors.every(isDefined)) {
+				if (argumentsType.julType === 'boolean') {
+					// Boolean passt zu keinem einzelnen Choice, kann aber trotzdem vollständig
+					// abgedeckt sein, wenn die Choices zusammen sowohl true als auch false
+					// treffen (z.B. Or(true false)) - Boolean hat nur diese zwei bewohnten
+					// Werte. Bewusst nur hier und nicht generell für 'boolean' als
+					// argumentsType, damit der sehr viel häufigere Fall Boolean-gegen-Boolean/
+					// Any keinen zusätzlichen Aufwand bekommt.
+					const asLiteralUnion: CompileTimeType = {
+						julType: 'or',
+						ChoiceTypes: [
+							{ julType: 'booleanLiteral', value: true },
+							{ julType: 'booleanLiteral', value: false },
+						],
+					};
+					return getTypeError(prefixArgumentType, asLiteralUnion, targetType);
+				}
 				return {
 					// TODO error struktur überdenken
 					message: subErrors.map(typeErrorToString).join('\n'),

@@ -846,6 +846,54 @@ describe('Checker', () => {
 			'Union sollte dedupliziert werden — erwarteter Typ: function, tatsächlich: ' + definition.value?.typeInfo?.type.julType);
 		expect(definition.value?.typeInfo?.type.julType).to.equal('function');
 	});
+	// createNormalizedUnionType entfernt bisher nur exakte Duplikate (typeEquals), keine
+	// Teilmengen wie booleanLiteral in Boolean: Or(Boolean False) bleibt 'or' statt zu 'boolean'
+	// zu kollabieren. Sichtbar geworden über branching-error-return-type.md: eine Boolean-
+	// wertige Exhaustivitätsprüfung schlägt fehl, weil der Typ nicht als 'boolean' erkannt wird.
+	it('union-collapses-boolean-literal-into-boolean', () => {
+		const code = 'f = (x: Or(Boolean false)) => x';
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const paramsType = definition.value?.typeInfo?.type.julType === 'function'
+			? definition.value.typeInfo.type.ParamsType
+			: undefined;
+		const paramType = paramsType?.julType === 'parameters' ? paramsType.singleNames[0]?.type : undefined;
+		expect(paramType?.julType).to.equal('boolean',
+			'Or(Boolean False) sollte zu Boolean kollabieren, tatsächlich: ' + paramType?.julType);
+	});
+	// createNormalizedUnionType entfernt Teilmengen nicht nur für Boolean, sondern allgemein.
+	it('union-collapses-integer-literal-into-integer', () => {
+		const code = 'f = (x: Or(Integer 5)) => x';
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const paramsType = definition.value?.typeInfo?.type.julType === 'function'
+			? definition.value.typeInfo.type.ParamsType
+			: undefined;
+		const paramType = paramsType?.julType === 'parameters' ? paramsType.singleNames[0]?.type : undefined;
+		expect(paramType?.julType).to.equal('integer',
+			'Or(Integer 5) sollte zu Integer kollabieren, tatsächlich: ' + paramType?.julType);
+	});
+	// Gegenprobe: nicht verwandte Typen dürfen nicht fälschlich kollabiert werden.
+	it('union-keeps-unrelated-choices', () => {
+		const code = 'f = (x: Or(Text Integer)) => x';
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const paramsType = definition.value?.typeInfo?.type.julType === 'function'
+			? definition.value.typeInfo.type.ParamsType
+			: undefined;
+		const paramType = paramsType?.julType === 'parameters' ? paramsType.singleNames[0]?.type : undefined;
+		expect(paramType?.julType).to.equal('or',
+			'Text und Integer dürfen nicht kollabieren, tatsächlich: ' + paramType?.julType);
+	});
 	// branching-error-return-type.md, Phase 1: Fehlt ein catchAll-Branch, kann `_branch` zur
 	// Laufzeit ein Error zurückgeben (siehe runtime.ts). Der Rückgabetyp muss das zeigen.
 	it('branching-without-catchall-adds-error-to-union', () => {
