@@ -531,23 +531,38 @@ a/2`,
 			code: `f = (x: List(Integer)) => x/5`,
 		},
 		{
+			// Ohne bekannte Länge ist die Position aber auch nicht beweisbar vorhanden: eine
+			// List kann ein einziges Element haben, Empty gehört also in den Typ.
+			name: 'index-on-list-may-be-empty',
+			code: `f = (x: List(Integer)) => x/5
+y: Integer = f([1 2])`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 21,
+					"endRowIndex": 1,
+					"message": "Can not assign Empty to Integer.",
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		//#endregion dereference
+		//#region Zugriffstypen
+		// getElement deklariert seinen Rückgabetyp über ElementAt, die Präzision hängt also
+		// nicht mehr am Funktionsnamen. Von der genauesten Lage zur unbestimmtesten sortiert.
+		{
 			// Ein Literal-Index in ein Tuple kennt seine Position exakt: Text, nicht die
 			// Vereinigung aller Positionen und kein Empty.
 			name: 'get-element-literal-index-in-tuple',
 			code: `x: Text = [1 §a§].getElement(2)`,
 		},
 		{
-			// Ohne Literal-Index steht die Position nicht fest: Vereinigung aller Positionen,
-			// dazu Empty, weil der Index danebenliegen kann.
-			name: 'get-element-non-literal-index',
-			code: `f = (values: [Integer Text] index: PositiveInteger) => values.getElement(index)
-y: Or([] Integer Text) = f([1 §a§] 1)`,
-		},
-		{
-			// Kann die Quelle selbst empty sein, bleibt Empty im Ergebnis.
-			name: 'get-element-on-possibly-empty-list',
-			code: `f = (values: Or([] List(Integer))) => values.getElement(1)
-y: Or([] Integer) = f([1])`,
+			// Ein Literal-Index hinter dem Ende eines bekannten Tuples trifft nachweisbar
+			// nichts. getElement meldet das nicht (ein berechneter Index darf danebenliegen),
+			// liefert aber Empty statt der Vereinigung aller Positionen.
+			name: 'get-element-index-out-of-tuple-range-is-empty',
+			code: `x: [] = [1 §a§].getElement(5)`,
 		},
 		{
 			// Jeder Choice eines Union-Index ist ein eigener Zugriff. Trifft jeder von ihnen
@@ -567,46 +582,30 @@ y: Or([] Integer) = f([1])`,
 	element: Or([] Text) = values.getElement(index)
 	element`,
 		},
-		//#endregion dereference
-		//#region Zugriffstypen
-		// Noch rot: ElementAt gibt es nicht. Die vier Tests belegen die Umstellung von
-		// getElement auf einen Typkonstruktor (siehe docs/type-accessor-constructors.md).
+		{
+			// Ohne Literal-Index steht die Position nicht fest: Vereinigung aller Positionen,
+			// dazu Empty, weil der Index danebenliegen kann.
+			name: 'get-element-non-literal-index',
+			code: `f = (values: [Integer Text] index: PositiveInteger) => values.getElement(index)
+y: Or([] Integer Text) = f([1 §a§] 1)`,
+		},
+		{
+			// Kann die Quelle selbst empty sein, bleibt Empty im Ergebnis.
+			name: 'get-element-on-possibly-empty-list',
+			code: `f = (values: Or([] List(Integer))) => values.getElement(1)
+y: Or([] Integer) = f([1])`,
+		},
 		{
 			// ElementAt faltet den Zugriff schon in der Typposition.
 			name: 'element-at-in-type-position',
 			code: `x: ElementAt([Integer Text] 2) = §a§`,
 		},
 		{
-			// Dieselbe Präzision in Nutzercode: heute hängt sie am Namen getElement und ist
-			// deshalb in einer eigenen Funktion nicht ausdrückbar.
+			// Dieselbe Präzision steht Nutzercode offen: ein eigener Wrapper kann den genauen
+			// Rückgabetyp deklarieren, statt ihn an getElement zu binden.
 			name: 'element-at-in-user-function',
 			code: `second = (values: List(Any)) :> ElementAt(TypeOf(values) 2) => values.getElement(2)
 y: Text = [1 §a§].second()`,
-		},
-		{
-			// Ein Literal-Index hinter dem Ende eines bekannten Tuples trifft nachweisbar
-			// nichts. getElement meldet das nicht (ein berechneter Index darf danebenliegen),
-			// liefert aber Empty statt der Vereinigung aller Positionen.
-			name: 'get-element-index-out-of-tuple-range-is-empty',
-			code: `x: [] = [1 §a§].getElement(5)`,
-		},
-		{
-			// Eine List kann ein einziges Element haben, die zweite Position ist also nicht
-			// beweisbar vorhanden. Heute liefert x/5 unsound Integer.
-			// TODO Meldung beim Grünwerden gegen die tatsächliche Ausgabe prüfen.
-			name: 'index-on-list-may-be-empty',
-			code: `f = (x: List(Integer)) => x/5
-y: Integer = f([1 2])`,
-			errors: [
-				{
-					"code": ErrorCode.definitionTypeMismatch,
-					"endColumnIndex": 21,
-					"endRowIndex": 1,
-					"message": "Can not assign Empty to Integer.",
-					"startColumnIndex": 0,
-					"startRowIndex": 1,
-				},
-			],
 		},
 		//#endregion Zugriffstypen
 		//#region Aufruf
