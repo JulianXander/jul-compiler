@@ -8,7 +8,7 @@ myValue: [field1: Any]
   error 1050 at 35:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 2202 at 37:2 assignedValue missing for singleDictionaryField
   error 1050 at 42:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
-  error 5000 at 33:1 Can not assign Empty to Text. | Invalid value for field someOtherField | Can not assign Empty to () :> Text. | Invalid value for field function
+  error 5000 at 33:1 Missing field someOtherField, expected Text. | Missing field function, expected () :> Text.
   error 5050 at 40:1 Can not assign Empty to [ | 	field1: Integer | 	someOtherField: Text | 	function: () :> Text | ].
   error 5050 at 49:1 Can not assign Empty to [ | 	field1: Integer | 	someOtherField: Text | 	function: () :> Text | ].
 === bracketed-expression-example.jul ===

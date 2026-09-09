@@ -695,6 +695,42 @@ d/a`,
 			code: `f = (d: Any) => d/b`,
 		},
 		{
+			// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
+			// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
+			// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
+			// ob sein Wert tatsächlich Empty ist - deshalb eine eigene, eindeutige Meldung.
+			name: 'missing-dictionary-field-has-distinct-message',
+			code: `T = [a: Integer b: Text]
+x: T = [a = 1]`,
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Missing field b, expected Text.',
+					startRowIndex: 1,
+					startColumnIndex: 0,
+					endRowIndex: 1,
+					endColumnIndex: 14,
+				},
+			],
+		},
+		{
+			// Gegenprobe: ein tatsächlich vorhandenes Empty-Feld bleibt bei der bisherigen
+			// Meldung - der Unterschied ist nur, ob das Feld überhaupt geschrieben wurde.
+			name: 'present-empty-dictionary-field-keeps-assignment-message',
+			code: `T = [a: Integer b: Text]
+x: T = [a = 1 b = []]`,
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Can not assign Empty to Text.\nInvalid value for field b',
+					startRowIndex: 1,
+					startColumnIndex: 0,
+					endRowIndex: 1,
+					endColumnIndex: 21,
+				},
+			],
+		},
+		{
 			// Aufgeschobener Zugriff: beim Prüfen von f ist d noch ein Platzhalter, der Zugriff
 			// bleibt als Knoten stehen und wird erst am Aufruf aufgelöst. Ein bekanntes Feld
 			// muss dabei seinen genauen Typ behalten.

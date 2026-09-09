@@ -3726,13 +3726,18 @@ function getDictionaryLiteralTypeError(
 				targetFieldTypes,
 				(fieldType, fieldName) => {
 					const knownField = argumentsType.Fields[fieldName];
-					if (knownField === undefined && !argumentsType.complete) {
-						// Unwissen ist keine Ablehnung: taucht das Feld in einem unvollstaendigen
-						// Dictionary nicht auf, ist das kein Beweis, dass es fehlt.
-						return undefined;
+					if (knownField === undefined) {
+						if (!argumentsType.complete) {
+							// Unwissen ist keine Ablehnung: taucht das Feld in einem
+							// unvollstaendigen Dictionary nicht auf, ist das kein Beweis, dass
+							// es fehlt.
+							return undefined;
+						}
+						// Eigene Meldung statt Empty einzusetzen: sonst sieht ein fehlendes
+						// Feld identisch aus wie ein vorhandenes Feld vom Typ Empty.
+						return { message: `Missing field ${fieldName}, expected ${typeToString(fieldType, 0, 0)}.` };
 					}
-					const argument: CompileTimeType = knownField ?? { julType: 'empty' };
-					return getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argument);
+					return getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, knownField);
 				},
 			).filter(isDefined);
 			if (subErrors.length) {
