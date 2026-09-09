@@ -478,6 +478,31 @@ d/a`,
 			code: `f = (d: Any) => d/b`,
 		},
 		{
+			// Aufgeschobener Zugriff: beim Prüfen von f ist d noch ein Platzhalter, der Zugriff
+			// bleibt als Knoten stehen und wird erst am Aufruf aufgelöst. Ein bekanntes Feld
+			// muss dabei seinen genauen Typ behalten.
+			name: 'deferred-dictionary-field-keeps-exact-type',
+			code: `f = (d: [a: Integer b: Text]) => d/b
+y: Text = f([a = 1 b = §x§])`,
+		},
+		{
+			// Gegenprobe zum vorigen: aufgelöst wird gegen den Argumenttyp, das Ergebnis ist
+			// also das Textliteral und nicht die Vereinigung aller Felder.
+			name: 'deferred-dictionary-field-is-not-union-of-all-fields',
+			code: `f = (d: [a: Integer b: Text]) => d/b
+y: Integer = f([a = 1 b = §x§])`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 31,
+					"endRowIndex": 1,
+					"message": "Can not assign §x§ to Integer.",
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
 			// Die Länge eines Tuples ist bekannt, ein Zugriff dahinter also nachweisbar falsch.
 			// Indizes sind 1-basiert.
 			name: 'index-out-of-tuple-range',
