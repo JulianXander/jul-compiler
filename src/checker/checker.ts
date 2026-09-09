@@ -2664,6 +2664,34 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		const first = ChoiceTypes[0]!;
 		const second = ChoiceTypes[1]!;
 
+		// Dictionaries sind Strukturen, keine Wertemengen: der Teilmengen-Shortcut unten würde bei
+		// einer unvollständigen Seite (complete: false) Felder verlieren, die nur die andere Seite
+		// kennt - "zuweisbar" heißt dort nur "widerspricht nicht nachweisbar", nicht "enthält schon
+		// alles". Deshalb werden Felder hier stattdessen zusammengeführt, bevor der Shortcut greift.
+		if (first.julType === 'dictionaryLiteral'
+			|| second.julType === 'dictionaryLiteral') {
+			if (first.julType === 'dictionaryLiteral'
+				&& second.julType === 'dictionaryLiteral') {
+				const keys = new Set([...Object.keys(first.Fields), ...Object.keys(second.Fields)]);
+				const mergedFields: CompileTimeDictionary = {};
+				keys.forEach(key => {
+					const firstFieldType = first.Fields[key];
+					const secondFieldType = second.Fields[key];
+					mergedFields[key] = firstFieldType && secondFieldType
+						? createNormalizedIntersectionType([firstFieldType, secondFieldType])
+						: firstFieldType ?? secondFieldType!;
+				});
+				return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
+			}
+			if (typesOverlap(first, second) === false) {
+				return { julType: 'never' };
+			}
+			return {
+				julType: 'and',
+				ChoiceTypes: ChoiceTypes,
+			};
+		}
+
 		// Teilmenge liefern:
 		// And(A B) => A, wenn A Teilmenge von B ist
 		// z.B. And(Integer Rational) => Integer, And(Integer Integer) => Integer

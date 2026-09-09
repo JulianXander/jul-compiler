@@ -6,3 +6,5 @@
 2026-09-09 10:32:05	4bc1cab+	-	ADV-DEV-56627	yugioh	parse+check	5	3382.16	3680.73	3680.73	nach ElementAt-Umbau (getElement rein deklarativ)
 2026-09-09 11:24:34	2f37659+	-	ADV-DEV-56627	yugioh	parse+check	5	3684.55	3905.50	3905.50	vor Verengung ueber Feldzugriff
 2026-09-09 14:23:34	2f37659+	-	ADV-DEV-56627	yugioh	parse+check	5	3397.82	3773.74	3773.74	nach Verengung ueber Pfade
+2026-09-09 18:44:40	2961841	-	ADV-DEV-56627	yugioh	parse+check	5	3316.90	3574.74	3574.74	vor Dictionary-Merge im Intersection-Shortcut
+2026-09-09 19:15:16	2961841+	-	ADV-DEV-56627	yugioh	parse+check	5	3419.49	3550.22	3550.22	nach Dictionary-Merge im Intersection-Shortcut
