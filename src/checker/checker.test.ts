@@ -472,11 +472,10 @@ f = (flag: Boolean) =>
 		() => 0`,
 		},
 		{
-			// yugioh-Reproduktion: ist der Quelltyp Any, macht der Schnitt aus Any und
-			// [index: ...] ein Dictionary, das nur noch dieses eine Feld hat - jedes andere
-			// Feld gilt danach als Empty. Any weiss aber nichts ueber die uebrigen Felder,
-			// die Verengung darf sie also nicht entfernen.
-			name: 'branch-narrowing-field-path-keeps-other-fields',
+			// Ist die Quelle vom Typ Any, weiß der Checker über ihre Felder nichts. Der
+			// Schnitt aus Any und dem Fakt [index: ...] darf daher nicht heißen, dass s nur
+			// noch dieses eine Feld hat - sonst gilt jedes andere Feld (hier boards) als Empty.
+			name: 'branch-narrowing-through-any-source-keeps-other-fields',
 			code: `start: [boards: Integer index: Or([] Integer)] = [boards = 1 index = 1]
 s = assume(start Any)
 ?(s/index)
