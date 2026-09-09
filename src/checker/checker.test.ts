@@ -481,8 +481,31 @@ s = assume(start Any)
 ?(s/index)
 	[Integer] => 0
 	() =>
-		boardsValue: Integer = s/boards
-		boardsValue`,
+		boardsValue: Integer = s/boards`,
+			errors: [],
+		},
+		{
+			// Der Schnitt aus einem vollstaendig bekannten Typ und einem unvollstaendigen Fakt
+			// (aus der Verengung ueber einen Feldpfad) darf den vollstaendigen Typ nicht ersetzen.
+			// card/face wird auf §up§ verengt, das erzeugt fuer card den Fakt [face: §up§] mit
+			// complete: false. Der ist "zuweisbar an" Card (fehlende Felder gelten als unbekannt),
+			// der Teilmengen-Shortcut in createNormalizedIntersectionType gibt ihn deshalb
+			// wholesale zurueck statt die Felder zu vereinigen - dataId geht beim Spread verloren.
+			name: 'branch-narrowing-field-fact-does-not-replace-known-type',
+			code: `Card = [
+	dataId: Text
+	face: Or([] Text)
+]
+getCard = () :> Card =>
+	assume([dataId = §a§ face = []] Card)
+card = getCard()
+?(card/face)
+	[§up§] =>
+		newCard: Card = [
+			...card
+			face = §up§
+		]
+	() => card`,
 			errors: [],
 		},
 		//#endregion branching: Verengung
