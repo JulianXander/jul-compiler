@@ -509,17 +509,15 @@ card = getCard()
 			errors: [],
 		},
 		{
-			// Bekannte Luecke: aggregate (core-lib.jul) ist nicht generisch ueber den
-			// Akkumulator (initialValue: Any, callback: (accumulator: Any ...) :> Any). Ein
-			// konkret getypter Startwert wird beim Durchreichen zu Any, ein darauf gebranchtes
-			// Feld kennt danach nur noch Not(X) statt seines echten deklarierten Typs - der
-			// Teilmengen-Merge von oben kann das nicht heilen, weil hier gar kein zweiter,
-			// vollstaendig bekannter Typ mehr da ist, mit dem zusammengefuehrt werden koennte.
-			name: 'aggregate-erases-accumulator-type-through-any',
-			code: `State = [index: Or([] Integer)]
-getState = () :> State => assume([] State)
-values = [1 2 3]
-combined = values.aggregate(getState() (accumulator value index) => accumulator)
+			// Not(X), das durch Branch-Narrowing auf einem Any-Ursprung entsteht, ist genauso
+			// unwissend wie das Any davor - Any ist ueberall sonst permissiv als Quelle
+			// (getTypeError gibt bei julType 'any' sofort undefined zurueck). Hier wird aus dem
+			// Nichtwissen "koennte alles ausser Integer sein" faelschlich eine harte Ablehnung,
+			// weil Not(Integer) einzeln gegen Empty und gegen Integer geprueft wird statt die
+			// Any-Herkunft weiterzutragen. aggregate (core-lib.jul, Akkumulator: Any) zeigt
+			// denselben Fehler, weil sein Rueckgabetyp ebenfalls durch Any erzeugt wird.
+			name: 'narrowed-not-type-from-any-source-is-not-checked',
+			code: `combined = assume([] Any)
 ?(combined/index)
 	[Integer] => 0
 	() =>
@@ -528,6 +526,8 @@ combined = values.aggregate(getState() (accumulator value index) => accumulator)
 			errors: [],
 		},
 		//#endregion branching: Verengung
+
+
 		//#region Not
 		{
 			// Not(X) schließt X aus. NonZeroInteger ist Integer.Without(0), also
