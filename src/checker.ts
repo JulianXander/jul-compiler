@@ -956,6 +956,58 @@ function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterRe
 
 //#endregion dereference
 
+//#region CompileTimeType guards
+
+function isComplementType(type: CompileTimeType | undefined): type is CompileTimeComplementType {
+	return !!type && type.julType === 'not';
+}
+
+function isDictionaryType(type: CompileTimeType | undefined): type is CompileTimeDictionaryType {
+	return !!type && type.julType === 'dictionary';
+}
+
+export function isDictionaryLiteralType(type: CompileTimeType | undefined): type is CompileTimeDictionaryLiteralType {
+	return !!type && type.julType === 'dictionaryLiteral';
+}
+
+export function isFunctionType(type: CompileTimeType | undefined): type is CompileTimeFunctionType {
+	return !!type && type.julType === 'function';
+}
+
+export function isListType(type: CompileTimeType | undefined): type is CompileTimeListType {
+	return !!type && type.julType === 'list';
+}
+
+export function isParametersType(type: CompileTimeType | undefined): type is ParametersType {
+	return !!type && type.julType === 'parameters';
+}
+
+export function isParameterReference(type: CompileTimeType | undefined): type is ParameterReference {
+	return !!type && type.julType === 'parameterReference';
+}
+
+function isStreamType(type: CompileTimeType | undefined): type is CompileTimeStreamType {
+	return !!type && type.julType === 'stream';
+}
+
+export function isTextLiteralType(type: CompileTimeType | undefined): type is TextLiteralType {
+	return !!type && type.julType === 'textLiteral';
+}
+
+export function isTupleType(type: CompileTimeType | undefined): type is CompileTimeTupleType {
+	return !!type && type.julType === 'tuple';
+}
+
+export function isTypeOfType(type: CompileTimeType | undefined): type is CompileTimeTypeOfType {
+	return !!type && type.julType === 'typeOf';
+}
+
+export function isUnionType(type: CompileTimeType | undefined): type is CompileTimeUnionType {
+	return !!type && type.julType === 'or';
+}
+
+//#endregion CompileTimeType guards
+
 /**
  * infer types of expressions, normalize typeGuards
  * fills errors
@@ -1006,6 +1058,347 @@ interface TypeContext {
 	/** Verengte Typen des umgebenden branch-Rumpfs. Undefined außerhalb jedes branchings. */
 	narrowedTypes: NarrowedTypes | undefined;
 }
+
+//#region branch narrowing
+
+/**
+ * Verengte Typen je Zugriffspfad, gültig im Rumpf eines branches.
+ * Die Wurzel ist die Identität des Symbols, nicht sein Name: Ein Nachschlag für einen nicht
+ * verengten Ausdruck kostet damit einen Zugriff, unabhängig von der Schachtelungstiefe - und
+ * praktisch jeder Nachschlag ist ein Fehlschlag.
+ */
+type NarrowedTypes = Map<SymbolDefinition, NarrowedPath[]>;
+
+interface NarrowedPath {
+	/** Feldnamen und Indizes ab der Wurzel. Leer = die Wurzel selbst. */
+	keys: (string | number)[];
+	type: CompileTimeType;
+}
+
+interface AccessPath {
+	symbol: SymbolDefinition;
+	keys: (string | number)[];
+}
+
+/**
+ * Der Zugriffspfad, den dieser Ausdruck bezeichnet.
+ * undefined, sobald ein Glied kein Name und kein literaler Schlüssel ist - ein Aufruf als Quelle
+ * (getStep(flag)/type) bezeichnet keinen Pfad, denn zwei Aufrufe sind zwei Werte.
+ */
+function getAccessPath(
+	expression: ParseValueExpression,
+	scopes: SymbolTable[],
+): AccessPath | undefined {
+	switch (expression.type) {
+		case 'reference': {
+			const symbol = findSymbolInScopesWithBuiltIns(expression.name.name, scopes)?.symbol;
+			return symbol && {
+				symbol: symbol,
+				keys: [],
+			};
+		}
+		case 'nestedReference': {
+			const nestedKey = expression.nestedKey;
+			if (!nestedKey) {
+				return undefined;
+			}
+			const sourcePath = getAccessPath(expression.source, scopes);
+			if (!sourcePath) {
+				return undefined;
+			}
+			const key = nestedKey.type === 'index'
+				? nestedKey.name
+				: getCheckedEscapableName(nestedKey);
+			if (key === undefined) {
+				return undefined;
+			}
+			return {
+				symbol: sourcePath.symbol,
+				keys: [...sourcePath.keys, key],
+			};
+		}
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Der verengte Typ für diesen Pfad, falls einer bekannt ist.
+ * Trifft kein Eintrag genau, wird vom längsten passenden Präfix aus dereferenziert - so wirkt ein
+ * Eintrag für die Quelle auch auf alle Felder darunter.
+ */
+function getNarrowedType(
+	narrowedTypes: NarrowedTypes | undefined,
+	symbol: SymbolDefinition,
+	keys: (string | number)[],
+): CompileTimeType | undefined {
+	const paths = narrowedTypes?.get(symbol);
+	if (!paths) {
+		return undefined;
+	}
+	let longestMatch: NarrowedPath | undefined = undefined;
+	for (const path of paths) {
+		if (path.keys.length > keys.length
+			|| (longestMatch && path.keys.length <= longestMatch.keys.length)) {
+			continue;
+		}
+		if (path.keys.every((key, index) => key === keys[index])) {
+			longestMatch = path;
+		}
+	}
+	if (!longestMatch) {
+		return undefined;
+	}
+	let type = longestMatch.type;
+	for (const key of keys.slice(longestMatch.keys.length)) {
+		const dereferenced = dereferenceNestedKeyFromObject(key, type);
+		if (!dereferenced) {
+			return undefined;
+		}
+		type = dereferenced;
+	}
+	return type;
+}
+
+/**
+ * Eine neue Umgebung mit diesem Eintrag. Ein vorhandener Eintrag für denselben Pfad wird ersetzt,
+ * nicht ergänzt - der neue Typ entsteht als Schnitt mit dem alten und ist damit der engere.
+ */
+function withNarrowedType(
+	narrowedTypes: NarrowedTypes | undefined,
+	symbol: SymbolDefinition,
+	keys: (string | number)[],
+	type: CompileTimeType,
+): NarrowedTypes {
+	const result: NarrowedTypes = new Map(narrowedTypes);
+	const paths = result.get(symbol) ?? [];
+	const withoutPath = paths.filter(path =>
+		path.keys.length !== keys.length
+		|| !path.keys.every((key, index) => key === keys[index]));
+	result.set(symbol, [
+		...withoutPath,
+		{
+			keys: keys,
+			type: type,
+		},
+	]);
+	return result;
+}
+
+/**
+ * Eine neue Umgebung, in der dieser Ausdruck den Typ hat - und mit ihm jede Quelle darüber:
+ * dass step/type ein Text ist, beweist, dass step nicht empty ist, denn Empty hat kein Feld.
+ * Index-Pfade tragen diesen Schluss noch nicht.
+ */
+function withNarrowedPath(
+	narrowedTypes: NarrowedTypes | undefined,
+	expression: ParseValueExpression,
+	type: CompileTimeType,
+	scopes: SymbolTable[],
+): NarrowedTypes | undefined {
+	const path = getAccessPath(expression, scopes);
+	if (!path) {
+		return narrowedTypes;
+	}
+	let result = withNarrowedType(narrowedTypes, path.symbol, path.keys, type);
+	let narrowedExpression: ParseValueExpression = expression;
+	let narrowedType = type;
+	while (narrowedExpression.type === 'nestedReference') {
+		const source = narrowedExpression.source;
+		const nestedKey = narrowedExpression.nestedKey;
+		const key = nestedKey && nestedKey.type !== 'index'
+			? getCheckedEscapableName(nestedKey)
+			: undefined;
+		const sourcePath = key
+			? getAccessPath(source, scopes)
+			: undefined;
+		if (!key
+			|| !sourcePath) {
+			break;
+		}
+		const sourceType = getNarrowedType(result, sourcePath.symbol, sourcePath.keys)
+			?? source.typeInfo?.type
+			?? { julType: 'any' };
+		narrowedType = createNormalizedIntersectionType([
+			sourceType,
+			createCompileTimeDictionaryLiteralType({ [key]: narrowedType }),
+		]);
+		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, narrowedType);
+		narrowedExpression = source;
+	}
+	return result;
+}
+
+/**
+ * Der Ausdruck, aus dem der Wert dieses Symbols stammt - falls das ein Feldzugriff war.
+ * Ein Name bezeichnet in JUL genau einen Wert, was über ihn gilt, gilt also auch über seine
+ * Herkunft. Nur für Feldzugriffe, denn zwei Aufrufe sind zwei Werte.
+ */
+function getOriginExpression(symbol: SymbolDefinition): ParseValueExpression | undefined {
+	const definition = symbol.definition;
+	if (definition?.type !== 'definition') {
+		return undefined;
+	}
+	const value = definition.value;
+	return value?.type === 'nestedReference'
+		? value
+		: undefined;
+}
+
+/**
+ * Die geschriebenen Werte einer Kollektion, Index für Index.
+ * undefined, wenn sich kein Ausdruck zuordnen lässt - dann wird weder verengt noch gemeldet.
+ */
+function getWrittenArguments(args: ParseValueExpression | undefined): ParseValueExpression[] | undefined {
+	if (args?.type !== 'list') {
+		return undefined;
+	}
+	// Ein Spread verschiebt alle folgenden Indizes unbekannt weit, damit ist keinem Element
+	// mehr ein Ausdruck zuzuordnen.
+	if (args.values.some(value => value.type === 'spread')) {
+		return undefined;
+	}
+	return args.values as ParseValueExpression[];
+}
+
+/**
+ * Der Typ, den Argument argumentIndex in diesem branch erfüllen muss.
+ * undefined = der branch sagt nichts über dieses Argument aus, es wird also nicht verengt.
+ */
+function getBranchArgumentType(
+	paramsType: CompileTimeType,
+	argumentIndex: number,
+): CompileTimeType | undefined {
+	if (!isParametersType(paramsType)) {
+		// Typ-Kopf: beschreibt die Argumentkollektion, das Argument ist deren Element
+		return getElementTypeAtIndex(paramsType, argumentIndex);
+	}
+	const singleNames = paramsType.singleNames;
+	const rest = paramsType.rest;
+	if (!singleNames.length
+		&& !rest) {
+		// catchAll () => ...: matcht jede Kollektion und bindet nichts
+		return undefined;
+	}
+	const singleName = singleNames[argumentIndex];
+	if (singleName) {
+		return singleName.type;
+	}
+	return rest
+		? getElementTypeAtIndex(rest.type, argumentIndex - singleNames.length)
+		: undefined;
+}
+
+/**
+ * Ob die branches beweisbar jeden möglichen Wert von args abdecken - nur für den Fall eines
+ * einzelnen, nicht destrukturierten Arguments (?(x)). Bei mehreren Argumenten oder wenn sich
+ * args/branch-Typen nicht auflösen lassen, konservativ false: dann bleibt Error im Rückgabetyp.
+ * Syntaktisches catchAll ((), Any) wird vom Aufrufer schon vorher geprüft.
+ */
+function isBranchingExhaustive(
+	args: ParseValueExpression | undefined,
+	branches: ParseValueExpression[],
+): boolean {
+	const argsType = args?.typeInfo && resolvePlaceholders(args.typeInfo.type);
+	if (!argsType) {
+		return false;
+	}
+	// args ist die Argumentkollektion (Tuple/List/...), nicht der Wert selbst - dieselbe
+	// Auflösung wie getBranchArgumentType für den Typ-Kopf-Fall.
+	const argValueType = getElementTypeAtIndex(argsType, 0);
+	if (!argValueType) {
+		return false;
+	}
+	const branchValueTypes = branches.map(branch => {
+		const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
+		return getBranchArgumentType(paramsType, 0);
+	});
+	if (branchValueTypes.some(valueType => !valueType)) {
+		// undefined heißt hier: nicht bestimmbar (catchAll wurde vom Aufrufer schon ausgeschlossen)
+		return false;
+	}
+	const combinedType = createNormalizedUnionType(branchValueTypes as CompileTimeType[]);
+	return !getTypeError(undefined, argValueType, combinedType);
+}
+
+/**
+ * Der Typ des Elements an dieser Stelle einer Kollektion.
+ * undefined, wenn er sich nicht bestimmen lässt - dann wird nicht verengt.
+ */
+function getElementTypeAtIndex(
+	type: CompileTimeType | undefined,
+	index: number,
+): CompileTimeType | undefined {
+	switch (type?.julType) {
+		case 'any':
+			return type;
+		case 'list':
+			return type.ElementType;
+		case 'tuple':
+			return type.ElementTypes[index];
+		case 'or': {
+			const choiceTypes: CompileTimeType[] = [];
+			for (const choiceType of type.ChoiceTypes) {
+				const elementType = getElementTypeAtIndex(choiceType, index);
+				if (!elementType) {
+					return undefined;
+				}
+				choiceTypes.push(elementType);
+			}
+			return createNormalizedUnionType(choiceTypes);
+		}
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Die Veroderung dessen, was die branches vor diesem an dieser Argumentstelle bereits abfangen.
+ * _branch probiert die branches der Reihe nach, wer hier ankommt hat also alle vorherigen nicht
+ * gematcht. undefined, wenn es keine vorherigen branches gibt oder einer davon alles matcht bzw.
+ * nicht bestimmbar ist — dann wird nichts abgezogen. Ein solcher branch macht diesen hier
+ * unerreichbar, das ist aber eine eigene Diagnose und kein Fall für die Verengung.
+ */
+function getPreviousBranchArgumentType(
+	branching: ParseBranching,
+	branch: ParseValueExpression,
+	argumentIndex: number,
+): CompileTimeType | undefined {
+	const branchIndex = branching.branches.indexOf(branch);
+	if (branchIndex < 1) {
+		return undefined;
+	}
+	const previousValueTypes: CompileTimeType[] = [];
+	for (const previousBranch of branching.branches.slice(0, branchIndex)) {
+		const previousParamsType = getParamsType(previousBranch.typeInfo && resolvePlaceholders(previousBranch.typeInfo.type));
+		const previousValueType = getBranchArgumentType(previousParamsType, argumentIndex);
+		if (!previousValueType
+			|| previousValueType.julType === 'any') {
+			return undefined;
+		}
+		previousValueTypes.push(previousValueType);
+	}
+	return createNormalizedUnionType(previousValueTypes);
+}
+
+/**
+ * Verengt den Typ des gebranchten Werts: schneidet mit dem Typ, den dieser branch matcht,
+ * und zieht ab, was die vorherigen branches schon abgefangen haben.
+ */
+function narrowBranchedType(
+	branchedType: CompileTimeType,
+	branchValueType: CompileTimeType | undefined,
+	previousBranchValueType: CompileTimeType | undefined,
+): CompileTimeType {
+	const intersectedType = branchValueType
+		? createNormalizedIntersectionType([branchedType, branchValueType])
+		: branchedType;
+	return previousBranchValueType
+		? createNormalizedIntersectionType([intersectedType, createCompileTimeComplementType(previousBranchValueType)])
+		: intersectedType;
+}
+
+//#endregion branch narrowing
 
 function setInferredType(
 	expression: TypedExpression,
@@ -2572,347 +2965,6 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 
 //#endregion Typ Arithmetik
 
-//#region branch narrowing
-
-/**
- * Verengte Typen je Zugriffspfad, gültig im Rumpf eines branches.
- * Die Wurzel ist die Identität des Symbols, nicht sein Name: Ein Nachschlag für einen nicht
- * verengten Ausdruck kostet damit einen Zugriff, unabhängig von der Schachtelungstiefe - und
- * praktisch jeder Nachschlag ist ein Fehlschlag.
- */
-type NarrowedTypes = Map<SymbolDefinition, NarrowedPath[]>;
-
-interface NarrowedPath {
-	/** Feldnamen und Indizes ab der Wurzel. Leer = die Wurzel selbst. */
-	keys: (string | number)[];
-	type: CompileTimeType;
-}
-
-interface AccessPath {
-	symbol: SymbolDefinition;
-	keys: (string | number)[];
-}
-
-/**
- * Der Zugriffspfad, den dieser Ausdruck bezeichnet.
- * undefined, sobald ein Glied kein Name und kein literaler Schlüssel ist - ein Aufruf als Quelle
- * (getStep(flag)/type) bezeichnet keinen Pfad, denn zwei Aufrufe sind zwei Werte.
- */
-function getAccessPath(
-	expression: ParseValueExpression,
-	scopes: SymbolTable[],
-): AccessPath | undefined {
-	switch (expression.type) {
-		case 'reference': {
-			const symbol = findSymbolInScopesWithBuiltIns(expression.name.name, scopes)?.symbol;
-			return symbol && {
-				symbol: symbol,
-				keys: [],
-			};
-		}
-		case 'nestedReference': {
-			const nestedKey = expression.nestedKey;
-			if (!nestedKey) {
-				return undefined;
-			}
-			const sourcePath = getAccessPath(expression.source, scopes);
-			if (!sourcePath) {
-				return undefined;
-			}
-			const key = nestedKey.type === 'index'
-				? nestedKey.name
-				: getCheckedEscapableName(nestedKey);
-			if (key === undefined) {
-				return undefined;
-			}
-			return {
-				symbol: sourcePath.symbol,
-				keys: [...sourcePath.keys, key],
-			};
-		}
-		default:
-			return undefined;
-	}
-}
-
-/**
- * Der verengte Typ für diesen Pfad, falls einer bekannt ist.
- * Trifft kein Eintrag genau, wird vom längsten passenden Präfix aus dereferenziert - so wirkt ein
- * Eintrag für die Quelle auch auf alle Felder darunter.
- */
-function getNarrowedType(
-	narrowedTypes: NarrowedTypes | undefined,
-	symbol: SymbolDefinition,
-	keys: (string | number)[],
-): CompileTimeType | undefined {
-	const paths = narrowedTypes?.get(symbol);
-	if (!paths) {
-		return undefined;
-	}
-	let longestMatch: NarrowedPath | undefined = undefined;
-	for (const path of paths) {
-		if (path.keys.length > keys.length
-			|| (longestMatch && path.keys.length <= longestMatch.keys.length)) {
-			continue;
-		}
-		if (path.keys.every((key, index) => key === keys[index])) {
-			longestMatch = path;
-		}
-	}
-	if (!longestMatch) {
-		return undefined;
-	}
-	let type = longestMatch.type;
-	for (const key of keys.slice(longestMatch.keys.length)) {
-		const dereferenced = dereferenceNestedKeyFromObject(key, type);
-		if (!dereferenced) {
-			return undefined;
-		}
-		type = dereferenced;
-	}
-	return type;
-}
-
-/**
- * Eine neue Umgebung mit diesem Eintrag. Ein vorhandener Eintrag für denselben Pfad wird ersetzt,
- * nicht ergänzt - der neue Typ entsteht als Schnitt mit dem alten und ist damit der engere.
- */
-function withNarrowedType(
-	narrowedTypes: NarrowedTypes | undefined,
-	symbol: SymbolDefinition,
-	keys: (string | number)[],
-	type: CompileTimeType,
-): NarrowedTypes {
-	const result: NarrowedTypes = new Map(narrowedTypes);
-	const paths = result.get(symbol) ?? [];
-	const withoutPath = paths.filter(path =>
-		path.keys.length !== keys.length
-		|| !path.keys.every((key, index) => key === keys[index]));
-	result.set(symbol, [
-		...withoutPath,
-		{
-			keys: keys,
-			type: type,
-		},
-	]);
-	return result;
-}
-
-/**
- * Eine neue Umgebung, in der dieser Ausdruck den Typ hat - und mit ihm jede Quelle darüber:
- * dass step/type ein Text ist, beweist, dass step nicht empty ist, denn Empty hat kein Feld.
- * Index-Pfade tragen diesen Schluss noch nicht.
- */
-function withNarrowedPath(
-	narrowedTypes: NarrowedTypes | undefined,
-	expression: ParseValueExpression,
-	type: CompileTimeType,
-	scopes: SymbolTable[],
-): NarrowedTypes | undefined {
-	const path = getAccessPath(expression, scopes);
-	if (!path) {
-		return narrowedTypes;
-	}
-	let result = withNarrowedType(narrowedTypes, path.symbol, path.keys, type);
-	let narrowedExpression: ParseValueExpression = expression;
-	let narrowedType = type;
-	while (narrowedExpression.type === 'nestedReference') {
-		const source = narrowedExpression.source;
-		const nestedKey = narrowedExpression.nestedKey;
-		const key = nestedKey && nestedKey.type !== 'index'
-			? getCheckedEscapableName(nestedKey)
-			: undefined;
-		const sourcePath = key
-			? getAccessPath(source, scopes)
-			: undefined;
-		if (!key
-			|| !sourcePath) {
-			break;
-		}
-		const sourceType = getNarrowedType(result, sourcePath.symbol, sourcePath.keys)
-			?? source.typeInfo?.type
-			?? { julType: 'any' };
-		narrowedType = createNormalizedIntersectionType([
-			sourceType,
-			createCompileTimeDictionaryLiteralType({ [key]: narrowedType }),
-		]);
-		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, narrowedType);
-		narrowedExpression = source;
-	}
-	return result;
-}
-
-/**
- * Der Ausdruck, aus dem der Wert dieses Symbols stammt - falls das ein Feldzugriff war.
- * Ein Name bezeichnet in JUL genau einen Wert, was über ihn gilt, gilt also auch über seine
- * Herkunft. Nur für Feldzugriffe, denn zwei Aufrufe sind zwei Werte.
- */
-function getOriginExpression(symbol: SymbolDefinition): ParseValueExpression | undefined {
-	const definition = symbol.definition;
-	if (definition?.type !== 'definition') {
-		return undefined;
-	}
-	const value = definition.value;
-	return value?.type === 'nestedReference'
-		? value
-		: undefined;
-}
-
-/**
- * Die geschriebenen Werte einer Kollektion, Index für Index.
- * undefined, wenn sich kein Ausdruck zuordnen lässt - dann wird weder verengt noch gemeldet.
- */
-function getWrittenArguments(args: ParseValueExpression | undefined): ParseValueExpression[] | undefined {
-	if (args?.type !== 'list') {
-		return undefined;
-	}
-	// Ein Spread verschiebt alle folgenden Indizes unbekannt weit, damit ist keinem Element
-	// mehr ein Ausdruck zuzuordnen.
-	if (args.values.some(value => value.type === 'spread')) {
-		return undefined;
-	}
-	return args.values as ParseValueExpression[];
-}
-
-/**
- * Der Typ, den Argument argumentIndex in diesem branch erfüllen muss.
- * undefined = der branch sagt nichts über dieses Argument aus, es wird also nicht verengt.
- */
-function getBranchArgumentType(
-	paramsType: CompileTimeType,
-	argumentIndex: number,
-): CompileTimeType | undefined {
-	if (!isParametersType(paramsType)) {
-		// Typ-Kopf: beschreibt die Argumentkollektion, das Argument ist deren Element
-		return getElementTypeAtIndex(paramsType, argumentIndex);
-	}
-	const singleNames = paramsType.singleNames;
-	const rest = paramsType.rest;
-	if (!singleNames.length
-		&& !rest) {
-		// catchAll () => ...: matcht jede Kollektion und bindet nichts
-		return undefined;
-	}
-	const singleName = singleNames[argumentIndex];
-	if (singleName) {
-		return singleName.type;
-	}
-	return rest
-		? getElementTypeAtIndex(rest.type, argumentIndex - singleNames.length)
-		: undefined;
-}
-
-/**
- * Ob die branches beweisbar jeden möglichen Wert von args abdecken - nur für den Fall eines
- * einzelnen, nicht destrukturierten Arguments (?(x)). Bei mehreren Argumenten oder wenn sich
- * args/branch-Typen nicht auflösen lassen, konservativ false: dann bleibt Error im Rückgabetyp.
- * Syntaktisches catchAll ((), Any) wird vom Aufrufer schon vorher geprüft.
- */
-function isBranchingExhaustive(
-	args: ParseValueExpression | undefined,
-	branches: ParseValueExpression[],
-): boolean {
-	const argsType = args?.typeInfo && resolvePlaceholders(args.typeInfo.type);
-	if (!argsType) {
-		return false;
-	}
-	// args ist die Argumentkollektion (Tuple/List/...), nicht der Wert selbst - dieselbe
-	// Auflösung wie getBranchArgumentType für den Typ-Kopf-Fall.
-	const argValueType = getElementTypeAtIndex(argsType, 0);
-	if (!argValueType) {
-		return false;
-	}
-	const branchValueTypes = branches.map(branch => {
-		const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
-		return getBranchArgumentType(paramsType, 0);
-	});
-	if (branchValueTypes.some(valueType => !valueType)) {
-		// undefined heißt hier: nicht bestimmbar (catchAll wurde vom Aufrufer schon ausgeschlossen)
-		return false;
-	}
-	const combinedType = createNormalizedUnionType(branchValueTypes as CompileTimeType[]);
-	return !getTypeError(undefined, argValueType, combinedType);
-}
-
-/**
- * Der Typ des Elements an dieser Stelle einer Kollektion.
- * undefined, wenn er sich nicht bestimmen lässt - dann wird nicht verengt.
- */
-function getElementTypeAtIndex(
-	type: CompileTimeType | undefined,
-	index: number,
-): CompileTimeType | undefined {
-	switch (type?.julType) {
-		case 'any':
-			return type;
-		case 'list':
-			return type.ElementType;
-		case 'tuple':
-			return type.ElementTypes[index];
-		case 'or': {
-			const choiceTypes: CompileTimeType[] = [];
-			for (const choiceType of type.ChoiceTypes) {
-				const elementType = getElementTypeAtIndex(choiceType, index);
-				if (!elementType) {
-					return undefined;
-				}
-				choiceTypes.push(elementType);
-			}
-			return createNormalizedUnionType(choiceTypes);
-		}
-		default:
-			return undefined;
-	}
-}
-
-/**
- * Die Veroderung dessen, was die branches vor diesem an dieser Argumentstelle bereits abfangen.
- * _branch probiert die branches der Reihe nach, wer hier ankommt hat also alle vorherigen nicht
- * gematcht. undefined, wenn es keine vorherigen branches gibt oder einer davon alles matcht bzw.
- * nicht bestimmbar ist — dann wird nichts abgezogen. Ein solcher branch macht diesen hier
- * unerreichbar, das ist aber eine eigene Diagnose und kein Fall für die Verengung.
- */
-function getPreviousBranchArgumentType(
-	branching: ParseBranching,
-	branch: ParseValueExpression,
-	argumentIndex: number,
-): CompileTimeType | undefined {
-	const branchIndex = branching.branches.indexOf(branch);
-	if (branchIndex < 1) {
-		return undefined;
-	}
-	const previousValueTypes: CompileTimeType[] = [];
-	for (const previousBranch of branching.branches.slice(0, branchIndex)) {
-		const previousParamsType = getParamsType(previousBranch.typeInfo && resolvePlaceholders(previousBranch.typeInfo.type));
-		const previousValueType = getBranchArgumentType(previousParamsType, argumentIndex);
-		if (!previousValueType
-			|| previousValueType.julType === 'any') {
-			return undefined;
-		}
-		previousValueTypes.push(previousValueType);
-	}
-	return createNormalizedUnionType(previousValueTypes);
-}
-
-/**
- * Verengt den Typ des gebranchten Werts: schneidet mit dem Typ, den dieser branch matcht,
- * und zieht ab, was die vorherigen branches schon abgefangen haben.
- */
-function narrowBranchedType(
-	branchedType: CompileTimeType,
-	branchValueType: CompileTimeType | undefined,
-	previousBranchValueType: CompileTimeType | undefined,
-): CompileTimeType {
-	const intersectedType = branchValueType
-		? createNormalizedIntersectionType([branchedType, branchValueType])
-		: branchedType;
-	return previousBranchValueType
-		? createNormalizedIntersectionType([intersectedType, createCompileTimeComplementType(previousBranchValueType)])
-		: intersectedType;
-}
-
-//#endregion branch narrowing
-
 //#region verworfene Werte
 
 /**
@@ -4090,55 +4142,3 @@ function checkIsFunction(
 	}
 	return true;
 }
-
-//#region CompileTimeType guards
-
-function isComplementType(type: CompileTimeType | undefined): type is CompileTimeComplementType {
-	return !!type && type.julType === 'not';
-}
-
-function isDictionaryType(type: CompileTimeType | undefined): type is CompileTimeDictionaryType {
-	return !!type && type.julType === 'dictionary';
-}
-
-export function isDictionaryLiteralType(type: CompileTimeType | undefined): type is CompileTimeDictionaryLiteralType {
-	return !!type && type.julType === 'dictionaryLiteral';
-}
-
-export function isFunctionType(type: CompileTimeType | undefined): type is CompileTimeFunctionType {
-	return !!type && type.julType === 'function';
-}
-
-export function isListType(type: CompileTimeType | undefined): type is CompileTimeListType {
-	return !!type && type.julType === 'list';
-}
-
-export function isParametersType(type: CompileTimeType | undefined): type is ParametersType {
-	return !!type && type.julType === 'parameters';
-}
-
-export function isParameterReference(type: CompileTimeType | undefined): type is ParameterReference {
-	return !!type && type.julType === 'parameterReference';
-}
-
-function isStreamType(type: CompileTimeType | undefined): type is CompileTimeStreamType {
-	return !!type && type.julType === 'stream';
-}
-
-export function isTextLiteralType(type: CompileTimeType | undefined): type is TextLiteralType {
-	return !!type && type.julType === 'textLiteral';
-}
-
-export function isTupleType(type: CompileTimeType | undefined): type is CompileTimeTupleType {
-	return !!type && type.julType === 'tuple';
-}
-
-export function isTypeOfType(type: CompileTimeType | undefined): type is CompileTimeTypeOfType {
-	return !!type && type.julType === 'typeOf';
-}
-
-export function isUnionType(type: CompileTimeType | undefined): type is CompileTimeUnionType {
-	return !!type && type.julType === 'or';
-}
-
-//#endregion CompileTimeType guards
