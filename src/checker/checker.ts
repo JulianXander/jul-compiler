@@ -377,6 +377,7 @@ function nestedKeysEqual(
 function hasKnownFields(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'dictionaryLiteral':
+			return type.complete;
 		case 'function':
 		case 'parameters':
 		case 'stream':
@@ -837,7 +838,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			if (fieldsEqual(rawFields, dereferencedFields)) {
 				return rawType;
 			}
-			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.declaration, rawType.aliasName);
+			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.complete, rawType.declaration, rawType.aliasName);
 		}
 		case 'function': {
 			const dereferencedParamsType = resolvePlaceholders(rawType.ParamsType);
@@ -1221,7 +1222,9 @@ function withNarrowedPath(
 			?? { julType: 'any' };
 		narrowedType = createNormalizedIntersectionType([
 			sourceType,
-			createCompileTimeDictionaryLiteralType({ [key]: narrowedType }),
+			// complete: false, denn der branch beweist nur diesen einen Fakt - über andere
+			// Felder der Quelle ist damit nichts gesagt.
+			createCompileTimeDictionaryLiteralType({ [key]: narrowedType }, false),
 		]);
 		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, narrowedType);
 		narrowedExpression = source;
@@ -1658,6 +1661,7 @@ function inferType(
 			const aliasName = getNameFromValue(expression);
 			const rawType = createCompileTimeDictionaryLiteralType(
 				fieldTypes,
+				true,
 				{ expression: expression, filePath: filePath },
 				aliasName);
 			return { type: rawType };
@@ -1700,6 +1704,7 @@ function inferType(
 			const aliasName = getNameFromValue(expression);
 			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(
 				fieldTypes,
+				true,
 				{ expression: expression, filePath: filePath },
 				aliasName));
 			return { type: rawType };
@@ -1726,7 +1731,7 @@ function inferType(
 					julType: 'integerLiteral',
 					value: expression.denominator,
 				},
-			});
+			}, true);
 			return { type: rawType };
 		}
 		case 'functionCall': {
@@ -2206,7 +2211,7 @@ function getReturnTypeFromFunctionCall(
 						return symbolType;
 					});
 					// TODO exrepssion, filePath?
-					return createCompileTimeDictionaryLiteralType(importedTypes);
+					return createCompileTimeDictionaryLiteralType(importedTypes, true);
 				}
 				// value import
 				// the last expression is imported
@@ -3205,7 +3210,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 	switch (type.julType) {
 		case 'dictionaryLiteral': {
 			const fieldValues = mapDictionary(type.Fields, valueOf);
-			return createCompileTimeDictionaryLiteralType(fieldValues);
+			return createCompileTimeDictionaryLiteralType(fieldValues, type.complete);
 		}
 		case 'function':
 			// TODO?
@@ -3671,8 +3676,13 @@ function getDictionaryLiteralTypeError(
 			const subErrors = map(
 				targetFieldTypes,
 				(fieldType, fieldName) => {
-					// TODO the field x is missing error?
-					const argument: CompileTimeType = argumentsType.Fields[fieldName] ?? { julType: 'empty' };
+					const knownField = argumentsType.Fields[fieldName];
+					if (knownField === undefined && !argumentsType.complete) {
+						// Unwissen ist keine Ablehnung: taucht das Feld in einem unvollstaendigen
+						// Dictionary nicht auf, ist das kein Beweis, dass es fehlt.
+						return undefined;
+					}
+					const argument: CompileTimeType = knownField ?? { julType: 'empty' };
 					return getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, argument);
 				},
 			).filter(isDefined);

@@ -721,16 +721,26 @@ export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTim
 export interface CompileTimeDictionaryLiteralType extends CompileTimeTypeBase {
 	readonly julType: 'dictionaryLiteral';
 	Fields: CompileTimeDictionary;
+	/**
+	 * true: Fields ist die vollständige Feldliste, ein fehlendes Feld gibt es nachweisbar nicht
+	 * (z.B. ein geschriebenes Dictionary-Literal).
+	 * false: Fields nennt nur einen bewiesenen Fakt, über andere Felder ist nichts bekannt
+	 * (z.B. ein Fakt aus der Verengung eines branches). Ein fehlendes Feld ist dann unbekannt,
+	 * nicht Empty.
+	 */
+	readonly complete: boolean;
 }
 
 export function createCompileTimeDictionaryLiteralType(
 	Fields: CompileTimeDictionary,
+	complete: boolean,
 	declaration?: TypeDeclaration,
 	aliasName?: string,
 ): CompileTimeDictionaryLiteralType {
 	return {
 		julType: 'dictionaryLiteral',
 		Fields: Fields,
+		complete: complete,
 		declaration: declaration,
 		aliasName: aliasName,
 	};

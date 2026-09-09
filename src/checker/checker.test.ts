@@ -481,8 +481,8 @@ s = assume(start Any)
 ?(s/index)
 	[Integer] => 0
 	() =>
-		result: [boards: Integer index: Or([] Integer)] = s
-		result`,
+		boardsValue: Integer = s/boards
+		boardsValue`,
 			errors: [],
 		},
 		//#endregion branching: Verengung
