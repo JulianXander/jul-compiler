@@ -525,8 +525,29 @@ card = getCard()
 		result`,
 			errors: [],
 		},
+		{
+			// Gegenprobe zu narrowed-not-type-from-any-source-is-not-checked: Not(X) darf nur
+			// dann permissiv sein, wenn das Ziel mehr als X zulaesst. Ziel = Integer ist eine
+			// Teilmenge von X = Integer, der Wert waere also garantiert ausgeschlossen.
+			name: 'narrowed-not-type-still-errors-when-target-is-subset-of-excluded',
+			code: `combined = assume([] Any)
+?(combined/index)
+	[Integer] => 0
+	() =>
+		result: Integer = combined/index
+		result`,
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Can not assign Not(Integer) to Integer.',
+					startRowIndex: 4,
+					startColumnIndex: 2,
+					endRowIndex: 4,
+					endColumnIndex: 34,
+				},
+			],
+		},
 		//#endregion branching: Verengung
-
 
 		//#region Not
 		{

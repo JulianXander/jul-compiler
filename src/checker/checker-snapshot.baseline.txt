@@ -37,10 +37,10 @@ fibonacci: (x: Integer) :> Any
 fibonacciHelper: ( 	countdown: Integer 	current: Integer 	previous: Integer ) :> Any
 test: Any
 === fizz-buzz/fizz-buzz-recursive.jul ===
-divisibleBy: (divisor: And(Integer Not(0))) :> (dividend: Integer) :> Boolean
+divisibleBy: (divisor: Not(0)) :> (dividend: Integer) :> Boolean
 fizzBuzz: (index: And(Integer Greater(0))) :> Empty
 === fizz-buzz/fizz-buzz.jul ===
-divisibleBy: (divisor: And(Integer Not(0))) :> (dividend: Integer) :> Boolean
+divisibleBy: (divisor: Not(0)) :> (dividend: Integer) :> Boolean
 === function-call.jul ===
 MyType: TypeOf([ 	a: 1 	b: 2 ])
 aliasFn: ( 	a: Boolean 	b: Any ) :> Empty
@@ -113,8 +113,10 @@ source$: Stream(Float)
   error 4001 at 15:11 onCompleted is not defined.
   error 4001 at 15:29 console is not defined.
 === test1.jul ===
-combined: Any
-  error 5000 at 5:3 Can not assign Not(Integer) to Empty. | Can not assign Not(Integer) to Integer.
+a: Any
+  error 1011 at 2:11 Invalid index 0, indexes start at 1
+  error 1102 at 2:12 multilineParser should parse until end of row
+  warning 2500 at 1:14 This value is discarded. Expected 2 arguments, got 3.
 === text-example.jul ===
 inline: §Hallo Welt§
 mitInterpolation: Text
@@ -125,8 +127,8 @@ sql: Text
 table: §Customer§
 === type-checking-test.jul ===
 t1: TypeOf(true)
-t2: TypeOf(And(Boolean Not(true)))
-t3: TypeOf(And(Boolean Not(true)))
+t2: TypeOf(Not(true))
+t3: TypeOf(Not(true))
 testAnd1: 4
 testAnd2: 5
 testAnd3: 6
@@ -189,7 +191,6 @@ testWithout21: true
   error 5000 at 24:1 Can not assign 6 to Boolean.
   error 5000 at 28:1 Can not assign 4f to Integer.
   error 5000 at 32:1 Can not assign 0 to Not(0).
-  error 5000 at 34:1 Can not assign [ | 	numerator: 35 | 	denominator: 10 | ] to Integer.
   error 5000 at 38:1 Can not assign 6 to Float.
   error 5000 at 44:1 Can not assign 4 to Text.
   error 5000 at 48:1 Can not assign 6 to 4. | Can not assign 6 to 5.

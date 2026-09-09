@@ -3345,6 +3345,18 @@ export function getTypeError(
 		case 'nestedReference':
 			// TODO?
 			return undefined;
+		case 'not': {
+			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
+			// ausschließlich X-Werte zulässt (target Teilmenge von X), der Wert also garantiert
+			// ausgeschlossen wäre. Sonst permissiv, wie bei Any: wir wissen nichts Genaueres.
+			const targetIsSubsetOfExcluded = !getTypeError(prefixArgumentType, targetType, argumentsType.SourceType);
+			if (targetIsSubsetOfExcluded) {
+				return {
+					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+				};
+			}
+			return undefined;
+		}
 		case 'or': {
 			// alle args Choices müssen zum target passen
 			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
