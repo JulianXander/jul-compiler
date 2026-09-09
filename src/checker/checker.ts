@@ -3349,8 +3349,9 @@ export function getTypeError(
 			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
 			// ausschließlich X-Werte zulässt (target Teilmenge von X), der Wert also garantiert
 			// ausgeschlossen wäre. Sonst permissiv, wie bei Any: wir wissen nichts Genaueres.
-			const targetIsSubsetOfExcluded = !getTypeError(prefixArgumentType, targetType, argumentsType.SourceType);
-			if (targetIsSubsetOfExcluded) {
+			// isNotAssignableTo traegt den hasReliableTypeError-Guard schon (undefined bei
+			// unaufgeloesten/generischen Zielen), das wird hier mitgenutzt statt dupliziert.
+			if (isNotAssignableTo(targetType, argumentsType.SourceType) === false) {
 				return {
 					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
 				};
