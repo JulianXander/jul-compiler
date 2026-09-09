@@ -180,8 +180,8 @@
 	-elixir nutzt seit ende 2025 binary decision diagrams (bdds) zur repräsentation von
 	 union/intersection/negation, mit "lazy bdds" und "eager literal differences/intersections"
 	 als eigene optimierungsrunden (elixir-lang.org/blog, 2025-12 und 2026-02/03)
-	-relevant für createNormalizedUnionType bzw. die geplante teilmengen-elimination,
-	 vgl union-type-subsumption.md: dort ist getTypeError der teure O(n²)-kandidat,
-	 bdds könnten dafür eine schnellere darstellung sein
+	-relevant für createNormalizedUnionType/removeSubtypes: getTypeError ist dort der teure
+	 O(n²)-Kandidat (subtypeReductionLimit begrenzt das nur, löst es nicht), bdds könnten
+	 dafür eine schnellere Darstellung sein
 	-prüfen ob sich lohnt oder ob der ansatz nur bei elixirs deutlich größerem
 	 typ-vokabular (maps, tuples, domains) greift
