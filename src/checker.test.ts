@@ -26,25 +26,6 @@ const expectedResults: {
 			],
 		},
 		{
-			name: 'branch-non-function-error',
-			code: '?([])\n\t4',
-			errors: [
-				{
-					"code": ErrorCode.branchIsNotFunction,
-					"endColumnIndex": 2,
-					"endRowIndex": 1,
-					"message": "Expected branch to be a function.\nCan not assign 4 to Any :> Any.",
-					"startColumnIndex": 1,
-					"startRowIndex": 1,
-				},
-			],
-		},
-		{
-			// Infix-Aufruf: das prefixArgument wird zum 1. Argument.
-			name: 'prefix-function-call',
-			code: '4.log()',
-		},
-		{
 			name: 'used-before-defined-error',
 			code: `a
 a = 5`,
@@ -73,7 +54,9 @@ a = 5`,
 				},
 			],
 		},
+		//#region Params-Typ
 		{
+			// Ein Typ als Params-Typ ist zulässig, die Funktion bleibt aufrufbar.
 			name: 'type-function',
 			code: `t = Any => []
 t(1)`,
@@ -102,6 +85,25 @@ t(1)`,
 f(1)`,
 		},
 		{
+			// Dieselbe Regel am branch: ein Kopf, der keine Argumentkollektion sein kann, ist
+			// eine nicht aufrufbare Funktion — gemeldet an der Funktion, nicht am branching.
+			name: 'branch-head-must-be-collection',
+			code: `f = (x: Integer) =>
+	?(x)
+		Integer => 0
+		() => 1`,
+			errors: [
+				{
+					"code": ErrorCode.paramsTypeIsNotCollection,
+					"endColumnIndex": 9,
+					"endRowIndex": 2,
+					"message": "Expected the params type to describe an argument collection. Did you mean [Integer]?",
+					"startColumnIndex": 2,
+					"startRowIndex": 2,
+				},
+			],
+		},
+		{
 			// Empty ist die Kollektion eines Aufrufs ohne Argumente und damit gültig.
 			name: 'params-type-empty-is-collection',
 			code: `f = Empty => 0
@@ -121,10 +123,64 @@ f()`,
 			code: `T = Any
 f = T => 0`,
 		},
-		//#region branch narrowing
-		// ? ist ein Präfix-Operator mit runder Argumentliste, ein Typ-Kopf prüft ausnahmslos
-		// gegen die Argumentkollektion, und der gebranchte Wert ist deren Element 0.
-		// Die Verengung schneidet (sie ersetzt nicht).
+		//#endregion Params-Typ
+		//#region branching: Bindung
+		// ? ist ein Präfix-Operator mit runder Argumentliste: ein Kopf prüft ausnahmslos gegen
+		// die Argumentkollektion, und der gebranchte Wert ist deren Element 0.
+		{
+			// Ein branch ist eine Funktion — ein anderer Wert kann nicht matchen.
+			name: 'branch-non-function-error',
+			code: '?([])\n\t4',
+			errors: [
+				{
+					"code": ErrorCode.branchIsNotFunction,
+					"endColumnIndex": 2,
+					"endRowIndex": 1,
+					"message": "Expected branch to be a function.\nCan not assign 4 to Any :> Any.",
+					"startColumnIndex": 1,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Kein Auto-Spread mehr: ein geschriebenes Argument bleibt ein Argument, auch wenn
+			// es eine Collection ist. Der 1. Parameter bekommt die ganze Liste.
+			name: 'branch-binds-whole-collection',
+			code: `h = (x: List(Integer)) => x
+f = (someVar: List(Integer)) =>
+	?(someVar)
+		(a: List(Integer)) => h(a)
+		() => []`,
+		},
+		{
+			// Gegenstück: gespreadet wird nur mit geschriebenem ..., dann beschreiben die
+			// Parameter die Elemente.
+			name: 'branch-spread-binds-elements',
+			code: `g = (x: Integer) => x
+f = (pair: [Integer Integer]) =>
+	?(...pair)
+		(a: Integer b: Integer) => g(a)
+		() => 0`,
+		},
+		{
+			// Ein leerer Wert ist kein leeres Argument: ?(value) schreibt ein Argument, die
+			// Kollektion ist also [()] und der passende Kopf [Empty], nicht Empty.
+			name: 'branch-empty-value-is-one-argument',
+			code: `f = (value: Or([] Integer)) =>
+	?(value)
+		[Empty] => 0
+		Any => 1`,
+		},
+		{
+			// Umgekehrt: ohne geschriebenes Argument ist die Kollektion selbst Empty.
+			name: 'branch-empty-collection-matches-empty-head',
+			code: `?()
+	Empty => 0
+	() => 1`,
+		},
+		//#endregion branching: Bindung
+		//#region branching: Verengung
+		// Die Verengung schneidet (sie ersetzt nicht) und wirkt auf den gebundenen Wert.
 		{
 			// Der catchAll () => ... bindet nichts und matcht jeden Wert, sagt über den Wert
 			// also nichts aus. countdown behält daher Integer und ist weiter an einen
@@ -195,26 +251,6 @@ f = (someVar: Or(Text Integer)) =>
 		() => §§`,
 		},
 		{
-			// Kein Auto-Spread mehr: ein geschriebenes Argument bleibt ein Argument, auch wenn
-			// es eine Collection ist. Der 1. Parameter bekommt die ganze Liste.
-			name: 'branch-binds-whole-collection',
-			code: `h = (x: List(Integer)) => x
-f = (someVar: List(Integer)) =>
-	?(someVar)
-		(a: List(Integer)) => h(a)
-		() => []`,
-		},
-		{
-			// Gegenstück: gespreadet wird nur mit geschriebenem ..., dann beschreiben die
-			// Parameter die Elemente.
-			name: 'branch-spread-binds-elements',
-			code: `g = (x: Integer) => x
-f = (pair: [Integer Integer]) =>
-	?(...pair)
-		(a: Integer b: Integer) => g(a)
-		() => 0`,
-		},
-		{
 			// Gegenprobe: die Verengung muss auch wirklich greifen. Im Text-Branch ist someVar
 			// auf Text verengt und damit nicht mehr an einen Integer-Parameter zuweisbar.
 			name: 'branch-narrowing-applies',
@@ -265,39 +301,13 @@ f = (value: Or([] Integer)) =>
 			],
 		},
 		{
-			// Ein leerer Wert ist kein leeres Argument: ?(value) schreibt ein Argument, die
-			// Kollektion ist also [()] und der passende Kopf [Empty], nicht Empty.
-			name: 'branch-empty-value-is-one-argument',
-			code: `f = (value: Or([] Integer)) =>
-	?(value)
-		[Empty] => 0
-		Any => 1`,
-		},
-		{
-			// Umgekehrt: ohne geschriebenes Argument ist die Kollektion selbst Empty.
-			name: 'branch-empty-collection-matches-empty-head',
-			code: `?()
-	Empty => 0
-	() => 1`,
-		},
-		{
-			// Ein Kopf, der keine Argumentkollektion sein kann, ist eine nicht aufrufbare
-			// Funktion — gemeldet wird das an der Funktion, nicht am branching.
-			name: 'branch-head-must-be-collection',
-			code: `f = (x: Integer) =>
-	?(x)
-		Integer => 0
-		() => 1`,
-			errors: [
-				{
-					"code": ErrorCode.paramsTypeIsNotCollection,
-					"endColumnIndex": 9,
-					"endRowIndex": 2,
-					"message": "Expected the params type to describe an argument collection. Did you mean [Integer]?",
-					"startColumnIndex": 2,
-					"startRowIndex": 2,
-				},
-			],
+			// Branching über mehrere Werte: Element i des Kopfes verengt das i-te Argument.
+			name: 'branch-narrowing-multiple-values',
+			code: `g = (x: Integer y: Integer) => x
+f = (a: Or(Text Integer) b: Or(Text Integer)) =>
+	?(a b)
+		[Integer Integer] => g(a b)
+		() => 0`,
 		},
 		{
 			// Noch nicht umgesetzt: die Verengung hängt an einem einfachen Namen, ein Feldpfad
@@ -322,16 +332,7 @@ f = (value: Or([] Integer)) =>
 				},
 			],
 		},
-		{
-			// Branching über mehrere Werte: Element i des Kopfes verengt das i-te Argument.
-			name: 'branch-narrowing-multiple-values',
-			code: `g = (x: Integer y: Integer) => x
-f = (a: Or(Text Integer) b: Or(Text Integer)) =>
-	?(a b)
-		[Integer Integer] => g(a b)
-		() => 0`,
-		},
-		//#endregion branch narrowing
+		//#endregion branching: Verengung
 		//#region Not
 		{
 			// Not(X) schließt X aus. NonZeroInteger ist Integer.Without(0), also
@@ -609,6 +610,11 @@ y: Text = [1 §a§].second()`,
 		},
 		//#endregion Zugriffstypen
 		//#region Aufruf
+		{
+			// Infix-Aufruf: das prefixArgument wird zum 1. Argument.
+			name: 'prefix-function-call',
+			code: '4.log()',
+		},
 		{
 			// Ein Wert, der keine Funktion ist, kann nicht aufgerufen werden. Heute liefert
 			// getParamsType dafür Any, damit ist auch die Argumentprüfung wirkungslos und der
