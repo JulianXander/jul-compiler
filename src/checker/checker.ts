@@ -948,9 +948,10 @@ function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterRe
 	if (functionType) {
 		const paramsType = functionType.ParamsType;
 		if (isParametersType(paramsType)) {
-			const matchedParameter = paramsType.singleNames.find(parameter =>
-				parameter.name === parameterReference.name);
-			return matchedParameter?.type;
+			// Nach Index, nicht Name: ParamsType speichert bei einem aliasierten Parameter
+			// (name = source) den Quellnamen, parameterReference.name aber den lokalen Namen
+			// aus dem Rumpf - bei einem Alias laufen beide auseinander.
+			return paramsType.singleNames[parameterReference.index]?.type;
 		}
 	}
 }
@@ -1639,7 +1640,10 @@ function inferType(
 						return;
 					}
 					case 'spread':
-						const valueType = value?.typeInfo?.type;
+						// resolvePlaceholders noetig: sonst wird z.B. eine Parameter-Typreferenz
+						// nicht als dictionaryLiteral erkannt und der gesamte Literal-Typ faellt
+						// still auf Any zurueck (verschluckt dann jeden Folgefehler).
+						const valueType = value?.typeInfo && resolvePlaceholders(value.typeInfo.type);
 						// TODO DictionaryType, ChoiceType etc ?
 						if (isDictionaryLiteralType(valueType)) {
 							const valueFieldTypes = valueType.Fields;

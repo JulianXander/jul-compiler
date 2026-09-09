@@ -787,12 +787,13 @@ x: T = [a = 1]`,
 			errors: [],
 		},
 		{
-			// Callback-Parameter ohne eigenen typeGuard (Kurzschreibweise "item = value") bekommen
-			// nie den aus map()s Signatur TypeOf(values)/ElementType hergeleiteten Typ - der
-			// Parameter bleibt Any, egal ob values eine List oder ein Tuple ist. Bekannte Lücke,
-			// siehe TODO ("mapped types ueber tuples"), Ursache eines falschen
-			// returnTypeMismatch bei draw() in yugioh/game-logic.jul. Noch ungeloest, daher rot.
-			name: 'map-callback-parameter-does-not-infer-element-type',
+			// Ein aliasierter Callback-Parameter ("item = value") referenziert sich im Rumpf
+			// über eine ParameterReference mit dem LOKALEN Namen ("item"). Deren Auflösung
+			// (dereferenceParameterTypeFromFunctionRef) suchte bisher per Name in ParamsType,
+			// wo der Parameter aber unter dem QUELLNAMEN ("value") steht - bei einem Alias
+			// liefen beide auseinander und der Typ fiel still auf Any zurück. Fund/Ursache
+			// eines falschen returnTypeMismatch bei draw() in yugioh/game-logic.jul.
+			name: 'map-callback-parameter-infers-element-type-through-alias',
 			code: `T = [a: Integer]
 f = (values: List(T)) :> Text =>
 	newValues = values.map(
@@ -806,7 +807,7 @@ f = (values: List(T)) :> Text =>
 					startRowIndex: 1,
 					startColumnIndex: 4,
 					endRowIndex: 6,
-					endColumnIndex: 10,
+					endColumnIndex: 1,
 				},
 			],
 		},
