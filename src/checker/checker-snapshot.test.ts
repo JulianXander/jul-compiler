@@ -4,9 +4,9 @@ import { existsSync } from 'fs';
 import { basename, join, relative, resolve } from 'path';
 
 import { resolvePlaceholders, checkerStats, checkTypes, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
-import { errorInfos } from './compiler-errors.js';
-import { parseCode } from './parser/parser.js';
-import { ParsedFile } from './syntax-tree.js';
+import { errorInfos } from '../compiler-errors.js';
+import { parseCode } from '../parser/parser.js';
+import { ParsedFile } from '../syntax-tree.js';
 
 /**
  * Hält das nutzersichtbare Checker-Verhalten über alle Beispiele fest: inferierter Typ je
@@ -16,7 +16,7 @@ import { ParsedFile } from './syntax-tree.js';
  * Baseline neu schreiben: UPDATE_SNAPSHOT=1 npm test
  */
 
-const examplesFolder = resolve(import.meta.dirname, '../../jul-examples');
+const examplesFolder = resolve(import.meta.dirname, '../../../jul-examples');
 const baselinePath = join(import.meta.dirname, 'checker-snapshot.baseline.txt');
 const statsBaselinePath = join(import.meta.dirname, 'checker-stats.baseline.txt');
 

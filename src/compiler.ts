@@ -2,7 +2,7 @@ import { writeFileSync, copyFileSync, rmSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
-import { ParsedDocuments, checkTypes } from './checker.js';
+import { ParsedDocuments, checkTypes } from './checker/checker.js';
 import { parseCode } from './parser/parser.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos } from './compiler-errors.js';
 import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import { ParseExpression, ParseSingleDefinition } from './syntax-tree.js';
-import { CompilerError, ErrorCode } from './compiler-errors.js';
-import { coreLibPath, parseCode, parseFile } from './parser/parser.js';
+import { ParseExpression, ParseSingleDefinition } from '../syntax-tree.js';
+import { CompilerError, ErrorCode } from '../compiler-errors.js';
+import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
 
 const expectedResults: {

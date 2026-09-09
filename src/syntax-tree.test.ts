@@ -1,7 +1,7 @@
 import { strict as assert } from 'assert';
 import { forEachChild, PositionedExpression } from './syntax-tree.js';
 import { parseCode } from './parser/parser.js';
-import { checkTypes } from './checker.js';
+import { checkTypes } from './checker/checker.js';
 
 /**
  * forEachChild ist die einzige Stelle, die die Kinder eines Knotens kennt. Ein vergessenes Kind

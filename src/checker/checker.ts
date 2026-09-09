@@ -49,11 +49,11 @@ import {
 	TypedExpression,
 	TypeInfo,
 	ParseExpressionBase,
-} from './syntax-tree.js';
-import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from './util.js';
-import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from './parser/parser.js';
-import { CompilerError, ErrorCode } from './compiler-errors.js';
-import { getCheckedEscapableName } from './parser/parser-utils.js';
+} from '../syntax-tree.js';
+import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
+import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
+import { CompilerError, ErrorCode } from '../compiler-errors.js';
+import { getCheckedEscapableName } from '../parser/parser-utils.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
