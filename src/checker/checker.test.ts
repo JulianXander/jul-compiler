@@ -1447,6 +1447,28 @@ describe('Checker', () => {
 		expect(returnType?.julType).to.equal('integer',
 			'Deklarierter Rückgabetyp Integer sollte gelten, tatsächlich: ' + returnType?.julType);
 	});
+	// Bekannte Lücke (checker.ts case 'list', Kommentar "TODO flatten spread tuple value type"):
+	// ein Spread innerhalb eines List-Literals wird nicht aufgelöst, das Element wird zu Any -
+	// unabhängig vom tatsächlichen Elementtyp der gespreadeten Quelle. Ursache eines falschen
+	// returnTypeMismatch in yugioh/game-logic.jul (updatePendingTriggers, activatableGameCardIds).
+	it('list-literal-spread-loses-element-type', () => {
+		const code = `T = [a: Integer]
+f = (values: List(T)) =>
+	[
+		...values
+		[a = 1]
+	]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const functionType = definition.value?.typeInfo?.type;
+		const returnType = functionType?.julType === 'function' ? functionType.ReturnType : undefined;
+		const spreadElementType = returnType?.julType === 'tuple' ? returnType.ElementTypes[0] : undefined;
+		expect(spreadElementType?.julType).to.equal('dictionaryLiteral',
+			'...values sollte den Elementtyp von T behalten, tatsächlich: ' + spreadElementType?.julType);
+	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
 	// Scope gecheckt werden. Sonst stand ihre Symboltabelle doppelt im Scope Stack und jede
