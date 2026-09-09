@@ -637,7 +637,7 @@ describe('Parser', () => {
 		expect(isCoreLibPath(coreLibPath)).to.equal(true);
 		expect(isCoreLibPath('C:\\Projects\\privat\\JUL\\jul-compiler\\src\\core-lib.jul')).to.equal(true);
 		expect(isCoreLibPath('/home/user/jul-compiler/src/core-lib.jul')).to.equal(true);
-		expect(isCoreLibPath('C:\\Projects\\privat\\yugioh\\src\\game-logic.jul')).to.equal(false);
+		expect(isCoreLibPath('C:\\Projects\\some-project\\src\\game-logic.jul')).to.equal(false);
 		expect(isCoreLibPath('dummy.jul')).to.equal(false);
 	});
 });

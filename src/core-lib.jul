@@ -67,6 +67,20 @@ TypeOf = nativeFunction(
 		value => new TypeOfType(value)
 	§
 )
+# Der Typ an Position index.
+# Empty, wenn die Position nachweislich nicht existiert; die Vereinigung aller Positionen,
+# wenn der Index nicht feststeht.
+ElementAt = nativeFunction(
+	(
+		Source: Type
+		# 1 basiert
+		index: Integer
+	) :> Type
+	true
+	§js
+		(Source, index) => ElementAt(Source, index)
+	§
+)
 # The type that only contains the empty literal ().
 Empty = nativeValue(§Empty§)
 # true or false
@@ -444,17 +458,14 @@ length = nativeFunction(
 		}
 	§
 )
-# TODO conditional return type, sodass empty nur geliefert wird, wenn index > values.Length
+# Liefert das Element an der gegebenen Position.
+# Empty, wenn die Position nicht existiert.
 getElement = nativeFunction(
 	(
 		values: Or([] List(Any))
 		# 1 basiert
 		index: PositiveInteger
-	) :> Or([] TypeOf(values)/ElementType)
-	# TODO
-	# index.greater(values.length()) ?
-	# 	true => ()
-	# 	false => TypeOf(values)/ElementType
+	) :> ElementAt(TypeOf(values) index)
 	true
 	§js
 		(values, index) => values?.[Number(index) - 1]

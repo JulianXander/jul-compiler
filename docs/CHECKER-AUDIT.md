@@ -30,6 +30,14 @@ Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprac
   Fehlermarkierung, und die Fehler liegen als flache Liste pro Datei: der Checker kann also nicht
   fragen „hat dieser Teilausdruck schon Fehler". Deshalb prüft heute jeder Konsument seine
   Vorbedingung selbst (`hasKnownFields`, `hasKnownLength`, `nestedKey.name < 1`).
+- **`Any` ist auch ein Performance-Ventil — ein präziserer Typ kann sehr teuer sein.** Wer statt
+  `Any` die Vereinigung aller Felder eines großen `dictionaryLiteral` liefert, erzeugt Typen, die
+  von dort an durch jede weitere Prüfung getragen werden. Gemessen an einem Zugriff mit
+  unbestimmtem Schlüssel: parse+check von 3,6 s auf 14,4 s, bei praktisch unveränderten
+  Aufrufzahlen — die Zeit steckte fast vollständig in `typeEquals` (1320 ms Selbstzeit gegenüber
+  nicht messbar vorher), aufgerufen aus der Deduplizierung in `createNormalizedUnionType`.
+  Vor jeder Präzisierung deshalb messen, und im Zweifel nur dort präzisieren, wo die Feldmenge
+  klein ist.
 
 ## Was sich als Vorgehen bewährt hat
 
@@ -69,6 +77,7 @@ sortiert.
 | 9 | Ein Zweig mit Tupel-Typkopf bekommt **keine Argumente**: im `paramsType`-Pfad geben [assignArgs](../src/runtime.ts#L467) und [tryAssignArgs](../src/runtime.ts#L524) ein leeres Array zurück | `[Integer Integer] => …` matcht `[1 2 3]`, der Body sieht aber `[]`. Ein Typkopf hat keine Parameternamen, insofern konsequent — nur kommt der Body an die gematchten Werte nicht heran | unklar, hängt an der Frage, ob ein Typkopf überhaupt binden soll |
 | 10 | Benannte Argumente gegen einen `rest`-Parameter sind nicht umgesetzt | `f(a = 1 b = 2)` gegen `(a: Integer ...args)` meldet `Can not assign dictionary to rest parameter`, die Laufzeit wirft `not implemented yet for rest dictionary`. Test `named-arguments-with-rest-parameter-are-not-supported` hält es fest | unklar — zuerst zu klären, was ein rest aus benannten Argumenten überhaupt aufnehmen soll |
 | 11 | Ein Prefix-Argument überdeckt ein gleichnamiges Feld, ohne dass es auffällt | `1.f(a = 2)` bindet `a = 1` aus dem Prefix, die geschriebene `2` verfällt still. Verpasster Fall von `JUL2500`, keine Falschmeldung | klein — die vom Prefix belegten Namen aus der bekannten Namensmenge nehmen |
+| 12 | **Schlüsselart passt nicht zum Quelltyp** — Feldname auf einer List ([checker.ts:331](../src/checker.ts#L331)) und Index in einem Dictionary ([checker.ts:426](../src/checker.ts#L426)) liefern `undefined` statt eines Fehlers, beide als `TODO` markiert | `undefined` wird beim Aufrufer zu `Any`, und ob überhaupt gemeldet wird, entscheiden `hasKnownFields`/`hasKnownLength` — die für den jeweils anderen Fall nicht greifen. Zu verifizieren, ob der Mismatch dadurch ganz stillschweigend durchgeht | klein — eigener Fehlerfall je Richtung; die Wächter unterscheiden „Art passt nicht" heute nicht von „weiß ich nicht" |
 
 ---
 

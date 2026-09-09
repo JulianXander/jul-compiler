@@ -237,7 +237,7 @@ f = (someVar: Or(Text Integer)) =>
 		{
 			// _branch probiert die branches der Reihe nach. Wer den Empty-branch passiert hat,
 			// kann kein Empty mehr sein — die Verengung muss die Typen der vorherigen branches
-			// also abziehen. Siehe yugioh/src/main.jul beim loadGame-Event.
+			// also abziehen.
 			name: 'branch-narrowing-excludes-previous-branches',
 			code: `g = (x: Integer) => x
 f = (value: Or([] Integer)) =>
@@ -400,7 +400,6 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 			// und der folgende filterMap-Aufruf leitet seinen Callback-Parametertyp aus genau
 			// diesem rawType ab. Scheitert das, wird der Elementtyp zu Any und über
 			// Without(Any []) zu Not(Empty).
-			// Siehe yugioh/src/game-logic/game-logic.jul getThisTurnInputs.
 			name: 'generic-return-type-survives-branching',
 			code: `f = (values: List(Integer) flag: Boolean) :> Or([] List(Integer)) =>
 	picked = ?(flag)
@@ -414,7 +413,6 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 			// dessen wird der Parametertyp offenbar zu Never aufgelöst, sobald values ein
 			// Funktionsparameter ist (ein Literal oder eine lokale Variable mit derselben
 			// Deklaration lösen den Fehler nicht aus).
-			// Siehe yugioh/src/game-logic/game-logic.jul getResolvedTransientGameCardIds.
 			name: 'generic-return-type-survives-branching-inside-callback',
 			code: `f = (values: List(Integer)) :> Or([] List(Integer)) =>
 	values.filterMap(
@@ -428,7 +426,6 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 			// map liefert laut Implementierung nur dann empty, wenn schon die Eingabe empty war.
 			// Empty ist ein eigener Typ, List und Tuple schließen es also aus: für beide darf
 			// im Ergebnis kein Empty stehen.
-			// Siehe yugioh/src/game-logic/game-logic.jul removeGameCardIdsFromCardRow.
 			name: 'map-adds-no-empty-for-list',
 			code: `f = (values: List(Integer)) :> List(Integer) =>
 	values.map((value) => value)`,
@@ -508,7 +505,85 @@ a/2`,
 			name: 'index-on-list',
 			code: `f = (x: List(Integer)) => x/5`,
 		},
+		{
+			// Ein Literal-Index in ein Tuple kennt seine Position exakt: Text, nicht die
+			// Vereinigung aller Positionen und kein Empty.
+			name: 'get-element-literal-index-in-tuple',
+			code: `x: Text = [1 §a§].getElement(2)`,
+		},
+		{
+			// Ohne Literal-Index steht die Position nicht fest: Vereinigung aller Positionen,
+			// dazu Empty, weil der Index danebenliegen kann.
+			name: 'get-element-non-literal-index',
+			code: `f = (values: [Integer Text] index: PositiveInteger) => values.getElement(index)
+y: Or([] Integer Text) = f([1 §a§] 1)`,
+		},
+		{
+			// Kann die Quelle selbst empty sein, bleibt Empty im Ergebnis.
+			name: 'get-element-on-possibly-empty-list',
+			code: `f = (values: Or([] List(Integer))) => values.getElement(1)
+y: Or([] Integer) = f([1])`,
+		},
+		{
+			// Jeder Choice eines Union-Index ist ein eigener Zugriff. Trifft jeder von ihnen
+			// eine vorhandene Position, gehört kein Empty ins Ergebnis. Der Index muss dafür
+			// als Variable mit Union-Typ ankommen — ein Literal-Argument wäre schon verengt.
+			name: 'get-element-union-index-in-tuple-range',
+			code: `f = (index: Or(1 2)) =>
+	values: [Integer Text] = [1 §a§]
+	element: Or(Integer Text) = values.getElement(index)
+	element`,
+		},
+		{
+			// Gegenprobe: liegt ein Choice daneben, steuert er Empty bei.
+			name: 'get-element-union-index-partly-out-of-range',
+			code: `f = (index: Or(2 5)) =>
+	values: [Integer Text] = [1 §a§]
+	element: Or([] Text) = values.getElement(index)
+	element`,
+		},
 		//#endregion dereference
+		//#region Zugriffstypen
+		// Noch rot: ElementAt gibt es nicht. Die vier Tests belegen die Umstellung von
+		// getElement auf einen Typkonstruktor (siehe docs/type-accessor-constructors.md).
+		{
+			// ElementAt faltet den Zugriff schon in der Typposition.
+			name: 'element-at-in-type-position',
+			code: `x: ElementAt([Integer Text] 2) = §a§`,
+		},
+		{
+			// Dieselbe Präzision in Nutzercode: heute hängt sie am Namen getElement und ist
+			// deshalb in einer eigenen Funktion nicht ausdrückbar.
+			name: 'element-at-in-user-function',
+			code: `second = (values: List(Any)) :> ElementAt(TypeOf(values) 2) => values.getElement(2)
+y: Text = [1 §a§].second()`,
+		},
+		{
+			// Ein Literal-Index hinter dem Ende eines bekannten Tuples trifft nachweisbar
+			// nichts. getElement meldet das nicht (ein berechneter Index darf danebenliegen),
+			// liefert aber Empty statt der Vereinigung aller Positionen.
+			name: 'get-element-index-out-of-tuple-range-is-empty',
+			code: `x: [] = [1 §a§].getElement(5)`,
+		},
+		{
+			// Eine List kann ein einziges Element haben, die zweite Position ist also nicht
+			// beweisbar vorhanden. Heute liefert x/5 unsound Integer.
+			// TODO Meldung beim Grünwerden gegen die tatsächliche Ausgabe prüfen.
+			name: 'index-on-list-may-be-empty',
+			code: `f = (x: List(Integer)) => x/5
+y: Integer = f([1 2])`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 21,
+					"endRowIndex": 1,
+					"message": "Can not assign Empty to Integer.",
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		//#endregion Zugriffstypen
 		//#region Aufruf
 		{
 			// Ein Wert, der keine Funktion ist, kann nicht aufgerufen werden. Heute liefert

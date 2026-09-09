@@ -267,10 +267,105 @@ export function getStreamGetValueType(streamType: CompileTimeStreamType): Compil
 	return createCompileTimeFunctionType({ julType: 'empty' }, streamType.ValueType, false);
 }
 
-function dereferenceNestedKeyFromObject(nestedKey: string | number, source: CompileTimeType): CompileTimeType | undefined {
-	return typeof nestedKey === 'string'
-		? dereferenceNameFromObject(nestedKey, source)
-		: dereferenceIndexFromObject(nestedKey, source);
+/**
+ * Faltet einen Zugriff so weit, wie die Position beweisbar ist: existiert sie, kommt ihr Typ
+ * heraus; existiert sie nachweislich nicht, Empty; ist es nicht entscheidbar, die Vereinigung
+ * aller Positionen. Ein noch unaufgelöster Schlüssel bleibt als Knoten stehen.
+ */
+function dereferenceNestedKeyFromObject(
+	nestedKey: string | number | CompileTimeType,
+	source: CompileTimeType,
+): CompileTimeType | undefined {
+	if (typeof nestedKey === 'string') {
+		return dereferenceNestedKeyFromObject({ julType: 'textLiteral', value: nestedKey }, source);
+	}
+	if (typeof nestedKey === 'number') {
+		return dereferenceNestedKeyFromObject({ julType: 'integerLiteral', value: BigInt(nestedKey) }, source);
+	}
+	switch (nestedKey.julType) {
+		case 'or': {
+			// Jeder Choice ist ein eigener Zugriff. Sonst gälte die ganze Union als "steht nicht
+			// fest", obwohl Or(1 2) auf einem Zweituple jede Position beweisbar trifft.
+			const choices = nestedKey.ChoiceTypes
+				.map(keyChoice => dereferenceNestedKeyFromObject(keyChoice, source))
+				.filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(choices);
+		}
+		case 'integerLiteral': {
+			const index = Number(nestedKey.value);
+			const dereferenced = dereferenceIndexFromObject(index, source);
+			if (dereferenced) {
+				return dereferenced;
+			}
+			// Nur wo die Länge feststeht, heißt ein Fehlschlag "die Position gibt es nicht".
+			return hasKnownLength(source)
+				? { julType: 'empty' }
+				: dereferenceUnknownKeyFromObject(nestedKey, source);
+		}
+		case 'textLiteral': {
+			const dereferenced = dereferenceNameFromObject(nestedKey.value, source);
+			if (dereferenced) {
+				return dereferenced;
+			}
+			return hasKnownFields(source)
+				? { julType: 'empty' }
+				: dereferenceUnknownKeyFromObject(nestedKey, source);
+		}
+		default:
+			// Ein Platzhalter kann sich noch zu einem Literal auflösen, der Knoten bleibt also
+			// stehen. Nur ein aufgelöster, aber unbestimmter Schlüssel (PositiveInteger, Any)
+			// heißt wirklich "die Position steht nicht fest".
+			return isUnresolvedPlaceholderType(nestedKey)
+				? createNestedReference(source, nestedKey)
+				: dereferenceUnknownKeyFromObject(nestedKey, source);
+	}
+}
+
+/**
+ * Der Schlüssel steht nicht fest, die Quelle schon: dann ist jede ihrer Positionen möglich,
+ * dazu Empty, weil der Schlüssel danebenliegen kann.
+ * Nur für Kollektionen mit Positionen. Ein Dictionary fällt bewusst auf Any: die Vereinigung
+ * seiner Feldtypen ist zwar genauer, erzeugt aber Typen, an denen die weitere Prüfung erstickt -
+ * gemessen hat sie parse+check vervierfacht.
+ */
+function dereferenceUnknownKeyFromObject(
+	nestedKey: CompileTimeType,
+	source: CompileTimeType,
+): CompileTimeType | undefined {
+	switch (source.julType) {
+		case 'empty':
+			return { julType: 'empty' };
+		case 'any':
+			return { julType: 'any' };
+		case 'tuple':
+			return createNormalizedUnionType([{ julType: 'empty' }, ...source.ElementTypes]);
+		case 'list':
+			return createNormalizedUnionType([{ julType: 'empty' }, source.ElementType]);
+		case 'or': {
+			const choices = source.ChoiceTypes
+				.map(choiceType => dereferenceUnknownKeyFromObject(nestedKey, choiceType))
+				.filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(choices);
+		}
+		case 'nestedReference':
+		case 'parameterReference':
+			return createNestedReference(source, nestedKey);
+		case 'typeOf':
+			return dereferenceUnknownKeyFromObject(nestedKey, source.value);
+		default:
+			return { julType: 'any' };
+	}
+}
+
+function nestedKeysEqual(
+	first: string | number | CompileTimeType,
+	second: string | number | CompileTimeType,
+): boolean {
+	if (typeof first === 'object'
+		&& typeof second === 'object') {
+		return typeEquals(first, second);
+	}
+	return first === second;
 }
 
 /**
@@ -426,7 +521,8 @@ export function dereferenceIndexFromObject(
 			// TODO error: cant dereference index in dictionary type
 			return undefined;
 		case 'list':
-			return sourceObjectType.ElementType;
+			// Eine List kennt ihre Länge nicht, die Position ist also nicht beweisbar vorhanden.
+			return createNormalizedUnionType([{ julType: 'empty' }, sourceObjectType.ElementType]);
 		case 'or': {
 			const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
 				return dereferenceIndexFromObject(index, choiceType);
@@ -549,7 +645,10 @@ function dereferenceArgumentTypesNested(
 		}
 		case 'nestedReference': {
 			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, typeToDereference.source);
-			const dereferencedNested = dereferenceNestedKeyFromObject(typeToDereference.nestedKey, dereferencedSource);
+			const dereferencedKey = typeof typeToDereference.nestedKey === 'object'
+				? dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, typeToDereference.nestedKey)
+				: typeToDereference.nestedKey;
+			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, dereferencedSource);
 			if (!dereferencedNested) {
 				return { julType: 'any' };
 			}
@@ -759,7 +858,10 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'nestedReference': {
 			const dereferencedSource = resolvePlaceholders(rawType.source);
-			const dereferencedNested = dereferenceNestedKeyFromObject(rawType.nestedKey, dereferencedSource);
+			const dereferencedKey = typeof rawType.nestedKey === 'object'
+				? resolvePlaceholders(rawType.nestedKey)
+				: rawType.nestedKey;
+			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, dereferencedSource);
 			if (!dereferencedNested) {
 				return { julType: 'any' };
 			}
@@ -1724,11 +1826,6 @@ function getReturnTypeFromFunctionCall(
 			// 	}
 			// 	return _any;
 			// }
-			case 'getElement': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const dereferencedArgTypes = argTypes?.map(resolvePlaceholders);
-				return getElementFromTypes(dereferencedArgTypes);
-			}
 			case 'lastElement': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const dereferencedArgType = argTypes?.length
@@ -1771,6 +1868,17 @@ function getReturnTypeFromFunctionCall(
 					return { julType: 'any' };
 				}
 				return createCompileTimeTypeOfType(createNormalizedIntersectionType(argTypes.map(valueOf)));
+			}
+			case 'ElementAt': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const sourceType = argTypes?.[0];
+				const indexType = argTypes?.[1];
+				if (!sourceType
+					|| !indexType) {
+					return { julType: 'any' };
+				}
+				const elementType = dereferenceNestedKeyFromObject(valueOf(indexType), valueOf(sourceType));
+				return createCompileTimeTypeOfType(elementType ?? { julType: 'any' });
 			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
@@ -1824,39 +1932,6 @@ function getReturnTypeFromFunctionCall(
 	}
 	const functionType = functionExpression.typeInfo;
 	return getReturnTypeFromFunctionType(functionType);
-}
-
-function getElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileTimeType {
-	if (!argsTypes) {
-		return { julType: 'empty' };
-	}
-	const [valuesType, indexType] = argsTypes;
-	if (valuesType === undefined
-		|| indexType === undefined) {
-		return { julType: 'empty' };
-	}
-	if (indexType.julType === 'integerLiteral') {
-		const dereferencedIndex = dereferenceIndexFromObject(Number(indexType.value), valuesType);
-		if (dereferencedIndex) {
-			return dereferencedIndex;
-		}
-	}
-	if (isUnionType(indexType)) {
-		const getElementChoices = indexType.ChoiceTypes.map(indexChoice => getElementFromTypes([valuesType, indexChoice]));
-		return createNormalizedUnionType(getElementChoices);
-	}
-	switch (valuesType.julType) {
-		case 'tuple':
-			return createNormalizedUnionType([{ julType: 'empty' }, ...valuesType.ElementTypes]);
-		case 'list':
-			return createNormalizedUnionType([{ julType: 'empty' }, valuesType.ElementType]);
-		case 'or': {
-			const getElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getElementFromTypes([valuesChoice, indexType]));
-			return createNormalizedUnionType(getElementChoices);
-		}
-		default:
-			return { julType: 'any' };
-	}
 }
 
 function getLastElementFromType(valuesType: CompileTimeType | undefined): CompileTimeType {
@@ -2444,7 +2519,7 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 				&& first.index === second.index;
 		case 'nestedReference':
 			return second.julType === 'nestedReference'
-				&& first.nestedKey === second.nestedKey
+				&& nestedKeysEqual(first.nestedKey, second.nestedKey)
 				&& typeEquals(first.source, second.source);
 		case 'parameters':
 			return second.julType === 'parameters'
@@ -3560,7 +3635,9 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'list':
 			return `List(${typeToString(type.ElementType, indent, depth + 1)})`;
 		case 'nestedReference':
-			return `${typeToString(type.source, indent, depth + 1)}/${type.nestedKey}`;
+			return `${typeToString(type.source, indent, depth + 1)}/${typeof type.nestedKey === 'object'
+				? typeToString(type.nestedKey, indent, depth + 1)
+				: type.nestedKey}`;
 		case 'never':
 			return 'Never';
 		case 'not':

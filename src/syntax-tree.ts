@@ -836,10 +836,14 @@ export interface CompileTimeUnionType extends CompileTimeTypeBase {
 export interface NestedReferenceType extends CompileTimeTypeBase {
 	readonly julType: 'nestedReference';
 	source: CompileTimeType;
-	nestedKey: string | number;
+	/**
+	 * Literal, solange der Schlüssel geschrieben steht (a/2, a/name). Ein Typ, wenn er erst aus
+	 * einem Argument folgt (ElementAt) und daher noch aufgelöst werden muss.
+	 */
+	nestedKey: string | number | CompileTimeType;
 }
 
-export function createNestedReference(source: CompileTimeType, nestedKey: string | number): NestedReferenceType {
+export function createNestedReference(source: CompileTimeType, nestedKey: string | number | CompileTimeType): NestedReferenceType {
 	return {
 		julType: 'nestedReference',
 		source: source,

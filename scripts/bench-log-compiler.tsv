@@ -2,3 +2,5 @@
 2026-09-08 11:10:48	78cb717+	-	ADV-DEV-56627	yugioh	parse+check	5	3778.63	4017.06	4017.06	erste messung gegen yugioh
 2026-09-08 15:38:38	58b008f+	-	ADV-DEV-56627	yugioh	parse+check	5	3574.07	4633.27	4633.27	vor Teilmengen-Elimination in createNormalizedUnionType
 2026-09-08 15:55:19	58b008f+	-	ADV-DEV-56627	yugioh	parse+check	5	3470.54	3568.54	3568.54	nach Teilmengen-Elimination in createNormalizedUnionType
+2026-09-09 10:10:45	4bc1cab+	-	ADV-DEV-56627	yugioh	parse+check	5	3612.75	4009.19	4009.19	vor ElementAt-Umbau (nachtraeglich gemessen)
+2026-09-09 10:32:05	4bc1cab+	-	ADV-DEV-56627	yugioh	parse+check	5	3382.16	3680.73	3680.73	nach ElementAt-Umbau (getElement rein deklarativ)

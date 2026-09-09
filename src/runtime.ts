@@ -1254,6 +1254,37 @@ _createFunction(
 	}
 );
 export const PositiveInteger = And(Integer, Greater(0n));
+export const ElementAt = (Source: any, index: bigint): RuntimeType => {
+	const position = Number(index);
+	if (Source !== null
+		&& typeof Source === 'object'
+		&& _julTypeSymbol in Source) {
+		switch (Source[_julTypeSymbol]) {
+			case 'tuple':
+				return Source.ElementTypes[position - 1] ?? Empty;
+			case 'list':
+				return Or(Empty, Source.ElementType);
+			default:
+				break;
+		}
+	}
+	return Any;
+};
+_createFunction(
+	ElementAt,
+	{
+		singleNames: [
+			{
+				name: 'Source',
+				type: Type,
+			},
+			{
+				name: 'index',
+				type: Integer,
+			},
+		]
+	}
+);
 export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {
