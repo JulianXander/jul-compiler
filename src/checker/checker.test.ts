@@ -472,25 +472,14 @@ f = (flag: Boolean) =>
 		() => 0`,
 		},
 		{
-			// Der Bug: eine Branch mit nur Statements (kein Rückgabewert)
-			// gibt Empty zurück und kontaminiert damit den Rückgabetyp.
-			name: 'branch-without-final-expression',
-			code: `State = [a: Integer]
-result = ?(5)
+			// Letzter Ausdruck im 1. Branch ist eine Definition. Laut Sprachdefinition
+			// ist eine Definition ein Ausdruck, der den zugewiesenen Wert liefert - hier also 1.
+			name: 'branch-with-statement-expression',
+			code: `result: Integer = ?(5)
 	[1] =>
 		x = 1
-		# Kein Rückgabewert! Die letzte Expression ist die Definition x = 1, die Empty liefert.
-	() => [a = 2]`,
-			errors: [
-				{
-					code: ErrorCode.argumentTypeMismatch,
-					message: 'Can not assign Or(Empty [a: Integer]) to [a: Integer].',
-					startRowIndex: 1,
-					startColumnIndex: 11,
-					endRowIndex: 6,
-					endColumnIndex: 18,
-				},
-			],
+	() => 2`,
+			errors: [],
 		},
 		//#endregion branching: Verengung
 		//#region Not
