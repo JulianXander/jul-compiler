@@ -9,3 +9,6 @@
 2026-09-09 18:44:40	2961841	-	ADV-DEV-56627	yugioh	parse+check	5	3316.90	3574.74	3574.74	vor Dictionary-Merge im Intersection-Shortcut
 2026-09-09 19:15:16	2961841+	-	ADV-DEV-56627	yugioh	parse+check	5	3419.49	3550.22	3550.22	nach Dictionary-Merge im Intersection-Shortcut
 2026-09-09 20:10:35	c494862+	-	ADV-DEV-56627	yugioh	parse+check	5	3390.08	3628.90	3628.90	functionLiteral: Any-Rueckgabetyp faellt auf deklarierten Typ zurueck
+2026-09-09 22:08:08	4f4700e+	-	ADV-DEV-56627	yugioh	parse+check	5	3544.51	3575.26	3575.26	Elaboration fuer fehlende/falsche Dictionary-Felder bei Definitionen
+2026-09-09 22:08:42	4f4700e+	-	ADV-DEV-56627	jul-examples	parse+check	5	21.27	45.97	45.97	Elaboration - Gegenprobe auf fehlerfreiem Ziel
+2026-09-09 22:28:47	4f4700e+	-	ADV-DEV-56627	jul-examples	parse+check	5	20.20	38.79	38.79	Elaboration auch fuer generisches Dictionary(T) Ziel

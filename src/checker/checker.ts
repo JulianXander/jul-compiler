@@ -1535,7 +1535,8 @@ function inferType(
 				setInferredType(typeGuard, typeContext, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.typeInfo;
-				const assignmentError = typeGuardType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), valueOf(resolvePlaceholders(typeGuardType.type)));
+				const resolvedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
+				const assignmentError = resolvedTargetType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), resolvedTargetType);
 				if (assignmentError) {
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
@@ -1545,6 +1546,7 @@ function inferType(
 						endRowIndex: expression.endRowIndex,
 						endColumnIndex: expression.endColumnIndex,
 					});
+					elaborateDictionaryLiteralError(value, resolvedTargetType!, errors);
 				}
 			}
 			return typeInfo;
@@ -3770,6 +3772,81 @@ function getDictionaryFieldError(
 		return wrappedError;
 	}
 	return subError;
+}
+
+/**
+ * Ergaenzt einen bereits feststehenden Zuweisungsfehler um praezisere Diagnosen direkt an den
+ * betroffenen Feldern des Quell-Literals - analog zu TypeScripts relatedInformation: laeuft nur
+ * im Fehlerfall, neben dem eigentlichen Typvergleich, auf der schon vorhandenen AST-Expression.
+ * Rein additiv, ersetzt die Hauptmeldung an der Definition nicht.
+ */
+function elaborateDictionaryLiteralError(
+	value: ParseValueExpression | undefined,
+	targetType: CompileTimeType,
+	errors: CompilerError[],
+): void {
+	if (value?.type !== 'dictionary') {
+		return;
+	}
+	if (isDictionaryLiteralType(targetType)) {
+		// benannte Pflichtfelder: jedes Zielfeld einzeln pruefen
+		map(targetType.Fields, (fieldTargetType, fieldName) => {
+			elaborateDictionaryFieldError(value, fieldName, fieldTargetType, errors);
+		});
+		return;
+	}
+	if (isDictionaryType(targetType)) {
+		// generisches Dictionary(T): keine festen Feldnamen, jeder geschriebene Eintrag
+		// muss T erfuellen - anders als oben keine "Missing field"-Diagnose moeglich.
+		const elementType = targetType.ElementType;
+		value.fields.forEach(field => {
+			if (field.type !== 'singleDictionaryField') {
+				return;
+			}
+			const fieldName = getCheckedEscapableName(field.name);
+			if (!fieldName) {
+				return;
+			}
+			elaborateDictionaryFieldError(value, fieldName, elementType, errors);
+		});
+	}
+}
+
+function elaborateDictionaryFieldError(
+	value: ParseDictionaryLiteral,
+	fieldName: string,
+	fieldTargetType: CompileTimeType,
+	errors: CompilerError[],
+): void {
+	const fieldExpression = value.fields.find(field =>
+		field.type === 'singleDictionaryField'
+		&& getCheckedEscapableName(field.name) === fieldName);
+	if (!fieldExpression || fieldExpression.type !== 'singleDictionaryField') {
+		errors.push({
+			code: ErrorCode.definitionTypeMismatch,
+			message: `Missing field ${fieldName}, expected ${typeToString(fieldTargetType, 0, 0)}.`,
+			startRowIndex: value.startRowIndex,
+			startColumnIndex: value.startColumnIndex,
+			endRowIndex: value.endRowIndex,
+			endColumnIndex: value.endColumnIndex,
+		});
+		return;
+	}
+	const fieldValue = fieldExpression.value;
+	if (!fieldValue?.typeInfo) {
+		return;
+	}
+	const fieldError = getTypeError(undefined, resolvePlaceholders(fieldValue.typeInfo.type), fieldTargetType);
+	if (fieldError) {
+		errors.push({
+			code: ErrorCode.definitionTypeMismatch,
+			message: typeErrorToString(fieldError),
+			startRowIndex: fieldValue.startRowIndex,
+			startColumnIndex: fieldValue.startColumnIndex,
+			endRowIndex: fieldValue.endRowIndex,
+			endColumnIndex: fieldValue.endColumnIndex,
+		});
+	}
 }
 
 function getTypeErrorForParameters(

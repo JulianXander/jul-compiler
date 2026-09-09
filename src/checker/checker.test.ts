@@ -699,6 +699,8 @@ d/a`,
 			// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 			// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
 			// ob sein Wert tatsächlich Empty ist - deshalb eine eigene, eindeutige Meldung.
+			// Die zweite Meldung ist die Elaboration (docs/error-message-elaboration.md): sie
+			// zeigt zusätzlich direkt auf das Dictionary-Literal, dem das Feld fehlt.
 			name: 'missing-dictionary-field-has-distinct-message',
 			code: `T = [a: Integer b: Text]
 x: T = [a = 1]`,
@@ -711,11 +713,20 @@ x: T = [a = 1]`,
 					endRowIndex: 1,
 					endColumnIndex: 14,
 				},
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Missing field b, expected Text.',
+					startRowIndex: 1,
+					startColumnIndex: 7,
+					endRowIndex: 1,
+					endColumnIndex: 14,
+				},
 			],
 		},
 		{
 			// Gegenprobe: ein tatsächlich vorhandenes Empty-Feld bleibt bei der bisherigen
-			// Meldung - der Unterschied ist nur, ob das Feld überhaupt geschrieben wurde.
+			// Meldung - der Unterschied ist nur, ob das Feld überhaupt geschrieben wurde. Die
+			// Elaboration zeigt hier zusätzlich direkt auf den Feld-Wert [].
 			name: 'present-empty-dictionary-field-keeps-assignment-message',
 			code: `T = [a: Integer b: Text]
 x: T = [a = 1 b = []]`,
@@ -727,6 +738,42 @@ x: T = [a = 1 b = []]`,
 					startColumnIndex: 0,
 					endRowIndex: 1,
 					endColumnIndex: 21,
+				},
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Can not assign Empty to Text.',
+					startRowIndex: 1,
+					startColumnIndex: 18,
+					endRowIndex: 1,
+					endColumnIndex: 20,
+				},
+			],
+		},
+		{
+			// Wie present-empty-dictionary-field-keeps-assignment-message, aber Ziel ist ein
+			// generisches Dictionary(T) statt eines dictionaryLiteral mit benannten Feldern -
+			// hier zeigt es zusaetzlich direkt auf den fehlerhaften Eintrag "bad".
+			name: 'generic-dictionary-target-elaborates-per-entry',
+			code: `T = [a: Integer]
+x: Dictionary(T) = [
+	bad = [a = §wrong§]
+]`,
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Can not assign §wrong§ to Integer.\nInvalid value for field a\nInvalid value for field bad',
+					startRowIndex: 1,
+					startColumnIndex: 0,
+					endRowIndex: 3,
+					endColumnIndex: 1,
+				},
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Can not assign §wrong§ to Integer.\nInvalid value for field a',
+					startRowIndex: 2,
+					startColumnIndex: 7,
+					endRowIndex: 2,
+					endColumnIndex: 20,
 				},
 			],
 		},
