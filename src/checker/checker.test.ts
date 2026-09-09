@@ -477,17 +477,13 @@ f = (flag: Boolean) =>
 			// Feld gilt danach als Empty. Any weiss aber nichts ueber die uebrigen Felder,
 			// die Verengung darf sie also nicht entfernen.
 			name: 'branch-narrowing-field-path-keeps-other-fields',
-			code: `Board = [cards: List(Integer)]
-State = [
-	boards: [Board Board]
-	index: Or([] Integer)
-]
-use = (s: State) => s
-f = (start: State) =>
-	s = assume(start Any)
-	?(s/index)
-		[Integer] => 0
-		() => use(s)`,
+			code: `start: [boards: Integer index: Or([] Integer)] = [boards = 1 index = 1]
+s = assume(start Any)
+?(s/index)
+	[Integer] => 0
+	() =>
+		result: [boards: Integer index: Or([] Integer)] = s
+		result`,
 			errors: [],
 		},
 		//#endregion branching: Verengung
