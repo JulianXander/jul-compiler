@@ -472,13 +472,22 @@ f = (flag: Boolean) =>
 		() => 0`,
 		},
 		{
-			// Letzter Ausdruck im 1. Branch ist eine Definition. Laut Sprachdefinition
-			// ist eine Definition ein Ausdruck, der den zugewiesenen Wert liefert - hier also 1.
-			name: 'branch-with-statement-expression',
-			code: `result: Integer = ?(5)
-	[1] =>
-		x = 1
-	() => 2`,
+			// yugioh-Reproduktion: ist der Quelltyp Any, macht der Schnitt aus Any und
+			// [index: ...] ein Dictionary, das nur noch dieses eine Feld hat - jedes andere
+			// Feld gilt danach als Empty. Any weiss aber nichts ueber die uebrigen Felder,
+			// die Verengung darf sie also nicht entfernen.
+			name: 'branch-narrowing-field-path-keeps-other-fields',
+			code: `Board = [cards: List(Integer)]
+State = [
+	boards: [Board Board]
+	index: Or([] Integer)
+]
+use = (s: State) => s
+f = (start: State) =>
+	s = assume(start Any)
+	?(s/index)
+		[Integer] => 0
+		() => use(s)`,
 			errors: [],
 		},
 		//#endregion branching: Verengung
