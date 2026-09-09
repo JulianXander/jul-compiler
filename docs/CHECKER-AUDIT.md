@@ -58,7 +58,7 @@ sortiert.
 
 | # | Lücke | Schaden | Aufwand |
 |---|---|---|---|
-| 1 | branching ohne catchAll: `Error` fehlt im Rückgabetyp ([src/checker.ts:905-912](../src/checker.ts#L905-L912)) | unsound — `_branch` liefert `new Error(...)` | mittel, **Designentscheidung offen** ([branching-error-return-type.md](branching-error-return-type.md)) |
+| 1 | ~~branching ohne catchAll: `Error` fehlt im Rückgabetyp~~ — erledigt, siehe [design-principles.md](design-principles.md) Abschnitt „Branching ohne catchAll" | — | — |
 | 2 | Nie matchender branch ([src/checker.ts:885-903](../src/checker.ts#L885-L903) auskommentiert) | reine Diagnose | **klein** — `typesOverlap` liegt vor, `getPreviousBranchValueType` ebenfalls |
 | 3 | `getTypeErrorForParameters` „not implemented yet" ([src/checker.ts:2807](../src/checker.ts#L2807)) | unklar | unklar |
 | 4 | **Weitere core-lib-Funktionen mit zu grobem Rückgabetyp** — `slice`, `map` und `filterMap` sind gefixt (siehe [core-lib-empty-return-types.md](core-lib-empty-return-types.md)), `findFirst`, `lastElement`, `toDictionary`, `toList` etc. sind ungeprüft | dieselbe Klasse: `Empty` zu viel oder Struktur verloren | je Funktion klein |

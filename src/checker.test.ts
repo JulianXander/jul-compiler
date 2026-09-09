@@ -845,9 +845,8 @@ describe('Checker', () => {
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.
-		// catchAll im 2. branch, damit das Ergebnis nicht durch das neue Error-in-Union
-		// Verhalten (branching-error-return-type.md) verfälscht wird - das ist hier nicht das
-		// Thema des Tests.
+		// catchAll im 2. branch, damit das Ergebnis nicht durch das Error-in-Union-Verhalten
+		// (branching ohne catchAll) verfälscht wird - das ist hier nicht das Thema des Tests.
 		const code = `x = ?(5)
 	[1] => (a) => a
 	() => (a) => a`;
@@ -864,8 +863,9 @@ describe('Checker', () => {
 	});
 	// createNormalizedUnionType entfernt bisher nur exakte Duplikate (typeEquals), keine
 	// Teilmengen wie booleanLiteral in Boolean: Or(Boolean False) bleibt 'or' statt zu 'boolean'
-	// zu kollabieren. Sichtbar geworden über branching-error-return-type.md: eine Boolean-
-	// wertige Exhaustivitätsprüfung schlägt fehl, weil der Typ nicht als 'boolean' erkannt wird.
+	// zu kollabieren. Sichtbar geworden über die Exhaustivitätsprüfung für branching ohne
+	// catchAll: eine Boolean-wertige Prüfung schlug fehl, weil der Typ nicht als 'boolean'
+	// erkannt wurde.
 	it('union-collapses-boolean-literal-into-boolean', () => {
 		const code = 'f = (x: Or(Boolean false)) => x';
 		const parsed = parseCode(code, 'dummy.jul');
@@ -910,8 +910,8 @@ describe('Checker', () => {
 		expect(paramType?.julType).to.equal('or',
 			'Text und Integer dürfen nicht kollabieren, tatsächlich: ' + paramType?.julType);
 	});
-	// branching-error-return-type.md, Phase 1: Fehlt ein catchAll-Branch, kann `_branch` zur
-	// Laufzeit ein Error zurückgeben (siehe runtime.ts). Der Rückgabetyp muss das zeigen.
+	// Fehlt ein catchAll-Branch, kann `_branch` zur Laufzeit ein Error zurückgeben (siehe
+	// runtime.ts). Der Rückgabetyp muss das zeigen.
 	it('branching-without-catchall-adds-error-to-union', () => {
 		const code = `x = ?(5)
 	[1] => §eins§
@@ -963,7 +963,7 @@ describe('Checker', () => {
 		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(false,
 			'Vollständig abgedeckter Eingabetyp darf kein Error erzeugen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
 	});
-	// Das Motivbeispiel aus branching-error-return-type.md: Fall 3 fehlt, ohne catchAll.
+	// Motivbeispiel: Fall 3 fehlt, ohne catchAll.
 	it('branching-without-catchall-non-exhaustive-has-error-in-union', () => {
 		const code = `f = (x: Or(1 2 3)) => ?(x)
 	[1] => §eins§

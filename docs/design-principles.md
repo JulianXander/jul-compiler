@@ -65,7 +65,7 @@ Verpasste Fehler beim Checker — das ist der bewusste Preis. Auf Sprachebene: k
 
 #### Beleg
 
-[TODO](../TODO), Abschnitte zu Constant Folding und bedingten Typen; branching-error-return-type.md.
+[TODO](../TODO), Abschnitte zu Constant Folding und bedingten Typen; umgesetzt in `case 'branching'` in [checker.ts](../src/checker.ts).
 
 ---
 
