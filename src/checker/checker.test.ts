@@ -787,6 +787,30 @@ x: T = [a = 1]`,
 			errors: [],
 		},
 		{
+			// Callback-Parameter ohne eigenen typeGuard (Kurzschreibweise "item = value") bekommen
+			// nie den aus map()s Signatur TypeOf(values)/ElementType hergeleiteten Typ - der
+			// Parameter bleibt Any, egal ob values eine List oder ein Tuple ist. Bekannte Lücke,
+			// siehe TODO ("mapped types ueber tuples"), Ursache eines falschen
+			// returnTypeMismatch bei draw() in yugioh/game-logic.jul. Noch ungeloest, daher rot.
+			name: 'map-callback-parameter-does-not-infer-element-type',
+			code: `T = [a: Integer]
+f = (values: List(T)) :> Text =>
+	newValues = values.map(
+		(item = value) => item
+	)
+	newValues`,
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Can not assign List(T) to Text.',
+					startRowIndex: 1,
+					startColumnIndex: 4,
+					endRowIndex: 6,
+					endColumnIndex: 10,
+				},
+			],
+		},
+		{
 			// Aufgeschobener Zugriff: beim Prüfen von f ist d noch ein Platzhalter, der Zugriff
 			// bleibt als Knoten stehen und wird erst am Aufruf aufgelöst. Ein bekanntes Feld
 			// muss dabei seinen genauen Typ behalten.
