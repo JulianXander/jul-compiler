@@ -3735,6 +3735,10 @@ function getDictionaryLiteralTypeError(
 							// es fehlt.
 							return undefined;
 						}
+						if (isFieldOptional(fieldType, prefixArgumentType)) {
+							// Or([] X) ist das Idiom fuer optionale Felder - Weglassen bleibt erlaubt.
+							return undefined;
+						}
 						// Eigene Meldung statt Empty einzusetzen: sonst sieht ein fehlendes
 						// Feld identisch aus wie ein vorhandenes Feld vom Typ Empty.
 						return { message: `Missing field ${fieldName}, expected ${typeToString(fieldType, 0, 0)}.` };
@@ -3772,6 +3776,15 @@ function getDictionaryFieldError(
 		return wrappedError;
 	}
 	return subError;
+}
+
+/**
+ * Darf ein Feld dieses Zieltyps im Literal fehlen? Or([] X) ist das Idiom fuer optionale Felder
+ * (CLAUDE.md) - Empty erfuellt das Ziel dann bereits, ohne dass es explizit als `feld = []`
+ * dastehen muss.
+ */
+function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: CompileTimeType | undefined): boolean {
+	return !getTypeError(prefixArgumentType, { julType: 'empty' }, fieldTargetType);
 }
 
 /**
@@ -3822,6 +3835,9 @@ function elaborateDictionaryFieldError(
 		field.type === 'singleDictionaryField'
 		&& getCheckedEscapableName(field.name) === fieldName);
 	if (!fieldExpression || fieldExpression.type !== 'singleDictionaryField') {
+		if (isFieldOptional(fieldTargetType, undefined)) {
+			return;
+		}
 		errors.push({
 			code: ErrorCode.definitionTypeMismatch,
 			message: `Missing field ${fieldName}, expected ${typeToString(fieldTargetType, 0, 0)}.`,

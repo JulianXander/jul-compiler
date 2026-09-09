@@ -778,6 +778,15 @@ x: Dictionary(T) = [
 			],
 		},
 		{
+			// Or([] X) ist das Idiom fuer optionale Felder (CLAUDE.md) - Weglassen muss dafuer
+			// erlaubt bleiben, wie vor der "Missing field"-Verbesserung. Nur ein Feld, dessen
+			// Typ Empty nicht zulaesst, darf beim Fehlen gemeldet werden.
+			name: 'optional-field-with-or-empty-type-may-be-omitted',
+			code: `T = [a: Integer b: Or([] Text)]
+x: T = [a = 1]`,
+			errors: [],
+		},
+		{
 			// Aufgeschobener Zugriff: beim Prüfen von f ist d noch ein Platzhalter, der Zugriff
 			// bleibt als Knoten stehen und wird erst am Aufruf aufgelöst. Ein bekanntes Feld
 			// muss dabei seinen genauen Typ behalten.
