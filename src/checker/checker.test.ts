@@ -508,6 +508,25 @@ card = getCard()
 	() => card`,
 			errors: [],
 		},
+		{
+			// Bekannte Luecke: aggregate (core-lib.jul) ist nicht generisch ueber den
+			// Akkumulator (initialValue: Any, callback: (accumulator: Any ...) :> Any). Ein
+			// konkret getypter Startwert wird beim Durchreichen zu Any, ein darauf gebranchtes
+			// Feld kennt danach nur noch Not(X) statt seines echten deklarierten Typs - der
+			// Teilmengen-Merge von oben kann das nicht heilen, weil hier gar kein zweiter,
+			// vollstaendig bekannter Typ mehr da ist, mit dem zusammengefuehrt werden koennte.
+			name: 'aggregate-erases-accumulator-type-through-any',
+			code: `State = [index: Or([] Integer)]
+getState = () :> State => assume([] State)
+values = [1 2 3]
+combined = values.aggregate(getState() (accumulator value index) => accumulator)
+?(combined/index)
+	[Integer] => 0
+	() =>
+		result: Or([] Integer) = combined/index
+		result`,
+			errors: [],
+		},
 		//#endregion branching: Verengung
 		//#region Not
 		{
