@@ -310,14 +310,100 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 		() => 0`,
 		},
 		{
-			// Noch nicht umgesetzt: die Verengung hängt an einem einfachen Namen, ein Feldpfad
-			// ist ein nestedReference und hat kein Symbol zum Shadowen (TODO Zeile 34).
-			// Der erwartete Fehler dokumentiert die Lücke — fällt er weg, ist sie geschlossen
-			// und dieser Test gehört auf "keine Fehler" umgestellt.
-			name: 'branch-narrowing-field-path-is-missing',
+			// Ein Feldpfad als Branch-Argument verengt die Quelle: im Integer-Zweig ist d/a auf
+			// Integer verengt, also auch beim erneuten Lesen.
+			name: 'branch-narrowing-through-field-path',
 			code: `f = (d: [a: Or(Text Integer)]) =>
 	?(d/a)
 		(y: Integer) =>
+			narrowed: Integer = d/a
+			narrowed
+		() => 0`,
+		},
+		{
+			// Die Verengung wirkt auch rückwärts auf die Quelle: dass stepType ein Text ist,
+			// beweist, dass step nicht empty ist — Empty hat kein Feld type. Auch über die
+			// Zwischenvariable hinweg, denn ein Name bezeichnet in JUL genau einen Wert.
+			name: 'branch-narrowing-reaches-source-of-field',
+			code: `g = (q: Text) => q
+Step = [
+	type: Text
+	query: Text
+]
+getStep = (flag: Boolean) :> Or([] Step) =>
+	?(flag)
+		[true] => [
+			type = §a§
+			query = §b§
+		]
+		() => []
+f = (flag: Boolean) =>
+	step = getStep(flag)
+	stepType = step/type
+	?(stepType)
+		[Text] => g(step/query)
+		() => §§`,
+		},
+		{
+			// Gegenprobe: die Verengung darf nur an einem Namen hängen. Zwei Aufrufe sind zwei
+			// Werte — vom Typ des einen folgt nichts über den anderen.
+			name: 'branch-narrowing-needs-a-name-as-source',
+			code: `g = (q: Text) => q
+Step = [
+	type: Text
+	query: Text
+]
+getStep = (flag: Boolean) :> Or([] Step) =>
+	?(flag)
+		[true] => [
+			type = §a§
+			query = §b§
+		]
+		() => []
+f = (flag: Boolean) =>
+	?(getStep(flag)/type)
+		[Text] => g(getStep(flag)/query)
+		() => §§`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 34,
+					"endRowIndex": 14,
+					"message": "Can not assign Empty to Text.",
+					"startColumnIndex": 12,
+					"startRowIndex": 14,
+				},
+			],
+		},
+		{
+			// Gegenprobe: jeder branch verengt für sich. Im Text-Zweig ist d/a Text und damit
+			// nicht an Integer zuweisbar, obwohl ein vorheriger Zweig auf Integer verengt hat.
+			name: 'branch-narrowing-field-path-is-per-branch',
+			code: `f = (d: [a: Or(Text Integer)]) =>
+	?(d/a)
+		(y: Integer) => 0
+		(y: Text) =>
+			narrowed: Integer = d/a
+			narrowed
+		() => 0`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 26,
+					"endRowIndex": 4,
+					"message": "Can not assign Text to Integer.",
+					"startColumnIndex": 3,
+					"startRowIndex": 4,
+				},
+			],
+		},
+		{
+			// Gegenprobe: Any sagt über den Wert nichts aus, der Schnitt darf also nicht
+			// verbreitern — d/a bleibt Or(Text Integer).
+			name: 'branch-narrowing-field-path-any-does-not-widen',
+			code: `f = (d: [a: Or(Text Integer)]) =>
+	?(d/a)
+		(y: Any) =>
 			narrowed: Integer = d/a
 			narrowed
 		() => 0`,
@@ -331,6 +417,59 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 					"startRowIndex": 3,
 				},
 			],
+		},
+		{
+			// Gegenprobe: die Verengung gilt nur im Rumpf des branches. Danach ist d/a wieder
+			// Or(Text Integer) — das verengte Symbol liegt im Scope des branches, nicht außen.
+			name: 'branch-narrowing-field-path-ends-with-the-branch',
+			code: `f = (d: [a: Or(Text Integer)]) =>
+	?(d/a)
+		(y: Integer) => 0
+		() => 0
+	narrowed: Integer = d/a
+	narrowed`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 24,
+					"endRowIndex": 4,
+					"message": "Can not assign Text to Integer.",
+					"startColumnIndex": 1,
+					"startRowIndex": 4,
+				},
+			],
+		},
+		{
+			// Ein innerer branch sieht die Verengung des äußeren.
+			name: 'branch-narrowing-field-path-in-nested-branching',
+			code: `g = (n: Integer) => n
+getD = (flag: Boolean) =>
+	?(flag)
+		[true] => [a = 1]
+		() => [a = §x§]
+f = (flag: Boolean) =>
+	d = getD(flag)
+	?(d/a)
+		(y: Integer) =>
+			?(flag)
+				[true] => g(d/a)
+				() => 0
+		() => 0`,
+		},
+		{
+			// Auch ein mehrstufiger Pfad verengt: der Fakt liegt auf d/a/b, gelesen wird
+			// derselbe Pfad.
+			name: 'branch-narrowing-deep-field-path',
+			code: `g = (n: Integer) => n
+getD = (flag: Boolean) =>
+	?(flag)
+		[true] => [a = [b = 1]]
+		() => [a = [b = §x§]]
+f = (flag: Boolean) =>
+	d = getD(flag)
+	?(d/a/b)
+		(y: Integer) => g(d/a/b)
+		() => 0`,
 		},
 		//#endregion branching: Verengung
 		//#region Not

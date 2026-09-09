@@ -993,13 +993,23 @@ function inferFileTypes(
 		file.symbols,
 	] as any as NonEmptyArray<SymbolTable>;
 	file.expressions?.forEach(expression => {
-		setInferredType(expression, fileScopes, parsedDocuments, sourceFolder, file, filePath);
+		setInferredType(expression, { scopes: fileScopes, narrowedTypes: undefined }, parsedDocuments, sourceFolder, file, filePath);
 	});
+}
+
+/**
+ * Unter welchem Kontext ein Ausdruck typisiert wird: was hier sichtbar ist und was zusätzlich
+ * über Pfade bekannt ist. Beides ändert sich nur gemeinsam, beim Eintritt in einen Funktionsrumpf.
+ */
+interface TypeContext {
+	scopes: NonEmptyArray<SymbolTable>;
+	/** Verengte Typen des umgebenden branch-Rumpfs. Undefined außerhalb jedes branchings. */
+	narrowedTypes: NarrowedTypes | undefined;
 }
 
 function setInferredType(
 	expression: TypedExpression,
-	scopes: NonEmptyArray<SymbolTable>,
+	typeContext: TypeContext,
 	parsedDocuments: ParsedDocuments,
 	/**
 	 * Leerstring, wenn builtin.
@@ -1014,7 +1024,7 @@ function setInferredType(
 	if (expression.typeInfo) {
 		return;
 	}
-	expression.typeInfo = inferType(expression, scopes, parsedDocuments, sourceFolder, file, filePath);
+	expression.typeInfo = inferType(expression, typeContext, parsedDocuments, sourceFolder, file, filePath);
 }
 
 // TODO flatten nested or/and
@@ -1026,7 +1036,7 @@ function setInferredType(
  */
 function inferType(
 	expression: TypedExpression,
-	scopes: NonEmptyArray<SymbolTable>,
+	typeContext: TypeContext,
 	parsedDocuments: ParsedDocuments,
 	/**
 	 * Leerstring, wenn builtin.
@@ -1039,6 +1049,7 @@ function inferType(
 	filePath: string,
 ): TypeInfo {
 	checkerStats.inferType++;
+	const { scopes, narrowedTypes } = typeContext;
 	const errors = file.errors;
 	switch (expression.type) {
 		case 'binding':
@@ -1050,11 +1061,11 @@ function inferType(
 			// TODO conditional type?
 			const args = expression.args;
 			if (args) {
-				setInferredType(args, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(args, typeContext, parsedDocuments, folder, file, filePath);
 			}
 			const branches = expression.branches;
 			branches.forEach((branch, index) => {
-				setInferredType(branch, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(branch, typeContext, parsedDocuments, folder, file, filePath);
 				checkIsFunction(branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
 				if (index) {
 					// Fehler, wenn ParameterTyp des Branches schon von vorherigen Branches abgedeckt.
@@ -1099,7 +1110,7 @@ function inferType(
 		case 'definition': {
 			const value = expression.value;
 			if (value) {
-				setInferredType(value, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(value, typeContext, parsedDocuments, folder, file, filePath);
 			}
 			const name = expression.name.name;
 			let typeInfo: TypeInfo;
@@ -1125,7 +1136,7 @@ function inferType(
 			symbol.typeInfo = typeInfo;
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
-				setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(typeGuard, typeContext, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.typeInfo;
 				const assignmentError = typeGuardType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), valueOf(resolvePlaceholders(typeGuardType.type)));
@@ -1145,7 +1156,7 @@ function inferType(
 		case 'destructuring': {
 			const value = expression.value;
 			if (value) {
-				setInferredType(value, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(value, typeContext, parsedDocuments, folder, file, filePath);
 			}
 			const currentScope = last(scopes);
 			let allFieldsResolved = true;
@@ -1178,7 +1189,7 @@ function inferType(
 				symbol.typeInfo = { type: fieldType };
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
-					setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
+					setInferredType(typeGuard, typeContext, parsedDocuments, folder, file, filePath);
 					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
 					const error = typeGuard.typeInfo && areArgsAssignableTo(undefined, fieldType, valueOf(resolvePlaceholders(typeGuard.typeInfo.type)));
@@ -1207,13 +1218,13 @@ function inferType(
 			expression.fields.forEach(field => {
 				const value = field.value;
 				if (value) {
-					setInferredType(value, scopes, parsedDocuments, folder, file, filePath);
+					setInferredType(value, typeContext, parsedDocuments, folder, file, filePath);
 				}
 				switch (field.type) {
 					case 'singleDictionaryField': {
 						const typeGuard = field.typeGuard;
 						if (typeGuard) {
-							setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
+							setInferredType(typeGuard, typeContext, parsedDocuments, folder, file, filePath);
 							checkTypeGuardIsType(typeGuard, errors);
 						}
 						const fieldName = getCheckedEscapableName(field.name);
@@ -1267,7 +1278,7 @@ function inferType(
 						if (!typeGuard) {
 							return;
 						}
-						setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
+						setInferredType(typeGuard, typeContext, parsedDocuments, folder, file, filePath);
 						checkTypeGuardIsType(typeGuard, errors);
 						const fieldName = getCheckedEscapableName(field.name);
 						if (!fieldName) {
@@ -1283,7 +1294,7 @@ function inferType(
 						return;
 					}
 					case 'spread':
-						setInferredType(field.value, scopes, parsedDocuments, folder, file, filePath);
+						setInferredType(field.value, typeContext, parsedDocuments, folder, file, filePath);
 						// TODO spread fields flach machen
 						// TODO error when spread list
 						return;
@@ -1330,13 +1341,13 @@ function inferType(
 			// TODO infer last body expression type for returnType
 			const prefixArgument = expression.prefixArgument;
 			if (prefixArgument) {
-				setInferredType(prefixArgument, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(prefixArgument, typeContext, parsedDocuments, folder, file, filePath);
 			}
 			const functionExpression = expression.functionExpression;
 			if (!functionExpression) {
 				return { type: { julType: 'any' } };
 			}
-			setInferredType(functionExpression, scopes, parsedDocuments, folder, file, filePath);
+			setInferredType(functionExpression, typeContext, parsedDocuments, folder, file, filePath);
 			const isFunction = checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
 			const functionType = functionExpression.typeInfo!.type;
 			const paramsType = getParamsType(functionType);
@@ -1374,7 +1385,7 @@ function inferType(
 				}
 			});
 			//#endregion
-			setInferredType(args, scopes, parsedDocuments, folder, file, filePath);
+			setInferredType(args, typeContext, parsedDocuments, folder, file, filePath);
 			if (!isFunction) {
 				// Die Argumente sind inferiert, ihre eigenen Fehler also gemeldet.
 				// Alles weitere setzt eine Funktion voraus und wäre wirkungslos.
@@ -1412,25 +1423,24 @@ function inferType(
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
-			setInferredType(params, functionScopes, parsedDocuments, folder, file, filePath);
+			// Die Params sagen die Verengung erst aus, sie sehen sie also noch nicht.
+			const functionTypeContext: TypeContext = {
+				scopes: functionScopes,
+				narrowedTypes: narrowedTypes,
+			};
+			setInferredType(params, functionTypeContext, parsedDocuments, folder, file, filePath);
 			const paramsTypeValue = valueOf(params.typeInfo!.type);
 			checkParamsTypeIsCollection(params, errors);
 			functionType.ParamsType = paramsTypeValue;
-			//#region narrowed type symbol für branching
+			//#region verengte Typen für branching
+			let branchNarrowedTypes = narrowedTypes;
 			const branching = expression.parent;
 			if (branching?.type === 'branching') {
 				getWrittenArguments(branching.args)?.forEach((argument, argumentIndex) => {
-					if (argument.type !== 'reference') {
+					const path = getAccessPath(argument, functionScopes);
+					if (!path) {
 						return;
 					}
-					const branchedName = argument.name.name;
-					const branchedSymbol = findSymbolInScopesWithBuiltIns(branchedName, functionScopes)?.symbol;
-					if (!branchedSymbol) {
-						return;
-					}
-					// branching.args wird in case 'branching' vor den branches inferiert
-					const branchedTypeInfo = argument.typeInfo ?? branchedSymbol.typeInfo;
-					const branchedRawType: CompileTimeType = branchedTypeInfo?.type ?? { julType: 'any' };
 					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex);
 					// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
 					const previousBranchValueType = getPreviousBranchArgumentType(branching, expression, argumentIndex);
@@ -1438,27 +1448,33 @@ function inferType(
 						&& !previousBranchValueType) {
 						return;
 					}
-					// TODO narrowed Hinweis in description?
-					ownSymbols[branchedName] = {
-						...branchedSymbol,
-						functionParameterIndex: undefined,
-						// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
-						typeInfo: {
-							type: narrowBranchedType(branchedRawType, branchRawType, previousBranchValueType),
-						},
-					};
+					// branching.args wird in case 'branching' vor den branches inferiert
+					const currentType = getNarrowedType(branchNarrowedTypes, path.symbol, path.keys)
+						?? argument.typeInfo?.type
+						?? { julType: 'any' };
+					// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
+					const narrowedType = narrowBranchedType(currentType, branchRawType, previousBranchValueType);
+					branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, argument, narrowedType, functionScopes);
+					const originExpression = getOriginExpression(path.symbol);
+					if (originExpression) {
+						branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, originExpression, narrowedType, functionScopes);
+					}
 				});
 			}
-			//#endregion narrowed type symbol für branching
+			//#endregion verengte Typen für branching
+			const branchTypeContext: TypeContext = {
+				scopes: functionScopes,
+				narrowedTypes: branchNarrowedTypes,
+			};
 			expression.body.forEach(bodyExpression => {
-				setInferredType(bodyExpression, functionScopes, parsedDocuments, folder, file, filePath);
+				setInferredType(bodyExpression, branchTypeContext, parsedDocuments, folder, file, filePath);
 			});
 			// Ein leerer body ist ungültig, nicht leer (Empty). Any als Ergebnis, damit sich der
 			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
 			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? { julType: 'any' };
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
-				setInferredType(declaredReturnType, functionScopes, parsedDocuments, folder, file, filePath);
+				setInferredType(declaredReturnType, branchTypeContext, parsedDocuments, folder, file, filePath);
 				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type)));
 				if (error) {
 					errors.push({
@@ -1485,11 +1501,15 @@ function inferType(
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, functionType, functionScopes);
 			}
-			setInferredType(params, functionScopes, parsedDocuments, folder, file, filePath);
+			const functionTypeContext: TypeContext = {
+				scopes: functionScopes,
+				narrowedTypes: narrowedTypes,
+			};
+			setInferredType(params, functionTypeContext, parsedDocuments, folder, file, filePath);
 			functionType.ParamsType = valueOf(params.typeInfo!.type);
 			checkParamsTypeIsCollection(params, errors);
 			// TODO check returnType muss pure sein
-			setInferredType(expression.returnType, functionScopes, parsedDocuments, folder, file, filePath);
+			setInferredType(expression.returnType, functionTypeContext, parsedDocuments, folder, file, filePath);
 			const inferredReturnType = expression.returnType.typeInfo!.type;
 			functionType.ReturnType = valueOf(inferredReturnType);
 			const rawType = createCompileTimeTypeOfType(functionType);
@@ -1509,7 +1529,7 @@ function inferType(
 				const typedExpression = element.type === 'spread'
 					? element.value
 					: element;
-				setInferredType(typedExpression, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(typedExpression, typeContext, parsedDocuments, folder, file, filePath);
 			});
 			const rawType = createCompileTimeTupleType(expression.values.map(element => {
 				if (element.type === 'spread') {
@@ -1522,10 +1542,17 @@ function inferType(
 		}
 		case 'nestedReference': {
 			const source = expression.source;
-			setInferredType(source, scopes, parsedDocuments, folder, file, filePath);
+			setInferredType(source, typeContext, parsedDocuments, folder, file, filePath);
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
 				return { type: { julType: 'any' } };
+			}
+			if (narrowedTypes) {
+				const path = getAccessPath(expression, scopes);
+				const narrowedType = path && getNarrowedType(narrowedTypes, path.symbol, path.keys);
+				if (narrowedType) {
+					return { type: narrowedType };
+				}
 			}
 			switch (nestedKey.type) {
 				case 'index': {
@@ -1602,7 +1629,7 @@ function inferType(
 			let hasDictionary: boolean = false;
 			expression.values.forEach(element => {
 				const typedExpression = element.value;
-				setInferredType(typedExpression, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(typedExpression, typeContext, parsedDocuments, folder, file, filePath);
 				const inferredType = typedExpression.typeInfo?.type;
 				// TODO
 				if (isDictionaryType(inferredType)
@@ -1615,7 +1642,7 @@ function inferType(
 		case 'parameter': {
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
-				setInferredType(typeGuard, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(typeGuard, typeContext, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
@@ -1656,11 +1683,11 @@ function inferType(
 		}
 		case 'parameters': {
 			expression.singleFields.forEach(field => {
-				setInferredType(field, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(field, typeContext, parsedDocuments, folder, file, filePath);
 			});
 			const rest = expression.rest;
 			if (rest) {
-				setInferredType(rest, scopes, parsedDocuments, folder, file, filePath);
+				setInferredType(rest, typeContext, parsedDocuments, folder, file, filePath);
 				// TODO check rest type is list type
 			}
 			const rawType = createParametersType(
@@ -1711,7 +1738,8 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			return { type: type };
+			const narrowedType = foundSymbol && getNarrowedType(narrowedTypes, foundSymbol, []);
+			return { type: narrowedType ?? type };
 		}
 		case 'text': {
 			// TODO string template type?
@@ -1726,7 +1754,7 @@ function inferType(
 			}
 			expression.values.forEach(part => {
 				if (part.type !== 'textToken') {
-					setInferredType(part, scopes, parsedDocuments, folder, file, filePath);
+					setInferredType(part, typeContext, parsedDocuments, folder, file, filePath);
 				}
 			});
 			return { type: { julType: 'text' } };
@@ -2545,6 +2573,190 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 //#endregion Typ Arithmetik
 
 //#region branch narrowing
+
+/**
+ * Verengte Typen je Zugriffspfad, gültig im Rumpf eines branches.
+ * Die Wurzel ist die Identität des Symbols, nicht sein Name: Ein Nachschlag für einen nicht
+ * verengten Ausdruck kostet damit einen Zugriff, unabhängig von der Schachtelungstiefe - und
+ * praktisch jeder Nachschlag ist ein Fehlschlag.
+ */
+type NarrowedTypes = Map<SymbolDefinition, NarrowedPath[]>;
+
+interface NarrowedPath {
+	/** Feldnamen und Indizes ab der Wurzel. Leer = die Wurzel selbst. */
+	keys: (string | number)[];
+	type: CompileTimeType;
+}
+
+interface AccessPath {
+	symbol: SymbolDefinition;
+	keys: (string | number)[];
+}
+
+/**
+ * Der Zugriffspfad, den dieser Ausdruck bezeichnet.
+ * undefined, sobald ein Glied kein Name und kein literaler Schlüssel ist - ein Aufruf als Quelle
+ * (getStep(flag)/type) bezeichnet keinen Pfad, denn zwei Aufrufe sind zwei Werte.
+ */
+function getAccessPath(
+	expression: ParseValueExpression,
+	scopes: SymbolTable[],
+): AccessPath | undefined {
+	switch (expression.type) {
+		case 'reference': {
+			const symbol = findSymbolInScopesWithBuiltIns(expression.name.name, scopes)?.symbol;
+			return symbol && {
+				symbol: symbol,
+				keys: [],
+			};
+		}
+		case 'nestedReference': {
+			const nestedKey = expression.nestedKey;
+			if (!nestedKey) {
+				return undefined;
+			}
+			const sourcePath = getAccessPath(expression.source, scopes);
+			if (!sourcePath) {
+				return undefined;
+			}
+			const key = nestedKey.type === 'index'
+				? nestedKey.name
+				: getCheckedEscapableName(nestedKey);
+			if (key === undefined) {
+				return undefined;
+			}
+			return {
+				symbol: sourcePath.symbol,
+				keys: [...sourcePath.keys, key],
+			};
+		}
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Der verengte Typ für diesen Pfad, falls einer bekannt ist.
+ * Trifft kein Eintrag genau, wird vom längsten passenden Präfix aus dereferenziert - so wirkt ein
+ * Eintrag für die Quelle auch auf alle Felder darunter.
+ */
+function getNarrowedType(
+	narrowedTypes: NarrowedTypes | undefined,
+	symbol: SymbolDefinition,
+	keys: (string | number)[],
+): CompileTimeType | undefined {
+	const paths = narrowedTypes?.get(symbol);
+	if (!paths) {
+		return undefined;
+	}
+	let longestMatch: NarrowedPath | undefined = undefined;
+	for (const path of paths) {
+		if (path.keys.length > keys.length
+			|| (longestMatch && path.keys.length <= longestMatch.keys.length)) {
+			continue;
+		}
+		if (path.keys.every((key, index) => key === keys[index])) {
+			longestMatch = path;
+		}
+	}
+	if (!longestMatch) {
+		return undefined;
+	}
+	let type = longestMatch.type;
+	for (const key of keys.slice(longestMatch.keys.length)) {
+		const dereferenced = dereferenceNestedKeyFromObject(key, type);
+		if (!dereferenced) {
+			return undefined;
+		}
+		type = dereferenced;
+	}
+	return type;
+}
+
+/**
+ * Eine neue Umgebung mit diesem Eintrag. Ein vorhandener Eintrag für denselben Pfad wird ersetzt,
+ * nicht ergänzt - der neue Typ entsteht als Schnitt mit dem alten und ist damit der engere.
+ */
+function withNarrowedType(
+	narrowedTypes: NarrowedTypes | undefined,
+	symbol: SymbolDefinition,
+	keys: (string | number)[],
+	type: CompileTimeType,
+): NarrowedTypes {
+	const result: NarrowedTypes = new Map(narrowedTypes);
+	const paths = result.get(symbol) ?? [];
+	const withoutPath = paths.filter(path =>
+		path.keys.length !== keys.length
+		|| !path.keys.every((key, index) => key === keys[index]));
+	result.set(symbol, [
+		...withoutPath,
+		{
+			keys: keys,
+			type: type,
+		},
+	]);
+	return result;
+}
+
+/**
+ * Eine neue Umgebung, in der dieser Ausdruck den Typ hat - und mit ihm jede Quelle darüber:
+ * dass step/type ein Text ist, beweist, dass step nicht empty ist, denn Empty hat kein Feld.
+ * Index-Pfade tragen diesen Schluss noch nicht.
+ */
+function withNarrowedPath(
+	narrowedTypes: NarrowedTypes | undefined,
+	expression: ParseValueExpression,
+	type: CompileTimeType,
+	scopes: SymbolTable[],
+): NarrowedTypes | undefined {
+	const path = getAccessPath(expression, scopes);
+	if (!path) {
+		return narrowedTypes;
+	}
+	let result = withNarrowedType(narrowedTypes, path.symbol, path.keys, type);
+	let narrowedExpression: ParseValueExpression = expression;
+	let narrowedType = type;
+	while (narrowedExpression.type === 'nestedReference') {
+		const source = narrowedExpression.source;
+		const nestedKey = narrowedExpression.nestedKey;
+		const key = nestedKey && nestedKey.type !== 'index'
+			? getCheckedEscapableName(nestedKey)
+			: undefined;
+		const sourcePath = key
+			? getAccessPath(source, scopes)
+			: undefined;
+		if (!key
+			|| !sourcePath) {
+			break;
+		}
+		const sourceType = getNarrowedType(result, sourcePath.symbol, sourcePath.keys)
+			?? source.typeInfo?.type
+			?? { julType: 'any' };
+		narrowedType = createNormalizedIntersectionType([
+			sourceType,
+			createCompileTimeDictionaryLiteralType({ [key]: narrowedType }),
+		]);
+		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, narrowedType);
+		narrowedExpression = source;
+	}
+	return result;
+}
+
+/**
+ * Der Ausdruck, aus dem der Wert dieses Symbols stammt - falls das ein Feldzugriff war.
+ * Ein Name bezeichnet in JUL genau einen Wert, was über ihn gilt, gilt also auch über seine
+ * Herkunft. Nur für Feldzugriffe, denn zwei Aufrufe sind zwei Werte.
+ */
+function getOriginExpression(symbol: SymbolDefinition): ParseValueExpression | undefined {
+	const definition = symbol.definition;
+	if (definition?.type !== 'definition') {
+		return undefined;
+	}
+	const value = definition.value;
+	return value?.type === 'nestedReference'
+		? value
+		: undefined;
+}
 
 /**
  * Die geschriebenen Werte einer Kollektion, Index für Index.

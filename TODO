@@ -1,3 +1,8 @@
+-refactor: NarrowedTypes, AccessPath und alle narrowing-helfer vor TypeContext/inferFileTypes gruppieren
+	-heute: NarrowedTypes (Zeile 1007), dann 50+ Zeilen code, dann TypeContext (1084)
+	-gehören alle in //#region branch narrowing zusammen (Konzept Narrowing vs Konzept Typinferenz)
+	-risiko gering, aber umbau: ~200 zeilen code verschieben, regionsgrenzen neu setzen
+	-aufgabe für später, wenn ohnehin an checker-organisation gearbeitet wird
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
 -debug experience vebessern
