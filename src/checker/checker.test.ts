@@ -1076,16 +1076,25 @@ f(a = 1 b = 2)`,
 g: Integer = f(3)`,
 		},
 		{
-			// Noch nicht umgesetzt: bei der Selbstreferenz im body ist das Symbol f noch nicht
-			// inferiert, dereferenceType fällt auf Any zurück (vgl. das TODO dort) und der
-			// deklarierte Rückgabetyp wird nicht durchgereicht. g: Text = f(3) müsste melden.
-			// Der Test hält die Lücke fest — fängt er an zu melden, ist sie geschlossen.
+			// Fix im functionLiteral-Fall: bei Any als inferiertem Rückgabetyp (hier durch die
+			// Selbstreferenz im body verursacht) wird auf den geprüften deklarierten Rückgabetyp
+			// zurückgefallen statt Any durchzureichen. g: Text = f(3) meldet das jetzt korrekt.
 			name: 'recursive-function-return-type-is-not-checked',
 			code: `f = (x: Integer) :> Integer =>
 	?(x)
 		[0] => 0
 		() => f(x)
 g: Text = f(3)`,
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Can not assign Integer to Text.',
+					startRowIndex: 4,
+					startColumnIndex: 0,
+					endRowIndex: 4,
+					endColumnIndex: 14,
+				},
+			],
 		},
 		{
 			// Ein Funktionsliteral, dessen body nur aus einem Kommentar besteht, ist ungültig -
@@ -1279,6 +1288,26 @@ describe('Checker', () => {
 		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
 		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(true,
 			'Fall 3 fehlt, Error muss im Rückgabetyp stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
+	});
+	// functionType.ReturnType wird beim functionLiteral immer auf inferredReturnType gesetzt,
+	// auch wenn ein deklarierter Rückgabetyp vorhanden und die Prüfung fehlerfrei ist (die
+	// Prüfung vergleicht nur, sie ersetzt nichts). Ist der inferierte Typ Any (weil irgendwo im
+	// Rumpf etwas nicht aufgelöst werden konnte), sehen alle Aufrufer Any statt des engeren
+	// deklarierten Typs - und Any ist bei jeder Zuweisbarkeitsprüfung permissiv, ein Fehler
+	// bleibt also aus. Deshalb hier eine direkte Typ-Inspektion statt einer Fehlerprüfung.
+	it('function-return-type-uses-declared-type-not-inferred-any', () => {
+		const code = `f = () :> Integer =>
+	x = assume(1 Any)
+	x`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const functionType = definition.value?.typeInfo?.type;
+		const returnType = functionType?.julType === 'function' ? functionType.ReturnType : undefined;
+		expect(returnType?.julType).to.equal('integer',
+			'Deklarierter Rückgabetyp Integer sollte gelten, tatsächlich: ' + returnType?.julType);
 	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen

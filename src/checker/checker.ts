@@ -1871,6 +1871,11 @@ function inferType(
 			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
 			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? { julType: 'any' };
 			const declaredReturnType = expression.returnType;
+			// Any als inferierter Typ heißt "nichts Genaueres bekannt", nicht "Any ist der Typ" -
+			// hier auf den deklarierten Typ zurückfallen, sonst sehen Aufrufer Any statt der
+			// geprüften Zusicherung. Ist der inferierte Typ enger als deklariert (Normalfall,
+			// z.B. ein Literal), bleibt er erhalten - er ist die genauere Information.
+			let returnType = inferredReturnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, branchTypeContext, parsedDocuments, folder, file, filePath);
 				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type)));
@@ -1884,8 +1889,11 @@ function inferType(
 						endColumnIndex: expression.endColumnIndex,
 					});
 				}
+				else if (inferredReturnType.julType === 'any') {
+					returnType = valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type));
+				}
 			}
-			functionType.ReturnType = inferredReturnType;
+			functionType.ReturnType = returnType;
 			return { type: functionType };
 		}
 		case 'functionTypeLiteral': {
