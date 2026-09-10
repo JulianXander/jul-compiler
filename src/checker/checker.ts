@@ -1935,7 +1935,6 @@ function inferType(
 			return { type: rawType };
 		}
 		case 'list': {
-			// TODO spread elements
 			// TODO error when spread dictionary
 			expression.values.forEach(element => {
 				const typedExpression = element.type === 'spread'
@@ -1943,13 +1942,43 @@ function inferType(
 					: element;
 				setInferredType(typedExpression, typeContext, parsedDocuments, folder, file, filePath);
 			});
-			const rawType = createCompileTimeTupleType(expression.values.map(element => {
+
+			// Akkumuliere Element-Typen, handle Spreads durch Flattening/Collapsing
+			const tupleElements: CompileTimeType[] = [];
+			let hasListSpread = false;
+
+			for (const element of expression.values) {
 				if (element.type === 'spread') {
-					// TODO flatten spread tuple value type
-					return { julType: 'any' };
+					const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
+					if (sourceType.julType === 'tuple') {
+						// Tuple-Spread: flatten alle ElementTypes ins Array
+						tupleElements.push(...sourceType.ElementTypes);
+					} else if (sourceType.julType === 'list') {
+						// List-Spread: merke flag, füge ElementType als single element ein
+						hasListSpread = true;
+						tupleElements.push(sourceType.ElementType);
+					} else {
+						// Andere Typen: fallback zu any
+						tupleElements.push({ julType: 'any' });
+					}
+				} else {
+					tupleElements.push(element.typeInfo!.type);
 				}
-				return element.typeInfo!.type;
-			}));
+			}
+
+			// Entscheide outer type: List wenn min. ein List-Spread, sonst Tuple
+			let rawType: CompileTimeType;
+			if (hasListSpread) {
+				// Baue Union aller tupleElements-Typen für List ElementType
+				// WICHTIG: Resolve Placeholders auf jedem Element (z.B. parameterReference in List(T))
+				const resolvedElements = tupleElements.map(t => resolvePlaceholders(t));
+				const unionType = createNormalizedUnionType(resolvedElements);
+				rawType = createCompileTimeListType(unionType);
+			} else {
+				// Alle Spreads sind Tuples (oder keine Spreads) → Tuple mit bekannter Länge
+				rawType = createCompileTimeTupleType(tupleElements);
+			}
+
 			return { type: rawType };
 		}
 		case 'nestedReference': {

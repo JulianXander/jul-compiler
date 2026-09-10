@@ -14,3 +14,4 @@
 2026-09-09 22:28:47	4f4700e+	-	ADV-DEV-56627	jul-examples	parse+check	5	20.20	38.79	38.79	Elaboration auch fuer generisches Dictionary(T) Ziel
 2026-09-10 09:43:20	3dae426+	-	ADV-DEV-56627	jul-examples	parse+check	5	19.45	52.87	52.87	spread-flatten-start
 2026-09-10 09:47:53	3dae426+	-	ADV-DEV-56627	yugioh	parse+check	5	3433.64	3680.68	3680.68	spread-flatten-start
+2026-09-10 10:06:41	1cb6051+	-	ADV-DEV-56627	yugioh	parse+check	5	3425.68	3692.68	3692.68	spread-flatten-end

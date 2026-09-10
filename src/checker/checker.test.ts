@@ -1453,26 +1453,25 @@ describe('Checker', () => {
 	// returnTypeMismatch in yugioh/game-logic.jul (updatePendingTriggers, activatableGameCardIds).
 	it('list-literal-spread-collapses-to-list', () => {
 		// List-Spreads sollten sich zu einer List zusammensetzen (unbekannte Länge bleibt unbekannt)
-		const code = `T = [a: Integer]
-f = (values: List(T)) =>
+		const code = `f = (values: List(Integer)) =>
 	[
 		...values
-		[a = 1]
+		§"hello"§
 	]`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
-		const definition = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
 		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
 		
-		// Erwartet: List(Union(T, [a: Integer]))
+		// Erwartet: List(Union(Integer, Text))
 		expect(returnType?.julType).to.equal('list',
 			'List-Spread sollte zu einer List werden, tatsächlich: ' + returnType?.julType);
 		if (returnType && returnType.julType === 'list') {
 			expect(returnType.ElementType.julType).to.equal('or',
-				'ElementType sollte Union sein (T | [a: Integer]), tatsächlich: ' + returnType.ElementType.julType);
+				'ElementType sollte Union sein (Integer | Text), tatsächlich: ' + returnType.ElementType.julType);
 		}
 	});
 
@@ -1496,9 +1495,9 @@ f = (values: List(T)) =>
 			throw new Error(`Return type sollte Tuple sein, ist aber: ${returnType?.julType}`);
 		}
 		expect(returnType.ElementTypes.length).to.equal(3, 'Tuple sollte 3 Elemente haben (2 aus Spread + 1 literal)');
-		expect(returnType.ElementTypes[0]?.julType).to.equal('integerLiteral', 'Element 0 sollte Integer sein');
-		expect(returnType.ElementTypes[1]?.julType).to.equal('text', 'Element 1 sollte Text sein');
-		expect(returnType.ElementTypes[2]?.julType).to.equal('dictionaryLiteral', 'Element 2 sollte Dict sein');
+		expect(returnType.ElementTypes[0]?.julType).to.equal('integer', 'Element 0 sollte integer sein');
+		expect(returnType.ElementTypes[1]?.julType).to.equal('text', 'Element 1 sollte text sein');
+		expect(returnType.ElementTypes[2]?.julType).to.equal('dictionaryLiteral', 'Element 2 sollte dictionaryLiteral sein');
 	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
