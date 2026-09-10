@@ -210,7 +210,6 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 export interface CompilerError extends Positioned {
 	code: ErrorCode;
 	message: string;
-	// TODO isFatal?
 	/**
 	 * Zusätzlicher Verweis auf eine zweite Stelle im Quelltext, die den Fehler erklärt (z.B. die
 	 * Deklaration eines Rückgabetyps) - additiv, ersetzt startRowIndex/... nicht. Von CLI
