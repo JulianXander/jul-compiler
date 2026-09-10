@@ -52,7 +52,7 @@ import {
 } from '../syntax-tree.js';
 import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
-import { CompilerError, ErrorCode } from '../compiler-errors.js';
+import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName } from '../parser/parser-utils.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
@@ -1539,15 +1539,20 @@ function inferType(
 				const resolvedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
 				const assignmentError = resolvedTargetType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), resolvedTargetType);
 				if (assignmentError) {
+					// Position wandert beim Abstieg durch verschachtelte Dictionary-Literale auf
+					// die innerste noch vorhandene, tatsaechlich falsche Stelle (TypeScript/
+					// Rust/Elm-Vorbild: eine Diagnose, eine moeglichst genaue Position, statt
+					// einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle).
+					const innerPosition = resolvedTargetType && findInnermostErrorPosition(value, resolvedTargetType);
+					const position = innerPosition ?? expression;
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
 						message: `Definition type mismatch.\n${assignmentError}`,
-						startRowIndex: expression.startRowIndex,
-						startColumnIndex: expression.startColumnIndex,
-						endRowIndex: expression.endRowIndex,
-						endColumnIndex: expression.endColumnIndex,
+						startRowIndex: position.startRowIndex,
+						startColumnIndex: position.startColumnIndex,
+						endRowIndex: position.endRowIndex,
+						endColumnIndex: position.endColumnIndex,
 					});
-					elaborateDictionaryLiteralError(value, resolvedTargetType!, errors);
 				}
 			}
 			return typeInfo;
@@ -3864,74 +3869,71 @@ function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: C
 }
 
 /**
- * Ergaenzt einen bereits feststehenden Zuweisungsfehler um praezisere Diagnosen direkt an den
- * betroffenen Feldern des Quell-Literals - analog zu TypeScripts relatedInformation: laeuft nur
- * im Fehlerfall, neben dem eigentlichen Typvergleich, auf der schon vorhandenen AST-Expression.
- * Rein additiv, ersetzt die Hauptmeldung an der Definition nicht.
+ * Findet die innerste Position im Quelltext, an der der Zuweisungsfehler tatsaechlich sitzt:
+ * steigt durch verschachtelte Dictionary-Literale ab, solange es ein konkretes Feld mit
+ * falschem Wert gibt. Ein fehlendes Feld hat keinen Ausdruck zum Zeigen und bricht den Abstieg
+ * an dieser Stelle ab - undefined heisst "keine genauere Position als die aufrufende Stelle".
+ * Nach dem Vorbild von TypeScript/Rust/Elm: eine Diagnose, eine moeglichst genaue Position,
+ * statt einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle.
  */
-function elaborateDictionaryLiteralError(
+function findInnermostErrorPosition(
 	value: ParseValueExpression | undefined,
 	targetType: CompileTimeType,
-	errors: CompilerError[],
-): void {
+): Positioned | undefined {
 	if (value?.type !== 'dictionary') {
-		return;
+		return undefined;
 	}
 	if (isDictionaryLiteralType(targetType)) {
-		// benannte Pflichtfelder: jedes Zielfeld einzeln pruefen
+		let result: Positioned | undefined;
 		map(targetType.Fields, (fieldTargetType, fieldName) => {
-			elaborateDictionaryFieldError(value, fieldName, fieldTargetType, errors);
+			if (result) {
+				return;
+			}
+			result = findInnermostFieldErrorPosition(value, fieldName, fieldTargetType);
 		});
-		return;
+		return result;
 	}
 	if (isDictionaryType(targetType)) {
-		// generisches Dictionary(T): keine festen Feldnamen, jeder geschriebene Eintrag
-		// muss T erfuellen - anders als oben keine "Missing field"-Diagnose moeglich.
 		const elementType = targetType.ElementType;
-		value.fields.forEach(field => {
+		for (const field of value.fields) {
 			if (field.type !== 'singleDictionaryField') {
-				return;
+				continue;
 			}
 			const fieldName = getCheckedEscapableName(field.name);
 			if (!fieldName) {
-				return;
+				continue;
 			}
-			elaborateDictionaryFieldError(value, fieldName, elementType, errors);
-		});
+			const result = findInnermostFieldErrorPosition(value, fieldName, elementType);
+			if (result) {
+				return result;
+			}
+		}
 	}
+	return undefined;
 }
 
-function elaborateDictionaryFieldError(
+function findInnermostFieldErrorPosition(
 	value: ParseDictionaryLiteral,
 	fieldName: string,
 	fieldTargetType: CompileTimeType,
-	errors: CompilerError[],
-): void {
+): Positioned | undefined {
 	const fieldExpression = value.fields.find(field =>
 		field.type === 'singleDictionaryField'
 		&& getCheckedEscapableName(field.name) === fieldName);
 	if (!fieldExpression || fieldExpression.type !== 'singleDictionaryField') {
-		// Kein Feld-Ausdruck vorhanden, also auch keine praezisere Position als die
-		// Hauptmeldung schon zeigt (dieselbe Literal-Klammer) - eine zweite CompilerError mit
-		// identischem Text waere reine Verdopplung, "Missing field X." steht schon dort drin.
-		return;
+		return undefined;
 	}
 	const fieldValue = fieldExpression.value;
 	if (!fieldValue?.typeInfo) {
-		return;
+		return undefined;
 	}
 	const fieldError = getTypeError(undefined, resolvePlaceholders(fieldValue.typeInfo.type), fieldTargetType);
-	if (fieldError) {
-		errors.push({
-			code: ErrorCode.definitionTypeMismatch,
-			message: typeErrorToString(fieldError),
-			startRowIndex: fieldValue.startRowIndex,
-			startColumnIndex: fieldValue.startColumnIndex,
-			endRowIndex: fieldValue.endRowIndex,
-			endColumnIndex: fieldValue.endColumnIndex,
-		});
+	if (!fieldError) {
+		return undefined;
 	}
+	return findInnermostErrorPosition(fieldValue, fieldTargetType) ?? fieldValue;
 }
+
 
 function getTypeErrorForParameters(
 	prefixArgumentType: CompileTimeType | undefined,

@@ -721,8 +721,8 @@ x: T = [a = 1]`,
 		},
 		{
 			// Gegenprobe: ein tatsächlich vorhandenes Empty-Feld bleibt bei der bisherigen
-			// Meldung - der Unterschied ist nur, ob das Feld überhaupt geschrieben wurde. Die
-			// Elaboration zeigt hier zusätzlich direkt auf den Feld-Wert [].
+			// Meldung - der Unterschied ist nur, ob das Feld überhaupt geschrieben wurde. Eine
+			// Diagnose, Position am Feldwert [] (TypeScript/Rust/Elm-Vorbild, Session 2026-09-10).
 			name: 'present-empty-dictionary-field-keeps-assignment-message',
 			code: `T = [a: Integer b: Text]
 x: T = [a = 1 b = []]`,
@@ -730,14 +730,6 @@ x: T = [a = 1 b = []]`,
 				{
 					code: ErrorCode.definitionTypeMismatch,
 					message: 'Definition type mismatch.\nCan not assign x to T.\nCan not assign Empty to Text.\nInvalid value for field b',
-					startRowIndex: 1,
-					startColumnIndex: 0,
-					endRowIndex: 1,
-					endColumnIndex: 21,
-				},
-				{
-					code: ErrorCode.definitionTypeMismatch,
-					message: 'Can not assign Empty to Text.',
 					startRowIndex: 1,
 					startColumnIndex: 18,
 					endRowIndex: 1,
@@ -748,7 +740,8 @@ x: T = [a = 1 b = []]`,
 		{
 			// Wie present-empty-dictionary-field-keeps-assignment-message, aber Ziel ist ein
 			// generisches Dictionary(T) statt eines dictionaryLiteral mit benannten Feldern -
-			// hier zeigt es zusaetzlich direkt auf den fehlerhaften Eintrag "bad".
+			// der Abstieg geht hier durch ZWEI Ebenen (Eintrag "bad", darin Feld "a") bis zum
+			// tatsaechlichen Wert §wrong§.
 			name: 'generic-dictionary-target-elaborates-per-entry',
 			code: `T = [a: Integer]
 x: Dictionary(T) = [
@@ -758,18 +751,10 @@ x: Dictionary(T) = [
 				{
 					code: ErrorCode.definitionTypeMismatch,
 					message: 'Definition type mismatch.\nCan not assign [a: §wrong§] to T.\nCan not assign §wrong§ to Integer.\nInvalid value for field a\nInvalid value for field bad',
-					startRowIndex: 1,
-					startColumnIndex: 0,
-					endRowIndex: 3,
-					endColumnIndex: 1,
-				},
-				{
-					code: ErrorCode.definitionTypeMismatch,
-					message: 'Can not assign [a: §wrong§] to T.\nCan not assign §wrong§ to Integer.\nInvalid value for field a',
 					startRowIndex: 2,
-					startColumnIndex: 7,
+					startColumnIndex: 12,
 					endRowIndex: 2,
-					endColumnIndex: 20,
+					endColumnIndex: 19,
 				},
 			],
 		},
@@ -1571,6 +1556,33 @@ x: T = [a = 1]`;
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
 			'Definition type mismatch.\nCan not assign x to T.\nMissing field b.',
+		]);
+	});
+
+	// Fund in jul-examples/yugioh/game-logic.jul (Session 2026-09-10): bei verschachtelten
+	// Dictionary-Literalen erzeugte das fruehere Zwei-Diagnosen-Modell (volle Kette an der
+	// AEUSSEREN Position + Elaboration mit dem inneren Teil der Kette an der PRAEZISEN Position)
+	// denselben Text zweimal - bei mehreren Verschachtelungsebenen mit dem Rust-Code-Frame (C2)
+	// zwei fast komplette, sich ueberlappende Frames. TypeScript/Rust/Elm loesen das strukturell
+	// anders (siehe docs/error-message-elaboration.md): EINE Diagnose, deren Position beim
+	// rekursiven Abstieg durch die Literale auf die innerste noch vorhandene, tatsaechlich
+	// falsche Stelle wandert (hier: der Wert §wrong§ im inneren Literal) - die Kette bleibt
+	// vollstaendig, aber nur einmal (findInnermostErrorPosition in checker.ts).
+	it('nested-dictionary-literal-error-is-a-single-diagnosis-at-the-innermost-position', () => {
+		const code = `Inner = [a: Integer]
+Outer = [inner: Inner]
+x: Outer = [inner = [a = §wrong§]]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([
+			{
+				code: ErrorCode.definitionTypeMismatch,
+				message: 'Definition type mismatch.\nCan not assign x to Outer.\nCan not assign [a: §wrong§] to Inner.\nCan not assign §wrong§ to Integer.\nInvalid value for field a\nInvalid value for field inner',
+				startRowIndex: 2,
+				startColumnIndex: 25,
+				endRowIndex: 2,
+				endColumnIndex: 32,
+			},
 		]);
 	});
 
