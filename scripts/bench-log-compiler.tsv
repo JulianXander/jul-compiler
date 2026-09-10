@@ -12,3 +12,5 @@
 2026-09-09 22:08:08	4f4700e+	-	ADV-DEV-56627	yugioh	parse+check	5	3544.51	3575.26	3575.26	Elaboration fuer fehlende/falsche Dictionary-Felder bei Definitionen
 2026-09-09 22:08:42	4f4700e+	-	ADV-DEV-56627	jul-examples	parse+check	5	21.27	45.97	45.97	Elaboration - Gegenprobe auf fehlerfreiem Ziel
 2026-09-09 22:28:47	4f4700e+	-	ADV-DEV-56627	jul-examples	parse+check	5	20.20	38.79	38.79	Elaboration auch fuer generisches Dictionary(T) Ziel
+2026-09-10 09:43:20	3dae426+	-	ADV-DEV-56627	jul-examples	parse+check	5	19.45	52.87	52.87	spread-flatten-start
+2026-09-10 09:47:53	3dae426+	-	ADV-DEV-56627	yugioh	parse+check	5	3433.64	3680.68	3680.68	spread-flatten-start

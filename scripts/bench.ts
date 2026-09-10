@@ -122,15 +122,26 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 	if (save) {
 		appendEntries(logPath, results, target, note);
 		console.log(`  protokolliert: ${logPath}`);
-		execFileSync(process.execPath, [chartScript], { stdio: 'inherit' });
 	}
 	else {
 		console.log('  zum Protokollieren: npm run bench -- --save --note "grund"');
 	}
 }
 
+function generateAllCharts(): void {
+	if (!existsSync(logPath)) {
+		return;
+	}
+	const machine = getMachine();
+	// Rufe bench-chart OHNE --target auf, dann zeichnet es alle targets in eine SVG
+	execFileSync(process.execPath, [chartScript, '--machine', machine], { stdio: 'inherit' });
+}
+
 const { save, note, targets: folders } = parseArgs(process.argv.slice(2));
-const targets = folders.length
+const benchTargets = folders.length
 	? folders.map(folder => resolve(folder))
 	: [existsSync(preferredTarget) ? preferredTarget : fallbackTarget];
-targets.forEach(folder => benchFolder(folder, save, note));
+benchTargets.forEach(folder => benchFolder(folder, save, note));
+if (save) {
+	generateAllCharts();
+}

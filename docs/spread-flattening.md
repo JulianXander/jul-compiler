@@ -1,7 +1,9 @@
 # Spread-Flattening in List Literals
 
-**Status:** Red test created (2026-09-10), implementation pending.  
-**Issue:** [list-literal-spread-loses-element-type](../src/checker/checker.test.ts)
+**Status:** Tests written (red), implementation pending.  
+**Test Issues:** 
+- `list-literal-spread-collapses-to-list`: Expects `List(Union(T, [a: Integer]))`
+- `tuple-literal-spread-flattens-elements`: Expects `[Integer, Text, [a: Integer]]`
 
 ## Problem
 
@@ -21,23 +23,23 @@ activatableGameCardIds = [...board/hand ...board/spellTraps board/field]
 // causes "Missing field boards" on newGameState
 ```
 
-## Root Cause
+## Solution: Option C (Hybrid Flattening)
 
-**Location:** `checker.ts`, `case 'list'` (line ~1937)
-
-```typescript
-if (element.type === 'spread') {
-    // TODO flatten spread tuple value type
-    return { julType: 'any' };  // ❌ All type info lost
-}
+**Tuple-Spreads flatten** (known length explodes element-by-element):
+```
+[...myTuple [a=1]] → Tuple(elem1, elem2, [a: Integer])
 ```
 
-The checker encounters a spread element but returns `Any` instead of:
-1. Resolving the spread source type
-2. Detecting whether it's a Tuple or List
-3. Extracting/flattening its element types
+**List-Spreads collapse to List** (unknown length preserved):
+```
+[...myList [a=1]] → List(Union(ListElementType, [a: Integer]))
+```
 
-## Algorithm (to be clarified)
+**Result type rule:** If any spread is a List → outer is List; else Tuple (known length).
+
+This matches TypeScript/Python behavior and preserves type precision.
+
+## Implementation Plan
 
 ### Step 0: Before Benchmark
 ```bash
@@ -45,84 +47,81 @@ cd jul-compiler
 npm run bench -- ../jul-examples --save --note "spread-flatten-start"
 ```
 
-### Step 1: Resolve Spread Source Type
+### Step 1: Refactor `case 'list'` in checker.ts
+
+Current code uses `.map()` which expects 1 type per element. For Tuple flattening, we need multiple types per iteration.
+
+**Refactor to for-loop:**
 ```typescript
-const sourceType = resolvePlaceholders(
-    checkExpression(element.value, scope),  // element.value is AST node
-    scope
-);
-```
-
-Need to clarify: Is `element.value` already an expression, or does it need wrapping?
-
-### Step 2: Branch on Collection Type
-
-**If Tuple:** Flatten directly into accumulator (unknown: element-by-element or whole?)  
-**If List:** Extract element type and return it (unknown: return bare elementType or wrap in List?)  
-**If neither:** Emit error or fallback to `Any`
-
-### Step 3: Integrate into List Assembly
-Current flow accumulates elements:
-```typescript
-const elements: CompileTimeType[] = [];
-for (const element of list.items) {
-    const itemType = checkListElement(element, scope);  // ← our fix goes here
-    elements.push(itemType);
+const tupleElements: CompileTimeType[] = [];
+for (const element of expression.values) {
+    if (element.type === 'spread') {
+        const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
+        if (sourceType.julType === 'tuple') {
+            // Tuple-Spread: flatten elements into accumulator
+            tupleElements.push(...sourceType.ElementTypes);
+        } else if (sourceType.julType === 'list') {
+            // List-Spread: add ElementType as single element (not the List)
+            tupleElements.push(sourceType.ElementType);
+        } else {
+            // Other types: fallback to any
+            tupleElements.push({ julType: 'any' });
+        }
+    } else {
+        tupleElements.push(element.typeInfo!.type);
+    }
 }
-// Assembly logic below
+
+// Decide Tuple vs List for outer type
+const hasListSpread = expression.values.some(e => 
+    e.type === 'spread' && resolvePlaceholders(e.value.typeInfo!.type).julType === 'list'
+);
+
+if (hasListSpread) {
+    // Build union of all element types
+    const elementTypes = tupleElements.map(t => /* resolve & unwrap */);
+    const unionType = createNormalizedUnionType(elementTypes);
+    const rawType = createCompileTimeListType(unionType);
+} else {
+    // All spreads are tuples (or no spreads) → result is Tuple
+    const rawType = createCompileTimeTupleType(tupleElements);
+}
 ```
 
-After spread flattening, `itemType` for spread elements should provide flattened types (or multiple types for Tuple).
-
-### Step 4: Full Test Suite + Red Test Green
+### Step 2: Verify Tests Pass
 ```bash
-npm test
+npm test 2>&1 | grep -E "passing|failing"
 ```
-Red test `list-literal-spread-loses-element-type` should pass.
+Both red tests should turn green:
+- `list-literal-spread-collapses-to-list`
+- `tuple-literal-spread-flattens-elements`
 
-### Step 5: Update Snapshot Baseline
-If type error text changes:
+### Step 3: Update Snapshot Baseline (if needed)
 ```bash
 npm run typecheck
-npx mocha --import=tsx --require ./test-setup.mjs src/checker/checker.test.ts --grep "snapshot"
 ```
 
-### Step 6: After Benchmark
+### Step 4: After Benchmark
 ```bash
 npm run bench -- ../jul-examples --save --note "spread-flatten-end"
 ```
-Compare with before (alarm threshold: 50% regression).
+Verify performance is acceptable (alarm at 50% regression).
 
-### Step 7: Build & Verify yugioh
+### Step 5: Build & Verify yugioh
 ```bash
 npm run build-all-and-deploy
 cd ../../yugioh
 node ../JUL/jul-compiler/out/cli.js jul-config.yaml
-# Verify no "Missing field boards" error
+# Verify "Missing field boards" error is gone
 ```
 
-## Open Questions
+## Code Details
 
-1. **Tuple element handling:**
-   - `[...myTuple [a=1]]` → spread elements go at beginning or end?
-   - Return flattened Tuple type, or push individual types into accumulator?
+**Key locations:**
+- Spread check: `checker.ts`, line ~1937 (in `case 'list'`)
+- Already-checked spread source: `element.value.typeInfo!.type` (no need to re-check)
+- Type resolution: `resolvePlaceholders()` handles parameterReferences and nested types
 
-2. **List element return type:**
-   - `[...myList [a=1]]` where `myList` is `List(Integer)` →
-   - Return bare `Integer` and let outer logic build `List(Union(Integer, [a: 1]))`?
-   - Or return `List(Integer)` and let outer degrade/union?
+**No new types needed:** `CompileTimeListType` and `CompileTimeTupleType` already have `.ElementType` / `.ElementTypes` properties.
 
-3. **checkExpression + resolvePlaceholders:**
-   - `element.value` is already a checked expression in the AST?
-   - Or need to call `checkExpression(element.value, scope)` first?
-   - Pattern from `case 'dictionary'` Spread handling?
-
-## Implementation Pattern (to verify)
-
-From analogous Spread fix in dictionary literals:
-- Call `checkExpression()` on spread source
-- Call `resolvePlaceholders()` on result
-- Inspect `.julType` and `.singleTypes` / `.elementType`
-- Flatten or extract accordingly
-
-See `case 'dictionary'` in checker.ts for reference pattern.
+**Tuple element detection:** Use `sourceType.julType === 'tuple'` after `resolvePlaceholders()`.

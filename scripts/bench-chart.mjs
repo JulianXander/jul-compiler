@@ -104,40 +104,60 @@ if (!existsSync(logPath)) {
 }
 else {
 	const allEntries = readEntries(logPath).filter(entry => entry.machine === machine);
-	// ohne Ziel wird das mit den meisten Messungen gewählt, das ist die Reihe, die etwas hergibt
-	const targetCounts = {};
-	allEntries.forEach(entry => {
-		targetCounts[entry.target] = (targetCounts[entry.target] ?? 0) + 1;
-	});
-	const chosenTarget = target ?? Object.keys(targetCounts).sort((a, b) => targetCounts[b] - targetCounts[a])[0];
-	const entries = allEntries.filter(entry => entry.target === chosenTarget);
-	if (!entries.length) {
-		console.error(`keine Einträge für ${chosenTarget ?? '(kein Ziel)'} auf ${machine} in ${logPath}`);
+	if (!allEntries.length) {
+		console.error(`keine Einträge für ${machine} in ${logPath}`);
 		process.exitCode = 1;
 	}
 	else {
-		const labels = [...new Set(entries.map(entry => entry.label))];
-		const rowCount = Math.ceil(labels.length / columnCount);
+		// Sammle alle unique Targets und Labels
+		const allTargets = target ? [target] : [...new Set(allEntries.map(e => e.target))];
+		const allLabels = [...new Set(allEntries.map(e => e.label))];
+
+		// Baue eine große SVG mit allen Targets übereinander
+		const columnCount = 2;
+		let totalHeight = 40; // Header
+		const targetSvgParts = [];
+
+		allTargets.forEach(chosenTarget => {
+			const entries = allEntries.filter(entry => entry.target === chosenTarget);
+			const labels = allLabels.filter(label => entries.some(e => e.label === label));
+			const rowCount = Math.ceil(labels.length / columnCount);
+			const gridWidth = columnCount * cellWidth;
+			const gridHeight = rowCount * cellHeight;
+
+			const cells = labels.map((label, index) => renderCell(
+				label,
+				entries.filter(entry => entry.label === label),
+				(index % columnCount) * cellWidth,
+				Math.floor(index / columnCount) * cellHeight,
+			)).join('');
+
+			const measurementCount = entries.length / labels.length;
+			const targetSection = `<g transform="translate(0 ${totalHeight})">`
+				+ `<rect x="0" y="0" width="${gridWidth}" height="30" fill="#f5f5f5"/>`
+				+ `<text x="${padding.left}" y="22" font-size="12" font-weight="bold" fill="#333">${escapeText(chosenTarget)}</text>`
+				+ `<text x="${gridWidth - 12}" y="22" text-anchor="end" font-size="9" fill="#888">${Math.round(measurementCount)} Messungen</text>`
+				+ `<g transform="translate(0 30)">${cells}</g>`
+				+ '</g>';
+
+			targetSvgParts.push(targetSection);
+			totalHeight += gridHeight + 30;
+		});
+
 		const width = columnCount * cellWidth;
-		const height = rowCount * cellHeight + 40;
-		const cells = labels.map((label, index) => renderCell(
-			label,
-			entries.filter(entry => entry.label === label),
-			(index % columnCount) * cellWidth,
-			40 + Math.floor(index / columnCount) * cellHeight,
-		)).join('');
-		const measurementCount = entries.length / labels.length;
+		const height = totalHeight + 20;
+
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" font-family="sans-serif">`
 			+ `<rect width="${width}" height="${height}" fill="#fff"/>`
-			+ `<text x="${padding.left}" y="22" font-size="13" font-weight="bold" fill="#333">${escapeText(`${chosenTarget} auf ${machine}`)}</text>`
-			+ `<text x="${width - 12}" y="22" text-anchor="end" font-size="10" fill="#888">${Math.round(measurementCount)} Messungen, Median in ms</text>`
-			+ cells
+			+ `<text x="${padding.left}" y="22" font-size="14" font-weight="bold" fill="#333">${escapeText(`Benchmarks auf ${machine}`)}</text>`
+			+ targetSvgParts.join('')
 			+ '</svg>';
+
 		const chartPath = outPath
 			? resolve(outPath)
 			: logPath.replace(/\.tsv$/, '.svg');
 		writeFileSync(chartPath, svg);
-		console.log(`${chartPath}: ${labels.length} Diagramm${labels.length === 1 ? '' : 'e'},`
-			+ ` ${Math.round(measurementCount)} Messung${Math.round(measurementCount) === 1 ? '' : 'en'}`);
+		console.log(`${chartPath}: ${allTargets.length} Target${allTargets.length === 1 ? '' : 's'}`);
 	}
 }
+
