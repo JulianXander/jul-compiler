@@ -27,3 +27,4 @@
 2026-09-10 14:59:54	9c22e50+	-	ADV-DEV-56627	yugioh	parse+check	5	10294.39	12595.79	12595.79	eine Diagnose statt zwei bei verschachtelten Dictionary-Literalen (findInnermostErrorPosition)
 2026-09-10 15:03:38	9c22e50+	-	ADV-DEV-56627	yugioh	parse+check	5	4046.82	8313.71	8313.71	Ein-Diagnose-Architektur: Position rekursiv zum innersten Fehler statt Zwei-Diagnosen-Elaboration
 2026-09-10 15:23:19	7db6623+	-	ADV-DEV-56627	yugioh	parse+check	5	3383.02	3579.17	3579.17	Feldname vor Erklaerung + Einrueckung pro Verschachtelungsebene (TS-Vorbild)
+2026-09-10 15:37:09	16c5e89+	-	ADV-DEV-56627	yugioh	parse+check	5	3515.81	3868.01	3868.01	typeToString: Leerzeichen statt Tabs fuer mehrzeilige Typen (dieselbe Einheit wie indentLines)

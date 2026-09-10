@@ -1178,7 +1178,7 @@ f(a = 1 b = 2)`,
 					"code": ErrorCode.dereferenceFailed,
 					"endColumnIndex": 5,
 					"endRowIndex": 0,
-					"message": "Failed to dereference myA1 in type [\n\ta: 1\n\tb: 2\n]",
+					"message": "Failed to dereference myA1 in type [\n  a: 1\n  b: 2\n]",
 					"startColumnIndex": 1,
 					"startRowIndex": 0,
 				},
@@ -1611,6 +1611,36 @@ x: Outer = [inner = [a = §wrong§]]`;
 				'    Can not assign [a: §wrong§] to Inner.',
 				'      Invalid value for field a',
 				'        Can not assign §wrong§ to Integer.',
+			].join('\n'),
+		]);
+	});
+
+	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): typeToString hat fuer mehrzeilige
+	// Typen (Tupel/Dictionary) eine EIGENE Einrueckung (`bracketedExpressionToString`, Tabs, own
+	// depth-Zaehler ab 0), die nichts von der Kettentiefe weiss, in die sie via indentLines
+	// eingebettet wird - Tabs und Leerzeichen mischen sich, die Verschachtelung sieht zufaellig
+	// aus statt konsistent. Ziel: typeToString nutzt dieselbe Leerzeichen-Einheit wie indentLines
+	// (2 Leerzeichen), dann fuegt sich die eigene Einrueckung sauber in jede Einbettungstiefe.
+	// Bewusst rot - noch nicht umgesetzt.
+	it('multiline-type-dump-uses-the-same-indent-unit-as-the-surrounding-chain', () => {
+		const code = `Inner = [a: [Integer Integer Integer Integer Integer Integer]]
+x: Inner = [a = []]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const messages = parsed.checked?.errors.map(error => error.message);
+		expect(messages).to.deep.equal([
+			[
+				'Definition type mismatch.',
+				'Can not assign x to Inner.',
+				'  Invalid value for field a',
+				'    Can not assign Empty to [',
+				'      Integer',
+				'      Integer',
+				'      Integer',
+				'      Integer',
+				'      Integer',
+				'      Integer',
+				'    ].',
 			].join('\n'),
 		]);
 	});

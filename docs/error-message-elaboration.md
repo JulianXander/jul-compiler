@@ -43,12 +43,20 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   die Stelle zu. Bewusste Rückkehr zur Dopplung, die für kurze Meldungen zuvor entfernt worden
   war (Session 2026-09-10). Steht am Zeilenende (nicht davor), damit die Meldung selbst zuerst
   lesbar ist.
-- Feldname steht vor statt hinter der Erklärung, die er einleitet, mit einer Tab-Einrückung pro
-  Verschachtelungsebene (`getDictionaryFieldError`/`indentLines` in checker.ts, nach
-  TypeScript-Vorbild): vorher hingen alle `Invalid value for field X`-Zeilen ans Ende der Kette,
-  in umgekehrter Verschachtelungsreihenfolge (innerstes Feld zuerst) - man musste sie im Kopf der
-  richtigen Ebene der Typ-Kette zuordnen. Jetzt liest sich die Kette durchgehend außen nach innen,
-  jede Zeile eine Ebene tiefer eingerückt als die vorige.
+- Feldname steht vor statt hinter der Erklärung, die er einleitet, mit einer Einrückung (2
+  Leerzeichen, nicht Tabs - generierter Diagnosetext, kein Quellcode, ein Tab-Zeichen rendert je
+  nach Terminal/Editor-Tabstop unterschiedlich breit) pro Verschachtelungsebene
+  (`getDictionaryFieldError`/`indentLines` in checker.ts, nach TypeScript-Vorbild): vorher hingen
+  alle `Invalid value for field X`-Zeilen ans Ende der Kette, in umgekehrter
+  Verschachtelungsreihenfolge (innerstes Feld zuerst) - man musste sie im Kopf der richtigen Ebene
+  der Typ-Kette zuordnen. Jetzt liest sich die Kette durchgehend außen nach innen, jede Zeile eine
+  Ebene tiefer eingerückt als die vorige.
+- `typeToString`s eigene Mehrzeilen-Darstellung (Tupel/Dictionary, `bracketedExpressionToString`)
+  nutzt jetzt dieselbe Einrückungseinheit wie `indentLines` (2 Leerzeichen statt Tabs) - vorher
+  mischten sich Tabs und Leerzeichen, sobald ein mehrzeiliger Typ-Dump in eine bereits
+  eingerückte Fehlerkette eingebettet wurde, die Verschachtelung sah dann zufällig aus statt
+  konsistent (Fund im echten yugioh-Fehlerbild, Session 2026-09-10). Behebt nur die Darstellung,
+  nicht den unhandlichen Typ-Dump selbst - siehe "Offen" unten.
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 
@@ -56,7 +64,10 @@ Die Dedup identischer *aufeinanderfolgender* Sub-Meldungen ist umgesetzt (siehe 
 deckt den häufigsten Fall ab: mehrere Elemente mit gleichem Zieltyp, sowohl bei Tupel- als auch
 bei Listen-Zielen. Offen bleiben **echte Positionen je Element**: baut auf der noch nicht
 existierenden Elaboration für Tupel-/Listen-**Literale** auf (bisher nur für Dictionary-Literale
-umgesetzt). Ein reiner Zähler (`3×`) verschleiert, welche Elemente betroffen sind; Indizes in
+umgesetzt). Ergänzt, nicht ersetzt durch die oben behobene Einrückungs-Konsistenz: die betrifft
+nur den Fall mit Literal-Elaboration, ein Typ-Dump ohne Positionsbezug bleibt bei jedem
+hinreichend komplexen Typ (auch ohne Tupel-/Listen-Literal, z.B. ein `Dictionary`-Ziel mit vielen
+Feldern) bestehen. Ein reiner Zähler (`3×`) verschleiert, welche Elemente betroffen sind; Indizes in
 Prosa (`elements 1, 2, 3`) wären nur ein Fallback für den Fall ohne Literal (z.B. ein Parameter
 wie `row: Row` ohne eigene Element-Positionen) - andere Sprachen (TypeScript, Elm) lösen das
 stattdessen über echte Positionen je Element, wenn ein Literal vorliegt. Ein vorher

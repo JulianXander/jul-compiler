@@ -1,7 +1,7 @@
 === autocomplete.jul ===
-MyType: TypeOf([ 	field1: Integer 	someOtherField: Text 	function: () :> Text ])
-a: [ 	f1: 4 	f2: §asdf§ 	f3: () :> 4 ]
-myFn: ( 	par1: MyType 	par2: Integer ) :> Integer
+MyType: TypeOf([   field1: Integer   someOtherField: Text   function: () :> Text ])
+a: [   f1: 4   f2: §asdf§   f3: () :> 4 ]
+myFn: (   par1: MyType   par2: Integer ) :> Integer
 myValue: [field1: Any]
   error 1151 at 10:2 Expected a nested key
   error 1151 at 29:6 Expected a nested key
@@ -9,14 +9,14 @@ myValue: [field1: Any]
   error 2202 at 37:2 assignedValue missing for singleDictionaryField
   error 1050 at 42:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 5000 at 33:1 Definition type mismatch. | Can not assign myValue to MyType. |   Missing fields: someOtherField, function.
-  error 5050 at 40:1 Argument type mismatch. | Can not assign Empty to [ | 	field1: Integer | 	someOtherField: Text | 	function: () :> Text | ].
-  error 5050 at 49:1 Argument type mismatch. | Can not assign Empty to [ | 	field1: Integer | 	someOtherField: Text | 	function: () :> Text | ].
+  error 5050 at 40:1 Argument type mismatch. | Can not assign Empty to [ |   field1: Integer |   someOtherField: Text |   function: () :> Text | ].
+  error 5050 at 49:1 Argument type mismatch. | Can not assign Empty to [ |   field1: Integer |   someOtherField: Text |   function: () :> Text | ].
 === bracketed-expression-example.jul ===
 inlineList: [1 4]
-inlineObj: [ 	a: 1 	b: 4 ]
+inlineObj: [   a: 1   b: 4 ]
 multiLineList: [1 2 5 Any]
 multiLineObj: Any
-someVar: [ 	1 	2 	1 	4 	4 	5 ]
+someVar: [   1   2   1   4   4   5 ]
   error 2401 at 52:4 Rest argument must be last.
   error 4001 at 69:3 a is not defined.
   error 4001 at 69:5 b is not defined.
@@ -34,7 +34,7 @@ timer1$: Stream(Float)
 counter$: Stream(Float)
 === fibonacci/fibonacci.jul ===
 fibonacci: (x: Integer) :> Any
-fibonacciHelper: ( 	countdown: Integer 	current: Integer 	previous: Integer ) :> Any
+fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) :> Any
 test: Any
 === fizz-buzz/fizz-buzz-recursive.jul ===
 divisibleBy: (divisor: Not(0)) :> (dividend: Integer) :> Boolean
@@ -42,22 +42,22 @@ fizzBuzz: (index: And(Integer Greater(0))) :> Empty
 === fizz-buzz/fizz-buzz.jul ===
 divisibleBy: (divisor: Not(0)) :> (dividend: Integer) :> Boolean
 === function-call.jul ===
-MyType: TypeOf([ 	a: 1 	b: 2 ])
-aliasFn: ( 	a: Boolean 	b: Any ) :> Empty
-fn1: ( 	a: Boolean 	b: Text ) :> Empty
-fn2: ( 	b: Text 	a: Boolean ) :> Empty
-higherOrderFn: (fn: ( 	a: Boolean 	b: Text ) :> Empty) :> Empty
-myDictionary: [ 	a: 1 	b: 2 ]
-myDictionary1: [ 	b: 2 	a: 1 ]
-myFunction: ( 	a: Any 	b: Any ) :> Empty
+MyType: TypeOf([   a: 1   b: 2 ])
+aliasFn: (   a: Boolean   b: Any ) :> Empty
+fn1: (   a: Boolean   b: Text ) :> Empty
+fn2: (   b: Text   a: Boolean ) :> Empty
+higherOrderFn: (fn: (   a: Boolean   b: Text ) :> Empty) :> Empty
+myDictionary: [   a: 1   b: 2 ]
+myDictionary1: [   b: 2   a: 1 ]
+myFunction: (   a: Any   b: Any ) :> Empty
 myFunction1: (a: MyType) :> Empty
-myFunction4: ( 	a: 1 	b: 2 ) :> Empty
+myFunction4: (   a: 1   b: 2 ) :> Empty
 myList: [1 2]
 primitiveTypeFunction: Integer :> Empty
 restFunction: (...restParameter: Any) :> Empty
 restFunction2: (...restParameter: MyType) :> Empty
 typeFunction: MyType :> Empty
-  error 5050 at 48:1 Argument type mismatch. | Can not assign [[ | 	a: 1 | 	b: 2 | ]] to [ | 	a: 1 | 	b: 2 | ].
+  error 5050 at 48:1 Argument type mismatch. | Can not assign [[ |   a: 1 |   b: 2 | ]] to [ |   a: 1 |   b: 2 | ].
   error 5003 at 53:25 Expected the params type to describe an argument collection. Did you mean [Integer]?
   error 5050 at 54:1 Argument type mismatch. | Can not assign [1] to Integer.
   error 5050 at 70:1 Argument type mismatch. | Can not assign dictionary to rest parameter
@@ -70,26 +70,26 @@ someText: §test token 1§
 === import/import.jul ===
 MyType: TypeOf([hallo: Integer])
 alias: (value: Text) :> Empty
-file2: [ 	someText: §test token 1§ 	logText: (value: Text) :> Empty 	MyType: TypeOf(MyType) ]
-javascriptImport: [ 	testfn1: (par1: Any) :> Any 	testfn2: (par1: Any) :> Any 	test: §hello js§ 	test2: 4f ]
+file2: [   someText: §test token 1§   logText: (value: Text) :> Empty   MyType: TypeOf(MyType) ]
+javascriptImport: [   testfn1: (par1: Any) :> Any   testfn2: (par1: Any) :> Any   test: §hello js§   test2: 4f ]
 jsonImport: §hello json§
 someText: §test token 1§
 test1: [hallo: 1]
-typescriptImport: [ 	test: §hello ts§ 	test2: 4f 	testfn1: (par1: Any) :> Any 	testfn2: (par1: Any) :> Any ]
+typescriptImport: [   test: §hello ts§   test2: 4f   testfn1: (par1: Any) :> Any   testfn2: (par1: Any) :> Any ]
 valueImport: 15
 yamlImport: §hello yaml§
   error 1151 at 20:3 Expected a nested key
 === object-example.jul ===
 myDictValue1: 1
 myDictValue2: 1234
-myDictionary: [ 	a: 1 	b: 2 	c: 3 ]
-myDictionary2: [ 	a: 1 	b: [ 		b1: 1 		b2: 112344 		b3: 1234 	] 	c: 3 ]
-myDictionary3: [ 	a: 1 	b: 2 	c: 30 ]
-myDictionary4: [ 	a: 1 	b: [ 		b1: 1 		b2: 112344 		a: 1 		b: 2 		c: 3 		b3: 1234 	] 	c: 3 ]
+myDictionary: [   a: 1   b: 2   c: 3 ]
+myDictionary2: [   a: 1   b: [     b1: 1     b2: 112344     b3: 1234   ]   c: 3 ]
+myDictionary3: [   a: 1   b: 2   c: 30 ]
+myDictionary4: [   a: 1   b: [     b1: 1     b2: 112344     a: 1     b: 2     c: 3     b3: 1234   ]   c: 3 ]
 myList: [1 2 3]
 myList2: [1 [21 22 23] 3]
-myList3: [ 	10 	20 	1 	2 	3 	30 ]
-myList4: [ 	1 	2 	1 	2 	3 	4 ]
+myList3: [   10   20   1   2   3   30 ]
+myList4: [   1   2   1   2   3   4 ]
 myListValue: 1
 myListValue2: 21
 === stream.jul ===
@@ -132,8 +132,8 @@ t3: TypeOf(Not(true))
 testAnd1: 4
 testAnd2: 5
 testAnd3: 6
-testAnd4: [ 	a: 4 	b: 5 ]
-testAnd5: [ 	a: 4 	b: 6 ]
+testAnd4: [   a: 4   b: 5 ]
+testAnd5: [   a: 4   b: 6 ]
 testBoolean1: true
 testBoolean2: 6
 testBooleanLiteral: 4
@@ -142,8 +142,8 @@ testDictionary2: [a: 4]
 testDictionary3: Empty
 testDictionaryLiteral1: [a: 4]
 testDictionaryLiteral2: [a: 6]
-testDictionaryLiteral3: [ 	a: 4 	b: 6 ]
-testDictionaryLiteral3a: [ 	a: 4 	b: 6 ]
+testDictionaryLiteral3: [   a: 4   b: 6 ]
+testDictionaryLiteral3a: [   a: 4   b: 6 ]
 testDictionaryLiteral4: [a: [b: 4]]
 testDictionaryLiteral5: [a: [b: 5]]
 testDictionaryLiteral6: [a: [b: 4f]]
@@ -165,7 +165,7 @@ testList1: [§aa§]
 testList2: [§aa§ 4]
 testList3: Empty
 testNonZeroInteger1: -2
-testNonZeroInteger2: [ 	numerator: 35 	denominator: 10 ]
+testNonZeroInteger2: [   numerator: 35   denominator: 10 ]
 testNot1: true
 testNot2: false
 testOr1: 4
@@ -196,7 +196,7 @@ testWithout21: true
   error 5000 at 48:1 Definition type mismatch. | Can not assign 6 to 4. | Can not assign 6 to 5.
   error 5000 at 54:1 Definition type mismatch. | Can not assign 5 to Never.
   error 5000 at 56:1 Definition type mismatch. | Can not assign 6 to Never.
-  error 5000 at 71:6 Definition type mismatch. | Can not assign testAnd5 to [ | 	a: 4 | 	b: 5 | ]. |   Invalid value for field b |     Can not assign 6 to 5.
+  error 5000 at 71:6 Definition type mismatch. | Can not assign testAnd5 to [ |   a: 4 |   b: 5 | ]. |   Invalid value for field b |     Can not assign 6 to 5.
   error 5000 at 74:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 84:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 85:1 Definition type mismatch. | Can not assign true to Not(true).
@@ -208,15 +208,15 @@ testWithout21: true
   error 5000 at 120:43 Definition type mismatch. | Can not assign testDictionaryLiteral6 to [a: Float]. |   Invalid value for field a |     Can not assign [b: 4f] to Float.
   error 5000 at 126:42 Definition type mismatch. | Invalid value for field a |   Can not assign 4 to Text.
   error 5000 at 128:1 Definition type mismatch. | Can not assign Empty to Dictionary(Text).
-  error 5050 at 132:1 Argument type mismatch. | Can not assign Empty to Integer. | Can not assign Empty to [ | 	numerator: Integer | 	denominator: Integer | ].
+  error 5050 at 132:1 Argument type mismatch. | Can not assign Empty to Integer. | Can not assign Empty to [ |   numerator: Integer |   denominator: Integer | ].
 === type-function.jul ===
-BlubType: TypeOf([ 	a: List(Text) 	b: Or(Empty Text) ])
+BlubType: TypeOf([   a: List(Text)   b: Or(Empty Text) ])
 arg1: true
 b: 2
-higherOrderFn: (lowerFn: ( 	arg1: Text 	arg2: Boolean ) :> Empty) :> Empty
+higherOrderFn: (lowerFn: (   arg1: Text   arg2: Boolean ) :> Empty) :> Empty
 myA1: NO TYPE
-parameterFn2: (x: [ 	blobNames: List(Text) 	nextMarker: Or(Empty Text) ]) :> Empty
-paramterFn: ( 	blobNames: List(Text) 	nextMarker: Or(Empty Text) ) :> Empty
+parameterFn2: (x: [   blobNames: List(Text)   nextMarker: Or(Empty Text) ]) :> Empty
+paramterFn: (   blobNames: List(Text)   nextMarker: Or(Empty Text) ) :> Empty
 typeFnLong: Any
 typeFnShort: BlubType :> Empty
   error 2100 at 7:1 assignedValue missing for definition
@@ -230,19 +230,19 @@ typeFnShort: BlubType :> Empty
   error 1102 at 35:17 multilineParser should parse until end of row
   error 1050 at 36:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 1050 at 37:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
-  error 5160 at 19:2 Failed to dereference myA1 in type [ | 	a: [ | 		a1: 1 | 		b1: 3 | 	] | 	b: 2 | ]
+  error 5160 at 19:2 Failed to dereference myA1 in type [ |   a: [ |     a1: 1 |     b1: 3 |   ] |   b: 2 | ]
   error 4003 at 24:28 arg1 is already defined in upper scope
-  error 5002 at 24:27 Can not assign ( | 	arg1: Text | 	arg2: Boolean | ) :> Empty to Type.
+  error 5002 at 24:27 Can not assign ( |   arg1: Text |   arg2: Boolean | ) :> Empty to Type.
   error 5050 at 27:1 Argument type mismatch. | Parameter name mismatch. Got arg1 but expected arg2
 === type-switch.jul ===
 someVar: 32
   error 4001 at 6:3 Number is not defined.
 === types.jul ===
-Article: TypeOf([ 	name: Text 	price: Any 	color: Text ])
+Article: TypeOf([   name: Text   price: Any   color: Text ])
 Even: (num: Integer) :> Boolean
 Number: Boolean
 ParserResult: (TypeParam: Text) :> Any :> Boolean
-addNums: (T: Boolean) :> ( 	num1: Boolean 	num2: Boolean ) :> [Boolean Boolean]
+addNums: (T: Boolean) :> (   num1: Boolean   num2: Boolean ) :> [Boolean Boolean]
 myVar: 3
 myVarIsText: Any
   error 1102 at 15:26 multilineParser should parse until end of row

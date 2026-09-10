@@ -84,6 +84,16 @@ export function resetCheckerStats(): void {
 const maxElementsPerLine = 5;
 
 /**
+ * Einheit fuer eine Einrueckungsebene in generiertem Diagnosetext (Fehlerketten, Typ-Dumps) -
+ * geteilt zwischen indentLines und bracketedExpressionToString, damit beide nie auseinanderlaufen
+ * (Fund im echten yugioh-Fehlerbild: Tabs vs. Leerzeichen mischten sich, weil beide Stellen ihre
+ * eigene Einrueckung hatten). Leerzeichen statt Tabs: das ist generierter Diagnosetext, kein
+ * Quellcode (JULs Tab-Konvention gilt dort) - ein Tab-Zeichen rendert je nach Terminal/Editor-
+ * Tabstop unterschiedlich breit, Leerzeichen sind ueberall gleich breit.
+ */
+const indentUnit = '  ';
+
+/**
  * Ab wie vielen Choices die Teilmengen-Elimination in createNormalizedUnionType übersprungen
  * wird, um O(n²) getTypeError-Aufrufe bei großen Unions zu vermeiden (wie TypeScript es bei
  * getUnionType(..., UnionReduction.Subtype) macht). Wert durch Messung belegt, nicht geschätzt.
@@ -4084,13 +4094,10 @@ function typeErrorToString(typeError: TypeError): string {
 /**
  * Rueckt jede Zeile eines mehrzeiligen Fehlertexts eine Ebene tiefer - fuer verschachtelte
  * Dictionary-Felder, damit die Tiefe beim Lesen sichtbar ist (TypeScript-Vorbild), statt nur
- * ueber die Abfolge von Typ-Mismatch/Feldname-Zeilen erschlossen werden zu muessen. Leerzeichen
- * statt Tabs: das ist generierter Diagnosetext, kein Quellcode (JULs Tab-Konvention gilt dort) -
- * ein Tab-Zeichen rendert je nach Terminal/Editor-Tabstop unterschiedlich breit, Leerzeichen sind
- * ueberall gleich breit.
+ * ueber die Abfolge von Typ-Mismatch/Feldname-Zeilen erschlossen werden zu muessen.
  */
 function indentLines(text: string): string {
-	return text.split('\n').map(line => `  ${line}`).join('\n');
+	return text.split('\n').map(line => `${indentUnit}${line}`).join('\n');
 }
 
 //#endregion TypeError
@@ -4240,7 +4247,10 @@ function bracketedExpressionToString(
 	indent: number,
 	kind: 'round' | 'square' = 'square',
 ): string {
-	const indentString = '\t'.repeat(indent + 1);
+	// Dieselbe Einheit wie indentLines (indentUnit) - sonst mischen sich Tabs und Leerzeichen,
+	// sobald dieser Dump in eine bereits eingerueckte Fehlerkette eingebettet wird (Fund im
+	// echten yugioh-Fehlerbild, Session 2026-09-10).
+	const indentString = indentUnit.repeat(indent + 1);
 	const openingBracketSeparator = multiline
 		? '\n' + indentString
 		: '';
@@ -4248,7 +4258,7 @@ function bracketedExpressionToString(
 		? '\n' + indentString
 		: ' ';
 	const closingBracketSeparator = multiline
-		? '\n' + '\t'.repeat(indent)
+		? '\n' + indentUnit.repeat(indent)
 		: '';
 	const [opening, closing] = kind === 'round'
 		? ['(', ')']
