@@ -257,16 +257,41 @@ auf beide Kriterien (reines CLI-Rendering) und damit nach diesen Kriterien nicht
 Noch nicht umgesetzt - vor jeder Umsetzung roter Test zuerst (analog Schritt 1 oben), dann
 Umsetzung, dann Bench (insbesondere für C1/D wegen der Payload-Frage).
 
-### Empfehlung: A + B + C1
+### Erledigt: A + B + C1 umgesetzt
 
 Nach `design-principles.md`: Fehlermeldungen sprechen vom Quelltext des Nutzers, nicht von
 Compiler-Interna (Prinzip 1, Klarheit) - das erfüllen A, B und C1 alle drei, keins verweist auf
 Compiler-Internas. "Klarheit schlägt Vertrautheit" heißt aber auch: dass andere Sprachen es so
-machen, ist für sich kein Argument - C1 ist nur deshalb empfohlen, weil es selbst die "warum"-
-Frage beantwortet, nicht weil Rust es tut. B muss nach Einheitlichkeit (Prinzip 3) an **allen**
-Push-Stellen mit Rollenwort eingeführt werden (`definitionTypeMismatch`, `argumentTypeMismatch`,
-`returnTypeMismatch`), nicht nur bei der Rückgabe - sonst entstünde genau die verbotene Situation
-"zwei Fehlerarten, gleiche Struktur, unterschiedlich behandelt ohne Grund".
+machen, ist für sich kein Argument - C1 ist nur deshalb umgesetzt, weil es selbst die "warum"-
+Frage beantwortet, nicht weil Rust es tut. B wurde nach Einheitlichkeit (Prinzip 3) an **allen**
+Push-Stellen mit Rollenwort eingeführt (`definitionTypeMismatch`, `argumentTypeMismatch`,
+`returnTypeMismatch`), nicht nur bei der Rückgabe - sonst wäre genau die verbotene Situation
+"zwei Fehlerarten, gleiche Struktur, unterschiedlich behandelt ohne Grund" entstanden. D bleibt
+zurückgestellt (siehe oben), C2 wurde nicht priorisiert (kein Effekt auf Klarheit/LSP-Performance
+über C1 hinaus, reines CLI-Rendering).
+
+Umsetzung:
+- **A**: Kopfzeile in `getTypeError`s `case 'dictionaryLiteral':` (checker.ts), ruft
+  `typeToString(..., 0, 1)` statt `depth=0` auf - erzwingt die Alias-Anzeige (`GameBoard` statt
+  voller Feld-Dump) auch auf dieser obersten Vergleichsebene, da `typeToString` Aliase sonst nur
+  ab `depth>0` zeigt (empirisch verifiziert, nicht nur aus dem Code geschlossen).
+- **B**: Präfix an allen drei Push-Stellen (`Definition type mismatch.`, `Argument type
+  mismatch.`, `Return type mismatch.`).
+- **C1**: `CompilerError` (compiler-errors.ts) um optionales `relatedInformation` (Message +
+  Position) erweitert; am `returnTypeMismatch`-Push-Ort mit der Position von `declaredReturnType`
+  befüllt (Typ dort über `valueOf(resolvePlaceholders(...))`, nicht der rohe `TypeOf(...)`-Meta-
+  Typ - sonst hätte die Meldung `Declared as TypeOf(Text) here.` statt `Declared as Text here.`
+  gezeigt, an einem Testlauf gefunden). `formatErrors` (compiler.ts, CLI) druckt die Zeile
+  zusätzlich als Text; `server.ts` aktiviert das schon vorhandene, zuvor auskommentierte
+  `relatedInformation`-Boilerplate.
+
+Rot belegt (`checker.test.ts`): bestehende Tests mit `Definition type mismatch.`/
+`Argument type mismatch.`/`Return type mismatch.`-Präfix aktualisiert (Format geändert, Verhalten
+unverändert), `map-callback-parameter-infers-element-type-through-alias` um die
+`relatedInformation`-Erwartung ergänzt. `npm test` (208 Tests), `npm run typecheck` und der Build
+von `jul-language-server` grün. Bench vor/nach C1: +10 % ggü. der letzten Messung, aber
+`getTypeError`-Aufrufzahl identisch (492817) - reine Laufzeitstreuung zwischen Durchläufen, weit
+unter der Alarmschwelle, keine algorithmische Regression.
 
 Beispiel-Endzustand am realen `draw()`-Fund (`game-logic.jul:1837`, deklariert `:> GameBoard`,
 liefert tatsächlich `GameState`):
@@ -276,7 +301,7 @@ liefert tatsächlich `GameState`):
 game-logic.jul:1837:8 - TypeError JUL5100: Return type mismatch.
 Can not assign GameState to GameBoard.
 Missing fields: monsters, spellTraps, lifePoints, skippedDrawPhaseCount.
-  declared as GameBoard here: game-logic.jul:1828:15
+  Declared as GameBoard here. game-logic.jul:1828:15
 ```
 
 **Im Editor (VS Code) zusätzlich:** dieselbe Diagnose, die letzte Zeile aber als eigener,
@@ -288,8 +313,8 @@ Zeile für Zeile den drei Bausteinen zugeordnet:
   nächsten Zeile, sonst Dopplung).
 - `Can not assign GameState to GameBoard.` - A, die generische Kopfzeile aus
   `getDictionaryLiteralTypeError`, unverändert an jeder Stelle (Definition/Argument/Rückgabe).
-- `Missing fields: ...` - bereits umgesetzt, siehe "Erledigt" oben.
-- `declared as GameBoard here: ...` - C1, im CLI eine zusätzliche Textzeile mit Position, im
+- `Missing fields: ...` - bereits umgesetzt, siehe "Erledigt: Missing-field-Meldungen" oben.
+- `Declared as GameBoard here. ...` - C1, im CLI eine zusätzliche Textzeile mit Position, im
   Editor die klickbare `relatedInformation`-Referenz auf dieselbe `CompilerError`-Erweiterung.
 
 ## Optionale spätere Verbesserung: Darstellung im Language Server

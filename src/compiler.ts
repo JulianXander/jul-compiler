@@ -254,7 +254,14 @@ function formatErrors(filePath: string, errors: CompilerError[]): string {
 		const { type, severity } = errorInfos[error.code];
 		const errorLabel = colorize(errorTypeLabels[type] + errorSeverityLabels[severity], ConsoleColor.lightRed);
 		const errorCode = colorize(`JUL${error.code}`, ConsoleColor.lightRed);
-		return `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel} ${errorCode}: ${error.message}`;
+		const mainLine = `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel} ${errorCode}: ${error.message}`;
+		const related = error.relatedInformation;
+		if (!related) {
+			return mainLine;
+		}
+		const relatedRow = colorize(related.startRowIndex + 1, ConsoleColor.yellow);
+		const relatedColumn = colorize(related.startColumnIndex + 1, ConsoleColor.yellow);
+		return `${mainLine}\n  ${related.message} ${errorPath}:${relatedRow}:${relatedColumn}`;
 	}).join('\n');
 }
 function formatDuration(startTime: number): string {

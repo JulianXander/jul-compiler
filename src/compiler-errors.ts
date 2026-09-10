@@ -211,6 +211,15 @@ export interface CompilerError extends Positioned {
 	code: ErrorCode;
 	message: string;
 	// TODO isFatal?
+	/**
+	 * Zusätzlicher Verweis auf eine zweite Stelle im Quelltext, die den Fehler erklärt (z.B. die
+	 * Deklaration eines Rückgabetyps) - additiv, ersetzt startRowIndex/... nicht. Von CLI
+	 * (formatErrors) als zusätzliche Textzeile und vom Language Server als
+	 * `Diagnostic.relatedInformation` genutzt.
+	 */
+	relatedInformation?: {
+		message: string;
+	} & Positioned;
 }
 
 export interface Positioned {

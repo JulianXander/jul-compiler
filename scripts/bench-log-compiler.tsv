@@ -18,3 +18,5 @@
 2026-09-10 10:35:04	bd049c8+	-	ADV-DEV-56627	yugioh	parse+check	5	3495.44	3881.51	3881.51	spread-complete-final
 2026-09-10 12:19:19	139fbde+	-	ADV-DEV-56627	yugioh	parse+check	5	3460.11	3712.18	3712.18	vor Missing-field Sammelzeile
 2026-09-10 12:22:12	139fbde+	-	ADV-DEV-56627	yugioh	parse+check	5	3402.61	3506.10	3506.10	nach Missing-field Sammelzeile
+2026-09-10 12:38:01	9d05a26+	-	ADV-DEV-56627	yugioh	parse+check	5	3627.45	3860.41	3860.41	vor C1 (nach A+B)
+2026-09-10 12:41:04	9d05a26+	-	ADV-DEV-56627	yugioh	parse+check	5	3993.20	4378.42	4378.42	nach C1 (A+B+C1 komplett)

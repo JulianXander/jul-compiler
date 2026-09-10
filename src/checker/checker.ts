@@ -1541,7 +1541,7 @@ function inferType(
 				if (assignmentError) {
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
-						message: assignmentError,
+						message: `Definition type mismatch.\n${assignmentError}`,
 						startRowIndex: expression.startRowIndex,
 						startColumnIndex: expression.startColumnIndex,
 						endRowIndex: expression.endRowIndex,
@@ -1801,7 +1801,7 @@ function inferType(
 			if (assignArgsError) {
 				errors.push({
 					code: ErrorCode.argumentTypeMismatch,
-					message: assignArgsError,
+					message: `Argument type mismatch.\n${assignArgsError}`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,
@@ -1884,19 +1884,30 @@ function inferType(
 			let returnType = inferredReturnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, branchTypeContext, parsedDocuments, folder, file, filePath);
-				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type)));
+				const declaredReturnValueType = valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type));
+				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), declaredReturnValueType);
 				if (error) {
 					errors.push({
 						code: ErrorCode.returnTypeMismatch,
-						message: error,
+						message: `Return type mismatch.\n${error}`,
 						startRowIndex: expression.startRowIndex,
 						startColumnIndex: expression.startColumnIndex,
 						endRowIndex: expression.endRowIndex,
 						endColumnIndex: expression.endColumnIndex,
+						// Verweist auf die Deklaration, damit sichtbar wird, WARUM der Zieltyp
+						// gilt - besonders bei langen Funktionsrümpfen, wo die Signatur beim
+						// Lesen der Rückgabe längst nicht mehr im Bild ist.
+						relatedInformation: {
+							message: `Declared as ${typeToString(declaredReturnValueType, 0, 1)} here.`,
+							startRowIndex: declaredReturnType.startRowIndex,
+							startColumnIndex: declaredReturnType.startColumnIndex,
+							endRowIndex: declaredReturnType.endRowIndex,
+							endColumnIndex: declaredReturnType.endColumnIndex,
+						},
 					});
 				}
 				else if (inferredReturnType.julType === 'any') {
-					returnType = valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type));
+					returnType = declaredReturnValueType;
 				}
 			}
 			functionType.ReturnType = returnType;
@@ -3487,7 +3498,15 @@ export function getTypeError(
 				// Standardfehler
 				break;
 			}
-			return error;
+			if (!error) {
+				return undefined;
+			}
+			// depth=1 statt 0 erzwingt die Alias-Anzeige auch auf dieser obersten
+			// Vergleichsebene (typeToString zeigt Aliase nur ab depth>0) - sonst würde z.B.
+			// GameBoard hier voll ausgeschrieben statt als kurzer Name.
+			return {
+				message: `Can not assign ${typeToString(argumentsType, 0, 1)} to ${typeToString(targetType, 0, 1)}.\n${error.message}`,
+			};
 		}
 		case 'empty':
 			if (argumentsType.julType === 'empty') {
