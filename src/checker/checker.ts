@@ -3911,19 +3911,9 @@ function elaborateDictionaryFieldError(
 		field.type === 'singleDictionaryField'
 		&& getCheckedEscapableName(field.name) === fieldName);
 	if (!fieldExpression || fieldExpression.type !== 'singleDictionaryField') {
-		if (isFieldOptional(fieldTargetType, undefined)) {
-			return;
-		}
-		// Kein Typ-Dump wie bei der Hauptmeldung: der erwartete Typ steht bereits an der
-		// Zieltyp-Deklaration, ihn hier zu wiederholen waere reines Rauschen.
-		errors.push({
-			code: ErrorCode.definitionTypeMismatch,
-			message: `Missing field ${fieldName}.`,
-			startRowIndex: value.startRowIndex,
-			startColumnIndex: value.startColumnIndex,
-			endRowIndex: value.endRowIndex,
-			endColumnIndex: value.endColumnIndex,
-		});
+		// Kein Feld-Ausdruck vorhanden, also auch keine praezisere Position als die
+		// Hauptmeldung schon zeigt (dieselbe Literal-Klammer) - eine zweite CompilerError mit
+		// identischem Text waere reine Verdopplung, "Missing field X." steht schon dort drin.
 		return;
 	}
 	const fieldValue = fieldExpression.value;

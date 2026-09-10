@@ -27,6 +27,12 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   im Nachbar-Codepfad Ziel `List(X)` mit Tupel-Literal als Wert (`getTypeError`s
   `case 'list': case 'tuple':`) - Fund: eine `List(GameBoard)` mit mehreren strukturell
   identischen Boards erzeugte denselben mehrzeiligen Fehler mehrfach hintereinander.
+- Redundante Elaboration bei fehlendem Dictionary-Feld entfernt (`elaborateDictionaryFieldError`):
+  fehlt ein Feld komplett, gibt es keinen Feld-Ausdruck, auf den man präziser zeigen könnte, als
+  es die Hauptmeldung (`Missing field X.`) schon tut - dieselbe Literal-Klammer wurde davor ein
+  zweites Mal als eigene `CompilerError` gemeldet. Seit dem Rust-Code-Frame (C2) macht das aus
+  einer kurzen Zusatzzeile einen kompletten zweiten mehrzeiligen Frame. Elaboration bleibt nur für
+  **falsche Feldwerte**, dort zeigt sie auf den konkreten Feldwert - enger als die Hauptmeldung.
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 

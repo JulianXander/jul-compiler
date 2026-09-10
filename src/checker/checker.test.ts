@@ -699,8 +699,12 @@ d/a`,
 			// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 			// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
 			// ob sein Wert tatsächlich Empty ist - deshalb eine eigene, eindeutige Meldung.
-			// Die zweite Meldung ist die Elaboration (docs/error-message-elaboration.md): sie
-			// zeigt zusätzlich direkt auf das Dictionary-Literal, dem das Feld fehlt.
+			// KEINE zusätzliche Elaboration (anders als bei falschen Feldwerten): fehlt ein Feld,
+			// gibt es keinen Feld-Ausdruck, auf den man praeziser zeigen koennte, als es die
+			// Hauptmeldung schon tut (dieselbe Literal-Klammer) - eine zweite CompilerError mit
+			// identischem Text an fast derselben Position waere reine Verdopplung, besonders
+			// sichtbar seit dem Rust-Code-Frame (C2): zwei fast gleiche mehrzeilige Frames statt
+			// einem. Fund: docs/error-message-elaboration.md, Session 2026-09-10.
 			name: 'missing-dictionary-field-has-distinct-message',
 			code: `T = [a: Integer b: Text]
 x: T = [a = 1]`,
@@ -710,14 +714,6 @@ x: T = [a = 1]`,
 					message: 'Definition type mismatch.\nCan not assign x to T.\nMissing field b.',
 					startRowIndex: 1,
 					startColumnIndex: 0,
-					endRowIndex: 1,
-					endColumnIndex: 14,
-				},
-				{
-					code: ErrorCode.definitionTypeMismatch,
-					message: 'Missing field b.',
-					startRowIndex: 1,
-					startColumnIndex: 7,
 					endRowIndex: 1,
 					endColumnIndex: 14,
 				},
@@ -1553,7 +1549,9 @@ describe('Checker', () => {
 	// Dictionary-Ziel ein Feld komplett, gibt es keinen Wert zum Vergleichen - der erwartete Typ
 	// steht bereits an der Zieltyp-Deklaration selbst. TypeScript/Rust/Elm/GHC schreiben ihn dort
 	// deshalb nicht noch einmal aus, TypeScript sammelt mehrere fehlende Felder zusätzlich in
-	// einer Zeile. Siehe docs/missing-field-message-format.md.
+	// einer Zeile. Siehe docs/missing-field-message-format.md. Keine separate Elaboration-Zeile
+	// je fehlendem Feld (Fund Session 2026-09-10): ohne Feld-Ausdruck gibt es keine praezisere
+	// Position als die Hauptmeldung schon zeigt - eine zweite CompilerError waere nur Verdopplung.
 	it('missing-fields-are-collected-in-one-line', () => {
 		const code = `T = [a: Integer b: Text c: Boolean]
 x: T = [a = 1]`;
@@ -1562,8 +1560,6 @@ x: T = [a = 1]`;
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
 			'Definition type mismatch.\nCan not assign x to T.\nMissing fields: b, c.',
-			'Missing field b.',
-			'Missing field c.',
 		]);
 	});
 	// Gegenprobe: bei genau einem fehlenden Feld bleibt es Singular, kein Doppelpunkt.
@@ -1575,7 +1571,6 @@ x: T = [a = 1]`;
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
 			'Definition type mismatch.\nCan not assign x to T.\nMissing field b.',
-			'Missing field b.',
 		]);
 	});
 

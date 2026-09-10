@@ -9,8 +9,6 @@ myValue: [field1: Any]
   error 2202 at 37:2 assignedValue missing for singleDictionaryField
   error 1050 at 42:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 5000 at 33:1 Definition type mismatch. | Can not assign myValue to MyType. | Missing fields: someOtherField, function.
-  error 5000 at 33:19 Missing field someOtherField.
-  error 5000 at 33:19 Missing field function.
   error 5050 at 40:1 Argument type mismatch. | Can not assign Empty to [ | 	field1: Integer | 	someOtherField: Text | 	function: () :> Text | ].
   error 5050 at 49:1 Argument type mismatch. | Can not assign Empty to [ | 	field1: Integer | 	someOtherField: Text | 	function: () :> Text | ].
 === bracketed-expression-example.jul ===
