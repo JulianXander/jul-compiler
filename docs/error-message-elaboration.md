@@ -57,20 +57,25 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   eingerückte Fehlerkette eingebettet wurde, die Verschachtelung sah dann zufällig aus statt
   konsistent (Fund im echten yugioh-Fehlerbild, Session 2026-09-10). Behebt nur die Darstellung,
   nicht den unhandlichen Typ-Dump selbst - siehe "Offen" unten.
+- Echte Position am falschen Tupel-/Listen-**Element** (`findInnermostElementErrorPosition` in
+  checker.ts, Analogon zu `findInnermostFieldErrorPosition` für Dictionary-Felder): ein falsches
+  Element markierte bisher nur die ganze Definition, jetzt zeigt die Position auf das Element
+  selbst und steigt rekursiv weiter ab, falls das Element wieder ein Literal ist. Bricht ab bei
+  einem fehlenden Element (kein Ausdruck zum Zeigen) oder einem Spread (Zuordnung nicht
+  eindeutig) - dort bleibt die äußere Position wie bisher. Deckt nur den Fall mit Literal ab,
+  siehe "Offen" unten für den Fallback ohne Literal.
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 
 Die Dedup identischer *aufeinanderfolgender* Sub-Meldungen ist umgesetzt (siehe Status oben) und
 deckt den häufigsten Fall ab: mehrere Elemente mit gleichem Zieltyp, sowohl bei Tupel- als auch
-bei Listen-Zielen. Offen bleiben **echte Positionen je Element**: baut auf der noch nicht
-existierenden Elaboration für Tupel-/Listen-**Literale** auf (bisher nur für Dictionary-Literale
-umgesetzt). Ergänzt, nicht ersetzt durch die oben behobene Einrückungs-Konsistenz: die betrifft
-nur den Fall mit Literal-Elaboration, ein Typ-Dump ohne Positionsbezug bleibt bei jedem
-hinreichend komplexen Typ (auch ohne Tupel-/Listen-Literal, z.B. ein `Dictionary`-Ziel mit vielen
-Feldern) bestehen. Ein reiner Zähler (`3×`) verschleiert, welche Elemente betroffen sind; Indizes in
-Prosa (`elements 1, 2, 3`) wären nur ein Fallback für den Fall ohne Literal (z.B. ein Parameter
-wie `row: Row` ohne eigene Element-Positionen) - andere Sprachen (TypeScript, Elm) lösen das
-stattdessen über echte Positionen je Element, wenn ein Literal vorliegt. Ein vorher
+bei Listen-Zielen. Echte Positionen je Element sind fuer den Fall MIT Literal ebenfalls umgesetzt
+(siehe Status oben, `findInnermostElementErrorPosition`). Offen bleibt nur noch der **Fallback
+ohne Literal** (z.B. ein Parameter wie `row: Row` ohne eigene Element-Positionen, oder ein
+Spread) - dort gibt es weiterhin keinen Ausdruck, auf den man zeigen koennte. Ein reiner Zähler
+(`3×`) verschleiert dann, welche Elemente betroffen sind; Indizes in Prosa
+(`elements 1, 2, 3`) waeren ein moeglicher Text-Fallback fuer genau diesen Fall - andere Sprachen
+(TypeScript, Elm) lösen das nur, WENN ein Literal vorliegt, genau wie jetzt in JUL. Ein vorher
 geschriebener roter Test (`duplicate-tuple-element-errors-are-deduplicated`) legte dafür
 zunächst ein Format fest, das dieser Erkenntnis nicht mehr standhielt, wurde entfernt und
 später mit dem einfacheren Set-Dedup-Format neu geschrieben (keine Ausnahme von "roter Test

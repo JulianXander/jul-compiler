@@ -41,15 +41,17 @@ a = 5`,
 			],
 		},
 		{
+			// Position zeigt seit findInnermostElementErrorPosition auf das falsche Element (4),
+			// nicht mehr auf die ganze Definition.
 			name: 'list-type-error',
 			code: 'a: List(Text) = [4]',
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
-					"endColumnIndex": 19,
+					"endColumnIndex": 18,
 					"endRowIndex": 0,
 					"message": "Definition type mismatch.\nCan not assign 4 to Text.",
-					"startColumnIndex": 0,
+					"startColumnIndex": 17,
 					"startRowIndex": 0,
 				},
 			],
@@ -1642,6 +1644,26 @@ x: Inner = [a = []]`;
 				'      Integer',
 				'    ].',
 			].join('\n'),
+		]);
+	});
+
+	// Fund/Plan Session 2026-09-10 (docs/error-message-elaboration.md, TODO): Tupel-/Listen-
+	// Literale bekommen bisher keine Elaboration wie Dictionary-Literale - ein falsches Element
+	// markiert nur die ganze Definition, nicht das Element selbst. Bewusst rot - noch nicht
+	// umgesetzt (findInnermostErrorPosition kennt bisher nur value.type === 'dictionary').
+	it('tuple-literal-element-error-points-at-the-element-not-the-whole-definition', () => {
+		const code = 'x: [Integer Integer Integer] = [1 §wrong§ 3]';
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([
+			{
+				code: ErrorCode.definitionTypeMismatch,
+				message: 'Definition type mismatch.\nCan not assign §wrong§ to Integer.',
+				startRowIndex: 0,
+				startColumnIndex: 34,
+				endRowIndex: 0,
+				endColumnIndex: 41,
+			},
 		]);
 	});
 

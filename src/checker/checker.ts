@@ -3892,6 +3892,15 @@ function findInnermostErrorPosition(
 	value: ParseValueExpression | undefined,
 	targetType: CompileTimeType,
 ): Positioned | undefined {
+	if (value?.type === 'list') {
+		if (isTupleType(targetType)) {
+			return findInnermostElementErrorPosition(value, index => targetType.ElementTypes[index]);
+		}
+		if (isListType(targetType)) {
+			return findInnermostElementErrorPosition(value, () => targetType.ElementType);
+		}
+		return undefined;
+	}
 	if (value?.type !== 'dictionary') {
 		return undefined;
 	}
@@ -3920,6 +3929,35 @@ function findInnermostErrorPosition(
 				return result;
 			}
 		}
+	}
+	return undefined;
+}
+
+/**
+ * Tupel-/Listen-Pendant zu findInnermostFieldErrorPosition: findet das erste Element mit
+ * tatsaechlichem Fehler und steigt rekursiv weiter ab, falls das Element selbst wieder ein
+ * Literal ist. Ein Spread verschiebt die Zuordnung unbekannt weit (dieselbe Begruendung wie bei
+ * getWrittenArguments/getTupleTypeError2) - dann bricht der Abstieg ab, ebenso bei einem
+ * fehlenden Element (kein Ausdruck zum Zeigen vorhanden).
+ */
+function findInnermostElementErrorPosition(
+	value: ParseListLiteral,
+	getElementTargetType: (index: number) => CompileTimeType | undefined,
+): Positioned | undefined {
+	if (value.values.some(element => element.type === 'spread')) {
+		return undefined;
+	}
+	for (let index = 0; index < value.values.length; index++) {
+		const elementExpression = value.values[index] as ParseValueExpression;
+		const elementTargetType = getElementTargetType(index);
+		if (!elementTargetType || !elementExpression.typeInfo) {
+			continue;
+		}
+		const elementError = getTypeError(undefined, resolvePlaceholders(elementExpression.typeInfo.type), elementTargetType);
+		if (!elementError) {
+			continue;
+		}
+		return findInnermostErrorPosition(elementExpression, elementTargetType) ?? elementExpression;
 	}
 	return undefined;
 }

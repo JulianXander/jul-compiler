@@ -3,13 +3,6 @@
 	-gehören alle in //#region branch narrowing zusammen (Konzept Narrowing vs Konzept Typinferenz)
 	-risiko gering, aber umbau: ~200 zeilen code verschieben, regionsgrenzen neu setzen
 	-aufgabe für später, wenn ohnehin an checker-organisation gearbeitet wird
-?echte positionen je tupel-/listen-element bei fehlern (elaboration analog zu dictionary-feldern)
-	-elaborateDictionaryLiteralError gibt es nur für dictionary-literale, tupel/listen bekommen
-	 bei falschen elementen nur die position des ganzen literals
-	-vgl docs/error-message-elaboration.md "Offen: Meldungslänge bei Tupel-/Listen-Elementen
-	 begrenzen" - dedup identischer sub-meldungen ist umgesetzt, echte positionen nicht
-	-nutzen unabhängig vom dedup-fix: zeigt im editor, WELCHES element falsch ist, nicht nur dass
-	 eins falsch ist - fehlt bei nicht identischen elementfehlern weiterhin
 -multiline returntype parser
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
 -debug experience vebessern
