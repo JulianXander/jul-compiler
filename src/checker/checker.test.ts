@@ -1728,6 +1728,45 @@ newGameState: GameState = [
 			`Definitionsname darf nicht als Typ auf der linken Seite erscheinen: ${error?.message}`);
 	});
 
+	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): Ziel Or(Empty List(Integer)),
+	// Wert List(Text) - der List-gegen-List-Zweig in getTypeError gibt den Element-Fehler
+	// unveraendert durch, ohne ihn als "Can not assign List(X) to List(Y)." zu umhuellen (anders
+	// als der dictionaryLiteral-Fall). Im Or-Ziel stehen dadurch zwei Fehler ohne erkennbaren
+	// Zusammenhang nebeneinander: "Can not assign List(Text) to Empty." (Choice Empty) und roh
+	// "Can not assign Text to Integer." (Choice List(Integer), ohne "das war in einer Liste").
+	it('list-element-error-is-wrapped-with-the-enclosing-list-types', () => {
+		const code = `f = (y: List(Text)) =>
+	x: List(Integer) = y
+	x`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const error = parsed.checked?.errors?.[0];
+		expect(error?.message).to.include('Can not assign List(Text) to List(Integer).',
+			`Element-Fehler sollte mit dem umschliessenden List-Typ-Paar eingeleitet werden: ${error?.message}`);
+	});
+
+	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): Ziel Or(Empty List(Integer))
+	// (Idiom "moeglicherweise leere Liste"), Wert List(Or(Integer Empty)) (Idiom "Liste mit
+	// moeglicherweise fehlenden Eintraegen") - strukturell verschieden, aber leicht zu verwechseln.
+	// Bisher wurden ALLE Or-Choices einzeln gegen den Wert geprueft und ALLE Fehler gezeigt,
+	// auch der triviale/uninteressante ("List ist kein Empty") - der eigentlich relevante Choice
+	// (List(Integer)) ging darin unter, und der volle Or-Zieltyp war nirgends sichtbar (TS/Flow-
+	// Vorbild: Ziel-Union vollstaendig im Kopf zeigen, dann nur den strukturell naechsten Choice
+	// vertiefen statt alle Choices einzeln durchzukauen).
+	it('or-target-shows-full-union-and-elaborates-only-the-closest-choice', () => {
+		const code = `f = (y: List(Or(Integer Empty))) =>
+	x: Or(Empty List(Integer)) = y
+	x`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const error = parsed.checked?.errors?.[0];
+
+		expect(error?.message).to.include('Or(Empty List(Integer))',
+			`Der volle Or-Zieltyp sollte sichtbar bleiben: ${error?.message}`);
+		expect(error?.message).not.to.include('to Empty.',
+			`Der triviale/uninteressante Choice (List ist kein Empty) sollte nicht als eigene Zeile erscheinen: ${error?.message}`);
+	});
+
 	it('tuple-literal-spread-flattens-elements', () => {
 		// Tuple-Spreads sollten Element-für-Element eingefügt werden
 		const code = `f = (myTuple: [Integer Text]) =>

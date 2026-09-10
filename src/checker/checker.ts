@@ -3647,8 +3647,18 @@ export function getTypeError(
 		case 'list': {
 			const targetElementType = targetType.ElementType;
 			switch (argumentsType.julType) {
-				case 'list':
-					return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementType);
+				case 'list': {
+					const elementError = getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementType);
+					if (!elementError) {
+						return undefined;
+					}
+					// Ohne Huelle stand der Element-Fehler roh neben anderen Or-Choice-Fehlern,
+					// ohne erkennbaren Bezug zur umschliessenden Liste (Fund im echten
+					// yugioh-Fehlerbild, Session 2026-09-10) - analog zum dictionaryLiteral-Fall.
+					return {
+						message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(elementError.message)}`,
+					};
+				}
 				case 'tuple':
 					const subErrors = argumentsType.ElementTypes.map(valueElement =>
 						getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
@@ -3704,6 +3714,23 @@ export function getTypeError(
 						],
 					};
 					return getTypeError(prefixArgumentType, asLiteralUnion, targetType);
+				}
+				// Best-Match statt Alle-Choices-Dump (TS/Flow-Vorbild, Fund im echten
+				// yugioh-Fehlerbild, Session 2026-09-10): nur den strukturell naechsten Choice
+				// (gleicher julType wie der Wert) vertiefen, statt jeden fehlgeschlagenen
+				// Choice einzeln zu zeigen - sonst stehen triviale Fehler ("List ist kein
+				// Empty") gleichberechtigt neben dem eigentlich relevanten. Der volle
+				// Or-Zieltyp bleibt im Kopf sichtbar, damit die anderen Choices nicht aus der
+				// Meldung verschwinden. Fallback (kein eindeutiger Kandidat): wie bisher alle
+				// Choice-Fehler einzeln zeigen.
+				const closestIndexes = targetType.ChoiceTypes
+					.map((choiceType, index) => choiceType.julType === argumentsType.julType ? index : -1)
+					.filter(index => index !== -1);
+				if (closestIndexes.length === 1) {
+					const closestError = subErrors[closestIndexes[0]!]!;
+					return {
+						message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(typeErrorToString(closestError))}`,
+					};
 				}
 				return {
 					// TODO error struktur überdenken

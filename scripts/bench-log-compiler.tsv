@@ -35,3 +35,5 @@
 2026-09-10 16:22:14	dca69d5+	-	ADV-DEV-56627	yugioh	parse+check	5	4898.61	10933.74	10933.74	BASELINE vor Diff-Modus-Umbau (for comparison)
 2026-09-10 16:45:12	dca69d5+	-	ADV-DEV-56627	yugioh	parse+check	5	4208.41	8115.76	8115.76	aliasName-Leck behoben: argumentsType zeigt nie mehr Wertnamen als Typ (suppressAlias durch gesamte typeToString-Rekursion)
 2026-09-10 17:12:56	ea2a1f3+	-	ADV-DEV-56627	yugioh	parse+check	5	4697.28	7884.03	7884.03	Namen (Felder, Referenzen, Parameter) durchgaengig in Anfuehrungszeichen in Fehlermeldungen
+2026-09-10 17:25:13	7ed9a84+	-	ADV-DEV-56627	yugioh	parse+check	5	3913.62	4211.42	4211.42	List-gegen-List Element-Fehler mit umschliessendem List(X)-zu-List(Y) umhuellt statt roh durchgereicht
+2026-09-10 17:45:18	7ed9a84+	-	ADV-DEV-56627	yugioh	parse+check	5	3453.40	3736.40	3736.40	Or-Ziel: Best-Match statt Alle-Choices-Dump, voller Or-Zieltyp bleibt im Kopf sichtbar

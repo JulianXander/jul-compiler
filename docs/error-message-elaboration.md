@@ -89,7 +89,42 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   (`targetType`, echte Typ-Aliase wie `GameBoard`/`GameState`) zeigt ihren Alias unverändert
   weiter an. 7 bestehende Tests mit dem alten (fehlerhaften) `x`/`newGameState`-Text als
   Erwartung aktualisiert.
-
+- List-Element-Fehler unzusammenhängend mit Nachbar-Choices behoben: `getTypeError`s
+  `case 'list':` gab den Element-Fehler bei `list`-gegen-`list` bisher unveraendert durch
+  (`return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementType);`),
+  ohne ihn als `Can not assign List(X) to List(Y).` zu umhuellen - anders als der
+  `dictionaryLiteral`-Fall. Bei einem `Or`-Ziel (Idiom `Or([] List(X))`, "moeglicherweise leere
+  Liste") standen dadurch zwei Fehler ohne erkennbaren Zusammenhang nebeneinander: die Choice
+  gegen `Empty` und der rohe Element-Fehler der Choice gegen `List(X)`, ohne Hinweis, dass
+  Letzterer "in einer Liste" liegt. Fund im echten yugioh-Fehlerbild: `activatableGameCardIds`
+  zeigte `Can not assign List(Or(Integer Empty)) to Empty.` gefolgt von der unverbundenen Zeile
+  `Can not assign Empty to Integer.`. Fix: der Element-Fehler wird jetzt analog zum
+  `dictionaryLiteral`-Fall in `Can not assign List(X) to List(Y).\n  <eingerueckter
+  Element-Fehler>` gepackt - die Kette liest sich seitdem durchgehend zusammenhaengend.- `Or`-Ziel: Best-Match statt Alle-Choices-Dump (TS/Flow-Vorbild, direkte Fortsetzung des
+  vorigen Funds - der List-Wrap allein reichte nicht, weil `getTypeError`s `case 'or':` im
+  `targetType`-Switch weiterhin **jeden** fehlgeschlagenen Choice als eigene Zeile zeigte,
+  auch triviale wie "List ist kein Empty"). TypeScript/Flow zeigen bei einem Union-Ziel den
+  vollen Union-Typ im Kopf (`Can not assign X to A | B.`), vertiefen aber nur den strukturell
+  naechsten Choice, statt alle einzeln durchzukauen; Flow faellt nur zurueck auf "alle
+  Choices zeigen", wenn kein eindeutig naechster Choice existiert. Umgesetzt: `closestIndexes`
+  filtert `targetType.ChoiceTypes` auf denselben `julType` wie der Wert - bei genau einem
+  Treffer wird nur dessen Fehler vertieft, der volle `Or(...)`-Zieltyp bleibt im Kopf sichtbar
+  (`Can not assign List(Or(Integer Empty)) to Or(Empty List(Integer)).\n  <naechster Choice>`);
+  bei keinem oder mehreren Treffern bleibt der bisherige Alle-Choices-Dump als Fallback. Vorher/
+  nachher am echten yugioh-Fehlerbild:
+  ```
+  # vorher
+  Can not assign List(Or(Integer Empty)) to Empty.
+  Can not assign Empty to Integer.
+  # nachher
+  Can not assign List(Or(Integer Empty)) to Or(Empty List(Integer)).
+    Can not assign List(Or(Integer Empty)) to List(Integer).
+      Can not assign Empty to Integer.
+  ```
+  Ausdruecklich keine semantische Erklaerung des Unterschieds ("eine fehlende Liste" vs. "eine
+  Liste mit fehlenden Eintraegen") - das leistet auch TypeScript/Flow nicht, waere Freitext-
+  Generierung in der Groessenordnung des verworfenen Diff-Modus (s.u.), nur fuer Bedeutung statt
+  Struktur.
 ## Entscheidung gegen Diff-Modus ("expected X but got Y")
 
 Geprüft und verworfen (Session 2026-09-10): ein Umbau aller `Can not assign X to Y.`-Meldungen
