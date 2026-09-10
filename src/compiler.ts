@@ -258,7 +258,7 @@ export function formatErrors(filePath: string, errors: CompilerError[]): string 
 		const { type, severity } = errorInfos[error.code];
 		const errorLabel = colorize(errorTypeLabels[type] + errorSeverityLabels[severity], ConsoleColor.lightRed);
 		const errorCode = colorize(`JUL${error.code}`, ConsoleColor.lightRed);
-		const position = `${filePath}:${error.startRowIndex + 1}:${error.startColumnIndex + 1}`;
+		const position = colorize(`${filePath}:${error.startRowIndex + 1}:${error.startColumnIndex + 1}`, ConsoleColor.cyan);
 		// Position steht hier zusaetzlich zur `-->`-Zeile unten - bei den mehrzeiligen,
 		// verschachtelten Ketten (elaborateDictionaryLiteralError-Nachfolger) liegen oft 5+
 		// Zeilen dazwischen, die Kopfzeile allein liesse dann keinen Rueckschluss auf die Stelle
@@ -283,7 +283,7 @@ export function formatErrors(filePath: string, errors: CompilerError[]): string 
 		const gutterWidth = Math.max(...spans.map(span => (span.positioned.endRowIndex + 1).toString().length));
 		const lines = [
 			mainLine,
-			` --> ${filePath}:${error.startRowIndex + 1}:${error.startColumnIndex + 1}`,
+			` --> ${colorize(`${filePath}:${error.startRowIndex + 1}:${error.startColumnIndex + 1}`, ConsoleColor.cyan)}`,
 			`${' '.repeat(gutterWidth)} |`,
 		];
 		for (const span of spans) {

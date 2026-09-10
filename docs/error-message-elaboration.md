@@ -75,6 +75,43 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   `List(Or(Integer Empty))`. Der Fix schaut bei `Or`-Quelltypen durch die Choices hindurch;
   unterschiedliche Element-Anzahlen zwischen den Choices (z.B. `Empty` = 0 vs. `List(X)` =
   unbestimmt) bedeuten eine unbestimmte Gesamtlänge und damit `hasListSpread = true`.
+- `aliasName`-Leck behoben: `typeToString` zeigte bei `depth > 0` den `aliasName` einer
+  Dictionary-Definition, um verschachtelte Typen kurz zu halten (`GameBoard` statt voller
+  Struktur). `aliasName` wird aber für **jede** Dictionary-Definition gesetzt, auch für normale
+  Werte (`getNameFromValue` in checker.ts) - nicht nur für echte Typ-Aliase. Realer yugioh-Fund:
+  `Can not assign newGameState to GameState.` / `Can not assign newBoard to GameBoard.` -
+  `newGameState`/`newBoard` sind Variablennamen der zugewiesenen Werte, keine Typnamen, wurden
+  aber genauso als Alias gedruckt wie `GameBoard`. Fix: `typeToString` bekommt ein
+  `suppressAlias`-Flag, das durch die **gesamte** Rekursion gereicht wird (nicht nur an der
+  Aufrufstelle) - sonst leckt der Wertname weiterhin eine Ebene tiefer bei verschachtelten
+  Feldern (`[board: newBoard]` statt `[board: [a: ...]]`). Gesetzt auf `true` nur für die
+  `argumentsType`-Seite in `getTypeError`s `case 'dictionaryLiteral':` - die Zielseite
+  (`targetType`, echte Typ-Aliase wie `GameBoard`/`GameState`) zeigt ihren Alias unverändert
+  weiter an. 7 bestehende Tests mit dem alten (fehlerhaften) `x`/`newGameState`-Text als
+  Erwartung aktualisiert.
+
+## Entscheidung gegen Diff-Modus ("expected X but got Y")
+
+Geprüft und verworfen (Session 2026-09-10): ein Umbau aller `Can not assign X to Y.`-Meldungen
+auf Elm-Stil `expected Y but got X` wurde diskutiert, mit Bench-Baseline abgesichert und mit
+ersten roten Tests vorbereitet, dann aber vor der Umsetzung verworfen. Begründung:
+
+Die beiden eigentlichen Vorteile von Diff-Modus sind durch die oben stehenden, kleineren Fixes
+bereits weitgehend abgedeckt:
+
+- **Strukturelles Diffing** (nur abweichende Teile zeigen, nicht ganze Typen nebeneinander) -
+  liefert die bestehende Fehlerkette (`Invalid value for field X`, rekursiv bis zur innersten
+  tatsächlich falschen Stelle via `findInnermostErrorPosition`) plus die Truncation
+  (`maxFieldsInTypeDump`) bereits.
+- **Störfaktor entfernt** - das `aliasName`-Leck (Wertname statt Typname) war die
+  hauptsächliche Ursache für unklare Meldungen, ist jetzt behoben.
+
+Übrig bliebe nur noch die Wortstellung selbst (`expected X but got Y` vs. `Can not assign Y to
+X`) - rein kosmetisch, ohne Informationsgewinn. Der Umbau würde `getTypeError` an vielen
+Fundstellen anfassen (mindestens 6, siehe `grep 'Can not assign'` in checker.ts) und riskiert
+neue Inkonsistenzen der Art, die das `aliasName`-Leck erst verursacht hat. Aufwand/Nutzen wird
+daher als ungünstig bewertet - keine weitere Umsetzung geplant, außer ein neuer konkreter Fund
+rechtfertigt es erneut.
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 
