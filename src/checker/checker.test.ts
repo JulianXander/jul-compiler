@@ -1298,6 +1298,26 @@ g: Text = f(3)`,
 				},
 			],
 		},
+		{
+			// Fund in jul-examples/yugioh/game-logic.jul: fehlende Tupel-Elemente werden alle als
+			// Empty behandelt (getTupleTypeError2, `argumentElementTypes[index] ?? { julType:
+			// 'empty' }`) - bei mehreren fehlenden Elementen mit demselben Zieltyp entsteht so
+			// dieselbe Meldung mehrfach hintereinander, ohne neue Information je Wiederholung.
+			// Deduplikation nach demselben Muster wie beim 'and'-Fall in getTypeError
+			// (`new Set(subErrors.map(typeErrorToString))`).
+			name: 'duplicate-tuple-element-errors-are-deduplicated',
+			code: 'x: [Integer Integer Integer] = [1]',
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign Empty to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 34,
+				},
+			],
+		},
 	];
 
 describe('Checker', () => {

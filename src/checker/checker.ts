@@ -3761,9 +3761,13 @@ function getTupleTypeError2(
 		return getTypeError(prefixArgumentType, valueElement, targetElementType);
 	}).filter(isDefined);
 	if (subErrors.length) {
+		// Fehlende Elemente werden alle zu Empty (s.o.) - bei mehreren fehlenden Elementen mit
+		// demselben Zieltyp entstünde sonst dieselbe Meldung mehrfach hintereinander, ohne neue
+		// Information je Wiederholung. Dedup wie beim 'and'-Fall oben (new Set über den Text).
+		const uniqueMessages = [...new Set(subErrors.map(typeErrorToString))];
 		return {
 			// TODO error struktur überdenken
-			message: subErrors.map(typeErrorToString).join('\n'),
+			message: uniqueMessages.join('\n'),
 			// innerError
 		};
 	}

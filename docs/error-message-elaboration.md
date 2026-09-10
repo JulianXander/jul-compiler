@@ -17,24 +17,40 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   in compiler.ts): `-->`-Zeile mit Datei:Zeile:Spalte, `^^^^^`-Marker unter einzeiligen Spans,
   `|`-Klammerung mit Konnektor-Linien bei mehrzeiligen Spans, `relatedInformation` als zweiter
   Frame ohne eigene Positionszeile. Betrifft nur das CLI-Ausgabeformat, nicht das LSP (dort bleibt
-  `relatedInformation` ein reines Diagnostic-Feld für den Editor).
+  `relatedInformation` ein reines Diagnostic-Feld für den Editor). Tabs in der Quellzeile werden
+  für die Anzeige zu 2 Spalten expandiert (`editor.tabSize` der vscode-Extension), sonst laufen
+  Marker/Konnektoren bei tab-eingerücktem Code dem Text davon.
+- Identische Sub-Meldungen bei fehlenden Tupel-Elementen dedupliziert (`getTupleTypeError2`,
+  `new Set(subErrors.map(typeErrorToString))`, analog zum bestehenden `'and'`-Fall in
+  `getTypeError`): mehrere fehlende Elemente mit demselben Zieltyp erzeugen dieselbe
+  `Can not assign Empty to Integer.`-Zeile nicht mehr mehrfach hintereinander.
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 
-Zurückgestellt: baut auf der noch nicht existierenden Elaboration für Tupel-/Listen-**Literale**
-auf (bisher nur für Dictionary-Literale umgesetzt) und ist damit kein unabhängiger erster Schritt.
-Grund: ein reiner Zähler (`3×`) verschleiert, welche Elemente betroffen sind; Indizes in Prosa
-(`elements 1, 2, 3`) wären nur ein Fallback für den Fall ohne Literal (z.B. ein Parameter wie
-`row: Row` ohne eigene Element-Positionen) - andere Sprachen (TypeScript, Elm) lösen das
-stattdessen über echte Positionen je Element, wenn ein Literal vorliegt. Bevor hier ein Format
-festgelegt wird, muss also erst geklärt sein, ob/wie die Elaboration auf Tupel-/Listen-Literale
-ausgeweitet wird - ein vorher geschriebener roter Test
-(`duplicate-tuple-element-errors-are-deduplicated`) legte ein Format fest, das dieser Erkenntnis
-nicht mehr standhielt, und wurde deshalb wieder entfernt (keine Ausnahme von "roter Test bleibt
-stehen" - der Test belegte kein Bugverhalten, sondern eine verfrühte Festlegung auf ein noch
-offenes Design).
+Die Dedup identischer *aufeinanderfolgender* Sub-Meldungen ist umgesetzt (siehe Status oben) und
+deckt den häufigsten Fall ab: mehrere fehlende Elemente mit gleichem Zieltyp. Zwei Teilprobleme
+bleiben offen:
 
-Andere Compiler begrenzen unterschiedlich (weiterhin relevant, sobald ein Format feststeht):
+1. **Echte Positionen je Element**: baut auf der noch nicht existierenden Elaboration für
+   Tupel-/Listen-**Literale** auf (bisher nur für Dictionary-Literale umgesetzt). Ein reiner
+   Zähler (`3×`) verschleiert, welche Elemente betroffen sind; Indizes in Prosa
+   (`elements 1, 2, 3`) wären nur ein Fallback für den Fall ohne Literal (z.B. ein Parameter wie
+   `row: Row` ohne eigene Element-Positionen) - andere Sprachen (TypeScript, Elm) lösen das
+   stattdessen über echte Positionen je Element, wenn ein Literal vorliegt. Ein vorher
+   geschriebener roter Test (`duplicate-tuple-element-errors-are-deduplicated`) legte dafür
+   zunächst ein Format fest, das dieser Erkenntnis nicht mehr standhielt, wurde entfernt und
+   später mit dem einfacheren Set-Dedup-Format neu geschrieben (keine Ausnahme von "roter Test
+   bleibt stehen" - der erste Test belegte kein Bugverhalten, sondern eine verfrühte Festlegung
+   auf ein noch offenes Design).
+2. **Dedup über Felder hinweg**: Fund im selben yugioh-Beispiel - zwei *verschiedene* Felder
+   (`activatableGameCardIds`, `boards`) einer Dictionary-Zuweisung erzeugten zufällig identische,
+   mehrzeilige Fehlerketten, die `getDictionaryLiteralTypeError` unabhängig voneinander erzeugt
+   und aneinanderhängt. Das aktuelle Set-Dedup wirkt nur *innerhalb* einer Tupel-/Listen-Kette,
+   nicht *über* Felder hinweg. Noch nicht bewertet, ob/wie Felder mit identischer Fehlerkette zu
+   einer Zeile gruppiert werden sollen (z.B. `Invalid value for fields a, b: ...`).
+
+Andere Compiler begrenzen unterschiedlich (weiterhin relevant, sobald ein Format für Punkt 1
+feststeht):
 
 - TypeScript: `is missing the following properties from type 'Y': a, b, c, and N more.` -
   Kappung nach wenigen **benannten** Feldern, die jedes für sich informativ sind.
@@ -49,17 +65,16 @@ Andere Compiler begrenzen unterschiedlich (weiterhin relevant, sobald ein Format
 
 Der reale yugioh-Fund (`Can not assign Empty to Integer.` sechsfach) ist aber kein Fall von
 vielen verschiedenen benannten Feldern, sondern von **positionslosen Tupel-Elementen**
-(`GameCardRow` hat keine Feldnamen) - die 6 Teilmeldungen sind textlich identisch, nur der Index
-unterscheidet sich. Eine reine TS-artige "erste N, Rest kappen"-Regel könnte hier zufällig ein
-*abweichendes* 4. Element verschlucken, während 3 *identische* stehen bleiben.
+(`GameCardRow` hat keine Feldnamen) - die 6 Teilmeldungen waren textlich identisch, nur der Index
+unterschied sich (jetzt durch Set-Dedup zu 1 Zeile zusammengefasst). Eine reine TS-artige "erste
+N, Rest kappen"-Regel könnte hier zufällig ein *abweichendes* 4. Element verschlucken, während
+3 *identische* stehen bleiben - deshalb kein Zähler, sondern Textgleichheit als Kriterium.
 
-- Klarheit: kürzere, weniger repetitive Meldung bei großen Dictionary-/Tupel-Typen möglich - im
-  realen yugioh-Fund wurde derselbe Satz `Can not assign Empty to Integer.` sechsmal wiederholt,
-  ohne neue Information je Wiederholung. Noch offen, ob das Ziel echte Positionen je Element
-  (wie TS/Elm, bei Literalen) oder ein Text-Fallback (ohne Literal) ist - siehe oben.
-- LSP-Performance: potenzieller Nutzen - kappt genau die Art von Diagnose-Payload, die bei tief
-  verschachtelten/duplizierten `Or`-Typen unbegrenzt wächst und bei jedem Tastendruck neu an den
-  Client geschickt wird.
+- Klarheit: für Punkt 1 (echte Positionen) weiterhin offen, ob das Ziel echte Positionen je
+  Element (wie TS/Elm, bei Literalen) oder ein Text-Fallback (ohne Literal) ist.
+- LSP-Performance: potenzieller Nutzen bei Punkt 1 - kappt genau die Art von Diagnose-Payload, die
+  bei tief verschachtelten/duplizierten `Or`-Typen unbegrenzt wächst und bei jedem Tastendruck
+  neu an den Client geschickt wird.
 
 Noch nicht umgesetzt - vor jeder Umsetzung roter Test zuerst, dann Umsetzung, dann Bench.
 
