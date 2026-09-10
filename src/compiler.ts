@@ -329,15 +329,16 @@ function formatSpanLines(
 		`${colorize(pad(positioned.startRowIndex + 1), ConsoleColor.cyan)} |   ${startLine}`,
 		`${blankGutter} |   ${colorize('_'.repeat(positioned.startColumnIndex) + '^', ConsoleColor.lightRed)}`,
 	];
+	const connectorPipe = colorize('|', ConsoleColor.lightRed);
 	for (let row = positioned.startRowIndex + 1; row <= positioned.endRowIndex; row++) {
 		const line = sourceLines[row];
 		if (line === undefined) {
 			continue;
 		}
-		resultLines.push(`${colorize(pad(row + 1), ConsoleColor.cyan)} | | ${line}`);
+		resultLines.push(`${colorize(pad(row + 1), ConsoleColor.cyan)} | ${connectorPipe} ${line}`);
 		if (row === positioned.endRowIndex) {
 			const marker = `${'_'.repeat(positioned.endColumnIndex)}^${labelSuffix}`;
-			resultLines.push(`${blankGutter} | | ${colorize(marker, ConsoleColor.lightRed)}`);
+			resultLines.push(`${blankGutter} | ${connectorPipe} ${colorize(marker, ConsoleColor.lightRed)}`);
 		}
 	}
 	return resultLines;
