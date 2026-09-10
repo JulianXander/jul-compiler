@@ -213,11 +213,16 @@ export interface CompilerError extends Positioned {
 	/**
 	 * Zusätzlicher Verweis auf eine zweite Stelle im Quelltext, die den Fehler erklärt (z.B. die
 	 * Deklaration eines Rückgabetyps) - additiv, ersetzt startRowIndex/... nicht. Von CLI
-	 * (formatErrors) als zusätzliche Textzeile und vom Language Server als
+	 * (formatErrors) als Quellcode-Ausschnitt und vom Language Server als
 	 * `Diagnostic.relatedInformation` genutzt.
 	 */
 	relatedInformation?: {
 		message: string;
+		/**
+		 * Nur nötig, wenn die zweite Stelle in einer anderen Datei liegt als der Hauptfehler
+		 * (aktuell bei keinem Fehlercode der Fall) - fehlt es, gilt dieselbe Datei wie der Fehler.
+		 */
+		filePath?: string;
 	} & Positioned;
 }
 

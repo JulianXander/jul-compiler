@@ -4,8 +4,8 @@ import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
 import { ParsedDocuments, checkTypes } from './checker/checker.js';
 import { parseCode } from './parser/parser.js';
-import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos } from './compiler-errors.js';
-import { Extension, changeExtension, executingDirectory, readTextFile, tryCreateDirectory } from './util.js';
+import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos, Positioned } from './compiler-errors.js';
+import { Extension, changeExtension, executingDirectory, readTextFile, tryReadTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
 import ShebangPlugin from 'webpack-shebang-plugin';
@@ -245,24 +245,102 @@ const errorSeverityLabels: { [Severity in CompilerErrorSeverity]: string; } = {
 /**
  * Formatiert Fehler für die Konsolenausgabe.
  * Row/Column sind intern 0-basiert (Array-Indizes), für die Ausgabe 1-basiert wie in Editoren.
+ * Quellcode-Ausschnitt im Rust-Stil: die Position steht nur einmal, in der `-->`-Zeile - nicht
+ * zusätzlich in der Kopfzeile (die hatte das vor der Rust-Umstellung, das wäre jetzt Dopplung).
+ * `relatedInformation` bekommt keine eigene `-->`-Zeile - ihre Position steckt in der Lage der
+ * Markierung selbst, das Label steht direkt hinter dem Marker der zugehörigen Quellzeile.
  */
-function formatErrors(filePath: string, errors: CompilerError[]): string {
+export function formatErrors(filePath: string, errors: CompilerError[]): string {
 	return errors.map(error => {
-		const errorPath = colorize(filePath, ConsoleColor.cyan);
-		const errorRow = colorize(error.startRowIndex + 1, ConsoleColor.yellow);
-		const errorColumn = colorize(error.startColumnIndex + 1, ConsoleColor.yellow);
 		const { type, severity } = errorInfos[error.code];
 		const errorLabel = colorize(errorTypeLabels[type] + errorSeverityLabels[severity], ConsoleColor.lightRed);
 		const errorCode = colorize(`JUL${error.code}`, ConsoleColor.lightRed);
-		const mainLine = `${errorPath}:${errorRow}:${errorColumn} - ${errorLabel} ${errorCode}: ${error.message}`;
+		const mainLine = `${errorLabel} ${errorCode}: ${error.message}`;
 		const related = error.relatedInformation;
-		if (!related) {
-			return mainLine;
+		const relatedFilePath = related?.filePath ?? filePath;
+		const spans: { positioned: Positioned; label: string | undefined; filePath: string }[] = [
+			{ positioned: error, label: undefined, filePath },
+		];
+		if (related) {
+			spans.push({ positioned: related, label: related.message, filePath: relatedFilePath });
 		}
-		const relatedRow = colorize(related.startRowIndex + 1, ConsoleColor.yellow);
-		const relatedColumn = colorize(related.startColumnIndex + 1, ConsoleColor.yellow);
-		return `${mainLine}\n  ${related.message} ${errorPath}:${relatedRow}:${relatedColumn}`;
+		// Nach Zeile sortiert, damit relatedInformation vor oder nach der Hauptstelle erscheint,
+		// je nachdem, was im Quelltext zuerst steht.
+		spans.sort((a, b) => a.positioned.startRowIndex - b.positioned.startRowIndex);
+		const gutterWidth = Math.max(...spans.map(span => (span.positioned.endRowIndex + 1).toString().length));
+		const lines = [
+			mainLine,
+			` --> ${filePath}:${error.startRowIndex + 1}:${error.startColumnIndex + 1}`,
+			`${' '.repeat(gutterWidth)} |`,
+		];
+		for (const span of spans) {
+			lines.push(...formatSpanLines(getSourceLines(span.filePath), span.positioned, span.label, gutterWidth));
+		}
+		return lines.join('\n');
 	}).join('\n');
+}
+
+/**
+ * Cache je Datei, damit bei mehreren Fehlern in derselben Datei nicht mehrfach gelesen wird -
+ * läuft nur im Fehlerfall, ein Compiler-Lauf ist ohnehin kurzlebig, kein Invalidieren nötig.
+ */
+const sourceLinesCache = new Map<string, string[]>();
+function getSourceLines(filePath: string): string[] {
+	const cached = sourceLinesCache.get(filePath);
+	if (cached) {
+		return cached;
+	}
+	const lines = tryReadTextFile(filePath)?.split('\n') ?? [];
+	sourceLinesCache.set(filePath, lines);
+	return lines;
+}
+
+/**
+ * Quellcode-Zeilen mit Markierung (Rust-Stil): einzeilige Spans bekommen `^^^^^` unter der
+ * exakten Spaltenbreite, das optionale Label direkt dahinter. Mehrzeilige Spans bekommen die
+ * volle Klammerung mit `|`-Verbindern am linken Rand wie bei rustc.
+ */
+function formatSpanLines(
+	sourceLines: string[],
+	positioned: Positioned,
+	label: string | undefined,
+	gutterWidth: number,
+): string[] {
+	const startLine = sourceLines[positioned.startRowIndex];
+	if (startLine === undefined) {
+		return [];
+	}
+	const pad = (lineNumber: number) => lineNumber.toString().padStart(gutterWidth, ' ');
+	const blankGutter = ' '.repeat(gutterWidth);
+	const labelSuffix = label ? ` ${label}` : '';
+	if (positioned.endRowIndex === positioned.startRowIndex) {
+		const markerLength = Math.max(1, positioned.endColumnIndex - positioned.startColumnIndex);
+		const marker = '^'.repeat(markerLength) + labelSuffix;
+		return [
+			`${colorize(pad(positioned.startRowIndex + 1), ConsoleColor.cyan)} | ${startLine}`,
+			`${blankGutter} | ${' '.repeat(positioned.startColumnIndex)}${colorize(marker, ConsoleColor.lightRed)}`,
+		];
+	}
+	// Mehrzeiliger Span: Start- und Endzeile bekommen je eine Markierungszeile, die
+	// Zwischenzeilen nur den "| |"-Verbinder am linken Rand. Die Markierungszeilen müssen exakt
+	// dieselbe Präfixbreite wie die zugehörige Inhaltszeile haben ("|   " bzw. "| | "), sonst
+	// verschiebt sich das "^" um eine Spalte gegenüber dem Zeichen, das es markieren soll.
+	const resultLines: string[] = [
+		`${colorize(pad(positioned.startRowIndex + 1), ConsoleColor.cyan)} |   ${startLine}`,
+		`${blankGutter} |   ${colorize('_'.repeat(positioned.startColumnIndex) + '^', ConsoleColor.lightRed)}`,
+	];
+	for (let row = positioned.startRowIndex + 1; row <= positioned.endRowIndex; row++) {
+		const line = sourceLines[row];
+		if (line === undefined) {
+			continue;
+		}
+		resultLines.push(`${colorize(pad(row + 1), ConsoleColor.cyan)} | | ${line}`);
+		if (row === positioned.endRowIndex) {
+			const marker = `${'_'.repeat(positioned.endColumnIndex)}^${labelSuffix}`;
+			resultLines.push(`${blankGutter} | | ${colorize(marker, ConsoleColor.lightRed)}`);
+		}
+	}
+	return resultLines;
 }
 function formatDuration(startTime: number): string {
 	const duration = performance.now() - startTime;
