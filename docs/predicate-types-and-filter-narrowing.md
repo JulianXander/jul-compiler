@@ -62,6 +62,20 @@ Empty)".
   `function isInteger(x): x is number { return Math.random() > 0.5; }`, kompiliert das
   fehlerfrei und verengt trotzdem überall falsch. Dieselbe Vertrauensgrenze wie `assume()` in
   JUL, nur an der Signatur statt am Aufruf platziert.
+- **Typed Racket**: der akademische Ursprung des ganzen Konzepts - *Occurrence Typing*
+  (Tobin-Hochstadt & Felleisen, POPL 2010, "Logical Types for Untyped Languages"). Jeder
+  Funktionstyp trägt eine **logische Formel** ("latenter Filter"), die beschreibt, was ein
+  `true`/`false`-Ergebnis über das Argument aussagt, inklusive Kombination mehrerer Prädikate
+  über `and`/`or`/`not`. TypeScripts Control-Flow-Narrowing ist davon direkt inspiriert. Für
+  eingebaute Prädikate (`number?`, `pair?`) ist die Formel eingebaut, für eigene Funktionen
+  muss sie wie bei TS annotiert werden - auch hier keine automatische Herleitung aus dem Rumpf.
+- **TypeScript 5.5 (2024), "inferred type predicates"**: der bisher einzige bekannte,
+  produktiv eingesetzte Mechanismus, der eine Verengung **automatisch aus dem Funktionsrumpf
+  ableitet**, ohne `x is T`-Annotation - erkennt gezielt einfache, entscheidbare Muster
+  (`typeof`, `instanceof`, `!= null`, kurze Boolean-Ausdrücke). Strukturell genau das Prinzip
+  aus dem Mittelweg oben, nur mit anderem Mustervokabular (JS-Operatoren statt Branching, weil
+  TS kein `?(...)` hat). Der naheliegendste Referenzpunkt, falls der Mittelweg umgesetzt wird -
+  ein strukturell arbeitender Type-Checker ohne SMT-Solver, keine Forschungssprache.
 - **Kotlin**: kein allgemeines Feature. `filterIsInstance<T>()` ist ein Compiler-Intrinsic nur
   für den exakten Is-Instance-Fall, nicht auf beliebige Prädikate generalisierbar.
 - **Scala**: `.collect { case x: Foo => ... }` - die Verengung kommt aus dem Pattern-Match, der
@@ -69,15 +83,32 @@ Empty)".
 - **Rust/Haskell**: `filter`/`filter` verengt nie. `filter_map`/`mapMaybe` lösen den Fall, indem
   der Callback direkt den (optionalen) Zielwert zurückgibt statt eines Booleans - JULs
   `filterMap` folgt genau diesem Muster und funktioniert schon korrekt.
-- **Liquid Haskell / F* / Dafny**: die einzigen Systeme, die tatsächlich **beliebige** Prädikate
-  als Typen verifizieren (Refinement Types) - und zwar mit einem SMT-Solver, der beweist, dass
-  ein Prädikat für eine ganze (oft unendliche) Wertemenge eine Eigenschaft erfüllt. Das ist keine
-  Bibliotheksfunktion, sondern eine eigene Typtheorie mit eigenem Beweissystem - mehrjährige
-  Forschungsprojekte, kein Feature, das sich nebenbei ergänzen lässt.
+- **Liquid Haskell**: fügt Refinement Types einer bestehenden, verbreiteten Sprache (Haskell)
+  hinzu, SMT-Solver (Z3), am zugänglichsten dokumentiert von den SMT-basierten Systemen.
+- **F\***: volle Refinement-/Dependent-Types, SMT-gestützt, Forschungssprache (Microsoft
+  Research, u.a. verifiziertes TLS in Project Everest).
+- **Dafny**: Verifikationssprache mit Vor-/Nachbedingungen, ebenfalls SMT (Boogie+Z3).
+- **Idris**: volle abhängige Typen, aber **manuelle** Beweisterme statt automatischer
+  SMT-Entscheidung (Curry-Howard-Stil) - der andere Pol: mehr Ausdruckskraft, aber keine
+  Automatik.
 
-Nur die letzte Kategorie beantwortet die Frage des Titels wirklich mit "ja, generell" - um den
+Diese vier sind der einzige Weg zu "wirklich beliebige Prädikate als Typen" - aber mit einem
+SMT-Solver (oder manuellen Beweistermen bei Idris) als Kernkomponente, eine andere
+Größenordnung an Infrastruktur als JULs struktureller Checker.
+
+Nur diese Kategorie beantwortet die Frage des Titels wirklich mit "ja, generell" - um den
 Preis eines SMT-Solvers und einer entsprechend eingeschränkten, formalisierten Prädikatsprache.
 Das steht außer Verhältnis zu JULs aktuellem Umfang.
+
+### Empfehlung als Vorbild, falls der Mittelweg verfolgt wird
+
+**TypeScript 5.5** für die Umsetzung selbst - der einzige bekannte, produktiv eingesetzte
+Mechanismus, der automatisch (nicht per Annotation) aus einem begrenzten, erkennbaren
+Rumpf-Muster ableitet, ohne SMT-Solver - strukturell am nächsten an JULs Checker. **Typed
+Racket** als konzeptionelle Grundlage, falls die Formel-Kombination (and/or/not mehrerer
+Prädikate) später generalisiert werden soll, da es die "Fakten-Logik"-Idee am saubersten
+formalisiert. Die SMT-basierten Systeme (Liquid Haskell/F*/Dafny/Idris) sind Referenzen zur
+Einordnung des Aufwands, nicht als Vorbild für JULs Umfang gedacht.
 
 ## Ein JUL-eigener Mittelweg (nicht umgesetzt, nur skizziert)
 
@@ -100,6 +131,36 @@ Das wäre kein Sonderfall für `filter` - eine neue, allgemeine Eigenschaft von 
 nutzbar von jeder Funktion, die eine solche Callback-Funktion entgegennimmt (`filter`,
 `findFirst`, `findLast`, `exists`, `all`).
 
+### Zweite Konsumstelle derselben Metadaten: Prädikate als Branch-Köpfe
+
+Weil die abgeleitete Verengung am Funktionstyp selbst hängt (nicht an `filter`s Signatur), wäre
+sie nicht auf Callback-nehmende Funktionen beschränkt. Branch-Köpfe müssen laut Sprachregel
+gegen die Argumentkollektion prüfen und sind heute auf `Type`-Werte beschränkt (`[Integer]`,
+`Any`, `NonZeroInteger`, ...) - ein Funktionswert wie `isInteger` (Rückgabetyp `Boolean`) ist
+kein `Type`-Wert und narrowt deshalb heute nicht, selbst wenn sein Rumpf exakt das
+Branching-Muster von oben hat:
+
+```jul
+isInteger = (x: Any) :> Boolean =>
+	?(x)
+		[Integer] => true
+		() => false
+
+?(someValue)
+	isInteger => ...   # narrowt someValue heute NICHT auf Integer
+```
+
+Mit den `narrowsTo`-Metadaten am Funktionstyp bräuchte die Branch-Kopf-Auflösung nur eine
+zusätzliche Regel: "trägt der Kopf-Wert `narrowsTo`-Metadaten, behandle ihn wie diesen Typ" -
+zusätzlich zur bestehenden Regel "ist der Kopf ein `Type`-Wert, matche direkt dagegen". Derselbe
+abgeleitete Fakt würde also zwei Lücken gleichzeitig schließen (`filter`-Narrowing und
+Prädikate-als-Branch-Kopf), nicht nur eine - mit dem Callback-Analyseschritt (Punkt 1 unten) als
+gemeinsamer Grundlage. Das stärkt das Argument für den Mittelweg, vergrößert aber auch seinen
+Umfang um eine zweite Integrationsstelle. Dieselbe Grenze gilt an beiden Stellen: nur Prädikate
+mit exakt der erkennbaren Branching-Form bekommen `narrowsTo` - ein Prädikat wie
+`getActivationRequirementsMet(...)`, das beliebige Berechnungen anstellt, bliebe an keiner der
+beiden Stellen verengend, unabhängig davon, wie der Mechanismus gebaut wird.
+
 **Aufwand, ehrlich eingeschätzt:**
 
 1. Neue Analyse bei der Typinferenz von Funktionsliteralen: erkennen, ob der Rumpf exakt ein
@@ -111,6 +172,9 @@ nutzbar von jeder Funktion, die eine solche Callback-Funktion entgegennimmt (`fi
 3. Neue Typ-Position, um darauf zuzugreifen (analog zu `callback/ReturnType`).
 4. Betrifft mehrere core-lib-Funktionen (`filter`, `findFirst`, `findLast`, `exists`, `all`),
    nicht nur eine.
+5. Optional (zweite Konsumstelle): Branch-Kopf-Auflösung um die `narrowsTo`-Regel erweitern,
+   damit Prädikate auch direkt als Branch-Kopf narrowen - eigener Integrationspunkt, aber
+   dieselbe Grundlage wie Punkt 1/2.
 
 ## Fazit
 
