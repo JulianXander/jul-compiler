@@ -1451,7 +1451,8 @@ describe('Checker', () => {
 	// ein Spread innerhalb eines List-Literals wird nicht aufgelöst, das Element wird zu Any -
 	// unabhängig vom tatsächlichen Elementtyp der gespreadeten Quelle. Ursache eines falschen
 	// returnTypeMismatch in yugioh/game-logic.jul (updatePendingTriggers, activatableGameCardIds).
-	it('list-literal-spread-loses-element-type', () => {
+	it('list-literal-spread-collapses-to-list', () => {
+		// List-Spreads sollten sich zu einer List zusammensetzen (unbekannte Länge bleibt unbekannt)
 		const code = `T = [a: Integer]
 f = (values: List(T)) =>
 	[
@@ -1464,10 +1465,15 @@ f = (values: List(T)) =>
 
 		const definition = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
-		const returnType = functionType?.julType === 'function' ? functionType.ReturnType : undefined;
-		const spreadElementType = returnType?.julType === 'tuple' ? returnType.ElementTypes[0] : undefined;
-		expect(spreadElementType?.julType).to.equal('dictionaryLiteral',
-			'...values sollte den Elementtyp von T behalten, tatsächlich: ' + spreadElementType?.julType);
+		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+		
+		// Erwartet: List(Union(T, [a: Integer]))
+		expect(returnType?.julType).to.equal('list',
+			'List-Spread sollte zu einer List werden, tatsächlich: ' + returnType?.julType);
+		if (returnType && returnType.julType === 'list') {
+			expect(returnType.ElementType.julType).to.equal('or',
+				'ElementType sollte Union sein (T | [a: Integer]), tatsächlich: ' + returnType.ElementType.julType);
+		}
 	});
 
 	it('tuple-literal-spread-flattens-elements', () => {
@@ -1483,17 +1489,16 @@ f = (values: List(T)) =>
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
-		const returnType = functionType?.julType === 'function' ? functionType.ReturnType : undefined;
+		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
 		
 		// Erwartet: [Integer, Text, [a: Integer]]
-		if (returnType?.julType === 'tuple') {
-			expect(returnType.ElementTypes.length).to.equal(3, 'Tuple sollte 3 Elemente haben (2 aus Spread + 1 literal)');
-			expect(returnType.ElementTypes[0].julType).to.equal('integerLiteral', 'Element 0 sollte Integer sein');
-			expect(returnType.ElementTypes[1].julType).to.equal('text', 'Element 1 sollte Text sein');
-			expect(returnType.ElementTypes[2].julType).to.equal('dictionaryLiteral', 'Element 2 sollte Dict sein');
-		} else {
+		if (!returnType || returnType.julType !== 'tuple') {
 			throw new Error(`Return type sollte Tuple sein, ist aber: ${returnType?.julType}`);
 		}
+		expect(returnType.ElementTypes.length).to.equal(3, 'Tuple sollte 3 Elemente haben (2 aus Spread + 1 literal)');
+		expect(returnType.ElementTypes[0]?.julType).to.equal('integerLiteral', 'Element 0 sollte Integer sein');
+		expect(returnType.ElementTypes[1]?.julType).to.equal('text', 'Element 1 sollte Text sein');
+		expect(returnType.ElementTypes[2]?.julType).to.equal('dictionaryLiteral', 'Element 2 sollte Dict sein');
 	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
