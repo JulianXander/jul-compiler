@@ -526,7 +526,7 @@ filter = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> TypeOf(values)
+	) :> Or([] List(TypeOf(values)/ElementType))
 	# TODO pure wenn die args pure sind
 	false
 	§js

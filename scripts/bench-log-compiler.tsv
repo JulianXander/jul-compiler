@@ -38,3 +38,4 @@
 2026-09-10 17:25:13	7ed9a84+	-	ADV-DEV-56627	yugioh	parse+check	5	3913.62	4211.42	4211.42	List-gegen-List Element-Fehler mit umschliessendem List(X)-zu-List(Y) umhuellt statt roh durchgereicht
 2026-09-10 17:45:18	7ed9a84+	-	ADV-DEV-56627	yugioh	parse+check	5	3453.40	3736.40	3736.40	Or-Ziel: Best-Match statt Alle-Choices-Dump, voller Or-Zieltyp bleibt im Kopf sichtbar
 2026-09-10 17:55:59	398e670+	-	ADV-DEV-56627	yugioh	parse+check	5	3652.58	3870.53	3870.53	Sauberer Umbau: Huellen-Entscheid faellt an der Quelle (Header-Text pruefen), keine Text-Heuristik/Dedent mehr im definition-Handler
+2026-09-10 18:11:17	a1efc13+	-	ADV-DEV-56627	yugioh	parse+check	5	3543.16	3746.66	3746.66	filter Rueckgabetyp korrigiert: Or([] List(TypeOf(values)/ElementType)) statt TypeOf(values), analog zu slice

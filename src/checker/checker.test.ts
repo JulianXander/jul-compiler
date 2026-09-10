@@ -613,6 +613,35 @@ card = getCard()
 	sliced.filterMap((value) => value)`,
 		},
 		{
+			// Fund (Session 2026-09-10, echter yugioh-Fehler activatableGameCardIds): filter
+			// kann die Liste genau wie slice leeren (Laufzeit: `return filtered.length ?
+			// filtered : undefined`), ist aber als `:> TypeOf(values)` deklariert - "garantiert
+			// derselbe Typ wie die Eingabe", ohne Or([] ...). Unsound gegenueber der eigenen
+			// Implementierung: ein Rueckgabetyp ohne Or([] ...) muesste hier einen
+			// returnTypeMismatch melden, tut es aber nicht. Bewusst rot - filter-Signatur in
+			// core-lib.jul noch nicht auf Or([] TypeOf(values)) korrigiert (vgl. slice oben).
+			name: 'filter-return-type-accounts-for-possibly-empty-result',
+			code: `f = (values: List(Integer)) :> List(Integer) =>
+	values.filter((value) => true)`,
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Empty to List(Integer).',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 31,
+					relatedInformation: {
+						message: 'Declared as List(Integer) here.',
+						startRowIndex: 0,
+						startColumnIndex: 31,
+						endRowIndex: 0,
+						endColumnIndex: 44,
+					},
+				},
+			],
+		},
+		{
 			// Ein generischer Rückgabetyp muss auch dann noch auflösbar sein, wenn der Wert
 			// vorher durch ein branching gelaufen ist. Die Union der branch Rückgabetypen
 			// enthält im rawType noch das unaufgelöste TypeOf(values)/ElementType aus slice,
