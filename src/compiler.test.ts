@@ -82,8 +82,8 @@ describe('formatErrors', () => {
 			'  |',
 			'1 | f = () :> Integer =>',
 			'  |           ^^^^^^^ Declared as Integer here.',
-			'2 | \t§hello§',
-			'  |  ^^^^^^^',
+			'2 |   §hello§',
+			'  |   ^^^^^^^',
 		].join('\n'));
 	});
 
@@ -114,7 +114,7 @@ describe('formatErrors', () => {
 			'  |',
 			'3 |   result: Text = f(',
 			'  |   ^',
-			'4 | | \t1',
+			'4 | |   1',
 			'5 | | )',
 			'  | | _^',
 		].join('\n'));
@@ -140,9 +140,39 @@ describe('formatErrors', () => {
 			'  |',
 			'2 |   result = myFunc(',
 			'  |   _________^',
-			'3 | | \t5',
+			'3 | |   5',
 			'4 | | )',
 			'  | | _^',
+		].join('\n'));
+	});
+
+	// Fund (Session 2026-09-10): reale Meldung aus yugioh/game-logic.jul zeigte einen zu kurzen
+	// Konnektor bei tief eingerücktem, mehrzeiligem Span. Ursache: 1 Tab = 1 Spalte intern, aber
+	// mehrere sichtbare Spalten im Terminal - ohne Umrechnung läuft der Marker dem Text davon,
+	// sobald die Zeile mit Tabs eingerückt ist (expandTabs/visualColumn in compiler.ts).
+	it('aligns connector markers under tab-indented, nested multiline content', () => {
+		writeFileSync(filePath, 'f = (values: List(Integer)) =>\n\tnewBoard: Text = [\n\t\t...values\n\t]\n\tnewBoard\n');
+		const errors: CompilerError[] = [
+			{
+				code: ErrorCode.definitionTypeMismatch,
+				message: 'Definition type mismatch.\nCan not assign List(Integer) to Text.',
+				startRowIndex: 1,
+				startColumnIndex: 1,
+				endRowIndex: 3,
+				endColumnIndex: 2,
+			},
+		];
+		const output = stripAnsi(formatErrors(filePath, errors));
+		expect(output).to.equal([
+			'TypeError JUL5000: Definition type mismatch.',
+			'Can not assign List(Integer) to Text.',
+			` --> ${filePath}:2:2`,
+			'  |',
+			'2 |     newBoard: Text = [',
+			'  |   __^',
+			'3 | |     ...values',
+			'4 | |   ]',
+			'  | | ___^',
 		].join('\n'));
 	});
 });

@@ -296,6 +296,25 @@ function getSourceLines(filePath: string): string[] {
 }
 
 /**
+ * JUL-Quellcode ist tabseinerückt (CLAUDE.md), Tabs stehen aber nur am Zeilenanfang - reine
+ * Zeichenbreite von 1 pro Tab reicht deshalb nicht: das Terminal expandiert jeden Tab auf mehrere
+ * Spalten, die interne Spaltenposition (1 Zeichen = 1 Spalte) läuft dann dem sichtbaren Text
+ * davon. `visualColumn` rechnet eine Roh-Spaltenposition in die sichtbare Spalte um, `expandTabs`
+ * macht dasselbe für die dargestellte Zeile.
+ */
+const tabWidth = 2; // editor.tabSize der vscode-Extension (package.json)
+function expandTabs(line: string): string {
+	return line.replaceAll('\t', ' '.repeat(tabWidth));
+}
+function visualColumn(line: string, columnIndex: number): number {
+	let column = 0;
+	for (let i = 0; i < columnIndex; i++) {
+		column += line[i] === '\t' ? tabWidth : 1;
+	}
+	return column;
+}
+
+/**
  * Quellcode-Zeilen mit Markierung (Rust-Stil): einzeilige Spans bekommen `^^^^^` unter der
  * exakten Spaltenbreite, das optionale Label direkt dahinter. Mehrzeilige Spans bekommen die
  * volle Klammerung mit `|`-Verbindern am linken Rand wie bei rustc.
@@ -314,11 +333,13 @@ function formatSpanLines(
 	const blankGutter = ' '.repeat(gutterWidth);
 	const labelSuffix = label ? ` ${label}` : '';
 	if (positioned.endRowIndex === positioned.startRowIndex) {
-		const markerLength = Math.max(1, positioned.endColumnIndex - positioned.startColumnIndex);
+		const startColumn = visualColumn(startLine, positioned.startColumnIndex);
+		const endColumn = visualColumn(startLine, positioned.endColumnIndex);
+		const markerLength = Math.max(1, endColumn - startColumn);
 		const marker = '^'.repeat(markerLength) + labelSuffix;
 		return [
-			`${colorize(pad(positioned.startRowIndex + 1), ConsoleColor.cyan)} | ${startLine}`,
-			`${blankGutter} | ${' '.repeat(positioned.startColumnIndex)}${colorize(marker, ConsoleColor.lightRed)}`,
+			`${colorize(pad(positioned.startRowIndex + 1), ConsoleColor.cyan)} | ${expandTabs(startLine)}`,
+			`${blankGutter} | ${' '.repeat(startColumn)}${colorize(marker, ConsoleColor.lightRed)}`,
 		];
 	}
 	// Mehrzeiliger Span: Start- und Endzeile bekommen je eine Markierungszeile, die
@@ -326,8 +347,8 @@ function formatSpanLines(
 	// dieselbe Präfixbreite wie die zugehörige Inhaltszeile haben ("|   " bzw. "| | "), sonst
 	// verschiebt sich das "^" um eine Spalte gegenüber dem Zeichen, das es markieren soll.
 	const resultLines: string[] = [
-		`${colorize(pad(positioned.startRowIndex + 1), ConsoleColor.cyan)} |   ${startLine}`,
-		`${blankGutter} |   ${colorize('_'.repeat(positioned.startColumnIndex) + '^', ConsoleColor.lightRed)}`,
+		`${colorize(pad(positioned.startRowIndex + 1), ConsoleColor.cyan)} |   ${expandTabs(startLine)}`,
+		`${blankGutter} |   ${colorize('_'.repeat(visualColumn(startLine, positioned.startColumnIndex)) + '^', ConsoleColor.lightRed)}`,
 	];
 	const connectorPipe = colorize('|', ConsoleColor.lightRed);
 	for (let row = positioned.startRowIndex + 1; row <= positioned.endRowIndex; row++) {
@@ -335,9 +356,9 @@ function formatSpanLines(
 		if (line === undefined) {
 			continue;
 		}
-		resultLines.push(`${colorize(pad(row + 1), ConsoleColor.cyan)} | ${connectorPipe} ${line}`);
+		resultLines.push(`${colorize(pad(row + 1), ConsoleColor.cyan)} | ${connectorPipe} ${expandTabs(line)}`);
 		if (row === positioned.endRowIndex) {
-			const marker = `${'_'.repeat(positioned.endColumnIndex)}^${labelSuffix}`;
+			const marker = `${'_'.repeat(visualColumn(line, positioned.endColumnIndex))}^${labelSuffix}`;
 			resultLines.push(`${blankGutter} | ${connectorPipe} ${colorize(marker, ConsoleColor.lightRed)}`);
 		}
 	}
