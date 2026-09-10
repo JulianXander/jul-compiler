@@ -288,7 +288,7 @@ myVarIsText: Any
   error 4001 at 34:18 T is not defined.
   error 4001 at 34:26 T is not defined.
   error 4001 at 34:32 T is not defined.
-  error 5100 at 41:2 Return type mismatch. | Can not assign [Boolean Boolean] to Boolean.
+  error 5100 at 42:3 Return type mismatch. | Can not assign [Boolean Boolean] to Boolean.
   error 4002 at 48:1 ParserResult is used before it is defined.
   error 4001 at 58:2 x is not defined.
   error 5151 at 59:7 Expected a function to call. | Can not assign Text to Any :> Any.

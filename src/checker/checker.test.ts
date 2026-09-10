@@ -804,10 +804,10 @@ f = (values: List(T)) :> Text =>
 				{
 					code: ErrorCode.returnTypeMismatch,
 					message: 'Return type mismatch.\nCan not assign List(T) to Text.',
-					startRowIndex: 1,
-					startColumnIndex: 4,
-					endRowIndex: 6,
-					endColumnIndex: 1,
+					startRowIndex: 5,
+					startColumnIndex: 1,
+					endRowIndex: 5,
+					endColumnIndex: 10,
 					relatedInformation: {
 						message: 'Declared as Text here.',
 						startRowIndex: 1,
@@ -1267,6 +1267,34 @@ g: Text = f(3)`,
 					"message": "add is already defined in upper scope",
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Fund in jul-examples/types.jul (addNums): der letzte Ausdruck im Funktionsrumpf war
+			// ein mehrzeiliges branching. returnTypeMismatch markierte davor die GANZE Funktion
+			// (Zeile 0 bis Ende des branchings) statt nur des branchings selbst, das den
+			// tatsächlich zurückgegebenen Wert bildet.
+			name: 'return-type-mismatch-marks-only-the-last-body-expression',
+			code: `f = (x: Integer) :> Integer =>
+	?(x)
+		[0] => true
+		() => 1`,
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign true to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 4,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 20,
+						endRowIndex: 0,
+						endColumnIndex: 27,
+					},
 				},
 			],
 		},

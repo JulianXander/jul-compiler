@@ -1887,13 +1887,17 @@ function inferType(
 				const declaredReturnValueType = valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type));
 				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), declaredReturnValueType);
 				if (error) {
+					// Markiert wird nur der zurückgegebene Ausdruck (last(body)), nicht die
+					// ganze Funktion - sonst ummantelt die mehrzeilige Klammerung (formatErrors)
+					// den kompletten Funktionsrumpf statt der tatsächlich betroffenen Stelle.
+					const returnedExpression = last(expression.body) ?? expression;
 					errors.push({
 						code: ErrorCode.returnTypeMismatch,
 						message: `Return type mismatch.\n${error}`,
-						startRowIndex: expression.startRowIndex,
-						startColumnIndex: expression.startColumnIndex,
-						endRowIndex: expression.endRowIndex,
-						endColumnIndex: expression.endColumnIndex,
+						startRowIndex: returnedExpression.startRowIndex,
+						startColumnIndex: returnedExpression.startColumnIndex,
+						endRowIndex: returnedExpression.endRowIndex,
+						endColumnIndex: returnedExpression.endColumnIndex,
 						// Verweist auf die Deklaration, damit sichtbar wird, WARUM der Zieltyp
 						// gilt - besonders bei langen Funktionsrümpfen, wo die Signatur beim
 						// Lesen der Rückgabe längst nicht mehr im Bild ist.

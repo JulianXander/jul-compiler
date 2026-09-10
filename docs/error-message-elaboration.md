@@ -13,13 +13,11 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   `Argument type mismatch.` / `Return type mismatch.`), und `relatedInformation` (zweite Position
   an der Rückgabetyp-Deklaration, `CompilerError` in compiler-errors.ts, genutzt von
   `formatErrors` in compiler.ts und `server.ts`).
-
-Nicht umgesetzt, bewusst zurückgestellt:
-
-- ASCII-Quellcode-Darstellung mit `^^^^^`-Pfeilen im CLI-Terminal (nach Rust-Vorbild). Bringt im
-  Editor keinen zusätzlichen Klarheitsgewinn über das bereits umgesetzte `relatedInformation`
-  hinaus (Squiggle + Hover zeigen dieselbe Information), und betrifft das LSP nicht - reines
-  CLI-Ausgabeformat. Kein roter Test, keine Umsetzung geplant, solange sich daran nichts ändert.
+- ASCII-Quellcode-Darstellung im CLI-Terminal nach Rust-Vorbild (`formatErrors`/`formatSpanLines`
+  in compiler.ts): `-->`-Zeile mit Datei:Zeile:Spalte, `^^^^^`-Marker unter einzeiligen Spans,
+  `|`-Klammerung mit Konnektor-Linien bei mehrzeiligen Spans, `relatedInformation` als zweiter
+  Frame ohne eigene Positionszeile. Betrifft nur das CLI-Ausgabeformat, nicht das LSP (dort bleibt
+  `relatedInformation` ein reines Diagnostic-Feld für den Editor).
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 
