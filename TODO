@@ -4,6 +4,10 @@
 	-risiko gering, aber umbau: ~200 zeilen code verschieben, regionsgrenzen neu setzen
 	-aufgabe für später, wenn ohnehin an checker-organisation gearbeitet wird
 -multiline returntype parser
+?filter/findFirst/exists verengen den Elementtyp nicht ueber ihr Boolean-Praedikat (anders als
+	filterMap) - siehe docs/predicate-types-and-filter-narrowing.md fuer Untersuchung, Vergleich
+	mit anderen Sprachen und einen skizzierten (nicht umgesetzten) Mittelweg. Fuer akute Faelle
+	reicht assume(...) an der Aufrufstelle.
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
 -debug experience vebessern
 	?sourcemap
