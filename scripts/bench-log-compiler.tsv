@@ -30,3 +30,4 @@
 2026-09-10 15:37:09	16c5e89+	-	ADV-DEV-56627	yugioh	parse+check	5	3515.81	3868.01	3868.01	typeToString: Leerzeichen statt Tabs fuer mehrzeilige Typen (dieselbe Einheit wie indentLines)
 2026-09-10 15:48:06	2277f04+	-	ADV-DEV-56627	yugioh	parse+check	5	3550.16	3859.70	3859.70	Echte Positionen je Tupel-/Listen-Element (findInnermostElementErrorPosition)
 2026-09-10 16:01:55	733e44d+	-	ADV-DEV-56627	yugioh	parse+check	5	3601.40	3943.16	3943.16	Or([] List(X))-Spread korrekt als List statt Tuple erkannt (getSpreadElementTypes)
+2026-09-10 16:08:43	a35c8ba+	-	ADV-DEV-56627	yugioh	parse+check	5	3512.89	3749.83	3749.83	Große Dictionary-Typen in Fehlermeldungen nach 5 Feldern gekürzt (maxFieldsInTypeDump)

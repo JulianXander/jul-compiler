@@ -82,6 +82,7 @@ export function resetCheckerStats(): void {
 //#endregion stats
 
 const maxElementsPerLine = 5;
+const maxFieldsInTypeDump = 5;
 
 /**
  * Einheit fuer eine Einrueckungsebene in generiertem Diagnosetext (Fehlerketten, Typ-Dumps) -
@@ -4296,12 +4297,23 @@ function dictionaryTypeToString(
 	const newIndent = multiline
 		? indent + 1
 		: indent;
+	const allFields = map(
+		dictionary,
+		(element, key) => {
+			return `${key}${nameSeparator}${typeToString(element, newIndent, depth)}`;
+		});
+	
+	// Begrenzen bei zu vielen Feldern: zeige maxFieldsInTypeDump Felder, dann "and N more"
+	let displayFields = allFields;
+	if (allFields.length > maxFieldsInTypeDump) {
+		displayFields = [
+			...allFields.slice(0, maxFieldsInTypeDump),
+			`(and ${allFields.length - maxFieldsInTypeDump} more field${allFields.length - maxFieldsInTypeDump === 1 ? '' : 's'})`,
+		];
+	}
+	
 	return bracketedExpressionToString(
-		map(
-			dictionary,
-			(element, key) => {
-				return `${key}${nameSeparator}${typeToString(element, newIndent, depth)}`;
-			}),
+		displayFields,
 		multiline,
 		indent);
 }

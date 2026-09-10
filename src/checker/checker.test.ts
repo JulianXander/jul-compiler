@@ -1559,6 +1559,29 @@ describe('Checker', () => {
 		}
 	});
 
+	// Großer Zieltyp (Dictionary mit vielen Feldern) in Fehlermeldung sollte gekürzt werden
+	// statt alle Felder aufzulisten (führt zu 20+ Zeilen nur für die Typ-Darstellung).
+	// Bewusst rot - typeToString-Kürzung noch nicht umgesetzt.
+	it('large-dictionary-type-in-error-message-is-truncated', () => {
+		// Dictionary mit 20 Feldern als Zieltyp; die Fehlermeldung sollte nicht alle Felder
+		// aufgezählt zeigen, sondern gekürzt sein (z.B. "field0: Integer, field1: Integer, ..., (20 fields total)").
+		const fields = Array(20).fill(null)
+			.map((_, i) => `field${i}: Integer`)
+			.join(' ');
+		const code = `x: [${fields}] = []`;
+		
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const error = parsed.checked?.errors?.[0];
+		const messageLines = error?.message.split('\n') ?? [];
+		
+		// Erwartet: nicht alle 20 Feldzeilen ausgedruckt, sondern gekürzt
+		// (aktuell 23 Zeilen: 1 Header + 1 "Can not assign Empty to [" + 20 Feldzeilen + 1 "].")
+		// Nach Kürzung sollte es unter 10 Zeilen sein.
+		expect(messageLines.length).to.be.lessThan(10,
+			`zu lange Typ-Darstellung (${messageLines.length} Zeilen), sollte gekürzt werden:\n${error?.message}`);
+	});
+
 	// Fund in yugioh (draw() liefert GameState statt des deklarierten GameBoard): fehlt einem
 	// Dictionary-Ziel ein Feld komplett, gibt es keinen Wert zum Vergleichen - der erwartete Typ
 	// steht bereits an der Zieltyp-Deklaration selbst. TypeScript/Rust/Elm/GHC schreiben ihn dort

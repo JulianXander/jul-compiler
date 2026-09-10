@@ -85,7 +85,7 @@ myDictValue2: 1234
 myDictionary: [   a: 1   b: 2   c: 3 ]
 myDictionary2: [   a: 1   b: [     b1: 1     b2: 112344     b3: 1234   ]   c: 3 ]
 myDictionary3: [   a: 1   b: 2   c: 30 ]
-myDictionary4: [   a: 1   b: [     b1: 1     b2: 112344     a: 1     b: 2     c: 3     b3: 1234   ]   c: 3 ]
+myDictionary4: [   a: 1   b: [     b1: 1     b2: 112344     a: 1     b: 2     c: 3     (and 1 more field)   ]   c: 3 ]
 myList: [1 2 3]
 myList2: [1 [21 22 23] 3]
 myList3: [   10   20   1   2   3   30 ]

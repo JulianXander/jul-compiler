@@ -55,8 +55,10 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   nutzt jetzt dieselbe Einrückungseinheit wie `indentLines` (2 Leerzeichen statt Tabs) - vorher
   mischten sich Tabs und Leerzeichen, sobald ein mehrzeiliger Typ-Dump in eine bereits
   eingerückte Fehlerkette eingebettet wurde, die Verschachtelung sah dann zufällig aus statt
-  konsistent (Fund im echten yugioh-Fehlerbild, Session 2026-09-10). Behebt nur die Darstellung,
-  nicht den unhandlichen Typ-Dump selbst - siehe "Offen" unten.
+  konsistent (Fund im echten yugioh-Fehlerbild, Session 2026-09-10). Separate Fix: große
+  Dictionaries in Typ-Dumps werden nach 5 Feldern gekürzt mit "(and N more fields)" (`maxFieldsInTypeDump`
+  in checker.ts, `dictionaryTypeToString`), um unendlich lange Fehlermeldungen zu vermeiden (z.B.
+  eine Fehlzuweisung zu einem 20-Feld-Dictionary druckt jetzt nur noch 9 Zeilen statt 23).
 - Echte Position am falschen Tupel-/Listen-**Element** (`findInnermostElementErrorPosition` in
   checker.ts, Analogon zu `findInnermostFieldErrorPosition` für Dictionary-Felder): ein falsches
   Element markierte bisher nur die ganze Definition, jetzt zeigt die Position auf das Element
@@ -76,6 +78,10 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 
+**Dictionary-Typ-Dumps** sind bereits gekürzt (siehe Status oben: `maxFieldsInTypeDump`). Offen
+bleibt die Kürzung bei **Tupel-/Listen-Element-Fehlern** (mehrere Elemente mit je einem
+Zieltyp-Fehler):
+
 Die Dedup identischer *aufeinanderfolgender* Sub-Meldungen ist umgesetzt (siehe Status oben) und
 deckt den häufigsten Fall ab: mehrere Elemente mit gleichem Zieltyp, sowohl bei Tupel- als auch
 bei Listen-Zielen. Echte Positionen je Element sind fuer den Fall MIT Literal ebenfalls umgesetzt
@@ -91,7 +97,7 @@ später mit dem einfacheren Set-Dedup-Format neu geschrieben (keine Ausnahme von
 bleibt stehen" - der erste Test belegte kein Bugverhalten, sondern eine verfrühte Festlegung
 auf ein noch offenes Design).
 
-Andere Compiler begrenzen unterschiedlich (weiterhin relevant, sobald ein Format feststeht):
+Andere Compiler begrenzen unterschiedlich (für Tupel-Elemente weiterhin relevant, sobald ein Format feststeht):
 
 - TypeScript: `is missing the following properties from type 'Y': a, b, c, and N more.` -
   Kappung nach wenigen **benannten** Feldern, die jedes für sich informativ sind.
