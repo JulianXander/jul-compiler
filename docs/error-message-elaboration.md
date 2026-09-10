@@ -64,6 +64,15 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   einem fehlenden Element (kein Ausdruck zum Zeigen) oder einem Spread (Zuordnung nicht
   eindeutig) - dort bleibt die äußere Position wie bisher. Deckt nur den Fall mit Literal ab,
   siehe "Offen" unten für den Fallback ohne Literal.
+- Typinferenz-Bug behoben: ein Spread von `Or([] List(X))` (Idiom für eine möglicherweise leere
+  Liste) in ein List-Literal wurde als "andere Typen"-Fallback behandelt (ein einzelnes
+  `Any`-Element statt `hasListSpread = true`) und machte das Ergebnis fälschlich zu einem Tuple
+  fester Länge statt einer `List(X)` (`getSpreadElementTypes` in checker.ts, `case 'list':` in
+  `inferType`). Fund im echten yugioh-Fehlerbild: `allGameCardIds` erzeugte einen 7-elementigen
+  Tuple-Dump mit lauter identischen `Or(Empty Integer)`-Einträgen statt der erwarteten
+  `List(Or(Integer Empty))`. Der Fix schaut bei `Or`-Quelltypen durch die Choices hindurch;
+  unterschiedliche Element-Anzahlen zwischen den Choices (z.B. `Empty` = 0 vs. `List(X)` =
+  unbestimmt) bedeuten eine unbestimmte Gesamtlänge und damit `hasListSpread = true`.
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 

@@ -1532,6 +1532,33 @@ describe('Checker', () => {
 		}
 	});
 
+	// Fund in yugioh (game-logic.jul, allGameCardIds): Or([] List(X)) ist das Idiom fuer eine
+	// moeglicherweise leere Liste (CLAUDE.md) - ihr julType ist 'or', nicht 'list'. Umgesetzt in
+	// getSpreadElementTypes (checker.ts): schaut durch die Or-Choices hindurch und erkennt an
+	// unterschiedlichen Choice-Laengen, dass die Gesamtlaenge unbestimmt ist.
+	it('possibly-empty-list-spread-collapses-to-list', () => {
+		const code = `f = (hand: Or([] List(Integer)) spellTraps: [Integer Integer] field: Integer) =>
+	[
+		...hand
+		...spellTraps
+		field
+	]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const functionType = definition.value?.typeInfo?.type;
+		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+
+		expect(returnType?.julType).to.equal('list',
+			'Or([] List)-Spread sollte zu einer List werden, tatsächlich: ' + returnType?.julType);
+		if (returnType && returnType.julType === 'list') {
+			expect(returnType.ElementType.julType).to.equal('integer',
+				'ElementType sollte Integer sein, tatsächlich: ' + returnType.ElementType.julType);
+		}
+	});
+
 	// Fund in yugioh (draw() liefert GameState statt des deklarierten GameBoard): fehlt einem
 	// Dictionary-Ziel ein Feld komplett, gibt es keinen Wert zum Vergleichen - der erwartete Typ
 	// steht bereits an der Zieltyp-Deklaration selbst. TypeScript/Rust/Elm/GHC schreiben ihn dort

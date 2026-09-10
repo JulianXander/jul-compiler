@@ -1367,6 +1367,38 @@ function getElementTypeAtIndex(
 }
 
 /**
+ * Elemente, die ein Spread in ein List-Literal einbringt, und ob dadurch die Gesamtlaenge
+ * unbestimmt wird (dann muss das Literal zur List werden statt zum Tuple). `Or([] List(X))`
+ * (Idiom fuer eine moeglicherweise leere Liste) muss dafuer durch seine Choices hindurchschauen:
+ * unterschiedliche Laengen zwischen den Choices bedeuten ebenfalls eine unbestimmte Gesamtlaenge.
+ */
+function getSpreadElementTypes(
+	sourceType: CompileTimeType,
+): { elementTypes: CompileTimeType[]; isListSpread: boolean; } | undefined {
+	switch (sourceType.julType) {
+		case 'tuple':
+			return { elementTypes: sourceType.ElementTypes, isListSpread: false };
+		case 'list':
+			return { elementTypes: [sourceType.ElementType], isListSpread: true };
+		case 'empty':
+			return { elementTypes: [], isListSpread: false };
+		case 'or': {
+			const subResults = sourceType.ChoiceTypes.map(getSpreadElementTypes);
+			if (subResults.some(subResult => !subResult)) {
+				return undefined;
+			}
+			const resolvedResults = subResults as { elementTypes: CompileTimeType[]; isListSpread: boolean; }[];
+			const lengths = new Set(resolvedResults.map(subResult => subResult.elementTypes.length));
+			const isListSpread = resolvedResults.some(subResult => subResult.isListSpread) || lengths.size > 1;
+			const elementTypes = resolvedResults.flatMap(subResult => subResult.elementTypes);
+			return { elementTypes: elementTypes, isListSpread: isListSpread };
+		}
+		default:
+			return undefined;
+	}
+}
+
+/**
  * Die Veroderung dessen, was die branches vor diesem an dieser Argumentstelle bereits abfangen.
  * _branch probiert die branches der Reihe nach, wer hier ankommt hat also alle vorherigen nicht
  * gematcht. undefined, wenn es keine vorherigen branches gibt oder einer davon alles matcht bzw.
@@ -1980,15 +2012,14 @@ function inferType(
 			for (const element of expression.values) {
 				if (element.type === 'spread') {
 					const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
-					if (sourceType.julType === 'tuple') {
-						// Tuple-Spread: flatten alle ElementTypes ins Array
-						tupleElements.push(...sourceType.ElementTypes);
-					} else if (sourceType.julType === 'list') {
-						// List-Spread: merke flag, füge ElementType als single element ein
-						hasListSpread = true;
-						tupleElements.push(sourceType.ElementType);
+					const spreadResult = getSpreadElementTypes(sourceType);
+					if (spreadResult) {
+						if (spreadResult.isListSpread) {
+							hasListSpread = true;
+						}
+						tupleElements.push(...spreadResult.elementTypes);
 					} else {
-						// Andere Typen: fallback zu any
+						// Nicht auflösbare Quelle (z.B. Any): fallback zu any
 						tupleElements.push({ julType: 'any' });
 					}
 				} else {
