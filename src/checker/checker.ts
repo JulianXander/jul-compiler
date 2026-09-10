@@ -3514,7 +3514,7 @@ export function getTypeError(
 			// Vergleichsebene (typeToString zeigt Aliase nur ab depth>0) - sonst würde z.B.
 			// GameBoard hier voll ausgeschrieben statt als kurzer Name.
 			return {
-				message: `Can not assign ${typeToString(argumentsType, 0, 1)} to ${typeToString(targetType, 0, 1)}.\n${error.message}`,
+				message: `Can not assign ${typeToString(argumentsType, 0, 1)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(error.message)}`,
 			};
 		}
 		case 'empty':
@@ -3850,11 +3850,13 @@ function getDictionaryFieldError(
 ): TypeError | undefined {
 	const subError = getTypeError(prefixArgumentType, fieldValueType, fieldTargetType);
 	if (subError) {
-		const wrappedError: TypeError = {
-			message: `Invalid value for field ${fieldName}`,
-			innerError: subError,
+		// Feldname steht VOR der Erklärung, die er einleitet (TypeScript-Vorbild), nicht danach -
+		// sonst müsste man beim Lesen den Feldnamen im Kopf der richtigen Ebene der Typ-Kette
+		// zuordnen statt ihn direkt an der Stelle zu lesen, wo er hingehört. Eine Ebene tiefer
+		// eingerückt, damit die Verschachtelungstiefe auch bei 3+ Ebenen sichtbar bleibt.
+		return {
+			message: `Invalid value for field ${fieldName}\n${indentLines(typeErrorToString(subError))}`,
 		};
-		return wrappedError;
 	}
 	return subError;
 }
@@ -4077,6 +4079,18 @@ function typeErrorToString(typeError: TypeError): string {
 		return typeErrorToString(typeError.innerError) + '\n' + typeError.message;
 	}
 	return typeError.message;
+}
+
+/**
+ * Rueckt jede Zeile eines mehrzeiligen Fehlertexts eine Ebene tiefer - fuer verschachtelte
+ * Dictionary-Felder, damit die Tiefe beim Lesen sichtbar ist (TypeScript-Vorbild), statt nur
+ * ueber die Abfolge von Typ-Mismatch/Feldname-Zeilen erschlossen werden zu muessen. Leerzeichen
+ * statt Tabs: das ist generierter Diagnosetext, kein Quellcode (JULs Tab-Konvention gilt dort) -
+ * ein Tab-Zeichen rendert je nach Terminal/Editor-Tabstop unterschiedlich breit, Leerzeichen sind
+ * ueberall gleich breit.
+ */
+function indentLines(text: string): string {
+	return text.split('\n').map(line => `  ${line}`).join('\n');
 }
 
 //#endregion TypeError

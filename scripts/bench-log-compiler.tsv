@@ -26,3 +26,4 @@
 2026-09-10 14:45:03	9fb37a0+	-	ADV-DEV-56627	yugioh	parse+check	5	3942.61	4112.80	4112.80	redundante Missing-field-Elaboration entfernt
 2026-09-10 14:59:54	9c22e50+	-	ADV-DEV-56627	yugioh	parse+check	5	10294.39	12595.79	12595.79	eine Diagnose statt zwei bei verschachtelten Dictionary-Literalen (findInnermostErrorPosition)
 2026-09-10 15:03:38	9c22e50+	-	ADV-DEV-56627	yugioh	parse+check	5	4046.82	8313.71	8313.71	Ein-Diagnose-Architektur: Position rekursiv zum innersten Fehler statt Zwei-Diagnosen-Elaboration
+2026-09-10 15:23:19	7db6623+	-	ADV-DEV-56627	yugioh	parse+check	5	3383.02	3579.17	3579.17	Feldname vor Erklaerung + Einrueckung pro Verschachtelungsebene (TS-Vorbild)

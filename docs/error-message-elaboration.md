@@ -37,10 +37,18 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   TypeScript/Rust/Elm-Vorbild): eine Diagnose, deren Position beim Abstieg durch verschachtelte
   Dictionary-Literale auf die innerste noch vorhandene, tatsächlich falsche Stelle wandert; die
   Nachricht bleibt die volle Kette, aber nur einmal.
-- Position zusätzlich zur `-->`-Zeile auch in der Kopfzeile (`formatErrors` in compiler.ts):
-  bei mehrzeiligen, verschachtelten Ketten liegen oft 5+ Zeilen zwischen Kopfzeile und `-->`-Zeile
-  - ohne Wiederholung ließe die Kopfzeile allein keinen Rückschluss auf die Stelle zu. Bewusste
-  Rückkehr zur Dopplung, die für kurze Meldungen zuvor entfernt worden war (Session 2026-09-10).
+- Position zusätzlich zur `-->`-Zeile auch am Ende der ersten Zeile (`formatErrors` in
+  compiler.ts): bei mehrzeiligen, verschachtelten Ketten liegen oft 5+ Zeilen zwischen erster
+  Zeile und `-->`-Zeile - ohne Wiederholung ließe die erste Zeile allein keinen Rückschluss auf
+  die Stelle zu. Bewusste Rückkehr zur Dopplung, die für kurze Meldungen zuvor entfernt worden
+  war (Session 2026-09-10). Steht am Zeilenende (nicht davor), damit die Meldung selbst zuerst
+  lesbar ist.
+- Feldname steht vor statt hinter der Erklärung, die er einleitet, mit einer Tab-Einrückung pro
+  Verschachtelungsebene (`getDictionaryFieldError`/`indentLines` in checker.ts, nach
+  TypeScript-Vorbild): vorher hingen alle `Invalid value for field X`-Zeilen ans Ende der Kette,
+  in umgekehrter Verschachtelungsreihenfolge (innerstes Feld zuerst) - man musste sie im Kopf der
+  richtigen Ebene der Typ-Kette zuordnen. Jetzt liest sich die Kette durchgehend außen nach innen,
+  jede Zeile eine Ebene tiefer eingerückt als die vorige.
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 

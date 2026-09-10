@@ -711,7 +711,7 @@ x: T = [a = 1]`,
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign x to T.\nMissing field b.',
+					message: 'Definition type mismatch.\nCan not assign x to T.\n  Missing field b.',
 					startRowIndex: 1,
 					startColumnIndex: 0,
 					endRowIndex: 1,
@@ -729,7 +729,7 @@ x: T = [a = 1 b = []]`,
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign x to T.\nCan not assign Empty to Text.\nInvalid value for field b',
+					message: 'Definition type mismatch.\nCan not assign x to T.\n  Invalid value for field b\n    Can not assign Empty to Text.',
 					startRowIndex: 1,
 					startColumnIndex: 18,
 					endRowIndex: 1,
@@ -750,7 +750,7 @@ x: Dictionary(T) = [
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign [a: §wrong§] to T.\nCan not assign §wrong§ to Integer.\nInvalid value for field a\nInvalid value for field bad',
+					message: 'Definition type mismatch.\nInvalid value for field bad\n  Can not assign [a: §wrong§] to T.\n    Invalid value for field a\n      Can not assign §wrong§ to Integer.',
 					startRowIndex: 2,
 					startColumnIndex: 12,
 					endRowIndex: 2,
@@ -1544,7 +1544,7 @@ x: T = [a = 1]`;
 		checkTypes(parsed, {});
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
-			'Definition type mismatch.\nCan not assign x to T.\nMissing fields: b, c.',
+			'Definition type mismatch.\nCan not assign x to T.\n  Missing fields: b, c.',
 		]);
 	});
 	// Gegenprobe: bei genau einem fehlenden Feld bleibt es Singular, kein Doppelpunkt.
@@ -1555,7 +1555,7 @@ x: T = [a = 1]`;
 		checkTypes(parsed, {});
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
-			'Definition type mismatch.\nCan not assign x to T.\nMissing field b.',
+			'Definition type mismatch.\nCan not assign x to T.\n  Missing field b.',
 		]);
 	});
 
@@ -1577,12 +1577,41 @@ x: Outer = [inner = [a = §wrong§]]`;
 		expect(parsed.checked?.errors).to.deep.equal([
 			{
 				code: ErrorCode.definitionTypeMismatch,
-				message: 'Definition type mismatch.\nCan not assign x to Outer.\nCan not assign [a: §wrong§] to Inner.\nCan not assign §wrong§ to Integer.\nInvalid value for field a\nInvalid value for field inner',
+				message: 'Definition type mismatch.\nCan not assign x to Outer.\n  Invalid value for field inner\n    Can not assign [a: §wrong§] to Inner.\n      Invalid value for field a\n        Can not assign §wrong§ to Integer.',
 				startRowIndex: 2,
 				startColumnIndex: 25,
 				endRowIndex: 2,
 				endColumnIndex: 32,
 			},
+		]);
+	});
+
+	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): die Typ-Kette liest sich außen nach
+	// innen ("Can not assign X to Outer." vor "... to Inner." vor "... to Integer."), aber die
+	// "Invalid value for field"-Zeilen haengen alle ans Ende, in umgekehrter Verschachtelungs-
+	// Reihenfolge (innerstes Feld zuerst) - man muss sie im Kopf wieder der richtigen Ebene der
+	// Typ-Kette zuordnen statt sie direkt an der Stelle zu lesen, wo sie hingehoeren.
+	// TypeScript interleaved das (Feldname direkt vor dem Fehler, den er erklaert) UND rueckt
+	// jede Zeile eine Ebene tiefer ein, je weiter man in die Verschachtelung absteigt - ohne
+	// Einrueckung bleibt bei 3+ Ebenen (wie im echten Fund: GameState -> boards -> GameBoard ->
+	// activatableGameCardIds) unklar, welche Zeile zu welcher Tiefe gehoert. Tabs statt
+	// Leerzeichen (JUL-Konvention). Bewusst rot - noch nicht umgesetzt.
+	it('field-name-precedes-the-type-mismatch-it-explains', () => {
+		const code = `Inner = [a: Integer]
+Outer = [inner: Inner]
+x: Outer = [inner = [a = §wrong§]]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const messages = parsed.checked?.errors.map(error => error.message);
+		expect(messages).to.deep.equal([
+			[
+				'Definition type mismatch.',
+				'Can not assign x to Outer.',
+				'  Invalid value for field inner',
+				'    Can not assign [a: §wrong§] to Inner.',
+				'      Invalid value for field a',
+				'        Can not assign §wrong§ to Integer.',
+			].join('\n'),
 		]);
 	});
 
