@@ -1645,7 +1645,7 @@ function inferType(
 					allFieldsResolved = false;
 					errors.push({
 						code: ErrorCode.dereferenceFailed,
-						message: `Failed to dereference ${referenceName} in type ${typeToString(resolvePlaceholders(valueType), 0, 0)}`,
+						message: `Failed to dereference '${referenceName}' in type ${typeToString(resolvePlaceholders(valueType), 0, 0)}`,
 						startRowIndex: field.startRowIndex,
 						startColumnIndex: field.startColumnIndex,
 						endRowIndex: field.endRowIndex,
@@ -2096,7 +2096,7 @@ function inferType(
 						if (hasKnownLength(sourceType)) {
 							errors.push({
 								code: ErrorCode.dereferenceFailed,
-								message: `Failed to dereference ${nestedKey.name} in type ${typeToString(sourceType, 0, 0)}`,
+								message: `Failed to dereference '${nestedKey.name}' in type ${typeToString(sourceType, 0, 0)}`,
 								startRowIndex: nestedKey.startRowIndex,
 								startColumnIndex: nestedKey.startColumnIndex,
 								endRowIndex: nestedKey.endRowIndex,
@@ -2127,7 +2127,7 @@ function inferType(
 						if (hasKnownFields(sourceType)) {
 							errors.push({
 								code: ErrorCode.dereferenceFailed,
-								message: `Failed to dereference ${fieldName} in type ${typeToString(sourceType, 0, 0)}`,
+								message: `Failed to dereference '${fieldName}' in type ${typeToString(sourceType, 0, 0)}`,
 								startRowIndex: nestedKey.startRowIndex,
 								startColumnIndex: nestedKey.startColumnIndex,
 								endRowIndex: nestedKey.endRowIndex,
@@ -2239,7 +2239,7 @@ function inferType(
 			if (!found) {
 				errors.push({
 					code: ErrorCode.notDefined,
-					message: `${name} is not defined.`,
+					message: `'${name}' is not defined.`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,
@@ -2255,7 +2255,7 @@ function inferType(
 						&& expression.startColumnIndex < foundSymbol.startColumnIndex))) {
 				errors.push({
 					code: ErrorCode.usedBeforeDefined,
-					message: `${name} is used before it is defined.`,
+					message: `'${name}' is used before it is defined.`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,
@@ -3152,7 +3152,7 @@ function checkDiscardedArguments(
 				checkDiscardedFields(
 					writtenArgs,
 					knownNames,
-					fieldName => `There is no parameter named ${fieldName}.`,
+					fieldName => `There is no parameter named '${fieldName}'.`,
 					errors,
 				);
 			}
@@ -3246,7 +3246,7 @@ function checkDiscardedDestructuringFields(
 	checkDiscardedFields(
 		writtenValue,
 		boundNames,
-		fieldName => `${fieldName} is not destructured.`,
+		fieldName => `'${fieldName}' is not destructured.`,
 		errors,
 	);
 }
@@ -3887,8 +3887,8 @@ function getDictionaryLiteralTypeError(
 			const missingFieldsError: TypeError | undefined = missingFieldNames.length
 				? {
 					message: missingFieldNames.length === 1
-						? `Missing field ${missingFieldNames[0]}.`
-						: `Missing fields: ${missingFieldNames.join(', ')}.`,
+						? `Missing field '${missingFieldNames[0]}'.`
+						: `Missing fields: ${missingFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`,
 				}
 				: undefined;
 			const subErrors = missingFieldsError ? [missingFieldsError, ...fieldValueErrors] : fieldValueErrors;
@@ -3920,7 +3920,7 @@ function getDictionaryFieldError(
 		// zuordnen statt ihn direkt an der Stelle zu lesen, wo er hingehört. Eine Ebene tiefer
 		// eingerückt, damit die Verschachtelungstiefe auch bei 3+ Ebenen sichtbar bleibt.
 		return {
-			message: `Invalid value for field ${fieldName}\n${indentLines(typeErrorToString(subError))}`,
+			message: `Invalid value for field '${fieldName}'\n${indentLines(typeErrorToString(subError))}`,
 		};
 	}
 	return subError;
@@ -4072,7 +4072,7 @@ function getTypeErrorForParameters(
 				const valueParameter = valueSingleNames[index];
 				if (valueParameter && valueParameter.name !== targetParameterName) {
 					return {
-						message: `Parameter name mismatch. Got ${valueParameter.name} but expected ${targetParameterName}`,
+						message: `Parameter name mismatch. Got '${valueParameter.name}' but expected '${targetParameterName}'`,
 					};
 				}
 				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? { julType: 'any' };
@@ -4443,7 +4443,7 @@ function checkNameDefinedInUpperScope(
 	if (alreadyDefined) {
 		errors.push({
 			code: ErrorCode.alreadyDefinedInUpperScope,
-			message: `${name} is already defined in upper scope`,
+			message: `'${name}' is already defined in upper scope`,
 			startRowIndex: expression.startRowIndex,
 			startColumnIndex: expression.startColumnIndex,
 			endRowIndex: expression.endRowIndex,

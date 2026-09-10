@@ -8,7 +8,7 @@ myValue: [field1: Any]
   error 1050 at 35:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 2202 at 37:2 assignedValue missing for singleDictionaryField
   error 1050 at 42:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
-  error 5000 at 33:1 Definition type mismatch. | Can not assign [field1: Any] to MyType. |   Missing fields: someOtherField, function.
+  error 5000 at 33:1 Definition type mismatch. | Can not assign [field1: Any] to MyType. |   Missing fields: 'someOtherField', 'function'.
   error 5050 at 40:1 Argument type mismatch. | Can not assign Empty to [ |   field1: Integer |   someOtherField: Text |   function: () :> Text | ].
   error 5050 at 49:1 Argument type mismatch. | Can not assign Empty to [ |   field1: Integer |   someOtherField: Text |   function: () :> Text | ].
 === bracketed-expression-example.jul ===
@@ -18,8 +18,8 @@ multiLineList: [1 2 5 Any]
 multiLineObj: Any
 someVar: [   1   2   1   4   4   5 ]
   error 2401 at 52:4 Rest argument must be last.
-  error 4001 at 69:3 a is not defined.
-  error 4001 at 69:5 b is not defined.
+  error 4001 at 69:3 'a' is not defined.
+  error 4001 at 69:5 'b' is not defined.
 === branching.jul ===
 myEmpty: Empty
 myFunction: (a: Integer) :> Empty
@@ -98,20 +98,20 @@ mapped1$: Stream(Integer)
 mapped2$: Stream(Integer)
 source$: Stream(Float)
   error 5050 at 1:11 Argument type mismatch. | Can not assign 2000 to Float.
-  error 4001 at 4:3 console is not defined.
-  error 5050 at 2:1 Argument type mismatch. | Parameter name mismatch. Got value but expected x
+  error 4001 at 4:3 'console' is not defined.
+  error 5050 at 2:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
   error 5050 at 7:36 Argument type mismatch. | Can not assign Float to Integer.
-  error 5050 at 7:12 Argument type mismatch. | Parameter name mismatch. Got value but expected count
-  error 4001 at 8:27 console is not defined.
-  error 5050 at 8:1 Argument type mismatch. | Parameter name mismatch. Got value but expected x
+  error 5050 at 7:12 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'count'
+  error 4001 at 8:27 'console' is not defined.
+  error 5050 at 8:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
   error 5050 at 10:36 Argument type mismatch. | Can not assign Float to Integer.
-  error 5050 at 10:12 Argument type mismatch. | Parameter name mismatch. Got value but expected count
-  error 4001 at 11:27 console is not defined.
-  error 5050 at 11:1 Argument type mismatch. | Parameter name mismatch. Got value but expected x
-  error 4001 at 14:28 console is not defined.
-  error 5050 at 14:1 Argument type mismatch. | Parameter name mismatch. Got value but expected x
-  error 4001 at 15:11 onCompleted is not defined.
-  error 4001 at 15:29 console is not defined.
+  error 5050 at 10:12 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'count'
+  error 4001 at 11:27 'console' is not defined.
+  error 5050 at 11:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
+  error 4001 at 14:28 'console' is not defined.
+  error 5050 at 14:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
+  error 4001 at 15:11 'onCompleted' is not defined.
+  error 4001 at 15:29 'console' is not defined.
 === test1.jul ===
 a: Any
   error 1011 at 2:11 Invalid index 0, indexes start at 1
@@ -196,17 +196,17 @@ testWithout21: true
   error 5000 at 48:1 Definition type mismatch. | Can not assign 6 to 4. | Can not assign 6 to 5.
   error 5000 at 54:1 Definition type mismatch. | Can not assign 5 to Never.
   error 5000 at 56:1 Definition type mismatch. | Can not assign 6 to Never.
-  error 5000 at 71:6 Definition type mismatch. | Invalid value for field b |     Can not assign 6 to 5.
+  error 5000 at 71:6 Definition type mismatch. | Invalid value for field 'b' |     Can not assign 6 to 5.
   error 5000 at 74:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 84:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 85:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 89:29 Definition type mismatch. | Can not assign 1 to 2.
   error 5000 at 93:31 Definition type mismatch. | Can not assign 4 to Text.
   error 5000 at 95:1 Definition type mismatch. | Can not assign Empty to List(Text).
-  error 5000 at 99:39 Definition type mismatch. | Can not assign [a: 6] to [a: 4]. |   Invalid value for field a |     Can not assign 6 to 4.
-  error 5000 at 118:49 Definition type mismatch. | Can not assign [a: [b: 5]] to [a: [b: 4]]. |   Invalid value for field a |     Can not assign [b: 5] to [b: 4]. |       Invalid value for field b |         Can not assign 5 to 4.
-  error 5000 at 120:43 Definition type mismatch. | Can not assign [a: [b: 4f]] to [a: Float]. |   Invalid value for field a |     Can not assign [b: 4f] to Float.
-  error 5000 at 126:42 Definition type mismatch. | Invalid value for field a |   Can not assign 4 to Text.
+  error 5000 at 99:39 Definition type mismatch. | Can not assign [a: 6] to [a: 4]. |   Invalid value for field 'a' |     Can not assign 6 to 4.
+  error 5000 at 118:49 Definition type mismatch. | Can not assign [a: [b: 5]] to [a: [b: 4]]. |   Invalid value for field 'a' |     Can not assign [b: 5] to [b: 4]. |       Invalid value for field 'b' |         Can not assign 5 to 4.
+  error 5000 at 120:43 Definition type mismatch. | Can not assign [a: [b: 4f]] to [a: Float]. |   Invalid value for field 'a' |     Can not assign [b: 4f] to Float.
+  error 5000 at 126:42 Definition type mismatch. | Invalid value for field 'a' |   Can not assign 4 to Text.
   error 5000 at 128:1 Definition type mismatch. | Can not assign Empty to Dictionary(Text).
   error 5050 at 132:1 Argument type mismatch. | Can not assign Empty to Integer. | Can not assign Empty to [ |   numerator: Integer |   denominator: Integer | ].
 === type-function.jul ===
@@ -230,13 +230,13 @@ typeFnShort: BlubType :> Empty
   error 1102 at 35:17 multilineParser should parse until end of row
   error 1050 at 36:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 1050 at 37:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
-  error 5160 at 19:2 Failed to dereference myA1 in type [ |   a: [ |     a1: 1 |     b1: 3 |   ] |   b: 2 | ]
-  error 4003 at 24:28 arg1 is already defined in upper scope
+  error 5160 at 19:2 Failed to dereference 'myA1' in type [ |   a: [ |     a1: 1 |     b1: 3 |   ] |   b: 2 | ]
+  error 4003 at 24:28 'arg1' is already defined in upper scope
   error 5002 at 24:27 Can not assign ( |   arg1: Text |   arg2: Boolean | ) :> Empty to Type.
-  error 5050 at 27:1 Argument type mismatch. | Parameter name mismatch. Got arg1 but expected arg2
+  error 5050 at 27:1 Argument type mismatch. | Parameter name mismatch. Got 'arg1' but expected 'arg2'
 === type-switch.jul ===
 someVar: 32
-  error 4001 at 6:3 Number is not defined.
+  error 4001 at 6:3 'Number' is not defined.
 === types.jul ===
 Article: TypeOf([   name: Text   price: Any   color: Text ])
 Even: (num: Integer) :> Boolean
@@ -268,34 +268,34 @@ myVarIsText: Any
   error 4000 at 40:1 addNums is already defined
   error 4000 at 57:1 ParserResult is already defined
   error 5000 at 8:1 Definition type mismatch. | Can not assign 4 to Text.
-  error 4001 at 11:9 TypeError is not defined.
+  error 4001 at 11:9 'TypeError' is not defined.
   error 5151 at 15:15 Expected a function to call. | Can not assign TypeOf(Text) to Any :> Any.
-  error 4002 at 15:20 myVar is used before it is defined.
-  error 4001 at 20:9 Decimal is not defined.
-  error 4001 at 26:13 Int32 is not defined.
-  error 4001 at 26:19 Int64 is not defined.
-  error 4001 at 26:39 Decimal is not defined.
-  error 4001 at 26:47 Real0 is not defined.
+  error 4002 at 15:20 'myVar' is used before it is defined.
+  error 4001 at 20:9 'Decimal' is not defined.
+  error 4001 at 26:13 'Int32' is not defined.
+  error 4001 at 26:19 'Int64' is not defined.
+  error 4001 at 26:39 'Decimal' is not defined.
+  error 4001 at 26:47 'Real0' is not defined.
   error 5050 at 26:10 Argument type mismatch. | Can not assign TypeOf(Integer) to Boolean. | Can not assign TypeOf(Float) to Boolean.
   error 5000 at 30:1 Definition type mismatch. | Can not assign 3 to 4.
-  error 4001 at 34:18 T is not defined.
-  error 4001 at 34:26 T is not defined.
-  error 4001 at 34:32 T is not defined.
+  error 4001 at 34:18 'T' is not defined.
+  error 4001 at 34:26 'T' is not defined.
+  error 4001 at 34:32 'T' is not defined.
   error 5100 at 42:3 Return type mismatch. | Can not assign [Boolean Boolean] to Boolean.
-  error 4002 at 48:1 ParserResult is used before it is defined.
-  error 4001 at 58:2 x is not defined.
+  error 4002 at 48:1 'ParserResult' is used before it is defined.
+  error 4001 at 58:2 'x' is not defined.
   error 5151 at 59:7 Expected a function to call. | Can not assign Text to Any :> Any.
-  error 4001 at 59:17 x is not defined.
-  error 4001 at 59:19 type is not defined.
+  error 4001 at 59:17 'x' is not defined.
+  error 4001 at 59:19 'type' is not defined.
   error 5151 at 59:25 Expected a function to call. | Can not assign TypeOf(List(Text)) to Any :> Any.
-  error 4001 at 59:36 x is not defined.
-  error 4001 at 59:38 errors is not defined.
+  error 4001 at 59:36 'x' is not defined.
+  error 4001 at 59:38 'errors' is not defined.
 === ui/dialog/dialog.jul ===
-  error 4001 at 2:1 body is not defined.
-  error 4001 at 3:2 button is not defined.
-  error 4001 at 6:4 createDialog is not defined.
-  error 4001 at 8:15 stackPanel is not defined.
-  error 4001 at 9:6 button is not defined.
+  error 4001 at 2:1 'body' is not defined.
+  error 4001 at 3:2 'button' is not defined.
+  error 4001 at 6:4 'createDialog' is not defined.
+  error 4001 at 8:15 'stackPanel' is not defined.
+  error 4001 at 9:6 'button' is not defined.
 === ui/dynamic-form/dynamic-form.jul ===
 body: Any
 booleanInput: Any
@@ -323,8 +323,8 @@ visibleInput: Any
   error 3010 at 1:88 Unexpected extension for import: 
   error 3010 at 1:88 Unexpected extension for import: 
   error 5050 at 6:9 Argument type mismatch. | Can not assign dictionary to rest parameter
-  error 4001 at 29:3 button is not defined.
-  error 5160 at 32:15 Failed to dereference value in type Stream(Or(Empty List(Any)))
+  error 4001 at 29:3 'button' is not defined.
+  error 5160 at 32:15 Failed to dereference 'value' in type Stream(Or(Empty List(Any)))
 === ui/preserve-dom/main.jul ===
 addMessage: (message: Any) :> Any
 === ui/todo-list/todo-list.jul ===

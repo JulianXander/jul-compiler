@@ -34,3 +34,4 @@
 2026-09-10 16:15:52	dca69d5+	-	ADV-DEV-56627	yugioh	parse+check	5	3629.24	3901.03	3901.03	Definition-Fehler mit großen Typ-Dumps werden klarer (mehrzeilige erste Zeile entfernt)
 2026-09-10 16:22:14	dca69d5+	-	ADV-DEV-56627	yugioh	parse+check	5	4898.61	10933.74	10933.74	BASELINE vor Diff-Modus-Umbau (for comparison)
 2026-09-10 16:45:12	dca69d5+	-	ADV-DEV-56627	yugioh	parse+check	5	4208.41	8115.76	8115.76	aliasName-Leck behoben: argumentsType zeigt nie mehr Wertnamen als Typ (suppressAlias durch gesamte typeToString-Rekursion)
+2026-09-10 17:12:56	ea2a1f3+	-	ADV-DEV-56627	yugioh	parse+check	5	4697.28	7884.03	7884.03	Namen (Felder, Referenzen, Parameter) durchgaengig in Anfuehrungszeichen in Fehlermeldungen

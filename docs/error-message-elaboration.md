@@ -164,13 +164,22 @@ Noch nicht umgesetzt - vor jeder Umsetzung roter Test zuerst, dann Umsetzung, da
 
 ## Offener Punkt: Namen in Meldungen konsequent in Anführungszeichen
 
-Fund (Session 2026-09-10): `Missing field monsters, expected ...` liest sich zweideutig - klingt,
+Umgesetzt (Session 2026-09-10): jede Stelle in `checker.ts`, die einen eingesetzten Namen aus dem
+Quelltext des Nutzers in eine Meldung einbaut (Feldname, Referenzname, Parametername, Index),
+setzt ihn jetzt in einfache Anführungszeichen - `Invalid value for field 'boards'` statt
+`Invalid value for field boards`, `'a' is not defined.` statt `a is not defined.`, ebenso bei
+`Missing field(s)`, `Failed to dereference`, `Parameter name mismatch`, `is already defined in
+upper scope`, `is not destructured`, `There is no parameter named`. Betraf durchgängig, nicht nur
+die eine gemeldete Stelle (s.u.) - sonst zwei Schreibweisen für dieselbe Sache. Typnamen
+(`typeToString`-Ergebnisse) bleiben unverändert unquotiert, siehe "Diff-Modus" oben: Typnamen sind
+kein einzelnes Wort wie ein Identifier, sondern potenziell mehrzeilige Strukturen - Anführungszeichen
+um einen mehrzeiligen Dictionary-Dump wären selbst wieder verwirrend.
+
+Fund, der den Punkt auslöste: `Missing field monsters, expected ...` liest sich zweideutig - klingt,
 als könnte das Feld selbst "field" heißen und "monsters" etwas anderes sein, statt klar zu
-markieren, dass "monsters" der eingesetzte Name ist. Betrifft nicht nur diese eine Meldung:
-`checker.ts` setzt Namen an **keiner** Stelle in Anführungszeichen (`${name} is not defined.`,
-`Missing field ${fieldName}, ...`, `Got ${valueParameter.name} but expected ...`) - nach
-Einheitlichkeit (Prinzip 3) darf das nicht nur an einer Stelle geändert werden, sonst entsteht
-die verbotene Situation "zwei Schreibweisen für dieselbe Sache".
+markieren, dass "monsters" der eingesetzte Name ist. `checker.ts` setzte an **keiner** Stelle
+Anführungszeichen um Namen - nach Einheitlichkeit (Prinzip 3) durfte das nicht nur an einer
+Stelle behoben werden.
 
 Vergleich mit anderen Compilern - fast alle markieren eingesetzte Namen sichtbar:
 
@@ -188,7 +197,21 @@ Vergleich mit anderen Compilern - fast alle markieren eingesetzte Namen sichtbar
 Mehrheitlich (TS, Rust, Clang, Elm) wird der eingesetzte Name also sichtbar vom Fließtext
 abgesetzt - deckt sich mit JULs eigenem Klarheits-Detail "Fehlermeldungen sprechen vom
 Quelltext des Nutzers": die Markierung zeigt genau, welches Wort aus dem Quelltext des Nutzers
-stammt und welches feste Compiler-Prosa ist. Eigenständige Entscheidung, noch nicht bewertet,
-welches Zeichen (Anführungszeichen vs. Backticks) und ob zuerst hier oder in `TODO` als eigener
-Punkt geführt wird.
+stammt und welches feste Compiler-Prosa ist. Entscheidung für einfache Anführungszeichen (statt
+Backticks): näher an TypeScript, der Implementierungssprache dieses Compilers.
+
+## Geprüft und verworfen: Farbe statt/zusätzlich zu Anführungszeichen
+
+Diskutiert (Session 2026-09-10): Feldnamen bzw. Typnamen farbig hervorheben (Elm-Stil) statt/
+zusätzlich zu Anführungszeichen. Verworfen, weil `CompilerError.message` ein einziger String ist,
+der sowohl an die CLI (`formatErrors`, darf ANSI-Codes enthalten) als auch an den Language Server
+(Diagnostic-Text im Editor, ANSI-Codes wären Müllzeichen) geht. Färbung müsste daher entweder:
+
+- nachträglich per Regex in `formatErrors` in die fertige Message eingefügt werden - fragil bei
+  mehrzeiligen Typ-Dumps und Text-Literalen, die zufällig wie Trennwörter aussehen, oder
+- die Message-Struktur von `string` auf strukturierte Segmente (`{ text, kind }[]`) umstellen -
+  berührt dieselben ~14 Fundstellen in `checker.ts` wie der verworfene Diff-Modus-Umbau (s.o.).
+
+Anführungszeichen dagegen sind einfache Zeichen im selben String, funktionieren identisch in CLI
+und LSP, keine Architekturänderung nötig - deshalb umgesetzt, Farbe nicht.
 

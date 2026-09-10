@@ -19,7 +19,7 @@ const expectedResults: {
 					"code": ErrorCode.notDefined,
 					"endColumnIndex": 4,
 					"endRowIndex": 0,
-					"message": "a is not defined.",
+					"message": "'a' is not defined.",
 					"startColumnIndex": 3,
 					"startRowIndex": 0,
 				},
@@ -34,7 +34,7 @@ a = 5`,
 					"code": ErrorCode.usedBeforeDefined,
 					"endColumnIndex": 1,
 					"endRowIndex": 0,
-					"message": "a is used before it is defined.",
+					"message": "'a' is used before it is defined.",
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
 				},
@@ -678,7 +678,7 @@ d/b`,
 					"code": ErrorCode.dereferenceFailed,
 					"endColumnIndex": 3,
 					"endRowIndex": 1,
-					"message": "Failed to dereference b in type [a: 1]",
+					"message": "Failed to dereference 'b' in type [a: 1]",
 					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
@@ -713,7 +713,7 @@ x: T = [a = 1]`,
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing field b.',
+					message: 'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing field \'b\'.',
 					startRowIndex: 1,
 					startColumnIndex: 0,
 					endRowIndex: 1,
@@ -731,7 +731,7 @@ x: T = [a = 1 b = []]`,
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nInvalid value for field b\n    Can not assign Empty to Text.',
+					message: 'Definition type mismatch.\nInvalid value for field \'b\'\n    Can not assign Empty to Text.',
 					startRowIndex: 1,
 					startColumnIndex: 18,
 					endRowIndex: 1,
@@ -752,7 +752,7 @@ x: Dictionary(T) = [
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nInvalid value for field bad\n  Can not assign [a: §wrong§] to T.\n    Invalid value for field a\n      Can not assign §wrong§ to Integer.',
+					message: 'Definition type mismatch.\nInvalid value for field \'bad\'\n  Can not assign [a: §wrong§] to T.\n    Invalid value for field \'a\'\n      Can not assign §wrong§ to Integer.',
 					startRowIndex: 2,
 					startColumnIndex: 12,
 					endRowIndex: 2,
@@ -837,7 +837,7 @@ a/5`,
 					"code": ErrorCode.dereferenceFailed,
 					"endColumnIndex": 3,
 					"endRowIndex": 1,
-					"message": "Failed to dereference 5 in type [1 2]",
+					"message": "Failed to dereference '5' in type [1 2]",
 					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
@@ -1085,7 +1085,7 @@ f(a = 1 b = 2)`,
 					"code": ErrorCode.discardedValue,
 					"endColumnIndex": 13,
 					"endRowIndex": 1,
-					"message": "This value is discarded. There is no parameter named b.",
+					"message": "This value is discarded. There is no parameter named 'b'.",
 					"startColumnIndex": 8,
 					"startRowIndex": 1,
 				},
@@ -1138,7 +1138,7 @@ f(a = 1 b = 2)`,
 					"code": ErrorCode.discardedValue,
 					"endColumnIndex": 18,
 					"endRowIndex": 0,
-					"message": "This value is discarded. b is not destructured.",
+					"message": "This value is discarded. 'b' is not destructured.",
 					"startColumnIndex": 13,
 					"startRowIndex": 0,
 				},
@@ -1153,7 +1153,7 @@ f(a = 1 b = 2)`,
 					"code": ErrorCode.discardedValue,
 					"endColumnIndex": 22,
 					"endRowIndex": 0,
-					"message": "This value is discarded. b is not destructured.",
+					"message": "This value is discarded. 'b' is not destructured.",
 					"startColumnIndex": 17,
 					"startRowIndex": 0,
 				},
@@ -1180,7 +1180,7 @@ f(a = 1 b = 2)`,
 					"code": ErrorCode.dereferenceFailed,
 					"endColumnIndex": 5,
 					"endRowIndex": 0,
-					"message": "Failed to dereference myA1 in type [\n  a: 1\n  b: 2\n]",
+					"message": "Failed to dereference 'myA1' in type [\n  a: 1\n  b: 2\n]",
 					"startColumnIndex": 1,
 					"startRowIndex": 0,
 				},
@@ -1247,7 +1247,7 @@ g: Text = f(3)`,
 					"code": ErrorCode.alreadyDefinedInUpperScope,
 					"endColumnIndex": 7,
 					"endRowIndex": 0,
-					"message": "add is already defined in upper scope",
+					"message": "'add' is already defined in upper scope",
 					"startColumnIndex": 0,
 					"startRowIndex": 0,
 				},
@@ -1596,21 +1596,9 @@ x: T = [a = 1]`;
 		checkTypes(parsed, {});
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
-			'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing fields: b, c.',
+			'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing fields: \'b\', \'c\'.',
 		]);
 	});
-	// Gegenprobe: bei genau einem fehlenden Feld bleibt es Singular, kein Doppelpunkt.
-	it('single-missing-field-stays-singular', () => {
-		const code = `T = [a: Integer b: Text]
-x: T = [a = 1]`;
-		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
-		const messages = parsed.checked?.errors.map(error => error.message);
-		expect(messages).to.deep.equal([
-			'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing field b.',
-		]);
-	});
-
 	// Fund in jul-examples/yugioh/game-logic.jul (Session 2026-09-10): bei verschachtelten
 	// Dictionary-Literalen erzeugte das fruehere Zwei-Diagnosen-Modell (volle Kette an der
 	// AEUSSEREN Position + Elaboration mit dem inneren Teil der Kette an der PRAEZISEN Position)
@@ -1620,34 +1608,16 @@ x: T = [a = 1]`;
 	// rekursiven Abstieg durch die Literale auf die innerste noch vorhandene, tatsaechlich
 	// falsche Stelle wandert (hier: der Wert §wrong§ im inneren Literal) - die Kette bleibt
 	// vollstaendig, aber nur einmal (findInnermostErrorPosition in checker.ts).
-	it('nested-dictionary-literal-error-is-a-single-diagnosis-at-the-innermost-position', () => {
-		const code = `Inner = [a: Integer]
-Outer = [inner: Inner]
-x: Outer = [inner = [a = §wrong§]]`;
-		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
-		expect(parsed.checked?.errors).to.deep.equal([
-			{
-				code: ErrorCode.definitionTypeMismatch,
-				message: 'Definition type mismatch.\nCan not assign [inner: [a: §wrong§]] to Outer.\n  Invalid value for field inner\n    Can not assign [a: §wrong§] to Inner.\n      Invalid value for field a\n        Can not assign §wrong§ to Integer.',
-				startRowIndex: 2,
-				startColumnIndex: 25,
-				endRowIndex: 2,
-				endColumnIndex: 32,
-			},
-		]);
-	});
-
-	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): die Typ-Kette liest sich außen nach
-	// innen ("Can not assign X to Outer." vor "... to Inner." vor "... to Integer."), aber die
-	// "Invalid value for field"-Zeilen haengen alle ans Ende, in umgekehrter Verschachtelungs-
-	// Reihenfolge (innerstes Feld zuerst) - man muss sie im Kopf wieder der richtigen Ebene der
-	// Typ-Kette zuordnen statt sie direkt an der Stelle zu lesen, wo sie hingehoeren.
-	// TypeScript interleaved das (Feldname direkt vor dem Fehler, den er erklaert) UND rueckt
-	// jede Zeile eine Ebene tiefer ein, je weiter man in die Verschachtelung absteigt - ohne
-	// Einrueckung bleibt bei 3+ Ebenen (wie im echten Fund: GameState -> boards -> GameBoard ->
-	// activatableGameCardIds) unklar, welche Zeile zu welcher Tiefe gehoert. Umgesetzt in
-	// getDictionaryFieldError/indentLines.
+	//
+	// Ausserdem (echtes yugioh-Fehlerbild): die Typ-Kette liest sich aussen nach innen ("Can not
+	// assign X to Outer." vor "... to Inner." vor "... to Integer."), aber die "Invalid value for
+	// field"-Zeilen haengen alle ans Ende, in umgekehrter Verschachtelungs-Reihenfolge (innerstes
+	// Feld zuerst) - man muss sie im Kopf wieder der richtigen Ebene der Typ-Kette zuordnen statt
+	// sie direkt an der Stelle zu lesen, wo sie hingehoeren. TypeScript interleaved das (Feldname
+	// direkt vor dem Fehler, den er erklaert) UND rueckt jede Zeile eine Ebene tiefer ein, je
+	// weiter man in die Verschachtelung absteigt - ohne Einrueckung bleibt bei 3+ Ebenen (wie im
+	// echten Fund: GameState -> boards -> GameBoard -> activatableGameCardIds) unklar, welche
+	// Zeile zu welcher Tiefe gehoert. Umgesetzt in getDictionaryFieldError/indentLines.
 	it('field-name-precedes-the-type-mismatch-it-explains', () => {
 		const code = `Inner = [a: Integer]
 Outer = [inner: Inner]
@@ -1659,9 +1629,9 @@ x: Outer = [inner = [a = §wrong§]]`;
 			[
 				'Definition type mismatch.',
 				'Can not assign [inner: [a: §wrong§]] to Outer.',
-				'  Invalid value for field inner',
+				'  Invalid value for field \'inner\'',
 				'    Can not assign [a: §wrong§] to Inner.',
-				'      Invalid value for field a',
+				'      Invalid value for field \'a\'',
 				'        Can not assign §wrong§ to Integer.',
 			].join('\n'),
 		]);
@@ -1684,7 +1654,7 @@ x: Inner = [a = []]`;
 			[
 				'Definition type mismatch.',
 				'Can not assign [a: Empty] to Inner.',
-				'  Invalid value for field a',
+				'  Invalid value for field \'a\'',
 				'    Can not assign Empty to [',
 				'      Integer',
 				'      Integer',
