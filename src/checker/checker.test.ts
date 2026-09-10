@@ -1469,6 +1469,32 @@ f = (values: List(T)) =>
 		expect(spreadElementType?.julType).to.equal('dictionaryLiteral',
 			'...values sollte den Elementtyp von T behalten, tatsächlich: ' + spreadElementType?.julType);
 	});
+
+	it('tuple-literal-spread-flattens-elements', () => {
+		// Tuple-Spreads sollten Element-für-Element eingefügt werden
+		const code = `f = (myTuple: [Integer Text]) =>
+	[
+		...myTuple
+		[a = 1]
+	]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const functionType = definition.value?.typeInfo?.type;
+		const returnType = functionType?.julType === 'function' ? functionType.ReturnType : undefined;
+		
+		// Erwartet: [Integer, Text, [a: Integer]]
+		if (returnType?.julType === 'tuple') {
+			expect(returnType.ElementTypes.length).to.equal(3, 'Tuple sollte 3 Elemente haben (2 aus Spread + 1 literal)');
+			expect(returnType.ElementTypes[0].julType).to.equal('integerLiteral', 'Element 0 sollte Integer sein');
+			expect(returnType.ElementTypes[1].julType).to.equal('text', 'Element 1 sollte Text sein');
+			expect(returnType.ElementTypes[2].julType).to.equal('dictionaryLiteral', 'Element 2 sollte Dict sein');
+		} else {
+			throw new Error(`Return type sollte Tuple sein, ist aber: ${returnType?.julType}`);
+		}
+	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
 	// Scope gecheckt werden. Sonst stand ihre Symboltabelle doppelt im Scope Stack und jede
