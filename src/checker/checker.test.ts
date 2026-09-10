@@ -707,7 +707,7 @@ x: T = [a = 1]`,
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Missing field b, expected Text.',
+					message: 'Missing field b.',
 					startRowIndex: 1,
 					startColumnIndex: 0,
 					endRowIndex: 1,
@@ -715,7 +715,7 @@ x: T = [a = 1]`,
 				},
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Missing field b, expected Text.',
+					message: 'Missing field b.',
 					startRowIndex: 1,
 					startColumnIndex: 7,
 					endRowIndex: 1,
@@ -1473,6 +1473,36 @@ describe('Checker', () => {
 			expect(returnType.ElementType.julType).to.equal('or',
 				'ElementType sollte Union sein (Integer | Text), tatsächlich: ' + returnType.ElementType.julType);
 		}
+	});
+
+	// Fund in yugioh (draw() liefert GameState statt des deklarierten GameBoard): fehlt einem
+	// Dictionary-Ziel ein Feld komplett, gibt es keinen Wert zum Vergleichen - der erwartete Typ
+	// steht bereits an der Zieltyp-Deklaration selbst. TypeScript/Rust/Elm/GHC schreiben ihn dort
+	// deshalb nicht noch einmal aus, TypeScript sammelt mehrere fehlende Felder zusätzlich in
+	// einer Zeile. Siehe docs/missing-field-message-format.md.
+	it('missing-fields-are-collected-in-one-line', () => {
+		const code = `T = [a: Integer b: Text c: Boolean]
+x: T = [a = 1]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const messages = parsed.checked?.errors.map(error => error.message);
+		expect(messages).to.deep.equal([
+			'Missing fields: b, c.',
+			'Missing field b.',
+			'Missing field c.',
+		]);
+	});
+	// Gegenprobe: bei genau einem fehlenden Feld bleibt es Singular, kein Doppelpunkt.
+	it('single-missing-field-stays-singular', () => {
+		const code = `T = [a: Integer b: Text]
+x: T = [a = 1]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const messages = parsed.checked?.errors.map(error => error.message);
+		expect(messages).to.deep.equal([
+			'Missing field b.',
+			'Missing field b.',
+		]);
 	});
 
 	it('tuple-literal-spread-flattens-elements', () => {

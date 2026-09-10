@@ -1,32 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="680" height="500" font-family="sans-serif"><rect width="680" height="500" fill="#fff"/><text x="52" y="22" font-size="14" font-weight="bold" fill="#333">Benchmarks auf ADV-DEV-56627</text><g transform="translate(0 40)"><rect x="0" y="0" width="680" height="30" fill="#f5f5f5"/><text x="52" y="22" font-size="12" font-weight="bold" fill="#333">yugioh</text><text x="668" y="22" text-anchor="end" font-size="9" fill="#888">14 Messungen</text><g transform="translate(0 30)"><g transform="translate(0 0)"><rect x="6" y="4" width="328" height="178" fill="none" stroke="#f0f0f0"/><text x="52" y="20" font-size="11" font-weight="bold" fill="#333">parse+check</text><text x="52" y="33" font-size="9" fill="#888">3495.44 ms (-7% seit 2026-09-08)</text><line x1="52" y1="144.0" x2="324" y2="144.0" stroke="#e0e0e0"/><text x="46" y="144.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">0.00</text><line x1="52" y1="92.0" x2="324" y2="92.0" stroke="#e0e0e0"/><text x="46" y="92.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">2172.71</text><line x1="52" y1="40.0" x2="324" y2="40.0" stroke="#e0e0e0"/><text x="46" y="40.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">4345.42</text><text x="52" y="158" font-size="9" fill="#888">2026-09-08</text><text x="324" y="158" text-anchor="end" font-size="9" fill="#888">2026-09-10</text><polyline fill="none" stroke="#2b7bb9" stroke-width="1.5" points="52.0,53.6 72.9,58.5 93.8,60.9 114.8,57.5 135.7,63.1 156.6,55.8 177.5,62.7 198.5,64.6 219.4,62.2 240.3,62.9 261.2,59.2 282.2,61.8 303.1,62.0 324.0,60.3"/><circle cx="52.0" cy="53.6" r="2.5" fill="#2b7bb9"><title>2026-09-08 11:10:48
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="500" font-family="sans-serif"><rect width="680" height="500" fill="#fff"/><text x="52" y="22" font-size="14" font-weight="bold" fill="#333">Benchmarks auf ADV-DEV-56627</text><g transform="translate(0 40)"><rect x="0" y="0" width="680" height="30" fill="#f5f5f5"/><text x="52" y="22" font-size="12" font-weight="bold" fill="#333">yugioh</text><text x="668" y="22" text-anchor="end" font-size="9" fill="#888">16 Messungen</text><g transform="translate(0 30)"><g transform="translate(0 0)"><rect x="6" y="4" width="328" height="178" fill="none" stroke="#f0f0f0"/><text x="52" y="20" font-size="11" font-weight="bold" fill="#333">parse+check</text><text x="52" y="33" font-size="9" fill="#888">3402.61 ms (-10% seit 2026-09-08)</text><line x1="52" y1="144.0" x2="324" y2="144.0" stroke="#e0e0e0"/><text x="46" y="144.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">0.00</text><line x1="52" y1="92.0" x2="324" y2="92.0" stroke="#e0e0e0"/><text x="46" y="92.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">2172.71</text><line x1="52" y1="40.0" x2="324" y2="40.0" stroke="#e0e0e0"/><text x="46" y="40.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">4345.42</text><text x="52" y="158" font-size="9" fill="#888">2026-09-08</text><text x="324" y="158" text-anchor="end" font-size="9" fill="#888">2026-09-10</text><polyline fill="none" stroke="#2b7bb9" stroke-width="1.5" points="52.0,53.6 70.1,58.5 88.3,60.9 106.4,57.5 124.5,63.1 142.7,55.8 160.8,62.7 178.9,64.6 197.1,62.2 215.2,62.9 233.3,59.2 251.5,61.8 269.6,62.0 287.7,60.3 305.9,61.2 324.0,62.6"/><circle cx="52.0" cy="53.6" r="2.5" fill="#2b7bb9"><title>2026-09-08 11:10:48
 78cb717+
-3778.63 ms</title></circle><circle cx="72.9" cy="58.5" r="2.5" fill="#2b7bb9"><title>2026-09-08 15:38:38
+3778.63 ms</title></circle><circle cx="70.1" cy="58.5" r="2.5" fill="#2b7bb9"><title>2026-09-08 15:38:38
 58b008f+
-3574.07 ms</title></circle><circle cx="93.8" cy="60.9" r="2.5" fill="#2b7bb9"><title>2026-09-08 15:55:19
+3574.07 ms</title></circle><circle cx="88.3" cy="60.9" r="2.5" fill="#2b7bb9"><title>2026-09-08 15:55:19
 58b008f+
-3470.54 ms</title></circle><circle cx="114.8" cy="57.5" r="2.5" fill="#2b7bb9"><title>2026-09-09 10:10:45
+3470.54 ms</title></circle><circle cx="106.4" cy="57.5" r="2.5" fill="#2b7bb9"><title>2026-09-09 10:10:45
 4bc1cab+
-3612.75 ms</title></circle><circle cx="135.7" cy="63.1" r="2.5" fill="#2b7bb9"><title>2026-09-09 10:32:05
+3612.75 ms</title></circle><circle cx="124.5" cy="63.1" r="2.5" fill="#2b7bb9"><title>2026-09-09 10:32:05
 4bc1cab+
-3382.16 ms</title></circle><circle cx="156.6" cy="55.8" r="2.5" fill="#2b7bb9"><title>2026-09-09 11:24:34
+3382.16 ms</title></circle><circle cx="142.7" cy="55.8" r="2.5" fill="#2b7bb9"><title>2026-09-09 11:24:34
 2f37659+
-3684.55 ms</title></circle><circle cx="177.5" cy="62.7" r="2.5" fill="#2b7bb9"><title>2026-09-09 14:23:34
+3684.55 ms</title></circle><circle cx="160.8" cy="62.7" r="2.5" fill="#2b7bb9"><title>2026-09-09 14:23:34
 2f37659+
-3397.82 ms</title></circle><circle cx="198.5" cy="64.6" r="2.5" fill="#2b7bb9"><title>2026-09-09 18:44:40
+3397.82 ms</title></circle><circle cx="178.9" cy="64.6" r="2.5" fill="#2b7bb9"><title>2026-09-09 18:44:40
 2961841
-3316.90 ms</title></circle><circle cx="219.4" cy="62.2" r="2.5" fill="#2b7bb9"><title>2026-09-09 19:15:16
+3316.90 ms</title></circle><circle cx="197.1" cy="62.2" r="2.5" fill="#2b7bb9"><title>2026-09-09 19:15:16
 2961841+
-3419.49 ms</title></circle><circle cx="240.3" cy="62.9" r="2.5" fill="#2b7bb9"><title>2026-09-09 20:10:35
+3419.49 ms</title></circle><circle cx="215.2" cy="62.9" r="2.5" fill="#2b7bb9"><title>2026-09-09 20:10:35
 c494862+
-3390.08 ms</title></circle><circle cx="261.2" cy="59.2" r="2.5" fill="#2b7bb9"><title>2026-09-09 22:08:08
+3390.08 ms</title></circle><circle cx="233.3" cy="59.2" r="2.5" fill="#2b7bb9"><title>2026-09-09 22:08:08
 4f4700e+
-3544.51 ms</title></circle><circle cx="282.2" cy="61.8" r="2.5" fill="#2b7bb9"><title>2026-09-10 09:47:53
+3544.51 ms</title></circle><circle cx="251.5" cy="61.8" r="2.5" fill="#2b7bb9"><title>2026-09-10 09:47:53
 3dae426+
-3433.64 ms</title></circle><circle cx="303.1" cy="62.0" r="2.5" fill="#2b7bb9"><title>2026-09-10 10:06:41
+3433.64 ms</title></circle><circle cx="269.6" cy="62.0" r="2.5" fill="#2b7bb9"><title>2026-09-10 10:06:41
 1cb6051+
-3425.68 ms</title></circle><circle cx="324.0" cy="60.3" r="2.5" fill="#2b7bb9"><title>2026-09-10 10:35:04
+3425.68 ms</title></circle><circle cx="287.7" cy="60.3" r="2.5" fill="#2b7bb9"><title>2026-09-10 10:35:04
 bd049c8+
-3495.44 ms</title></circle></g></g></g><g transform="translate(0 260)"><rect x="0" y="0" width="680" height="30" fill="#f5f5f5"/><text x="52" y="22" font-size="12" font-weight="bold" fill="#333">jul-examples</text><text x="668" y="22" text-anchor="end" font-size="9" fill="#888">3 Messungen</text><g transform="translate(0 30)"><g transform="translate(0 0)"><rect x="6" y="4" width="328" height="178" fill="none" stroke="#f0f0f0"/><text x="52" y="20" font-size="11" font-weight="bold" fill="#333">parse+check</text><text x="52" y="33" font-size="9" fill="#888">19.45 ms (-9% seit 2026-09-09)</text><line x1="52" y1="144.0" x2="324" y2="144.0" stroke="#e0e0e0"/><text x="46" y="144.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">0.00</text><line x1="52" y1="92.0" x2="324" y2="92.0" stroke="#e0e0e0"/><text x="46" y="92.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">12.23</text><line x1="52" y1="40.0" x2="324" y2="40.0" stroke="#e0e0e0"/><text x="46" y="40.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">24.46</text><text x="52" y="158" font-size="9" fill="#888">2026-09-09</text><text x="324" y="158" text-anchor="end" font-size="9" fill="#888">2026-09-10</text><polyline fill="none" stroke="#2b7bb9" stroke-width="1.5" points="52.0,53.6 188.0,58.1 324.0,61.3"/><circle cx="52.0" cy="53.6" r="2.5" fill="#2b7bb9"><title>2026-09-09 22:08:42
+3495.44 ms</title></circle><circle cx="305.9" cy="61.2" r="2.5" fill="#2b7bb9"><title>2026-09-10 12:19:19
+139fbde+
+3460.11 ms</title></circle><circle cx="324.0" cy="62.6" r="2.5" fill="#2b7bb9"><title>2026-09-10 12:22:12
+139fbde+
+3402.61 ms</title></circle></g></g></g><g transform="translate(0 260)"><rect x="0" y="0" width="680" height="30" fill="#f5f5f5"/><text x="52" y="22" font-size="12" font-weight="bold" fill="#333">jul-examples</text><text x="668" y="22" text-anchor="end" font-size="9" fill="#888">3 Messungen</text><g transform="translate(0 30)"><g transform="translate(0 0)"><rect x="6" y="4" width="328" height="178" fill="none" stroke="#f0f0f0"/><text x="52" y="20" font-size="11" font-weight="bold" fill="#333">parse+check</text><text x="52" y="33" font-size="9" fill="#888">19.45 ms (-9% seit 2026-09-09)</text><line x1="52" y1="144.0" x2="324" y2="144.0" stroke="#e0e0e0"/><text x="46" y="144.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">0.00</text><line x1="52" y1="92.0" x2="324" y2="92.0" stroke="#e0e0e0"/><text x="46" y="92.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">12.23</text><line x1="52" y1="40.0" x2="324" y2="40.0" stroke="#e0e0e0"/><text x="46" y="40.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#888">24.46</text><text x="52" y="158" font-size="9" fill="#888">2026-09-09</text><text x="324" y="158" text-anchor="end" font-size="9" fill="#888">2026-09-10</text><polyline fill="none" stroke="#2b7bb9" stroke-width="1.5" points="52.0,53.6 188.0,58.1 324.0,61.3"/><circle cx="52.0" cy="53.6" r="2.5" fill="#2b7bb9"><title>2026-09-09 22:08:42
 4f4700e+
 21.27 ms</title></circle><circle cx="188.0" cy="58.1" r="2.5" fill="#2b7bb9"><title>2026-09-09 22:28:47
 4f4700e+

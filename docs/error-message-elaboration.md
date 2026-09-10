@@ -118,6 +118,180 @@ generisches Dictionary fordert keine bestimmten Schlüssel). Rot belegt
 Rauschen). Am realen yugioh-Fall bestätigt: aus einer Sammelmeldung an einer Position wurden
 mehrere Meldungen, je eine pro betroffener Karten-Definition mit eigener Zeile/Spalte.
 
+## Erledigt: Missing-field-Meldungen zu einer Zeile gesammelt
+
+Umgesetzt, siehe [missing-field-message-format.md](missing-field-message-format.md) für Details,
+Sprachvergleich und Bench-Ergebnis. Betraf ausschließlich die "Missing field"-Erzeugung in
+`getDictionaryLiteralTypeError`/`elaborateDictionaryFieldError`, unabhängig von der A/B/C1/D-Frage
+unten.
+
+## Offene Entscheidung: Kopfzeile mit Typnamen vor der Feldliste
+
+Fund an einem realen yugioh-Fall (`draw()` deklariert `:> GameBoard`, liefert aber tatsächlich
+`GameState`): `getDictionaryLiteralTypeError` springt direkt in `subErrors.map(...).join('\n')`
+(nur "Missing field X, expected Y." je Feld) - anders als der `not`-/`parameterReference`-Fall in
+`getTypeError` fehlt hier die sonst überall verwendete Kopfzeile `Can not assign X to Y.` mit
+beiden konkreten Typnamen. Damit erkennt man den Fehler nur über den Fehlercode
+(`JUL5100` = `returnTypeMismatch`), nicht über den Text - der sieht identisch aus wie ein
+gewöhnlicher `JUL5000` an einer Definition. Noch nicht entschieden, welcher der folgenden Wege
+gegangen wird - dieser Abschnitt sammelt die Optionen mit Beispiel als Entscheidungshilfe
+(Session vom 2026-09-10). Bewertet wird ausschließlich nach Klarheit für den Leser und
+Auswirkung auf die LSP-Performance (Diagnose-Größe/-Häufigkeit bei jedem Tastendruck) -
+Umsetzungskosten sind für diese Entscheidung kein Kriterium.
+
+### Option A: TS-Kopfzeile
+
+```
+Can not assign GameState to GameBoard.
+Missing fields: monsters, spellTraps, lifePoints, skippedDrawPhaseCount.
+```
+
+- Klarheit: beide Typnamen sofort sichtbar, ohne Fehlercode nachzuschlagen - Basisnutzen,
+  aber sagt nicht, dass es speziell um eine Rückgabe geht.
+- LSP-Performance: eine zusätzliche kurze Zeile pro Fehler, keine neue Diagnose, kein
+  zusätzlicher Compiler-Durchlauf - keine messbare Auswirkung.
+
+### Option B: Elm-Rollensatz ("Rückgabetyp stimmt nicht")
+
+```
+Rückgabetyp stimmt nicht: kann GameState nicht als GameBoard zurückgeben.
+```
+
+- Klarheit: sagt explizit, dass es um die Rückgabe geht, ohne Fehlercode-Tabelle - schließt
+  genau die Lücke, die A offen lässt.
+- LSP-Performance: ein fester String-Präfix, keine zusätzliche Diagnose, keine zusätzliche
+  Typberechnung - keine messbare Auswirkung.
+
+### Option C: Rust Zwei-Orte-Diagnose
+
+Rust macht hier zwei trennbare Dinge gleichzeitig - unterschiedlich teuer, daher aufgeteilt:
+
+**C1: zweite Position an der Deklaration markieren** (der eigentliche Kern der Idee - beantwortet
+nicht nur *dass*, sondern *warum* der Zieltyp gilt):
+
+```
+Rückgabetyp stimmt nicht.
+  Deklariert als GameBoard hier: game-logic.jul:1828:15
+```
+
+- Klarheit: zeigt zusätzlich, WARUM der Zieltyp gilt (Verweis auf die Signatur) - dadurch
+  vermutlich die verständlichste der Optionen, besonders bei langen Funktionsrümpfen, wo die
+  Signatur beim Lesen der Rückgabe längst aus dem Bildschirm gescrollt ist. Im Editor per Klick
+  direkt erreichbar, das kann reiner Text (A/B) nicht bieten.
+- Nicht LSP-exklusiv, sondern eine gemeinsame Datenstruktur-Erweiterung: `CompilerError`
+  (compiler-errors.ts) hat aktuell nur eine Position/Message, weder CLI noch LSP kennen eine
+  zweite. `formatErrors` in compiler.ts (CLI) müsste um eine zweite Zeile erweitert werden,
+  server.ts nutzt dafür das schon vorhandene, bisher auskommentierte `relatedInformation`-
+  Boilerplate. Gleich einfach an beiden Stellen, aber an keiner heute schon vorhanden.
+- LSP-Performance: eine zweite `Diagnostic`/`relatedInformation` je Fehler bedeutet mehr
+  Objekte im Diagnose-Payload, der bei jedem Tippen neu an den Client geschickt wird. Bei den
+  seltenen, echten Rückgabetyp-Fehlern selbst irrelevant; relevant wird es erst, wenn (wie im
+  yugioh-Fund) ein einzelner Tippfehler kaskadierend viele Folgefehler auslöst - dann
+  verdoppelt sich die Anzahl der zu serialisierenden Positionen. Ohne Kappung (siehe D) ein
+  Multiplikator auf ein bestehendes Problem, kein neues.
+
+**C2: ASCII-Quellcode-Darstellung mit `^^^^^`-Pfeilen im Terminal**:
+
+```
+2 | draw = (...) :> GameBoard =>
+  |             --------- expected GameBoard because of return type
+3 |     newGameState
+  |     ^^^^^^^^^^^^ expected GameBoard, found GameState
+```
+
+- Klarheit: zusätzliche visuelle Verstärkung nur im CLI-Terminal - im Editor zeigt die
+  Squiggle plus Hover (aus C1) dieselbe Information bereits, C2 verbessert dort nichts mehr.
+- LSP-Performance: betrifft das LSP gar nicht - reines CLI-Ausgabeformat auf derselben
+  `CompilerError`-Erweiterung wie C1, keine zusätzlichen Diagnose-Daten im LSP, kein
+  Payload-Effekt. Für die hier relevanten Kriterien ohne Wirkung.
+
+### Option D: Meldungslänge begrenzen (zurückgestellt)
+
+Zurückgestellt: baut auf der noch nicht existierenden Elaboration für Tupel-/Listen-**Literale**
+auf (bisher nur für Dictionary-Literale umgesetzt, siehe oben) und ist damit kein unabhängiger
+erster Schritt mehr. Grund: ein reiner Zähler (`3×`) verschleiert, welche Elemente betroffen
+sind; Indizes in Prosa (`elements 1, 2, 3`) wären nur ein Fallback für den Fall ohne Literal
+(z.B. ein Parameter wie `row: Row` ohne eigene Element-Positionen, siehe Diskussion Session
+2026-09-10) - andere Sprachen (TypeScript, Elm) lösen das stattdessen über echte Positionen je
+Element, wenn ein Literal vorliegt. Bevor hier ein Format festgelegt wird, muss also erst
+geklärt sein, ob/wie die Elaboration auf Tupel-/Listen-Literale ausgeweitet wird - ein vorher
+geschriebener roter Test (`duplicate-tuple-element-errors-are-deduplicated`) legte ein Format
+fest, das dieser Erkenntnis nicht mehr standhielt, und wurde deshalb wieder entfernt (keine
+Ausnahme von "roter Test bleibt stehen" - der Test belegte kein Bugverhalten, sondern eine
+verfrühte Festlegung auf ein noch offenes Design).
+
+Andere Compiler begrenzen unterschiedlich (weiterhin relevant, sobald ein Format feststeht):
+
+- TypeScript: `is missing the following properties from type 'Y': a, b, c, and N more.` -
+  Kappung nach wenigen **benannten** Feldern, die jedes für sich informativ sind.
+- Rust: `and N others` bei langen Trait-Kandidatenlisten; sehr lange generische Typnamen werden
+  zusätzlich selbst gekürzt (Elision), nicht nur Listen.
+- Elm: geht das Problem strukturell an statt zu kappen - zeigt bei Record-Mismatches von
+  vornherein nur die **abweichenden** Felder als Diff, nie den ganzen Typ.
+- GHC (Haskell): Gegenbeispiel - berüchtigt für unbegrenzt lange Meldungen bei
+  Typfamilien-Expansion, reagiert mit Flags (`-fmax-relevant-binds`, `-freduction-depth`) statt
+  einem kurzen Default. Lehre: Begrenzung sollte Standard sein, nicht Zusatzoption.
+- Scala 3: Standardmeldung bewusst eingedampft, volle Herleitung nur hinter `-explain` auf Wunsch.
+
+Der reale yugioh-Fund (`Can not assign Empty to Integer.` sechsfach) ist aber kein Fall von
+vielen verschiedenen benannten Feldern, sondern von **positionslosen Tupel-Elementen**
+(`GameCardRow` hat keine Feldnamen) - die 6 Teilmeldungen sind textlich identisch, nur der Index
+unterscheidet sich. Eine reine TS-artige "erste N, Rest kappen"-Regel könnte hier zufällig ein
+*abweichendes* 4. Element verschlucken, während 3 *identische* stehen bleiben.
+
+- Klarheit: kürzere, weniger repetitive Meldung bei großen Dictionary-/Tupel-Typen möglich - im
+  realen yugioh-Fund wurde derselbe Satz `Can not assign Empty to Integer.` sechsmal wiederholt,
+  ohne neue Information je Wiederholung. Noch offen, ob das Ziel echte Positionen je Element
+  (wie TS/Elm, bei Literalen) oder ein Text-Fallback (ohne Literal) ist - siehe oben.
+- LSP-Performance: potenzieller Nutzen unabhängig von A/B/C1 - kappt genau die Art von
+  Diagnose-Payload, die bei tief verschachtelten/duplizierten `Or`-Typen unbegrenzt wächst und
+  bei jedem Tastendruck neu an den Client geschickt wird. Wirkt am stärksten in Kombination mit
+  C1 (das sonst die Duplikate zusätzlich vervielfacht, siehe oben).
+
+A, B und C1 schließen sich nicht aus und sind unabhängig von D umsetzbar. Nach Klarheit und
+LSP-Performance allein betrachtet ist C1 die inhaltlich stärkste Einzelmaßnahme (beantwortet die
+"warum"-Frage), A und B sind günstige Basisverbesserungen ohne Payload-Risiko. D hätte den
+größten Performance-Nutzen bei großen/duplizierten Typen, ist aber wie oben beschrieben an die
+Tupel-/Listen-Literal-Elaboration gekoppelt und deshalb zurückgestellt. C2 bleibt ohne Wirkung
+auf beide Kriterien (reines CLI-Rendering) und damit nach diesen Kriterien nicht priorisiert.
+Noch nicht umgesetzt - vor jeder Umsetzung roter Test zuerst (analog Schritt 1 oben), dann
+Umsetzung, dann Bench (insbesondere für C1/D wegen der Payload-Frage).
+
+### Empfehlung: A + B + C1
+
+Nach `design-principles.md`: Fehlermeldungen sprechen vom Quelltext des Nutzers, nicht von
+Compiler-Interna (Prinzip 1, Klarheit) - das erfüllen A, B und C1 alle drei, keins verweist auf
+Compiler-Internas. "Klarheit schlägt Vertrautheit" heißt aber auch: dass andere Sprachen es so
+machen, ist für sich kein Argument - C1 ist nur deshalb empfohlen, weil es selbst die "warum"-
+Frage beantwortet, nicht weil Rust es tut. B muss nach Einheitlichkeit (Prinzip 3) an **allen**
+Push-Stellen mit Rollenwort eingeführt werden (`definitionTypeMismatch`, `argumentTypeMismatch`,
+`returnTypeMismatch`), nicht nur bei der Rückgabe - sonst entstünde genau die verbotene Situation
+"zwei Fehlerarten, gleiche Struktur, unterschiedlich behandelt ohne Grund".
+
+Beispiel-Endzustand am realen `draw()`-Fund (`game-logic.jul:1837`, deklariert `:> GameBoard`,
+liefert tatsächlich `GameState`):
+
+**CLI-Ausgabe:**
+```
+game-logic.jul:1837:8 - TypeError JUL5100: Return type mismatch.
+Can not assign GameState to GameBoard.
+Missing fields: monsters, spellTraps, lifePoints, skippedDrawPhaseCount.
+  declared as GameBoard here: game-logic.jul:1828:15
+```
+
+**Im Editor (VS Code) zusätzlich:** dieselbe Diagnose, die letzte Zeile aber als eigener,
+eingerückter `relatedInformation`-Eintrag mit Sprungmarke zu `game-logic.jul:1828:15` statt als
+Text.
+
+Zeile für Zeile den drei Bausteinen zugeordnet:
+- `Return type mismatch.` - B, reines Rollenwort, keine Typnamen (die stehen erst in der
+  nächsten Zeile, sonst Dopplung).
+- `Can not assign GameState to GameBoard.` - A, die generische Kopfzeile aus
+  `getDictionaryLiteralTypeError`, unverändert an jeder Stelle (Definition/Argument/Rückgabe).
+- `Missing fields: ...` - bereits umgesetzt, siehe "Erledigt" oben.
+- `declared as GameBoard here: ...` - C1, im CLI eine zusätzliche Textzeile mit Position, im
+  Editor die klickbare `relatedInformation`-Referenz auf dieselbe `CompilerError`-Erweiterung.
+
 ## Optionale spätere Verbesserung: Darstellung im Language Server
 
 Der Server braucht für die Elaboration selbst nichts: `errors.map(error => diagnostic)`
@@ -131,4 +305,34 @@ sauberere Darstellung für genau diesen Fall: die Elaboration-Fehler nicht als e
 Diagnosen, sondern gruppiert **unter** der Hauptmeldung (VS Code zeigt das eingerückt, mit
 Sprungmarke zur jeweiligen Stelle). Rein darstellerisch, keine Voraussetzung für die Funktion -
 eigenständiger, späterer Schritt, falls gewünscht.
+
+## Offener Punkt: Namen in Meldungen konsequent in Anführungszeichen
+
+Fund (Session 2026-09-10): `Missing field monsters, expected ...` liest sich zweideutig - klingt,
+als könnte das Feld selbst "field" heißen und "monsters" etwas anderes sein, statt klar zu
+markieren, dass "monsters" der eingesetzte Name ist. Betrifft nicht nur diese eine Meldung:
+`checker.ts` setzt Namen an **keiner** Stelle in Anführungszeichen (`${name} is not defined.`,
+`Missing field ${fieldName}, ...`, `Got ${valueParameter.name} but expected ...`) - nach
+Einheitlichkeit (Prinzip 3) darf das nicht nur an einer Stelle geändert werden, sonst entsteht
+die verbotene Situation "zwei Schreibweisen für dieselbe Sache".
+
+Vergleich mit anderen Compilern - fast alle markieren eingesetzte Namen sichtbar:
+
+- **TypeScript**: einfache Anführungszeichen um jeden eingesetzten Namen, durchgängig -
+  `Property 'monsters' is missing in type '...'.`, `Cannot find name 'foo'.`.
+- **Rust**: Backticks, ebenso durchgängig - `` missing field `monsters` in initializer of
+  `GameBoard` ``, `` cannot find value `foo` in this scope ``.
+- **Clang/GCC**: einfache Anführungszeichen - `error: 'foo' was not declared in this scope`.
+- **Elm**: Backticks um Bezeichner - `` I cannot find a variable named `foo` `` - bei fehlenden
+  Record-Feldern zeigt Elm aber lieber den ganzen Diff in `{ }`-Klammern statt einzelne Namen
+  zu zitieren (siehe Option D oben).
+- **Go**: die Ausnahme - zitiert Namen meist gar nicht (`undefined: foo`), verlässt sich auf
+  Satzstellung statt auf Markierung.
+
+Mehrheitlich (TS, Rust, Clang, Elm) wird der eingesetzte Name also sichtbar vom Fließtext
+abgesetzt - deckt sich mit JULs eigenem Klarheits-Detail "Fehlermeldungen sprechen vom
+Quelltext des Nutzers": die Markierung zeigt genau, welches Wort aus dem Quelltext des Nutzers
+stammt und welches feste Compiler-Prosa ist. Eigenständige Entscheidung, unabhängig von der
+A/B/C1-Frage oben - noch nicht bewertet, welches Zeichen (Anführungszeichen vs. Backticks) und
+ob zuerst hier oder in `TODO` als eigener Punkt geführt wird.
 

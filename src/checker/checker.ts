@@ -3757,7 +3757,13 @@ function getDictionaryLiteralTypeError(
 ): TypeError | true | undefined {
 	switch (argumentsType.julType) {
 		case 'dictionaryLiteral': {
-			const subErrors = map(
+			// Fuer ein fehlendes Feld gibt es keinen Wert zum Vergleichen - der erwartete Typ
+			// steht bereits an der Zieltyp-Deklaration selbst, ihn hier zusaetzlich auszuschreiben
+			// ist reine Wiederholung (TypeScript/Rust/Elm/GHC tun das ebenfalls nicht). Fehlende
+			// Feldnamen werden deshalb gesammelt und zu einer Zeile zusammengefasst, statt je
+			// Feld eine eigene "Missing field X, expected Y."-Zeile zu erzeugen.
+			const missingFieldNames: string[] = [];
+			const fieldValueErrors = map(
 				targetFieldTypes,
 				(fieldType, fieldName) => {
 					const knownField = argumentsType.Fields[fieldName];
@@ -3772,13 +3778,20 @@ function getDictionaryLiteralTypeError(
 							// Or([] X) ist das Idiom fuer optionale Felder - Weglassen bleibt erlaubt.
 							return undefined;
 						}
-						// Eigene Meldung statt Empty einzusetzen: sonst sieht ein fehlendes
-						// Feld identisch aus wie ein vorhandenes Feld vom Typ Empty.
-						return { message: `Missing field ${fieldName}, expected ${typeToString(fieldType, 0, 0)}.` };
+						missingFieldNames.push(fieldName);
+						return undefined;
 					}
 					return getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, knownField);
 				},
 			).filter(isDefined);
+			const missingFieldsError: TypeError | undefined = missingFieldNames.length
+				? {
+					message: missingFieldNames.length === 1
+						? `Missing field ${missingFieldNames[0]}.`
+						: `Missing fields: ${missingFieldNames.join(', ')}.`,
+				}
+				: undefined;
+			const subErrors = missingFieldsError ? [missingFieldsError, ...fieldValueErrors] : fieldValueErrors;
 			if (subErrors.length) {
 				return {
 					// TODO error struktur überdenken
@@ -3871,9 +3884,11 @@ function elaborateDictionaryFieldError(
 		if (isFieldOptional(fieldTargetType, undefined)) {
 			return;
 		}
+		// Kein Typ-Dump wie bei der Hauptmeldung: der erwartete Typ steht bereits an der
+		// Zieltyp-Deklaration, ihn hier zu wiederholen waere reines Rauschen.
 		errors.push({
 			code: ErrorCode.definitionTypeMismatch,
-			message: `Missing field ${fieldName}, expected ${typeToString(fieldTargetType, 0, 0)}.`,
+			message: `Missing field ${fieldName}.`,
 			startRowIndex: value.startRowIndex,
 			startColumnIndex: value.startColumnIndex,
 			endRowIndex: value.endRowIndex,
