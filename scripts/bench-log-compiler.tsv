@@ -15,3 +15,4 @@
 2026-09-10 09:43:20	3dae426+	-	ADV-DEV-56627	jul-examples	parse+check	5	19.45	52.87	52.87	spread-flatten-start
 2026-09-10 09:47:53	3dae426+	-	ADV-DEV-56627	yugioh	parse+check	5	3433.64	3680.68	3680.68	spread-flatten-start
 2026-09-10 10:06:41	1cb6051+	-	ADV-DEV-56627	yugioh	parse+check	5	3425.68	3692.68	3692.68	spread-flatten-end
+2026-09-10 10:35:04	bd049c8+	-	ADV-DEV-56627	yugioh	parse+check	5	3495.44	3881.51	3881.51	spread-complete-final

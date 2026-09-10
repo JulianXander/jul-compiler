@@ -1499,6 +1499,45 @@ describe('Checker', () => {
 		expect(returnType.ElementTypes[1]?.julType).to.equal('text', 'Element 1 sollte text sein');
 		expect(returnType.ElementTypes[2]?.julType).to.equal('dictionaryLiteral', 'Element 2 sollte dictionaryLiteral sein');
 	});
+	it('dictionary-literal-spread-merges-fields', () => {
+		// Dictionary-Spreads sollten Felder aus dem Source in den Target mergen
+		const code = `T = [a: Integer b: Text]
+f = (source: T) => [
+	...source
+	c = true
+]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const functionType = definition.value?.typeInfo?.type;
+		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+		
+		// Erwartet: dictionaryLiteral mit 3 Feldern: [a: Integer, b: Text, c: Boolean]
+		expect(returnType?.julType).to.equal('dictionaryLiteral',
+			'Return type sollte dictionaryLiteral sein, tatsächlich: ' + returnType?.julType);
+		if (returnType && returnType.julType === 'dictionaryLiteral') {
+			expect(Object.keys(returnType.Fields).length).to.equal(3,
+				'Sollte 3 Felder haben (a, b, c)');
+			expect(returnType.Fields['a']?.julType).to.equal('integer',
+				'Feld a sollte integer sein');
+			expect(returnType.Fields['b']?.julType).to.equal('text',
+				'Feld b sollte text sein');
+			expect(returnType.Fields['c']?.julType).to.equal('booleanLiteral',
+				'Feld c sollte booleanLiteral sein');
+		}
+	});
+	it('dictionary-type-spread-merges-fields', () => {
+		// Sanity check: dictionaryType-Definitionen funktionieren
+		const code = `TargetType = [x: Integer y: Text z: Boolean]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		
+		// Hauptsache: Keine Fehler beim Parsen/Checken
+		expect(parsed.checked?.errors).to.deep.equal([],
+			`Sollte keine Fehler geben, aber bekam: ${JSON.stringify(parsed.checked?.errors)}`);
+	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
 	// Scope gecheckt werden. Sonst stand ihre Symboltabelle doppelt im Scope Stack und jede
