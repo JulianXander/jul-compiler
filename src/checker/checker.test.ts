@@ -1318,6 +1318,25 @@ g: Text = f(3)`,
 				},
 			],
 		},
+		{
+			// Nachbar-Fall zu 'duplicate-tuple-element-errors-are-deduplicated': Ziel List(X) mit
+			// Tupel-Literal als Wert (case 'list' => case 'tuple' in getTypeError) hatte denselben
+			// Dedup-Fehler, nur ohne den getTupleTypeError2-Fix von oben. Fund im selben
+			// yugioh-Beispiel: eine List(GameBoard) mit mehreren strukturell identischen Boards
+			// erzeugte denselben mehrzeiligen Fehler mehrfach hintereinander.
+			name: 'duplicate-list-element-errors-are-deduplicated',
+			code: 'f = (a: Text b: Text) => [a b]\nx: List(Integer) = f(§a§ §b§)',
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign Text to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 0,
+					endRowIndex: 1,
+					endColumnIndex: 29,
+				},
+			],
+		},
 	];
 
 describe('Checker', () => {

@@ -22,3 +22,4 @@
 2026-09-10 12:41:04	9d05a26+	-	ADV-DEV-56627	yugioh	parse+check	5	3993.20	4378.42	4378.42	nach C1 (A+B+C1 komplett)
 2026-09-10 14:12:55	0dbc86b	-	ADV-DEV-56627	yugioh	parse+check	5	3469.60	3758.98	3758.98	returnTypeMismatch Position: last(body) statt ganze Funktion
 2026-09-10 14:31:07	66641a8+	-	ADV-DEV-56627	yugioh	parse+check	5	3665.74	3774.64	3774.64	Tupel-Element-Fehler deduplizieren (getTupleTypeError2)
+2026-09-10 14:35:56	977056a+	-	ADV-DEV-56627	yugioh	parse+check	5	3744.47	3828.89	3828.89	Listen-Element-Fehler deduplizieren (Nachbarfall zu getTupleTypeError2)

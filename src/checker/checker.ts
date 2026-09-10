@@ -3583,9 +3583,12 @@ export function getTypeError(
 					const subErrors = argumentsType.ElementTypes.map(valueElement =>
 						getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
 					if (subErrors.length) {
+						// Mehrere Tupel-Elemente mit demselben Zieltyp erzeugen sonst dieselbe
+						// Meldung mehrfach hintereinander - dedup wie in getTupleTypeError2.
+						const uniqueMessages = [...new Set(subErrors.map(typeErrorToString))];
 						return {
 							// TODO error struktur überdenken
-							message: subErrors.map(typeErrorToString).join('\n'),
+							message: uniqueMessages.join('\n'),
 							// innerError
 						};
 					}

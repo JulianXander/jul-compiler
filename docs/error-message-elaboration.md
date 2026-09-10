@@ -23,34 +23,28 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
 - Identische Sub-Meldungen bei fehlenden Tupel-Elementen dedupliziert (`getTupleTypeError2`,
   `new Set(subErrors.map(typeErrorToString))`, analog zum bestehenden `'and'`-Fall in
   `getTypeError`): mehrere fehlende Elemente mit demselben Zieltyp erzeugen dieselbe
-  `Can not assign Empty to Integer.`-Zeile nicht mehr mehrfach hintereinander.
+  `Can not assign Empty to Integer.`-Zeile nicht mehr mehrfach hintereinander. Derselbe Dedup auch
+  im Nachbar-Codepfad Ziel `List(X)` mit Tupel-Literal als Wert (`getTypeError`s
+  `case 'list': case 'tuple':`) - Fund: eine `List(GameBoard)` mit mehreren strukturell
+  identischen Boards erzeugte denselben mehrzeiligen Fehler mehrfach hintereinander.
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 
 Die Dedup identischer *aufeinanderfolgender* Sub-Meldungen ist umgesetzt (siehe Status oben) und
-deckt den häufigsten Fall ab: mehrere fehlende Elemente mit gleichem Zieltyp. Zwei Teilprobleme
-bleiben offen:
+deckt den häufigsten Fall ab: mehrere Elemente mit gleichem Zieltyp, sowohl bei Tupel- als auch
+bei Listen-Zielen. Offen bleiben **echte Positionen je Element**: baut auf der noch nicht
+existierenden Elaboration für Tupel-/Listen-**Literale** auf (bisher nur für Dictionary-Literale
+umgesetzt). Ein reiner Zähler (`3×`) verschleiert, welche Elemente betroffen sind; Indizes in
+Prosa (`elements 1, 2, 3`) wären nur ein Fallback für den Fall ohne Literal (z.B. ein Parameter
+wie `row: Row` ohne eigene Element-Positionen) - andere Sprachen (TypeScript, Elm) lösen das
+stattdessen über echte Positionen je Element, wenn ein Literal vorliegt. Ein vorher
+geschriebener roter Test (`duplicate-tuple-element-errors-are-deduplicated`) legte dafür
+zunächst ein Format fest, das dieser Erkenntnis nicht mehr standhielt, wurde entfernt und
+später mit dem einfacheren Set-Dedup-Format neu geschrieben (keine Ausnahme von "roter Test
+bleibt stehen" - der erste Test belegte kein Bugverhalten, sondern eine verfrühte Festlegung
+auf ein noch offenes Design).
 
-1. **Echte Positionen je Element**: baut auf der noch nicht existierenden Elaboration für
-   Tupel-/Listen-**Literale** auf (bisher nur für Dictionary-Literale umgesetzt). Ein reiner
-   Zähler (`3×`) verschleiert, welche Elemente betroffen sind; Indizes in Prosa
-   (`elements 1, 2, 3`) wären nur ein Fallback für den Fall ohne Literal (z.B. ein Parameter wie
-   `row: Row` ohne eigene Element-Positionen) - andere Sprachen (TypeScript, Elm) lösen das
-   stattdessen über echte Positionen je Element, wenn ein Literal vorliegt. Ein vorher
-   geschriebener roter Test (`duplicate-tuple-element-errors-are-deduplicated`) legte dafür
-   zunächst ein Format fest, das dieser Erkenntnis nicht mehr standhielt, wurde entfernt und
-   später mit dem einfacheren Set-Dedup-Format neu geschrieben (keine Ausnahme von "roter Test
-   bleibt stehen" - der erste Test belegte kein Bugverhalten, sondern eine verfrühte Festlegung
-   auf ein noch offenes Design).
-2. **Dedup über Felder hinweg**: Fund im selben yugioh-Beispiel - zwei *verschiedene* Felder
-   (`activatableGameCardIds`, `boards`) einer Dictionary-Zuweisung erzeugten zufällig identische,
-   mehrzeilige Fehlerketten, die `getDictionaryLiteralTypeError` unabhängig voneinander erzeugt
-   und aneinanderhängt. Das aktuelle Set-Dedup wirkt nur *innerhalb* einer Tupel-/Listen-Kette,
-   nicht *über* Felder hinweg. Noch nicht bewertet, ob/wie Felder mit identischer Fehlerkette zu
-   einer Zeile gruppiert werden sollen (z.B. `Invalid value for fields a, b: ...`).
-
-Andere Compiler begrenzen unterschiedlich (weiterhin relevant, sobald ein Format für Punkt 1
-feststeht):
+Andere Compiler begrenzen unterschiedlich (weiterhin relevant, sobald ein Format feststeht):
 
 - TypeScript: `is missing the following properties from type 'Y': a, b, c, and N more.` -
   Kappung nach wenigen **benannten** Feldern, die jedes für sich informativ sind.
@@ -70,11 +64,11 @@ unterschied sich (jetzt durch Set-Dedup zu 1 Zeile zusammengefasst). Eine reine 
 N, Rest kappen"-Regel könnte hier zufällig ein *abweichendes* 4. Element verschlucken, während
 3 *identische* stehen bleiben - deshalb kein Zähler, sondern Textgleichheit als Kriterium.
 
-- Klarheit: für Punkt 1 (echte Positionen) weiterhin offen, ob das Ziel echte Positionen je
-  Element (wie TS/Elm, bei Literalen) oder ein Text-Fallback (ohne Literal) ist.
-- LSP-Performance: potenzieller Nutzen bei Punkt 1 - kappt genau die Art von Diagnose-Payload, die
-  bei tief verschachtelten/duplizierten `Or`-Typen unbegrenzt wächst und bei jedem Tastendruck
-  neu an den Client geschickt wird.
+- Klarheit: weiterhin offen, ob das Ziel echte Positionen je Element (wie TS/Elm, bei Literalen)
+  oder ein Text-Fallback (ohne Literal) ist.
+- LSP-Performance: potenzieller Nutzen - kappt genau die Art von Diagnose-Payload, die bei tief
+  verschachtelten/duplizierten `Or`-Typen unbegrenzt wächst und bei jedem Tastendruck neu an den
+  Client geschickt wird.
 
 Noch nicht umgesetzt - vor jeder Umsetzung roter Test zuerst, dann Umsetzung, dann Bench.
 
