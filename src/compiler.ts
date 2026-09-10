@@ -245,8 +245,11 @@ const errorSeverityLabels: { [Severity in CompilerErrorSeverity]: string; } = {
 /**
  * Formatiert Fehler für die Konsolenausgabe.
  * Row/Column sind intern 0-basiert (Array-Indizes), für die Ausgabe 1-basiert wie in Editoren.
- * Quellcode-Ausschnitt im Rust-Stil: die Position steht nur einmal, in der `-->`-Zeile - nicht
- * zusätzlich in der Kopfzeile (die hatte das vor der Rust-Umstellung, das wäre jetzt Dopplung).
+ * Position steht sowohl am Ende der ersten Zeile als auch in der `-->`-Zeile: bei kurzen
+ * Meldungen wäre das Dopplung, aber die mehrzeiligen, verschachtelten Ketten liegen oft 5+
+ * Zeilen von der `-->`-Zeile entfernt - ohne Wiederholung liesse die Kopfzeile allein keinen
+ * Rückschluss auf die Stelle zu (Session 2026-09-10). Am Zeilenende statt davor, damit die
+ * eigentliche Meldung zuerst lesbar ist.
  * `relatedInformation` bekommt keine eigene `-->`-Zeile - ihre Position steckt in der Lage der
  * Markierung selbst, das Label steht direkt hinter dem Marker der zugehörigen Quellzeile.
  */
@@ -255,7 +258,17 @@ export function formatErrors(filePath: string, errors: CompilerError[]): string 
 		const { type, severity } = errorInfos[error.code];
 		const errorLabel = colorize(errorTypeLabels[type] + errorSeverityLabels[severity], ConsoleColor.lightRed);
 		const errorCode = colorize(`JUL${error.code}`, ConsoleColor.lightRed);
-		const mainLine = `${errorLabel} ${errorCode}: ${error.message}`;
+		const position = `${filePath}:${error.startRowIndex + 1}:${error.startColumnIndex + 1}`;
+		// Position steht hier zusaetzlich zur `-->`-Zeile unten - bei den mehrzeiligen,
+		// verschachtelten Ketten (elaborateDictionaryLiteralError-Nachfolger) liegen oft 5+
+		// Zeilen dazwischen, die Kopfzeile allein liesse dann keinen Rueckschluss auf die Stelle
+		// zu. Redundanz ist hier bewusst in Kauf genommen (Session 2026-09-10). Steht am Ende der
+		// ersten Zeile (nicht davor), damit die Meldung selbst zuerst lesbar ist.
+		const [firstMessageLine, ...restMessageLines] = error.message.split('\n');
+		const mainLine = [
+			`${errorLabel} ${errorCode}: ${firstMessageLine} ${position}`,
+			...restMessageLines,
+		].join('\n');
 		const related = error.relatedInformation;
 		const relatedFilePath = related?.filePath ?? filePath;
 		const spans: { positioned: Positioned; label: string | undefined; filePath: string }[] = [

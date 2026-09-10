@@ -27,12 +27,20 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   im Nachbar-Codepfad Ziel `List(X)` mit Tupel-Literal als Wert (`getTypeError`s
   `case 'list': case 'tuple':`) - Fund: eine `List(GameBoard)` mit mehreren strukturell
   identischen Boards erzeugte denselben mehrzeiligen Fehler mehrfach hintereinander.
-- Redundante Elaboration bei fehlendem Dictionary-Feld entfernt (`elaborateDictionaryFieldError`):
-  fehlt ein Feld komplett, gibt es keinen Feld-Ausdruck, auf den man präziser zeigen könnte, als
-  es die Hauptmeldung (`Missing field X.`) schon tut - dieselbe Literal-Klammer wurde davor ein
-  zweites Mal als eigene `CompilerError` gemeldet. Seit dem Rust-Code-Frame (C2) macht das aus
-  einer kurzen Zusatzzeile einen kompletten zweiten mehrzeiligen Frame. Elaboration bleibt nur für
-  **falsche Feldwerte**, dort zeigt sie auf den konkreten Feldwert - enger als die Hauptmeldung.
+- Redundante Zwei-Diagnosen-Elaboration durch eine einzige Diagnose mit rekursiv ermittelter
+  Position ersetzt (`findInnermostErrorPosition`/`findInnermostFieldErrorPosition` in checker.ts,
+  löst `elaborateDictionaryLiteralError`/`elaborateDictionaryFieldError` komplett ab). Vorher:
+  eine Diagnose mit der vollen, verschachtelten Fehlerkette an der äußeren Position, zusätzlich
+  eine zweite Diagnose mit dem inneren Teil derselben Kette an einer präziseren Position - bei
+  mehrstufiger Verschachtelung (z.B. `GameState → boards → GameBoard → activatableGameCardIds`)
+  wiederholte sich derselbe Text über mehrere, sich überlappende Rust-Code-Frames. Jetzt (nach
+  TypeScript/Rust/Elm-Vorbild): eine Diagnose, deren Position beim Abstieg durch verschachtelte
+  Dictionary-Literale auf die innerste noch vorhandene, tatsächlich falsche Stelle wandert; die
+  Nachricht bleibt die volle Kette, aber nur einmal.
+- Position zusätzlich zur `-->`-Zeile auch in der Kopfzeile (`formatErrors` in compiler.ts):
+  bei mehrzeiligen, verschachtelten Ketten liegen oft 5+ Zeilen zwischen Kopfzeile und `-->`-Zeile
+  - ohne Wiederholung ließe die Kopfzeile allein keinen Rückschluss auf die Stelle zu. Bewusste
+  Rückkehr zur Dopplung, die für kurze Meldungen zuvor entfernt worden war (Session 2026-09-10).
 
 ## Offen: Meldungslänge bei Tupel-/Listen-Elementen begrenzen
 

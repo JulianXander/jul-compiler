@@ -41,7 +41,7 @@ describe('formatErrors', () => {
 		];
 		const output = stripAnsi(formatErrors(filePath, errors));
 		expect(output).to.equal([
-			'TypeError JUL5000: Definition type mismatch.',
+			`TypeError JUL5000: Definition type mismatch. ${filePath}:2:1`,
 			'Can not assign 5 to Text.',
 			` --> ${filePath}:2:1`,
 			'  |',
@@ -76,7 +76,7 @@ describe('formatErrors', () => {
 		];
 		const output = stripAnsi(formatErrors(filePath, errors));
 		expect(output).to.equal([
-			'TypeError JUL5100: Return type mismatch.',
+			`TypeError JUL5100: Return type mismatch. ${filePath}:2:2`,
 			'Can not assign Text to Integer.',
 			` --> ${filePath}:2:2`,
 			'  |',
@@ -108,7 +108,7 @@ describe('formatErrors', () => {
 		];
 		const output = stripAnsi(formatErrors(filePath, errors));
 		expect(output).to.equal([
-			'TypeError JUL5000: Definition type mismatch.',
+			`TypeError JUL5000: Definition type mismatch. ${filePath}:3:1`,
 			'Can not assign Integer to Text.',
 			` --> ${filePath}:3:1`,
 			'  |',
@@ -134,7 +134,7 @@ describe('formatErrors', () => {
 		];
 		const output = stripAnsi(formatErrors(filePath, errors));
 		expect(output).to.equal([
-			'TypeError JUL5050: Argument type mismatch.',
+			`TypeError JUL5050: Argument type mismatch. ${filePath}:2:10`,
 			'Can not assign 5 to Text.',
 			` --> ${filePath}:2:10`,
 			'  |',
@@ -164,7 +164,7 @@ describe('formatErrors', () => {
 		];
 		const output = stripAnsi(formatErrors(filePath, errors));
 		expect(output).to.equal([
-			'TypeError JUL5000: Definition type mismatch.',
+			`TypeError JUL5000: Definition type mismatch. ${filePath}:2:2`,
 			'Can not assign List(Integer) to Text.',
 			` --> ${filePath}:2:2`,
 			'  |',
