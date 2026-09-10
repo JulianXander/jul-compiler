@@ -1594,8 +1594,8 @@ x: Outer = [inner = [a = §wrong§]]`;
 	// TypeScript interleaved das (Feldname direkt vor dem Fehler, den er erklaert) UND rueckt
 	// jede Zeile eine Ebene tiefer ein, je weiter man in die Verschachtelung absteigt - ohne
 	// Einrueckung bleibt bei 3+ Ebenen (wie im echten Fund: GameState -> boards -> GameBoard ->
-	// activatableGameCardIds) unklar, welche Zeile zu welcher Tiefe gehoert. Tabs statt
-	// Leerzeichen (JUL-Konvention). Bewusst rot - noch nicht umgesetzt.
+	// activatableGameCardIds) unklar, welche Zeile zu welcher Tiefe gehoert. Umgesetzt in
+	// getDictionaryFieldError/indentLines.
 	it('field-name-precedes-the-type-mismatch-it-explains', () => {
 		const code = `Inner = [a: Integer]
 Outer = [inner: Inner]
@@ -1621,7 +1621,7 @@ x: Outer = [inner = [a = §wrong§]]`;
 	// eingebettet wird - Tabs und Leerzeichen mischen sich, die Verschachtelung sieht zufaellig
 	// aus statt konsistent. Ziel: typeToString nutzt dieselbe Leerzeichen-Einheit wie indentLines
 	// (2 Leerzeichen), dann fuegt sich die eigene Einrueckung sauber in jede Einbettungstiefe.
-	// Bewusst rot - noch nicht umgesetzt.
+	// Umgesetzt in bracketedExpressionToString (indentUnit).
 	it('multiline-type-dump-uses-the-same-indent-unit-as-the-surrounding-chain', () => {
 		const code = `Inner = [a: [Integer Integer Integer Integer Integer Integer]]
 x: Inner = [a = []]`;
