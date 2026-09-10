@@ -638,6 +638,9 @@ export interface AnyType extends CompileTimeTypeBase {
 
 //#region Primitive
 
+/**
+ * Eigener Typ, keine leere Kollektion - List/Tuple/Dictionary schließen ihn aus.
+ */
 interface EmptyType extends CompileTimeTypeBase {
 	readonly julType: 'empty';
 }
@@ -718,6 +721,9 @@ export function createCompileTimeComplementType(SourceType: CompileTimeType): Co
 	};
 }
 
+/**
+ * Untertyp aller Werte, die größer als Value sind (z.B. Greater(0) für PositiveInteger).
+ */
 export interface CompileTimeGreaterType extends CompileTimeTypeBase {
 	readonly julType: 'greater';
 	Value: CompileTimeType;
