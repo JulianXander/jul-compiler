@@ -621,10 +621,17 @@ export type CompileTimeType =
 	| ParametersType
 	;
 
+/**
+ * Untertyp von allem, erfüllt jede Anforderung. Kein Wert hat diesen Typ; er entsteht z.B. als
+ * Ergebnis von unerreichbarem Code oder eines leeren `Or`.
+ */
 export interface NeverType extends CompileTimeTypeBase {
 	readonly julType: 'never';
 }
 
+/**
+ * Übertyp von allem, stellt keine Anforderung. Jeder Wert erfüllt diesen Typ.
+ */
 export interface AnyType extends CompileTimeTypeBase {
 	readonly julType: 'any';
 }
@@ -694,6 +701,11 @@ export interface TypeType extends CompileTimeTypeBase {
 	readonly julType: 'type';
 }
 
+/**
+ * Komplement/Negation von SourceType: erfüllt alles, was SourceType nicht erfüllt. Da sich das
+ * nicht abschließend prüfen lässt, ist Not(X) beim Zuweisen wie Any permissiv – ein Fehler
+ * entsteht nur, wenn der Wert nachweislich zwingend SourceType ist.
+ */
 export interface CompileTimeComplementType extends CompileTimeTypeBase {
 	readonly julType: 'not';
 	SourceType: CompileTimeType;
