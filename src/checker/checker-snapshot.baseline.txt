@@ -196,7 +196,7 @@ testWithout21: true
   error 5000 at 48:1 Definition type mismatch. | Can not assign 6 to 4. | Can not assign 6 to 5.
   error 5000 at 54:1 Definition type mismatch. | Can not assign 5 to Never.
   error 5000 at 56:1 Definition type mismatch. | Can not assign 6 to Never.
-  error 5000 at 71:6 Definition type mismatch. | Invalid value for field 'b' |     Can not assign 6 to 5.
+  error 5000 at 71:6 Definition type mismatch. | Invalid value for field 'b' |   Can not assign 6 to 5.
   error 5000 at 74:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 84:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 85:1 Definition type mismatch. | Can not assign true to Not(true).

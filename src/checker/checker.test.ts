@@ -731,7 +731,7 @@ x: T = [a = 1 b = []]`,
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nInvalid value for field \'b\'\n    Can not assign Empty to Text.',
+					message: 'Definition type mismatch.\nInvalid value for field \'b\'\n  Can not assign Empty to Text.',
 					startRowIndex: 1,
 					startColumnIndex: 18,
 					endRowIndex: 1,

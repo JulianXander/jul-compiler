@@ -1589,25 +1589,11 @@ function inferType(
 					const innerPosition = resolvedTargetType && findInnermostErrorPosition(value, resolvedTargetType);
 					const position = innerPosition ?? expression;
 					
-					// Bei Definitions mit großen Typ-Dumps (mehrzeilig) ist die erste
-					// "Can not assign X to [...]-Zeile verwirrend, da sie wie ein
-					// Definitionsname aussieht, wenn X der inferred type ist.
-					// Wenn die Meldung mit "Invalid value for field" beginnt (nach Löschen),
-					// ist das klarer - die Detail-Fehler zeigen das Problem deutlicher.
-					let messageBody = assignmentError;
-					const firstLineEnd = assignmentError.indexOf('\n');
-					if (firstLineEnd > 0) {
-						const firstLine = assignmentError.substring(0, firstLineEnd);
-						// Erste Zeile endet NICHT mit "." = mehrzeilige Typ-Darstellung
-						if (!firstLine.endsWith('.')) {
-							// Suche nach "Invalid value for field" und beginne dort
-							const invalidFieldIndex = assignmentError.indexOf('Invalid value for field');
-							if (invalidFieldIndex > 0) {
-								messageBody = assignmentError.substring(invalidFieldIndex);
-							}
-						}
-					}
-					const message = `Definition type mismatch.\n${messageBody}`;
+					// Ob die umhuellende "Can not assign X to Y."-Zeile fehlt, entscheidet
+					// getTypeError bereits an der Quelle (case 'dictionaryLiteral': in
+					// getTypeError, hasMultipleFields) - hier nur noch die fertige Meldung
+					// uebernehmen, kein nachtraegliches Textschneiden mehr.
+					const message = `Definition type mismatch.\n${assignmentError}`;
 					
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
@@ -3578,8 +3564,18 @@ export function getTypeError(
 			// dagegen mit suppressAlias=true: sein aliasName ist der Name der Definition, die
 			// den Wert haelt (z.B. "newGameState"), kein Typname - der wuerde hier faelschlich
 			// als Typ erscheinen, auch bei verschachtelten Feldern (Fund newBoard, s.o.).
+			// Wuerde diese Kopfzeile selbst mehrzeilig rendern (z.B. weil ein Feld einen
+			// groesseren verschachtelten Typ enthaelt), traegt sie neben der folgenden
+			// "Invalid value for field"-Kette nichts bei und lenkt vom eigentlichen Fehler ab
+			// (Fund im echten yugioh-Fehlerbild, Session 2026-09-10) - dann faellt sie ganz weg.
+			// Entscheidung anhand des tatsaechlich gerenderten Textes, bevor er mit dem Detail
+			// verklebt wird, statt den fertigen String spaeter wieder aufzutrennen.
+			const header = `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.`;
+			if (header.includes('\n')) {
+				return error;
+			}
 			return {
-				message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(error.message)}`,
+				message: `${header}\n${indentLines(error.message)}`,
 			};
 		}
 		case 'empty':
@@ -4341,6 +4337,16 @@ function arrayTypeToString(
 		kind);
 }
 
+/**
+ * Ob typeToString(dictionary) mehrzeilig rendert - auch genutzt, um vor dem Bauen einer
+ * umhuellenden "Can not assign X to Y."-Fehlerzeile zu entscheiden, ob X selbst ausgeschrieben
+ * werden wuerde (dann traegt die Huelle nichts bei, was die Feld-Kette nicht ohnehin zeigt).
+ * Eine Quelle statt zweier, die auseinanderlaufen koennten.
+ */
+function hasMultipleFields(dictionary: CompileTimeDictionary): boolean {
+	return Object.keys(dictionary).length > 1;
+}
+
 function dictionaryTypeToString(
 	dictionary: CompileTimeDictionary,
 	nameSeparator: string,
@@ -4348,7 +4354,7 @@ function dictionaryTypeToString(
 	depth: number,
 	suppressAlias: boolean,
 ): string {
-	const multiline = Object.keys(dictionary).length > 1;
+	const multiline = hasMultipleFields(dictionary);
 	const newIndent = multiline
 		? indent + 1
 		: indent;

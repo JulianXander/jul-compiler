@@ -100,7 +100,8 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   zeigte `Can not assign List(Or(Integer Empty)) to Empty.` gefolgt von der unverbundenen Zeile
   `Can not assign Empty to Integer.`. Fix: der Element-Fehler wird jetzt analog zum
   `dictionaryLiteral`-Fall in `Can not assign List(X) to List(Y).\n  <eingerueckter
-  Element-Fehler>` gepackt - die Kette liest sich seitdem durchgehend zusammenhaengend.- `Or`-Ziel: Best-Match statt Alle-Choices-Dump (TS/Flow-Vorbild, direkte Fortsetzung des
+  Element-Fehler>` gepackt - die Kette liest sich seitdem durchgehend zusammenhaengend.
+- `Or`-Ziel: Best-Match statt Alle-Choices-Dump (TS/Flow-Vorbild, direkte Fortsetzung des
   vorigen Funds - der List-Wrap allein reichte nicht, weil `getTypeError`s `case 'or':` im
   `targetType`-Switch weiterhin **jeden** fehlgeschlagenen Choice als eigene Zeile zeigte,
   auch triviale wie "List ist kein Empty"). TypeScript/Flow zeigen bei einem Union-Ziel den
@@ -125,6 +126,16 @@ Umgesetzt (Details in der Git-Historie bzw. im Code, nicht mehr Teil dieses Doku
   Liste mit fehlenden Eintraegen") - das leistet auch TypeScript/Flow nicht, waere Freitext-
   Generierung in der Groessenordnung des verworfenen Diff-Modus (s.u.), nur fuer Bedeutung statt
   Struktur.
+- Huellen-Entscheid ("Can not assign X to Y." vor einer "Invalid value for field"-Kette weglassen,
+  wenn X selbst mehrzeilig ausschriebe) an die Quelle verlagert statt nachtraeglich Text zu
+  schneiden. Der vorige Stand (`definition`-Fall in checker.ts) baute die volle Kette samt Huelle
+  und schnitt sie danach per `indexOf`/`substring` wieder ab - dabei verlor nur die neue erste
+  Zeile ihre Einrueckung, alle folgenden Zeilen behielten die Tiefe, die sie durch die jetzt
+  entfernte Huelle hatten (Fund im echten yugioh-Fehlerbild: erster Einrueckungs-Sprung doppelt
+  so gross wie jeder weitere). Jetzt entscheidet `getTypeError`s `case 'dictionaryLiteral':`
+  selbst, ob die Huelle etwas beitraegt: die Kopfzeile wird probeweise gebaut, und nur wenn sie
+  KEINE Zeilenumbrueche enthaelt (`header.includes('\n')`), bleibt sie stehen - sonst wird direkt
+  der innere Fehler zurueckgegeben. Kein Text wird mehr zusammengeklebt und wieder aufgetrennt.
 ## Entscheidung gegen Diff-Modus ("expected X but got Y")
 
 Geprüft und verworfen (Session 2026-09-10): ein Umbau aller `Can not assign X to Y.`-Meldungen
