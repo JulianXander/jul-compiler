@@ -722,8 +722,9 @@ export function createCompileTimeComplementType(SourceType: CompileTimeType): Co
 }
 
 /**
- * Menge aller Werte, die größer als Value sind (nur in Kombination mit einem anderen Typ
- * sinnvoll, z.B. And(Integer Greater(0)) für PositiveInteger).
+ * Menge aller Werte, die größer als Value sind
+ * (nur in Kombination mit einem anderen Typ sinnvoll,
+ * z.B. And(Integer Greater(0)) für PositiveInteger).
  */
 export interface CompileTimeGreaterType extends CompileTimeTypeBase {
 	readonly julType: 'greater';
