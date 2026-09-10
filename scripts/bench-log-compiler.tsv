@@ -31,3 +31,6 @@
 2026-09-10 15:48:06	2277f04+	-	ADV-DEV-56627	yugioh	parse+check	5	3550.16	3859.70	3859.70	Echte Positionen je Tupel-/Listen-Element (findInnermostElementErrorPosition)
 2026-09-10 16:01:55	733e44d+	-	ADV-DEV-56627	yugioh	parse+check	5	3601.40	3943.16	3943.16	Or([] List(X))-Spread korrekt als List statt Tuple erkannt (getSpreadElementTypes)
 2026-09-10 16:08:43	a35c8ba+	-	ADV-DEV-56627	yugioh	parse+check	5	3512.89	3749.83	3749.83	Große Dictionary-Typen in Fehlermeldungen nach 5 Feldern gekürzt (maxFieldsInTypeDump)
+2026-09-10 16:15:52	dca69d5+	-	ADV-DEV-56627	yugioh	parse+check	5	3629.24	3901.03	3901.03	Definition-Fehler mit großen Typ-Dumps werden klarer (mehrzeilige erste Zeile entfernt)
+2026-09-10 16:22:14	dca69d5+	-	ADV-DEV-56627	yugioh	parse+check	5	4898.61	10933.74	10933.74	BASELINE vor Diff-Modus-Umbau (for comparison)
+2026-09-10 16:45:12	dca69d5+	-	ADV-DEV-56627	yugioh	parse+check	5	4208.41	8115.76	8115.76	aliasName-Leck behoben: argumentsType zeigt nie mehr Wertnamen als Typ (suppressAlias durch gesamte typeToString-Rekursion)

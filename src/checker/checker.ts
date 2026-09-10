@@ -1588,9 +1588,30 @@ function inferType(
 					// einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle).
 					const innerPosition = resolvedTargetType && findInnermostErrorPosition(value, resolvedTargetType);
 					const position = innerPosition ?? expression;
+					
+					// Bei Definitions mit großen Typ-Dumps (mehrzeilig) ist die erste
+					// "Can not assign X to [...]-Zeile verwirrend, da sie wie ein
+					// Definitionsname aussieht, wenn X der inferred type ist.
+					// Wenn die Meldung mit "Invalid value for field" beginnt (nach Löschen),
+					// ist das klarer - die Detail-Fehler zeigen das Problem deutlicher.
+					let messageBody = assignmentError;
+					const firstLineEnd = assignmentError.indexOf('\n');
+					if (firstLineEnd > 0) {
+						const firstLine = assignmentError.substring(0, firstLineEnd);
+						// Erste Zeile endet NICHT mit "." = mehrzeilige Typ-Darstellung
+						if (!firstLine.endsWith('.')) {
+							// Suche nach "Invalid value for field" und beginne dort
+							const invalidFieldIndex = assignmentError.indexOf('Invalid value for field');
+							if (invalidFieldIndex > 0) {
+								messageBody = assignmentError.substring(invalidFieldIndex);
+							}
+						}
+					}
+					const message = `Definition type mismatch.\n${messageBody}`;
+					
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
-						message: `Definition type mismatch.\n${assignmentError}`,
+						message,
 						startRowIndex: position.startRowIndex,
 						startColumnIndex: position.startColumnIndex,
 						endRowIndex: position.endRowIndex,
@@ -3552,11 +3573,13 @@ export function getTypeError(
 			if (!error) {
 				return undefined;
 			}
-			// depth=1 statt 0 erzwingt die Alias-Anzeige auch auf dieser obersten
-			// Vergleichsebene (typeToString zeigt Aliase nur ab depth>0) - sonst würde z.B.
-			// GameBoard hier voll ausgeschrieben statt als kurzer Name.
+			// targetType mit depth=1, damit z.B. GameBoard als kurzer Alias erscheint statt
+			// voll ausgeschrieben (typeToString zeigt Aliase nur ab depth>0). argumentsType
+			// dagegen mit suppressAlias=true: sein aliasName ist der Name der Definition, die
+			// den Wert haelt (z.B. "newGameState"), kein Typname - der wuerde hier faelschlich
+			// als Typ erscheinen, auch bei verschachtelten Feldern (Fund newBoard, s.o.).
 			return {
-				message: `Can not assign ${typeToString(argumentsType, 0, 1)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(error.message)}`,
+				message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(error.message)}`,
 			};
 		}
 		case 'empty':
@@ -4175,13 +4198,16 @@ function indentLines(text: string): string {
 //#region ToString
 
 // TODO expand ReferenceType 1 level deep?
-export function typeToString(type: CompileTimeType, indent: number, depth: number): string {
-	if (depth && type.aliasName) {
+// suppressAlias unterdrueckt aliasName in der gesamten Rekursion, nicht nur an der Aufrufstelle -
+// noetig, um einen Wert zu beschreiben (der Alias ist dort immer nur der Name der Definition,
+// die den Wert haelt, nie ein echter Typname; siehe Fund newGameState/newBoard, Session 2026-09-10).
+export function typeToString(type: CompileTimeType, indent: number, depth: number, suppressAlias = false): string {
+	if (depth && type.aliasName && !suppressAlias) {
 		return type.aliasName;
 	}
 	switch (type.julType) {
 		case 'and':
-			return `And${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, 'round')}`;
+			return `And${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, suppressAlias, 'round')}`;
 		case 'any':
 			return 'Any';
 		case 'blob':
@@ -4194,9 +4220,9 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'date':
 			return 'Date';
 		case 'dictionary':
-			return `Dictionary(${typeToString(type.ElementType, indent, depth + 1)})`;
+			return `Dictionary(${typeToString(type.ElementType, indent, depth + 1, suppressAlias)})`;
 		case 'dictionaryLiteral':
-			return dictionaryTypeToString(type.Fields, ': ', indent, depth + 1);
+			return dictionaryTypeToString(type.Fields, ': ', indent, depth + 1, suppressAlias);
 		case 'empty':
 			return 'Empty';
 		case 'error':
@@ -4206,26 +4232,26 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'floatLiteral':
 			return type.value.toString() + 'f';
 		case 'function': {
-			const paramsString = typeToString(type.ParamsType, indent, depth + 1);
-			const returnString = typeToString(type.ReturnType, indent, depth + 1);
+			const paramsString = typeToString(type.ParamsType, indent, depth + 1, suppressAlias);
+			const returnString = typeToString(type.ReturnType, indent, depth + 1, suppressAlias);
 			return `${paramsString} :> ${returnString}`;
 		}
 		case 'greater':
-			return `Greater(${typeToString(type.Value, indent, depth + 1)})`;
+			return `Greater(${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
 		case 'integer':
 			return 'Integer';
 		case 'list':
-			return `List(${typeToString(type.ElementType, indent, depth + 1)})`;
+			return `List(${typeToString(type.ElementType, indent, depth + 1, suppressAlias)})`;
 		case 'nestedReference':
-			return `${typeToString(type.source, indent, depth + 1)}/${typeof type.nestedKey === 'object'
-				? typeToString(type.nestedKey, indent, depth + 1)
+			return `${typeToString(type.source, indent, depth + 1, suppressAlias)}/${typeof type.nestedKey === 'object'
+				? typeToString(type.nestedKey, indent, depth + 1, suppressAlias)
 				: type.nestedKey}`;
 		case 'never':
 			return 'Never';
 		case 'not':
-			return `Not(${typeToString(type.SourceType, indent, depth + 1)})`;
+			return `Not(${typeToString(type.SourceType, indent, depth + 1, suppressAlias)})`;
 		case 'or':
-			return `Or${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, 'round')}`;
+			return `Or${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, suppressAlias, 'round')}`;
 		case 'parameters': {
 			const rest = type.rest;
 			const multiline = type.singleNames.length + (rest ? 1 : 0) > 1;
@@ -4234,10 +4260,10 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 				: indent;
 			const elements = [
 				...type.singleNames.map(element => {
-					return `${element.name}${optionalTypeGuardToString(element.type, newIndent, depth + 1)}`;
+					return `${element.name}${optionalTypeGuardToString(element.type, newIndent, depth + 1, suppressAlias)}`;
 				}),
 				...(rest
-					? [`...${rest.name}${optionalTypeGuardToString(rest.type, newIndent, depth + 1)}`]
+					? [`...${rest.name}${optionalTypeGuardToString(rest.type, newIndent, depth + 1, suppressAlias)}`]
 					: []),
 			];
 			return bracketedExpressionToString(elements, multiline, indent, 'round');
@@ -4245,17 +4271,17 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'parameterReference':
 			return type.name;
 		case 'stream':
-			return `Stream(${typeToString(type.ValueType, indent, depth + 1)})`;
+			return `Stream(${typeToString(type.ValueType, indent, depth + 1, suppressAlias)})`;
 		case 'text':
 			return 'Text';
 		case 'textLiteral':
 			return `§${type.value.replaceAll('§', '§§')}§`;
 		case 'tuple':
-			return arrayTypeToString(type.ElementTypes, indent, depth + 1);
+			return arrayTypeToString(type.ElementTypes, indent, depth + 1, suppressAlias);
 		case 'type':
 			return 'Type';
 		case 'typeOf':
-			return `TypeOf(${typeToString(type.value, indent, depth)})`;
+			return `TypeOf(${typeToString(type.value, indent, depth, suppressAlias)})`;
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected BuiltInType ${(assertNever as CompileTimeType).julType}`);
@@ -4263,9 +4289,9 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 	}
 }
 
-function optionalTypeGuardToString(type: CompileTimeType | undefined, indent: number, depth: number): string {
+function optionalTypeGuardToString(type: CompileTimeType | undefined, indent: number, depth: number, suppressAlias: boolean): string {
 	return type
-		? `: ${typeToString(type, indent, depth)}`
+		? `: ${typeToString(type, indent, depth, suppressAlias)}`
 		: '';
 }
 
@@ -4273,6 +4299,7 @@ function arrayTypeToString(
 	array: CompileTimeType[],
 	indent: number,
 	depth: number,
+	suppressAlias: boolean,
 	kind: 'round' | 'square' = 'square',
 ): string {
 	const multiline = array.length > maxElementsPerLine;
@@ -4281,7 +4308,7 @@ function arrayTypeToString(
 		: indent;
 	return bracketedExpressionToString(
 		array.map(element =>
-			typeToString(element, newIndent, depth)),
+			typeToString(element, newIndent, depth, suppressAlias)),
 		multiline,
 		indent,
 		kind);
@@ -4292,6 +4319,7 @@ function dictionaryTypeToString(
 	nameSeparator: string,
 	indent: number,
 	depth: number,
+	suppressAlias: boolean,
 ): string {
 	const multiline = Object.keys(dictionary).length > 1;
 	const newIndent = multiline
@@ -4300,7 +4328,7 @@ function dictionaryTypeToString(
 	const allFields = map(
 		dictionary,
 		(element, key) => {
-			return `${key}${nameSeparator}${typeToString(element, newIndent, depth)}`;
+			return `${key}${nameSeparator}${typeToString(element, newIndent, depth, suppressAlias)}`;
 		});
 	
 	// Begrenzen bei zu vielen Feldern: zeige maxFieldsInTypeDump Felder, dann "and N more"

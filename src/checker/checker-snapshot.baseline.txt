@@ -8,7 +8,7 @@ myValue: [field1: Any]
   error 1050 at 35:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 2202 at 37:2 assignedValue missing for singleDictionaryField
   error 1050 at 42:2 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
-  error 5000 at 33:1 Definition type mismatch. | Can not assign myValue to MyType. |   Missing fields: someOtherField, function.
+  error 5000 at 33:1 Definition type mismatch. | Can not assign [field1: Any] to MyType. |   Missing fields: someOtherField, function.
   error 5050 at 40:1 Argument type mismatch. | Can not assign Empty to [ |   field1: Integer |   someOtherField: Text |   function: () :> Text | ].
   error 5050 at 49:1 Argument type mismatch. | Can not assign Empty to [ |   field1: Integer |   someOtherField: Text |   function: () :> Text | ].
 === bracketed-expression-example.jul ===
@@ -196,16 +196,16 @@ testWithout21: true
   error 5000 at 48:1 Definition type mismatch. | Can not assign 6 to 4. | Can not assign 6 to 5.
   error 5000 at 54:1 Definition type mismatch. | Can not assign 5 to Never.
   error 5000 at 56:1 Definition type mismatch. | Can not assign 6 to Never.
-  error 5000 at 71:6 Definition type mismatch. | Can not assign testAnd5 to [ |   a: 4 |   b: 5 | ]. |   Invalid value for field b |     Can not assign 6 to 5.
+  error 5000 at 71:6 Definition type mismatch. | Invalid value for field b |     Can not assign 6 to 5.
   error 5000 at 74:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 84:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 85:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 89:29 Definition type mismatch. | Can not assign 1 to 2.
   error 5000 at 93:31 Definition type mismatch. | Can not assign 4 to Text.
   error 5000 at 95:1 Definition type mismatch. | Can not assign Empty to List(Text).
-  error 5000 at 99:39 Definition type mismatch. | Can not assign testDictionaryLiteral2 to [a: 4]. |   Invalid value for field a |     Can not assign 6 to 4.
-  error 5000 at 118:49 Definition type mismatch. | Can not assign testDictionaryLiteral5 to [a: [b: 4]]. |   Invalid value for field a |     Can not assign [b: 5] to [b: 4]. |       Invalid value for field b |         Can not assign 5 to 4.
-  error 5000 at 120:43 Definition type mismatch. | Can not assign testDictionaryLiteral6 to [a: Float]. |   Invalid value for field a |     Can not assign [b: 4f] to Float.
+  error 5000 at 99:39 Definition type mismatch. | Can not assign [a: 6] to [a: 4]. |   Invalid value for field a |     Can not assign 6 to 4.
+  error 5000 at 118:49 Definition type mismatch. | Can not assign [a: [b: 5]] to [a: [b: 4]]. |   Invalid value for field a |     Can not assign [b: 5] to [b: 4]. |       Invalid value for field b |         Can not assign 5 to 4.
+  error 5000 at 120:43 Definition type mismatch. | Can not assign [a: [b: 4f]] to [a: Float]. |   Invalid value for field a |     Can not assign [b: 4f] to Float.
   error 5000 at 126:42 Definition type mismatch. | Invalid value for field a |   Can not assign 4 to Text.
   error 5000 at 128:1 Definition type mismatch. | Can not assign Empty to Dictionary(Text).
   error 5050 at 132:1 Argument type mismatch. | Can not assign Empty to Integer. | Can not assign Empty to [ |   numerator: Integer |   denominator: Integer | ].

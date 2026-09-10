@@ -713,7 +713,7 @@ x: T = [a = 1]`,
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign x to T.\n  Missing field b.',
+					message: 'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing field b.',
 					startRowIndex: 1,
 					startColumnIndex: 0,
 					endRowIndex: 1,
@@ -731,7 +731,7 @@ x: T = [a = 1 b = []]`,
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign x to T.\n  Invalid value for field b\n    Can not assign Empty to Text.',
+					message: 'Definition type mismatch.\nInvalid value for field b\n    Can not assign Empty to Text.',
 					startRowIndex: 1,
 					startColumnIndex: 18,
 					endRowIndex: 1,
@@ -1596,7 +1596,7 @@ x: T = [a = 1]`;
 		checkTypes(parsed, {});
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
-			'Definition type mismatch.\nCan not assign x to T.\n  Missing fields: b, c.',
+			'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing fields: b, c.',
 		]);
 	});
 	// Gegenprobe: bei genau einem fehlenden Feld bleibt es Singular, kein Doppelpunkt.
@@ -1607,7 +1607,7 @@ x: T = [a = 1]`;
 		checkTypes(parsed, {});
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
-			'Definition type mismatch.\nCan not assign x to T.\n  Missing field b.',
+			'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing field b.',
 		]);
 	});
 
@@ -1629,7 +1629,7 @@ x: Outer = [inner = [a = §wrong§]]`;
 		expect(parsed.checked?.errors).to.deep.equal([
 			{
 				code: ErrorCode.definitionTypeMismatch,
-				message: 'Definition type mismatch.\nCan not assign x to Outer.\n  Invalid value for field inner\n    Can not assign [a: §wrong§] to Inner.\n      Invalid value for field a\n        Can not assign §wrong§ to Integer.',
+				message: 'Definition type mismatch.\nCan not assign [inner: [a: §wrong§]] to Outer.\n  Invalid value for field inner\n    Can not assign [a: §wrong§] to Inner.\n      Invalid value for field a\n        Can not assign §wrong§ to Integer.',
 				startRowIndex: 2,
 				startColumnIndex: 25,
 				endRowIndex: 2,
@@ -1658,7 +1658,7 @@ x: Outer = [inner = [a = §wrong§]]`;
 		expect(messages).to.deep.equal([
 			[
 				'Definition type mismatch.',
-				'Can not assign x to Outer.',
+				'Can not assign [inner: [a: §wrong§]] to Outer.',
 				'  Invalid value for field inner',
 				'    Can not assign [a: §wrong§] to Inner.',
 				'      Invalid value for field a',
@@ -1683,7 +1683,7 @@ x: Inner = [a = []]`;
 		expect(messages).to.deep.equal([
 			[
 				'Definition type mismatch.',
-				'Can not assign x to Inner.',
+				'Can not assign [a: Empty] to Inner.',
 				'  Invalid value for field a',
 				'    Can not assign Empty to [',
 				'      Integer',
@@ -1715,6 +1715,47 @@ x: Inner = [a = []]`;
 				endColumnIndex: 41,
 			},
 		]);
+	});
+
+	// Fund: Fehlermeldung für Definitions mit verschachtelten Type-Mismatch ist verwirrend.
+	// Sie sagt "Can not assign newGameState to [...]", aber newGameState ist der Name
+	// der Definition, nicht der Wert, der zugewiesen wird. Das Problem liegt tiefer in
+	// einem Feld, und die erste Zeile sollte nicht vom Definitionsnamen sprechen.
+	// Umgesetzt: wenn detaillierte Fehler vorhanden sind (z.B. "Invalid value for field X"),
+	// skippen wir die erste "Can not assign X to Y" Zeile, die verwirrend ist.
+	it('definition-error-first-line-should-not-name-the-definition', () => {
+		// Vereinfacht aus dem yugioh-Fehler: newGameState mit einem fehlerhaften Feld boards
+		const code = `newGameState: [boards: [a: Integer b: Integer]] = [
+	boards = []
+]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const error = parsed.checked?.errors?.[0];
+		
+		// Nach dem Fix: erste Zeile nach "Definition type mismatch." sollte mit
+		// "Invalid value for field" anfangen, nicht "Can not assign newGameState"
+		const lines = error?.message.split('\n') ?? [];
+		const secondLine = lines[1] ?? '';
+		expect(secondLine).to.include('Invalid value for field',
+			`Zweite Zeile sollte "Invalid value for field" sein, aber ist: ${secondLine}\nGanze Message:\n${error?.message}`);
+	});
+
+	it('assigned-value-alias-name-should-not-appear-as-type-name', () => {
+		// Realer yugioh-Fehler: "Can not assign newGameState to GameState." - newGameState
+		// ist der Name der Definition, die den Wert haelt, kein Typname. aliasName wird fuer
+		// jede Dictionary-Definition gesetzt (auch fuer normale Werte), aber beim Ausdrucken
+		// der argumentsType-Seite (der tatsaechliche Wert) darf er nicht verwendet werden -
+		// nur die targetType-Seite (der erwartete Typ) darf ihren Alias zeigen.
+		const code = `GameState = [board: Integer]
+newGameState: GameState = [
+	board = []
+]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const error = parsed.checked?.errors?.[0];
+
+		expect(error?.message).not.to.include('newGameState to GameState',
+			`Definitionsname darf nicht als Typ auf der linken Seite erscheinen: ${error?.message}`);
 	});
 
 	it('tuple-literal-spread-flattens-elements', () => {
