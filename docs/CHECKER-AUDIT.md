@@ -79,7 +79,6 @@ sortiert.
 | 11 | Ein Prefix-Argument überdeckt ein gleichnamiges Feld, ohne dass es auffällt | `1.f(a = 2)` bindet `a = 1` aus dem Prefix, die geschriebene `2` verfällt still. Verpasster Fall von `JUL2500`, keine Falschmeldung | klein — die vom Prefix belegten Namen aus der bekannten Namensmenge nehmen |
 | 12 | **Schlüsselart passt nicht zum Quelltyp** — Feldname auf einer List ([checker.ts:331](../src/checker.ts#L331)) und Index in einem Dictionary ([checker.ts:426](../src/checker.ts#L426)) liefern `undefined` statt eines Fehlers, beide als `TODO` markiert | `undefined` wird beim Aufrufer zu `Any`, und ob überhaupt gemeldet wird, entscheiden `hasKnownFields`/`hasKnownLength` — die für den jeweils anderen Fall nicht greifen. Zu verifizieren, ob der Mismatch dadurch ganz stillschweigend durchgeht | klein — eigener Fehlerfall je Richtung; die Wächter unterscheiden „Art passt nicht" heute nicht von „weiß ich nicht" |
 | 13 | **Die Verengung erreicht die Quelle eines Feldzugriffs nicht.** Wer auf `x/feld` branched (direkt oder über eine Variable), verengt nur den Feldwert, nicht `x` | Falschfehler: `stepType = step/type` mit `step: Or([] Step)`, dann `?(stepType) [Text] => …step/query` meldet `Can not assign Empty to Text`, obwohl ein Text-`type` beweist, dass `step` nicht empty ist — `Empty` hat kein Feld `type`. Test `branch-narrowing-does-not-reach-source-of-field` hält es fest. Trifft jeden Code, der einen möglicherweise leeren Wert über eines seiner Felder prüft | unklar — verwandt mit Punkt „Feldpfad" (`branch-narrowing-field-path-is-missing`), braucht aber zusätzlich die Rückrichtung: aus dem verengten Feldwert auf die Quelle schließen |
-| 14 | **Generischer Rückgabetyp friert bei einer echten Funktion (`functionLiteral`) an der Deklaration fest, statt je Aufruf aufgelöst zu werden.** Betrifft nur den Fall, dass der inferierte Rumpf-Typ `Any` ist (z.B. via `assume`) — dann greift in `case 'functionLiteral'` der Any-Fallback auf den deklarierten Rückgabetyp und löst `TypeOf(values)/ElementType` sofort mit dem an der Deklaration sichtbaren Parametertyp auf | Falschfehler bleibt aus: `first = (values: List(Any)) :> TypeOf(values)/ElementType => assume(1 Any)`, danach `f = (values: List(Text)) => g(values.first())` mit `g: (n: Integer) => n` meldet nichts, obwohl `values.first()` `Text` ist. Bei derselben Signatur über `nativeFunction` (`case 'functionTypeLiteral'`, kein Rumpf) meldet es korrekt — dort greift der Any-Fallback nicht. Test `generic-return-type-is-frozen-at-declaration-for-function-literal` hält es rot fest | unklar — der Any-Fallback existiert, damit ein geprüfter Rumpf den deklarierten Typ nach außen zeigt statt `Any`; er müsste den rohen (nicht aufgelösten) deklarierten Typ übernehmen, nicht die aufgelöste `declaredReturnValueType` |
 
 ---
 
@@ -90,6 +89,15 @@ sortiert.
 - Severity-System → [compileFile](../src/compiler.ts#L212) bricht nur noch bei `severity === 'error'` ab, `discardedValue` (JUL2500) ist die erste Warnung.
 
 Die Entscheidung dahinter — ein Typ nennt Anforderungen, ein Wert darf sie übertreffen — steht als Beleg bei Prinzip 2 in [design-principles.md](design-principles.md), das Verhalten in `CLAUDE.md` und im Handbuch.
+
+**Generischer Rückgabetyp fror bei einer echten Funktion (`functionLiteral`) an der Deklaration
+fest:** Ist der inferierte Rumpf-Typ `Any` (z.B. via `assume`), fiel `case 'functionLiteral'` auf
+den deklarierten Rückgabetyp zurück — aber auf dessen bereits mit `resolvePlaceholders`
+aufgelöste Fassung, aufgelöst mit dem an der Deklaration sichtbaren Parametertyp statt mit dem
+des jeweiligen Aufrufs. `TypeOf(values)/ElementType` fror dadurch auf `Any` ein, jeder Aufrufer
+sah `Any` statt seines eigenen Elementtyps. Fix: der Fallback übernimmt die rohe, unaufgelöste
+Fassung (`rawDeclaredReturnType`) — wie es `case 'functionTypeLiteral'` (`nativeFunction`,
+kein Rumpf) schon immer tat. Test `generic-return-type-is-frozen-at-declaration-for-function-literal`.
 
 ---
 
