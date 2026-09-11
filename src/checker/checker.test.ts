@@ -653,11 +653,10 @@ f = (someVar: Or(Integer Text)) =>
 		{
 			// Fund (Session 2026-09-10, echter yugioh-Fehler activatableGameCardIds): filter
 			// kann die Liste genau wie slice leeren (Laufzeit: `return filtered.length ?
-			// filtered : undefined`), ist aber als `:> TypeOf(values)` deklariert - "garantiert
-			// derselbe Typ wie die Eingabe", ohne Or([] ...). Unsound gegenueber der eigenen
-			// Implementierung: ein Rueckgabetyp ohne Or([] ...) muesste hier einen
-			// returnTypeMismatch melden, tut es aber nicht. Bewusst rot - filter-Signatur in
-			// core-lib.jul noch nicht auf Or([] TypeOf(values)) korrigiert (vgl. slice oben).
+			// filtered : undefined`) - die Signatur in core-lib.jul deklariert das inzwischen
+			// korrekt als `Or([] TypeOf(values))`. Dieser Test prueft genau das: ein deklarierter
+			// Rueckgabetyp ohne Or([] ...) (List(Integer) statt Or([] List(Integer))) muss am
+			// moeglichen Empty-Ergebnis scheitern.
 			name: 'filter-return-type-accounts-for-possibly-empty-result',
 			code: `f = (values: List(Integer)) :> List(Integer) =>
 	values.filter((value) => true)`,
@@ -1713,27 +1712,21 @@ describe('Checker', () => {
 		}
 	});
 
-	// Großer Zieltyp (Dictionary mit vielen Feldern) in Fehlermeldung sollte gekürzt werden
-	// statt alle Felder aufzulisten (führt zu 20+ Zeilen nur für die Typ-Darstellung).
-	// Bewusst rot - typeToString-Kürzung noch nicht umgesetzt.
+	// Grosser Zieltyp (Dictionary mit vielen Feldern) in der Fehlermeldung wird gekuerzt
+	// (checker.ts maxFieldsInTypeDump) statt alle Felder aufzulisten. Wert ist ein Integer
+	// statt eines dictionaryLiteral, damit keine Feld-Elaboration greift und der Zieltyp
+	// direkt (ungekuerzt waere er 20 Zeilen lang) in den Header gerendert wird.
 	it('large-dictionary-type-in-error-message-is-truncated', () => {
-		// Dictionary mit 20 Feldern als Zieltyp; die Fehlermeldung sollte nicht alle Felder
-		// aufgezählt zeigen, sondern gekürzt sein (z.B. "field0: Integer, field1: Integer, ..., (20 fields total)").
-		const fields = Array(20).fill(null)
-			.map((_, i) => `field${i}: Integer`)
-			.join(' ');
-		const code = `x: [${fields}] = []`;
-		
+		const fieldNames = Array(20).fill(null).map((_, i) => `field${i}`);
+		const fieldDeclarations = fieldNames.map(name => `${name}: Integer`).join(' ');
+		const code = `x: [${fieldDeclarations}] = 5`;
+
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		const error = parsed.checked?.errors?.[0];
-		const messageLines = error?.message.split('\n') ?? [];
-		
-		// Erwartet: nicht alle 20 Feldzeilen ausgedruckt, sondern gekürzt
-		// (aktuell 23 Zeilen: 1 Header + 1 "Can not assign Empty to [" + 20 Feldzeilen + 1 "].")
-		// Nach Kürzung sollte es unter 10 Zeilen sein.
-		expect(messageLines.length).to.be.lessThan(10,
-			`zu lange Typ-Darstellung (${messageLines.length} Zeilen), sollte gekürzt werden:\n${error?.message}`);
+
+		expect(error?.message).to.include('(and 15 more fields)',
+			`Zieltyp sollte nach maxFieldsInTypeDump gekuerzt sein:\n${error?.message}`);
 	});
 
 	// Fund in yugioh (draw() liefert GameState statt des deklarierten GameBoard): fehlt einem
@@ -1821,10 +1814,10 @@ x: Inner = [a = []]`;
 		]);
 	});
 
-	// Fund/Plan Session 2026-09-10 (docs/error-message-elaboration.md, TODO): Tupel-/Listen-
-	// Literale bekommen bisher keine Elaboration wie Dictionary-Literale - ein falsches Element
-	// markiert nur die ganze Definition, nicht das Element selbst. Bewusst rot - noch nicht
-	// umgesetzt (findInnermostErrorPosition kennt bisher nur value.type === 'dictionary').
+	// Fund/Plan Session 2026-09-10 (docs/error-message-elaboration.md): Tupel-/Listen-Literale
+	// bekommen dieselbe Elaboration wie Dictionary-Literale - ein falsches Element markiert
+	// nur das Element selbst, nicht die ganze Definition (findInnermostErrorPosition, Fall
+	// value.type === 'list').
 	it('tuple-literal-element-error-points-at-the-element-not-the-whole-definition', () => {
 		const code = 'x: [Integer Integer Integer] = [1 §wrong§ 3]';
 		const parsed = parseCode(code, 'dummy.jul');
