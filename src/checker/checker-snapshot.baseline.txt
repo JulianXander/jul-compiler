@@ -112,11 +112,6 @@ source$: Stream(Float)
   error 5050 at 14:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
   error 4001 at 15:11 'onCompleted' is not defined.
   error 4001 at 15:29 'console' is not defined.
-=== test1.jul ===
-f: (values: List(Text)) :> Text
-first: (values: List(Any)) :> Any
-g: (n: Integer) :> Integer
-  error 5050 at 4:2 Argument type mismatch. | Can not assign Text to Integer.
 === text-example.jul ===
 inline: §Hallo Welt§
 mitInterpolation: Text

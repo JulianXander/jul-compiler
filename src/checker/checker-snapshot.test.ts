@@ -20,6 +20,9 @@ const examplesFolder = resolve(import.meta.dirname, '../../../jul-examples');
 const baselinePath = join(import.meta.dirname, 'checker-snapshot.baseline.txt');
 const statsBaselinePath = join(import.meta.dirname, 'checker-stats.baseline.txt');
 
+// test1.jul ist ein Scratch-File zum manuellen Ausprobieren, kein stabiles Beispiel.
+const excludedFiles = ['test1.jul'];
+
 function findJulFiles(folder: string): string[] {
 	const entries = readdirSync(folder);
 	const files = entries.flatMap(entry => {
@@ -29,7 +32,7 @@ function findJulFiles(folder: string): string[] {
 				? []
 				: findJulFiles(fullPath);
 		}
-		return fullPath.endsWith('.jul')
+		return fullPath.endsWith('.jul') && !excludedFiles.includes(entry)
 			? [fullPath]
 			: [];
 	});

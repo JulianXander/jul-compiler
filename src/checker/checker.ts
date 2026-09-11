@@ -1740,7 +1740,7 @@ function inferType(
 			}
 			const currentScope = last(scopes);
 			let allFieldsResolved = true;
-			expression.fields.fields.forEach(field => {
+			expression.fields.fields.forEach((field, index) => {
 				// TODO spread
 				const fieldName = field.name.name;
 				if (!fieldName) {
@@ -1752,7 +1752,10 @@ function inferType(
 				const valueType: CompileTimeType = value?.typeInfo
 					? value.typeInfo.type
 					: { julType: 'any' };
-				const fieldType = dereferenceNameFromObject(referenceName, valueType);
+				// Die Laufzeit greift bei einem Array über die Position zu, sonst über den Namen
+				// (_isArray ? _temp[index] : _temp.name) - der Checker prüft deshalb beides.
+				const fieldType = dereferenceNameFromObject(referenceName, valueType)
+					?? dereferenceIndexFromObject(index + 1, valueType);
 				if (!fieldType) {
 					allFieldsResolved = false;
 					errors.push({
