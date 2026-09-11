@@ -126,6 +126,7 @@ export enum ErrorCode {
 	returnTypeMismatch = 5100,
 	branchIsNotFunction = 5150,
 	valueIsNotFunction = 5151,
+	unreachableBranch = 5152,
 	dereferenceFailed = 5160,
 	//#endregion 5000 type: Typprüfung
 }
@@ -195,6 +196,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.returnTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.branchIsNotFunction]: { type: 'type', severity: 'error' },
 	[ErrorCode.valueIsNotFunction]: { type: 'type', severity: 'error' },
+	[ErrorCode.unreachableBranch]: { type: 'type', severity: 'warning' },
 	[ErrorCode.dereferenceFailed]: { type: 'type', severity: 'error' },
 };
 

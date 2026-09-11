@@ -1645,6 +1645,7 @@ function inferType(
 					// const error = areArgsAssignableTo(undefined, currentParamsType, combinedPreviousType);
 					// if (!error) {
 					// 	errors.push({
+					// 		code: ErrorCode.unreachableBranch,
 					// 		message: 'Unreachable branch detected.',
 					// 		startRowIndex: branch.startRowIndex,
 					// 		startColumnIndex: branch.startColumnIndex,
