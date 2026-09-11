@@ -99,17 +99,17 @@ mapped2$: Stream(Integer)
 source$: Stream(Float)
   error 5050 at 1:11 Argument type mismatch. | Can not assign 2000 to Float.
   error 4001 at 4:3 'console' is not defined.
-  error 5050 at 2:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
+  error 5050 at 2:1 Argument type mismatch. | Parameter name mismatch. Got 'x' but expected 'value'
   error 5050 at 7:36 Argument type mismatch. | Can not assign Float to Integer.
-  error 5050 at 7:12 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'count'
+  error 5050 at 7:12 Argument type mismatch. | Parameter name mismatch. Got 'count' but expected 'value'
   error 4001 at 8:27 'console' is not defined.
-  error 5050 at 8:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
+  error 5050 at 8:1 Argument type mismatch. | Parameter name mismatch. Got 'x' but expected 'value'
   error 5050 at 10:36 Argument type mismatch. | Can not assign Float to Integer.
-  error 5050 at 10:12 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'count'
+  error 5050 at 10:12 Argument type mismatch. | Parameter name mismatch. Got 'count' but expected 'value'
   error 4001 at 11:27 'console' is not defined.
-  error 5050 at 11:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
+  error 5050 at 11:1 Argument type mismatch. | Parameter name mismatch. Got 'x' but expected 'value'
   error 4001 at 14:28 'console' is not defined.
-  error 5050 at 14:1 Argument type mismatch. | Parameter name mismatch. Got 'value' but expected 'x'
+  error 5050 at 14:1 Argument type mismatch. | Parameter name mismatch. Got 'x' but expected 'value'
   error 4001 at 15:11 'onCompleted' is not defined.
   error 4001 at 15:29 'console' is not defined.
 === text-example.jul ===
@@ -228,7 +228,7 @@ typeFnShort: BlubType :> Empty
   error 5160 at 19:2 Failed to dereference 'myA1' in type [ |   a: [ |     a1: 1 |     b1: 3 |   ] |   b: 2 | ]
   error 4003 at 24:28 'arg1' is already defined in upper scope
   error 5002 at 24:27 Can not assign ( |   arg1: Text |   arg2: Boolean | ) :> Empty to Type.
-  error 5050 at 27:1 Argument type mismatch. | Parameter name mismatch. Got 'arg1' but expected 'arg2'
+  error 5050 at 27:1 Argument type mismatch. | Parameter name mismatch. Got 'arg2' but expected 'arg1'
 === type-switch.jul ===
 someVar: 32
   error 4001 at 6:3 'Number' is not defined.

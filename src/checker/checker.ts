@@ -3755,8 +3755,15 @@ export function getTypeError(
 			if (!isFunctionType(argumentsType)) {
 				break;
 			}
-			// check args params obermenge von target params und args returntype teilmenge von target returntype
-			const paramsError = getTypeError(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
+			// Kontravarianz: Funktionstyp-Subtyping dreht die Richtung bei Parametern um.
+			// - Parameter: argumentsType.ParamsType muss Obermenge von targetType.ParamsType sein.
+			//   Grund: Wer weniger Parameter fordert, ist überall einsetzbar. Eine Funktion f(x)
+			//   passt überall wo eine Funktion g(x, y) verlangt wird, wenn f weniger Parameter
+			//   braucht als targetType.ParamsType — der Aufrufer kann einfach weniger übergeben.
+			// - Return-Type: Normale Richtung (Kovarianz).
+			//   argumentsType.ReturnType muss Teilmenge von targetType.ReturnType sein,
+			//   weil der Rückgabewert das erfüllen muss, was die Zielposition erwartet.
+			const paramsError = getTypeError(prefixArgumentType, argumentsType.ParamsType, targetType.ParamsType);
 			if (paramsError) {
 				return paramsError;
 			}

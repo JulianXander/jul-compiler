@@ -1544,6 +1544,26 @@ g: Text = f(3)`,
 				},
 			],
 		},
+		{
+			// Kontravarianz bei Parametern: map erwartet (value: X, index: PositiveInteger) => Y.
+			// Wer eine Funktion mit anderslautenden Parameternamen schreibt, bricht den Contract.
+			// Die Fehlermeldung sagt derzeit "Got 'value' but expected 'i'" - das ist verkehrt herum.
+			// Korrekt sollte sie "Got 'i' but expected 'value'" sagen (was auch der Wirklichkeit
+			// entspricht: an Position 1 wird 'value' erwartet, wir geben aber 'i').
+			// Red test für CHECKER-AUDIT #4.
+			name: 'parameter-name-mismatch-reports-names-in-wrong-order',
+			code: `x = map([1 2] (i: Integer value: Integer) => i)`,
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: "Argument type mismatch.\nParameter name mismatch. Got 'i' but expected 'value'",
+					startRowIndex: 0,
+					startColumnIndex: 4,
+					endRowIndex: 0,
+					endColumnIndex: 47,
+				},
+			],
+		},
 	];
 
 describe('Checker', () => {
