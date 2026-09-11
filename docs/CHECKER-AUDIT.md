@@ -99,6 +99,13 @@ sah `Any` statt seines eigenen Elementtyps. Fix: der Fallback übernimmt die roh
 Fassung (`rawDeclaredReturnType`) — wie es `case 'functionTypeLiteral'` (`nativeFunction`,
 kein Rumpf) schon immer tat. Test `generic-return-type-is-frozen-at-declaration-for-function-literal`.
 
+**Positionelles Destructuring war im Checker nicht umgesetzt:** `case 'destructuring'` löste ein
+Feld nur über den Namen auf (`dereferenceNameFromObject`). `(a b) = [1 2]` meldete deshalb
+`Failed to dereference 'a'`, obwohl die Laufzeit genau das kann (`_isArray ? _temp[index] :
+_temp.name`). Fix: schlägt die Namensauflösung fehl, versucht der Checker zusätzlich die Position
+über `dereferenceIndexFromObject`, wie es die Laufzeit auch tut. Test
+`positional-destructuring-from-list`.
+
 ---
 
 ## Verifikation (nach jedem Schritt)
