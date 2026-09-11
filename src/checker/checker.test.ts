@@ -1753,16 +1753,46 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Punkt D/Length-Route (docs/core-lib-empty-return-types.md): getElement(values length(values))
-	// müsste bei garantiert nicht-leerer List präzise Integer liefern, ohne dass jemand einen
-	// eigenen lastElement-Sonderfall bräuchte. Aktuell faltet length(List(T)) nur zu
-	// NonZeroInteger (kein Bezug zur konkreten Quelle), ElementAt sieht also einen unbekannten
-	// Index und bleibt bei Or(Empty ElementType).
+	// liefert bei garantiert nicht-leerer List präzise Integer, ohne dass jemand einen eigenen
+	// lastElement-Sonderfall bräuchte. length(List(T)) faltet zu lengthOf(List(T)); ElementAt
+	// erkennt, dass der Index exakt die Länge derselben Quelle ist, und lässt Empty weg.
 	it('element-at-plus-length-adds-no-empty-for-list', () => {
 		const code = `f = (values: List(Integer)) :> Integer =>
 	getElement(values length(values))`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	it('element-at-plus-length-keeps-empty-for-different-source', () => {
+		// Gegenprobe: die Länge einer ANDEREN Liste beweist nichts über die Position in dieser -
+		// die Identitätserkennung darf nur bei derselben Quelle greifen.
+		const code = `f = (values: List(Integer) other: List(Integer)) :> Or([] Integer) =>
+	getElement(values length(other))`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	it('element-at-plus-length-keeps-empty-for-possibly-empty-input', () => {
+		// Gegenprobe, die zeigt, dass die Erkennung gar nicht erst greifen kann, wenn values
+		// selbst empty sein könnte: length(values) wäre dann Or(0 lengthOf(...)), und die 0 aus
+		// dem Empty-Zweig scheitert schon an getElements eigenem index: PositiveInteger, bevor
+		// die Identitätserkennung überhaupt zum Zug kommt. lengthOf.Source ist also nie
+		// Or([] List(T)), sondern per Konstruktion (getLengthFromType, case 'or') immer schon
+		// der reine List-Zweig - die Erkennung kann Empty nicht fälschlich unterschlagen.
+		const code = `f = (values: Or([] List(Integer))) :> Or([] Integer) =>
+	getElement(values length(values))`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([
+			{
+				code: ErrorCode.argumentTypeMismatch,
+				message: 'Argument type mismatch.\nCan not assign 0 to Greater(0).',
+				startRowIndex: 1,
+				startColumnIndex: 1,
+				endRowIndex: 1,
+				endColumnIndex: 34,
+			},
+		]);
 	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu

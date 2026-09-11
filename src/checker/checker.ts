@@ -18,6 +18,7 @@ import {
 	createCompileTimeDictionaryType,
 	createCompileTimeFunctionType,
 	createCompileTimeGreaterType,
+	createCompileTimeLengthOfType,
 	createCompileTimeListType,
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
@@ -323,6 +324,16 @@ function dereferenceNestedKeyFromObject(
 			return hasKnownFields(source)
 				? { julType: 'empty' }
 				: dereferenceUnknownKeyFromObject(nestedKey, source);
+		}
+		case 'lengthOf': {
+			// Der Index ist beweisbar die Länge genau dieser Quelle: bei einer List ist er
+			// damit nie zu groß (er trifft exakt das letzte Element) und nie 0 (lengthOf.Source
+			// ist per Konstruktion nie Empty, siehe getLengthFromType). Kein Empty im Ergebnis.
+			if (source.julType === 'list'
+				&& typeEquals(nestedKey.Source, source)) {
+				return source.ElementType;
+			}
+			return dereferenceUnknownKeyFromObject(nestedKey, source);
 		}
 		default:
 			// Ein Platzhalter kann sich noch zu einem Literal auflösen, der Knoten bleibt also
@@ -701,6 +712,14 @@ function dereferenceArgumentTypesNested(
 				return typeToDereference;
 			}
 			return createCompileTimeListType(dereferencedElement);
+		}
+		case 'lengthOf': {
+			const rawSource = typeToDereference.Source;
+			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawSource);
+			if (dereferencedSource === rawSource) {
+				return typeToDereference;
+			}
+			return createCompileTimeLengthOfType(dereferencedSource);
 		}
 		case 'nestedReference': {
 			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, typeToDereference.source);
@@ -2789,8 +2808,7 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 				value: BigInt(argType.ElementTypes.length)
 			};
 		case 'list':
-			// TODO positive
-			return CompileTimeNonZeroInteger;
+			return createCompileTimeLengthOfType(argType);
 		case 'or': {
 			const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
 			return createNormalizedUnionType(lengthChoices);
@@ -3316,6 +3334,9 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 		case 'greater':
 			return second.julType === 'greater'
 				&& typeEquals(first.Value, second.Value);
+		case 'lengthOf':
+			return second.julType === 'lengthOf'
+				&& typeEquals(first.Source, second.Source);
 		case 'list':
 			return second.julType === 'list'
 				&& typeEquals(first.ElementType, second.ElementType);
@@ -3750,6 +3771,10 @@ export function getTypeError(
 		case 'nestedReference':
 			// TODO?
 			return undefined;
+		case 'lengthOf':
+			// Source ist per Konstruktion (getLengthFromType, case 'or') immer schon ein reiner
+			// list-Zweig, nie Empty - lengthOf verhaelt sich also ausnahmslos wie NonZeroInteger.
+			return getTypeError(prefixArgumentType, CompileTimeNonZeroInteger, targetType);
 		case 'not': {
 			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
 			// ausschließlich X-Werte zulässt (target Teilmenge von X), der Wert also garantiert
@@ -4119,6 +4144,9 @@ export function getTypeError(
 		// TODO
 		case 'typeOf':
 			break;
+		case 'lengthOf':
+			// In der Oberflaeche nicht konstruierbar, nur zur Vollstaendigkeit des Switches.
+			return getTypeError(prefixArgumentType, argumentsType, CompileTimeNonZeroInteger);
 		default: {
 			const assertNever: never = targetType;
 			throw new Error(`Unexpected targetType.type: ${(assertNever as CompileTimeType).julType}`);
@@ -4567,6 +4595,8 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return `Greater(${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
 		case 'integer':
 			return 'Integer';
+		case 'lengthOf':
+			return `LengthOf(${typeToString(type.Source, indent, depth + 1, suppressAlias)})`;
 		case 'list':
 			return `List(${typeToString(type.ElementType, indent, depth + 1, suppressAlias)})`;
 		case 'nestedReference':

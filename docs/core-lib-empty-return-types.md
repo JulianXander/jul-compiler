@@ -5,7 +5,16 @@
 `filterMap` ist korrekt typisiert — der ursprüngliche rote Test dafür war falsch, nicht der Checker.
 Siehe [Ergebnis filterMap](#ergebnis-filtermap).
 
-Die verbleibenden Kandidaten aus der ursprünglichen Audit-Zeile (`findFirst`, `lastElement`, `toDictionary`, `toList`, ggf. weitere) sind noch nicht einzeln geprüft — dafür ist das Kriterium unten gedacht.
+`lastElement` hatte einen echten Fund: die core-lib-Deklaration war unconditioned, sichtbar nur über
+einen Alias-Aufruf (der bestehende Namens-Sonderfall im Checker verdeckt ihn beim direkten Aufruf).
+Gefixt, siehe [Ergebnis lastElement](#ergebnis-lastelement).
+
+Die verbleibenden Kandidaten (`findFirst`/`findLast`/`findLastIndex` vermutlich unproblematisch,
+`toDictionary`/`toList` mit demselben Verdacht wie `lastElement`) sind noch nicht einzeln geprüft —
+dafür ist das Kriterium unten gedacht. Wichtig aus dem lastElement-Fund: Minimalrepros für
+kardinalitätserhaltende Funktionen ohne eigenen Checker-Sonderfall per direktem Aufruf testen reicht
+nicht aus, falls ein solcher Sonderfall existiert — ein Alias-Aufruf ist nötig, um die rohe
+core-lib-Deklaration zu treffen.
 
 ## Architekturfrage: Sonderbehandlung im Checker vs. Typsystem
 
@@ -269,14 +278,34 @@ immer `Empty` liefern. Der Test testete damit keinen Fehler mehr und wurde ersat
 Dereferenzierung (`dereferenceArgumentTypesNested`) funktioniert bereits korrekt, auch über eine
 Zwischenfunktion hinweg (Parameter, der seinerseits ein Callback weiterreicht).
 
+## Ergebnis lastElement
+
+`lastElement` hat in `getReturnTypeFromFunctionCall` einen eigenen Namens-Sonderfall
+(`getLastElementFromType`, [checker.ts:2753](../src/checker.ts#L2753)), der beim `List`-Fall bereits
+korrekt nur `ElementType` zurückgibt, ohne `Empty`. Der Sonderfall greift aber nur, wenn der
+Funktionsname am Aufruf wörtlich `lastElement` lautet (`functionExpression.type === 'reference'` mit
+`functionExpression.name.name === 'lastElement'`). Über einen Alias (`le = lastElement; le(values)`)
+trifft der `switch(functionName)` nicht mehr, und die generische Dereferenzierung greift auf die
+rohe core-lib-Deklaration zurück — die war `Or([] TypeOf(values)/ElementType)` mit unconditioned
+`[]` und erzeugte dort einen echten Falschfehler (`Can not assign Empty to Integer`), obwohl
+`values: List(Integer)` garantiert nicht leer ist. Ein Umweg über `Any` verschleiert den Fund
+dagegen (Any ist immer permissiv, siehe
+`function-return-type-uses-declared-type-not-inferred-any` in checker.test.ts) — der Alias ohne
+Any war nötig, um ihn sichtbar zu machen.
+
+Fix: `Or([] TypeOf(values)/ElementType)` → `Or(And(TypeOf(values) []) TypeOf(values)/ElementType)`,
+analog zu `map`. Tests: `last-element-via-alias-adds-no-empty-for-list` (Fund, jetzt grün),
+`last-element-via-alias-keeps-empty-for-possibly-empty-input` (Gegenprobe). Der bereits bestehende
+Sonderfall bleibt unverändert und bleibt eine offene Frage der Architekturfrage oben — er hat den
+Fund hier nur verdeckt, nicht behoben.
+
 ## Offene Kandidaten und Einordnung (Hypothese, noch zu verifizieren)
 
 | Funktion | Klasse | Hypothese | Nächster Schritt |
 |---|---|---|---|
-| `lastElement` ([core-lib.jul:642](../src/core-lib.jul#L642)) | kardinalitätserhaltend (genau ein Element, wenn `values` nicht leer) | **Verdacht**: `Or([] TypeOf(values)/ElementType)` ist unconditioned, sollte wie `map` auf `TypeOf(values)` konditioniert sein | Minimalrepro mit `values: List(Integer)` (garantiert nicht leer) gegen Zieltyp `Integer` |
 | `findFirst`, `findLast` ([core-lib.jul:590](../src/core-lib.jul#L590), [:609](../src/core-lib.jul#L609)) | filternd/suchend | vermutlich unproblematisch (`Empty` gehört unconditioned dazu, predicate kann immer 0 Treffer haben) | nur Elementtyp-Erhalt prüfen, kein Empty-Fix erwartet |
 | `findLastIndex` ([core-lib.jul:628](../src/core-lib.jul#L628)) | filternd/suchend | unproblematisch, analog zu `findFirst` | keiner |
-| `toDictionary` ([core-lib.jul:710](../src/core-lib.jul#L710)) | kardinalitätserhaltend (jedes Element wird zu einem Eintrag) | **Verdacht**: `Or([] Dictionary(Any))` unconditioned, Elementtyp zusätzlich zu `Any` verallgemeinert statt `callback`-Rückgabetyp | Minimalrepro wie bei `lastElement`, zusätzlich Elementtyp-Erhalt prüfen |
+| `toDictionary` ([core-lib.jul:710](../src/core-lib.jul#L710)) | kardinalitätserhaltend (jedes Element wird zu einem Eintrag) | **Verdacht**: `Or([] Dictionary(Any))` unconditioned, Elementtyp zusätzlich zu `Any` verallgemeinert statt `callback`-Rückgabetyp | Minimalrepro wie bei `lastElement` (per Alias, ohne Any), zusätzlich Elementtyp-Erhalt prüfen |
 | `toList` ([core-lib.jul:797](../src/core-lib.jul#L797)) | kardinalitätserhaltend (jeder Dictionary-Eintrag wird zu einem Listenelement) | **Verdacht**: gleiche Klasse wie `toDictionary` | wie oben |
 | `getField` ([core-lib.jul:770](../src/core-lib.jul#L770)) | eigene Klasse: Feld kann fehlen, unabhängig von "leer" | vermutlich kein Fund dieser Art — betrifft eher "bekannte vs. unbekannte Felder", nicht `Empty` durch Kardinalität | eigenständig einordnen, nicht Teil dieses Kriteriums |
 | `getElement` ([core-lib.jul:448](../src/core-lib.jul#L448)) | index-basiert, kann immer außerhalb liegen | unproblematisch, `Empty` gehört unconditioned dazu | keiner |

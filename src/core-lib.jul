@@ -651,7 +651,7 @@ findLastIndex = nativeFunction(
 	§
 )
 lastElement = nativeFunction(
-	(values: Or([] List(Any))) :> Or([] TypeOf(values)/ElementType)
+	(values: Or([] List(Any))) :> Or(And(TypeOf(values) []) TypeOf(values)/ElementType)
 	true
 	§js
 		values => values?.[values.length - 1]

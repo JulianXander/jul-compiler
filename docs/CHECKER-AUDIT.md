@@ -66,9 +66,20 @@ sortiert.
 
 | # | Lücke | Schaden | Aufwand |
 |---|---|---|---|
-| 1 | `getTypeErrorForParameters` meldet „not implemented yet" für jeden `argumentsType` außer dictionaryLiteral/empty/tuple/parameters | vermutlich unerreichbar: setzt voraus, dass ein `ParametersType` erwartet wird und das Argument ein `or`/`any`/`list` ist. Erst ein Repro suchen, dann entscheiden | unbekannt |
-| 2 | **Weitere core-lib-Funktionen mit zu grobem Rückgabetyp** — `slice`, `map` und `filterMap` sind gefixt (siehe [core-lib-empty-return-types.md](core-lib-empty-return-types.md)), `findFirst`, `lastElement`, `toDictionary`, `toList` etc. sind ungeprüft | dieselbe Klasse: `Empty` zu viel oder Struktur verloren | je Funktion klein |
-| 3 | Benannte Argumente gegen einen `rest`-Parameter sind nicht umgesetzt | `f(a = 1 b = 2)` gegen `(a: Integer ...args)` meldet `Can not assign dictionary to rest parameter`, die Laufzeit wirft `not implemented yet for rest dictionary`. Test `named-arguments-with-rest-parameter-are-not-supported` hält es fest | unklar — zuerst zu klären, was ein rest aus benannten Argumenten überhaupt aufnehmen soll |
+| 1 | **Weitere core-lib-Funktionen mit zu grobem Rückgabetyp** — `slice`, `map`, `filterMap` und `lastElement` sind gefixt (siehe [core-lib-empty-return-types.md](core-lib-empty-return-types.md)), `findFirst`/`findLast`/`findLastIndex` vermutlich unproblematisch, `toDictionary`/`toList` ungeprüft | dieselbe Klasse: `Empty` zu viel oder Struktur verloren | je Funktion klein |
+| 2 | Benannte Argumente gegen einen `rest`-Parameter sind nicht umgesetzt | `f(a = 1 b = 2)` gegen `(a: Integer ...args)` meldet `Can not assign dictionary to rest parameter`, die Laufzeit wirft `not implemented yet for rest dictionary` (`assignArgs`/`tryAssignArgs` in runtime.ts), Test `named-arguments-with-rest-parameter-are-not-supported` hält den Zustand fest. Vorgelagerte Design-Frage ungeklärt: was soll ein rest aus benannten Argumenten überhaupt binden? Python/Ruby trennen dafür zwei rest-Konstrukte (`*args`/`**kwargs`), keine verbreitete Sprache vereinigt beides in einem. Repro ohne Checker-Fehler existiert (Aufruf über eine `Any`-typisierte Zwischenstation, die die echte Signatur verdeckt), als nicht dringend zurückgestellt | unklar — hängt an der Design-Frage, nicht an der Umsetzung |
+| 3 | `getTypeFamily` ordnet `greater` bewusst keiner Familie zu (Kommentar: „kann Integer oder Float sein, daher keine Aussage"), dadurch liefert `typesOverlap` für jede Kombination mit `Greater` `undefined` und `Not(...)`-Prüfungen lassen es durch — auch falsch. `f = (positive: Greater(0)) :> Not(5) => positive` meldet keinen Fehler, obwohl `5` ein gültiger `Greater(0)`-Wert ist, den `Not(5)` ausschließen müsste | Falschfreigabe, keine Falschmeldung: `Greater(N)` gegen `Not(M)` mit `M > N` wird nie als Fehler erkannt | klein für den Integer/Float-Literal-Fall (`Value` von `Greater` mit dem Literal vergleichen), volle Lösung bräuchte echte Bereichsarithmetik |
+
+---
+
+## Gefunden, aber bewusst nicht umgesetzt
+
+Kein akuter Schaden erkennbar, deshalb hier statt in der offenen Liste — nicht vergessen, nur
+zurückgestuft.
+
+| Lücke | Warum zurückgestellt |
+|---|---|
+| `getTypeErrorForParameters` meldet „not implemented yet" für jeden `argumentsType` außer dictionaryLiteral/empty/tuple/parameters | vermutlich unerreichbar: setzt voraus, dass ein `ParametersType` erwartet wird und das Argument ein `or`/`any`/`list` ist. Kein Repro gefunden, kein bekannter Schaden |
 
 ---
 

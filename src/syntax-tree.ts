@@ -606,6 +606,7 @@ export type CompileTimeType =
 	| ErrorType
 	| TypeType
 	| CompileTimeGreaterType
+	| CompileTimeLengthOfType
 	| CompileTimeListType
 	| CompileTimeTupleType
 	| CompileTimeDictionaryType
@@ -735,6 +736,24 @@ export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTim
 	return {
 		julType: 'greater',
 		Value: Value,
+	};
+}
+
+/**
+ * Die Anzahl der Elemente von Source, solange Source nicht als Tuple/Empty feststeht (dort
+ * faltet getLengthFromType direkt zu einem Literal). Traegt die Quelle weiter, damit ElementAt
+ * erkennen kann, wenn ein Index exakt die Laenge derselben Quelle ist - dann ist er nie ausserhalb
+ * des Bereichs. Ueberall sonst verhaelt sich lengthOf wie PositiveInteger/NonZeroInteger.
+ */
+export interface CompileTimeLengthOfType extends CompileTimeTypeBase {
+	readonly julType: 'lengthOf';
+	Source: CompileTimeType;
+}
+
+export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileTimeLengthOfType {
+	return {
+		julType: 'lengthOf',
+		Source: Source,
 	};
 }
 
