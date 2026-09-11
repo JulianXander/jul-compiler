@@ -694,6 +694,73 @@ f = (someVar: Or(Integer Text)) =>
 	picked.filterMap((value) => value)`,
 		},
 		{
+			// Fund bei der Vorarbeit zu Schritt 3 (Callback-Konsumstelle): ein generischer
+			// Rückgabetyp (TypeOf(values)/ElementType), der direkt als Argument einer weiteren
+			// Aufruf-Position landet, wird gegen den Zielparameter nicht vollständig geprüft.
+			// g akzeptiert hier auch Empty, damit dieser Zweig gar nicht erst einen Fehler
+			// erzeugt - übrig bleibt ausschließlich, ob List(Or(Integer Text)) (das Ergebnis
+			// von slice) gegen List(Integer) geprüft wird. Erwartet wäre "Text passt nicht zu
+			// Integer", gemeldet wird gar nichts.
+			// Kontrollprobe (sanity-check unten) zeigt: ohne Aufrufkette (Wert direkt
+			// hineingereicht) meldet derselbe Zieltyp den Fehler korrekt.
+			// Unabhängig von den Prädikaten - blockiert aber verlässliche rote Tests für
+			// filter-Verengung, weil ein Element-Typfehler durch die Aufrufkette verschwindet.
+			name: 'chained-call-loses-element-type-check-bug',
+			code: `g = (n: Or(List(Integer) [])) => n
+f = (values: List(Or(Integer Text))) =>
+	g(values.slice(1))`,
+			// ROT: aktuell wird gar kein Fehler gemeldet (siehe sanity-check unten für densel-
+			// ben Fehler ohne Aufrufkette).
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nCan not assign List(Or(Integer Text)) to Or(List(Integer) Empty).\n  Can not assign List(Or(Integer Text)) to List(Integer).\n    Can not assign Text to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 19,
+				},
+			],
+		},
+		{
+			// Sanity-Check zum vorigen Fund: derselbe Zieltyp meldet den Fehler korrekt, wenn
+			// der Wert nicht durch eine Aufrufkette läuft.
+			name: 'chained-call-bug-sanity-check-direct-value',
+			code: `g = (n: Or(List(Integer) [])) => n
+f = (value: Or([] List(Or(Integer Text)))) =>
+	g(value)`,
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nCan not assign List(Or(Integer Text)) to Or(List(Integer) Empty).\n  Can not assign List(Or(Integer Text)) to List(Integer).\n    Can not assign Text to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 9,
+				},
+			],
+		},
+		{
+			// Sanity-Check zum vorigen Test: OHNE Prädikat wird Or([] List(Or(Integer Text)))
+			// zurecht NICHT als Or([] List(Integer)) akzeptiert. Zeigt, dass ein grüner
+			// vorheriger Test tatsächlich an einer echten Verengung liegt (nicht an einer
+			// generell laxen Prüfung).
+			name: 'sanity-check-list-or-not-assignable-without-narrowing',
+			code: `g = (n: Or([] List(Integer))) => n
+f = (values: List(Or(Integer Text))) =>
+	g(values)`,
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nCan not assign List(Or(Integer Text)) to Or(Empty List(Integer)).\n  Can not assign List(Or(Integer Text)) to List(Integer).\n    Can not assign Text to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 10,
+				},
+			],
+		},
+		{
 			// Branching innerhalb des filterMap-callback selbst: callback/ReturnType wird zu
 			// Or(Integer Empty), Without(... Empty) muss davon Integer übrig lassen. Statt
 			// dessen wird der Parametertyp offenbar zu Never aufgelöst, sobald values ein
