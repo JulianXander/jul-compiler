@@ -885,6 +885,14 @@ f = (values: T) :> T =>
 			code: `f = (values: Or([] List(Integer))) :> Or([] List(Integer)) =>
 	values.map((value) => value)`,
 		},
+		{
+			// Bug #2, Kandidat lastElement: bei garantiert nicht-leerer Eingabe deklariert
+			// lastElement dennoch Or([] TypeOf(values)/ElementType) unconditioned - map macht es
+			// mit And(TypeOf(values) []) richtig (siehe map-adds-no-empty-for-list oben).
+			name: 'last-element-adds-no-empty-for-list',
+			code: `f = (values: List(Integer)) :> Integer =>
+	values.lastElement()`,
+		},
 		//#endregion generische Rückgabetypen
 		//#region dereference
 		{
@@ -1719,6 +1727,42 @@ describe('Checker', () => {
 		expect(parseErrors, 'Parse-Fehler erwartet').to.have.lengthOf(1);
 		checkTypes(parsed, {});
 		expect(parsed.checked!.errors).to.deep.equal(parseErrors);
+	});
+	// lastElement hat in getReturnTypeFromFunctionCall einen Sonderfall (getLastElementFromType),
+	// der beim direkten Aufruf values.lastElement() bereits korrekt kein Empty liefert, wenn
+	// values garantiert nicht leer ist. Der Sonderfall greift aber nur, wenn der Funktionsname
+	// am Aufruf wörtlich 'lastElement' lautet - über einen Alias trifft der switch(functionName)
+	// in getReturnTypeFromFunctionCall nicht mehr, und die rohe core-lib-Deklaration
+	// (Or([] TypeOf(values)/ElementType), unbedingtes Empty) wird sichtbar.
+	it('last-element-via-alias-adds-no-empty-for-list', () => {
+		const code = `le = lastElement
+f = (values: List(Integer)) :> Integer =>
+	le(values)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	it('last-element-via-alias-keeps-empty-for-possibly-empty-input', () => {
+		// Gegenprobe: kann die Eingabe empty sein, bleibt Empty im Ergebnis korrekt - sonst
+		// hätte der Fix die Bedingung nur entfernt statt sie an TypeOf(values) zu knüpfen.
+		const code = `le = lastElement
+f = (values: Or([] List(Integer))) :> Or([] Integer) =>
+	le(values)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	// Punkt D/Length-Route (docs/core-lib-empty-return-types.md): getElement(values length(values))
+	// müsste bei garantiert nicht-leerer List präzise Integer liefern, ohne dass jemand einen
+	// eigenen lastElement-Sonderfall bräuchte. Aktuell faltet length(List(T)) nur zu
+	// NonZeroInteger (kein Bezug zur konkreten Quelle), ElementAt sieht also einen unbekannten
+	// Index und bleibt bei Or(Empty ElementType).
+	it('element-at-plus-length-adds-no-empty-for-list', () => {
+		const code = `f = (values: List(Integer)) :> Integer =>
+	getElement(values length(values))`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
