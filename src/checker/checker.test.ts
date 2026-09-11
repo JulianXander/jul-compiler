@@ -1093,6 +1093,39 @@ y: Integer = f([1 2])`,
 				},
 			],
 		},
+		{
+			// Eine positionale Kollektion hat keine Felder. Der Name kann dort nicht danebenliegen,
+			// er passt gar nicht zur Art der Quelle - das ist beweisbar falsch, nicht unbekannt.
+			name: 'field-name-on-positional-collection',
+			code: `a = [1 5]
+a/name`,
+			errors: [
+				{
+					"code": ErrorCode.dereferenceFailed,
+					"endColumnIndex": 6,
+					"endRowIndex": 1,
+					"message": "Failed to dereference 'name' in type [1 5]. A name needs fields, this type has positions.",
+					"startColumnIndex": 2,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Gegenstück: ein Dictionary hat keine Positionen, der Index passt nicht zur Art.
+			name: 'index-on-dictionary',
+			code: `dict = [key = 5]
+dict/1`,
+			errors: [
+				{
+					"code": ErrorCode.dereferenceFailed,
+					"endColumnIndex": 6,
+					"endRowIndex": 1,
+					"message": "Failed to dereference '1' in type [key: 5]. An index needs positions, this type has fields.",
+					"startColumnIndex": 5,
+					"startRowIndex": 1,
+				},
+			],
+		},
 		//#endregion dereference
 		//#region Zugriffstypen
 		// getElement deklariert seinen Rückgabetyp über ElementAt, die Präzision hängt also
