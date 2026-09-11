@@ -69,7 +69,6 @@ sortiert.
 | 1 | Nie matchender branch ([src/checker.ts:885-903](../src/checker.ts#L885-L903) auskommentiert) | reine Diagnose | **klein** — `typesOverlap` liegt vor, `getPreviousBranchValueType` ebenfalls |
 | 2 | `getTypeErrorForParameters` „not implemented yet" ([src/checker.ts:2807](../src/checker.ts#L2807)) | unklar | unklar |
 | 3 | **Weitere core-lib-Funktionen mit zu grobem Rückgabetyp** — `slice`, `map` und `filterMap` sind gefixt (siehe [core-lib-empty-return-types.md](core-lib-empty-return-types.md)), `findFirst`, `lastElement`, `toDictionary`, `toList` etc. sind ungeprüft | dieselbe Klasse: `Empty` zu viel oder Struktur verloren | je Funktion klein |
-| 4 | Untypisierter Rest-Parameter matcht zur Laufzeit **nie**: in [tryAssignArgs](../src/runtime.ts#L570) liefert `restType ? getTypeError(…) : true` ohne Typ ein `true`, also einen Fehler | unsound — der Checker sagt für `?(1 2)` mit Branch `(...args) => §rest§` den Typ `§rest§` zu, zur Laufzeit kommt `did not match any branch`. Trifft die Catch-all-Schreibweise | **klein** — `true` zu `undefined`, wie im `singleNames`-Pfad und wie im Checker |
 | 5 | „Parameter name mismatch" nennt die Rollen verkehrt herum ([checker.ts:3074](../src/checker.ts#L3074)) | `map(l (value: Integer i: PositiveInteger) => value)` meldet „Got index but expected i" — geschrieben wurde `i`, erwartet war `index`. Verstößt gegen Prinzip 9 | **klein** — Ursache ist die Kontravarianz: `case 'function'` vertauscht Ziel und Wert, die Meldung rechnet das nicht zurück |
 | 6 | **Spread-Argumente werden gar nicht geprüft.** Spread-Elemente werden in [case 'list'](../src/checker.ts#L1371) zu `any`, damit ist der ganze Argumenttyp `any` und `getTypeError` steigt aus | verifiziert: `f(§x§)` gegen `(a: Integer)` meldet, `args = [§x§]` · `f(...args)` meldet nichts. Betrifft jede Typprüfung am Aufruf, nicht nur die Stelligkeit | mittel — Tupel-Elementtypen beim Spread flach machen (`TODO flatten spread tuple value type`) |
 | 7 | Ein Zweig mit Tupel-Typkopf bekommt **keine Argumente**: im `paramsType`-Pfad geben [assignArgs](../src/runtime.ts#L467) und [tryAssignArgs](../src/runtime.ts#L524) ein leeres Array zurück | `[Integer Integer] => …` matcht `[1 2 3]`, der Body sieht aber `[]`. Ein Typkopf hat keine Parameternamen, insofern konsequent — nur kommt der Body an die gematchten Werte nicht heran | unklar, hängt an der Frage, ob ein Typkopf überhaupt binden soll |
@@ -81,6 +80,13 @@ sortiert.
 ---
 
 ## Erledigte Punkte
+
+**Untypisierter Rest-Parameter matchte zur Laufzeit nie:** `tryAssignArgs` behandelte einen `rest`
+ohne deklarierten Typ wie einen Typfehler (`restType ? getTypeError(...) : true`), an beiden
+Stellen (args undefined und Array-Fall). `_branch` verwarf jeden Branch mit `(...args) => …` also
+immer, unabhängig von den Argumenten - der Checker sagte währenddessen einen konkreten Typ zu.
+Fix: `true` zu `undefined`, analog zum `singleNames`-Pfad. Test
+`_branch matches a branch with an untyped rest parameter` in `runtime.test.ts`.
 
 **JUL2500-Serie (Discarded values):**
 - Überzähliger Wert verfällt stillschweigend → `JUL2500` für Aufrufe (positionell und benannt) und Destructuring. Die Zuweisung verwirft nichts, dort gibt es die Warnung bewusst nicht.

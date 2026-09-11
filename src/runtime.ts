@@ -572,7 +572,7 @@ function tryAssignArgs(
 				: undefined;
 			const typeError = restType
 				? getTypeError(remainingArgs, restType)
-				: true;
+				: undefined;
 			if (typeError) {
 				return new Error(`Can not assign the value to rest param.\n${typeError}`);
 			}
@@ -585,7 +585,7 @@ function tryAssignArgs(
 			}
 			const typeError = restType
 				? getTypeError(remainingArgs, restType)
-				: true;
+				: undefined;
 			if (typeError) {
 				return new Error(`Can not assign the value to rest param.\n${typeError}`);
 			}

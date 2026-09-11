@@ -4,8 +4,7 @@ import { _branch, _createFunction, parseJson } from './runtime.js';
 //#region _branch
 
 describe('_branch', () => {
-	// Bug (CHECKER-AUDIT.md #4): tryAssignArgs behandelt einen rest ohne Typ wie einen Typfehler
-	// (`restType ? getTypeError(...) : true`), _branch verwirft den branch deshalb immer.
+	// Ein rest ohne Typ darf nicht wie ein Typfehler behandelt werden (CHECKER-AUDIT.md #4).
 	it('matches a branch with an untyped rest parameter', () => {
 		const branch = _createFunction(
 			(...args: unknown[]) => args,
