@@ -70,7 +70,6 @@ sortiert.
 | 2 | `getTypeErrorForParameters` „not implemented yet" ([src/checker.ts:2807](../src/checker.ts#L2807)) | unklar | unklar |
 | 3 | **Weitere core-lib-Funktionen mit zu grobem Rückgabetyp** — `slice`, `map` und `filterMap` sind gefixt (siehe [core-lib-empty-return-types.md](core-lib-empty-return-types.md)), `findFirst`, `lastElement`, `toDictionary`, `toList` etc. sind ungeprüft | dieselbe Klasse: `Empty` zu viel oder Struktur verloren | je Funktion klein |
 | 5 | „Parameter name mismatch" nennt die Rollen verkehrt herum ([checker.ts:3074](../src/checker.ts#L3074)) | `map(l (value: Integer i: PositiveInteger) => value)` meldet „Got index but expected i" — geschrieben wurde `i`, erwartet war `index`. Verstößt gegen Prinzip 9 | **klein** — Ursache ist die Kontravarianz: `case 'function'` vertauscht Ziel und Wert, die Meldung rechnet das nicht zurück |
-| 6 | **Spread-Argumente werden gar nicht geprüft.** Spread-Elemente werden in [case 'list'](../src/checker.ts#L1371) zu `any`, damit ist der ganze Argumenttyp `any` und `getTypeError` steigt aus | verifiziert: `f(§x§)` gegen `(a: Integer)` meldet, `args = [§x§]` · `f(...args)` meldet nichts. Betrifft jede Typprüfung am Aufruf, nicht nur die Stelligkeit | mittel — Tupel-Elementtypen beim Spread flach machen (`TODO flatten spread tuple value type`) |
 | 7 | Ein Zweig mit Tupel-Typkopf bekommt **keine Argumente**: im `paramsType`-Pfad geben [assignArgs](../src/runtime.ts#L467) und [tryAssignArgs](../src/runtime.ts#L524) ein leeres Array zurück | `[Integer Integer] => …` matcht `[1 2 3]`, der Body sieht aber `[]`. Ein Typkopf hat keine Parameternamen, insofern konsequent — nur kommt der Body an die gematchten Werte nicht heran | unklar, hängt an der Frage, ob ein Typkopf überhaupt binden soll |
 | 8 | Benannte Argumente gegen einen `rest`-Parameter sind nicht umgesetzt | `f(a = 1 b = 2)` gegen `(a: Integer ...args)` meldet `Can not assign dictionary to rest parameter`, die Laufzeit wirft `not implemented yet for rest dictionary`. Test `named-arguments-with-rest-parameter-are-not-supported` hält es fest | unklar — zuerst zu klären, was ein rest aus benannten Argumenten überhaupt aufnehmen soll |
 | 9 | Ein Prefix-Argument überdeckt ein gleichnamiges Feld, ohne dass es auffällt | `1.f(a = 2)` bindet `a = 1` aus dem Prefix, die geschriebene `2` verfällt still. Verpasster Fall von `JUL2500`, keine Falschmeldung | klein — die vom Prefix belegten Namen aus der bekannten Namensmenge nehmen |
@@ -80,6 +79,19 @@ sortiert.
 ---
 
 ## Erledigte Punkte
+
+**Spread-Argumente wurden gar nicht geprüft:** Eine reine Spread-Argumentliste (`f(...values)`,
+kein Feld/Element daneben) parst laut `ParseUnknownObjectLiteral` zu `case 'object'`, nicht zu
+`case 'list'` (das betraf nur `f(1 ...values)` u.ä.). `case 'object'` löste diesen Fall nie auf,
+sondern gab immer `Any` zurück — `getTypeError` stieg damit für jedes Spread-Argument aus.
+Fix in zwei Schritten:
+1. Liste/Tuple: Auflösung wie in `case 'list'` über `getSpreadElementTypes` (Quellen als
+   Liste/Tuple/Empty auflösen, zu Tuple bzw. List zusammensetzen).
+2. Dictionary (`f(...namedArgs)`): lassen sich alle Quellen zu `dictionaryLiteral` auflösen,
+   werden die Felder zusammengeführt (spätere Quelle überschreibt gleichnamige frühere Felder),
+   analog zum bestehenden Spread-Fall in `case 'dictionary'`.
+Tests `spread-argument-is-not-type-checked` und `dictionary-spread-argument-is-not-type-checked`
+in `checker.test.ts`.
 
 **Untypisierter Rest-Parameter matchte zur Laufzeit nie:** `tryAssignArgs` behandelte einen `rest`
 ohne deklarierten Typ wie einen Typfehler (`restType ? getTypeError(...) : true`), an beiden

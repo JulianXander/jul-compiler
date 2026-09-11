@@ -1224,10 +1224,10 @@ f = (a: Integer) => a
 f(...values)`,
 		},
 		{
-			// Bug (CHECKER-AUDIT.md #6): ein Spread-Element wird im Argument-Tupel zu Any
-			// (case 'list' in inferType), damit prueft getTypeError den ganzen Aufruf nicht mehr.
-			// Aktuell rot: der Fehler bleibt aus, obwohl derselbe Wert direkt geschrieben
-			// (f(§x§)) ihn meldet.
+			// War CHECKER-AUDIT.md #6: eine reine Spread-Argumentliste (kein Feld/Element daneben)
+			// parst zu 'object' statt zu 'list' (ParseUnknownObjectLiteral - Liste oder
+			// Dictionary, je nach Typ der Quelle), und case 'object' loeste das nie auf, sondern
+			// gab immer Any zurueck. Fix: Auflösung wie in case 'list' über getSpreadElementTypes.
 			name: 'spread-argument-is-not-type-checked',
 			code: `values = [§x§]
 f = (a: Integer) => a
@@ -1240,6 +1240,26 @@ f(...values)`,
 					startColumnIndex: 0,
 					endRowIndex: 2,
 					endColumnIndex: 12,
+				},
+			],
+		},
+		{
+			// Gegenstück zu spread-argument-is-not-type-checked: eine reine Spread-Argumentliste
+			// kann laut ParseUnknownObjectLiteral auch ein Dictionary werden (benannte Argumente),
+			// das löst case 'object' bisher nicht auf (nur den Listen-Fall). Aktuell rot: der
+			// Fehler bleibt aus, obwohl derselbe Wert direkt geschrieben (f(a = §x§)) ihn meldet.
+			name: 'dictionary-spread-argument-is-not-type-checked',
+			code: `namedArgs = [a = §x§]
+f = (a: Integer) => a
+f(...namedArgs)`,
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nCan not assign §x§ to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 0,
+					endRowIndex: 2,
+					endColumnIndex: 15,
 				},
 			],
 		},

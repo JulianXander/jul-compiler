@@ -2276,7 +2276,6 @@ function inferType(
 		}
 		case 'object': {
 			// TODO error when List/Dictionary mixed
-			// TODO Dictionary Type?
 			expression.values.forEach(element => {
 				setInferredType(element.value, typeContext, parsedDocuments, folder, file, filePath);
 			});
@@ -2285,7 +2284,6 @@ function inferType(
 			// f(...values) landete bisher komplett auf Any, weil dieser Fall bislang gar nicht
 			// aufgelöst wurde. Auflösung wie bei case 'list': lässt sich jede Quelle als
 			// Liste/Tuple/Empty auflösen, wird genauso zu Tuple bzw. List zusammengesetzt.
-			// Eine Dictionary-Auflösung (f(...namedArgs)) ist damit noch nicht abgedeckt.
 			const tupleElements: CompileTimeType[] = [];
 			let hasListSpread = false;
 			let isResolvableAsList = true;
@@ -2301,13 +2299,32 @@ function inferType(
 				}
 				tupleElements.push(...spreadResult.elementTypes);
 			}
-			if (!isResolvableAsList) {
+			if (isResolvableAsList) {
+				const rawType = hasListSpread
+					? createCompileTimeListType(createNormalizedUnionType(tupleElements.map(resolvePlaceholders)))
+					: createCompileTimeTupleType(tupleElements);
+				return { type: rawType };
+			}
+
+			// Lässt sich nicht als Liste/Tuple auflösen: laut ParseUnknownObjectLiteral kann die
+			// Quelle statt dessen auch ein Dictionary sein (f(...namedArgs)). Wie beim Spread in
+			// case 'dictionary': spätere Felder überschreiben frühere gleichnamige.
+			const fieldTypes: CompileTimeDictionary = {};
+			let isResolvableAsDictionary = true;
+			for (const element of expression.values) {
+				const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
+				if (!isDictionaryLiteralType(sourceType)) {
+					isResolvableAsDictionary = false;
+					break;
+				}
+				for (const key in sourceType.Fields) {
+					fieldTypes[key] = sourceType.Fields[key]!;
+				}
+			}
+			if (!isResolvableAsDictionary) {
 				return { type: { julType: 'any' } };
 			}
-			const rawType = hasListSpread
-				? createCompileTimeListType(createNormalizedUnionType(tupleElements.map(resolvePlaceholders)))
-				: createCompileTimeTupleType(tupleElements);
-			return { type: rawType };
+			return { type: createCompileTimeDictionaryLiteralType(fieldTypes, true) };
 		}
 		case 'parameter': {
 			const typeGuard = expression.typeGuard;
