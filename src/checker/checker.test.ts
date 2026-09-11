@@ -569,6 +569,24 @@ f = (someVar: Or(Integer Text)) =>
 		() => 0`,
 			errors: [],
 		},
+		{
+			// Gegenrichtung: was ein späterer branch NICHT mehr sein kann. Dafür reicht
+			// narrowsTo nicht - das sagt nur "höchstens diese Werte liefern true". Abziehen
+			// darf man nur, was nachweislich true liefert: branches mit Rückgabetyp literal
+			// true, abzüglich dessen, was frühere branches des Prädikats abfangen. Hier deckt
+			// [Integer] => true ganz Integer ab, im catchAll bleibt also Text.
+			name: 'branch-narrowing-predicate-head-false-branch',
+			code: `isInteger = (x: Any) :> Boolean =>
+	?(x)
+		[Integer] => true
+		() => false
+g = (t: Text) => t
+f = (someVar: Or(Integer Text)) =>
+	?(someVar)
+		[isInteger] => 0
+		() => g(someVar)`,
+			errors: [],
+		},
 		//#endregion branching: Verengung
 
 		//#region Not
