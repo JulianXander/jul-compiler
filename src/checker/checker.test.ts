@@ -1224,6 +1224,26 @@ f = (a: Integer) => a
 f(...values)`,
 		},
 		{
+			// Bug (CHECKER-AUDIT.md #6): ein Spread-Element wird im Argument-Tupel zu Any
+			// (case 'list' in inferType), damit prueft getTypeError den ganzen Aufruf nicht mehr.
+			// Aktuell rot: der Fehler bleibt aus, obwohl derselbe Wert direkt geschrieben
+			// (f(§x§)) ihn meldet.
+			name: 'spread-argument-is-not-type-checked',
+			code: `values = [§x§]
+f = (a: Integer) => a
+f(...values)`,
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nCan not assign §x§ to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 0,
+					endRowIndex: 2,
+					endColumnIndex: 12,
+				},
+			],
+		},
+		{
 			// Eine Variable darf legitim mehr enthalten, als die Parameterliste fordert - das ist
 			// die Regel der Sprache, und im Quelltext steht an dieser Stelle nichts zu löschen.
 			name: 'variable-with-longer-tuple-is-not-discarded',
