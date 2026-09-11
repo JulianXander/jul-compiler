@@ -1794,6 +1794,22 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 			},
 		]);
 	});
+	// Punkt 9 (lastElement auf ElementAt+length umstellen): würde getLastElementFromType
+	// überflüssig machen, aber nur, wenn dieselbe Präzision auch über einen Alias erhalten
+	// bleibt - genau wie beim Vorbild getElement/ElementAt. myLast komponiert das hier selbst
+	// in seiner eigenen Rückgabetyp-Deklaration (wie lastElement es in core-lib täte), ohne
+	// core-lib anzufassen. Erwartung: durch den Alias trifft kein Namens-Sonderfall mehr,
+	// die Deklaration muss also allein tragen - tut sie aktuell nicht.
+	it('element-at-plus-length-composed-in-declaration-survives-alias', () => {
+		const code = `myLast = (values: List(Any)) :> ElementAt(TypeOf(values) length(values)) =>
+	getElement(values length(values))
+alias = myLast
+f = (values: List(Integer)) :> Integer =>
+	alias(values)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.

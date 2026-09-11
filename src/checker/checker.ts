@@ -957,6 +957,19 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			}
 			return createCompileTimeComplementType(dereferencedSource);
 		}
+		case 'lengthOf': {
+			const rawSource = rawType.Source;
+			const dereferencedSource = resolvePlaceholders(rawSource);
+			if (dereferencedSource === rawSource) {
+				return rawType;
+			}
+			// Nicht nur die aufgelöste Source in lengthOf einpacken: getLengthFromType splittet
+			// z.B. Or([] List(T)) in Or(0 lengthOf(List(T))) auf. Würde hier stattdessen direkt
+			// lengthOf(Or([] List(T))) entstehen, gölte die Source-nie-Empty-Invariante
+			// (getTypeError, case 'lengthOf') nicht mehr, obwohl der Aufrufer sich genau darauf
+			// verlässt.
+			return getLengthFromType(dereferencedSource);
+		}
 		case 'or': {
 			const rawChoices = rawType.ChoiceTypes;
 			const dereferencedChoices = rawChoices.map(resolvePlaceholders);
@@ -2813,10 +2826,8 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 			const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
 			return createNormalizedUnionType(lengthChoices);
 		}
-		case 'parameterReference': {
-			const dereferenced = dereferenceParameterTypeFromFunctionRef(argType);
-			return getLengthFromType(dereferenced);
-		}
+		case 'parameterReference':
+			return createCompileTimeLengthOfType(argType);
 		default:
 			// TODO non negative
 			return { julType: 'integer' };
@@ -3771,10 +3782,21 @@ export function getTypeError(
 		case 'nestedReference':
 			// TODO?
 			return undefined;
-		case 'lengthOf':
-			// Source ist per Konstruktion (getLengthFromType, case 'or') immer schon ein reiner
-			// list-Zweig, nie Empty - lengthOf verhaelt sich also ausnahmslos wie NonZeroInteger.
+		case 'lengthOf': {
+			// Source ist nur dann garantiert schon der reine list-Zweig (nie Empty), wenn
+			// getLengthFromType sie bereits aufgesplittet hat. Bei einer hier noch unaufgelösten
+			// Source (z.B. parameterReference, weil argsType bewusst ungeprüft bleibt, siehe
+			// Aufrufer) gilt das nicht automatisch - erst auflösen und ggf. neu aufsplitten,
+			// bevor NonZeroInteger unterstellt wird.
+			const resolvedSource = resolvePlaceholders(argumentsType.Source);
+			if (resolvedSource !== argumentsType.Source) {
+				const resolvedLength = getLengthFromType(resolvedSource);
+				if (!typeEquals(resolvedLength, argumentsType)) {
+					return getTypeError(prefixArgumentType, resolvedLength, targetType);
+				}
+			}
 			return getTypeError(prefixArgumentType, CompileTimeNonZeroInteger, targetType);
+		}
 		case 'not': {
 			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
 			// ausschließlich X-Werte zulässt (target Teilmenge von X), der Wert also garantiert
