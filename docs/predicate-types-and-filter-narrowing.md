@@ -5,8 +5,11 @@ Fund in yugioh (Session 2026-09-10): `allGameCardIds.filter((gameCardId) => ?(ga
 obwohl das Prädikat es beweist. Kein Bug in JUL oder im yugioh-Code (siehe
 [error-message-elaboration.md](error-message-elaboration.md), Abschnitt zum `filter`-Rückgabetyp-
 Fix) - eine echte Grenze der Sprache. Dieses Dokument hält die Untersuchung fest, warum das so
-ist, wie andere Sprachen damit umgehen, und was ein JUL-eigener Lösungsweg bräuchte. Kein Plan
-zur Umsetzung - eine Bestandsaufnahme für eine spätere Entscheidung.
+ist, wie andere Sprachen damit umgehen, und was ein JUL-eigener Lösungsweg bräuchte.
+
+**Stand 2026-09-11:** der Mittelweg wird umgesetzt, in Schritten. Schritt 1 (Verengung im branch
+selbst) und Schritt 2 (Abzug im false-Zweig) sind fertig, siehe [Umgesetzt](#umgesetzt) unten.
+Der auslösende `filter`-Fall ist noch offen.
 
 ## Die Frage: sind Prädikate nicht sowieso schon Typen?
 
@@ -110,7 +113,7 @@ Prädikate) später generalisiert werden soll, da es die "Fakten-Logik"-Idee am 
 formalisiert. Die SMT-basierten Systeme (Liquid Haskell/F*/Dafny/Idris) sind Referenzen zur
 Einordnung des Aufwands, nicht als Vorbild für JULs Umfang gedacht.
 
-## Ein JUL-eigener Mittelweg (nicht umgesetzt, nur skizziert)
+## Ein JUL-eigener Mittelweg
 
 Statt beliebige Prädikate zu verifizieren, ließe sich eine **eng begrenzte, aber geprüfte**
 (nicht behauptete) Form ableiten - aus einer Beobachtung, die schon vorhandene Infrastruktur
@@ -137,12 +140,12 @@ Weil die abgeleitete Verengung am Funktionstyp selbst hängt (nicht an `filter`s
 sie nicht auf Callback-nehmende Funktionen beschränkt. Ein Branch ist selbst eine Funktion und
 matcht über seinen **Parametertyp**; Typen stehen dort als normale Werte (`[Integer]`, `Any`,
 `NonZeroInteger`, ...). Ein Prädikat gehört also nicht anstelle des Kopfes hin, sondern in
-dessen Typ-Position - heute nicht wirkungslos, sondern **falsch**: der Checker schneidet den
-gebranchten Typ mit dem Funktionstyp und kommt auf `Never`, erklärt den branch also für
+dessen Typ-Position - vor Schritt 1 nicht wirkungslos, sondern **falsch**: der Checker schnitt den
+gebranchten Typ mit dem Funktionstyp und kam auf `Never`, erklärte den branch also für
 unerreichbar (gemessen 2026-09-11, `JUL5050: Can not assign Never to Integer`). Die Laufzeit
 matcht denselben Code korrekt: `_branch` prüft über `getTypeError`, und dort wird ein
 Funktionswert in Typ-Position **aufgerufen** (runtime.ts, `case 'function'`). Der Falschbefund
-trifft lauffähigen Code:
+traf lauffähigen Code:
 
 ```jul
 isInteger = (x: Any) :> Boolean =>
@@ -151,15 +154,15 @@ isInteger = (x: Any) :> Boolean =>
 		() => false
 
 ?(someValue)
-	[isInteger] => ...   # narrowt someValue heute auf Never statt auf Integer
+	[isInteger] => ...   # verengte someValue auf Never statt auf Integer
 ```
 
-Mit den `narrowsTo`-Metadaten am Funktionstyp bräuchte die Branch-Verengung nur eine zusätzliche
-Regel: "trägt der Parametertyp `narrowsTo`-Metadaten, verenge auf diesen Typ" - zusätzlich zur
+Mit den Prädikat-Metadaten am Funktionstyp braucht die Branch-Verengung nur eine zusätzliche
+Regel: "trägt der Parametertyp Prädikat-Metadaten, verenge auf deren `ifTrue`" - zusätzlich zur
 bestehenden Regel "ist es ein `Type`-Wert, matche direkt dagegen". Derselbe abgeleitete Fakt
 schließt also zwei Lücken (`filter`-Narrowing und Prädikate in Typ-Position), nicht nur eine -
-mit dem Callback-Analyseschritt (Punkt 1 unten) als gemeinsamer Grundlage. Dieselbe Grenze gilt
-an beiden Stellen: nur Prädikate mit exakt der erkennbaren Branching-Form bekommen `narrowsTo` -
+mit dem Analyseschritt (Punkt 1 unten) als gemeinsamer Grundlage. Dieselbe Grenze gilt
+an beiden Stellen: nur Prädikate mit exakt der erkennbaren Branching-Form bekommen Metadaten -
 ein Prädikat wie `getActivationRequirementsMet(...)`, das beliebige Berechnungen anstellt, bliebe
 an keiner der beiden Stellen verengend, unabhängig davon, wie der Mechanismus gebaut wird.
 
@@ -192,37 +195,63 @@ genau die Prädikat-Form, und der Checker hat die drei betroffenen branches bis 
    die bereits vorhandene, bewusst limitierte `isBranchingExhaustive`-Heuristik.
 2. Neues Feld am Funktionstyp (`CompileTimeType` für `'function'`), das diese abgeleitete
    Verengung trägt.
-3. Erste Konsumstelle: Branch-Verengung um die `narrowsTo`-Regel erweitern, damit Prädikate in
+3. Erste Konsumstelle: Branch-Verengung um die Prädikat-Regel erweitern, damit Prädikate in
    Typ-Position narrowen. Bis hierher ohne Änderung an core-lib oder Sprachoberfläche.
-4. Zweite Konsumstelle, danach: neue Typ-Position, um auf `narrowsTo` zuzugreifen (analog zu
+4. Zweite Konsumstelle, danach: neue Typ-Position, um auf die Metadaten zuzugreifen (analog zu
    `callback/ReturnType`).
 5. Dazu die Signaturen mehrerer core-lib-Funktionen (`filter`, `findFirst`, `findLast`,
    `exists`, `all`), nicht nur `filter`.
 
-### Bewusst nicht in Schritt 1
+### Umgesetzt
 
-Schritt 1 (roter Test `branch-narrowing-predicate-head` in checker.test.ts) macht ausschließlich
-die true-Richtung am Typ-Kopf. Alles Folgende ist erkannt und verschoben, nicht vergessen:
+**Schritt 1** (Test `branch-narrowing-predicate-head`): die true-Richtung am Typ-Kopf.
+**Schritt 2** (Test `branch-narrowing-predicate-head-false-branch`): die Gegenrichtung, also der
+Abzug in späteren branches.
 
-1. **Gegenrichtung für den false-Zweig.** `narrowsTo` sagt nur `predicate(x) == true ⟹ x ∈ T`.
-   Spätere branches wissen aber nur, dass `false` herauskam, und `false ⟹ x ∉ T` folgt daraus
-   nicht:
+Die Metadaten heißen `predicate: PredicateFacts` am Funktionstyp (syntax-tree.ts) und tragen
+beide Richtungen **getrennt**, nach dem Vorbild von Typed Rackets latentem Filter φ⁺ | φ⁻:
 
-   ```jul
-   isBigInteger = (x: Any) :> Boolean =>
-   	?(x)
-   		[0] => false
-   		[Integer] => true
-   		() => false
-   ```
+- `ifTrue` - `predicate(x) == true ⟹ x ∈ ifTrue`. Eine **Obermenge**, nur zum Schneiden im
+  branch selbst. Sie sammelt jeden branch, der nicht nachweislich `false` liefert; zu groß ist
+  beim Schneiden harmlos.
+- `excludedIfFalse` - Werte hierin liefern nachweislich `true`. Eine **Untermenge**, nur zum
+  Abziehen in späteren branches. Sie sammelt branches mit literal `true` als Rumpf, jeweils
+  abzüglich dessen, was frühere branches des Prädikats schon abfangen (`_branch` nimmt den
+  ersten Treffer).
 
-   `narrowsTo` ist `Integer`, aber `isBigInteger(0)` ist `false` - `Integer` im false-Zweig
-   abzuziehen würde `0` fälschlich entfernen. Die Umkehrung bräuchte eine **zweite** Menge:
-   branches, deren Rumpf literal `true` ist, abzüglich dessen, was frühere branches abfangen.
-   Daraus folgt eine Umsetzungsauflage für Schritt 1: die Prädikat-Regel darf nicht in
-   `getBranchArgumentType` stehen, weil `getPreviousBranchArgumentType` dieselbe Funktion
-   aufruft und den Abzug damit stillschweigend auf die Obermenge stützen würde.
-2. **Prädikat als `Type`-Wert.** In Parameterposition (`(y: isInteger) => ...`) meldet der
+Dass es zwei Felder sein müssen und nicht eines mit Komplement, zeigt dieses Gegenbeispiel:
+
+```jul
+isBigInteger = (x: Any) :> Boolean =>
+	?(x)
+		[0] => false
+		[Integer] => true
+		() => false
+```
+
+`ifTrue` ist `Integer`, aber `isBigInteger(0)` ist `false` - `Integer` im false-Zweig abzuziehen
+würde `0` fälschlich entfernen. `excludedIfFalse` ist hier `And(Integer Not(0))`. Beide Zweige
+brauchen eine **obere** Schranke, aber von komplementären Mengen: es gilt
+`excludedIfFalse ⊆ T ⊆ ifTrue`, und das Komplement spiegelt dieses Intervall, verschiebt aber
+keinen Endpunkt auf den anderen.
+
+Zwei Umsetzungsauflagen, beide aus derselben Einsicht: die Richtungen dürfen nicht durch eine
+gemeinsame Zugriffsfunktion laufen.
+
+- Die Prädikat-Regel steht **nicht** in `getBranchArgumentType`. Die liefert für Funktionstypen
+  weiterhin `undefined` (statt des `Never`-Falschbefunds), und ihre drei Aufrufer - Verengung,
+  Abzug, `isBranchingExhaustive` - holen sich die Richtung, die sie brauchen, einzeln über
+  `getBranchPredicateFacts`. `isBranchingExhaustive` nimmt keine von beiden: Exhaustivität
+  bräuchte eine dritte Aussage, nämlich dass das Prädikat für jeden Wert definiert ist.
+- `resolvePlaceholders` baut Funktionstypen neu auf und verlor `predicate` dabei still. Sichtbar
+  wurde das erst in Schritt 2, weil nur der Abzugspfad über `resolvePlaceholders` geht - die
+  Verengung in Schritt 1 lief trotz derselben Lücke grün.
+
+### Bewusst noch nicht umgesetzt
+
+Alles Folgende ist erkannt und verschoben, nicht vergessen:
+
+1. **Prädikat als `Type`-Wert.** In Parameterposition (`(y: isInteger) => ...`) meldet der
    Checker zusätzlich `JUL5002: Can not assign (x: Any) :> Or(true false) to Type` - ein
    TypeGuard muss ein `Type`-Wert sein. Der Typ-Kopf löst diese Prüfung nicht aus, deshalb
    kommt Schritt 1 ohne sie aus. Die dahinterliegende Sprachfrage steht in core-lib.jul seit
@@ -230,21 +259,21 @@ die true-Richtung am Typ-Kopf. Alles Folgende ist erkannt und verschoben, nicht 
    case `'function'` umzubauen (dort steht `// TODO types als function interpretieren?`) und
    damit Parametertypen, Feldtypen und Rückgabetypen gleichzeitig zu betreffen - eigene
    Entscheidung mit eigenem Dokument.
-3. **Weitere Rumpfformen.** Schritt 1 erkennt nur: ein Parameter, Rumpf genau ein
-   `?(param)`-Branching, jeder branch mit Boolean-**Literal** als Rumpf. Nicht-literale Rümpfe
-   dürfen später konservativ zu `narrowsTo` zählen (das vergrößert die Obermenge, bleibt also
-   sound); mehrere Parameter, Prädikate aus Aufrufen oder Referenzketten sind offen.
-   Die Erkennung darf **nicht** am deklarierten Rückgabetyp hängen: gemessen trägt der
-   Funktionstyp `Or(true false)`, obwohl `:> Boolean` dasteht (`createNormalizedUnionType`
-   kollabiert Literale nicht).
-4. **Die Callback-Konsumstelle** (`filter`, `findFirst`, `findLast`, `exists`, `all`) mit
+2. **Weitere Rumpfformen.** Erkannt wird nur: ein Parameter, Rumpf genau ein
+   `?(param)`-Branching. Ein nicht-literaler branch-Rumpf zählt bereits konservativ zu `ifTrue`
+   (das vergrößert die Obermenge, bleibt also sound), zu `excludedIfFalse` dagegen nicht;
+   mehrere Parameter, Prädikate aus Aufrufen oder Referenzketten sind offen.
+   Die Erkennung hängt **nicht** am deklarierten Rückgabetyp, sondern am inferierten: gemessen
+   trägt der Funktionstyp `Or(true false)`, obwohl `:> Boolean` dasteht
+   (`createNormalizedUnionType` kollabiert Literale nicht), und die Annotation ist ohnehin
+   optional.
+3. **Die Callback-Konsumstelle** (`filter`, `findFirst`, `findLast`, `exists`, `all`) mit
    Punkt 4 und 5 der Liste oben - der auslösende yugioh-Fall.
-5. **Welchen Parameter `narrowsTo` meint.** Heute implizit Argument 0, was für den Typ-Kopf
+4. **Welchen Parameter die Fakten meinen.** Heute implizit Argument 0, was für den Typ-Kopf
    genau stimmt: die Laufzeit ruft ein Prädikat dort immer mit einem Wert auf, dem Element an
    seiner Position. Ein zweistellig deklarierter Callback (`filter` nennt Element und Index)
    bräuchte die Angabe explizit - TypeScript (`x is T`) und Flow (`param is Type`) benennen den
-   Parameter aus genau diesem Grund. Dann wird aus `narrowsTo: CompileTimeType` ein
-   `{ parameterIndex, type }`.
+   Parameter aus genau diesem Grund. Dann bekommt `PredicateFacts` einen `parameterIndex`.
 
 ## Fazit
 
@@ -252,13 +281,12 @@ die true-Richtung am Typ-Kopf. Alles Folgende ist erkannt und verschoben, nicht 
   weil der statische Checker auf einer anderen, rein symbolischen Ebene arbeitet.
 - Vollständig generelle Prädikate-als-Typen sind Refinement-Types-Territorium (SMT-Solver) -
   außer Verhältnis zum aktuellen Sprachumfang.
-- Ein enger, geprüfter Mittelweg (Branch-Narrowing über Boolean-Rückgaben hinweg tragen) wäre
+- Ein enger, geprüfter Mittelweg (Branch-Narrowing über Boolean-Rückgaben hinweg tragen) ist
   machbar und baut auf vorhandener Infrastruktur auf, ist aber ein eigenständiges Feature mit
   spürbarem Umfang (neues Typfeld, neue Typ-Position, mehrere betroffene core-lib-Funktionen).
-- Falls er verfolgt wird, beginnt er am Branching, nicht an `filter`: dieselbe Grundlage, aber
-  ohne neue Typ-Position und ohne core-lib-Änderung, also rückbaubar.
-- Für den akuten yugioh-Fall reicht `assume(...)` an der einen betroffenen Aufrufstelle - siehe
-  Antwort in der Session, kein Sprachfeature nötig.
-
-Nicht geplant, keine rote Tests - eigenständige Design-Entscheidung, falls ein weiterer Fund das
-rechtfertigt.
+- Er beginnt am Branching, nicht an `filter`: dieselbe Grundlage, aber ohne neue Typ-Position
+  und ohne core-lib-Änderung, also rückbaubar. Schritt 1 und 2 sind fertig.
+- Was aus einem Prädikat folgt, sind **zwei** Mengen, nicht eine mit Komplement - beide Zweige
+  brauchen eine obere Schranke, aber von komplementären Mengen.
+- Für den akuten yugioh-Fall reicht bis zur Callback-Konsumstelle `assume(...)` an der einen
+  betroffenen Aufrufstelle - kein Sprachfeature nötig.
