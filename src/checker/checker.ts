@@ -2275,13 +2275,39 @@ function inferType(
 			}
 		}
 		case 'object': {
-			// TODO check is List or Dictionary in values
 			// TODO error when List/Dictionary mixed
 			// TODO Dictionary Type?
 			expression.values.forEach(element => {
 				setInferredType(element.value, typeContext, parsedDocuments, folder, file, filePath);
 			});
-			return { type: { julType: 'any' } };
+
+			// Nur reine Spreads (siehe ParseUnknownObjectLiteral) - Bug (CHECKER-AUDIT.md #6):
+			// f(...values) landete bisher komplett auf Any, weil dieser Fall bislang gar nicht
+			// aufgelöst wurde. Auflösung wie bei case 'list': lässt sich jede Quelle als
+			// Liste/Tuple/Empty auflösen, wird genauso zu Tuple bzw. List zusammengesetzt.
+			// Eine Dictionary-Auflösung (f(...namedArgs)) ist damit noch nicht abgedeckt.
+			const tupleElements: CompileTimeType[] = [];
+			let hasListSpread = false;
+			let isResolvableAsList = true;
+			for (const element of expression.values) {
+				const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
+				const spreadResult = getSpreadElementTypes(sourceType);
+				if (!spreadResult) {
+					isResolvableAsList = false;
+					break;
+				}
+				if (spreadResult.isListSpread) {
+					hasListSpread = true;
+				}
+				tupleElements.push(...spreadResult.elementTypes);
+			}
+			if (!isResolvableAsList) {
+				return { type: { julType: 'any' } };
+			}
+			const rawType = hasListSpread
+				? createCompileTimeListType(createNormalizedUnionType(tupleElements.map(resolvePlaceholders)))
+				: createCompileTimeTupleType(tupleElements);
+			return { type: rawType };
 		}
 		case 'parameter': {
 			const typeGuard = expression.typeGuard;
