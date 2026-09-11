@@ -42,3 +42,4 @@
 2026-09-11 08:37:52	67e9c86+	-	ADV-DEV-56627	yugioh	parse+check	5	6333.85	11038.00	11038.00	vor Praedikat-Narrowing Schritt 1
 2026-09-11 09:11:59	837efef+	-	ADV-DEV-56627	yugioh	parse+check	5	9368.46	9753.38	9753.38	Praedikat-Narrowing Schritt 1: narrowsTo am Funktionstyp
 2026-09-11 09:23:39	837efef+	-	ADV-DEV-56627	yugioh	parse+check	5	3601.33	3847.47	3847.47	Wiederholung ohne Codeaenderung: 9368 ms war Maschinenlast, Zaehler identisch
+2026-09-11 09:42:05	9e714a1+	-	ADV-DEV-56627	yugioh	parse+check	5	3753.73	4283.52	4283.52	Praedikat-Narrowing Schritt 2: Gegenrichtung (excludedIfFalse)

@@ -787,13 +787,18 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	ParamsType: CompileTimeType;
 	ReturnType: CompileTimeType;
 	pure: boolean;
-	/**
-	 * Die Werte, fuer die diese Funktion als Praedikat true liefern kann - eine Obermenge, und
-	 * nur fuer die true-Richtung: aus false folgt nichts. Wer davon abzieht oder Vollstaendigkeit
-	 * daraus schliesst, braucht die Gegenrichtung und darf das hier nicht verwenden.
-	 * undefined heisst "keine Aussage".
-	 */
-	narrowsTo?: CompileTimeType;
+	predicate?: PredicateFacts;
+}
+
+/**
+ * Was aus dem Ergebnis eines Praedikats folgt, je Richtung getrennt - beide Richtungen sind
+ * verschiedene Mengen, keine Umkehrung voneinander (Typed Racket: φ⁺ | φ⁻).
+ */
+export interface PredicateFacts {
+	/** true ⟹ der Wert liegt hierin. Obermenge, nur zum Schneiden im true-Zweig. */
+	ifTrue: CompileTimeType;
+	/** Werte hierin liefern nachweislich true. Untermenge, nur zum Abziehen im false-Zweig. */
+	excludedIfFalse?: CompileTimeType;
 }
 
 export function createCompileTimeFunctionType(
