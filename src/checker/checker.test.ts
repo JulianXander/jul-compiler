@@ -549,6 +549,26 @@ card = getCard()
 				},
 			],
 		},
+		{
+			// Ein Prädikat als Typ-Kopf. Die Laufzeit matcht hier bereits korrekt: _branch prüft
+			// über getTypeError, und dort wird ein Funktionswert in Typ-Position aufgerufen
+			// (runtime.ts, case 'function'). Der Checker schneidet stattdessen Or(Integer Text)
+			// mit dem Funktionstyp und kommt auf Never - er erklärt den erreichbaren branch für
+			// unerreichbar und meldet an lauffähigem Code JUL5050.
+			// Verengt wird nur der true-Zweig: aus isInteger(x) == true folgt x ist Integer.
+			// Die Gegenrichtung gilt nicht, deshalb sagt der catchAll darunter nichts aus.
+			name: 'branch-narrowing-predicate-head',
+			code: `isInteger = (x: Any) :> Boolean =>
+	?(x)
+		[Integer] => true
+		() => false
+g = (n: Integer) => n
+f = (someVar: Or(Integer Text)) =>
+	?(someVar)
+		[isInteger] => g(someVar)
+		() => 0`,
+			errors: [],
+		},
 		//#endregion branching: Verengung
 
 		//#region Not

@@ -131,14 +131,18 @@ Das wäre kein Sonderfall für `filter` - eine neue, allgemeine Eigenschaft von 
 nutzbar von jeder Funktion, die eine solche Callback-Funktion entgegennimmt (`filter`,
 `findFirst`, `findLast`, `exists`, `all`).
 
-### Zweite Konsumstelle derselben Metadaten: Prädikate als Branch-Köpfe
+### Zweite Konsumstelle derselben Metadaten: Prädikate in Typ-Position
 
 Weil die abgeleitete Verengung am Funktionstyp selbst hängt (nicht an `filter`s Signatur), wäre
-sie nicht auf Callback-nehmende Funktionen beschränkt. Branch-Köpfe müssen laut Sprachregel
-gegen die Argumentkollektion prüfen und sind heute auf `Type`-Werte beschränkt (`[Integer]`,
-`Any`, `NonZeroInteger`, ...) - ein Funktionswert wie `isInteger` (Rückgabetyp `Boolean`) ist
-kein `Type`-Wert und narrowt deshalb heute nicht, selbst wenn sein Rumpf exakt das
-Branching-Muster von oben hat:
+sie nicht auf Callback-nehmende Funktionen beschränkt. Ein Branch ist selbst eine Funktion und
+matcht über seinen **Parametertyp**; Typen stehen dort als normale Werte (`[Integer]`, `Any`,
+`NonZeroInteger`, ...). Ein Prädikat gehört also nicht anstelle des Kopfes hin, sondern in
+dessen Typ-Position - heute nicht wirkungslos, sondern **falsch**: der Checker schneidet den
+gebranchten Typ mit dem Funktionstyp und kommt auf `Never`, erklärt den branch also für
+unerreichbar (gemessen 2026-09-11, `JUL5050: Can not assign Never to Integer`). Die Laufzeit
+matcht denselben Code korrekt: `_branch` prüft über `getTypeError`, und dort wird ein
+Funktionswert in Typ-Position **aufgerufen** (runtime.ts, `case 'function'`). Der Falschbefund
+trifft lauffähigen Code:
 
 ```jul
 isInteger = (x: Any) :> Boolean =>
@@ -147,19 +151,36 @@ isInteger = (x: Any) :> Boolean =>
 		() => false
 
 ?(someValue)
-	isInteger => ...   # narrowt someValue heute NICHT auf Integer
+	[isInteger] => ...   # narrowt someValue heute auf Never statt auf Integer
 ```
 
-Mit den `narrowsTo`-Metadaten am Funktionstyp bräuchte die Branch-Kopf-Auflösung nur eine
-zusätzliche Regel: "trägt der Kopf-Wert `narrowsTo`-Metadaten, behandle ihn wie diesen Typ" -
-zusätzlich zur bestehenden Regel "ist der Kopf ein `Type`-Wert, matche direkt dagegen". Derselbe
-abgeleitete Fakt würde also zwei Lücken gleichzeitig schließen (`filter`-Narrowing und
-Prädikate-als-Branch-Kopf), nicht nur eine - mit dem Callback-Analyseschritt (Punkt 1 unten) als
-gemeinsamer Grundlage. Das stärkt das Argument für den Mittelweg, vergrößert aber auch seinen
-Umfang um eine zweite Integrationsstelle. Dieselbe Grenze gilt an beiden Stellen: nur Prädikate
-mit exakt der erkennbaren Branching-Form bekommen `narrowsTo` - ein Prädikat wie
-`getActivationRequirementsMet(...)`, das beliebige Berechnungen anstellt, bliebe an keiner der
-beiden Stellen verengend, unabhängig davon, wie der Mechanismus gebaut wird.
+Mit den `narrowsTo`-Metadaten am Funktionstyp bräuchte die Branch-Verengung nur eine zusätzliche
+Regel: "trägt der Parametertyp `narrowsTo`-Metadaten, verenge auf diesen Typ" - zusätzlich zur
+bestehenden Regel "ist es ein `Type`-Wert, matche direkt dagegen". Derselbe abgeleitete Fakt
+schließt also zwei Lücken (`filter`-Narrowing und Prädikate in Typ-Position), nicht nur eine -
+mit dem Callback-Analyseschritt (Punkt 1 unten) als gemeinsamer Grundlage. Dieselbe Grenze gilt
+an beiden Stellen: nur Prädikate mit exakt der erkennbaren Branching-Form bekommen `narrowsTo` -
+ein Prädikat wie `getActivationRequirementsMet(...)`, das beliebige Berechnungen anstellt, bliebe
+an keiner der beiden Stellen verengend, unabhängig davon, wie der Mechanismus gebaut wird.
+
+### Reihenfolge: Branching zuerst, `filter` danach
+
+Beide Konsumstellen teilen sich Punkt 1 und 2. Wird zuerst das Branching bedient, endet der
+erste Schritt nach Punkt 3 - die neue Typ-Position und die core-lib-Signaturen (Punkt 4 und 5)
+entfallen, solange nur das Branching narrowt. Das ist der kleinere und der rückbaubarere Schnitt: der
+abgeleitete Fakt bleibt checker-intern, es kommt kein neues Vokabular in `core-lib.jul` und
+keine neue Schreibweise in die Sprachoberfläche. Erweist sich die Herleitungs-Heuristik als zu
+eng oder falsch, ist nichts zurückzunehmen, das Nutzer schon geschrieben haben.
+
+Dazu kommt, dass Verengung am Branching ohnehin schon existiert (Testregion "branching:
+Verengung" in checker.test.ts): der neue Fakt wird in derselben Tabelle geprüft, statt über eine
+neue Typ-Position hinweg. Und die Konstruktion ist selbstbezüglich - die Analyse liest ein
+Branching und speist ihr Ergebnis wieder in ein Branching ein. Trägt die Regel dort nicht, trägt
+sie bei `filter` erst recht nicht.
+
+Der Preis: der auslösende Fund (yugioh, `filter`) bleibt zunächst offen, und Schritt eins liefert
+ein Feature, für das es bisher keinen Fund gibt. Deshalb ist das keine Begründung, jetzt
+anzufangen - nur die Reihenfolge, falls angefangen wird.
 
 **Aufwand, ehrlich eingeschätzt:**
 
@@ -169,12 +190,53 @@ beiden Stellen verengend, unabhängig davon, wie der Mechanismus gebaut wird.
    die bereits vorhandene, bewusst limitierte `isBranchingExhaustive`-Heuristik.
 2. Neues Feld am Funktionstyp (`CompileTimeType` für `'function'`), das diese abgeleitete
    Verengung trägt.
-3. Neue Typ-Position, um darauf zuzugreifen (analog zu `callback/ReturnType`).
-4. Betrifft mehrere core-lib-Funktionen (`filter`, `findFirst`, `findLast`, `exists`, `all`),
-   nicht nur eine.
-5. Optional (zweite Konsumstelle): Branch-Kopf-Auflösung um die `narrowsTo`-Regel erweitern,
-   damit Prädikate auch direkt als Branch-Kopf narrowen - eigener Integrationspunkt, aber
-   dieselbe Grundlage wie Punkt 1/2.
+3. Erste Konsumstelle: Branch-Verengung um die `narrowsTo`-Regel erweitern, damit Prädikate in
+   Typ-Position narrowen. Bis hierher ohne Änderung an core-lib oder Sprachoberfläche.
+4. Zweite Konsumstelle, danach: neue Typ-Position, um auf `narrowsTo` zuzugreifen (analog zu
+   `callback/ReturnType`).
+5. Dazu die Signaturen mehrerer core-lib-Funktionen (`filter`, `findFirst`, `findLast`,
+   `exists`, `all`), nicht nur `filter`.
+
+### Bewusst nicht in Schritt 1
+
+Schritt 1 (roter Test `branch-narrowing-predicate-head` in checker.test.ts) macht ausschließlich
+die true-Richtung am Typ-Kopf. Alles Folgende ist erkannt und verschoben, nicht vergessen:
+
+1. **Gegenrichtung für den false-Zweig.** `narrowsTo` sagt nur `predicate(x) == true ⟹ x ∈ T`.
+   Spätere branches wissen aber nur, dass `false` herauskam, und `false ⟹ x ∉ T` folgt daraus
+   nicht:
+
+   ```jul
+   isBigInteger = (x: Any) :> Boolean =>
+   	?(x)
+   		[0] => false
+   		[Integer] => true
+   		() => false
+   ```
+
+   `narrowsTo` ist `Integer`, aber `isBigInteger(0)` ist `false` - `Integer` im false-Zweig
+   abzuziehen würde `0` fälschlich entfernen. Die Umkehrung bräuchte eine **zweite** Menge:
+   branches, deren Rumpf literal `true` ist, abzüglich dessen, was frühere branches abfangen.
+   Daraus folgt eine Umsetzungsauflage für Schritt 1: die Prädikat-Regel darf nicht in
+   `getBranchArgumentType` stehen, weil `getPreviousBranchArgumentType` dieselbe Funktion
+   aufruft und den Abzug damit stillschweigend auf die Obermenge stützen würde.
+2. **Prädikat als `Type`-Wert.** In Parameterposition (`(y: isInteger) => ...`) meldet der
+   Checker zusätzlich `JUL5002: Can not assign (x: Any) :> Or(true false) to Type` - ein
+   TypeGuard muss ein `Type`-Wert sein. Der Typ-Kopf löst diese Prüfung nicht aus, deshalb
+   kommt Schritt 1 ohne sie aus. Die dahinterliegende Sprachfrage steht in core-lib.jul seit
+   jeher auskommentiert: `# Type = Any :> Boolean`. Sie zu bejahen hieße, `getTypeError`
+   case `'function'` umzubauen (dort steht `// TODO types als function interpretieren?`) und
+   damit Parametertypen, Feldtypen und Rückgabetypen gleichzeitig zu betreffen - eigene
+   Entscheidung mit eigenem Dokument.
+3. **Weitere Rumpfformen.** Schritt 1 erkennt nur: ein Parameter, Rumpf genau ein
+   `?(param)`-Branching, jeder branch mit Boolean-**Literal** als Rumpf. Nicht-literale Rümpfe
+   dürfen später konservativ zu `narrowsTo` zählen (das vergrößert die Obermenge, bleibt also
+   sound); mehrere Parameter, Prädikate aus Aufrufen oder Referenzketten sind offen.
+   Die Erkennung darf **nicht** am deklarierten Rückgabetyp hängen: gemessen trägt der
+   Funktionstyp `Or(true false)`, obwohl `:> Boolean` dasteht (`createNormalizedUnionType`
+   kollabiert Literale nicht).
+4. **Die Callback-Konsumstelle** (`filter`, `findFirst`, `findLast`, `exists`, `all`) mit
+   Punkt 4 und 5 der Liste oben - der auslösende yugioh-Fall.
 
 ## Fazit
 
@@ -185,6 +247,8 @@ beiden Stellen verengend, unabhängig davon, wie der Mechanismus gebaut wird.
 - Ein enger, geprüfter Mittelweg (Branch-Narrowing über Boolean-Rückgaben hinweg tragen) wäre
   machbar und baut auf vorhandener Infrastruktur auf, ist aber ein eigenständiges Feature mit
   spürbarem Umfang (neues Typfeld, neue Typ-Position, mehrere betroffene core-lib-Funktionen).
+- Falls er verfolgt wird, beginnt er am Branching, nicht an `filter`: dieselbe Grundlage, aber
+  ohne neue Typ-Position und ohne core-lib-Änderung, also rückbaubar.
 - Für den akuten yugioh-Fall reicht `assume(...)` an der einen betroffenen Aufrufstelle - siehe
   Antwort in der Session, kein Sprachfeature nötig.
 
