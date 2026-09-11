@@ -700,8 +700,16 @@ f = (someVar: Or(Integer Text)) =>
 			// Typ List(Text)). Diese unaufgelöste Referenz fließt in firsts eigene generische
 			// Rückgabetyp-Auflösung (TypeOf(values)/ElementType) und bleibt dort unaufgelöst -
 			// getTypeErrors laxe nestedReference-Rückfallregel verschluckt den Fehler lautlos.
+			// Wie core-lib (slice, filter, ...) via nativeFunction deklariert - eine reine
+			// Signatur ohne Rumpf (case 'functionTypeLiteral'), damit der generische
+			// Rückgabetyp nicht wie bei einer echten Funktion mit Rumpf (case 'functionLiteral')
+			// schon bei der Deklaration über resolvePlaceholders fest verdrahtet wird.
 			name: 'prefix-argument-stays-unresolved-parameter-reference-bug',
-			code: `first = (values: List(Any)) :> TypeOf(values)/ElementType => assume(1 Any)
+			code: `first = nativeFunction(
+	(values: List(Any)) :> TypeOf(values)/ElementType
+	true
+	§js values => values[0]§
+)
 g = (n: Integer) => n
 f = (values: List(Text)) =>
 	g(values.first())`,
@@ -710,9 +718,9 @@ f = (values: List(Text)) =>
 				{
 					code: ErrorCode.argumentTypeMismatch,
 					message: 'Argument type mismatch.\nCan not assign Text to Integer.',
-					startRowIndex: 3,
+					startRowIndex: 7,
 					startColumnIndex: 1,
-					endRowIndex: 3,
+					endRowIndex: 7,
 					endColumnIndex: 18,
 				},
 			],
@@ -728,10 +736,8 @@ f = (values: List(Text)) =>
 		// hineingereicht) meldet derselbe Zieltyp den Fehler korrekt.
 		// Unabhängig von den Prädikaten - blockiert aber verlässliche rote Tests für
 		// filter-Verengung, weil ein Element-Typfehler durch die Aufrufkette verschwindet.
-		// TEMPORAER AUSKOMMENTIERT (Session 2026-09-11): verschränkt mit einem zweiten,
-		// noch offenen Bug in slice's Or([]...)-Auflösung - erst wieder aktivieren, wenn
-		// beide Ursachen geklärt sind.
-		/*
+		// Bug 1 (Präfix-Argument unaufgelöst) ist behoben - dies ist jetzt der isolierte
+		// Nachweis für Bug 2 (slice's eigene Or([]...)-Generik löst trotzdem nicht auf).
 		{
 			name: 'chained-call-loses-element-type-check-bug',
 			code: `g = (n: Or(List(Integer) [])) => n
@@ -748,7 +754,6 @@ f = (values: List(Or(Integer Text))) =>
 				},
 			],
 		},
-		*/
 		{
 			// Sanity-Check zum vorigen Fund: derselbe Zieltyp meldet den Fehler korrekt, wenn
 			// der Wert nicht durch eine Aufrufkette läuft.

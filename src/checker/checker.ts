@@ -1976,8 +1976,16 @@ function inferType(
 				// Alles weitere setzt eine Funktion voraus und wäre wirkungslos.
 				return { type: { julType: 'any' } };
 			}
+			// Präfix-Argument (z.B. `values` in `values.slice(1)`) referenziert einen eigenen
+			// Parameter und bleibt sonst eine abstrakte parameterReference statt des konkreten
+			// deklarierten Typs - unaufgelöst in generischen Rückgabetypen der aufgerufenen
+			// Funktion (TypeOf(values)/ElementType), lautlos verschluckt von getTypeErrors
+			// nestedReference-Rückfallregel. resolvePlaceholders löst über functionRef+Index auf.
+			// Nur das Präfix, nicht argsType: args kann selbst generische Typwerte enthalten
+			// (z.B. die Signatur eines nativeFunction-Aufrufs) - die dürfen nicht vorschnell
+			// über den eigenen (noch generischen) Deklarationskontext aufgelöst werden.
 			const argsType = args.typeInfo!.type;
-			const prefixArgumentType = prefixArgument?.typeInfo?.type;
+			const prefixArgumentType = prefixArgument?.typeInfo?.type && resolvePlaceholders(prefixArgument.typeInfo.type);
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
 			if (assignArgsError) {
 				errors.push({
