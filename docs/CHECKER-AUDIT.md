@@ -71,7 +71,6 @@ sortiert.
 | 3 | Benannte Argumente gegen einen `rest`-Parameter sind nicht umgesetzt | `f(a = 1 b = 2)` gegen `(a: Integer ...args)` meldet `Can not assign dictionary to rest parameter`, die Laufzeit wirft `not implemented yet for rest dictionary`. Test `named-arguments-with-rest-parameter-are-not-supported` hält es fest | unklar — zuerst zu klären, was ein rest aus benannten Argumenten überhaupt aufnehmen soll |
 | 4 | Ein Prefix-Argument überdeckt ein gleichnamiges Feld, ohne dass es auffällt | `1.f(a = 2)` bindet `a = 1` aus dem Prefix, die geschriebene `2` verfällt still. Verpasster Fall von `JUL2500`, keine Falschmeldung | klein — die vom Prefix belegten Namen aus der bekannten Namensmenge nehmen |
 | 5 | **Schlüsselart passt nicht zum Quelltyp** — Feldname auf einer List ([checker.ts:331](../src/checker.ts#L331)) und Index in einem Dictionary ([checker.ts:426](../src/checker.ts#L426)) liefern `undefined` statt eines Fehlers, beide als `TODO` markiert | `undefined` wird beim Aufrufer zu `Any`, und ob überhaupt gemeldet wird, entscheiden `hasKnownFields`/`hasKnownLength` — die für den jeweils anderen Fall nicht greifen. Zu verifizieren, ob der Mismatch dadurch ganz stillschweigend durchgeht | klein — eigener Fehlerfall je Richtung; die Wächter unterscheiden „Art passt nicht" heute nicht von „weiß ich nicht" |
-| 6 | **Die Verengung erreicht die Quelle eines Feldzugriffs nicht.** Wer auf `x/feld` branched (direkt oder über eine Variable), verengt nur den Feldwert, nicht `x` | Falschfehler: `stepType = step/type` mit `step: Or([] Step)`, dann `?(stepType) [Text] => …step/query` meldet `Can not assign Empty to Text`, obwohl ein Text-`type` beweist, dass `step` nicht empty ist — `Empty` hat kein Feld `type`. Test `branch-narrowing-does-not-reach-source-of-field` hält es fest. Trifft jeden Code, der einen möglicherweise leeren Wert über eines seiner Felder prüft | unklar — verwandt mit Punkt „Feldpfad" (`branch-narrowing-field-path-is-missing`), braucht aber zusätzlich die Rückrichtung: aus dem verengten Feldwert auf die Quelle schließen |
 
 ---
 
@@ -87,6 +86,8 @@ Implementierung:
 5. Kein Error von areArgsAssignableTo = unreachable
 
 Tests: `unreachable-branch-is-detected`, `orthogonal-branches-are-not-unreachable`, `subset-branch-is-unreachable` in `checker.test.ts`. Error code JUL5152 mit severity `warning`.
+
+**Die Verengung erreicht die Quelle eines Feldzugriffs:** Ein Branch auf `stepType = step/type` mit `step: Or([] Step)` verengt korrekt auch die Quelle `step` selbst. Test `branch-narrowing-reaches-source-of-field` prüft das: `?(stepType) [Text] => …step/query` meldet keinen Fehler, obwohl die naive Lösung "Empty hat kein Feld query" sagen würde.
 
 **Parameter-Namen-Mismatch wurde verkehrt herum gemeldet:** Die Kontravarianz bei Funktionstypen als Argumente sorgt dafür, dass die Parameter in umgekehrter Reihenfolge geprüft werden. In `getTypeError` wurde das aber bei der Parameterprüfung nicht berücksichtigt — statt `argumentsType.ParamsType` gegen `targetType.ParamsType` zu prüfen, wurde `targetType.ParamsType` gegen `argumentsType.ParamsType` geprüft. Das vertauschte die Namen in der Fehlermeldung. Fix: Reihenfolge in Zeile 3760 korrigiert. Test `parameter-name-mismatch-reports-names-in-wrong-order` in `checker.test.ts`.
 
