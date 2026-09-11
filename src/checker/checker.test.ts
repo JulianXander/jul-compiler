@@ -1342,6 +1342,13 @@ f(a = 1 b = 2)`,
 			code: '(a b) = [a = 1 b = 2]',
 		},
 		{
+			// Positionelles Destructuring: die Liste hat keine Felder namens a/b, nur Indizes.
+			// Die Laufzeit löst das über die Position auf (_isArray ? _temp[0] : _temp.a), der
+			// Checker sucht bisher nur über den Namen und meldet fälschlich dereferenceFailed.
+			name: 'positional-destructuring-from-list',
+			code: '(a b) = [1 2]',
+		},
+		{
 			// Eine Variable darf legitim mehr Felder haben, und zu löschen gäbe es hier nichts.
 			name: 'destructuring-from-variable-is-not-discarded',
 			code: `v = [a = 1 b = 2]
