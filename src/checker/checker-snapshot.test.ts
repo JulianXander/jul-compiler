@@ -107,16 +107,14 @@ function compareToBaseline(actual: string, baselineFilePath: string): void {
 }
 
 describe('checker snapshot', () => {
-	// TODO(2026-09-11): wegen chained-call-loses-element-type-check-bug vorübergehend übersprungen -
-	// test1.jul ist ein Scratch-File und macht die Baseline instabil, siehe checker.test.ts.
-	it.skip('matches the baseline', () => {
+	it('matches the baseline', () => {
 		const julFiles = findJulFiles(examplesFolder);
 		expect(julFiles.length, 'no example files found').to.be.greaterThan(0);
 		const actual = julFiles.flatMap(snapshotFile).join('\n') + '\n';
 		compareToBaseline(actual, baselinePath);
 	});
 
-	it.skip('matches the stats baseline', () => {
+	it('matches the stats baseline', () => {
 		const julFiles = findJulFiles(examplesFolder);
 		resetCheckerStats();
 		julFiles.forEach(filePath => {
