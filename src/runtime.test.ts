@@ -1,5 +1,22 @@
 import { expect } from 'chai';
-import { parseJson } from './runtime.js';
+import { _branch, _createFunction, parseJson } from './runtime.js';
+
+//#region _branch
+
+describe('_branch', () => {
+	// Bug (CHECKER-AUDIT.md #4): tryAssignArgs behandelt einen rest ohne Typ wie einen Typfehler
+	// (`restType ? getTypeError(...) : true`), _branch verwirft den branch deshalb immer.
+	it('matches a branch with an untyped rest parameter', () => {
+		const branch = _createFunction(
+			(...args: unknown[]) => args,
+			{ rest: {} },
+		);
+		const result = _branch([1n, 2n], branch);
+		expect(result).to.deep.equal([1n, 2n]);
+	});
+});
+
+//#endregion _branch
 
 //#region parseJson
 
