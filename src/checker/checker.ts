@@ -2074,8 +2074,12 @@ function inferType(
 			let returnType = inferredReturnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, branchTypeContext, parsedDocuments, folder, file, filePath);
-				const declaredReturnValueType = valueOf(resolvePlaceholders(declaredReturnType.typeInfo!.type));
-				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), declaredReturnValueType);
+				// roh für den Any-Fallback unten: der generische Platzhalter (z.B.
+				// TypeOf(values)/ElementType) muss je Aufruf neu aufgelöst werden, nicht schon
+				// hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet werden.
+				const rawDeclaredReturnType = valueOf(declaredReturnType.typeInfo!.type);
+				const resolvedDeclaredReturnType = resolvePlaceholders(rawDeclaredReturnType);
+				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), resolvedDeclaredReturnType);
 				if (error) {
 					// Markiert wird nur der zurückgegebene Ausdruck (last(body)), nicht die
 					// ganze Funktion - sonst ummantelt die mehrzeilige Klammerung (formatErrors)
@@ -2092,7 +2096,7 @@ function inferType(
 						// gilt - besonders bei langen Funktionsrümpfen, wo die Signatur beim
 						// Lesen der Rückgabe längst nicht mehr im Bild ist.
 						relatedInformation: {
-							message: `Declared as ${typeToString(declaredReturnValueType, 0, 1)} here.`,
+							message: `Declared as ${typeToString(resolvedDeclaredReturnType, 0, 1)} here.`,
 							startRowIndex: declaredReturnType.startRowIndex,
 							startColumnIndex: declaredReturnType.startColumnIndex,
 							endRowIndex: declaredReturnType.endRowIndex,
@@ -2101,7 +2105,7 @@ function inferType(
 					});
 				}
 				else if (inferredReturnType.julType === 'any') {
-					returnType = declaredReturnValueType;
+					returnType = rawDeclaredReturnType;
 				}
 			}
 			functionType.ReturnType = returnType;
