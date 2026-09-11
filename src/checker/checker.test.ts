@@ -721,6 +721,15 @@ f = (someVar: Or(Integer Text)) =>
 	sliced.filterMap((value) => value)`,
 		},
 		{
+			// Der Elementtyp bleibt erhalten (slice-keeps-element-type), die Laenge nicht: bei
+			// einem Tuple mit Literalgrenzen steht sie aber fest. [1 2 3] ab 2 bis 3 (1-basiert,
+			// beide inklusive) sind genau zwei Elemente - dieselbe Arity-Erhaltung, die map
+			// schon leistet (map-keeps-tuple-arity). Weil die Laenge damit feststeht und groesser
+			// 0 ist, gehoert auch kein Empty ins Ergebnis.
+			name: 'slice-keeps-tuple-arity-for-literal-bounds',
+			code: 'x: [Integer Integer] = [1 2 3].slice(2 3)',
+		},
+		{
 			// Fund (Session 2026-09-10, echter yugioh-Fehler activatableGameCardIds): filter
 			// kann die Liste genau wie slice leeren (Laufzeit: `return filtered.length ?
 			// filtered : undefined`) - die Signatur in core-lib.jul deklariert das inzwischen
