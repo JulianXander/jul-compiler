@@ -628,7 +628,7 @@ f = (someVar: Or(Integer Text)) =>
 					startRowIndex: 3,
 					startColumnIndex: 2,
 					endRowIndex: 3,
-					endColumnIndex: 7,
+					endColumnIndex: 10,
 				},
 			],
 		},

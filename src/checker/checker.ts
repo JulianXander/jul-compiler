@@ -1634,25 +1634,95 @@ function inferType(
 				setInferredType(branch, typeContext, parsedDocuments, folder, file, filePath);
 				checkIsFunction(branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
 				if (index) {
-					// Fehler, wenn ParameterTyp des Branches schon von vorherigen Branches abgedeckt.
-					// Also wenn aktueller ParamterTyp Teilmenge der Veroderung der vorherigen ParameterTypen ist.
-					// TODO
-					// const previousTypes = branches.slice(0, index).map(previousBranch => {
-					// 	return getParamsType(previousBranch.inferredType);
-					// });
-					// const combinedPreviousType = new UnionType(previousTypes);
-					// const currentParamsType = getParamsType(branch.inferredType);
-					// const error = areArgsAssignableTo(undefined, currentParamsType, combinedPreviousType);
-					// if (!error) {
-					// 	errors.push({
-					// 		code: ErrorCode.unreachableBranch,
-					// 		message: 'Unreachable branch detected.',
-					// 		startRowIndex: branch.startRowIndex,
-					// 		startColumnIndex: branch.startColumnIndex,
-					// 		endRowIndex: branch.endRowIndex,
-					// 		endColumnIndex: branch.endColumnIndex,
-					// 	});
-					// }
+					// Unreachable: Ein Branch ist unreachable, wenn sein Argument-Typ bereits
+					// von vorherigen Branches abgedeckt wird. Sonderfall: () ist orthogonal zu
+					// konkreten Typ-Köpfen, kann aber gegen einen anderen () unreachable sein.
+					const currentParamsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
+					
+					// Any ist ein Typ-Kopf catchAll und kann nicht unreachable sein
+					if (currentParamsType.julType === 'any') {
+						return;
+					}
+					
+					const previousTypes = branches.slice(0, index).map(previousBranch => {
+						const ty = previousBranch.typeInfo && resolvePlaceholders(previousBranch.typeInfo.type);
+						return getParamsType(ty);
+					});
+					
+					// Spezialfall: () vs () ist unreachable
+					if (currentParamsType.julType === 'empty') {
+						const previousHasEmpty = previousTypes.some(t => t.julType === 'empty');
+						if (previousHasEmpty) {
+							errors.push({
+								code: ErrorCode.unreachableBranch,
+								message: 'Unreachable branch detected.',
+								startRowIndex: branch.startRowIndex,
+								startColumnIndex: branch.startColumnIndex,
+								endRowIndex: branch.endRowIndex,
+								endColumnIndex: branch.endColumnIndex,
+							});
+						}
+						return;
+					}
+					
+					// Extrahiere Argument-Typen aller vorherigen Branches (Typ-Kopf-Elementen)
+					// und kombiniere sie zu einer Union. () hat keinen Argument-Typ (undefined).
+					// Spezialfall: Any und untypisierte Parameter sind catchAll — sie sind nie unreachable
+					const previousArgumentTypes: CompileTimeType[] = [];
+					for (const prevType of previousTypes) {
+						if (prevType.julType !== 'empty') {
+							// Any ist ein Typ-Kopf catchAll
+							if (prevType.julType === 'any') {
+								// Any matcht alles → der aktuelle Branch kann nicht unreachable sein
+								return;
+							}
+							// Untypisierte Parameter (getBranchArgumentType gibt undefined) sind auch catchAll
+							const argType = getBranchArgumentType(prevType, 0);
+							if (!argType) {
+								// Catchall oder Prädikat
+								return;
+							}
+							previousArgumentTypes.push(argType);
+						}
+					}
+					
+					if (previousArgumentTypes.length === 0) {
+						// Keine konkreten vorherigen Branches
+						return;
+					}
+					
+					// Argument-Typ des aktuellen Branches
+					const currentArgumentType = getBranchArgumentType(currentParamsType, 0);
+					if (!currentArgumentType) {
+						// undefined: entweder catchAll (untypisiert) oder Prädikat.
+						// Catchall und Prädikat sind nicht unreachable (sie matchen immer).
+						// TODO: Prädikat-Fakten checken falls nötig
+						return;
+					}
+					
+					// Any ist auch bei Parameter-Elementen ein catchAll
+					if (currentArgumentType.julType === 'any') {
+						return;
+					}
+					
+					// Kombiniere vorherige Argument-Typen zu Union
+					const combinedPreviousArgumentType = createNormalizedUnionType(previousArgumentTypes);
+					
+					// Prüfe ob currentArgumentType Teilmenge von combinedPreviousArgumentType ist.
+					// areArgsAssignableTo gibt einen Error zurück wenn NICHT assignierbar (nicht ⊆),
+					// undefined wenn OK (d.h. assignierbar).
+					const error = areArgsAssignableTo(undefined, currentArgumentType, combinedPreviousArgumentType);
+					if (!error) {
+						// Kein Error = currentArgumentType ist Teilmenge = unreachable
+						errors.push({
+							code: ErrorCode.unreachableBranch,
+							message: 'Unreachable branch detected.',
+							startRowIndex: branch.startRowIndex,
+							startColumnIndex: branch.startColumnIndex,
+							endRowIndex: branch.endRowIndex,
+							endColumnIndex: branch.endColumnIndex,
+						});
+					}
 				}
 			});
 			const branchReturnTypes = expression.branches.map(branch => {

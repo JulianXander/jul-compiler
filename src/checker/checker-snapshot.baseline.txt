@@ -20,15 +20,12 @@ someVar: [   1   2   1   4   4   5 ]
   error 2401 at 52:4 Rest argument must be last.
   error 4001 at 69:3 'a' is not defined.
   error 4001 at 69:5 'b' is not defined.
+  warning 5152 at 71:2 Unreachable branch detected.
 === branching.jul ===
 myEmpty: Empty
 myFunction: (a: Integer) :> Empty
 myList: [1 2]
 myVal: 6
-  warning 5151 at 38:2 Unreachable branch detected.
-  warning 5151 at 43:2 Unreachable branch detected.
-  warning 5151 at 49:2 Unreachable branch detected.
-  warning 5151 at 54:2 Unreachable branch detected.
 === cli/cli.jul ===
 cliArguments: Any
 === console-progress/console-progress.jul ===
@@ -43,15 +40,8 @@ test: Any
 === fizz-buzz/fizz-buzz-recursive.jul ===
 divisibleBy: (divisor: Not(0)) :> (dividend: Integer) :> Boolean
 fizzBuzz: (index: And(Integer Greater(0))) :> Empty
-  warning 5151 at 7:3 Unreachable branch detected.
-  warning 5151 at 10:3 Unreachable branch detected.
-  warning 5151 at 11:3 Unreachable branch detected.
-  warning 5151 at 12:3 Unreachable branch detected.
 === fizz-buzz/fizz-buzz.jul ===
 divisibleBy: (divisor: Not(0)) :> (dividend: Integer) :> Boolean
-  warning 5151 at 12:4 Unreachable branch detected.
-  warning 5151 at 13:4 Unreachable branch detected.
-  warning 5151 at 14:4 Unreachable branch detected.
 === function-call.jul ===
 MyType: TypeOf([   a: 1   b: 2 ])
 aliasFn: (   a: Boolean   b: Any ) :> Empty
@@ -243,7 +233,7 @@ typeFnShort: BlubType :> Empty
 === type-switch.jul ===
 someVar: 32
   error 4001 at 6:3 'Number' is not defined.
-  warning 5151 at 6:2 Unreachable branch detected.
+  warning 5152 at 8:2 Unreachable branch detected.
 === types.jul ===
 Article: TypeOf([   name: Text   price: Any   color: Text ])
 Even: (num: Integer) :> Boolean
@@ -276,7 +266,7 @@ myVarIsText: Any
   error 4000 at 57:1 ParserResult is already defined
   error 5000 at 8:1 Definition type mismatch. | Can not assign 4 to Text.
   error 4001 at 11:9 'TypeError' is not defined.
-  error 5152 at 15:15 Expected a function to call. | Can not assign TypeOf(Text) to Any :> Any.
+  error 5151 at 15:15 Expected a function to call. | Can not assign TypeOf(Text) to Any :> Any.
   error 4002 at 15:20 'myVar' is used before it is defined.
   error 4001 at 20:9 'Decimal' is not defined.
   error 4001 at 26:13 'Int32' is not defined.
@@ -291,10 +281,10 @@ myVarIsText: Any
   error 5100 at 42:3 Return type mismatch. | Can not assign [Boolean Boolean] to Boolean.
   error 4002 at 48:1 'ParserResult' is used before it is defined.
   error 4001 at 58:2 'x' is not defined.
-  error 5152 at 59:7 Expected a function to call. | Can not assign Text to Any :> Any.
+  error 5151 at 59:7 Expected a function to call. | Can not assign Text to Any :> Any.
   error 4001 at 59:17 'x' is not defined.
   error 4001 at 59:19 'type' is not defined.
-  error 5152 at 59:25 Expected a function to call. | Can not assign TypeOf(List(Text)) to Any :> Any.
+  error 5151 at 59:25 Expected a function to call. | Can not assign TypeOf(List(Text)) to Any :> Any.
   error 4001 at 59:36 'x' is not defined.
   error 4001 at 59:38 'errors' is not defined.
 === ui/dialog/dialog.jul ===
