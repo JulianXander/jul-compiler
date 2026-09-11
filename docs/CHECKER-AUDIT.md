@@ -66,18 +66,9 @@ sortiert.
 
 | # | Lücke | Schaden | Aufwand |
 |---|---|---|---|
-| 1 | `getTypeErrorForParameters` „not implemented yet" ([src/checker.ts:4375](../src/checker.ts#L4375)) — default-Fall wenn `argumentsType` nicht dictionaryLiteral/empty/tuple/parameters ist | spekulativ, wahrscheinlich unerreichbar: triggert nur, wenn Funktion einen `ParametersType` erwartet UND Arguments eine Variable mit `or`/`any`/`list` Typ ist (extrem seltene Situation) | unbekannt — erst prüfen ob jemals triggert |
+| 1 | `getTypeErrorForParameters` meldet „not implemented yet" für jeden `argumentsType` außer dictionaryLiteral/empty/tuple/parameters | vermutlich unerreichbar: setzt voraus, dass ein `ParametersType` erwartet wird und das Argument ein `or`/`any`/`list` ist. Erst ein Repro suchen, dann entscheiden | unbekannt |
 | 2 | **Weitere core-lib-Funktionen mit zu grobem Rückgabetyp** — `slice`, `map` und `filterMap` sind gefixt (siehe [core-lib-empty-return-types.md](core-lib-empty-return-types.md)), `findFirst`, `lastElement`, `toDictionary`, `toList` etc. sind ungeprüft | dieselbe Klasse: `Empty` zu viel oder Struktur verloren | je Funktion klein |
 | 3 | Benannte Argumente gegen einen `rest`-Parameter sind nicht umgesetzt | `f(a = 1 b = 2)` gegen `(a: Integer ...args)` meldet `Can not assign dictionary to rest parameter`, die Laufzeit wirft `not implemented yet for rest dictionary`. Test `named-arguments-with-rest-parameter-are-not-supported` hält es fest | unklar — zuerst zu klären, was ein rest aus benannten Argumenten überhaupt aufnehmen soll |
-| 4 | **Schlüsselart passt nicht zum Quelltyp** — Feldname auf einer List ([checker.ts:331](../src/checker.ts#L331)) und Index in einem Dictionary ([checker.ts:426](../src/checker.ts#L426)) liefern `undefined` statt eines Fehlers, beide als `TODO` markiert | `undefined` wird beim Aufrufer zu `Any`, und ob überhaupt gemeldet wird, entscheiden `hasKnownFields`/`hasKnownLength` — die für den jeweils anderen Fall nicht greifen. Zu verifizieren, ob der Mismatch dadurch ganz stillschweigend durchgeht | klein — eigener Fehlerfall je Richtung; die Wächter unterscheiden „Art passt nicht" heute nicht von „weiß ich nicht" |
-
----
-
----
-
-## Erledigte Punkte
-
-- **Ein Prefix-Argument überdeckt ein gleichnamiges Feld** (vormals #4): Fix in `checkDiscardedFields` — Parameter-Namen, die vom Prefix gebunden sind, werden vor der Prüfung auf unbekannte Namen aus der Namensmenge extrahiert. Test `prefix-argument-overrides-same-named-argument` verfahrens-sicher. Keine Performance-Regression.
 
 ---
 
@@ -85,7 +76,7 @@ sortiert.
 
 ```bash
 cd jul-compiler
-npx mocha --import=tsx --require ./test-setup.mjs src/checker.test.ts
+npx mocha --import=tsx --require ./test-setup.mjs src/checker/checker.test.ts
 npm run typecheck
 npm test
 npm run build
@@ -111,7 +102,7 @@ Importeur, wie `compileFile`); ohne diese Reihenfolge und ohne `documents` als z
 
 ```js
 import { parseFile } from './src/parser/parser.js';
-import { checkTypes } from './src/checker.js';
+import { checkTypes } from './src/checker/checker.js';
 const documents = {};
 const checkOrder = [];
 function loadDocument(path) {
