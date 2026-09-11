@@ -589,6 +589,51 @@ f = (someVar: Or(Integer Text)) =>
 		},
 		//#endregion branching: Verengung
 
+		//#region branching: Erreichbarkeit
+		{
+			name: 'unreachable-branch-is-detected',
+			code: `f = (value: Integer) =>
+	?(value)
+		[Integer] => 1
+		[Integer] => 2`,
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable branch detected.',
+					startRowIndex: 3,
+					startColumnIndex: 2,
+					endRowIndex: 3,
+					endColumnIndex: 16,
+				},
+			],
+		},
+		{
+			name: 'orthogonal-branches-are-not-unreachable',
+			code: `f = (value: Or(Integer Empty)) =>
+	?(value)
+		[Integer] => 1
+		() => 2`,
+			errors: [],
+		},
+		{
+			name: 'subset-branch-is-unreachable',
+			code: `f = (value: Integer) =>
+	?(value)
+		[Integer] => 1
+		[0] => 2`,
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable branch detected.',
+					startRowIndex: 3,
+					startColumnIndex: 2,
+					endRowIndex: 3,
+					endColumnIndex: 7,
+				},
+			],
+		},
+		//#endregion branching: Erreichbarkeit
+
 		//#region Not
 		{
 			// Not(X) schließt X aus. NonZeroInteger ist Integer.Without(0), also
@@ -1561,26 +1606,6 @@ g: Text = f(3)`,
 					startColumnIndex: 4,
 					endRowIndex: 0,
 					endColumnIndex: 47,
-				},
-			],
-		},
-		{
-			// Eine Branch, deren Parametertyp bereits vollständig von vorherigen Branches abgedeckt wird,
-			// kann niemals aufgerufen werden. Das sollte gemeldet werden.
-			// Red test für CHECKER-AUDIT #1.
-			name: 'unreachable-branch-is-detected',
-			code: `f = (value: Integer) =>
-	?(value)
-		[Integer] => 1
-		[Integer] => 2`,
-			errors: [
-				{
-					code: ErrorCode.unreachableBranch,
-					message: 'Unreachable branch detected.',
-					startRowIndex: 3,
-					startColumnIndex: 2,
-					endRowIndex: 3,
-					endColumnIndex: 16,
 				},
 			],
 		},
