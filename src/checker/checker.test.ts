@@ -682,6 +682,31 @@ f = (someVar: Or(Integer Text)) =>
 			name: 'not-type-accepts-intersection-without-single-matching-choice',
 			code: 'f = (x: PositiveInteger) => modulo(1 x)',
 		},
+		{
+			// getTypeFamily ordnet 'greater' bewusst keiner Familie zu (Integer oder Float
+			// möglich, daher keine Aussage) - dadurch liefert typesOverlap(Greater(0) 5)
+			// undefined, und Not(5) prüft das fälschlich nicht: 5 erfüllt Greater(0), Not(5)
+			// müsste es also ausschließen.
+			name: 'not-type-is-not-checked-against-greater',
+			code: 'f = (positive: Greater(0)) :> Not(5) => positive',
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Greater(0) to Not(5).',
+					startColumnIndex: 40,
+					startRowIndex: 0,
+					endColumnIndex: 48,
+					endRowIndex: 0,
+					relatedInformation: {
+						message: 'Declared as Not(5) here.',
+						startColumnIndex: 30,
+						startRowIndex: 0,
+						endColumnIndex: 36,
+						endRowIndex: 0,
+					},
+				},
+			],
+		},
 		//#endregion Not
 		//#region generische Rückgabetypen
 		{

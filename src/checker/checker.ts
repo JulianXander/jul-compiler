@@ -7,6 +7,7 @@ import {
 	CompileTimeDictionaryLiteralType,
 	CompileTimeDictionaryType,
 	CompileTimeFunctionType,
+	CompileTimeGreaterType,
 	CompileTimeListType,
 	CompileTimeStreamType,
 	CompileTimeTupleType,
@@ -3238,6 +3239,14 @@ function typesOverlap(first: CompileTimeType, second: CompileTimeType): boolean 
 	if (isComplementType(second)) {
 		return isNotAssignableTo(first, second.SourceType);
 	}
+	// getTypeFamily ordnet 'greater' keiner Familie zu (Integer oder Float moeglich) - daher
+	// hier vorab behandeln, bevor die Familienpruefung mit undefined aufgibt.
+	if (first.julType === 'greater') {
+		return greaterOverlapsWith(first, second);
+	}
+	if (second.julType === 'greater') {
+		return greaterOverlapsWith(second, first);
+	}
 	const firstFamily = getTypeFamily(first);
 	const secondFamily = getTypeFamily(second);
 	if (!firstFamily
@@ -3272,6 +3281,33 @@ function typesOverlap(first: CompileTimeType, second: CompileTimeType): boolean 
 			return true;
 	}
 	//#endregion gleiche Familie
+}
+
+/**
+ * Greater(Value) ist nach oben unbeschraenkt - Ueberlappung ist daher nur bei gleichem
+ * Literaltyp (Integer/Integer oder Float/Float) entscheidbar, sonst undefined.
+ */
+function greaterOverlapsWith(greater: CompileTimeGreaterType, other: CompileTimeType): boolean | undefined {
+	switch (other.julType) {
+		case 'greater':
+			// Beide nach oben unbeschraenkt - es gibt immer einen gemeinsamen groesseren Wert.
+			return true;
+		case 'integerLiteral':
+		case 'floatLiteral':
+			return greater.Value.julType === other.julType
+				? other.value > greater.Value.value
+				: undefined;
+		case 'integer':
+			return greater.Value.julType === 'integerLiteral'
+				? true
+				: undefined;
+		case 'float':
+			return greater.Value.julType === 'floatLiteral'
+				? true
+				: undefined;
+		default:
+			return undefined;
+	}
 }
 
 function someTypeOverlaps(choiceTypes: CompileTimeType[], other: CompileTimeType): boolean | undefined {
