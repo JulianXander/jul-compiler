@@ -36,6 +36,7 @@ import {
 	ParseDestructuringField,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
+	ParseFunctionLiteral,
 	ParseListLiteral,
 	ParseParameterField,
 	ParseParameterFields,
@@ -1284,6 +1285,36 @@ function getBranchArgumentType(
 	paramsType: CompileTimeType,
 	argumentIndex: number,
 ): CompileTimeType | undefined {
+	const rawType = getRawBranchArgumentType(paramsType, argumentIndex);
+	// Ein Funktionswert in Typ-Position ist ein Prädikat - die Laufzeit ruft ihn auf
+	// (runtime.ts, getTypeError case 'function') - und keine Zusicherung über die Gestalt des
+	// Werts. Damit zu schneiden ergäbe Never, also hier keine Aussage. Was die true-Richtung
+	// hergibt, liefert getPredicateBranchArgumentType, und nur für den branch selbst.
+	return isFunctionType(rawType)
+		? undefined
+		: rawType;
+}
+
+/**
+ * Der Typ, auf den ein Prädikat als branch-Kopf verengt. Nur für den branch selbst gültig:
+ * narrowsTo ist eine Obermenge, sie sagt nur "true kann höchstens für diese Werte herauskommen".
+ * Abzug (getPreviousBranchArgumentType) und Exhaustivität (isBranchingExhaustive) brauchen die
+ * Gegenrichtung, also eine Untermenge, und rechnen deshalb weiter ohne diese Information.
+ */
+function getPredicateBranchArgumentType(
+	paramsType: CompileTimeType,
+	argumentIndex: number,
+): CompileTimeType | undefined {
+	const rawType = getRawBranchArgumentType(paramsType, argumentIndex);
+	return isFunctionType(rawType)
+		? rawType.narrowsTo
+		: undefined;
+}
+
+function getRawBranchArgumentType(
+	paramsType: CompileTimeType,
+	argumentIndex: number,
+): CompileTimeType | undefined {
 	if (!isParametersType(paramsType)) {
 		// Typ-Kopf: beschreibt die Argumentkollektion, das Argument ist deren Element
 		return getElementTypeAtIndex(paramsType, argumentIndex);
@@ -1443,6 +1474,68 @@ function narrowBranchedType(
 	return previousBranchValueType
 		? createNormalizedIntersectionType([intersectedType, createCompileTimeComplementType(previousBranchValueType)])
 		: intersectedType;
+}
+
+/**
+ * Die Werte, für die dieses Funktionsliteral als Prädikat true liefern kann - Obermenge, nur
+ * für die true-Richtung. Erkannt wird bewusst nur die einfachste Form: ein Parameter, Rumpf
+ * genau ein branching über eben diesen Parameter. undefined ("keine Aussage") ist überall
+ * erlaubt, zu klein wäre der Fehler, der verengt, wo nichts folgt.
+ */
+function getPredicateNarrowsTo(
+	expression: ParseFunctionLiteral,
+	returnType: CompileTimeType,
+): CompileTimeType | undefined {
+	const params = expression.params;
+	if (params.type !== 'parameters'
+		|| params.singleFields.length !== 1
+		|| params.rest) {
+		return undefined;
+	}
+	const branching = expression.body.length === 1
+		? expression.body[0]
+		: undefined;
+	if (branching?.type !== 'branching') {
+		return undefined;
+	}
+	// Die Aussage gilt dem Parameter, also muss genau er gebrancht werden.
+	const branchedValues = getWrittenArguments(branching.args);
+	const branchedValue = branchedValues?.length === 1
+		? branchedValues[0]
+		: undefined;
+	if (branchedValue?.type !== 'reference'
+		|| branchedValue.name.name !== params.singleFields[0]!.name.name) {
+		return undefined;
+	}
+	// Die Laufzeit matcht ein Prädikat in Typ-Position mit einer Wahrheitsprüfung. Damit würde
+	// auch der Error eines nicht erschöpfenden branchings matchen, für einen Wert, den kein
+	// branch nennt - die Vereinigung unten wäre dann zu klein. Steht hinter den Formprüfungen,
+	// weil es die einzige teure Bedingung ist.
+	if (getTypeError(undefined, resolvePlaceholders(returnType), { julType: 'boolean' })) {
+		return undefined;
+	}
+	const valueTypes: CompileTimeType[] = [];
+	for (const branch of branching.branches) {
+		const branchReturnType = getReturnTypeFromFunctionType(branch.typeInfo);
+		// Nur nachweislich false fliegt raus. Alles andere zählt mit und macht die Obermenge
+		// höchstens größer - der Fehler, der nichts kaputtmacht.
+		if (branchReturnType.julType === 'booleanLiteral'
+			&& !branchReturnType.value) {
+			continue;
+		}
+		const branchValueType = getBranchArgumentType(
+			getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type)),
+			0);
+		if (!branchValueType) {
+			// Ein branch, der alles matcht und true liefern kann: der Wert kann alles sein.
+			return undefined;
+		}
+		valueTypes.push(branchValueType);
+	}
+	if (!valueTypes.length) {
+		return undefined;
+	}
+	return createNormalizedUnionType(valueTypes);
 }
 
 //#endregion branch narrowing
@@ -1900,7 +1993,8 @@ function inferType(
 					if (!path) {
 						return;
 					}
-					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex);
+					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex)
+						?? getPredicateBranchArgumentType(paramsTypeValue, argumentIndex);
 					// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
 					const previousBranchValueType = getPreviousBranchArgumentType(branching, expression, argumentIndex);
 					if (!branchRawType
@@ -1970,6 +2064,7 @@ function inferType(
 				}
 			}
 			functionType.ReturnType = returnType;
+			functionType.narrowsTo = getPredicateNarrowsTo(expression, returnType);
 			return { type: functionType };
 		}
 		case 'functionTypeLiteral': {

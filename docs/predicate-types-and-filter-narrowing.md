@@ -178,9 +178,11 @@ neue Typ-Position hinweg. Und die Konstruktion ist selbstbezüglich - die Analys
 Branching und speist ihr Ergebnis wieder in ein Branching ein. Trägt die Regel dort nicht, trägt
 sie bei `filter` erst recht nicht.
 
-Der Preis: der auslösende Fund (yugioh, `filter`) bleibt zunächst offen, und Schritt eins liefert
-ein Feature, für das es bisher keinen Fund gibt. Deshalb ist das keine Begründung, jetzt
-anzufangen - nur die Reihenfolge, falls angefangen wird.
+Der Preis: der auslösende Fund (yugioh, `filter`) bleibt zunächst offen. Einen eigenen Fund hat
+der Branching-Schritt aber sehr wohl - er lag die ganze Zeit in
+[fizz-buzz.jul](../../jul-examples/fizz-buzz/fizz-buzz.jul): `divisibleBy(15)` als Typ-Kopf ist
+genau die Prädikat-Form, und der Checker hat die drei betroffenen branches bis 2026-09-11 auf
+`Never` verengt, also für unerreichbar erklärt.
 
 **Aufwand, ehrlich eingeschätzt:**
 
@@ -237,6 +239,12 @@ die true-Richtung am Typ-Kopf. Alles Folgende ist erkannt und verschoben, nicht 
    kollabiert Literale nicht).
 4. **Die Callback-Konsumstelle** (`filter`, `findFirst`, `findLast`, `exists`, `all`) mit
    Punkt 4 und 5 der Liste oben - der auslösende yugioh-Fall.
+5. **Welchen Parameter `narrowsTo` meint.** Heute implizit Argument 0, was für den Typ-Kopf
+   genau stimmt: die Laufzeit ruft ein Prädikat dort immer mit einem Wert auf, dem Element an
+   seiner Position. Ein zweistellig deklarierter Callback (`filter` nennt Element und Index)
+   bräuchte die Angabe explizit - TypeScript (`x is T`) und Flow (`param is Type`) benennen den
+   Parameter aus genau diesem Grund. Dann wird aus `narrowsTo: CompileTimeType` ein
+   `{ parameterIndex, type }`.
 
 ## Fazit
 

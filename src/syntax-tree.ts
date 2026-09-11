@@ -787,6 +787,13 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	ParamsType: CompileTimeType;
 	ReturnType: CompileTimeType;
 	pure: boolean;
+	/**
+	 * Die Werte, fuer die diese Funktion als Praedikat true liefern kann - eine Obermenge, und
+	 * nur fuer die true-Richtung: aus false folgt nichts. Wer davon abzieht oder Vollstaendigkeit
+	 * daraus schliesst, braucht die Gegenrichtung und darf das hier nicht verwenden.
+	 * undefined heisst "keine Aussage".
+	 */
+	narrowsTo?: CompileTimeType;
 }
 
 export function createCompileTimeFunctionType(
