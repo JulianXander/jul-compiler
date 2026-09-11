@@ -1373,6 +1373,24 @@ f(a = 1 b = 2)`,
 f(a = 1 b = 2)`,
 		},
 		{
+			// Ein Prefix-Argument bindet schon Parameter — eine gleichnamige explizite
+			// Bindung sollte als discarded gemeldet werden, tut es aber nicht.
+			// Beispiel: 1.f(a = 2) bindet a = 1 positionell, a = 2 ist überzählig.
+			name: 'prefix-argument-overrides-same-named-argument',
+			code: `f = (a: Integer) => a
+1.f(a = 2)`,
+			errors: [
+				{
+					code: ErrorCode.discardedValue,
+					message: "This value is discarded. Parameter 'a' is already bound by the prefix argument.",
+					startRowIndex: 1,
+					startColumnIndex: 5,
+					endRowIndex: 1,
+					endColumnIndex: 11,
+				},
+			],
+		},
+		{
 			// Benannte Argumente gegen einen rest-Parameter sind nicht umgesetzt: der Checker
 			// meldet es, und tryAssignArgs wirft zur Laufzeit. Der Test hält den Zustand fest -
 			// verschwindet die Meldung, ist die Lücke geschlossen.
