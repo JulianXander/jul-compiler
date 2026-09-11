@@ -2678,13 +2678,6 @@ function getReturnTypeFromFunctionCall(
 					? lastExpression.typeInfo.type
 					: { julType: 'any' };
 			}
-			case 'lastElement': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const dereferencedArgType = argTypes?.length
-					? resolvePlaceholders(argTypes[0]!)
-					: undefined;
-				return getLastElementFromType(dereferencedArgType);
-			}
 			case 'map': {
 				// map bildet elementweise ab, die Länge bleibt also erhalten. Nur beim Tuple
 				// ist das genauer als der deklarierte Typ, sonst trägt die Deklaration.
@@ -2785,28 +2778,6 @@ function getReturnTypeFromFunctionCall(
 	}
 	const functionType = functionExpression.typeInfo;
 	return getReturnTypeFromFunctionType(functionType);
-}
-
-function getLastElementFromType(valuesType: CompileTimeType | undefined): CompileTimeType {
-	if (!valuesType) {
-		return {
-			julType: 'empty'
-		};
-	}
-	switch (valuesType.julType) {
-		case 'tuple':
-			return last(valuesType.ElementTypes) ?? {
-				julType: 'empty'
-			};
-		case 'list':
-			return valuesType.ElementType;
-		case 'or': {
-			const lastElementChoices = valuesType.ChoiceTypes.map(valuesChoice => getLastElementFromType(valuesChoice));
-			return createNormalizedUnionType(lastElementChoices);
-		}
-		default:
-			return { julType: 'any' };
-	}
 }
 
 function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {

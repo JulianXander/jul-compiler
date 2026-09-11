@@ -1762,12 +1762,9 @@ describe('Checker', () => {
 		checkTypes(parsed, {});
 		expect(parsed.checked!.errors).to.deep.equal(parseErrors);
 	});
-	// lastElement hat in getReturnTypeFromFunctionCall einen Sonderfall (getLastElementFromType),
-	// der beim direkten Aufruf values.lastElement() bereits korrekt kein Empty liefert, wenn
-	// values garantiert nicht leer ist. Der Sonderfall greift aber nur, wenn der Funktionsname
-	// am Aufruf wörtlich 'lastElement' lautet - über einen Alias trifft der switch(functionName)
-	// in getReturnTypeFromFunctionCall nicht mehr, und die rohe core-lib-Deklaration
-	// (Or([] TypeOf(values)/ElementType), unbedingtes Empty) wird sichtbar.
+	// lastElement deklariert seinen Rückgabetyp über ElementAt(TypeOf(values) length(values)) und
+	// hat keinen Namens-Sonderfall im Checker. Die Präzision hängt damit an der Deklaration, nicht
+	// am geschriebenen Namen - über einen Alias muss sie deshalb genauso erhalten bleiben.
 	it('last-element-via-alias-adds-no-empty-for-list', () => {
 		const code = `le = lastElement
 f = (values: List(Integer)) :> Integer =>
@@ -1786,10 +1783,10 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
-	// Punkt D/Length-Route (docs/core-lib-empty-return-types.md): getElement(values length(values))
-	// liefert bei garantiert nicht-leerer List präzise Integer, ohne dass jemand einen eigenen
-	// lastElement-Sonderfall bräuchte. length(List(T)) faltet zu lengthOf(List(T)); ElementAt
-	// erkennt, dass der Index exakt die Länge derselben Quelle ist, und lässt Empty weg.
+	// getElement(values length(values)) liefert bei garantiert nicht-leerer List präzise Integer,
+	// ohne dass es dafür einen Sonderfall im Checker braucht: length(List(T)) faltet zu
+	// lengthOf(List(T)); ElementAt erkennt, dass der Index exakt die Länge derselben Quelle ist,
+	// und lässt Empty weg.
 	it('element-at-plus-length-adds-no-empty-for-list', () => {
 		const code = `f = (values: List(Integer)) :> Integer =>
 	getElement(values length(values))`;
@@ -1828,12 +1825,10 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 			},
 		]);
 	});
-	// Punkt 9 (lastElement auf ElementAt+length umstellen): würde getLastElementFromType
-	// überflüssig machen, aber nur, wenn dieselbe Präzision auch über einen Alias erhalten
-	// bleibt - genau wie beim Vorbild getElement/ElementAt. myLast komponiert das hier selbst
-	// in seiner eigenen Rückgabetyp-Deklaration (wie lastElement es in core-lib täte), ohne
-	// core-lib anzufassen. Erwartung: durch den Alias trifft kein Namens-Sonderfall mehr,
-	// die Deklaration muss also allein tragen - tut sie aktuell nicht.
+	// Dieselbe Komposition, die lastElement in core-lib benutzt, in Nutzercode nachgebaut: der
+	// Rueckgabetyp wird in der eigenen Deklaration aus ElementAt und length zusammengesetzt. Weil
+	// kein Namens-Sonderfall mehr existiert, muss die Deklaration allein tragen - auch durch einen
+	// Alias hindurch, der jeden Namensbezug kappt.
 	it('element-at-plus-length-composed-in-declaration-survives-alias', () => {
 		const code = `myLast = (values: List(Any)) :> ElementAt(TypeOf(values) length(values)) =>
 	getElement(values length(values))
@@ -1844,12 +1839,10 @@ f = (values: List(Integer)) :> Integer =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
-	// length erzeugt den lengthOf-Knoten heute in getReturnTypeFromFunctionCall, also am
-	// GESCHRIEBENEN Namen. Hinter einem Alias heisst die Funktion anders, der switch trifft nicht
-	// mehr, und ohne lengthOf kann ElementAt die Identitaet "Index ist genau die Laenge dieser
-	// Quelle" nicht erkennen - das Empty bleibt faelschlich stehen. Dieselbe Fehlerklasse wie
-	// last-element-via-alias-adds-no-empty-for-list. getElement zeigt die Gegenprobe: es hat
-	// keinen Namens-Sonderfall, sondern deklariert :> ElementAt(...), und ueberlebt den Alias.
+	// length deklariert seinen Rueckgabetyp ueber LengthOf(TypeOf(values)) und hat keinen
+	// Namens-Sonderfall im Checker. Nur deshalb entsteht der lengthOf-Knoten auch hinter einem
+	// Alias, und nur mit ihm erkennt ElementAt, dass der Index genau die Laenge dieser Quelle ist -
+	// sonst bliebe faelschlich ein Empty im Ergebnis.
 	it('length-via-alias-keeps-length-identity', () => {
 		const code = `len = length
 f = (values: List(Integer)) :> Integer =>
