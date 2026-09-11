@@ -4560,13 +4560,6 @@ function getArgValueExpressions(args: BracketedExpression): (ParseValueExpressio
 	}
 }
 
-export function getCheckedName(parseName: ParseValueExpression): string | undefined {
-	if (parseName.type !== 'reference') {
-		return undefined;
-	}
-	return parseName.name.name;
-}
-
 function checkNameDefinedInUpperScope(
 	expression: TypedExpression,
 	scopes: NonEmptyArray<SymbolTable>,
