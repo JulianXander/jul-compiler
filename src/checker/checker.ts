@@ -2278,17 +2278,8 @@ function inferType(
 			// TODO check is List or Dictionary in values
 			// TODO error when List/Dictionary mixed
 			// TODO Dictionary Type?
-			let hasList: boolean = false;
-			let hasDictionary: boolean = false;
 			expression.values.forEach(element => {
-				const typedExpression = element.value;
-				setInferredType(typedExpression, typeContext, parsedDocuments, folder, file, filePath);
-				const inferredType = typedExpression.typeInfo?.type;
-				// TODO
-				if (isDictionaryType(inferredType)
-					|| isDictionaryLiteralType(inferredType)) {
-					hasDictionary = true;
-				}
+				setInferredType(element.value, typeContext, parsedDocuments, folder, file, filePath);
 			});
 			return { type: { julType: 'any' } };
 		}
@@ -2481,32 +2472,6 @@ function getReturnTypeFromFunctionCall(
 					? lastExpression.typeInfo.type
 					: { julType: 'any' };
 			}
-			// case 'nativeFunction': {
-			// 	const argumentType = dereferenceArgumentType(argsType, createParameterReference([{
-			// 		type: 'name',
-			// 		name: 'FunctionType',
-			// 	}]));
-			// 	return valueOf(argumentType);
-			// }
-
-			// case 'nativeValue': {
-			// 	const argumentType = dereferenceArgumentType(argsType, createParameterReference([{
-			// 		type: 'name',
-			// 		name: 'js',
-			// 	}]));
-			// 	if (typeof argumentType === 'string') {
-			// 		console.log('stg', argumentType);
-			// 		// const test = (global as any)['_string'];
-			// 		try {
-			// 			const test = eval(argumentType);
-			// 			console.log(test);
-
-			// 		} catch (error) {
-			// 			console.error(error);
-			// 		}
-			// 	}
-			// 	return _any;
-			// }
 			case 'lastElement': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const dereferencedArgType = argTypes?.length
