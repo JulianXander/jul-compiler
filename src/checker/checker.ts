@@ -2071,7 +2071,7 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			checkDiscardedArguments(args, paramsType, prefixArgument ? 1 : 0, errors);
+			checkDiscardedArguments(args, paramsType, prefixArgumentType, errors);
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, parsedDocuments, folder, errors);
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, returnType);
@@ -3347,9 +3347,14 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 function checkDiscardedArguments(
 	writtenArgs: BracketedExpression,
 	paramsType: CompileTimeType,
-	prefixArgumentCount: number,
+	prefixArgumentType: CompileTimeType | undefined,
 	errors: CompilerError[],
 ): void {
+	const prefixArgumentCount = prefixArgumentType ? 1 : 0;
+	// Die Parameter-Namen, die bereits vom Prefix gebunden sind
+	const prefixParameterNames = prefixArgumentCount > 0
+		? getKnownFieldNames(paramsType)?.slice(0, prefixArgumentCount)
+		: undefined;
 	switch (writtenArgs.type) {
 		case 'list':
 			checkDiscardedElements(writtenArgs, paramsType, prefixArgumentCount, errors);
@@ -3362,6 +3367,7 @@ function checkDiscardedArguments(
 					knownNames,
 					fieldName => `There is no parameter named '${fieldName}'.`,
 					errors,
+					prefixParameterNames,
 				);
 			}
 			return;
@@ -3412,6 +3418,7 @@ function checkDiscardedFields(
 	knownNames: string[],
 	getMessage: (fieldName: string) => string,
 	errors: CompilerError[],
+	prefixParameterNames?: string[],
 ): void {
 	// Ein Spread bringt unbekannte Felder mit, damit steht nicht fest, welches überzählig wäre.
 	if (writtenDictionary.fields.some(field => field.type === 'spread')) {
@@ -3422,10 +3429,26 @@ function checkDiscardedFields(
 			return;
 		}
 		const fieldName = getCheckedEscapableName(field.name);
-		if (!fieldName
-			|| knownNames.includes(fieldName)) {
+		if (!fieldName) {
 			return;
 		}
+		// Prüfe ZUERST ob der Name vom Prefix-Argument bereits gebunden ist
+		if (prefixParameterNames?.includes(fieldName)) {
+			errors.push({
+				code: ErrorCode.discardedValue,
+				message: `This value is discarded. Parameter '${fieldName}' is already bound by the prefix argument.`,
+				startRowIndex: field.startRowIndex,
+				startColumnIndex: field.startColumnIndex,
+				endRowIndex: field.endRowIndex,
+				endColumnIndex: field.endColumnIndex,
+			});
+			return;
+		}
+		// Dann: ist der Name bekannt (als Parameter)?
+		if (knownNames.includes(fieldName)) {
+			return;  // Alles OK
+		}
+		// Sonst: unbekannter Name
 		errors.push({
 			code: ErrorCode.discardedValue,
 			message: `This value is discarded. ${getMessage(fieldName)}`,
