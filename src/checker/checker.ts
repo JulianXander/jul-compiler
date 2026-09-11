@@ -720,7 +720,10 @@ function dereferenceArgumentTypesNested(
 			if (dereferencedSource === rawSource) {
 				return typeToDereference;
 			}
-			return createCompileTimeLengthOfType(dereferencedSource);
+			// Neu falten statt neu einpacken: steht die Quelle jetzt fest, ist die Laenge ein
+			// Literal (Tuple) oder aufgesplittet (Or) - lengthOf(konkrete Quelle) waere zwar
+			// korrekt, aber unnoetig grob.
+			return getLengthFromType(dereferencedSource);
 		}
 		case 'nestedReference': {
 			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, typeToDereference.source);
@@ -2682,13 +2685,6 @@ function getReturnTypeFromFunctionCall(
 					: undefined;
 				return getLastElementFromType(dereferencedArgType);
 			}
-			case 'length': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const firstArgType = argTypes?.length
-					? argTypes[0]
-					: undefined;
-				return getLengthFromType(firstArgType);
-			}
 			case 'map': {
 				// map bildet elementweise ab, die Länge bleibt also erhalten. Nur beim Tuple
 				// ist das genauer als der deklarierte Typ, sonst trägt die Deklaration.
@@ -2728,6 +2724,14 @@ function getReturnTypeFromFunctionCall(
 				}
 				const elementType = dereferenceNestedKeyFromObject(valueOf(indexType), valueOf(sourceType));
 				return createCompileTimeTypeOfType(elementType ?? { julType: 'any' });
+			}
+			case 'LengthOf': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const sourceType = argTypes?.[0];
+				if (!sourceType) {
+					return { julType: 'any' };
+				}
+				return createCompileTimeTypeOfType(getLengthFromType(valueOf(sourceType)));
 			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);

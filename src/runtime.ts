@@ -1285,6 +1285,34 @@ _createFunction(
 		]
 	}
 );
+export const LengthOf = (Source: any): RuntimeType => {
+	if (Source !== null
+		&& typeof Source === 'object'
+		&& _julTypeSymbol in Source) {
+		switch (Source[_julTypeSymbol]) {
+			case 'empty':
+				return 0n;
+			case 'tuple':
+				return BigInt(Source.ElementTypes.length);
+			case 'list':
+				return PositiveInteger;
+			default:
+				break;
+		}
+	}
+	return Integer;
+};
+_createFunction(
+	LengthOf,
+	{
+		singleNames: [
+			{
+				name: 'Source',
+				type: Type,
+			},
+		]
+	}
+);
 export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {

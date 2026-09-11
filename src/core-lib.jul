@@ -81,6 +81,18 @@ ElementAt = nativeFunction(
 		(Source, index) => ElementAt(Source, index)
 	§
 )
+# Die Anzahl der Elemente von Source.
+# Bei bekannter Länge ein Literal, bei einer List die Länge genau dieser Quelle - daran
+# erkennt ElementAt, dass so ein Index nie danebenliegt.
+LengthOf = nativeFunction(
+	(
+		Source: Type
+	) :> Type
+	true
+	§js
+		(Source) => LengthOf(Source)
+	§
+)
 # The type that only contains the empty literal ().
 Empty = nativeValue(§Empty§)
 # true or false
@@ -447,7 +459,7 @@ toIsoDateText = nativeFunction(
 length = nativeFunction(
 	(
 		values: Or([] List(Any))
-	) :> PositiveInteger
+	) :> LengthOf(TypeOf(values))
 	true
 	§js
 		(values) => {

@@ -46,3 +46,5 @@
 2026-09-11 15:40:30	549a23b+	-	ADV-DEV-56627	yugioh	parse+check	5	3807.36	3986.54	3986.54	Bug #1: unreachable branch detection implemented
 2026-09-11 17:04:23	d8bb361+	-	ADV-DEV-56627	yugioh	parse+check	5	3972.56	4183.83	4183.83	core-lib: lastElement Empty-Fix (alias-only bug)
 2026-09-11 19:30:11	2a27a92+	-	ADV-DEV-56627	yugioh	parse+check	5	3607.67	3863.95	3863.95	lengthOf: ElementAt+length Komposition praezise fuer List
+2026-09-11 23:25:44	e0beea7	-	ADV-DEV-56627	yugioh	parse+check	5	3655.47	3850.77	3850.77	vor LengthOf-Konstruktor (length hat noch case im Checker)
+2026-09-11 23:29:37	e0beea7+	-	ADV-DEV-56627	yugioh	parse+check	5	3674.17	3869.81	3869.81	nach LengthOf-Konstruktor: length rein deklarativ, case length entfernt

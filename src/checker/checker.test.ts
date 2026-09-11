@@ -1844,6 +1844,20 @@ f = (values: List(Integer)) :> Integer =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// length erzeugt den lengthOf-Knoten heute in getReturnTypeFromFunctionCall, also am
+	// GESCHRIEBENEN Namen. Hinter einem Alias heisst die Funktion anders, der switch trifft nicht
+	// mehr, und ohne lengthOf kann ElementAt die Identitaet "Index ist genau die Laenge dieser
+	// Quelle" nicht erkennen - das Empty bleibt faelschlich stehen. Dieselbe Fehlerklasse wie
+	// last-element-via-alias-adds-no-empty-for-list. getElement zeigt die Gegenprobe: es hat
+	// keinen Namens-Sonderfall, sondern deklariert :> ElementAt(...), und ueberlebt den Alias.
+	it('length-via-alias-keeps-length-identity', () => {
+		const code = `len = length
+f = (values: List(Integer)) :> Integer =>
+	getElement(values len(values))`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.
