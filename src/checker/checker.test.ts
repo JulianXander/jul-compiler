@@ -694,17 +694,17 @@ f = (someVar: Or(Integer Text)) =>
 	picked.filterMap((value) => value)`,
 		},
 		{
-			// Isolierter roter Test für Bug 1 (ohne slice's Or/Empty/mehrere-Parameter-Komplexität):
-			// values als Präfix-Argument (values.first()) wird beim Type-Checken zu einer
-			// abstrakten parameterReference (zeigt auf f, nicht auf ihren konkreten deklarierten
-			// Typ List(Text)). Diese unaufgelöste Referenz fließt in firsts eigene generische
-			// Rückgabetyp-Auflösung (TypeOf(values)/ElementType) und bleibt dort unaufgelöst -
-			// getTypeErrors laxe nestedReference-Rückfallregel verschluckt den Fehler lautlos.
+			// Praefix-Argument (values in values.first()) referenzierte beim Type-Checken den
+			// eigenen Parameter nur als abstrakte parameterReference (zeigt auf f), nicht als
+			// deren konkreten deklarierten Typ List(Text). Die unaufgeloeste Referenz floss in
+			// firsts generische Rueckgabetyp-Aufloesung (TypeOf(values)/ElementType) und blieb
+			// dort haengen - getTypeErrors laxe nestedReference-Rueckfallregel verschluckte den
+			// Fehler lautlos. Fix: resolvePlaceholders auf prefixArgumentType vor der Verwendung.
 			// Wie core-lib (slice, filter, ...) via nativeFunction deklariert - eine reine
 			// Signatur ohne Rumpf (case 'functionTypeLiteral'), damit der generische
-			// Rückgabetyp nicht wie bei einer echten Funktion mit Rumpf (case 'functionLiteral')
-			// schon bei der Deklaration über resolvePlaceholders fest verdrahtet wird.
-			name: 'prefix-argument-stays-unresolved-parameter-reference-bug',
+			// Rueckgabetyp nicht wie bei einer echten Funktion mit Rumpf (case 'functionLiteral')
+			// schon bei der Deklaration ueber resolvePlaceholders fest verdrahtet wird.
+			name: 'prefix-argument-resolves-to-declared-type-in-generic-return',
 			code: `first = nativeFunction(
 	(values: List(Any)) :> TypeOf(values)/ElementType
 	true
@@ -713,7 +713,6 @@ f = (someVar: Or(Integer Text)) =>
 g = (n: Integer) => n
 f = (values: List(Text)) =>
 	g(values.first())`,
-			// ROT: aktuell wird kein Fehler gemeldet, obwohl List(Text) nicht zu Integer passt.
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -725,21 +724,10 @@ f = (values: List(Text)) =>
 				},
 			],
 		},
-		// Fund bei der Vorarbeit zu Schritt 3 (Callback-Konsumstelle): ein generischer
-		// Rückgabetyp (TypeOf(values)/ElementType), der direkt als Argument einer weiteren
-		// Aufruf-Position landet, wird gegen den Zielparameter nicht vollständig geprüft.
-		// g akzeptiert hier auch Empty, damit dieser Zweig gar nicht erst einen Fehler
-		// erzeugt - übrig bleibt ausschließlich, ob List(Or(Integer Text)) (das Ergebnis
-		// von slice) gegen List(Integer) geprüft wird. Erwartet wäre "Text passt nicht zu
-		// Integer", gemeldet wird gar nichts.
-		// Kontrollprobe (sanity-check unten) zeigt: ohne Aufrufkette (Wert direkt
-		// hineingereicht) meldet derselbe Zieltyp den Fehler korrekt.
-		// Unabhängig von den Prädikaten - blockiert aber verlässliche rote Tests für
-		// filter-Verengung, weil ein Element-Typfehler durch die Aufrufkette verschwindet.
-		// Bug 1 (Präfix-Argument unaufgelöst) ist behoben - dies ist jetzt der isolierte
-		// Nachweis für Bug 2 (slice's eigene Or([]...)-Generik löst trotzdem nicht auf).
 		{
-			name: 'chained-call-loses-element-type-check-bug',
+			// Urspruenglicher Fund (Vorarbeit zu Schritt 3, Callback-Konsumstelle): derselbe Bug
+			// wie oben, hier am echten core-lib-Fall slice statt am minimalen Repro first.
+			name: 'chained-generic-call-checks-element-type',
 			code: `g = (n: Or(List(Integer) [])) => n
 f = (values: List(Or(Integer Text))) =>
 	g(values.slice(1))`,
@@ -755,9 +743,9 @@ f = (values: List(Or(Integer Text))) =>
 			],
 		},
 		{
-			// Sanity-Check zum vorigen Fund: derselbe Zieltyp meldet den Fehler korrekt, wenn
+			// Gegenprobe zum vorigen Fund: derselbe Zieltyp meldet den Fehler korrekt, wenn
 			// der Wert nicht durch eine Aufrufkette läuft.
-			name: 'chained-call-bug-sanity-check-direct-value',
+			name: 'direct-value-checks-element-type-without-chaining',
 			code: `g = (n: Or(List(Integer) [])) => n
 f = (value: Or([] List(Or(Integer Text)))) =>
 	g(value)`,
@@ -773,11 +761,11 @@ f = (value: Or([] List(Or(Integer Text)))) =>
 			],
 		},
 		{
-			// Sanity-Check zum vorigen Test: OHNE Prädikat wird Or([] List(Or(Integer Text)))
+			// Gegenprobe zum vorigen Test: OHNE Prädikat wird Or([] List(Or(Integer Text)))
 			// zurecht NICHT als Or([] List(Integer)) akzeptiert. Zeigt, dass ein grüner
 			// vorheriger Test tatsächlich an einer echten Verengung liegt (nicht an einer
 			// generell laxen Prüfung).
-			name: 'sanity-check-list-or-not-assignable-without-narrowing',
+			name: 'list-or-text-not-assignable-to-list-or-integer',
 			code: `g = (n: Or([] List(Integer))) => n
 f = (values: List(Or(Integer Text))) =>
 	g(values)`,
