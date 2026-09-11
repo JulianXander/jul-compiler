@@ -3656,8 +3656,7 @@ export function getTypeError(
 			}
 			break;
 		case 'booleanLiteral':
-			if (argumentsType.julType === 'booleanLiteral'
-				&& argumentsType.value === targetType.value) {
+			if (typeEquals(argumentsType, targetType)) {
 				return undefined;
 			}
 			break;
@@ -3739,8 +3738,7 @@ export function getTypeError(
 			}
 			break;
 		case 'floatLiteral':
-			if (argumentsType.julType === 'floatLiteral'
-				&& argumentsType.value === targetType.value) {
+			if (typeEquals(argumentsType, targetType)) {
 				return undefined;
 			}
 			break;
@@ -3778,8 +3776,7 @@ export function getTypeError(
 			}
 			break;
 		case 'integerLiteral':
-			if (argumentsType.julType === 'integerLiteral'
-				&& argumentsType.value === targetType.value) {
+			if (typeEquals(argumentsType, targetType)) {
 				return undefined;
 			}
 			break;
@@ -3904,8 +3901,7 @@ export function getTypeError(
 			}
 			break;
 		case 'textLiteral': {
-			if (argumentsType.julType === 'textLiteral'
-				&& argumentsType.value === targetType.value) {
+			if (typeEquals(argumentsType, targetType)) {
 				return undefined;
 			}
 			break;
