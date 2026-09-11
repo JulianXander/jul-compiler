@@ -321,7 +321,7 @@ visibleInput: Any
   error 3010 at 1:88 Unexpected extension for import: 
   error 5050 at 6:9 Argument type mismatch. | Can not assign dictionary to rest parameter
   error 4001 at 29:3 'button' is not defined.
-  error 5160 at 32:15 Failed to dereference 'value' in type Stream(Or(Empty List(Any)))
+  error 5160 at 32:15 Failed to dereference field 'value' in type Stream(Or(Empty List(Any)))
 === ui/preserve-dom/main.jul ===
 addMessage: (message: Any) :> Any
 === ui/todo-list/todo-list.jul ===

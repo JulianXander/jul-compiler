@@ -409,6 +409,51 @@ function hasKnownLength(type: CompileTimeType): boolean {
 	return type.julType === 'tuple';
 }
 
+/**
+ * Kann dieser Typ überhaupt benannte Felder tragen?
+ * Ein Nein heißt: der Name liegt nicht daneben, er passt gar nicht zur Art der Quelle.
+ * Im Zweifel ja, damit aus "weiß ich nicht" kein Fehler wird.
+ */
+function canHaveFields(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'float':
+		case 'floatLiteral':
+		case 'integer':
+		case 'integerLiteral':
+		case 'list':
+		case 'text':
+		case 'textLiteral':
+		case 'tuple':
+			return false;
+		default:
+			return true;
+	}
+}
+
+/**
+ * Kann dieser Typ überhaupt Positionen tragen?
+ * Gegenstück zu canHaveFields, mit derselben Zweifelsregel.
+ */
+function canHaveIndexes(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'dictionary':
+		case 'dictionaryLiteral':
+		case 'float':
+		case 'floatLiteral':
+		case 'integer':
+		case 'integerLiteral':
+		case 'text':
+		case 'textLiteral':
+			return false;
+		default:
+			return true;
+	}
+}
+
 export function dereferenceNameFromObject(
 	name: string,
 	sourceObjectType: CompileTimeType,
@@ -437,7 +482,7 @@ export function dereferenceNameFromObject(
 					return undefined;
 			}
 		case 'list':
-			// TODO error: cant dereference name in list 
+			// Eine List trägt keine benannten Felder; gemeldet wird an der Aufrufstelle.
 			return undefined;
 		case 'nestedReference':
 		case 'parameterReference':
@@ -532,7 +577,7 @@ export function dereferenceIndexFromObject(
 		case 'empty':
 			return { julType: 'empty' };
 		case 'dictionaryLiteral':
-			// TODO error: cant dereference index in dictionary type
+			// Ein Dictionary trägt keine Positionen; gemeldet wird an der Aufrufstelle.
 			return undefined;
 		case 'list':
 			// Eine List kennt ihre Länge nicht, die Position ist also nicht beweisbar vorhanden.
@@ -2292,11 +2337,17 @@ function inferType(
 					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.typeInfo!.type)
 						?? dereferenceIndexFromObject(nestedKey.name, sourceType);
 					if (!dereferencedType) {
-						// Nur melden, wenn die Länge feststeht
-						if (hasKnownLength(sourceType)) {
+						// Zwei verschiedene Aussagen: die Art passt nicht zur Quelle (beweisbar
+						// falsch, unabhängig von der Länge) oder der Index liegt daneben (nur
+						// beweisbar, wenn die Länge feststeht).
+						const kindMismatch = !canHaveIndexes(sourceType);
+						if (kindMismatch || hasKnownLength(sourceType)) {
+							const baseMessage = `Failed to dereference index ${nestedKey.name} in type ${typeToString(sourceType, 0, 0)}`;
 							errors.push({
 								code: ErrorCode.dereferenceFailed,
-								message: `Failed to dereference '${nestedKey.name}' in type ${typeToString(sourceType, 0, 0)}`,
+								message: kindMismatch
+									? `${baseMessage}. An index needs a List.`
+									: baseMessage,
 								startRowIndex: nestedKey.startRowIndex,
 								startColumnIndex: nestedKey.startColumnIndex,
 								endRowIndex: nestedKey.endRowIndex,
@@ -2321,13 +2372,18 @@ function inferType(
 					const dereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.type)
 						?? dereferenceNameFromObject(fieldName, sourceType);
 					if (!dereferencedType) {
-						// Nur melden, wenn der Quelltyp seine Feldmenge kennt. Sonst würde aus
+						// Entweder passt die Art nicht zur Quelle, oder das Feld fehlt - letzteres
+						// nur melden, wenn der Quelltyp seine Feldmenge kennt. Sonst würde aus
 						// "weiß ich nicht" ein "gibt es nicht" und jeder noch unaufgelöste Typ
 						// lieferte Falschfehler.
-						if (hasKnownFields(sourceType)) {
+						const kindMismatch = !canHaveFields(sourceType);
+						if (kindMismatch || hasKnownFields(sourceType)) {
+							const baseMessage = `Failed to dereference field '${fieldName}' in type ${typeToString(sourceType, 0, 0)}`;
 							errors.push({
 								code: ErrorCode.dereferenceFailed,
-								message: `Failed to dereference '${fieldName}' in type ${typeToString(sourceType, 0, 0)}`,
+								message: kindMismatch
+									? `${baseMessage}. A field name needs a Dictionary.`
+									: baseMessage,
 								startRowIndex: nestedKey.startRowIndex,
 								startColumnIndex: nestedKey.startColumnIndex,
 								endRowIndex: nestedKey.endRowIndex,

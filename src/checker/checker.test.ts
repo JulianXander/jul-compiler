@@ -900,7 +900,7 @@ d/b`,
 					"code": ErrorCode.dereferenceFailed,
 					"endColumnIndex": 3,
 					"endRowIndex": 1,
-					"message": "Failed to dereference 'b' in type [a: 1]",
+					"message": "Failed to dereference field 'b' in type [a: 1]",
 					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
@@ -1059,7 +1059,7 @@ a/5`,
 					"code": ErrorCode.dereferenceFailed,
 					"endColumnIndex": 3,
 					"endRowIndex": 1,
-					"message": "Failed to dereference '5' in type [1 2]",
+					"message": "Failed to dereference index 5 in type [1 2]",
 					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
@@ -1094,8 +1094,10 @@ y: Integer = f([1 2])`,
 			],
 		},
 		{
-			// Eine positionale Kollektion hat keine Felder. Der Name kann dort nicht danebenliegen,
-			// er passt gar nicht zur Art der Quelle - das ist beweisbar falsch, nicht unbekannt.
+			// Eine positionale Kollektion trägt keine benannten Felder. Der Name kann dort nicht
+			// danebenliegen, er passt gar nicht zur Art der Quelle - beweisbar falsch, nicht unbekannt.
+			// Die Meldung nennt die Anforderung des Zugriffs, nicht die Beschaffenheit der Quelle:
+			// sonst bräuchte jede Quellart eine eigene Variante.
 			name: 'field-name-on-positional-collection',
 			code: `a = [1 5]
 a/name`,
@@ -1104,14 +1106,14 @@ a/name`,
 					"code": ErrorCode.dereferenceFailed,
 					"endColumnIndex": 6,
 					"endRowIndex": 1,
-					"message": "Failed to dereference 'name' in type [1 5]. A name needs fields, this type has positions.",
+					"message": "Failed to dereference field 'name' in type [1 5]. A field name needs a Dictionary.",
 					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
 			],
 		},
 		{
-			// Gegenstück: ein Dictionary hat keine Positionen, der Index passt nicht zur Art.
+			// Gegenstück: ein Dictionary hat keine Positionen.
 			name: 'index-on-dictionary',
 			code: `dict = [key = 5]
 dict/1`,
@@ -1120,8 +1122,40 @@ dict/1`,
 					"code": ErrorCode.dereferenceFailed,
 					"endColumnIndex": 6,
 					"endRowIndex": 1,
-					"message": "Failed to dereference '1' in type [key: 5]. An index needs positions, this type has fields.",
+					"message": "Failed to dereference index 1 in type [key: 5]. An index needs a List.",
 					"startColumnIndex": 5,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Ein Primitive trägt weder Felder noch Positionen - dieselben beiden Meldungen greifen,
+			// ohne dass der Typ in ihnen vorkommt.
+			name: 'field-name-on-primitive',
+			code: `n = 5
+n/name`,
+			errors: [
+				{
+					"code": ErrorCode.dereferenceFailed,
+					"endColumnIndex": 6,
+					"endRowIndex": 1,
+					"message": "Failed to dereference field 'name' in type 5. A field name needs a Dictionary.",
+					"startColumnIndex": 2,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			name: 'index-on-primitive',
+			code: `n = 5
+n/1`,
+			errors: [
+				{
+					"code": ErrorCode.dereferenceFailed,
+					"endColumnIndex": 3,
+					"endRowIndex": 1,
+					"message": "Failed to dereference index 1 in type 5. An index needs a List.",
+					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
 			],
