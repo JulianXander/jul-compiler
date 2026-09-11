@@ -724,6 +724,30 @@ f = (values: List(Text)) =>
 			],
 		},
 		{
+			// Anderer Fall als oben, nicht dieselbe Ursache: first hat hier einen echten Rumpf
+			// (case 'functionLiteral' statt 'functionTypeLiteral'). assume(1 Any) inferiert Any
+			// als Rueckgabetyp, und der Any-Fallback loest den deklarierten Rueckgabetyp
+			// TypeOf(values)/ElementType schon an der Deklaration auf - mit dem dort deklarierten
+			// values: List(Any), nicht mit dem Typ am jeweiligen Aufruf. functionType.ReturnType
+			// traegt danach fest Any statt des unaufgeloesten Platzhalters, jeder Aufruf sieht
+			// also Any statt seines eigenen Elementtyps. BUG, aktuell rot: der Fehler bleibt aus.
+			name: 'generic-return-type-is-frozen-at-declaration-for-function-literal',
+			code: `first = (values: List(Any)) :> TypeOf(values)/ElementType => assume(1 Any)
+g = (n: Integer) => n
+f = (values: List(Text)) =>
+	g(values.first())`,
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nCan not assign Text to Integer.',
+					startRowIndex: 3,
+					startColumnIndex: 1,
+					endRowIndex: 3,
+					endColumnIndex: 18,
+				},
+			],
+		},
+		{
 			// Urspruenglicher Fund (Vorarbeit zu Schritt 3, Callback-Konsumstelle): derselbe Bug
 			// wie oben, hier am echten core-lib-Fall slice statt am minimalen Repro first.
 			name: 'chained-generic-call-checks-element-type',
