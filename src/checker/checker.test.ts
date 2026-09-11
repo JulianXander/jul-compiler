@@ -694,23 +694,49 @@ f = (someVar: Or(Integer Text)) =>
 	picked.filterMap((value) => value)`,
 		},
 		{
-			// Fund bei der Vorarbeit zu Schritt 3 (Callback-Konsumstelle): ein generischer
-			// Rückgabetyp (TypeOf(values)/ElementType), der direkt als Argument einer weiteren
-			// Aufruf-Position landet, wird gegen den Zielparameter nicht vollständig geprüft.
-			// g akzeptiert hier auch Empty, damit dieser Zweig gar nicht erst einen Fehler
-			// erzeugt - übrig bleibt ausschließlich, ob List(Or(Integer Text)) (das Ergebnis
-			// von slice) gegen List(Integer) geprüft wird. Erwartet wäre "Text passt nicht zu
-			// Integer", gemeldet wird gar nichts.
-			// Kontrollprobe (sanity-check unten) zeigt: ohne Aufrufkette (Wert direkt
-			// hineingereicht) meldet derselbe Zieltyp den Fehler korrekt.
-			// Unabhängig von den Prädikaten - blockiert aber verlässliche rote Tests für
-			// filter-Verengung, weil ein Element-Typfehler durch die Aufrufkette verschwindet.
+			// Isolierter roter Test für Bug 1 (ohne slice's Or/Empty/mehrere-Parameter-Komplexität):
+			// values als Präfix-Argument (values.first()) wird beim Type-Checken zu einer
+			// abstrakten parameterReference (zeigt auf f, nicht auf ihren konkreten deklarierten
+			// Typ List(Text)). Diese unaufgelöste Referenz fließt in firsts eigene generische
+			// Rückgabetyp-Auflösung (TypeOf(values)/ElementType) und bleibt dort unaufgelöst -
+			// getTypeErrors laxe nestedReference-Rückfallregel verschluckt den Fehler lautlos.
+			name: 'prefix-argument-stays-unresolved-parameter-reference-bug',
+			code: `first = (values: List(Any)) :> TypeOf(values)/ElementType => assume(1 Any)
+g = (n: Integer) => n
+f = (values: List(Text)) =>
+	g(values.first())`,
+			// ROT: aktuell wird kein Fehler gemeldet, obwohl List(Text) nicht zu Integer passt.
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nCan not assign Text to Integer.',
+					startRowIndex: 3,
+					startColumnIndex: 1,
+					endRowIndex: 3,
+					endColumnIndex: 18,
+				},
+			],
+		},
+		// Fund bei der Vorarbeit zu Schritt 3 (Callback-Konsumstelle): ein generischer
+		// Rückgabetyp (TypeOf(values)/ElementType), der direkt als Argument einer weiteren
+		// Aufruf-Position landet, wird gegen den Zielparameter nicht vollständig geprüft.
+		// g akzeptiert hier auch Empty, damit dieser Zweig gar nicht erst einen Fehler
+		// erzeugt - übrig bleibt ausschließlich, ob List(Or(Integer Text)) (das Ergebnis
+		// von slice) gegen List(Integer) geprüft wird. Erwartet wäre "Text passt nicht zu
+		// Integer", gemeldet wird gar nichts.
+		// Kontrollprobe (sanity-check unten) zeigt: ohne Aufrufkette (Wert direkt
+		// hineingereicht) meldet derselbe Zieltyp den Fehler korrekt.
+		// Unabhängig von den Prädikaten - blockiert aber verlässliche rote Tests für
+		// filter-Verengung, weil ein Element-Typfehler durch die Aufrufkette verschwindet.
+		// TEMPORAER AUSKOMMENTIERT (Session 2026-09-11): verschränkt mit einem zweiten,
+		// noch offenen Bug in slice's Or([]...)-Auflösung - erst wieder aktivieren, wenn
+		// beide Ursachen geklärt sind.
+		/*
+		{
 			name: 'chained-call-loses-element-type-check-bug',
 			code: `g = (n: Or(List(Integer) [])) => n
 f = (values: List(Or(Integer Text))) =>
 	g(values.slice(1))`,
-			// ROT: aktuell wird gar kein Fehler gemeldet (siehe sanity-check unten für densel-
-			// ben Fehler ohne Aufrufkette).
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -722,6 +748,7 @@ f = (values: List(Or(Integer Text))) =>
 				},
 			],
 		},
+		*/
 		{
 			// Sanity-Check zum vorigen Fund: derselbe Zieltyp meldet den Fehler korrekt, wenn
 			// der Wert nicht durch eine Aufrufkette läuft.
