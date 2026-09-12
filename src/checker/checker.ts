@@ -3260,16 +3260,23 @@ function withElementAtFromTypes(
 	}
 	switch (sourceType.julType) {
 		case 'empty':
-			// setElement legt die Liste erst an: übrig bleibt genau der gesetzte Wert.
-			return createCompileTimeTupleType([valueType]);
 		case 'tuple': {
+			// Empty ist ein 0-elementiges Tuple: dieselbe Positionslogik gilt für beide.
+			const existingElementTypes = sourceType.julType === 'tuple' ? sourceType.ElementTypes : [];
 			if (indexType.julType === 'integerLiteral') {
-				const elementTypes = [...sourceType.ElementTypes];
+				// Liegt die Position hinter dem bisherigen Ende, entsteht eine Lücke - das ist
+				// korrekt: getTupleTypeError2 behandelt eine fehlende Position ohnehin als Empty.
+				const elementTypes = [...existingElementTypes];
 				elementTypes[Number(indexType.value) - 1] = valueType;
 				return createCompileTimeTupleType(elementTypes);
 			}
-			// Ohne feste Position kann es jede getroffen haben.
-			return createCompileTimeTupleType(sourceType.ElementTypes.map(elementType =>
+			if (existingElementTypes.length === 0) {
+				// Ohne vorhandene Positionen UND ohne feste neue Position ist auch die Länge
+				// unbekannt - anders als unten darf hier nicht einfach über nichts gemappt werden.
+				return createCompileTimeListType(createNormalizedUnionType([{ julType: 'empty' }, valueType]));
+			}
+			// Ohne feste Position kann es jede vorhandene getroffen haben.
+			return createCompileTimeTupleType(existingElementTypes.map(elementType =>
 				createNormalizedUnionType([elementType, valueType])));
 		}
 		case 'list':
