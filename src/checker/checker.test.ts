@@ -1911,6 +1911,20 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Bug: kommt die List nicht als Parameter selbst, sondern über einen Feldzugriff
+	// (history/gameStates), bricht die Identitätserkennung weg. getLengthFromType kennt
+	// nur 'list', 'tuple', 'empty', 'or' und 'parameterReference' - ein Feldzugriff hat an
+	// dieser Stelle den Typ 'nestedReference' und fällt auf den default-Zweig zurück, der ein
+	// anonymes Integer statt eines an die Quelle gebundenen lengthOf liefert. Damit erkennt
+	// dereferenceNestedKeyFromObject den Index nicht mehr als "Länge genau dieser Quelle" und
+	// hängt fälschlich Empty an (siehe yugioh: game-logic.jul, getCurrentGameState).
+	it('last-element-via-field-access-adds-no-empty-for-list', () => {
+		const code = `f = (history: [gameStates: List(Integer)]) :> Integer =>
+	lastElement(history/gameStates)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	// getElement(values length(values)) liefert bei garantiert nicht-leerer List präzise Integer,
 	// ohne dass es dafür einen Sonderfall im Checker braucht: length(List(T)) faltet zu
 	// lengthOf(List(T)); ElementAt erkennt, dass der Index exakt die Länge derselben Quelle ist,
