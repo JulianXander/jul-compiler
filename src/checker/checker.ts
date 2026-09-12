@@ -498,6 +498,11 @@ export function dereferenceNameFromObject(
 					return sourceObjectType.ParamsType;
 				case 'ReturnType':
 					return sourceObjectType.ReturnType;
+				case 'PredicateIfTrue':
+					// Any als neutrales Element von And: ohne erkannte Prädikat-Form (kein
+					// .predicate) soll die Projektion den ElementType unverändert lassen,
+					// statt ihn fälschlich einzuschränken.
+					return sourceObjectType.predicate?.ifTrue ?? { julType: 'any' };
 				default:
 					return undefined;
 			}

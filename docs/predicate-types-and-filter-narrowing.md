@@ -8,9 +8,10 @@ Fix) - eine echte Grenze der Sprache. Dieses Dokument hält die Untersuchung fes
 ist, wie andere Sprachen damit umgehen, und was ein JUL-eigener Lösungsweg bräuchte.
 
 **Stand 2026-09-12:** der Mittelweg wird umgesetzt, in Schritten. Schritt 1 (Verengung im branch
-selbst), Schritt 2 (Abzug im false-Zweig) und Schritt 3 (Prädikat als `Type`-Wert, ohne Narrowing
-darüber) sind fertig, siehe [Umgesetzt](#umgesetzt) unten. Der auslösende `filter`-Fall ist noch
-offen.
+selbst), Schritt 2 (Abzug im false-Zweig), Schritt 3 (Prädikat als `Type`-Wert, ohne Narrowing
+darüber) und Schritt 4 (`filter` narrowt den Rückgabetyp) sind fertig, siehe
+[Umgesetzt](#umgesetzt) unten. `findFirst`, `findLast`, `exists`, `all` folgen derselben
+Projektion, sind aber noch offen.
 
 ## Die Frage: sind Prädikate nicht sowieso schon Typen?
 
@@ -262,6 +263,19 @@ Nebenbefund dabei: `createNormalizedUnionType` kollabierte `Or(true false)` bish
 als Choice dabei war). Fehlermeldungen zeigten deshalb `Or(true false)` statt `Boolean` für den
 inferierten Rückgabetyp eines Prädikats - jetzt kollabiert.
 
+**Schritt 4** (Tests `filter-narrows-element-type-through-predicate`,
+`filter-keeps-element-type-without-recognized-predicate`): die erste Callback-Konsumstelle,
+der auslösende yugioh-Fall. Neue Feld-Projektion `PredicateIfTrue` in
+`dereferenceNameFromObject` (Funktionstypen) - derselbe Mechanismus, der schon `ParamsType` und
+`ReturnType` freigibt (genutzt für `callback/ReturnType` in `map`/`filterMap`). `filter`s
+Signatur schneidet den ElementType jetzt mit `predicate/PredicateIfTrue`:
+`Or([] List(And(TypeOf(values)/ElementType predicate/PredicateIfTrue)))`. Ohne erkannte
+Prädikat-Form liefert die Projektion `Any` (neutrales Element von `And`), der ElementType bleibt
+also unverändert - kein Bruch für bestehende `filter`-Aufrufe mit beliebigen Boolean-Callbacks.
+Keine neue Typ-Position in der Sprachoberfläche, keine Scope-Erweiterung: die Projektion liest
+`.predicate` direkt vom Argument-Funktionstyp an der Aufrufstelle, genau wie die
+Branch-Verengung es schon am Typ-Kopf tut - Scope bleibt 2a.
+
 ### Bewusst noch nicht umgesetzt
 
 Alles Folgende ist erkannt und verschoben, nicht vergessen:
@@ -279,11 +293,14 @@ Alles Folgende ist erkannt und verschoben, nicht vergessen:
    Die Erkennung hängt **nicht** am deklarierten Rückgabetyp, sondern am inferierten: gemessen
    trägt der Funktionstyp `Boolean` (`(x: Any) :> Boolean`), obwohl `:> Boolean` explizit
    dasteht, die Annotation ist ohnehin optional und die Herleitung liest den Rumpf.
-3. **Die Callback-Konsumstelle** (`filter`, `findFirst`, `findLast`, `exists`, `all`) mit
-   Punkt 4 und 5 der Liste oben - der auslösende yugioh-Fall.
-4. **Welchen Parameter die Fakten meinen.** Heute implizit Argument 0, was für den Typ-Kopf
-   genau stimmt: die Laufzeit ruft ein Prädikat dort immer mit einem Wert auf, dem Element an
-   seiner Position. Ein zweistellig deklarierter Callback (`filter` nennt Element und Index)
+3. **Die übrigen Callback-Konsumstellen** (`findFirst`, `findLast`, `exists`, `all`) - dieselbe
+   `predicate/PredicateIfTrue`-Projektion aus Schritt 4, nur noch nicht in deren Signaturen
+   übernommen. `findFirst`/`findLast` profitieren genauso wie `filter` (Rückgabe-ElementType),
+   `exists`/`all` liefern `Boolean` und haben keinen ElementType zum Schneiden - dort wäre der
+   Nutzen ohnehin nur die bereits vorhandene Verengung am Aufrufort, nicht am Rückgabetyp.
+4. **Welchen Parameter die Fakten meinen.** Heute implizit Argument 0 - für `filter` & Co. ist
+   das automatisch richtig, weil sie ihr Prädikat immer zuerst mit dem Element aufrufen
+   (Index kommt an Position 1). Erst ein Callback, der das Element an anderer Stelle übergibt,
    bräuchte die Angabe explizit - TypeScript (`x is T`) und Flow (`param is Type`) benennen den
    Parameter aus genau diesem Grund. Dann bekommt `PredicateFacts` einen `parameterIndex`.
 
@@ -296,8 +313,9 @@ Alles Folgende ist erkannt und verschoben, nicht vergessen:
 - Ein enger, geprüfter Mittelweg (Branch-Narrowing über Boolean-Rückgaben hinweg tragen) ist
   machbar und baut auf vorhandener Infrastruktur auf, ist aber ein eigenständiges Feature mit
   spürbarem Umfang (neues Typfeld, neue Typ-Position, mehrere betroffene core-lib-Funktionen).
-- Er beginnt am Branching, nicht an `filter`: dieselbe Grundlage, aber ohne neue Typ-Position
-  und ohne core-lib-Änderung, also rückbaubar. Schritt 1 und 2 sind fertig.
+- Er begann am Branching, nicht an `filter` (Schritt 1/2 ohne neue Typ-Position, rückbaubar),
+  und erreicht `filter` in Schritt 4 über dieselbe Projektions-Infrastruktur, die schon
+  `callback/ReturnType` trägt - keine neue Scope-Entscheidung nötig, nur eine neue Projektion.
 - Was aus einem Prädikat folgt, sind **zwei** Mengen, nicht eine mit Komplement - beide Zweige
   brauchen eine obere Schranke, aber von komplementären Mengen.
 - Für den akuten yugioh-Fall reicht bis zur Callback-Konsumstelle `assume(...)` an der einen

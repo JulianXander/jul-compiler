@@ -795,6 +795,30 @@ useType(isLegal)`,
 			],
 		},
 		{
+			// Schritt 4 (predicate-types-and-filter-narrowing.md): der auslösende yugioh-Fall.
+			// isInteger hat die erkannte Branching-Form (PredicateFacts.ifTrue = Integer).
+			// filters Signatur soll den ElementType daher auf Integer schneiden, statt ihn
+			// unverändert als Or(Integer Text) durchzureichen.
+			name: 'filter-narrows-element-type-through-predicate',
+			code: `isInteger = (value: Any) :> Boolean =>
+	?(value)
+		[Integer] => true
+		() => false
+f = (values: List(Or(Integer Text))) :> Or([] List(Integer)) =>
+	values.filter(isInteger)`,
+			errors: [],
+		},
+		{
+			// Gegenprobe: ohne erkannte Prädikat-Form bleibt der ElementType unverändert -
+			// predicate/PredicateIfTrue muss dann neutral (Any) sein, sonst würde And(...)
+			// den ElementType fälschlich einschränken.
+			name: 'filter-keeps-element-type-without-recognized-predicate',
+			code: `isLegal = (value: Any) :> Boolean => true
+f = (values: List(Integer)) :> Or([] List(Integer)) =>
+	values.filter(isLegal)`,
+			errors: [],
+		},
+		{
 			// Ein generischer Rückgabetyp muss auch dann noch auflösbar sein, wenn der Wert
 			// vorher durch ein branching gelaufen ist. Die Union der branch Rückgabetypen
 			// enthält im rawType noch das unaufgelöste TypeOf(values)/ElementType aus slice,
