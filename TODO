@@ -38,6 +38,12 @@
  narrowing gruppiert (stand im TODO war veraltet). einzig getSpreadElementTypes war fehl am platz
  (spread-zerlegung fuer list/object-literale, kein narrowing) - in //#region Sequenz Arithmetik
  verschoben. 262 tests weiterhin gruen
+-erledigt 2026-09-12: dictionaryType-spread verlor Felder lautlos, kein Fehler. case
+ 'dictionaryType' (case 'spread') pruefte den gespreadeten Ausdruck nur auf eigene Fehler,
+ uebernahm seine Felder aber nie in fieldTypes. Fix wie bei case 'dictionary': valueOf +
+ resolvePlaceholders, isDictionaryLiteralType pruefen, Felder mergen. Roter Test
+ dictionary-type-spread-merges-fields (checker.test.ts) jetzt gruen, 262 tests weiterhin gruen.
+ docs/spread-flattening.md "Phase 2 COMPLETE" stimmt jetzt tatsaechlich
 -multiline returntype parser
 ?filter/findFirst/exists verengen den Elementtyp nicht ueber ihr Boolean-Praedikat (anders als
 	filterMap) - siehe docs/predicate-types-and-filter-narrowing.md fuer Untersuchung, Vergleich

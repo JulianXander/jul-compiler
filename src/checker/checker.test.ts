@@ -4,7 +4,7 @@ import { ParseExpression, ParseSingleDefinition } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
-import { resolvePlaceholders } from './checker.js';
+import { resolvePlaceholders, typeToString } from './checker.js';
 
 const expectedResults: {
 	name?: string;
@@ -2395,14 +2395,16 @@ f = (source: T) => [
 		}
 	});
 	it('dictionary-type-spread-merges-fields', () => {
-		// Sanity check: dictionaryType-Definitionen funktionieren
-		const code = `TargetType = [x: Integer y: Text z: Boolean]`;
+		const code = `SourceType = [x: Integer y: Text]
+TargetType = [...SourceType z: Boolean]`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
-		
-		// Hauptsache: Keine Fehler beim Parsen/Checken
-		expect(parsed.checked?.errors).to.deep.equal([],
-			`Sollte keine Fehler geben, aber bekam: ${JSON.stringify(parsed.checked?.errors)}`);
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const targetType = targetDef.value?.typeInfo?.type;
+		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
+			'TypeOf([\n  x: Integer\n  y: Text\n  z: Boolean\n])');
 	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen

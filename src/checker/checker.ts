@@ -2130,11 +2130,21 @@ function inferType(
 						fieldSymbol.typeInfo = { type: fieldType };
 						return;
 					}
-					case 'spread':
+					case 'spread': {
 						setInferredType(field.value, typeContext, parsedDocuments, folder, file, filePath);
-						// TODO spread fields flach machen
+						// resolvePlaceholders/valueOf noetig: die Quelle steht als Typausdruck
+						// (TypeOf(dictionaryLiteral)) da, nicht als Wert - dieselbe Begruendung
+						// wie beim Spread in case 'dictionary'.
+						const spreadType = field.value.typeInfo
+							&& valueOf(resolvePlaceholders(field.value.typeInfo.type));
 						// TODO error when spread list
+						if (isDictionaryLiteralType(spreadType)) {
+							for (const key in spreadType.Fields) {
+								fieldTypes[key] = spreadType.Fields[key]!;
+							}
+						}
 						return;
+					}
 					default: {
 						const assertNever: never = field;
 						throw new Error('Unexpected DictionaryType field type ' + (assertNever as ParseDictionaryTypeField).type);
