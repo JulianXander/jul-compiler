@@ -4254,16 +4254,12 @@ export function getTypeError(
 			}
 			return undefined;
 		}
-		case 'nestedReference':
-			// TODO?
-			return undefined;
-		case 'withElementAt': {
-			// Steht die Position (noch) nicht fest, bleibt setElement als WithElementAt(...)
-			// stehen (withElementAtFromTypes: Platzhalter bleibt ungefaltet, bis Source/Index
-			// feststehen) - das ist kein falscher Wert, sondern einer, der es noch werden kann.
-			// Erst per resolvePlaceholders neu falten versuchen (Source/Index könnten seither
-			// aufgelöst sein), sonst permissiv wie nestedReference/parameterReference: als
-			// Zieltyp ist withElementAt schon permissiv (siehe unten), als Argumenttyp fehlte das.
+		case 'concat': {
+			// Wie withElementAt: eine noch unaufgelöste Source (z.B. der eigene Parameter, bevor
+			// er am Aufruf substituiert wird) hält den Knoten als Concat(...) stehen
+			// (concatFromTypes: isUnresolvedPlaceholderType-Guard). Erst per resolvePlaceholders
+			// neu falten versuchen, sonst permissiv wie nestedReference - als Zieltyp ist concat
+			// schon permissiv (siehe unten), als Argumenttyp fehlte das.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
 				return getTypeError(prefixArgumentType, resolved, targetType);
@@ -4285,6 +4281,9 @@ export function getTypeError(
 			}
 			return getTypeError(prefixArgumentType, CompileTimeNonZeroInteger, targetType);
 		}
+		case 'nestedReference':
+			// TODO?
+			return undefined;
 		case 'not': {
 			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
 			// ausschließlich X-Werte zulässt (target Teilmenge von X), der Wert also garantiert
@@ -4317,6 +4316,19 @@ export function getTypeError(
 				return undefined;
 			}
 			return getTypeError(prefixArgumentType, dereferencedParameterType, targetType);
+		}
+		case 'withElementAt': {
+			// Steht die Position (noch) nicht fest, bleibt setElement als WithElementAt(...)
+			// stehen (withElementAtFromTypes: Platzhalter bleibt ungefaltet, bis Source/Index
+			// feststehen) - das ist kein falscher Wert, sondern einer, der es noch werden kann.
+			// Erst per resolvePlaceholders neu falten versuchen (Source/Index könnten seither
+			// aufgelöst sein), sonst permissiv wie nestedReference/parameterReference: als
+			// Zieltyp ist withElementAt schon permissiv (siehe unten), als Argumenttyp fehlte das.
+			const resolved = resolvePlaceholders(argumentsType);
+			if (resolved !== argumentsType) {
+				return getTypeError(prefixArgumentType, resolved, targetType);
+			}
+			return undefined;
 		}
 		default:
 			break;
