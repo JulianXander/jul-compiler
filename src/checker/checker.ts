@@ -315,10 +315,10 @@ function dereferenceNestedKeyFromObject(
 	source: CompileTimeType,
 ): CompileTimeType | undefined {
 	if (typeof nestedKey === 'string') {
-		return dereferenceNestedKeyFromObject({ julType: 'textLiteral', value: nestedKey }, source);
+		return dereferenceNestedKeyFromObject(createTextLiteral(nestedKey), source);
 	}
 	if (typeof nestedKey === 'number') {
-		return dereferenceNestedKeyFromObject({ julType: 'integerLiteral', value: BigInt(nestedKey) }, source);
+		return dereferenceNestedKeyFromObject(createIntegerLiteral(BigInt(nestedKey)), source);
 	}
 	switch (nestedKey.julType) {
 		case 'or': {
