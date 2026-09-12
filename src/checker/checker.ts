@@ -3326,6 +3326,14 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		return uniqueChoices[0]!;
 	}
 	//#endregion remove duplicates
+	//#region collapse Boolean
+	// Or(true false) => Boolean: die einzigen zwei möglichen Werte, kein Informationsverlust.
+	if (uniqueChoices.length === 2
+		&& uniqueChoices.some(choice => choice.julType === 'booleanLiteral' && choice.value === true)
+		&& uniqueChoices.some(choice => choice.julType === 'booleanLiteral' && choice.value === false)) {
+		return { julType: 'boolean' };
+	}
+	//#endregion collapse Boolean
 	//#region remove subtypes
 	// Or(Boolean False) => Boolean: ein Choice, der schon Teilmenge eines anderen ist, trägt
 	// keine zusätzliche Information mehr. Nur bis zu einer

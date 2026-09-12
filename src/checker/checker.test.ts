@@ -588,6 +588,23 @@ f = (someVar: Or(Integer Text)) =>
 		() => g(someVar)`,
 			errors: [],
 		},
+		{
+			// Phase 1a, nur Type-Akzeptanz (kein Narrowing): isInteger hat exakt die
+			// erkannte Branching-Form (siehe branch-narrowing-predicate-head) und soll dort
+			// als Type-Wert durchgehen, wo ein Type-Wert verlangt wird - hier als Argument
+			// für einen Type-Parameter. Aktuell prüft checkTypeGuardIsType nur gegen
+			// { julType: 'type' } und kennt PredicateFacts an Funktionstypen nicht, meldet
+			// also JUL5002. Narrowing über diesen Weg (z.B. useType(isInteger) als Typ-Kopf
+			// weiterverwenden) ist bewusst ein späterer Schritt.
+			name: 'predicate-assignable-to-type-1a',
+			code: `isInteger = (x: Any) :> Boolean =>
+	?(x)
+		[Integer] => true
+		() => false
+useType = (t: Type) => t
+useType(isInteger)`,
+			errors: [],
+		},
 		//#endregion branching: Verengung
 
 		//#region branching: Erreichbarkeit

@@ -1,3 +1,3 @@
 inferType: 1973
 resolvePlaceholders: 3304
-getTypeError: 1962
+getTypeError: 1940
