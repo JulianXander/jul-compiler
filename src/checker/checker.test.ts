@@ -1271,6 +1271,29 @@ y: Or([] Integer) = f([1])`,
 			code: `second = (values: List(Any)) :> ElementAt(TypeOf(values) 2) => values.getElement(2)
 y: Text = [1 §a§].second()`,
 		},
+		{
+			// Ein Spread im Literal setzt die Folgen schon heute genau zusammen ([...a ...b] auf
+			// zwei Tupeln ergibt deren Aneinanderreihung). Diese Faltung ist von einer
+			// Deklaration aus aber nicht erreichbar - Concat gibt ihr einen Namen.
+			name: 'concat-in-type-position',
+			code: `x: Concat([Integer Text] [Boolean]) = [1 §a§ true]`,
+		},
+		{
+			// Der eigentliche Fund: über die Funktionsgrenze geht die Zusammensetzung verloren.
+			// Der Rumpf wird einmal mit den deklarierten Parametertypen inferiert, hier also zu
+			// List(Any); nur ein deklarierter Rückgabetyp aus aufschiebbaren Konstruktoren wird
+			// je Aufruf neu aufgelöst.
+			name: 'concat-in-user-function',
+			code: `myConcat = (a: List(Any) b: List(Any)) :> Concat(TypeOf(a) TypeOf(b)) => [...a ...b]
+y: [Integer Text Boolean] = myConcat([1 §a§] [true])`,
+		},
+		{
+			// Gegenprobe: bei Listen steht die Länge nicht fest, also bleibt nur eine List -
+			// aber eine nicht-leere, denn beide Teile sind es.
+			name: 'concat-of-lists-keeps-element-types',
+			code: `f = (a: List(Integer) b: List(Text)) :> Concat(TypeOf(a) TypeOf(b)) => [...a ...b]
+y: List(Or(Integer Text)) = f([1] [§a§])`,
+		},
 		//#endregion Zugriffstypen
 		//#region Aufruf
 		{

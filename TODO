@@ -1,14 +1,27 @@
--untersuchen: getTypeError +64% durch aufschiebbare typkonstruktor-knoten
-	-gemessen beim WithElementAt-umbau (yugioh, 5848 zeilen): getTypeError 569k -> 935k,
-	 resolvePlaceholders 5,29 -> 5,54 mio; laufzeit dagegen nur +1 bis +3%, also im rauschen
-	-verdacht 1: die faltung baut normalisierte unions, und deren teilmengen-elimination
-	 in createNormalizedUnionType ruft getTypeError
-	-verdacht 2: ein aufschiebbarer knoten wird mehrfach gefaltet statt einmal am aufruf -
-	 konstruktor-case, resolvePlaceholders und dereferenceArgumentTypesNested falten alle neu
-	-die zeit traegt es nur, weil die zusatzaufrufe frueh zurueckkehren. mit Range und evtl.
-	 fill kommen zwei weitere aufschiebbare formen dazu, dann gilt das nicht mehr automatisch
-	-profil statt raten: node --cpu-prof --cpu-prof-dir=. --import tsx <skript>
-	-vgl. docs/type-level-sequence-algebra.md, abschnitt Offen
+?getTypeError +51% durch aufschiebbare typkonstruktor-knoten - untersucht, keine billige abhilfe
+	-gemessen mit temporaeren zaehlern, einzeldurchlauf yugioh, setElement-deklaration einmal mit
+	 WithElementAt und einmal mit List(Or(...)) - sonst identischer stand:
+	 getTypeError 200709 vs 133003, resolvePlaceholders 1251889 vs 1193134, zeit ~+2%
+	-WIDERLEGT: teilmengen-elimination in createNormalizedUnionType. sie erklaert nur 2074 der
+	 67706 zusaetzlichen aufrufe
+	-WIDERLEGT: mehrfachfaltung. aufschluesselung der 1009 faltungen ergab 18 aus der
+	 argument-substitution (je aufrufstelle genau eine, also noetig), 237 aus resolvePlaceholders,
+	 754 rekursiv aus der Or-verteilung. die 237 sind zu wenige fuer den zuwachs
+	-WIDERLEGT: tiefere rekursion. max tiefe 17 in beiden staenden, einstiege ueber
+	 areArgsAssignableTo nur +1% (15933 vs 15753)
+	-tatsaechliche ursache: die typen werden BREITER, nicht tiefer. der knoten meldet
+	 isUnresolvedPlaceholderType = true, dadurch loest jeder konsument zusaetzlich auf
+	 (resolvePlaceholders steigt fast 1:1 mit getTypeError), und die ergebnistypen haben mehr
+	 choices, die je pruefung durchlaufen werden. das ist dieselbe falle wie in
+	 docs/CHECKER-AUDIT.md unter "Fallen im Checker" (praeziserer typ = teurer), nur milder
+	-probe gemacht und verworfen: Empty-zweig als List(value) statt [value] sollte die union
+	 kollabieren lassen. bringt nichts (200556 statt 200709), weil removeSubtypes choices mit
+	 platzhaltern gar nicht erst verwirft
+	-einzige verbliebene idee: das ergebnis von resolvePlaceholders je knoten merken. riskant,
+	 weil functionType.ParamsType waehrend des checkens noch mutiert wird - ein zu frueh
+	 gecachter wert waere falsch
+	-bewertung: inhaerenter preis der aufgeschobenen praezision, kein fehler. zeitwirkung ~2%,
+	 weit unter jeder schwelle. nicht weiter verfolgen, solange die zeit nicht auffaellt
 -refactor: NarrowedTypes, AccessPath und alle narrowing-helfer vor TypeContext/inferFileTypes gruppieren
 	-heute: NarrowedTypes (Zeile 1007), dann 50+ Zeilen code, dann TypeContext (1084)
 	-gehören alle in //#region branch narrowing zusammen (Konzept Narrowing vs Konzept Typinferenz)

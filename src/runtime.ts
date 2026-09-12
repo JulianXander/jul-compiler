@@ -1401,6 +1401,18 @@ _createFunction(
 		]
 	}
 );
+export const Concat = (...sources: any[]): RuntimeType => {
+	// Diese Funktion wird zur Laufzeit nie aufgerufen — Concat ist eine
+	// rein semantische Typ-Konstruktorfunktion für den Checker.
+	// Sie ist nur hier definiert, um eine gültige nativeFunction zu haben.
+	throw new Error('Concat() is only for type-level computation and should never be called at runtime');
+};
+_createFunction(
+	Concat,
+	{
+		rest: { type: Type },
+	}
+);
 export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {

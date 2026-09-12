@@ -610,6 +610,7 @@ export type CompileTimeType =
 	| CompileTimeWithElementAtType
 	| CompileTimeRangeType
 	| CompileTimeTupleOfType
+	| CompileTimeConcatType
 	| CompileTimeListType
 	| CompileTimeTupleType
 	| CompileTimeDictionaryType
@@ -824,6 +825,25 @@ export function createCompileTimeTupleOfType(
 		julType: 'tupleOf',
 		Count: Count,
 		ElementType: ElementType,
+	};
+}
+
+/**
+ * Die Aneinanderreihung mehrerer Quellen. Sind alle Quellen konkrete Tupel, wird das Ergebnis
+ * ein Tuple ihrer Aneinanderreihung. Enthält eine Quelle eine List, bleibt nur List(Union der
+ * Elementtypen). Empty bleibt immer Empty.
+ */
+export interface CompileTimeConcatType extends CompileTimeTypeBase {
+	readonly julType: 'concat';
+	Sources: CompileTimeType[];
+}
+
+export function createCompileTimeConcatType(
+	Sources: CompileTimeType[],
+): CompileTimeConcatType {
+	return {
+		julType: 'concat',
+		Sources: Sources,
 	};
 }
 

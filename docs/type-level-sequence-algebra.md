@@ -158,8 +158,11 @@ auflösen kann, verschwindet die Prüfung lautlos — zweimal beim Bau passiert:
   Betrifft den Folgen-Schlüssel und `Range` unmittelbar und ist seit der Einführung von `ElementAt`
   offen.
 - **Performance.** Gemessen je Schritt (yugioh, 5848 Zeilen). `WithElementAt`: Laufzeit im Rauschen
-  (+1 bis +3 %), aber `getTypeError` von 569k auf 935k Aufrufe (+64 %) und `resolvePlaceholders` von
-  5,29 auf 5,54 Mio (+5 %). Ursache ist die Faltung selbst: sie baut normalisierte Unions, und deren
-  Teilmengen-Elimination ruft `getTypeError`. `Range` und `TupleOf` zusammen kosteten dagegen nichts
-  mehr — Laufzeit +1 %, `resolvePlaceholders` leicht gefallen, `getTypeError` unverändert. Der
-  Zuwachs hängt also nicht an der Zahl aufschiebbarer Formen. Untersuchung im TODO.
+  (+1 bis +3 %), aber `getTypeError` rund +50 %. `Range` und `TupleOf` zusammen kosteten dagegen
+  nichts mehr — Laufzeit +1 %, `resolvePlaceholders` leicht gefallen, `getTypeError` unverändert.
+  Der Zuwachs hängt also nicht an der Zahl aufschiebbarer Formen.
+  Nachträglich untersucht (Zähler-Instrumentierung, Vorher/Nachher unter einer Harness): Ursache
+  ist nicht die Teilmengen-Elimination, nicht Mehrfachfaltung und nicht tiefere Rekursion, sondern
+  dass ein aufschiebbarer Knoten als unaufgelöst gilt — jeder Konsument löst zusätzlich auf, und
+  die Ergebnistypen haben mehr Choices. Inhärenter Preis der aufgeschobenen Präzision. Zahlen und
+  widerlegte Hypothesen im TODO.

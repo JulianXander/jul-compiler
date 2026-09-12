@@ -1,6 +1,7 @@
 import { join } from 'path';
 import {
 	BracketedExpression,
+	CompileTimeConcatType,
 	CompileTimeCollection,
 	CompileTimeComplementType,
 	CompileTimeDictionary,
@@ -15,6 +16,7 @@ import {
 	CompileTimeType,
 	CompileTimeTypeOfType,
 	CompileTimeUnionType,
+	createCompileTimeConcatType,
 	createCompileTimeComplementType,
 	createCompileTimeDictionaryLiteralType,
 	createCompileTimeDictionaryType,
@@ -820,6 +822,15 @@ function dereferenceArgumentTypesNested(
 			}
 			// Neu falten, nicht neu einpacken: steht die Anzahl jetzt fest, ist es ein Tuple.
 			return tupleOfFromTypes(dereferencedCount, dereferencedElement);
+		}
+		case 'concat': {
+			const rawSources = typeToDereference.Sources;
+			const dereferencedSources = rawSources.map(source =>
+				dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, source));
+			if (rawSources.every((source, i) => source === dereferencedSources[i])) {
+				return typeToDereference;
+			}
+			return concatFromTypes(dereferencedSources);
 		}
 		// TODO
 		case 'dictionaryLiteral':
@@ -2342,7 +2353,12 @@ function inferType(
 						},
 					});
 				}
-				else if (inferredReturnType.julType === 'any') {
+				else if (inferredReturnType.julType === 'any'
+					|| isUnresolvedPlaceholderType(rawDeclaredReturnType)) {
+					// Any: kein body-Typ bekannt, deklarierter Typ ist die einzige Information.
+					// Platzhalter: der deklarierte Typ referenziert eigene Parameter (z.B.
+					// Concat(TypeOf(a) TypeOf(b))) und muss je Aufruf neu aufgeloest werden - der
+					// body-Typ waere nur die an der Deklaration sichtbare, fest verdrahtete Instanz.
 					returnType = rawDeclaredReturnType;
 				}
 			}
@@ -2822,6 +2838,14 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(
 					tupleOfFromTypes(valueOf(countType), valueOf(elementType)));
 			}
+			case 'Concat': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				if (!argTypes) {
+					return { julType: 'any' };
+				}
+				return createCompileTimeTypeOfType(
+					concatFromTypes(argTypes.map(valueOf)));
+			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
@@ -2994,6 +3018,44 @@ function tupleOfFromTypes(
 	}
 }
 
+/**
+ * Die Aneinanderreihung mehrerer Quellen. Sind alle Quellen konkrete Tupel, wird das Ergebnis
+ * ihr Tuple; hat eine Quelle eine List, Union der Elementtypen als List; bei unaufgelösten
+ * Quellen aufschieben.
+ */
+function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
+	if (sourceTypes.some(isUnresolvedPlaceholderType)) {
+		return createCompileTimeConcatType(sourceTypes);
+	}
+	const elementTypes: CompileTimeType[] = [];
+	let hasListSource = false;
+	for (const rawSource of sourceTypes) {
+		// TypeOf(X) faellt hier zu X, sonst wuerde z.B. Concat(TypeOf(a) TypeOf(b)) nie greifen.
+		const source = valueOf(rawSource);
+		if (source.julType === 'empty') {
+			continue;
+		}
+		if (source.julType === 'tuple') {
+			elementTypes.push(...source.ElementTypes);
+		} else if (source.julType === 'list') {
+			// Über eine List-Quelle ist die Länge unbekannt, das Ergebnis bleibt List.
+			hasListSource = true;
+			elementTypes.push(source.ElementType);
+		} else {
+			// Unknown: nicht entscheidbar, bleibt aufschiebbar.
+			return createCompileTimeConcatType(sourceTypes);
+		}
+	}
+	if (hasListSource) {
+		return elementTypes.length
+			? createCompileTimeListType(createNormalizedUnionType(elementTypes))
+			: createCompileTimeListType({ julType: 'never' });
+	}
+	return elementTypes.length
+		? createCompileTimeTupleType(elementTypes)
+		: { julType: 'empty' };
+}
+
 function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
 	if (!argType) {
 		// TODO non negative
@@ -3093,6 +3155,8 @@ function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
 			return isUnresolvedPlaceholderType(type.Start) || isUnresolvedPlaceholderType(type.End);
 		case 'tupleOf':
 			return true;
+		case 'concat':
+			return type.Sources.some(isUnresolvedPlaceholderType);
 		case 'and':
 		case 'or':
 			return type.ChoiceTypes.some(isUnresolvedPlaceholderType);
@@ -3612,6 +3676,10 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 			return second.julType === 'tupleOf'
 				&& typeEquals(first.Count, second.Count)
 				&& typeEquals(first.ElementType, second.ElementType);
+		case 'concat':
+			return second.julType === 'concat'
+				&& first.Sources.length === second.Sources.length
+				&& first.Sources.every((source, i) => typeEquals(source, second.Sources[i]!));
 		case 'tuple':
 			return second.julType === 'tuple'
 				&& first.ElementTypes.length === second.ElementTypes.length
@@ -4426,6 +4494,9 @@ export function getTypeError(
 		case 'tupleOf':
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference.
 			return undefined;
+		case 'concat':
+			// Ungefaltete Konkatenation: permissiv wie nestedReference.
+			return undefined;
 		default: {
 			const assertNever: never = targetType;
 			throw new Error(`Unexpected targetType.type: ${(assertNever as CompileTimeType).julType}`);
@@ -4920,6 +4991,9 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return `Range(${typeToString(type.Start, indent, depth + 1, suppressAlias)} ${typeToString(type.End, indent, depth + 1, suppressAlias)})`;
 		case 'tupleOf':
 			return `TupleOf(${typeToString(type.Count, indent, depth + 1, suppressAlias)} ${typeToString(type.ElementType, indent, depth + 1, suppressAlias)})`;
+		case 'concat':
+			return `Concat(${type.Sources.map((source, i) =>
+				i > 0 ? ' ' + typeToString(source, indent, depth + 1, suppressAlias) : typeToString(source, indent, depth + 1, suppressAlias)).join('')})`;
 		case 'type':
 			return 'Type';
 		case 'typeOf':

@@ -207,6 +207,18 @@ TupleOf = nativeFunction(
 		(count, ElementType) => TupleOf(count, ElementType)
 	§
 )
+# Die Aneinanderreihung mehrerer Quellen.
+# Sind alle Quellen Tupel, das Ergebnis ihre Verkettung.
+# Hat eine Quelle eine List, das Ergebnis List(Union der Elementtypen).
+Concat = nativeFunction(
+	(
+		...sources: List(Type)
+	) :> Type
+	true
+	§js
+		(...sources) => Concat(...sources)
+	§
+)
 #endregion sequence arithmetic
 # Function = nativeFunction(
 # 	# TODO?
