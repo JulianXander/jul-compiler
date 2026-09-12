@@ -34,11 +34,10 @@
   aufgeloest) und einen default-fallback statt exhaustivem switch - beides nachgezogen
  -offen: praefix-argument (values.getElement(2)) und index/namenszugriff (values/2) noch eager.
   kein akuter leidensdruck, annotation funktioniert schon heute
--refactor: NarrowedTypes, AccessPath und alle narrowing-helfer vor TypeContext/inferFileTypes gruppieren
-	-heute: NarrowedTypes (Zeile 1007), dann 50+ Zeilen code, dann TypeContext (1084)
-	-gehören alle in //#region branch narrowing zusammen (Konzept Narrowing vs Konzept Typinferenz)
-	-risiko gering, aber umbau: ~200 zeilen code verschieben, regionsgrenzen neu setzen
-	-aufgabe für später, wenn ohnehin an checker-organisation gearbeitet wird
+-erledigt 2026-09-12: NarrowedTypes/AccessPath/narrowing-helfer waren schon in //#region branch
+ narrowing gruppiert (stand im TODO war veraltet). einzig getSpreadElementTypes war fehl am platz
+ (spread-zerlegung fuer list/object-literale, kein narrowing) - in //#region Sequenz Arithmetik
+ verschoben. 262 tests weiterhin gruen
 -multiline returntype parser
 ?filter/findFirst/exists verengen den Elementtyp nicht ueber ihr Boolean-Praedikat (anders als
 	filterMap) - siehe docs/predicate-types-and-filter-narrowing.md fuer Untersuchung, Vergleich
