@@ -670,7 +670,7 @@ findFirst = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> Or([] TypeOf(values)/ElementType)
+	) :> Or([] And(TypeOf(values)/ElementType predicate/PredicateIfTrue))
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -689,7 +689,7 @@ findLast = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> Or([] TypeOf(values)/ElementType)
+	) :> Or([] And(TypeOf(values)/ElementType predicate/PredicateIfTrue))
 	# TODO pure wenn die args pure sind
 	false
 	§js

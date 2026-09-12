@@ -832,6 +832,17 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 			errors: [],
 		},
 		{
+			// findLast hat denselben Fix und dasselbe Narrowing wie findFirst.
+			name: 'find-last-narrows-element-type-through-predicate',
+			code: `isInteger = (value: Any) :> Boolean =>
+	?(value)
+		[Integer] => true
+		() => false
+f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
+	values.findLast(isInteger)`,
+			errors: [],
+		},
+		{
 			// Ein generischer Rückgabetyp muss auch dann noch auflösbar sein, wenn der Wert
 			// vorher durch ein branching gelaufen ist. Die Union der branch Rückgabetypen
 			// enthält im rawType noch das unaufgelöste TypeOf(values)/ElementType aus slice,
