@@ -67,6 +67,7 @@ TypeOf = nativeFunction(
 		value => new TypeOfType(value)
 	§
 )
+#region sequence arithmetic
 # Der Typ an Position index.
 # Empty, wenn die Position nachweislich nicht existiert; die Vereinigung aller Positionen,
 # wenn der Index nicht feststeht.
@@ -82,8 +83,7 @@ ElementAt = nativeFunction(
 	§
 )
 # Die Anzahl der Elemente von Source.
-# Bei bekannter Länge ein Literal, bei einer List die Länge genau dieser Quelle - daran
-# erkennt ElementAt, dass so ein Index nie danebenliegt.
+# 0 bei Empty.
 LengthOf = nativeFunction(
 	(
 		Source: Type
@@ -107,6 +107,7 @@ WithElementAt = nativeFunction(
 		(Source, index, Value) => WithElementAt(Source, index, Value)
 	§
 )
+#endregion sequence arithmetic
 # The type that only contains the empty literal ().
 Empty = nativeValue(§Empty§)
 # true or false
