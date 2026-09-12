@@ -9,6 +9,7 @@ import {
 	CompileTimeFunctionType,
 	CompileTimeGreaterType,
 	CompileTimeListType,
+	CompileTimeRangeType,
 	CompileTimeStreamType,
 	CompileTimeTupleType,
 	CompileTimeType,
@@ -21,8 +22,10 @@ import {
 	createCompileTimeGreaterType,
 	createCompileTimeLengthOfType,
 	createCompileTimeListType,
+	createCompileTimeRangeType,
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
+	createCompileTimeTupleOfType,
 	createCompileTimeTypeOfType,
 	createCompileTimeWithElementAtType,
 	createNestedReference,
@@ -337,6 +340,8 @@ function dereferenceNestedKeyFromObject(
 			}
 			return dereferenceUnknownKeyFromObject(nestedKey, source);
 		}
+		case 'range':
+			return dereferenceRangeFromObject(nestedKey, source);
 		default:
 			// Ein Platzhalter kann sich noch zu einem Literal auflösen, der Knoten bleibt also
 			// stehen. Nur ein aufgelöster, aber unbestimmter Schlüssel (PositiveInteger, Any)
@@ -793,6 +798,29 @@ function dereferenceArgumentTypesNested(
 			// konkretes Tuple.
 			return withElementAtFromTypes(dereferencedSource, dereferencedIndex, dereferencedValue);
 		}
+		case 'range': {
+			const rawStart = typeToDereference.Start;
+			const rawEnd = typeToDereference.End;
+			const dereferencedStart = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawStart);
+			const dereferencedEnd = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawEnd);
+			if (dereferencedStart === rawStart
+				&& dereferencedEnd === rawEnd) {
+				return typeToDereference;
+			}
+			return createCompileTimeRangeType(dereferencedStart, dereferencedEnd);
+		}
+		case 'tupleOf': {
+			const rawCount = typeToDereference.Count;
+			const rawElement = typeToDereference.ElementType;
+			const dereferencedCount = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawCount);
+			const dereferencedElement = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawElement);
+			if (dereferencedCount === rawCount
+				&& dereferencedElement === rawElement) {
+				return typeToDereference;
+			}
+			// Neu falten, nicht neu einpacken: steht die Anzahl jetzt fest, ist es ein Tuple.
+			return tupleOfFromTypes(dereferencedCount, dereferencedElement);
+		}
 		// TODO
 		case 'dictionaryLiteral':
 		case 'function':
@@ -1060,6 +1088,29 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			}
 			// Neu falten statt neu einpacken, sonst bleibt der Knoten trotz aufgeloester Teile stehen.
 			return withElementAtFromTypes(dereferencedSource, dereferencedIndex, dereferencedValue);
+		}
+		case 'range': {
+			const rawStart = rawType.Start;
+			const rawEnd = rawType.End;
+			const dereferencedStart = resolvePlaceholders(rawStart);
+			const dereferencedEnd = resolvePlaceholders(rawEnd);
+			if (dereferencedStart === rawStart
+				&& dereferencedEnd === rawEnd) {
+				return rawType;
+			}
+			return createCompileTimeRangeType(dereferencedStart, dereferencedEnd);
+		}
+		case 'tupleOf': {
+			const rawCount = rawType.Count;
+			const rawElement = rawType.ElementType;
+			const dereferencedCount = resolvePlaceholders(rawCount);
+			const dereferencedElement = resolvePlaceholders(rawElement);
+			if (dereferencedCount === rawCount
+				&& dereferencedElement === rawElement) {
+				return rawType;
+			}
+			// Neu falten statt neu einpacken.
+			return tupleOfFromTypes(dereferencedCount, dereferencedElement);
 		}
 		default:
 			return rawType;
@@ -2710,22 +2761,6 @@ function getReturnTypeFromFunctionCall(
 					? lastExpression.typeInfo.type
 					: { julType: 'any' };
 			}
-			case 'map': {
-				// map bildet elementweise ab, die Länge bleibt also erhalten. Nur beim Tuple
-				// ist das genauer als der deklarierte Typ, sonst trägt die Deklaration.
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const valuesType = argTypes?.length
-					? resolvePlaceholders(argTypes[0]!)
-					: undefined;
-				if (valuesType?.julType !== 'tuple') {
-					break;
-				}
-				const callbackType = argTypes?.[1];
-				const elementType: CompileTimeType = isFunctionType(callbackType)
-					? callbackType.ReturnType
-					: { julType: 'any' };
-				return createCompileTimeTupleType(valuesType.ElementTypes.map(() => elementType));
-			}
 			case 'And': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
@@ -2765,6 +2800,27 @@ function getReturnTypeFromFunctionCall(
 				}
 				return createCompileTimeTypeOfType(
 					withElementAtFromTypes(valueOf(sourceType), valueOf(indexType), valueOf(valueType)));
+			}
+			case 'Range': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const startType = argTypes?.[0];
+				if (!startType) {
+					return { julType: 'any' };
+				}
+				const endType = argTypes?.[1] ?? { julType: 'empty' } as CompileTimeType;
+				return createCompileTimeTypeOfType(
+					createCompileTimeRangeType(valueOf(startType), valueOf(endType)));
+			}
+			case 'TupleOf': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const countType = argTypes?.[0];
+				const elementType = argTypes?.[1];
+				if (!countType
+					|| !elementType) {
+					return { julType: 'any' };
+				}
+				return createCompileTimeTypeOfType(
+					tupleOfFromTypes(valueOf(countType), valueOf(elementType)));
 			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
@@ -2818,6 +2874,120 @@ function getReturnTypeFromFunctionCall(
 	}
 	const functionType = functionExpression.typeInfo;
 	return getReturnTypeFromFunctionType(functionType);
+}
+
+/**
+ * Die Teilfolge der Quelle zwischen den Bereichsgrenzen. Bei bekannter Länge und literalen
+ * Grenzen ein Tuple der getroffenen Positionen, sonst eine List - mit Empty, solange nicht
+ * feststeht, dass der Bereich mindestens eine Position trifft.
+ */
+function dereferenceRangeFromObject(
+	range: CompileTimeRangeType,
+	source: CompileTimeType,
+): CompileTimeType | undefined {
+	if (isUnresolvedPlaceholderType(source)) {
+		return createNestedReference(source, range);
+	}
+	// Steht die Quelle fest, müssen die Grenzen jetzt entschieden werden. Ein weggelassenes
+	// optionales Argument bleibt sonst für immer parameterReference, der Knoten bliebe stehen -
+	// und ein stehengebliebener Knoten wird permissiv geprüft, der Fehler verschwände lautlos.
+	const start = resolvePlaceholders(range.Start);
+	const end = resolvePlaceholders(range.End);
+	switch (source.julType) {
+		case 'empty':
+			return { julType: 'empty' };
+		case 'or': {
+			const choices = source.ChoiceTypes
+				.map(choice => dereferenceRangeFromObject(range, choice))
+				.filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(choices);
+		}
+		case 'tuple': {
+			if (start.julType !== 'integerLiteral') {
+				break;
+			}
+			const length = source.ElementTypes.length;
+			const from = Number(start.value);
+			const to = end.julType === 'empty'
+				? length
+				: end.julType === 'integerLiteral'
+					? Number(end.value)
+					: undefined;
+			if (to === undefined) {
+				break;
+			}
+			// Die Laufzeit schneidet an den Rändern ab, statt zu melden.
+			const clampedFrom = Math.max(from, 1);
+			const clampedTo = Math.min(to, length);
+			if (clampedFrom > clampedTo) {
+				return { julType: 'empty' };
+			}
+			return createCompileTimeTupleType(source.ElementTypes.slice(clampedFrom - 1, clampedTo));
+		}
+		case 'list': {
+			const sliced = createCompileTimeListType(source.ElementType);
+			return rangeCoversFirstPosition(start, end)
+				? sliced
+				: createNormalizedUnionType([{ julType: 'empty' }, sliced]);
+		}
+		default:
+			break;
+	}
+	return dereferenceUnknownKeyFromObject(range, source);
+}
+
+/**
+ * Trifft der Bereich garantiert mindestens eine Position? Nur dann darf Empty entfallen.
+ * Beweisbar, wenn er bei 1 beginnt und bis zum Ende läuft - offen geschrieben oder über die
+ * Länge einer Quelle, die selbst nie Empty ist (siehe getLengthFromType).
+ */
+function rangeCoversFirstPosition(start: CompileTimeType, end: CompileTimeType): boolean {
+	if (start.julType !== 'integerLiteral'
+		|| start.value !== 1n) {
+		return false;
+	}
+	switch (end.julType) {
+		case 'empty':
+		case 'lengthOf':
+			return true;
+		case 'integerLiteral':
+			return end.value >= 1n;
+		default:
+			return false;
+	}
+}
+
+/**
+ * Count Positionen vom Typ ElementType. Nur bei literalem Count steht die Laenge fest und das
+ * Ergebnis ist ein Tuple; sonst bleibt nur "eine Liste davon".
+ */
+function tupleOfFromTypes(
+	countType: CompileTimeType,
+	elementType: CompileTimeType,
+): CompileTimeType {
+	// Eine Laenge ueber einer noch offenen Quelle kann sich zum Literal auflösen (Tuple), eine
+	// ueber einer bekannten List dagegen nie - nur im ersten Fall lohnt das Warten.
+	const countCanBecomeLiteral = isUnresolvedPlaceholderType(countType)
+		|| (countType.julType === 'lengthOf' && isUnresolvedPlaceholderType(countType.Source));
+	if (countCanBecomeLiteral) {
+		return createCompileTimeTupleOfType(countType, elementType);
+	}
+	switch (countType.julType) {
+		case 'integerLiteral': {
+			const count = Number(countType.value);
+			if (count < 1) {
+				return { julType: 'empty' };
+			}
+			return createCompileTimeTupleType(new Array(count).fill(elementType));
+		}
+		case 'or': {
+			const countChoices = countType.ChoiceTypes.map(countChoice =>
+				tupleOfFromTypes(countChoice, elementType));
+			return createNormalizedUnionType(countChoices);
+		}
+		default:
+			return createCompileTimeListType(elementType);
+	}
 }
 
 function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
@@ -2914,6 +3084,10 @@ function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
 		case 'nestedReference':
 		// Der Knoten entsteht nur, wenn die Faltung nicht durchkam - er wartet also noch.
 		case 'withElementAt':
+			return true;
+		case 'range':
+			return isUnresolvedPlaceholderType(type.Start) || isUnresolvedPlaceholderType(type.End);
+		case 'tupleOf':
 			return true;
 		case 'and':
 		case 'or':
@@ -3426,6 +3600,14 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 				&& typeEquals(first.Source, second.Source)
 				&& typeEquals(first.Index, second.Index)
 				&& typeEquals(first.Value, second.Value);
+		case 'range':
+			return second.julType === 'range'
+				&& typeEquals(first.Start, second.Start)
+				&& typeEquals(first.End, second.End);
+		case 'tupleOf':
+			return second.julType === 'tupleOf'
+				&& typeEquals(first.Count, second.Count)
+				&& typeEquals(first.ElementType, second.ElementType);
 		case 'tuple':
 			return second.julType === 'tuple'
 				&& first.ElementTypes.length === second.ElementTypes.length
@@ -4234,6 +4416,12 @@ export function getTypeError(
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference, sonst
 			// entstuenden Fehler an einem Typ, der noch gar nicht feststeht.
 			return undefined;
+		case 'range':
+			// Nur als Schluessel sinnvoll, nie als Zieltyp einer Zuweisung.
+			return undefined;
+		case 'tupleOf':
+			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference.
+			return undefined;
 		default: {
 			const assertNever: never = targetType;
 			throw new Error(`Unexpected targetType.type: ${(assertNever as CompileTimeType).julType}`);
@@ -4724,6 +4912,10 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return arrayTypeToString(type.ElementTypes, indent, depth + 1, suppressAlias);
 		case 'withElementAt':
 			return `WithElementAt(${typeToString(type.Source, indent, depth + 1, suppressAlias)} ${typeToString(type.Index, indent, depth + 1, suppressAlias)} ${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
+		case 'range':
+			return `Range(${typeToString(type.Start, indent, depth + 1, suppressAlias)} ${typeToString(type.End, indent, depth + 1, suppressAlias)})`;
+		case 'tupleOf':
+			return `TupleOf(${typeToString(type.Count, indent, depth + 1, suppressAlias)} ${typeToString(type.ElementType, indent, depth + 1, suppressAlias)})`;
 		case 'type':
 			return 'Type';
 		case 'typeOf':

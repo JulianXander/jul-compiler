@@ -25,15 +25,13 @@ gültig, die Aufzählung wird hier korrigiert.
 
 | Operation | Konstruktor | Werte-Builtin | Stand |
 |---|---|---|---|
-| lesen an Position, und Teilfolge | `ElementAt(Source key)` | `getElement`, `lastElement`, `slice` | teilweise |
+| lesen an Position, und Teilfolge | `ElementAt(Source key)` | `getElement`, `lastElement`, `slice` | fertig |
 | Länge | `LengthOf(Source)` | `length` | fertig |
-| schreiben an Position | `WithElementAt(Source index value)` | `setElement` | offen |
-| füllen (N × T) | `TupleOf(count elementType)` | `map` | offen, evtl. ableitbar |
+| schreiben an Position | `WithElementAt(Source index value)` | `setElement` | fertig |
+| füllen (N × T) | `TupleOf(count elementType)` | `map` | fertig |
 
 Lesen und Teilfolge sind **ein** Konstruktor: die Ergebnisform folgt der Schlüsselform (siehe
 unten). Ein eigenes `ElementsAt` wäre Redundanz.
-
-Ob `TupleOf` überhaupt nötig ist, steht unter [Ableitbarkeit](#ableitbarkeit-von-tupleof).
 
 ## Darstellung
 
@@ -96,38 +94,37 @@ gelten heute schon (`dereferenceNestedKeyFromObject`); neu ist nur die dritte.
 `start > end` ergibt `Empty`. Zur Deklarationszeit sind `start`/`end` `parameterReference`s und
 können nie falten — `Range` muss deshalb aufschiebbar sein.
 
-## Ableitbarkeit von `TupleOf`
+## Ableitbarkeit von `TupleOf`: geprüft und verworfen
 
-„N Kopien von T" ist dasselbe wie „die Positionen 1..N von `List(T)`", denn jede Position einer
-`List(T)` hat den Typ `T`:
+Naheliegend wäre, `TupleOf` über den Folgen-Schlüssel auszudrücken — „N Kopien von T" als „die
+Positionen 1..N von `List(T)`":
 
 ```
-TupleOf(N T)  ≡  ElementAt(List(T) Range(1 N))
+TupleOf(N T)  ≟  ElementAt(List(T) Range(1 N))
 ```
 
-Damit wäre `TupleOf` überflüssig. Zwei Dinge sprechen dagegen, das sofort festzulegen:
+**Das trägt nicht.** `List(T)` heißt „ein oder mehr T", die Länge steht nicht fest. `Range(1 N)`
+wählt daher *höchstens* N Positionen aus — ob Position N existiert, ist unbekannt. Das Ergebnis ist
+korrekt `List(T)` und nicht `[T … T]`.
 
-- **Lesbarkeit.** Die Absicht „`map` erhält die Länge" verschwindet hinter einer Konstruktion, die
-  man erst rückübersetzen muss. Ein abgeleitetes `TupleOf` in core-lib hilft nicht: Typkonstruktoren
-  deklarieren `:> Type`, die Faltung steckt im Checker — eine abgeleitete Deklaration liefert keine
-  Kompilierzeit-Präzision.
-- **Die Empty-Frage wird subtiler.** Derselbe Ausdruck muss zwei Ergebnisse liefern: bei `slice`
-  (freie Grenzen) kann die Auswahl leer sein, bei `map` (`Range(1 length(values))`) nicht. Das ist
-  entscheidbar, aber nur über einen Nichtleerheits-Nachweis für den Bereich — der auf derselben
-  `lengthOf`-Identität beruht, die `ElementAt` schon nutzt.
+Die Nichtleerheit ließe sich zwar beweisen (Start 1 und ein Ende, das mindestens 1 erreicht), aber
+`map` braucht die **Arity**, und das ist die stärkere Aussage. Eine Quelle, die N Positionen
+garantiert, gibt es ohne genau dieses Konstrukt nicht — die Ableitung ist zirkulär.
 
-Entschieden wird das bei Schritt 2: Wird die Nichtleerheits-Regel für `slice` ohnehin gebraucht, ist
-`TupleOf` tatsächlich überflüssig; sonst ist ein kleines eigenes `fill` billiger als die Subtilität.
+`TupleOf` bleibt deshalb als eigene Operation nötig.
 
 ## Zieldeklarationen
 
 ```jul
-map        :> Or(And(TypeOf(values) []) TupleOf(length(values) callback/ReturnType))
+map        :> TupleOf(length(values) callback/ReturnType)
 setElement :> WithElementAt(TypeOf(values) index TypeOf(value))
 slice      :> ElementAt(TypeOf(values) Range(start end))
 ```
 
-Danach ist die Liste der Werte-Builtins, die der Checker am Namen kennt, leer.
+Die Liste der Werte-Builtins, die der Checker am Namen kennt, ist damit leer.
+
+Bei `map` entfällt dabei die frühere `And(TypeOf(values) [])`-Konditionierung: `TupleOf` liefert bei
+Länge 0 selbst `Empty`, und `length(Empty)` ist 0.
 
 ## Warum das nötig ist, nicht nur schöner
 
@@ -138,17 +135,20 @@ Aufruf auf die core-lib-Deklaration zurück — ist die zu grob, verschwindet di
   (`length-via-alias-keeps-length-identity`)
 - `setElement`: fiel auf `List(Any)` zurück, ein Text an einer `List(Integer)`-Position ging still
   durch (`set-element-via-alias-keeps-value-type-check`)
+- `map`: verlor die Tuple-Arity (`map-keeps-tuple-arity-via-alias`)
 
 Das zweite war kein Präzisionsverlust, sondern ein Loch in der Prüfung.
 
-## Reihenfolge
+## Faltung wartet nur, solange sich etwas auflösen kann
 
-1. **`WithElementAt`** — reiner Umzug bekannter Faltungslogik, etabliert den Knoten ohne
-   gleichzeitig offene Semantikfragen zu klären.
-2. **`TupleOf`** — klein, nutzt `LengthOf`. Danach ist die Ausnahmenliste leer.
-3. **Folgen-Schlüssel + `Range`** — zuletzt, weil hier der offene Punkt unten mitentschieden wird.
+Ein aufschiebbarer Knoten wird permissiv geprüft. Bleibt er stehen, obwohl er sich nie mehr
+auflösen kann, verschwindet die Prüfung lautlos — zweimal beim Bau passiert:
 
-Je Schritt: roter Test davor, Bench vorher und nachher als getrennte Schritte.
+- `slice(1)` übergibt kein `end`, der Parameter bleibt also für immer `parameterReference`. Deshalb
+  entscheidet der Bereichszugriff seine Grenzen, sobald die **Quelle** feststeht, statt auf die
+  Grenzen zu warten.
+- `TupleOf` darf nicht auf jede unaufgelöste Anzahl warten: `LengthOf` über einer bekannten `List`
+  wird nie ein Literal. Gewartet wird nur, solange die Quelle der Länge selbst offen ist.
 
 ## Offen
 
@@ -157,11 +157,9 @@ Je Schritt: roter Test davor, Bench vorher und nachher als getrennte Schritte.
   er sich nie auf (`index: PositiveInteger`), muss er stattdessen über alle Positionen vereinigen.
   Betrifft den Folgen-Schlüssel und `Range` unmittelbar und ist seit der Einführung von `ElementAt`
   offen.
-- **Performance.** Gemessen beim Schritt `WithElementAt` (yugioh, 5848 Zeilen): Laufzeit im
-  Rauschen (+1 bis +3 %), aber `getTypeError` von 569k auf 935k Aufrufe (+64 %) und
-  `resolvePlaceholders` von 5,29 Mio auf 5,54 Mio (+5 %). Ursache ist die Faltung selbst: sie baut
-  normalisierte Unions, und deren Teilmengen-Elimination ruft `getTypeError`. Ein aufschiebbarer
-  Knoten wird zudem an mehreren Stellen erneut gefaltet statt einmal am Aufruf.
-  Die Zeit trägt das, weil die zusätzlichen Aufrufe früh zurückkehren — bei zwei weiteren
-  aufschiebbaren Formen (`Range`, evtl. `fill`) ist aber nicht selbstverständlich, dass das so
-  bleibt. Vor Schritt 2 und 3 jeweils messen und die Zähler mitlesen, nicht nur den Median.
+- **Performance.** Gemessen je Schritt (yugioh, 5848 Zeilen). `WithElementAt`: Laufzeit im Rauschen
+  (+1 bis +3 %), aber `getTypeError` von 569k auf 935k Aufrufe (+64 %) und `resolvePlaceholders` von
+  5,29 auf 5,54 Mio (+5 %). Ursache ist die Faltung selbst: sie baut normalisierte Unions, und deren
+  Teilmengen-Elimination ruft `getTypeError`. `Range` und `TupleOf` zusammen kosteten dagegen nichts
+  mehr — Laufzeit +1 %, `resolvePlaceholders` leicht gefallen, `getTypeError` unverändert. Der
+  Zuwachs hängt also nicht an der Zahl aufschiebbarer Formen. Untersuchung im TODO.

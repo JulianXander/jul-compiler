@@ -1354,6 +1354,53 @@ _createFunction(
 		]
 	}
 );
+export const Range = (start: bigint, end: bigint | undefined): RuntimeType => {
+	return {
+		[_julTypeSymbol]: 'range',
+		Start: start,
+		End: end,
+	} as any;
+};
+_createFunction(
+	Range,
+	{
+		singleNames: [
+			{
+				name: 'start',
+				type: Integer,
+			},
+			{
+				name: 'end',
+				type: Or(Empty, Integer),
+			},
+		]
+	}
+);
+export const TupleOf = (count: bigint, ElementType: RuntimeType): RuntimeType => {
+	const length = Number(count);
+	if (length < 1) {
+		return Empty;
+	}
+	return {
+		[_julTypeSymbol]: 'tuple',
+		ElementTypes: new Array(length).fill(ElementType),
+	};
+};
+_createFunction(
+	TupleOf,
+	{
+		singleNames: [
+			{
+				name: 'count',
+				type: Integer,
+			},
+			{
+				name: 'ElementType',
+				type: Type,
+			},
+		]
+	}
+);
 export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {

@@ -67,47 +67,6 @@ TypeOf = nativeFunction(
 		value => new TypeOfType(value)
 	§
 )
-#region sequence arithmetic
-# Der Typ an Position index.
-# Empty, wenn die Position nachweislich nicht existiert; die Vereinigung aller Positionen,
-# wenn der Index nicht feststeht.
-ElementAt = nativeFunction(
-	(
-		Source: Type
-		# 1 basiert
-		index: Integer
-	) :> Type
-	true
-	§js
-		(Source, index) => ElementAt(Source, index)
-	§
-)
-# Die Anzahl der Elemente von Source.
-# 0 bei Empty.
-LengthOf = nativeFunction(
-	(
-		Source: Type
-	) :> Type
-	true
-	§js
-		(Source) => LengthOf(Source)
-	§
-)
-# Source, aber an Position index steht Value.
-# Steht die Position nicht fest, kann sie jede getroffen haben.
-WithElementAt = nativeFunction(
-	(
-		Source: Type
-		# 1 basiert
-		index: Integer
-		Value: Type
-	) :> Type
-	true
-	§js
-		(Source, index, Value) => WithElementAt(Source, index, Value)
-	§
-)
-#endregion sequence arithmetic
 # The type that only contains the empty literal ().
 Empty = nativeValue(§Empty§)
 # true or false
@@ -181,6 +140,74 @@ Stream = nativeFunction(
 		x => x instanceof StreamClass
 	§
 )
+#region sequence arithmetic
+# Der Typ an Position index.
+# index ist eine Position oder ein Bereich (Range), dann ist das Ergebnis die Teilfolge.
+# Empty, wenn die Position nachweislich nicht existiert; die Vereinigung aller Positionen,
+# wenn der Index nicht feststeht.
+ElementAt = nativeFunction(
+	(
+		Source: Type
+		# 1 basiert
+		index: Or(Integer Type)
+	) :> Type
+	true
+	§js
+		(Source, index) => ElementAt(Source, index)
+	§
+)
+# Die Anzahl der Elemente von Source.
+# 0 bei Empty.
+LengthOf = nativeFunction(
+	(
+		Source: Type
+	) :> Type
+	true
+	§js
+		(Source) => LengthOf(Source)
+	§
+)
+# Source, aber an Position index steht Value.
+# Steht die Position nicht fest, kann sie jede getroffen haben.
+WithElementAt = nativeFunction(
+	(
+		Source: Type
+		# 1 basiert
+		index: Integer
+		Value: Type
+	) :> Type
+	true
+	§js
+		(Source, index, Value) => WithElementAt(Source, index, Value)
+	§
+)
+# Die Positionen start bis end, beide inklusive.
+# end Empty heißt bis zum Ende.
+# Als Index eines Zugriffs liefert das die Teilfolge.
+Range = nativeFunction(
+	(
+		# 1 basiert
+		start: Integer
+		end: Or([] Integer)
+	) :> Type
+	true
+	§js
+		(start, end) => Range(start, end)
+	§
+)
+# count Positionen, jede vom Typ ElementType.
+# Empty bei count 0.
+TupleOf = nativeFunction(
+	(
+		count: Integer
+		ElementType: Type
+	) :> Type
+	true
+	§js
+		(count, ElementType) => TupleOf(count, ElementType)
+	§
+)
+#endregion sequence arithmetic
 # Function = nativeFunction(
 # 	# TODO?
 # 	# (
@@ -201,6 +228,7 @@ Stream = nativeFunction(
 # 	UnionType
 # 	IntersectionType
 # )
+
 #endregion Types
 #region Functions
 #region Any
@@ -518,9 +546,7 @@ setElement = nativeFunction(
 	§
 )
 # Bildet jedes Element mit callback ab.
-# empty liefert map nur bei empty Eingabe, denn die Länge bleibt gleich. Deshalb steht im
-# Ergebnis And(TypeOf(values) []): das ist Empty, wenn die Eingabe empty sein kann, sonst
-# Never, und Never fällt aus der Or heraus.
+# Die Länge bleibt gleich, empty liefert map also nur bei empty Eingabe.
 map = nativeFunction(
 	(
 		values: Or([] List(Any))
@@ -528,7 +554,7 @@ map = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or(And(TypeOf(values) []) List(callback/ReturnType))
+	) :> TupleOf(length(values) callback/ReturnType)
 	# TODO pure wenn die args pure sind
 	false
 	§js
@@ -607,7 +633,7 @@ slice = nativeFunction(
 		values: Or([] List(Any))
 		start: Integer
 		end: Or([] Integer)
-	) :> Or([] List(TypeOf(values)/ElementType))
+	) :> ElementAt(TypeOf(values) Range(start end))
 	true
 	§js
 		(values, start, end) => {

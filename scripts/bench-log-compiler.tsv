@@ -51,3 +51,5 @@
 2026-09-11 23:34:05	dfd708d+	-	ADV-DEV-56627	yugioh	parse+check	5	3638.65	3957.53	3957.53	nach lastElement rein deklarativ (ElementAt+length), getLastElementFromType entfernt
 2026-09-11 23:55:53	8899bc6+	-	ADV-DEV-56627	yugioh	parse+check	5	3677.67	3873.12	3873.12	vor WithElementAt-Knoten (setElement-Deklaration schon praezisiert, case setElement noch da)
 2026-09-12 00:01:20	8899bc6+	-	ADV-DEV-56627	yugioh	parse+check	5	3800.17	4103.37	4103.37	nach WithElementAt: setElement rein deklarativ, case setElement entfernt
+2026-09-12 00:14:24	6b05802+	-	ADV-DEV-56627	yugioh	parse+check	5	3884.05	4121.23	4121.23	vor Range-Folgenschluessel (map und slice haben noch grobe Deklaration bzw. case)
+2026-09-12 00:29:43	6b05802+	-	ADV-DEV-56627	yugioh	parse+check	5	3927.75	4169.28	4169.28	nach Range und TupleOf: map und slice rein deklarativ, case map entfernt - Ausnahmenliste leer

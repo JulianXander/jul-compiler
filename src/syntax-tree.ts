@@ -608,6 +608,8 @@ export type CompileTimeType =
 	| CompileTimeGreaterType
 	| CompileTimeLengthOfType
 	| CompileTimeWithElementAtType
+	| CompileTimeRangeType
+	| CompileTimeTupleOfType
 	| CompileTimeListType
 	| CompileTimeTupleType
 	| CompileTimeDictionaryType
@@ -780,6 +782,48 @@ export function createCompileTimeWithElementAtType(
 		Source: Source,
 		Index: Index,
 		Value: Value,
+	};
+}
+
+/**
+ * Die Positionen Start bis End, beide inklusive, 1-basiert. End Empty heisst "bis zum Ende".
+ * Nur als Schluessel eines Zugriffs sinnvoll: dort wird daraus die Teilfolge der Quelle.
+ */
+export interface CompileTimeRangeType extends CompileTimeTypeBase {
+	readonly julType: 'range';
+	Start: CompileTimeType;
+	End: CompileTimeType;
+}
+
+export function createCompileTimeRangeType(
+	Start: CompileTimeType,
+	End: CompileTimeType,
+): CompileTimeRangeType {
+	return {
+		julType: 'range',
+		Start: Start,
+		End: End,
+	};
+}
+
+/**
+ * Count Positionen, jede vom Typ ElementType. Steht Count als Literal fest, wird daraus ein
+ * Tuple dieser Laenge, sonst eine List.
+ */
+export interface CompileTimeTupleOfType extends CompileTimeTypeBase {
+	readonly julType: 'tupleOf';
+	Count: CompileTimeType;
+	ElementType: CompileTimeType;
+}
+
+export function createCompileTimeTupleOfType(
+	Count: CompileTimeType,
+	ElementType: CompileTimeType,
+): CompileTimeTupleOfType {
+	return {
+		julType: 'tupleOf',
+		Count: Count,
+		ElementType: ElementType,
 	};
 }
 

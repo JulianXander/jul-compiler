@@ -914,6 +914,15 @@ f = (values: T) :> T =>
 	values.map((value) => value)`,
 		},
 		{
+			// Die Arity darf nicht am geschriebenen Namen hängen: über einen Alias trifft kein
+			// Namens-Sonderfall mehr, die Deklaration muss sie allein tragen.
+			name: 'map-keeps-tuple-arity-via-alias',
+			code: `T = [Integer Integer]
+m = map
+f = (values: T) :> T =>
+	m(values (value) => value)`,
+		},
+		{
 			// Gegenprobe: kann die Eingabe empty sein, ist das Empty im Ergebnis korrekt.
 			name: 'map-keeps-empty-for-possibly-empty-input',
 			code: `f = (values: Or([] List(Integer))) :> Or([] List(Integer)) =>
