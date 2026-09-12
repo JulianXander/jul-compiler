@@ -226,6 +226,21 @@ function compileFile(
 	return { outFilePath: outFilePath };
 }
 
+// https://askubuntu.com/questions/558280/changing-colour-of-text-and-background-of-terminal
+enum ConsoleColor {
+	// red = 31,
+	green = 32,
+	yellow = 33,
+	// blue = 34,
+	// purple = 35,
+	cyan = 36,
+	// lightGray = 37,
+	// darkGrey = 90,
+	lightRed = 91,
+	// lightBlue = 94,
+	// lightCyan = 96,
+}
+
 /**
  * Anzeigenamen der Fehlerkategorien für die Konsolenausgabe.
  * Als Record über CompilerErrorType, damit eine neue Kategorie hier einen Compile-Fehler erzwingt.
@@ -243,6 +258,16 @@ const errorSeverityLabels: { [Severity in CompilerErrorSeverity]: string; } = {
 };
 
 /**
+ * Farbe je Fehler-Schweregrad für die Konsolenausgabe.
+ * Als Record über CompilerErrorSeverity, damit eine neue Stufe hier einen Compile-Fehler erzwingt.
+ */
+const errorSeverityColors: { [Severity in CompilerErrorSeverity]: ConsoleColor; } = {
+	error: ConsoleColor.lightRed,
+	warning: ConsoleColor.yellow,
+	hint: ConsoleColor.green,
+};
+
+/**
  * Formatiert Fehler für die Konsolenausgabe.
  * Row/Column sind intern 0-basiert (Array-Indizes), für die Ausgabe 1-basiert wie in Editoren.
  * Position steht sowohl am Ende der ersten Zeile als auch in der `-->`-Zeile: bei kurzen
@@ -256,8 +281,9 @@ const errorSeverityLabels: { [Severity in CompilerErrorSeverity]: string; } = {
 export function formatErrors(filePath: string, errors: CompilerError[]): string {
 	return errors.map(error => {
 		const { type, severity } = errorInfos[error.code];
-		const errorLabel = colorize(errorTypeLabels[type] + errorSeverityLabels[severity], ConsoleColor.lightRed);
-		const errorCode = colorize(`JUL${error.code}`, ConsoleColor.lightRed);
+		const severityColor = errorSeverityColors[severity];
+		const errorLabel = colorize(errorTypeLabels[type] + errorSeverityLabels[severity], severityColor);
+		const errorCode = colorize(`JUL${error.code}`, severityColor);
 		const position = colorize(`${filePath}:${error.startRowIndex + 1}:${error.startColumnIndex + 1}`, ConsoleColor.cyan);
 		// Position steht hier zusaetzlich zur `-->`-Zeile unten - bei den mehrzeiligen,
 		// verschachtelten Ketten (elaborateDictionaryLiteralError-Nachfolger) liegen oft 5+
@@ -399,21 +425,6 @@ function busySpinner() {
 		clearInterval(timer);
 		process.stdout.write('\b\b  \n');
 	};
-}
-
-// https://askubuntu.com/questions/558280/changing-colour-of-text-and-background-of-terminal
-enum ConsoleColor {
-	// red = 31,
-	green = 32,
-	yellow = 33,
-	// blue = 34,
-	// purple = 35,
-	cyan = 36,
-	// lightGray = 37,
-	// darkGrey = 90,
-	lightRed = 91,
-	// lightBlue = 94,
-	// lightCyan = 96,
 }
 
 function colorize(text: any, color: ConsoleColor): string {

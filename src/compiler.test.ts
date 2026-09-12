@@ -175,4 +175,24 @@ describe('formatErrors', () => {
 			'  | | ___^',
 		].join('\n'));
 	});
+
+	// Fund: formatErrors färbt Label und Code immer mit ConsoleColor.lightRed, unabhängig von
+	// severity - eine Warning (z.B. unreachableBranch) erscheint dadurch genauso rot wie ein
+	// Error. Deshalb hier bewusst OHNE stripAnsi: der Test soll gerade die Farbcodes prüfen.
+	it('colors a warning severity error yellow, not red', () => {
+		const errors: CompilerError[] = [
+			{
+				code: ErrorCode.unreachableBranch,
+				message: 'Unreachable branch detected.',
+				startRowIndex: 0,
+				startColumnIndex: 0,
+				endRowIndex: 0,
+				endColumnIndex: 1,
+			},
+		];
+		const output = formatErrors(filePath, errors);
+		const firstLine = output.split('\n')[0]!;
+		expect(firstLine).to.include('\x1b[33m', 'Warning sollte gelb (33) statt rot (91) gefärbt sein');
+		expect(firstLine).not.to.include('\x1b[91m');
+	});
 });
