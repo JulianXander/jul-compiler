@@ -30,6 +30,8 @@ export function createParseParameters(
 			field.description,
 			index);
 		setParent(field, parameters);
+		setParent(field.name, field);
+		setParent(field.typeGuard, field);
 	});
 	if (rest) {
 		defineSymbol(
@@ -42,6 +44,8 @@ export function createParseParameters(
 			rest.description,
 			singleFields.length);
 		setParent(rest, parameters);
+		setParent(rest.name, rest);
+		setParent(rest.typeGuard, rest);
 	}
 	return parameters;
 }
@@ -68,6 +72,7 @@ export function createParseFunctionLiteral(
 		...position,
 	};
 	setParent(params, functionLiteral);
+	setParent(returnType, functionLiteral);
 	setParents(body, functionLiteral);
 	return functionLiteral;
 }

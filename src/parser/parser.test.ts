@@ -450,6 +450,7 @@ const expectedResults: {
 				};
 				functionLiteral.body[0]!.parent = functionLiteral;
 				functionLiteral.params.parent = functionLiteral;
+				functionLiteral.returnType!.parent = functionLiteral;
 				return [
 					functionLiteral,
 				];

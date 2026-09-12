@@ -723,6 +723,8 @@ function expressionParser(
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 		};
+		setParent(definition.name, definition);
+		setParent(definition.typeGuard, definition);
 		setParent(definition.value, definition);
 		return {
 			...result,
@@ -1119,6 +1121,8 @@ function valueExpressionBaseParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 			};
+			setParent(params, functionTypeLiteral);
+			setParent(returnType, functionTypeLiteral);
 			return {
 				hasParsed: true,
 				endRowIndex: result.endRowIndex,
