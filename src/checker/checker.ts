@@ -2876,6 +2876,10 @@ function getReturnTypeFromFunctionCall(
 	return getReturnTypeFromFunctionType(functionType);
 }
 
+//#endregion get Type from FunctionCall
+
+//#region Sequenz Arithmetik
+
 /**
  * Die Teilfolge der Quelle zwischen den Bereichsgrenzen. Bei bekannter Länge und literalen
  * Grenzen ein Tuple der getroffenen Positionen, sonst eine List - mit Empty, solange nicht
@@ -3066,7 +3070,7 @@ function withElementAtFromTypes(
 	}
 }
 
-//#endregion get Type from FunctionCall
+//#endregion Sequenz Arithmetik
 
 //#region Typ Arithmetik
 
