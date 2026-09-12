@@ -2018,6 +2018,62 @@ x: [1 5] = se([1 §a§] 2 5)`;
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Bug: setElement liefert innerhalb der eigenen Funktionsdefinition (also ohne konkreten
+	// Aufrufkontext) ein ungefaltetes WithElementAt(...) - Source und Index sind ja gerade erst
+	// die eigenen Parameter (siehe withElementAtFromTypes: Platzhalter bleibt stehen, bis
+	// Source/Index feststehen). Solange dieser Wert die Funktion nur verlässt und direkt
+	// zurückgegeben wird, faellt das nicht auf. Erst wenn er an einer WEITEREN Stelle erneut als
+	// Argument geprüft wird (hier useRow, in yugioh: reduceLifePoints), schlägt getTypeError zu:
+	// es behandelt ein unaufgelöstes WithElementAt als Argument nicht permissiv - nur als Zieltyp
+	// (getTypeError, case 'withElementAt' im zweiten switch)
+	// (siehe yugioh: game-logic.jul:1105, spellTraps = oldBoard2/spellTraps.setElement(...)).
+	it('set-element-with-unresolved-index-assigns-via-nested-call', () => {
+		const code = `useRow = (row: List(Integer)) :> List(Integer) =>
+	row
+f = (row: List(Integer) index: PositiveInteger value: Integer) :> List(Integer) =>
+	newRow = row.setElement(index value)
+	useRow(newRow)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	// Bug: dasselbe Muster wie bei withElementAt, diesmal bei Concat. addLink deklariert :> H,
+	// baut chain aber aus [...oldChain value] - solange addLink nur an seiner eigenen Definition
+	// geprüft wird, bleibt der Feldzugriff history/chain (auf den eigenen Parameter) ein
+	// nestedReference und haelt Concat(...) ungefaltet (concatFromTypes:
+	// isUnresolvedPlaceholderType-Guard). assume/die Rückgabetyp-Deklaration ersetzt den inneren
+	// Typ nicht, er wandert unveraendert durch den Aufruf addLink(history value) hindurch. Erst
+	// wenn das Ergebnis an einer WEITEREN Stelle (hier useH, in yugioh: getController) erneut als
+	// Argument geprüft wird, schlägt getTypeError zu: es behandelt ein unaufgelöstes Concat als
+	// Argument nicht permissiv - nur als Zieltyp (siehe yugioh: game-logic.jul, addChainLink:
+	// chain = [...oldChain chainLink], zugewiesen an chain: Or([] List(ChainLink)), Fehler beim
+	// nachfolgenden getController(newGameState5 ...)).
+	it('concat-with-unresolved-source-assigns-to-concrete-list-via-nested-call', () => {
+		const code = `H = [
+	chain: Or([] List(Integer))
+]
+addLink = (
+	history: H
+	value: Integer
+) :> H =>
+	oldChain = history/chain
+	newHistory: H = [
+		...history
+		chain = [
+			...oldChain
+			value
+		]
+	]
+	newHistory
+useH = (history: H) :> H =>
+	history
+outer = (history: H value: Integer) :> H =>
+	newHistory = addLink(history value)
+	useH(newHistory)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.
