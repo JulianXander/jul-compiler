@@ -313,6 +313,24 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 		() => 0`,
 		},
 		{
+			// Ohne Parameternamen ist bei mehreren Argumenten nicht erkennbar, welches falsch ist -
+			// Fund an einem echten Aufruf mit mehreren Kandidaten-Fehlern ohne Zuordnung
+			// (game-logic.jul: 3 "Can not assign"-Zeilen, keine sagt welches Argument gemeint ist).
+			name: 'argument-type-mismatch-names-the-parameter',
+			code: `f = (a: Integer b: Greater(0)) => a
+f(1 0)`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 6,
+					"endRowIndex": 1,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'b'\n  Can not assign 0 to Greater(0).",
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
 			// Ein Feldpfad als Branch-Argument verengt die Quelle: im Integer-Zweig ist d/a auf
 			// Integer verengt, also auch beim erneuten Lesen.
 			name: 'branch-narrowing-through-field-path',
