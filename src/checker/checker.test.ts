@@ -1851,6 +1851,31 @@ f = (values: List(Integer)) :> Integer =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// setElement deklariert nur :> List(Any) und bekommt seine Präzision ausschließlich aus dem
+	// Namens-Sonderfall setElementFromTypes. Hinter einem Alias trifft der nicht mehr, und
+	// List(Any) nimmt jeden Wert an - das ist kein Präzisionsverlust, sondern ein Loch in der
+	// Prüfung: derselbe Aufruf meldet direkt geschrieben korrekt einen Fehler.
+	it('set-element-via-alias-keeps-value-type-check', () => {
+		const code = `se = setElement
+f = (values: List(Integer)) :> List(Integer) =>
+	se(values 1 §kaputt§)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const messages = (parsed.checked?.errors ?? []).map(error => error.message).join('\n');
+		expect(messages).to.include('Can not assign §kaputt§ to Integer.',
+			'Ein Text an einer List(Integer)-Position muss auch hinter einem Alias auffallen');
+	});
+	// Die Deklaration kann den Elementtyp erhalten, aber nicht die Tuple-Arity: an welcher Position
+	// ersetzt wurde, steht nur bei literalem Index fest, und dafür gibt es kein Vokabular außer
+	// einem Typkonstruktor (WithElementAt, docs/type-level-sequence-algebra.md). Direkt greift
+	// noch der Namens-Sonderfall, über einen Alias fällt die Präzision auf List(Or(...)) zurück.
+	it('set-element-via-alias-keeps-tuple-arity', () => {
+		const code = `se = setElement
+x: [1 5] = se([1 §a§] 2 5)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.

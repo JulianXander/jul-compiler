@@ -93,6 +93,20 @@ LengthOf = nativeFunction(
 		(Source) => LengthOf(Source)
 	§
 )
+# Source, aber an Position index steht Value.
+# Steht die Position nicht fest, kann sie jede getroffen haben.
+WithElementAt = nativeFunction(
+	(
+		Source: Type
+		# 1 basiert
+		index: Integer
+		Value: Type
+	) :> Type
+	true
+	§js
+		(Source, index, Value) => WithElementAt(Source, index, Value)
+	§
+)
 # The type that only contains the empty literal ().
 Empty = nativeValue(§Empty§)
 # true or false
@@ -490,7 +504,7 @@ setElement = nativeFunction(
 		# 1 basiert
 		index: PositiveInteger
 		value: Any
-	) :> List(Any)
+	) :> WithElementAt(TypeOf(values) index TypeOf(value))
 	true
 	§js
 		(values, index, value) => {

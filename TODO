@@ -1,3 +1,14 @@
+-untersuchen: getTypeError +64% durch aufschiebbare typkonstruktor-knoten
+	-gemessen beim WithElementAt-umbau (yugioh, 5848 zeilen): getTypeError 569k -> 935k,
+	 resolvePlaceholders 5,29 -> 5,54 mio; laufzeit dagegen nur +1 bis +3%, also im rauschen
+	-verdacht 1: die faltung baut normalisierte unions, und deren teilmengen-elimination
+	 in createNormalizedUnionType ruft getTypeError
+	-verdacht 2: ein aufschiebbarer knoten wird mehrfach gefaltet statt einmal am aufruf -
+	 konstruktor-case, resolvePlaceholders und dereferenceArgumentTypesNested falten alle neu
+	-die zeit traegt es nur, weil die zusatzaufrufe frueh zurueckkehren. mit Range und evtl.
+	 fill kommen zwei weitere aufschiebbare formen dazu, dann gilt das nicht mehr automatisch
+	-profil statt raten: node --cpu-prof --cpu-prof-dir=. --import tsx <skript>
+	-vgl. docs/type-level-sequence-algebra.md, abschnitt Offen
 -refactor: NarrowedTypes, AccessPath und alle narrowing-helfer vor TypeContext/inferFileTypes gruppieren
 	-heute: NarrowedTypes (Zeile 1007), dann 50+ Zeilen code, dann TypeContext (1084)
 	-gehören alle in //#region branch narrowing zusammen (Konzept Narrowing vs Konzept Typinferenz)

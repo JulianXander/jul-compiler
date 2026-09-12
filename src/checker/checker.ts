@@ -24,6 +24,7 @@ import {
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
 	createCompileTimeTypeOfType,
+	createCompileTimeWithElementAtType,
 	createNestedReference,
 	createParameterReference,
 	createParametersType,
@@ -776,6 +777,22 @@ function dereferenceArgumentTypesNested(
 			}
 			return createCompileTimeTypeOfType(dereferencedValue);
 		}
+		case 'withElementAt': {
+			const rawSource = typeToDereference.Source;
+			const rawIndex = typeToDereference.Index;
+			const rawValue = typeToDereference.Value;
+			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawSource);
+			const dereferencedIndex = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawIndex);
+			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
+			if (dereferencedSource === rawSource
+				&& dereferencedIndex === rawIndex
+				&& dereferencedValue === rawValue) {
+				return typeToDereference;
+			}
+			// Neu falten, nicht neu einpacken: steht die Position jetzt fest, ist das Ergebnis ein
+			// konkretes Tuple.
+			return withElementAtFromTypes(dereferencedSource, dereferencedIndex, dereferencedValue);
+		}
 		// TODO
 		case 'dictionaryLiteral':
 		case 'function':
@@ -1028,6 +1045,21 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 				return rawType;
 			}
 			return createCompileTimeTypeOfType(dereferencedValue);
+		}
+		case 'withElementAt': {
+			const rawSource = rawType.Source;
+			const rawIndex = rawType.Index;
+			const rawValue = rawType.Value;
+			const dereferencedSource = resolvePlaceholders(rawSource);
+			const dereferencedIndex = resolvePlaceholders(rawIndex);
+			const dereferencedValue = resolvePlaceholders(rawValue);
+			if (dereferencedSource === rawSource
+				&& dereferencedIndex === rawIndex
+				&& dereferencedValue === rawValue) {
+				return rawType;
+			}
+			// Neu falten statt neu einpacken, sonst bleibt der Knoten trotz aufgeloester Teile stehen.
+			return withElementAtFromTypes(dereferencedSource, dereferencedIndex, dereferencedValue);
 		}
 		default:
 			return rawType;
@@ -2694,11 +2726,6 @@ function getReturnTypeFromFunctionCall(
 					: { julType: 'any' };
 				return createCompileTimeTupleType(valuesType.ElementTypes.map(() => elementType));
 			}
-			case 'setElement': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
-				const dereferencedArgTypes = argTypes?.map(resolvePlaceholders);
-				return setElementFromTypes(dereferencedArgTypes);
-			}
 			case 'And': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
@@ -2725,6 +2752,19 @@ function getReturnTypeFromFunctionCall(
 					return { julType: 'any' };
 				}
 				return createCompileTimeTypeOfType(getLengthFromType(valueOf(sourceType)));
+			}
+			case 'WithElementAt': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const sourceType = argTypes?.[0];
+				const indexType = argTypes?.[1];
+				const valueType = argTypes?.[2];
+				if (!sourceType
+					|| !indexType
+					|| !valueType) {
+					return { julType: 'any' };
+				}
+				return createCompileTimeTypeOfType(
+					withElementAtFromTypes(valueOf(sourceType), valueOf(indexType), valueOf(valueType)));
 			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
@@ -2810,43 +2850,46 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 	}
 }
 
-function setElementFromTypes(argsTypes: CompileTimeType[] | undefined): CompileTimeType {
-	if (!argsTypes) {
-		return { julType: 'empty' };
-	}
-	const [valuesType, indexType, valueType] = argsTypes;
-	if (valuesType === undefined) {
-		return { julType: 'empty' };
-	}
-	if (indexType === undefined
-		|| valueType === undefined) {
-		return valuesType;
+/**
+ * Source mit Value an Position Index. Faltet so weit, wie die Position feststeht; solange Quelle
+ * oder Index noch Platzhalter sind, bleibt der Knoten stehen und wird am Aufruf erneut gefaltet.
+ */
+function withElementAtFromTypes(
+	sourceType: CompileTimeType,
+	indexType: CompileTimeType,
+	valueType: CompileTimeType,
+): CompileTimeType {
+	// Ein Platzhalter kann sich noch zu einem Literal auflösen - dann steht genau eine Position
+	// fest. Vorschnelles Falten würde stattdessen jede Position mit Value vereinigen.
+	if (isUnresolvedPlaceholderType(sourceType)
+		|| isUnresolvedPlaceholderType(indexType)) {
+		return createCompileTimeWithElementAtType(sourceType, indexType, valueType);
 	}
 	if (isUnionType(indexType)) {
-		const setElementChoices = indexType.ChoiceTypes.map(indexChoice => setElementFromTypes([valuesType, indexChoice, valueType]));
-		return createNormalizedUnionType(setElementChoices);
+		const indexChoices = indexType.ChoiceTypes.map(indexChoice =>
+			withElementAtFromTypes(sourceType, indexChoice, valueType));
+		return createNormalizedUnionType(indexChoices);
 	}
-	switch (valuesType.julType) {
+	switch (sourceType.julType) {
+		case 'empty':
+			// setElement legt die Liste erst an: übrig bleibt genau der gesetzte Wert.
+			return createCompileTimeTupleType([valueType]);
 		case 'tuple': {
 			if (indexType.julType === 'integerLiteral') {
-				const elementTypes = [
-					...valuesType.ElementTypes,
-				];
+				const elementTypes = [...sourceType.ElementTypes];
 				elementTypes[Number(indexType.value) - 1] = valueType;
 				return createCompileTimeTupleType(elementTypes);
 			}
-			const elementTypes = valuesType.ElementTypes.map(elementType => {
-				return createNormalizedUnionType([elementType, valueType]);
-			});
-			return createCompileTimeTupleType(elementTypes);
+			// Ohne feste Position kann es jede getroffen haben.
+			return createCompileTimeTupleType(sourceType.ElementTypes.map(elementType =>
+				createNormalizedUnionType([elementType, valueType])));
 		}
-		case 'list': {
-			const elementType = createNormalizedUnionType([valuesType.ElementType, valueType]);
-			return createCompileTimeListType(elementType);
-		}
+		case 'list':
+			return createCompileTimeListType(createNormalizedUnionType([sourceType.ElementType, valueType]));
 		case 'or': {
-			const setElementChoices = valuesType.ChoiceTypes.map(valuesChoice => setElementFromTypes([valuesChoice, indexType, valueType]));
-			return createNormalizedUnionType(setElementChoices);
+			const sourceChoices = sourceType.ChoiceTypes.map(sourceChoice =>
+				withElementAtFromTypes(sourceChoice, indexType, valueType));
+			return createNormalizedUnionType(sourceChoices);
 		}
 		default:
 			return { julType: 'any' };
@@ -2869,6 +2912,8 @@ function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'parameterReference':
 		case 'nestedReference':
+		// Der Knoten entsteht nur, wenn die Faltung nicht durchkam - er wartet also noch.
+		case 'withElementAt':
 			return true;
 		case 'and':
 		case 'or':
@@ -3376,6 +3421,11 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 				&& typeEquals(first.ParamsType, second.ParamsType)
 				&& typeEquals(first.ReturnType, second.ReturnType)
 				&& first.pure === second.pure;
+		case 'withElementAt':
+			return second.julType === 'withElementAt'
+				&& typeEquals(first.Source, second.Source)
+				&& typeEquals(first.Index, second.Index)
+				&& typeEquals(first.Value, second.Value);
 		case 'tuple':
 			return second.julType === 'tuple'
 				&& first.ElementTypes.length === second.ElementTypes.length
@@ -4180,6 +4230,10 @@ export function getTypeError(
 		case 'lengthOf':
 			// In der Oberflaeche nicht konstruierbar, nur zur Vollstaendigkeit des Switches.
 			return getTypeError(prefixArgumentType, argumentsType, CompileTimeNonZeroInteger);
+		case 'withElementAt':
+			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference, sonst
+			// entstuenden Fehler an einem Typ, der noch gar nicht feststeht.
+			return undefined;
 		default: {
 			const assertNever: never = targetType;
 			throw new Error(`Unexpected targetType.type: ${(assertNever as CompileTimeType).julType}`);
@@ -4668,6 +4722,8 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return `§${type.value.replaceAll('§', '§§')}§`;
 		case 'tuple':
 			return arrayTypeToString(type.ElementTypes, indent, depth + 1, suppressAlias);
+		case 'withElementAt':
+			return `WithElementAt(${typeToString(type.Source, indent, depth + 1, suppressAlias)} ${typeToString(type.Index, indent, depth + 1, suppressAlias)} ${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
 		case 'type':
 			return 'Type';
 		case 'typeOf':

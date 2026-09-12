@@ -1313,6 +1313,47 @@ _createFunction(
 		]
 	}
 );
+export const WithElementAt = (Source: any, index: bigint, Value: RuntimeType): RuntimeType => {
+	const position = Number(index);
+	if (Source !== null
+		&& typeof Source === 'object'
+		&& _julTypeSymbol in Source) {
+		switch (Source[_julTypeSymbol]) {
+			case 'tuple': {
+				const elementTypes = [...Source.ElementTypes];
+				elementTypes[position - 1] = Value;
+				return {
+					[_julTypeSymbol]: 'tuple',
+					ElementTypes: elementTypes,
+				};
+			}
+			case 'list':
+				return List(Or(Source.ElementType, Value));
+			default:
+				break;
+		}
+	}
+	return Any;
+};
+_createFunction(
+	WithElementAt,
+	{
+		singleNames: [
+			{
+				name: 'Source',
+				type: Type,
+			},
+			{
+				name: 'index',
+				type: Integer,
+			},
+			{
+				name: 'Value',
+				type: Type,
+			},
+		]
+	}
+);
 export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {

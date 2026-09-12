@@ -607,6 +607,7 @@ export type CompileTimeType =
 	| TypeType
 	| CompileTimeGreaterType
 	| CompileTimeLengthOfType
+	| CompileTimeWithElementAtType
 	| CompileTimeListType
 	| CompileTimeTupleType
 	| CompileTimeDictionaryType
@@ -754,6 +755,31 @@ export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileT
 	return {
 		julType: 'lengthOf',
 		Source: Source,
+	};
+}
+
+/**
+ * Source, aber an Position Index steht Value. Bleibt stehen, solange Source oder Index noch
+ * Platzhalter sind - erst mit festem Index laesst sich sagen, welche Position sich aendert.
+ * Das Gegenstueck zum lesenden Zugriff (docs/type-level-sequence-algebra.md).
+ */
+export interface CompileTimeWithElementAtType extends CompileTimeTypeBase {
+	readonly julType: 'withElementAt';
+	Source: CompileTimeType;
+	Index: CompileTimeType;
+	Value: CompileTimeType;
+}
+
+export function createCompileTimeWithElementAtType(
+	Source: CompileTimeType,
+	Index: CompileTimeType,
+	Value: CompileTimeType,
+): CompileTimeWithElementAtType {
+	return {
+		julType: 'withElementAt',
+		Source: Source,
+		Index: Index,
+		Value: Value,
 	};
 }
 
