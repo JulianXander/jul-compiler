@@ -2076,6 +2076,22 @@ f = (chain: Or([] List(Integer)) value: Integer) :> List(Integer) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Bug: withElementAtFromTypes' case 'empty'/'tuple' setzt bei literalem Index über das
+	// bisherige Ende hinaus nur elementTypes[position - 1] = valueType - dabei bleibt ein rohes
+	// JS-Array-Loch (kein {julType: 'empty'}-Objekt) an den übersprungenen Positionen. Beim
+	// nächsten verketteten setElement wird dieses Tuple erneut per Spread kopiert
+	// ([...existingElementTypes]); Spread "verdichtet" Löcher zu echten undefined-Werten, die
+	// keine CompileTimeType-Objekte sind. Erzwingt man hier einen Typfehler (Zuweisung an
+	// Integer), baut getTypeError die Fehlermeldung über typeToString, das jedes Element per
+	// .map() direkt anfasst - für ein derartiges undefined-Element crasht das mit
+	// "Cannot read properties of undefined (reading 'julType')" statt eine Fehlermeldung zu
+	// bilden. Trat live als Absturz beim Hovern über eine solche Stelle auf.
+	it('set-element-chained-on-empty-with-union-index-does-not-crash', () => {
+		const code = `f = (x: Or(1 2)) :> Integer =>
+	[].setElement(x true).setElement(x false)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(() => checkTypes(parsed, {})).not.to.throw();
+	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.

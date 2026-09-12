@@ -3264,10 +3264,19 @@ function withElementAtFromTypes(
 			// Empty ist ein 0-elementiges Tuple: dieselbe Positionslogik gilt für beide.
 			const existingElementTypes = sourceType.julType === 'tuple' ? sourceType.ElementTypes : [];
 			if (indexType.julType === 'integerLiteral') {
-				// Liegt die Position hinter dem bisherigen Ende, entsteht eine Lücke - das ist
-				// korrekt: getTupleTypeError2 behandelt eine fehlende Position ohnehin als Empty.
+				// Liegt die Position hinter dem bisherigen Ende, entsteht eine Lücke - die muss
+				// explizit mit Empty gefüllt werden. Ein rohes JS-Array-Loch (durch reines
+				// Indexzuweisen über die Länge hinaus) wird beim nächsten Spread (z.B. beim
+				// nächsten verketteten setElement, das existingElementTypes erneut kopiert) zu
+				// einem echten undefined-Wert "verdichtet" - kein Loch mehr, sondern ein Element,
+				// das kein CompileTimeType ist. Code, der jedes Element direkt anfasst (z.B.
+				// typeToString), scheitert dann an undefined.julType.
+				const position = Number(indexType.value);
 				const elementTypes = [...existingElementTypes];
-				elementTypes[Number(indexType.value) - 1] = valueType;
+				for (let i = elementTypes.length; i < position - 1; i++) {
+					elementTypes[i] = { julType: 'empty' };
+				}
+				elementTypes[position - 1] = valueType;
 				return createCompileTimeTupleType(elementTypes);
 			}
 			if (existingElementTypes.length === 0) {
