@@ -3226,11 +3226,15 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 			const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
 			return createNormalizedUnionType(lengthChoices);
 		}
-		case 'parameterReference':
-			return createCompileTimeLengthOfType(argType);
 		default:
-			// TODO non negative
-			return { julType: 'integer' };
+			// Quelle wartet noch auf weitere Auflösung (z.B. ein Feldzugriff wie history/gameStates
+			// als nestedReference): Länge an die Quelle binden, statt sie auf ein anonymes Integer
+			// abzuflachen - sonst erkennt ElementAt später nicht mehr, dass ein Index exakt diese
+			// Länge ist (siehe dereferenceNestedKeyFromObject, case 'lengthOf').
+			return isUnresolvedPlaceholderType(argType)
+				? createCompileTimeLengthOfType(argType)
+				// TODO non negative
+				: { julType: 'integer' };
 	}
 }
 
