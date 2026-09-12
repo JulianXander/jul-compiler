@@ -22,6 +22,18 @@
 	 gecachter wert waere falsch
 	-bewertung: inhaerenter preis der aufgeschobenen praezision, kein fehler. zeitwirkung ~2%,
 	 weit unter jeder schwelle. nicht weiter verfolgen, solange die zeit nicht auffaellt
+?generische sequenz-konstruktoren (Concat, ElementAt, ...) wirken nur in der rueckgabetyp-
+ annotation, nicht im rumpf selbst - [...a ...b] mit a/b: List(Any) verlor die tuple-arität,
+ obwohl Concat(TypeOf(a) TypeOf(b)) sie in einer annotation exakt berechnet. betraf 4 stellen im
+ checker, die "eager" mit resolvePlaceholders statt mit dereferenceArgumentTypesNested aufloesen.
+ siehe docs/generic-types-through-function-body.md fuer sprachvergleich, umsetzung, tradeoffs
+ -Spread (list und object) umgesetzt 2026-09-12: isUnresolvedPlaceholderType-check vor dem
+  faltenden case, dann concatFromTypes statt resolvePlaceholders + getSpreadElementTypes. 261 ->
+  262 tests, gemessen +3,8% resolvePlaceholders/+1,2% getTypeError (yugioh), zeit -1% (rauschen)
+ -dabei gefunden: resolvePlaceholders hatte keinen 'greater'-case (verschachteltes Value nie
+  aufgeloest) und einen default-fallback statt exhaustivem switch - beides nachgezogen
+ -offen: praefix-argument (values.getElement(2)) und index/namenszugriff (values/2) noch eager.
+  kein akuter leidensdruck, annotation funktioniert schon heute
 -refactor: NarrowedTypes, AccessPath und alle narrowing-helfer vor TypeContext/inferFileTypes gruppieren
 	-heute: NarrowedTypes (Zeile 1007), dann 50+ Zeilen code, dann TypeContext (1084)
 	-gehören alle in //#region branch narrowing zusammen (Konzept Narrowing vs Konzept Typinferenz)

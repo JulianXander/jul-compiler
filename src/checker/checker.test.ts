@@ -4,6 +4,7 @@ import { ParseExpression, ParseSingleDefinition } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
+import { resolvePlaceholders } from './checker.js';
 
 const expectedResults: {
 	name?: string;
@@ -1294,6 +1295,17 @@ y: [Integer Text Boolean] = myConcat([1 §a§] [true])`,
 			code: `f = (a: List(Integer) b: List(Text)) :> Concat(TypeOf(a) TypeOf(b)) => [...a ...b]
 y: List(Or(Integer Text)) = f([1] [§a§])`,
 		},
+		{
+			// Ohne Annotation: Spread im Rumpf faltet heute eager mit resolvePlaceholders auf den
+			// deklarierten Parametertyp (List(Any)), statt wie am Aufrufort mit
+			// dereferenceArgumentTypesNested die konkreten Argumenttypen einzusetzen - die
+			// Tuple-Arität geht verloren, obwohl Concat sie mit Annotation exakt berechnet
+			// (siehe concat-in-user-function). Red test fuer
+			// docs/generic-types-through-function-body.md.
+			name: 'concat-in-user-function-without-annotation',
+			code: `myConcat = (a: List(Any) b: List(Any)) => [...a ...b]
+y: [Integer Text Boolean] = myConcat([1 §a§] [true])`,
+		},
 		//#endregion Zugriffstypen
 		//#region Aufruf
 		{
@@ -2083,7 +2095,11 @@ x: [1 5] = se([1 §a§] 2 5)`;
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
-		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+		const rawReturnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+		// Ohne Annotation bleibt der Rueckgabetyp ein aufschiebbarer Concat-Knoten (fuer die
+		// praezise Aufloesung am Aufrufort) - resolvePlaceholders liefert die deklarationsseitige,
+		// verbreiterte Anzeige, wie beim Hover ueber die Funktion selbst.
+		const returnType = rawReturnType && resolvePlaceholders(rawReturnType);
 		
 		// Erwartet: List(Union(Integer, Text))
 		expect(returnType?.julType).to.equal('list',
@@ -2111,7 +2127,8 @@ x: [1 5] = se([1 §a§] 2 5)`;
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
-		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+		const rawReturnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+		const returnType = rawReturnType && resolvePlaceholders(rawReturnType);
 
 		expect(returnType?.julType).to.equal('list',
 			'Or([] List)-Spread sollte zu einer List werden, tatsächlich: ' + returnType?.julType);
@@ -2336,7 +2353,8 @@ newGameState: GameState = [
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
-		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+		const rawReturnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
+		const returnType = rawReturnType && resolvePlaceholders(rawReturnType);
 		
 		// Erwartet: [Integer, Text, [a: Integer]]
 		if (!returnType || returnType.julType !== 'tuple') {

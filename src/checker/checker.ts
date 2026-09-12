@@ -953,6 +953,23 @@ function dereferenceParameterFromArgumentType(
 export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 	checkerStats.resolvePlaceholders++;
 	switch (rawType.julType) {
+		case 'any':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'date':
+		case 'empty':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'integer':
+		case 'integerLiteral':
+		case 'never':
+		case 'text':
+		case 'textLiteral':
+		case 'type':
+			// Blatt-Typen: kein verschachtelter CompileTimeType, der einen Platzhalter tragen koennte.
+			return rawType;
 		case 'and': {
 			const rawChoices = rawType.ChoiceTypes;
 			const dereferencedChoices = rawChoices.map(resolvePlaceholders);
@@ -989,6 +1006,14 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			// beim Neubau sonst still verloren.
 			dereferencedType.predicate = rawType.predicate;
 			return dereferencedType;
+		}
+		case 'greater': {
+			const rawValue = rawType.Value;
+			const dereferencedValue = resolvePlaceholders(rawValue);
+			if (dereferencedValue === rawValue) {
+				return rawType;
+			}
+			return createCompileTimeGreaterType(dereferencedValue);
 		}
 		case 'list': {
 			const rawElement = rawType.ElementType;
@@ -1123,8 +1148,19 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			// Neu falten statt neu einpacken.
 			return tupleOfFromTypes(dereferencedCount, dereferencedElement);
 		}
-		default:
-			return rawType;
+		case 'concat': {
+			const rawSources = rawType.Sources;
+			const dereferencedSources = rawSources.map(resolvePlaceholders);
+			if (rawSources.every((source, i) => source === dereferencedSources[i])) {
+				return rawType;
+			}
+			// Neu falten statt neu einpacken.
+			return concatFromTypes(dereferencedSources);
+		}
+		default: {
+			const assertNever: never = rawType;
+			throw new Error('Unexpected rawType.julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 }
 
@@ -2407,6 +2443,20 @@ function inferType(
 				setInferredType(typedExpression, typeContext, parsedDocuments, folder, file, filePath);
 			});
 
+			// Bleibt eine Spread-Quelle bis zum Aufruf offen (z.B. ein eigener Parameter), muss
+			// die Aneinanderreihung ebenso offen bleiben - sonst faellt sie hier schon auf den
+			// deklarierten Parametertyp zurueck, obwohl Concat sie am Aufrufort exakt berechnen
+			// koennte (docs/generic-types-through-function-body.md).
+			const hasDeferredSpread = expression.values.some(element =>
+				element.type === 'spread' && isUnresolvedPlaceholderType(element.value.typeInfo!.type));
+			if (hasDeferredSpread) {
+				const sources = expression.values.map(element =>
+					element.type === 'spread'
+						? element.value.typeInfo!.type
+						: createCompileTimeTupleType([element.typeInfo!.type]));
+				return { type: concatFromTypes(sources) };
+			}
+
 			// Akkumuliere Element-Typen, handle Spreads durch Flattening/Collapsing
 			const tupleElements: CompileTimeType[] = [];
 			let hasListSpread = false;
@@ -2541,6 +2591,14 @@ function inferType(
 			expression.values.forEach(element => {
 				setInferredType(element.value, typeContext, parsedDocuments, folder, file, filePath);
 			});
+
+			// Bleibt eine Spread-Quelle bis zum Aufruf offen, muss die Aneinanderreihung ebenso
+			// offen bleiben (dieselbe Begruendung wie bei case 'list').
+			const hasDeferredSpread = expression.values.some(element =>
+				isUnresolvedPlaceholderType(element.value.typeInfo!.type));
+			if (hasDeferredSpread) {
+				return { type: concatFromTypes(expression.values.map(element => element.value.typeInfo!.type)) };
+			}
 
 			// Nur reine Spreads (siehe ParseUnknownObjectLiteral) - Bug (CHECKER-AUDIT.md #6):
 			// f(...values) landete bisher komplett auf Any, weil dieser Fall bislang gar nicht
@@ -3026,6 +3084,21 @@ function tupleOfFromTypes(
 function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
 	if (sourceTypes.some(isUnresolvedPlaceholderType)) {
 		return createCompileTimeConcatType(sourceTypes);
+	}
+	// Or-Quelle zuerst verteilen (Fund: Or([] List(X)) ist das Idiom fuer eine moeglicherweise
+	// leere Liste, CLAUDE.md) - sonst gilt eine Quelle mit unbestimmter Laenge faelschlich als
+	// nicht auflösbar. Analog zu tupleOfFromTypes' 'or'-Fall bei Count.
+	const orIndex = sourceTypes.findIndex(source => valueOf(source).julType === 'or');
+	if (orIndex !== -1) {
+		const orSource = valueOf(sourceTypes[orIndex]!);
+		if (orSource.julType === 'or') {
+			const choiceResults = orSource.ChoiceTypes.map(choice => {
+				const substituted = sourceTypes.slice();
+				substituted[orIndex] = choice;
+				return concatFromTypes(substituted);
+			});
+			return createNormalizedUnionType(choiceResults);
+		}
 	}
 	const elementTypes: CompileTimeType[] = [];
 	let hasListSource = false;
