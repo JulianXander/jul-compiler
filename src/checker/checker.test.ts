@@ -605,6 +605,25 @@ useType = (t: Type) => t
 useType(isInteger)`,
 			errors: [],
 		},
+		{
+			// Gegenprobe: ein beliebiges Boolean-Callback ohne die erkannte Branching-Form
+			// bleibt kein Type-Wert - genau die Grenze aus getPredicateFacts (Satz von Rice,
+			// siehe predicate-types-and-filter-narrowing.md).
+			name: 'arbitrary-boolean-function-not-assignable-to-type',
+			code: `isLegal = (x: Any) :> Boolean => true
+useType = (t: Type) => t
+useType(isLegal)`,
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nCan not assign (x: Any) :> true to Type.',
+					startRowIndex: 2,
+					startColumnIndex: 0,
+					endRowIndex: 2,
+					endColumnIndex: 16,
+				},
+			],
+		},
 		//#endregion branching: Verengung
 
 		//#region branching: Erreichbarkeit

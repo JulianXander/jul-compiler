@@ -4546,6 +4546,13 @@ export function getTypeError(
 				case 'type':
 				case 'typeOf':
 					return undefined;
+				case 'function':
+					// Phase 1a: nur erkannte Prädikate (getPredicateFacts) sind als Type-Wert
+					// zulässig, kein beliebiges Boolean-Callback (JUL5002 sonst).
+					if (argumentsType.predicate) {
+						return undefined;
+					}
+					break;
 				case 'tuple': {
 					// alle ElementTypes müssen Typen sein
 					const subErrors = argumentsType.ElementTypes.map(elementType =>

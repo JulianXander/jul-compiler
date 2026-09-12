@@ -7,9 +7,10 @@ obwohl das Prädikat es beweist. Kein Bug in JUL oder im yugioh-Code (siehe
 Fix) - eine echte Grenze der Sprache. Dieses Dokument hält die Untersuchung fest, warum das so
 ist, wie andere Sprachen damit umgehen, und was ein JUL-eigener Lösungsweg bräuchte.
 
-**Stand 2026-09-11:** der Mittelweg wird umgesetzt, in Schritten. Schritt 1 (Verengung im branch
-selbst) und Schritt 2 (Abzug im false-Zweig) sind fertig, siehe [Umgesetzt](#umgesetzt) unten.
-Der auslösende `filter`-Fall ist noch offen.
+**Stand 2026-09-12:** der Mittelweg wird umgesetzt, in Schritten. Schritt 1 (Verengung im branch
+selbst), Schritt 2 (Abzug im false-Zweig) und Schritt 3 (Prädikat als `Type`-Wert, ohne Narrowing
+darüber) sind fertig, siehe [Umgesetzt](#umgesetzt) unten. Der auslösende `filter`-Fall ist noch
+offen.
 
 ## Die Frage: sind Prädikate nicht sowieso schon Typen?
 
@@ -247,26 +248,37 @@ gemeinsame Zugriffsfunktion laufen.
   wurde das erst in Schritt 2, weil nur der Abzugspfad über `resolvePlaceholders` geht - die
   Verengung in Schritt 1 lief trotz derselben Lücke grün.
 
+**Schritt 3** (Test `predicate-assignable-to-type-1a`): Prädikat als `Type`-Wert, aber bewusst
+nur die Akzeptanz, kein Narrowing über diesen Weg (Scope bleibt 2a, Branch-only). `getTypeError`
+akzeptiert in Zieltyp-Position `Type` jetzt einen Funktionswert, wenn dessen Funktionstyp
+`predicate` trägt (also exakt die erkannte Branching-Form aus Schritt 1/2) - ein beliebiges
+Boolean-Callback ohne diese Form bleibt abgelehnt (Test
+`arbitrary-boolean-function-not-assignable-to-type`). Das schließt nur die Lücke "Prädikat wird
+an einer `Type`-Stelle abgelehnt, obwohl es eine ist" - eine Verengung entsteht dadurch nirgends
+neu, das bleibt weiterhin exklusiv dem `?(pred)`-Typ-Kopf vorbehalten.
+
+Nebenbefund dabei: `createNormalizedUnionType` kollabierte `Or(true false)` bisher nicht zu
+`Boolean` (nur `Or(Boolean literal)` über die Teilmengen-Entfernung, wenn `Boolean` selbst schon
+als Choice dabei war). Fehlermeldungen zeigten deshalb `Or(true false)` statt `Boolean` für den
+inferierten Rückgabetyp eines Prädikats - jetzt kollabiert.
+
 ### Bewusst noch nicht umgesetzt
 
 Alles Folgende ist erkannt und verschoben, nicht vergessen:
 
-1. **Prädikat als `Type`-Wert.** In Parameterposition (`(y: isInteger) => ...`) meldet der
-   Checker zusätzlich `JUL5002: Can not assign (x: Any) :> Or(true false) to Type` - ein
-   TypeGuard muss ein `Type`-Wert sein. Der Typ-Kopf löst diese Prüfung nicht aus, deshalb
-   kommt Schritt 1 ohne sie aus. Die dahinterliegende Sprachfrage steht in core-lib.jul seit
-   jeher auskommentiert: `# Type = Any :> Boolean`. Sie zu bejahen hieße, `getTypeError`
-   case `'function'` umzubauen (dort steht `// TODO types als function interpretieren?`) und
-   damit Parametertypen, Feldtypen und Rückgabetypen gleichzeitig zu betreffen - eigene
-   Entscheidung mit eigenem Dokument.
+1. **Narrowing über den `Type`-Wert hinweg** (Scope 2b): `pred: Type = isInteger` als
+   Zwischenschritt, danach soll `?(x) [pred] => ...` oder ein an anderer Stelle gespeicherter
+   Prädikatwert narrowen. Schritt 3 macht `isInteger` nur *zuweisbar*, nicht *verengend* - siehe
+   Scope-Entscheidung 2a mit 2a+-Pfad (TypeGuard-Position). Bewusst zurückgestellt, weil
+   Datenfluss-Fragilität (Umbenennung/Indirektion bricht das Narrowing) erst diskutiert sein
+   sollte, bevor der Weg offen steht.
 2. **Weitere Rumpfformen.** Erkannt wird nur: ein Parameter, Rumpf genau ein
    `?(param)`-Branching. Ein nicht-literaler branch-Rumpf zählt bereits konservativ zu `ifTrue`
    (das vergrößert die Obermenge, bleibt also sound), zu `excludedIfFalse` dagegen nicht;
    mehrere Parameter, Prädikate aus Aufrufen oder Referenzketten sind offen.
    Die Erkennung hängt **nicht** am deklarierten Rückgabetyp, sondern am inferierten: gemessen
-   trägt der Funktionstyp `Or(true false)`, obwohl `:> Boolean` dasteht
-   (`createNormalizedUnionType` kollabiert Literale nicht), und die Annotation ist ohnehin
-   optional.
+   trägt der Funktionstyp `Boolean` (`(x: Any) :> Boolean`), obwohl `:> Boolean` explizit
+   dasteht, die Annotation ist ohnehin optional und die Herleitung liest den Rumpf.
 3. **Die Callback-Konsumstelle** (`filter`, `findFirst`, `findLast`, `exists`, `all`) mit
    Punkt 4 und 5 der Liste oben - der auslösende yugioh-Fall.
 4. **Welchen Parameter die Fakten meinen.** Heute implizit Argument 0, was für den Typ-Kopf
