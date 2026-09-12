@@ -4134,10 +4134,7 @@ export function getTypeError(
 			return getTypeError(prefixArgumentType, CompileTimeNonZeroInteger, targetType);
 		}
 		case 'nestedReference': {
-			// Wie concat/withElementAt: erst auflösen versuchen, dann erst permissiv werden.
-			// Ein Zugriff, der über die Deklaration auflösbar ist, muss auch geprüft werden -
-			// sonst verschluckt der Rückfall jeden Fehler an einem Wert, dessen Typ zwar noch
-			// symbolisch geschrieben ist, aber längst feststeht.
+			// Wie concat/withElementAt: erst auflösen versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
 				return getTypeError(prefixArgumentType, resolved, targetType);
