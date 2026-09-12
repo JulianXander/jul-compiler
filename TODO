@@ -35,7 +35,18 @@
 	mit anderen Sprachen und einen skizzierten (nicht umgesetzten) Mittelweg. Fuer akute Faelle
 	reicht assume(...) an der Aufrufstelle.
 ?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
--debug experience vebessern
+?find-all-references auf dictionary-feldern erfasst nur feldzugriffe (a/feld), nicht feldnamen an
+	kontextuell typisierten stellen - `x: MyType = [feld = 1]`, funktionsargumente, listenelemente.
+	go-to-definition kann das dort bereits, weil der language server mit getDeclaredType den
+	kontextuellen typ rekonstruiert; der checker kennt nur den inferierten typ des literals, und
+	eine definition uebernimmt den inferierten typ des werts, nicht den typguard
+	-ausbaustufe waere das, was typescript "related symbols" nennt: beim pruefen der zuweisbarkeit
+	 (areArgsAssignableTo literal gegen deklarierten typ) die feldsymbole beider seiten verknuepfen,
+	 analog zu resolveCanonicalSymbol beim import-alias. in JUL billiger als in TS, weil die
+	 zuweisbarkeit ohnehin im checker gerechnet wird - TS muss sie beim suchen rekonstruieren
+	-NICHT strukturell ueber den blossen feldnamen matchen: zwei unabhaengig geschriebene [name: Text]
+	 sind derselbe typ, aber rename darf das fremde feld nicht mitziehen
+	-braucht dann auch n:1 im index (eine fundstelle, mehrere symbol-keys)-debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
 -doku

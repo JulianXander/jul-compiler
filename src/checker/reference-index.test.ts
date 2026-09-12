@@ -114,11 +114,12 @@ describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
 		writeFileSync(filePath, [
 			'MyType = [',
 			'	name: Text',
+			'	age: Integer',
 			']',
-			'value: MyType = [',
-			'	name = §a§',
-			']',
-			'usage = value.name',
+			'getName = (value: MyType) =>',
+			'	value/name',
+			'greet = (value: MyType) =>',
+			'	value/name',
 			'',
 		].join('\n'));
 		documents = {};
@@ -138,10 +139,12 @@ describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
 	}
 
 	it('sammelt Feldzugriffe als Referenzen auf das Feld des Dictionary-Typs', () => {
-		const nameFieldSymbol = getFieldSymbol('MyType', 'name');
-		const references = referenceIndex.getReferences(nameFieldSymbol, filePath);
+		const references = referenceIndex.getReferences(getFieldSymbol('MyType', 'name'), filePath);
 
-		// das Feld im Dictionary-Literal (Zeile 5) und der Feldzugriff value.name (Zeile 7)
-		expect(references.map(location => location.startRowIndex).sort()).to.deep.equal([4, 6]);
+		expect(references.map(location => location.startRowIndex).sort()).to.deep.equal([5, 7]);
+	});
+
+	it('hält gleichnamige Felder verschiedener Felder derselben Deklaration auseinander', () => {
+		expect(referenceIndex.getReferences(getFieldSymbol('MyType', 'age'), filePath)).to.have.lengthOf(0);
 	});
 });

@@ -1,11 +1,55 @@
 import { dirname } from 'path';
 import { getPathFromImport, isImportFunctionCall } from '../parser/parser.js';
-import { ParseDestructuringField, SymbolDefinition } from '../syntax-tree.js';
+import { CompileTimeType, ParseDestructuringField, SymbolDefinition } from '../syntax-tree.js';
 import { Positioned } from '../compiler-errors.js';
 import type { ParsedDocuments } from './checker.js';
 
 export interface ReferenceLocation extends Positioned {
 	filePath: string;
+}
+
+export interface FieldSymbolLocation {
+	symbol: SymbolDefinition;
+	/**
+	 * Leerstring, wenn builtin.
+	 */
+	filePath: string;
+}
+
+/**
+ * Löst einen Feldnamen gegen einen Dictionary-Typ auf dessen Felddeklaration(en) auf - die einzige
+ * Brücke von einem Feldzugriff zurück zu einem Symbol. Bei einer Union/Intersection ist derselbe
+ * Name ggf. in mehreren Zweigen deklariert, dann gehört die Fundstelle zu allen.
+ */
+export function getFieldSymbolsFromDictionaryType(
+	dictionaryType: CompileTimeType,
+	fieldName: string,
+	result: FieldSymbolLocation[] = [],
+): FieldSymbolLocation[] {
+	switch (dictionaryType.julType) {
+		case 'dictionaryLiteral': {
+			const declaration = dictionaryType.declaration;
+			const foundSymbol = declaration?.expression.symbols[fieldName];
+			if (declaration && foundSymbol) {
+				result.push({
+					symbol: foundSymbol,
+					filePath: declaration.filePath,
+				});
+			}
+			return result;
+		}
+		case 'and':
+		case 'or': {
+			dictionaryType.ChoiceTypes.forEach(choiceType => {
+				getFieldSymbolsFromDictionaryType(choiceType, fieldName, result);
+			});
+			return result;
+		}
+		case 'typeOf':
+			return getFieldSymbolsFromDictionaryType(dictionaryType.value, fieldName, result);
+		default:
+			return result;
+	}
 }
 
 function getSymbolKey(filePath: string, symbol: Positioned): string {

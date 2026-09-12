@@ -66,3 +66,5 @@
 2026-09-12 20:13:48	c30feb6+	-	ADV-DEV-56627	yugioh	parse+check	5	3726.04	4149.99	4149.99	Phase 4: resolvePlaceholders und dereferenceArgumentTypesNested zu traversePlaceholders vereint
 2026-09-12 20:26:20	71ccc28+	-	ADV-DEV-56627	yugioh	parse+check	5	3867.61	4239.12	4239.12	Phase 3 fertig: isUnresolvedPlaceholderType ist Feldzugriff statt Traversierung
 2026-09-12 20:34:32	71ccc28+	-	ADV-DEV-56627	yugioh	parse+check	5	3792.08	4048.26	4048.26	Phase 5: Praefix-Argument bleibt fuer den Rueckgabetyp symbolisch; getTypeError loest nestedReference auf
+2026-09-12 21:14:50	1b9aaf6+	-	ADV-DEV-56627	yugioh	parse+check	5	3863.89	4092.23	4092.23	vor: Feldreferenzen im ReferenceIndex
+2026-09-12 21:20:47	fe73419+	-	ADV-DEV-56627	yugioh	parse+check	5	3806.14	4127.50	4127.50	nach: Feldreferenzen im ReferenceIndex

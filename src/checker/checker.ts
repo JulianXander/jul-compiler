@@ -48,12 +48,14 @@ import {
 	ParseListLiteral,
 	ParseParameterField,
 	ParseParameterFields,
+	ParseTextLiteral,
 	ParseValueExpression,
 	ParseReference,
 	PredicateFacts,
 	SimpleExpression,
 	SymbolDefinition,
 	SymbolTable,
+	Name,
 	TextLiteralType,
 	TextToken,
 	TypedExpression,
@@ -82,7 +84,7 @@ import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last,
 import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName } from '../parser/parser-utils.js';
-import { ReferenceIndex, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
+import { getFieldSymbolsFromDictionaryType, ReferenceIndex, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -93,6 +95,38 @@ export type ParsedDocuments = { [filePath: string]: ParsedFile; };
  * setInferredType-Aufrufe hindurchzureichen.
  */
 let activeReferenceIndex: ReferenceIndex | undefined;
+
+/**
+ * Trägt einen Feldnamen als Referenz auf die Felddeklaration(en) seines Quelltyps ein.
+ * Zeigt der Quelltyp auf keine Deklaration (z.B. Any oder ein rein berechneter Typ), gibt es nichts
+ * einzutragen - der Feldname bleibt dann ohne Identität, statt über den blossen Namen zu raten.
+ */
+function recordFieldReference(
+	nestedKey: Name | ParseTextLiteral,
+	sourceType: CompileTimeType | undefined,
+	filePath: string,
+): void {
+	const fieldName = getCheckedEscapableName(nestedKey);
+	if (!fieldName || !sourceType) {
+		return;
+	}
+	const fieldSymbols = getFieldSymbolsFromDictionaryType(sourceType, fieldName);
+	if (!fieldSymbols.length) {
+		getFieldSymbolsFromDictionaryType(resolvePlaceholders(sourceType), fieldName, fieldSymbols);
+	}
+	fieldSymbols.forEach(fieldSymbol => {
+		if (fieldSymbol.filePath === '') {
+			return;
+		}
+		activeReferenceIndex!.recordReference(fieldSymbol.symbol, fieldSymbol.filePath, {
+			filePath: filePath,
+			startRowIndex: nestedKey.startRowIndex,
+			startColumnIndex: nestedKey.startColumnIndex,
+			endRowIndex: nestedKey.endRowIndex,
+			endColumnIndex: nestedKey.endColumnIndex,
+		});
+	});
+}
 
 //#region stats
 
@@ -2419,6 +2453,11 @@ function inferType(
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
 				return { type: builtinAny };
+			}
+			// Vor der Verengung, die weiter unten früh zurückkehrt: der Feldzugriff ist unabhängig
+			// vom verengten Ergebnis eine Referenz auf die Felddeklaration.
+			if (activeReferenceIndex && nestedKey.type !== 'index') {
+				recordFieldReference(nestedKey, source.typeInfo?.type, filePath);
 			}
 			if (narrowedTypes) {
 				const path = getAccessPath(expression, scopes);
