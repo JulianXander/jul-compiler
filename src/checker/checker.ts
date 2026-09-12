@@ -158,7 +158,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ElementType',
-				type: { julType: 'type' },
+				type: builtinType,
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeListType(parameterReference)),
 			true,
@@ -171,7 +171,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ElementType',
-				type: { julType: 'type' },
+				type: builtinType,
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeDictionaryType(parameterReference)),
 			true,
@@ -184,7 +184,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ValueType',
-				type: { julType: 'type' },
+				type: builtinType,
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeStreamType(parameterReference)),
 			true,
@@ -199,7 +199,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 				{
 					name: 'FunctionType',
 					// TODO functionType
-					type: { julType: 'type' },
+					type: builtinType,
 				},
 				{
 					name: 'pure',
@@ -4606,8 +4606,8 @@ export function getTypeError(
 					const asLiteralUnion: CompileTimeType = {
 						julType: 'or',
 						ChoiceTypes: [
-							{ julType: 'booleanLiteral', value: true },
-							{ julType: 'booleanLiteral', value: false },
+							createBooleanLiteral(true),
+							createBooleanLiteral(false),
 						],
 					};
 					return getTypeError(prefixArgumentType, asLiteralUnion, targetType);
@@ -5420,7 +5420,7 @@ function checkTypeGuardIsType(
 	errors: CompilerError[],
 ): void {
 	const typeGuardType = resolvePlaceholders(typeGuard.typeInfo!.type);
-	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, { julType: 'type' });
+	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, builtinType);
 	if (typeGuardTypeError) {
 		errors.push({
 			code: ErrorCode.typeGuardIsNotType,
@@ -5462,3 +5462,5 @@ function checkIsFunction(
 	}
 	return true;
 }
+
+
