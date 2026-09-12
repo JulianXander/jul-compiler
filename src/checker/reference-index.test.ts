@@ -5,7 +5,7 @@ import { join } from 'path';
 
 import { checkTypes, ParsedDocuments } from './checker.js';
 import { parseCode } from '../parser/parser.js';
-import { ParsedFile } from '../syntax-tree.js';
+import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
 import { ReferenceIndex } from './reference-index.js';
 
 /**
@@ -99,5 +99,49 @@ describe('ReferenceIndex', () => {
 		// erneutes Checken ohne weitere Änderung darf nichts verdoppeln
 		checkTypes(reparsed, documents, referenceIndex);
 		expect(referenceIndex.getReferences(fooSymbol, originPath)).to.have.lengthOf(3);
+	});
+});
+
+describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
+	let folder: string;
+	let filePath: string;
+	let documents: ParsedDocuments;
+	let referenceIndex: ReferenceIndex;
+
+	beforeEach(() => {
+		folder = mkdtempSync(join(tmpdir(), 'jul-reference-index-fields-'));
+		filePath = join(folder, 'fields.jul');
+		writeFileSync(filePath, [
+			'MyType = [',
+			'	name: Text',
+			']',
+			'value: MyType = [',
+			'	name = §a§',
+			']',
+			'usage = value.name',
+			'',
+		].join('\n'));
+		documents = {};
+		referenceIndex = new ReferenceIndex();
+		parseAndCheck(filePath, documents, referenceIndex);
+	});
+
+	afterEach(() => {
+		rmSync(folder, { recursive: true, force: true });
+	});
+
+	function getFieldSymbol(typeName: string, fieldName: string): SymbolDefinition {
+		const typeSymbol = documents[filePath]!.checked!.symbols[typeName]!;
+		const type = typeSymbol.typeInfo!.type as any;
+		const declaration = (type.julType === 'typeOf' ? type.value : type).declaration;
+		return declaration.expression.symbols[fieldName];
+	}
+
+	it('sammelt Feldzugriffe als Referenzen auf das Feld des Dictionary-Typs', () => {
+		const nameFieldSymbol = getFieldSymbol('MyType', 'name');
+		const references = referenceIndex.getReferences(nameFieldSymbol, filePath);
+
+		// das Feld im Dictionary-Literal (Zeile 5) und der Feldzugriff value.name (Zeile 7)
+		expect(references.map(location => location.startRowIndex).sort()).to.deep.equal([4, 6]);
 	});
 });
