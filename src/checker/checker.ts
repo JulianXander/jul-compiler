@@ -1981,14 +1981,14 @@ function inferType(
 				setInferredType(typeGuard, typeContext, parsedDocuments, folder, file, filePath);
 				checkTypeGuardIsType(typeGuard, errors);
 				const typeGuardType = typeGuard.typeInfo;
-				const resolvedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
-				const assignmentError = resolvedTargetType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), resolvedTargetType);
+				const dereferencedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
+				const assignmentError = dereferencedTargetType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), dereferencedTargetType);
 				if (assignmentError) {
 					// Position wandert beim Abstieg durch verschachtelte Dictionary-Literale auf
 					// die innerste noch vorhandene, tatsaechlich falsche Stelle (TypeScript/
 					// Rust/Elm-Vorbild: eine Diagnose, eine moeglichst genaue Position, statt
 					// einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle).
-					const innerPosition = resolvedTargetType && findInnermostErrorPosition(value, resolvedTargetType);
+					const innerPosition = dereferencedTargetType && findInnermostErrorPosition(value, dereferencedTargetType);
 					const position = innerPosition ?? expression;
 					
 					// Ob die umhuellende "Can not assign X to Y."-Zeile fehlt, entscheidet
@@ -2396,8 +2396,8 @@ function inferType(
 				// TypeOf(values)/ElementType) muss je Aufruf neu aufgelöst werden, nicht schon
 				// hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet werden.
 				const rawDeclaredReturnType = valueOf(declaredReturnType.typeInfo!.type);
-				const resolvedDeclaredReturnType = resolvePlaceholders(rawDeclaredReturnType);
-				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), resolvedDeclaredReturnType);
+				const dereferencedDeclaredReturnType = resolvePlaceholders(rawDeclaredReturnType);
+				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), dereferencedDeclaredReturnType);
 				if (error) {
 					// Markiert wird nur der zurückgegebene Ausdruck (last(body)), nicht die
 					// ganze Funktion - sonst ummantelt die mehrzeilige Klammerung (formatErrors)
@@ -2414,7 +2414,7 @@ function inferType(
 						// gilt - besonders bei langen Funktionsrümpfen, wo die Signatur beim
 						// Lesen der Rückgabe längst nicht mehr im Bild ist.
 						relatedInformation: {
-							message: `Declared as ${typeToString(resolvedDeclaredReturnType, 0, 1)} here.`,
+							message: `Declared as ${typeToString(dereferencedDeclaredReturnType, 0, 1)} here.`,
 							startRowIndex: declaredReturnType.startRowIndex,
 							startColumnIndex: declaredReturnType.startColumnIndex,
 							endRowIndex: declaredReturnType.endRowIndex,
@@ -2517,8 +2517,8 @@ function inferType(
 			if (hasListSpread) {
 				// Baue Union aller tupleElements-Typen für List ElementType
 				// WICHTIG: Resolve Placeholders auf jedem Element (z.B. parameterReference in List(T))
-				const resolvedElements = tupleElements.map(t => resolvePlaceholders(t));
-				const unionType = createNormalizedUnionType(resolvedElements);
+				const dereferencedElements = tupleElements.map(t => resolvePlaceholders(t));
+				const unionType = createNormalizedUnionType(dereferencedElements);
 				rawType = createCompileTimeListType(unionType);
 			} else {
 				// Alle Spreads sind Tuples (oder keine Spreads) → Tuple mit bekannter Länge
@@ -3312,6 +3312,11 @@ function withElementAtFromTypes(
  * parameterReference/nestedReference permissiv (immer "kein Fehler"), das würde sonst hier eine
  * Elimination vortäuschen, die den Platzhalter-Anteil verwirft, bevor er aufgelöst ist.
  */
+
+function assertNever(x: never): never {
+	throw new Error(`Should never reach here: ${JSON.stringify(x)}`);
+}
+
 function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'parameterReference':
@@ -3343,8 +3348,28 @@ function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
 			return type.ElementTypes.some(isUnresolvedPlaceholderType);
 		case 'function':
 			return isUnresolvedPlaceholderType(type.ParamsType) || isUnresolvedPlaceholderType(type.ReturnType);
-		default:
+		// Blatt-Typen: kein verschachtelter CompileTimeType, der einen Platzhalter tragen könnte.
+		case 'any':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'date':
+		case 'empty':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'integer':
+		case 'integerLiteral':
+		case 'never':
+		case 'text':
+		case 'textLiteral':
+		case 'type':
+		case 'dictionaryLiteral':
+		case 'lengthOf':
+		case 'parameters':
 			return false;
+		default:
+			return assertNever(type as never);
 	}
 }
 
@@ -4288,11 +4313,11 @@ export function getTypeError(
 			// Source (z.B. parameterReference, weil argsType bewusst ungeprüft bleibt, siehe
 			// Aufrufer) gilt das nicht automatisch - erst auflösen und ggf. neu aufsplitten,
 			// bevor NonZeroInteger unterstellt wird.
-			const resolvedSource = resolvePlaceholders(argumentsType.Source);
-			if (resolvedSource !== argumentsType.Source) {
-				const resolvedLength = getLengthFromType(resolvedSource);
-				if (!typeEquals(resolvedLength, argumentsType)) {
-					return getTypeError(prefixArgumentType, resolvedLength, targetType);
+			const dereferencedSource = resolvePlaceholders(argumentsType.Source);
+			if (dereferencedSource !== argumentsType.Source) {
+				const dereferencedLength = getLengthFromType(dereferencedSource);
+				if (!typeEquals(dereferencedLength, argumentsType)) {
+					return getTypeError(prefixArgumentType, dereferencedLength, targetType);
 				}
 			}
 			return getTypeError(prefixArgumentType, CompileTimeNonZeroInteger, targetType);
