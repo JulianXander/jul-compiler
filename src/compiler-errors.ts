@@ -52,6 +52,7 @@ export enum ErrorCode {
 	expectedStartOfLine = 1100,
 	expectedEndOfLine = 1101,
 	unparsedRestOfRow = 1102,
+	spaceIndentation = 1103,
 	// Abbruch, nicht geparster Restcode
 	unparsedCode = 1150,
 	expectedNestedKey = 1151,
@@ -160,6 +161,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.expectedStartOfLine]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedEndOfLine]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.unparsedRestOfRow]: { type: 'syntax', severity: 'error' },
+	[ErrorCode.spaceIndentation]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.unparsedCode]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedNestedKey]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedExpression]: { type: 'syntax', severity: 'error' },
@@ -234,6 +236,11 @@ export interface CompilerError extends Positioned {
 		 */
 		filePath?: string;
 	} & Positioned;
+	/**
+	 * Nur bei ErrorCode.spaceIndentation: Anzahl Tabs, die an dieser Stelle statt der
+	 * vorgefundenen Leerzeichen erwartet wird. Vom Language Server für den Quick Fix genutzt.
+	 */
+	expectedIndent?: number;
 }
 
 export interface Positioned {

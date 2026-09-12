@@ -367,6 +367,124 @@ function newLineParser(
 	};
 }
 
+/**
+ * Leerzeichen je Einrückungsebene, einmal je Datei ermittelt.
+ * Die Breite ist eine Eigenschaft der Datei, nicht der Parse-Position: nebenbei beim Parsen
+ * ermittelt hinge sie von Reihenfolge und Backtracking ab. rows entsteht genau einmal je
+ * Parse-Lauf, deshalb genügt die Array-Identität als Schlüssel.
+ */
+const indentUnitByRows = new WeakMap<string[], number | undefined>();
+
+function greatestCommonDivisor(a: number, b: number): number {
+	while (b) {
+		const rest = a % b;
+		a = b;
+		b = rest;
+	}
+	return a;
+}
+
+/**
+ * undefined heißt unbekannt: dann wird Leerzeichen-Einrückung nicht erkannt und es bleibt beim
+ * strikten Tab-Verhalten. Lieber gar nicht raten als eine falsche Ebene annehmen - eine falsch
+ * geratene Ebene zerstört die Struktur der ganzen Datei.
+ */
+function getIndentUnit(rows: string[]): number | undefined {
+	if (indentUnitByRows.has(rows)) {
+		return indentUnitByRows.get(rows);
+	}
+	let unit: number | undefined = undefined;
+	let maxSpaceCount = 0;
+	for (const row of rows) {
+		let spaceCount = 0;
+		while (row[spaceCount] === ' ') {
+			spaceCount++;
+		}
+		if (!spaceCount
+			// gemischte Einrückung sagt nichts über die Breite: unklar, wie viele Ebenen der
+			// Tab-Anteil ausmacht
+			|| row[spaceCount] === '\t'
+			// Zeile aus lauter Leerzeichen ist eine Leerzeile, keine Einrückung
+			|| spaceCount === row.length) {
+			continue;
+		}
+		maxSpaceCount = Math.max(maxSpaceCount, spaceCount);
+		unit = unit === undefined
+			? spaceCount
+			: greatestCommonDivisor(unit, spaceCount);
+	}
+	// ggT 1 trotz längerer Sequenzen: die Datei ist nicht einheitlich eingerückt, oder der Inhalt
+	// eines mehrzeiligen Textliterals verfälscht die Messung.
+	const result = unit === 1 && maxSpaceCount > 1
+		? undefined
+		: unit;
+	indentUnitByRows.set(rows, result);
+	return result;
+}
+
+/**
+ * Läuft die Einrückung zeichenweise ab und zählt Ebenen, bis indent erreicht ist - und nicht
+ * weiter. Alles dahinter bleibt Inhalt; sonst würde der Inhalt eines mehrzeiligen Textliterals,
+ * der mit Leerzeichen beginnen darf, mitgefressen.
+ * Liefert undefined, wenn die erwartete Tiefe nicht mit Leerzeichen erreicht wird - dann gilt
+ * unverändert das Ergebnis des Tab-Vergleichs (Dedent bzw. Blockende).
+ */
+function spaceIndentParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<undefined> | undefined {
+	const row = rows[startRowIndex];
+	if (row === undefined) {
+		return undefined;
+	}
+	const indentUnit = getIndentUnit(rows);
+	let columnIndex = startColumnIndex;
+	let level = 0;
+	let hasSpaceIndentation = false;
+	while (level < indent) {
+		if (row[columnIndex] === '\t') {
+			columnIndex++;
+			level++;
+			continue;
+		}
+		if (row[columnIndex] !== ' ' || indentUnit === undefined) {
+			// Zeile ist flacher als erwartet (echtes Dedent) oder die Breite ist unbekannt
+			return undefined;
+		}
+		let spaceCount = 0;
+		while (spaceCount < indentUnit && row[columnIndex + spaceCount] === ' ') {
+			spaceCount++;
+		}
+		if (spaceCount < indentUnit) {
+			// angefangene Ebene: ergibt keine ganze Ebene, also keine Aussage
+			return undefined;
+		}
+		columnIndex += indentUnit;
+		level++;
+		hasSpaceIndentation = true;
+	}
+	if (!hasSpaceIndentation) {
+		// reine Tabs hätte bereits der Tab-Vergleich gematcht
+		return undefined;
+	}
+	return {
+		hasParsed: true,
+		endRowIndex: startRowIndex,
+		endColumnIndex: columnIndex,
+		errors: [{
+			code: ErrorCode.spaceIndentation,
+			message: `Indentation uses spaces instead of tabs. Expected ${indent} tab(s).`,
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: startRowIndex,
+			endColumnIndex: columnIndex,
+			expectedIndent: indent,
+		}],
+	};
+}
+
 function indentParser(
 	rows: string[],
 	startRowIndex: number,
@@ -379,7 +497,14 @@ function indentParser(
 	}
 	const totalIndentToken = '\t'.repeat(indent);
 	const indentResult = tokenParser(totalIndentToken)(rows, startRowIndex, startColumnIndex, indent);
-	return indentResult;
+	if (indentResult.hasParsed) {
+		return indentResult;
+	}
+	// Die erwartete Tiefe mit Leerzeichen zu erreichen ist ein Erfolg mit Diagnose, kein
+	// Fehlschlag: ein Fehlschlag würde beim Backtracking (multiplicationParser, choiceParser)
+	// samt Diagnose verworfen und käme beim Nutzer nie an.
+	return spaceIndentParser(rows, startRowIndex, startColumnIndex, indent)
+		?? indentResult;
 }
 
 /**
@@ -428,6 +553,11 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 					parsed: parsed,
 					errors: errors,
 				};
+			}
+			if (indentResult.errors) {
+				// spaceIndentation: die Zeile wurde trotz falscher Einrückung auf der erwarteten
+				// Ebene erkannt, die Diagnose muss aber sichtbar bleiben.
+				errors.push(...indentResult.errors);
 			}
 			if (row[columnIndex] === '#') {
 				// Kommentarzeile

@@ -315,6 +315,79 @@ const expectedResults: {
 			],
 		},
 		//#endregion Funktionen
+		//#region Einrückung
+		{
+			name: 'space-indentation-single-line',
+			code: 'foo(\n    a = 1\n)',
+			errors: [
+				{
+					code: ErrorCode.spaceIndentation,
+					message: 'Indentation uses spaces instead of tabs. Expected 1 tab(s).',
+					startRowIndex: 1,
+					startColumnIndex: 0,
+					endRowIndex: 1,
+					endColumnIndex: 4,
+					expectedIndent: 1,
+				},
+			],
+		},
+		{
+			// Der einzeilige Fall allein reicht als Abdeckung nicht: eine Erkennung, die jede Zeile
+			// mit führendem Leerzeichen pauschal als "gleiche Ebene, falsches Zeichen" behandelt,
+			// kann ein echtes Dedent (hier die schließende Klammer von bar in Zeile 4) nicht mehr
+			// davon unterscheiden, sobald die ganze Datei auf Leerzeichen umgestellt ist. Dann
+			// kaskadiert die Fehlinterpretation über die Verschachtelung hinweg.
+			name: 'space-indentation-nested-with-dedent',
+			code: 'foo(\n  a = bar(\n    x = 1\n    y = 2\n  )\n  b = 3\n)',
+			errors: [
+				{
+					code: ErrorCode.spaceIndentation,
+					message: 'Indentation uses spaces instead of tabs. Expected 1 tab(s).',
+					startRowIndex: 1,
+					startColumnIndex: 0,
+					endRowIndex: 1,
+					endColumnIndex: 2,
+					expectedIndent: 1,
+				},
+				{
+					code: ErrorCode.spaceIndentation,
+					message: 'Indentation uses spaces instead of tabs. Expected 2 tab(s).',
+					startRowIndex: 2,
+					startColumnIndex: 0,
+					endRowIndex: 2,
+					endColumnIndex: 4,
+					expectedIndent: 2,
+				},
+				{
+					code: ErrorCode.spaceIndentation,
+					message: 'Indentation uses spaces instead of tabs. Expected 2 tab(s).',
+					startRowIndex: 3,
+					startColumnIndex: 0,
+					endRowIndex: 3,
+					endColumnIndex: 4,
+					expectedIndent: 2,
+				},
+				{
+					code: ErrorCode.spaceIndentation,
+					message: 'Indentation uses spaces instead of tabs. Expected 1 tab(s).',
+					startRowIndex: 4,
+					startColumnIndex: 0,
+					endRowIndex: 4,
+					endColumnIndex: 2,
+					expectedIndent: 1,
+				},
+				{
+					code: ErrorCode.spaceIndentation,
+					message: 'Indentation uses spaces instead of tabs. Expected 1 tab(s).',
+					startRowIndex: 5,
+					startColumnIndex: 0,
+					endRowIndex: 5,
+					endColumnIndex: 2,
+					expectedIndent: 1,
+				},
+			],
+		},
+		//#endregion Einrückung
 		{
 			name: 'branching-error',
 			code: '?(4)\n\t[4] =>\n\t\tlog(\n\t\t\t4)',
