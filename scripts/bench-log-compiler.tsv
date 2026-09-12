@@ -61,3 +61,4 @@
 2026-09-12 14:31:18	6a2fb8d+	-	ADV-DEV-56627	yugioh	parse+check	5	5070.34	6291.66	6291.66	space-indentation erkennung in indentParser (ziel enthaelt space-konvertierte game-logic.jul)
 2026-09-12 14:34:45	6a2fb8d+	-	ADV-DEV-56627	yugioh	parse+check	5	4939.52	4996.13	4996.13	space-indentation erkennung in indentParser; A/B auf Tab-Kopie ohne echten Regress (4285 vs 4520ms alt) - Sprung im vorherigen Log kam vom space-konvertierten game-logic.jul, das jetzt vollstaendig statt abgebrochen geparst wird
 2026-09-12 19:38:50	e4ac2d6+	-	ADV-DEV-56627	yugioh	parse+check	5	3733.65	3970.14	3970.14	Phase 2 abgeschlossen: assertNever validiert
+2026-09-12 20:01:53	4dc8177+	-	ADV-DEV-56627	yugioh	parse+check	5	3985.65	4107.67	4107.67	Phase 3: Blatt-Typen durch builtins ersetzt

@@ -59,6 +59,16 @@ import {
 	TypedExpression,
 	TypeInfo,
 	ParseExpressionBase,
+	builtinAny,
+	builtinEmpty,
+	builtinNever,
+	builtinBoolean,
+	builtinInteger,
+	builtinText,
+	builtinFloat,
+	builtinDate,
+	builtinBlob,
+	builtinType,
 } from '../syntax-tree.js';
 import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
@@ -123,7 +133,7 @@ const indentUnit = '  ';
 const subtypeReductionLimit = 20;
 
 const CompileTimeNonZeroInteger = createNormalizedIntersectionType([
-	{ julType: 'integer' },
+	builtinInteger,
 	createCompileTimeComplementType({ julType: 'integerLiteral', value: 0n }),
 ]);
 
@@ -136,13 +146,13 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		julType: 'booleanLiteral',
 		value: false,
 	},
-	Any: createCompileTimeTypeOfType({ julType: 'any' }),
+	Any: createCompileTimeTypeOfType(builtinAny),
 	Type: createCompileTimeTypeOfType({ julType: 'type' }),
-	Empty: createCompileTimeTypeOfType({ julType: 'empty' }),
-	Boolean: createCompileTimeTypeOfType({ julType: 'boolean' }),
-	Integer: createCompileTimeTypeOfType({ julType: 'integer' }),
+	Empty: createCompileTimeTypeOfType(builtinEmpty),
+	Boolean: createCompileTimeTypeOfType(builtinBoolean),
+	Integer: createCompileTimeTypeOfType(builtinInteger),
 	Float: createCompileTimeTypeOfType({ julType: 'float' }),
-	Text: createCompileTimeTypeOfType({ julType: 'text' }),
+	Text: createCompileTimeTypeOfType(builtinText),
 	Date: createCompileTimeTypeOfType({ julType: 'date' }),
 	Error: createCompileTimeTypeOfType({ julType: 'error' }),
 	List: (() => {
@@ -195,11 +205,11 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 				},
 				{
 					name: 'pure',
-					type: { julType: 'boolean' },
+					type: builtinBoolean,
 				},
 				{
 					name: 'js',
-					type: { julType: 'text' },
+					type: builtinText,
 				},
 			]),
 			parameterReference,
@@ -212,10 +222,10 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		createParametersType([
 			{
 				name: 'js',
-				type: { julType: 'text' },
+				type: builtinText,
 			},
 		]),
-		{ julType: 'any' },
+		builtinAny,
 		false,
 	),
 };
@@ -248,7 +258,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	const findResult = findSymbolInScopes(name, scopes);
 	if (!findResult) {
 		return {
-			type: { julType: 'any' },
+			type: builtinAny,
 			found: false,
 			isBuiltIn: false,
 		};
@@ -279,7 +289,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 		// console.log(reference);
 		// throw new Error('symbol type was not inferred');
 		return {
-			type: { julType: 'any' },
+			type: builtinAny,
 			found: true,
 			foundSymbol: foundSymbol,
 			isBuiltIn: isBuiltIn,
@@ -294,7 +304,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 }
 
 export function getStreamGetValueType(streamType: CompileTimeStreamType): CompileTimeFunctionType {
-	return createCompileTimeFunctionType({ julType: 'empty' }, streamType.ValueType, false);
+	return createCompileTimeFunctionType(builtinEmpty, streamType.ValueType, false);
 }
 
 /**
@@ -329,7 +339,7 @@ function dereferenceNestedKeyFromObject(
 			}
 			// Nur wo die Länge feststeht, heißt ein Fehlschlag "die Position gibt es nicht".
 			return hasKnownLength(source)
-				? { julType: 'empty' }
+				? builtinEmpty
 				: dereferenceUnknownKeyFromObject(nestedKey, source);
 		}
 		case 'textLiteral': {
@@ -338,7 +348,7 @@ function dereferenceNestedKeyFromObject(
 				return dereferenced;
 			}
 			return hasKnownFields(source)
-				? { julType: 'empty' }
+				? builtinEmpty
 				: dereferenceUnknownKeyFromObject(nestedKey, source);
 		}
 		case 'lengthOf': {
@@ -376,13 +386,13 @@ function dereferenceUnknownKeyFromObject(
 ): CompileTimeType | undefined {
 	switch (source.julType) {
 		case 'empty':
-			return { julType: 'empty' };
+			return builtinEmpty;
 		case 'any':
-			return { julType: 'any' };
+			return builtinAny;
 		case 'tuple':
-			return createNormalizedUnionType([{ julType: 'empty' }, ...source.ElementTypes]);
+			return createNormalizedUnionType([builtinEmpty, ...source.ElementTypes]);
 		case 'list':
-			return createNormalizedUnionType([{ julType: 'empty' }, source.ElementType]);
+			return createNormalizedUnionType([builtinEmpty, source.ElementType]);
 		case 'or': {
 			const choices = source.ChoiceTypes
 				.map(choiceType => dereferenceUnknownKeyFromObject(nestedKey, choiceType))
@@ -395,7 +405,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'typeOf':
 			return dereferenceUnknownKeyFromObject(nestedKey, source.value);
 		default:
-			return { julType: 'any' };
+			return builtinAny;
 	}
 }
 
@@ -511,7 +521,7 @@ export function dereferenceNameFromObject(
 					// Any als neutrales Element von And: ohne erkannte Prädikat-Form (kein
 					// .predicate) soll die Projektion den ElementType unverändert lassen,
 					// statt ihn fälschlich einzuschränken.
-					return sourceObjectType.predicate?.ifTrue ?? { julType: 'any' };
+					return sourceObjectType.predicate?.ifTrue ?? builtinAny;
 				default:
 					return undefined;
 			}
@@ -609,13 +619,13 @@ export function dereferenceIndexFromObject(
 	}
 	switch (sourceObjectType.julType) {
 		case 'empty':
-			return { julType: 'empty' };
+			return builtinEmpty;
 		case 'dictionaryLiteral':
 			// Ein Dictionary trägt keine Positionen; gemeldet wird an der Aufrufstelle.
 			return undefined;
 		case 'list':
 			// Eine List kennt ihre Länge nicht, die Position ist also nicht beweisbar vorhanden.
-			return createNormalizedUnionType([{ julType: 'empty' }, sourceObjectType.ElementType]);
+			return createNormalizedUnionType([builtinEmpty, sourceObjectType.ElementType]);
 		case 'or': {
 			const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
 				return dereferenceIndexFromObject(index, choiceType);
@@ -754,7 +764,7 @@ function dereferenceArgumentTypesNested(
 				: typeToDereference.nestedKey;
 			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, dereferencedSource);
 			if (!dereferencedNested) {
-				return { julType: 'any' };
+				return builtinAny;
 			}
 			return dereferencedNested;
 		}
@@ -902,7 +912,7 @@ function dereferenceParameterFromArgumentType(
 	if (isRest) {
 		const allArgTypes = getAllArgTypes(prefixArgumentType, argsType);
 		if (allArgTypes === undefined) {
-			return { julType: 'any' };
+			return builtinAny;
 		}
 		return {
 			julType: 'tuple',
@@ -1044,7 +1054,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 				: rawType.nestedKey;
 			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, dereferencedSource);
 			if (!dereferencedNested) {
-				return { julType: 'any' };
+				return builtinAny;
 			}
 			return dereferencedNested;
 		}
@@ -1080,7 +1090,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		case 'parameterReference': {
 			const dereferenced1 = dereferenceParameterTypeFromFunctionRef(rawType);
 			if (!dereferenced1) {
-				return { julType: 'any' };
+				return builtinAny;
 			}
 			if (dereferenced1 === rawType) {
 				return rawType;
@@ -1474,7 +1484,7 @@ function withNarrowedPath(
 		}
 		const sourceType = getNarrowedType(result, sourcePath.symbol, sourcePath.keys)
 			?? source.typeInfo?.type
-			?? { julType: 'any' };
+			?? builtinAny;
 		narrowedType = createNormalizedIntersectionType([
 			sourceType,
 			// complete: false, denn der branch beweist nur diesen einen Fakt - über andere
@@ -1722,7 +1732,7 @@ function getPredicateFacts(
 	// auch der Error eines nicht erschöpfenden branchings matchen, für einen Wert, den kein
 	// branch nennt - ifTrue wäre dann zu klein. Steht hinter den Formprüfungen, weil es die
 	// einzige teure Bedingung ist.
-	if (getTypeError(undefined, resolvePlaceholders(returnType), { julType: 'boolean' })) {
+	if (getTypeError(undefined, resolvePlaceholders(returnType), builtinBoolean)) {
 		return undefined;
 	}
 	const ifTrueTypes: CompileTimeType[] = [];
@@ -1826,7 +1836,7 @@ function inferType(
 		case 'binding':
 		case 'data':
 			// TODO?
-			return { type: { julType: 'any' } };
+			return { type: builtinAny };
 		case 'branching': {
 			// union branch return types
 			// TODO conditional type?
@@ -1965,7 +1975,7 @@ function inferType(
 					typeInfo = value.typeInfo;
 				}
 				else {
-					typeInfo = { type: { julType: 'any' } };
+					typeInfo = { type: builtinAny };
 				}
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
@@ -2056,7 +2066,7 @@ function inferType(
 				}
 				const valueType: CompileTimeType = value?.typeInfo
 					? value.typeInfo.type
-					: { julType: 'any' };
+					: builtinAny;
 				// Die Laufzeit greift bei einem Array über die Position zu, sonst über den Namen
 				// (_isArray ? _temp[index] : _temp.name) - der Checker prüft deshalb beides.
 				const fieldType = dereferenceNameFromObject(referenceName, valueType)
@@ -2098,7 +2108,7 @@ function inferType(
 			if (allFieldsResolved) {
 				checkDiscardedDestructuringFields(value, expression.fields.fields, errors);
 			}
-			return { type: { julType: 'any' } };
+			return { type: builtinAny };
 		}
 		case 'dictionary': {
 			const fieldTypes: CompileTimeDictionary = {};
@@ -2119,7 +2129,7 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = field.value?.typeInfo?.type ?? { julType: 'any' };
+						const fieldType = field.value?.typeInfo?.type ?? builtinAny;
 						fieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
@@ -2151,7 +2161,7 @@ function inferType(
 				}
 			});
 			if (isUnknownType) {
-				return { type: { julType: 'any' } };
+				return { type: builtinAny };
 			}
 			const aliasName = getNameFromValue(expression);
 			const rawType = createCompileTimeDictionaryLiteralType(
@@ -2215,10 +2225,10 @@ function inferType(
 			return { type: rawType };
 		}
 		case 'empty':
-			return { type: { julType: 'empty' } };
+			return { type: builtinEmpty };
 		case 'field':
 			// TODO?
-			return { type: { julType: 'empty' } };
+			return { type: builtinEmpty };
 		case 'float': {
 			const rawType: CompileTimeType = {
 				julType: 'floatLiteral',
@@ -2248,7 +2258,7 @@ function inferType(
 			}
 			const functionExpression = expression.functionExpression;
 			if (!functionExpression) {
-				return { type: { julType: 'any' } };
+				return { type: builtinAny };
 			}
 			setInferredType(functionExpression, typeContext, parsedDocuments, folder, file, filePath);
 			const isFunction = checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
@@ -2256,7 +2266,7 @@ function inferType(
 			const paramsType = getParamsType(functionType);
 			const args = expression.arguments;
 			if (!args) {
-				return { type: { julType: 'any' } };
+				return { type: builtinAny };
 			}
 			//#region infer argument type bei function literal welches inline argument eines function calls ist
 			const prefixArgs = prefixArgument
@@ -2292,7 +2302,7 @@ function inferType(
 			if (!isFunction) {
 				// Die Argumente sind inferiert, ihre eigenen Fehler also gemeldet.
 				// Alles weitere setzt eine Funktion voraus und wäre wirkungslos.
-				return { type: { julType: 'any' } };
+				return { type: builtinAny };
 			}
 			// Präfix-Argument (z.B. `values` in `values.slice(1)`) referenziert einen eigenen
 			// Parameter und bleibt sonst eine abstrakte parameterReference statt des konkreten
@@ -2326,8 +2336,8 @@ function inferType(
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, ownSymbols];
 			const params = expression.params;
 			const functionType = createCompileTimeFunctionType(
-				{ julType: 'empty' },
-				{ julType: 'empty' },
+				builtinEmpty,
+				builtinEmpty,
 				// TODO pure, wenn der body pure ist
 				false,
 			);
@@ -2363,7 +2373,7 @@ function inferType(
 					// branching.args wird in case 'branching' vor den branches inferiert
 					const currentType = getNarrowedType(branchNarrowedTypes, path.symbol, path.keys)
 						?? argument.typeInfo?.type
-						?? { julType: 'any' };
+						?? builtinAny;
 					// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
 					const narrowedType = narrowBranchedType(currentType, branchRawType, previousBranchValueType);
 					branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, argument, narrowedType, functionScopes);
@@ -2383,7 +2393,7 @@ function inferType(
 			});
 			// Ein leerer body ist ungültig, nicht leer (Empty). Any als Ergebnis, damit sich der
 			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
-			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? { julType: 'any' };
+			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? builtinAny;
 			const declaredReturnType = expression.returnType;
 			// Any als inferierter Typ heißt "nichts Genaueres bekannt", nicht "Any ist der Typ" -
 			// hier auf den deklarierten Typ zurückfallen, sonst sehen Aufrufer Any statt der
@@ -2439,8 +2449,8 @@ function inferType(
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			const params = expression.params;
 			const functionType = createCompileTimeFunctionType(
-				{ julType: 'empty' },
-				{ julType: 'empty' },
+				builtinEmpty,
+				builtinEmpty,
 				true,
 			);
 			if (params.type === 'parameters') {
@@ -2505,7 +2515,7 @@ function inferType(
 						tupleElements.push(...spreadResult.elementTypes);
 					} else {
 						// Nicht auflösbare Quelle (z.B. Any): fallback zu any
-						tupleElements.push({ julType: 'any' });
+						tupleElements.push(builtinAny);
 					}
 				} else {
 					tupleElements.push(element.typeInfo!.type);
@@ -2532,7 +2542,7 @@ function inferType(
 			setInferredType(source, typeContext, parsedDocuments, folder, file, filePath);
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
-				return { type: { julType: 'any' } };
+				return { type: builtinAny };
 			}
 			if (narrowedTypes) {
 				const path = getAccessPath(expression, scopes);
@@ -2546,7 +2556,7 @@ function inferType(
 					// Ein ungültiger Index kann nichts dereferenzieren. Der Parser hat ihn schon
 					// gemeldet, hier also gar nicht erst nachsehen.
 					if (nestedKey.name < 1) {
-						return { type: { julType: 'any' } };
+						return { type: builtinAny };
 					}
 					const sourceType = resolvePlaceholders(source.typeInfo!.type);
 					// Der rawType kann eine Form sein, die dereferenceIndexFromObject nicht
@@ -2573,7 +2583,7 @@ function inferType(
 							});
 						}
 						// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
-						return { type: { julType: 'any' } };
+						return { type: builtinAny };
 					}
 					return { type: dereferencedType };
 				}
@@ -2581,7 +2591,7 @@ function inferType(
 				case 'text': {
 					const fieldName = getCheckedEscapableName(nestedKey);
 					if (!fieldName) {
-						return { type: { julType: 'any' } };
+						return { type: builtinAny };
 					}
 					const sourceType = resolvePlaceholders(source.typeInfo!.type);
 					// Der rawType kann eine Form sein, die dereferenceNameFromObject nicht behandelt,
@@ -2609,7 +2619,7 @@ function inferType(
 							});
 						}
 						// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
-						return { type: { julType: 'any' } };
+						return { type: builtinAny };
 					}
 					return { type: dereferencedType };
 				}
@@ -2675,7 +2685,7 @@ function inferType(
 				}
 			}
 			if (!isResolvableAsDictionary) {
-				return { type: { julType: 'any' } };
+				return { type: builtinAny };
 			}
 			return { type: createCompileTimeDictionaryLiteralType(fieldTypes, true) };
 		}
@@ -2707,8 +2717,8 @@ function inferType(
 					// argsType.typeInfo ist hier noch nicht gesetzt, denn der aktuelle parameter befindet sich in einem arg
 					// daher die typeInfo aus den values nehmen und vorläufigen argsType konstruieren (typeInfo ist bei vorherigen args schon gesetzt)
 					const argsType: CompileTimeType = args.type === 'list'
-						? createCompileTimeTupleType(args.values.map(value => (value as ParseExpressionBase).typeInfo?.type ?? { julType: 'any' }))
-						: { julType: 'any' };
+						? createCompileTimeTupleType(args.values.map(value => (value as ParseExpressionBase).typeInfo?.type ?? builtinAny))
+						: builtinAny;
 					dereferencedTypeFromCall = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, inferredTypeFromCall);
 				}
 			}
@@ -2807,7 +2817,7 @@ function inferType(
 					setInferredType(part, typeContext, parsedDocuments, folder, file, filePath);
 				}
 			});
-			return { type: { julType: 'text' } };
+			return { type: builtinText };
 		}
 		default: {
 			const assertNever: never = expression;
@@ -2834,7 +2844,7 @@ function getReturnTypeFromFunctionCall(
 ): CompileTimeType {
 	const prefixArgument = functionCall.prefixArgument;
 	const prefixArgumentType = prefixArgument?.typeInfo?.type;
-	const argsType = functionCall.arguments?.typeInfo?.type ?? { julType: 'any' };
+	const argsType = functionCall.arguments?.typeInfo?.type ?? builtinAny;
 	// TODO statt functionname functionref value/inferred type prüfen?
 	if (functionExpression.type === 'reference') {
 		const functionName = functionExpression.name.name;
@@ -2845,13 +2855,13 @@ function getReturnTypeFromFunctionCall(
 					errors.push(error);
 				}
 				if (!path) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				// TODO get full path, get type from parsedfile
 				const fullPath = join(folder, path);
 				const importedFile = parsedDocuments[fullPath]?.checked;
 				if (!importedFile) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				// definitions import
 				// a dictionary containing all definitions is imported
@@ -2859,7 +2869,7 @@ function getReturnTypeFromFunctionCall(
 					const importedTypes = mapDictionary(importedFile.symbols, symbol => {
 						const symbolType: CompileTimeType = symbol.typeInfo
 							? symbol.typeInfo.type
-							: { julType: 'any' };
+							: builtinAny;
 						return symbolType;
 					});
 					// TODO exrepssion, filePath?
@@ -2868,21 +2878,21 @@ function getReturnTypeFromFunctionCall(
 				// value import
 				// the last expression is imported
 				if (!importedFile.expressions) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				const lastExpression = last(importedFile.expressions);
 				if (!lastExpression) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return lastExpression.typeInfo
 					? lastExpression.typeInfo.type
-					: { julType: 'any' };
+					: builtinAny;
 			}
 			case 'And': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(createNormalizedIntersectionType(argTypes.map(valueOf)));
 			}
@@ -2892,16 +2902,16 @@ function getReturnTypeFromFunctionCall(
 				const indexType = argTypes?.[1];
 				if (!sourceType
 					|| !indexType) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				const elementType = dereferenceNestedKeyFromObject(valueOf(indexType), valueOf(sourceType));
-				return createCompileTimeTypeOfType(elementType ?? { julType: 'any' });
+				return createCompileTimeTypeOfType(elementType ?? builtinAny);
 			}
 			case 'LengthOf': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const sourceType = argTypes?.[0];
 				if (!sourceType) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(getLengthFromType(valueOf(sourceType)));
 			}
@@ -2913,7 +2923,7 @@ function getReturnTypeFromFunctionCall(
 				if (!sourceType
 					|| !indexType
 					|| !valueType) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(
 					withElementAtFromTypes(valueOf(sourceType), valueOf(indexType), valueOf(valueType)));
@@ -2922,9 +2932,9 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const startType = argTypes?.[0];
 				if (!startType) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
-				const endType = argTypes?.[1] ?? { julType: 'empty' } as CompileTimeType;
+				const endType = argTypes?.[1] ?? builtinEmpty as CompileTimeType;
 				return createCompileTimeTypeOfType(
 					createCompileTimeRangeType(valueOf(startType), valueOf(endType)));
 			}
@@ -2934,7 +2944,7 @@ function getReturnTypeFromFunctionCall(
 				const elementType = argTypes?.[1];
 				if (!countType
 					|| !elementType) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(
 					tupleOfFromTypes(valueOf(countType), valueOf(elementType)));
@@ -2942,7 +2952,7 @@ function getReturnTypeFromFunctionCall(
 			case 'Concat': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(
 					concatFromTypes(argTypes.map(valueOf)));
@@ -2951,11 +2961,11 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				if (!isNonEmpty(argTypes)) {
 					// TODO unknown?
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(createCompileTimeComplementType(valueOf(argTypes[0])));
 			}
@@ -2963,7 +2973,7 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				const choices = argTypes.map(valueOf);
 				const unionType = createNormalizedUnionType(choices);
@@ -2973,11 +2983,11 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				if (!isNonEmpty(argTypes)) {
 					// TODO unknown?
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(argTypes[0]);
 			}
@@ -2985,11 +2995,11 @@ function getReturnTypeFromFunctionCall(
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				if (!isNonEmpty(argTypes)) {
 					// TODO unknown?
-					return { julType: 'any' };
+					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(createCompileTimeGreaterType(valueOf(argTypes[0])));
 			}
@@ -3056,7 +3066,7 @@ function dereferenceRangeFromObject(
 	const end = resolvePlaceholders(range.End);
 	switch (source.julType) {
 		case 'empty':
-			return { julType: 'empty' };
+			return builtinEmpty;
 		case 'or': {
 			const choices = source.ChoiceTypes
 				.map(choice => dereferenceRangeFromObject(range, choice))
@@ -3081,7 +3091,7 @@ function dereferenceRangeFromObject(
 			const clampedFrom = Math.max(from, 1);
 			const clampedTo = Math.min(to, length);
 			if (clampedFrom > clampedTo) {
-				return { julType: 'empty' };
+				return builtinEmpty;
 			}
 			return createCompileTimeTupleType(source.ElementTypes.slice(clampedFrom - 1, clampedTo));
 		}
@@ -3089,7 +3099,7 @@ function dereferenceRangeFromObject(
 			const sliced = createCompileTimeListType(source.ElementType);
 			return rangeCoversFirstPosition(start, end)
 				? sliced
-				: createNormalizedUnionType([{ julType: 'empty' }, sliced]);
+				: createNormalizedUnionType([builtinEmpty, sliced]);
 		}
 		default:
 			break;
@@ -3137,7 +3147,7 @@ function tupleOfFromTypes(
 		case 'integerLiteral': {
 			const count = Number(countType.value);
 			if (count < 1) {
-				return { julType: 'empty' };
+				return builtinEmpty;
 			}
 			return createCompileTimeTupleType(new Array(count).fill(elementType));
 		}
@@ -3197,17 +3207,17 @@ function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
 	if (hasListSource) {
 		return elementTypes.length
 			? createCompileTimeListType(createNormalizedUnionType(elementTypes))
-			: createCompileTimeListType({ julType: 'never' });
+			: createCompileTimeListType(builtinNever);
 	}
 	return elementTypes.length
 		? createCompileTimeTupleType(elementTypes)
-		: { julType: 'empty' };
+		: builtinEmpty;
 }
 
 function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
 	if (!argType) {
 		// TODO non negative
-		return { julType: 'integer' };
+		return builtinInteger;
 	}
 	switch (argType.julType) {
 		case 'empty':
@@ -3234,7 +3244,7 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 			return isUnresolvedPlaceholderType(argType)
 				? createCompileTimeLengthOfType(argType)
 				// TODO non negative
-				: { julType: 'integer' };
+				: builtinInteger;
 	}
 }
 
@@ -3274,7 +3284,7 @@ function withElementAtFromTypes(
 				const position = Number(indexType.value);
 				const elementTypes = [...existingElementTypes];
 				for (let i = elementTypes.length; i < position - 1; i++) {
-					elementTypes[i] = { julType: 'empty' };
+					elementTypes[i] = builtinEmpty;
 				}
 				elementTypes[position - 1] = valueType;
 				return createCompileTimeTupleType(elementTypes);
@@ -3282,7 +3292,7 @@ function withElementAtFromTypes(
 			if (existingElementTypes.length === 0) {
 				// Ohne vorhandene Positionen UND ohne feste neue Position ist auch die Länge
 				// unbekannt - anders als unten darf hier nicht einfach über nichts gemappt werden.
-				return createCompileTimeListType(createNormalizedUnionType([{ julType: 'empty' }, valueType]));
+				return createCompileTimeListType(createNormalizedUnionType([builtinEmpty, valueType]));
 			}
 			// Ohne feste Position kann es jede vorhandene getroffen haben.
 			return createCompileTimeTupleType(existingElementTypes.map(elementType =>
@@ -3296,7 +3306,7 @@ function withElementAtFromTypes(
 			return createNormalizedUnionType(sourceChoices);
 		}
 		default:
-			return { julType: 'any' };
+			return builtinAny;
 	}
 }
 
@@ -3412,13 +3422,13 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	});
 	//#endregion flatten UnionTypes
 	if (flatChoices.some(choice => choice.julType === 'any')) {
-		return { julType: 'any' };
+		return builtinAny;
 	}
 	//#region remove Never
 	const choicesWithoutNever = flatChoices.filter(choice =>
 		choice.julType !== 'never');
 	if (!choicesWithoutNever.length) {
-		return { julType: 'never' };
+		return builtinNever;
 	}
 	if (choicesWithoutNever.length === 1) {
 		return choicesWithoutNever[0]!;
@@ -3441,7 +3451,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	if (uniqueChoices.length === 2
 		&& uniqueChoices.some(choice => choice.julType === 'booleanLiteral' && choice.value === true)
 		&& uniqueChoices.some(choice => choice.julType === 'booleanLiteral' && choice.value === false)) {
-		return { julType: 'boolean' };
+		return builtinBoolean;
 	}
 	//#endregion collapse Boolean
 	//#region remove subtypes
@@ -3498,7 +3508,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		// And(A Never) => Never
 		if (first.julType === 'never'
 			|| second.julType === 'never') {
-			return { julType: 'never' };
+			return builtinNever;
 		}
 
 		// Any ist das neutrale Element:
@@ -3533,7 +3543,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		const second = ChoiceTypes[1].SourceType;
 		if (typeEquals(first, second)) {
 			// And(A Not(A)) => Never
-			return { julType: 'never' };
+			return builtinNever;
 		}
 		// And(A Not(B))
 		// Wenn B keine Schnittmenge mit A hat: nur A liefern
@@ -3567,7 +3577,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 				return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
 			}
 			if (typesOverlap(first, second) === false) {
-				return { julType: 'never' };
+				return builtinNever;
 			}
 			return {
 				julType: 'and',
@@ -3592,7 +3602,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		// And(A B) => Never, wenn A und B keinen gemeinsamen Wert haben
 		// z.B. And(Integer Text) => Never
 		if (typesOverlap(first, second) === false) {
-			return { julType: 'never' };
+			return builtinNever;
 		}
 	}
 
@@ -4194,7 +4204,7 @@ function setFunctionRefForParams(
 
 function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 	if (!type) {
-		return { julType: 'any' };
+		return builtinAny;
 	}
 	switch (type.julType) {
 		case 'dictionaryLiteral': {
@@ -4224,7 +4234,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			return type.value;
 		default:
 			// TODO error?
-			// return { julType: 'any' };
+			// return builtinAny;
 			return type;
 	}
 }
@@ -4634,7 +4644,7 @@ export function getTypeError(
 		case 'parameterReference': {
 			// TODO
 			// const dereferenced = dereferenceArgumentType(null as any, targetType);
-			// return getTypeError(valueType, dereferenced ?? { julType: 'any' });
+			// return getTypeError(valueType, dereferenced ?? builtinAny);
 			return undefined;
 		}
 		case 'stream': {
@@ -4768,7 +4778,7 @@ function getTupleTypeError2(
 ): TypeError | undefined {
 	// TODO fehler wenn argument mehr elemente entfält als target?
 	const subErrors = targetElementTypes.map((targetElementType, index) => {
-		const valueElement = argumentElementTypes[index] ?? { julType: 'empty' };
+		const valueElement = argumentElementTypes[index] ?? builtinEmpty;
 		return getTypeError(prefixArgumentType, valueElement, targetElementType);
 	}).filter(isDefined);
 	if (subErrors.length) {
@@ -4870,7 +4880,7 @@ function getDictionaryFieldError(
  * dastehen muss.
  */
 function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: CompileTimeType | undefined): boolean {
-	return !getTypeError(prefixArgumentType, { julType: 'empty' }, fieldTargetType);
+	return !getTypeError(prefixArgumentType, builtinEmpty, fieldTargetType);
 }
 
 /**
@@ -5001,7 +5011,7 @@ function getTypeErrorForParameters(
 			const valueRestItemType: CompileTimeType | undefined = valueRest
 				? isListType(valueRestType)
 					? valueRestType.ElementType
-					: { julType: 'any' }
+					: builtinAny
 				: undefined;
 			for (; index < targetSingleNames.length; index++) {
 				const targetParameter = targetSingleNames[index]!;
@@ -5013,7 +5023,7 @@ function getTypeErrorForParameters(
 						message: `Parameter name mismatch. Got '${valueParameter.name}' but expected '${targetParameterName}'`,
 					};
 				}
-				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? { julType: 'any' };
+				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? builtinAny;
 				const error = targetParameterType
 					? getTypeError(undefined, valueParameterType, targetParameterType)
 					: undefined;
@@ -5027,7 +5037,7 @@ function getTypeErrorForParameters(
 			if (targetRestType) {
 				const remainingValueParameters = valueSingleNames.slice(index);
 				for (const valueParameter of remainingValueParameters) {
-					const valueParameterType = valueParameter.type ?? valueRestItemType ?? { julType: 'any' };
+					const valueParameterType = valueParameter.type ?? valueRestItemType ?? builtinAny;
 					const error = getTypeError(undefined, valueParameterType, targetRestType);
 					if (error) {
 						// TODO collect inner errors
@@ -5063,7 +5073,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 		else {
 			argument = (argumentsType && (isArray
 				? argumentsType[argumentIndex]
-				: argumentsType[name])) ?? { julType: 'empty' };
+				: argumentsType[name])) ?? builtinEmpty;
 			argumentIndex++;
 		}
 		const error = type
@@ -5080,7 +5090,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 		if (!argumentsType) {
 			const remainingArgs: CompileTimeType = hasPrefixArg && !paramIndex
 				? { julType: 'tuple', ElementTypes: [prefixArgumentType] }
-				: { julType: 'empty' };
+				: builtinEmpty;
 			const error = restType
 				? getTypeError(undefined, remainingArgs, restType)
 				: undefined;
@@ -5340,18 +5350,18 @@ function getParamsType(possibleFunctionType: CompileTimeType | undefined): Compi
 	if (isFunctionType(possibleFunctionType)) {
 		return possibleFunctionType.ParamsType;
 	}
-	return { julType: 'any' };
+	return builtinAny;
 }
 
 function getReturnTypeFromFunctionType(possibleFunctionType: TypeInfo | undefined): CompileTimeType {
 	if (!possibleFunctionType) {
-		return { julType: 'any' };
+		return builtinAny;
 	}
 	const rawType = possibleFunctionType.type;
 	if (isFunctionType(rawType)) {
 		return rawType.ReturnType;
 	}
-	return { julType: 'any' };
+	return builtinAny;
 }
 
 function getArgValueExpressions(args: BracketedExpression): (ParseValueExpression | undefined)[] {
@@ -5439,7 +5449,7 @@ function checkIsFunction(
 	message: string,
 	errors: CompilerError[],
 ): boolean {
-	const anyFunctionType = createCompileTimeFunctionType({ julType: 'any' }, { julType: 'any' }, false);
+	const anyFunctionType = createCompileTimeFunctionType(builtinAny, builtinAny, false);
 	const nonFunctionError = areArgsAssignableTo(undefined, resolvePlaceholders(expression.typeInfo!.type), anyFunctionType);
 	if (nonFunctionError) {
 		errors.push({

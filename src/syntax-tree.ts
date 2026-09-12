@@ -579,6 +579,12 @@ interface CompileTimeTypeBase {
 	 * einzige Brücke vom Typ zurück zu Symbolen, Descriptions und Positionen.
 	 */
 	declaration?: TypeDeclaration;
+	/**
+	 * Gecachtes Flag: true wenn dieser Typ oder ein Kind-Typ unaufgelöste Platzhalter enthält.
+	 * Wird bei der Typ-Konstruktion berechnet und kann danach mutiert werden.
+	 * Optional für inline-erzeugte Typen - der Fallback berechnet es bei Bedarf.
+	 */
+	isUnresolvedPlaceholder?: boolean;
 }
 
 export interface TypeDeclaration {
@@ -723,6 +729,7 @@ export function createCompileTimeComplementType(SourceType: CompileTimeType): Co
 	return {
 		julType: 'not',
 		SourceType: SourceType,
+		isUnresolvedPlaceholder: SourceType.isUnresolvedPlaceholder,
 	};
 }
 
@@ -740,6 +747,7 @@ export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTim
 	return {
 		julType: 'greater',
 		Value: Value,
+		isUnresolvedPlaceholder: Value.isUnresolvedPlaceholder,
 	};
 }
 
@@ -758,6 +766,7 @@ export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileT
 	return {
 		julType: 'lengthOf',
 		Source: Source,
+		isUnresolvedPlaceholder: true,
 	};
 }
 
@@ -783,6 +792,7 @@ export function createCompileTimeWithElementAtType(
 		Source: Source,
 		Index: Index,
 		Value: Value,
+		isUnresolvedPlaceholder: true,
 	};
 }
 
@@ -804,6 +814,7 @@ export function createCompileTimeRangeType(
 		julType: 'range',
 		Start: Start,
 		End: End,
+		isUnresolvedPlaceholder: Start.isUnresolvedPlaceholder || End.isUnresolvedPlaceholder,
 	};
 }
 
@@ -825,6 +836,7 @@ export function createCompileTimeTupleOfType(
 		julType: 'tupleOf',
 		Count: Count,
 		ElementType: ElementType,
+		isUnresolvedPlaceholder: true,
 	};
 }
 
@@ -844,6 +856,7 @@ export function createCompileTimeConcatType(
 	return {
 		julType: 'concat',
 		Sources: Sources,
+		isUnresolvedPlaceholder: Sources.some(s => s.isUnresolvedPlaceholder),
 	};
 }
 
@@ -866,12 +879,14 @@ export function createCompileTimeDictionaryLiteralType(
 	declaration?: TypeDeclaration,
 	aliasName?: string,
 ): CompileTimeDictionaryLiteralType {
+	const isUnresolvedPlaceholder = Object.values(Fields).some(type => type.isUnresolvedPlaceholder);
 	return {
 		julType: 'dictionaryLiteral',
 		Fields: Fields,
 		complete: complete,
 		declaration: declaration,
 		aliasName: aliasName,
+		isUnresolvedPlaceholder: isUnresolvedPlaceholder,
 	};
 }
 
@@ -888,6 +903,7 @@ export function createCompileTimeDictionaryType(
 		julType: 'dictionary',
 		ElementType: ElementType,
 		aliasName: aliasName,
+		isUnresolvedPlaceholder: ElementType.isUnresolvedPlaceholder,
 	};
 }
 
@@ -922,6 +938,7 @@ export function createCompileTimeFunctionType(
 		ReturnType: ReturnType,
 		pure: pure,
 		aliasName: aliasName,
+		isUnresolvedPlaceholder: ParamsType.isUnresolvedPlaceholder || ReturnType.isUnresolvedPlaceholder,
 	};
 }
 
@@ -939,6 +956,7 @@ export function createCompileTimeListType(ElementType: CompileTimeType): Compile
 	return {
 		julType: 'list',
 		ElementType: ElementType,
+		isUnresolvedPlaceholder: ElementType.isUnresolvedPlaceholder,
 	};
 }
 
@@ -951,6 +969,7 @@ export function createCompileTimeStreamType(ValueType: CompileTimeType): Compile
 	return {
 		julType: 'stream',
 		ValueType: ValueType,
+		isUnresolvedPlaceholder: ValueType.isUnresolvedPlaceholder,
 	};
 }
 
@@ -964,6 +983,7 @@ export function createCompileTimeTupleType(ElementTypes: CompileTimeType[]): Com
 	return {
 		julType: 'tuple',
 		ElementTypes: ElementTypes,
+		isUnresolvedPlaceholder: ElementTypes.some(t => t.isUnresolvedPlaceholder),
 	};
 }
 
@@ -976,6 +996,7 @@ export function createCompileTimeTypeOfType(value: CompileTimeType): CompileTime
 	return {
 		julType: 'typeOf',
 		value: value,
+		isUnresolvedPlaceholder: value.isUnresolvedPlaceholder,
 	};
 }
 
@@ -995,10 +1016,12 @@ export interface NestedReferenceType extends CompileTimeTypeBase {
 }
 
 export function createNestedReference(source: CompileTimeType, nestedKey: string | number | CompileTimeType): NestedReferenceType {
+	const isUnresolvedPlaceholder = source.isUnresolvedPlaceholder || (typeof nestedKey === 'object' && nestedKey.isUnresolvedPlaceholder);
 	return {
 		julType: 'nestedReference',
 		source: source,
 		nestedKey: nestedKey,
+		isUnresolvedPlaceholder: isUnresolvedPlaceholder,
 	};
 }
 
@@ -1020,6 +1043,7 @@ export function createParameterReference(name: string, index: number): Parameter
 		julType: 'parameterReference',
 		name: name,
 		index: index,
+		isUnresolvedPlaceholder: true,
 	};
 }
 
@@ -1033,10 +1057,12 @@ export interface ParametersType extends CompileTimeTypeBase {
 }
 
 export function createParametersType(singleNames: Parameter[], rest?: Parameter): ParametersType {
+	const hasUnresolvedPlaceholder = singleNames.some(p => p.type && p.type.isUnresolvedPlaceholder) || (rest && rest.type && rest.type.isUnresolvedPlaceholder);
 	return {
 		julType: 'parameters',
 		singleNames: singleNames,
 		rest: rest,
+		isUnresolvedPlaceholder: hasUnresolvedPlaceholder,
 	};
 }
 
@@ -1046,3 +1072,51 @@ export interface Parameter {
 }
 
 //#endregion CompileTimeType
+
+//#region Blatt-Typ Factories - für O(1) Zugriff ohne Rekursion
+
+/**
+ * Gecachte Instanzen für häufig verwendete Blatt-Typen - alle haben isUnresolvedPlaceholder: false
+ */
+export const builtinAny: AnyType = { julType: 'any', isUnresolvedPlaceholder: false };
+export const builtinNever: NeverType = { julType: 'never', isUnresolvedPlaceholder: false };
+export const builtinEmpty: EmptyType = { julType: 'empty', isUnresolvedPlaceholder: false };
+export const builtinBoolean: BooleanType = { julType: 'boolean', isUnresolvedPlaceholder: false };
+export const builtinInteger: IntegerType = { julType: 'integer', isUnresolvedPlaceholder: false };
+export const builtinFloat: FloatType = { julType: 'float', isUnresolvedPlaceholder: false };
+export const builtinText: TextType = { julType: 'text', isUnresolvedPlaceholder: false };
+export const builtinDate: DateType = { julType: 'date', isUnresolvedPlaceholder: false };
+export const builtinBlob: BlobType = { julType: 'blob', isUnresolvedPlaceholder: false };
+export const builtinType: TypeType = { julType: 'type', isUnresolvedPlaceholder: false };
+
+export function createBooleanLiteral(value: boolean): BooleanLiteralType {
+	return { julType: 'booleanLiteral', value, isUnresolvedPlaceholder: false };
+}
+
+export function createIntegerLiteral(value: bigint): IntegerLiteralType {
+	return { julType: 'integerLiteral', value, isUnresolvedPlaceholder: false };
+}
+
+export function createFloatLiteral(value: number): FloatLiteralType {
+	return { julType: 'floatLiteral', value, isUnresolvedPlaceholder: false };
+}
+
+export function createTextLiteral(value: string): TextLiteralType {
+	return { julType: 'textLiteral', value, isUnresolvedPlaceholder: false };
+}
+
+//#endregion Blatt-Typ Factories
+
+/**
+ * Fallback: Stellt sicher, dass ein Typ das isUnresolvedPlaceholder-Flag hat.
+ * Wird verwendet, wenn ein Typ inline erzeugt wurde, ohne einen Konstruktor zu verwenden.
+ * Gibt den Typ unverändert zurück, wenn das Flag bereits existiert.
+ */
+export function ensureTypeHasUnresolvedFlag(type: CompileTimeType): CompileTimeType {
+	if (type.isUnresolvedPlaceholder === undefined) {
+		// Fallback: Für inline-erzeugte Typen ohne Flag - markiere als false
+		// (da diese meist Blatt-Typen oder vollständig aufgelöst sind)
+		(type as any).isUnresolvedPlaceholder = false;
+	}
+	return type;
+}
