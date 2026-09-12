@@ -2625,6 +2625,23 @@ result = [x = §a§].getX()`;
 		const resultType = resultDef.value?.typeInfo?.type;
 		expect(resultType && typeToString(resolvePlaceholders(resultType), 0, 0)).to.equal('§a§');
 	});
+	// Fund aus yugioh/game-logic.jul:136 (10.09.2026): cardEffect/mandatoryTriggers.getElement(
+	// effectIndex), effectIndex kommt aus einem Feld, das als Integer deklariert ist, nicht als
+	// PositiveInteger. Vorher lautlos verschluckt: der Feldzugriff auf einen Parameter bleibt
+	// bis zur Auflösung ein nestedReference, und getTypeError war dafür permissiv (kein Fehler
+	// bedeutete dort nicht "zuweisbar"). Jetzt wird vor der Prüfung aufgelöst (wie bei concat/
+	// withElementAt), der Fehler wird sichtbar.
+	it('field-access-on-parameter-reports-mismatch-after-resolving', () => {
+		const code = `PendingTrigger = [effectIndex: Integer]
+getEffect = (values: List(Any) trigger: PendingTrigger) =>
+	values.getElement(trigger/effectIndex)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.have.lengthOf(1);
+		expect(parsed.checked?.errors[0]?.message).to.equal(
+			'Argument type mismatch.\nCan not assign Integer to Greater(0).');
+	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
 	// Scope gecheckt werden. Sonst stand ihre Symboltabelle doppelt im Scope Stack und jede
