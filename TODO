@@ -145,8 +145,9 @@
 	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
 	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
 -cross-file rename (language server): erledigt, siehe docs/cross-file-reference-index.md
-	-offen davon: Document Highlight auf demselben reverse-index aufbauen (billig, Infrastruktur
-	 steht schon), transitive Invalidierung bisher nur beim Speichern statt bei jedem Tastendruck,
+	-Document Highlight ebenfalls erledigt (nutzt denselben reverse-index, auf die aktuelle Datei
+	 gefiltert)
+	-offen davon: transitive Invalidierung bisher nur beim Speichern statt bei jedem Tastendruck,
 	 und die "ganze-datei-als-dictionary"-Importform (x = import(...); x/feld) hängt nicht am index
 -fehlermeldungen für ungültige syntax verbessern, vermessen an 14 invaliden snippets
 	-"multilineParser should parse until end of row" ist die sammelmeldung: in 7 von 14 fällen
