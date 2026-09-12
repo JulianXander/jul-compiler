@@ -819,6 +819,19 @@ f = (values: List(Integer)) :> Or([] List(Integer)) =>
 			errors: [],
 		},
 		{
+			// findFirst hat dieselbe Lücke wie filter vor Schritt 4: die Signatur liefert
+			// bisher stur Or([] TypeOf(values)/ElementType) statt mit
+			// predicate/PredicateIfTrue zu schneiden.
+			name: 'find-first-narrows-element-type-through-predicate',
+			code: `isInteger = (value: Any) :> Boolean =>
+	?(value)
+		[Integer] => true
+		() => false
+f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
+	values.findFirst(isInteger)`,
+			errors: [],
+		},
+		{
 			// Ein generischer Rückgabetyp muss auch dann noch auflösbar sein, wenn der Wert
 			// vorher durch ein branching gelaufen ist. Die Union der branch Rückgabetypen
 			// enthält im rawType noch das unaufgelöste TypeOf(values)/ElementType aus slice,
