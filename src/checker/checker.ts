@@ -64,8 +64,17 @@ import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last,
 import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName } from '../parser/parser-utils.js';
+import { ReferenceIndex, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
+
+/**
+ * Referenz-Index des aktuellen checkTypes-Laufs, oder undefined, wenn der Aufrufer keinen mitgibt.
+ * checkTypes ist synchron und nicht reentrant (ein Lauf pro Datei, kein überlappender Aufruf), daher
+ * genügt ein Modul-Slot statt den Index durch alle ~40 gegenseitig rekursiven inferType/
+ * setInferredType-Aufrufe hindurchzureichen.
+ */
+let activeReferenceIndex: ReferenceIndex | undefined;
 
 //#region stats
 
@@ -1250,7 +1259,14 @@ export function isUnionType(type: CompileTimeType | undefined): type is CompileT
 export function checkTypes(
 	document: ParsedFile,
 	documents: ParsedDocuments,
+	/**
+	 * Optional: wird während dieses Checklaufs mit den aufgelösten Referenzen dieser Datei befüllt
+	 * (vorher geleert). Nur der Language Server hält einen Index über die Lebensdauer mehrerer
+	 * Checkläufe hinweg; CLI und Tests lassen ihn weg und zahlen keine Buchführungskosten.
+	 */
+	referenceIndex?: ReferenceIndex,
 ): void {
+	referenceIndex?.clearReferencesFromFile(document.filePath);
 	const checked = structuredClone(document.unchecked);
 	document.checked = checked;
 	// Die core-lib definiert die builtInSymbols selbst. Bekäme sie sie zusätzlich als oberen
@@ -1259,7 +1275,12 @@ export function checkTypes(
 	const scopes = isCoreLibPath(document.filePath)
 		? []
 		: [builtInSymbols];
-	inferFileTypes(checked, scopes, documents, document.sourceFolder, document.filePath);
+	activeReferenceIndex = referenceIndex;
+	try {
+		inferFileTypes(checked, scopes, documents, document.sourceFolder, document.filePath);
+	} finally {
+		activeReferenceIndex = undefined;
+	}
 }
 
 function inferFileTypes(
@@ -2004,6 +2025,35 @@ function inferType(
 				}
 				checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
 				const referenceName = field.source?.name ?? fieldName;
+				if (activeReferenceIndex) {
+					const localSymbol = currentScope[fieldName];
+					if (localSymbol) {
+						if (field.source) {
+							// Alias: source zeigt auf den Ursprung, name ist eine eigene, unabhängige
+							// lokale Identität (siehe resolveCanonicalSymbol in reference-index.ts).
+							const imported = resolveImportBinding(field, filePath, parsedDocuments);
+							if (imported) {
+								activeReferenceIndex.recordReference(imported.symbol, imported.filePath, {
+									filePath,
+									startRowIndex: field.source.startRowIndex,
+									startColumnIndex: field.source.startColumnIndex,
+									endRowIndex: field.source.endRowIndex,
+									endColumnIndex: field.source.endColumnIndex,
+								});
+							}
+						} else {
+							// Kein Alias: der lokale Name ist der geteilte Name, folgt der Importkette.
+							const canonical = resolveCanonicalSymbol(localSymbol, filePath, parsedDocuments);
+							activeReferenceIndex.recordReference(canonical.symbol, canonical.filePath, {
+								filePath,
+								startRowIndex: field.name.startRowIndex,
+								startColumnIndex: field.name.startColumnIndex,
+								endRowIndex: field.name.endRowIndex,
+								endColumnIndex: field.name.endColumnIndex,
+							});
+						}
+					}
+				}
 				const valueType: CompileTimeType = value?.typeInfo
 					? value.typeInfo.type
 					: { julType: 'any' };
@@ -2722,6 +2772,16 @@ function inferType(
 				errors.push({
 					code: ErrorCode.usedBeforeDefined,
 					message: `'${name}' is used before it is defined.`,
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				});
+			}
+			if (activeReferenceIndex && foundSymbol && !isBuiltIn) {
+				const canonical = resolveCanonicalSymbol(foundSymbol, filePath, parsedDocuments);
+				activeReferenceIndex.recordReference(canonical.symbol, canonical.filePath, {
+					filePath,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,

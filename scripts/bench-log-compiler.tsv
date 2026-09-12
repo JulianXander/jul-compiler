@@ -56,3 +56,4 @@
 2026-09-12 01:02:44	49d047c+	-	ADV-DEV-56627	yugioh	parse+check	5	3696.56	3983.26	3983.26	Concat implementation
 2026-09-12 01:20:50	49d047c+	-	ADV-DEV-56627	yugioh	parse+check	5	3679.63	3894.85	3894.85	Fix: generischer Rueckgabetyp bleibt erhalten wenn Platzhalter
 2026-09-12 01:48:53	06da68e+	-	ADV-DEV-56627	yugioh	parse+check	5	3645.90	3917.57	3917.57	spread im rumpf deferred, greater-case + exhaustive switch in resolvePlaceholders
+2026-09-12 13:24:06	68c1f99+	-	ADV-DEV-56627	yugioh	parse+check	5	3652.50	3955.72	3955.72	cross-file reference-index (rename/find-references), CLI-Pfad ohne referenceIndex unveraendert
