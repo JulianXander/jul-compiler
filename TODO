@@ -27,23 +27,8 @@
  obwohl Concat(TypeOf(a) TypeOf(b)) sie in einer annotation exakt berechnet. betraf 4 stellen im
  checker, die "eager" mit resolvePlaceholders statt mit dereferenceArgumentTypesNested aufloesen.
  siehe docs/generic-types-through-function-body.md fuer sprachvergleich, umsetzung, tradeoffs
- -Spread (list und object) umgesetzt 2026-09-12: isUnresolvedPlaceholderType-check vor dem
-  faltenden case, dann concatFromTypes statt resolvePlaceholders + getSpreadElementTypes. 261 ->
-  262 tests, gemessen +3,8% resolvePlaceholders/+1,2% getTypeError (yugioh), zeit -1% (rauschen)
- -dabei gefunden: resolvePlaceholders hatte keinen 'greater'-case (verschachteltes Value nie
-  aufgeloest) und einen default-fallback statt exhaustivem switch - beides nachgezogen
  -offen: praefix-argument (values.getElement(2)) und index/namenszugriff (values/2) noch eager.
   kein akuter leidensdruck, annotation funktioniert schon heute
--erledigt 2026-09-12: NarrowedTypes/AccessPath/narrowing-helfer waren schon in //#region branch
- narrowing gruppiert (stand im TODO war veraltet). einzig getSpreadElementTypes war fehl am platz
- (spread-zerlegung fuer list/object-literale, kein narrowing) - in //#region Sequenz Arithmetik
- verschoben. 262 tests weiterhin gruen
--erledigt 2026-09-12: dictionaryType-spread verlor Felder lautlos, kein Fehler. case
- 'dictionaryType' (case 'spread') pruefte den gespreadeten Ausdruck nur auf eigene Fehler,
- uebernahm seine Felder aber nie in fieldTypes. Fix wie bei case 'dictionary': valueOf +
- resolvePlaceholders, isDictionaryLiteralType pruefen, Felder mergen. Roter Test
- dictionary-type-spread-merges-fields (checker.test.ts) jetzt gruen, 262 tests weiterhin gruen.
- docs/spread-flattening.md "Phase 2 COMPLETE" stimmt jetzt tatsaechlich
 -multiline returntype parser
 ?filter/findFirst/exists verengen den Elementtyp nicht ueber ihr Boolean-Praedikat (anders als
 	filterMap) - siehe docs/predicate-types-and-filter-narrowing.md fuer Untersuchung, Vergleich
