@@ -69,6 +69,10 @@ import {
 	builtinDate,
 	builtinBlob,
 	builtinType,
+	createBooleanLiteral,
+	createIntegerLiteral,
+	createFloatLiteral,
+	createTextLiteral,
 } from '../syntax-tree.js';
 import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
@@ -134,26 +138,20 @@ const subtypeReductionLimit = 20;
 
 const CompileTimeNonZeroInteger = createNormalizedIntersectionType([
 	builtinInteger,
-	createCompileTimeComplementType({ julType: 'integerLiteral', value: 0n }),
+	createCompileTimeComplementType(createIntegerLiteral(0n)),
 ]);
 
 const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
-	true: {
-		julType: 'booleanLiteral',
-		value: true,
-	},
-	false: {
-		julType: 'booleanLiteral',
-		value: false,
-	},
+	true: createBooleanLiteral(true),
+	false: createBooleanLiteral(false),
 	Any: createCompileTimeTypeOfType(builtinAny),
-	Type: createCompileTimeTypeOfType({ julType: 'type' }),
+	Type: createCompileTimeTypeOfType(builtinType),
 	Empty: createCompileTimeTypeOfType(builtinEmpty),
 	Boolean: createCompileTimeTypeOfType(builtinBoolean),
 	Integer: createCompileTimeTypeOfType(builtinInteger),
-	Float: createCompileTimeTypeOfType({ julType: 'float' }),
+	Float: createCompileTimeTypeOfType(builtinFloat),
 	Text: createCompileTimeTypeOfType(builtinText),
-	Date: createCompileTimeTypeOfType({ julType: 'date' }),
+	Date: createCompileTimeTypeOfType(builtinDate),
 	Error: createCompileTimeTypeOfType({ julType: 'error' }),
 	List: (() => {
 		const parameterReference = createParameterReference('ElementType', 0);
@@ -5089,7 +5087,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 		const restType = rest.type;
 		if (!argumentsType) {
 			const remainingArgs: CompileTimeType = hasPrefixArg && !paramIndex
-				? { julType: 'tuple', ElementTypes: [prefixArgumentType] }
+				? createCompileTimeTupleType([prefixArgumentType])
 				: builtinEmpty;
 			const error = restType
 				? getTypeError(undefined, remainingArgs, restType)
@@ -5105,7 +5103,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 				remainingArgs.unshift(prefixArgumentType);
 			}
 			const error = restType
-				? getTypeError(undefined, { julType: 'tuple', ElementTypes: remainingArgs }, restType)
+				? getTypeError(undefined, createCompileTimeTupleType(remainingArgs), restType)
 				: undefined;
 			if (error) {
 				// TODO collect inner errors
