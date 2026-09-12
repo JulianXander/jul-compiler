@@ -4717,6 +4717,25 @@ function getDictionaryFieldError(
 }
 
 /**
+ * Pendant zu getDictionaryFieldError für positionale Funktionsargumente: ohne den Parameternamen
+ * ist bei mehreren Argumenten/Ueberladungen nicht erkennbar, welches Argument betroffen ist
+ * (Fund: JUL5050 nannte nur den Typkonflikt, nie die Parameterposition).
+ */
+function getParameterError(
+	parameterName: string,
+	parameterTargetType: CompileTimeType,
+	argumentType: CompileTimeType,
+): TypeError | undefined {
+	const subError = getTypeError(undefined, argumentType, parameterTargetType);
+	if (subError) {
+		return {
+			message: `Invalid value for parameter '${parameterName}'\n${indentLines(typeErrorToString(subError))}`,
+		};
+	}
+	return subError;
+}
+
+/**
  * Darf ein Feld dieses Zieltyps im Literal fehlen? Or([] X) ist das Idiom fuer optionale Felder
  * (CLAUDE.md) - Empty erfuellt das Ziel dann bereits, ohne dass es explizit als `feld = []`
  * dastehen muss.
@@ -4867,12 +4886,11 @@ function getTypeErrorForParameters(
 				}
 				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? builtinAny;
 				const error = targetParameterType
-					? getTypeError(undefined, valueParameterType, targetParameterType)
+					? getParameterError(targetParameterName, targetParameterType, valueParameterType)
 					: undefined;
 				if (error) {
 					// TODO collect inner errors
 					return error;
-					// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
 				}
 			}
 			const targetRestType = targetType.rest?.type;
@@ -4880,11 +4898,10 @@ function getTypeErrorForParameters(
 				const remainingValueParameters = valueSingleNames.slice(index);
 				for (const valueParameter of remainingValueParameters) {
 					const valueParameterType = valueParameter.type ?? valueRestItemType ?? builtinAny;
-					const error = getTypeError(undefined, valueParameterType, targetRestType);
+					const error = getParameterError(targetType.rest!.name, targetRestType, valueParameterType);
 					if (error) {
 						// TODO collect inner errors
 						return error;
-						// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
 					}
 				}
 			}
@@ -4919,12 +4936,11 @@ function getTypeErrorForParametersWithCollectionArgs(
 			argumentIndex++;
 		}
 		const error = type
-			? getTypeError(undefined, argument, type)
+			? getParameterError(name, type, argument)
 			: undefined;
 		if (error) {
 			// TODO collect inner errors
 			return error;
-			// return new Error(`Can not assign the value ${value} to param ${name} because it is not of type ${type}`);
 		}
 	}
 	if (rest) {
@@ -4934,7 +4950,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 				? createCompileTimeTupleType([prefixArgumentType])
 				: builtinEmpty;
 			const error = restType
-				? getTypeError(undefined, remainingArgs, restType)
+				? getParameterError(rest.name, restType, remainingArgs)
 				: undefined;
 			if (error) {
 				return error;
@@ -4947,12 +4963,11 @@ function getTypeErrorForParametersWithCollectionArgs(
 				remainingArgs.unshift(prefixArgumentType);
 			}
 			const error = restType
-				? getTypeError(undefined, createCompileTimeTupleType(remainingArgs), restType)
+				? getParameterError(rest.name, restType, createCompileTimeTupleType(remainingArgs))
 				: undefined;
 			if (error) {
 				// TODO collect inner errors
 				return error;
-				// return new Error(`Can not assign the value ${remainingArgs} to rest param because it is not of type ${rest}`);
 			}
 		}
 		else {

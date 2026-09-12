@@ -267,7 +267,7 @@ f = (someVar: Or(Text Integer)) =>
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 25,
 					"endRowIndex": 3,
-					"message": "Argument type mismatch.\nCan not assign Text to Integer.",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'x'\n  Can not assign Text to Integer.",
 					"startColumnIndex": 15,
 					"startRowIndex": 3,
 				},
@@ -297,7 +297,7 @@ f = (value: Or([] Integer)) =>
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 17,
 					"endRowIndex": 3,
-					"message": "Argument type mismatch.\nCan not assign Empty to Integer.",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'x'\n  Can not assign Empty to Integer.",
 					"startColumnIndex": 9,
 					"startRowIndex": 3,
 				},
@@ -390,7 +390,7 @@ f = (flag: Boolean) =>
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 34,
 					"endRowIndex": 14,
-					"message": "Argument type mismatch.\nCan not assign Empty to Text.",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'q'\n  Can not assign Empty to Text.",
 					"startColumnIndex": 12,
 					"startRowIndex": 14,
 				},
@@ -634,7 +634,7 @@ useType(isLegal)`,
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nCan not assign (x: Any) :> true to Type.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign (x: Any) :> true to Type.',
 					startRowIndex: 2,
 					startColumnIndex: 0,
 					endRowIndex: 2,
@@ -724,7 +724,7 @@ useType(isLegal)`,
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 31,
 					"endRowIndex": 0,
-					"message": "Argument type mismatch.\nCan not assign Integer to Not(0).",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'divisor'\n  Can not assign Integer to Not(0).",
 					"startColumnIndex": 20,
 					"startRowIndex": 0,
 				},
@@ -897,7 +897,7 @@ f = (values: List(Text)) =>
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nCan not assign Text to Integer.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'n\'\n  Can not assign Text to Integer.',
 					startRowIndex: 7,
 					startColumnIndex: 1,
 					endRowIndex: 7,
@@ -921,7 +921,7 @@ f = (values: List(Text)) =>
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nCan not assign Text to Integer.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'n\'\n  Can not assign Text to Integer.',
 					startRowIndex: 3,
 					startColumnIndex: 1,
 					endRowIndex: 3,
@@ -939,7 +939,7 @@ f = (values: List(Or(Integer Text))) =>
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nCan not assign List(Or(Integer Text)) to Or(List(Integer) Empty).\n  Can not assign List(Or(Integer Text)) to List(Integer).\n    Can not assign Text to Integer.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'n\'\n  Can not assign List(Or(Integer Text)) to Or(List(Integer) Empty).\n    Can not assign List(Or(Integer Text)) to List(Integer).\n      Can not assign Text to Integer.',
 					startRowIndex: 2,
 					startColumnIndex: 1,
 					endRowIndex: 2,
@@ -957,7 +957,7 @@ f = (value: Or([] List(Or(Integer Text)))) =>
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nCan not assign List(Or(Integer Text)) to Or(List(Integer) Empty).\n  Can not assign List(Or(Integer Text)) to List(Integer).\n    Can not assign Text to Integer.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'n\'\n  Can not assign List(Or(Integer Text)) to Or(List(Integer) Empty).\n    Can not assign List(Or(Integer Text)) to List(Integer).\n      Can not assign Text to Integer.',
 					startRowIndex: 2,
 					startColumnIndex: 1,
 					endRowIndex: 2,
@@ -977,7 +977,7 @@ f = (values: List(Or(Integer Text))) =>
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nCan not assign List(Or(Integer Text)) to Or(Empty List(Integer)).\n  Can not assign List(Or(Integer Text)) to List(Integer).\n    Can not assign Text to Integer.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'n\'\n  Can not assign List(Or(Integer Text)) to Or(Empty List(Integer)).\n    Can not assign List(Or(Integer Text)) to List(Integer).\n      Can not assign Text to Integer.',
 					startRowIndex: 2,
 					startColumnIndex: 1,
 					endRowIndex: 2,
@@ -1465,7 +1465,7 @@ a(g(5))`,
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 6,
 					"endRowIndex": 2,
-					"message": "Argument type mismatch.\nCan not assign 5 to Text.",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'x'\n  Can not assign 5 to Text.",
 					"startColumnIndex": 2,
 					"startRowIndex": 2,
 				},
@@ -1535,7 +1535,7 @@ f(...values)`,
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nCan not assign §x§ to Integer.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'a\'\n  Can not assign §x§ to Integer.',
 					startRowIndex: 2,
 					startColumnIndex: 0,
 					endRowIndex: 2,
@@ -1555,7 +1555,7 @@ f(...namedArgs)`,
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nCan not assign §x§ to Integer.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'a\'\n  Can not assign §x§ to Integer.',
 					startRowIndex: 2,
 					startColumnIndex: 0,
 					endRowIndex: 2,
@@ -1874,7 +1874,7 @@ g: Text = f(3)`,
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: "Argument type mismatch.\nParameter name mismatch. Got 'i' but expected 'value'",
+					message: "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Parameter name mismatch. Got 'i' but expected 'value'",
 					startRowIndex: 0,
 					startColumnIndex: 4,
 					endRowIndex: 0,
@@ -1977,7 +1977,7 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 		expect(parsed.checked?.errors).to.deep.equal([
 			{
 				code: ErrorCode.argumentTypeMismatch,
-				message: 'Argument type mismatch.\nCan not assign 0 to Greater(0).',
+				message: 'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign 0 to Greater(0).',
 				startRowIndex: 1,
 				startColumnIndex: 1,
 				endRowIndex: 1,
@@ -2658,7 +2658,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors[0]?.message).to.equal(
-			'Argument type mismatch.\nCan not assign Integer to Greater(0).');
+			'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign Integer to Greater(0).');
 	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
