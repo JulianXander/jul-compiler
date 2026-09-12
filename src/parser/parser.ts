@@ -2289,7 +2289,20 @@ function getImportedPaths(
 	expressions?.forEach(expression => {
 		switch (expression.type) {
 			case 'functionCall':
-				// TODO impure imports erlauben?
+				// import(...) wird nur als direkter Wert einer Top-Level-Definition/Destructuring
+				// aufgelöst (siehe unten) - ein bloßer Aufruf ohne Zuweisung würde sonst
+				// stillschweigend keine Abhängigkeit erzeugen und der Checker später lautlos auf
+				// Any zurückfallen.
+				if (isImportFunctionCall(expression)) {
+					errors.push({
+						code: ErrorCode.unsupportedImportPosition,
+						message: 'import(...) is only supported as the direct value of a top-level definition or destructuring.',
+						startRowIndex: expression.startRowIndex,
+						startColumnIndex: expression.startColumnIndex,
+						endRowIndex: expression.endRowIndex,
+						endColumnIndex: expression.endColumnIndex,
+					});
+				}
 				return;
 
 			case 'definition':

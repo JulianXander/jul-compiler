@@ -576,7 +576,7 @@ const expectedResults: {
 					startRowIndex: 0,
 					startColumnIndex: 0,
 					endRowIndex: 0,
-					endColumnIndex: 26,
+					endColumnIndex: 25,
 				},
 			],
 		},
