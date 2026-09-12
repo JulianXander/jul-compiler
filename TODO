@@ -27,8 +27,8 @@
  obwohl Concat(TypeOf(a) TypeOf(b)) sie in einer annotation exakt berechnet. betraf 4 stellen im
  checker, die "eager" mit resolvePlaceholders statt mit dereferenceArgumentTypesNested aufloesen.
  siehe docs/generic-types-through-function-body.md fuer sprachvergleich, umsetzung, tradeoffs
- -offen: praefix-argument (values.getElement(2)) und index/namenszugriff (values/2) noch eager.
-  kein akuter leidensdruck, annotation funktioniert schon heute
+ -erledigt: praefix-argument bleibt fuer den rueckgabetyp symbolisch, geprueft wird weiter gegen
+  den aufgeloesten typ. index/namenszugriff war bereits korrekt (roher typ wird zuerst probiert)
 -multiline returntype parser
 ?filter/findFirst/exists verengen den Elementtyp nicht ueber ihr Boolean-Praedikat (anders als
 	filterMap) - siehe docs/predicate-types-and-filter-narrowing.md fuer Untersuchung, Vergleich

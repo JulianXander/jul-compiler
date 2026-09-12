@@ -71,9 +71,12 @@ import {
 	builtinError,
 	builtinType,
 	createBooleanLiteral,
+	createCompileTimeIntersectionType,
+	createCompileTimeUnionType,
 	createIntegerLiteral,
 	createFloatLiteral,
 	createTextLiteral,
+	updateFunctionTypeUnresolvedFlag,
 } from '../syntax-tree.js';
 import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
@@ -498,13 +501,9 @@ export function dereferenceNameFromObject(
 ): CompileTimeType | undefined {
 	switch (sourceObjectType.julType) {
 		case 'empty':
-			return {
-				julType: 'empty'
-			};
+			return builtinEmpty;
 		case 'any':
-			return {
-				julType: 'any'
-			};
+			return builtinAny;
 		case 'dictionaryLiteral':
 			return sourceObjectType.Fields[name];
 		case 'dictionary':
@@ -748,18 +747,13 @@ function dereferenceParameterFromArgumentType(
 		if (allArgTypes === undefined) {
 			return builtinAny;
 		}
-		return {
-			julType: 'tuple',
-			ElementTypes: allArgTypes.slice(paramIndex)
-		};
+		return createCompileTimeTupleType(allArgTypes.slice(paramIndex));
 	}
 	if (prefixArgumentType && paramIndex === 0) {
 		return prefixArgumentType;
 	}
 	if (argsType.julType === 'empty') {
-		return {
-			julType: 'empty'
-		};
+		return builtinEmpty;
 	}
 	switch (argsType.julType) {
 		case 'dictionaryLiteral': {
@@ -2112,22 +2106,13 @@ function inferType(
 			// TODO?
 			return { type: builtinEmpty };
 		case 'float': {
-			const rawType: CompileTimeType = {
-				julType: 'floatLiteral',
-				value: expression.value
-			};
+			const rawType = createFloatLiteral(expression.value);
 			return { type: rawType };
 		}
 		case 'fraction': {
 			const rawType = createCompileTimeDictionaryLiteralType({
-				numerator: {
-					julType: 'integerLiteral',
-					value: expression.numerator,
-				},
-				denominator: {
-					julType: 'integerLiteral',
-					value: expression.denominator,
-				},
+				numerator: createIntegerLiteral(expression.numerator),
+				denominator: createIntegerLiteral(expression.denominator),
 			}, true);
 			return { type: rawType };
 		}
@@ -2195,7 +2180,8 @@ function inferType(
 			// (z.B. die Signatur eines nativeFunction-Aufrufs) - die dürfen nicht vorschnell
 			// über den eigenen (noch generischen) Deklarationskontext aufgelöst werden.
 			const argsType = args.typeInfo!.type;
-			const prefixArgumentType = prefixArgument?.typeInfo?.type && resolvePlaceholders(prefixArgument.typeInfo.type);
+			const rawPrefixArgumentType = prefixArgument?.typeInfo?.type;
+			const prefixArgumentType = rawPrefixArgumentType && resolvePlaceholders(rawPrefixArgumentType);
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
 			if (assignArgsError) {
 				errors.push({
@@ -2209,8 +2195,15 @@ function inferType(
 			}
 			checkDiscardedArguments(args, paramsType, prefixArgumentType, errors);
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, parsedDocuments, folder, errors);
+			// Für den Rückgabetyp bleibt ein Platzhalter stehen, statt hier schon auf den
+			// deklarierten Parametertyp zu fallen: erst der Aufrufort kennt den konkreten Typ,
+			// und der generische Rückgabetyp der gerufenen Funktion kann ihn dort exakt
+			// weiterrechnen. Geprüft wird weiter gegen den aufgelösten Typ (siehe oben).
+			const returnPrefixArgumentType = rawPrefixArgumentType && isUnresolvedPlaceholderType(rawPrefixArgumentType)
+				? rawPrefixArgumentType
+				: prefixArgumentType;
 			// evaluate generic ReturnType
-			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, prefixArgumentType, argsType, returnType);
+			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, returnPrefixArgumentType, argsType, returnType);
 			return { type: dereferencedReturnType };
 		}
 		case 'functionLiteral': {
@@ -2235,6 +2228,7 @@ function inferType(
 			const paramsTypeValue = valueOf(params.typeInfo!.type);
 			checkParamsTypeIsCollection(params, errors);
 			functionType.ParamsType = paramsTypeValue;
+			updateFunctionTypeUnresolvedFlag(functionType);
 			//#region verengte Typen für branching
 			let branchNarrowedTypes = narrowedTypes;
 			const branching = expression.parent;
@@ -2324,6 +2318,7 @@ function inferType(
 				}
 			}
 			functionType.ReturnType = returnType;
+			updateFunctionTypeUnresolvedFlag(functionType);
 			functionType.predicate = getPredicateFacts(expression, returnType);
 			return { type: functionType };
 		}
@@ -2344,19 +2339,18 @@ function inferType(
 			};
 			setInferredType(params, functionTypeContext, parsedDocuments, folder, file, filePath);
 			functionType.ParamsType = valueOf(params.typeInfo!.type);
+			updateFunctionTypeUnresolvedFlag(functionType);
 			checkParamsTypeIsCollection(params, errors);
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionTypeContext, parsedDocuments, folder, file, filePath);
 			const inferredReturnType = expression.returnType.typeInfo!.type;
 			functionType.ReturnType = valueOf(inferredReturnType);
+			updateFunctionTypeUnresolvedFlag(functionType);
 			const rawType = createCompileTimeTypeOfType(functionType);
 			return { type: rawType };
 		}
 		case 'integer': {
-			const rawType: CompileTimeType = {
-				julType: 'integerLiteral',
-				value: expression.value,
-			};
+			const rawType = createIntegerLiteral(expression.value);
 			return { type: rawType };
 		}
 		case 'list': {
@@ -2688,10 +2682,8 @@ function inferType(
 			if (expression.values.every((part): part is TextToken => part.type === 'textToken')) {
 				// string literal type
 				// TODO sollte hier überhaupt mehrelementiger string möglich sein?
-				const rawType: CompileTimeType = {
-					julType: 'textLiteral',
-					value: expression.values.map(part => part.value).join('\n'),
-				};
+				const rawType = createTextLiteral(
+					expression.values.map(part => part.value).join('\n'));
 				return { type: rawType };
 			}
 			expression.values.forEach(part => {
@@ -3103,15 +3095,9 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
 	}
 	switch (argType.julType) {
 		case 'empty':
-			return {
-				julType: 'integerLiteral',
-				value: 0n
-			};
+			return createIntegerLiteral(0n);
 		case 'tuple':
-			return {
-				julType: 'integerLiteral',
-				value: BigInt(argType.ElementTypes.length)
-			};
+			return createIntegerLiteral(BigInt(argType.ElementTypes.length));
 		case 'list':
 			return createCompileTimeLengthOfType(argType);
 		case 'or': {
@@ -3197,72 +3183,17 @@ function withElementAtFromTypes(
 //#region Typ Arithmetik
 
 /**
- * Choices, die sicher nicht ohne Weiteres auflösbar sind - werden nie verworfen und verwerfen
- * auch nichts, damit die Elimination im Zweifel keine Information wegwirft (Prinzip Freiheit).
- * Rekursiv, denn ein Platzhalter bleibt unauflösbar, auch wenn er nicht an oberster Stelle steht
- * (z.B. And(nestedReference Integer) aus einer Verengung) - getTypeError behandelt
- * parameterReference/nestedReference permissiv (immer "kein Fehler"), das würde sonst hier eine
+ * Wartet dieser Typ noch auf den Aufrufort?
+ * Choices, für die das gilt, werden nie verworfen und verwerfen auch nichts, damit die
+ * Elimination im Zweifel keine Information wegwirft (Prinzip Freiheit) - getTypeError behandelt
+ * parameterReference/nestedReference permissiv (immer "kein Fehler"), das würde sonst eine
  * Elimination vortäuschen, die den Platzhalter-Anteil verwirft, bevor er aufgelöst ist.
+ * Reiner Feldzugriff: das Ergebnis wird beim Konstruieren berechnet (siehe die Konstruktoren in
+ * syntax-tree.ts), weil die Frage pro Typ vielfach gestellt wird - unter anderem in einer
+ * verschachtelten Schleife in removeSubtypes.
  */
-
-function assertNever(x: never): never {
-	throw new Error(`Should never reach here: ${JSON.stringify(x)}`);
-}
-
 function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
-	switch (type.julType) {
-		case 'parameterReference':
-		case 'nestedReference':
-		// Der Knoten entsteht nur, wenn die Faltung nicht durchkam - er wartet also noch.
-		case 'withElementAt':
-			return true;
-		case 'range':
-			return isUnresolvedPlaceholderType(type.Start) || isUnresolvedPlaceholderType(type.End);
-		case 'tupleOf':
-			return true;
-		case 'concat':
-			return type.Sources.some(isUnresolvedPlaceholderType);
-		case 'and':
-		case 'or':
-			return type.ChoiceTypes.some(isUnresolvedPlaceholderType);
-		case 'not':
-			return isUnresolvedPlaceholderType(type.SourceType);
-		case 'typeOf':
-			return isUnresolvedPlaceholderType(type.value);
-		case 'list':
-		case 'dictionary':
-			return isUnresolvedPlaceholderType(type.ElementType);
-		case 'stream':
-			return isUnresolvedPlaceholderType(type.ValueType);
-		case 'greater':
-			return isUnresolvedPlaceholderType(type.Value);
-		case 'tuple':
-			return type.ElementTypes.some(isUnresolvedPlaceholderType);
-		case 'function':
-			return isUnresolvedPlaceholderType(type.ParamsType) || isUnresolvedPlaceholderType(type.ReturnType);
-		// Blatt-Typen: kein verschachtelter CompileTimeType, der einen Platzhalter tragen könnte.
-		case 'any':
-		case 'blob':
-		case 'boolean':
-		case 'booleanLiteral':
-		case 'date':
-		case 'empty':
-		case 'error':
-		case 'float':
-		case 'floatLiteral':
-		case 'integer':
-		case 'integerLiteral':
-		case 'never':
-		case 'text':
-		case 'textLiteral':
-		case 'type':
-		case 'dictionaryLiteral':
-		case 'lengthOf':
-		case 'parameters':
-			return false;
-		default:
-			return assertNever(type as never);
-	}
+	return type.isUnresolvedPlaceholder;
 }
 
 /**
@@ -3373,10 +3304,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		collapsedStreamChoices = reducedChoices;
 	}
 	//#endregion collapse Streams
-	return {
-		julType: 'or',
-		ChoiceTypes: collapsedStreamChoices,
-	};
+	return createCompileTimeUnionType(collapsedStreamChoices);
 }
 
 function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeType {
@@ -3461,10 +3389,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 			if (typesOverlap(first, second) === false) {
 				return builtinNever;
 			}
-			return {
-				julType: 'and',
-				ChoiceTypes: ChoiceTypes,
-			};
+			return createCompileTimeIntersectionType(ChoiceTypes);
 		}
 
 		// Teilmenge liefern:
@@ -3488,10 +3413,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		}
 	}
 
-	return {
-		julType: 'and',
-		ChoiceTypes: ChoiceTypes,
-	};
+	return createCompileTimeIntersectionType(ChoiceTypes);
 }
 
 /**
@@ -4108,10 +4030,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			// TODO?
 			return type;
 		case 'tuple':
-			return {
-				julType: 'tuple',
-				ElementTypes: type.ElementTypes.map(valueOf)
-			};
+			return createCompileTimeTupleType(type.ElementTypes.map(valueOf));
 		case 'typeOf':
 			return type.value;
 		default:
@@ -4214,9 +4133,17 @@ export function getTypeError(
 			}
 			return getTypeError(prefixArgumentType, CompileTimeNonZeroInteger, targetType);
 		}
-		case 'nestedReference':
-			// TODO?
+		case 'nestedReference': {
+			// Wie concat/withElementAt: erst auflösen versuchen, dann erst permissiv werden.
+			// Ein Zugriff, der über die Deklaration auflösbar ist, muss auch geprüft werden -
+			// sonst verschluckt der Rückfall jeden Fehler an einem Wert, dessen Typ zwar noch
+			// symbolisch geschrieben ist, aber längst feststeht.
+			const resolved = resolvePlaceholders(argumentsType);
+			if (resolved !== argumentsType) {
+				return getTypeError(prefixArgumentType, resolved, targetType);
+			}
 			return undefined;
+		}
 		case 'not': {
 			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
 			// ausschließlich X-Werte zulässt (target Teilmenge von X), der Wert also garantiert
@@ -4487,13 +4414,10 @@ export function getTypeError(
 					// Werte. Bewusst nur hier und nicht generell für 'boolean' als
 					// argumentsType, damit der sehr viel häufigere Fall Boolean-gegen-Boolean/
 					// Any keinen zusätzlichen Aufwand bekommt.
-					const asLiteralUnion: CompileTimeType = {
-						julType: 'or',
-						ChoiceTypes: [
-							createBooleanLiteral(true),
-							createBooleanLiteral(false),
-						],
-					};
+					const asLiteralUnion = createCompileTimeUnionType([
+						createBooleanLiteral(true),
+						createBooleanLiteral(false),
+					]);
 					return getTypeError(prefixArgumentType, asLiteralUnion, targetType);
 				}
 				// Best-Match statt Alle-Choices-Dump (TS/Flow-Vorbild, Fund im echten

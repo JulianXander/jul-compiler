@@ -64,3 +64,5 @@
 2026-09-12 20:01:53	4dc8177+	-	ADV-DEV-56627	yugioh	parse+check	5	3985.65	4107.67	4107.67	Phase 3: Blatt-Typen durch builtins ersetzt
 2026-09-12 20:06:48	c30feb6	-	ADV-DEV-56627	yugioh	parse+check	5	3774.58	4047.88	4047.88	Phase 3: Alle Inlines durch Konstruktoren/builtins ersetzt (verhaltensneutral)
 2026-09-12 20:13:48	c30feb6+	-	ADV-DEV-56627	yugioh	parse+check	5	3726.04	4149.99	4149.99	Phase 4: resolvePlaceholders und dereferenceArgumentTypesNested zu traversePlaceholders vereint
+2026-09-12 20:26:20	71ccc28+	-	ADV-DEV-56627	yugioh	parse+check	5	3867.61	4239.12	4239.12	Phase 3 fertig: isUnresolvedPlaceholderType ist Feldzugriff statt Traversierung
+2026-09-12 20:34:32	71ccc28+	-	ADV-DEV-56627	yugioh	parse+check	5	3792.08	4048.26	4048.26	Phase 5: Praefix-Argument bleibt fuer den Rueckgabetyp symbolisch; getTypeError loest nestedReference auf

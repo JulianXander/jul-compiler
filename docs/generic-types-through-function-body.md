@@ -22,8 +22,8 @@ Platzhalter selbst:
 Das betrifft nicht nur Spread. Mindestens vier unabhängige Stellen in `checker.ts` zeigten dasselbe
 Muster:
 
-1. Präfix-Argument eines Methodenaufrufs (`values.getElement(2)`) - **offen**
-2. Index-/Namenszugriff (`values/2`) - **offen**
+1. Präfix-Argument eines Methodenaufrufs (`values.getElement(2)`) - **umgesetzt**
+2. Index-/Namenszugriff (`values/2`) - **war bereits korrekt**
 3. List-Spread im Literal, `[...a x]` gemischt mit normalen Elementen - **umgesetzt**
 4. "Reiner" Spread ohne normale Elemente (`[...a ...b]`) - eigener Parse-Knoten `object.type`
    (`ParseUnknownObjectLiteral`, siehe CLAUDE.md), nicht `list` - **umgesetzt**
@@ -93,20 +93,32 @@ Regression; drei zuvor gruene Tests (`list-literal-spread-collapses-to-list`,
 den Funktions-Rueckgabetyp jetzt ueber `resolvePlaceholders` statt roh, weil er intern ein
 aufschiebbarer `Concat`-Knoten sein kann.
 
-## Offen: Praefix-Argument und Index-/Namenszugriff
+## Stand: Praefix-Argument und Index-/Namenszugriff
 
-Dieselbe Umstellung (vor `resolvePlaceholders` erst `isUnresolvedPlaceholderType` pruefen, dann
-den passenden Konstruktor statt sofortiger Faltung) waere fuer die beiden verbleibenden Stellen
-grundsaetzlich genauso moeglich:
+Umgesetzt (2026-09-12). Der Zuschnitt ist dabei ein anderer als hier zunaechst vermutet:
 
-1. `dereferenceArgumentTypesNested` existiert schon und kann den Platzhalter am Aufrufort
-   auflösen - der fehlende Teil ist nur, das *innerhalb* der Rumpfprüfung ebenfalls zu verwenden,
-   statt es auf die Rückgabetyp-Dereferenzierung zu beschränken.
-2. Der zuletzt behobene Bug (Rückgabetyp faellt auf den Rumpf-Typ zurueck, sobald der nicht
-   exakt `Any` ist) muesste sinngemaess auch fuer Zwischenwerte gelten, nicht nur fuer den
-   letzten Ausdruck des Rumpfs.
-3. Die verbleibenden zwei Fundstellen muessten einheitlich umgestellt werden, sonst bleibt eine
-   willkuerliche Grenze stehen (Spread generisch, `getElement`/Feldzugriff nicht).
+- **Index-/Namenszugriff war nie eager.** `dereferenceIndexFromObject`/`dereferenceNameFromObject`
+  werden schon immer zuerst auf dem *rohen* Typ probiert und liefern fuer einen Platzhalter eine
+  `nestedReference` zurueck. Ein Test gegen den unveraenderten Checker belegt das
+  (`index-access-keeps-precision-until-call`, `field-access-keeps-precision-until-call`: beide
+  gruen vor der Aenderung). Die Grenze verlief also nicht zwischen Spread und Feldzugriff,
+  sondern allein um das Praefix-Argument herum.
+- **Das Praefix-Argument wird fuer drei Dinge gebraucht**, und nur eines davon darf symbolisch
+  bleiben: die Zuweisbarkeitspruefung und `checkDiscardedArguments` rechnen weiter mit dem
+  aufgeloesten Typ, nur `dereferenceArgumentTypesNested` bekommt den Platzhalter. Wird das nicht
+  getrennt, verschwinden Diagnosen - genau der Bug, den
+  `prefix-argument-resolves-to-declared-type-in-generic-return` festhaelt.
+- **`getTypeError` musste `nestedReference` aufloesen, bevor es permissiv wird** - dasselbe
+  Muster, das `concat` und `withElementAt` dort bereits anwenden; an `nestedReference` stand nur
+  ein `// TODO?`. Ohne diesen Schritt verschluckt der Rueckfall jeden Fehler an einem Wert, der
+  zwar symbolisch geschrieben ist, dessen Typ ueber die Deklaration aber laengst feststeht. Drei
+  Tests haben das erzwungen.
+
+Gemessen auf `C:\Projects\privat\yugioh` (5849 Zeilen): `getTypeError` 718869 -> 727794 (+1,2%),
+`resolvePlaceholders` 6068542 -> 7595213 (+25%), `inferType` unveraendert, Laufzeit innerhalb der
+Messstreuung (+-4%, durch Wiederholungsmessung bei unveraendertem Code bestimmt). Das
+Abbruchkriterium lag bei der Groessenordnung des `WithElementAt`-Funds (+51% auf `getTypeError`)
+und ist damit deutlich unterschritten.
 
 ## Tradeoffs
 

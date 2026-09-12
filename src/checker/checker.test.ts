@@ -2578,6 +2578,53 @@ TargetType = [...SourceType z: Boolean]`;
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  x: Integer\n  y: Text\n  z: Boolean\n])');
 	});
+	// Präfix-Argument eines Methodenaufrufs im Funktionsrumpf: `values` ist dort ein
+	// parameterReference, wird aber eager über resolvePlaceholders auf den deklarierten Typ
+	// List(Any) zurückgefaltet. Damit steht der Rückgabetyp von `second` schon bei der
+	// Deklaration als Any fest, und der Aufruf mit einem konkreten Tuple kann die Präzision
+	// nicht mehr zurückholen - obwohl getElement sie über ElementAt(TypeOf(values) index)
+	// exakt berechnen könnte. Geprüft wird der Typ, nicht die Fehlerliste: über Fehler ist
+	// die Lücke unsichtbar.
+	it('prefix-argument-keeps-precision-until-call', () => {
+		const code = `second = (values: List(Any)) =>
+	values.getElement(2)
+result = [1 §a§].second()`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+
+		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const resultType = resultDef.value?.typeInfo?.type;
+		expect(resultType && typeToString(resolvePlaceholders(resultType), 0, 0)).to.equal('§a§');
+	});
+	// Gegenstück: der Index-/Namenszugriff hält den Platzhalter bereits, weil
+	// dereferenceIndexFromObject/dereferenceNameFromObject den rohen Typ zuerst probieren.
+	// Beide Zugriffsarten müssen dieselbe Präzision liefern - sonst stünde die willkürliche
+	// Grenze "Methodenaufruf ist schlau, Feldzugriff nicht".
+	it('index-access-keeps-precision-until-call', () => {
+		const code = `second = (values: List(Any)) =>
+	values/2
+result = [1 §a§].second()`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+
+		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const resultType = resultDef.value?.typeInfo?.type;
+		expect(resultType && typeToString(resolvePlaceholders(resultType), 0, 0)).to.equal('§a§');
+	});
+	it('field-access-keeps-precision-until-call', () => {
+		const code = `getX = (o: [x: Any]) =>
+	o/x
+result = [x = §a§].getX()`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+
+		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const resultType = resultDef.value?.typeInfo?.type;
+		expect(resultType && typeToString(resolvePlaceholders(resultType), 0, 0)).to.equal('§a§');
+	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
 	// Scope gecheckt werden. Sonst stand ihre Symboltabelle doppelt im Scope Stack und jede

@@ -580,11 +580,12 @@ interface CompileTimeTypeBase {
 	 */
 	declaration?: TypeDeclaration;
 	/**
-	 * Gecachtes Flag: true wenn dieser Typ oder ein Kind-Typ unaufgelöste Platzhalter enthält.
-	 * Wird bei der Typ-Konstruktion berechnet und kann danach mutiert werden.
-	 * Optional für inline-erzeugte Typen - der Fallback berechnet es bei Bedarf.
+	 * Gecachtes Ergebnis von isUnresolvedPlaceholderType: enthält dieser Typ einen Platzhalter,
+	 * der noch auf den Aufrufort wartet? Pflichtfeld, damit der Compiler jede Konstruktionsstelle
+	 * erzwingt - wer es vergisst, bekäme sonst still `undefined` und damit "aufgelöst".
+	 * Wird bei Funktionstypen nachträglich mutiert, siehe updateFunctionTypeUnresolvedFlag.
 	 */
-	isUnresolvedPlaceholder?: boolean;
+	isUnresolvedPlaceholder: boolean;
 }
 
 export interface TypeDeclaration {
@@ -766,7 +767,9 @@ export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileT
 	return {
 		julType: 'lengthOf',
 		Source: Source,
-		isUnresolvedPlaceholder: true,
+		// Die Länge selbst wartet nicht: sie ist immer ein Integer, egal wie offen die Quelle noch
+		// ist. Wer die Quelle meint, prüft sie ausdrücklich (siehe tupleOfFromTypes).
+		isUnresolvedPlaceholder: false,
 	};
 }
 
@@ -879,14 +882,15 @@ export function createCompileTimeDictionaryLiteralType(
 	declaration?: TypeDeclaration,
 	aliasName?: string,
 ): CompileTimeDictionaryLiteralType {
-	const isUnresolvedPlaceholder = Object.values(Fields).some(type => type.isUnresolvedPlaceholder);
 	return {
 		julType: 'dictionaryLiteral',
 		Fields: Fields,
 		complete: complete,
 		declaration: declaration,
 		aliasName: aliasName,
-		isUnresolvedPlaceholder: isUnresolvedPlaceholder,
+		// Felder zählen nicht mit: ein Dictionary ist als Ganzes zuweisbar, auch wenn einzelne
+		// Feldtypen noch offen sind.
+		isUnresolvedPlaceholder: false,
 	};
 }
 
@@ -947,6 +951,14 @@ export interface CompileTimeIntersectionType extends CompileTimeTypeBase {
 	ChoiceTypes: CompileTimeType[];
 }
 
+export function createCompileTimeIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeIntersectionType {
+	return {
+		julType: 'and',
+		ChoiceTypes: ChoiceTypes,
+		isUnresolvedPlaceholder: ChoiceTypes.some(t => t.isUnresolvedPlaceholder),
+	};
+}
+
 export interface CompileTimeListType extends CompileTimeTypeBase {
 	readonly julType: 'list';
 	ElementType: CompileTimeType;
@@ -1005,6 +1017,14 @@ export interface CompileTimeUnionType extends CompileTimeTypeBase {
 	ChoiceTypes: CompileTimeType[];
 }
 
+export function createCompileTimeUnionType(ChoiceTypes: CompileTimeType[]): CompileTimeUnionType {
+	return {
+		julType: 'or',
+		ChoiceTypes: ChoiceTypes,
+		isUnresolvedPlaceholder: ChoiceTypes.some(t => t.isUnresolvedPlaceholder),
+	};
+}
+
 export interface NestedReferenceType extends CompileTimeTypeBase {
 	readonly julType: 'nestedReference';
 	source: CompileTimeType;
@@ -1016,12 +1036,13 @@ export interface NestedReferenceType extends CompileTimeTypeBase {
 }
 
 export function createNestedReference(source: CompileTimeType, nestedKey: string | number | CompileTimeType): NestedReferenceType {
-	const isUnresolvedPlaceholder = source.isUnresolvedPlaceholder || (typeof nestedKey === 'object' && nestedKey.isUnresolvedPlaceholder);
 	return {
 		julType: 'nestedReference',
 		source: source,
 		nestedKey: nestedKey,
-		isUnresolvedPlaceholder: isUnresolvedPlaceholder,
+		// Der Knoten entsteht nur, wenn der Zugriff nicht gefaltet werden konnte - er wartet also
+		// noch, unabhängig davon, wie aufgelöst Quelle und Schlüssel einzeln aussehen.
+		isUnresolvedPlaceholder: true,
 	};
 }
 
@@ -1057,18 +1078,31 @@ export interface ParametersType extends CompileTimeTypeBase {
 }
 
 export function createParametersType(singleNames: Parameter[], rest?: Parameter): ParametersType {
-	const hasUnresolvedPlaceholder = singleNames.some(p => p.type && p.type.isUnresolvedPlaceholder) || (rest && rest.type && rest.type.isUnresolvedPlaceholder);
 	return {
 		julType: 'parameters',
 		singleNames: singleNames,
 		rest: rest,
-		isUnresolvedPlaceholder: hasUnresolvedPlaceholder,
+		// Eine Parameterliste steht als Ganzes fest; offene Parametertypen macht getTypeError
+		// einzeln permissiv (hasReliableTypeError).
+		isUnresolvedPlaceholder: false,
 	};
 }
 
 export interface Parameter {
 	name: string;
 	type?: CompileTimeType;
+}
+
+/**
+ * Setzt das gecachte Flag neu, nachdem ParamsType oder ReturnType zugewiesen wurden.
+ * Funktionstypen werden absichtlich mutierbar gebaut (der Rumpf kennt seinen eigenen Typ, bevor
+ * Parameter und Rückgabe feststehen) - ohne diesen Aufruf beschriebe das beim Konstruieren
+ * berechnete Flag weiterhin die alten Werte.
+ */
+export function updateFunctionTypeUnresolvedFlag(functionType: CompileTimeFunctionType): void {
+	functionType.isUnresolvedPlaceholder =
+		functionType.ParamsType.isUnresolvedPlaceholder
+		|| functionType.ReturnType.isUnresolvedPlaceholder;
 }
 
 //#endregion CompileTimeType
