@@ -707,7 +707,7 @@ export interface BlobType extends CompileTimeTypeBase {
 	readonly julType: 'blob';
 }
 
-interface ErrorType extends CompileTimeTypeBase {
+export interface ErrorType extends CompileTimeTypeBase {
 	readonly julType: 'error';
 }
 
@@ -1088,6 +1088,7 @@ export const builtinText: TextType = { julType: 'text', isUnresolvedPlaceholder:
 export const builtinDate: DateType = { julType: 'date', isUnresolvedPlaceholder: false };
 export const builtinBlob: BlobType = { julType: 'blob', isUnresolvedPlaceholder: false };
 export const builtinType: TypeType = { julType: 'type', isUnresolvedPlaceholder: false };
+export const builtinError: ErrorType = { julType: 'error', isUnresolvedPlaceholder: false };
 
 export function createBooleanLiteral(value: boolean): BooleanLiteralType {
 	return { julType: 'booleanLiteral', value, isUnresolvedPlaceholder: false };
@@ -1106,17 +1107,3 @@ export function createTextLiteral(value: string): TextLiteralType {
 }
 
 //#endregion Blatt-Typ Factories
-
-/**
- * Fallback: Stellt sicher, dass ein Typ das isUnresolvedPlaceholder-Flag hat.
- * Wird verwendet, wenn ein Typ inline erzeugt wurde, ohne einen Konstruktor zu verwenden.
- * Gibt den Typ unverändert zurück, wenn das Flag bereits existiert.
- */
-export function ensureTypeHasUnresolvedFlag(type: CompileTimeType): CompileTimeType {
-	if (type.isUnresolvedPlaceholder === undefined) {
-		// Fallback: Für inline-erzeugte Typen ohne Flag - markiere als false
-		// (da diese meist Blatt-Typen oder vollständig aufgelöst sind)
-		(type as any).isUnresolvedPlaceholder = false;
-	}
-	return type;
-}

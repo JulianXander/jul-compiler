@@ -68,6 +68,7 @@ import {
 	builtinFloat,
 	builtinDate,
 	builtinBlob,
+	builtinError,
 	builtinType,
 	createBooleanLiteral,
 	createIntegerLiteral,
@@ -152,7 +153,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	Float: createCompileTimeTypeOfType(builtinFloat),
 	Text: createCompileTimeTypeOfType(builtinText),
 	Date: createCompileTimeTypeOfType(builtinDate),
-	Error: createCompileTimeTypeOfType({ julType: 'error' }),
+	Error: createCompileTimeTypeOfType(builtinError),
 	List: (() => {
 		const parameterReference = createParameterReference('ElementType', 0);
 		const functionType = createCompileTimeFunctionType(
@@ -695,176 +696,11 @@ function dereferenceArgumentTypesNested(
 	argsType: CompileTimeType,
 	typeToDereference: CompileTimeType,
 ): CompileTimeType {
-	switch (typeToDereference.julType) {
-		case 'any':
-		case 'blob':
-		case 'boolean':
-		case 'booleanLiteral':
-		case 'date':
-		case 'empty':
-		case 'error':
-		case 'float':
-		case 'floatLiteral':
-		case 'integer':
-		case 'integerLiteral':
-		case 'never':
-		case 'text':
-		case 'textLiteral':
-		case 'type':
-			return typeToDereference;
-		case 'and': {
-			const rawChoices = typeToDereference.ChoiceTypes;
-			const dereferencedChoices = rawChoices.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType));
-			if (elementsEqual(rawChoices, dereferencedChoices)) {
-				return typeToDereference;
-			}
-			return createNormalizedIntersectionType(dereferencedChoices);
-		}
-		case 'dictionary': {
-			const rawElement = typeToDereference.ElementType;
-			const dereferencedElement = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawElement);
-			if (dereferencedElement === rawElement) {
-				return typeToDereference;
-			}
-			return createCompileTimeDictionaryType(dereferencedElement);
-		}
-		case 'greater': {
-			const rawValue = typeToDereference.Value;
-			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
-			if (dereferencedValue === rawValue) {
-				return typeToDereference;
-			}
-			return createCompileTimeGreaterType(dereferencedValue);
-		}
-		case 'list': {
-			const rawElement = typeToDereference.ElementType;
-			const dereferencedElement = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawElement);
-			if (dereferencedElement === rawElement) {
-				return typeToDereference;
-			}
-			return createCompileTimeListType(dereferencedElement);
-		}
-		case 'lengthOf': {
-			const rawSource = typeToDereference.Source;
-			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawSource);
-			if (dereferencedSource === rawSource) {
-				return typeToDereference;
-			}
-			// Neu falten statt neu einpacken: steht die Quelle jetzt fest, ist die Laenge ein
-			// Literal (Tuple) oder aufgesplittet (Or) - lengthOf(konkrete Quelle) waere zwar
-			// korrekt, aber unnoetig grob.
-			return getLengthFromType(dereferencedSource);
-		}
-		case 'nestedReference': {
-			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, typeToDereference.source);
-			const dereferencedKey = typeof typeToDereference.nestedKey === 'object'
-				? dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, typeToDereference.nestedKey)
-				: typeToDereference.nestedKey;
-			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, dereferencedSource);
-			if (!dereferencedNested) {
-				return builtinAny;
-			}
-			return dereferencedNested;
-		}
-		case 'not': {
-			const rawSource = typeToDereference.SourceType;
-			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawSource);
-			if (dereferencedSource === rawSource) {
-				return typeToDereference;
-			}
-			return createCompileTimeComplementType(dereferencedSource);
-		}
-		case 'or': {
-			const rawChoices = typeToDereference.ChoiceTypes;
-			const dereferencedChoices = rawChoices.map(choiceType => dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, choiceType));
-			if (elementsEqual(rawChoices, dereferencedChoices)) {
-				return typeToDereference;
-			}
-			return createNormalizedUnionType(dereferencedChoices);
-		}
-		case 'parameterReference': {
-			const dereferencedParameter = dereferenceParameterFromArgumentType(calledFunction, prefixArgumentType, argsType, typeToDereference);
-			const dereferencedNested = dereferencedParameter === typeToDereference
-				? dereferencedParameter
-				: dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, dereferencedParameter);
-			// TODO immer valueOf?
-			return valueOf(dereferencedNested);
-		}
-		case 'stream': {
-			const rawValue = typeToDereference.ValueType;
-			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
-			if (dereferencedValue === rawValue) {
-				return typeToDereference;
-			}
-			return createCompileTimeStreamType(dereferencedValue);
-		}
-		case 'typeOf': {
-			const rawValue = typeToDereference.value;
-			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
-			if (dereferencedValue === rawValue) {
-				return typeToDereference;
-			}
-			return createCompileTimeTypeOfType(dereferencedValue);
-		}
-		case 'withElementAt': {
-			const rawSource = typeToDereference.Source;
-			const rawIndex = typeToDereference.Index;
-			const rawValue = typeToDereference.Value;
-			const dereferencedSource = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawSource);
-			const dereferencedIndex = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawIndex);
-			const dereferencedValue = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawValue);
-			if (dereferencedSource === rawSource
-				&& dereferencedIndex === rawIndex
-				&& dereferencedValue === rawValue) {
-				return typeToDereference;
-			}
-			// Neu falten, nicht neu einpacken: steht die Position jetzt fest, ist das Ergebnis ein
-			// konkretes Tuple.
-			return withElementAtFromTypes(dereferencedSource, dereferencedIndex, dereferencedValue);
-		}
-		case 'range': {
-			const rawStart = typeToDereference.Start;
-			const rawEnd = typeToDereference.End;
-			const dereferencedStart = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawStart);
-			const dereferencedEnd = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawEnd);
-			if (dereferencedStart === rawStart
-				&& dereferencedEnd === rawEnd) {
-				return typeToDereference;
-			}
-			return createCompileTimeRangeType(dereferencedStart, dereferencedEnd);
-		}
-		case 'tupleOf': {
-			const rawCount = typeToDereference.Count;
-			const rawElement = typeToDereference.ElementType;
-			const dereferencedCount = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawCount);
-			const dereferencedElement = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, rawElement);
-			if (dereferencedCount === rawCount
-				&& dereferencedElement === rawElement) {
-				return typeToDereference;
-			}
-			// Neu falten, nicht neu einpacken: steht die Anzahl jetzt fest, ist es ein Tuple.
-			return tupleOfFromTypes(dereferencedCount, dereferencedElement);
-		}
-		case 'concat': {
-			const rawSources = typeToDereference.Sources;
-			const dereferencedSources = rawSources.map(source =>
-				dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, source));
-			if (rawSources.every((source, i) => source === dereferencedSources[i])) {
-				return typeToDereference;
-			}
-			return concatFromTypes(dereferencedSources);
-		}
-		// TODO
-		case 'dictionaryLiteral':
-		case 'function':
-		case 'parameters':
-		case 'tuple':
-			return typeToDereference;
-		default: {
-			const assertNever: never = typeToDereference;
-			throw new Error('Unexpected typeToDereference.type: ' + (assertNever as CompileTimeType).julType);
-		}
-	}
+	return traversePlaceholders(typeToDereference, {
+		calledFunction: calledFunction,
+		prefixArgumentType: prefixArgumentType,
+		argsType: argsType,
+	});
 }
 
 /**
@@ -973,7 +809,30 @@ function dereferenceParameterFromArgumentType(
  * Weiterverarbeitung eines Typs, der seine Generizität behalten muss.
  */
 export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
-	checkerStats.resolvePlaceholders++;
+	return traversePlaceholders(rawType, undefined);
+}
+
+/** Die Argumente eines Aufrufs, über die ein parameterReference aufgelöst wird. */
+interface ArgumentContext {
+	calledFunction: CompileTimeType;
+	prefixArgumentType: CompileTimeType | undefined;
+	argsType: CompileTimeType;
+}
+
+/**
+ * Die einzige Traversierung über einen Typbaum. Der Kontext entscheidet, woher ein
+ * parameterReference seinen Wert bekommt:
+ * undefined aus der Deklaration (resolvePlaceholders), gesetzt aus den Argumenten eines Aufrufs
+ * (dereferenceArgumentTypesNested).
+ * Gefaltet wird ausschließlich in den *FromTypes-Funktionen.
+ */
+function traversePlaceholders(
+	rawType: CompileTimeType,
+	argumentContext: ArgumentContext | undefined,
+): CompileTimeType {
+	if (!argumentContext) {
+		checkerStats.resolvePlaceholders++;
+	}
 	switch (rawType.julType) {
 		case 'any':
 		case 'blob':
@@ -994,7 +853,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			return rawType;
 		case 'and': {
 			const rawChoices = rawType.ChoiceTypes;
-			const dereferencedChoices = rawChoices.map(resolvePlaceholders);
+			const dereferencedChoices = rawChoices.map(choiceType => traversePlaceholders(choiceType, argumentContext));
 			if (elementsEqual(rawChoices, dereferencedChoices)) {
 				return rawType;
 			}
@@ -1002,13 +861,18 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'dictionary': {
 			const rawElement = rawType.ElementType;
-			const dereferencedElement = resolvePlaceholders(rawElement);
+			const dereferencedElement = traversePlaceholders(rawElement, argumentContext);
 			if (dereferencedElement === rawElement) {
 				return rawType;
 			}
-			return createCompileTimeDictionaryType(dereferencedElement, rawType.aliasName);
+			return createCompileTimeDictionaryType(
+				dereferencedElement,
+				argumentContext ? undefined : rawType.aliasName);
 		}
 		case 'dictionaryLiteral': {
+			if (argumentContext) {
+				return rawType;
+			}
 			const rawFields = rawType.Fields;
 			const dereferencedFields = mapDictionary(rawFields, resolvePlaceholders);
 			if (fieldsEqual(rawFields, dereferencedFields)) {
@@ -1017,6 +881,9 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.complete, rawType.declaration, rawType.aliasName);
 		}
 		case 'function': {
+			if (argumentContext) {
+				return rawType;
+			}
 			const dereferencedParamsType = resolvePlaceholders(rawType.ParamsType);
 			const dereferencedReturnType = resolvePlaceholders(rawType.ReturnType);
 			if (dereferencedParamsType === rawType.ParamsType
@@ -1031,7 +898,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'greater': {
 			const rawValue = rawType.Value;
-			const dereferencedValue = resolvePlaceholders(rawValue);
+			const dereferencedValue = traversePlaceholders(rawValue, argumentContext);
 			if (dereferencedValue === rawValue) {
 				return rawType;
 			}
@@ -1039,16 +906,16 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'list': {
 			const rawElement = rawType.ElementType;
-			const dereferencedElement = resolvePlaceholders(rawElement);
+			const dereferencedElement = traversePlaceholders(rawElement, argumentContext);
 			if (dereferencedElement === rawElement) {
 				return rawType;
 			}
 			return createCompileTimeListType(dereferencedElement);
 		}
 		case 'nestedReference': {
-			const dereferencedSource = resolvePlaceholders(rawType.source);
+			const dereferencedSource = traversePlaceholders(rawType.source, argumentContext);
 			const dereferencedKey = typeof rawType.nestedKey === 'object'
-				? resolvePlaceholders(rawType.nestedKey)
+				? traversePlaceholders(rawType.nestedKey, argumentContext)
 				: rawType.nestedKey;
 			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, dereferencedSource);
 			if (!dereferencedNested) {
@@ -1058,7 +925,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'not': {
 			const rawSource = rawType.SourceType;
-			const dereferencedSource = resolvePlaceholders(rawSource);
+			const dereferencedSource = traversePlaceholders(rawSource, argumentContext);
 			if (dereferencedSource === rawSource) {
 				return rawType;
 			}
@@ -1066,7 +933,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'lengthOf': {
 			const rawSource = rawType.Source;
-			const dereferencedSource = resolvePlaceholders(rawSource);
+			const dereferencedSource = traversePlaceholders(rawSource, argumentContext);
 			if (dereferencedSource === rawSource) {
 				return rawType;
 			}
@@ -1079,13 +946,25 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'or': {
 			const rawChoices = rawType.ChoiceTypes;
-			const dereferencedChoices = rawChoices.map(resolvePlaceholders);
+			const dereferencedChoices = rawChoices.map(choiceType => traversePlaceholders(choiceType, argumentContext));
 			if (elementsEqual(rawChoices, dereferencedChoices)) {
 				return rawType;
 			}
 			return createNormalizedUnionType(dereferencedChoices);
 		}
 		case 'parameterReference': {
+			if (argumentContext) {
+				const dereferencedParameter = dereferenceParameterFromArgumentType(
+					argumentContext.calledFunction,
+					argumentContext.prefixArgumentType,
+					argumentContext.argsType,
+					rawType);
+				const dereferencedNested = dereferencedParameter === rawType
+					? dereferencedParameter
+					: traversePlaceholders(dereferencedParameter, argumentContext);
+				// TODO immer valueOf?
+				return valueOf(dereferencedNested);
+			}
 			const dereferenced1 = dereferenceParameterTypeFromFunctionRef(rawType);
 			if (!dereferenced1) {
 				return builtinAny;
@@ -1093,10 +972,12 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			if (dereferenced1 === rawType) {
 				return rawType;
 			}
-			const dereferenced2 = resolvePlaceholders(dereferenced1);
-			return dereferenced2;
+			return resolvePlaceholders(dereferenced1);
 		}
 		case 'parameters': {
+			if (argumentContext) {
+				return rawType;
+			}
 			const dereferencedSingleNames = rawType.singleNames.map(dereferenceNestedParameter);
 			const rawRest = rawType.rest;
 			const dereferencedRest = rawRest
@@ -1110,13 +991,16 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'stream': {
 			const rawValue = rawType.ValueType;
-			const dereferencedValue = resolvePlaceholders(rawValue);
+			const dereferencedValue = traversePlaceholders(rawValue, argumentContext);
 			if (dereferencedValue === rawValue) {
 				return rawType;
 			}
 			return createCompileTimeStreamType(dereferencedValue);
 		}
 		case 'tuple': {
+			if (argumentContext) {
+				return rawType;
+			}
 			const rawElements = rawType.ElementTypes;
 			const dereferencedElements = rawElements.map(resolvePlaceholders);
 			if (elementsEqual(rawElements, dereferencedElements)) {
@@ -1126,7 +1010,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'typeOf': {
 			const rawValue = rawType.value;
-			const dereferencedValue = resolvePlaceholders(rawValue);
+			const dereferencedValue = traversePlaceholders(rawValue, argumentContext);
 			if (dereferencedValue === rawValue) {
 				return rawType;
 			}
@@ -1136,9 +1020,9 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 			const rawSource = rawType.Source;
 			const rawIndex = rawType.Index;
 			const rawValue = rawType.Value;
-			const dereferencedSource = resolvePlaceholders(rawSource);
-			const dereferencedIndex = resolvePlaceholders(rawIndex);
-			const dereferencedValue = resolvePlaceholders(rawValue);
+			const dereferencedSource = traversePlaceholders(rawSource, argumentContext);
+			const dereferencedIndex = traversePlaceholders(rawIndex, argumentContext);
+			const dereferencedValue = traversePlaceholders(rawValue, argumentContext);
 			if (dereferencedSource === rawSource
 				&& dereferencedIndex === rawIndex
 				&& dereferencedValue === rawValue) {
@@ -1150,8 +1034,8 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		case 'range': {
 			const rawStart = rawType.Start;
 			const rawEnd = rawType.End;
-			const dereferencedStart = resolvePlaceholders(rawStart);
-			const dereferencedEnd = resolvePlaceholders(rawEnd);
+			const dereferencedStart = traversePlaceholders(rawStart, argumentContext);
+			const dereferencedEnd = traversePlaceholders(rawEnd, argumentContext);
 			if (dereferencedStart === rawStart
 				&& dereferencedEnd === rawEnd) {
 				return rawType;
@@ -1161,8 +1045,8 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		case 'tupleOf': {
 			const rawCount = rawType.Count;
 			const rawElement = rawType.ElementType;
-			const dereferencedCount = resolvePlaceholders(rawCount);
-			const dereferencedElement = resolvePlaceholders(rawElement);
+			const dereferencedCount = traversePlaceholders(rawCount, argumentContext);
+			const dereferencedElement = traversePlaceholders(rawElement, argumentContext);
 			if (dereferencedCount === rawCount
 				&& dereferencedElement === rawElement) {
 				return rawType;
@@ -1172,7 +1056,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 		}
 		case 'concat': {
 			const rawSources = rawType.Sources;
-			const dereferencedSources = rawSources.map(resolvePlaceholders);
+			const dereferencedSources = rawSources.map(source => traversePlaceholders(source, argumentContext));
 			if (rawSources.every((source, i) => source === dereferencedSources[i])) {
 				return rawType;
 			}
@@ -1954,7 +1838,7 @@ function inferType(
 			const rawType = createNormalizedUnionType(
 				isExhaustive
 					? branchReturnTypes
-					: [...branchReturnTypes, { julType: 'error' }]);
+					: [...branchReturnTypes, builtinError]);
 			return { type: rawType };
 		}
 		case 'definition': {
