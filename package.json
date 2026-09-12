@@ -22,7 +22,7 @@
 	},
 	"scripts": {
 		"build": "rimraf out && npx tsc -p tsconfig.build.json && copyfiles --flat src/core-lib.jul out",
-		"build-all": "npm run build && npx tsc --project ../jul-language-server/tsconfig.json && npx tsc --project ../vscode-jul-language-service/tsconfig.json",
+		"build-all": "npm run build && npx tsc --project ../jul-language-server/tsconfig.build.json && npx tsc --project ../vscode-jul-language-service/tsconfig.json",
 		"build-all-and-deploy": "npm run build-all && npm run install-cli && npm run test-deploy --prefix ../vscode-jul-language-service",
 		"test": "mocha --import=tsx --require ./test-setup.mjs \"src/**/*.test.ts\"",
 		"test-watch": "mocha --import=tsx --require ./test-setup.mjs --watch --watch-files src --extension ts \"src/**/*.test.ts\"",
