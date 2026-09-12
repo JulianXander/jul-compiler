@@ -559,6 +559,28 @@ const expectedResults: {
 			code: '[Text Float] => true',
 		},
 		//#endregion Datenklammer
+		//#region Import
+		{
+			// getImportedPaths sammelt Abhängigkeiten nur von der direkten Zuweisung
+			// `x = import(...)` - ein bloßer Aufruf ohne Zuweisung wird laut TODO in
+			// getImportedPaths (case 'functionCall': return;) heute stillschweigend übersprungen:
+			// die Zieldatei landet nie in dependencies/parsedDocuments, der Checker fällt beim
+			// Typchecken later lautlos auf Any zurück (checker.ts case 'import'). Das soll
+			// stattdessen gemeldet werden, statt lautlos zu verpuffen.
+			name: 'import-without-assignment-is-reported',
+			code: 'import(§./some-file.jul§)',
+			errors: [
+				{
+					code: ErrorCode.unsupportedImportPosition,
+					message: 'import(...) is only supported as the direct value of a top-level definition or destructuring.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 26,
+				},
+			],
+		},
+		//#endregion Import
 		//#region Index
 		{
 			// Indizes sind 1-basiert, 0 ist also nie gültig. Die Meldung soll das sagen und auf

@@ -102,6 +102,13 @@ export enum ErrorCode {
 	invalidImportExtension = 3010,
 	fileNotFound = 3020,
 	dynamicImportNotAllowed = 3030,
+	/**
+	 * import(...) wird nur als direkter Wert einer Top-Level-Definition/Destructuring aufgelöst
+	 * (getImportedPaths sammelt nur von dort die Abhängigkeit). Überall sonst - verschachtelt,
+	 * als bloßer Aufruf ohne Zuweisung, weitergereicht - bleibt die Zieldatei ungeladen und der
+	 * Aufruf fällt sonst stillschweigend auf den Typ Any zurück.
+	 */
+	unsupportedImportPosition = 3040,
 	//#endregion 3000 semantic: Import und Modulauflösung
 
 	//#region 4000 semantic: Namensauflösung und Scopes
@@ -184,6 +191,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.dynamicImportNotAllowed]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.unsupportedImportPosition]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.alreadyDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.notDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.usedBeforeDefined]: { type: 'semantic', severity: 'error' },
