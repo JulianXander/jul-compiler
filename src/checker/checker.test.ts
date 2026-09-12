@@ -2060,6 +2060,22 @@ f = (chain: Or([] List(Integer)) value: Integer) :> List(Integer) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Bug: withElementAtFromTypes ignoriert bei Source Empty den tatsächlichen Index und liefert
+	// immer ein 1-elementiges Tuple [valueType] (siehe checker.ts, case 'empty' in
+	// withElementAtFromTypes) - der Wert landet damit an Position 1 statt an der wirklichen
+	// Position (hier 2). Zur Laufzeit legt setElement auf einem leeren Array ein Array der Länge
+	// index an (core-lib.jul: copy[Number(index) - 1] = value) - bei index 2 also mit einer Lücke
+	// an Position 1 und dem Wert an Position 2. Der Zieltyp [[] Integer] bildet genau das ab (nur
+	// eine Position gesetzt), ist also selbst korrekt/sound - der Fehler zeigt trotzdem, dass die
+	// Positionen vertauscht sind: "Can not assign 5 to Empty" (Wert an Position 1 statt Position 2)
+	// und "Can not assign Empty to Integer" (Position 2 fehlt)
+	// (siehe yugioh: game-logic.jul:1332, newBoards = [].setElement(defender ...).setElement(attacker ...)).
+	it('set-element-on-empty-at-literal-index-two-keeps-value-at-correct-position', () => {
+		const code = `x: [[] Integer] = [].setElement(2 5)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.
