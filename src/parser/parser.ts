@@ -177,12 +177,24 @@ export function parseCode(
 }
 
 function parseJulCode(code: string): ParsedExpressions {
-	const rows = code.split('\n');
+	const errors: CompilerError[] = [];
+	const rows = code.split('\n').map((row, rowIndex) => {
+		if (!row.endsWith('\r')) {
+			return row;
+		}
+		errors.push({
+			code: ErrorCode.windowsLineEnding,
+			message: 'Line uses \\r\\n (Windows) instead of \\n as line ending.',
+			startRowIndex: rowIndex,
+			startColumnIndex: row.length - 1,
+			endRowIndex: rowIndex,
+			endColumnIndex: row.length,
+		});
+		return row.slice(0, -1);
+	});
 	const parserResult = expressionBlockParser(rows, 0, 0, 0);
 	const expressions = parserResult.parsed;
-	const errors = [
-		...(parserResult.errors ?? [])
-	];
+	errors.push(...(parserResult.errors ?? []));
 	// check end of code reached
 	if (parserResult.endRowIndex !== rows.length) {
 		errors.push({

@@ -53,6 +53,7 @@ export enum ErrorCode {
 	expectedEndOfLine = 1101,
 	unparsedRestOfRow = 1102,
 	spaceIndentation = 1103,
+	windowsLineEnding = 1104,
 	// Abbruch, nicht geparster Restcode
 	unparsedCode = 1150,
 	expectedNestedKey = 1151,
@@ -162,6 +163,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.expectedEndOfLine]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.unparsedRestOfRow]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.spaceIndentation]: { type: 'syntax', severity: 'error' },
+	[ErrorCode.windowsLineEnding]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.unparsedCode]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedNestedKey]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedExpression]: { type: 'syntax', severity: 'error' },

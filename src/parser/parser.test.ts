@@ -290,6 +290,31 @@ const expectedResults: {
 			code: 'myFunc(\n\t§someValue§\n)',
 		},
 		{
+			// Windows-Zeilenenden (CRLF): parseJulCode schneidet das '\r' ab und meldet dafür
+			// pro betroffener Zeile einen eigenen Fehler, statt dass die Kaskade aus
+			// unparsedRestOfRow/expectedOneOf entsteht.
+			name: 'function-call-multiline-argument-with-crlf',
+			code: 'myFunc(\r\n\t§someValue§\r\n)',
+			errors: [
+				{
+					code: ErrorCode.windowsLineEnding,
+					message: 'Line uses \\r\\n (Windows) instead of \\n as line ending.',
+					startRowIndex: 0,
+					startColumnIndex: 7,
+					endRowIndex: 0,
+					endColumnIndex: 8,
+				},
+				{
+					code: ErrorCode.windowsLineEnding,
+					message: 'Line uses \\r\\n (Windows) instead of \\n as line ending.',
+					startRowIndex: 1,
+					startColumnIndex: 12,
+					endRowIndex: 1,
+					endColumnIndex: 13,
+				},
+			],
+		},
+		{
 			// Steht nach => gar nichts, gibt es keinen Wert für die Definition. Gegenstück in
 			// checker.test.ts: mit einer Kommentarzeile darunter parst das Funktionsliteral durch
 			// und hat einen leeren body.
