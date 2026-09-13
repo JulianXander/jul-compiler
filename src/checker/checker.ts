@@ -297,6 +297,27 @@ function isTypeName(name: string): boolean {
 	return /^\p{Lu}/u.test(name);
 }
 
+/**
+ * Steht die Referenz innerhalb der Definition dieses Namens?
+ * Ein leeres typeInfo heisst nur "Symbol noch nicht gecheckt" und trifft auch auf eine
+ * Vorwaertsreferenz zu - die ist aber bereits als JUL4002 gemeldet und darf keinen Folgefehler
+ * bekommen. Nur die Selbstreferenz beschreibt einen rekursiven Typ.
+ * Verglichen wird der Name, nicht die Objektidentitaet: die parent-Kette endet an einem anderen
+ * Definition-Objekt als dem in der Symboltabelle (siehe TODO, Parser-Backtracking). Eine
+ * Namensueberdeckung waere ohnehin bereits JUL4003.
+ */
+function isSelfReference(reference: ParseReference, name: string): boolean {
+	let current: PositionedExpression | undefined = reference.parent;
+	while (current) {
+		if (current.type === 'definition'
+			&& current.name.name === name) {
+			return true;
+		}
+		current = current.parent;
+	}
+	return false;
+}
+
 function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	type: CompileTimeType;
 	found: boolean;
@@ -348,7 +369,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 		// unproduktive Zyklen sind hier bereits als JUL5170 gemeldet. Ein Wert (rekursive
 		// Funktion) bleibt bei Any, sonst stuende sein Name faelschlich fuer einen Typ.
 		return {
-			type: isTypeName(name)
+			type: isTypeName(name) && isSelfReference(reference, name)
 				? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol))
 				: builtinAny,
 			found: true,
@@ -2003,10 +2024,10 @@ function inferType(
 		}
 		case 'definition': {
 			const value = expression.value;
+			const name = expression.name.name;
 			if (value) {
 				setInferredType(value, typeContext, parsedDocuments, folder, file, filePath);
 			}
-			const name = expression.name.name;
 			const circularReference = value && findUnproductiveSelfReference(value, name);
 			if (circularReference) {
 				errors.push({

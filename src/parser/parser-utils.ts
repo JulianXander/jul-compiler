@@ -1,4 +1,4 @@
-import { ParseBindingExpression, DefinitionExpression, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
@@ -29,9 +29,6 @@ export function createParseParameters(
 			field.typeGuard,
 			field.description,
 			index);
-		setParent(field, parameters);
-		setParent(field.name, field);
-		setParent(field.typeGuard, field);
 	});
 	if (rest) {
 		defineSymbol(
@@ -43,9 +40,6 @@ export function createParseParameters(
 			rest.typeGuard,
 			rest.description,
 			singleFields.length);
-		setParent(rest, parameters);
-		setParent(rest.name, rest);
-		setParent(rest.typeGuard, rest);
 	}
 	return parameters;
 }
@@ -71,9 +65,6 @@ export function createParseFunctionLiteral(
 		symbols: symbols,
 		...position,
 	};
-	setParent(params, functionLiteral);
-	setParent(returnType, functionLiteral);
-	setParents(body, functionLiteral);
 	return functionLiteral;
 }
 
@@ -211,14 +202,18 @@ export function getCheckedEscapableName(parseName: PositionedExpression): string
 	}
 }
 
-export function setParent(child: PositionedExpressionBase | undefined, parent: PositionedExpression): void {
-	if (child) {
-		child.parent = parent;
-	}
-}
-
-export function setParents(children: PositionedExpressionBase[], parent: PositionedExpression): void {
-	children.forEach(child => {
-		child.parent = parent;
+/**
+ * Setzt die parent-Kette ueber den fertigen Baum.
+ * Nachgelagert und nicht beim Bauen: derselbe Parser-Pfad laeuft mehrfach ueber dieselbe Eingabe
+ * und reicht die inneren Ergebnisse weiter, eine Huelle steht also noch nicht fest, waehrend ihre
+ * Kinder schon existieren. Wer parent beim Bauen setzt, schreibt auf ein Objekt, dessen
+ * Zugehoerigkeit noch offen ist (TypeScript setzt parent aus demselben Grund nachgelagert;
+ * Roslyn und rust-analyzer speichern ihn im geteilten Baum gar nicht erst).
+ */
+export function setParentsRecursive(expression: PositionedExpression): void {
+	forEachChild(expression, child => {
+		child.parent = expression;
+		setParentsRecursive(child);
+		return undefined;
 	});
 }

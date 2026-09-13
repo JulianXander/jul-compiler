@@ -82,3 +82,5 @@
 2026-09-13 10:40:52	020b631	-	ADV-DEV-56627	yugioh	parse+check	5	4270.42	4393.31	4393.31	vor: Typalias-Namen an Typdefinitionen
 2026-09-13 10:41:34	020b631+	-	ADV-DEV-56627	yugioh	parse+check	5	4163.98	4423.38	4423.38	nach: Typalias-Namen an Typdefinitionen
 2026-09-13 10:48:48	730a947	-	ADV-DEV-56627	yugioh	parse+check	5	4137.05	4588.27	4588.27	vor: benannte Union nicht flatten
+2026-09-13 11:59:24	0fd01d0+	-	ADV-DEV-56627	yugioh	parse+check	5	4387.37	4805.74	4805.74	nach: alias-knoten + resolveAlias-tore
+2026-09-13 12:04:27	0fd01d0+	-	ADV-DEV-56627	yugioh	parse+check	5	4421.66	4723.87	4723.87	nach: parents nachgelagert setzen

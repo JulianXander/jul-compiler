@@ -67,8 +67,7 @@ import {
 	fillSymbolTableWithFields,
 	fillSymbolTableWithExpressions,
 	fillSymbolTableWithParams,
-	setParent,
-	setParents,
+	setParentsRecursive,
 } from './parser-utils.js';
 import { basename, dirname, extname, join } from 'path';
 import { _parseJson } from '../runtime.js';
@@ -161,6 +160,8 @@ export function parseCode(
 		}
 	}
 	const { errors, expressions } = parsedExpressions;
+	// Erst hier, nicht beim Bauen der Knoten: siehe setParentsRecursive.
+	expressions?.forEach(setParentsRecursive);
 	const symbols: SymbolTable = {};
 	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
 	return {
@@ -705,8 +706,6 @@ function expressionParser(
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 		};
-		setParent(fields, destructuring);
-		setParent(value, destructuring);
 		return {
 			...result,
 			errors: errors,
@@ -735,9 +734,6 @@ function expressionParser(
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 		};
-		setParent(definition.name, definition);
-		setParent(definition.typeGuard, definition);
-		setParent(definition.value, definition);
 		return {
 			...result,
 			errors: errors,
@@ -1133,8 +1129,6 @@ function valueExpressionBaseParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 			};
-			setParent(params, functionTypeLiteral);
-			setParent(returnType, functionTypeLiteral);
 			return {
 				hasParsed: true,
 				endRowIndex: result.endRowIndex,
@@ -1229,11 +1223,6 @@ function simpleExpressionBaseParser(
 	if (parsed2.length) {
 		// (Nested Ref/Function Call) Chain
 		expression = simpleExpressionBaseToSimpleExpression(expression, errors);
-		function setParentForFunctionCall(functionCall: ParseFunctionCall): void {
-			setParent(functionCall.prefixArgument, functionCall);
-			setParent(functionCall.functionExpression, functionCall);
-			setParent(functionCall.arguments, functionCall);
-		}
 		expression = parsed2.reduce<SimpleExpression>(
 			(accumulator, currentValue) => {
 				switch (currentValue.type) {
@@ -1249,7 +1238,6 @@ function simpleExpressionBaseParser(
 							endRowIndex: currentValue.endRowIndex,
 							endColumnIndex: currentValue.endColumnIndex,
 						};
-						setParentForFunctionCall(functionCall);
 						return functionCall;
 					}
 					case 'nestedReference': {
@@ -1271,10 +1259,6 @@ function simpleExpressionBaseParser(
 								? nestedKey.endRowIndex
 								: accumulator.endRowIndex,
 						};
-						setParent(accumulator, nestedReference);
-						if (nestedKey) {
-							setParent(nestedKey, nestedReference);
-						}
 						return nestedReference;
 					}
 					default: {
@@ -1287,7 +1271,6 @@ function simpleExpressionBaseParser(
 							endRowIndex: currentValue.endRowIndex,
 							endColumnIndex: currentValue.endColumnIndex,
 						};
-						setParentForFunctionCall(functionCall);
 						return functionCall;
 					}
 				}
@@ -1612,8 +1595,6 @@ function branchingParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 	};
-	setParent(branching.args, branching);
-	setParents(branches, branching);
 	return {
 		...result,
 		parsed: branching,
@@ -1759,7 +1740,7 @@ function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpres
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 		};
-		// setParents(fieldsWithDescription, bracketed);
+		// parent wird nachgelagert gesetzt, siehe setParentsRecursive
 		return {
 			...result,
 			parsed: bracketed,
@@ -1983,9 +1964,6 @@ function bindingToDestructuringFields(
 			endRowIndex: baseField.endRowIndex,
 			endColumnIndex: baseField.endColumnIndex,
 		};
-		setParent(checkedName, destructuringField);
-		setParent(destructuringField.typeGuard, destructuringField);
-		setParent(checkedSource, destructuringField);
 		fields.push(destructuringField);
 	});
 	const symbols: SymbolTable = {};
@@ -1999,7 +1977,6 @@ function bindingToDestructuringFields(
 		endRowIndex: bracketedExpression.endRowIndex,
 		endColumnIndex: bracketedExpression.endColumnIndex,
 	};
-	setParents(fields, parseFields);
 	return parseFields;
 }
 
@@ -2175,7 +2152,6 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
-		setParents(list.values, list);
 		return list;
 	}
 	const isDictionary = baseFields.every(baseField =>
@@ -2246,9 +2222,6 @@ function bracketedExpressionToValueExpression(
 					endRowIndex: baseField.endRowIndex,
 					endColumnIndex: baseField.endColumnIndex,
 				};
-				setParent(name, singleDictionaryField);
-				setParent(typeGuard, singleDictionaryField);
-				setParent(value, singleDictionaryField);
 				return singleDictionaryField;
 			});
 		const symbols: SymbolTable = {};
@@ -2262,7 +2235,6 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
-		setParents(fields, dictionary);
 		return dictionary;
 	}
 	const isDictionaryType = baseFields.every(baseField =>
@@ -2320,8 +2292,6 @@ function bracketedExpressionToValueExpression(
 					endRowIndex: baseField.endRowIndex,
 					endColumnIndex: baseField.endColumnIndex,
 				};
-				setParent(name, singleDictionaryField);
-				setParent(typeGuard, singleDictionaryField);
 				return singleDictionaryField;
 			});
 		const symbols: SymbolTable = {};
@@ -2335,7 +2305,6 @@ function bracketedExpressionToValueExpression(
 			endRowIndex: bracketedExpression.endRowIndex,
 			endColumnIndex: bracketedExpression.endColumnIndex,
 		};
-		setParents(fields, dictionaryType);
 		return dictionaryType;
 	}
 	const isUnknownObject = baseFields.every(baseField =>
