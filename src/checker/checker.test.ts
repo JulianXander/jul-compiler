@@ -2841,6 +2841,30 @@ Both = Or(Tree Tree2)`;
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Die Besuchsmenge deckt nur Zyklen ab; eine sehr tiefe, nicht zyklische Verschachtelung läuft
+	// an ihr vorbei und kippt irgendwann in den Stack Overflow (gemessen: ab rund 4000 Ebenen,
+	// plattformabhängig). Die Notbremse muss vorher greifen und eine Diagnose liefern, statt den
+	// Language Server zu killen. 150 Ebenen liegen weit jenseits jeder realen Verschachtelung.
+	it('excessively-deep-type-comparison-is-reported', () => {
+		const depth = 150;
+		let code = 'T0 = [a: Integer]\n';
+		for (let index = 1; index <= depth; index++) {
+			code += `T${index} = [a: T${index - 1}]\n`;
+		}
+		code += 'U0 = [a: Integer]\n';
+		for (let index = 1; index <= depth; index++) {
+			code += `U${index} = [a: U${index - 1}]\n`;
+		}
+		code += `f = (t: T${depth}) => t\n`;
+		code += `g = (u: U${depth}) => f(u)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		const messages = parsed.checked?.errors.map(error => error.message) ?? [];
+		expect(messages.some(message => message.includes('excessively deep'))).to.equal(
+			true,
+			`Erwartete Tiefen-Diagnose, bekam: ${JSON.stringify(messages)}`);
+	});
 	// Präfix-Argument eines Methodenaufrufs im Funktionsrumpf: `values` ist dort ein
 	// parameterReference, wird aber eager über resolvePlaceholders auf den deklarierten Typ
 	// List(Any) zurückgefaltet. Damit steht der Rückgabetyp von `second` schon bei der
