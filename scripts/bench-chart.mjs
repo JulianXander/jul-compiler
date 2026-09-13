@@ -10,9 +10,9 @@ import { resolve } from 'path';
  * Bewusste Kopie aus jul-language-server/scripts, die Projekte sind eigene Repos.
  */
 
-const cellWidth = 340;
+const gridWidth = 680;
 const cellHeight = 190;
-const columnCount = 2;
+const maxColumnCount = 2;
 const padding = { top: 40, right: 16, bottom: 46, left: 52 };
 
 function parseArgs(argv) {
@@ -57,7 +57,7 @@ function escapeText(text) {
 }
 
 /** ein Diagramm, x nach Position im Protokoll, nicht nach Datum: Messungen sind ungleich verteilt */
-function renderCell(label, entries, offsetX, offsetY) {
+function renderCell(label, entries, cellWidth, offsetX, offsetY) {
 	const plotWidth = cellWidth - padding.left - padding.right;
 	const plotHeight = cellHeight - padding.top - padding.bottom;
 	const maxValue = Math.max(...entries.map(entry => entry.median)) * 1.15 || 1;
@@ -112,22 +112,28 @@ else {
 		// Sammle alle unique Targets und Labels
 		const allTargets = target ? [target] : [...new Set(allEntries.map(e => e.target))];
 		const allLabels = [...new Set(allEntries.map(e => e.label))];
+		const labelsByTarget = new Map(allTargets.map(chosenTarget => [
+			chosenTarget,
+			allLabels.filter(label => allEntries.some(entry => entry.target === chosenTarget && entry.label === label)),
+		]));
 
 		// Baue eine große SVG mit allen Targets übereinander
-		const columnCount = 2;
+		// nie mehr Spalten als Diagramme, sonst bleibt die rechte Hälfte leer; die Zelle füllt den Rest
+		const columnCount = Math.max(1, Math.min(maxColumnCount, ...[...labelsByTarget.values()].map(labels => labels.length)));
+		const cellWidth = gridWidth / columnCount;
 		let totalHeight = 40; // Header
 		const targetSvgParts = [];
 
 		allTargets.forEach(chosenTarget => {
 			const entries = allEntries.filter(entry => entry.target === chosenTarget);
-			const labels = allLabels.filter(label => entries.some(e => e.label === label));
+			const labels = labelsByTarget.get(chosenTarget);
 			const rowCount = Math.ceil(labels.length / columnCount);
-			const gridWidth = columnCount * cellWidth;
 			const gridHeight = rowCount * cellHeight;
 
 			const cells = labels.map((label, index) => renderCell(
 				label,
 				entries.filter(entry => entry.label === label),
+				cellWidth,
 				(index % columnCount) * cellWidth,
 				Math.floor(index / columnCount) * cellHeight,
 			)).join('');
@@ -144,7 +150,7 @@ else {
 			totalHeight += gridHeight + 30;
 		});
 
-		const width = columnCount * cellWidth;
+		const width = gridWidth;
 		const height = totalHeight + 20;
 
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" font-family="sans-serif">`
