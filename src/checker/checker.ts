@@ -1,7 +1,6 @@
 import { join } from 'path';
 import {
 	BracketedExpression,
-	CompileTimeConcatType,
 	CompileTimeCollection,
 	CompileTimeComplementType,
 	CompileTimeDictionary,
@@ -4702,38 +4701,8 @@ function getTypeErrorAtDepth(
 			}
 			return undefined;
 		}
-		// Kein Sonderfall auf der Argumentseite: die Prüfung läuft über den Zieltyp weiter.
-		// Eine neue aufschiebbare Variante gehört NICHT hierher, sondern nach oben - sonst
-		// entsteht unten ein Fehler auf einem Typ, der nur noch nicht aufgelöst ist.
-		case 'blob':
-		case 'boolean':
-		case 'booleanLiteral':
-		case 'date':
-		case 'dictionary':
-		case 'dictionaryLiteral':
-		case 'empty':
-		case 'error':
-		case 'float':
-		case 'floatLiteral':
-		case 'function':
-		case 'greater':
-		case 'integer':
-		case 'integerLiteral':
-		case 'list':
-		case 'never':
-		case 'parameters':
-		case 'range':
-		case 'stream':
-		case 'text':
-		case 'textLiteral':
-		case 'tuple':
-		case 'type':
-		case 'typeOf':
+		default:
 			break;
-		default: {
-			const assertNever: never = argumentsType;
-			throw new Error('Unexpected argumentsType.julType: ' + (assertNever as CompileTimeType).julType);
-		}
 	}
 	// TODO generic types (customType, union/intersection, ...?)
 	switch (targetType.julType) {
