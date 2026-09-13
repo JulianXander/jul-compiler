@@ -79,3 +79,5 @@
 2026-09-13 08:19:36	0fe302e+	-	ADV-DEV-56627	yugioh	parse+check	5	3854.47	4019.20	4019.20	Or-Feldzugriff: fehlendes Feld auf allen Choices wird gemeldet
 2026-09-13 09:05:03	5726ca5+	-	ADV-DEV-56627	yugioh	parse+check	5	4403.79	4674.06	4674.06	vor Kontravarianz-Fix bei Callback-Parametern
 2026-09-13 09:11:00	5726ca5+	-	ADV-DEV-56627	yugioh	parse+check	5	4199.44	4277.31	4277.31	Kontravarianz bei Callback-Parametern, TypeGuard schlaegt Aufrufkontext
+2026-09-13 10:40:52	020b631	-	ADV-DEV-56627	yugioh	parse+check	5	4270.42	4393.31	4393.31	vor: Typalias-Namen an Typdefinitionen
+2026-09-13 10:41:34	020b631+	-	ADV-DEV-56627	yugioh	parse+check	5	4163.98	4423.38	4423.38	nach: Typalias-Namen an Typdefinitionen

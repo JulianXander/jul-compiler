@@ -38,10 +38,10 @@ fibonacci: (x: Integer) :> Any
 fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) :> Any
 test: Any
 === fizz-buzz/fizz-buzz-recursive.jul ===
-divisibleBy: (divisor: Not(0)) :> (dividend: Integer) :> Boolean
-fizzBuzz: (index: And(Integer Greater(0))) :> Empty
+divisibleBy: (divisor: NonZeroInteger) :> (dividend: Integer) :> Boolean
+fizzBuzz: (index: PositiveInteger) :> Empty
 === fizz-buzz/fizz-buzz.jul ===
-divisibleBy: (divisor: Not(0)) :> (dividend: Integer) :> Boolean
+divisibleBy: (divisor: NonZeroInteger) :> (dividend: Integer) :> Boolean
 === function-call.jul ===
 MyType: TypeOf([   a: 1   b: 2 ])
 aliasFn: (   a: Boolean   b: Any ) :> Empty

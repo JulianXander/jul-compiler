@@ -1970,7 +1970,7 @@ function inferType(
 			}
 			else {
 				if (value?.typeInfo) {
-					typeInfo = value.typeInfo;
+					typeInfo = withTypeAliasName(value.typeInfo, name);
 				}
 				else {
 					typeInfo = { type: builtinAny };
@@ -2862,6 +2862,22 @@ function getNameFromValue(expression: TypedExpression): string | undefined {
 		&& expression.parent.value === expression) {
 		return expression.parent.name.name;
 	}
+}
+
+/**
+ * Eine Typdefinition gibt ihren Namen an den definierten Typ weiter, damit typeToString ihn an
+ * Verwendungsstellen als Namen zeigt statt den Typ auszuschreiben. Nur bei typeOf: allein dort
+ * ist der Name ein Typname und nicht der Name einer Definition, die einen Wert haelt.
+ */
+function withTypeAliasName(typeInfo: TypeInfo, name: string): TypeInfo {
+	const type = typeInfo.type;
+	if (type.julType !== 'typeOf'
+		|| type.value.aliasName === name) {
+		return typeInfo;
+	}
+	// Kopie statt Mutation: der Typ kann ein geteiltes Singleton sein oder ueber eine Referenz aus
+	// einer anderen Definition stammen, die ihren eigenen Namen behaelt.
+	return { type: createCompileTimeTypeOfType({ ...type.value, aliasName: name }) };
 }
 
 //#region get Type from FunctionCall
