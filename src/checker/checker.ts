@@ -4593,6 +4593,12 @@ function getTypeErrorAtDepth(
 			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 				getTypeError(prefixArgumentType, choiceType, targetType));
 			if (subErrors.every(isDefined)) {
+				// Kein einzelner choice reicht - das target selbst kann sich noch zerlegen lassen
+				// (z.B. Or): PositiveInteger passt als GANZES zu Or([] PositiveInteger), obwohl
+				// weder Integer noch Greater(0) allein zu Or([] PositiveInteger) passt.
+				if (targetType.julType === 'or') {
+					break;
+				}
 				// Kein einzelner choice reicht. Die Schnittmenge kann trotzdem passen, sichtbar
 				// wird das aber erst nach dem Auflösen: And(value Not(Empty)) mit
 				// value: Or([] Integer) ist Integer, kein einzelner choice sagt das.
