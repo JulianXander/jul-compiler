@@ -77,3 +77,5 @@
 2026-09-13 07:35:50	b3c389c+	-	ADV-DEV-56627	yugioh	parse+check	5	3770.70	4051.27	4051.27	Wiederholung derselben Fassung: +16% davor war Rauschen, Zaehler identisch
 2026-09-13 07:41:50	b3c389c+	-	ADV-DEV-56627	yugioh	parse+check	5	3753.91	4087.98	4087.98	TupleOf als Argumenttyp in getTypeError behandelt
 2026-09-13 08:19:36	0fe302e+	-	ADV-DEV-56627	yugioh	parse+check	5	3854.47	4019.20	4019.20	Or-Feldzugriff: fehlendes Feld auf allen Choices wird gemeldet
+2026-09-13 09:05:03	5726ca5+	-	ADV-DEV-56627	yugioh	parse+check	5	4403.79	4674.06	4674.06	vor Kontravarianz-Fix bei Callback-Parametern
+2026-09-13 09:11:00	5726ca5+	-	ADV-DEV-56627	yugioh	parse+check	5	4199.44	4277.31	4277.31	Kontravarianz bei Callback-Parametern, TypeGuard schlaegt Aufrufkontext

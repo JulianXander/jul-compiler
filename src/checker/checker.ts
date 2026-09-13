@@ -765,6 +765,66 @@ function dereferenceArgumentTypesNested(
 }
 
 /**
+ * Instanziiert die Signaturen der Callback-Parameter gegen die konkreten Argumente des Aufrufs.
+ * Ein Parametertyp wie `TypeOf(values)/ElementType` in einer Callback-Signatur wird erst hier
+ * konkret; ohne das bliebe er ein Platzhalter, den getTypeError permissiv durchwinkt.
+ *
+ * Bewusst nur diese eine Verschachtelungsebene statt einer Erweiterung von traversePlaceholders:
+ * dort steigt der argumentContext-Zweig nicht in Funktions- und Parameterknoten ab, und das
+ * nachzuruesten zerstoert die Aufloesung generischer Rueckgabetypen (`callback/ReturnType`).
+ */
+function dereferenceCallbackParams(
+	calledFunction: CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
+	argsType: CompileTimeType,
+	paramsType: CompileTimeType,
+): CompileTimeType {
+	if (!isParametersType(paramsType)) {
+		return paramsType;
+	}
+	let changed = false;
+	const dereferencedSingleNames = paramsType.singleNames.map(parameter => {
+		const parameterType = parameter.type;
+		if (!parameterType || !isFunctionType(parameterType)) {
+			return parameter;
+		}
+		const callbackParamsType = parameterType.ParamsType;
+		if (!isParametersType(callbackParamsType)) {
+			return parameter;
+		}
+		let callbackChanged = false;
+		const dereferencedCallbackParams = callbackParamsType.singleNames.map(callbackParameter => {
+			const callbackParameterType = callbackParameter.type;
+			if (!callbackParameterType) {
+				return callbackParameter;
+			}
+			const dereferenced = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, callbackParameterType);
+			if (dereferenced === callbackParameterType) {
+				return callbackParameter;
+			}
+			callbackChanged = true;
+			return { name: callbackParameter.name, type: dereferenced };
+		});
+		if (!callbackChanged) {
+			return parameter;
+		}
+		changed = true;
+		const dereferencedCallbackType = createCompileTimeFunctionType(
+			createParametersType(dereferencedCallbackParams, callbackParamsType.rest),
+			parameterType.ReturnType,
+			parameterType.pure,
+			parameterType.aliasName,
+		);
+		dereferencedCallbackType.predicate = parameterType.predicate;
+		return { name: parameter.name, type: dereferencedCallbackType };
+	});
+	if (!changed) {
+		return paramsType;
+	}
+	return createParametersType(dereferencedSingleNames, paramsType.rest);
+}
+
+/**
  * combine prefixArgumentType and argsType
  */
 function getAllArgTypes(
@@ -2244,9 +2304,17 @@ function inferType(
 			const argsType = args.typeInfo!.type;
 			const rawPrefixArgumentType = prefixArgument?.typeInfo?.type;
 			const prefixArgumentType = rawPrefixArgumentType && resolvePlaceholders(rawPrefixArgumentType);
-			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
+			// Die Signaturen der Callback-Parameter werden gegen die konkreten Argumente
+			// instanziiert, bevor geprüft wird: ein generischer Parametertyp darin
+			// (TypeOf(values)/ElementType) bliebe sonst ein Platzhalter, den getTypeError
+			// permissiv durchwinkt - die Kontravarianzprüfung des Callbacks liefe ins Leere.
+			// Nur diese eine Ebene, nicht der ganze Baum: traversePlaceholders steigt mit
+			// argumentContext bewusst nicht in Funktions- und Parameterknoten ab, weil das die
+			// Auflösung des Rückgabetyps (callback/ReturnType) zerstört.
+			const dereferencedParamsType = dereferenceCallbackParams(functionType, prefixArgumentType, argsType, paramsType);
+			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, dereferencedParamsType);
 			if (assignArgsError) {
-				const position = findArgumentErrorPosition(args, paramsType, prefixArgumentType) ?? expression;
+				const position = findArgumentErrorPosition(args, dereferencedParamsType, prefixArgumentType) ?? expression;
 				errors.push({
 					code: ErrorCode.argumentTypeMismatch,
 					message: `Argument type mismatch.\n${assignArgsError}`,
@@ -2682,7 +2750,14 @@ function inferType(
 			}
 			//#endregion
 			const typeGuardType = typeGuard?.typeInfo?.type;
-			const inferredType = dereferencedTypeFromCall ?? valueOf(typeGuardType);
+			// Ein hingeschriebener TypeGuard gilt, auch wenn der Aufrufkontext etwas anderes
+			// zusichert - sonst wäre er stillschweigend wirkungslos und die Kontravarianzprüfung
+			// vergliche den erwarteten Typ mit sich selbst. Der Kontext füllt nur untypisierte
+			// Parameter (`values.map((item) => ...)`). Die Fallunterscheidung muss am TypeGuard
+			// selbst hängen, nicht an valueOf: valueOf(undefined) liefert Any, nicht undefined.
+			const inferredType = typeGuardType
+				? valueOf(typeGuardType)
+				: dereferencedTypeFromCall ?? builtinAny;
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			const typeInfo: TypeInfo = { type: inferredType };
@@ -4401,14 +4476,14 @@ export function getTypeError(
 				break;
 			}
 			// Kontravarianz: Funktionstyp-Subtyping dreht die Richtung bei Parametern um.
-			// - Parameter: argumentsType.ParamsType muss Obermenge von targetType.ParamsType sein.
-			//   Grund: Wer weniger Parameter fordert, ist überall einsetzbar. Eine Funktion f(x)
-			//   passt überall wo eine Funktion g(x, y) verlangt wird, wenn f weniger Parameter
-			//   braucht als targetType.ParamsType — der Aufrufer kann einfach weniger übergeben.
+			// - Parameter: targetType.ParamsType muss Teilmenge von argumentsType.ParamsType sein.
+			//   Die übergebene Funktion muss also alles annehmen, was die Zielposition ihr
+			//   übergibt. Wer weniger fordert, ist überall einsetzbar; wer mehr fordert, bekommt
+			//   Werte, die er laut eigener Deklaration ablehnt.
 			// - Return-Type: Normale Richtung (Kovarianz).
 			//   argumentsType.ReturnType muss Teilmenge von targetType.ReturnType sein,
 			//   weil der Rückgabewert das erfüllen muss, was die Zielposition erwartet.
-			const paramsError = getTypeError(prefixArgumentType, argumentsType.ParamsType, targetType.ParamsType);
+			const paramsError = getTypeError(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
 			if (paramsError) {
 				return paramsError;
 			}
@@ -4991,6 +5066,10 @@ function getTypeErrorForParameters(
 		case 'tuple':
 			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
 		case 'parameters': {
+			// Parameter gegen Parameter tritt nur beim Vergleich zweier Funktionstypen auf, und
+			// der ruft kontravariant auf: targetType ist die übergebene Funktion, argumentsType
+			// die Signatur, die die Zielposition zusichert. Deshalb ist hier targetType das
+			// "Got" und argumentsType das "expected".
 			// TODO prefixArgumentType berücksichtigen?
 			let index = 0;
 			const targetSingleNames = targetType.singleNames;
@@ -5009,7 +5088,7 @@ function getTypeErrorForParameters(
 				const valueParameter = valueSingleNames[index];
 				if (valueParameter && valueParameter.name !== targetParameterName) {
 					return {
-						message: `Parameter name mismatch. Got '${valueParameter.name}' but expected '${targetParameterName}'`,
+						message: `Parameter name mismatch. Got '${targetParameterName}' but expected '${valueParameter.name}'`,
 					};
 				}
 				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? builtinAny;
@@ -5021,12 +5100,19 @@ function getTypeErrorForParameters(
 					return error;
 				}
 			}
-			const targetRestType = targetType.rest?.type;
+			const targetRest = targetType.rest;
+			const targetRestType = targetRest?.type;
 			if (targetRestType) {
+				// Gegen den Elementtyp prüfen, nicht gegen den Listentyp selbst: ein Rest-Parameter
+				// `...args: List(Any)` nimmt je übrigem Parameter einen Wert vom Elementtyp
+				// entgegen, nicht die ganze Liste.
+				const targetRestItemType = isListType(targetRestType)
+					? targetRestType.ElementType
+					: builtinAny;
 				const remainingValueParameters = valueSingleNames.slice(index);
 				for (const valueParameter of remainingValueParameters) {
 					const valueParameterType = valueParameter.type ?? valueRestItemType ?? builtinAny;
-					const error = getParameterError(targetType.rest!.name, targetRestType, valueParameterType);
+					const error = getParameterError(targetRest!.name, targetRestItemType, valueParameterType);
 					if (error) {
 						// TODO collect inner errors
 						return error;
