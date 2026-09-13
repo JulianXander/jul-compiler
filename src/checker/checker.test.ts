@@ -2802,6 +2802,26 @@ Target = [
 		expect(parsed.checked?.errors[0]?.message).to.equal(
 			'Circular type definition \'Bad\'. A type can only refer to itself through a field, list, tuple, stream or function.');
 	});
+	// Ein rekursiver Typ macht den Typ zum Graph mit Zyklus. Werden zwei davon verglichen, landet
+	// jeder Schritt über die Alias-Knoten wieder beim selben Paar - ohne Besuchsmenge endet das im
+	// Stack Overflow, im Language Server also als Absturz beim Tippen. Die einzige Annahme, unter
+	// der der Vergleich terminiert: ein Paar, das bereits geprüft wird, gilt als zuweisbar.
+	it('comparing-two-recursive-types-terminates', () => {
+		const code = `Tree = [
+	value: Integer
+	children: Or([] List(Tree))
+]
+Tree2 = [
+	value: Integer
+	children: Or([] List(Tree2))
+]
+f = (t: Tree) => t
+g = (t: Tree2) => f(t)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	// Präfix-Argument eines Methodenaufrufs im Funktionsrumpf: `values` ist dort ein
 	// parameterReference, wird aber eager über resolvePlaceholders auf den deklarierten Typ
 	// List(Any) zurückgefaltet. Damit steht der Rückgabetyp von `second` schon bei der
