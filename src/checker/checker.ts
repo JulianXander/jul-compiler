@@ -61,6 +61,8 @@ import {
 	TypedExpression,
 	TypeInfo,
 	ParseExpressionBase,
+	PositionedExpression,
+	forEachChild,
 	builtinAny,
 	builtinEmpty,
 	builtinNever,
@@ -173,6 +175,13 @@ const indentUnit = '  ';
  * createNormalizedUnionType aufruft.
  */
 const subtypeReductionLimit = 20;
+
+/**
+ * Kombinieren auf derselben Ebene, statt eine Datenebene hinzuzufuegen - siehe
+ * findUnproductiveSelfReference. Muss wie subtypeReductionLimit hier oben stehen: die core-lib
+ * wird schon beim Modul-Load gecheckt und laeuft dabei durch die Pruefung.
+ */
+const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
 
 const CompileTimeNonZeroInteger = createNormalizedIntersectionType([
 	builtinInteger,
@@ -1963,6 +1972,17 @@ function inferType(
 				setInferredType(value, typeContext, parsedDocuments, folder, file, filePath);
 			}
 			const name = expression.name.name;
+			const circularReference = value && findUnproductiveSelfReference(value, name);
+			if (circularReference) {
+				errors.push({
+					code: ErrorCode.circularTypeDefinition,
+					message: `Circular type definition '${name}'. A type can only refer to itself through a field, list, tuple, stream or function.`,
+					startRowIndex: circularReference.startRowIndex,
+					startColumnIndex: circularReference.startColumnIndex,
+					endRowIndex: circularReference.endRowIndex,
+					endColumnIndex: circularReference.endColumnIndex,
+				});
+			}
 			let typeInfo: TypeInfo;
 			if (name in coreBuiltInSymbolTypes) {
 				const rawType = coreBuiltInSymbolTypes[name]!;
@@ -2878,6 +2898,53 @@ function withTypeAliasName(typeInfo: TypeInfo, name: string): TypeInfo {
 	// Kopie statt Mutation: der Typ kann ein geteiltes Singleton sein oder ueber eine Referenz aus
 	// einer anderen Definition stammen, die ihren eigenen Namen behaelt.
 	return { type: createCompileTimeTypeOfType({ ...type.value, aliasName: name }) };
+}
+
+function isTypeCombinatorCall(functionCall: ParseFunctionCall): boolean {
+	const functionExpression = functionCall.functionExpression;
+	return functionExpression?.type === 'reference'
+		&& typeCombinatorNames.includes(functionExpression.name.name);
+}
+
+/**
+ * Die Selbstreferenz einer Definition, die durch keinen datentragenden Konstruktor laeuft.
+ * Eine solche Gleichung (Bad = Or(Integer Bad)) hat keine eindeutige Loesung - sie wird von jeder
+ * Obermenge von Integer erfuellt - und beim Pruefen eines Werts wird nichts kleiner. Genau daran
+ * wuerde auch die Aufloesung nicht terminieren.
+ * Konservativ: was hier nicht als Kombinator erkannt wird, gilt als produktiv und wird nicht
+ * gemeldet. Eine Falschmeldung waere teurer als eine ausgelassene.
+ */
+function findUnproductiveSelfReference(
+	expression: PositionedExpression,
+	definitionName: string,
+): ParseReference | undefined {
+	switch (expression.type) {
+		case 'reference':
+			return expression.name.name === definitionName
+				? expression
+				: undefined;
+		case 'dictionary':
+		case 'dictionaryType':
+		case 'list':
+		case 'object':
+		case 'functionLiteral':
+		case 'functionTypeLiteral':
+			return undefined;
+		case 'functionCall': {
+			if (!isTypeCombinatorCall(expression)) {
+				return undefined;
+			}
+			// Nur in die Argumente absteigen: die Argumentliste ist syntaktisch eine Kollektion
+			// (list/dictionary), fuegt aber keine Datenebene hinzu.
+			const args = expression.arguments;
+			return args
+				&& forEachChild(args, child =>
+					findUnproductiveSelfReference(child, definitionName));
+		}
+		default:
+			return forEachChild(expression, child =>
+				findUnproductiveSelfReference(child, definitionName));
+	}
 }
 
 //#region get Type from FunctionCall

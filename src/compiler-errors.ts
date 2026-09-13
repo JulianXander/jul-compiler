@@ -137,6 +137,12 @@ export enum ErrorCode {
 	valueIsNotFunction = 5151,
 	unreachableBranch = 5152,
 	dereferenceFailed = 5160,
+	/**
+	 * Eine Definition nennt sich selbst, ohne dass ein datentragender Konstruktor dazwischenliegt.
+	 * Die Typgleichung hat dann keine eindeutige Lösung (Bad = Or(Integer Bad) wird von jeder
+	 * Obermenge von Integer erfüllt), und beim Prüfen eines Werts wird nichts kleiner.
+	 */
+	circularTypeDefinition = 5170,
 	//#endregion 5000 type: Typprüfung
 }
 
@@ -210,6 +216,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.valueIsNotFunction]: { type: 'type', severity: 'error' },
 	[ErrorCode.unreachableBranch]: { type: 'type', severity: 'warning' },
 	[ErrorCode.dereferenceFailed]: { type: 'type', severity: 'error' },
+	[ErrorCode.circularTypeDefinition]: { type: 'type', severity: 'error' },
 };
 
 /**
