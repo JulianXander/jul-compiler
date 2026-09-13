@@ -3,36 +3,53 @@
 ## Stand
 
 `pure` existiert bereits als Feld auf `CompileTimeFunctionType`
-([syntax-tree.ts:898](../src/syntax-tree.ts#L898)), wird bei jeder Funktionstyp-Erzeugung gesetzt
-([syntax-tree.ts:916](../src/syntax-tree.ts#L916)) und fließt bis in die Typgleichheit ein
-(`first.pure === second.pure`, [checker.ts:3761](../src/checker.ts#L3761)). Die Infrastruktur ist
-also da — es gibt aber noch **keinen Konsumenten**, der das Feld für irgendeine Entscheidung nutzt.
+([syntax-tree.ts:928](../src/syntax-tree.ts#L928)), wird bei jeder Funktionstyp-Erzeugung gesetzt
+([syntax-tree.ts:943](../src/syntax-tree.ts#L943)) und fließt bis in die Typgleichheit ein
+(`first.pure === second.pure`, [checker.ts:4083](../src/checker/checker.ts#L4083)). Das Feld hat
+aber weder einen Konsumenten noch eine Quelle, die es korrekt belegt: **es ist heute falsch belegt,
+nicht nur ungenutzt.**
 
-Die Werte kommen aktuell aus drei Quellen:
+Die Werte kommen aus genau zwei Hartkodierungen:
 
-1. **`nativeFunction`-Deklarationen in core-lib.jul**: `pure` ist dort der zweite Positionsparameter
-   ([checker.ts:187](../src/checker.ts#L187), Typ `Boolean`) und bereits von Hand gesetzt — z. B.
-   `true` bei `add`/`And`/`Or`/`TypeOf` (arithmetik- und Typkonstruktor-Builtins), `false` bei
-   `log`/`require` (echte Seiteneffekte). Das ist bereits korrekt und ausreichend für diese
-   Ausbaustufe.
-2. **Funktionen höherer Ordnung** (`map`, `filter`, `filterMap`, u. a., [core-lib.jul:562](../src/core-lib.jul#L562) ff.):
-   hartcodiert `false`, mit TODO-Kommentar `# TODO pure wenn die args pure sind`
-   ([core-lib.jul:570](../src/core-lib.jul#L570) u. a., 9 Fundstellen). Das ist konservativ korrekt
-   (Purity hängt vom übergebenen Callback ab, siehe unten), bleibt in dieser Ausbaustufe unverändert.
-3. **`functionLiteral`** (jede von Nutzern geschriebene Funktion, `(a) => ...`): hartcodiert `false`
-   ([checker.ts:2282](../src/checker.ts#L2282)), mit TODO `# TODO pure, wenn der body pure ist`.
-   Bleibt in dieser Ausbaustufe ebenfalls unverändert.
+1. **`functionTypeLiteral`** — jede hingeschriebene Signatur (`(a: Integer) :> Integer`) erzeugt
+   `pure: true` ([checker.ts:2564](../src/checker/checker.ts#L2564)).
+2. **`functionLiteral`** — jede Funktion mit Rumpf erzeugt `pure: false`
+   ([checker.ts:2449](../src/checker/checker.ts#L2449)), mit TODO „pure, wenn der body pure ist".
+
+`nativeFunction` übergibt seine Signatur als `functionTypeLiteral`. Daraus folgt: **jede**
+core-lib-Funktion trägt `pure: true`, auch `log`, `currentDate` und `forEach`. Nachgemessen über
+`builtInSymbols`:
+
+```
+log: true   currentDate: true   forEach: true   map: true   assume: true
+```
+
+Der von Hand gesetzte `pure`-Parameter von `nativeFunction`
+([core-lib.jul:1095](../src/core-lib.jul#L1095), deklariert in
+[checker.ts:282](../src/checker/checker.ts#L282)) wird **nirgends gelesen** — es gibt keine Stelle
+im Checker, die `nativeFunction` namentlich behandelt. Die 80 Bool-Argumente in core-lib (49 `true`,
+31 `false`) sind damit reine Notizen, ebenso die 10 Kommentare „TODO pure wenn die args pure sind"
+an den Funktionen höherer Ordnung. Als Notizen sind sie brauchbar: sie sind die Vorlage für die
+Migration, aber nichts davon ist heute geprüft oder wirksam.
+
+Eine dritte Folge derselben Lücke: `getTypeError`, `case 'function'`
+([checker.ts:4820](../src/checker/checker.ts#L4820)) prüft `pure` gar nicht — nur Parameter
+(kontravariant) und Rückgabetyp (kovariant). `typeEquals` vergleicht es dagegen. Weil ein
+deklarierter Typ `true` und jede echte Funktion `false` trägt, sind die beiden heute **nie**
+`typeEquals`; das fließt unbemerkt in jede Deduplizierung (z. B. `createNormalizedUnionType`).
 
 ## Ziel dieser Ausbaustufe
 
 Nur **direkte, manuell deklarierte** Purity auf core-lib-`nativeFunction`s nutzbar machen — keine
-Inferenz über Nutzercode, keine Ableitung durch höhere Ordnung. Zwei Teile:
+Inferenz über Nutzercode, keine Ableitung durch höhere Ordnung. Drei Teile in dieser Reihenfolge:
 
-1. **Sichtbarkeit**: `pure` im Typ ablesbar machen (aktuell unsichtbar, siehe Architekturfrage unten).
-2. **Ein erster Konsument**: Constant Folding — ein Aufruf einer als `pure` deklarierten
+1. **Quelle der Wahrheit**: `pure` überhaupt erst korrekt belegen (siehe Stand). Ohne diesen
+   Schritt hielte jeder Konsument `currentDate` für rein.
+2. **Sichtbarkeit**: `pure` im Typ ablesbar machen (aktuell unsichtbar, siehe Architekturfrage
+   unten). Erst dadurch fällt eine Fehlbelegung beim Lesen auf statt erst im Verhalten.
+3. **Ein erster Konsument**: Constant Folding — ein Aufruf einer als `pure` deklarierten
    `nativeFunction` mit ausschließlich literalen/statisch bekannten Argumenten wird zur Compile-Zeit
-   mit der echten `§js§`-Implementierung ausgewertet, das Ergebnis fließt als präziserer
-   (Literal-)Typ in den Checker zurück.
+   ausgewertet, das Ergebnis fließt als präziserer (Literal-)Typ in den Checker zurück.
 
 ## Architekturfrage: Sichtbarkeit von `pure` im Typ
 
@@ -48,13 +65,13 @@ Stelle sichtbar wird, weder in Fehlermeldungen noch im Hover des Language Server
   `pure`-Parameter) bliebe unverändert ein Bool daneben.
 - **B — Zweites Pfeilsymbol als echte Eingabe-Syntax, `pure`-Flag entfällt.** `~>` wird ein zweiter
   Token neben `:>` im Parser selbst (`functionTypeBodyParser`/`returnTypeTokenParser`,
-  [parser.ts:246](../src/parser.ts#L246), [parser.ts:1522](../src/parser.ts#L1522)), der erzeugte
-  `functionTypeLiteral`-Knoten ([parser.ts:982](../src/parser.ts#L982)) trägt, welcher Pfeil
-  geschrieben wurde. `nativeFunction`s `FunctionType`-Parameter *ist* bereits ein `functionTypeLiteral`
-  (dieselbe Syntax, mit der auch Callback-Parametertypen wie in `map` deklariert werden) — der
-  Checker liest `pure` direkt daraus, der separate Bool-Parameter
-  ([checker.ts:188](../src/checker.ts#L188)) entfällt, `nativeFunction` schrumpft von drei auf zwei
-  Parameter (`FunctionType: Type`, `js: Text`).
+  [parser.ts:259](../src/parser/parser.ts#L259), [parser.ts:1649](../src/parser/parser.ts#L1649)),
+  der erzeugte `functionTypeLiteral`-Knoten ([parser.ts:1122](../src/parser/parser.ts#L1122)) trägt,
+  welcher Pfeil geschrieben wurde. `nativeFunction`s `FunctionType`-Parameter *ist* bereits ein
+  `functionTypeLiteral` (dieselbe Syntax, mit der auch Callback-Parametertypen wie in `map`
+  deklariert werden) — der Checker liest `pure` direkt daraus, der separate Bool-Parameter
+  ([checker.ts:282](../src/checker/checker.ts#L282)) entfällt, `nativeFunction` schrumpft von drei
+  auf zwei Parameter (`FunctionType: Type`, `js: Text`).
 - **C — Effekt im Rückgabetyp kodieren** (Haskell-`IO`-Weg). Größerer Umbau, lohnt sich nur, falls
   später mehr als binär pure/impure unterschieden werden soll (mehrere Effektarten). Für den
   aktuellen Anwendungsfall (Constant Folding an der `nativeFunction`-Grenze) unnötig groß.
@@ -89,6 +106,78 @@ Klammer-Migration.
 Der Language Server übernimmt die Sichtbarkeit in beiden Fällen automatisch, da Hover/Signature Help
 auf `typeToString` aufbauen.
 
+## Zu entscheiden, bevor Option B umsetzbar ist
+
+Vier Fragen, die die Empfehlung offen lässt. Reihenfolge der Beantwortung: 2 → 1 → 4 → 3, weil
+Frage 2 den Umfang der beiden folgenden bestimmt.
+
+**Zahlen, auf die sich der Migrationsumfang unten bezieht:** 81 `nativeFunction`-Aufrufe in
+core-lib mit 80 Bool-Argumenten (49 `true`, 31 `false`), davon 17 Parameter, deren Typ selbst ein
+Funktionstyp ist (`callback`, `predicate`, `getKey`, `getValue`, `listener`, `transform$`,
+`iteratee`); 8 `:>`-Vorkommen in `jul-examples`, 64 in den Tests, je eines in Grammatik, Snippets
+und Handbuch.
+
+### Frage 1: Was bedeutet der Pfeil an einem `functionLiteral`?
+
+`:>` steht nicht nur in Typen, sondern auch am Wert mit deklariertem Rückgabetyp
+(`(a: Integer) :> Integer => a`). Es ist derselbe Parser-Zweig: `functionTypeBodyParser`
+([parser.ts:1649](../src/parser/parser.ts#L1649)) liest Pfeil und Rückgabetyp und entscheidet erst
+am optionalen `=>`, ob ein Typ oder ein Wert entsteht. Ein Pfeil, der Purity trägt, steht damit
+automatisch auch an Nutzerfunktionen — deren `pure` ist aber hart `false`.
+
+- **1A — Der Pfeil ist nur im `functionTypeLiteral` bedeutungstragend**, am Literal bleibt er reine
+  Rückgabetyp-Notation. *Kosten:* dieselbe Schreibweise bedeutet an zwei Stellen Verschiedenes
+  (Prinzip 3). Zusätzlich zu klären: ist `~>` am Literal dann verboten (neuer Fehlercode) oder
+  wirkungslos erlaubt?
+- **1B — Der Pfeil am Literal ist eine ungeprüfte Zusicherung**: der Wert übernimmt `pure` aus dem
+  Pfeil, ohne Prüfung des Rumpfs; ohne Pfeil (`(a) => ...`) bleibt es bei impure. *Kosten:* die
+  Zusicherung kann lügen, bis die Inferenz-Ausbaustufe sie prüft. *Nutzen:* eine Bedeutung für ein
+  Symbol, und die Inferenz prüft später die Zusicherung, statt sie zu ersetzen — derselbe Weg wie
+  beim deklarierten Rückgabetyp, der heute schon gegen den inferierten geprüft wird.
+- **1C — Deklaration mit sofortiger Prüfung.** Braucht Purity-Inferenz über den Rumpf, das ist die
+  nächste Ausbaustufe. Für jetzt ausgeschlossen.
+
+### Frage 2: Welcher Pfeil trägt welche Aussage?
+
+- **2A — `:>` = pure, `~>` = impure.** *Migration:* die 31 als `false` notierten Signaturen **plus
+  alle 17 Callback-Parameterpositionen** nach `~>`. Letztere zwingend: eine Position, die einen
+  reinen Callback fordert, kann heute von keinem Nutzercode bedient werden (`functionLiteral` ist
+  immer impure). Dazu behaupten je nach Frage 1 alle 72 `:>`-Vorkommen in Beispielen und Tests
+  ungewollt „pure".
+- **2B — `:>` bleibt die unmarkierte Form, `~>` markiert pure.** *Migration:* nur die 49 reinen
+  Signaturen. Callback-Positionen, Beispiele, Tests, Grammatik-Regel für `:>` bleiben unberührt.
+  *Zu klären:* bedeutet die unmarkierte Form „unrein" oder „keine Aussage"? Zwei Bedeutungen in
+  einem Symbol wäre dieselbe Lücke, die dieses Dokument gerade schließen will. Sauber ist
+  „unmarkiert = unrein", weil das die schwächere und damit sichere Zusage ist.
+
+Empfehlung: **2B**. 2A führt eine Forderung ein, die vor der Inferenz-Ausbaustufe niemand erfüllen
+kann, und macht die Migration von 49 auf ~120 Stellen groß, ohne dass eine einzige davon geprüft
+würde.
+
+### Frage 3: Welches Symbol?
+
+`~>` gegen den bereits notierten Vorschlag `!=>` ([syntax-tree.ts:379](../src/syntax-tree.ts#L379)).
+Zu prüfen: der Token ist `' :> '` **inklusive umgebender Leerzeichen**
+([parser.ts:259](../src/parser/parser.ts#L259)); `=>` ist der `functionToken`. Ein Symbol, das mit
+`=>` beginnt oder endet, verlangt Blick auf die Reihenfolge der `discriminatedChoiceParser`-Zweige.
+Bei Antwort 2B markiert das neue Symbol den seltenen Fall — dann darf es das auffälligere sein.
+
+### Frage 4: Wird Purity Teil der Zuweisbarkeit?
+
+- **4A — Nein (Status quo).** `pure` bleibt Anzeige und Faltungsbedingung. *Kosten:* eine
+  Purity-Forderung an einer Callback-Position ist wirkungslos; die `typeEquals`-Inkonsistenz aus
+  dem Stand bleibt bestehen.
+- **4B — Ja, als Subtyping:** ein reiner Funktionstyp ist Untertyp des unreinen (pure ist überall
+  einsetzbar, unrein nicht), in Parameterposition kippt die Richtung mit der bereits vorhandenen
+  Kontravarianz ([checker.ts:4820](../src/checker/checker.ts#L4820)). *Kosten:* wirkt sofort auf
+  alle Callback-Positionen — tragbar nur zusammen mit 2B.
+- **4C — Ja, als Gleichheit.** Bricht sofort (heute ist deklariert ≠ inferiert) und ist zu streng:
+  eine reine Funktion muss an einer unreinen Position zulässig sein.
+
+Unabhängig von der Wahl mitzuentscheiden: bleibt `first.pure === second.pure` in `typeEquals`
+([checker.ts:4083](../src/checker/checker.ts#L4083)) so stehen? Bei 4A wird die Ungleichheit nach
+der Migration seltener, verschwindet aber nicht.
+
 ## Der Konsument: Constant Folding
 
 **Voraussetzung für Faltung eines Aufrufs:**
@@ -96,16 +185,26 @@ auf `typeToString` aufbauen.
 - Die aufgerufene Funktion ist eine core-lib-`nativeFunction` mit `pure === true`.
 - Alle Argumente sind zur Compile-Zeit als Literal/konstanter Wert bekannt (analog zu den bereits
   vorhandenen `integerLiteral`/`floatLiteral`/`textLiteral`/`booleanLiteral`-Typen im Checker).
-- Kein Aufruf über eine Zwischenvariable, die selbst nicht mehr eindeutig auf die native Deklaration
-  zeigt (gleiche Einschränkung wie beim bereits bekannten `lastElement`-Alias-Fund in
-  [core-lib-empty-return-types.md](core-lib-empty-return-types.md#ergebnis-lastelement) — dort ging
-  es um einen Namens-Sonderfall im Checker, hier greift die reguläre Typauflösung ohnehin über den
-  aufgelösten `functionRef`, betrifft also nur die Erkennung „ist das derselbe native Aufruf").
+- Der Aufruf zeigt nachweislich auf die native Deklaration. Ein Aufruf über eine Zwischenvariable
+  (`f = add`, dann `f(2 3)`) fällt heraus, solange die Erkennung am Symbol hängt (siehe unten).
 
-**Durchführung:** Die im `§js§`-Block hinterlegte echte Implementierung wird mit den (in
-JS-Werte übersetzten) Literal-Argumenten ausgeführt — kein Nachbau der Semantik im Checker, sondern
-derselbe Code, der auch zur Laufzeit läuft. Das Ergebnis wird zurück in einen `CompileTimeType`
-(Literal-Typ) übersetzt.
+**Durchführung:** Ausgeführt wird die **Runtime-Implementierung**, nicht der `§js§`-Text. Der
+`§js§`-Block ist dafür keine verlässliche Quelle: bei `add`, `and`, `or` und `deepEqual` steht dort
+`§TODO§`, bei `log` nur `console.log`. Die tatsächlichen Implementierungen liegen in `runtime.ts`;
+der Emitter importiert alle Runtime-Exporte und referenziert sie per Namen
+([emitter.ts:11](../src/emitter.ts#L11)). Die Faltung geht denselben Weg: über den core-lib-Namen
+nach `runtime[name]`, mit den (in JS-Werte übersetzten) Literal-Argumenten. Kein Nachbau der
+Semantik im Checker, sondern derselbe Code, der auch zur Laufzeit läuft. Das Ergebnis wird zurück in
+einen `CompileTimeType` (Literal-Typ) übersetzt.
+
+Zwei Details auf diesem Weg: reservierte Namen sind im Runtime-Export mit `_` escaped (`_Text`,
+`_Boolean`), und einige Exporte sind mit `_createFunction` verpackt (`parseJson`, `toJson`, `runJs`,
+`combine$`, `take$`) — das sind keine nackten Callables.
+
+**Erkennung des Aufrufziels:** Über `functionRef` allein ist „das ist derselbe native Aufruf" nicht
+zu beantworten — der Typ trägt keinen Herkunftsnamen. Vorhandener Anker ist `isBuiltIn` aus der
+Referenzauflösung ([checker.ts:792](../src/checker/checker.ts#L792)): der oberste Scope *ist*
+`builtInSymbols`, der Symbolname ist damit zugleich der Runtime-Export-Name.
 
 **Sicherheitsnetz gegen Terminierung:** Ein Schritt-/Aufrufzähler (kein Wall-Clock-Timeout — siehe
 Begründung unten), der die Auswertung eines einzelnen Ausdrucks abbricht, wenn ein Budget
@@ -119,33 +218,65 @@ Maschinenlast mal erfolgreich, mal fehlschlagend — nicht reproduzierbar. Vorbi
 (`branch_quota`, zählt Verzweigungen), Rust CTFE/Miri (Instruktionslimit). Beide zählen
 Ausführungsschritte, keine Zeit, genau um Nichtdeterminismus zu vermeiden.
 
+### Zu entscheiden beim Falten
+
+- **Welche Builtins?** Typkonstruktoren (`List`, `Or`, `And`, `TypeOf`) sind rein, liefern aber
+  Runtime-Typobjekte, die zurückübersetzt werden müssten — und der Checker behandelt sie bereits
+  gesondert ([checker.ts:235](../src/checker/checker.ts#L235) ff.). Vorschlag: Stufe 1 nur mit
+  skalaren Ein- und Ausgaben.
+- **Wert↔Typ-Grenze:** welche Literalvarianten hinein und heraus dürfen (bigint, number, string,
+  boolean), ob Kollektionen aus Literalen (`tuple`, `dictionaryLiteral`) zählen, und was mit
+  `Rational` geschieht — `add` kann ein `Fraction`-Objekt liefern, für das es keinen Literaltyp gibt.
+- **Fehler beim Falten** (`parseFloat`, `parseJson`, Division durch 0, geworfene Ausnahme):
+  Vorschlag abfangen, nicht falten, keine neue Diagnose. Faltung darf nie selbst Fehlerquelle sein.
+- **Granularität und Rücksetzung des Zählers:** pro Ausdruck, pro Datei oder pro Check-Lauf? Der
+  Language Server ist ein langlebiger Prozess — ein globaler Zähler blockierte nach einiger Zeit
+  dauerhaft.
+- **Kosten:** Faltung läuft im Language Server bei jedem Tastendruck mit, und präzisere Typen sind
+  im Checker nachweislich teuer (CHECKER-AUDIT.md, „Fallen im Checker": `typeEquals` aus der
+  Deduplizierung). Daher die Messung in Schritt 8 vor der Faltung und in Schritt 12 danach.
+
 ## Explizit außerhalb dieser Ausbaustufe
 
-- Keine Änderung an den 9 „TODO pure wenn die args pure sind"-Stellen (`map`, `filter`, `filterMap`
-  u. a.) — deren Purity hängt vom übergebenen Callback ab, das ist der in der Diskussion
+- Keine Änderung an den 10 „TODO pure wenn die args pure sind"-Stellen (`map`, `filter`,
+  `filterMap` u. a.) — deren Purity hängt vom übergebenen Callback ab, das ist der in der Diskussion
   identifizierte Fall der Funktionen höherer Ordnung (siehe Ausblick).
-- Kein `pure`-Wert für `functionLiteral` — bleibt hartcodiert `false`.
-- Keine Syntax, mit der Nutzer selbst `pure` für eigene Funktionen deklarieren.
+- Keine Purity-**Inferenz** aus dem Rumpf einer `functionLiteral`. Ob der Pfeil am Literal
+  stattdessen als ungeprüfte Zusicherung gelesen wird, entscheidet Frage 1; ohne 1B bleibt es bei
+  hartcodiert `false`.
+- Keine Faltung von Aufrufen an Nutzerfunktionen, auch nicht an als rein zugesicherten.
 
 ## Vorgehen
 
-1. Parser: `~>` als zweiten Token neben `:>` in `functionTypeBodyParser`/`returnTypeTokenParser`
-   zulassen, `functionTypeLiteral` um die Pfeil-Art erweitern.
-2. Checker: `pure` beim Auflösen eines `functionTypeLiteral` aus der Pfeil-Art lesen statt aus einem
-   Parameter; `nativeFunction`s Signatur auf zwei Parameter (`FunctionType`, `js`) reduzieren.
-3. `typeToString` `case 'function'` um `type.pure` erweitern, damit der Pfeil in Fehlermeldungen und
-   Hover erscheint.
-4. Migration: alle `nativeFunction`-Aufrufe in core-lib.jul von `(FunctionType, true/false, js)` auf
-   `(FunctionType mit passendem Pfeil, js)` umstellen. Dabei stichprobenartig verifizieren, dass die
-   bisherige Markierung stimmte (insbesondere Grenzfälle wie `regex`, `parseFloat`, `parseJson` — sind
-   die wirklich deterministisch und frei von Systemzustand?).
-5. Constant-Folding-Stelle im Checker identifizieren (vermutlich beim Auflösen eines
-   Funktionsaufrufs mit bekanntem `functionRef` auf eine native Deklaration, analog zu
-   `getReturnTypeFromFunctionCall`) und um den Fall „alle Argumente literal + `pure`" ergänzen.
-6. Schritt-Zähler als Guard einbauen, bevor die native `§js§`-Implementierung ausgeführt wird.
-7. Tests: gefaltete Literal-Typen für einfache Fälle (`add(2 3)` → Literal `5`), Gegenprobe mit
-   nicht-literalen Argumenten (keine Faltung, unverändertes Verhalten), Gegenprobe mit `pure ===
-   false` (keine Faltung), Parser-Tests für `~>` analog zu bestehenden `:>`-Tests.
+Die Messungen sind eigene Schritte, keine Anhänge — ein „vor und nach Schritt X" ist beim Abarbeiten
+nicht mehr messbar.
+
+1. `npm run bench -- --save` (Ausgangsmessung).
+2. Roter Test: `pure` einer nachweislich unreinen core-lib-Funktion (`currentDate`, `log`). Belegt
+   die Fehlbelegung aus dem Stand, bevor irgendetwas daran geändert wird.
+3. Parser: `~>` als zweiten Token neben `:>` in `functionTypeBodyParser`/`returnTypeTokenParser`
+   zulassen, `functionTypeLiteral` um die Pfeil-Art erweitern; Parser-Tests analog zu den
+   bestehenden `:>`-Tests.
+4. Checker: `pure` beim Auflösen eines `functionTypeLiteral` aus der Pfeil-Art lesen statt
+   hartzukodieren; `nativeFunction`s Signatur auf zwei Parameter (`FunctionType`, `js`) reduzieren.
+5. Migration core-lib: alle 81 `nativeFunction`-Aufrufe von `(FunctionType, true/false, js)` auf
+   `(FunctionType mit passendem Pfeil, js)`. Die bestehenden Bool-Werte sind die Vorlage, aber
+   ungeprüft — Grenzfälle (`regex`, `parseFloat`, `parseJson`, `assume`, `runJs`) einzeln
+   verifizieren: deterministisch und frei von Systemzustand?
+6. Mitziehende Artefakte: TextMate-Grammatik ([jul.tmLanguage.yaml](../../vscode-jul-language-service/syntaxes/jul.tmLanguage.yaml),
+   die YAML ist die Quelle), `snippets.json`, `handbook.md`, `nativeFunction`-Testfälle in
+   `checker.test.ts`.
+7. `typeToString` `case 'function'` um `type.pure` erweitern, damit der Pfeil in Fehlermeldungen und
+   Hover erscheint; Testerwartungen anpassen.
+8. `npm run bench -- --save` (trennt die Kosten des Syntaxumbaus von denen der Faltung).
+9. Roter Test für die Faltung (`add(2 3)` → Literal `5`).
+10. Constant-Folding-Stelle im Checker identifizieren (beim Auflösen eines Funktionsaufrufs, analog
+    zu `getReturnTypeFromFunctionCall`) und um den Fall „Builtin + `pure` + alle Argumente literal"
+    ergänzen, inklusive Schritt-Zähler als Guard vor der Ausführung.
+11. Gegenproben als Tests: nicht-literale Argumente (keine Faltung, unverändertes Verhalten), `pure
+    === false` (keine Faltung), werfender Aufruf (keine Faltung, keine neue Diagnose).
+12. `npm run bench -- --save` (Abschluss), `npm test`, `npm run typecheck`, ein paar
+    `jul-examples`-Projekte neu bauen.
 
 ## Ausblick: Ausbaustufe „Pure Inference"
 
