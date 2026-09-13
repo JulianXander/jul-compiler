@@ -4840,7 +4840,15 @@ function getTypeErrorAtDepth(
 			if (paramsError) {
 				return paramsError;
 			}
-			return getTypeError(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
+			const returnError = getTypeError(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
+			if (returnError) {
+				// Ohne Beschriftung liesse sich nicht erkennen, dass die Meldung den Rückgabewert
+				// betrifft, statt z.B. einen weiteren Parameter (siehe getParameterError).
+				return {
+					message: `Invalid return value\n${indentLines(typeErrorToString(returnError))}`,
+				};
+			}
+			return undefined;
 		}
 		case 'greater': {
 			const greaterValue = targetType.Value;

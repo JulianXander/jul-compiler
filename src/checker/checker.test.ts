@@ -1531,6 +1531,25 @@ f((value: PositiveInteger) => value)`,
 f((value: Integer) => value)`,
 		},
 		{
+			// Bug: anders als bei einem Parameter (siehe callback-parameter-type-narrower-
+			// than-declared, "Invalid value for parameter 'value'") bekommt der Rückgabetyp
+			// keine eigene Beschriftung - der Leser sieht nur "Can not assign 0 to Text." unter
+			// 'callback' und muss selbst erschliessen, dass damit der Rückgabewert gemeint ist.
+			name: 'callback-return-type-mismatch-names-the-return-value',
+			code: `f = (callback: (value: Integer) :> Text) => callback(1)
+f((value: Integer) => 0)`,
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid return value\n    Can not assign 0 to Text.",
+					startColumnIndex: 2,
+					startRowIndex: 1,
+					endColumnIndex: 23,
+					endRowIndex: 1,
+				},
+			],
+		},
+		{
 			// Derselbe Fall über einen generischen Elementtyp: aggregate reicht die Elemente von
 			// [0 1 2] durch, der Callback fordert aber PositiveInteger - die 0 passt nicht.
 			name: 'callback-parameter-type-narrower-than-passed-element',
