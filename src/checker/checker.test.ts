@@ -1510,6 +1510,8 @@ a(g(5))`,
 			// Kontravarianz an der Parameterposition: der Callback muss alles annehmen, was der
 			// Aufrufer ihm übergibt. Fordert er PositiveInteger, wo Integer durchgereicht wird,
 			// bleibt die 0 (und jede negative Zahl) unversorgt.
+			// Beschriftet wird der TYP des Parameters, nicht ein Wert: hier steht die Signatur des
+			// Callbacks zur Prüfung, kein Argument, das an 'value' übergeben würde.
 			name: 'callback-parameter-type-narrower-than-declared',
 			code: `f = (callback: (value: Integer) :> Any) => callback(1)
 f((value: PositiveInteger) => value)`,
@@ -1518,7 +1520,7 @@ f((value: PositiveInteger) => value)`,
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 35,
 					"endRowIndex": 1,
-					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid value for parameter 'value'\n    Can not assign Integer to Greater(0).",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid type for parameter 'value'\n    Can not assign Integer to Greater(0).",
 					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
@@ -1563,7 +1565,7 @@ f((value: Integer) => 0)`,
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 46,
 					"endRowIndex": 3,
-					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid value for parameter 'value'\n    Can not assign 0 to Greater(0).",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid type for parameter 'value'\n    Can not assign 0 to Greater(0).",
 					"startColumnIndex": 1,
 					"startRowIndex": 3,
 				},

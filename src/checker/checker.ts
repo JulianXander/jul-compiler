@@ -5213,11 +5213,16 @@ function getParameterError(
 	parameterName: string,
 	parameterTargetType: CompileTimeType,
 	argumentType: CompileTimeType,
+	/**
+	 * 'type' beim kontravarianten Vergleich zweier Funktionstypen: dort steht die deklarierte
+	 * Signatur zur Pruefung, kein Wert, der an den Parameter uebergeben wird.
+	 */
+	subject: 'value' | 'type' = 'value',
 ): TypeError | undefined {
 	const subError = getTypeError(undefined, argumentType, parameterTargetType);
 	if (subError) {
 		return {
-			message: `Invalid value for parameter '${parameterName}'\n${indentLines(typeErrorToString(subError))}`,
+			message: `Invalid ${subject} for parameter '${parameterName}'\n${indentLines(typeErrorToString(subError))}`,
 		};
 	}
 	return subError;
@@ -5455,7 +5460,7 @@ function getTypeErrorForParameters(
 				}
 				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? builtinAny;
 				const error = targetParameterType
-					? getParameterError(targetParameterName, targetParameterType, valueParameterType)
+					? getParameterError(targetParameterName, targetParameterType, valueParameterType, 'type')
 					: undefined;
 				if (error) {
 					// TODO collect inner errors
@@ -5474,7 +5479,7 @@ function getTypeErrorForParameters(
 				const remainingValueParameters = valueSingleNames.slice(index);
 				for (const valueParameter of remainingValueParameters) {
 					const valueParameterType = valueParameter.type ?? valueRestItemType ?? builtinAny;
-					const error = getParameterError(targetRest!.name, targetRestItemType, valueParameterType);
+					const error = getParameterError(targetRest!.name, targetRestItemType, valueParameterType, 'type');
 					if (error) {
 						// TODO collect inner errors
 						return error;
