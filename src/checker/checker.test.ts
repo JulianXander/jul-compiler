@@ -2461,6 +2461,25 @@ x: Inner = [a = []]`;
 		]);
 	});
 
+	// Dieselbe Elaboration am Aufruf: ein falsches Argument markiert nur dieses Argument,
+	// nicht den ganzen Aufruf samt Argumentliste.
+	it('argument-error-points-at-the-argument-not-the-whole-call', () => {
+		const code = `f = (a: Integer b: Greater(0)) => a
+f(1 0)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([
+			{
+				code: ErrorCode.argumentTypeMismatch,
+				message: 'Argument type mismatch.\nInvalid value for parameter \'b\'\n  Can not assign 0 to Greater(0).',
+				startRowIndex: 1,
+				startColumnIndex: 4,
+				endRowIndex: 1,
+				endColumnIndex: 5,
+			},
+		]);
+	});
+
 	// Fund: Fehlermeldung für Definitions mit verschachtelten Type-Mismatch ist verwirrend.
 	// Sie sagt "Can not assign newGameState to [...]", aber newGameState ist der Name
 	// der Definition, nicht der Wert, der zugewiesen wird. Das Problem liegt tiefer in
