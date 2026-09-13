@@ -195,3 +195,99 @@ hat schon einmal dazu geführt, dass der Vorher-Wert beim Abarbeiten nicht mehr 
 - Snapshot-Baseline Zeile für Zeile geprüft.
 - Bench vorher/nachher protokolliert, Zählerstände verglichen.
 - `jul-examples` gebaut, Language Server manuell gegen ein großes Projekt geprüft.
+
+## Nachtrag: was die Umsetzung ergeben hat
+
+**Der Knoten ist eine Memoisierungsgrenze — der größte Effekt war ungeplant.**
+`traversePlaceholders` stoppt am Alias (`case 'alias': return rawType`). Vorher lief bei jeder
+Typreferenz der komplette Typbaum durch die Auflösung, bei `GameBoard` mit vierzehn
+zusammengesetzten Feldern jedes Mal neu.
+
+| | vorher | nachher |
+| --- | --- | --- |
+| parse+check (yugioh, 5852 Zeilen) | 4137 ms | 3992 ms |
+| `resolvePlaceholders` | 11.962.303 | 1.010.959 |
+| `getTypeError` | 1.951.747 | 2.209.672 |
+
+Faktor 12 weniger Auflösungen; `getTypeError` steigt durch die Dealias-Vergleiche um 13 % und wird
+vom Gewinn überkompensiert. Die Laufzeit liegt unter dem Stand *vor* dem Umbau.
+
+**Statt 56 Einzelstellen genügten 18 Eingangstore.** Die meisten der gefundenen Stellen sind über
+wenige Funktionen erreichbar, die einmal am Eingang `resolveAlias` rufen; ihre rekursiven Aufrufe
+laufen durch dasselbe Tor. `ResolvedType` (mypys `ProperType`-Muster) hält das stabil.
+
+**Type Guards sind die eigentliche Lücke, nicht die `switch`-Anweisungen.** `isDictionaryLiteralType`
+und `isTupleType` waren als unkritisch eingestuft, brachen aber fünf Tests. Der Grund ist
+prinzipiell: **ein Type Guard kann nicht auflösen, ohne zu lügen** — er würde `true` liefern und
+den Typ fälschlich narrowen. Die Auflösung muss immer beim Aufrufer stehen.
+
+**`valueOf` darf nicht auflösen.** Es ist eine Durchreiche-Funktion; löste sie auf, ginge der Alias
+genau dort verloren, wo Feldtypen ihn tragen sollen.
+
+**Selbstreferenz ist nicht dasselbe wie „Symbol noch nicht gecheckt".** Eine Vorwärtsreferenz
+(bereits JUL4002) landet im selben Zweig und bekam einen Folgefehler. Unterschieden wird über die
+parent-Kette — was einen eigenen Parser-Defekt aufdeckte (siehe unten).
+
+**Abweichungen vom Plan:** Die Zyklus-Erkennung läuft auf dem Syntaxbaum, nicht auf dem Typ — die
+Selbstreferenz fällt heute auf `Any` und hinterlässt im Typ keine Spur. Typdefinitionen werden am
+führenden Großbuchstaben erkannt; bei einer Selbstreferenz ist `symbol.typeInfo` noch leer, der
+Name ist das einzig Verfügbare. Damit hat die Namenskonvention erstmals semantische Wirkung — eine
+Diagnose dafür wäre ein eigener Punkt.
+
+**Offen:** `aliasName` ist **nicht** redundant geworden. `getTypeError` löst den Alias am Eingang
+auf, bevor die Fehlermeldung gebaut wird; ohne `aliasName` verlieren sechs Meldungen ihren Typnamen.
+Sauber wäre, dass `getTypeError` den Alias für die Meldung behält — ein eigener Umbau.
+`withTypeAliasName` ist dagegen entfallen.
+
+## Nachtrag: zwei selbst eingebaute Abstürze
+
+Schritt 5 (Besuchsmengen) war übersprungen worden. Die Folge waren zwei Stack Overflows, beide erst
+beim Durchgehen der offenen Planpunkte gefunden:
+
+- `getTypeError` bei zwei strukturgleichen rekursiven Typen (`Tree` gegen `Tree2`),
+- `typeEquals` beim Dedup von `Or(Tree Tree2)`.
+
+Vor dem Alias-Knoten war das unmöglich: rekursive Typen fielen auf `Any`, es gab keinen Zyklus zu
+durchlaufen. Beide sind jetzt durch je eine Besuchsmenge im Alias-Zweig geschlossen — dort genügt
+sie, weil ein Zyklus im Typgraph zwingend über einen Alias läuft. Die Annahme „ein Paar, das bereits
+geprüft wird, gilt als zuweisbar" ist kein Trick, sondern die einzige Definition, unter der
+strukturelle Gleichheit rekursiver Typen entscheidbar ist.
+
+**Lehre:** `getTypeError` und `typeEquals` sind getrennte Rekursionen. Ein Schutz in der einen deckt
+die andere nicht ab — der Plan hatte beide genannt, ich hatte nach dem Fix der ersten aufgehört.
+
+Das Tiefenlimit (Schritt 6) steht bei 100, deutlich unter der gemessenen Absturzschwelle von rund
+4000 Ebenen und weit über jeder realen Verschachtelung. Eine Notbremse, die selbst am Abgrund steht,
+ist keine — die Schwelle hängt von Plattform und Stackgröße ab.
+
+## Nachtrag: Stale-Symbol geprüft
+
+Das im Entwurf notierte Risiko besteht **nicht**. Nachgestellt wurde der Server-Ablauf: importierte
+Datei ändern, neu parsen, abhängige Datei neu checken.
+
+```
+vorher  Alias: TypeOf([a: Integer])
+nachher Alias: TypeOf([a: Text])
+nachher Fehler: Can not assign [a: 1] to Tree.
+```
+
+`recheckDependents` löst die Referenzen neu auf, damit entstehen neue Alias-Knoten auf die neuen
+Symbole. Die direkte `SymbolDefinition`-Referenz kann deshalb bleiben; die robustere Variante
+(`name` + `filePath`) wird nicht gebraucht.
+
+
+## Nebenbefund: parent wurde beim Parsen gesetzt
+
+Die parent-Kette endete an einer verworfenen Definition-Hülle: derselbe Parser-Pfad läuft mehrfach
+über dieselbe Eingabe und reicht die inneren Ergebnisse weiter, jede Hülle setzte `parent` auf sich
+selbst. Still, weil bisher nur eine Ebene hochgeschaut wurde (`getNameFromValue`).
+
+Behoben durch `setParentsRecursive` über den fertigen Baum, aufgerufen in `parseCode` — damit auch
+für JSON und YAML, wo die Kette vorher teils gar nicht gesetzt war. Alle 32 verstreuten
+`setParent`-Aufrufe sind entfallen; dass die Suite dabei unverändert grün blieb, ist der Beleg für
+ihre Redundanz.
+
+So machen es andere: Roslyn und rust-analyzer speichern `parent` im geteilten Baum gar nicht erst
+(grüner/roter Baum), TypeScript setzt ihn nachgelagert, Babel führt ihn im Traversierungspfad mit.
+Niemand setzt ihn beim Bauen.
+

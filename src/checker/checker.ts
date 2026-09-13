@@ -176,6 +176,20 @@ const aliasComparisonsInProgress: { args: CompileTimeType; target: CompileTimeTy
 const aliasEqualityInProgress: { first: CompileTimeType; second: CompileTimeType; }[] = [];
 
 /**
+ * Notbremse fuer die Vergleichsrekursion.
+ * Die Besuchsmengen decken Zyklen ab; eine sehr tiefe, nicht zyklische Verschachtelung laeuft an
+ * ihnen vorbei und kippt irgendwann in den Stack Overflow (gemessen ab rund 4000 Ebenen, je nach
+ * Plattform). Der Wert liegt bewusst weit darunter und weit ueber jeder realen Verschachtelung -
+ * eine Notbremse, die selbst am Abgrund steht, ist keine.
+ */
+const maxTypeComparisonDepth = 100;
+
+// Muessen wie alles hier oben stehen: die core-lib wird schon beim Modul-Load gecheckt und laeuft
+// dabei durch beide Funktionen.
+let typeComparisonDepth = 0;
+let typeEqualsDepth = 0;
+
+/**
  * Einheit fuer eine Einrueckungsebene in generiertem Diagnosetext (Fehlerketten, Typ-Dumps) -
  * geteilt zwischen indentLines und bracketedExpressionToString, damit beide nie auseinanderlaufen
  * (Fund im echten yugioh-Fehlerbild: Tabs vs. Leerzeichen mischten sich, weil beide Stellen ihre
@@ -3953,6 +3967,21 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 	if (first === second) {
 		return true;
 	}
+	// Dieselbe Notbremse wie in getTypeError. Hier faellt sie auf "nicht gleich" zurueck: eine
+	// ausgelassene Deduplizierung ist harmlos, eine faelschlich angenommene Gleichheit nicht.
+	if (typeEqualsDepth >= maxTypeComparisonDepth) {
+		return false;
+	}
+	typeEqualsDepth++;
+	try {
+		return typeEqualsAtDepth(first, second);
+	}
+	finally {
+		typeEqualsDepth--;
+	}
+}
+
+function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boolean {
 	// Der Alias ist reine Beschriftung: geprueft wird der Typ dahinter. Vor dem switch, weil sonst
 	// jeder Zweig seinen eigenen Alias-Fall auf der Gegenseite braeuchte.
 	// Liegt das Paar bereits auf dem Stack, gilt es als gleich - dieselbe coinduktive Annahme wie
@@ -4432,6 +4461,23 @@ function areArgsAssignableTo(
  * valueType muss also Teilmenge von targetType sein.
  */
 export function getTypeError(
+	prefixArgumentType: CompileTimeType | undefined,
+	argumentsType: CompileTimeType,
+	targetType: CompileTimeType,
+): TypeError | undefined {
+	if (typeComparisonDepth >= maxTypeComparisonDepth) {
+		return { message: 'Type comparison is excessively deep and possibly infinite.' };
+	}
+	typeComparisonDepth++;
+	try {
+		return getTypeErrorAtDepth(prefixArgumentType, argumentsType, targetType);
+	}
+	finally {
+		typeComparisonDepth--;
+	}
+}
+
+function getTypeErrorAtDepth(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
