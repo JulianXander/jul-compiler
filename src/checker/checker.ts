@@ -464,12 +464,24 @@ function nestedKeysEqual(
  */
 function hasKnownFields(type: CompileTimeType): boolean {
 	switch (type.julType) {
+		case 'empty':
+		case 'dictionary':
+			// dereferenceNameFromObject liefert für JEDEN Namen einen Treffer (vakuos bei Empty,
+			// den ElementType bei dictionary) - nie undefined. Damit ist die Feldmenge in dem
+			// Sinn, den dieser Test braucht (kann dereferenceNameFromObject je scheitern?),
+			// bereits vollständig entschieden.
+			return true;
 		case 'dictionaryLiteral':
 			return type.complete;
 		case 'function':
 		case 'parameters':
 		case 'stream':
 			return true;
+		case 'or':
+			// Jeder Choice muss selbst entscheidbar sein - erst dann ist auch für die ganze
+			// Union feststellbar, ob ein Feld existiert (siehe dereferenceNameFromObject,
+			// case 'or': das setzt genau diese Entscheidbarkeit je Choice voraus).
+			return type.ChoiceTypes.every(choiceType => !canHaveFields(choiceType) || hasKnownFields(choiceType));
 		default:
 			return false;
 	}
@@ -564,9 +576,22 @@ export function dereferenceNameFromObject(
 		case 'parameterReference':
 			return createNestedReference(sourceObjectType, name);
 		case 'or': {
-			const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
-				return dereferenceNameFromObject(name, choiceType);
-			}).filter((type): type is CompileTimeType => !!type);
+			const dereferencedChoices: CompileTimeType[] = [];
+			for (const choiceType of sourceObjectType.ChoiceTypes) {
+				const dereferenced = dereferenceNameFromObject(name, choiceType);
+				if (dereferenced) {
+					dereferencedChoices.push(dereferenced);
+					continue;
+				}
+				// Fehlt das Feld nachweislich (die Art kennt ihre Feldmenge oder kann grundsätzlich
+				// keine Felder tragen), ist der Zugriff für die GANZE Union unsicher - ein anderer
+				// Choice (z.B. Empty) darf das nicht stillschweigend überdecken. Ein Choice, der nur
+				// noch nicht aufgelöst ist (unvollständiges Dictionary), bleibt dagegen unentschieden
+				// und wird wie bisher aus der Vereinigung weggelassen.
+				if (!canHaveFields(choiceType) || hasKnownFields(choiceType)) {
+					return undefined;
+				}
+			}
 			return createNormalizedUnionType(dereferencedChoices);
 		}
 		case 'parameters': {
@@ -2516,9 +2541,17 @@ function inferType(
 					// Der rawType kann eine Form sein, die dereferenceNameFromObject nicht behandelt,
 					// z.B. das and aus der Verengung eines branches. Dann auf dem aufgelösten Typ
 					// nachsehen, bevor das Feld als fehlend gilt.
-					const dereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.type)
-						?? dereferenceNameFromObject(fieldName, sourceType);
-					if (!dereferencedType) {
+					const rawDereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.type);
+					const resolvedDereferencedType = dereferenceNameFromObject(fieldName, sourceType);
+					const dereferencedType = rawDereferencedType ?? resolvedDereferencedType;
+					if (!dereferencedType
+						|| (isUnresolvedPlaceholderType(dereferencedType) && !resolvedDereferencedType)) {
+						// Ein Zugriff über einen unaufgelösten Verweis (parameterReference/
+						// nestedReference) liefert selbst IMMER einen aufgeschobenen Knoten, nie
+						// undefined - richtig fürs echte Generic-Warten, würde ein konkret
+						// fehlendes Feld sonst aber für immer verschleiern (die Quelle ist z.B.
+						// ein Funktionsparameter mit bereits vollständig bekanntem Typ). Deshalb
+						// zusätzlich am AUFGELÖSTEN Typ prüfen, ob das Feld dort nachweislich fehlt.
 						// Entweder passt die Art nicht zur Quelle, oder das Feld fehlt - letzteres
 						// nur melden, wenn der Quelltyp seine Feldmenge kennt. Sonst würde aus
 						// "weiß ich nicht" ein "gibt es nicht" und jeder noch unaufgelöste Typ
@@ -2536,9 +2569,15 @@ function inferType(
 								endRowIndex: nestedKey.endRowIndex,
 								endColumnIndex: nestedKey.endColumnIndex,
 							});
+							// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
+							return { type: builtinAny };
 						}
-						// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
-						return { type: builtinAny };
+						if (!dereferencedType) {
+							// Weder roh noch aufgelöst entscheidbar - abwarten wie bisher.
+							return { type: builtinAny };
+						}
+						// Nicht entscheidbar (weder Fehler noch Erfolg bewiesen): der aufgeschobene
+						// Platzhalter bleibt stehen, genau wie vor dieser zusätzlichen Prüfung.
 					}
 					return { type: dereferencedType };
 				}
