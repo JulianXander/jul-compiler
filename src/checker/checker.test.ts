@@ -1073,6 +1073,28 @@ d/a`,
 			code: `f = (d: Any) => d/b`,
 		},
 		{
+			// Bug, aktuell rot: keiner der beiden Choices hat das Feld 'b' - Empty liefert bei
+			// JEDEM Feldnamen vakuos Empty zurück (dereferenceNameFromObject, case 'empty'),
+			// [a: Integer] hat 'b' nicht. dereferenceNameFromObject's 'or'-Fall filtert aber nur
+			// die erfolgreichen Choices heraus und vereinigt sie, statt zu prüfen, ob ALLE Choices
+			// das Feld haben - der vakuose Erfolg von Empty verschluckt damit den echten Fehler
+			// von [a: Integer], und das Ergebnis wird still zu Empty statt zum gemeldeten Fehler
+			// (Fund: yugioh game-logic.jul:2194, targets: Or([] SelectInputTargets), targets/gameCardId
+			// - SelectInputTargets hat nur gameCardIds, nicht gameCardId).
+			name: 'unknown-field-on-union-with-empty-choice',
+			code: `f = (d: Or([] [a: Integer])) => d/b`,
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'b' in type Or(Empty [a: Integer])",
+					startRowIndex: 0,
+					startColumnIndex: 34,
+					endRowIndex: 0,
+					endColumnIndex: 35,
+				},
+			],
+		},
+		{
 			// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
 			// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 			// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
