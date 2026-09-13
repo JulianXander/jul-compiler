@@ -87,3 +87,4 @@
 2026-09-13 12:16:31	bef9732	-	ADV-DEV-56627	yugioh	parse+check	5	3991.98	4309.30	4309.30	nach: alias-knoten bei jeder typreferenz
 2026-09-13 12:27:13	7046c1e+	-	ADV-DEV-56627	yugioh	parse+check	5	4046.44	4200.85	4200.85	nach: besuchsmengen gegen zyklische typvergleiche
 2026-09-13 12:36:33	e115c97+	-	ADV-DEV-56627	yugioh	parse+check	5	3828.26	4044.46	4044.46	nach: tiefenlimit als notbremse
+2026-09-13 13:22:29	a6856e4	-	ADV-DEV-56627	yugioh	parse+check	5	4176.43	4381.52	4381.52	nach: assertNever in hasReliableTypeError, valueOf und getTypeError-argumentsType
