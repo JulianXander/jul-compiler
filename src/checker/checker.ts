@@ -377,8 +377,13 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 			isBuiltIn: isBuiltIn,
 		};
 	}
+	// Jede Referenz auf eine Typdefinition traegt ihren Namen mit: nur so erscheint er an der
+	// Schreibstelle statt des ausgeschriebenen Typs. Der Name gilt pro Schreibstelle, PositiveInteger
+	// wird also nirgends zu GameCardId, nur weil GameCardId darauf zeigt.
 	return {
-		type: referencedType.type,
+		type: isTypeName(name) && referencedType.type.julType === 'typeOf'
+			? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol))
+			: referencedType.type,
 		found: true,
 		foundSymbol: foundSymbol,
 		isBuiltIn: isBuiltIn,
@@ -2216,7 +2221,7 @@ function inferType(
 						// resolvePlaceholders noetig: sonst wird z.B. eine Parameter-Typreferenz
 						// nicht als dictionaryLiteral erkannt und der gesamte Literal-Typ faellt
 						// still auf Any zurueck (verschluckt dann jeden Folgefehler).
-						const valueType = value?.typeInfo && resolvePlaceholders(value.typeInfo.type);
+						const valueType = value?.typeInfo && resolveAlias(resolvePlaceholders(value.typeInfo.type));
 						// TODO DictionaryType, ChoiceType etc ?
 						if (isDictionaryLiteralType(valueType)) {
 							const valueFieldTypes = valueType.Fields;
@@ -2275,7 +2280,7 @@ function inferType(
 						// (TypeOf(dictionaryLiteral)) da, nicht als Wert - dieselbe Begruendung
 						// wie beim Spread in case 'dictionary'.
 						const spreadType = field.value.typeInfo
-							&& valueOf(resolvePlaceholders(field.value.typeInfo.type));
+							&& resolveAlias(valueOf(resolvePlaceholders(field.value.typeInfo.type)));
 						// TODO error when spread list
 						if (isDictionaryLiteralType(spreadType)) {
 							for (const key in spreadType.Fields) {
@@ -5090,8 +5095,9 @@ function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: C
  */
 function findInnermostErrorPosition(
 	value: ParseValueExpression | undefined,
-	targetType: CompileTimeType,
+	rawTargetType: CompileTimeType,
 ): Positioned | undefined {
+	const targetType = resolveAlias(rawTargetType);
 	if (value?.type === 'list') {
 		if (isTupleType(targetType)) {
 			return findInnermostElementErrorPosition(value, index => targetType.ElementTypes[index]);

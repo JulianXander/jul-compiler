@@ -1,6 +1,6 @@
 import { dirname } from 'path';
 import { getPathFromImport, isImportFunctionCall } from '../parser/parser.js';
-import { CompileTimeType, ParseDestructuringField, SymbolDefinition } from '../syntax-tree.js';
+import { builtinAny, CompileTimeType, ParseDestructuringField, SymbolDefinition } from '../syntax-tree.js';
 import { Positioned } from '../compiler-errors.js';
 import type { ParsedDocuments } from './checker.js';
 
@@ -47,6 +47,12 @@ export function getFieldSymbolsFromDictionaryType(
 		}
 		case 'typeOf':
 			return getFieldSymbolsFromDictionaryType(dictionaryType.value, fieldName, result);
+		case 'alias':
+			// Der Alias ist Beschriftung; die Felddeklaration steht am Typ dahinter.
+			return getFieldSymbolsFromDictionaryType(
+				dictionaryType.symbol.typeInfo?.type ?? builtinAny,
+				fieldName,
+				result);
 		default:
 			return result;
 	}
