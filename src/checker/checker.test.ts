@@ -2822,6 +2822,25 @@ g = (t: Tree2) => f(t)`;
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Dieselbe Zyklusfalle auf dem zweiten Vergleichspfad: createNormalizedUnionType dedupliziert
+	// über typeEquals, und das steigt bei zwei rekursiven Choices genauso im Kreis ab. Eigener
+	// Test, weil getTypeError und typeEquals getrennte Rekursionen sind - ein Schutz im einen
+	// deckt den anderen nicht ab.
+	it('deduplicating-recursive-types-in-a-union-terminates', () => {
+		const code = `Tree = [
+	value: Integer
+	children: Or([] List(Tree))
+]
+Tree2 = [
+	value: Integer
+	children: Or([] List(Tree2))
+]
+Both = Or(Tree Tree2)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	// Präfix-Argument eines Methodenaufrufs im Funktionsrumpf: `values` ist dort ein
 	// parameterReference, wird aber eager über resolvePlaceholders auf den deklarierten Typ
 	// List(Any) zurückgefaltet. Damit steht der Rückgabetyp von `second` schon bei der
