@@ -2750,6 +2750,26 @@ Target = [
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  zone: ZoneIndex\n  zones: List(ZoneIndex)\n])');
 	});
+	// Ein benannter Union-Typ als Choice einer weiteren Union verliert seinen Namen trotzdem:
+	// createNormalizedUnionType zieht die inneren Choices in die äußere Union hinein, danach gibt
+	// es keinen Typ mehr, an dem der Name hängen könnte. Or([] X) ist die Standardschreibweise
+	// für "optional", der Fall trifft also fast jedes optionale Feld.
+	it('type-alias-name-survives-flattening-into-an-outer-union', () => {
+		const code = `ZoneIndex = Or(1 2 3)
+Target = [
+	zone: Or([] ZoneIndex)
+	other: Integer
+]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const targetType = targetDef.value?.typeInfo?.type;
+		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
+			'TypeOf([\n  zone: Or(Empty ZoneIndex)\n  other: Integer\n])');
+	});
 	// Präfix-Argument eines Methodenaufrufs im Funktionsrumpf: `values` ist dort ein
 	// parameterReference, wird aber eager über resolvePlaceholders auf den deklarierten Typ
 	// List(Any) zurückgefaltet. Damit steht der Rückgabetyp von `second` schon bei der
