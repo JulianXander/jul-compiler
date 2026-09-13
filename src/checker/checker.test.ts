@@ -2730,6 +2730,26 @@ TargetType = [...SourceType z: Boolean]`;
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  x: Integer\n  y: Text\n  z: Boolean\n])');
 	});
+	// Die Tiefenregel in typeToString (nur die äußerste Ebene ausschreiben, darunter den Namen
+	// zeigen) greift nur, wenn der Typ einen aliasName trägt. Gesetzt wird der bisher allein für
+	// Dictionary- und Funktionstypen - ein per Or/And definierter Typ verliert seinen Namen und
+	// wird in jeder Position voll ausgepackt, obwohl er genauso benannt geschrieben wurde.
+	it('type-alias-name-survives-for-union-definitions', () => {
+		const code = `ZoneIndex = Or(1 2 3)
+Target = [
+	zone: ZoneIndex
+	zones: List(ZoneIndex)
+]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
+		const targetType = targetDef.value?.typeInfo?.type;
+		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
+			'TypeOf([\n  zone: ZoneIndex\n  zones: List(ZoneIndex)\n])');
+	});
 	// Präfix-Argument eines Methodenaufrufs im Funktionsrumpf: `values` ist dort ein
 	// parameterReference, wird aber eager über resolvePlaceholders auf den deklarierten Typ
 	// List(Any) zurückgefaltet. Damit steht der Rückgabetyp von `second` schon bei der
