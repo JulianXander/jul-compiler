@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField } from '../syntax-tree.js';
+import { forEachChild, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField, PositionedExpression } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
 
@@ -760,5 +760,36 @@ describe('Parser', () => {
 		expect(isCoreLibPath('/home/user/jul-compiler/src/core-lib.jul')).to.equal(true);
 		expect(isCoreLibPath('C:\\Projects\\some-project\\src\\game-logic.jul')).to.equal(false);
 		expect(isCoreLibPath('dummy.jul')).to.equal(false);
+	});
+	// Die parent-Kette wird beim Parsen gesetzt, also bevor feststeht, welche Huelle im fertigen
+	// Baum landet: derselbe Parser-Pfad laeuft mehrfach ueber dieselbe Eingabe und reicht die
+	// inneren Ergebnisse weiter, jede Huelle setzt parent auf sich selbst. Von tief innen fuehrt
+	// die Kette deshalb an einem verworfenen Knoten vorbei statt an den Baum, der ausgeliefert
+	// wird. Still, weil bisher nur eine Ebene hochgeschaut wurde (getNameFromValue).
+	it('parent-chain-leads-to-the-delivered-tree', () => {
+		const code = `Tree = [
+	value: Integer
+	children: Or([] List(Tree))
+]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		const definition = parsed.unchecked.expressions![0]!;
+
+		function findReference(expression: PositionedExpression): ParseReference | undefined {
+			if (expression.type === 'reference'
+				&& expression.name.name === 'Tree') {
+				return expression;
+			}
+			return forEachChild(expression, findReference);
+		}
+		const reference = findReference(definition);
+		expect(reference, 'Selbstreferenz Tree nicht gefunden').to.not.equal(undefined);
+
+		let current: PositionedExpression | undefined = reference;
+		let top: PositionedExpression | undefined;
+		while (current) {
+			top = current;
+			current = current.parent;
+		}
+		expect(top).to.equal(definition);
 	});
 });
