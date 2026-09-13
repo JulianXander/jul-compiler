@@ -164,6 +164,18 @@ const maxFieldsInTypeDump = 5;
 const maxAliasDepth = 100;
 
 /**
+ * Alias-Paare, deren Vergleich gerade laeuft.
+ * Ein Zyklus im Typgraph fuehrt zwingend ueber einen Alias - nur er kann zurueckverweisen -,
+ * deshalb genuegt die Besuchsmenge dort. Modul-Slot wie activeReferenceIndex: checkTypes ist
+ * synchron und nicht reentrant. Muss hier oben stehen, weil die core-lib schon beim Modul-Load
+ * gecheckt wird.
+ */
+const aliasComparisonsInProgress: { args: CompileTimeType; target: CompileTimeType; }[] = [];
+
+/** Wie aliasComparisonsInProgress, aber fuer typeEquals - eine eigene Rekursion. */
+const aliasEqualityInProgress: { first: CompileTimeType; second: CompileTimeType; }[] = [];
+
+/**
  * Einheit fuer eine Einrueckungsebene in generiertem Diagnosetext (Fehlerketten, Typ-Dumps) -
  * geteilt zwischen indentLines und bracketedExpressionToString, damit beide nie auseinanderlaufen
  * (Fund im echten yugioh-Fehlerbild: Tabs vs. Leerzeichen mischten sich, weil beide Stellen ihre
@@ -2051,7 +2063,7 @@ function inferType(
 			}
 			else {
 				if (value?.typeInfo) {
-					typeInfo = withTypeAliasName(value.typeInfo, name);
+					typeInfo = value.typeInfo;
 				}
 				else {
 					typeInfo = { type: builtinAny };
@@ -2943,22 +2955,6 @@ function getNameFromValue(expression: TypedExpression): string | undefined {
 		&& expression.parent.value === expression) {
 		return expression.parent.name.name;
 	}
-}
-
-/**
- * Eine Typdefinition gibt ihren Namen an den definierten Typ weiter, damit typeToString ihn an
- * Verwendungsstellen als Namen zeigt statt den Typ auszuschreiben. Nur bei typeOf: allein dort
- * ist der Name ein Typname und nicht der Name einer Definition, die einen Wert haelt.
- */
-function withTypeAliasName(typeInfo: TypeInfo, name: string): TypeInfo {
-	const type = typeInfo.type;
-	if (type.julType !== 'typeOf'
-		|| type.value.aliasName === name) {
-		return typeInfo;
-	}
-	// Kopie statt Mutation: der Typ kann ein geteiltes Singleton sein oder ueber eine Referenz aus
-	// einer anderen Definition stammen, die ihren eigenen Namen behaelt.
-	return { type: createCompileTimeTypeOfType({ ...type.value, aliasName: name }) };
 }
 
 function isTypeCombinatorCall(functionCall: ParseFunctionCall): boolean {
@@ -3959,11 +3955,23 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 	}
 	// Der Alias ist reine Beschriftung: geprueft wird der Typ dahinter. Vor dem switch, weil sonst
 	// jeder Zweig seinen eigenen Alias-Fall auf der Gegenseite braeuchte.
-	if (first.julType === 'alias') {
-		return typeEquals(dereferenceAlias(first), second);
-	}
-	if (second.julType === 'alias') {
-		return typeEquals(first, dereferenceAlias(second));
+	// Liegt das Paar bereits auf dem Stack, gilt es als gleich - dieselbe coinduktive Annahme wie
+	// in getTypeError, ohne die der Vergleich rekursiver Typen nicht endet.
+	if (first.julType === 'alias'
+		|| second.julType === 'alias') {
+		if (aliasEqualityInProgress.some(pair =>
+			pair.first === first && pair.second === second)) {
+			return true;
+		}
+		aliasEqualityInProgress.push({ first: first, second: second });
+		try {
+			return typeEquals(
+				first.julType === 'alias' ? dereferenceAlias(first) : first,
+				second.julType === 'alias' ? dereferenceAlias(second) : second);
+		}
+		finally {
+			aliasEqualityInProgress.pop();
+		}
 	}
 	switch (first.julType) {
 		case 'empty':
@@ -4442,11 +4450,24 @@ export function getTypeError(
 		return undefined;
 	}
 	// Der Alias ist reine Beschriftung: zugewiesen wird gegen den Typ dahinter, in beide Richtungen.
-	if (argumentsType.julType === 'alias') {
-		return getTypeError(prefixArgumentType, dereferenceAlias(argumentsType), targetType);
-	}
-	if (targetType.julType === 'alias') {
-		return getTypeError(prefixArgumentType, argumentsType, dereferenceAlias(targetType));
+	// Liegt das Paar bereits auf dem Stack, gilt es als zuweisbar - bei rekursiven Typen ist das
+	// die einzige Annahme, unter der der Vergleich ueberhaupt endet (TypeScripts "maybe stack").
+	if (argumentsType.julType === 'alias'
+		|| targetType.julType === 'alias') {
+		if (aliasComparisonsInProgress.some(pair =>
+			pair.args === argumentsType && pair.target === targetType)) {
+			return undefined;
+		}
+		aliasComparisonsInProgress.push({ args: argumentsType, target: targetType });
+		try {
+			return getTypeError(
+				prefixArgumentType,
+				argumentsType.julType === 'alias' ? dereferenceAlias(argumentsType) : argumentsType,
+				targetType.julType === 'alias' ? dereferenceAlias(targetType) : targetType);
+		}
+		finally {
+			aliasComparisonsInProgress.pop();
+		}
 	}
 	switch (argumentsType.julType) {
 		case 'and': {
