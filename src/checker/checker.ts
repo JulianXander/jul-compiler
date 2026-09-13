@@ -4217,6 +4217,15 @@ export function getTypeError(
 			}
 			return getTypeError(prefixArgumentType, dereferencedParameterType, targetType);
 		}
+		case 'tupleOf': {
+			// Wie concat/withElementAt: solange die Anzahl noch offen ist, bleibt der Knoten
+			// stehen - erst neu falten versuchen, sonst permissiv.
+			const resolved = resolvePlaceholders(argumentsType);
+			if (resolved !== argumentsType) {
+				return getTypeError(prefixArgumentType, resolved, targetType);
+			}
+			return undefined;
+		}
 		case 'withElementAt': {
 			// Steht die Position (noch) nicht fest, bleibt setElement als WithElementAt(...)
 			// stehen (withElementAtFromTypes: Platzhalter bleibt ungefaltet, bis Source/Index
@@ -4893,6 +4902,11 @@ function findErrorPositionForArgument(
 		return undefined;
 	}
 	const argumentType = argument.typeInfo.type;
+	// Zuerst ungelöst, wie die Prüfung des Aufrufs selbst (areArgsAssignableTo bekommt argsType
+	// bewusst ungelöst) - sonst findet die Suche den Fehler nicht wieder, den sie erklären soll.
+	if (getTypeError(undefined, argumentType, parameterType)) {
+		return findInnermostErrorPosition(argument, parameterType) ?? argument;
+	}
 	const targetType = resolvePlaceholders(parameterType);
 	const error = getTypeError(undefined, resolvePlaceholders(argumentType), targetType);
 	if (!error) {

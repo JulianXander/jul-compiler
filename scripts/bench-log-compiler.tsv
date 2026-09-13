@@ -73,3 +73,6 @@
 2026-09-13 07:19:05	1c92171+	-	ADV-DEV-56627	yugioh	parse+check	5	3946.74	4278.53	4278.53	nach Fix: Argumentfehler-Position
 2026-09-13 07:19:59	1c92171+	-	ADV-DEV-56627	yugioh	parse+check	5	3737.96	4210.72	4210.72	nach Fix: Argumentfehler-Position, ungeloeste Vorpruefung
 2026-09-13 07:20:55	1c92171+	-	ADV-DEV-56627	yugioh	parse+check	5	3774.32	3990.59	3990.59	nach Fix: Argumentfehler-Position, Endstand
+2026-09-13 07:34:23	b3c389c+	-	ADV-DEV-56627	yugioh	parse+check	5	4382.56	4838.39	4838.39	Argumentposition: ungeloeste Vorpruefung wie am Aufruf
+2026-09-13 07:35:50	b3c389c+	-	ADV-DEV-56627	yugioh	parse+check	5	3770.70	4051.27	4051.27	Wiederholung derselben Fassung: +16% davor war Rauschen, Zaehler identisch
+2026-09-13 07:41:50	b3c389c+	-	ADV-DEV-56627	yugioh	parse+check	5	3753.91	4087.98	4087.98	TupleOf als Argumenttyp in getTypeError behandelt

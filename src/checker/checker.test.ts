@@ -2089,6 +2089,19 @@ f = (chain: Or([] List(Integer)) value: Integer) :> List(Integer) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Bug, aktuell rot: dasselbe Muster wie bei Concat, diesmal bei TupleOf. map liefert
+	// TupleOf(LengthOf(cards) Integer); solange cards der eigene, offene Parameter ist, bleibt
+	// der Knoten stehen (tupleOfFromTypes: isUnresolvedPlaceholderType-Guard). getTypeError
+	// behandelt tupleOf nur als Zieltyp permissiv, auf der Argumentseite fehlt der Fall - ein
+	// Tuple beliebiger Länge aus Integern ist an List(Integer) aber sehr wohl zuweisbar.
+	it('tuple-of-with-unresolved-count-assigns-to-list', () => {
+		const code = `g = (b: Or([] List(Integer))) => b
+f = (cards: List(Integer)) =>
+	g(cards.map((value: Integer index: Integer) => value))`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	// Bug: withElementAtFromTypes ignoriert bei Source Empty den tatsächlichen Index und liefert
 	// immer ein 1-elementiges Tuple [valueType] (siehe checker.ts, case 'empty' in
 	// withElementAtFromTypes) - der Wert landet damit an Position 1 statt an der wirklichen
@@ -2478,6 +2491,20 @@ f(1 0)`;
 				endColumnIndex: 5,
 			},
 		]);
+	});
+
+	// Der Aufruf wird gegen den ungelösten Argumenttyp geprüft (areArgsAssignableTo bekommt
+	// argsType bewusst ungelöst). Suchte die Positionssuche nur auf dem gelösten Typ, fände sie
+	// den gemeldeten Fehler nicht wieder und fiele auf den ganzen Aufruf zurück.
+	it('argument-error-points-at-the-argument-for-unresolved-argument-types', () => {
+		const code = `g = (b: Or([] List(Text))) => b
+f = (cards: List(Integer)) =>
+	g(cards.map((value: Integer index: Integer) => value))`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const error = parsed.checked?.errors[0];
+		expect(error?.code).to.equal(ErrorCode.argumentTypeMismatch);
+		expect([error?.startColumnIndex, error?.endColumnIndex]).to.deep.equal([3, 54]);
 	});
 
 	// Fund: Fehlermeldung für Definitions mit verschachtelten Type-Mismatch ist verwirrend.
