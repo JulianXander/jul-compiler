@@ -2789,6 +2789,19 @@ Target = [
 		expect(treeType && typeToString(resolvePlaceholders(treeType), 0, 0)).to.equal(
 			'TypeOf([\n  value: Integer\n  children: Or(Empty List(Tree))\n])');
 	});
+	// Gegenstück zum Tree-Test: eine Selbstreferenz, die durch keinen datentragenden Konstruktor
+	// läuft, beschreibt keinen Typ. Die Gleichung Bad = Or(Integer Bad) wird von jeder Obermenge
+	// von Integer erfüllt, hat also keine eindeutige Lösung. Nichts wird beim Prüfen kleiner,
+	// weshalb derselbe Fall auch die Endlosrekursion wäre. Heute bleibt er stumm und liefert Any.
+	it('unproductive-type-cycle-is-reported', () => {
+		const code = 'Bad = Or(Integer Bad)';
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.have.lengthOf(1);
+		expect(parsed.checked?.errors[0]?.message).to.equal(
+			'Circular type definition \'Bad\'. A type can only refer to itself through a field, list, tuple, stream or function.');
+	});
 	// Präfix-Argument eines Methodenaufrufs im Funktionsrumpf: `values` ist dort ein
 	// parameterReference, wird aber eager über resolvePlaceholders auf den deklarierten Typ
 	// List(Any) zurückgefaltet. Damit steht der Rückgabetyp von `second` schon bei der
