@@ -656,8 +656,11 @@ export function dereferenceIndexFromObject(
 			// Ein Dictionary trägt keine Positionen; gemeldet wird an der Aufrufstelle.
 			return undefined;
 		case 'list':
-			// Eine List kennt ihre Länge nicht, die Position ist also nicht beweisbar vorhanden.
-			return createNormalizedUnionType([builtinEmpty, sourceObjectType.ElementType]);
+			// List(X) schliesst Empty als Typ aus, ein Wert hat also mindestens ein Element -
+			// Index 1 existiert beweisbar. Ab Index 2 ist die Länge weiterhin nicht bekannt.
+			return index === 1
+				? sourceObjectType.ElementType
+				: createNormalizedUnionType([builtinEmpty, sourceObjectType.ElementType]);
 		case 'or': {
 			const dereferencedChoices = sourceObjectType.ChoiceTypes.map(choiceType => {
 				return dereferenceIndexFromObject(index, choiceType);
