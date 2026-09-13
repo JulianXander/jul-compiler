@@ -2770,6 +2770,25 @@ Target = [
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  zone: Or(Empty ZoneIndex)\n  other: Integer\n])');
 	});
+	// Ein Typalias, der sich selbst nennt, fällt lautlos auf Any zurück: beim Konstruieren seines
+	// Werts ist die Definition noch nicht fertig, es gibt nichts einzusetzen. Kein Fehler, kein
+	// sichtbarer Unterschied - die Rekursion verschwindet einfach aus dem Typ, und jeder Zugriff
+	// über children liefert danach Any statt eines Baumknotens.
+	it('recursive-type-alias-keeps-the-self-reference', () => {
+		const code = `Tree = [
+	value: Integer
+	children: Or([] List(Tree))
+]`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const treeDef = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const treeType = treeDef.value?.typeInfo?.type;
+		expect(treeType && typeToString(resolvePlaceholders(treeType), 0, 0)).to.equal(
+			'TypeOf([\n  value: Integer\n  children: Or(Empty List(Tree))\n])');
+	});
 	// Präfix-Argument eines Methodenaufrufs im Funktionsrumpf: `values` ist dort ein
 	// parameterReference, wird aber eager über resolvePlaceholders auf den deklarierten Typ
 	// List(Any) zurückgefaltet. Damit steht der Rückgabetyp von `second` schon bei der
