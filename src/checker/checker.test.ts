@@ -738,6 +738,17 @@ useType(isLegal)`,
 			code: 'f = (x: PositiveInteger) => modulo(1 x)',
 		},
 		{
+			// Bug: getTypeError zerlegt bei args='and'/target='or' nur die args Choices
+			// (Integer, Greater(0)) und prüft jeden einzeln gegen das GANZE target - keiner
+			// reicht dafür, weil weder Integer noch Greater(0) allein Empty oder PositiveInteger
+			// erfüllt. Das target selbst wird dabei nie zerlegt (anders als beim symmetrischen
+			// Fall target='and', siehe not-type-accepts-intersection-without-single-matching-
+			// choice), obwohl PositiveInteger als zweiter Choice von Or([] PositiveInteger)
+			// exakt passt.
+			name: 'and-type-accepts-or-target-containing-same-intersection',
+			code: 'f = (x: PositiveInteger) :> Or([] PositiveInteger) => x',
+		},
+		{
 			// getTypeFamily ordnet 'greater' bewusst keiner Familie zu (Integer oder Float
 			// möglich, daher keine Aussage) - dadurch liefert typesOverlap(Greater(0) 5)
 			// undefined, und Not(5) prüft das fälschlich nicht: 5 erfüllt Greater(0), Not(5)
