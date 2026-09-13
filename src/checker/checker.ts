@@ -2221,13 +2221,14 @@ function inferType(
 			const prefixArgumentType = rawPrefixArgumentType && resolvePlaceholders(rawPrefixArgumentType);
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, paramsType);
 			if (assignArgsError) {
+				const position = findArgumentErrorPosition(args, paramsType, prefixArgumentType) ?? expression;
 				errors.push({
 					code: ErrorCode.argumentTypeMismatch,
 					message: `Argument type mismatch.\n${assignArgsError}`,
-					startRowIndex: expression.startRowIndex,
-					startColumnIndex: expression.startColumnIndex,
-					endRowIndex: expression.endRowIndex,
-					endColumnIndex: expression.endColumnIndex,
+					startRowIndex: position.startRowIndex,
+					startColumnIndex: position.startColumnIndex,
+					endRowIndex: position.endRowIndex,
+					endColumnIndex: position.endColumnIndex,
 				});
 			}
 			checkDiscardedArguments(args, paramsType, prefixArgumentType, errors);
@@ -4827,6 +4828,77 @@ function findInnermostElementErrorPosition(
 		return findInnermostErrorPosition(elementExpression, elementTargetType) ?? elementExpression;
 	}
 	return undefined;
+}
+
+/**
+ * Das geschriebene Argument, an dem der Fehler des Aufrufs sitzt - sonst markierte die Diagnose
+ * den ganzen Aufruf samt Argumentliste. Gleiche Idee wie findInnermostErrorPosition, nur ist die
+ * Zuordnung hier Argument zu Parameter statt Feld zu Feld.
+ */
+function findArgumentErrorPosition(
+	args: BracketedExpression,
+	paramsType: CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
+): Positioned | undefined {
+	const prefixArgumentCount = prefixArgumentType ? 1 : 0;
+	switch (args.type) {
+		case 'list': {
+			// Ein Spread verschiebt alle folgenden Indizes unbekannt weit, damit ist keinem
+			// Argument mehr ein Parameter zuzuordnen.
+			if (args.values.some(value => value.type === 'spread')) {
+				return undefined;
+			}
+			for (let index = 0; index < args.values.length; index++) {
+				const argument = args.values[index] as ParseValueExpression;
+				const parameterType = getRawBranchArgumentType(paramsType, index + prefixArgumentCount);
+				const position = parameterType
+					&& findErrorPositionForArgument(argument, parameterType);
+				if (position) {
+					return position;
+				}
+			}
+			return undefined;
+		}
+		case 'dictionary': {
+			if (args.fields.some(field => field.type === 'spread')) {
+				return undefined;
+			}
+			for (const field of args.fields) {
+				const argument = field.type === 'singleDictionaryField' && field.value;
+				if (!argument) {
+					continue;
+				}
+				const fieldName = getCheckedEscapableName(field.name);
+				const parameterType = fieldName === undefined
+					? undefined
+					: dereferenceNameFromObject(fieldName, paramsType);
+				const position = parameterType
+					&& findErrorPositionForArgument(argument, parameterType);
+				if (position) {
+					return position;
+				}
+			}
+			return undefined;
+		}
+		default:
+			return undefined;
+	}
+}
+
+function findErrorPositionForArgument(
+	argument: ParseValueExpression,
+	parameterType: CompileTimeType,
+): Positioned | undefined {
+	if (!argument.typeInfo) {
+		return undefined;
+	}
+	const argumentType = argument.typeInfo.type;
+	const targetType = resolvePlaceholders(parameterType);
+	const error = getTypeError(undefined, resolvePlaceholders(argumentType), targetType);
+	if (!error) {
+		return undefined;
+	}
+	return findInnermostErrorPosition(argument, targetType) ?? argument;
 }
 
 function findInnermostFieldErrorPosition(

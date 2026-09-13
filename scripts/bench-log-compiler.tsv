@@ -69,3 +69,7 @@
 2026-09-12 21:14:50	1b9aaf6+	-	ADV-DEV-56627	yugioh	parse+check	5	3863.89	4092.23	4092.23	vor: Feldreferenzen im ReferenceIndex
 2026-09-12 21:20:47	fe73419+	-	ADV-DEV-56627	yugioh	parse+check	5	3806.14	4127.50	4127.50	nach: Feldreferenzen im ReferenceIndex
 2026-09-13 06:57:26	b985b0b+	-	ADV-DEV-56627	yugioh	parse+check	5	3862.21	3959.05	3959.05	Fix: Index 1 auf List(X) liefert keine Empty-Beimischung mehr
+2026-09-13 07:18:34	1c92171	-	ADV-DEV-56627	yugioh	parse+check	5	3775.60	4298.49	4298.49	vor Fix: Argumentfehler-Position
+2026-09-13 07:19:05	1c92171+	-	ADV-DEV-56627	yugioh	parse+check	5	3946.74	4278.53	4278.53	nach Fix: Argumentfehler-Position
+2026-09-13 07:19:59	1c92171+	-	ADV-DEV-56627	yugioh	parse+check	5	3737.96	4210.72	4210.72	nach Fix: Argumentfehler-Position, ungeloeste Vorpruefung
+2026-09-13 07:20:55	1c92171+	-	ADV-DEV-56627	yugioh	parse+check	5	3774.32	3990.59	3990.59	nach Fix: Argumentfehler-Position, Endstand
