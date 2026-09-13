@@ -1963,6 +1963,17 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Bug (gefunden 2026-09-13): List(X) schliesst Empty als Typ aus (CLAUDE.md), ein Wert
+	// dieses Typs hat also immer mindestens ein Element - Index 1 existiert beweisbar.
+	// dereferenceIndexFromObject liefert für JEDEN Index auf 'list' pauschal Or(Empty X),
+	// unabhängig vom Index. Für Index 1 ist das zu grob.
+	it('index-one-on-list-adds-no-empty', () => {
+		const code = `f = (l: List(Integer)) :> Integer =>
+	x = l/1`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	it('element-at-plus-length-keeps-empty-for-possibly-empty-input', () => {
 		// Gegenprobe, die zeigt, dass die Erkennung gar nicht erst greifen kann, wenn values
 		// selbst empty sein könnte: length(values) wäre dann Or(0 lengthOf(...)), und die 0 aus
