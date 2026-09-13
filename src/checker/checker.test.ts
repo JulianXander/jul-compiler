@@ -1494,6 +1494,61 @@ a(g(5))`,
 			],
 		},
 		//#endregion Aufruf
+		//#region Callback-Parametertypen
+		{
+			// Kontravarianz an der Parameterposition: der Callback muss alles annehmen, was der
+			// Aufrufer ihm übergibt. Fordert er PositiveInteger, wo Integer durchgereicht wird,
+			// bleibt die 0 (und jede negative Zahl) unversorgt.
+			name: 'callback-parameter-type-narrower-than-declared',
+			code: `f = (callback: (value: Integer) :> Any) => callback(1)
+f((value: PositiveInteger) => value)`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 35,
+					"endRowIndex": 1,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid value for parameter 'value'\n    Can not assign Integer to PositiveInteger.",
+					"startColumnIndex": 2,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Gegenprobe: fordert der Callback weniger, als der Aufrufer zusichert, ist alles gut.
+			name: 'callback-parameter-type-wider-than-declared',
+			code: `f = (callback: (value: PositiveInteger) :> Any) => callback(1)
+f((value: Integer) => value)`,
+		},
+		{
+			// Derselbe Fall über einen generischen Elementtyp: aggregate reicht die Elemente von
+			// [0 1 2] durch, der Callback fordert aber PositiveInteger - die 0 passt nicht.
+			name: 'callback-parameter-type-narrower-than-passed-element',
+			code: `aggregate(
+	[0 1 2]
+	0
+	(accumulator value: PositiveInteger) => value
+)`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 46,
+					"endRowIndex": 3,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid value for parameter 'value'\n    Can not assign 0 to PositiveInteger.",
+					"startColumnIndex": 1,
+					"startRowIndex": 3,
+				},
+			],
+		},
+		{
+			// Gegenprobe: fordert der Callback nur Integer, passt jedes Element.
+			name: 'callback-parameter-type-wide-enough',
+			code: `aggregate(
+	[0 1 2]
+	0
+	(accumulator value: Integer) => value
+)`,
+		},
+		//#endregion Callback-Parametertypen
 		//#region verworfene Werte
 		{
 			// Ein längerer Wert ist zulässig - ein Typ nennt Anforderungen, kein vollständiges
