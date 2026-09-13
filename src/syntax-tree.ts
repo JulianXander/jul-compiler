@@ -630,8 +630,18 @@ export type CompileTimeType =
 	| CompileTimeTypeOfType
 	| NestedReferenceType
 	| ParameterReference
+	| CompileTimeAliasType
 	| ParametersType
 	;
+
+/**
+ * Ein Typ, der garantiert kein Alias mehr ist.
+ * Funktionen, die einen Typ strukturell untersuchen (Felder, Elemente, Choices, Ueberlappung),
+ * deklarieren diesen Typ statt CompileTimeType - dann erzwingt der Compiler an jeder Aufrufstelle
+ * ein resolveAlias, statt dass ein uebersehener Alias still in einen default-Zweig faellt.
+ * Vorbild: mypys ProperType.
+ */
+export type ResolvedType = Exclude<CompileTimeType, CompileTimeAliasType>;
 
 /**
  * Untertyp von allem, erfüllt jede Anforderung. Kein Wert hat diesen Typ; er entsteht z.B. als
@@ -1065,6 +1075,29 @@ export function createParameterReference(name: string, index: number): Parameter
 		name: name,
 		index: index,
 		isUnresolvedPlaceholder: true,
+	};
+}
+
+/**
+ * Ein Typ unter dem Namen, unter dem er an dieser Stelle geschrieben wurde.
+ * Haelt eine Symbolreferenz statt eines Typs - nur so ist eine Definition beschreibbar, die sich
+ * selbst nennt: das Ziel wird erst beim Zugriff gelesen, wenn das Symbol fertig ist.
+ */
+export interface CompileTimeAliasType extends CompileTimeTypeBase {
+	readonly julType: 'alias';
+	name: string;
+	symbol: SymbolDefinition;
+}
+
+export function createCompileTimeAliasType(name: string, symbol: SymbolDefinition): CompileTimeAliasType {
+	return {
+		julType: 'alias',
+		name: name,
+		symbol: symbol,
+		// Ein Alias ist immer aufloesbar, nur nicht sofort - anders als parameterReference, der auf
+		// einen Aufrufort wartet, der nie kommen muss. Als unaufgeloest gemeldet wuerde er jeden
+		// Konsumenten verteuern, ohne dass er je auf etwas wartet.
+		isUnresolvedPlaceholder: false,
 	};
 }
 

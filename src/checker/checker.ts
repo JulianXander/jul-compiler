@@ -62,6 +62,9 @@ import {
 	TypeInfo,
 	ParseExpressionBase,
 	PositionedExpression,
+	CompileTimeAliasType,
+	createCompileTimeAliasType,
+	ResolvedType,
 	forEachChild,
 	builtinAny,
 	builtinEmpty,
@@ -156,6 +159,9 @@ export function resetCheckerStats(): void {
 
 const maxElementsPerLine = 5;
 const maxFieldsInTypeDump = 5;
+
+/** Notbremse gegen eine Alias-Kette ohne Ende. */
+const maxAliasDepth = 100;
 
 /**
  * Einheit fuer eine Einrueckungsebene in generiertem Diagnosetext (Fehlerketten, Typ-Dumps) -
@@ -282,6 +288,15 @@ export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
 
 //#region dereference
 
+/**
+ * JUL-Konvention: Typdefinitionen beginnen mit einem Grossbuchstaben, Werte mit einem
+ * Kleinbuchstaben. Waehrend eine Definition selbst gecheckt wird, ist ihr typeInfo noch leer -
+ * der Name ist dann das Einzige, woran eine Selbstreferenz die beiden unterscheiden kann.
+ */
+function isTypeName(name: string): boolean {
+	return /^\p{Lu}/u.test(name);
+}
+
 function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	type: CompileTimeType;
 	found: boolean;
@@ -328,13 +343,14 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	}
 	const referencedType = foundSymbol.typeInfo;
 	if (!referencedType) {
-		// TODO was wenn referencedsymbol type noch nicht inferred ist?
-		// tritt vermutlich bei rekursion auf
-		// setInferredType(referencedSymbol)
-		// console.log(reference);
-		// throw new Error('symbol type was not inferred');
+		// Das Symbol wird gerade selbst gecheckt: eine Selbstreferenz. Ein Typ bekommt den
+		// Alias-Knoten, der den Namen haelt und erst aufloest, wenn das Symbol fertig ist -
+		// unproduktive Zyklen sind hier bereits als JUL5170 gemeldet. Ein Wert (rekursive
+		// Funktion) bleibt bei Any, sonst stuende sein Name faelschlich fuer einen Typ.
 		return {
-			type: builtinAny,
+			type: isTypeName(name)
+				? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol))
+				: builtinAny,
 			found: true,
 			foundSymbol: foundSymbol,
 			isBuiltIn: isBuiltIn,
@@ -358,9 +374,13 @@ export function getStreamGetValueType(streamType: CompileTimeStreamType): Compil
  * aller Positionen. Ein noch unaufgelöster Schlüssel bleibt als Knoten stehen.
  */
 function dereferenceNestedKeyFromObject(
-	nestedKey: string | number | CompileTimeType,
-	source: CompileTimeType,
+	rawNestedKey: string | number | CompileTimeType,
+	rawSource: CompileTimeType,
 ): CompileTimeType | undefined {
+	const nestedKey = typeof rawNestedKey === 'object'
+		? resolveAlias(rawNestedKey)
+		: rawNestedKey;
+	const source = resolveAlias(rawSource);
 	if (typeof nestedKey === 'string') {
 		return dereferenceNestedKeyFromObject(createTextLiteral(nestedKey), source);
 	}
@@ -427,8 +447,9 @@ function dereferenceNestedKeyFromObject(
  */
 function dereferenceUnknownKeyFromObject(
 	nestedKey: CompileTimeType,
-	source: CompileTimeType,
+	rawSource: CompileTimeType,
 ): CompileTimeType | undefined {
+	const source = resolveAlias(rawSource);
 	switch (source.julType) {
 		case 'empty':
 			return builtinEmpty;
@@ -471,7 +492,8 @@ function nestedKeysEqual(
  * Bei allen anderen liefert es undefined, weil der Typ noch nicht ausgewertet ist oder
  * dereferenceNameFromObject ihn nicht behandelt — daraus darf kein Fehler werden.
  */
-function hasKnownFields(type: CompileTimeType): boolean {
+function hasKnownFields(rawType: CompileTimeType): boolean {
+	const type = resolveAlias(rawType);
 	switch (type.julType) {
 		case 'empty':
 		case 'dictionary':
@@ -502,7 +524,7 @@ function hasKnownFields(type: CompileTimeType): boolean {
  * Eine List hat keine bekannte Länge, dort ist kein Index zu weit.
  */
 function hasKnownLength(type: CompileTimeType): boolean {
-	return type.julType === 'tuple';
+	return resolveAlias(type).julType === 'tuple';
 }
 
 /**
@@ -510,7 +532,8 @@ function hasKnownLength(type: CompileTimeType): boolean {
  * Ein Nein heißt: der Name liegt nicht daneben, er passt gar nicht zur Art der Quelle.
  * Im Zweifel ja, damit aus "weiß ich nicht" kein Fehler wird.
  */
-function canHaveFields(type: CompileTimeType): boolean {
+function canHaveFields(rawType: CompileTimeType): boolean {
+	const type = resolveAlias(rawType);
 	switch (type.julType) {
 		case 'boolean':
 		case 'booleanLiteral':
@@ -532,7 +555,8 @@ function canHaveFields(type: CompileTimeType): boolean {
  * Kann dieser Typ überhaupt Positionen tragen?
  * Gegenstück zu canHaveFields, mit derselben Zweifelsregel.
  */
-function canHaveIndexes(type: CompileTimeType): boolean {
+function canHaveIndexes(rawType: CompileTimeType): boolean {
+	const type = resolveAlias(rawType);
 	switch (type.julType) {
 		case 'boolean':
 		case 'booleanLiteral':
@@ -552,8 +576,9 @@ function canHaveIndexes(type: CompileTimeType): boolean {
 
 export function dereferenceNameFromObject(
 	name: string,
-	sourceObjectType: CompileTimeType,
+	rawSourceObjectType: CompileTimeType,
 ): CompileTimeType | undefined {
+	const sourceObjectType = resolveAlias(rawSourceObjectType);
 	switch (sourceObjectType.julType) {
 		case 'empty':
 			return builtinEmpty;
@@ -631,9 +656,10 @@ export function dereferenceNameFromObject(
 
 function dereferenceNameFromObjectType(
 	name: string,
-	innerType: CompileTimeType,
+	rawInnerType: CompileTimeType,
 	sourceObjectType: CompileTimeType,
 ): CompileTimeType | undefined {
+	const innerType = resolveAlias(rawInnerType);
 	switch (innerType.julType) {
 		case 'dictionary':
 			switch (name) {
@@ -678,11 +704,12 @@ function dereferenceNameFromObjectType(
 
 export function dereferenceIndexFromObject(
 	index: number,
-	sourceObjectType: CompileTimeType,
+	rawSourceObjectType: CompileTimeType,
 ): CompileTimeType | undefined {
-	if (sourceObjectType === undefined) {
+	if (rawSourceObjectType === undefined) {
 		return undefined;
 	}
+	const sourceObjectType = resolveAlias(rawSourceObjectType);
 	switch (sourceObjectType.julType) {
 		case 'empty':
 			return builtinEmpty;
@@ -838,8 +865,9 @@ function dereferenceCallbackParams(
  */
 function getAllArgTypes(
 	prefixArgumentType: CompileTimeType | undefined,
-	argsType: CompileTimeType,
+	rawArgsType: CompileTimeType,
 ): CompileTimeType[] | undefined {
+	const argsType = resolveAlias(rawArgsType);
 	const prefixArgTypes = prefixArgumentType
 		? [prefixArgumentType]
 		: [];
@@ -860,9 +888,10 @@ function getAllArgTypes(
 function dereferenceParameterFromArgumentType(
 	calledFunction: CompileTimeType,
 	prefixArgumentType: CompileTimeType | undefined,
-	argsType: CompileTimeType,
+	rawArgsType: CompileTimeType,
 	parameterReference: ParameterReference,
 ): CompileTimeType {
+	const argsType = resolveAlias(rawArgsType);
 	if (!calledFunction || parameterReference.functionRef !== calledFunction) {
 		return parameterReference;
 	}
@@ -1188,6 +1217,10 @@ function traversePlaceholders(
 			// Neu falten statt neu einpacken.
 			return concatFromTypes(dereferencedSources);
 		}
+		case 'alias':
+			// Stoppt hier: ein Alias traegt keine Platzhalter, und Absteigen wuerde bei einem
+			// rekursiven Typ nicht terminieren.
+			return rawType;
 		default: {
 			const assertNever: never = rawType;
 			throw new Error('Unexpected rawType.julType: ' + (assertNever as CompileTimeType).julType);
@@ -1544,7 +1577,8 @@ function getBranchArgumentType(
 	paramsType: CompileTimeType,
 	argumentIndex: number,
 ): CompileTimeType | undefined {
-	const rawType = getRawBranchArgumentType(paramsType, argumentIndex);
+	const rawArgumentType = getRawBranchArgumentType(paramsType, argumentIndex);
+	const rawType = rawArgumentType && resolveAlias(rawArgumentType);
 	// Ein Funktionswert in Typ-Position ist ein Prädikat - die Laufzeit ruft ihn auf
 	// (runtime.ts, getTypeError case 'function') - und keine Zusicherung über die Gestalt des
 	// Werts. Damit zu schneiden ergäbe Never, also hier keine Aussage. Was ein Prädikat hergibt,
@@ -1631,9 +1665,10 @@ function isBranchingExhaustive(
  * undefined, wenn er sich nicht bestimmen lässt - dann wird nicht verengt.
  */
 function getElementTypeAtIndex(
-	type: CompileTimeType | undefined,
+	rawType: CompileTimeType | undefined,
 	index: number,
 ): CompileTimeType | undefined {
+	const type = rawType && resolveAlias(rawType);
 	switch (type?.julType) {
 		case 'any':
 			return type;
@@ -3136,8 +3171,9 @@ function getReturnTypeFromFunctionCall(
  * unterschiedliche Laengen zwischen den Choices bedeuten ebenfalls eine unbestimmte Gesamtlaenge.
  */
 function getSpreadElementTypes(
-	sourceType: CompileTimeType,
+	rawSourceType: CompileTimeType,
 ): { elementTypes: CompileTimeType[]; isListSpread: boolean; } | undefined {
+	const sourceType = resolveAlias(rawSourceType);
 	switch (sourceType.julType) {
 		case 'tuple':
 			return { elementTypes: sourceType.ElementTypes, isListSpread: false };
@@ -3168,8 +3204,9 @@ function getSpreadElementTypes(
  */
 function dereferenceRangeFromObject(
 	range: CompileTimeRangeType,
-	source: CompileTimeType,
+	rawSource: CompileTimeType,
 ): CompileTimeType | undefined {
+	const source = resolveAlias(rawSource);
 	if (isUnresolvedPlaceholderType(source)) {
 		return createNestedReference(source, range);
 	}
@@ -3226,7 +3263,9 @@ function dereferenceRangeFromObject(
  * Beweisbar, wenn er bei 1 beginnt und bis zum Ende läuft - offen geschrieben oder über die
  * Länge einer Quelle, die selbst nie Empty ist (siehe getLengthFromType).
  */
-function rangeCoversFirstPosition(start: CompileTimeType, end: CompileTimeType): boolean {
+function rangeCoversFirstPosition(rawStart: CompileTimeType, rawEnd: CompileTimeType): boolean {
+	const start = resolveAlias(rawStart);
+	const end = resolveAlias(rawEnd);
 	if (start.julType !== 'integerLiteral'
 		|| start.value !== 1n) {
 		return false;
@@ -3247,9 +3286,10 @@ function rangeCoversFirstPosition(start: CompileTimeType, end: CompileTimeType):
  * Ergebnis ist ein Tuple; sonst bleibt nur "eine Liste davon".
  */
 function tupleOfFromTypes(
-	countType: CompileTimeType,
+	rawCountType: CompileTimeType,
 	elementType: CompileTimeType,
 ): CompileTimeType {
+	const countType = resolveAlias(rawCountType);
 	// Eine Laenge ueber einer noch offenen Quelle kann sich zum Literal auflösen (Tuple), eine
 	// ueber einer bekannten List dagegen nie - nur im ersten Fall lohnt das Warten.
 	const countCanBecomeLiteral = isUnresolvedPlaceholderType(countType)
@@ -3287,9 +3327,9 @@ function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
 	// Or-Quelle zuerst verteilen (Fund: Or([] List(X)) ist das Idiom fuer eine moeglicherweise
 	// leere Liste, CLAUDE.md) - sonst gilt eine Quelle mit unbestimmter Laenge faelschlich als
 	// nicht auflösbar. Analog zu tupleOfFromTypes' 'or'-Fall bei Count.
-	const orIndex = sourceTypes.findIndex(source => valueOf(source).julType === 'or');
+	const orIndex = sourceTypes.findIndex(source => resolveAlias(valueOf(source)).julType === 'or');
 	if (orIndex !== -1) {
-		const orSource = valueOf(sourceTypes[orIndex]!);
+		const orSource = resolveAlias(valueOf(sourceTypes[orIndex]!));
 		if (orSource.julType === 'or') {
 			const choiceResults = orSource.ChoiceTypes.map(choice => {
 				const substituted = sourceTypes.slice();
@@ -3303,7 +3343,7 @@ function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
 	let hasListSource = false;
 	for (const rawSource of sourceTypes) {
 		// TypeOf(X) faellt hier zu X, sonst wuerde z.B. Concat(TypeOf(a) TypeOf(b)) nie greifen.
-		const source = valueOf(rawSource);
+		const source = resolveAlias(valueOf(rawSource));
 		if (source.julType === 'empty') {
 			continue;
 		}
@@ -3328,11 +3368,12 @@ function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
 		: builtinEmpty;
 }
 
-function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeType {
-	if (!argType) {
+function getLengthFromType(rawArgType: CompileTimeType | undefined): CompileTimeType {
+	if (!rawArgType) {
 		// TODO non negative
 		return builtinInteger;
 	}
+	const argType = resolveAlias(rawArgType);
 	switch (argType.julType) {
 		case 'empty':
 			return createIntegerLiteral(0n);
@@ -3361,10 +3402,12 @@ function getLengthFromType(argType: CompileTimeType | undefined): CompileTimeTyp
  * oder Index noch Platzhalter sind, bleibt der Knoten stehen und wird am Aufruf erneut gefaltet.
  */
 function withElementAtFromTypes(
-	sourceType: CompileTimeType,
-	indexType: CompileTimeType,
+	rawSourceType: CompileTimeType,
+	rawIndexType: CompileTimeType,
 	valueType: CompileTimeType,
 ): CompileTimeType {
+	const sourceType = resolveAlias(rawSourceType);
+	const indexType = resolveAlias(rawIndexType);
 	// Ein Platzhalter kann sich noch zu einem Literal auflösen - dann steht genau eine Position
 	// fest. Vorschnelles Falten würde stattdessen jede Position mit Value vereinigen.
 	if (isUnresolvedPlaceholderType(sourceType)
@@ -3467,6 +3510,9 @@ function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
 function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeType {
 	//#region flatten UnionTypes
 	// Or(1 Or(2 3)) => Or(1 2 3)
+	// Ein Alias auf eine Union wird NICHT aufgeflacht: er ist der einzige Traeger seines Namens,
+	// und die Dedup- bzw. Teilmengen-Elimination unten loest ihn ohnehin auf (typeEquals und
+	// getTypeError dealiasen beide).
 	const flatChoices: CompileTimeType[] = choiceTypes.filter(choiceType =>
 		!isUnionType(choiceType));
 	const unionChoices = choiceTypes.filter(isUnionType);
@@ -3474,12 +3520,12 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		flatChoices.push(...union.ChoiceTypes);
 	});
 	//#endregion flatten UnionTypes
-	if (flatChoices.some(choice => choice.julType === 'any')) {
+	if (flatChoices.some(choice => resolveAlias(choice).julType === 'any')) {
 		return builtinAny;
 	}
 	//#region remove Never
 	const choicesWithoutNever = flatChoices.filter(choice =>
-		choice.julType !== 'never');
+		resolveAlias(choice).julType !== 'never');
 	if (!choicesWithoutNever.length) {
 		return builtinNever;
 	}
@@ -3502,8 +3548,14 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	//#region collapse Boolean
 	// Or(true false) => Boolean: die einzigen zwei möglichen Werte, kein Informationsverlust.
 	if (uniqueChoices.length === 2
-		&& uniqueChoices.some(choice => choice.julType === 'booleanLiteral' && choice.value === true)
-		&& uniqueChoices.some(choice => choice.julType === 'booleanLiteral' && choice.value === false)) {
+		&& uniqueChoices.some(choice => {
+			const resolved = resolveAlias(choice);
+			return resolved.julType === 'booleanLiteral' && resolved.value === true;
+		})
+		&& uniqueChoices.some(choice => {
+			const resolved = resolveAlias(choice);
+			return resolved.julType === 'booleanLiteral' && resolved.value === false;
+		})) {
 		return builtinBoolean;
 	}
 	//#endregion collapse Boolean
@@ -3551,8 +3603,8 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 	// TODO flatten nested IntersectionTypes?
 
 	if (ChoiceTypes.length === 2) {
-		const first = ChoiceTypes[0]!;
-		const second = ChoiceTypes[1]!;
+		const first = resolveAlias(ChoiceTypes[0]!);
+		const second = resolveAlias(ChoiceTypes[1]!);
 
 		// Never ist das absorbierende Element:
 		// And(A Never) => Never
@@ -3564,21 +3616,25 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		// Any ist das neutrale Element:
 		// And(A Any) => A
 		if (first.julType === 'any') {
-			return second;
+			return ChoiceTypes[1]!;
 		}
 		if (second.julType === 'any') {
-			return first;
+			return ChoiceTypes[0]!;
 		}
 	}
+
+	// Ab hier bauen die Regeln den Typ um (Distribution, Feld-Merge, Teilmengen-Shortcut) - ein
+	// Alias ueberlebt das ohnehin nicht, also gleich auf den aufgeloesten Choices arbeiten.
+	const resolvedChoices = ChoiceTypes.map(resolveAlias);
 
 	// Distributivgesetz anwenden:
 	// And(Or(A B) C) => Or(And(A C) And(B C)
 	if (ChoiceTypes.length === 2) {
 		// beide Seiten prüfen, damit die Reihenfolge der Argumente egal ist
-		const unionIndex = ChoiceTypes.findIndex(isUnionType);
+		const unionIndex = resolvedChoices.findIndex(isUnionType);
 		if (unionIndex >= 0) {
-			const unionType = ChoiceTypes[unionIndex] as CompileTimeUnionType;
-			const otherIntersectionType = ChoiceTypes[unionIndex ? 0 : 1]!;
+			const unionType = resolvedChoices[unionIndex] as CompileTimeUnionType;
+			const otherIntersectionType = resolvedChoices[unionIndex ? 0 : 1]!;
 			const distributedChoices = unionType.ChoiceTypes.map(choice => {
 				return createNormalizedIntersectionType([choice, otherIntersectionType]);
 			});
@@ -3587,10 +3643,10 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		}
 	}
 
-	if (ChoiceTypes.length === 2
-		&& isComplementType(ChoiceTypes[1])) {
-		const first = ChoiceTypes[0]!;
-		const second = ChoiceTypes[1].SourceType;
+	if (resolvedChoices.length === 2
+		&& isComplementType(resolvedChoices[1])) {
+		const first = resolvedChoices[0]!;
+		const second = resolvedChoices[1].SourceType;
 		if (typeEquals(first, second)) {
 			// And(A Not(A)) => Never
 			return builtinNever;
@@ -3603,9 +3659,9 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		}
 	}
 
-	if (ChoiceTypes.length === 2) {
-		const first = ChoiceTypes[0]!;
-		const second = ChoiceTypes[1]!;
+	if (resolvedChoices.length === 2) {
+		const first = resolvedChoices[0]!;
+		const second = resolvedChoices[1]!;
 
 		// Dictionaries sind Strukturen, keine Wertemengen: der Teilmengen-Shortcut unten würde bei
 		// einer unvollständigen Seite (complete: false) Felder verlieren, die nur die andere Seite
@@ -3679,7 +3735,7 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
  * ihr Schnitt ist also leer.
  * undefined = Familie unbekannt, dann ist keine Aussage über Disjunktheit möglich.
  */
-function getTypeFamily(type: CompileTimeType): string | undefined {
+function getTypeFamily(type: ResolvedType): string | undefined {
 	switch (type.julType) {
 		case 'blob':
 			return 'blob';
@@ -3723,7 +3779,9 @@ function getTypeFamily(type: CompileTimeType): string | undefined {
  * Integer ist keine Teilmenge von 0, überlappt mit 0 aber sehr wohl.
  * undefined = unbekannt. Aufrufer müssen dann permissiv sein, sonst entstehen Falschfehler.
  */
-function typesOverlap(first: CompileTimeType, second: CompileTimeType): boolean | undefined {
+function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): boolean | undefined {
+	const first = resolveAlias(rawFirst);
+	const second = resolveAlias(rawSecond);
 	// never enthält keinen Wert, any alle
 	if (first.julType === 'never'
 		|| second.julType === 'never') {
@@ -3804,7 +3862,7 @@ function typesOverlap(first: CompileTimeType, second: CompileTimeType): boolean 
  * Greater(Value) ist nach oben unbeschraenkt - Ueberlappung ist daher nur bei gleichem
  * Literaltyp (Integer/Integer oder Float/Float) entscheidbar, sonst undefined.
  */
-function greaterOverlapsWith(greater: CompileTimeGreaterType, other: CompileTimeType): boolean | undefined {
+function greaterOverlapsWith(greater: CompileTimeGreaterType, other: ResolvedType): boolean | undefined {
 	switch (other.julType) {
 		case 'greater':
 			// Beide nach oben unbeschraenkt - es gibt immer einen gemeinsamen groesseren Wert.
@@ -3857,7 +3915,7 @@ function isNotAssignableTo(type: CompileTimeType, targetType: CompileTimeType): 
 	return !!areArgsAssignableTo(undefined, type, targetType);
 }
 
-function isLiteralType(type: CompileTimeType): boolean {
+function isLiteralType(type: ResolvedType): boolean {
 	switch (type.julType) {
 		case 'booleanLiteral':
 		case 'floatLiteral':
@@ -3872,6 +3930,14 @@ function isLiteralType(type: CompileTimeType): boolean {
 function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 	if (first === second) {
 		return true;
+	}
+	// Der Alias ist reine Beschriftung: geprueft wird der Typ dahinter. Vor dem switch, weil sonst
+	// jeder Zweig seinen eigenen Alias-Fall auf der Gegenseite braeuchte.
+	if (first.julType === 'alias') {
+		return typeEquals(dereferenceAlias(first), second);
+	}
+	if (second.julType === 'alias') {
+		return typeEquals(first, dereferenceAlias(second));
 	}
 	switch (first.julType) {
 		case 'empty':
@@ -4206,7 +4272,8 @@ function checkParamsTypeIsCollection(
  * Empty gehört dazu (der Aufruf ohne Argumente) und fällt daher nicht darunter.
  * Im Zweifel false: nicht aufgelöste Typen und Never bleiben ungemeldet.
  */
-function isDefinitelyNotCollectionType(type: CompileTimeType): boolean {
+function isDefinitelyNotCollectionType(rawType: CompileTimeType): boolean {
+	const type = resolveAlias(rawType);
 	switch (type.julType) {
 		case 'blob':
 		case 'boolean':
@@ -4246,11 +4313,42 @@ function setFunctionRefForParams(
 	}
 }
 
+/**
+ * Der Typ hinter einem Alias.
+ * Any, solange das Symbol noch gecheckt wird - das ist der Zyklusfall, und unproduktive Zyklen
+ * sind an dieser Stelle bereits als JUL5170 gemeldet.
+ */
+function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
+	const symbolType = alias.symbol.typeInfo?.type;
+	if (!symbolType) {
+		return builtinAny;
+	}
+	// Eine Typdefinition haelt ihren Typ als TypeOf; der Alias steht fuer den Typ selbst.
+	return symbolType.julType === 'typeOf'
+		? symbolType.value
+		: symbolType;
+}
+
+/**
+ * Der Typ ohne Alias-Huellen, auch mehrfach geschachtelte (B = A = ...).
+ * Die Schleifengrenze ist eine Notbremse: unproduktive Zyklen meldet bereits JUL5170, aber ein
+ * haengender Language Server waere ein schlechterer Ausgang als ein ungenauer Typ.
+ */
+function resolveAlias(type: CompileTimeType): ResolvedType {
+	let current = type;
+	for (let depth = 0; current.julType === 'alias'; depth++) {
+		if (depth >= maxAliasDepth) {
+			return builtinAny;
+		}
+		current = dereferenceAlias(current);
+	}
+	return current;
+}
+
 function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 	if (!type) {
 		return builtinAny;
-	}
-	switch (type.julType) {
+	}	switch (type.julType) {
 		case 'dictionaryLiteral': {
 			const fieldValues = mapDictionary(type.Fields, valueOf);
 			return createCompileTimeDictionaryLiteralType(fieldValues, type.complete);
@@ -4316,6 +4414,13 @@ export function getTypeError(
 	}
 	if (argumentsType === targetType) {
 		return undefined;
+	}
+	// Der Alias ist reine Beschriftung: zugewiesen wird gegen den Typ dahinter, in beide Richtungen.
+	if (argumentsType.julType === 'alias') {
+		return getTypeError(prefixArgumentType, dereferenceAlias(argumentsType), targetType);
+	}
+	if (targetType.julType === 'alias') {
+		return getTypeError(prefixArgumentType, argumentsType, dereferenceAlias(targetType));
 	}
 	switch (argumentsType.julType) {
 		case 'and': {
@@ -5395,6 +5500,13 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return 'Type';
 		case 'typeOf':
 			return `TypeOf(${typeToString(type.value, indent, depth, suppressAlias)})`;
+		case 'alias':
+			// Wie aliasName: ab depth > 0 nur der Name, die aeusserste Ebene wird ausgeschrieben.
+			// suppressAlias greift nicht - es zielt auf Namen von Wertdefinitionen, und ein
+			// Alias-Knoten entsteht nur fuer Typdefinitionen.
+			return depth
+				? type.name
+				: typeToString(dereferenceAlias(type), indent, depth, suppressAlias);
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected BuiltInType ${(assertNever as CompileTimeType).julType}`);
@@ -5501,8 +5613,9 @@ function bracketedExpressionToString(
 //#endregion ToString
 
 function getParamsType(possibleFunctionType: CompileTimeType | undefined): CompileTimeType {
-	if (isFunctionType(possibleFunctionType)) {
-		return possibleFunctionType.ParamsType;
+	const functionType = possibleFunctionType && resolveAlias(possibleFunctionType);
+	if (isFunctionType(functionType)) {
+		return resolveAlias(functionType.ParamsType);
 	}
 	return builtinAny;
 }
