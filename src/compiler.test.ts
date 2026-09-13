@@ -116,7 +116,7 @@ describe('formatErrors', () => {
 			'  |   ^',
 			'4 | |   1',
 			'5 | | )',
-			'  | | _^',
+			'  | | ^',
 		].join('\n'));
 	});
 
@@ -142,7 +142,7 @@ describe('formatErrors', () => {
 			'  |   _________^',
 			'3 | |   5',
 			'4 | | )',
-			'  | | _^',
+			'  | | ^',
 		].join('\n'));
 	});
 
@@ -172,7 +172,36 @@ describe('formatErrors', () => {
 			'  |   __^',
 			'3 | |     ...values',
 			'4 | |   ]',
-			'  | | ___^',
+			'  | | __^',
+		].join('\n'));
+	});
+
+	// Fund: der Marker der Schlusszeile stand eine Spalte hinter dem letzten Zeichen des Spans.
+	// endColumnIndex ist exklusiv (die einzeilige Markierung rechnet damit), der Caret gehört
+	// also unter das Zeichen davor - hier unter das schliessende ']', nicht unter das ')'.
+	it('marks the last character of a multiline span, not the one behind it', () => {
+		writeFileSync(filePath, 'f = (t: Text) => t\nf([\n\t1\n])\n');
+		const errors: CompilerError[] = [
+			{
+				code: ErrorCode.argumentTypeMismatch,
+				message: 'Argument type mismatch.\nCan not assign [1] to Text.',
+				startRowIndex: 1,
+				startColumnIndex: 2,
+				endRowIndex: 3,
+				endColumnIndex: 1,
+			},
+		];
+		const output = stripAnsi(formatErrors(filePath, errors));
+		expect(output).to.equal([
+			`TypeError JUL5050: Argument type mismatch. ${filePath}:2:3`,
+			'Can not assign [1] to Text.',
+			` --> ${filePath}:2:3`,
+			'  |',
+			'2 |   f([',
+			'  |   __^',
+			'3 | |   1',
+			'4 | | ])',
+			'  | | ^',
 		].join('\n'));
 	});
 

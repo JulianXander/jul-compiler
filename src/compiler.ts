@@ -397,7 +397,11 @@ function formatSpanLines(
 		}
 		resultLines.push(`${colorize(pad(row + 1), ConsoleColor.cyan)} | ${connectorPipe} ${expandTabs(line)}`);
 		if (row === positioned.endRowIndex) {
-			const marker = `${'_'.repeat(visualColumn(line, positioned.endColumnIndex))}^${labelSuffix}`;
+			// endColumnIndex ist exklusiv, der Caret gehört unter das letzte Zeichen des Spans.
+			const lastColumn = positioned.endColumnIndex > 0
+				? visualColumn(line, positioned.endColumnIndex - 1)
+				: 0;
+			const marker = `${'_'.repeat(lastColumn)}^${labelSuffix}`;
 			resultLines.push(`${blankGutter} | ${connectorPipe} ${colorize(marker, ConsoleColor.lightRed)}`);
 		}
 	}
