@@ -73,7 +73,6 @@ import {
 	builtinText,
 	builtinFloat,
 	builtinDate,
-	builtinBlob,
 	builtinError,
 	builtinType,
 	createBooleanLiteral,
