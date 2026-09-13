@@ -3761,8 +3761,44 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'parameterReference':
 		case 'parameters':
 			return false;
-		default:
+		// alias: getTypeError und typeEquals lösen ihn selbst auf, die Verlässlichkeit des Ziels
+		// wird hier bewusst nicht mitgeprüft.
+		case 'alias':
+		case 'and':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'concat':
+		case 'date':
+		case 'dictionary':
+		case 'dictionaryLiteral':
+		case 'empty':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'function':
+		case 'greater':
+		case 'integer':
+		case 'integerLiteral':
+		case 'lengthOf':
+		case 'list':
+		case 'never':
+		case 'not':
+		case 'or':
+		case 'range':
+		case 'stream':
+		case 'text':
+		case 'textLiteral':
+		case 'tuple':
+		case 'tupleOf':
+		case 'type':
+		case 'typeOf':
+		case 'withElementAt':
 			return true;
+		default: {
+			const assertNever: never = type;
+			throw new Error('Unexpected type.julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 }
 
@@ -4411,7 +4447,8 @@ function resolveAlias(type: CompileTimeType): ResolvedType {
 function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 	if (!type) {
 		return builtinAny;
-	}	switch (type.julType) {
+	}
+	switch (type.julType) {
 		case 'dictionaryLiteral': {
 			const fieldValues = mapDictionary(type.Fields, valueOf);
 			return createCompileTimeDictionaryLiteralType(fieldValues, type.complete);
@@ -4434,10 +4471,41 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			return createCompileTimeTupleType(type.ElementTypes.map(valueOf));
 		case 'typeOf':
 			return type.value;
-		default:
-			// TODO error?
-			// return builtinAny;
+		// Kein TypeOf zum Auspacken und keine Felder, die eines enthalten könnten: der Typ ist
+		// bereits der Wert. Zusammengesetzte Varianten steigen bewusst nicht ab - ein TypeOf
+		// darin ist Teil des Typs, nicht seine Verpackung.
+		case 'alias':
+		case 'and':
+		case 'any':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'concat':
+		case 'date':
+		case 'dictionary':
+		case 'empty':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'greater':
+		case 'integer':
+		case 'integerLiteral':
+		case 'lengthOf':
+		case 'list':
+		case 'never':
+		case 'not':
+		case 'or':
+		case 'range':
+		case 'text':
+		case 'textLiteral':
+		case 'tupleOf':
+		case 'type':
+		case 'withElementAt':
 			return type;
+		default: {
+			const assertNever: never = type;
+			throw new Error('Unexpected type.julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 }
 
@@ -4634,8 +4702,38 @@ function getTypeErrorAtDepth(
 			}
 			return undefined;
 		}
-		default:
+		// Kein Sonderfall auf der Argumentseite: die Prüfung läuft über den Zieltyp weiter.
+		// Eine neue aufschiebbare Variante gehört NICHT hierher, sondern nach oben - sonst
+		// entsteht unten ein Fehler auf einem Typ, der nur noch nicht aufgelöst ist.
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'date':
+		case 'dictionary':
+		case 'dictionaryLiteral':
+		case 'empty':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'function':
+		case 'greater':
+		case 'integer':
+		case 'integerLiteral':
+		case 'list':
+		case 'never':
+		case 'parameters':
+		case 'range':
+		case 'stream':
+		case 'text':
+		case 'textLiteral':
+		case 'tuple':
+		case 'type':
+		case 'typeOf':
 			break;
+		default: {
+			const assertNever: never = argumentsType;
+			throw new Error('Unexpected argumentsType.julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 	// TODO generic types (customType, union/intersection, ...?)
 	switch (targetType.julType) {
