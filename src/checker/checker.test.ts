@@ -796,6 +796,45 @@ useType(isLegal)`,
 			code: 'x: [Integer Integer] = [1 2 3].slice(2 3)',
 		},
 		{
+			// flatten löst eine Ebene Verschachtelung auf und erhält dabei den Elementtyp
+			// (analog zu slice-keeps-element-type): aus List(List(Integer)) wird
+			// Or([] List(Integer)), nicht Or([] List(Any)).
+			name: 'flatten-keeps-element-type',
+			code: `f = (values: List(List(Integer))) :> Or([] List(Integer)) =>
+	values.flatten()`,
+		},
+		{
+			// Leere innere Listen (Or([] List(...)) als Elementtyp) tragen nichts zum
+			// Ergebnis bei, sind aber ein gültiges Element der äußeren Liste.
+			name: 'flatten-accepts-empty-inner-lists',
+			code: 'x: Or([] List(Integer)) = [[1 2] [] [3]].flatten()',
+		},
+		{
+			// Wie filter-return-type-accounts-for-possibly-empty-result: flatten kann die
+			// Liste leeren (alle inneren Listen sind Empty), ein deklarierter Rückgabetyp ohne
+			// Or([] ...) muss daran scheitern.
+			name: 'flatten-return-type-accounts-for-possibly-empty-result',
+			code: `f = (values: List(List(Integer))) :> List(Integer) =>
+	values.flatten()`,
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Empty to List(Integer).',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 17,
+					relatedInformation: {
+						message: 'Declared as List(Integer) here.',
+						startRowIndex: 0,
+						startColumnIndex: 37,
+						endRowIndex: 0,
+						endColumnIndex: 50,
+					},
+				},
+			],
+		},
+		{
 			// Fund (Session 2026-09-10, echter yugioh-Fehler activatableGameCardIds): filter
 			// kann die Liste genau wie slice leeren (Laufzeit: `return filtered.length ?
 			// filtered : undefined`) - die Signatur in core-lib.jul deklariert das inzwischen

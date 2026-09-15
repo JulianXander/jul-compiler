@@ -637,6 +637,21 @@ filterMap = nativeFunction(
 		}
 	§
 )
+# Führt eine Liste von Listen zu einer flachen Liste zusammen (eine Ebene).
+# Leere innere Listen tragen nichts bei; ist das Ergebnis leer, liefert flatten Empty.
+flatten = nativeFunction(
+	(values: Or([] List(Or([] List(Any))))) :> Or([] List(TypeOf(TypeOf(values)/ElementType)/ElementType))
+	true
+	§js
+		values => {
+			if (!values) {
+				return;
+			}
+			const flattened = values.flatMap(value => value ?? []);
+			return flattened.length ? flattened : undefined;
+		}
+	§
+)
 # Liefert einen Teilbereich der Liste von start bis end, oder bis zum Ende der Liste falls kein end angegeben.
 # Inklusive start und end.
 # TODO rename subList?

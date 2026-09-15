@@ -2148,6 +2148,28 @@ _createFunction(
 		]
 	}
 );
+export const flatten = <T>(
+	values: (T[] | undefined)[] | undefined,
+): T[] | undefined => {
+	if (!values) {
+		return;
+	}
+	const flattened = values.flatMap(value => value ?? []);
+	return flattened.length
+		? flattened
+		: undefined;
+};
+_createFunction(
+	flatten,
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: optionalType(List(optionalType(List(Any))))
+			},
+		]
+	}
+);
 export const slice = <T>(
 	values: T[] | undefined,
 	start: bigint,
