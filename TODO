@@ -1,4 +1,4 @@
--pure function und constand fold
+-pure function und constant folding
 	-C:\Projects\privat\JUL\jul-compiler\docs\pure-functions.md
 -conditional types
 -unit testing konzept für jul
