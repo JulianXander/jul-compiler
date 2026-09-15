@@ -9,9 +9,9 @@ describe('TypeScript Parser', () => {
 		const definition = result.expressions![0] as ParseSingleDefinition;
 		expect(definition.name).to.deep.include({
 			startRowIndex: 0,
-			startColumnIndex: 17,
+			startColumnIndex: 16,
 			endRowIndex: 0,
-			endColumnIndex: 20,
+			endColumnIndex: 19,
 		});
 	});
 });

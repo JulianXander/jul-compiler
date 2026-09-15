@@ -1,7 +1,7 @@
 import { Name, ParseExpression, ParseParameterField, ParseParameterFields, ParsedExpressions } from '../syntax-tree.js';
 import { isDefined } from '../util.js';
 import { Positioned } from '../compiler-errors.js';
-import typescript, { ArrowFunction, BindingName, FunctionDeclaration, Node, NodeArray, NumericLiteral, ParameterDeclaration, StringLiteral, VariableStatement } from 'typescript';
+import typescript, { ArrowFunction, BindingName, FunctionDeclaration, Node, NodeArray, NumericLiteral, ParameterDeclaration, SourceFile, StringLiteral, VariableStatement } from 'typescript';
 import { createParseFunctionLiteral, createParseParameters } from './parser-utils.js';
 const { createSourceFile, ScriptTarget, SyntaxKind } = typescript;
 
@@ -9,7 +9,7 @@ export function parseTsCode(code: string): ParsedExpressions {
 	// TODO pass file name?
 	const tsAst = createSourceFile('todo.ts', code, ScriptTarget.ESNext);
 	const julExpressions = tsAst.statements.map(tsNode =>
-		tsNodeToJulAst(tsNode))
+		tsNodeToJulAst(tsNode, tsAst))
 		.filter(isDefined);
 	// TODO errors
 	return {
@@ -18,8 +18,8 @@ export function parseTsCode(code: string): ParsedExpressions {
 	};
 }
 
-function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
-	const position = getPositionFromTsNode(tsNode);
+function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile): ParseExpression | undefined {
+	const position = getPositionFromTsNode(tsNode, sourceFile);
 	switch (tsNode.kind) {
 		case SyntaxKind.NumericLiteral: {
 			const numericLiteral = tsNode as NumericLiteral;
@@ -47,7 +47,7 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
 			};
 		case SyntaxKind.ArrowFunction: {
 			const arrowFunction = tsNode as ArrowFunction;
-			return tsFunctionToJulAst(position, arrowFunction.parameters);
+			return tsFunctionToJulAst(position, arrowFunction.parameters, sourceFile);
 		}
 		case SyntaxKind.EmptyStatement:
 			return undefined;
@@ -55,8 +55,8 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
 			const variableStatement = tsNode as VariableStatement;
 			const test = variableStatement.declarationList.declarations.map(declaration => {
 				return {
-					name: tsNameToJulName(declaration.name),
-					value: declaration.initializer && tsNodeToJulAst(declaration.initializer),
+					name: tsNameToJulName(declaration.name, sourceFile),
+					value: declaration.initializer && tsNodeToJulAst(declaration.initializer, sourceFile),
 				};
 			});
 			const test1 = test[0]!;
@@ -78,14 +78,14 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
 			if (!tsName) {
 				return undefined;
 			}
-			const julName = tsNameToJulName(tsName);
+			const julName = tsNameToJulName(tsName, sourceFile);
 			if (!julName) {
 				return undefined;
 			}
 			return {
 				type: 'definition',
 				name: julName,
-				value: tsFunctionToJulAst(position, functionDeclaration.parameters),
+				value: tsFunctionToJulAst(position, functionDeclaration.parameters, sourceFile),
 				...position,
 			};
 		}
@@ -99,9 +99,10 @@ function tsNodeToJulAst(tsNode: Node): ParseExpression | undefined {
 function tsFunctionToJulAst(
 	position: Positioned,
 	parameters: NodeArray<ParameterDeclaration>,
+	sourceFile: SourceFile,
 ) {
 	return createParseFunctionLiteral(
-		tsParametersToJulParameters(parameters, position),
+		tsParametersToJulParameters(parameters, position, sourceFile),
 		undefined,
 		// TODO body, errors,
 		// erstmal dummy body nativeValue([...]) damit returnType = Any inferred wird
@@ -144,16 +145,17 @@ function tsFunctionToJulAst(
 function tsParametersToJulParameters(
 	tsParameters: NodeArray<ParameterDeclaration>,
 	position: Positioned,
+	sourceFile: SourceFile,
 ): ParseParameterFields {
 	const julParameters = tsParameters.map(tsParameter => {
-		const julName = tsNameToJulName(tsParameter.name);
+		const julName = tsNameToJulName(tsParameter.name, sourceFile);
 		if (!julName) {
 			return undefined;
 		}
 		const julParameter: ParseParameterField = {
 			type: 'parameter',
 			name: julName,
-			...getPositionFromTsNode(tsParameter),
+			...getPositionFromTsNode(tsParameter, sourceFile),
 		};
 		return julParameter;
 	}).filter(isDefined);
@@ -161,7 +163,7 @@ function tsParametersToJulParameters(
 	return createParseParameters(julParameters, undefined, position, []);
 }
 
-function tsNameToJulName(tsName: BindingName): Name | undefined {
+function tsNameToJulName(tsName: BindingName, sourceFile: SourceFile): Name | undefined {
 	// TODO case BindingPattern
 	let name: string;
 	switch (tsName.kind) {
@@ -179,16 +181,17 @@ function tsNameToJulName(tsName: BindingName): Name | undefined {
 	return {
 		type: 'name',
 		name: name,
-		...getPositionFromTsNode(tsName),
+		...getPositionFromTsNode(tsName, sourceFile),
 	};
 }
 
-function getPositionFromTsNode(tsNode: Node): Positioned {
-	// TODO
+function getPositionFromTsNode(tsNode: Node, sourceFile: SourceFile): Positioned {
+	const start = sourceFile.getLineAndCharacterOfPosition(tsNode.getStart(sourceFile));
+	const end = sourceFile.getLineAndCharacterOfPosition(tsNode.getEnd());
 	return {
-		startRowIndex: tsNode.pos,
-		startColumnIndex: tsNode.pos,
-		endRowIndex: tsNode.end,
-		endColumnIndex: tsNode.end,
+		startRowIndex: start.line,
+		startColumnIndex: start.character,
+		endRowIndex: end.line,
+		endColumnIndex: end.character,
 	};
 }
