@@ -1,16 +1,19 @@
-?builtin types/literale direkt als prädikat-argument (filter(Integer) statt filter(isInteger)) -
-	siehe docs/predicate-types-and-filter-narrowing.md, Abschnitt "Weitergehende Idee (nicht
-	umgesetzt)", fuer Generalisierung, Checker/Runtime-Symmetrie-Problem und skizzierten
-	Predicate(X)-Mittelweg. Reine Ideensammlung, keine Entscheidung getroffen.
+-pure function und constand fold
+	-\docs\pure-functions.md
+-conditional types
 -unit testing konzept für jul
 	?eigene lib oder bestehende js libs verwendbar machen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 -multiline returntype parser
+?builtin types/literale direkt als prädikat-argument (filter(Integer) statt filter(isInteger)) -
+	siehe docs/predicate-types-and-filter-narrowing.md, Abschnitt "Weitergehende Idee (nicht
+	umgesetzt)", fuer Generalisierung, Checker/Runtime-Symmetrie-Problem und skizzierten
+	Predicate(X)-Mittelweg. Reine Ideensammlung, keine Entscheidung getroffen.
 ?filter/findFirst/exists verengen den Elementtyp nicht ueber ihr Boolean-Praedikat (anders als
 	filterMap) - siehe docs/predicate-types-and-filter-narrowing.md fuer Untersuchung, Vergleich
 	mit anderen Sprachen und einen skizzierten (nicht umgesetzten) Mittelweg. Fuer akute Faelle
 	reicht assume(...) an der Aufrufstelle.
-?dictionary literal field completion mit compiletimetype der description enthält oder dereferenceTypeExpression über mehrere dateien mit import auflösung
+-dictionary literal field completion anhand des erwarteten Zieltyps
 ?find-all-references auf dictionary-feldern erfasst nur feldzugriffe (a/feld), nicht feldnamen an
 	kontextuell typisierten stellen - `x: MyType = [feld = 1]`, funktionsargumente, listenelemente.
 	go-to-definition kann das dort bereits, weil der language server mit getDeclaredType den
