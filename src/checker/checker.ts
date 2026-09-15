@@ -5234,6 +5234,19 @@ function getTupleTypeError(
 			return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementTypes[0]!);
 		case 'tuple':
 			return getTupleTypeError2(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
+		case 'parameters':
+			// Gegenstück zu getTypeErrorForParameters' case 'tuple': dort darf ein unbenanntes
+			// Tuple-Pattern (`[Integer] => ...`) als Argument gegen einen benannten Parametertyp
+			// bestehen, hier ist es umgekehrt - ein benannter Parametertyp (z.B. filter's
+			// deklarierter predicate-Typ) tritt kontravariant als "argumentsType" gegen ein
+			// unbenanntes Tuple-Ziel an (z.B. ein als Prädikat übergebenes `[Integer] => true`).
+			// TODO argumentsType.rest berücksichtigen - kein aktueller Fall deklariert einen
+			// Rest-Parameter an dieser Stelle.
+			return getTupleTypeError2(
+				prefixArgumentType,
+				argumentsType.singleNames.map(param => param.type ?? builtinAny),
+				targetElementTypes,
+			);
 		default:
 			return true;
 	}
