@@ -1158,6 +1158,13 @@ function _toJson(value: RuntimeType): string | Error {
 //#endregion helper
 
 //#region builtins
+// Dieser Block ist die tatsächliche Laufzeit-Implementierung aller in core-lib.jul deklarierten Builtins.
+// core-lib.jul wird nur geparst, um dem Checker Typinformationen (builtInSymbols) zu liefern - sie wird
+// nie emittiert, ihr eigener js-Text in nativeFunction(...)-Aufrufen läuft also nie. Jedes kompilierte
+// Modul importiert stattdessen blanket alle Exporte dieser Datei (siehe getRuntimeImportJs in emitter.ts),
+// und Referenzen auf Builtin-Symbole werden vom Emitter als einfache JS-Identifier ausgegeben, die hierher
+// auflösen. core-lib.jul's js-Text dient also nur als für Menschen lesbare Referenz und muss von Hand
+// synchron zu den Implementierungen hier gehalten werden.
 //#region Types
 export const Any: AnyType = { [_julTypeSymbol]: 'any' };
 export const Empty: EmptyType = { [_julTypeSymbol]: 'empty' };

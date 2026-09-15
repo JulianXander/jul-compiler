@@ -255,7 +255,32 @@ equal = nativeFunction(
 deepEqual = nativeFunction(
 	(first second) :> Boolean
 	true
-	§TODO§
+	§js
+		function deepEqual(first, second) {
+			if (first === second) {
+				return true;
+			}
+			if (typeof first !== 'object' || typeof second !== 'object'
+				|| first === null || second === null) {
+				return false;
+			}
+			if (first instanceof StreamClass || second instanceof StreamClass) {
+				return false;
+			}
+			if (Array.isArray(first) || Array.isArray(second)) {
+				if (!Array.isArray(first) || !Array.isArray(second)
+					|| first.length !== second.length) {
+					return false;
+				}
+				return first.every((value, index) => deepEqual(value, second[index]));
+			}
+			const firstKeys = Object.keys(first);
+			if (firstKeys.length !== Object.keys(second).length) {
+				return false;
+			}
+			return firstKeys.every(key => deepEqual(first[key], second[key]));
+		}
+	§
 )
 #endregion Any
 #region Boolean
@@ -271,13 +296,17 @@ not = nativeFunction(
 and = nativeFunction(
 	(...args: List(Boolean)) :> Boolean
 	true
-	§TODO§
+	§js
+		(...args) => !args.includes(false)
+	§
 )
 # Liefert true, wenn mindestens ein arg true ist
 or = nativeFunction(
 	(...args: List(Boolean)) :> Boolean
 	true
-	§TODO§
+	§js
+		(...args) => args.includes(true)
+	§
 )
 #endregion Boolean
 #region Number
@@ -286,7 +315,31 @@ or = nativeFunction(
 add = nativeFunction(
 	(...args: List(Rational)) :> Rational
 	true
-	§TODO§
+	§js
+		(...args) => args.reduce(
+			(accumulator, current) => {
+				if (typeof accumulator === 'bigint') {
+					if (typeof current === 'bigint') {
+						return accumulator + current;
+					}
+					return {
+						numerator: accumulator * current.denominator + current.numerator,
+						denominator: current.denominator,
+					};
+				}
+				if (typeof current === 'bigint') {
+					return {
+						numerator: accumulator.numerator + current * accumulator.denominator,
+						denominator: accumulator.denominator,
+					};
+				}
+				return {
+					numerator: accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
+					denominator: accumulator.denominator * current.denominator,
+				};
+			},
+			0n)
+	§
 )
 # Liefert die Summe der args.
 addInteger = nativeFunction(
@@ -316,7 +369,29 @@ addFloat = nativeFunction(
 subtract = nativeFunction(
 	(minuend: Rational subtrahend: Rational) :> Rational
 	true
-	§TODO§
+	§js
+		(minuend, subtrahend) => {
+			if (typeof minuend === 'bigint') {
+				if (typeof subtrahend === 'bigint') {
+					return minuend - subtrahend;
+				}
+				return {
+					numerator: minuend * subtrahend.denominator - subtrahend.numerator,
+					denominator: subtrahend.denominator,
+				};
+			}
+			if (typeof subtrahend === 'bigint') {
+				return {
+					numerator: minuend.numerator - subtrahend * minuend.denominator,
+					denominator: minuend.denominator,
+				};
+			}
+			return {
+				numerator: minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
+				denominator: minuend.denominator * subtrahend.denominator,
+			};
+		}
+	§
 )
 # minuend - subtrahend
 subtractInteger = nativeFunction(
@@ -415,7 +490,13 @@ maxFloat = nativeFunction(
 rationalToFloat = nativeFunction(
 	(rational: Rational) :> Float
 	true
-	§Todo§
+	§js
+		(rational) => {
+			return typeof rational === 'bigint'
+				? Number(rational)
+				: Number(rational.numerator) / Number(rational.denominator);
+		}
+	§
 )
 #endregion Number
 #region Text
@@ -450,12 +531,37 @@ JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
 parseJson = nativeFunction(
 	(json: Text) :> Or(JsonValue Error)
 	true
-	§TODO§
+	§js
+		_parseJson
+	§
 )
 toJson = nativeFunction(
 	(value: JsonValue) :> Text
 	true
-	§TODO§
+	§js
+		function toJson(value) {
+			switch (typeof value) {
+				case 'bigint':
+				case 'boolean':
+				case 'number':
+					return value.toString();
+				case 'string':
+					return JSON.stringify(value);
+				case 'object':
+					if (!value) {
+						return 'null';
+					}
+					if (Array.isArray(value)) {
+						return `[${value.map(toJson).join()}]`;
+					}
+					return `{${Object.entries(value).map(([key, innerValue]) => {
+						return `${toJson(key)}:${toJson(innerValue)}`;
+					}).join()}}`;
+				default:
+					return 'null';
+			}
+		}
+	§
 )
 #endregion JSON
 # Gibt die capture groups zurück
@@ -473,7 +579,21 @@ regex = nativeFunction(
 		unnamedCaptures: Or([] List(Text))
 	]
 	true
-	§TODO§
+	§js
+		(text, pattern) => {
+			try {
+				const match = text.match(pattern);
+				return {
+					isMatch: !!match,
+					unnamedCaptures: match ? Array.from(match) : undefined,
+					namedCaptures: match?.groups,
+				};
+			}
+			catch (error) {
+				return error;
+			}
+		}
+	§
 )
 #endregion Text
 #region Date
@@ -489,7 +609,17 @@ addDate = nativeFunction(
 		milliseconds: Or([] Integer)
 	) :> Date
 	true
-	§TODO§
+	§js
+		(date, years, months, days, hours, minutes, seconds, milliseconds) => new Date(
+			date.getFullYear() + Number(years ?? 0),
+			date.getMonth() + Number(months ?? 0),
+			date.getDate() + Number(days ?? 0),
+			date.getHours() + Number(hours ?? 0),
+			date.getMinutes() + Number(minutes ?? 0),
+			date.getSeconds() + Number(seconds ?? 0),
+			date.getMilliseconds() + Number(milliseconds ?? 0),
+		)
+	§
 )
 currentDate = nativeFunction(
 	() :> Date
@@ -727,7 +857,17 @@ findLastIndex = nativeFunction(
 	# TODO pure wenn die args pure sind
 	false
 	§js
-		TODO
+		(values, predicate) => {
+			if (!values) {
+				return;
+			}
+			const lastIndex = values.findLastIndex((value, index) => {
+				return predicate(value, BigInt(index + 1));
+			});
+			return lastIndex === -1
+				? undefined
+				: BigInt(lastIndex + 1);
+		}
 	§
 )
 lastElement = nativeFunction(
@@ -918,7 +1058,12 @@ push = nativeFunction(
 		value: stream$/ValueType
 	) :> []
 	false
-	§todo§
+	§js
+		(stream$, value) => {
+			processId++;
+			stream$.push(value, processId);
+		}
+	§
 )
 subscribe = nativeFunction(
 	(
@@ -944,7 +1089,13 @@ create$ = nativeFunction(
 		intitialValue: ValueType
 	) :> Stream(ValueType)
 	false
-	§todo§
+	§js
+		(ValueType, initialValue) => {
+			const stream$ = new StreamClass(() => stream$.lastValue);
+			stream$.push(initialValue, processId);
+			return stream$;
+		}
+	§
 )
 # Erzeugt einen vollendeten Stream, der nur den Startwert liefert.
 completed$ = nativeFunction(
@@ -952,7 +1103,14 @@ completed$ = nativeFunction(
 		intitialValue: Any
 	) :> Stream(TypeOf(intitialValue))
 	false
-	§todo§
+	§js
+		(initialValue) => {
+			const stream$ = new StreamClass(() => stream$.lastValue);
+			stream$.push(initialValue, processId);
+			stream$.complete();
+			return stream$;
+		}
+	§
 )
 # Startwert: ()
 # Schickt eine HTTP Anfrage ab und liefert die Antwort als Text.
@@ -964,7 +1122,9 @@ httpTextRequest$ = nativeFunction(
 		body: Any
 	) :> Stream(Or([] Text Error))
 	false
-	§[...]§
+	§js
+		(url, method, headers, body) => httpRequest$(url, method, headers, body, 'text')
+	§
 )
 # Startwert: ()
 # Schickt eine HTTP Anfrage ab und liefert die Antwort als Blob.
@@ -976,7 +1136,9 @@ httpBlobRequest$ = nativeFunction(
 		body: Any
 	) :> Stream(Or([] Blob Error))
 	false
-	§[...]§
+	§js
+		(url, method, headers, body) => httpRequest$(url, method, headers, body, 'blob')
+	§
 )
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1
 timer$ = nativeFunction(
@@ -1012,7 +1174,9 @@ map$ = nativeFunction(
 		) :> Any
 	) :> Stream(transform$/ReturnType)
 	false
-	§TODO§
+	§js
+		(source$, transform$) => _map$(source$, transform$)
+	§
 )
 flatMergeMap$ = nativeFunction(
 	(
@@ -1024,7 +1188,9 @@ flatMergeMap$ = nativeFunction(
 		) :> Stream(Any)
 	) :> Stream(transform$/ReturnType/ValueType)
 	false
-	§TODO§
+	§js
+		(source$, transform$) => flatMap$(source$, transform$, true)
+	§
 )
 flatSwitchMap$ = nativeFunction(
 	(
@@ -1036,7 +1202,9 @@ flatSwitchMap$ = nativeFunction(
 		) :> Stream(Any)
 	) :> Stream(transform$/ReturnType/ValueType)
 	false
-	§TODO§
+	§js
+		(source$, transform$) => flatMap$(source$, transform$, false)
+	§
 )
 # Wie RxJS combineLatest
 # Wenn keine sources übergeben, dann wird Empty vom Rückgabestream emittiert.
@@ -1046,7 +1214,9 @@ combine$ = nativeFunction(
 		# TODO Mapped tuple returntype: combine$(Stream(A) Stream(B) Stream(C)) => Stream((A B C))
 	) :> Stream(Or([] List(TypeOf(sources)/ElementType/ValueType)))
 	false
-	§TODO§
+	§js
+		(...sources) => _combine$(...sources)
+	§
 )
 # Liefert die nächsten count Wertänderungen.
 # Beginnt mit dem aktuellen Wert von source$.
@@ -1056,7 +1226,9 @@ take$ = nativeFunction(
 		count: NonZeroInteger
 	) :> Stream(source$/ValueType)
 	false
-	§TODO§
+	§js
+		(source$, count) => _take$(source$, count)
+	§
 )
 #endregion transform
 #endregion Stream
