@@ -1,3 +1,6 @@
+-builtin types als functions in filter/anderen typ positionen
+-unit testing konzept für jul
+	?eigene lib oder bestehende js libs verwendbar machen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 ?getTypeError +51% durch aufschiebbare typkonstruktor-knoten - untersucht, keine billige abhilfe
 	-gemessen mit temporaeren zaehlern, einzeldurchlauf yugioh, setElement-deklaration einmal mit
