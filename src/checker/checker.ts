@@ -526,8 +526,38 @@ function dereferenceUnknownKeyFromObject(
 			return createNestedReference(source, nestedKey);
 		case 'typeOf':
 			return dereferenceUnknownKeyFromObject(nestedKey, source.value);
-		default:
+		// Weder Positionen noch benannte Felder mit unbekanntem Schlüssel bekannt - bisheriges,
+		// unveraendertes Verhalten wie vor der Exhaustivitaetspruefung: permissiv wie 'any'.
+		case 'and':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'date':
+		case 'dictionary':
+		case 'dictionaryLiteral':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'function':
+		case 'greater':
+		case 'integer':
+		case 'integerLiteral':
+		case 'lengthOf':
+		case 'never':
+		case 'not':
+		case 'parameters':
+		case 'range':
+		case 'stream':
+		case 'text':
+		case 'textLiteral':
+		case 'tupleOf':
+		case 'type':
+		case 'withElementAt':
 			return builtinAny;
+		default: {
+			const assertNever: never = source;
+			throw new Error('Unexpected source.julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 }
 
@@ -659,8 +689,10 @@ export function dereferenceNameFromObject(
 				default:
 					return undefined;
 			}
+		case 'concat':
 		case 'list':
-			// Eine List trägt keine benannten Felder; gemeldet wird an der Aufrufstelle.
+		case 'tuple':
+			// List/Tuple/Concat tragen keine benannten Felder; gemeldet wird an der Aufrufstelle.
 			return undefined;
 		case 'nestedReference':
 		case 'parameterReference':
@@ -704,9 +736,33 @@ export function dereferenceNameFromObject(
 			const innerType = sourceObjectType.value;
 			return dereferenceNameFromObjectType(name, innerType, sourceObjectType);
 		}
-		// TODO other object types
-		default:
+		// Keine benannten Felder und kein Sonderfall noetig - unveraendertes Verhalten wie vor der
+		// Exhaustivitaetspruefung.
+		case 'and':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'date':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'greater':
+		case 'integer':
+		case 'integerLiteral':
+		case 'lengthOf':
+		case 'never':
+		case 'not':
+		case 'range':
+		case 'text':
+		case 'textLiteral':
+		case 'tupleOf':
+		case 'type':
+		case 'withElementAt':
 			return undefined;
+		default: {
+			const assertNever: never = sourceObjectType;
+			throw new Error('Unexpected sourceObjectType.julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 }
 
@@ -765,8 +821,39 @@ function dereferenceNameFromObjectType(
 				default:
 					return undefined;
 			}
-		default:
+		// Keine Eigenschaft mit diesem Namen bekannt - unveraendertes Verhalten wie vor der
+		// Exhaustivitaetspruefung.
+		case 'and':
+		case 'any':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'date':
+		case 'empty':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'function':
+		case 'greater':
+		case 'integer':
+		case 'integerLiteral':
+		case 'lengthOf':
+		case 'never':
+		case 'not':
+		case 'parameters':
+		case 'range':
+		case 'stream':
+		case 'text':
+		case 'textLiteral':
+		case 'tupleOf':
+		case 'type':
+		case 'typeOf':
+		case 'withElementAt':
 			return undefined;
+		default: {
+			const assertNever: never = innerType;
+			throw new Error('Unexpected innerType.julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 }
 
@@ -801,9 +888,42 @@ export function dereferenceIndexFromObject(
 			return createNestedReference(sourceObjectType, index);
 		case 'tuple':
 			return sourceObjectType.ElementTypes[index - 1];
-		// TODO other object types
-		default:
+		// Keine Position mit diesem Index bekannt - unveraendertes Verhalten wie vor der
+		// Exhaustivitaetspruefung. 'concat' fehlt hier bewusst noch eine echte Behandlung
+		// (offener Punkt #4 in docs/CHECKER-AUDIT.md, analog zum Fix in
+		// dereferenceNameFromObjectType/dereferenceUnknownKeyFromObject).
+		case 'and':
+		case 'any':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'concat':
+		case 'date':
+		case 'dictionary':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'function':
+		case 'greater':
+		case 'integer':
+		case 'integerLiteral':
+		case 'lengthOf':
+		case 'never':
+		case 'not':
+		case 'parameters':
+		case 'range':
+		case 'stream':
+		case 'text':
+		case 'textLiteral':
+		case 'tupleOf':
+		case 'type':
+		case 'typeOf':
+		case 'withElementAt':
 			return undefined;
+		default: {
+			const assertNever: never = sourceObjectType;
+			throw new Error('Unexpected sourceObjectType.julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 }
 
