@@ -304,6 +304,112 @@ Alles Folgende ist erkannt und verschoben, nicht vergessen:
    bräuchte die Angabe explizit - TypeScript (`x is T`) und Flow (`param is Type`) benennen den
    Parameter aus genau diesem Grund. Dann bekommt `PredicateFacts` einen `parameterIndex`.
 
+## Weitergehende Idee (nicht umgesetzt): Typ-/Literal-Werte direkt als Prädikat-Argument
+
+**Stand 2026-09-15, reine Ideensammlung, keine Entscheidung getroffen.** Ausgangspunkt war die
+Frage, warum
+
+```jul
+myFn = (a: List(Or([] Integer))) =>
+	c = a.filter(Integer)
+```
+
+ungültig ist - `Integer` selbst (kein Wrapper wie `isInteger`) direkt als `filter`-Prädikat.
+Anders als der Rest dieses Dokuments (Verengung *durch* ein Prädikat) geht es hier darum, den
+Prädikat-Wrapper für den häufigen Fall "prüfe nur den Typ" ganz einzusparen.
+
+### Generalisierung über `Integer` hinaus
+
+Literale sind in JUL schon heute als Typen verwendbar (`f = (positive: Greater(0)) :> Not(5) =>
+...`, checker.test.ts:757) und laufen im Checker durch dieselbe "Wert-als-Typ"-Kollaps-Logik wie
+benannte Typen (`TypeOf(X)` fällt zu `X`, checker.ts:3517/4608f.) - eine Konvertierung, die `Integer`
+als Prädikat erlaubt, würde `filter(5)` (Gleichheits-Prädikat) also automatisch mit abdecken, nicht
+als Sonderfall, sondern als Nebeneffekt derselben Regel.
+
+### Form des synthetischen Prädikat-Typs
+
+Ein aus einem Typwert abgeleitetes Prädikat sollte die Form `(value: Any) :> Boolean` annehmen
+(`'parameters'`-Shape, benannt), **nicht** `[Any] :> Boolean` (`'tuple'`-Shape, unbenannt) - obwohl
+beide syntaktisch gültig sind (`checkParamsTypeIsCollection`, checker.ts:4484, lässt beide zu) und
+`[Any]` sogar näher an der Schreibweise unbenannter Branch-Arme (`[true] => []`, s.a.
+`yugioh/src/main.jul:264`) liegt. Grund: `filter`/`findFirst`/`findLast`/`findLastIndex`/`exists`/
+`all` deklarieren ihren `predicate`-Parameter durchgängig `'parameters'`-förmig
+(`(value: X index: Y) :> Boolean`), und nur diese Form landet im bereits erprobten Codepfad
+`getTypeErrorForParameters` (checker.ts:5560). Ein `PredicateIfTrue`-Fact lässt sich ohne
+Checker-Umbau anhängen: `predicate` ist ein simples optionales Feld auf `CompileTimeFunctionType`
+(`{ifTrue, excludedIfFalse?}`, syntax-tree.ts:924-941), direkte Zuweisung nach dem Bau des
+Funktionstyps genügt (Vorbild: checker.ts:2696) - `dereferenceNameFromObject` und
+`createCompileTimeFunctionType` bleiben unverändert.
+
+**Nebenbefund währenddessen (bereits umgesetzt, unabhängig von dieser Idee):** die Gegenrichtung
+fehlte im Checker - ein unbenanntes Tuple-Pattern (`[Integer] => true`) war nicht an einen benannten
+`'parameters'`-Zieltyp zuweisbar, weil `getTupleTypeError` keinen `case 'parameters'` kannte
+(Red/Green-Test `unnamed-tuple-predicate-is-assignable-to-named-filter-predicate`,
+checker.test.ts:913-925; Fix in `getTupleTypeError`, checker.ts:5222ff.). Das war für dieses Feature
+selbst nicht zwingend nötig (das synthetische Prädikat wird direkt `'parameters'`-förmig gebaut),
+schließt aber eine verwandte, unabhängig gültige Lücke.
+
+### Laufzeit: trivial, sofern die Aufrufstelle bekannt ist
+
+`getTypeError` (runtime.ts:222-416) behandelt Literale (`typeof`-Vergleich), getaggte Typwerte
+(`_julTypeSymbol`) und sogar Funktionswerte als Prädikat (`typeof type === 'function'` →
+`type(value)`) bereits einheitlich - dieser dritte Fall ist praktisch schon die Laufzeit-Hälfte
+dieses Features, nur bisher nicht von `filter` & Co. genutzt. Pro Aufrufstelle reicht ein einmaliger
+Wrap vor der Schleife:
+
+```ts
+const actualPredicate = typeof predicate === 'function'
+	? predicate
+	: (v: T) => getTypeError(v, predicate) === undefined;
+```
+
+### Das eigentliche offene Problem: Checker/Runtime-Symmetrie
+
+Eine *generische* Checker-Regel (an jeder Stelle, die `X :> Boolean` fordert, egal welche Funktion)
+würde nur type-checken, aber nicht überall auch laufen: Nutzer-eigene JUL-Funktionen mit einem
+`predicate: (v: Any) :> Boolean`-Parameter würden `Integer` als Argument akzeptieren, aber beim
+Aufruf `predicate(value)` zur Laufzeit crashen, sofern die jeweilige Aufrufstelle nicht denselben
+Wrap durchläuft. Eine generische Lösung bräuchte also entweder:
+
+- eine universelle Runtime-Bridge (z.B. `_callFunction`, runtime.ts:36-50, generisch erweitert) -
+  das würde aber "Aufruf eines Nicht-Funktionswerts" **in der gesamten Sprache** von einem Fehler
+  zu einem stillen Prädikat-Test machen (`5()` als Bug bliebe unbemerkt), und `filter`/`findFirst`/
+  `exists`/`all` rufen `predicate` ohnehin direkt als JS-Funktion auf (z.B. runtime.ts:2103-2105),
+  nie über `_callFunction` - eine zentrale Erweiterung dort würde diese Aufrufe gar nicht erreichen.
+- oder eine geschlossene, explizit benannte Markierung statt einer unsichtbaren, überall greifenden
+  Typform-Heuristik.
+
+**Skizzierter Mittelweg:** ein eigener Typ-Alias in core-lib.jul, z.B.
+`Predicate(X) = (value: X index: PositiveInteger) :> Boolean`, an den sowohl die
+Checker-Sugar-Regel als auch der Runtime-Wrap gebunden sind - nicht an Funktionsnamen (`filter`
+hartkodiert), sondern an diesen einen, dokumentierten Typ. `filter` & Co. deklarieren `predicate`
+dann als `Predicate(TypeOf(values)/ElementType)`; jede Funktion, die denselben Alias verwendet
+(auch Nutzer-Code), bekommt dieselbe Sugar, muss ihn beim eigenen Aufruf aber ebenfalls über den
+dokumentierten Wrap auflösen. Damit bleibt die Regel global und lernbar ("`Predicate(X)` akzeptiert
+zusätzlich zu Funktionen auch Typen/Literale"), ohne an jeder beliebigen `X :> Boolean`-Stelle in
+der Sprache implizit zu greifen.
+
+### Vorbilder in anderen Sprachen
+
+- **Ruby** ist das stärkste direkte Vorbild: `Class#===` ist als `is_a?` definiert
+  (Case-Equality), `Enumerable#grep(pattern)` ruft `pattern === element` auf
+  (`[1, "a", 2].grep(Integer)` → `[1, 2]`), seit Ruby 2.5 akzeptieren auch `all?`/`any?`/`none?`/
+  `one?` ein Pattern statt eines Blocks. Etabliertes, produktiv genutztes Idiom, kein Fremdkörper.
+- **Python** ist das Gegenbeispiel: `filter(int, liste)` ruft `int(x)` als **Konstruktor** auf und
+  wertet das Ergebnis truthy/falsy - keine echte Typprüfung, sondern eine Coercion-Falle
+  (`int(0)` ist falsy, obwohl `0` ein echter Integer ist). JULs Ansatz über `getTypeError` (reiner
+  Vergleich, keine Konversion) vermeidet das bewusst.
+- **Kotlin** löst denselben Bedarf über eine eigene, dedizierte Methode (`filterIsInstance<T>()`)
+  statt `filter` selbst zu überladen - vermeidet die Kontravarianz-/Symmetrie-Fragen oben komplett,
+  auf Kosten einer zusätzlichen API pro Anwendungsfall.
+
+### Betroffene core-lib-Funktionen, falls umgesetzt
+
+Alle mit `predicate: (value: X index: Y) :> Boolean`-artigem Parameter (Grep 2026-09-15):
+`filter`, `findFirst`, `findLast`, `findLastIndex`, `exists`, `all`. `exists`s Prädikat deklariert
+abweichend `:> Any` statt `:> Boolean` als Rückgabetyp - für ein `Boolean`-synthetisiertes Prädikat
+unproblematisch (kovariant zuweisbar), aber bei der Umsetzung zu beachten.
+
 ## Fazit
 
 - Die Laufzeit-Dualität "Typ = Prädikat" existiert in JUL bereits, löst das Problem aber nicht,

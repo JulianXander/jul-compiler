@@ -1,4 +1,7 @@
--builtin types als functions in filter/anderen typ positionen
+?builtin types/literale direkt als prädikat-argument (filter(Integer) statt filter(isInteger)) -
+	siehe docs/predicate-types-and-filter-narrowing.md, Abschnitt "Weitergehende Idee (nicht
+	umgesetzt)", fuer Generalisierung, Checker/Runtime-Symmetrie-Problem und skizzierten
+	Predicate(X)-Mittelweg. Reine Ideensammlung, keine Entscheidung getroffen.
 -unit testing konzept für jul
 	?eigene lib oder bestehende js libs verwendbar machen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
