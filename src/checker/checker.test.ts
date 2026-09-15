@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ParseExpression, ParseSingleDefinition } from '../syntax-tree.js';
+import { ParseExpression, ParseFunctionLiteral, ParseSingleDefinition } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
@@ -2459,6 +2459,37 @@ f = (cards: List(Integer)) =>
 			expect(returnType.ElementType.julType).to.equal('integer',
 				'ElementType sollte Integer sein, tatsächlich: ' + returnType.ElementType.julType);
 		}
+	});
+
+	// Fund in jul-examples/test1.jul: a.filterMap(...) und [...a].filterMap(...) sollten denselben
+	// Elementtyp liefern - a wird nur zwischenzeitlich in ein neues List-Literal gespreadet, nicht
+	// veraendert. Beim Spread ruft der Checker jedoch resolvePlaceholders auf a's Typ auf (checker.ts,
+	// case 'list', Spread-Zweig), um den ElementType fuer das neue Literal zu bestimmen - und a ist
+	// als Parameter der noch nicht aufgerufenen Funktion ein unaufgeloester Platzhalter. Laut
+	// resolvePlaceholders-Doc ("nie zur Weiterverarbeitung eines Typs, der seine Generizitaet
+	// behalten muss") faellt das auf Any zurueck, die Integer-Einschraenkung geht verloren.
+	it('spread-of-generic-list-parameter-keeps-element-type', () => {
+		const code = `myFn = (a: List(Or([] Integer))) =>
+	c = a.filterMap((value) => value)
+	b = [...a].filterMap((value) => value)
+`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const fnDef = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const fnLiteral = fnDef.value as ParseFunctionLiteral;
+		const cDef = fnLiteral.body[0] as ParseSingleDefinition;
+		const bDef = fnLiteral.body[1] as ParseSingleDefinition;
+
+		const cType = cDef.value?.typeInfo?.type;
+		const bType = bDef.value?.typeInfo?.type;
+
+		expect(cType && typeToString(resolvePlaceholders(cType), 0, 5)).to.equal(
+			'Or(Empty List(Integer))');
+		expect(bType && typeToString(resolvePlaceholders(bType), 0, 5)).to.equal(
+			'Or(Empty List(Integer))');
 	});
 
 	// Grosser Zieltyp (Dictionary mit vielen Feldern) in der Fehlermeldung wird gekuerzt
