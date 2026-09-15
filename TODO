@@ -2,13 +2,6 @@
 -unit testing konzept für jul
 	?eigene lib oder bestehende js libs verwendbar machen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
-?generische sequenz-konstruktoren (Concat, ElementAt, ...) wirken nur in der rueckgabetyp-
- annotation, nicht im rumpf selbst - [...a ...b] mit a/b: List(Any) verlor die tuple-arität,
- obwohl Concat(TypeOf(a) TypeOf(b)) sie in einer annotation exakt berechnet. betraf 4 stellen im
- checker, die "eager" mit resolvePlaceholders statt mit dereferenceArgumentTypesNested aufloesen.
- siehe docs/generic-types-through-function-body.md fuer sprachvergleich, umsetzung, tradeoffs
- -erledigt: praefix-argument bleibt fuer den rueckgabetyp symbolisch, geprueft wird weiter gegen
-  den aufgeloesten typ. index/namenszugriff war bereits korrekt (roher typ wird zuerst probiert)
 -multiline returntype parser
 ?filter/findFirst/exists verengen den Elementtyp nicht ueber ihr Boolean-Praedikat (anders als
 	filterMap) - siehe docs/predicate-types-and-filter-narrowing.md fuer Untersuchung, Vergleich
