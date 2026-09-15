@@ -911,6 +911,20 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 			errors: [],
 		},
 		{
+			// Lücke (Session 2026-09-15, predicate-types-and-filter-narrowing Vorarbeit):
+			// ein unbenanntes Klammer-Pattern wie `[Integer] => true` (dieselbe Form, die als
+			// ?-Branch-Arm überall funktioniert) bekommt beim Checken einen 'tuple'-förmigen
+			// ParamsType (aus bracketedExpressionToValueExpression), filter verlangt für
+			// predicate aber die 'parameters'-förmige Form `(value: X index: Y) :> Boolean`.
+			// getTupleTypeError kennt keinen case 'parameters' und faellt auf den generischen
+			// Fehler zurueck - die Bruecke fehlt komplett. Bisher gibt es dafuer auch keinen
+			// funktionierenden Beleg in jul-examples oder yugioh.
+			name: 'unnamed-tuple-predicate-is-assignable-to-named-filter-predicate',
+			code: `f = (values: List(Integer)) :> Or([] List(Integer)) =>
+	values.filter([Integer] => true)`,
+			errors: [],
+		},
+		{
 			// Ein generischer Rückgabetyp muss auch dann noch auflösbar sein, wenn der Wert
 			// vorher durch ein branching gelaufen ist. Die Union der branch Rückgabetypen
 			// enthält im rawType noch das unaufgelöste TypeOf(values)/ElementType aus slice,
