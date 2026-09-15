@@ -515,6 +515,12 @@ function dereferenceUnknownKeyFromObject(
 				.filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(choices);
 		}
+		case 'concat': {
+			const dereferencedSources = source.Sources
+				.map(sourceType => dereferenceUnknownKeyFromObject(nestedKey, sourceType))
+				.filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(dereferencedSources);
+		}
 		case 'nestedReference':
 		case 'parameterReference':
 			return createNestedReference(source, nestedKey);
@@ -739,6 +745,18 @@ function dereferenceNameFromObjectType(
 				return dereferenceNameFromObjectType(name, choiceType, createCompileTimeTypeOfType(choiceType));
 			}).filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(dereferencedChoices);
+		}
+		case 'concat': {
+			// Gleiches Prinzip wie 'or': jede Quelle einzeln dereferenzieren (mit eigener TypeOf-
+			// Huelle, aus demselben Grund wie dort) und die Ergebnisse zur Union zusammenfassen.
+			// Eine noch unaufgeloeste Quelle (z.B. ein generischer Funktionsparameter hinter einem
+			// Spread) liefert ueber den 'parameterReference'-Fall bereits eine offene
+			// nestedReference zurueck - die Generizitaet bleibt so erhalten, statt hier auf Any
+			// zu kollabieren.
+			const dereferencedSources = innerType.Sources.map(sourceType => {
+				return dereferenceNameFromObjectType(name, sourceType, createCompileTimeTypeOfType(sourceType));
+			}).filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(dereferencedSources);
 		}
 		case 'tuple':
 			switch (name) {
