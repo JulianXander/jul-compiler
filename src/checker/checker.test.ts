@@ -1135,12 +1135,11 @@ d/a`,
 			code: `f = (d: Any) => d/b`,
 		},
 		{
-			// Bug, aktuell rot: keiner der beiden Choices hat das Feld 'b' - Empty liefert bei
-			// JEDEM Feldnamen vakuos Empty zurück (dereferenceNameFromObject, case 'empty'),
-			// [a: Integer] hat 'b' nicht. dereferenceNameFromObject's 'or'-Fall filtert aber nur
-			// die erfolgreichen Choices heraus und vereinigt sie, statt zu prüfen, ob ALLE Choices
-			// das Feld haben - der vakuose Erfolg von Empty verschluckt damit den echten Fehler
-			// von [a: Integer], und das Ergebnis wird still zu Empty statt zum gemeldeten Fehler
+			// Keiner der beiden Choices hat das Feld 'b': Empty liefert bei JEDEM Feldnamen vakuos
+			// Empty zurück (dereferenceNameFromObject, case 'empty'), [a: Integer] hat 'b' nicht.
+			// dereferenceNameFromObject's 'or'-Fall muss deshalb prüfen, ob ALLE Choices das Feld
+			// haben, statt nur die erfolgreichen herauszufiltern und zu vereinigen - sonst
+			// verschluckt der vakuose Erfolg von Empty den echten Fehler von [a: Integer]
 			// (Fund: yugioh game-logic.jul:2194, targets: Or([] SelectInputTargets), targets/gameCardId
 			// - SelectInputTargets hat nur gameCardIds, nicht gameCardId).
 			name: 'unknown-field-on-union-with-empty-choice',
@@ -1705,9 +1704,9 @@ f(...values)`,
 		},
 		{
 			// Gegenstück zu spread-argument-is-not-type-checked: eine reine Spread-Argumentliste
-			// kann laut ParseUnknownObjectLiteral auch ein Dictionary werden (benannte Argumente),
-			// das löst case 'object' bisher nicht auf (nur den Listen-Fall). Aktuell rot: der
-			// Fehler bleibt aus, obwohl derselbe Wert direkt geschrieben (f(a = §x§)) ihn meldet.
+			// kann laut ParseUnknownObjectLiteral auch ein Dictionary werden (benannte Argumente) -
+			// case 'object' muss also denselben Fehler melden wie derselbe Wert direkt geschrieben
+			// (f(a = §x§)), nicht nur case 'list'.
 			name: 'dictionary-spread-argument-is-not-type-checked',
 			code: `namedArgs = [a = §x§]
 f = (a: Integer) => a
@@ -2025,10 +2024,8 @@ g: Text = f(3)`,
 		{
 			// Kontravarianz bei Parametern: map erwartet (value: X, index: PositiveInteger) => Y.
 			// Wer eine Funktion mit anderslautenden Parameternamen schreibt, bricht den Contract.
-			// Die Fehlermeldung sagt derzeit "Got 'value' but expected 'i'" - das ist verkehrt herum.
-			// Korrekt sollte sie "Got 'i' but expected 'value'" sagen (was auch der Wirklichkeit
-			// entspricht: an Position 1 wird 'value' erwartet, wir geben aber 'i').
-			// Red test für CHECKER-AUDIT #4.
+			// Die Fehlermeldung muss "Got 'i' but expected 'value'" sagen (an Position 1 wird
+			// 'value' erwartet, wir geben aber 'i') - nicht umgekehrt.
 			name: 'parameter-name-mismatch-reports-names-in-wrong-order',
 			code: `x = map([1 2] (i: Integer value: Integer) => i)`,
 			errors: [
@@ -2249,11 +2246,11 @@ f = (chain: Or([] List(Integer)) value: Integer) :> List(Integer) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
-	// Bug, aktuell rot: dasselbe Muster wie bei Concat, diesmal bei TupleOf. map liefert
+	// Dasselbe Muster wie bei Concat, diesmal bei TupleOf. map liefert
 	// TupleOf(LengthOf(cards) Integer); solange cards der eigene, offene Parameter ist, bleibt
 	// der Knoten stehen (tupleOfFromTypes: isUnresolvedPlaceholderType-Guard). getTypeError
-	// behandelt tupleOf nur als Zieltyp permissiv, auf der Argumentseite fehlt der Fall - ein
-	// Tuple beliebiger Länge aus Integern ist an List(Integer) aber sehr wohl zuweisbar.
+	// muss tupleOf deshalb auch auf der Argumentseite permissiv behandeln (nicht nur als Zieltyp) -
+	// ein Tuple beliebiger Länge aus Integern ist an List(Integer) aber sehr wohl zuweisbar.
 	it('tuple-of-with-unresolved-count-assigns-to-list', () => {
 		const code = `g = (b: Or([] List(Integer))) => b
 f = (cards: List(Integer)) =>
@@ -2452,10 +2449,9 @@ f = (cards: List(Integer)) =>
 		expect(returnType?.julType).to.equal('integer',
 			'Deklarierter Rückgabetyp Integer sollte gelten, tatsächlich: ' + returnType?.julType);
 	});
-	// Bekannte Lücke (checker.ts case 'list', Kommentar "TODO flatten spread tuple value type"):
-	// ein Spread innerhalb eines List-Literals wird nicht aufgelöst, das Element wird zu Any -
-	// unabhängig vom tatsächlichen Elementtyp der gespreadeten Quelle. Ursache eines falschen
-	// returnTypeMismatch in yugioh/game-logic.jul (updatePendingTriggers, activatableGameCardIds).
+	// Ein Spread innerhalb eines List-Literals muss den tatsächlichen Elementtyp der gespreadeten
+	// Quelle uebernehmen (nicht zu Any verbreitern) - sonst ein falscher returnTypeMismatch wie in
+	// yugioh/game-logic.jul (updatePendingTriggers, activatableGameCardIds).
 	it('list-literal-spread-collapses-to-list', () => {
 		// List-Spreads sollten sich zu einer List zusammensetzen (unbekannte Länge bleibt unbekannt)
 		const code = `f = (values: List(Integer)) =>
@@ -2512,13 +2508,11 @@ f = (cards: List(Integer)) =>
 		}
 	});
 
-	// Fund in jul-examples/test1.jul: a.filterMap(...) und [...a].filterMap(...) sollten denselben
-	// Elementtyp liefern - a wird nur zwischenzeitlich in ein neues List-Literal gespreadet, nicht
-	// veraendert. Beim Spread ruft der Checker jedoch resolvePlaceholders auf a's Typ auf (checker.ts,
-	// case 'list', Spread-Zweig), um den ElementType fuer das neue Literal zu bestimmen - und a ist
-	// als Parameter der noch nicht aufgerufenen Funktion ein unaufgeloester Platzhalter. Laut
-	// resolvePlaceholders-Doc ("nie zur Weiterverarbeitung eines Typs, der seine Generizitaet
-	// behalten muss") faellt das auf Any zurueck, die Integer-Einschraenkung geht verloren.
+	// a.filterMap(...) und [...a].filterMap(...) muessen denselben Elementtyp liefern - a wird nur
+	// zwischenzeitlich in ein neues List-Literal gespreadet, nicht veraendert. Der Spread-Zweig
+	// (checker.ts, case 'list') bestimmt den ElementType fuer das neue Literal ueber a's Typ, und a
+	// ist als Parameter der noch nicht aufgerufenen Funktion ein unaufgeloester Platzhalter - der
+	// darf dabei nicht auf Any verbreitert werden.
 	it('spread-of-generic-list-parameter-keeps-element-type', () => {
 		const code = `myFn = (a: List(Or([] Integer))) =>
 	c = a.filterMap((value) => value)
