@@ -971,12 +971,10 @@ f = (values: List(Text)) =>
 		},
 		{
 			// Anderer Fall als oben, nicht dieselbe Ursache: first hat hier einen echten Rumpf
-			// (case 'functionLiteral' statt 'functionTypeLiteral'). assume(1 Any) inferiert Any
-			// als Rueckgabetyp, und der Any-Fallback loest den deklarierten Rueckgabetyp
-			// TypeOf(values)/ElementType schon an der Deklaration auf - mit dem dort deklarierten
-			// values: List(Any), nicht mit dem Typ am jeweiligen Aufruf. functionType.ReturnType
-			// traegt danach fest Any statt des unaufgeloesten Platzhalters, jeder Aufruf sieht
-			// also Any statt seines eigenen Elementtyps. BUG, aktuell rot: der Fehler bleibt aus.
+			// (case 'functionLiteral' statt 'functionTypeLiteral') mit einem Any-Fallback
+			// (assume(1 Any)) statt einer functionTypeLiteral-Deklaration - der deklarierte
+			// Rueckgabetyp TypeOf(values)/ElementType wird dadurch ueber einen anderen Codepfad
+			// aufgeloest als in der Signatur-Variante oben.
 			name: 'generic-return-type-is-frozen-at-declaration-for-function-literal',
 			code: `first = (values: List(Any)) :> TypeOf(values)/ElementType => assume(1 Any)
 g = (n: Integer) => n
