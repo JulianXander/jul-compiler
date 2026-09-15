@@ -197,10 +197,10 @@ Alternativvorschlag aus einer früheren Notiz: `!=>` statt `~>`
 ([syntax-tree.ts:379](../src/syntax-tree.ts#L379)) — passt schlechter in die Familie (zwei
 Sonderzeichen statt eines), daher nachrangig.
 
-**Offen: Mehrwert eines eigenen Impure-Symbols gegenüber „keine Aussage".** Für die Konsumenten
-dieser Ausbaustufe (Constant Folding, `?>`-Auflösung) verhalten sich `~>` und `:>` identisch — beide
-sind „nicht beweisbar pure", keiner der beiden Algorithmen muss zwischen „bekannt unrein" und
-„unklassifiziert" unterscheiden. Der Mehrwert von `~>` ist heute rein vorbereitend/dokumentarisch:
+**Mehrwert eines eigenen Impure-Symbols gegenüber „keine Aussage".** Für die Konsumenten dieser
+Ausbaustufe (Constant Folding, `?>`-Auflösung) verhalten sich `~>` und `:>` identisch — beide sind
+„nicht beweisbar pure", keiner der beiden Algorithmen muss zwischen „bekannt unrein" und
+„unklassifiziert" unterscheiden. Der Mehrwert von `~>` ist rein vorbereitend/dokumentarisch:
 
 - **Migrationsdisziplin**: zwingt dazu, für die 31 bekannt unreinen Funktionen (`log`, `currentDate`,
   I/O) eine bewusste, positive Aussage zu treffen, statt sie unter „keine Aussage" verschwinden zu
@@ -210,16 +210,13 @@ sind „nicht beweisbar pure", keiner der beiden Algorithmen muss zwischen „be
   ansetzen zu können statt jede core-lib-Funktion neu zu bewerten.
 - **Lesbarkeit** für Menschen, die core-lib lesen.
 
-Entscheidung noch offen: vier Symbole jetzt (mit `~>` für die spätere Trennschärfe), oder erstmal nur
-drei (`:>`, `->`, `?>`) und `~>` erst einführen, wenn die Pure-Inference-Ausbaustufe die Unterscheidung
-tatsächlich braucht.
+**Entscheidung: vier Symbole.** `~>` bleibt eigenständig, trotz fehlendem algorithmischem Mehrwert in
+dieser Ausbaustufe — für die Klarheit der drei oben genannten Punkte.
 
-Verbleibende Migration (unabhängig von der offenen Frage oben, da beide Fälle dieselben Stellen
-betreffen — nur das Ziel-Symbol für die 31 unreinen Signaturen ändert sich): die 31 tatsächlich
-unreinen Signaturen auf `~>` (bzw. auf `:>`, falls obige Frage gegen ein eigenes Impure-Symbol
-entschieden wird), die 17 Callback-Positionen auf `?>`, alle anderen 49 pure-Signaturen auf `->`.
-Alle bestehenden `:>`-Vorkommen in Beispielen/Tests (72 Stück), die bislang gar keine Purity-Aussage
-trafen, bleiben unverändert `:>` und behaupten damit korrekt weiterhin nichts.
+Verbleibende Migration: die 31 tatsächlich unreinen Signaturen auf `~>`, die 17 Callback-Positionen
+auf `?>`, alle anderen 49 pure-Signaturen auf `->`. Alle bestehenden `:>`-Vorkommen in
+Beispielen/Tests (72 Stück), die bislang gar keine Purity-Aussage trafen, bleiben unverändert `:>`
+und behaupten damit korrekt weiterhin nichts.
 
 ### Bedingte Purity bei Funktionen höherer Ordnung (`?>`)
 
