@@ -108,8 +108,11 @@ auf `typeToString` aufbauen.
 
 ## Zu entscheiden, bevor Option B umsetzbar ist
 
-Vier Fragen, die die Empfehlung offen lässt. Reihenfolge der Beantwortung: 2 → 1 → 4 → 3, weil
-Frage 2 den Umfang der beiden folgenden bestimmt.
+Drei Fragen, die die Empfehlung offen lässt. Reihenfolge der Beantwortung: 2 → 1 → 4, weil Frage 2
+den Umfang der beiden folgenden bestimmt. (Ursprünglich vier Fragen mit eigener Frage 3 „Welches
+Symbol?" — die ist in Frage 2 aufgegangen, weil beide dieselbe Entscheidung trafen, sobald `:>`
+nicht mehr zur Debatte um pure/impure gehört: welche neuen Symbole es gibt und welche Bedeutung
+jedes trägt, ist eine einzige Frage.)
 
 **Zahlen, auf die sich der Migrationsumfang unten bezieht:** 81 `nativeFunction`-Aufrufe in
 core-lib mit 80 Bool-Argumenten (49 `true`, 31 `false`), davon 17 Parameter, deren Typ selbst ein
@@ -139,45 +142,81 @@ automatisch auch an Nutzerfunktionen — deren `pure` ist aber hart `false`.
 
 **Entscheidung: 1A, aber ohne dessen ursprüngliche Kosten.** Der Einwand gegen 1A war, dieselbe
 Schreibweise bedeute an zwei Stellen Verschiedenes. Das entfällt, weil `:>` nicht mehr die
-Purity-tragende Schreibweise ist (siehe Frage 2/3): `:>` bleibt an **jeder** Stelle — Literal wie
+Purity-tragende Schreibweise ist (siehe Frage 2): `:>` bleibt an **jeder** Stelle — Literal wie
 Typ — „keine Aussage über Purity", überall dieselbe Bedeutung. Die Purity-tragenden Pfeile
 (`->`/`~>`/`?>`) bleiben vorerst reserviertes Vokabular für `functionTypeLiteral`-Deklarationen in
 core-lib (`nativeFunction`); an einem `functionLiteral` mit Rumpf ergäben sie mangels Inferenz ohnehin
 eine ungeprüfte Behauptung. Ob sie später dort erlaubt werden (das wäre dann 1B), ist eine Frage der
 Pure-Inference-Ausbaustufe, nicht dieser.
 
-### Frage 2: Welcher Pfeil trägt welche Aussage?
+### Frage 2: Welche Symbole, welche Bedeutung?
 
-- **2A — `:>` = pure, `~>` = impure.** *Migration:* die 31 als `false` notierten Signaturen **plus
-  alle 17 Callback-Parameterpositionen** nach `~>`. Letztere zwingend: eine Position, die einen
-  reinen Callback fordert, kann heute von keinem Nutzercode bedient werden (`functionLiteral` ist
-  immer impure). Dazu behaupten je nach Frage 1 alle 72 `:>`-Vorkommen in Beispielen und Tests
-  ungewollt „pure".
-- **2B — `:>` bleibt die unmarkierte Form, `~>` markiert pure.** *Migration:* nur die 49 reinen
-  Signaturen. Callback-Positionen, Beispiele, Tests, Grammatik-Regel für `:>` bleiben unberührt.
-  *Zu klären:* bedeutet die unmarkierte Form „unrein" oder „keine Aussage"? Zwei Bedeutungen in
-  einem Symbol wäre dieselbe Lücke, die dieses Dokument gerade schließen will. Sauber ist
-  „unmarkiert = unrein", weil das die schwächere und damit sichere Zusage ist.
+Ursprünglich als Frage gerahmt, welche Bedeutung die beiden damals einzigen Kandidaten (`:>` und ein
+neues Symbol) bekommen:
 
-**Entscheidung: 2A dem Grundsatz nach, aber mit eigenem Pfeil statt Wiederverwendung von `:>`.**
-Der ursprüngliche Einwand gegen 2A — die 17 Callback-Parameterpositionen müssten pauschal auf `~>`,
-obwohl kein Nutzercode dort einen pure-Callback liefern kann — entfällt mit dem dritten Pfeil `?>`
-(siehe [Bedingte Purity bei Funktionen höherer Ordnung](#bedingte-purity-bei-funktionen-höherer-ordnung-)
+- **A — `:>` = pure, neues Symbol (`~>`) = impure.** *Migration:* die 31 als `false` notierten
+  Signaturen **plus alle 17 Callback-Parameterpositionen** nach `~>`. Letztere zwingend: eine
+  Position, die einen reinen Callback fordert, kann heute von keinem Nutzercode bedient werden
+  (`functionLiteral` ist immer impure). Dazu behaupten je nach Frage 1 alle 72 `:>`-Vorkommen in
+  Beispielen und Tests ungewollt „pure".
+- **B — `:>` bleibt die unmarkierte Form, neues Symbol markiert pure.** *Migration:* nur die 49
+  reinen Signaturen. Callback-Positionen, Beispiele, Tests, Grammatik-Regel für `:>` bleiben
+  unberührt. *Zu klären:* bedeutet die unmarkierte Form „unrein" oder „keine Aussage"? Zwei
+  Bedeutungen in einem Symbol wäre dieselbe Lücke, die dieses Dokument gerade schließen will.
+
+**Entscheidung: keine von beiden — `:>` wird gar nicht als Purity-Träger wiederverwendet.** Der
+Einwand gegen A (17 Callback-Parameterpositionen müssten pauschal auf `~>`, obwohl kein Nutzercode
+dort einen pure-Callback liefern kann) entfällt mit einem eigenen dritten Pfeil `?>` (siehe
+[Bedingte Purity bei Funktionen höherer Ordnung](#bedingte-purity-bei-funktionen-höherer-ordnung-)
 unten): Callback-Positionen wie in `map` bekommen `?>` und akzeptieren damit von sich aus sowohl pure
-als auch impure Argumente, ohne auf Frage 4 (Subtyping) zu warten.
+als auch impure Argumente, ohne auf Frage 4 (Subtyping) zu warten. `:>` selbst bleibt eigenständig
+„keine Aussage über Purity" (siehe Entscheidung zu Frage 1) — Migrationskosten für einen komplett
+neuen Pfeil sind laut Nutzer vernachlässigbar, die Sprache ist noch in Entwicklung.
 
-`:>` selbst wird dabei **nicht** zum pure-Pfeil umgewidmet, sondern bleibt eigenständig „keine
-Aussage über Purity" (siehe Entscheidung zu Frage 1). Pure bekommt stattdessen ein neues Symbol,
-Platzhalter `->` (siehe Frage 3) — Migrationskosten sind laut Nutzer vernachlässigbar, die Sprache
-ist noch in Entwicklung. Damit gilt:
+Favorisierte Symbole: eine harmonische Familie mit dem bereits bestehenden `functionToken` `=>` —
+`=>` (Lambda-Rumpf), `->` (pure), `~>` (impure), `?>` (bedingt). Alle vier nach demselben Muster
+gebaut: ein einzelnes, sonst unbelegtes Zeichen plus `>`. Das vermeidet, was `:>` heute tut — den
+Doppelpunkt wiederzuverwenden, der in JUL bereits eine andere Bedeutung trägt (`(a: Integer)`,
+`[a: Integer]`). `:>` bleibt daneben bestehen, aber außerhalb dieser Familie — kein Widerspruch,
+weil es keine Purity-Aussage macht und daher nicht zur Pfeil-Familie gehören muss. Damit gilt:
 
 - `:>` — keine Aussage (Status quo, bleibt an allen heutigen Stellen unverändert)
 - `->` — pure
 - `~>` — impure
 - `?>` — abhängig vom Callback-Parameter
 
-Verbleibende Migration: die 31 tatsächlich unreinen Signaturen auf `~>` (bzw. auf `:>`, falls die
-[offene Frage zum Mehrwert von `~>`](#frage-3-welches-symbol) gegen ein eigenes Impure-Symbol
+Zu `->`: kein Kollisionsrisiko mit einem Subtraktions-Operator, da JUL keinen eigenen
+Subtraktions-Token hat (arithmetische Operationen laufen über Funktionen wie `add`). Zu prüfen bleibt
+trotzdem die Tokenisierungsreihenfolge: der bestehende Pfeil-Token ist `' :> '` **inklusive
+umgebender Leerzeichen** ([parser.ts:259](../src/parser/parser.ts#L259)), `=>` ist der
+`functionToken`. Ein Symbol, das mit `=>` beginnt oder endet, verlangt Blick auf die Reihenfolge der
+`discriminatedChoiceParser`-Zweige — betrifft hier keinen der vier Kandidaten direkt, aber die
+Abgrenzung zu `=>` selbst (z. B. `?=>` wäre riskant, `?>` nicht) ist bei der Umsetzung zu verifizieren.
+
+Alternativvorschlag aus einer früheren Notiz: `!=>` statt `~>`
+([syntax-tree.ts:379](../src/syntax-tree.ts#L379)) — passt schlechter in die Familie (zwei
+Sonderzeichen statt eines), daher nachrangig.
+
+**Offen: Mehrwert eines eigenen Impure-Symbols gegenüber „keine Aussage".** Für die Konsumenten
+dieser Ausbaustufe (Constant Folding, `?>`-Auflösung) verhalten sich `~>` und `:>` identisch — beide
+sind „nicht beweisbar pure", keiner der beiden Algorithmen muss zwischen „bekannt unrein" und
+„unklassifiziert" unterscheiden. Der Mehrwert von `~>` ist heute rein vorbereitend/dokumentarisch:
+
+- **Migrationsdisziplin**: zwingt dazu, für die 31 bekannt unreinen Funktionen (`log`, `currentDate`,
+  I/O) eine bewusste, positive Aussage zu treffen, statt sie unter „keine Aussage" verschwinden zu
+  lassen.
+- **Ground Truth für die spätere Pure-Inference-Ausbaustufe**: sie bräuchte einen Unterschied
+  zwischen „fixer Sink, nie pure" (`~>`) und „unklassifiziert, bitte prüfen" (`:>`), um gezielt
+  ansetzen zu können statt jede core-lib-Funktion neu zu bewerten.
+- **Lesbarkeit** für Menschen, die core-lib lesen.
+
+Entscheidung noch offen: vier Symbole jetzt (mit `~>` für die spätere Trennschärfe), oder erstmal nur
+drei (`:>`, `->`, `?>`) und `~>` erst einführen, wenn die Pure-Inference-Ausbaustufe die Unterscheidung
+tatsächlich braucht.
+
+Verbleibende Migration (unabhängig von der offenen Frage oben, da beide Fälle dieselben Stellen
+betreffen — nur das Ziel-Symbol für die 31 unreinen Signaturen ändert sich): die 31 tatsächlich
+unreinen Signaturen auf `~>` (bzw. auf `:>`, falls obige Frage gegen ein eigenes Impure-Symbol
 entschieden wird), die 17 Callback-Positionen auf `?>`, alle anderen 49 pure-Signaturen auf `->`.
 Alle bestehenden `:>`-Vorkommen in Beispielen/Tests (72 Stück), die bislang gar keine Purity-Aussage
 trafen, bleiben unverändert `:>` und behaupten damit korrekt weiterhin nichts.
@@ -191,8 +230,8 @@ rekursiver Nutzercode, siehe Ausblick unten). Weder `:>` noch `~>` passen auf di
 Vorbild ist Swifts `rethrows`: eine Funktion, die nur dann wirft, wenn der übergebene Closure-Parameter
 wirft — hier auf pure/impure statt throws/no-throws übertragen.
 
-**Mechanik:** ein dritter Pfeil, Platzhalter `?>` (Glyphe weiterhin offen, siehe Frage 3 — jetzt für
-drei statt zwei Symbole zu klären), steht an **zwei** Stellen derselben Deklaration:
+**Mechanik:** ein dritter Pfeil, Platzhalter `?>` (siehe Frage 2 für die favorisierte Symbolfamilie),
+steht an **zwei** Stellen derselben Deklaration:
 
 ```
 map: (callback: (value: X) ?> Y, list: List(X)) ?> List(Y)
@@ -231,45 +270,6 @@ doch in dieser Ausbaustufe lösen — ohne die schwerere Pure-Inference-Maschine
 Rekursion), die nur für rekursiven Nutzercode gebraucht wird. Vorgehen und Scope-Liste unten sind
 entsprechend noch anzupassen (eigener Schritt für `?>` nach Schritt 5, eigene Tests analog Schritt 11).
 
-### Frage 3: Welches Symbol?
-
-Favorisiert: eine harmonische Familie mit dem bereits bestehenden `functionToken` `=>` —
-`=>` (Lambda-Rumpf), `->` (pure), `~>` (impure), `?>` (bedingt). Alle vier nach demselben Muster
-gebaut: ein einzelnes, sonst unbelegtes Zeichen plus `>`. Das vermeidet, was `:>` heute tut — den
-Doppelpunkt wiederzuverwenden, der in JUL bereits eine andere Bedeutung trägt
-(`(a: Integer)`, `[a: Integer]`). `:>` bleibt daneben bestehen, aber außerhalb dieser Familie, als
-eigenständiges Symbol für „keine Aussage" (siehe Frage 1/2) — kein Widerspruch, weil es keine
-Purity-Aussage macht und daher nicht zur Pfeil-Familie gehören muss.
-
-Zu `->`: kein Kollisionsrisiko mit einem Subtraktions-Operator, da JUL keinen eigenen
-Subtraktions-Token hat (arithmetische Operationen laufen über Funktionen wie `add`). Zu prüfen bleibt
-trotzdem die Tokenisierungsreihenfolge: der bestehende Pfeil-Token ist `' :> '` **inklusive
-umgebender Leerzeichen** ([parser.ts:259](../src/parser/parser.ts#L259)), `=>` ist der
-`functionToken`. Ein Symbol, das mit `=>` beginnt oder endet, verlangt Blick auf die Reihenfolge der
-`discriminatedChoiceParser`-Zweige — betrifft hier keinen der vier Kandidaten direkt, aber die
-Abgrenzung zu `=>` selbst (z. B. `?=>` wäre riskant, `?>` nicht) ist bei der Umsetzung zu verifizieren.
-
-Alternativvorschlag aus einer früheren Notiz: `!=>` statt `~>`
-([syntax-tree.ts:379](../src/syntax-tree.ts#L379)) — passt schlechter in die Familie (zwei
-Sonderzeichen statt eines), daher nachrangig.
-
-**Offen: Mehrwert eines eigenen Impure-Symbols gegenüber „keine Aussage".** Für die Konsumenten
-dieser Ausbaustufe (Constant Folding, `?>`-Auflösung) verhalten sich `~>` und `:>` identisch — beide
-sind „nicht beweisbar pure", keiner der beiden Algorithmen muss zwischen „bekannt unrein" und
-„unklassifiziert" unterscheiden. Der Mehrwert von `~>` ist heute rein vorbereitend/dokumentarisch:
-
-- **Migrationsdisziplin**: zwingt dazu, für die 31 bekannt unreinen Funktionen (`log`, `currentDate`,
-  I/O) eine bewusste, positive Aussage zu treffen, statt sie unter „keine Aussage" verschwinden zu
-  lassen.
-- **Ground Truth für die spätere Pure-Inference-Ausbaustufe**: sie bräuchte einen Unterschied
-  zwischen „fixer Sink, nie pure" (`~>`) und „unklassifiziert, bitte prüfen" (`:>`), um gezielt
-  ansetzen zu können statt jede core-lib-Funktion neu zu bewerten.
-- **Lesbarkeit** für Menschen, die core-lib lesen.
-
-Entscheidung noch offen: vier Symbole jetzt (mit `~>` für die spätere Trennschärfe), oder erstmal nur
-drei (`:>`, `->`, `?>`) und `~>` erst einführen, wenn die Pure-Inference-Ausbaustufe die Unterscheidung
-tatsächlich braucht.
-
 ### Frage 4: Wird Purity Teil der Zuweisbarkeit?
 
 - **4A — Nein (Status quo).** `pure` bleibt Anzeige und Faltungsbedingung. *Kosten:* eine
@@ -281,6 +281,17 @@ tatsächlich braucht.
   alle Callback-Positionen — tragbar nur zusammen mit 2B.
 - **4C — Ja, als Gleichheit.** Bricht sofort (heute ist deklariert ≠ inferiert) und ist zu streng:
   eine reine Funktion muss an einer unreinen Position zulässig sein.
+
+**Entscheidung: 4A, für diese Ausbaustufe.** Der einzige Konsument hier ist Constant Folding, und der
+braucht keine Durchsetzung, nur eine Auskunft: „ist dieser konkrete Aufruf beweisbar pure" entscheidet
+lediglich falten/nicht falten, lehnt aber nie einen Aufruf ab. `?>` ist bereits so gebaut, dass es an
+der Callback-Position **jede** Funktion akzeptiert, pure oder nicht (siehe oben) — eine echte
+`->`-Anforderung mit Zurückweisung (4B) wird dafür nicht gebraucht.
+
+Eine `->`-Pflicht hätte zudem einen realen Ergonomie-Preis: Debug-`log`-Aufrufe in `predicate`,
+`getKey` oder einer Vergleichsfunktion wären dann nicht mehr kompilierbar, sobald diese Position
+`->` statt `?>`/`~>` verlangt. Das spricht dafür, 4B — falls überhaupt — nur gezielt und opt-in
+einzuführen, nicht pauschal (siehe Ausblick).
 
 Unabhängig von der Wahl mitzuentscheiden: bleibt `first.pure === second.pure` in `typeEquals`
 ([checker.ts:4083](../src/checker/checker.ts#L4083)) so stehen? Bei 4A wird die Ungleichheit nach
@@ -399,3 +410,30 @@ Funktionen höherer Ordnung: ohne Purity-Polymorphismus in der Signatur muss die
 &c. an der konkreten Aufrufstelle aus dem übergebenen Callback abgeleitet werden, nicht generisch aus
 der Deklaration selbst (siehe Diskussion zu Koka-artigem Effekt-Polymorphismus vs. lokaler
 Call-Site-Auflösung).
+
+### Ausblick: echte Durchsetzung (Frage 4 = 4B), nicht Teil dieser oder der nächsten Ausbaustufe
+
+Für diese Ausbaustufe entschieden gegen Durchsetzung (siehe Entscheidung zu Frage 4): Constant
+Folding braucht nur eine Auskunft „beweisbar pure ja/nein", keine Zurückweisung nicht-pure Argumente.
+Denkbare spätere Konsumenten, für die eine echte `->`-Anforderung (4B) einen Mehrwert hätte, der über
+Auskunft hinausgeht:
+
+- **Ein künftiges `memoize`**: Caching ist falsch, wenn die gecachte Funktion nicht bei gleichen
+  Argumenten immer dasselbe liefert — hier wäre Durchsetzung, nicht nur Anzeige, der Punkt.
+- **Vergleichsfunktionen bei Sortierung**: eine unreine Compare-Funktion kann eine in sich
+  widersprüchliche Ordnung liefern und damit die Algorithmus-Invariante brechen, nicht nur das
+  Ergebnis überraschen.
+- **`getKey`/`getValue` bei Gruppierung/Dictionary-Aufbau**: das Ergebnis ist nur wohldefiniert, wenn
+  gleiche Eingaben immer derselben Zuordnung entsprechen.
+- **`predicate` bei Funktionen mit Kurzschluss-Semantik** (`some`, `every`, `find`): wie oft und in
+  welcher Reihenfolge das Prädikat aufgerufen wird, ist Implementierungsdetail — ein unreines
+  Prädikat macht beobachtbares Verhalten von genau diesem Detail abhängig.
+- **Künftige Parallelisierung von `map`/`filter`**: Reihenfolge-/Zeitpunkt-Unabhängigkeit der
+  Callbacks wäre Voraussetzung für Korrektheit bei nebenläufiger Ausführung.
+
+**Ausdrücklicher Gegeneinwand, der vor einer Einführung berücksichtigt werden muss:** eine `->`-Pflicht
+an diesen Positionen verbietet auch das gängige Debugging-Pattern, testweise `log` in `predicate`,
+`getKey` oder eine Vergleichsfunktion einzusetzen. Eine pauschale Durchsetzung an all diesen Stellen
+hätte also einen realen Ergonomie-Preis. Falls 4B je verfolgt wird, eher gezielt/opt-in an einzelnen,
+sorgfältig ausgewählten Stellen (z. B. nur `memoize`) statt als allgemeine Regel für alle
+Callback-Parameter.
