@@ -1,5 +1,5 @@
 -pure function und constand fold
-	-\docs\pure-functions.md
+	-C:\Projects\privat\JUL\jul-compiler\docs\pure-functions.md
 -conditional types
 -unit testing konzept für jul
 	?eigene lib oder bestehende js libs verwendbar machen
