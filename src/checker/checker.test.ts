@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 
-import { ParseExpression, ParseFunctionLiteral, ParseSingleDefinition } from '../syntax-tree.js';
+import { forEachChild, ParseExpression, ParseFunctionCall, ParseFunctionLiteral, ParseSingleDefinition, PositionedExpression, Purity } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
-import { resolvePlaceholders, typeToString } from './checker.js';
+import { builtInSymbols, getCallPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
 const expectedResults: {
 	name?: string;
@@ -952,7 +952,6 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 			name: 'prefix-argument-resolves-to-declared-type-in-generic-return',
 			code: `first = nativeFunction(
 	(values: List(Any)) :> TypeOf(values)/ElementType
-	true
 	§js values => values[0]§
 )
 g = (n: Integer) => n
@@ -962,9 +961,9 @@ f = (values: List(Text)) =>
 				{
 					code: ErrorCode.argumentTypeMismatch,
 					message: 'Argument type mismatch.\nInvalid value for parameter \'n\'\n  Can not assign Text to Integer.',
-					startRowIndex: 7,
+					startRowIndex: 6,
 					startColumnIndex: 3,
-					endRowIndex: 7,
+					endRowIndex: 6,
 					endColumnIndex: 17,
 				},
 			],
@@ -3045,5 +3044,87 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		const parsed = parseFile(coreLibPath);
 		checkTypes(parsed, {});
 		expect(parsed.checked!.errors).to.deep.equal([]);
+	});
+	// Belegt den Befund aus pure-functions-umsetzung.md Schritt 2: heute trägt jede core-lib-
+	// Funktion pure: true, weil functionTypeLiteral das hart setzt (checker.ts:2702) - auch log
+	// und currentDate, die offensichtlich nicht pure sind. Bleibt rot bis Schritt 6 (core-lib-
+	// Migration auf die neuen Pfeile), das ist beabsichtigt.
+	function purityOf(name: string): Purity | undefined {
+		const type = builtInSymbols[name]?.typeInfo?.type;
+		return type && isFunctionType(type) ? type.purity : undefined;
+	}
+
+	it('core-lib: log und currentDate sind nicht pure', () => {
+		expect(purityOf('log')).to.equal('impure');
+		expect(purityOf('currentDate')).to.equal('impure');
+		expect(purityOf('add')).to.equal('pure');
+	});
+	// Zusicherung nach Entscheidung 1B (pure-functions.md): der Pfeil ist eine Zusicherung, kein
+	// Beweis - -> gilt, ohne dass der Rumpf geprüft wird.
+	function purityOfDefinition(code: string, name: string): Purity | undefined {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const type = parsed.checked?.expressions
+			?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === name)
+			?.value?.typeInfo?.type;
+		return type && isFunctionType(type) ? type.purity : undefined;
+	}
+
+	it('-> ist eine ungeprüfte Zusicherung am Literal', () => {
+		expect(purityOfDefinition('f = (a: Integer) -> Integer => a', 'f')).to.equal('pure');
+	});
+	it(':> am Literal mit Rumpf bleibt unknown', () => {
+		expect(purityOfDefinition('f = (a: Integer) :> Integer => a', 'f')).to.equal('unknown');
+	});
+	it('Funktion ohne Pfeil ist unknown', () => {
+		expect(purityOfDefinition('f = (a) => a', 'f')).to.equal('unknown');
+	});
+	// Schritt 7: die Argument-Regel hat in dieser Hälfte noch keinen Konsumenten (der kommt erst
+	// mit dem Constant Folding) - getCallPurity wird deshalb direkt getestet, an einem
+	// functionCall-Knoten, den letzten im Code, statt über einen sichtbaren Effekt.
+	function callPurityOf(code: string): Purity | undefined {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		function findLastCall(expression: PositionedExpression): ParseFunctionCall | undefined {
+			return forEachChild(expression, findLastCall)
+				?? (expression.type === 'functionCall' ? expression : undefined);
+		}
+		let lastCall: ParseFunctionCall | undefined;
+		parsed.checked?.expressions?.forEach(expression => {
+			lastCall = findLastCall(expression) ?? lastCall;
+		});
+		const functionType = lastCall?.functionExpression?.typeInfo?.type;
+		const argsType = lastCall?.arguments?.typeInfo?.type;
+		if (!functionType || !isFunctionType(functionType) || !argsType) {
+			return undefined;
+		}
+		return getCallPurity(functionType, argsType);
+	}
+
+	it('map(add ...) ist pure', () => {
+		expect(callPurityOf('map([1 2] add)')).to.equal('pure');
+	});
+	it('map(log ...) ist impure', () => {
+		expect(callPurityOf('map([1 2] log)')).to.equal('impure');
+	});
+	it('map(myFn ...) mit unknown Callback ist impure (konservativ)', () => {
+		expect(callPurityOf(`someFn = () ~> Any => log()
+myFn = () :> Any => someFn()
+map([1 2] myFn)`)).to.equal('impure');
+	});
+	it('toDictionary mit einem reinen und einem unreinen Callback ist impure', () => {
+		expect(callPurityOf(`toDictionary(
+	[§a§ §b§]
+	(value index) -> value
+	(value index) ~> log(value)
+)`)).to.equal('impure');
+	});
+	it('add(2 3) ist pure (keine Funktionsargumente)', () => {
+		expect(callPurityOf('add(2 3)')).to.equal('pure');
+	});
+	it('f = map, dann f(add ...) ist pure (die Regel arbeitet am Typ, nicht am Symbol)', () => {
+		expect(callPurityOf(`f = map
+f([1 2] add)`)).to.equal('pure');
 	});
 });

@@ -88,3 +88,5 @@
 2026-09-13 12:27:13	7046c1e+	-	ADV-DEV-56627	yugioh	parse+check	5	4046.44	4200.85	4200.85	nach: besuchsmengen gegen zyklische typvergleiche
 2026-09-13 12:36:33	e115c97+	-	ADV-DEV-56627	yugioh	parse+check	5	3828.26	4044.46	4044.46	nach: tiefenlimit als notbremse
 2026-09-13 13:22:29	a6856e4	-	ADV-DEV-56627	yugioh	parse+check	5	4176.43	4381.52	4381.52	nach: assertNever in hasReliableTypeError, valueOf und getTypeError-argumentsType
+2026-09-16 11:37:47	8509628	-	ADV-DEV-56627	yugioh	parse+check	5	3701.78	3864.23	3864.23	vor pure-functions Schritt 1-10
+2026-09-16 11:57:32	8509628+	-	ADV-DEV-56627	yugioh	parse+check	5	4090.96	4213.74	4213.74	nach pure-functions Schritt 1-10 (Pfeile, Purity im Typ)

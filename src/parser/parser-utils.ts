@@ -1,4 +1,4 @@
-import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
@@ -50,6 +50,7 @@ export function createParseFunctionLiteral(
 	body: ParseExpression[],
 	position: Positioned,
 	errors: CompilerError[],
+	arrow?: Purity,
 ): ParseFunctionLiteral {
 	const symbols: SymbolTable = {};
 	if (params.type === 'binding'
@@ -63,6 +64,7 @@ export function createParseFunctionLiteral(
 		returnType: returnType,
 		body: body,
 		symbols: symbols,
+		arrow: arrow,
 		...position,
 	};
 	return functionLiteral;

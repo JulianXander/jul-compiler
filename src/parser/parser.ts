@@ -46,6 +46,7 @@ import {
 	ParseValueExpression,
 	PositionedExpression,
 	ParseReference,
+	Purity,
 	SimpleExpression,
 	SymbolTable,
 	TextToken,
@@ -257,6 +258,18 @@ const definitionTokenParser = tokenParser(' = ');
 const functionTokenParser = tokenParser(' =>');
 const typeGuardTokenParser = tokenParser(': ');
 const returnTypeTokenParser = tokenParser(' :> ');
+const pureReturnTypeTokenParser = tokenParser(' -> ');
+const impureReturnTypeTokenParser = tokenParser(' ~> ');
+const anyReturnTypeTokenParser: Parser<undefined> = choiceParser(
+	returnTypeTokenParser,
+	pureReturnTypeTokenParser,
+	impureReturnTypeTokenParser,
+);
+const returnArrowParser: Parser<Purity> = discriminatedChoiceParser(
+	{ predicate: returnTypeTokenParser, parser: mapParser(returnTypeTokenParser, (): Purity => 'unknown') },
+	{ predicate: pureReturnTypeTokenParser, parser: mapParser(pureReturnTypeTokenParser, (): Purity => 'pure') },
+	{ predicate: impureReturnTypeTokenParser, parser: mapParser(impureReturnTypeTokenParser, (): Purity => 'impure') },
+);
 
 //#endregion Tokens
 
@@ -1034,7 +1047,7 @@ function valueExpressionBaseParser(
 			},
 			// FunctionTypeLiteral/FunctionLiteral mit ReturnType
 			{
-				predicate: returnTypeTokenParser,
+				predicate: anyReturnTypeTokenParser,
 				parser: functionTypeBodyParser,
 			},
 			// SimpleExpressionBase
@@ -1104,6 +1117,7 @@ function valueExpressionBaseParser(
 						endColumnIndex: result.endColumnIndex,
 					},
 					errors,
+					parsed2.arrow,
 				);
 				return {
 					hasParsed: true,
@@ -1124,6 +1138,7 @@ function valueExpressionBaseParser(
 				params: params,
 				returnType: returnType,
 				symbols: symbols,
+				arrow: parsed2.arrow,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
 				endRowIndex: result.endRowIndex,
@@ -1653,11 +1668,12 @@ function functionTypeBodyParser(
 	indent: number,
 ): ParserResult<{
 	type: 'functionTypeBody';
+	arrow: Purity;
 	returnTypeBase: SimpleExpression;
 	body?: ParseExpression[];
 }> {
 	const result = sequenceParser(
-		returnTypeTokenParser,
+		returnArrowParser,
 		simpleExpressionBaseParser,
 		discriminatedChoiceParser(
 			// FunctionLiteral mit ReturnType
@@ -1676,6 +1692,7 @@ function functionTypeBodyParser(
 		...result,
 		parsed: result.parsed && {
 			type: 'functionTypeBody',
+			arrow: result.parsed[0],
 			returnTypeBase: result.parsed[1],
 			body: result.parsed[2]?.body,
 		},

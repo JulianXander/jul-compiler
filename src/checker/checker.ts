@@ -51,6 +51,7 @@ import {
 	ParseValueExpression,
 	ParseReference,
 	PredicateFacts,
+	Purity,
 	SimpleExpression,
 	SymbolDefinition,
 	SymbolTable,
@@ -238,7 +239,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 				type: builtinType,
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeListType(parameterReference)),
-			true,
+			'pure',
 		);
 		parameterReference.functionRef = functionType;
 		return functionType;
@@ -251,7 +252,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 				type: builtinType,
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeDictionaryType(parameterReference)),
-			true,
+			'pure',
 		);
 		parameterReference.functionRef = functionType;
 		return functionType;
@@ -264,7 +265,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 				type: builtinType,
 			}]),
 			createCompileTimeTypeOfType(createCompileTimeStreamType(parameterReference)),
-			true,
+			'pure',
 		);
 		parameterReference.functionRef = functionType;
 		return functionType;
@@ -279,16 +280,12 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 					type: builtinType,
 				},
 				{
-					name: 'pure',
-					type: builtinBoolean,
-				},
-				{
 					name: 'js',
 					type: builtinText,
 				},
 			]),
 			parameterReference,
-			false,
+			'impure',
 		);
 		parameterReference.functionRef = functionType;
 		return functionType;
@@ -301,7 +298,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 			},
 		]),
 		builtinAny,
-		false,
+		'impure',
 	),
 };
 
@@ -415,7 +412,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 }
 
 export function getStreamGetValueType(streamType: CompileTimeStreamType): CompileTimeFunctionType {
-	return createCompileTimeFunctionType(builtinEmpty, streamType.ValueType, false);
+	return createCompileTimeFunctionType(builtinEmpty, streamType.ValueType, 'impure');
 }
 
 /**
@@ -1036,7 +1033,7 @@ function dereferenceCallbackParams(
 		const dereferencedCallbackType = createCompileTimeFunctionType(
 			createParametersType(dereferencedCallbackParams, callbackParamsType.rest),
 			parameterType.ReturnType,
-			parameterType.pure,
+			parameterType.purity,
 			parameterType.aliasName,
 		);
 		dereferencedCallbackType.predicate = parameterType.predicate;
@@ -1232,7 +1229,7 @@ function traversePlaceholders(
 				&& dereferencedReturnType === rawType.ReturnType) {
 				return rawType;
 			}
-			const dereferencedType = createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.pure, rawType.aliasName);
+			const dereferencedType = createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.purity, rawType.aliasName);
 			// Die Prädikat-Fakten beschreiben den Wert, nicht die Platzhalter darin - sie gehen
 			// beim Neubau sonst still verloren.
 			dereferencedType.predicate = rawType.predicate;
@@ -2587,8 +2584,7 @@ function inferType(
 			const functionType = createCompileTimeFunctionType(
 				builtinEmpty,
 				builtinEmpty,
-				// TODO pure, wenn der body pure ist
-				false,
+				expression.arrow ?? 'unknown',
 			);
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, functionType, functionScopes);
@@ -2702,7 +2698,7 @@ function inferType(
 			const functionType = createCompileTimeFunctionType(
 				builtinEmpty,
 				builtinEmpty,
-				true,
+				expression.arrow ?? 'unknown',
 			);
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, functionType, functionScopes);
@@ -4135,6 +4131,37 @@ function isLiteralType(type: ResolvedType): boolean {
 	}
 }
 
+// 'unknown' und 'impure' fallen zusammen, weil kein Algorithmus sie unterscheidet - sonst
+// bekäme createNormalizedUnionType eine zweite künstliche Trennung.
+function effectivePurity(purity: Purity): 'pure' | 'notPure' {
+	return purity === 'pure' ? 'pure' : 'notPure';
+}
+
+/**
+ * Ob ein konkreter Aufruf von functionType mit argsType beweisbar rein ist (pure-functions-
+ * umsetzung.md, Schritt 7): die aufgerufene Funktion muss 'pure' sein, und jedes Argument, dessen
+ * Typ direkt ein Funktionstyp ist, muss seinerseits 'pure' sein. Alles andere ist 'impure'.
+ * Kein Fixpunkt, kein neuer Zustand im Typ - das Ergebnis gilt nur für diese eine Aufrufstelle.
+ * Betrachtet werden nur Argumente, deren Typ direkt ein Funktionstyp ist; Funktionen in einem
+ * Datenargument (f([cb = log])) erfasst die Regel nicht.
+ */
+export function getCallPurity(functionType: CompileTimeFunctionType, argsType: CompileTimeType): Purity {
+	if (functionType.purity !== 'pure') {
+		return 'impure';
+	}
+	const resolvedArgsType = resolveAlias(argsType);
+	const argTypes = isTupleType(resolvedArgsType)
+		? resolvedArgsType.ElementTypes
+		: isDictionaryLiteralType(resolvedArgsType)
+			? Object.values(resolvedArgsType.Fields)
+			: [];
+	const allFunctionArgsPure = argTypes.every(argType => {
+		const resolvedArgType = resolveAlias(argType);
+		return !isFunctionType(resolvedArgType) || resolvedArgType.purity === 'pure';
+	});
+	return allFunctionArgsPure ? 'pure' : 'impure';
+}
+
 function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 	if (first === second) {
 		return true;
@@ -4218,7 +4245,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 			return second.julType === 'function'
 				&& typeEquals(first.ParamsType, second.ParamsType)
 				&& typeEquals(first.ReturnType, second.ReturnType)
-				&& first.pure === second.pure;
+				&& effectivePurity(first.purity) === effectivePurity(second.purity);
 		case 'withElementAt':
 			return second.julType === 'withElementAt'
 				&& typeEquals(first.Source, second.Source)
@@ -5771,7 +5798,12 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'function': {
 			const paramsString = typeToString(type.ParamsType, indent, depth + 1, suppressAlias);
 			const returnString = typeToString(type.ReturnType, indent, depth + 1, suppressAlias);
-			return `${paramsString} :> ${returnString}`;
+			const arrow = type.purity === 'pure'
+				? '->'
+				: type.purity === 'impure'
+					? '~>'
+					: ':>';
+			return `${paramsString} ${arrow} ${returnString}`;
 		}
 		case 'greater':
 			return `Greater(${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
@@ -6046,7 +6078,7 @@ function checkIsFunction(
 	message: string,
 	errors: CompilerError[],
 ): boolean {
-	const anyFunctionType = createCompileTimeFunctionType(builtinAny, builtinAny, false);
+	const anyFunctionType = createCompileTimeFunctionType(builtinAny, builtinAny, 'unknown');
 	const nonFunctionError = areArgsAssignableTo(undefined, resolvePlaceholders(expression.typeInfo!.type), anyFunctionType);
 	if (nonFunctionError) {
 		errors.push({

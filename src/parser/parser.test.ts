@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { forEachChild, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField, PositionedExpression } from '../syntax-tree.js';
+import { forEachChild, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField, PositionedExpression } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
 
@@ -44,6 +44,31 @@ const expectedResults: {
 		{
 			name: 'function-type-literal',
 			code: '(delayMs: Float) :> Stream(Float)',
+		},
+		{
+			name: 'function-type-literal-pure',
+			code: '(a: Integer) -> Integer',
+		},
+		{
+			name: 'function-type-literal-impure',
+			code: '(a: Integer) ~> Integer',
+		},
+		{
+			name: 'function-literal-pure-arrow',
+			code: '(a: Integer) -> Integer => a',
+		},
+		{
+			name: 'function-literal-impure-arrow',
+			code: '(a: Integer) ~> Integer => a',
+		},
+		{
+			name: 'function-type-literal-in-params',
+			code: '(callback: (v: Integer) -> Integer) :> Integer',
+		},
+		{
+			name: 'function-type-literal-unknown',
+			// Regression: der bestehende :> Zweig bleibt unverändert erreichbar.
+			code: '(a: Integer) :> Integer',
 		},
 		{
 			name: 'definition-with-function-type-guard',
@@ -440,6 +465,7 @@ const expectedResults: {
 			code: '() :> [] => []',
 			result: (() => {
 				const functionLiteral: ParseFunctionLiteral = {
+					"arrow": "unknown",
 					"body": [
 						{
 							"endColumnIndex": 14,
@@ -791,5 +817,30 @@ describe('Parser', () => {
 			current = current.parent;
 		}
 		expect(top).to.equal(definition);
+	});
+	// Belegt, dass die Pfeil-Art tatsächlich am Knoten ankommt - die Fälle ohne result oben
+	// prüfen nur fehlerfreies Parsen, nicht den Inhalt.
+	it('arrow landet an functionTypeLiteral und functionLiteral', () => {
+		const functionType = parseCode('(a: Integer) -> Integer', 'dummy.jul')
+			.unchecked.expressions![0] as ParseFunctionTypeLiteral;
+		expect(functionType.type).to.equal('functionTypeLiteral');
+		expect(functionType.arrow).to.equal('pure');
+
+		const impureFunctionType = parseCode('(a: Integer) ~> Integer', 'dummy.jul')
+			.unchecked.expressions![0] as ParseFunctionTypeLiteral;
+		expect(impureFunctionType.arrow).to.equal('impure');
+
+		const unknownFunctionType = parseCode('(a: Integer) :> Integer', 'dummy.jul')
+			.unchecked.expressions![0] as ParseFunctionTypeLiteral;
+		expect(unknownFunctionType.arrow).to.equal('unknown');
+
+		const functionLiteral = parseCode('(a: Integer) -> Integer => a', 'dummy.jul')
+			.unchecked.expressions![0] as ParseFunctionLiteral;
+		expect(functionLiteral.type).to.equal('functionLiteral');
+		expect(functionLiteral.arrow).to.equal('pure');
+
+		const functionLiteralWithoutArrow = parseCode('(a) => a', 'dummy.jul')
+			.unchecked.expressions![0] as ParseFunctionLiteral;
+		expect(functionLiteralWithoutArrow.arrow).to.equal(undefined);
 	});
 });

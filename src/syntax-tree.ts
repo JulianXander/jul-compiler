@@ -367,6 +367,12 @@ export interface ParseFunctionCall extends ParseExpressionBase {
 
 //#region FunctionLiteral
 
+/** Der geschriebene Pfeil bzw. die daraus folgende Purity-Aussage. */
+export type Purity =
+	| 'unknown'  // :>
+	| 'pure'     // ->
+	| 'impure';  // ~>
+
 export interface ParseFunctionLiteral extends ParseExpressionBase {
 	type: 'functionLiteral';
 	params: SimpleExpression | ParseParameterFields;
@@ -376,8 +382,11 @@ export interface ParseFunctionLiteral extends ParseExpressionBase {
 	 * Die Variablen aus den Parametern sowie dem body.
 	 */
 	symbols: SymbolTable;
-	// TODO impure functions mit !=> ?
-	// pure: boolean;
+	/**
+	 * Der geschriebene Pfeil. Fehlt bei Funktionen ohne Rückgabetyp ((a) => a)
+	 * und bei aus TypeScript importierten Funktionen.
+	 */
+	arrow?: Purity;
 }
 
 export interface ParseParameterFields extends ParseExpressionBase {
@@ -404,6 +413,7 @@ export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
 	params: SimpleExpression | ParseParameterFields;
 	returnType: ParseValueExpression;
 	symbols: SymbolTable;
+	arrow?: Purity;
 }
 
 //#endregion FunctionLiteral
@@ -925,7 +935,7 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	readonly julType: 'function';
 	ParamsType: CompileTimeType;
 	ReturnType: CompileTimeType;
-	pure: boolean;
+	purity: Purity;
 	predicate?: PredicateFacts;
 }
 
@@ -943,14 +953,14 @@ export interface PredicateFacts {
 export function createCompileTimeFunctionType(
 	ParamsType: CompileTimeType,
 	ReturnType: CompileTimeType,
-	pure: boolean,
+	purity: Purity,
 	aliasName?: string,
 ): CompileTimeFunctionType {
 	return {
 		julType: 'function',
 		ParamsType: ParamsType,
 		ReturnType: ReturnType,
-		pure: pure,
+		purity: purity,
 		aliasName: aliasName,
 		isUnresolvedPlaceholder: ParamsType.isUnresolvedPlaceholder || ReturnType.isUnresolvedPlaceholder,
 	};
