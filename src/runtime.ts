@@ -1612,6 +1612,33 @@ _createFunction(
 		]
 	}
 );
+function gcdBigInt(a: bigint, b: bigint): bigint {
+	while (b) {
+		[a, b] = [b, a % b];
+	}
+	return a;
+}
+
+/**
+ * Bringt einen Bruch auf die kleinste Darstellung (Vorzeichen im Zaehler, mit ggT gekuerzt).
+ * Nenner 1 wird zum Integer, denn Rational = Or(Integer Fraction) sieht keine eigene
+ * Darstellung fuer ganzzahlige Brueche vor.
+ */
+export function normalizeRational(numerator: bigint, denominator: bigint): RuntimeRational {
+	const sign = denominator < 0n ? -1n : 1n;
+	const signedNumerator = numerator * sign;
+	const signedDenominator = denominator * sign;
+	const divisor = gcdBigInt(signedNumerator < 0n ? -signedNumerator : signedNumerator, signedDenominator);
+	const reducedNumerator = divisor ? signedNumerator / divisor : signedNumerator;
+	const reducedDenominator = divisor ? signedDenominator / divisor : signedDenominator;
+	return reducedDenominator === 1n
+		? reducedNumerator
+		: {
+			numerator: reducedNumerator,
+			denominator: reducedDenominator,
+		};
+}
+
 export const multiply = (...args: RuntimeRational[]) =>
 	args.reduce(
 		(accumulator, current) => {
@@ -1620,25 +1647,17 @@ export const multiply = (...args: RuntimeRational[]) =>
 					return accumulator * current;
 				}
 				else {
-					return {
-						numerator: accumulator * current.numerator,
-						denominator: current.denominator,
-					};
+					return normalizeRational(accumulator * current.numerator, current.denominator);
 				}
 			}
 			else {
 				if (typeof current === 'bigint') {
-					return {
-						numerator: accumulator.numerator * current,
-						denominator: accumulator.denominator,
-					};
+					return normalizeRational(accumulator.numerator * current, accumulator.denominator);
 				}
 				else {
-					// TODO kleinstes gemeinsames Vielfaches, kürzen
-					return {
-						numerator: accumulator.numerator * current.numerator,
-						denominator: accumulator.denominator * current.denominator,
-					};
+					return normalizeRational(
+						accumulator.numerator * current.numerator,
+						accumulator.denominator * current.denominator);
 				}
 			}
 		},
@@ -1690,25 +1709,17 @@ export const subtract = (minuend: RuntimeRational, subtrahend: RuntimeRational):
 			return minuend - subtrahend;
 		}
 		else {
-			return {
-				numerator: minuend * subtrahend.denominator - subtrahend.numerator,
-				denominator: subtrahend.denominator,
-			};
+			return normalizeRational(minuend * subtrahend.denominator - subtrahend.numerator, subtrahend.denominator);
 		}
 	}
 	else {
 		if (typeof subtrahend === 'bigint') {
-			return {
-				numerator: minuend.numerator - subtrahend * minuend.denominator,
-				denominator: minuend.denominator,
-			};
+			return normalizeRational(minuend.numerator - subtrahend * minuend.denominator, minuend.denominator);
 		}
 		else {
-			// TODO kleinstes gemeinsames Vielfaches, kürzen
-			return {
-				numerator: minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
-				denominator: minuend.denominator * subtrahend.denominator,
-			};
+			return normalizeRational(
+				minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
+				minuend.denominator * subtrahend.denominator);
 		}
 	}
 };
@@ -1769,25 +1780,17 @@ export const add = (...args: RuntimeRational[]) =>
 					return accumulator + current;
 				}
 				else {
-					return {
-						numerator: accumulator * current.denominator + current.numerator,
-						denominator: current.denominator,
-					};
+					return normalizeRational(accumulator * current.denominator + current.numerator, current.denominator);
 				}
 			}
 			else {
 				if (typeof current === 'bigint') {
-					return {
-						numerator: accumulator.numerator + current * accumulator.denominator,
-						denominator: accumulator.denominator,
-					};
+					return normalizeRational(accumulator.numerator + current * accumulator.denominator, accumulator.denominator);
 				}
 				else {
-					// TODO kleinstes gemeinsames Vielfaches, kürzen
-					return {
-						numerator: accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
-						denominator: accumulator.denominator * current.denominator,
-					};
+					return normalizeRational(
+						accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
+						accumulator.denominator * current.denominator);
 				}
 			}
 		},

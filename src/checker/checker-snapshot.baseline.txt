@@ -161,7 +161,7 @@ testList1: [§aa§]
 testList2: [§aa§ 4]
 testList3: Empty
 testNonZeroInteger1: -2
-testNonZeroInteger2: [   numerator: 35   denominator: 10 ]
+testNonZeroInteger2: [   numerator: 7   denominator: 2 ]
 testNot1: true
 testNot2: false
 testOr1: 4

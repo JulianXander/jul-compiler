@@ -71,7 +71,7 @@ import {
 	setParentsRecursive,
 } from './parser-utils.js';
 import { basename, dirname, extname, join } from 'path';
-import { _parseJson } from '../runtime.js';
+import { _parseJson, normalizeRational } from '../runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
 import { existsSync } from 'fs';
@@ -1332,19 +1332,28 @@ function numberParser(
 	}
 	const decimalSeparatorIndex = parsed.indexOf('.');
 	if (decimalSeparatorIndex > 0) {
-		// TODO kürzen
 		const numberOfDecimalPlaces = (parsed.length - 1) - decimalSeparatorIndex;
+		const normalized = normalizeRational(BigInt(parsed.replace('.', '')), 10n ** BigInt(numberOfDecimalPlaces));
 		return {
 			...result,
-			parsed: {
-				type: 'fraction',
-				numerator: BigInt(parsed.replace('.', '')),
-				denominator: 10n ** BigInt(numberOfDecimalPlaces),
-				startRowIndex: startRowIndex,
-				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-			},
+			parsed: typeof normalized === 'bigint'
+				? {
+					type: 'integer',
+					value: normalized,
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+				}
+				: {
+					type: 'fraction',
+					numerator: normalized.numerator,
+					denominator: normalized.denominator,
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+				},
 		};
 	}
 	return {
