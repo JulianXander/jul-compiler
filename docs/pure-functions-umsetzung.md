@@ -44,11 +44,17 @@ Belegt den Befund aus dem „Stand": jede core-lib-Funktion trägt heute `pure: 
 ([checker.ts:2702](../src/checker/checker.ts#L2702)).
 
 Neuer Testfall in `src/checker/checker.test.ts`, der `builtInSymbols` befragt — er schlägt **vor**
-der Änderung fehl und dokumentiert damit, was repariert wird:
+der Änderung fehl und dokumentiert damit, was repariert wird. `builtInSymbols` ist exportiert
+([checker.ts:311](../src/checker/checker.ts#L311)) und jeder Eintrag ist eine
+[`SymbolDefinition`](../src/syntax-tree.ts#L32) mit `typeInfo`:
 
 ```ts
+function purityOf(name: string): Purity | undefined {
+	const type = builtInSymbols[name]?.typeInfo?.type;
+	return type && isFunctionType(type) ? type.purity : undefined;
+}
+
 it('core-lib: log und currentDate sind nicht pure', () => {
-	// builtInSymbols laden wie in den bestehenden core-lib-Tests
 	expect(purityOf('log')).to.equal('impure');
 	expect(purityOf('currentDate')).to.equal('impure');
 	expect(purityOf('add')).to.equal('pure');
@@ -103,6 +109,10 @@ const returnArrowParser: Parser<Purity> = discriminatedChoiceParser(
 Die Reihenfolge ist hier gleichgültig, weil sich die drei Tokens im zweiten Zeichen unterscheiden.
 Trotzdem beim Umsetzen verifizieren — `discriminatedChoiceParser` prüft nicht auf Eindeutigkeit.
 
+Kleinigkeit, die sonst als `string`-Typfehler auffällt: `() => 'unknown'` inferiert `string`, nicht
+den Literaltyp. Die Transformationen brauchen eine Annotation (`(): Purity => 'unknown'`), damit
+`discriminatedChoiceParser` als `Parser<Purity>` typisiert.
+
 ### 3c. `functionTypeBodyParser` gibt die Pfeil-Art weiter
 
 [parser.ts:1649](../src/parser/parser.ts#L1649): `returnTypeTokenParser` im `sequenceParser` durch
@@ -130,8 +140,21 @@ liefe in den „SimpleExpressionBase"-Zweig mit anschließendem `unparsedRestOfR
 
 ### 3e. Knoten befüllen
 
-- `ParseFunctionTypeLiteral` ([parser.ts:1123](../src/parser/parser.ts#L1123)) bekommt `arrow`.
-- Der `functionLiteral`-Zweig derselben Stelle ebenfalls.
+- `ParseFunctionTypeLiteral` wird direkt als Objektliteral gebaut
+  ([parser.ts:1122](../src/parser/parser.ts#L1122)) — dort `arrow` ergänzen.
+- `ParseFunctionLiteral` entsteht dagegen über die Factory
+  [`createParseFunctionLiteral`](../src/parser/parser-utils.ts#L47), und die hat **drei** Aufrufer:
+  [parser.ts:1070](../src/parser/parser.ts#L1070) (Rumpf ohne Rückgabetyp, also ohne Pfeil),
+  [parser.ts:1096](../src/parser/parser.ts#L1096) (der Zweig mit Pfeil) und
+  [typescript-parser.ts:104](../src/parser/typescript-parser.ts#L104).
+
+**Die dritte Stelle ist der Punkt, den man sonst übersieht:** `.ts`- und `.js`-Dateien werden in
+denselben Syntaxbaum übersetzt, und `tsFunctionToJulAst` baut darüber ebenfalls
+`functionLiteral`-Knoten. Deshalb ist `arrow` **optional** und die Factory bekommt es als optionalen
+letzten Parameter (oder gar nicht, und parser.ts setzt es nach der Konstruktion). Aus TypeScript
+importierte Funktionen tragen damit `'unknown'` — inhaltlich richtig: über die Purity einer
+TS-Funktion weiß JUL nichts. Der JSON-/YAML-Parser ist nicht betroffen, er erzeugt keine
+Funktionsknoten.
 
 ### 3f. Parser-Tests
 
