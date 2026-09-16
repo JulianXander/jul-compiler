@@ -164,7 +164,7 @@ heute schon gegen den inferierten geprüft wird (`JUL5100`). Bei 1A müsste stat
 erst eingeführter Fehlercode wieder verschwinden, und Nummern werden nie wiederverwendet.
 
 *Bewusst getragenes Risiko:* die Zusicherung kann lügen. Wirksam wird eine Lüge nur an einer Stelle,
-der `?>`-Auflösung (`map(myFn ...)` gilt als pure, weil der Nutzer es behauptet hat). Bis in die
+der Argument-Regel (`map(myFn ...)` gilt als pure, weil der Nutzer es behauptet hat). Bis in die
 Faltung trägt sie nicht: die verlangt literale Argumente, und eine Funktion ist keins. Mit der
 Inferenz-Ausbaustufe wird aus der Zusicherung eine geprüfte Deklaration; bis dahin ist sie das, was
 `assume` an anderer Stelle auch ist — eine Behauptung des Nutzers, die der Compiler übernimmt.
@@ -189,41 +189,44 @@ neues Symbol) bekommen:
 
 **Entscheidung: keine von beiden — `:>` wird gar nicht als Purity-Träger wiederverwendet.** Der
 Einwand gegen A (17 Callback-Parameterpositionen müssten pauschal auf `~>`, obwohl kein Nutzercode
-dort einen pure-Callback liefern kann) entfällt mit einem eigenen dritten Pfeil `?>` (siehe
-[Bedingte Purity bei Funktionen höherer Ordnung](#bedingte-purity-bei-funktionen-höherer-ordnung-)
-unten): Callback-Positionen wie in `map` bekommen `?>` und akzeptieren damit von sich aus sowohl pure
-als auch impure Argumente, ohne auf Frage 4 (Subtyping) zu warten. `:>` selbst bleibt eigenständig
-„keine Aussage über Purity" (siehe Entscheidung zu Frage 1) — Migrationskosten für einen komplett
-neuen Pfeil sind laut Nutzer vernachlässigbar, die Sprache ist noch in Entwicklung.
+dort einen pure-Callback liefern kann) entfällt, sobald die Purity eines Aufrufs ohnehin die Purity
+seiner Funktionsargumente einbezieht (siehe
+[Funktionen höherer Ordnung](#funktionen-höherer-ordnung-die-argument-regel) unten): die
+Callback-Positionen brauchen dann gar keine Markierung und bleiben `:>`. `:>` selbst bleibt
+eigenständig „keine Aussage über Purity" (siehe Entscheidung zu Frage 1) — Migrationskosten für
+einen komplett neuen Pfeil sind laut Nutzer vernachlässigbar, die Sprache ist noch in Entwicklung.
 
 Favorisierte Symbole: eine harmonische Familie mit dem bereits bestehenden `functionToken` `=>` —
-`=>` (Lambda-Rumpf), `->` (pure), `~>` (impure), `?>` (bedingt). Alle vier nach demselben Muster
+`=>` (Lambda-Rumpf), `->` (fügt keine Unreinheit hinzu), `~>` (unrein). Alle nach demselben Muster
 gebaut: ein einzelnes, sonst unbelegtes Zeichen plus `>`. Das vermeidet, was `:>` heute tut — den
 Doppelpunkt wiederzuverwenden, der in JUL bereits eine andere Bedeutung trägt (`(a: Integer)`,
 `[a: Integer]`). `:>` bleibt daneben bestehen, aber außerhalb dieser Familie — kein Widerspruch,
 weil es keine Purity-Aussage macht und daher nicht zur Pfeil-Familie gehören muss. Damit gilt:
 
 - `:>` — keine Aussage (Status quo, bleibt an allen heutigen Stellen unverändert)
-- `->` — pure
-- `~>` — impure
-- `?>` — abhängig vom Callback-Parameter
+- `->` — fügt keine eigene Unreinheit hinzu
+- `~>` — unrein
+
+Ein vierter Pfeil für „abhängig vom Callback" stand hier zwischenzeitlich (`?>`, nach dem Vorbild von
+Swifts `rethrows`). Er ist gestrichen: die Abhängigkeit vom Callback ist keine Eigenschaft einzelner
+Signaturen, sondern gilt für jeden Aufruf — siehe den Abschnitt zu Funktionen höherer Ordnung.
 
 Zu `->`: kein Kollisionsrisiko mit einem Subtraktions-Operator, da JUL keinen eigenen
 Subtraktions-Token hat (arithmetische Operationen laufen über Funktionen wie `add`). Zu prüfen bleibt
 trotzdem die Tokenisierungsreihenfolge: der bestehende Pfeil-Token ist `' :> '` **inklusive
 umgebender Leerzeichen** ([parser.ts:259](../src/parser/parser.ts#L259)), `=>` ist der
 `functionToken`. Ein Symbol, das mit `=>` beginnt oder endet, verlangt Blick auf die Reihenfolge der
-`discriminatedChoiceParser`-Zweige — betrifft hier keinen der vier Kandidaten direkt, aber die
-Abgrenzung zu `=>` selbst (z. B. `?=>` wäre riskant, `?>` nicht) ist bei der Umsetzung zu verifizieren.
+`discriminatedChoiceParser`-Zweige — betrifft hier keinen der Kandidaten direkt, aber die Abgrenzung
+zu `=>` selbst ist bei der Umsetzung zu verifizieren.
 
 Alternativvorschlag aus einer früheren Notiz: `!=>` statt `~>`
 ([syntax-tree.ts:379](../src/syntax-tree.ts#L379)) — passt schlechter in die Familie (zwei
 Sonderzeichen statt eines), daher nachrangig.
 
-**Mehrwert eines eigenen Impure-Symbols gegenüber „keine Aussage".** Für die Konsumenten dieser
-Ausbaustufe (Constant Folding, `?>`-Auflösung) verhalten sich `~>` und `:>` identisch — beide sind
-„nicht beweisbar pure", keiner der beiden Algorithmen muss zwischen „bekannt unrein" und
-„unklassifiziert" unterscheiden. Der Mehrwert von `~>` ist rein vorbereitend/dokumentarisch:
+**Mehrwert eines eigenen Impure-Symbols gegenüber „keine Aussage".** Für den Konsumenten dieser
+Ausbaustufe (Constant Folding) verhalten sich `~>` und `:>` identisch — beide sind „nicht beweisbar
+pure", der Algorithmus muss zwischen „bekannt unrein" und „unklassifiziert" nicht unterscheiden. Der
+Mehrwert von `~>` ist rein vorbereitend/dokumentarisch:
 
 - **Migrationsdisziplin**: zwingt dazu, für die 31 bekannt unreinen Funktionen (`log`, `currentDate`,
   I/O) eine bewusste, positive Aussage zu treffen, statt sie unter „keine Aussage" verschwinden zu
@@ -233,85 +236,80 @@ Ausbaustufe (Constant Folding, `?>`-Auflösung) verhalten sich `~>` und `:>` ide
   ansetzen zu können statt jede core-lib-Funktion neu zu bewerten.
 - **Lesbarkeit** für Menschen, die core-lib lesen.
 
-**Entscheidung: vier Symbole.** `~>` bleibt eigenständig, trotz fehlendem algorithmischem Mehrwert in
+**Entscheidung: drei Symbole.** `~>` bleibt eigenständig, trotz fehlendem algorithmischem Mehrwert in
 dieser Ausbaustufe — für die Klarheit der drei oben genannten Punkte.
 
-Verbleibende Migration: die 31 tatsächlich unreinen Signaturen auf `~>`, die 17 Callback-Positionen
-auf `?>`, alle anderen 49 pure-Signaturen auf `->`. Alle bestehenden `:>`-Vorkommen in
-Beispielen/Tests (72 Stück), die bislang gar keine Purity-Aussage trafen, bleiben unverändert `:>`
-und behaupten damit korrekt weiterhin nichts.
+Verbleibende Migration: die 31 tatsächlich unreinen Signaturen auf `~>`, alle anderen 49 auf `->`.
+Die 17 Callback-Parameterpositionen bleiben unverändert, ebenso alle bestehenden `:>`-Vorkommen in
+Beispielen/Tests (72 Stück), die bislang gar keine Purity-Aussage trafen und das weiterhin nicht tun.
 
-### Bedingte Purity bei Funktionen höherer Ordnung (`?>`)
+### Funktionen höherer Ordnung: die Argument-Regel
 
-`map`, `filter`, `forEach` u. a. sind selbst nicht rekursiv — ihre Purity hängt ausschließlich vom
-übergebenen Callback ab, ohne dass dafür eine Fixpunkt-Iteration nötig wäre (die braucht erst
-rekursiver Nutzercode, siehe Ausblick unten). Weder `:>` noch `~>` passen auf diese Fälle: `:>` an
-`map` wäre falsch, sobald `log` als Callback kommt, `~>` verhindert Faltung für `map(add ...)`.
-Vorbild ist Swifts `rethrows`: eine Funktion, die nur dann wirft, wenn der übergebene Closure-Parameter
-wirft — hier auf pure/impure statt throws/no-throws übertragen.
+`map`, `filter`, `forEach` u. a. fügen von sich aus keine Unreinheit hinzu — sie rufen nur den
+Callback. Ihre tatsächliche Purity hängt ausschließlich vom übergebenen Callback ab, ohne dass dafür
+eine Fixpunkt-Iteration nötig wäre (die braucht erst rekursiver Nutzercode, siehe Ausblick unten).
 
-**Mechanik:** ein dritter Pfeil, Platzhalter `?>` (siehe Frage 2 für die favorisierte Symbolfamilie),
-steht an **zwei** Stellen derselben Deklaration:
+Sie brauchen dafür **kein eigenes Symbol**. Ein Aufruf ist beweisbar rein, wenn beides gilt:
 
-```
-map: (callback: (value: X) ?> Y, list: List(X)) ?> List(Y)
-```
+1. die aufgerufene Funktion ist `->` deklariert, und
+2. jedes Argument, das selbst eine Funktion ist, ist beweisbar rein.
 
-- Am Callback-Parameter markiert `?>`: „akzeptiert eine Funktion beliebiger Purity, und die
-  tatsächliche Purity wird sichtbar nach außen weitergereicht". Das ist eine eigenständige
-  Typ-Eigenschaft von `?>` selbst, **keine** Instanz von pure-ist-Untertyp-von-impure — Frage 4
-  (Subtyping) muss für diesen Mechanismus also nicht vorab entschieden sein.
-- Am äußeren Rückgabepfeil markiert `?>`: „meine Purity ist die tatsächlich an den so markierten
-  Parameter(n) übergebene."
+Bedingung 2 gilt **immer**, nicht nur wo jemand eine Markierung gesetzt hat. `map` bekommt damit
+schlicht `->`, und ob ein konkreter `map`-Aufruf rein ist, ergibt sich aus derselben Regel, die für
+jeden anderen Aufruf auch gilt. `->` heißt einheitlich **„fügt keine eigene Unreinheit hinzu"** —
+bei `add` ist das dasselbe wie „rein", bei `map` fällt die Bedingung an den Argumenten zusätzlich an.
+Eine Bedeutung, eine Regel.
+
+**Warum Swift dafür `rethrows` braucht und JUL nicht.** In Swift ist `throws` durchgesetzt: eine
+nicht markierte Funktion darf einen werfenden Closure gar nicht aufrufen, deshalb braucht es ein
+eigenes Schlüsselwort, um die Ausnahme zu erlauben. JUL setzt nach 4A nichts durch — Purity ist eine
+Auskunft, kein Vertrag, und eine Auskunft lässt sich an der Aufrufstelle ausrechnen, statt sie in der
+Deklaration anzukündigen. Ein Marker löste hier ein Problem, das es ohne Durchsetzung nicht gibt.
 
 **Auflösung an der Aufrufstelle** (kein Fixpunkt, nur Nachschauen):
 
-1. Ermittle die Parameter der aufgerufenen Signatur, deren eigener Typ `?>` trägt (bei `map` genau
-   einer, der Callback).
-2. Für jeden davon: das tatsächlich übergebene Argument an dieser Position inspizieren. Nur wenn es
-   nachweislich auf eine Deklaration mit geschriebenem Purity-Pfeil zeigt (derselbe Anker wie beim
-   Constant Folding, `isBuiltIn`/Symbolauflösung), ist die Purity bekannt; sonst konservativ
-   `'impure'` annehmen. Nach 1B zählt dazu auch die ungeprüfte Zusicherung an einer Nutzerfunktion —
-   das ist die einzige Stelle, an der eine falsche Zusicherung in dieser Ausbaustufe überhaupt wirkt.
-   Sie trägt nicht bis in die Faltung: die verlangt literale Argumente, und eine Funktion ist keins.
-   Trägt das Argument selbst `'conditional'` (jemand übergibt `map` an eine `?>`-Position), gilt es
-   als nicht beweisbar pure, also `'impure'` — es wird an dieser Stelle nicht aufgerufen, es gibt
-   also keine Argumente, aus denen sich etwas ableiten ließe.
-3. Gesamtergebnis = UND über alle so ermittelten Purities (impure, sobald ein Callback impure ist).
-4. Das Ergebnis ersetzt `?>` an **dieser** Aufrufstelle durch `'pure'`/`'impure'`.
+1. Ist die aufgerufene Funktion `->`? Sonst ist der Aufruf nicht beweisbar rein, fertig.
+2. Sammle die Argumente, deren Typ ein Funktionstyp ist. Für jedes: nur wenn es nachweislich auf
+   eine Deklaration mit geschriebenem Purity-Pfeil zeigt (derselbe Anker wie beim Constant Folding,
+   `isBuiltIn`/Symbolauflösung), ist seine Purity bekannt; sonst konservativ `'impure'`. Nach 1B
+   zählt dazu auch die ungeprüfte Zusicherung an einer Nutzerfunktion — das ist die einzige Stelle,
+   an der eine falsche Zusicherung in dieser Ausbaustufe überhaupt wirkt. Bis in die Faltung trägt
+   sie nicht: die verlangt literale Argumente, und eine Funktion ist keins.
+3. Ergebnis = UND über Schritt 1 und alle Purities aus Schritt 2.
 
-`?>` bleibt dabei im Typ der Funktion selbst stehen und wandert mit ihm mit: `f = map` ergibt einen
-Wert mit `'conditional'`, und `f(cb [1 2])` löst genauso auf wie `map(cb [1 2])`, weil die Auflösung
-am **Typ** ansetzt und nicht am Symbol. Drei Regeln gehören dazu, sonst ist `'conditional'` außerhalb
-eines Aufrufs unbestimmt:
+Beispiele:
 
-- `typeEquals` behandelt `'conditional'` als eigene Klasse — gleich nur zu `'conditional'` (siehe
-  Frage 5).
-- Als Argument an einer `?>`-Position zählt `'conditional'` als `'impure'` (Schritt 2 oben).
-- `typeToString` rendert es als `?>`; sonst stünde im Hover von `f` eine Purity-Aussage, die `f`
-  nicht trifft.
+| Aufruf | `map` | Argument | Ergebnis |
+| --- | --- | --- | --- |
+| `map(add [1 2])` | `->` | `add` ist `->` | beweisbar rein |
+| `map(log [1 2])` | `->` | `log` ist `~>` | unrein |
+| `map(myFn [1 2])` mit `myFn = () :> Any => someFn()` | `->` | `myFn` ist `'unknown'` | nicht beweisbar rein |
 
-*Bewusst getragener Preis:* `f = map` als Argument weiterzureichen heißt konservativ „unrein",
-obwohl es je nach Callback nicht so wäre. Das ist genau die Grenze von Swifts `rethrows`, die in
-Frage 5 als bekannte Schwäche der Darstellung A steht — hier trifft sie zum ersten Mal auf.
+Der dritte Fall ist der interessante: `myFn`s eigene Purity hinge an `someFn`, aber diese Ausbaustufe
+leitet sie nicht ab — `myFn` trägt `'unknown'` und zählt damit als nicht beweisbar rein. Konservativ
+und richtig. Die Inferenz-Ausbaustufe füllt später `myFn`s Purity aus dem Aufrufgraph; die
+Argument-Regel bleibt dabei unverändert und liefert dann von selbst das bessere Ergebnis. Sie setzt
+an keiner Stelle voraus, *warum* ein Argument rein ist.
 
-**Entschieden:** Fallback, wenn die Purity des Arguments nicht statisch bekannt ist (Variable,
-Parameter der umschließenden Funktion): impure annehmen — dieselbe „unmarkiert = unrein"-Logik wie
-in Frage 2. Ebenso, was mit `'conditional'` außerhalb eines Aufrufs geschieht: es bleibt im Typ
-stehen, mit den drei Regeln oben.
+Das Ergebnis gilt für **diese** Aufrufstelle. Der Typ von `map` selbst bleibt unverändert `->`; es
+gibt keinen Zustand, der aus der Deklaration herauswandert und anderswo unbestimmt wäre. `f = map`
+ist deshalb unproblematisch: `f` trägt `->` wie `map`, und `f(cb [1 2])` löst genauso auf.
 
-**Offen** (aufgenommen unter „Was noch offen ist"):
+**Preis:** eine Funktion, die einen Callback entgegennimmt, ihn aber nie aufruft, gilt bei unreinem
+Callback trotzdem als unrein. Das ist eine Überschätzung, also sicher — und in core-lib kommt der
+Fall nicht vor: alle 17 Callback-Parameter werden von ihrer Funktion aufgerufen.
 
-- Validierungsregel: ein `?>`-Rückgabepfeil ohne mindestens einen `?>`-Parameter ist eine
-  bedeutungslose Deklaration — Fehlercode `2600`, Meldungstext noch festzulegen.
-- Kombination bei mehreren `?>`-Parametern in einer Signatur (UND, siehe oben) — Beispiele in
-  core-lib mit mehr als einem Callback-Parameter noch nicht durchgesehen.
+**Zweiter Preis:** dass `map`s Purity vom Callback abhängt, steht nicht mehr in `map`s Signatur,
+sondern in der Sprachregel. Der Tausch lohnt sich: eine Regel, die für jeden Aufruf gleich gilt,
+statt einer Markierung, die je Signatur richtig gesetzt werden muss.
+
+**Grenze:** Funktionen, die in einem Datenargument stecken (`f([cb = log])`), erfasst Schritt 2 nur,
+wenn er in Kollektionen absteigt. Für diese Ausbaustufe ohne Belang — gefaltet wird ohnehin nur mit
+literalen Argumenten.
 
 **Scope-Auswirkung:** Die 10 „TODO pure wenn die args pure sind"-Stellen (`map`, `filter`,
-`filterMap` u. a.), bisher unter „Explizit außerhalb dieser Ausbaustufe" gelistet, lassen sich damit
-doch in dieser Ausbaustufe lösen — ohne die schwerere Pure-Inference-Maschinerie (Fixpunkt für
-Rekursion), die nur für rekursiven Nutzercode gebraucht wird. Vorgehen und Scope-Liste unten sind
-entsprechend angepasst (Schritt 7 für `?>`, Gegenproben in Schritt 13).
+`filterMap` u. a.), bisher unter „Explizit außerhalb dieser Ausbaustufe" gelistet, erledigen sich
+damit ohne eigenen Mechanismus: sie bekommen `->`, den Rest macht die Regel.
 
 ### Frage 4: Wird Purity Teil der Zuweisbarkeit?
 
@@ -327,14 +325,15 @@ entsprechend angepasst (Schritt 7 für `?>`, Gegenproben in Schritt 13).
 
 **Entscheidung: 4A, für diese Ausbaustufe.** Der einzige Konsument hier ist Constant Folding, und der
 braucht keine Durchsetzung, nur eine Auskunft: „ist dieser konkrete Aufruf beweisbar pure" entscheidet
-lediglich falten/nicht falten, lehnt aber nie einen Aufruf ab. `?>` ist bereits so gebaut, dass es an
-der Callback-Position **jede** Funktion akzeptiert, pure oder nicht (siehe oben) — eine echte
-`->`-Anforderung mit Zurückweisung (4B) wird dafür nicht gebraucht.
+lediglich falten/nicht falten, lehnt aber nie einen Aufruf ab. Die Argument-Regel (siehe oben) rechnet
+diese Auskunft aus, ohne je ein Argument zurückzuweisen — eine echte `->`-Anforderung mit
+Zurückweisung (4B) wird dafür nicht gebraucht. Callback-Positionen bleiben deshalb `:>` und nehmen
+weiterhin jede Funktion an, pure oder nicht.
 
 Eine `->`-Pflicht hätte zudem einen realen Ergonomie-Preis: Debug-`log`-Aufrufe in `predicate`,
 `getKey` oder einer Vergleichsfunktion wären dann nicht mehr kompilierbar, sobald diese Position
-`->` statt `?>`/`~>` verlangt. Das spricht dafür, 4B — falls überhaupt — nur gezielt und opt-in
-einzuführen, nicht pauschal (siehe Ausblick).
+`->` verlangt. Das spricht dafür, 4B — falls überhaupt — nur gezielt und opt-in einzuführen, nicht
+pauschal (siehe Ausblick).
 
 Unabhängig von der Wahl mitzuentscheiden war: bleibt `first.pure === second.pure` in `typeEquals`
 ([checker.ts:4221](../src/checker/checker.ts#L4221)) so stehen? Nein — siehe Frage 5, wo die Antwort
@@ -342,17 +341,20 @@ aus der Darstellung folgt: verglichen wird die *wirksame* Purity, nicht das Labe
 
 ### Frage 5: Wie wird Purity im Typ dargestellt?
 
-Vier Pfeile lassen sich nicht mehr in `pure: boolean` ([syntax-tree.ts:928](../src/syntax-tree.ts#L928))
-ablegen. `?>` ist dabei der harte Teil: es ist keine Eigenschaft des Typs, sondern ein Verweis auf
-eine Parameterposition.
+Drei Pfeile lassen sich nicht mehr in `pure: boolean` ([syntax-tree.ts:928](../src/syntax-tree.ts#L928))
+ablegen.
 
 Zwei Achsen, getrennt zu entscheiden.
 
-**Achse 1 — welche Zustände.** `:>` („keine Aussage") und `~>` („unrein") verhalten sich für beide
+**Achse 1 — welche Zustände.** `:>` („keine Aussage") und `~>` („unrein") verhalten sich für den
 Konsumenten identisch: beide heißen „nicht beweisbar pure". Sie trotzdem getrennt zu halten kostet
 nichts und trägt die drei Gründe aus Frage 2 (Migrationsdisziplin, Ground Truth für die
-Inferenz-Ausbaustufe, Lesbarkeit). **Entscheidung: vier Zustände**, `unknown | pure | impure |
-conditional`.
+Inferenz-Ausbaustufe, Lesbarkeit). **Entscheidung: drei Zustände**, `unknown | pure | impure`.
+
+Einen vierten Zustand für „abhängig vom Callback" braucht es nicht: die Abhängigkeit wird an der
+Aufrufstelle ausgerechnet (Argument-Regel) und steht nie im Typ. Das erspart dieser Ausbaustufe
+einen Zustand, der sonst durch jede Typkopie propagiert wäre — unter anderem durch
+[checker.ts:1036](../src/checker/checker.ts#L1036), das Callback-Parametertypen neu baut.
 
 Daraus folgt unmittelbar die offene Frage aus Frage 4: `typeEquals` darf **nicht** das Label
 vergleichen, sondern die wirksame Purity — `unknown` und `impure` sind für die Gleichheit derselbe
@@ -360,63 +362,46 @@ Wert. Sonst wären `:>`- und `~>`-Typen ungleich, obwohl kein Algorithmus sie un
 Deduplizierung (`createNormalizedUnionType`) bekäme eine zweite künstliche Trennung zusätzlich zu
 der, die dieses Dokument gerade beseitigt.
 
-`'conditional'` fällt **nicht** mit zusammen, sondern ist eine eigene Klasse: es ist keine
-Purity-Aussage, sondern ein Verweis auf eine Parameterposition, und zwei Signaturen mit `?>` sind
-nur dann gleich, wenn auch die verwiesenen Parameter gleich sind — was der Vergleich der
-`ParamsType` ohnehin prüft. Damit hat die wirksame Purity drei Werte:
-`pure | impure | conditional`.
-
 **Achse 2 — wo die Information liegt.**
 
-- **A — Enum-Feld am Funktionstyp.** `pure: boolean` → `purity: Purity`. Welche Parameter das `?>`
-  speisen, wird bei Bedarf aus `ParamsType` gelesen, nicht gespeichert. *Vorbild:* Swifts `rethrows`
-  — ein Marker an der Deklaration, die Regel „wirft, wenn ein Closure-Argument wirft" steht im
-  Compiler, nicht im Typ. *Bekannte Grenze desselben Vorbilds:* `rethrows` komponiert nicht, sobald
-  der Closure gespeichert oder weitergereicht wird; Swift hat das nie repariert, sondern mit typed
-  throws (`throws(E)`) einen zweiten, typbasierten Mechanismus danebengestellt.
-- **B — Enum plus explizite Parameternamen** (`{kind: 'conditional', parameters: ['callback']}`).
-  Macht die Validierungsregel („`?>`-Rückgabe ohne `?>`-Parameter") lokal prüfbar, kostet dafür
-  Synchronisationspflicht an jeder Stelle, die Funktionstypen neu baut
-  ([checker.ts:1036](../src/checker/checker.ts#L1036),
-  [checker.ts:1235](../src/checker/checker.ts#L1235)). Kein Sprachvorbild — es ist A mit Redundanz.
-- **C — Purity als eigener `CompileTimeType`,** `?>` als
-  [`parameterReference`](../src/syntax-tree.ts#L1062) auf den Callback-Parameter. `map`s Typ sagte
-  dann wörtlich „meine Purity ist `callback/Purity`"; mehrere `?>`-Parameter werden zu `And(...)`.
-  *Vorbilder:* Koka (row-polymorphe Effekttypen, `map : (list<a>, a -> e b) -> e list<b>`) und
-  Rusts Keyword-Generics-Initiative, die für dasselbe Problem `?async` vorschlägt.
+- **A — Enum-Feld am Funktionstyp.** `pure: boolean` → `purity: Purity`. Der Typ trägt nur die
+  Aussage der eigenen Deklaration; die Abhängigkeit vom Callback rechnet die Argument-Regel an der
+  Aufrufstelle aus und legt sie nirgends ab.
+- **B — Enum plus Zusatzdaten am Typ** (etwa, welche Parameter die Purity speisen). Ohne `?>` gibt
+  es nichts abzulegen — die Option ist mit der Argument-Regel gegenstandslos geworden.
+- **C — Purity als eigener `CompileTimeType`,** als [`parameterReference`](../src/syntax-tree.ts#L1062)
+  auf einen Parameter. *Vorbilder:* Koka (row-polymorphe Effekttypen,
+  `map : (list<a>, a -> e b) -> e list<b>`) und Rusts Keyword-Generics-Initiative, die für dasselbe
+  Problem `?async` vorschlägt.
 - **D — gar nicht im Typ,** sondern in einer Tabelle am Symbol. *Vorbild:* C++ `constexpr` ist
   bewusst **nicht** Teil des Funktionstyps (über einen Funktionszeiger geht die Information
   verloren), um Overload- und Konversionsexplosion zu vermeiden; Zig markiert für `comptime` gar
   nichts und lässt die Auswertung an den nicht verfügbaren Operationen scheitern.
 
-**Entscheidung: A**, mit einer Auflage: `'conditional'` trägt bewusst **keine** Daten. Damit ist ein
-späterer Wechsel auf C eine Erweiterung (aus dem Zustand wird ein Verweis), kein Umbau.
+**Entscheidung: A.** Ein Enum mit drei Werten, mehr braucht der Typ nicht zu tragen.
 
-Begründung gegen die anderen: B ist A mit Synchronisationspflicht ohne eigenen Gewinn. D macht
-Teil 2 des Ziels rückgängig — Purity wäre nicht mehr im Typ ablesbar, `typeToString` käme nicht
-daran, und eine Callback-Position könnte Purity nie fordern; die Option ist nur ehrlich, wenn man
-Empfehlung B der Architekturfrage aufgibt. Sie bleibt als dokumentierter Rückzugsweg stehen, falls
-die `typeEquals`-Folgen im Bench teuer werden.
+Begründung gegen die anderen: B hat mit dem Wegfall von `?>` keinen Inhalt mehr. D macht Teil 2 des
+Ziels rückgängig — Purity wäre nicht mehr im Typ ablesbar, `typeToString` käme nicht daran, und eine
+Callback-Position könnte Purity nie fordern; die Option ist nur ehrlich, wenn man Empfehlung B der
+Architekturfrage aufgibt. Sie bleibt als dokumentierter Rückzugsweg stehen, falls die
+`typeEquals`-Folgen im Bench teuer werden.
 
-C ist die konzeptionell richtige Zielform, falls Purity je durchgesetzt wird (4B) oder ein zweiter
-Effekt dazukommt, und in JUL ungewöhnlich billig, weil `parameterReference` und
-`traversePlaceholders` bereits existieren — die `?>`-Auflösung wäre kein neuer Algorithmus, sondern
-derselbe, der `TypeOf(values)/ElementType` in Callback-Signaturen auflöst. **Dagegen spricht die
-Stelle, an der sie ansetzen müsste:** der Kommentar an
+C wäre die Zielform, falls Purity je durchgesetzt wird (4B) oder ein zweiter Effekt dazukommt —
+dann führt an Effekt-Polymorphismus in der Signatur kein Weg vorbei. Für diese Ausbaustufe ist sie
+gegenstandslos: die einzige Abhängigkeit, die sie hätte ausdrücken sollen, wird ausgerechnet statt
+deklariert. Zu beachten, falls sie je verfolgt wird: der Kommentar an
 [checker.ts:991-998](../src/checker/checker.ts#L991-L998) hält fest, dass `traversePlaceholders` im
 `argumentContext`-Zweig absichtlich nicht in Funktions- und Parameterknoten absteigt und dass das
-Nachrüsten die Auflösung generischer Rückgabetypen zerstört hat. Eine Purity am Callback-Parameter
-will genau diesen Abstieg. C ist damit entweder ein Einzeiler oder ein Umbau an der empfindlichsten
-Stelle des Checkers — das entscheidet ein Versuch, nicht das Papier, und dieses Risiko trägt der
-Konsument dieser Ausbaustufe nicht.
+Nachrüsten die Auflösung generischer Rückgabetypen zerstört hat — eine Purity am Callback-Parameter
+verlangt genau diesen Abstieg.
 
-Warnende Gegenproben aus anderen Sprachen, weil beide Richtungen einen Preis haben: **Java Checked
-Exceptions** sind Effekt in der Signatur *ohne* Polymorphismus — `Stream.map` nimmt bis heute kein
-werfendes Lambda; das ist der Zustand, in dem JUL landet, wenn `?>` nicht mitkommt. **OCaml 5** hat
-Effect Handlers ausgeliefert und die Effekttypen bewusst weggelassen, weil die Typsystemkosten zu
-hoch waren — ein Team, das C hätte bauen können, hat D gewählt. **Die Sprache D** trägt `pure`
-dagegen als echten Teil des Funktionstyps und zeigt dessen Preis: Attributexplosion
-(`pure @safe nothrow @nogc` an jeder Signatur) plus `inout` als eigener Polymorphismus-Mechanismus.
+Warnende Gegenproben aus anderen Sprachen, für den Fall, dass Purity später doch in die Signatur
+wandert: **Java Checked Exceptions** sind Effekt in der Signatur *ohne* Polymorphismus —
+`Stream.map` nimmt bis heute kein werfendes Lambda. **OCaml 5** hat Effect Handlers ausgeliefert und
+die Effekttypen bewusst weggelassen, weil die Typsystemkosten zu hoch waren — ein Team, das C hätte
+bauen können, hat D gewählt. **Die Sprache D** trägt `pure` als echten Teil des Funktionstyps und
+zeigt dessen Preis: Attributexplosion (`pure @safe nothrow @nogc` an jeder Signatur) plus `inout`
+als eigener Polymorphismus-Mechanismus.
 
 #### Wo das Feld steht
 
@@ -428,10 +413,9 @@ Drei Orte, und sie tragen **nicht dasselbe**.
    ```ts
    /** Der geschriebene Pfeil bzw. die daraus folgende Purity-Aussage. */
    export type Purity =
-   	| 'unknown'      // :>
-   	| 'pure'         // ->
-   	| 'impure'       // ~>
-   	| 'conditional'; // ?>
+   	| 'unknown'  // :>
+   	| 'pure'     // ->
+   	| 'impure';  // ~>
    ```
 
 2. **Am AST: die Syntax, nicht die Bedeutung.**
@@ -463,8 +447,9 @@ Drei Orte, und sie tragen **nicht dasselbe**.
      `'impure'`: ehrlicher („nicht bewiesen" statt „bewiesen unrein") und vorwärtskompatibel zur
      Inferenz-Ausbaustufe.
    - [checker.ts:1036](../src/checker/checker.ts#L1036) und
-     [checker.ts:1235](../src/checker/checker.ts#L1235) — kopieren beim Dereferenzieren; hier ist zu
-     klären, was mit `'conditional'` geschieht (siehe offene Punkte).
+     [checker.ts:1235](../src/checker/checker.ts#L1235) — kopieren die Purity beim Dereferenzieren
+     mit. Mit drei einfachen Zuständen ist daran nichts zu entscheiden; das war nur offen, solange
+     ein `'conditional'` mitpropagieren konnte.
 
 Und eines **verschwindet**: der `pure`-Parameter von `nativeFunction`
 ([checker.ts:282](../src/checker/checker.ts#L282)) entfällt ersatzlos, der Wert kommt aus dem
@@ -477,7 +462,9 @@ kann lügen.
 
 **Voraussetzung für Faltung eines Aufrufs:**
 
-- Die aufgerufene Funktion ist eine core-lib-`nativeFunction` mit `pure === true`.
+- Die aufgerufene Funktion ist eine core-lib-`nativeFunction` mit `purity === 'pure'`, und die
+  Argument-Regel bestätigt das für diese Aufrufstelle (bei skalaren Argumenten trivial, weil keins
+  davon eine Funktion ist).
 - Alle Argumente sind zur Compile-Zeit als Literal/konstanter Wert bekannt (analog zu den bereits
   vorhandenen `integerLiteral`/`floatLiteral`/`textLiteral`/`booleanLiteral`-Typen im Checker).
 - Der Aufruf zeigt nachweislich auf die native Deklaration. Ein Aufruf über eine Zwischenvariable
@@ -539,54 +526,30 @@ Ausführungsschritte, keine Zeit, genau um Nichtdeterminismus zu vermeiden.
 - Keine Durchsetzung von Purity in der Zuweisbarkeit (Frage 4 = 4A).
 
 Die 10 „TODO pure wenn die args pure sind"-Stellen (`map`, `filter`, `filterMap` u. a.) standen
-früher hier und sind mit `?>` **in** den Umfang gerückt — sie brauchen keine Fixpunkt-Iteration,
-nur Nachschauen an der Aufrufstelle.
+früher hier und erledigen sich mit der Argument-Regel von selbst: sie bekommen `->`, den Rest macht
+die Regel. Kein eigener Mechanismus, keine Fixpunkt-Iteration.
 
 ## Was noch offen ist
 
 Nach den Entscheidungen zu Frage 1, 2, 4 und 5 ist die Ausbaustufe bis einschließlich Schritt 9
-umsetzbar. Offen ist davor nur noch ein Punkt, dazu die Faltungsfragen.
+**vollständig spezifiziert** — davor ist nichts mehr offen. Was hier steht, ist zur Hälfte das
+Protokoll dessen, was sich beim Entscheiden aufgelöst hat; offen sind nur noch die Faltungsfragen
+(siehe „Zu entscheiden beim Falten") hinter der Schnittlinie.
 
-**Entschieden — `'conditional'` bleibt beim Dereferenzieren stehen.**
-[checker.ts:1036](../src/checker/checker.ts#L1036) und
-[checker.ts:1235](../src/checker/checker.ts#L1235) bauen Funktionstypen neu und kopieren `pure`
-unverändert mit; das bleibt so. Die frühere Behauptung, `?>` verlasse die core-lib-Deklaration nie,
-war falsch — bei jeder Weitergabe (`f = map`) wandert sie mit. Sie ist nur folgenlos, weil die
-Auflösung am Typ ansetzt und nicht am Symbol. Die drei Regeln, die `'conditional'` außerhalb eines
-Aufrufs bestimmen, stehen im `?>`-Abschnitt: eigene Klasse in `typeEquals`, als Argument
-`'impure'`, in `typeToString` als `?>`.
+**Kein neuer Fehlercode nötig.** Beide, die hier standen, sind entfallen: der für einen Purity-Pfeil
+am `functionLiteral` mit der Entscheidung zu 1B (dort ist er erlaubt), der für einen `?>`-Pfeil ins
+Leere mit dem Wegfall von `?>`. Beide Male ist das kein Zufall, sondern die Probe auf die
+Entscheidung: ein Fehlercode, der eine Schreibweise verbietet, die später wieder erlaubt sein soll,
+wäre ein schlechtes Zeichen gewesen — Nummern werden nie wiederverwendet
+([compiler-errors.ts](../src/compiler-errors.ts)).
 
-**Vor Schritt 3 — einen Fehlercode vergeben und den Meldungstext festlegen.** Kategorie `semantic`
-(„der Baum steht, aber das Konstrukt ist regelwidrig"), kein Typfehler — er entsteht ohne jeden
-Typvergleich, allein daraus, welcher Pfeil wo steht:
-
-- **`?>`-Rückgabepfeil ohne mindestens einen `?>`-Parameter.** Die Deklaration sagt „meine Purity
-  ist die der so markierten Parameter" und markiert keine — die Auflösung an der Aufrufstelle hätte
-  nichts, worüber sie das UND bildet, und fiele stumm auf `'impure'` zurück.
-
-*Schwere:* `error`, nicht `warning`. Eine Lockerung ist später rückwärtskompatibel, eine
-Verschärfung von `warning` zu `error` wäre es nicht.
-
-*Was ein neuer Code kostet* (siehe Kopfkommentar von [compiler-errors.ts](../src/compiler-errors.ts)):
-drei Einträge — Enum, `errorInfos` (der Mapped Type erzwingt ihn), und ein Abschnitt in
-`jul-homepage/docs/docs/documentation/error-codes.md`. Nur der dritte wird von keinem Compiler
-erzwungen und ist zugleich der, den der Nutzer zur Fehlermeldung findet. Nummern werden nie
-wiederverwendet. Vorschlag: eine eigene Unterregion `2600` „Purity-Pfeile" im semantischen Block
-(`2400` Parameter, `2500` `discardedValue` sind belegt), mit
-`conditionalPurityWithoutConditionalParameter = 2600`.
-
-Ein zweiter Code für „Purity-Pfeil an einem `functionLiteral`" entfällt mit der Entscheidung zu
-1B — der Pfeil ist dort erlaubt. Das war der Hauptgrund, 1A nicht zu nehmen: ein Fehlercode, der
-mit der Inferenz-Ausbaustufe wieder verschwinden müsste, während Nummern nie wiederverwendet werden.
-
-**Erledigt — mehrere `?>`-Parameter in einer Signatur.** core-lib durchgesehen: die 17
-Callback-Parameter verteilen sich auf 16 Funktionen, und genau eine hat zwei —
-`toDictionary` mit `getKey` und `getValue` ([core-lib.jul:941](../src/core-lib.jul#L941)), die
-auch das „TODO pure wenn die args pure sind" trägt. Die UND-Regel ist damit belegt und liefert dort
-das offensichtlich richtige Ergebnis: rein nur, wenn beide Callbacks rein sind. Alle übrigen
-(`map`, `filter`, `filterMap`, `findFirst`, `findLast`, `findLastIndex`, `forEach`, `exists`,
-`all`, `aggregate`, `subscribe`, `repeat`, `map$`, `flatMergeMap$`, `flatSwitchMap$`) haben genau
-einen.
+**Mehrere Funktionsargumente in einem Aufruf.** core-lib durchgesehen: die 17 Callback-Parameter
+verteilen sich auf 16 Funktionen, und genau eine hat zwei — `toDictionary` mit `getKey` und
+`getValue` ([core-lib.jul:941](../src/core-lib.jul#L941)), die auch das „TODO pure wenn die args
+pure sind" trägt. Das UND über alle Funktionsargumente liefert dort das offensichtlich richtige
+Ergebnis: rein nur, wenn beide Callbacks rein sind. Alle übrigen (`map`, `filter`, `filterMap`,
+`findFirst`, `findLast`, `findLastIndex`, `forEach`, `exists`, `all`, `aggregate`, `subscribe`,
+`repeat`, `map$`, `flatMergeMap$`, `flatSwitchMap$`) haben genau einen.
 
 **Entschieden — `typeToString` bei `'unknown'` rendert `:>`.** `:>` und `~>` sind im Typ
 unterschieden, aber jede Nutzerfunktion trägt `'unknown'`. `:>` bedeutet genau „keine Aussage", und
@@ -602,7 +565,7 @@ nicht mehr messbar.
 1. `npm run bench -- --save` (Ausgangsmessung).
 2. Roter Test: `pure` einer nachweislich unreinen core-lib-Funktion (`currentDate`, `log`). Belegt
    die Fehlbelegung aus dem Stand, bevor irgendetwas daran geändert wird.
-3. Parser: `->`, `~>` und `?>` als weitere Tokens neben `:>` in
+3. Parser: `->` und `~>` als weitere Tokens neben `:>` in
    `functionTypeBodyParser`/`returnTypeTokenParser` zulassen; die Pfeil-Art wandert als `arrow`
    durch `functionTypeBody` in `ParseFunctionTypeLiteral` **und** `ParseFunctionLiteral` (siehe
    „Wo das Feld steht"). Reihenfolge der `discriminatedChoiceParser`-Zweige gegen `=>` verifizieren.
@@ -610,34 +573,34 @@ nicht mehr messbar.
 4. Typdarstellung: `Purity`-Enum in `syntax-tree.ts`, `pure: boolean` → `purity: Purity` an
    `CompileTimeFunctionType` und `createCompileTimeFunctionType`, 11 Aufrufstellen nachziehen.
    `typeEquals` auf wirksame Purity umstellen
-   ([checker.ts:4221](../src/checker/checker.ts#L4221)): `'unknown'` und `'impure'` sind derselbe
-   Wert, `'conditional'` ist eine eigene Klasse.
+   ([checker.ts:4221](../src/checker/checker.ts#L4221)): `'unknown'` und `'impure'` sind für die
+   Gleichheit derselbe Wert.
 5. Checker: `purity` sowohl beim `functionTypeLiteral` als auch beim `functionLiteral` aus `arrow`
    lesen statt hartzukodieren (ohne Pfeil: `'unknown'`); `nativeFunction`s Signatur auf zwei
    Parameter (`FunctionType`, `js`) reduzieren. Test für die Zusicherung nach 1B: eine Funktion mit
    `->` trägt `'pure'`, ohne Pfeil `'unknown'` — ohne dass der Rumpf geprüft würde.
 6. Migration core-lib: alle 81 `nativeFunction`-Aufrufe von `(FunctionType, true/false, js)` auf
-   `(FunctionType mit passendem Pfeil, js)` — 49 auf `->`, 31 auf `~>`, die 17
-   Callback-Parameterpositionen auf `?>`. Die bestehenden Bool-Werte sind die Vorlage, aber
+   `(FunctionType mit passendem Pfeil, js)` — 49 auf `->`, 31 auf `~>`. Die 17
+   Callback-Parameterpositionen bleiben `:>`. Die bestehenden Bool-Werte sind die Vorlage, aber
    ungeprüft — Grenzfälle (`regex`, `parseFloat`, `parseJson`, `assume`, `runJs`) einzeln
-   verifizieren: deterministisch und frei von Systemzustand?
-7. `?>`-Auflösung an der Aufrufstelle (Schritte 1–4 der Mechanik oben) und der Fehlercode für
-   `?>`-Rückgabe ohne `?>`-Parameter. Beim Dereferenzieren bleibt `'conditional'` stehen, es ist
-   dort nichts zu tun. Tests: pure Callback → pure, `log` als Callback → impure, nicht statisch
-   bekanntes Argument → impure, `f = map` weitergereicht und dann aufgerufen → löst wie `map` auf,
-   `map` selbst als Argument an einer `?>`-Position → impure.
+   verifizieren: deterministisch und frei von Systemzustand? Die 10 „TODO pure wenn die args pure
+   sind"-Stellen bekommen `->`; ihre Bedingung an den Argumenten erledigt Schritt 7.
+7. Argument-Regel bei der Auflösung eines Aufrufs: beweisbar rein nur, wenn die aufgerufene Funktion
+   `->` trägt **und** jedes Argument, dessen Typ ein Funktionstyp ist, beweisbar rein ist. Tests:
+   `map(add ...)` → rein, `map(log ...)` → unrein, `map(myFn ...)` mit `myFn` ohne Pfeil → nicht
+   beweisbar rein, `toDictionary` mit einem reinen und einem unreinen Callback → unrein.
 8. Mitziehende Artefakte: TextMate-Grammatik ([jul.tmLanguage.yaml](../../vscode-jul-language-service/syntaxes/jul.tmLanguage.yaml),
    die YAML ist die Quelle), `snippets.json`, `handbook.md`, die öffentliche Doku in
    `jul-homepage/docs`, `nativeFunction`-Testfälle in `checker.test.ts`.
 9. `typeToString` `case 'function'` ([checker.ts:5741](../src/checker/checker.ts#L5741)) um
    `type.purity` erweitern, damit der Pfeil in Fehlermeldungen und Hover erscheint — `'unknown'`
-   rendert als `:>` (die bestehenden Testerwartungen bleiben damit unverändert), `'conditional'`
-   als `?>`.
+   rendert als `:>`, die bestehenden Testerwartungen bleiben damit unverändert.
 10. `npm run bench -- --save` (trennt die Kosten des Syntaxumbaus von denen der Faltung).
 11. Roter Test für die Faltung (`add(2 3)` → Literal `5`).
 12. Constant-Folding-Stelle im Checker identifizieren (beim Auflösen eines Funktionsaufrufs, analog
-    zu `getReturnTypeFromFunctionCall`) und um den Fall „Builtin + `purity === 'pure'` + alle
-    Argumente literal" ergänzen, inklusive Schritt-Zähler als Guard vor der Ausführung.
+    zu `getReturnTypeFromFunctionCall`) und um den Fall „Builtin + Argument-Regel aus Schritt 7
+    sagt rein + alle Argumente literal" ergänzen, inklusive Schritt-Zähler als Guard vor der
+    Ausführung.
 13. Gegenproben als Tests: nicht-literale Argumente (keine Faltung, unverändertes Verhalten),
     `purity !== 'pure'` (keine Faltung), werfender Aufruf (keine Faltung, keine neue Diagnose),
     benannte Argumente (keine Faltung, solange Stufe 1 nur positional faltet).
@@ -653,14 +616,16 @@ Rest nicht — sie lässt sich als eigene Ausbaustufe mit eigenem Dokument abtre
 Vorgemerkt, nicht Teil dieser Ausbaustufe: Purity automatisch aus dem Aufrufgraph ableiten statt nur
 manuell an der `nativeFunction`-Grenze zu deklarieren — eine `functionLiteral` wäre dann pure, wenn
 alle aufgerufenen Funktionen pure sind und kein Stream gelesen/geschrieben wird (Fixpunkt-Iteration
-für Rekursion), Funktionen höherer Ordnung wie `map` wären pure, wenn ihr Callback-Argument es ist.
-Löst die 9 TODO-Stellen in core-lib.jul und die Hartkodierung bei `functionLiteral` aus dem Stand.
-Der Schritt-/Aufrufzähler aus dieser Ausbaustufe wird dort notwendig statt nur vorsorglich, weil dann
-auch rekursiver Nutzercode zur Compile-Zeit ausgeführt werden könnte. Eigene Architekturfrage bei
-Funktionen höherer Ordnung: ohne Purity-Polymorphismus in der Signatur muss die Purity von `map`
-&c. an der konkreten Aufrufstelle aus dem übergebenen Callback abgeleitet werden, nicht generisch aus
-der Deklaration selbst (siehe Diskussion zu Koka-artigem Effekt-Polymorphismus vs. lokaler
-Call-Site-Auflösung).
+für Rekursion). Löst die Hartkodierung bei `functionLiteral` aus dem Stand und prüft die
+Zusicherungen, die 1B heute ungeprüft übernimmt. Der Schritt-/Aufrufzähler aus dieser Ausbaustufe
+wird dort notwendig statt nur vorsorglich, weil dann auch rekursiver Nutzercode zur Compile-Zeit
+ausgeführt werden könnte.
+
+Funktionen höherer Ordnung sind dort **kein** eigenes Thema mehr: die Argument-Regel aus dieser
+Ausbaustufe gilt unverändert weiter und liefert von selbst bessere Ergebnisse, sobald die Inferenz
+die Purity gewöhnlicher Nutzerfunktionen kennt. Sie setzt an keiner Stelle voraus, *warum* ein
+Argument rein ist. Ein Purity-Polymorphismus in der Signatur (Koka-artig) wäre erst nötig, wenn
+Purity durchgesetzt wird — siehe den Ausblick unten.
 
 ### Ausblick: echte Durchsetzung (Frage 4 = 4B), nicht Teil dieser oder der nächsten Ausbaustufe
 
