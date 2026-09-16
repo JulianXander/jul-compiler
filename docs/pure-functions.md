@@ -484,9 +484,17 @@ Zwei Details auf diesem Weg: reservierte Namen sind im Runtime-Export mit `_` es
 `combine$`, `take$`) — das sind keine nackten Callables.
 
 **Erkennung des Aufrufziels:** Über `functionRef` allein ist „das ist derselbe native Aufruf" nicht
-zu beantworten — der Typ trägt keinen Herkunftsnamen. Vorhandener Anker ist `isBuiltIn` aus der
-Referenzauflösung ([checker.ts:376](../src/checker/checker.ts#L376)): der oberste Scope *ist*
-`builtInSymbols`, der Symbolname ist damit zugleich der Runtime-Export-Name.
+zu beantworten — der Typ trägt keinen Herkunftsnamen. Der Anker ist der **Name**, und er trägt:
+`builtInSymbols` ist der oberste Scope jeder Nicht-core-lib-Datei
+([checker.ts:1510](../src/checker/checker.ts#L1510)), und eine Definition, die einen Builtin-Namen
+wiederverwendet, ist bereits `JUL4003 alreadyDefinedInUpperScope`. Ein Builtin lässt sich also nicht
+überschreiben; der Symbolname ist zugleich der Runtime-Export-Name.
+
+Dafür gibt es **Präzedenz im selben Codepfad**: `getReturnTypeFromFunctionCall` wertet bereits elf
+Builtins zur Compile-Zeit aus (`And`, `Or`, `Not`, `TypeOf`, `ElementAt`, `LengthOf`,
+`WithElementAt`, `Range`, `TupleOf`, `Concat`, `Greater`) — über ein `switch` auf den geschriebenen
+Namen ([checker.ts:3166 ff.](../src/checker/checker.ts#L3166)). Die Wertfaltung ist dort ein weiterer
+Zweig, keine neue Maschinerie.
 
 **Sicherheitsnetz gegen Terminierung:** Ein Schritt-/Aufrufzähler (kein Wall-Clock-Timeout — siehe
 Begründung unten), der die Auswertung eines einzelnen Ausdrucks abbricht, wenn ein Budget
@@ -500,23 +508,82 @@ Maschinenlast mal erfolgreich, mal fehlschlagend — nicht reproduzierbar. Vorbi
 (`branch_quota`, zählt Verzweigungen), Rust CTFE/Miri (Instruktionslimit). Beide zählen
 Ausführungsschritte, keine Zeit, genau um Nichtdeterminismus zu vermeiden.
 
-### Zu entscheiden beim Falten
+### Welche Builtins: alle mit `->`
 
-- **Welche Builtins?** Typkonstruktoren (`List`, `Or`, `And`, `TypeOf`) sind rein, liefern aber
-  Runtime-Typobjekte, die zurückübersetzt werden müssten — und der Checker behandelt sie bereits
-  gesondert ([checker.ts:235](../src/checker/checker.ts#L235) ff.). Vorschlag: Stufe 1 nur mit
-  skalaren Ein- und Ausgaben.
-- **Wert↔Typ-Grenze:** welche Literalvarianten hinein und heraus dürfen (bigint, number, string,
-  boolean), ob Kollektionen aus Literalen (`tuple`, `dictionaryLiteral`) zählen, und was mit
-  `Rational` geschieht — `add` kann ein `Fraction`-Objekt liefern, für das es keinen Literaltyp gibt.
-- **Fehler beim Falten** (`parseFloat`, `parseJson`, Division durch 0, geworfene Ausnahme):
-  Vorschlag abfangen, nicht falten, keine neue Diagnose. Faltung darf nie selbst Fehlerquelle sein.
+Kein eigenes Kriterium neben der Deklaration — was `->` trägt, ist faltbar. Die Auswahl richtet
+sich danach, was die Funktion *ist*, nicht danach, wofür man sie gerade brauchen kann.
+
+Die Typkonstruktoren (`List`, `Or`, `And`, `TypeOf`, …) sind davon nicht betroffen: der Checker
+behandelt sie bereits gesondert ([checker.ts:235](../src/checker/checker.ts#L235) ff.,
+[checker.ts:3166 ff.](../src/checker/checker.ts#L3166)) und liefert Typen statt Werte. Sie brauchen
+die Wertfaltung nicht.
+
+### Wert↔Typ-Grenze: Stufe 1 faltet nur skalare Ergebnisse
+
+Die Frage ist nicht, welche Funktionen gefaltet werden (alle mit `->`), sondern **was mit einem
+Ergebnis passiert, das kein Skalar ist**. Drei Möglichkeiten standen zur Wahl:
+
+- **A — nur skalare Ergebnisse.** Gefaltet wird, wenn das Ergebnis ein `integerLiteral`,
+  `floatLiteral`, `textLiteral` oder `booleanLiteral` wird. Alles andere behält den deklarierten
+  Rückgabetyp.
+- **B — alles Darstellbare, eifrig.** Zusätzlich Kollektionen aus Literalen (`tuple`,
+  `dictionaryLiteral`) und `Fraction` als `[numerator = … denominator = …]`.
+- **C — alles Darstellbare, aber nur auf Nachfrage.** Gefaltet wird nur, wo ein Konsument den Wert
+  braucht (Typargument einer abhängigen Typfunktion, Prüfung gegen einen Literal-Typguard).
+
+**Entscheidung: A.** Beispiele:
+
+```
+addInteger(2 3)              → 5                    gefaltet
+combineTexts([§a§ §b§] §-§)  → §a-b§                gefaltet
+slice([1 2 3] 2)             → Or([] List(Any))     nicht gefaltet (deklariert)
+add(0.5 0.5)                 → Rational             nicht gefaltet (Fraction ist kein Skalar)
+parseJson(§{"a":1}§)         → Or(Any Error)        nicht gefaltet
+```
+
+Der Grund gegen B ist ein **gemessener Präzedenzfall im selben Checker**: eine Präzisierung, die
+statt `Any` die Vereinigung aller Felder eines großen `dictionaryLiteral` lieferte, trieb
+parse+check von 3,6 s auf 14,4 s bei praktisch unveränderten Aufrufzahlen — die Zeit steckte fast
+vollständig in `typeEquals` aus der Deduplizierung (CHECKER-AUDIT.md, „Fallen im Checker"). Die
+Schlussfolgerung dort lautet: „im Zweifel nur dort präzisieren, wo die Feldmenge klein ist." B
+erzeugt genau diese Typform, und die Faltung läuft im Language Server bei jedem Tastendruck mit.
+
+Zwei weitere Punkte gegen B in Stufe 1: ein gefaltetes `toList` über ein großes Literal wird zu
+einem Tuple-Typ derselben Länge, und `add` kürzt nicht
+(`// TODO kleinstes gemeinsames Vielfaches, kürzen`, [runtime.ts:1786](../src/runtime.ts#L1786)) —
+`[numerator = 2 denominator = 4]` fröre eine Implementierungs-Unfertigkeit in einen Typ ein.
+
+**Bewusst getragene Ausnahme:** Gefaltet wird nach **Ergebnisform**, nicht nach Purity. `slice`,
+`toList`, `toDictionary`, `parseJson`, `getElement` und `flatten` tragen `->` und werden trotzdem
+nie gefaltet. Das ist nicht schön, aber es ist der Punkt, an dem eine Messung vorliegt und eine
+Vermutung nicht.
+
+B und C sind als Ausbaustufe vermerkt (siehe unten), nicht verworfen.
+
+### Weiterhin zu entscheiden
+
+- **Fehler beim Falten** (`parseFloat`, Division durch 0, geworfene Ausnahme): Vorschlag abfangen,
+  nicht falten, keine neue Diagnose. Faltung darf nie selbst Fehlerquelle sein.
 - **Granularität und Rücksetzung des Zählers:** pro Ausdruck, pro Datei oder pro Check-Lauf? Der
   Language Server ist ein langlebiger Prozess — ein globaler Zähler blockierte nach einiger Zeit
   dauerhaft.
-- **Kosten:** Faltung läuft im Language Server bei jedem Tastendruck mit, und präzisere Typen sind
-  im Checker nachweislich teuer (CHECKER-AUDIT.md, „Fallen im Checker": `typeEquals` aus der
-  Deduplizierung). Daher die Messung in Schritt 8 vor der Faltung und in Schritt 12 danach.
+- **Aufrufkonvention:** welche Argumentformen Stufe 1 faltet. Der Emitter unterscheidet drei Fälle
+  ([emitter.ts:200-225](../src/emitter.ts#L200-L225)), dazu kommen `prefixArgument` und
+  Rest-Parameter. Achtung: `add` hat einen Rest-Parameter (`rest: { type: List(Rational) }`),
+  `add(2 3)` läuft also über den Spread-Pfad — das Standardbeispiel trifft nicht den einfachsten
+  Fall.
+- **Name→Runtime-Abbildung:** explizite Tabelle statt `runtime[name]` (escapte Namen,
+  `_createFunction`-verpackte Exporte, `_parseJson` neben `parseJson`), und was bei einem
+  core-lib-Symbol ohne Eintrag geschieht.
+- **Hostunabhängigkeit** als zweites Kriterium neben `purity === 'pure'`: `toIsoDateText` und alles
+  Datums- und Zahlformatierende hängt an Zeitzone, ICU und Node-Version.
+- **Kosten:** Messung vor und nach der Faltung, und eine Schwelle, ab der sie wieder rausfliegt.
+
+**Entschieden — das Ergebnis fließt nur in den Typ, nicht in den Emitter.** Der emittierte Code ruft
+die Funktion weiterhin auf; gefaltet wird ausschließlich für die Typpräzision. Damit trägt die
+Faltung in dieser Stufe **kein Semantik-Risiko**: weicht sie vom Laufzeitergebnis ab, ist der Typ
+ungenau, aber das Programm verhält sich unverändert. Die Emitter-Variante ist als Ausbaustufe
+vermerkt (siehe unten).
 
 ## Explizit außerhalb dieser Ausbaustufe
 
@@ -529,12 +596,11 @@ Die 10 „TODO pure wenn die args pure sind"-Stellen (`map`, `filter`, `filterMa
 früher hier und erledigen sich mit der Argument-Regel von selbst: sie bekommen `->`, den Rest macht
 die Regel. Kein eigener Mechanismus, keine Fixpunkt-Iteration.
 
-## Was noch offen ist
+## Was sich beim Entscheiden aufgelöst hat
 
-Nach den Entscheidungen zu Frage 1, 2, 4 und 5 ist die Ausbaustufe bis einschließlich Schritt 9
-**vollständig spezifiziert** — davor ist nichts mehr offen. Was hier steht, ist zur Hälfte das
-Protokoll dessen, was sich beim Entscheiden aufgelöst hat; offen sind nur noch die Faltungsfragen
-(siehe „Zu entscheiden beim Falten") hinter der Schnittlinie.
+Schritte 1–10 sind umgesetzt; die Fragen, die davor offen waren, sind hier als Protokoll
+festgehalten. Was für die Faltung noch zu entscheiden ist, steht oben unter
+„Weiterhin zu entscheiden".
 
 **Kein neuer Fehlercode nötig.** Beide, die hier standen, sind entfallen: der für einen Purity-Pfeil
 am `functionLiteral` mit der Entscheidung zu 1B (dort ist er erlaubt), der für einen `?>`-Pfeil ins
@@ -561,6 +627,9 @@ für Nutzercode nichts.
 
 Die Messungen sind eigene Schritte, keine Anhänge — ein „vor und nach Schritt X" ist beim Abarbeiten
 nicht mehr messbar.
+
+**Stand: Schritte 1–10 sind umgesetzt** — Pfeile, Purity im Typ, core-lib-Migration, Argument-Regel
+(`getCallPurity`), `typeToString`. Offen ist die Faltung ab Schritt 11.
 
 1. `npm run bench -- --save` (Ausgangsmessung).
 2. Roter Test: `pure` einer nachweislich unreinen core-lib-Funktion (`currentDate`, `log`). Belegt
@@ -610,6 +679,48 @@ nicht mehr messbar.
 **Schnittmöglichkeit:** Schritt 1–10 sind eine abgeschlossene, testbare Einheit ohne Ausführung von
 Code zur Compile-Zeit. Die Faltung (11–14) trägt als einziger Teil Semantik-Risiko und blockiert den
 Rest nicht — sie lässt sich als eigene Ausbaustufe mit eigenem Dokument abtrennen.
+
+## Ausblick: gefaltetes Ergebnis auch emittieren
+
+Vorgemerkt: statt den Aufruf zu emittieren, die gefaltete Konstante einsetzen — `addInteger(2 3)`
+würde zu `5n` statt zu `addInteger(2n, 3n)`.
+
+**Der Gewinn wäre echt**, weil ihn heute niemand sonst einsammelt: webpack läuft mit
+`minimize: false` ([compiler.ts:60](../src/compiler.ts#L60)), und ein JS-Minifier könnte einen
+Aufruf in die Runtime ohnehin nicht wegrechnen.
+
+**Drei Dinge müssten vorher geklärt sein**, und alle drei sind der Grund, warum es nicht in Stufe 1
+gehört:
+
+- **Ein neuer Kanal vom Checker zum Emitter.** Der Emitter liest heute **kein** `typeInfo` — er
+  arbeitet ausschließlich auf dem Parse-Baum. Der gefaltete Wert müsste ihn also erst erreichen,
+  entweder über eine Annotation am Knoten oder indem der Emitter anfängt, geprüfte Typen zu lesen.
+  Das ist eine Architekturänderung, keine Ergänzung.
+- **Hostunabhängigkeit wird von einer Soll- zu einer Muss-Bedingung.** Solange nur der Typ betroffen
+  ist, ist eine Abweichung zwischen Faltung und Laufzeit eine Ungenauigkeit. Sobald der Wert
+  emittiert wird, ist sie eine Verhaltensänderung — und Zeitzone, ICU-Daten und Node-Version der
+  Build-Maschine landen im Programm.
+- **Die CLI bricht bei Parse-Fehlern ab, der Language Server nicht.** Gefaltet wird in beiden; nur
+  einer emittiert. Es muss festliegen, dass eine Faltung, die im Language Server auf einem
+  unvollständigen Baum passiert, nie in emittierten Code gerät.
+
+## Ausblick: Faltung nicht-skalarer Ergebnisse
+
+Stufe 1 faltet nur skalare Ergebnisse (siehe Wert↔Typ-Grenze). Die beiden verworfenen Varianten
+bleiben vorgemerkt:
+
+- **Kollektionen und `Fraction` mitfalten (Variante B).** Beseitigt die Ausnahme „pure, aber nie
+  gefaltet" für `slice`, `toList`, `toDictionary`, `parseJson`, `getElement`, `flatten`, und die
+  abhängigen Typfunktionen (`ElementAt`, `LengthOf`, `WithElementAt`) profitieren am meisten davon.
+  Voraussetzung ist eine Messung: der Befund aus CHECKER-AUDIT.md (3,6 s → 14,4 s durch genau diese
+  Typform) ist der Grund für die Vertagung, nicht ein grundsätzlicher Einwand. Der natürliche
+  Zwischenschritt wäre eine Größenschranke (nur Kollektionen bis n Elemente) — die Schranke ist
+  aber willkürlich, solange die Messung aus Stufe 1 fehlt. Vorher zu klären ist außerdem, ob `add`
+  kürzt: sonst friert ein gefalteter Bruch `[numerator = 2 denominator = 4]` in einen Typ ein.
+- **Bedarfsgesteuerte Faltung (Variante C).** Nur falten, wo ein Konsument den Wert braucht. Löst
+  ein Kostenproblem, verlangt aber eine Bedarfsrichtung im Checker, die es heute nicht gibt
+  (`inferType` läuft von unten nach oben), und macht die Ausgabe unvorhersehbar: derselbe Ausdruck
+  zeigt im Hover mal `5`, mal `Rational`. Nur verfolgen, falls Stufe 1 messbar zu teuer ist.
 
 ## Ausblick: Ausbaustufe „Pure Inference"
 

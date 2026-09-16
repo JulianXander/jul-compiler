@@ -4138,9 +4138,9 @@ function effectivePurity(purity: Purity): 'pure' | 'notPure' {
 }
 
 /**
- * Ob ein konkreter Aufruf von functionType mit argsType beweisbar rein ist (pure-functions-
- * umsetzung.md, Schritt 7): die aufgerufene Funktion muss 'pure' sein, und jedes Argument, dessen
- * Typ direkt ein Funktionstyp ist, muss seinerseits 'pure' sein. Alles andere ist 'impure'.
+ * Ob ein konkreter Aufruf von functionType mit argsType beweisbar rein ist (Argument-Regel
+ * aus docs/pure-functions.md): die aufgerufene Funktion muss 'pure' sein, und jedes Argument,
+ * dessen Typ direkt ein Funktionstyp ist, muss seinerseits 'pure' sein. Sonst 'impure'.
  * Kein Fixpunkt, kein neuer Zustand im Typ - das Ergebnis gilt nur für diese eine Aufrufstelle.
  * Betrachtet werden nur Argumente, deren Typ direkt ein Funktionstyp ist; Funktionen in einem
  * Datenargument (f([cb = log])) erfasst die Regel nicht.

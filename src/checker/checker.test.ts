@@ -3045,10 +3045,10 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked!.errors).to.deep.equal([]);
 	});
-	// Belegt den Befund aus pure-functions-umsetzung.md Schritt 2: heute trägt jede core-lib-
-	// Funktion pure: true, weil functionTypeLiteral das hart setzt (checker.ts:2702) - auch log
-	// und currentDate, die offensichtlich nicht pure sind. Bleibt rot bis Schritt 6 (core-lib-
-	// Migration auf die neuen Pfeile), das ist beabsichtigt.
+	// Haelt den Befund fest, der zu den Purity-Pfeilen gefuehrt hat (docs/pure-functions.md,
+	// "Stand"): frueher trug jede core-lib-Funktion pure: true, weil functionTypeLiteral das
+	// hart setzte - auch log und currentDate, die offensichtlich nicht pure sind. Seit der
+	// Migration kommt die Purity aus dem geschriebenen Pfeil.
 	function purityOf(name: string): Purity | undefined {
 		const type = builtInSymbols[name]?.typeInfo?.type;
 		return type && isFunctionType(type) ? type.purity : undefined;
