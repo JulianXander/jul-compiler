@@ -146,12 +146,19 @@ export const checkerStats = {
 	resolvePlaceholders: 0,
 	/** Relationsprüfungen inklusive Rekursion über Choices. */
 	getTypeError: 0,
+	/**
+	 * Aufrufstellen, an denen constant folding greifen würde (Argumente konstant, Aufruf rein,
+	 * kein Argumentfehler) - gezählt, aber noch nicht gefaltet. Siehe
+	 * docs/constant-folding-umsetzung.md, Schritt 1.
+	 */
+	foldableCall: 0,
 };
 
 export function resetCheckerStats(): void {
 	checkerStats.inferType = 0;
 	checkerStats.resolvePlaceholders = 0;
 	checkerStats.getTypeError = 0;
+	checkerStats.foldableCall = 0;
 }
 
 //#endregion stats
@@ -2575,6 +2582,18 @@ function inferType(
 				: prefixArgumentType;
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, returnPrefixArgumentType, argsType, returnType);
+			//#region Schritt 1 Constant Folding: nur zählen, noch nicht falten
+			if (!assignArgsError
+				&& functionExpression.type === 'reference') {
+				const resolvedFunctionType = resolveAlias(functionType);
+				if (isFunctionType(resolvedFunctionType)
+					&& getCallPurity(resolvedFunctionType, argsType) === 'pure'
+					&& (!prefixArgumentType || isConstantFoldableType(prefixArgumentType))
+					&& isConstantFoldableType(argsType)) {
+					checkerStats.foldableCall++;
+				}
+			}
+			//#endregion
 			return { type: dereferencedReturnType };
 		}
 		case 'functionLiteral': {
@@ -4135,6 +4154,30 @@ function isLiteralType(type: ResolvedType): boolean {
 // bekäme createNormalizedUnionType eine zweite künstliche Trennung.
 function effectivePurity(purity: Purity): 'pure' | 'notPure' {
 	return purity === 'pure' ? 'pure' : 'notPure';
+}
+
+/**
+ * Ob ein Typ ausschließlich aus Literalen besteht (Skalare und Kollektionen aus Literaltypen)
+ * und damit einen Wert zur Compile-Zeit vollständig beschreibt. Zählbedingung für Schritt 1 des
+ * Constant-Folding-Plans (docs/constant-folding-umsetzung.md); die eigentliche Übersetzung in
+ * einen JS-Wert (typeToConstantValue) folgt erst in Schritt 3.
+ */
+function isConstantFoldableType(type: CompileTimeType): boolean {
+	const resolvedType = resolveAlias(type);
+	switch (resolvedType.julType) {
+		case 'integerLiteral':
+		case 'floatLiteral':
+		case 'textLiteral':
+		case 'booleanLiteral':
+		case 'empty':
+			return true;
+		case 'tuple':
+			return resolvedType.ElementTypes.every(isConstantFoldableType);
+		case 'dictionaryLiteral':
+			return Object.values(resolvedType.Fields).every(isConstantFoldableType);
+		default:
+			return false;
+	}
 }
 
 /**

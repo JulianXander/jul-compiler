@@ -95,7 +95,7 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 	console.log(`  ${julFiles.length} Dateien, ${lineCount} Zeilen, ${runCount} Durchläufe`);
 	results.forEach(({ label, values }) =>
 		console.log(formatResult(label, values, previous?.[label])));
-	console.log(`  inferType ${checkerStats.inferType}, resolvePlaceholders ${checkerStats.resolvePlaceholders}, getTypeError ${checkerStats.getTypeError}`);
+	console.log(`  inferType ${checkerStats.inferType}, resolvePlaceholders ${checkerStats.resolvePlaceholders}, getTypeError ${checkerStats.getTypeError}, foldableCall ${checkerStats.foldableCall}`);
 
 	results.forEach(({ label, values }) => {
 		const drift = getDrift(logPath, target, machine, label, values);
