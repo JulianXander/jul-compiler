@@ -95,7 +95,7 @@ Rational = Or(Integer Fraction)
 # sequence of characters (String)
 Text = nativeValue(§_Text§)
 Date = nativeValue(§_Date§)
-Blob = nativeValue(§_Date§)
+Blob = nativeValue(§_Blob§)
 # Instance structure: (message: Text)
 # TODO was wenn message = undefined?
 Error = nativeValue(§_Error§)
