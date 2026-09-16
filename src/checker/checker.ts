@@ -4569,7 +4569,7 @@ function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
  * Die Schleifengrenze ist eine Notbremse: unproduktive Zyklen meldet bereits JUL5170, aber ein
  * haengender Language Server waere ein schlechterer Ausgang als ein ungenauer Typ.
  */
-function resolveAlias(type: CompileTimeType): ResolvedType {
+export function resolveAlias(type: CompileTimeType): ResolvedType {
 	let current = type;
 	for (let depth = 0; current.julType === 'alias'; depth++) {
 		if (depth >= maxAliasDepth) {
