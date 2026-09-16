@@ -109,10 +109,10 @@ auf `typeToString` aufbauen.
 ## Zu entscheiden, bevor Option B umsetzbar ist
 
 Vier Fragen, die die Empfehlung offen lässt. Reihenfolge der Beantwortung: 2 → 1 → 4 → 5, weil Frage 2
-den Umfang der beiden folgenden bestimmt. (Ursprünglich vier Fragen mit eigener Frage 3 „Welches
-Symbol?" — die ist in Frage 2 aufgegangen, weil beide dieselbe Entscheidung trafen, sobald `:>`
-nicht mehr zur Debatte um pure/impure gehört: welche neuen Symbole es gibt und welche Bedeutung
-jedes trägt, ist eine einzige Frage.)
+den Umfang der folgenden bestimmt. (Die ursprüngliche Frage 3 „Welches Symbol?" ist in Frage 2
+aufgegangen, weil beide dieselbe Entscheidung trafen, sobald `:>` nicht mehr zur Debatte um
+pure/impure gehört: welche neuen Symbole es gibt und welche Bedeutung jedes trägt, ist eine einzige
+Frage. Frage 5 kam mit der Pfeil-Familie dazu — vier Pfeile passen nicht mehr in ein Bool.)
 
 **Zahlen, auf die sich der Migrationsumfang unten bezieht:** 81 `nativeFunction`-Aufrufe in
 core-lib mit 80 Bool-Argumenten (49 `true`, 31 `false`), davon 17 Parameter, deren Typ selbst ein
@@ -493,7 +493,7 @@ nur Nachschauen an der Aufrufstelle.
 ## Was noch offen ist
 
 Nach den Entscheidungen zu Frage 1, 2, 4 und 5 ist die Ausbaustufe bis einschließlich Schritt 9
-umsetzbar. Offen sind vier Punkte, die vorher fallen müssen, plus die Faltungsfragen.
+umsetzbar. Offen sind drei Punkte, die vorher fallen müssen, plus die Faltungsfragen.
 
 **Vor Schritt 4 — Was passiert mit `'conditional'` beim Dereferenzieren?**
 [checker.ts:1036](../src/checker/checker.ts#L1036) und
@@ -505,43 +505,42 @@ auf `'impure'` zusammenfallen lassen, oder ein Fehler. **Ohne diese Entscheidung
 implementierbar**, weil unklar bleibt, was der Typ außerhalb eines Aufrufs bedeutet.
 
 **Vor Schritt 3 — zwei Fehlercodes vergeben und Meldungstexte festlegen.** Beide folgen aus bereits
-getroffenen Entscheidungen, existieren aber noch nicht:
-- Purity-Pfeil an einem `functionLiteral` (`(a) -> Integer => ...`). Nach 1A verboten; der Parser
-  nähme ihn ohne eigene Regel klaglos an.
-- `?>`-Rückgabepfeil ohne mindestens einen `?>`-Parameter — bedeutungslose Deklaration.
+getroffenen Entscheidungen, existieren aber noch nicht. Beide sind Kategorie `semantic` („der Baum
+steht, aber das Konstrukt ist regelwidrig"), keine Typfehler — sie entstehen ohne jeden Typvergleich,
+allein daraus, welcher Pfeil wo steht:
 
-**Vor Schritt 5 — mehrere `?>`-Parameter in einer Signatur.** Die Verknüpfung ist als UND
+- **Purity-Pfeil an einem `functionLiteral`** (`(a: Integer) -> Integer => a`). Nach 1A verboten,
+  weil der Rumpf die Behauptung mangels Inferenz nicht einlöst. Der Parser nimmt den Pfeil ohne
+  eigene Regel klaglos an: `functionTypeBodyParser` konsumiert ihn, bevor am optionalen `=>`
+  feststeht, ob ein Typ oder ein Wert entsteht — ohne Fehlercode gäbe es eine Schreibweise, die
+  aussieht, als sage sie etwas, und stillschweigend nichts bewirkt. Genau die Lücke, die dieses
+  Dokument schließt.
+- **`?>`-Rückgabepfeil ohne mindestens einen `?>`-Parameter.** Die Deklaration sagt „meine Purity
+  ist die der so markierten Parameter" und markiert keine — die Auflösung an der Aufrufstelle hätte
+  nichts, worüber sie das UND bildet, und fiele stumm auf `'impure'` zurück. Betrifft heute nur
+  core-lib, weil die Purity-Pfeile dort reserviert sind; der Code ist trotzdem nötig, weil die
+  Regel sonst nirgends steht.
+
+*Schwere:* beide `error`, nicht `warning`. Eine Lockerung ist später rückwärtskompatibel (1B würde
+den ersten Code entfallen lassen), eine Verschärfung von `warning` zu `error` wäre es nicht.
+
+*Was ein neuer Code kostet* (siehe Kopfkommentar von [compiler-errors.ts](../src/compiler-errors.ts)):
+drei Einträge — Enum, `errorInfos` (der Mapped Type erzwingt ihn), und ein Abschnitt in
+`jul-homepage/docs/docs/documentation/error-codes.md`. Nur der dritte wird von keinem Compiler
+erzwungen und ist zugleich der, den der Nutzer zur Fehlermeldung findet. Nummern werden nie
+wiederverwendet. Vorschlag: eine eigene Unterregion `2600` „Purity-Pfeile" im semantischen Block
+(`2400` Parameter, `2500` `discardedValue` sind belegt), mit `purityArrowNotAllowedForFunctionLiteral
+= 2600` und `conditionalPurityWithoutConditionalParameter = 2601`.
+
+**Vor Schritt 6 — mehrere `?>`-Parameter in einer Signatur.** Die Verknüpfung ist als UND
 entschieden; noch nicht durchgesehen ist, ob core-lib überhaupt eine Signatur mit mehr als einem
 Callback-Parameter enthält. Falls nein, ist die Regel unbelegt, aber harmlos.
 
-**Vor Schritt 7 — `typeToString` bei `'unknown'`.** `:>` und `~>` sind im Typ unterschieden, aber
-jede Nutzerfunktion trägt `'unknown'`. Rendert `typeToString` das als `:>`, ist die Ausgabe
-unauffällig; rendert es etwas Eigenes, ändern sich 64 Testerwartungen. Vorschlag: `:>`, weil
-`'unknown'` genau „keine Aussage" ist und `:>` genau das bedeutet.
-
-**Vor Schritt 10 — die Faltung selbst.** Hier steht am meisten offen, siehe „Zu entscheiden beim
-Falten" oben; drei Punkte kommen dazu, die dort fehlen:
-
-- **Die Aufrufkonvention muss exakt nachgebaut werden.** Der Emitter unterscheidet drei Fälle
-  ([emitter.ts:200-225](../src/emitter.ts#L200-L225)): Listen-Argumente werden positional gespreizt
-  (`fn(a, b, c)`), Dictionary-/benannte Argumente laufen über `_callFunction`, und dort bekommt eine
-  JS-Funktion das ganze Dictionary als **ein** Argument ([runtime.ts:36-50](../src/runtime.ts#L36-L50)).
-  Dazu kommen `prefixArgument` (`text.regex(pattern)`) und Rest-Parameter
-  (`...args: List(Rational)`). Jede Abweichung faltet zu einem anderen Ergebnis, als die Laufzeit
-  liefert — die stillste aller Fehlerklassen. Sicherste Eingrenzung für Stufe 1: nur positionale
-  Listen-Argumente falten, alles andere überspringen.
-- **Die Abbildung core-lib-Name → Runtime-Export ist nicht total.** `runtime[name]` blind geht
-  nicht: escapte Namen (`_Text`, `_Boolean`, `_Date`, `_Error`, `_Blob`, `_Function`), mit
-  `_createFunction` verpackte Exporte, `_parseJson` **neben** `parseJson`, und core-lib-Symbole, die
-  gar keine `nativeFunction` sind. Es braucht eine explizite, geprüfte Tabelle statt
-  Namensgleichheit.
-- **`pure` heißt nicht „hostunabhängig".** `toIsoDateText` und alles Datums- und Zahlformatierende
-  ist bezüglich seiner Argumente deterministisch, hängt aber an Zeitzone, ICU-Daten und
-  Node-Version. Auf der Entwicklermaschine gefaltet kann das von dem abweichen, was zur Laufzeit im
-  Browser herauskäme. Die Faltungsbedingung braucht daher ein zweites Kriterium neben `purity ===
-  'pure'`. Damit hängt zusammen: fließt das gefaltete Ergebnis **nur** in den Typ (harmlos, reine
-  Präzision) oder auch in den Emitter (dann ist es eine Verhaltensänderung)? Das Ziel oben sagt
-  „als präziserer Typ" — das sollte auch beim Umsetzen so bleiben.
+**Entschieden — `typeToString` bei `'unknown'` rendert `:>`.** `:>` und `~>` sind im Typ
+unterschieden, aber jede Nutzerfunktion trägt `'unknown'`. `:>` bedeutet genau „keine Aussage", und
+`'unknown'` ist genau das; jede andere Darstellung erfände eine Aussage, die der Typ nicht trifft.
+Nebeneffekt: die 64 bestehenden `:>`-Testerwartungen bleiben unverändert, und im Hover ändert sich
+für Nutzercode nichts.
 
 ## Vorgehen
 
@@ -576,8 +575,8 @@ nicht mehr messbar.
    die YAML ist die Quelle), `snippets.json`, `handbook.md`, die öffentliche Doku in
    `jul-homepage/docs`, `nativeFunction`-Testfälle in `checker.test.ts`.
 9. `typeToString` `case 'function'` ([checker.ts:5741](../src/checker/checker.ts#L5741)) um
-   `type.purity` erweitern, damit der Pfeil in Fehlermeldungen und Hover erscheint;
-   Testerwartungen anpassen.
+   `type.purity` erweitern, damit der Pfeil in Fehlermeldungen und Hover erscheint — `'unknown'`
+   rendert als `:>`, die bestehenden Testerwartungen bleiben damit unverändert.
 10. `npm run bench -- --save` (trennt die Kosten des Syntaxumbaus von denen der Faltung).
 11. Roter Test für die Faltung (`add(2 3)` → Literal `5`).
 12. Constant-Folding-Stelle im Checker identifizieren (beim Auflösen eines Funktionsaufrufs, analog
