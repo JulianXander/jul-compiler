@@ -274,19 +274,36 @@ map: (callback: (value: X) ?> Y, list: List(X)) ?> List(Y)
    `'impure'` annehmen. Nach 1B zählt dazu auch die ungeprüfte Zusicherung an einer Nutzerfunktion —
    das ist die einzige Stelle, an der eine falsche Zusicherung in dieser Ausbaustufe überhaupt wirkt.
    Sie trägt nicht bis in die Faltung: die verlangt literale Argumente, und eine Funktion ist keins.
+   Trägt das Argument selbst `'conditional'` (jemand übergibt `map` an eine `?>`-Position), gilt es
+   als nicht beweisbar pure, also `'impure'` — es wird an dieser Stelle nicht aufgerufen, es gibt
+   also keine Argumente, aus denen sich etwas ableiten ließe.
 3. Gesamtergebnis = UND über alle so ermittelten Purities (impure, sobald ein Callback impure ist).
-4. Das Ergebnis ersetzt `?>` an dieser einen Aufrufstelle durch `true`/`false` — `?>` verlässt die
-   `nativeFunction`-Deklaration in core-lib nie und taucht in keinem konkreten Aufrufergebnis auf.
+4. Das Ergebnis ersetzt `?>` an **dieser** Aufrufstelle durch `'pure'`/`'impure'`.
 
-**Offene Punkte, noch zu klären** (aufgenommen unter „Was noch offen ist"):
+`?>` bleibt dabei im Typ der Funktion selbst stehen und wandert mit ihm mit: `f = map` ergibt einen
+Wert mit `'conditional'`, und `f(cb [1 2])` löst genauso auf wie `map(cb [1 2])`, weil die Auflösung
+am **Typ** ansetzt und nicht am Symbol. Drei Regeln gehören dazu, sonst ist `'conditional'` außerhalb
+eines Aufrufs unbestimmt:
 
-- Fallback, wenn die Purity des Arguments nicht statisch bekannt ist (Variable, Parameter der
-  umschließenden Funktion): impure annehmen — dieselbe „unmarkiert = unrein"-Logik wie in Frage 2.
-- Was mit `'conditional'` geschieht, wenn der Typ **ohne** Aufruf weitergereicht oder dereferenziert
-  wird. Das ist der Punkt, an dem die Behauptung „`?>` verlässt die Deklaration nie" trägt oder
-  bricht.
+- `typeEquals` behandelt `'conditional'` als eigene Klasse — gleich nur zu `'conditional'` (siehe
+  Frage 5).
+- Als Argument an einer `?>`-Position zählt `'conditional'` als `'impure'` (Schritt 2 oben).
+- `typeToString` rendert es als `?>`; sonst stünde im Hover von `f` eine Purity-Aussage, die `f`
+  nicht trifft.
+
+*Bewusst getragener Preis:* `f = map` als Argument weiterzureichen heißt konservativ „unrein",
+obwohl es je nach Callback nicht so wäre. Das ist genau die Grenze von Swifts `rethrows`, die in
+Frage 5 als bekannte Schwäche der Darstellung A steht — hier trifft sie zum ersten Mal auf.
+
+**Entschieden:** Fallback, wenn die Purity des Arguments nicht statisch bekannt ist (Variable,
+Parameter der umschließenden Funktion): impure annehmen — dieselbe „unmarkiert = unrein"-Logik wie
+in Frage 2. Ebenso, was mit `'conditional'` außerhalb eines Aufrufs geschieht: es bleibt im Typ
+stehen, mit den drei Regeln oben.
+
+**Offen** (aufgenommen unter „Was noch offen ist"):
+
 - Validierungsregel: ein `?>`-Rückgabepfeil ohne mindestens einen `?>`-Parameter ist eine
-  bedeutungslose Deklaration — eigener Fehlercode oder stillschweigend impure?
+  bedeutungslose Deklaration — Fehlercode `2600`, Meldungstext noch festzulegen.
 - Kombination bei mehreren `?>`-Parametern in einer Signatur (UND, siehe oben) — Beispiele in
   core-lib mit mehr als einem Callback-Parameter noch nicht durchgesehen.
 
@@ -342,6 +359,12 @@ vergleichen, sondern die wirksame Purity — `unknown` und `impure` sind für di
 Wert. Sonst wären `:>`- und `~>`-Typen ungleich, obwohl kein Algorithmus sie unterscheidet, und die
 Deduplizierung (`createNormalizedUnionType`) bekäme eine zweite künstliche Trennung zusätzlich zu
 der, die dieses Dokument gerade beseitigt.
+
+`'conditional'` fällt **nicht** mit zusammen, sondern ist eine eigene Klasse: es ist keine
+Purity-Aussage, sondern ein Verweis auf eine Parameterposition, und zwei Signaturen mit `?>` sind
+nur dann gleich, wenn auch die verwiesenen Parameter gleich sind — was der Vergleich der
+`ParamsType` ohnehin prüft. Damit hat die wirksame Purity drei Werte:
+`pure | impure | conditional`.
 
 **Achse 2 — wo die Information liegt.**
 
@@ -522,16 +545,16 @@ nur Nachschauen an der Aufrufstelle.
 ## Was noch offen ist
 
 Nach den Entscheidungen zu Frage 1, 2, 4 und 5 ist die Ausbaustufe bis einschließlich Schritt 9
-umsetzbar. Offen sind drei Punkte, die vorher fallen müssen, plus die Faltungsfragen.
+umsetzbar. Offen sind zwei Punkte, die vorher fallen müssen, plus die Faltungsfragen.
 
-**Vor Schritt 4 — Was passiert mit `'conditional'` beim Dereferenzieren?**
+**Entschieden — `'conditional'` bleibt beim Dereferenzieren stehen.**
 [checker.ts:1036](../src/checker/checker.ts#L1036) und
-[checker.ts:1235](../src/checker/checker.ts#L1235) bauen Funktionstypen neu und kopieren `pure` mit.
-Die Mechanik oben behauptet, `?>` verlasse die core-lib-Deklaration nie — das gilt aber nur für den
-direkten Aufruf. Bei Weitergabe (`f = map`), bei `map` in einer Kollektion oder als Argument eines
-anderen `?>`-Parameters bleibt `'conditional'` stehen. Zu entscheiden: dort auflösen, konservativ
-auf `'impure'` zusammenfallen lassen, oder ein Fehler. **Ohne diese Entscheidung ist `?>` nicht
-implementierbar**, weil unklar bleibt, was der Typ außerhalb eines Aufrufs bedeutet.
+[checker.ts:1235](../src/checker/checker.ts#L1235) bauen Funktionstypen neu und kopieren `pure`
+unverändert mit; das bleibt so. Die frühere Behauptung, `?>` verlasse die core-lib-Deklaration nie,
+war falsch — bei jeder Weitergabe (`f = map`) wandert sie mit. Sie ist nur folgenlos, weil die
+Auflösung am Typ ansetzt und nicht am Symbol. Die drei Regeln, die `'conditional'` außerhalb eines
+Aufrufs bestimmen, stehen im `?>`-Abschnitt: eigene Klasse in `typeEquals`, als Argument
+`'impure'`, in `typeToString` als `?>`.
 
 **Vor Schritt 3 — einen Fehlercode vergeben und den Meldungstext festlegen.** Kategorie `semantic`
 („der Baum steht, aber das Konstrukt ist regelwidrig"), kein Typfehler — er entsteht ohne jeden
@@ -582,7 +605,8 @@ nicht mehr messbar.
 4. Typdarstellung: `Purity`-Enum in `syntax-tree.ts`, `pure: boolean` → `purity: Purity` an
    `CompileTimeFunctionType` und `createCompileTimeFunctionType`, 11 Aufrufstellen nachziehen.
    `typeEquals` auf wirksame Purity umstellen
-   ([checker.ts:4221](../src/checker/checker.ts#L4221)).
+   ([checker.ts:4221](../src/checker/checker.ts#L4221)): `'unknown'` und `'impure'` sind derselbe
+   Wert, `'conditional'` ist eine eigene Klasse.
 5. Checker: `purity` sowohl beim `functionTypeLiteral` als auch beim `functionLiteral` aus `arrow`
    lesen statt hartzukodieren (ohne Pfeil: `'unknown'`); `nativeFunction`s Signatur auf zwei
    Parameter (`FunctionType`, `js`) reduzieren. Test für die Zusicherung nach 1B: eine Funktion mit
@@ -592,16 +616,18 @@ nicht mehr messbar.
    Callback-Parameterpositionen auf `?>`. Die bestehenden Bool-Werte sind die Vorlage, aber
    ungeprüft — Grenzfälle (`regex`, `parseFloat`, `parseJson`, `assume`, `runJs`) einzeln
    verifizieren: deterministisch und frei von Systemzustand?
-7. `?>`-Auflösung an der Aufrufstelle (Schritte 1–4 der Mechanik oben), inklusive der Entscheidung
-   zum Dereferenzieren aus den offenen Punkten und dem Fehlercode für `?>`-Rückgabe ohne
-   `?>`-Parameter. Tests: pure Callback → pure, `log` als Callback → impure, nicht statisch
-   bekanntes Argument → impure.
+7. `?>`-Auflösung an der Aufrufstelle (Schritte 1–4 der Mechanik oben) und der Fehlercode für
+   `?>`-Rückgabe ohne `?>`-Parameter. Beim Dereferenzieren bleibt `'conditional'` stehen, es ist
+   dort nichts zu tun. Tests: pure Callback → pure, `log` als Callback → impure, nicht statisch
+   bekanntes Argument → impure, `f = map` weitergereicht und dann aufgerufen → löst wie `map` auf,
+   `map` selbst als Argument an einer `?>`-Position → impure.
 8. Mitziehende Artefakte: TextMate-Grammatik ([jul.tmLanguage.yaml](../../vscode-jul-language-service/syntaxes/jul.tmLanguage.yaml),
    die YAML ist die Quelle), `snippets.json`, `handbook.md`, die öffentliche Doku in
    `jul-homepage/docs`, `nativeFunction`-Testfälle in `checker.test.ts`.
 9. `typeToString` `case 'function'` ([checker.ts:5741](../src/checker/checker.ts#L5741)) um
    `type.purity` erweitern, damit der Pfeil in Fehlermeldungen und Hover erscheint — `'unknown'`
-   rendert als `:>`, die bestehenden Testerwartungen bleiben damit unverändert.
+   rendert als `:>` (die bestehenden Testerwartungen bleiben damit unverändert), `'conditional'`
+   als `?>`.
 10. `npm run bench -- --save` (trennt die Kosten des Syntaxumbaus von denen der Faltung).
 11. Roter Test für die Faltung (`add(2 3)` → Literal `5`).
 12. Constant-Folding-Stelle im Checker identifizieren (beim Auflösen eines Funktionsaufrufs, analog
