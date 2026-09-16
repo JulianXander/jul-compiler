@@ -133,21 +133,44 @@ automatisch auch an Nutzerfunktionen — deren `pure` ist aber hart `false`.
   (Prinzip 3). Zusätzlich zu klären: ist `~>` am Literal dann verboten (neuer Fehlercode) oder
   wirkungslos erlaubt?
 - **1B — Der Pfeil am Literal ist eine ungeprüfte Zusicherung**: der Wert übernimmt `pure` aus dem
-  Pfeil, ohne Prüfung des Rumpfs; ohne Pfeil (`(a) => ...`) bleibt es bei impure. *Kosten:* die
+  Pfeil, ohne Prüfung des Rumpfs; ohne Pfeil (`(a) => ...`) bleibt es bei „keine Aussage". *Kosten:* die
   Zusicherung kann lügen, bis die Inferenz-Ausbaustufe sie prüft. *Nutzen:* eine Bedeutung für ein
   Symbol, und die Inferenz prüft später die Zusicherung, statt sie zu ersetzen — derselbe Weg wie
   beim deklarierten Rückgabetyp, der heute schon gegen den inferierten geprüft wird.
 - **1C — Deklaration mit sofortiger Prüfung.** Braucht Purity-Inferenz über den Rumpf, das ist die
   nächste Ausbaustufe. Für jetzt ausgeschlossen.
 
-**Entscheidung: 1A, aber ohne dessen ursprüngliche Kosten.** Der Einwand gegen 1A war, dieselbe
-Schreibweise bedeute an zwei Stellen Verschiedenes. Das entfällt, weil `:>` nicht mehr die
-Purity-tragende Schreibweise ist (siehe Frage 2): `:>` bleibt an **jeder** Stelle — Literal wie
-Typ — „keine Aussage über Purity", überall dieselbe Bedeutung. Die Purity-tragenden Pfeile
-(`->`/`~>`/`?>`) bleiben vorerst reserviertes Vokabular für `functionTypeLiteral`-Deklarationen in
-core-lib (`nativeFunction`); an einem `functionLiteral` mit Rumpf ergäben sie mangels Inferenz ohnehin
-eine ungeprüfte Behauptung. Ob sie später dort erlaubt werden (das wäre dann 1B), ist eine Frage der
-Pure-Inference-Ausbaustufe, nicht dieser.
+**Entscheidung: 1B.** Der Wert übernimmt die Purity aus dem geschriebenen Pfeil, ohne Prüfung des
+Rumpfs; ohne Pfeil oder mit `:>` bleibt es bei `'unknown'`.
+
+Ursprünglich stand hier 1A („die Purity-Pfeile bleiben reserviertes Vokabular für
+`functionTypeLiteral`-Deklarationen in core-lib"), mit der Begründung, eine Zusicherung am Literal
+sei mangels Inferenz unbelegbar und in dieser Ausbaustufe ohnehin folgenlos. Das ist ein Argument
+gegen ihre *Wirkung*, keines gegen ihre *Zulässigkeit*, und es hat zwei Löcher:
+
+- **Ungleichbehandlung.** `nativeFunction`s `FunctionType`-Argument ist dieselbe Syntax, die ein
+  Nutzer hinschreibt. 1A hieße: core-lib darf `->` schreiben, Nutzercode nicht. Das ist genau die
+  Kostenart, die 1A laut seiner eigenen Begründung vermeiden sollte (Prinzip 3, „dieselbe
+  Schreibweise bedeutet an zwei Stellen Verschiedenes") — der Einwand war dort nur für `:>`
+  entkräftet worden, nicht für die neuen Pfeile.
+- **1A verbietet nur die Hälfte.** Verboten wäre das Literal mit Rumpf; den *Typ*
+  `(a: Integer) -> Integer` dürfte der Nutzer weiter hinschreiben — nur könnte ihn keine
+  selbstgeschriebene Funktion je erfüllen, weil jede `'unknown'` trägt. Erlaubt wäre die
+  Deklaration, verboten die Erfüllung.
+
+Dazu kommt der Nutzen, den 1B gegenüber 1A behält: die Inferenz-Ausbaustufe **prüft** die
+Zusicherung später, statt sie zu ersetzen — derselbe Weg wie beim deklarierten Rückgabetyp, der
+heute schon gegen den inferierten geprüft wird (`JUL5100`). Bei 1A müsste stattdessen ein gerade
+erst eingeführter Fehlercode wieder verschwinden, und Nummern werden nie wiederverwendet.
+
+*Bewusst getragenes Risiko:* die Zusicherung kann lügen. Wirksam wird eine Lüge nur an einer Stelle,
+der `?>`-Auflösung (`map(myFn ...)` gilt als pure, weil der Nutzer es behauptet hat). Bis in die
+Faltung trägt sie nicht: die verlangt literale Argumente, und eine Funktion ist keins. Mit der
+Inferenz-Ausbaustufe wird aus der Zusicherung eine geprüfte Deklaration; bis dahin ist sie das, was
+`assume` an anderer Stelle auch ist — eine Behauptung des Nutzers, die der Compiler übernimmt.
+
+1C (Deklaration mit sofortiger Prüfung) bleibt ausgeschlossen: das ist die Inferenz-Ausbaustufe.
+
 
 ### Frage 2: Welche Symbole, welche Bedeutung?
 
@@ -246,8 +269,11 @@ map: (callback: (value: X) ?> Y, list: List(X)) ?> List(Y)
 1. Ermittle die Parameter der aufgerufenen Signatur, deren eigener Typ `?>` trägt (bei `map` genau
    einer, der Callback).
 2. Für jeden davon: das tatsächlich übergebene Argument an dieser Position inspizieren. Nur wenn es
-   nachweislich auf eine bekannte Deklaration mit `:>`/`~>` zeigt (derselbe Anker wie beim Constant
-   Folding, `isBuiltIn`/Symbolauflösung), ist die Purity bekannt; sonst konservativ `~>` annehmen.
+   nachweislich auf eine Deklaration mit geschriebenem Purity-Pfeil zeigt (derselbe Anker wie beim
+   Constant Folding, `isBuiltIn`/Symbolauflösung), ist die Purity bekannt; sonst konservativ
+   `'impure'` annehmen. Nach 1B zählt dazu auch die ungeprüfte Zusicherung an einer Nutzerfunktion —
+   das ist die einzige Stelle, an der eine falsche Zusicherung in dieser Ausbaustufe überhaupt wirkt.
+   Sie trägt nicht bis in die Faltung: die verlangt literale Argumente, und eine Funktion ist keins.
 3. Gesamtergebnis = UND über alle so ermittelten Purities (impure, sobald ein Callback impure ist).
 4. Das Ergebnis ersetzt `?>` an dieser einen Aufrufstelle durch `true`/`false` — `?>` verlässt die
    `nativeFunction`-Deklaration in core-lib nie und taucht in keinem konkreten Aufrufergebnis auf.
@@ -396,10 +422,12 @@ Drei Orte, und sie tragen **nicht dasselbe**.
    auskommentierte `pure: boolean` mit dem `!=>`-TODO
    ([syntax-tree.ts:379](../src/syntax-tree.ts#L379)).
 
-   Nach Entscheidung 1A ist das Feld am Literal aber **kein** Purity-Wert, sondern nur „welcher
-   Pfeil wurde geschrieben", gebraucht, um `->`/`~>`/`?>` dort mit einem Fehlercode abzulehnen.
-   Es heißt daher am AST `arrow`, nicht `purity`: **AST = was dasteht, CompileTimeType = was gilt.**
-   Am `functionLiteral` fallen die beiden auseinander.
+   Das Feld heißt am AST `arrow` und nicht `purity`: **AST = was dasteht, CompileTimeType = was
+   gilt.** Nach 1B fallen die beiden am `functionLiteral` zwar nicht mehr auseinander — die
+   Zusicherung wird eins zu eins übernommen —, aber die Trennung bleibt richtig: `arrow` ist
+   optional (es gibt Funktionen ohne jeden Pfeil), `purity` nicht, und sobald die
+   Inferenz-Ausbaustufe die Zusicherung gegen den Rumpf prüft, ist der geschriebene Pfeil die eine
+   Seite dieses Vergleichs.
 
 3. **Am Typ: die Bedeutung.** `CompileTimeFunctionType.pure`
    ([syntax-tree.ts:928](../src/syntax-tree.ts#L928)) → `purity: Purity`, ebenso der Parameter von
@@ -407,9 +435,10 @@ Drei Orte, und sie tragen **nicht dasselbe**.
    inhaltlich:
    - [checker.ts:2702](../src/checker/checker.ts#L2702) (`functionTypeLiteral`) — liest künftig
      `expression.arrow` statt hart `true`.
-   - [checker.ts:2587](../src/checker/checker.ts#L2587) (`functionLiteral`) — heute hart `false`.
-     Kleine Entscheidung: `'unknown'` statt `'impure'` ist ehrlicher („nicht bewiesen" statt
-     „bewiesen unrein") und vorwärtskompatibel zur Inferenz-Ausbaustufe.
+   - [checker.ts:2587](../src/checker/checker.ts#L2587) (`functionLiteral`) — heute hart `false`,
+     liest nach 1B ebenfalls `expression.arrow`. Ohne Pfeil (und bei `:>`) `'unknown'` statt
+     `'impure'`: ehrlicher („nicht bewiesen" statt „bewiesen unrein") und vorwärtskompatibel zur
+     Inferenz-Ausbaustufe.
    - [checker.ts:1036](../src/checker/checker.ts#L1036) und
      [checker.ts:1235](../src/checker/checker.ts#L1235) — kopieren beim Dereferenzieren; hier ist zu
      klären, was mit `'conditional'` geschieht (siehe offene Punkte).
@@ -481,8 +510,8 @@ Ausführungsschritte, keine Zeit, genau um Nichtdeterminismus zu vermeiden.
 
 ## Explizit außerhalb dieser Ausbaustufe
 
-- Keine Purity-**Inferenz** aus dem Rumpf einer `functionLiteral`. Nach Entscheidung 1A trägt der
-  Pfeil am Literal keine Purity-Aussage; der Typ einer `functionLiteral` bleibt `'unknown'`.
+- Keine Purity-**Inferenz** aus dem Rumpf einer `functionLiteral`. Der Pfeil am Literal wird nach
+  1B übernommen, aber nicht gegen den Rumpf geprüft; ohne Pfeil bleibt der Typ `'unknown'`.
 - Keine Faltung von Aufrufen an Nutzerfunktionen.
 - Keine Durchsetzung von Purity in der Zuweisbarkeit (Frage 4 = 4A).
 
@@ -504,33 +533,28 @@ anderen `?>`-Parameters bleibt `'conditional'` stehen. Zu entscheiden: dort aufl
 auf `'impure'` zusammenfallen lassen, oder ein Fehler. **Ohne diese Entscheidung ist `?>` nicht
 implementierbar**, weil unklar bleibt, was der Typ außerhalb eines Aufrufs bedeutet.
 
-**Vor Schritt 3 — zwei Fehlercodes vergeben und Meldungstexte festlegen.** Beide folgen aus bereits
-getroffenen Entscheidungen, existieren aber noch nicht. Beide sind Kategorie `semantic` („der Baum
-steht, aber das Konstrukt ist regelwidrig"), keine Typfehler — sie entstehen ohne jeden Typvergleich,
-allein daraus, welcher Pfeil wo steht:
+**Vor Schritt 3 — einen Fehlercode vergeben und den Meldungstext festlegen.** Kategorie `semantic`
+(„der Baum steht, aber das Konstrukt ist regelwidrig"), kein Typfehler — er entsteht ohne jeden
+Typvergleich, allein daraus, welcher Pfeil wo steht:
 
-- **Purity-Pfeil an einem `functionLiteral`** (`(a: Integer) -> Integer => a`). Nach 1A verboten,
-  weil der Rumpf die Behauptung mangels Inferenz nicht einlöst. Der Parser nimmt den Pfeil ohne
-  eigene Regel klaglos an: `functionTypeBodyParser` konsumiert ihn, bevor am optionalen `=>`
-  feststeht, ob ein Typ oder ein Wert entsteht — ohne Fehlercode gäbe es eine Schreibweise, die
-  aussieht, als sage sie etwas, und stillschweigend nichts bewirkt. Genau die Lücke, die dieses
-  Dokument schließt.
 - **`?>`-Rückgabepfeil ohne mindestens einen `?>`-Parameter.** Die Deklaration sagt „meine Purity
   ist die der so markierten Parameter" und markiert keine — die Auflösung an der Aufrufstelle hätte
-  nichts, worüber sie das UND bildet, und fiele stumm auf `'impure'` zurück. Betrifft heute nur
-  core-lib, weil die Purity-Pfeile dort reserviert sind; der Code ist trotzdem nötig, weil die
-  Regel sonst nirgends steht.
+  nichts, worüber sie das UND bildet, und fiele stumm auf `'impure'` zurück.
 
-*Schwere:* beide `error`, nicht `warning`. Eine Lockerung ist später rückwärtskompatibel (1B würde
-den ersten Code entfallen lassen), eine Verschärfung von `warning` zu `error` wäre es nicht.
+*Schwere:* `error`, nicht `warning`. Eine Lockerung ist später rückwärtskompatibel, eine
+Verschärfung von `warning` zu `error` wäre es nicht.
 
 *Was ein neuer Code kostet* (siehe Kopfkommentar von [compiler-errors.ts](../src/compiler-errors.ts)):
 drei Einträge — Enum, `errorInfos` (der Mapped Type erzwingt ihn), und ein Abschnitt in
 `jul-homepage/docs/docs/documentation/error-codes.md`. Nur der dritte wird von keinem Compiler
 erzwungen und ist zugleich der, den der Nutzer zur Fehlermeldung findet. Nummern werden nie
 wiederverwendet. Vorschlag: eine eigene Unterregion `2600` „Purity-Pfeile" im semantischen Block
-(`2400` Parameter, `2500` `discardedValue` sind belegt), mit `purityArrowNotAllowedForFunctionLiteral
-= 2600` und `conditionalPurityWithoutConditionalParameter = 2601`.
+(`2400` Parameter, `2500` `discardedValue` sind belegt), mit
+`conditionalPurityWithoutConditionalParameter = 2600`.
+
+Ein zweiter Code für „Purity-Pfeil an einem `functionLiteral`" entfällt mit der Entscheidung zu
+1B — der Pfeil ist dort erlaubt. Das war der Hauptgrund, 1A nicht zu nehmen: ein Fehlercode, der
+mit der Inferenz-Ausbaustufe wieder verschwinden müsste, während Nummern nie wiederverwendet werden.
 
 **Vor Schritt 6 — mehrere `?>`-Parameter in einer Signatur.** Die Verknüpfung ist als UND
 entschieden; noch nicht durchgesehen ist, ob core-lib überhaupt eine Signatur mit mehr als einem
@@ -554,14 +578,15 @@ nicht mehr messbar.
    `functionTypeBodyParser`/`returnTypeTokenParser` zulassen; die Pfeil-Art wandert als `arrow`
    durch `functionTypeBody` in `ParseFunctionTypeLiteral` **und** `ParseFunctionLiteral` (siehe
    „Wo das Feld steht"). Reihenfolge der `discriminatedChoiceParser`-Zweige gegen `=>` verifizieren.
-   Fehlercode für einen Purity-Pfeil am `functionLiteral`. Parser-Tests analog zu den bestehenden
-   `:>`-Tests, je einer pro Pfeil.
+   Parser-Tests analog zu den bestehenden `:>`-Tests, je einer pro Pfeil, an Typ **und** Literal.
 4. Typdarstellung: `Purity`-Enum in `syntax-tree.ts`, `pure: boolean` → `purity: Purity` an
-   `CompileTimeFunctionType` und `createCompileTimeFunctionType`, 11 Aufrufstellen nachziehen
-   (`functionLiteral` → `'unknown'`). `typeEquals` auf wirksame Purity umstellen
+   `CompileTimeFunctionType` und `createCompileTimeFunctionType`, 11 Aufrufstellen nachziehen.
+   `typeEquals` auf wirksame Purity umstellen
    ([checker.ts:4221](../src/checker/checker.ts#L4221)).
-5. Checker: `purity` beim Auflösen eines `functionTypeLiteral` aus `arrow` lesen statt
-   hartzukodieren; `nativeFunction`s Signatur auf zwei Parameter (`FunctionType`, `js`) reduzieren.
+5. Checker: `purity` sowohl beim `functionTypeLiteral` als auch beim `functionLiteral` aus `arrow`
+   lesen statt hartzukodieren (ohne Pfeil: `'unknown'`); `nativeFunction`s Signatur auf zwei
+   Parameter (`FunctionType`, `js`) reduzieren. Test für die Zusicherung nach 1B: eine Funktion mit
+   `->` trägt `'pure'`, ohne Pfeil `'unknown'` — ohne dass der Rumpf geprüft würde.
 6. Migration core-lib: alle 81 `nativeFunction`-Aufrufe von `(FunctionType, true/false, js)` auf
    `(FunctionType mit passendem Pfeil, js)` — 49 auf `->`, 31 auf `~>`, die 17
    Callback-Parameterpositionen auf `?>`. Die bestehenden Bool-Werte sind die Vorlage, aber
