@@ -3148,3 +3148,104 @@ map([1 2] myFn)`)).to.equal('impure');
 f([1 2] add)`)).to.equal('pure');
 	});
 });
+
+// docs/constant-folding-umsetzung.md, Schritt 5: der letzte Ausdruck ist immer `r = <Aufruf>`,
+// geprüft wird der Typ von r - Faltung meldet nie etwas, deshalb ist "keine neue Diagnose"
+// jeweils Teil der Prüfung (errors muss leer bleiben).
+describe('constant folding', () => {
+	function typeOfLastDefinition(code: string): string | undefined {
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+		const expressions = parsed.checked?.expressions ?? [];
+		const last = expressions[expressions.length - 1] as ParseSingleDefinition;
+		const type = last.value?.typeInfo?.type;
+		return type && typeToString(resolvePlaceholders(type), 0, 5);
+	}
+
+	//#region 5a Faltung greift
+
+	it('addInteger(2 3) faltet zu 5', () => {
+		expect(typeOfLastDefinition('r = addInteger(2 3)')).to.equal('5');
+	});
+	it('Variablen tragen ihren Literaltyp: addInteger(x 3) faltet zu 8', () => {
+		expect(typeOfLastDefinition('x = 5\nr = addInteger(x 3)')).to.equal('8');
+	});
+	it('combineTexts faltet Text-Argumente', () => {
+		expect(typeOfLastDefinition('r = combineTexts([§x§ §y§] §-§)')).to.equal('§x-y§');
+	});
+	it('Prefixargument wird mitgefaltet', () => {
+		expect(typeOfLastDefinition('r = 2.addInteger(3)')).to.equal('5');
+	});
+	it('Rest-Parameter wird gefaltet', () => {
+		expect(typeOfLastDefinition('r = add(2 3)')).to.equal('5');
+	});
+	it('parseFloat faltet einen validen Text', () => {
+		expect(typeOfLastDefinition('r = parseFloat(§1.5§)')).to.equal('1.5f');
+	});
+	it('parseFloat faltet zu Error bei ungültigem Text (zurückgegebener Error, kein Wurf)', () => {
+		expect(typeOfLastDefinition('r = parseFloat(§abc§)')).to.equal('Error');
+	});
+	it('slice faltet zu einem präzisen Tuple statt Or(Empty ...)', () => {
+		expect(typeOfLastDefinition('r = [1 2 3].slice(2)')).to.equal('[2 3]');
+	});
+	it('slice außerhalb des Bereichs faltet zu Empty', () => {
+		expect(typeOfLastDefinition('r = [1 2 3].slice(9)')).to.equal('Empty');
+	});
+
+	//#endregion 5a
+
+	//#region 5b Faltung unterbleibt
+
+	it('faltet nicht bei nicht-konstantem Argument (Funktionsparameter statt Literal)', () => {
+		expect(typeOfLastDefinition('f = (x: Integer) :> Integer => addInteger(x 3)'))
+			.to.equal('(x: Integer) :> Integer');
+	});
+	it('faltet nicht bei log (purity impure)', () => {
+		expect(typeOfLastDefinition('r = log(1)')).to.equal('Empty');
+	});
+	it('faltet nicht bei currentDate (purity impure)', () => {
+		expect(typeOfLastDefinition('r = currentDate()')).to.equal('Date');
+	});
+	it('faltet nicht bei einer Nutzerfunktion (kein Runtime-Export unter dem Namen)', () => {
+		expect(typeOfLastDefinition(
+			'f = (a: Integer b: Integer) -> Integer => addInteger(a b)\nr = f(2 3)'))
+			.to.equal('Integer');
+	});
+	it('faltet nicht bei einem Callback-Argument, das nicht beweisbar rein ist (map(log ...))', () => {
+		expect(typeOfLastDefinition('r = map([1 2] log)')).to.equal('[Empty Empty]');
+	});
+	it('faltet nicht bei einem Aufruf mit Argumenttypfehler', () => {
+		const parsed = parseCode('r = addInteger(§abc§ 3)', 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.have.lengthOf(1);
+		const def = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const type = def.value?.typeInfo?.type;
+		expect(type && typeToString(resolvePlaceholders(type), 0, 5)).to.equal('Integer');
+	});
+
+	//#endregion 5b
+
+	//#region 5c Abgleich mit den abhängigen Rückgabetypen
+
+	// getElement, setElement, getField deklarieren ihren Rückgabetyp generisch über den
+	// Aufrufort (ElementAt/WithElementAt/TypeOf(...)/ElementType); dieselben Aufrufe sind
+	// zugleich mit konstanten Argumenten faltbar. Beide Mechanismen müssen übereinstimmen -
+	// das ist der Riegel gegen stilles Auseinanderlaufen, den Schritt 4 sonst nicht hätte.
+	it('getElement: gefalteter Wert stimmt mit dem abhängigen Typ überein', () => {
+		expect(typeOfLastDefinition('r = [1 2 3].getElement(2)')).to.equal('2');
+	});
+	it('getElement außerhalb des Bereichs: beide Wege liefern Empty', () => {
+		expect(typeOfLastDefinition('r = [1 2 3].getElement(5)')).to.equal('Empty');
+	});
+	it('setElement: gefalteter Wert stimmt mit dem abhängigen Typ überein', () => {
+		expect(typeOfLastDefinition('r = [].setElement(2 5)')).to.equal('[Empty 5]');
+	});
+	it('getField: gefalteter Wert stimmt mit dem abhängigen Typ überein', () => {
+		expect(typeOfLastDefinition('r = [a = 1 b = 2].getField(§a§)')).to.equal('1');
+	});
+
+	//#endregion 5c
+});

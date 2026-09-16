@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import {
-	_branch, _createFunction, add, addDate, and, combine$, completed$, create$, deepEqual,
-	findLastIndex, multiply, or, parseJson, push, rationalToFloat, regex, subscribe, subtract, take$, toJson,
+	_branch, _callFunction, _createFunction, add, addDate, addInteger, and, combine$, combineTexts,
+	completed$, create$, deepEqual, findLastIndex, multiply, or, parseJson, push, rationalToFloat,
+	regex, subscribe, subtract, take$, toJson,
 } from './runtime.js';
 
 //#region _branch
@@ -319,3 +320,26 @@ describe('combine$', () => {
 });
 
 //#endregion Stream
+
+// Für Listen-Argumente emittiert der Emitter `fn(a, b, c)` direkt statt über _callFunction
+// (emitter.ts, case 'list'), constant folding ruft dagegen immer _callFunction. Für Listen-
+// Argumente müssen beide Wege dasselbe Ergebnis liefern, sonst weicht ein gefalteter Typ vom
+// tatsächlich emittierten Programmverhalten ab. Siehe docs/constant-folding-umsetzung.md,
+// Schritt 5d.
+describe('_callFunction folgt der vom Emitter erzeugten Aufrufkonvention (Listen-Argumente)', () => {
+	it('Rest-Parameter', () => {
+		const values = [2n, 3n];
+		expect(_callFunction(addInteger, undefined, values)).to.equal(addInteger(...values));
+	});
+	it('singleNames-Parameter', () => {
+		const values: [bigint, bigint] = [5n, 3n];
+		expect(_callFunction(subtract, undefined, values)).to.deep.equal(subtract(...values));
+	});
+	it('Prefixargument mit Rest-Parameter', () => {
+		expect(_callFunction(addInteger, 2n, [3n])).to.equal(addInteger(2n, 3n));
+	});
+	it('Prefixargument mit singleNames-Parameter', () => {
+		const texts = ['x', 'y'];
+		expect(_callFunction(combineTexts, texts, ['-'])).to.equal(combineTexts(texts, '-'));
+	});
+});

@@ -2,6 +2,7 @@
 // Bewusst ohne Abhängigkeit von checker.ts, damit beide Richtungen ohne laufenden Checker
 // testbar sind. Siehe docs/constant-folding-umsetzung.md, Schritt 3.
 
+import { _julTypeSymbol } from '../runtime.js';
 import {
 	builtinEmpty,
 	builtinError,
@@ -93,6 +94,12 @@ export function constantValueToType(value: unknown): CompileTimeType | undefined
 		return createCompileTimeTupleType(elementTypes);
 	}
 	if (typeof value === 'object' && value !== null) {
+		if (_julTypeSymbol in value) {
+			// RuntimeType-Objekt (Ergebnis eines Typkonstruktors wie Greater/Not/Or/And/TypeOf),
+			// kein JUL-Datenwert - dafür hat diese Übersetzung keine Entsprechung. Die Type
+			// constructor Sonderbehandlung in getReturnTypeFromFunctionCall bleibt zuständig.
+			return undefined;
+		}
 		const fields: CompileTimeDictionary = {};
 		for (const [fieldName, fieldValue] of Object.entries(value)) {
 			const fieldType = constantValueToType(fieldValue);

@@ -6,6 +6,91 @@ export function isDefined<T>(value: T | undefined): value is T {
 	return value !== undefined;
 }
 
+/**
+ * JUL-Name → Name des JS-Exports im generierten Code bzw. in runtime.ts. Einzige Stelle, die
+ * diese Abbildung kennt (Emitter und Checker teilen sie sich).
+ */
+export function escapeReservedJsVariableName(name: string): string {
+	if (reservedJsNames.includes(name)) {
+		return '_' + name;
+	}
+	return name;
+}
+
+const reservedJsNames: string[] = [
+	'abstract',
+	'arguments',
+	'await',
+	'abstract',
+	'boolean',
+	'break',
+	'byte',
+	'case',
+	'catch',
+	'case',
+	'char',
+	'case',
+	'class',
+	'const',
+	'continue',
+	'debugger',
+	'default',
+	'delete',
+	'do',
+	'double',
+	'else',
+	'enum',
+	'eval',
+	'export',
+	'extends',
+	'final',
+	'finally',
+	'float',
+	'for',
+	'function',
+	'goto',
+	'if',
+	'implements',
+	'import',
+	'in',
+	'instanceof',
+	'int',
+	'interface',
+	'let',
+	'long',
+	'native',
+	'new',
+	'null',
+	'package',
+	'private',
+	'protected',
+	'public',
+	'return',
+	'short',
+	'static',
+	'super',
+	'switch',
+	'synchronized',
+	'this',
+	'throw',
+	'throws',
+	'transient',
+	'try',
+	'typeof',
+	'var',
+	'void',
+	'volatile',
+	'while',
+	'with',
+	'yield',
+
+	'Blob',
+	'Boolean',
+	'Error',
+	'String',
+	'Text',
+];
+
 export function getValueWithFallback<T>(value: T | null, fallback: T): T {
 	return value === null
 		? fallback

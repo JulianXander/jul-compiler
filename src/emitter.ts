@@ -9,7 +9,7 @@ import {
 	ParseReference,
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
-import { Extension, NonEmptyArray, changeExtension } from './util.js';
+import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName } from './util.js';
 import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from './parser/parser.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
@@ -388,86 +388,6 @@ function functionBodyToJs(expressions: ParseExpression[], indent: number): strin
 function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;
 	return escapeReservedJsVariableName(name);
-}
-
-const reservedJsNames: string[] = [
-	'abstract',
-	'arguments',
-	'await',
-	'abstract',
-	'boolean',
-	'break',
-	'byte',
-	'case',
-	'catch',
-	'case',
-	'char',
-	'case',
-	'class',
-	'const',
-	'continue',
-	'debugger',
-	'default',
-	'delete',
-	'do',
-	'double',
-	'else',
-	'enum',
-	'eval',
-	'export',
-	'extends',
-	'final',
-	'finally',
-	'float',
-	'for',
-	'function',
-	'goto',
-	'if',
-	'implements',
-	'import',
-	'in',
-	'instanceof',
-	'int',
-	'interface',
-	'let',
-	'long',
-	'native',
-	'new',
-	'null',
-	'package',
-	'private',
-	'protected',
-	'public',
-	'return',
-	'short',
-	'static',
-	'super',
-	'switch',
-	'synchronized',
-	'this',
-	'throw',
-	'throws',
-	'transient',
-	'try',
-	'typeof',
-	'var',
-	'void',
-	'volatile',
-	'while',
-	'with',
-	'yield',
-
-	'Blob',
-	'Boolean',
-	'Error',
-	'String',
-	'Text',
-];
-function escapeReservedJsVariableName(name: string): string {
-	if (reservedJsNames.includes(name)) {
-		return '_' + name;
-	}
-	return name;
 }
 
 function parametersToJs(parameters: ParseParameterFields, indent: number): string {

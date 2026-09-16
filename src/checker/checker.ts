@@ -1,4 +1,6 @@
 import { join } from 'path';
+import * as runtime from '../runtime.js';
+import { constantValueToType, typeToConstantValue } from './constant-folding.js';
 import {
 	BracketedExpression,
 	CompileTimeCollection,
@@ -84,7 +86,7 @@ import {
 	createTextLiteral,
 	updateFunctionTypeUnresolvedFlag,
 } from '../syntax-tree.js';
-import { NonEmptyArray, elementsEqual, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
+import { NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName } from '../parser/parser-utils.js';
@@ -2582,19 +2584,9 @@ function inferType(
 				: prefixArgumentType;
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, returnPrefixArgumentType, argsType, returnType);
-			//#region Schritt 1 Constant Folding: nur zählen, noch nicht falten
-			if (!assignArgsError
-				&& functionExpression.type === 'reference') {
-				const resolvedFunctionType = resolveAlias(functionType);
-				if (isFunctionType(resolvedFunctionType)
-					&& getCallPurity(resolvedFunctionType, argsType) === 'pure'
-					&& (!prefixArgumentType || isConstantFoldableType(prefixArgumentType))
-					&& isConstantFoldableType(argsType)) {
-					checkerStats.foldableCall++;
-				}
-			}
-			//#endregion
-			return { type: dereferencedReturnType };
+			const foldedType = tryFoldCall(
+				functionExpression, functionType, prefixArgumentType, argsType, assignArgsError);
+			return { type: foldedType ?? dereferencedReturnType };
 		}
 		case 'functionLiteral': {
 			const ownSymbols = expression.symbols;
@@ -4157,30 +4149,6 @@ function effectivePurity(purity: Purity): 'pure' | 'notPure' {
 }
 
 /**
- * Ob ein Typ ausschließlich aus Literalen besteht (Skalare und Kollektionen aus Literaltypen)
- * und damit einen Wert zur Compile-Zeit vollständig beschreibt. Zählbedingung für Schritt 1 des
- * Constant-Folding-Plans (docs/constant-folding-umsetzung.md); die eigentliche Übersetzung in
- * einen JS-Wert (typeToConstantValue) folgt erst in Schritt 3.
- */
-function isConstantFoldableType(type: CompileTimeType): boolean {
-	const resolvedType = resolveAlias(type);
-	switch (resolvedType.julType) {
-		case 'integerLiteral':
-		case 'floatLiteral':
-		case 'textLiteral':
-		case 'booleanLiteral':
-		case 'empty':
-			return true;
-		case 'tuple':
-			return resolvedType.ElementTypes.every(isConstantFoldableType);
-		case 'dictionaryLiteral':
-			return Object.values(resolvedType.Fields).every(isConstantFoldableType);
-		default:
-			return false;
-	}
-}
-
-/**
  * Ob ein konkreter Aufruf von functionType mit argsType beweisbar rein ist (Argument-Regel
  * aus docs/pure-functions.md): die aufgerufene Funktion muss 'pure' sein, und jedes Argument,
  * dessen Typ direkt ein Funktionstyp ist, muss seinerseits 'pure' sein. Sonst 'impure'.
@@ -4203,6 +4171,53 @@ export function getCallPurity(functionType: CompileTimeFunctionType, argsType: C
 		return !isFunctionType(resolvedArgType) || resolvedArgType.purity === 'pure';
 	});
 	return allFunctionArgsPure ? 'pure' : 'impure';
+}
+
+/**
+ * Versucht, einen Aufruf eines `->`-Builtins mit compile-time bekannten Argumenten auszuführen
+ * und sein Ergebnis als präziseren Typ zurückzugeben - der emittierte Code bleibt unverändert,
+ * gefaltet wird nur der Typ. `undefined` heißt "nicht gefaltet"; das ist kein Fehler und wird nie
+ * gemeldet. Siehe docs/constant-folding-umsetzung.md, Schritt 4, für die Bedingungen in dieser
+ * Reihenfolge.
+ */
+function tryFoldCall(
+	functionExpression: SimpleExpression,
+	functionType: CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
+	argsType: CompileTimeType,
+	assignArgsError: string | undefined,
+): CompileTimeType | undefined {
+	if (assignArgsError) {
+		return undefined;
+	}
+	if (functionExpression.type !== 'reference') {
+		return undefined;
+	}
+	const resolvedFunctionType = resolveAlias(functionType);
+	if (!isFunctionType(resolvedFunctionType) || getCallPurity(resolvedFunctionType, argsType) !== 'pure') {
+		return undefined;
+	}
+	const name = functionExpression.name.name;
+	const runtimeFunction = (runtime as { [key: string]: unknown; })[escapeReservedJsVariableName(name)];
+	if (typeof runtimeFunction !== 'function' || !('params' in runtimeFunction)) {
+		return undefined;
+	}
+	const prefixValue = prefixArgumentType && typeToConstantValue(prefixArgumentType);
+	if (prefixArgumentType && !prefixValue) {
+		return undefined;
+	}
+	const argsValue = typeToConstantValue(argsType);
+	if (!argsValue) {
+		return undefined;
+	}
+	checkerStats.foldableCall++;
+	try {
+		const result = runtime._callFunction(runtimeFunction, prefixValue?.value, argsValue.value as any);
+		return constantValueToType(result);
+	}
+	catch {
+		return undefined;
+	}
 }
 
 function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
