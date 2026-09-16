@@ -545,7 +545,7 @@ nur Nachschauen an der Aufrufstelle.
 ## Was noch offen ist
 
 Nach den Entscheidungen zu Frage 1, 2, 4 und 5 ist die Ausbaustufe bis einschließlich Schritt 9
-umsetzbar. Offen sind zwei Punkte, die vorher fallen müssen, plus die Faltungsfragen.
+umsetzbar. Offen ist davor nur noch ein Punkt, dazu die Faltungsfragen.
 
 **Entschieden — `'conditional'` bleibt beim Dereferenzieren stehen.**
 [checker.ts:1036](../src/checker/checker.ts#L1036) und
@@ -579,9 +579,14 @@ Ein zweiter Code für „Purity-Pfeil an einem `functionLiteral`" entfällt mit 
 1B — der Pfeil ist dort erlaubt. Das war der Hauptgrund, 1A nicht zu nehmen: ein Fehlercode, der
 mit der Inferenz-Ausbaustufe wieder verschwinden müsste, während Nummern nie wiederverwendet werden.
 
-**Vor Schritt 6 — mehrere `?>`-Parameter in einer Signatur.** Die Verknüpfung ist als UND
-entschieden; noch nicht durchgesehen ist, ob core-lib überhaupt eine Signatur mit mehr als einem
-Callback-Parameter enthält. Falls nein, ist die Regel unbelegt, aber harmlos.
+**Erledigt — mehrere `?>`-Parameter in einer Signatur.** core-lib durchgesehen: die 17
+Callback-Parameter verteilen sich auf 16 Funktionen, und genau eine hat zwei —
+`toDictionary` mit `getKey` und `getValue` ([core-lib.jul:941](../src/core-lib.jul#L941)), die
+auch das „TODO pure wenn die args pure sind" trägt. Die UND-Regel ist damit belegt und liefert dort
+das offensichtlich richtige Ergebnis: rein nur, wenn beide Callbacks rein sind. Alle übrigen
+(`map`, `filter`, `filterMap`, `findFirst`, `findLast`, `findLastIndex`, `forEach`, `exists`,
+`all`, `aggregate`, `subscribe`, `repeat`, `map$`, `flatMergeMap$`, `flatSwitchMap$`) haben genau
+einen.
 
 **Entschieden — `typeToString` bei `'unknown'` rendert `:>`.** `:>` und `~>` sind im Typ
 unterschieden, aber jede Nutzerfunktion trägt `'unknown'`. `:>` bedeutet genau „keine Aussage", und
