@@ -90,3 +90,4 @@
 2026-09-13 13:22:29	a6856e4	-	ADV-DEV-56627	yugioh	parse+check	5	4176.43	4381.52	4381.52	nach: assertNever in hasReliableTypeError, valueOf und getTypeError-argumentsType
 2026-09-16 11:37:47	8509628	-	ADV-DEV-56627	yugioh	parse+check	5	3701.78	3864.23	3864.23	vor pure-functions Schritt 1-10
 2026-09-16 11:57:32	8509628+	-	ADV-DEV-56627	yugioh	parse+check	5	4090.96	4213.74	4213.74	nach pure-functions Schritt 1-10 (Pfeile, Purity im Typ)
+2026-09-16 16:45:48	5038bbd	-	ADV-DEV-56627	yugioh	parse+check	5	3721.21	3725.67	3725.67	nach constant folding
