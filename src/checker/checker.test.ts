@@ -2536,6 +2536,26 @@ f = (cards: List(Integer)) =>
 			'Or(Empty List(Integer))');
 	});
 
+	// Der Parser kuerzt Bruchliterale nicht (TODO in parser.ts), deshalb bekommen zwei
+	// Schreibweisen derselben Zahl verschiedene Typen. Das verletzt 'gleiche Werte, gleiche
+	// Typen' schon ohne constant folding und wuerde mit der Faltung in den Checker
+	// durchschlagen. Erwartet wird der gekuerzte Bruch, bei Nenner 1 ein Integer-Literal.
+	it('fraction-literals-are-reduced', () => {
+		const code = `a = 0.5
+b = 0.50
+c = 1.0`;
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		const typeOf = (index: number) => {
+			const def = parsed.checked?.expressions?.[index] as ParseSingleDefinition;
+			const type = def.value?.typeInfo?.type;
+			return type && typeToString(resolvePlaceholders(type), 0, 5);
+		};
+		expect(typeOf(0)).to.equal(typeOf(1));
+		expect(typeOf(2)).to.equal('1');
+	});
+
 	// Grosser Zieltyp (Dictionary mit vielen Feldern) in der Fehlermeldung wird gekuerzt
 	// (checker.ts maxFieldsInTypeDump) statt alle Felder aufzulisten. Wert ist ein Integer
 	// statt eines dictionaryLiteral, damit keine Feld-Elaboration greift und der Zieltyp

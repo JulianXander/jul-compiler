@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import {
 	_branch, _createFunction, add, addDate, and, combine$, completed$, create$, deepEqual,
-	findLastIndex, or, parseJson, push, rationalToFloat, regex, subscribe, subtract, take$, toJson,
+	findLastIndex, multiply, or, parseJson, push, rationalToFloat, regex, subscribe, subtract, take$, toJson,
 } from './runtime.js';
 
 //#region _branch
@@ -167,6 +167,31 @@ describe('subtract', () => {
 	});
 	it('subtracts a fraction from an integer', () => {
 		expect(subtract(1n, { numerator: 1n, denominator: 2n })).to.deep.equal({ numerator: 1n, denominator: 2n });
+	});
+});
+
+// Brueche werden beim Rechnen nicht gekuerzt (TODO in add/subtract/multiply), deshalb haengt
+// der Bruch vom Rechenweg ab statt vom Wert: 0.25+0.25 und 0.5 sind mathematisch gleich, aber
+// strukturell verschieden - deepEqual sagt false. Sobald das Ergebnis als Literaltyp in den
+// Checker zurueckfliesst (constant folding), bricht das die Annahme 'gleiche Werte, gleiche
+// Typen'. Ein Bruch mit Nenner 1 wird zum Integer normalisiert, vgl. Rational = Or(Integer Fraction).
+describe('Bruch kuerzen', () => {
+	const half = { numerator: 1n, denominator: 2n };
+	const quarter = { numerator: 1n, denominator: 4n };
+	it('add kuerzt das Ergebnis', () => {
+		expect(add(quarter, quarter)).to.deep.equal(half);
+	});
+	it('add normalisiert einen ganzzahligen Bruch zum Integer', () => {
+		expect(add(half, half)).to.equal(1n);
+	});
+	it('subtract kuerzt das Ergebnis', () => {
+		expect(subtract({ numerator: 3n, denominator: 4n }, quarter)).to.deep.equal(half);
+	});
+	it('multiply kuerzt das Ergebnis', () => {
+		expect(multiply(half, { numerator: 2n, denominator: 3n })).to.deep.equal({ numerator: 1n, denominator: 3n });
+	});
+	it('deepEqual gleicher Werte ist true', () => {
+		expect(deepEqual(add(quarter, quarter), half)).to.equal(true);
 	});
 });
 
