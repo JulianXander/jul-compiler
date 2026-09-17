@@ -7,10 +7,12 @@ Umgesetzt: Purity-Pfeile (`->` rein, `~>` unrein, `:>` keine Aussage) im Parser 
 (`getCallPurity`: ein Aufruf ist beweisbar rein, wenn die aufgerufene Funktion `->` trägt und jedes
 Funktionsargument seinerseits beweisbar rein ist), `typeToString` zeigt den Pfeil.
 
-Darauf aufbauend ist Constant Folding vollständig umgesetzt und verdrahtet — siehe
-[constant-folding-umsetzung.md](constant-folding-umsetzung.md) für Entscheidungen, Umsetzung und
-Tests. Dort ist auch entschieden, dass gefaltet wird, wenn das Ergebnis Skalare **und** Kollektionen
-aus Literaltypen sind (nicht nur Skalare, wie ursprünglich hier für Stufe 1 vorgesehen).
+Darauf aufbauend ist Constant Folding vollständig umgesetzt und verdrahtet: `tryFoldCall` im
+[Checker](../src/checker/checker.ts) und die Übersetzung zwischen Typ und Wert in
+[constant-folding.ts](../src/checker/constant-folding.ts), getestet in `constant-folding.test.ts`
+und im `constant folding`-Block von `checker.test.ts`. Gefaltet wird, wenn das Ergebnis Skalare
+**und** Kollektionen aus Literaltypen sind (nicht nur Skalare, wie ursprünglich hier für Stufe 1
+vorgesehen).
 
 Scope dieser beiden Ausbaustufen zusammen, bewusst nicht enthalten:
 
@@ -26,8 +28,7 @@ Scope dieser beiden Ausbaustufen zusammen, bewusst nicht enthalten:
 
 „Hostabhängig zählt als impure" ist als Regel entschieden, aber ohne aktive Prüfung im Code — bisher
 nur an zwei Funktionen einzeln nachgemessen (`regex`: nicht hostabhängig; `addDate`: hostabhängig,
-aber ohne Datums-Literal unerreichbar, siehe
-[constant-folding-umsetzung.md, „Vorgemerkt"](constant-folding-umsetzung.md#vorgemerkt-nicht-teil-dieser-stufe)).
+aber ohne Datums-Literal unerreichbar).
 Nicht durchgesehen: alles andere Datums- und Zahlformatierende (`toIsoDateText` u. Ä.), das an
 Zeitzone, ICU-Daten oder Node-Version der Build-Maschine hängen könnte.
 
@@ -55,21 +56,32 @@ bisherigen Umsetzung ist:
   einer emittiert. Es muss festliegen, dass eine Faltung, die im Language Server auf einem
   unvollständigen Baum passiert, nie in emittierten Code gerät.
 
-## Ausblick: Ausbaustufe „Pure Inference"
+## Nächste Ausbaustufe: „Pure Inference"
 
-Vorgemerkt, nicht Teil der bisherigen Umsetzung: Purity automatisch aus dem Aufrufgraph ableiten
-statt nur manuell an der `nativeFunction`-Grenze zu deklarieren — eine `functionLiteral` wäre dann
-pure, wenn alle aufgerufenen Funktionen pure sind und kein Stream gelesen/geschrieben wird
-(Fixpunkt-Iteration für Rekursion). Löst die Hartkodierung bei `functionLiteral` und prüft die
-Zusicherungen, die die Argument-Regel heute ungeprüft übernimmt. Der Schritt-/Aufrufzähler aus der
-Faltung wird dort notwendig statt nur vorsorglich, weil dann auch rekursiver Nutzercode zur
-Compile-Zeit ausgeführt werden könnte.
+Purity aus dem Rumpf ableiten, statt sie nur an der `nativeFunction`-Grenze zu deklarieren.
+Entschieden und geplant in [pure-inference-umsetzung.md](pure-inference-umsetzung.md); dort stehen
+die Entscheidungen einzeln mit Begründung. Drei Annahmen, die hier zuvor standen, haben sich dabei
+als falsch erwiesen:
 
-Funktionen höherer Ordnung sind dort **kein** eigenes Thema mehr: die Argument-Regel gilt unverändert
-weiter und liefert von selbst bessere Ergebnisse, sobald die Inferenz die Purity gewöhnlicher
-Nutzerfunktionen kennt. Sie setzt an keiner Stelle voraus, *warum* ein Argument rein ist. Ein
-Purity-Polymorphismus in der Signatur (Koka-artig) wäre erst nötig, wenn Purity durchgesetzt wird —
-siehe den nächsten Ausblick.
+- **Funktionen höherer Ordnung sind sehr wohl ein eigenes Thema.** Die Argument-Regel löst nur die
+  *Aufrufstelle*. Für die Inferenz bleibt die Frage, was ein Rumpf aussagt, der einen eigenen
+  Funktionsparameter benutzt — die Antwort entscheidet, ob Nutzer-HOFs jemals rein werden können.
+- **Fixpunkt-Iteration ist nicht nötig.** Gegenseitige Rekursion gibt es außerhalb der core-lib
+  nicht (Vorwärtsreferenzen sind `JUL4002`), und für direkte Selbstrekursion genügt eine
+  optimistische Annahme in einem Durchlauf.
+- **Der „Schritt-/Aufrufzähler aus der Faltung" existiert nicht** — `checkerStats.foldableCall` ist
+  reine Statistik, `tryFoldCall` hat kein Budget. Gebraucht wird ein Budget erst, wenn Nutzercode
+  zur Compile-Zeit ausgeführt wird, und das ist bewusst eine spätere Stufe.
+
+Ein Purity-Polymorphismus in der Signatur (Koka-artig) wäre erst nötig, wenn Purity durchgesetzt
+wird — siehe „echte Durchsetzung" unten.
+
+### Ausblick: Nutzerfunktionen zur Compile-Zeit ausführen
+
+Eigene, spätere Ausbaustufe. Erst damit führt Purity über die Anzeige hinaus zu mehr Faltung, denn
+für eine Nutzerfunktion liegt kein fertiges JS in `runtime.ts`. Voraussetzungen und ein möglicher
+Einstieg über Substitution statt Ausführung stehen im Ausblick von
+[pure-inference-umsetzung.md](pure-inference-umsetzung.md).
 
 ### Ausblick: echte Durchsetzung (Frage 4 = 4B)
 
