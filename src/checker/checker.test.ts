@@ -17,7 +17,7 @@ import {
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
-import { builtInSymbols, getCallPurity, getCallPurityInfo, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
+import { builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
 const expectedResults: {
 	name?: string;
@@ -3201,6 +3201,98 @@ f([cb = imp])`)).to.equal('impure');
 		foreignParameter.functionRef = otherFunctionType;
 		const argsType = createCompileTimeTupleType([foreignParameter]);
 		expect(getCallPurityInfo(ownFunctionType, undefined, argsType, ownFunctionType)).to.equal('unknown');
+	});
+
+	// docs/pure-inference-umsetzung.md Schritt 2: der Rumpf-Walker. Läuft direkt auf dem bereits
+	// geprüften Baum, unabhängig von der Verdrahtung in case 'functionLiteral' (Schritt 3).
+	function bodyPurityOf(code: string, definitionName = 'f'): Purity | undefined {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const definition = parsed.checked?.expressions
+			?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === definitionName);
+		const value = definition?.value;
+		if (value?.type !== 'functionLiteral') {
+			return undefined;
+		}
+		const functionType = value.typeInfo?.type;
+		if (!functionType || !isFunctionType(functionType)) {
+			return undefined;
+		}
+		return inferBodyPurity(value.body, functionType).purity;
+	}
+
+	// Für die Closure-Fälle (E2): der Rumpf, dessen Purity geprüft wird, ist die ZURÜCKGEGEBENE
+	// innere Funktion von "outer", nicht "outer" selbst.
+	function innerBodyPurityOf(code: string): Purity | undefined {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const definition = parsed.checked?.expressions
+			?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === 'outer');
+		const outerValue = definition?.value;
+		if (outerValue?.type !== 'functionLiteral') {
+			return undefined;
+		}
+		const inner = outerValue.body[outerValue.body.length - 1];
+		if (inner?.type !== 'functionLiteral') {
+			return undefined;
+		}
+		const functionType = inner.typeInfo?.type;
+		if (!functionType || !isFunctionType(functionType)) {
+			return undefined;
+		}
+		return inferBodyPurity(inner.body, functionType).purity;
+	}
+
+	it('konstanter Rumpf ist pure', () => {
+		expect(bodyPurityOf('f = (a: Integer) => a')).to.equal('pure');
+	});
+	it('Aufruf von log ist impure', () => {
+		expect(bodyPurityOf('f = () => log()')).to.equal('impure');
+	});
+	it('Aufruf einer :>-Funktion ist unknown', () => {
+		expect(bodyPurityOf(`g = () :> Any => 1
+f = () => g()`)).to.equal('unknown');
+	});
+	it('erzeugtes, aber nicht aufgerufenes unreines Literal ist pure', () => {
+		expect(bodyPurityOf('f = () => () ~> Any => log()')).to.equal('pure');
+	});
+	it('sofort aufgerufenes unreines Literal ist impure', () => {
+		expect(bodyPurityOf(`f = () =>
+	g = () ~> Any => log()
+	g()`)).to.equal('impure');
+	});
+	it('Branching mit einem unreinen Zweig ist impure', () => {
+		expect(bodyPurityOf(`f = (x: Or(1 2)) => ?(x)
+	[1] -> Integer => 1
+	[2] ~> Integer => log(2)`)).to.equal('impure');
+	});
+	it('Branching mit einer unreinen Referenz als Zweig ist impure', () => {
+		expect(bodyPurityOf(`onOne = (n: 1) -> Integer => 1
+onTwo = (n: 2) ~> Integer => log(n)
+f = (x: Or(1 2)) => ?(x)
+	onOne
+	onTwo`)).to.equal('impure');
+	});
+	it('Closure über einen fremden Parameter als Wert ist pure', () => {
+		expect(innerBodyPurityOf('outer = (cb: () :> Any) => () => cb')).to.equal('pure');
+	});
+	it('Closure über einen fremden Parameter als Aufruf ist unknown', () => {
+		expect(innerBodyPurityOf('outer = (cb: () :> Any) => () => cb()')).to.equal('unknown');
+	});
+	it('direkte Rekursion ohne log ist pure', () => {
+		expect(bodyPurityOf('f = (n: Integer) => f(n)')).to.equal('pure');
+	});
+	it('direkte Rekursion mit log ist impure', () => {
+		expect(bodyPurityOf('f = (n: Integer) => f(log(n))')).to.equal('impure');
+	});
+	it('Weitergabe des eigenen Parameters an map ist pure', () => {
+		expect(bodyPurityOf('f = (cb: () :> Any) => map([1 2] cb)')).to.equal('pure');
+	});
+	it('log tief in einem Dictionary-Argument ist impure', () => {
+		expect(bodyPurityOf(`id = (x) -> Any => x
+f = () => id([cb = log])`)).to.equal('impure');
 	});
 });
 

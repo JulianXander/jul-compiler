@@ -40,6 +40,7 @@ import {
 	ParsedExpressions2,
 	ParsedFile,
 	ParseDictionaryField,
+	ParseExpression,
 	ParseDictionaryLiteral,
 	ParseBranching,
 	ParseDestructuringField,
@@ -4237,6 +4238,97 @@ export function getCallPurity(
 	argsType: CompileTimeType,
 ): Purity {
 	return getCallPurityInfo(functionType, prefixArgumentType, argsType) === 'pure' ? 'pure' : 'impure';
+}
+
+export interface BodyPurity {
+	purity: Purity;
+	/** Erste beweisbar unreine Stelle - für JUL5101, damit der Fehler dort steht, wo er entsteht. */
+	impureExpression?: PositionedExpression;
+}
+
+/**
+ * Inferiert die Purity eines Funktionsrumpfs aus dem bereits geprüften Baum (jeder Knoten trägt
+ * typeInfo). Keine eigene Typauflösung, nur Lesen - docs/pure-inference-umsetzung.md Schritt 2.
+ * ownFunctionType ist der Typ der Funktion, deren Rumpf gerade untersucht wird - er entscheidet,
+ * ob ein aufgerufener oder weitergegebener Parameter der eigene ist (E1) oder ein fremder,
+ * geschlossen über eine äußere Funktion (E2).
+ */
+export function inferBodyPurity(
+	body: ParseExpression[],
+	ownFunctionType: CompileTimeFunctionType,
+): BodyPurity {
+	let purity: Purity = 'pure';
+	let impureExpression: PositionedExpression | undefined;
+
+	function contribute(contributedPurity: Purity, expression: PositionedExpression): void {
+		if (contributedPurity === 'impure' && !impureExpression) {
+			impureExpression = expression;
+		}
+		purity = joinPurity(purity, contributedPurity);
+	}
+
+	function walk(expression: PositionedExpression): undefined {
+		switch (expression.type) {
+			case 'functionLiteral':
+				// Eine Funktion zu erzeugen ist rein; ihr Aufruf trägt bei, nicht ihre Erzeugung -
+				// und ihre Purity steht bereits an ihrem Typ, weil sie vorher inferiert wurde.
+				return undefined;
+			case 'functionCall': {
+				const functionExpression = expression.functionExpression;
+				if (functionExpression?.type === 'reference'
+					&& isSelfReference(functionExpression, functionExpression.name.name)) {
+					// E5: der rekursive Aufruf wird optimistisch als rein angenommen.
+					contribute('pure', expression);
+				}
+				else {
+					const calleeType = functionExpression?.typeInfo && resolveAlias(functionExpression.typeInfo.type);
+					if (calleeType?.julType === 'parameterReference') {
+						// E1/E2: der eigene Parameter direkt aufzurufen ist rein, ein fremder
+						// (aus einer äußeren Funktion geschlossener) Parameter nicht beweisbar.
+						contribute(calleeType.functionRef === ownFunctionType ? 'pure' : 'unknown', expression);
+					}
+					else {
+						const prefixArgumentType = expression.prefixArgument?.typeInfo?.type;
+						const argsType = expression.arguments?.typeInfo?.type ?? builtinEmpty;
+						contribute(
+							getCallPurityInfo(
+								functionExpression?.typeInfo?.type ?? builtinAny,
+								prefixArgumentType,
+								argsType,
+								ownFunctionType),
+							expression);
+					}
+				}
+				// Weitere Aufrufe können in den Argumentausdrücken stehen.
+				forEachChild(expression, walk);
+				return undefined;
+			}
+			case 'branching': {
+				// In die Zweig-Literale wird nicht abgestiegen - ihre Purity steht bereits an
+				// ihrem Typ, genau wie bei jedem anderen aufgerufenen Wert. Ein Zweig muss kein
+				// Literal sein, er kann auch eine Referenz auf eine Funktion sein.
+				const branchesPurity = expression.branches.reduce<Purity>((accumulated, branch) => {
+					const branchType = branch.typeInfo && resolveAlias(branch.typeInfo.type);
+					return joinPurity(accumulated, branchType && isFunctionType(branchType) ? branchType.purity : 'unknown');
+				}, 'pure');
+				contribute(branchesPurity, expression);
+				if (expression.args) {
+					walk(expression.args);
+				}
+				return undefined;
+			}
+			case 'reference':
+				// Der bloße Zugriff ist rein, auch auf einen fremden Parameter (E2) - nur Aufruf
+				// und Weitergabe zählen.
+				return undefined;
+			default:
+				forEachChild(expression, walk);
+				return undefined;
+		}
+	}
+
+	body.forEach(walk);
+	return { purity, impureExpression };
 }
 
 /**
