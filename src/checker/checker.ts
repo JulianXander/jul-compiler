@@ -149,11 +149,7 @@ export const checkerStats = {
 	resolvePlaceholders: 0,
 	/** Relationsprüfungen inklusive Rekursion über Choices. */
 	getTypeError: 0,
-	/**
-	 * Aufrufstellen, an denen constant folding greifen würde (Argumente konstant, Aufruf rein,
-	 * kein Argumentfehler) - gezählt, aber noch nicht gefaltet. Siehe
-	 * docs/constant-folding-umsetzung.md, Schritt 1.
-	 */
+	/** Aufrufstellen, an denen constant folding tatsächlich gegriffen hat (siehe tryFoldCall). */
 	foldableCall: 0,
 };
 
@@ -4384,8 +4380,9 @@ export function inferBodyPurity(
  * Versucht, einen Aufruf eines `->`-Builtins mit compile-time bekannten Argumenten auszuführen
  * und sein Ergebnis als präziseren Typ zurückzugeben - der emittierte Code bleibt unverändert,
  * gefaltet wird nur der Typ. `undefined` heißt "nicht gefaltet"; das ist kein Fehler und wird nie
- * gemeldet. Siehe docs/constant-folding-umsetzung.md, Schritt 4, für die Bedingungen in dieser
- * Reihenfolge.
+ * gemeldet. Die Bedingungen (kein Argumentfehler, Aufruf über eine Referenz, beweisbar reiner
+ * Aufruf, Runtime-Export unter dem Namen, konstante Argumente) werden unten in dieser Reihenfolge
+ * geprüft.
  */
 function tryFoldCall(
 	functionExpression: SimpleExpression,

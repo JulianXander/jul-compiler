@@ -3380,9 +3380,8 @@ f = () => id([cb = log])`)).to.equal('impure');
 	});
 });
 
-// docs/constant-folding-umsetzung.md, Schritt 5: der letzte Ausdruck ist immer `r = <Aufruf>`,
-// geprüft wird der Typ von r - Faltung meldet nie etwas, deshalb ist "keine neue Diagnose"
-// jeweils Teil der Prüfung (errors muss leer bleiben).
+// Der letzte Ausdruck ist immer `r = <Aufruf>`, geprüft wird der Typ von r - Faltung meldet nie
+// etwas, deshalb ist "keine neue Diagnose" jeweils Teil der Prüfung (errors muss leer bleiben).
 describe('constant folding', () => {
 	function typeOfLastDefinition(code: string): string | undefined {
 		const parsed = parseCode(code, 'dummy.jul');

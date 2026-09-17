@@ -1,6 +1,6 @@
 // Übersetzung zwischen CompileTimeType und dem JS-Wert, mit dem constant folding rechnet.
 // Bewusst ohne Abhängigkeit von checker.ts, damit beide Richtungen ohne laufenden Checker
-// testbar sind. Siehe docs/constant-folding-umsetzung.md, Schritt 3.
+// testbar sind.
 
 import { _julTypeSymbol } from '../runtime.js';
 import {

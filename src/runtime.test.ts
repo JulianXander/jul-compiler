@@ -324,8 +324,7 @@ describe('combine$', () => {
 // Für Listen-Argumente emittiert der Emitter `fn(a, b, c)` direkt statt über _callFunction
 // (emitter.ts, case 'list'), constant folding ruft dagegen immer _callFunction. Für Listen-
 // Argumente müssen beide Wege dasselbe Ergebnis liefern, sonst weicht ein gefalteter Typ vom
-// tatsächlich emittierten Programmverhalten ab. Siehe docs/constant-folding-umsetzung.md,
-// Schritt 5d.
+// tatsächlich emittierten Programmverhalten ab.
 describe('_callFunction folgt der vom Emitter erzeugten Aufrufkonvention (Listen-Argumente)', () => {
 	it('Rest-Parameter', () => {
 		const values = [2n, 3n];
