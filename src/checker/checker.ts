@@ -4148,29 +4148,95 @@ function effectivePurity(purity: Purity): 'pure' | 'notPure' {
 	return purity === 'pure' ? 'pure' : 'notPure';
 }
 
-/**
- * Ob ein konkreter Aufruf von functionType mit argsType beweisbar rein ist (Argument-Regel
- * aus docs/pure-functions.md): die aufgerufene Funktion muss 'pure' sein, und jedes Argument,
- * dessen Typ direkt ein Funktionstyp ist, muss seinerseits 'pure' sein. Sonst 'impure'.
- * Kein Fixpunkt, kein neuer Zustand im Typ - das Ergebnis gilt nur für diese eine Aufrufstelle.
- * Betrachtet werden nur Argumente, deren Typ direkt ein Funktionstyp ist; Funktionen in einem
- * Datenargument (f([cb = log])) erfasst die Regel nicht.
- */
-export function getCallPurity(functionType: CompileTimeFunctionType, argsType: CompileTimeType): Purity {
-	if (functionType.purity !== 'pure') {
+/** pure < unknown < impure. Ein beweisbar unreiner Beitrag gewinnt, sonst ein unbekannter. */
+function joinPurity(first: Purity, second: Purity): Purity {
+	if (first === 'impure' || second === 'impure') {
 		return 'impure';
 	}
-	const resolvedArgsType = resolveAlias(argsType);
-	const argTypes = isTupleType(resolvedArgsType)
-		? resolvedArgsType.ElementTypes
-		: isDictionaryLiteralType(resolvedArgsType)
-			? Object.values(resolvedArgsType.Fields)
-			: [];
-	const allFunctionArgsPure = argTypes.every(argType => {
-		const resolvedArgType = resolveAlias(argType);
-		return !isFunctionType(resolvedArgType) || resolvedArgType.purity === 'pure';
-	});
-	return allFunctionArgsPure ? 'pure' : 'impure';
+	if (first === 'unknown' || second === 'unknown') {
+		return 'unknown';
+	}
+	return 'pure';
+}
+
+/**
+ * Purity-Beitrag eines übergebenen Werts (Argument, Prefix-Argument oder ganze Argumentliste).
+ * ownFunctionType ist gesetzt, wenn innerhalb eines Rumpfes inferiert wird (Schritt 2): dann zählt
+ * die Weitergabe eines eigenen Parameters als rein (E1), aber nur solange die Referenz nicht aus
+ * einer fremden Funktion stammt (E2). Ohne den Kontext - also bei der Faltung - zählt sie als
+ * 'unknown'.
+ */
+function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: CompileTimeFunctionType | undefined): Purity {
+	const argType = resolveAlias(rawArgType);
+	if (isFunctionType(argType)) {
+		return argType.purity;
+	}
+	if (argType.julType === 'parameterReference') {
+		return argType.functionRef === ownFunctionType ? 'pure' : 'unknown';
+	}
+	if (isTupleType(argType)) {
+		return argType.ElementTypes.reduce<Purity>(
+			(purity, elementType) => joinPurity(purity, getArgumentPurity(elementType, ownFunctionType)),
+			'pure');
+	}
+	if (isDictionaryLiteralType(argType)) {
+		return Object.values(argType.Fields).reduce<Purity>(
+			(purity, fieldType) => joinPurity(purity, getArgumentPurity(fieldType, ownFunctionType)),
+			'pure');
+	}
+	switch (argType.julType) {
+		case 'empty':
+		case 'integer':
+		case 'integerLiteral':
+		case 'float':
+		case 'floatLiteral':
+		case 'text':
+		case 'textLiteral':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'date':
+		case 'blob':
+		case 'error':
+			return 'pure';
+		default:
+			return 'unknown';
+	}
+}
+
+/**
+ * Purity eines konkreten Aufrufs, dreiwertig (Argument-Regel aus docs/pure-functions.md, verschärft
+ * in docs/pure-inference-umsetzung.md Schritt 1): die aufgerufene Funktion muss 'pure' sein, und
+ * jeder übergebene Wert - Prefix-Argument eingeschlossen - muss seinerseits 'pure' sein, sonst
+ * gewinnt der schwächste Beitrag (joinPurity). Kein Fixpunkt, kein neuer Zustand im Typ - das
+ * Ergebnis gilt nur für diese eine Aufrufstelle.
+ */
+export function getCallPurityInfo(
+	functionType: CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
+	argsType: CompileTimeType,
+	ownFunctionType?: CompileTimeFunctionType,
+): Purity {
+	const resolvedFunctionType = resolveAlias(functionType);
+	if (!isFunctionType(resolvedFunctionType)) {
+		return 'unknown';
+	}
+	if (resolvedFunctionType.purity !== 'pure') {
+		return resolvedFunctionType.purity;
+	}
+	const prefixPurity = prefixArgumentType
+		? getArgumentPurity(prefixArgumentType, ownFunctionType)
+		: 'pure';
+	const argsPurity = getArgumentPurity(argsType, ownFunctionType);
+	return joinPurity(prefixPurity, argsPurity);
+}
+
+/** Zweiwertige Auskunft für die Faltung: nur ein Beweis genügt. */
+export function getCallPurity(
+	functionType: CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
+	argsType: CompileTimeType,
+): Purity {
+	return getCallPurityInfo(functionType, prefixArgumentType, argsType) === 'pure' ? 'pure' : 'impure';
 }
 
 /**
@@ -4194,7 +4260,7 @@ function tryFoldCall(
 		return undefined;
 	}
 	const resolvedFunctionType = resolveAlias(functionType);
-	if (!isFunctionType(resolvedFunctionType) || getCallPurity(resolvedFunctionType, argsType) !== 'pure') {
+	if (!isFunctionType(resolvedFunctionType) || getCallPurity(resolvedFunctionType, prefixArgumentType, argsType) !== 'pure') {
 		return undefined;
 	}
 	const name = functionExpression.name.name;

@@ -1,10 +1,23 @@
 import { expect } from 'chai';
 
-import { forEachChild, ParseExpression, ParseFunctionCall, ParseFunctionLiteral, ParseSingleDefinition, PositionedExpression, Purity } from '../syntax-tree.js';
+import {
+	builtinEmpty,
+	createCompileTimeFunctionType,
+	createCompileTimeListType,
+	createCompileTimeTupleType,
+	createParameterReference,
+	forEachChild,
+	ParseExpression,
+	ParseFunctionCall,
+	ParseFunctionLiteral,
+	ParseSingleDefinition,
+	PositionedExpression,
+	Purity,
+} from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
-import { builtInSymbols, getCallPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
+import { builtInSymbols, getCallPurity, getCallPurityInfo, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
 const expectedResults: {
 	name?: string;
@@ -3115,11 +3128,12 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 			lastCall = findLastCall(expression) ?? lastCall;
 		});
 		const functionType = lastCall?.functionExpression?.typeInfo?.type;
+		const prefixArgumentType = lastCall?.prefixArgument?.typeInfo?.type;
 		const argsType = lastCall?.arguments?.typeInfo?.type;
 		if (!functionType || !isFunctionType(functionType) || !argsType) {
 			return undefined;
 		}
-		return getCallPurity(functionType, argsType);
+		return getCallPurity(functionType, prefixArgumentType, argsType);
 	}
 
 	it('map(add ...) ist pure', () => {
@@ -3146,6 +3160,47 @@ map([1 2] myFn)`)).to.equal('impure');
 	it('f = map, dann f(add ...) ist pure (die Regel arbeitet am Typ, nicht am Symbol)', () => {
 		expect(callPurityOf(`f = map
 f([1 2] add)`)).to.equal('pure');
+	});
+	// Schritt 1: die drei Lücken der bisherigen Argument-Regel.
+	it('unreine Funktion im Prefix-Argument ist impure', () => {
+		expect(callPurityOf(`imp = () ~> Any => 1
+apply = (cb: () :> Any) -> Any => cb()
+imp.apply()`)).to.equal('impure');
+	});
+	it('unreine Funktion in einem Dictionary-Argument ist impure', () => {
+		expect(callPurityOf(`imp = () ~> Any => 1
+f = (opts: [cb: () :> Any]) -> Any => 1
+f([cb = imp])`)).to.equal('impure');
+	});
+	it('Spread-Argumentliste (kein Tuple) ist impure, weil sie nicht mehr durchrutscht', () => {
+		expect(callPurityOf(`f = (nums: List(Integer)) -> Integer => add(...nums)`)).to.equal('impure');
+	});
+	it('getCallPurityInfo: Spread-Argumentliste ist unknown, nicht impure', () => {
+		const pureFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const listArgsType = createCompileTimeListType(builtinEmpty);
+		expect(getCallPurityInfo(pureFunctionType, undefined, listArgsType)).to.equal('unknown');
+	});
+	it('getCallPurityInfo: Weitergabe des eigenen Parameters ist pure', () => {
+		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const ownParameter = createParameterReference('cb', 0);
+		ownParameter.functionRef = ownFunctionType;
+		const argsType = createCompileTimeTupleType([ownParameter]);
+		expect(getCallPurityInfo(ownFunctionType, undefined, argsType, ownFunctionType)).to.equal('pure');
+	});
+	it('getCallPurityInfo: Weitergabe eines Parameters ohne Eigentümer-Kontext ist unknown', () => {
+		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const someParameter = createParameterReference('cb', 0);
+		someParameter.functionRef = ownFunctionType;
+		const argsType = createCompileTimeTupleType([someParameter]);
+		expect(getCallPurityInfo(ownFunctionType, undefined, argsType)).to.equal('unknown');
+	});
+	it('getCallPurityInfo: Weitergabe eines fremden Parameters ist unknown', () => {
+		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const otherFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const foreignParameter = createParameterReference('cb', 0);
+		foreignParameter.functionRef = otherFunctionType;
+		const argsType = createCompileTimeTupleType([foreignParameter]);
+		expect(getCallPurityInfo(ownFunctionType, undefined, argsType, ownFunctionType)).to.equal('unknown');
 	});
 });
 
