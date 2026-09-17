@@ -1,4 +1,7 @@
 import { expect } from 'chai';
+import { writeFileSync, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 import {
 	builtinEmpty,
@@ -16,7 +19,7 @@ import {
 } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
-import { checkTypes } from './checker.js';
+import { checkTypes, ParsedDocuments } from './checker.js';
 import { builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
 const expectedResults: {
@@ -647,7 +650,7 @@ useType(isLegal)`,
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign (x: Any) :> true to Type.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign (x: Any) -> true to Type.',
 					startRowIndex: 2,
 					startColumnIndex: 8,
 					endRowIndex: 2,
@@ -3092,8 +3095,8 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		expect(purityOf('currentDate')).to.equal('impure');
 		expect(purityOf('add')).to.equal('pure');
 	});
-	// Zusicherung nach Entscheidung 1B (pure-functions.md): der Pfeil ist eine Zusicherung, kein
-	// Beweis - -> gilt, ohne dass der Rumpf geprüft wird.
+	// Seit Schritt 3 (docs/pure-inference-umsetzung.md) wird der Rumpf inferiert und der
+	// geschriebene Pfeil nach der E3-Tabelle damit abgeglichen - kein reines Durchreichen mehr.
 	function purityOfDefinition(code: string, name: string): Purity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
@@ -3103,15 +3106,68 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 			?.value?.typeInfo?.type;
 		return type && isFunctionType(type) ? type.purity : undefined;
 	}
+	// Für die beiden "Rumpf unbekannt"-Fälle der Tabelle: nur über eine Closure erreichbar
+	// (E2, "outer"s Parameter ist für die zurückgegebene innere Funktion fremd), da eine
+	// Top-Level-Funktion den eigenen Parameter immer als rein zählen darf (E1).
+	function innerPurityOf(code: string): Purity | undefined {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const outer = parsed.checked?.expressions
+			?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === 'outer')
+			?.value;
+		const inner = outer?.type === 'functionLiteral' ? outer.body[outer.body.length - 1] : undefined;
+		const type = inner?.typeInfo?.type;
+		return type && isFunctionType(type) ? type.purity : undefined;
+	}
 
-	it('-> ist eine ungeprüfte Zusicherung am Literal', () => {
+	// E3-Tabelle, Zeile "-> ": beweisbar rein bleibt stumm pure, beweisbar unrein wird zu impure
+	// (JUL5101 kommt erst mit Schritt 4), unbekannt bleibt stumm pure (ungeprüfte Zusicherung).
+	it('-> mit beweisbar reinem Rumpf bleibt pure', () => {
 		expect(purityOfDefinition('f = (a: Integer) -> Integer => a', 'f')).to.equal('pure');
 	});
-	it(':> am Literal mit Rumpf bleibt unknown', () => {
-		expect(purityOfDefinition('f = (a: Integer) :> Integer => a', 'f')).to.equal('unknown');
+	it('-> mit beweisbar unreinem Rumpf wird zu impure', () => {
+		expect(purityOfDefinition('f = () -> Any => log()', 'f')).to.equal('impure');
 	});
-	it('Funktion ohne Pfeil ist unknown', () => {
-		expect(purityOfDefinition('f = (a) => a', 'f')).to.equal('unknown');
+	it('-> mit unentscheidbarem Rumpf bleibt pure (ungeprüfte Zusicherung)', () => {
+		expect(innerPurityOf('outer = (cb: () :> Any) => () -> Any => cb()')).to.equal('pure');
+	});
+	// E3-Tabelle, Zeile "~>": bleibt immer impure, unabhängig vom Rumpf.
+	it('~> bleibt impure, auch bei beweisbar reinem Rumpf', () => {
+		expect(purityOfDefinition('f = () ~> Integer => 1', 'f')).to.equal('impure');
+	});
+	// E3-Tabelle, Zeile ":> oder kein Pfeil": das Inferenzergebnis ersetzt die Zusicherung.
+	it(':> mit beweisbar reinem Rumpf wird zu pure', () => {
+		expect(purityOfDefinition('f = (a: Integer) :> Integer => a', 'f')).to.equal('pure');
+	});
+	it('Funktion ohne Pfeil mit beweisbar reinem Rumpf wird zu pure', () => {
+		expect(purityOfDefinition('f = (a) => a', 'f')).to.equal('pure');
+	});
+	it('Funktion ohne Pfeil mit beweisbar unreinem Rumpf wird zu impure', () => {
+		expect(purityOfDefinition('f = () => log()', 'f')).to.equal('impure');
+	});
+	it('Funktion ohne Pfeil mit unentscheidbarem Rumpf bleibt unknown', () => {
+		expect(innerPurityOf('outer = (cb: () :> Any) => () => cb()')).to.equal('unknown');
+	});
+	// E6: der Dummy-Rumpf (nativeValue) importierter TS-Funktionen darf nicht als beweisbar
+	// unrein gewertet werden - für sie greift die Inferenz nicht, ihr Typ bleibt unknown.
+	it('aus TypeScript importierte Funktion bleibt unknown (E6)', () => {
+		const tsPath = join(tmpdir(), `pure-inference-e6-${Date.now()}.ts`);
+		writeFileSync(tsPath, 'export function imported(x: number): number { return x; }\n');
+		try {
+			const parsedDocuments: ParsedDocuments = {};
+			const parsed = parseFile(tsPath);
+			parsedDocuments[tsPath] = parsed;
+			checkTypes(parsed, parsedDocuments);
+			const type = parsed.checked?.expressions
+				?.find((expression): expression is ParseSingleDefinition =>
+					expression.type === 'definition' && expression.name.name === 'imported')
+				?.value?.typeInfo?.type;
+			expect(type && isFunctionType(type) ? type.purity : undefined).to.equal('unknown');
+		}
+		finally {
+			unlinkSync(tsPath);
+		}
 	});
 	// Schritt 7: die Argument-Regel hat in dieser Hälfte noch keinen Konsumenten (der kommt erst
 	// mit dem Constant Folding) - getCallPurity wird deshalb direkt getestet, an einem
@@ -3251,10 +3307,10 @@ f([cb = imp])`)).to.equal('impure');
 	it('Aufruf von log ist impure', () => {
 		expect(bodyPurityOf('f = () => log()')).to.equal('impure');
 	});
-	it('Aufruf einer :>-Funktion ist unknown', () => {
-		expect(bodyPurityOf(`g = () :> Any => 1
-f = () => g()`)).to.equal('unknown');
-	});
+	// Kein Fall mehr "Aufruf einer :>-Funktion ist unknown" mit einem einfachen (nicht über eine
+	// Closure oder TypeScript geschlossenen) g: seit der Verdrahtung in Schritt 3 wird jedes
+	// beweisbar reine g selbst zu -> - :> überlebt nur noch als Closure über einen fremden
+	// Parameter (E2, siehe unten) oder als TypeScript-Import (E6, siehe "Verdrahtung"-Suite unten).
 	it('erzeugtes, aber nicht aufgerufenes unreines Literal ist pure', () => {
 		expect(bodyPurityOf('f = () => () ~> Any => log()')).to.equal('pure');
 	});
@@ -3346,8 +3402,12 @@ describe('constant folding', () => {
 	//#region 5b Faltung unterbleibt
 
 	it('faltet nicht bei nicht-konstantem Argument (Funktionsparameter statt Literal)', () => {
+		// Der Pfeil ist hier :> geschrieben, wird aber seit Schritt 3 durch den beweisbar reinen
+		// Rumpf ersetzt (E3) - das ist nicht der Punkt dieses Tests, nur die Signatur zur
+		// Identifikation. Worum es geht: addInteger(x 3) faltet trotz Purity nicht, weil x kein
+		// konstanter Wert ist.
 		expect(typeOfLastDefinition('f = (x: Integer) :> Integer => addInteger(x 3)'))
-			.to.equal('(x: Integer) :> Integer');
+			.to.equal('(x: Integer) -> Integer');
 	});
 	it('faltet nicht bei log (purity impure)', () => {
 		expect(typeOfLastDefinition('r = log(1)')).to.equal('Empty');

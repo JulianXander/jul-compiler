@@ -1,7 +1,7 @@
 === autocomplete.jul ===
 MyType: TypeOf([   field1: Integer   someOtherField: Text   function: () :> Text ])
-a: [   f1: 4   f2: §asdf§   f3: () :> 4 ]
-myFn: (   par1: MyType   par2: Integer ) :> Integer
+a: [   f1: 4   f2: §asdf§   f3: () ~> 4 ]
+myFn: (   par1: MyType   par2: Integer ) -> Integer
 myValue: [field1: Any]
   error 1151 at 10:2 Expected a nested key
   error 1151 at 29:6 Expected a nested key
@@ -23,7 +23,7 @@ someVar: [   1   2   1   4   4   5 ]
   warning 5152 at 71:2 Unreachable branch detected.
 === branching.jul ===
 myEmpty: Empty
-myFunction: (a: Integer) :> Empty
+myFunction: (a: Integer) ~> Empty
 myList: [1 2]
 myVal: 6
 === cli/cli.jul ===
@@ -38,26 +38,26 @@ fibonacci: (x: Integer) :> Any
 fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) :> Any
 test: Any
 === fizz-buzz/fizz-buzz-recursive.jul ===
-divisibleBy: (divisor: NonZeroInteger) :> (dividend: Integer) :> Boolean
-fizzBuzz: (index: PositiveInteger) :> Empty
+divisibleBy: (divisor: NonZeroInteger) -> (dividend: Integer) :> Boolean
+fizzBuzz: (index: PositiveInteger) ~> Empty
 === fizz-buzz/fizz-buzz.jul ===
-divisibleBy: (divisor: NonZeroInteger) :> (dividend: Integer) :> Boolean
+divisibleBy: (divisor: NonZeroInteger) -> (dividend: Integer) :> Boolean
 === function-call.jul ===
 MyType: TypeOf([   a: 1   b: 2 ])
-aliasFn: (   a: Boolean   b: Any ) :> Empty
-fn1: (   a: Boolean   b: Text ) :> Empty
-fn2: (   b: Text   a: Boolean ) :> Empty
-higherOrderFn: (fn: (   a: Boolean   b: Text ) :> Empty) :> Empty
+aliasFn: (   a: Boolean   b: Any ) ~> Empty
+fn1: (   a: Boolean   b: Text ) -> Empty
+fn2: (   b: Text   a: Boolean ) -> Empty
+higherOrderFn: (fn: (   a: Boolean   b: Text ) :> Empty) -> Empty
 myDictionary: [   a: 1   b: 2 ]
 myDictionary1: [   b: 2   a: 1 ]
-myFunction: (   a: Any   b: Any ) :> Empty
-myFunction1: (a: MyType) :> Empty
-myFunction4: (   a: 1   b: 2 ) :> Empty
+myFunction: (   a: Any   b: Any ) ~> Empty
+myFunction1: (a: MyType) ~> Empty
+myFunction4: (   a: 1   b: 2 ) ~> Empty
 myList: [1 2]
-primitiveTypeFunction: Integer :> Empty
-restFunction: (...restParameter: Any) :> Empty
-restFunction2: (...restParameter: MyType) :> Empty
-typeFunction: MyType :> Empty
+primitiveTypeFunction: Integer ~> Empty
+restFunction: (...restParameter: Any) ~> Empty
+restFunction2: (...restParameter: MyType) ~> Empty
+typeFunction: MyType ~> Empty
   error 5050 at 48:1 Argument type mismatch. | Can not assign [[ |   a: 1 |   b: 2 | ]] to [ |   a: 1 |   b: 2 | ].
   error 5003 at 53:25 Expected the params type to describe an argument collection. Did you mean [Integer]?
   error 5050 at 54:1 Argument type mismatch. | Can not assign [1] to Integer.
@@ -66,12 +66,12 @@ typeFunction: MyType :> Empty
 === import/file1.jul ===
 === import/file2.jul ===
 MyType: TypeOf([hallo: Integer])
-logText: (value: Text) :> Empty
+logText: (value: Text) ~> Empty
 someText: §test token 1§
 === import/import.jul ===
 MyType: TypeOf([hallo: Integer])
-alias: (value: Text) :> Empty
-file2: [   someText: §test token 1§   logText: (value: Text) :> Empty   MyType: TypeOf(MyType) ]
+alias: (value: Text) ~> Empty
+file2: [   someText: §test token 1§   logText: (value: Text) ~> Empty   MyType: TypeOf(MyType) ]
 javascriptImport: [   testfn1: (par1: Any) :> Any   testfn2: (par1: Any) :> Any   test: §hello js§   test2: 4f ]
 jsonImport: §hello json§
 someText: §test token 1§
@@ -209,12 +209,12 @@ testWithout21: true
 BlubType: TypeOf([   a: List(Text)   b: Or(Empty Text) ])
 arg1: true
 b: 2
-higherOrderFn: (lowerFn: (   arg1: Text   arg2: Boolean ) :> Empty) :> Empty
+higherOrderFn: (lowerFn: (   arg1: Text   arg2: Boolean ) -> Empty) -> Empty
 myA1: NO TYPE
-parameterFn2: (x: [   blobNames: List(Text)   nextMarker: Or(Empty Text) ]) :> Empty
-paramterFn: (   blobNames: List(Text)   nextMarker: Or(Empty Text) ) :> Empty
+parameterFn2: (x: [   blobNames: List(Text)   nextMarker: Or(Empty Text) ]) -> Empty
+paramterFn: (   blobNames: List(Text)   nextMarker: Or(Empty Text) ) -> Empty
 typeFnLong: Any
-typeFnShort: BlubType :> Empty
+typeFnShort: BlubType -> Empty
   error 2100 at 7:1 assignedValue missing for definition
   error 1102 at 7:14 multilineParser should parse until end of row
   error 2400 at 19:9 nestedReference is not a valid expression for parameter source.
@@ -228,7 +228,7 @@ typeFnShort: BlubType :> Empty
   error 1050 at 37:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 5160 at 19:2 Failed to dereference 'myA1' in type [ |   a: [ |     a1: 1 |     b1: 3 |   ] |   b: 2 | ]
   error 4003 at 24:28 'arg1' is already defined in upper scope
-  error 5002 at 24:27 Can not assign ( |   arg1: Text |   arg2: Boolean | ) :> Empty to Type.
+  error 5002 at 24:27 Can not assign ( |   arg1: Text |   arg2: Boolean | ) -> Empty to Type.
   error 5050 at 27:15 Argument type mismatch. | Invalid value for parameter 'lowerFn' |   Parameter name mismatch. Got 'arg2' but expected 'arg1'
 === type-switch.jul ===
 someVar: 32
@@ -236,10 +236,10 @@ someVar: 32
   warning 5152 at 8:2 Unreachable branch detected.
 === types.jul ===
 Article: TypeOf([   name: Text   price: Any   color: Text ])
-Even: (num: Integer) :> Boolean
+Even: (num: Integer) -> Boolean
 Number: Boolean
-ParserResult: (TypeParam: Text) :> Any :> Boolean
-addNums: (T: Boolean) :> (   num1: Boolean   num2: Boolean ) :> [Boolean Boolean]
+ParserResult: (TypeParam: Text) -> Any :> Boolean
+addNums: (T: Boolean) -> (   num1: Boolean   num2: Boolean ) -> [Boolean Boolean]
 myVar: 3
 myVarIsText: Any
   error 1102 at 15:26 multilineParser should parse until end of row

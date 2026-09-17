@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { extname, join } from 'path';
 import * as runtime from '../runtime.js';
 import { constantValueToType, typeToConstantValue } from './constant-folding.js';
 import {
@@ -87,7 +87,7 @@ import {
 	createTextLiteral,
 	updateFunctionTypeUnresolvedFlag,
 } from '../syntax-tree.js';
-import { NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
+import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName } from '../parser/parser-utils.js';
@@ -2649,6 +2649,27 @@ function inferType(
 			expression.body.forEach(bodyExpression => {
 				setInferredType(bodyExpression, branchTypeContext, parsedDocuments, folder, file, filePath);
 			});
+			//#region Purity-Inferenz (docs/pure-inference-umsetzung.md Schritt 3)
+			// E6: der Dummy-Rumpf importierter TS-Funktionen wuerde sie faelschlich als beweisbar
+			// unrein ausweisen - fuer sie bleibt es bei der Auskunft aus dem geschriebenen Pfeil.
+			if (!isTypeScriptFile(filePath)) {
+				const bodyPurity = inferBodyPurity(expression.body, functionType);
+				switch (expression.arrow) {
+					case undefined:
+					case 'unknown':
+						functionType.purity = bodyPurity.purity;
+						break;
+					case 'impure':
+						break;
+					case 'pure':
+						if (bodyPurity.purity === 'impure') {
+							// TODO Schritt 4: JUL5101 purityMismatch an bodyPurity.impureExpression melden.
+							functionType.purity = 'impure';
+						}
+						break;
+				}
+			}
+			//#endregion Purity-Inferenz
 			// Ein leerer body ist ungültig, nicht leer (Empty). Any als Ergebnis, damit sich der
 			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
 			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? builtinAny;
@@ -4238,6 +4259,16 @@ export function getCallPurity(
 	argsType: CompileTimeType,
 ): Purity {
 	return getCallPurityInfo(functionType, prefixArgumentType, argsType) === 'pure' ? 'pure' : 'impure';
+}
+
+/**
+ * E6: der Dummy-Rumpf (`nativeValue`) importierter TS-Funktionen ist ein Artefakt des
+ * typescript-parsers, keine Aussage über das JS dahinter - eine Inferenz darüber würde jede
+ * importierte Funktion fälschlich als beweisbar unrein ausweisen.
+ */
+function isTypeScriptFile(filePath: string): boolean {
+	const extension = extname(filePath);
+	return extension === Extension.ts || extension === Extension.js;
 }
 
 export interface BodyPurity {
