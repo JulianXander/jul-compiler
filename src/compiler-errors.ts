@@ -133,6 +133,12 @@ export enum ErrorCode {
 	paramsTypeIsNotCollection = 5003,
 	argumentTypeMismatch = 5050,
 	returnTypeMismatch = 5100,
+	/**
+	 * Ein geschriebenes `->` (rein), dem der inferierte Rumpf nachweislich widerspricht
+	 * (docs/pure-inference-umsetzung.md). Nur der echte Widerspruch wird gemeldet - ein nicht
+	 * beweisbar reiner Rumpf ist nicht dasselbe wie ein beweisbar unreiner.
+	 */
+	purityMismatch = 5101,
 	branchIsNotFunction = 5150,
 	valueIsNotFunction = 5151,
 	unreachableBranch = 5152,
@@ -212,6 +218,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.paramsTypeIsNotCollection]: { type: 'type', severity: 'error' },
 	[ErrorCode.argumentTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.returnTypeMismatch]: { type: 'type', severity: 'error' },
+	[ErrorCode.purityMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.branchIsNotFunction]: { type: 'type', severity: 'error' },
 	[ErrorCode.valueIsNotFunction]: { type: 'type', severity: 'error' },
 	[ErrorCode.unreachableBranch]: { type: 'type', severity: 'warning' },

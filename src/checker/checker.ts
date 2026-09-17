@@ -2663,8 +2663,26 @@ function inferType(
 						break;
 					case 'pure':
 						if (bodyPurity.purity === 'impure') {
-							// TODO Schritt 4: JUL5101 purityMismatch an bodyPurity.impureExpression melden.
 							functionType.purity = 'impure';
+							// expression.returnType ist gesetzt: ein Pfeil bedingt einen Rückgabetyp
+							// (functionTypeBodyParser), siehe "Geprüfte Voraussetzungen".
+							const declaredReturnType = expression.returnType!;
+							const impureExpression = bodyPurity.impureExpression ?? expression;
+							errors.push({
+								code: ErrorCode.purityMismatch,
+								message: 'Purity mismatch.\nThe function is declared pure, but this call is not.',
+								startRowIndex: impureExpression.startRowIndex,
+								startColumnIndex: impureExpression.startColumnIndex,
+								endRowIndex: impureExpression.endRowIndex,
+								endColumnIndex: impureExpression.endColumnIndex,
+								relatedInformation: {
+									message: 'Declared as pure here.',
+									startRowIndex: declaredReturnType.startRowIndex,
+									startColumnIndex: declaredReturnType.startColumnIndex,
+									endRowIndex: declaredReturnType.endRowIndex,
+									endColumnIndex: declaredReturnType.endColumnIndex,
+								},
+							});
 						}
 						break;
 				}

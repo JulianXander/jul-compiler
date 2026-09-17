@@ -3122,7 +3122,8 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	}
 
 	// E3-Tabelle, Zeile "-> ": beweisbar rein bleibt stumm pure, beweisbar unrein wird zu impure
-	// (JUL5101 kommt erst mit Schritt 4), unbekannt bleibt stumm pure (ungeprüfte Zusicherung).
+	// und meldet JUL5101 (Schritt 4, eigene Tests weiter unten), unbekannt bleibt stumm pure
+	// (ungeprüfte Zusicherung).
 	it('-> mit beweisbar reinem Rumpf bleibt pure', () => {
 		expect(purityOfDefinition('f = (a: Integer) -> Integer => a', 'f')).to.equal('pure');
 	});
@@ -3169,6 +3170,33 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 			unlinkSync(tsPath);
 		}
 	});
+	// Schritt 4 (docs/pure-inference-umsetzung.md): JUL5101, gemeldet nur gegen einen echten
+	// Widerspruch, nicht gegen einen bloß unentscheidbaren Rumpf.
+	it('JUL5101: -> mit beweisbar unreinem Rumpf wird gemeldet', () => {
+		const parsed = parseCode('f = () -> Any => log()', 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.have.lengthOf(1);
+		expect(parsed.checked?.errors?.[0]?.code).to.equal(ErrorCode.purityMismatch);
+	});
+	it('JUL5101: -> über einem unentscheidbaren Rumpf meldet nichts', () => {
+		const parsed = parseCode('outer = (cb: () :> Any) => () -> Any => cb()', 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	it('JUL5101: der Fehler steht an der Aufrufstelle, nicht an der ganzen Funktion', () => {
+		const code = `f = () -> Any =>
+	1
+	log()`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const error = parsed.checked?.errors?.find(e => e.code === ErrorCode.purityMismatch);
+		expect(error).to.not.equal(undefined);
+		// Die Funktion selbst spannt Zeile 0-2 auf - steht der Fehler an "log()" (Zeile 2), nicht
+		// an der ganzen Funktion (die bei Zeile 0 begänne), ist die Position korrekt verengt.
+		expect(error?.startRowIndex).to.equal(2);
+		expect(error?.relatedInformation?.message).to.equal('Declared as pure here.');
+	});
+
 	// Schritt 7: die Argument-Regel hat in dieser Hälfte noch keinen Konsumenten (der kommt erst
 	// mit dem Constant Folding) - getCallPurity wird deshalb direkt getestet, an einem
 	// functionCall-Knoten, den letzten im Code, statt über einen sichtbaren Effekt.
