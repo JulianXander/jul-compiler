@@ -2317,11 +2317,11 @@ f = (cards: List(Integer)) =>
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
-		
+
 		// Prüfe, dass der Rückgabetyp des Branchings kein 'or' Typ ist
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		expect(definition).to.exist;
-		expect(definition.value?.typeInfo?.type.julType).to.not.equal('or', 
+		expect(definition.value?.typeInfo?.type.julType).to.not.equal('or',
 			'Union sollte dedupliziert werden — erwarteter Typ: function, tatsächlich: ' + definition.value?.typeInfo?.type.julType);
 		expect(definition.value?.typeInfo?.type.julType).to.equal('function');
 	});
@@ -2485,7 +2485,7 @@ f = (cards: List(Integer)) =>
 		// praezise Aufloesung am Aufrufort) - resolvePlaceholders liefert die deklarationsseitige,
 		// verbreiterte Anzeige, wie beim Hover ueber die Funktion selbst.
 		const returnType = rawReturnType && resolvePlaceholders(rawReturnType);
-		
+
 		// Erwartet: List(Union(Integer, Text))
 		expect(returnType?.julType).to.equal('list',
 			'List-Spread sollte zu einer List werden, tatsächlich: ' + returnType?.julType);
@@ -2741,7 +2741,7 @@ f = (cards: List(Integer)) =>
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		const error = parsed.checked?.errors?.[0];
-		
+
 		// Nach dem Fix: erste Zeile nach "Definition type mismatch." sollte mit
 		// "Invalid value for field" anfangen, nicht "Can not assign newGameState"
 		const lines = error?.message.split('\n') ?? [];
@@ -2822,7 +2822,7 @@ newGameState: GameState = [
 		const functionType = definition.value?.typeInfo?.type;
 		const rawReturnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
 		const returnType = rawReturnType && resolvePlaceholders(rawReturnType);
-		
+
 		// Erwartet: [Integer, Text, [a: Integer]]
 		if (!returnType || returnType.julType !== 'tuple') {
 			throw new Error(`Return type sollte Tuple sein, ist aber: ${returnType?.julType}`);
@@ -2846,7 +2846,7 @@ f = (source: T) => [
 		const definition = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
 		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
-		
+
 		// Erwartet: dictionaryLiteral mit 3 Feldern: [a: Integer, b: Text, c: Boolean]
 		expect(returnType?.julType).to.equal('dictionaryLiteral',
 			'Return type sollte dictionaryLiteral sein, tatsächlich: ' + returnType?.julType);
@@ -3423,7 +3423,14 @@ describe('constant folding', () => {
 	it('slice außerhalb des Bereichs faltet zu Empty', () => {
 		expect(typeOfLastDefinition('r = [1 2 3].slice(9)')).to.equal('Empty');
 	});
-
+	it('filter faltet mit predicate', () => {
+		expect(typeOfLastDefinition(`x = [1 2 3 [] §asdf§].filter(
+	(value) =>
+		?(value)
+			[Integer] => true
+			() => false
+)`)).to.equal('[1 2 3]');
+	});
 	//#endregion 5a
 
 	//#region 5b Faltung unterbleibt
