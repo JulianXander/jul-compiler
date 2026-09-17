@@ -22,7 +22,7 @@ import {
  * (Empty) und darf damit nicht verwechselt werden. Rekursiv über Skalare und Kollektionen aus
  * Literaltypen; alles andere (Integer, Or, ...) ist nicht konstant.
  */
-export function typeToConstantValue(type: CompileTimeType): { value: unknown } | undefined {
+export function typeToConstantValue(type: CompileTimeType): { value: unknown; } | undefined {
 	switch (type.julType) {
 		case 'integerLiteral':
 		case 'floatLiteral':
@@ -52,6 +52,10 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown } |
 				fields[fieldName] = fieldValue.value;
 			}
 			return { value: fields };
+		}
+		case 'function': {
+			// TODO?
+			// function vie emitter to js + eval? oder interpreter?
 		}
 		default:
 			return undefined;
