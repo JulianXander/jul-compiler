@@ -3431,7 +3431,7 @@ describe('constant folding', () => {
 			() => false
 )`)).to.equal('[1 2 3]');
 	});
-	//#endregion 5a
+	//#endregion 5a Faltung greift
 
 	//#region 5b Faltung unterbleibt
 
