@@ -2023,12 +2023,17 @@ g: Text = f(3)`,
 			// Dedup-Fehler, nur ohne den getTupleTypeError2-Fix von oben. Fund im selben
 			// yugioh-Beispiel: eine List(GameBoard) mit mehreren strukturell identischen Boards
 			// erzeugte denselben mehrzeiligen Fehler mehrfach hintereinander.
+			// Seit constant folding für Nutzerfunktionen (docs/constant-folding-nutzerfunktionen.md)
+			// faltet f(...) zum präzisen Tupel-Typ statt zu List(Text) - mit zwei unterschiedlichen
+			// Argumenten dedupte die Meldung deshalb nicht mehr (zwei verschiedene Literale). Mit
+			// demselben Argument zweimal bleiben beide Elemente dasselbe Literal und die Meldung
+			// dedupt weiterhin - das ist der eigentliche Testzweck.
 			name: 'duplicate-list-element-errors-are-deduplicated',
-			code: 'f = (a: Text b: Text) => [a b]\nx: List(Integer) = f(§a§ §b§)',
+			code: 'f = (a: Text b: Text) => [a b]\nx: List(Integer) = f(§a§ §a§)',
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign Text to Integer.',
+					message: 'Definition type mismatch.\nCan not assign §a§ to Integer.',
 					startRowIndex: 1,
 					startColumnIndex: 0,
 					endRowIndex: 1,
@@ -3449,11 +3454,6 @@ describe('constant folding', () => {
 	it('faltet nicht bei currentDate (purity impure)', () => {
 		expect(typeOfLastDefinition('r = currentDate()')).to.equal('Date');
 	});
-	it('faltet nicht bei einer Nutzerfunktion (kein Runtime-Export unter dem Namen)', () => {
-		expect(typeOfLastDefinition(
-			'f = (a: Integer b: Integer) -> Integer => addInteger(a b)\nr = f(2 3)'))
-			.to.equal('Integer');
-	});
 	it('faltet nicht bei einem Callback-Argument, das nicht beweisbar rein ist (map(log ...))', () => {
 		expect(typeOfLastDefinition('r = map([1 2] log)')).to.equal('[Empty Empty]');
 	});
@@ -3526,8 +3526,25 @@ r = fibonacciHelper(10 1 0)`)).to.equal('55');
 	});
 
 	it('Nutzerfunktion ohne konstantes Argument faltet nicht', () => {
+		// Ungefalteter Rueckgabetyp ist Rational, nicht Integer: multiply ist in core-lib.jul
+		// generisch als (...args: List(Rational)) -> Rational deklariert, ohne dependent
+		// Rueckgabetyp fuer Integer-Operanden - das gilt unabhaengig von dieser Faltungsstufe.
 		expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
-r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Integer');
+r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Rational');
+	});
+
+	it('eine per nativeFunction definierte Funktion wird nicht gefaltet', () => {
+		// Sicherheitsfall 3 aus "nativeFunction in Nutzercode" (docs/constant-folding-nutzerfunktionen.md):
+		// myFn behauptet -> (ungeprueft), f ist damit rein und enthaelt kein nativeFunction-Literal.
+		// Die Faltung wird also versucht und muss am Umgebungsaufbau scheitern.
+		expect(typeOfLastDefinition(`myFn = nativeFunction(
+	(a: Integer) -> Integer
+	§js
+		(a) => a
+	§
+)
+f = (a: Integer) => myFn(a)
+r = f(21)`)).to.equal('Integer');
 	});
 
 	it('nicht terminierende Rekursion faltet nicht und meldet nichts', () => {
@@ -3537,6 +3554,12 @@ r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Integer');
 		// ablesen.
 		expect(typeOfLastDefinition(`spin = (n: Integer) => spin(add(n 1))
 r = spin(0)`)).to.equal('Any');
+	});
+
+	it('Nutzerfunktion mit konstanten Argumenten faltet (Regel 3 greift nun auch für f, nicht mehr nur für Runtime-Exporte)', () => {
+		expect(typeOfLastDefinition(
+			'f = (a: Integer b: Integer) -> Integer => addInteger(a b)\nr = f(2 3)'))
+			.to.equal('5');
 	});
 
 	//#endregion 5d

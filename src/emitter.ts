@@ -2,6 +2,7 @@ import {
 	Name,
 	ParseExpression,
 	ParseFunctionCall,
+	ParseFunctionLiteral,
 	ParseListValue,
 	ParseParameterFields,
 	ParseTextLiteral,
@@ -37,6 +38,46 @@ export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: stri
 		}
 		return expressionJs;
 	}).join('\n')}`;
+}
+
+/**
+ * Für constant folding (docs/constant-folding-nutzerfunktionen.md Schritt 3): emittiert ein
+ * Funktionsliteral ohne Modul-Header, aufrufbar über new Function(...bindingNames, js). Anders als
+ * die normale Emission (case 'functionLiteral') über `let` statt `const` und mit Rückweisung des
+ * Ergebnisses von `_createFunction` auf den eigenen Namen: der Sandbox-Aufrufer reicht dafür einen
+ * budgetierten `_createFunction`-Wrapper herein, der eine neue Closure zurückgibt statt in-place zu
+ * mutieren (Produktionscode braucht das nicht, weil er den Rückgabewert verwirft). Die Rückweisung
+ * ist nötig, damit auch eine Selbstreferenz im Rumpf - über dieselbe `let`-Bindung aufgelöst - durch
+ * den Wrapper läuft, nicht am Original vorbei.
+ */
+export function functionLiteralToEvaluableJs(literal: ParseFunctionLiteral): string {
+	const indent = 1;
+	const params = literal.params;
+	let argsJs: string;
+	let paramsJs: string;
+	if (params.type === 'parameters') {
+		argsJs = params.singleFields.map(field => escapeReservedJsVariableName(field.name.name)).join(', ');
+		const rest = params.rest;
+		if (rest) {
+			argsJs += (argsJs ? ', ' : '') + '...' + escapeReservedJsVariableName(rest.name.name);
+		}
+		paramsJs = parametersToJs(params, indent);
+	}
+	else {
+		argsJs = '';
+		const typeFieldJs = singleDictionaryFieldToJsInternal('type', expressionToJs(params, indent));
+		paramsJs = dictionaryToJs([typeFieldJs], indent);
+	}
+	const delimiterJs = getRowDelimiterJs(indent);
+	const functionJs = `(${argsJs}) => {${functionBodyToJs(literal.body, indent + 1)}${delimiterJs}}`;
+	// Eine Selbstreferenz im Rumpf nennt sich beim ursprünglichen Definitionsnamen (referenceToJs
+	// emittiert ihn wörtlich) - die Bindung hier muss also genauso heißen, sonst läuft die
+	// Rekursion an dieser Closure vorbei in einen ReferenceError.
+	const parent = literal.parent;
+	const nameJs = parent?.type === 'definition' && parent.value === literal
+		? escapeReservedJsVariableName(parent.name.name)
+		: '_foldedFunction';
+	return `let ${nameJs} = ${functionJs};${delimiterJs}${nameJs} = _createFunction(${nameJs}, ${paramsJs});${delimiterJs}return ${nameJs};`;
 }
 
 function getDefinitionJs(isExport: boolean, nameJs: string, valueJs: string): string {

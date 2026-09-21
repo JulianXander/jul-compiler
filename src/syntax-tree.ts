@@ -937,6 +937,18 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	ReturnType: CompileTimeType;
 	purity: Purity;
 	predicate?: PredicateFacts;
+	/**
+	 * Nur bei Funktionsliteralen aus .jul-Dateien gesetzt (siehe 'functionLiteral' im Checker).
+	 * Rückverweis für constant folding: von hier aus wird bei Bedarf emittiert und ausgewertet.
+	 */
+	literal?: ParseFunctionLiteral;
+	/**
+	 * Nur gesetzt, wenn literal gesetzt ist. Bedingung 1 und 2 der Faltbarkeitsregel (siehe
+	 * docs/constant-folding-nutzerfunktionen.md): kein nativeFunction-/nativeValue-Literal im
+	 * Rumpf, nicht aus .ts/.js. Bedingung 3 (freie Referenzen lösbar) prüft der Auswerter je
+	 * Aufrufstelle, weil sie von der Umgebung abhängt.
+	 */
+	foldable?: boolean;
 }
 
 /**

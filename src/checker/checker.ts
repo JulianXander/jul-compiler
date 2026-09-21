@@ -1,6 +1,6 @@
 import { extname, join } from 'path';
 import * as runtime from '../runtime.js';
-import { constantValueToType, typeToConstantValue } from './constant-folding.js';
+import { constantValueToType, resetFoldBudget, typeToConstantValue, tryBuildCallable } from './constant-folding.js';
 import {
 	BracketedExpression,
 	CompileTimeCollection,
@@ -1508,6 +1508,7 @@ export function checkTypes(
 	referenceIndex?: ReferenceIndex,
 ): void {
 	referenceIndex?.clearReferencesFromFile(document.filePath);
+	resetFoldBudget();
 	const checked = structuredClone(document.unchecked);
 	document.checked = checked;
 	// Die core-lib definiert die builtInSymbols selbst. Bekäme sie sie zusätzlich als oberen
@@ -2684,6 +2685,13 @@ function inferType(
 				}
 			}
 			//#endregion Purity-Inferenz
+			//#region Faltbarkeit (docs/constant-folding-nutzerfunktionen.md Schritt 1)
+			// Nur Bedingung 1 und 2 der Faltbarkeitsregel; Bedingung 3 (freie Referenzen lösbar)
+			// prüft der Auswerter je Aufrufstelle, weil sie von der Umgebung abhängt.
+			functionType.literal = expression;
+			functionType.foldable = !isTypeScriptFile(filePath)
+				&& !expression.body.some(containsNativeLiteral);
+			//#endregion Faltbarkeit
 			// Ein leerer body ist ungültig, nicht leer (Empty). Any als Ergebnis, damit sich der
 			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
 			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? builtinAny;
@@ -4377,6 +4385,23 @@ export function inferBodyPurity(
 }
 
 /**
+ * Bedingung 1 der Faltbarkeitsregel (docs/constant-folding-nutzerfunktionen.md): die
+ * Sicherheitsgrenze für constant folding. Anders als inferBodyPurity steigt dieser Walker auch in
+ * verschachtelte Funktionsliterale ab - sie werden als Teil desselben emittierten Slice mit
+ * ausgeführt, wenn die äußere Funktion gefaltet wird, ihre Purity ist dafür irrelevant.
+ */
+function containsNativeLiteral(expression: PositionedExpression): boolean {
+	if (expression.type === 'functionCall') {
+		const functionExpression = expression.functionExpression;
+		if (functionExpression?.type === 'reference'
+			&& (functionExpression.name.name === 'nativeFunction' || functionExpression.name.name === 'nativeValue')) {
+			return true;
+		}
+	}
+	return forEachChild(expression, child => containsNativeLiteral(child) ? true : undefined) ?? false;
+}
+
+/**
  * Versucht, einen Aufruf eines `->`-Builtins mit compile-time bekannten Argumenten auszuführen
  * und sein Ergebnis als präziseren Typ zurückzugeben - der emittierte Code bleibt unverändert,
  * gefaltet wird nur der Typ. `undefined` heißt "nicht gefaltet"; das ist kein Fehler und wird nie
@@ -4401,9 +4426,23 @@ function tryFoldCall(
 	if (!isFunctionType(resolvedFunctionType) || getCallPurity(resolvedFunctionType, prefixArgumentType, argsType) !== 'pure') {
 		return undefined;
 	}
+	// Regel 3 (docs/constant-folding-nutzerfunktionen.md Schritt 2): trägt der Typ ein literal, ist
+	// es eine Nutzerfunktion (Schritt 1) - dafür der Auswerter. Sonst ein Runtime-Export mit
+	// params unter diesem Namen; params hängt nur an Builtins, die runtime.ts selbst per
+	// _createFunction(...) registriert, ihre Namen sind über JUL4003 überdeckungsgeschützt - ein
+	// per nativeFunction definiertes myFn trägt weder literal noch params und faltet hier nicht.
 	const name = functionExpression.name.name;
-	const runtimeFunction = (runtime as { [key: string]: unknown; })[escapeReservedJsVariableName(name)];
-	if (typeof runtimeFunction !== 'function' || !('params' in runtimeFunction)) {
+	let callable: Function | undefined;
+	if (resolvedFunctionType.literal) {
+		callable = resolvedFunctionType.foldable ? tryBuildCallable(resolvedFunctionType) : undefined;
+	}
+	else {
+		const runtimeFunction = (runtime as { [key: string]: unknown; })[escapeReservedJsVariableName(name)];
+		callable = typeof runtimeFunction === 'function' && 'params' in runtimeFunction
+			? runtimeFunction as Function
+			: undefined;
+	}
+	if (!callable) {
 		return undefined;
 	}
 	const prefixValue = prefixArgumentType && typeToConstantValue(prefixArgumentType);
@@ -4416,7 +4455,7 @@ function tryFoldCall(
 	}
 	checkerStats.foldableCall++;
 	try {
-		const result = runtime._callFunction(runtimeFunction, prefixValue?.value, argsValue.value as any);
+		const result = runtime._callFunction(callable, prefixValue?.value, argsValue.value as any);
 		return constantValueToType(result);
 	}
 	catch {
