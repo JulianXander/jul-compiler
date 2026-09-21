@@ -3155,18 +3155,18 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	it('Funktion ohne Pfeil mit unentscheidbarem Rumpf bleibt unknown', () => {
 		expect(innerPurityOf('outer = (cb: () :> Any) => () => cb()')).to.equal('unknown');
 	});
-	// E2 ist zu grob: die Regel macht die Weitergabe JEDES fremden Parameters unentscheidbar,
-	// ohne zu unterscheiden, ob er ueberhaupt eine Funktion sein kann. Die Bedingung, die E1
-	// implizit laesst ("rein, sofern die Funktionsargumente rein sind"), betrifft aber nur
-	// Funktionsargumente - ein Integer ist nie aufrufbar und kann sie nicht brechen.
-	// Der erste Fall steht woertlich in der E2-Begruendung selbst als Beispiel dafuer, was rein
-	// bleiben MUSS ("sonst waere praktisch jede geschachtelte Funktion unrein").
+	// Ein fremder (aus einer äußeren Funktion geschlossener) Parameter macht die Weitergabe nicht
+	// pauschal unentscheidbar, sondern nur so weit, wie sein deklarierter Typ überhaupt eine
+	// Funktion sein kann - ein Integer ist nie aufrufbar und kann die Weitergabe nicht unrein
+	// machen. Ohne diese Unterscheidung wäre praktisch jede geschachtelte Funktion, die einen
+	// äußeren Wert weiterreicht, unentscheidbar.
 	it('fremder Parameter mit nicht-funktionalem Typ ist rein weitergebbar (nested)', () => {
 		expect(innerPurityOf('outer = (a: Integer) => () => a.addInteger(1)')).to.equal('pure');
 	});
-	// Derselbe Defekt in der Branch-Variante - das ist die Struktur von
-	// jul-examples/fibonacci/fibonacci.jul, hier ohne Rekursion. Vermutlich eine zweite Ursache:
-	// im Branch ist a durch das Narrowing kein parameterReference mehr, sondern der verengte Typ.
+	// Derselbe Fall in der Branch-Variante - das ist die Struktur von
+	// jul-examples/fibonacci/fibonacci.jul, hier ohne Rekursion. Eine zweite, unabhängige Ursache:
+	// im Branch ist a durch das Narrowing kein parameterReference mehr, sondern der verengte Typ
+	// (And(a Not(0))) - getArgumentPurity muss auch in and/or absteigen.
 	it('fremder Parameter mit nicht-funktionalem Typ ist rein weitergebbar (branch)', () => {
 		expect(purityOfDefinition(`f = (a: Integer) =>
 	?(a)

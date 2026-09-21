@@ -4216,7 +4216,35 @@ function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: Compile
 		return argType.purity;
 	}
 	if (argType.julType === 'parameterReference') {
-		return argType.functionRef === ownFunctionType ? 'pure' : 'unknown';
+		if (argType.functionRef === ownFunctionType) {
+			return 'pure';
+		}
+		// Ein fremder (aus einer äußeren Funktion geschlossener) Parameter ist nicht pauschal
+		// unentscheidbar, sondern nur so weit, wie sein deklarierter Typ überhaupt eine Funktion
+		// sein kann - ein Integer ist nie aufrufbar und kann die Weitergabe nicht unrein machen.
+		// Ein Funktionsparameter landet über den deklarierten Typ oben im Funktionstyp-Zweig und
+		// trägt dort weiterhin seine eigene (bei `:>` unbekannte) Purity - für ihn ändert sich
+		// nichts.
+		const declaredType = dereferenceParameterTypeFromFunctionRef(argType);
+		return declaredType && declaredType !== argType
+			? getArgumentPurity(declaredType, ownFunctionType)
+			: 'unknown';
+	}
+	// Ein Schnitt ist höchstens so groß wie sein kleinster Teil: kann ein Teil keine Funktion
+	// sein, kann es der ganze Schnitt nicht. Deshalb genügt hier ein reiner Teil - anders als bei
+	// der Vereinigung unten, wo jeder Teil möglich ist und deshalb jeder rein sein muss.
+	// Ohne diesen Abstieg fällt schon ein verengter Parameter durch (im branch steht statt `a`
+	// der genarrowte Typ `And(a Not(0))`).
+	if (argType.julType === 'and') {
+		return argType.ChoiceTypes.some(choiceType =>
+			getArgumentPurity(choiceType, ownFunctionType) === 'pure')
+			? 'pure'
+			: 'unknown';
+	}
+	if (argType.julType === 'or') {
+		return argType.ChoiceTypes.reduce<Purity>(
+			(purity, choiceType) => joinPurity(purity, getArgumentPurity(choiceType, ownFunctionType)),
+			'pure');
 	}
 	if (isTupleType(argType)) {
 		return argType.ElementTypes.reduce<Purity>(
