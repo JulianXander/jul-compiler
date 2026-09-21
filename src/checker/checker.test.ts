@@ -3581,4 +3581,31 @@ r = spin(0)`)).to.equal('Any');
 	});
 
 	//#endregion 5d
+
+	//#region 5e HOF mit Nutzerfunktionen (Schritt 4: typeToConstantValue.case 'function')
+
+	it('map mit Nutzer-Callback faltet', () => {
+		// map erwartet den Callback-Parameter namentlich als 'value' (Kontravarianz-Vertrag,
+		// siehe parameter-name-mismatch-reports-names-in-wrong-order oben).
+		expect(typeOfLastDefinition(`double = (value: Integer) => value.multiply(2)
+r = map([1 2 3] double)`)).to.equal('[2 4 6]');
+	});
+
+	it('map mit nicht faltbarem Callback faltet nicht', () => {
+		expect(typeOfLastDefinition(`stamp = currentDate()
+tag = (value: Integer) => stamp
+r = map([1 2] tag)`)).to.equal('[Date Date]');
+	});
+
+	it('toDictionary mit zwei Nutzer-Callbacks faltet', () => {
+		// Beide Callbacks muessen materialisiert werden, nicht nur der erste.
+		expect(typeOfLastDefinition(`getKey = (value: Integer index: PositiveInteger) =>
+	?(index)
+		[1] => §first§
+		() => §rest§
+getValue = (value: Integer index: PositiveInteger) => value.multiply(10)
+r = toDictionary([1 2] getKey getValue)`)).to.equal('[\n  first: 10\n  rest: 20\n]');
+	});
+
+	//#endregion 5e
 });

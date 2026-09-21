@@ -69,9 +69,19 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown; } 
 			return { value: fields };
 		}
 		case 'function': {
-			// TODO Schritt 4 (docs/constant-folding-nutzerfunktionen.md): Builtin → Runtime-Export,
-			// Nutzerfunktion → Callable aus tryBuildCallable. Noch offen, weil hierfür der
-			// Referenzname der Schreibstelle fehlt (aliasName ist dafür nicht zuverlässig).
+			// Nutzerfunktion (trägt literal, siehe checker.ts case 'functionLiteral'): ein echtes
+			// JS-Callable aus dem Auswerter, damit sie z.B. als Callback an eine HOF wie map
+			// weitergereicht werden kann.
+			// Ein Builtin (aus nativeFunction, ohne literal) bleibt hier unfaltbar: sein Typ trägt
+			// nirgends den Namen, unter dem der Runtime-Export zu finden wäre - der Name steht nur
+			// an der jeweiligen Referenz-Schreibstelle (functionExpression.name.name), die diese
+			// rein typbasierte Übersetzung nicht sieht. TODO: Auflösung nur erreichbar, wenn der
+			// Name mit an den Typ wandert (z.B. wie aliasName, aber zuverlässig auch für Werte).
+			if (!type.literal || !type.foldable) {
+				return undefined;
+			}
+			const callable = tryBuildCallable(type);
+			return callable && { value: callable };
 		}
 		default:
 			return undefined;
@@ -243,6 +253,15 @@ function buildEnvironment(literal: ParseFunctionLiteral): { name: string; value:
 	});
 	const environment: { name: string; value: unknown; }[] = [];
 	for (const [name, reference] of byName) {
+		// true/false sind gewöhnliche core-lib-Referenzen (kein eigener Literal-Knoten im AST),
+		// aber referenceToJs emittiert sie als bloßen Bezeichner - der zufällig mit dem gültigen
+		// JS-Boolean-Literal übereinstimmt und deshalb ohne jede Bindung auskommt. Anders als
+		// Integer/List/etc. sind sie kein runtime.ts-Export (nativeValue liefert den JS-Text
+		// direkt) und würden hier sonst als Bindungsname landen - ein reserviertes Wort, das
+		// new Function nicht als Parameter akzeptiert.
+		if (name === 'true' || name === 'false') {
+			continue;
+		}
 		// Regel 3: ein Runtime-Export unter diesem Namen wird ohnehin über die volle Runtime-
 		// Bindung in tryBuildCallable erreichbar sein (wie der normale Modul-Import) - hier reicht
 		// die Auskunft, dass er existiert, eine eigene Bindung braucht es nicht. Der Namensgriff
@@ -255,9 +274,14 @@ function buildEnvironment(literal: ParseFunctionLiteral): { name: string; value:
 		if (!type) {
 			return undefined;
 		}
+		// Emittierte Referenzen im Rumpf heißen escaped (referenceToJs), die Bindung muss also
+		// genauso heißen - sonst bricht schon eine reservierte Wortreferenz wie `true`/`false`
+		// (in JUL gewöhnliche core-lib-Referenzen, keine Literalsyntax) new Function mit einem
+		// SyntaxError.
+		const escapedName = escapeReservedJsVariableName(name);
 		const constantValue = typeToConstantValue(type);
 		if (constantValue) {
-			environment.push({ name: name, value: constantValue.value });
+			environment.push({ name: escapedName, value: constantValue.value });
 			continue;
 		}
 		if (type.julType === 'function' && type.literal) {
@@ -268,7 +292,7 @@ function buildEnvironment(literal: ParseFunctionLiteral): { name: string; value:
 			if (!callable) {
 				return undefined;
 			}
-			environment.push({ name: name, value: callable });
+			environment.push({ name: escapedName, value: callable });
 			continue;
 		}
 		return undefined;
@@ -301,8 +325,7 @@ export function tryBuildCallable(functionType: CompileTimeFunctionType): Functio
 		const factory = new Function(...bindingNames, functionLiteralToEvaluableJs(literal));
 		return factory(...bindingValues) as Function;
 	}
-	catch (e) {
-		console.error('DEBUG build error', e);
+	catch {
 		return undefined;
 	}
 }
