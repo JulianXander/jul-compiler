@@ -54,9 +54,7 @@ export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: stri
  */
 export function functionLiteralToEvaluableJs(literal: ParseFunctionLiteral): string {
 	const indent = 1;
-	const { argsJs, paramsJs } = functionParamsToJs(literal.params, indent);
-	const delimiterJs = getRowDelimiterJs(indent);
-	const functionJs = `(${argsJs}) => {${functionBodyToJs(literal.body, indent + 1)}${delimiterJs}}`;
+	const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(literal.params, literal.body, indent);
 	// Eine Selbstreferenz im Rumpf nennt sich beim ursprünglichen Definitionsnamen (referenceToJs
 	// emittiert ihn wörtlich) - die Bindung hier muss also genauso heißen, sonst läuft die
 	// Rekursion an dieser Closure vorbei in einen ReferenceError.
@@ -253,9 +251,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 		}
 		case 'functionLiteral': {
-			const { argsJs, paramsJs } = functionParamsToJs(expression.params, indent);
-			const delimiterJs = getRowDelimiterJs(indent + 1);
-			const functionJs = `(${argsJs}) => {${functionBodyToJs(expression.body, indent + 2)}${delimiterJs}}`;
+			const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(expression.params, expression.body, indent);
 			const parent = expression.parent;
 			if (parent?.type === 'definition'
 				&& expression === parent.value) {
@@ -398,18 +394,19 @@ function functionBodyToJs(expressions: ParseExpression[], indent: number): strin
 	return js;
 }
 
-function referenceToJs(reference: ParseReference): string {
-	const name = reference.name.name;
-	return escapeReservedJsVariableName(name);
-}
-
 /**
- * Gemeinsame Parameter-Aufbereitung für die Emission von Funktionsliteralen: sowohl für die normale
- * Emission (case 'functionLiteral') als auch für functionLiteralToEvaluableJs. `argsJs` ist die
- * JS-Parameterliste der Arrow-Function, `paramsJs` die JUL-Parameterbeschreibung für
- * `_createFunction`.
+ * `argsJs`/`paramsJs`/`functionJs` für ein Funktionsliteral, gemeinsam für die normale Emission
+ * (case 'functionLiteral') und functionLiteralToEvaluableJs. `indent` ist der Indent, auf dem
+ * `params` selbst eingebettet wird (Argumentposition von `_createFunction`); der Function-Body liegt
+ * davon zwei Ebenen tiefer (Body innerhalb der Arrow-Function innerhalb der `_createFunction`-Argumente).
+ * `delimiterJs` (Zeilenende auf Höhe der schließenden `}`) wird zurückgegeben, weil der Aufrufer es
+ * i. d. R. auch für den umgebenden Code braucht.
  */
-function functionParamsToJs(params: SimpleExpression | ParseParameterFields, indent: number): { argsJs: string; paramsJs: string; } {
+function functionLiteralToJsParts(
+	params: SimpleExpression | ParseParameterFields,
+	body: ParseExpression[],
+	indent: number,
+): { functionJs: string; paramsJs: string; delimiterJs: string; } {
 	let argsJs: string;
 	let paramsJs: string;
 	if (params.type === 'parameters') {
@@ -425,7 +422,14 @@ function functionParamsToJs(params: SimpleExpression | ParseParameterFields, ind
 		const typeFieldJs = singleDictionaryFieldToJsInternal('type', expressionToJs(params, indent));
 		paramsJs = dictionaryToJs([typeFieldJs], indent);
 	}
-	return { argsJs, paramsJs };
+	const delimiterJs = getRowDelimiterJs(indent + 1);
+	const functionJs = `(${argsJs}) => {${functionBodyToJs(body, indent + 2)}${delimiterJs}}`;
+	return { functionJs, paramsJs, delimiterJs };
+}
+
+function referenceToJs(reference: ParseReference): string {
+	const name = reference.name.name;
+	return escapeReservedJsVariableName(name);
 }
 
 function parametersToJs(parameters: ParseParameterFields, indent: number): string {
