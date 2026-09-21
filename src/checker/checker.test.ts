@@ -3155,6 +3155,24 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	it('Funktion ohne Pfeil mit unentscheidbarem Rumpf bleibt unknown', () => {
 		expect(innerPurityOf('outer = (cb: () :> Any) => () => cb()')).to.equal('unknown');
 	});
+	// E2 ist zu grob: die Regel macht die Weitergabe JEDES fremden Parameters unentscheidbar,
+	// ohne zu unterscheiden, ob er ueberhaupt eine Funktion sein kann. Die Bedingung, die E1
+	// implizit laesst ("rein, sofern die Funktionsargumente rein sind"), betrifft aber nur
+	// Funktionsargumente - ein Integer ist nie aufrufbar und kann sie nicht brechen.
+	// Der erste Fall steht woertlich in der E2-Begruendung selbst als Beispiel dafuer, was rein
+	// bleiben MUSS ("sonst waere praktisch jede geschachtelte Funktion unrein").
+	it('fremder Parameter mit nicht-funktionalem Typ ist rein weitergebbar (nested)', () => {
+		expect(innerPurityOf('outer = (a: Integer) => () => a.addInteger(1)')).to.equal('pure');
+	});
+	// Derselbe Defekt in der Branch-Variante - das ist die Struktur von
+	// jul-examples/fibonacci/fibonacci.jul, hier ohne Rekursion. Vermutlich eine zweite Ursache:
+	// im Branch ist a durch das Narrowing kein parameterReference mehr, sondern der verengte Typ.
+	it('fremder Parameter mit nicht-funktionalem Typ ist rein weitergebbar (branch)', () => {
+		expect(purityOfDefinition(`f = (a: Integer) =>
+	?(a)
+		[0] => 0
+		() => subtract(a 1)`, 'f')).to.equal('pure');
+	});
 	// E6: der Dummy-Rumpf (nativeValue) importierter TS-Funktionen darf nicht als beweisbar
 	// unrein gewertet werden - für sie greift die Inferenz nicht, ihr Typ bleibt unknown.
 	it('aus TypeScript importierte Funktion bleibt unknown (E6)', () => {
