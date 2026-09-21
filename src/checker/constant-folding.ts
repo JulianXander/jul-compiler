@@ -1,6 +1,6 @@
 // Übersetzung zwischen CompileTimeType und dem JS-Wert, mit dem constant folding rechnet, sowie
-// (ab Schritt 3) der Auswerter, der Nutzerfunktionen tatsächlich ausführt: Literal + Umgebung zu
-// JS emittieren (emitter.ts), mit new Function instanziieren, aufrufen. Der Auswerter liegt hier
+// der Auswerter, der Nutzerfunktionen tatsächlich ausführt: Literal + Umgebung zu JS emittieren
+// (emitter.ts), mit new Function instanziieren, aufrufen. Der Auswerter liegt hier
 // und nicht in einer eigenen Datei, weil typeToConstantValue im Fall 'function' den Auswerter
 // braucht und der Auswerter umgekehrt typeToConstantValue/constantValueToType - eine Trennung
 // erzeugte einen Zyklus. Bewusst ohne Abhängigkeit von checker.ts (siehe buildEnvironment): die
@@ -143,19 +143,19 @@ export function constantValueToType(value: unknown): CompileTimeType | undefined
 	return undefined;
 }
 
-//#region Auswerter (Schritt 3)
+//#region Auswerter
 
 /**
  * Notbremse gegen nicht terminierende Rekursion: Purity sagt "rein", nicht "terminiert". Ein
  * erschöpftes Budget erzeugt keine Diagnose, nur "nicht gefaltet" (siehe tryBuildCallable/catch).
  * Global pro Check-Lauf (resetFoldBudget), nicht pro Aufrufstelle - sonst bleiben viele kleine
  * faltbare Aufrufe einzeln unauffällig und summieren sich trotzdem.
+ * War ursprünglich 10x so groß, das maß sich als zu teuer: ein genuin nicht terminierender Aufruf
+ * (siehe Test 'recursive-function-return-type-is-not-checked') brauchte damit über 600ms statt
+ * der angepeilten ~1ms - new Function/JSON.stringify pro Schritt sind teurer als reiner JS-Aufruf.
+ * Solange der Auswerter selbst nicht schneller ist, bleibt das Budget klein genug, um den Language
+ * Server nicht spürbar zu blockieren.
  */
-// 10_000 (grob nach Plan) maß sich als zu teuer: ein genuin nicht terminierender Aufruf (siehe
-// Test 'recursive-function-return-type-is-not-checked') brauchte damit über 600ms statt der
-// angepeilten ~1ms - new Function/JSON.stringify pro Schritt sind teurer als reiner JS-Aufruf.
-// Bis der Auswerter selbst schneller ist (Schritt 5: Bench), bleibt das Budget klein genug, um den
-// Language Server nicht spürbar zu blockieren.
 const initialFoldBudget = 1_000;
 let foldBudgetRemaining = initialFoldBudget;
 
@@ -174,7 +174,11 @@ class FoldBudgetExhaustedError extends Error { }
  * direkt aufgerufenen `f(n) => f(n.subtract(1))` stumm.
  * Zusätzlich pro Closure memoisiert (Schlüssel: kanonisch serialisierte Argumente) - ohne das wäre
  * schon eine naive, nicht endrekursive Fibonacci-Funktion exponentiell und verbrennte das Budget an
- * einem einzigen äußeren Aufruf.
+ * einem einzigen äußeren Aufruf. Der Cache lebt nur innerhalb dieser einen Closure (frisch pro
+ * tryBuildCallable-Aufruf) und hilft deshalb nur gegen Rekursion innerhalb eines Aufrufs, nicht
+ * gegen denselben (Funktion, Argumente) an mehreren Aufrufstellen im selben Check-Lauf - dafür
+ * bräuchte es zusätzlich einen Cache auf CompileTimeFunctionType-Ebene, der über tryBuildCallable
+ * hinweg lebt (TODO, noch nicht gebaut).
  */
 function createBudgetedCreateFunction(): typeof runtime._createFunction {
 	return (fn: Function, params: unknown) => {
@@ -233,12 +237,12 @@ function collectFreeReferences(literal: ParseFunctionLiteral): ParseReference[] 
 }
 
 /**
- * Bedingung 3 der Faltbarkeitsregel: löst jede freie Referenz des Rumpfs auf, in dieser
- * Reihenfolge (docs/constant-folding-nutzerfunktionen.md Schritt 2) - konstanter Wert, wiederum
- * faltbare Nutzerfunktion (rekursiv), Runtime-Export unter dem Namen. Scheitert eine, ist das
+ * Löst jede freie Referenz des Rumpfs auf, in dieser Reihenfolge: zuerst ein konstanter Wert
+ * (typeToConstantValue), dann eine wiederum faltbare Nutzerfunktion (rekursiv über
+ * tryBuildCallable), zuletzt ein Runtime-Export unter diesem Namen. Scheitert eine, ist das
  * Ergebnis undefined ("keine Umgebung", also nicht gefaltet). Die Selbstreferenz der gerade
- * gefalteten Funktion ist ausgenommen - sie wird beim Emit an die gerade gebaute Closure gebunden,
- * nicht hier aufgelöst.
+ * gefalteten Funktion ist ausgenommen - sie wird beim Emit an die gerade gebaute Closure gebunden
+ * (siehe functionLiteralToEvaluableJs), nicht hier aufgelöst.
  */
 function buildEnvironment(literal: ParseFunctionLiteral): { name: string; value: unknown; }[] | undefined {
 	const ownName = literal.parent?.type === 'definition' && literal.parent.value === literal
@@ -262,10 +266,10 @@ function buildEnvironment(literal: ParseFunctionLiteral): { name: string; value:
 		if (name === 'true' || name === 'false') {
 			continue;
 		}
-		// Regel 3: ein Runtime-Export unter diesem Namen wird ohnehin über die volle Runtime-
-		// Bindung in tryBuildCallable erreichbar sein (wie der normale Modul-Import) - hier reicht
-		// die Auskunft, dass er existiert, eine eigene Bindung braucht es nicht. Der Namensgriff
-		// ist eindeutig, weil Überdeckung (JUL4003) gegen alle oberen Scopes ist, Builtins
+		// Ein Runtime-Export unter diesem Namen wird ohnehin über die volle Runtime-Bindung in
+		// tryBuildCallable erreichbar sein (wie der normale Modul-Import) - hier reicht die
+		// Auskunft, dass er existiert, eine eigene Bindung braucht es nicht. Der Namensgriff ist
+		// eindeutig, weil Überdeckung (JUL4003) gegen alle oberen Scopes ist, Builtins
 		// eingeschlossen.
 		if (runtimeKeys.includes(escapeReservedJsVariableName(name))) {
 			continue;
@@ -304,7 +308,8 @@ function buildEnvironment(literal: ParseFunctionLiteral): { name: string; value:
  * Instanziiert ein faltbares Funktionsliteral zu einem echten JS-Callable, über new Function -
  * ohne Modul-Header, mit der Runtime als hereingereichten Parametern statt Import (siehe
  * emitter.ts functionLiteralToEvaluableJs). undefined heißt "nicht gefaltet": entweder scheitert
- * die Umgebung (Bedingung 3), oder new Function wirft (z.B. FoldBudgetExhaustedError).
+ * die Umgebung (buildEnvironment, eine freie Referenz löst sich nicht auf), oder new Function
+ * wirft (z.B. FoldBudgetExhaustedError).
  */
 export function tryBuildCallable(functionType: CompileTimeFunctionType): Function | undefined {
 	const literal = functionType.literal;
@@ -317,8 +322,8 @@ export function tryBuildCallable(functionType: CompileTimeFunctionType): Functio
 	}
 	// Volle Runtime immer binden, wie der normale Modul-Import (getRuntimeImportJs): emittierte
 	// Parameter-Typangaben (z.B. `a: Integer`) referenzieren Runtime-Exporte, die selbst keine
-	// aufrufbaren Funktionen sind (kein `params`) und deshalb nicht über Regel 3 der freien
-	// Referenzen laufen - der Sammler durchsucht nur den Rumpf, nicht die Parameterliste.
+	// aufrufbaren Funktionen sind (kein `params`) und deshalb im Sammler oben gar nicht erst
+	// gebunden werden - der durchsucht ohnehin nur den Rumpf, nicht die Parameterliste.
 	const bindingNames = [...runtimeKeys, ...environment.map(entry => entry.name)];
 	const bindingValues: unknown[] = [...runtimeKeys.map(key => key === '_createFunction' ? createBudgetedCreateFunction() : (runtime as { [key: string]: unknown; })[key]), ...environment.map(entry => entry.value)];
 	try {

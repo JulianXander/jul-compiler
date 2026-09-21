@@ -41,8 +41,9 @@ export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: stri
 }
 
 /**
- * Für constant folding (docs/constant-folding-nutzerfunktionen.md Schritt 3): emittiert ein
- * Funktionsliteral ohne Modul-Header, aufrufbar über new Function(...bindingNames, js). Anders als
+ * Für constant folding von Nutzerfunktionen (siehe tryBuildCallable in constant-folding.ts):
+ * emittiert ein Funktionsliteral ohne Modul-Header, aufrufbar über new Function(...bindingNames,
+ * js). Anders als
  * die normale Emission (case 'functionLiteral') über `let` statt `const` und mit Rückweisung des
  * Ergebnisses von `_createFunction` auf den eigenen Namen: der Sandbox-Aufrufer reicht dafür einen
  * budgetierten `_createFunction`-Wrapper herein, der eine neue Closure zurückgibt statt in-place zu

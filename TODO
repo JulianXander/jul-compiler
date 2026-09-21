@@ -1,5 +1,25 @@
 -pure function und constant folding
 	-C:\Projects\privat\JUL\jul-compiler\docs\pure-functions.md
+	?constant folding von Nutzerfunktionen ohne Ausführung: statt den Rumpf über new Function
+		tatsächlich laufen zu lassen (aktueller Stand, siehe tryBuildCallable in
+		constant-folding.ts), den Rumpf mit den konkreten Argumenttypen erneut prüfen und den
+		inferierten Rückgabetyp als Faltung übernehmen. Braucht einen schreibfreien Checker-Modus
+		(die reguläre Prüfung mutiert typeInfo am Baum), eine Fehlersenke (ein Fehler im erneut
+		geprüften Rumpf darf nicht als echte Diagnose auftauchen) und Widening (die konkreten
+		Argumenttypen sind Literale, der Rückgabetyp soll nicht literal-scharf, sondern der normal
+		inferierte Typ sein). Würde die new Function-Sandbox und das Budget überflüssig machen.
+	?core-lib in JUL statt in TS/runtime.ts schreiben, verworfen: scheitert an den Laufzeitkosten
+		der core-lib (jede core-lib-Funktion liefe dann durch denselben Interpretationspfad wie
+		Nutzercode) und daran, dass JUL keine Array-Mutation hat und auch keine bekommen soll -
+		ohne Mutation und ohne Tail-Call-Optimierung risse ein rekursives map über eine lange Liste
+		den Stack.
+	-Cache für gefaltete Aufrufe über den ganzen Check-Lauf, nicht nur pro Closure: aktuell
+		memoisiert createBudgetedCreateFunction (constant-folding.ts) nur innerhalb einer einzelnen
+		tryBuildCallable-Instanz, hilft also gegen Rekursion innerhalb eines Aufrufs, aber nicht
+		gegen denselben (Funktion, Argumente)-Aufruf an mehreren Aufrufstellen im selben Lauf.
+		Bräuchte einen WeakMap<CompileTimeFunctionType, Map<Schlüssel, Ergebnis>>, dessen Lebensdauer
+		sich von selbst löst, weil der Funktionstyp je Check-Lauf neu erzeugt wird. Schlüssel muss
+		Prefix- und normale Argumente kanonisch serialisieren (JSON.stringify wirft bei bigint).
 -conditional types
 -unit testing konzept für jul
 	?eigene lib oder bestehende js libs verwendbar machen

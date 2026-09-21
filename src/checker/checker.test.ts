@@ -2023,8 +2023,8 @@ g: Text = f(3)`,
 			// Dedup-Fehler, nur ohne den getTupleTypeError2-Fix von oben. Fund im selben
 			// yugioh-Beispiel: eine List(GameBoard) mit mehreren strukturell identischen Boards
 			// erzeugte denselben mehrzeiligen Fehler mehrfach hintereinander.
-			// Seit constant folding für Nutzerfunktionen (docs/constant-folding-nutzerfunktionen.md)
-			// faltet f(...) zum präzisen Tupel-Typ statt zu List(Text) - mit zwei unterschiedlichen
+			// Seit constant folding für Nutzerfunktionen faltet f(...) zum präzisen Tupel-Typ
+			// statt zu List(Text) - mit zwei unterschiedlichen
 			// Argumenten dedupte die Meldung deshalb nicht mehr (zwei verschiedene Literale). Mit
 			// demselben Argument zweimal bleiben beide Elemente dasselbe Literal und die Meldung
 			// dedupt weiterhin - das ist der eigentliche Testzweck.
@@ -3552,9 +3552,9 @@ r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Rational');
 	});
 
 	it('eine per nativeFunction definierte Funktion wird nicht gefaltet', () => {
-		// Sicherheitsfall 3 aus "nativeFunction in Nutzercode" (docs/constant-folding-nutzerfunktionen.md):
-		// myFn behauptet -> (ungeprueft), f ist damit rein und enthaelt kein nativeFunction-Literal.
-		// Die Faltung wird also versucht und muss am Umgebungsaufbau scheitern.
+		// myFn behauptet -> (ungeprueft, per nativeFunction definiert), f ist damit rein und
+		// enthaelt selbst kein nativeFunction-Literal. Die Faltung wird also versucht und muss am
+		// Umgebungsaufbau scheitern: myFn traegt weder literal noch einen Runtime-Export-Namen.
 		expect(typeOfLastDefinition(`myFn = nativeFunction(
 	(a: Integer) -> Integer
 	§js
@@ -3574,15 +3574,35 @@ r = f(21)`)).to.equal('Integer');
 r = spin(0)`)).to.equal('Any');
 	});
 
-	it('Nutzerfunktion mit konstanten Argumenten faltet (Regel 3 greift nun auch für f, nicht mehr nur für Runtime-Exporte)', () => {
+	it('Nutzerfunktion mit konstanten Argumenten faltet (Runtime-Export ist keine Voraussetzung mehr)', () => {
 		expect(typeOfLastDefinition(
 			'f = (a: Integer b: Integer) -> Integer => addInteger(a b)\nr = f(2 3)'))
 			.to.equal('5');
 	});
 
+	// Ein Parameter mit gleichem Namen wie eine äußere Definition ('factor = 99\nf = (factor:
+	// Integer) => ...') ist in JUL nicht schreibbar - jede Überdeckung eines Namens aus einem
+	// oberen Scope ist JUL4003, ganz unabhängig davon, ob es sich um einen Parameter oder eine
+	// Definition handelt. Der Sammler kann eine solche Kollision also nie beobachten; die
+	// Namensgleichheit selbst ist bereits durch den Checker ausgeschlossen.
+	it('ein Parameter mit gleichem Namen wie eine äußere Definition ist JUL4003', () => {
+		const parsed = parseCode('factor = 99\nf = (factor: Integer) => factor.multiply(2)\nr = f(4)', 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.have.lengthOf(1);
+		expect(parsed.checked?.errors?.[0]?.code).to.equal(ErrorCode.alreadyDefinedInUpperScope);
+	});
+
+	it('eine lokale Definition ist keine freie Referenz', () => {
+		expect(typeOfLastDefinition(`f = (a: Integer) =>
+	step = 3
+	a.multiply(step)
+r = f(4)`)).to.equal('12');
+	});
+
 	//#endregion 5d
 
-	//#region 5e HOF mit Nutzerfunktionen (Schritt 4: typeToConstantValue.case 'function')
+	//#region 5e HOF mit Nutzerfunktionen (typeToConstantValue.case 'function')
 
 	it('map mit Nutzer-Callback faltet', () => {
 		// map erwartet den Callback-Parameter namentlich als 'value' (Kontravarianz-Vertrag,

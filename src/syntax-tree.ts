@@ -943,10 +943,11 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	 */
 	literal?: ParseFunctionLiteral;
 	/**
-	 * Nur gesetzt, wenn literal gesetzt ist. Bedingung 1 und 2 der Faltbarkeitsregel (siehe
-	 * docs/constant-folding-nutzerfunktionen.md): kein nativeFunction-/nativeValue-Literal im
-	 * Rumpf, nicht aus .ts/.js. Bedingung 3 (freie Referenzen lösbar) prüft der Auswerter je
-	 * Aufrufstelle, weil sie von der Umgebung abhängt.
+	 * Nur gesetzt, wenn literal gesetzt ist: der Rumpf enthält kein nativeFunction-/nativeValue-
+	 * Literal (die Sicherheitsgrenze, siehe containsNativeLiteral im Checker) und stammt nicht aus
+	 * einer .ts/.js-Datei. Sagt allein noch nichts über die freien Referenzen des Rumpfs - die
+	 * prüft der Auswerter je Aufrufstelle, weil sie von der jeweiligen Umgebung abhängen
+	 * (constant-folding.ts, buildEnvironment).
 	 */
 	foldable?: boolean;
 }

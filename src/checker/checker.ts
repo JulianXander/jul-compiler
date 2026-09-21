@@ -2685,9 +2685,15 @@ function inferType(
 				}
 			}
 			//#endregion Purity-Inferenz
-			//#region Faltbarkeit (docs/constant-folding-nutzerfunktionen.md Schritt 1)
-			// Nur Bedingung 1 und 2 der Faltbarkeitsregel; Bedingung 3 (freie Referenzen lösbar)
-			// prüft der Auswerter je Aufrufstelle, weil sie von der Umgebung abhängt.
+			//#region Faltbarkeit
+			// Ein Funktionsliteral ist faltbar, wenn sein Rumpf kein nativeFunction-/nativeValue-
+			// Literal enthält (containsNativeLiteral, die Sicherheitsgrenze) und es nicht aus einer
+			// .ts/.js-Datei stammt (deren Rumpf ist ein Emitter-Artefakt, keine Aussage über das
+			// tatsächliche JS dahinter). Beides wird hier beim Prüfen des Literals berechnet, nicht
+			// erst beim Falten: eine Aufrufstelle in einer anderen Datei kennt filePath nicht mehr.
+			// Die dritte Bedingung - jede freie Referenz des Rumpfs lässt sich auflösen - hängt von
+			// der Umgebung an der jeweiligen Aufrufstelle ab und wird deshalb nicht hier, sondern
+			// im Auswerter geprüft (constant-folding.ts, buildEnvironment).
 			functionType.literal = expression;
 			functionType.foldable = !isTypeScriptFile(filePath)
 				&& !expression.body.some(containsNativeLiteral);
@@ -4413,10 +4419,19 @@ export function inferBodyPurity(
 }
 
 /**
- * Bedingung 1 der Faltbarkeitsregel (docs/constant-folding-nutzerfunktionen.md): die
- * Sicherheitsgrenze für constant folding. Anders als inferBodyPurity steigt dieser Walker auch in
- * verschachtelte Funktionsliterale ab - sie werden als Teil desselben emittierten Slice mit
- * ausgeführt, wenn die äußere Funktion gefaltet wird, ihre Purity ist dafür irrelevant.
+ * Die Sicherheitsgrenze für constant folding von Nutzerfunktionen: ein Funktionsliteral ist nur
+ * faltbar, wenn sein Rumpf keinen Aufruf von nativeFunction/nativeValue enthält - beide sind
+ * gewöhnliche core-lib-Builtins, über die Nutzercode beliebiges JS einbetten kann (siehe
+ * tryBuildCallable). Die Menge der zur Prüfzeit ausgeführten Funktionen war bis zu dieser Stufe
+ * kuratiert (nur runtime.ts); seither läuft erstmals emittierter Nutzercode zur Prüfzeit, und der
+ * Language Server prüft beim Öffnen einer Datei ungefragt - eine Lücke hier bedeutet
+ * Codeausführung beim bloßen Öffnen einer fremden .jul-Datei. Der Rumpf ist dabei beweisbar unrein
+ * (nativeFunction/nativeValue sind `~>`) und fällt deshalb meist schon am Purity-Gate in
+ * tryFoldCall durch - dieser Walker ist trotzdem der unabhängige, strukturelle zweite Riegel:
+ * Purity ruht auf dem geschriebenen `~>` in der core-lib, einer Deklaration, keinem Beweis.
+ * Anders als inferBodyPurity steigt dieser Walker auch in verschachtelte Funktionsliterale ab -
+ * sie werden als Teil desselben emittierten Slice mit ausgeführt, wenn die äußere Funktion
+ * gefaltet wird, ihre eigene Purity ist dafür irrelevant.
  */
 function containsNativeLiteral(expression: PositionedExpression): boolean {
 	if (expression.type === 'functionCall') {
@@ -4454,11 +4469,13 @@ function tryFoldCall(
 	if (!isFunctionType(resolvedFunctionType) || getCallPurity(resolvedFunctionType, prefixArgumentType, argsType) !== 'pure') {
 		return undefined;
 	}
-	// Regel 3 (docs/constant-folding-nutzerfunktionen.md Schritt 2): trägt der Typ ein literal, ist
-	// es eine Nutzerfunktion (Schritt 1) - dafür der Auswerter. Sonst ein Runtime-Export mit
-	// params unter diesem Namen; params hängt nur an Builtins, die runtime.ts selbst per
-	// _createFunction(...) registriert, ihre Namen sind über JUL4003 überdeckungsgeschützt - ein
-	// per nativeFunction definiertes myFn trägt weder literal noch params und faltet hier nicht.
+	// Trägt der Typ ein literal, ist es eine Nutzerfunktion (case 'functionLiteral' setzt es) -
+	// dafür der Auswerter (tryBuildCallable). Sonst ein Runtime-Export mit params unter diesem
+	// Namen; params hängt nur an Builtins, die runtime.ts selbst per _createFunction(...)
+	// registriert, ihre Namen sind über JUL4003 überdeckungsgeschützt. Eine per nativeFunction
+	// definierte Funktion (z.B. myFn = nativeFunction(...)) trägt weder literal (sie entsteht aus
+	// einer Signatur, nicht aus einem geprüften Rumpf) noch params (das hängt nur an runtime.ts-
+	// Exporten) und faltet hier deshalb nicht - ihre `->`-Signatur ist eine ungeprüfte Zusicherung.
 	const name = functionExpression.name.name;
 	let callable: Function | undefined;
 	if (resolvedFunctionType.literal) {

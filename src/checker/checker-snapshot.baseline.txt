@@ -34,9 +34,9 @@ timer1$: Stream(Float)
 === counter/counter.jul ===
 counter$: Stream(Float)
 === fibonacci/fibonacci.jul ===
-fibonacci: (x: Integer) :> Any
-fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) :> Any
-test: Any
+fibonacci: (x: Integer) -> Any
+fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) -> Any
+test: 144
 === fizz-buzz/fizz-buzz-recursive.jul ===
 divisibleBy: (divisor: NonZeroInteger) -> (dividend: Integer) :> Boolean
 fizzBuzz: (index: PositiveInteger) ~> Empty
