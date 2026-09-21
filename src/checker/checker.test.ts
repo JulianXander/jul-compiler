@@ -3489,4 +3489,55 @@ describe('constant folding', () => {
 	});
 
 	//#endregion 5c
+
+	//#region 5d Nutzerfunktionen
+
+	it('Nutzerfunktion mit konstantem Argument faltet', () => {
+		// Eroeffnungsfall, zugleich Gegenprobe zur Faltbarkeitsregel: multiply ist eine
+		// nativeFunction, und double ist trotzdem faltbar - die Regel haengt am emittierten
+		// Slice, nicht am Aufrufgraphen.
+		expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
+r = double(21)`)).to.equal('42');
+	});
+
+	it('freie Referenz auf eine Konstante wird in die Umgebung gebunden', () => {
+		expect(typeOfLastDefinition(`factor = 3
+triple = (a: Integer) => a.multiply(factor)
+r = triple(7)`)).to.equal('21');
+	});
+
+	it('freie Referenz auf einen nicht konstanten Wert verhindert die Faltung', () => {
+		expect(typeOfLastDefinition(`stamp = currentDate()
+f = () => stamp
+r = f()`)).to.equal('Date');
+	});
+
+	it('Rekursion mit Abbruchbedingung faltet', () => {
+		// Wortgleich zu jul-examples/fibonacci/fibonacci.jul, damit die Rekursion echt ist.
+		expect(typeOfLastDefinition(`fibonacciHelper = (
+	countdown: Integer
+	current: Integer
+	previous: Integer
+) =>
+	?(countdown)
+		[0] => previous
+		() => fibonacciHelper(subtract(countdown 1) add(current previous) current)
+r = fibonacciHelper(10 1 0)`)).to.equal('55');
+	});
+
+	it('Nutzerfunktion ohne konstantes Argument faltet nicht', () => {
+		expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
+r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Integer');
+	});
+
+	it('nicht terminierende Rekursion faltet nicht und meldet nichts', () => {
+		// Budget. Das Listen-Argument ist wesentlich: mit Dictionary-Argument liefe der Aufruf
+		// ueber _callFunction, und der Test waere auch mit einem Budget an der falschen Stelle
+		// gruen. Der erwartete Typ ist der ungefaltete Rueckgabetyp - aus dem roten Lauf
+		// ablesen.
+		expect(typeOfLastDefinition(`spin = (n: Integer) => spin(add(n 1))
+r = spin(0)`)).to.equal('Any');
+	});
+
+	//#endregion 5d
 });

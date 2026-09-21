@@ -59,40 +59,100 @@ dass `typeToConstantValue` Fraction, Date und Blob nicht kennt. Beides begrenzt 
 ist kein Ziel dieser Stufe.
 
 ## Schritte
+Alles läuft in `describe('constant folding')` in
+[checker.test.ts](../src/checker/checker.test.ts), gegen den dort vorhandenen Helfer
+`typeOfLastDefinition(code)` — Code hinein, Typstring der letzten Definition heraus. Er prüft
+nebenbei Fehlerfreiheit (`expect(parsed.checked?.errors).to.deep.equal([])`); Code mit erwarteten
+Fehlern braucht also den ausgeschriebenen Weg wie der Test `Argumenttypfehler` in Region 5b. Neue
+Fälle kommen in eine Region `5d Nutzerfunktionen` neben die bestehenden 5a/5b/5c.
 
-Die Tests laufen tabellengetrieben in `checker.test.ts` gegen einen Helfer `foldedTypeOf(code)`
-nach dem Vorbild von `purityOf`/`bodyPurityOf` — Code hinein, Typ der letzten Definition heraus.
-Der Helfer entsteht in Schritt 1.
+**Die Schritte 1–3 ändern kein beobachtbares Verhalten** — `isBuiltIn` durchreichen, Felder am Typ
+setzen, Referenzen sammeln. Erst Schritt 4 faltet. Der rote Testsatz gehört deshalb nicht an jeden
+Schritt, sondern **vor Schritt 1**: erst schreiben, roten Lauf zeigen, anhalten; dann 1 → 4 bauen,
+bis er grün ist. Dazwischen tragen `npm run typecheck` und die unveränderte Suite.
 
-**Je Schritt zuerst die Tests, dann der rote Lauf, dann anhalten.** Für Schritt 1 ist das die
-Konvention für Bugfixes — der Überdeckungsfall faltet heute falsch, der rote Zustand ist
-vorzuzeigen und zu bestätigen, bevor die Korrektur kommt. Für die übrigen Schritte dasselbe
-Vorgehen, weil jeder bestehendes Verhalten ändert.
+### Roter Testsatz für die Schritte 1–4
 
-Fallstrick dabei: Die neue API existiert vorher nicht. Ein Test gegen `foldable` oder gegen den
-Auswerter wäre vorher ein *Compile-Fehler*, kein fehlschlagender Assert, und belegt nichts. **Die
-Tests sind deshalb gegen `foldedTypeOf` zu formulieren**, gegen beobachtbares Verhalten statt gegen
-neue interne Felder. Darum entsteht der Helfer schon in Schritt 1.
+```ts
+// Eroeffnungsfall, zugleich Gegenprobe zur Faltbarkeitsregel: multiply ist eine nativeFunction,
+// und double ist trotzdem faltbar - die Regel haengt am emittierten Slice, nicht am Aufrufgraphen.
+it('Nutzerfunktion mit konstantem Argument faltet', () => {
+	expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
+r = double(21)`)).to.equal('42');
+});
 
-### Schritt 1 — Auflösung über das Symbol statt über den Namen
+it('freie Referenz auf eine Konstante wird in die Umgebung gebunden', () => {
+	expect(typeOfLastDefinition(`factor = 3
+triple = (a: Integer) => a.multiply(factor)
+r = triple(7)`)).to.equal('21');
+});
 
-`tryFoldCall` sucht die auszuführende Funktion über
-`runtime[escapeReservedJsVariableName(name)]`. Deshalb faltet
+it('freie Referenz auf einen nicht konstanten Wert verhindert die Faltung', () => {
+	expect(typeOfLastDefinition(`stamp = currentDate()
+f = () => stamp
+r = f()`)).to.equal('Date');
+});
 
+// Wortgleich zu jul-examples/fibonacci/fibonacci.jul, damit die Rekursion echt ist.
+it('Rekursion mit Abbruchbedingung faltet', () => {
+	expect(typeOfLastDefinition(`fibonacciHelper = (
+	countdown: Integer
+	current: Integer
+	previous: Integer
+) =>
+	?(countdown)
+		[0] => previous
+		() => fibonacciHelper(subtract(countdown 1) add(current previous) current)
+r = fibonacciHelper(10 1 0)`)).to.equal('55');
+});
+
+it('Nutzerfunktion ohne konstantes Argument faltet nicht', () => {
+	expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
+r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Integer');
+});
+
+// Budget. Das Listen-Argument ist wesentlich: mit Dictionary-Argument liefe der Aufruf ueber
+// _callFunction, und der Test waere auch mit einem Budget an der falschen Stelle gruen.
+// Der erwartete Typ ist der ungefaltete Rueckgabetyp - aus dem roten Lauf ablesen.
+it('nicht terminierende Rekursion faltet nicht und meldet nichts', () => {
+	expect(typeOfLastDefinition(`spin = (n: Integer) => spin(add(n 1))
+r = spin(0)`)).to.equal('Integer');
+});
 ```
-add = (a: Integer b: Integer) -> Integer => 99
-r = add(2 3)
+
+**Ein bestehender Test hält die Einschränkung fest, die hier fällt** — Region 5b, „faltet nicht bei
+einer Nutzerfunktion (kein Runtime-Export unter dem Namen)":
+
+```ts
+expect(typeOfLastDefinition('f = (a: Integer b: Integer) -> Integer => addInteger(a b)\nr = f(2 3)'))
+	.to.equal('Integer');   // wird zu '5'
 ```
 
-zu `r: 5`. Als Altlast war das vertretbar (`JUL4003` meldet die Überdeckung, gefaltet wird nur ein
-Typ); sobald Nutzerfunktionen ausgeführt werden, entscheidet der Name darüber, welcher Code läuft.
+Er ist mit Schritt 4 umzuschreiben und nach 5d zu verschieben. Wer ihn übersieht, sucht den Fehler
+in der neuen Mechanik statt in der alten Erwartung.
 
-An der Aufrufstelle von `tryFoldCall` liegt kein Symbol vor — übergeben werden nur Ausdruck und
-Typen. `isBuiltIn` entsteht bei der Referenzauflösung (`findResult.scopeIndex === 0` in
-`//#region dereference`). Es am `typeInfo` der Referenz mitzuführen ist dem zusätzlichen Parameter
-vorzuziehen, weil Schritt 3 dieselbe Auskunft je freier Referenz erneut braucht.
+### Schritt 1 — `isBuiltIn` an die Faltung bringen
 
-*Tests:* der Überdeckungsfall faltet nicht mehr; die bestehenden Builtin-Faltungen unverändert.
+Schritt 3 muss je freier Referenz entscheiden können, ob sie ein Builtin ist (dann wird der
+Runtime-Export gebunden) oder eine Nutzerfunktion (dann wird rekursiv aufgelöst). Diese Auskunft
+entsteht heute bei der Referenzauflösung als `findResult.scopeIndex === 0` in
+`//#region dereference` und geht dort verloren. Sie ist am `typeInfo` der Referenz mitzuführen.
+
+**Kein Bugfix, sondern Verkabelung.** `tryFoldCall` sucht die auszuführende Funktion zwar über
+`runtime[escapeReservedJsVariableName(name)]`, kann damit aber in gültigem Code nicht danebengreifen:
+Überdeckung ist `alreadyDefinedInUpperScope` (JUL4003) gegen *alle* oberen Scopes, Builtins
+eingeschlossen; ein gleichnamiger Parameter trägt eine `parameterReference` und scheitert an
+`isFunctionType`; und gefunden werden ohnehin nur registrierte Builtins, weil `runtime.ts` seine
+Builtins per `_createFunction(...)` auf Top-Level-Ebene mit `params` versieht und `tryFoldCall`
+genau darauf prüft.
+
+Die Umstellung des Nachschlagens vom Namen auf das Symbol ist damit kein Muss. Sie kostet, sobald
+`isBuiltIn` ohnehin anliegt, fast nichts und ist mitzunehmen: gefaltet wird künftig ausgeführter
+Code, und den über einen String auszuwählen bleibt fragil, auch wenn heute kein Pfad dorthin führt.
+Wer sie weglässt, verliert nichts am Rest des Plans.
+
+*Tests:* keine eigenen — nichts ist von außen beobachtbar. Es gilt der rote Testsatz oben, und die
+bestehende Suite muss grün bleiben.
 
 ### Schritt 2 — Rückverweis und Faltbarkeit am Typ
 
@@ -104,9 +164,9 @@ optional, weil `functionTypeLiteral` keinen Rumpf hat. Gesetzt in `case 'functio
 `filePath`, und den gibt es an einer Aufrufstelle in einer anderen Datei nicht mehr. Geprüft werden
 hier nur Bedingung 1 und 2.
 
-*Tests:* Rumpf mit `nativeFunction` nicht faltbar; mit `nativeValue` ebenso; Literal aus einer
-`.ts`-Datei ebenso; **Gegenprobe:** ein Rumpf, der eine `nativeFunction` nur *aufruft*
-(`a.multiply(2)`), **ist** faltbar.
+*Tests:* keine eigenen (siehe Schritt 1). Die Gegenprobe zur Faltbarkeitsregel steckt bereits im
+roten Testsatz: `double` ruft `multiply` — eine `nativeFunction` — und faltet trotzdem. Der Fall
+„Rumpf *enthält* ein `nativeFunction`-Literal" kommt mit Schritt 5 dazu, wo er beobachtbar wird.
 
 ### Schritt 3 — Freie Referenzen und Umgebung
 
@@ -120,9 +180,29 @@ den `symbols` des Literals und kein Parameter, bei geschachtelten Literalen dere
 mitgeführt. Der Walker ist derselbe Bautyp wie `inferBodyPurity` — ein Durchlauf über den bereits
 geprüften Baum, ohne eigene Auflösung.
 
-*Tests:* Rumpf ohne freie Referenzen; freie Referenz auf ein Builtin (`multiply`); auf eine
-Konstante; auf eine faltbare Nutzerfunktion; auf einen nicht faltbaren Wert (`x = log(1)`);
-Abschattung durch einen Parameter; Abschattung durch eine lokale Definition.
+*Tests:* keine eigenen (siehe Schritt 1). Der rote Testsatz deckt freie Referenz auf ein Builtin
+(`multiply`), auf eine Konstante (`factor`) und auf einen nicht konstanten Wert (`stamp`) ab. Zwei
+Fälle fehlen dort und sind zu ergänzen, sobald Schritt 4 sie beobachtbar macht:
+
+```ts
+it('ein Parameter ist keine freie Referenz, auch bei gleichnamiger aeusserer Definition', () => {
+	expect(typeOfLastDefinition(`factor = 99
+f = (factor: Integer) => factor.multiply(2)
+r = f(4)`)).to.equal('8');
+});
+
+it('eine lokale Definition ist keine freie Referenz', () => {
+	expect(typeOfLastDefinition(`f = (a: Integer) =>
+	step = 3
+	a.multiply(step)
+r = f(4)`)).to.equal('12');
+});
+```
+
+Achtung beim ersten Fall: eine Definition `factor` und ein gleichnamiger Parameter sind
+`JUL4003` — der Fall ist so also nicht schreibbar und der Test entsprechend anzupassen, sobald
+das beim Schreiben auffällt. Die zweite Form (lokale Definition, dann Ergebnisausdruck) ist gegen
+den Parser zu verifizieren, bevor sie als Baseline gilt.
 
 ### Schritt 4 — Der Auswerter, in `constant-folding.ts`
 
@@ -171,10 +251,18 @@ Vier Details:
 auflösbar. Sie wird beim Emit an die gerade gebaute Closure gebunden — deshalb ist der Slice eine
 Bindungsliste und kein einzelner Ausdruck.
 
-*Tests:* `double(21)` faltet zu `42`; rekursive Funktion mit Abbruchbedingung faltet;
-**Gegenprobe:** nicht terminierende Funktion faltet nicht und meldet **nichts** — und zwar mit
-**Listen-Argument**, denn mit Dictionary-Argument liefe der Test auch über ein kaputtes Budget
-grün; Cache-Treffer bei doppeltem Aufruf; Budget global, nicht je Aufrufstelle.
+*Tests:* der rote Testsatz oben wird hier grün — das ist die Abnahme des Schritts. Dazu zwei
+Fälle, die erst jetzt formulierbar sind:
+
+```ts
+it('Cache: derselbe Aufruf zweimal wird nur einmal ausgewertet', () => {
+	// ueber den Zaehler im injizierten _createFunction-Wrapper zu pruefen, nicht ueber den Typ
+});
+
+it('das Budget ist global pro Check-Lauf, nicht je Aufrufstelle', () => {
+	// viele kleine faltbare Aufrufe in einer Datei erschoepfen es gemeinsam
+});
+```
 
 ### Schritt 5 — `typeToConstantValue.case 'function'`
 
@@ -182,9 +270,27 @@ Der offene TODO in [constant-folding.ts](../src/checker/constant-folding.ts). Zw
 → Runtime-Export über das Symbol aus Schritt 1; Nutzerfunktion → Callable aus dem Auswerter. Damit
 greift die HOF-Faltung.
 
-*Tests:* `map` mit Builtin-Callback (faltet heute schon, darf nicht brechen); `map` mit
-Nutzer-Callback; `map` mit nicht faltbarem Callback (faltet nicht); `toDictionary` mit zwei
-Callbacks; ein Callback, der über die Umgebung auf eine Konstante zugreift.
+*Tests:*
+
+```ts
+it('map mit Nutzer-Callback faltet', () => {
+	expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
+r = map([1 2 3] double)`)).to.equal('[2 4 6]');
+});
+
+it('map mit nicht faltbarem Callback faltet nicht', () => {
+	expect(typeOfLastDefinition(`stamp = currentDate()
+tag = (a: Integer) => stamp
+r = map([1 2] tag)`)).to.equal('[Date Date]');
+});
+
+it('toDictionary mit zwei Nutzer-Callbacks faltet', () => {
+	// Erwartung aus dem roten Lauf ablesen; der Punkt ist, dass beide Callbacks
+	// materialisiert werden muessen, nicht nur der erste.
+});
+```
+
+Unverändert grün bleiben müssen `map([1 2] add)` aus Region 5a und `map([1 2] log)` aus 5b.
 
 ### Schritt 6 — Baselines und Messung
 
