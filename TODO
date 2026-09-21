@@ -1,4 +1,3 @@
--functionLiteralToEvaluableJs auf duplizierten code prüfen vgl expressionToJs case functionLiteral
 -pure function und constant folding
 	-C:\Projects\privat\JUL\jul-compiler\docs\pure-functions.md
 	?constant folding von Nutzerfunktionen ohne Ausführung: statt den Rumpf über new Function

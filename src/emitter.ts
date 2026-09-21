@@ -8,6 +8,7 @@ import {
 	ParseTextLiteral,
 	ParseValueExpression,
 	ParseReference,
+	SimpleExpression,
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName } from './util.js';
@@ -53,22 +54,7 @@ export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: stri
  */
 export function functionLiteralToEvaluableJs(literal: ParseFunctionLiteral): string {
 	const indent = 1;
-	const params = literal.params;
-	let argsJs: string;
-	let paramsJs: string;
-	if (params.type === 'parameters') {
-		argsJs = params.singleFields.map(field => escapeReservedJsVariableName(field.name.name)).join(', ');
-		const rest = params.rest;
-		if (rest) {
-			argsJs += (argsJs ? ', ' : '') + '...' + escapeReservedJsVariableName(rest.name.name);
-		}
-		paramsJs = parametersToJs(params, indent);
-	}
-	else {
-		argsJs = '';
-		const typeFieldJs = singleDictionaryFieldToJsInternal('type', expressionToJs(params, indent));
-		paramsJs = dictionaryToJs([typeFieldJs], indent);
-	}
+	const { argsJs, paramsJs } = functionParamsToJs(literal.params, indent);
 	const delimiterJs = getRowDelimiterJs(indent);
 	const functionJs = `(${argsJs}) => {${functionBodyToJs(literal.body, indent + 1)}${delimiterJs}}`;
 	// Eine Selbstreferenz im Rumpf nennt sich beim ursprünglichen Definitionsnamen (referenceToJs
@@ -267,22 +253,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 		}
 		case 'functionLiteral': {
-			const params = expression.params;
-			let argsJs: string;
-			let paramsJs: string;
-			if (params.type === 'parameters') {
-				argsJs = params.singleFields.map(field => escapeReservedJsVariableName(field.name.name)).join(', ');
-				const rest = params.rest;
-				if (rest) {
-					argsJs += '...' + escapeReservedJsVariableName(rest.name.name);
-				}
-				paramsJs = parametersToJs(params, indent);
-			}
-			else {
-				argsJs = '';
-				const typeFieldJs = singleDictionaryFieldToJsInternal('type', expressionToJs(params, indent));
-				paramsJs = dictionaryToJs([typeFieldJs], indent);
-			}
+			const { argsJs, paramsJs } = functionParamsToJs(expression.params, indent);
 			const delimiterJs = getRowDelimiterJs(indent + 1);
 			const functionJs = `(${argsJs}) => {${functionBodyToJs(expression.body, indent + 2)}${delimiterJs}}`;
 			const parent = expression.parent;
@@ -430,6 +401,31 @@ function functionBodyToJs(expressions: ParseExpression[], indent: number): strin
 function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;
 	return escapeReservedJsVariableName(name);
+}
+
+/**
+ * Gemeinsame Parameter-Aufbereitung für die Emission von Funktionsliteralen: sowohl für die normale
+ * Emission (case 'functionLiteral') als auch für functionLiteralToEvaluableJs. `argsJs` ist die
+ * JS-Parameterliste der Arrow-Function, `paramsJs` die JUL-Parameterbeschreibung für
+ * `_createFunction`.
+ */
+function functionParamsToJs(params: SimpleExpression | ParseParameterFields, indent: number): { argsJs: string; paramsJs: string; } {
+	let argsJs: string;
+	let paramsJs: string;
+	if (params.type === 'parameters') {
+		argsJs = params.singleFields.map(field => escapeReservedJsVariableName(field.name.name)).join(', ');
+		const rest = params.rest;
+		if (rest) {
+			argsJs += (argsJs ? ', ' : '') + '...' + escapeReservedJsVariableName(rest.name.name);
+		}
+		paramsJs = parametersToJs(params, indent);
+	}
+	else {
+		argsJs = '';
+		const typeFieldJs = singleDictionaryFieldToJsInternal('type', expressionToJs(params, indent));
+		paramsJs = dictionaryToJs([typeFieldJs], indent);
+	}
+	return { argsJs, paramsJs };
 }
 
 function parametersToJs(parameters: ParseParameterFields, indent: number): string {
