@@ -2061,6 +2061,15 @@ g: Text = f(3)`,
 				},
 			],
 		},
+		{
+			// Ein Spread einer Liste unbekannter Länge macht die Argumentliste selbst zu einem
+			// Listentyp. Gegen einen Rest-Parameter ist das gültig, solange der Elementtyp passt:
+			// List(Integer) erfüllt ...args: List(Rational).
+			name: 'spread-list-into-rest-parameter',
+			code: `myFn = (a: List(Integer)) =>
+	c = add(...a)`,
+			errors: [],
+		},
 	];
 
 describe('Checker', () => {
@@ -2076,6 +2085,18 @@ describe('Checker', () => {
 				expect(parserResult.checked?.expressions).to.deep.equal(result);
 			}
 		});
+	});
+	// Passt der Elementtyp des gespreadeten Listentyps nicht zum Rest-Parameter, muss ein
+	// echter Typfehler kommen - keine Platzhaltermeldung über eine nicht behandelte Form.
+	// Eigener Test, weil nur die Meldung geprüft wird, nicht ihr genauer Wortlaut.
+	it('spread-list-with-wrong-element-type-reports-real-error', () => {
+		const code = `myFn = (a: List(Text)) =>
+	c = add(...a)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		const errors = parsed.checked!.errors!;
+		expect(errors, 'Typfehler erwartet').to.have.lengthOf(1);
+		expect(errors[0]!.message).to.not.contain('not implemented');
 	});
 	// Ein Index kleiner 1 ist ungültig, nicht "daneben" - der Parser meldet das bereits
 	// (parser.test.ts: index-zero). Der Checker darf nicht zusätzlich dereferenceFailed melden.
