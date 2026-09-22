@@ -22,9 +22,21 @@ interface JulCompilerConfiguration {
 // Flags (z.B. --check) und der positionale Config-Pfad werden getrennt eingesammelt, nicht per
 // Index gelesen - sonst würde ein Flag ohne Config-Angabe als Config-Pfad interpretiert.
 const args = process.argv.slice(2);
+const knownFlags = new Set(['--check']);
+const flags = args.filter(arg => arg.startsWith('--'));
+// Ein Tippfehler im Flag-Namen (z.B. --chekc) soll auffallen statt still einen Vollbuild
+// auszuloesen.
+const unknownFlags = flags.filter(flag => !knownFlags.has(flag));
+if (unknownFlags.length) {
+	throw new Error(`Unbekannte Option(en): ${unknownFlags.join(', ')}. Bekannte Optionen: ${[...knownFlags].join(', ')}`);
+}
 // Nur parsen und checken, kein Emit/Bundle - siehe checkOnly in compiler.ts.
-const checkOnly = args.includes('--check');
-const configFilePath = args.find(arg => !arg.startsWith('--')) ?? 'jul-config.yaml';
+const checkOnly = flags.includes('--check');
+const positionalArgs = args.filter(arg => !arg.startsWith('--'));
+if (positionalArgs.length > 1) {
+	throw new Error(`Zu viele Argumente: ${positionalArgs.join(', ')}. Erwartet wird höchstens der Pfad zur jul-config.yaml.`);
+}
+const configFilePath = positionalArgs[0] ?? 'jul-config.yaml';
 const configYaml = readTextFile(configFilePath);
 const config = load(configYaml) as JulCompilerConfiguration;
 const ajv = new Ajv();
