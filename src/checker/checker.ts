@@ -3975,9 +3975,17 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
  * Für any, nestedReference, parameterReference und parameters ist die Prüfung bewusst permissiv,
  * "kein Fehler" heißt dort also nicht "ist zuweisbar". Wer aus einem ausbleibenden Fehler etwas
  * folgert, muss diese Typen ausnehmen.
+ * Zusammengesetzte Typen erben die Verlässlichkeit ihrer Bestandteile: steckt in einem And, Or
+ * oder Not noch eine parameterReference, steht der Typ noch nicht fest und sagt damit genauso
+ * wenig aus wie die Referenz selbst.
  */
 function hasReliableTypeError(type: CompileTimeType): boolean {
 	switch (type.julType) {
+		case 'and':
+		case 'or':
+			return type.ChoiceTypes.every(hasReliableTypeError);
+		case 'not':
+			return hasReliableTypeError(type.SourceType);
 		case 'any':
 		case 'nestedReference':
 		case 'parameterReference':
@@ -3986,7 +3994,6 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		// alias: getTypeError und typeEquals lösen ihn selbst auf, die Verlässlichkeit des Ziels
 		// wird hier bewusst nicht mitgeprüft.
 		case 'alias':
-		case 'and':
 		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
@@ -4005,8 +4012,6 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'lengthOf':
 		case 'list':
 		case 'never':
-		case 'not':
-		case 'or':
 		case 'range':
 		case 'stream':
 		case 'text':

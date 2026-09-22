@@ -97,3 +97,5 @@
 2026-09-22 10:13:01	546656d+	-	ADV-DEV-56627	yugioh	parse+check	5	3824.12	3993.98	3993.98	vor purity-bedingte-reinheit
 2026-09-22 10:29:51	546656d+	-	ADV-DEV-56627	yugioh	parse+check	5	4775.74	4935.71	4935.71	nach purity-bedingte-reinheit
 2026-09-22 17:39:19	d4ec271+	-	ADV-DEV-56627	yugioh	parse+check	5	3610.47	4007.35	4007.35	nach spread-liste gegen parameter (case list in getTypeErrorForParameters)
+2026-09-22 17:50:22	2452abf+	-	ADV-DEV-56627	yugioh	parse+check	5	3737.80	3911.82	3911.82	vor Fix: hasReliableTypeError rekursiv fuer and/or/not
+2026-09-22 17:52:57	2452abf+	-	ADV-DEV-56627	yugioh	parse+check	5	3698.49	4413.86	4413.86	nach Fix: hasReliableTypeError erbt Verlaesslichkeit bei and/or/not
