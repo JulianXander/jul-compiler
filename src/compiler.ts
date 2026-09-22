@@ -247,7 +247,7 @@ function compileFile(
 }
 
 // https://askubuntu.com/questions/558280/changing-colour-of-text-and-background-of-terminal
-enum ConsoleColor {
+export enum ConsoleColor {
 	// red = 31,
 	green = 32,
 	yellow = 33,
@@ -451,6 +451,6 @@ function busySpinner() {
 	};
 }
 
-function colorize(text: any, color: ConsoleColor): string {
+export function colorize(text: any, color: ConsoleColor): string {
 	return `\x1b[${color}m${text}\x1b[0m`;
 }
