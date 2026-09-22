@@ -467,7 +467,7 @@ const logoLines = [
 	'        ████    ████',
 	'        ████    ████',
 	'        ████    ████',
-	'y███▄  ▄████▄  ▄████▄',
+	'████▄  ▄████▄  ▄████▄',
 	'▝███████████████████████████',
 	'  xx▀▀▀▀x  x▀▀▀▀x  x▀▀▀▀▀▀▀▀',
 ];
@@ -481,12 +481,6 @@ const logoWidth = Math.max(...logoLines.map(line => line.length));
  * muss. `x` in logoLines ist der Platzhalter dafür.
  */
 const upperQuarterBlock = '\x1b[7m▆\x1b[27m';
-/**
- * "Rechtes Dreiviertel"-Block gibt es gar nicht als eigenes Unicode-Zeichen - der Block-Elements-
- * Bereich hat rechtsseitig nur Half und One-Eighth. Ersatz nach demselben Reverse-Video-Prinzip:
- * das komplementäre ▎ (linkes Viertel, U+258E) umgekehrt. `y` in logoLines ist der Platzhalter.
- */
-const rightThreeQuarterBlock = '\x1b[7m▎\x1b[27m';
 const spinnerCharacters = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
 
 /**
@@ -619,8 +613,7 @@ export class LiveRenderer {
 				// x/y-Platzhalter erst NACH padEnd ersetzen, damit die Breitenberechnung auf den
 				// reinen Zeichen basiert statt auf den unsichtbaren ANSI-Codes der Ersatzzeichen.
 				const logoText = logoLines[i]!.padEnd(logoWidth, ' ')
-					.replaceAll('x', upperQuarterBlock)
-					.replaceAll('y', rightThreeQuarterBlock);
+					.replaceAll('x', upperQuarterBlock);
 				const logoPart = colorize(logoText, ConsoleColor.yellow);
 				lines.push(checklistPart ? `${logoPart}  ${checklistPart}` : logoPart);
 			}
