@@ -133,6 +133,10 @@
 	-? kann das nicht: es liefert die union aller branch returnTypes und wählt nie einen zweig
 	-constant folding allein reicht auch nicht: das liefert die auswahl, nicht die relation
 	-gebraucht für arithmetik: subtract(Integer Integer) ist Integer, deklariert ist Rational
+	-die Integer-Varianten in der core-lib (addInteger, subtractInteger, maxInteger) sind reine
+	 Workarounds dafür: add/subtract/max decken Integer über den bigint-Pfad schon ab, deklarieren
+	 aber Rational und verlieren dabei den Integer. Mit :? entfallen sie ersatzlos.
+	 Die Float-Varianten bleiben: Float ist kein Rational, das ist echte Zweitimplementierung.
 	-matching als teilmenge, nicht als zuweisbarkeit eines werts.
 	 sonst matcht PositiveInteger nicht gegen Integer und fällt in den catchAll
 	-über unions verteilen, dann wird Rational - Integer zu Or(Integer Fraction)
