@@ -45,12 +45,12 @@ export function compileProject(
 		// Frames (siehe log()) - nur die kurze Statuszeile (mit Dauer) steht im Frame, analog zu
 		// "build/check finished successfully" im Erfolgsfall.
 		renderer.log(error);
-		renderer.finish([withDuration('compiling failed.', ConsoleColor.lightRed, startTime)]);
+		renderer.finish([`${colorize('compiling failed.', ConsoleColor.lightRed)} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
 		return;
 	}
 	if (checkOnly) {
-		renderer.finish([withDuration('check finished successfully', ConsoleColor.green, startTime)]);
+		renderer.finish([`${colorize('check finished successfully', ConsoleColor.green)} ${durationSuffix(startTime)}`]);
 		return;
 	}
 	if (!outFilePath) {
@@ -91,12 +91,12 @@ export function compileProject(
 		const hasErrors = stats?.hasErrors();
 		renderer.finishStep(hasErrors ? 'failed' : 'done');
 		if (hasErrors) {
-			renderer.finish([withDuration('bundling failed.', ConsoleColor.lightRed, startTime)]);
+			renderer.finish([`${colorize('bundling failed.', ConsoleColor.lightRed)} ${durationSuffix(startTime)}`]);
 			console.error(stats?.compilation.errors);
 			process.exitCode = 1;
 		}
 		else {
-			renderer.finish([withDuration('build finished successfully', ConsoleColor.green, startTime)]);
+			renderer.finish([`${colorize('build finished successfully', ConsoleColor.green)} ${durationSuffix(startTime)}`]);
 		}
 	});
 	//#endregion 4. bundle
@@ -445,19 +445,12 @@ function formatMs(durationMs: number): string {
 
 /**
  * Dauer seit startTime, in Klammern und cyan - das Suffix, das sowohl je Checklisten-Schritt
- * (LiveRenderer.finishStep) als auch an den Abschlusszeilen (withDuration) angehängt wird.
+ * (LiveRenderer.finishStep) als auch an den Abschlusszeilen in compileProject angehängt wird.
  */
 function durationSuffix(startTime: number): string {
 	return colorize(`(${formatMs(performance.now() - startTime)})`, ConsoleColor.cyan);
 }
 
-/**
- * Statuszeile mit angehängter Dauer in einer Zeile, analog zum Dauer-Suffix je Schritt in der
- * Checkliste (siehe LiveRenderer.finishStep) statt einer separaten "compiler took ..."-Zeile.
- */
-function withDuration(message: string, color: ConsoleColor, startTime: number): string {
-	return `${colorize(message, color)} ${durationSuffix(startTime)}`;
-}
 
 export function colorize(text: any, color: ConsoleColor): string {
 	if (!process.stdout.isTTY) {
