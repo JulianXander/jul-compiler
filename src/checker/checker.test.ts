@@ -2129,6 +2129,43 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Die Fallunterscheidung steckt in And/Or: And(Integer And(A B)) ist genau dann nicht Never,
+	// wenn beide Operanden Integer sind, And(Fraction Or(A B)) genau dann nicht Never, wenn
+	// mindestens einer Fraction ist. Fraction minus Integer muss damit exakt Fraction ergeben.
+	// Dreistellig geschrieben trifft der Checker das heute (Gegenprobe unten) - nur weil die
+	// Normalisierung erst ab genau zwei Choices anläuft. Sobald dieselbe Bedingung paarweise
+	// geschachtelt steht, kürzt der Teilmengen-Shortcut das noch unbestimmte And(A B) weg und
+	// übrig bleibt Or(Integer Fraction).
+	it('nested-condition-keeps-fraction-precise', () => {
+		const code = `mySubtract = (a: Rational b: Rational) -> Or(And(Integer And(TypeOf(a) TypeOf(b))) And(Fraction Or(TypeOf(a) TypeOf(b)))) => subtract(a b)
+f = (x: Fraction y: Integer) :> Fraction =>
+	mySubtract(x y)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	// Dieselbe Bedingung hinter einem Namen. Ohne tragende Abstraktion müsste die Formel an jeder
+	// Signatur ausgeschrieben werden, die Fallunterscheidung wäre also nur theoretisch verfügbar.
+	it('type-function-keeps-condition-until-arguments-are-known', () => {
+		const code = `SumType = (A: Type B: Type) => Or(And(Integer And(A B)) And(Fraction Or(A B)))
+mySubtract = (a: Rational b: Rational) -> SumType(TypeOf(a) TypeOf(b)) => subtract(a b)
+f = (x: Fraction y: Integer) :> Fraction =>
+	mySubtract(x y)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	// Gegenprobe, heute grün: dieselbe Bedingung dreistellig statt geschachtelt. Sie hält die
+	// beiden Tests darüber ehrlich - scheitert sie mit, liegt es nicht am Teilmengen-Shortcut,
+	// sondern daran, dass die Formel selbst nicht ausdrückt, was sie ausdrücken soll.
+	it('flat-condition-keeps-fraction-precise', () => {
+		const code = `mySubtract = (a: Rational b: Rational) -> Or(And(Integer TypeOf(a) TypeOf(b)) And(Fraction Or(TypeOf(a) TypeOf(b)))) => subtract(a b)
+f = (x: Fraction y: Integer) :> Fraction =>
+	mySubtract(x y)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	// Bug: kommt die List nicht als Parameter selbst, sondern über einen Feldzugriff
 	// (history/gameStates), bricht die Identitätserkennung weg. getLengthFromType kennt
 	// nur 'list', 'tuple', 'empty', 'or' und 'parameterReference' - ein Feldzugriff hat an
