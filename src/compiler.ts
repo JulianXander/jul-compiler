@@ -365,7 +365,7 @@ function getSourceLines(filePath: string): string[] {
 }
 
 /**
- * JUL-Quellcode ist tabseinerückt (CLAUDE.md), Tabs stehen aber nur am Zeilenanfang - reine
+ * JUL-Quellcode ist tabseingerückt (CLAUDE.md), Tabs stehen aber nur am Zeilenanfang - reine
  * Zeichenbreite von 1 pro Tab reicht deshalb nicht: das Terminal expandiert jeden Tab auf mehrere
  * Spalten, die interne Spaltenposition (1 Zeichen = 1 Spalte) läuft dann dem sichtbaren Text
  * davon. `visualColumn` rechnet eine Roh-Spaltenposition in die sichtbare Spalte um, `expandTabs`
