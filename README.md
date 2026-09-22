@@ -44,6 +44,13 @@ node ../../jul-compiler/out/cli.js jul-config.yaml
 node out/bundle.js                         # Ergebnis ausführen
 ```
 
+`--check` (vor oder nach der Config) parst und checkt nur, ohne zu emittieren oder zu bundeln —
+es entsteht kein `out`-Ordner:
+
+```bash
+jul jul-config.yaml --check
+```
+
 ## Test
 `npm test`  
 Mocha über `src/**/*.test.ts`, via tsx — kein Build nötig.

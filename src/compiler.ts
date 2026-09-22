@@ -17,10 +17,14 @@ export function compileProject(
 	entryFilePath: string,
 	outputFolderPath: string,
 	cli: boolean = false,
+	checkOnly: boolean = false,
 ): void {
 	const startTime = performance.now();
 	//#region 1. cleanup out
-	rmSync(outputFolderPath, { recursive: true, force: true });
+	// Bei checkOnly entsteht kein Output, also auch nichts aufzuräumen.
+	if (!checkOnly) {
+		rmSync(outputFolderPath, { recursive: true, force: true });
+	}
 	//#endregion 1. cleanup out
 
 	//#region 2. compile
@@ -30,11 +34,17 @@ export function compileProject(
 		outputFolderPath: outputFolderPath,
 		runtimePath: runtimePath,
 		shebang: cli,
+		checkOnly,
 	}, {});
 	if (error) {
 		console.error(error);
 		console.log(formatDuration(startTime));
 		process.exitCode = 1;
+		return;
+	}
+	if (checkOnly) {
+		console.log(colorize('check finished successfully', ConsoleColor.green));
+		console.log(formatDuration(startTime));
 		return;
 	}
 	if (!outFilePath) {
@@ -93,6 +103,10 @@ interface JulCompilerOptions {
 	outputFolderPath: string;
 	runtimePath: string;
 	shebang: boolean;
+	/**
+	 * Nur parsen und checken, kein JS erzeugen/schreiben und kein Bundling.
+	 */
+	checkOnly: boolean;
 }
 
 function compileFile(
@@ -110,6 +124,7 @@ function compileFile(
 		outputFolderPath,
 		runtimePath,
 		shebang,
+		checkOnly,
 	} = options;
 	if (compiledDocuments[sourceFilePath]) {
 		return {};
@@ -140,55 +155,60 @@ function compileFile(
 	//#endregion 2b. check parse errors
 
 	//#region 3. compile
-	let compiled;
-	let outFilePath;
-	switch (extension) {
-		case Extension.js: {
-			// copy js file to output folder
-			compiled = sourceCode;
-			outFilePath = join(outputFolderPath, sourceFilePath);
-			break;
+	// Bei checkOnly entfallen Emit und Write komplett - nur .jul-Dateien werden unten noch
+	// dependency-rekursiv geparst und gecheckt, für die anderen Extensions gibt es ohne Emit
+	// nichts zu tun (sie werden sonst nur unverändert bzw. transpiliert kopiert).
+	let outFilePath: string | undefined;
+	if (!checkOnly) {
+		let compiled;
+		switch (extension) {
+			case Extension.js: {
+				// copy js file to output folder
+				compiled = sourceCode;
+				outFilePath = join(outputFolderPath, sourceFilePath);
+				break;
+			}
+			case Extension.json:
+			// parse json and write to js in output folder
+			case Extension.jul: {
+				const expressions = parsed.unchecked.expressions ?? [];
+				compiled = syntaxTreeToJs(expressions, runtimePath);
+				const jsFileName = changeExtension(sourceFilePath, Extension.js);
+				outFilePath = join(outputFolderPath, jsFileName);
+				break;
+			}
+			case Extension.ts: {
+				const js = transpileModule(sourceCode, {
+					compilerOptions: {
+						module: ModuleKind.ESNext
+					}
+				});
+				compiled = js.outputText;
+				const jsFileName = changeExtension(sourceFilePath, Extension.js);
+				outFilePath = join(outputFolderPath, jsFileName);
+				break;
+			}
+			case Extension.yaml: {
+				// parse yaml and write to json in output folder
+				// TODO compile
+				const parsedYaml = load(sourceCode);
+				compiled = JSON.stringify(parsedYaml);
+				outFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
+				break;
+			}
+			default: {
+				const assertNever: never = extension;
+				return { error: `Unexpected extension for compileFile: ${assertNever}` };
+			}
 		}
-		case Extension.json:
-		// parse json and write to js in output folder
-		case Extension.jul: {
-			const expressions = parsed.unchecked.expressions ?? [];
-			compiled = syntaxTreeToJs(expressions, runtimePath);
-			const jsFileName = changeExtension(sourceFilePath, Extension.js);
-			outFilePath = join(outputFolderPath, jsFileName);
-			break;
-		}
-		case Extension.ts: {
-			const js = transpileModule(sourceCode, {
-				compilerOptions: {
-					module: ModuleKind.ESNext
-				}
-			});
-			compiled = js.outputText;
-			const jsFileName = changeExtension(sourceFilePath, Extension.js);
-			outFilePath = join(outputFolderPath, jsFileName);
-			break;
-		}
-		case Extension.yaml: {
-			// parse yaml and write to json in output folder
-			// TODO compile
-			const parsedYaml = load(sourceCode);
-			compiled = JSON.stringify(parsedYaml);
-			outFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
-			break;
-		}
-		default: {
-			const assertNever: never = extension;
-			return { error: `Unexpected extension for compileFile: ${assertNever}` };
-		}
-	}
-	//#endregion 3. compile
+		//#endregion 3. compile
 
-	//#region 4. write
-	const outDir = dirname(outFilePath);
-	tryCreateDirectory(outDir);
-	writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
-	//#endregion 4. write
+		//#region 4. write
+		const outDir = dirname(outFilePath);
+		tryCreateDirectory(outDir);
+		writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
+		//#endregion 4. write
+	}
 
 	if (extension === Extension.jul) {
 		//#region 5. compile dependencies

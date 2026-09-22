@@ -19,7 +19,12 @@ interface JulCompilerConfiguration {
 }
 
 // console.log(process.argv)
-const configFilePath = process.argv[2] ?? 'jul-config.yaml';
+// Flags (z.B. --check) und der positionale Config-Pfad werden getrennt eingesammelt, nicht per
+// Index gelesen - sonst würde ein Flag ohne Config-Angabe als Config-Pfad interpretiert.
+const args = process.argv.slice(2);
+// Nur parsen und checken, kein Emit/Bundle - siehe checkOnly in compiler.ts.
+const checkOnly = args.includes('--check');
+const configFilePath = args.find(arg => !arg.startsWith('--')) ?? 'jul-config.yaml';
 const configYaml = readTextFile(configFilePath);
 const config = load(configYaml) as JulCompilerConfiguration;
 const ajv = new Ajv();
@@ -35,4 +40,5 @@ compileProject(
 	join(rootFolder, config.entryFilePath),
 	join(rootFolder, outputFolder),
 	config.cli,
+	checkOnly,
 );
