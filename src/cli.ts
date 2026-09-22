@@ -50,15 +50,15 @@ if (flags.includes('--help')) {
 	process.exit(0);
 }
 if (flags.includes('--version')) {
-	// package.json liegt nicht unter src/ (rootDir in tsconfig.build.json) und laesst sich deshalb
-	// nicht per JSON-Import einbinden - stattdessen zur Laufzeit relativ zur ausgefuehrten Datei
+	// package.json liegt nicht unter src/ (rootDir in tsconfig.build.json) und lässt sich deshalb
+	// nicht per JSON-Import einbinden - stattdessen zur Laufzeit relativ zur ausgeführten Datei
 	// gelesen, wie runtime.js in compiler.ts.
 	const packageJson: PackageJson = JSON.parse(readTextFile(join(executingDirectory, '..', 'package.json')));
 	console.log(packageJson.version);
 	process.exit(0);
 }
 // Ein Tippfehler im Flag-Namen (z.B. --chekc) soll auffallen statt still einen Vollbuild
-// auszuloesen.
+// auszulösen.
 const unknownFlags = flags.filter(flag => !(flag in knownFlags));
 if (unknownFlags.length) {
 	throw new Error(`Unknown option(s): ${unknownFlags.join(', ')}. Known options: ${Object.keys(knownFlags).join(', ')}`);
