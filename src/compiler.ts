@@ -285,9 +285,9 @@ export function formatErrors(filePath: string, errors: CompilerError[]): string 
 		const errorLabel = colorize(errorTypeLabels[type] + errorSeverityLabels[severity], severityColor);
 		const errorCode = colorize(`JUL${error.code}`, severityColor);
 		const position = colorize(`${filePath}:${error.startRowIndex + 1}:${error.startColumnIndex + 1}`, ConsoleColor.cyan);
-		// Position steht hier zusaetzlich zur `-->`-Zeile unten - bei den mehrzeiligen,
+		// Position steht hier zusätzlich zur `-->`-Zeile unten - bei den mehrzeiligen,
 		// verschachtelten Ketten (elaborateDictionaryLiteralError-Nachfolger) liegen oft 5+
-		// Zeilen dazwischen, die Kopfzeile allein liesse dann keinen Rueckschluss auf die Stelle
+		// Zeilen dazwischen, die Kopfzeile allein liesse dann keinen Rückschluss auf die Stelle
 		// zu. Redundanz ist hier bewusst in Kauf genommen (Session 2026-09-10). Steht am Ende der
 		// ersten Zeile (nicht davor), damit die Meldung selbst zuerst lesbar ist.
 		const [firstMessageLine, ...restMessageLines] = error.message.split('\n');

@@ -787,9 +787,9 @@ describe('Parser', () => {
 		expect(isCoreLibPath('C:\\Projects\\some-project\\src\\game-logic.jul')).to.equal(false);
 		expect(isCoreLibPath('dummy.jul')).to.equal(false);
 	});
-	// Die parent-Kette wird beim Parsen gesetzt, also bevor feststeht, welche Huelle im fertigen
-	// Baum landet: derselbe Parser-Pfad laeuft mehrfach ueber dieselbe Eingabe und reicht die
-	// inneren Ergebnisse weiter, jede Huelle setzt parent auf sich selbst. Von tief innen fuehrt
+	// Die parent-Kette wird beim Parsen gesetzt, also bevor feststeht, welche Hülle im fertigen
+	// Baum landet: derselbe Parser-Pfad läuft mehrfach über dieselbe Eingabe und reicht die
+	// inneren Ergebnisse weiter, jede Hülle setzt parent auf sich selbst. Von tief innen führt
 	// die Kette deshalb an einem verworfenen Knoten vorbei statt an den Baum, der ausgeliefert
 	// wird. Still, weil bisher nur eine Ebene hochgeschaut wurde (getNameFromValue).
 	it('parent-chain-leads-to-the-delivered-tree', () => {

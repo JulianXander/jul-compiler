@@ -170,38 +170,38 @@ const maxFieldsInTypeDump = 5;
 const maxAliasDepth = 100;
 
 /**
- * Alias-Paare, deren Vergleich gerade laeuft.
- * Ein Zyklus im Typgraph fuehrt zwingend ueber einen Alias - nur er kann zurueckverweisen -,
- * deshalb genuegt die Besuchsmenge dort. Modul-Slot wie activeReferenceIndex: checkTypes ist
+ * Alias-Paare, deren Vergleich gerade läuft.
+ * Ein Zyklus im Typgraph führt zwingend über einen Alias - nur er kann zurückverweisen -,
+ * deshalb genügt die Besuchsmenge dort. Modul-Slot wie activeReferenceIndex: checkTypes ist
  * synchron und nicht reentrant. Muss hier oben stehen, weil die core-lib schon beim Modul-Load
  * gecheckt wird.
  */
 const aliasComparisonsInProgress: { args: CompileTimeType; target: CompileTimeType; }[] = [];
 
-/** Wie aliasComparisonsInProgress, aber fuer typeEquals - eine eigene Rekursion. */
+/** Wie aliasComparisonsInProgress, aber für typeEquals - eine eigene Rekursion. */
 const aliasEqualityInProgress: { first: CompileTimeType; second: CompileTimeType; }[] = [];
 
 /**
- * Notbremse fuer die Vergleichsrekursion.
- * Die Besuchsmengen decken Zyklen ab; eine sehr tiefe, nicht zyklische Verschachtelung laeuft an
+ * Notbremse für die Vergleichsrekursion.
+ * Die Besuchsmengen decken Zyklen ab; eine sehr tiefe, nicht zyklische Verschachtelung läuft an
  * ihnen vorbei und kippt irgendwann in den Stack Overflow (gemessen ab rund 4000 Ebenen, je nach
- * Plattform). Der Wert liegt bewusst weit darunter und weit ueber jeder realen Verschachtelung -
+ * Plattform). Der Wert liegt bewusst weit darunter und weit über jeder realen Verschachtelung -
  * eine Notbremse, die selbst am Abgrund steht, ist keine.
  */
 const maxTypeComparisonDepth = 100;
 
-// Muessen wie alles hier oben stehen: die core-lib wird schon beim Modul-Load gecheckt und laeuft
+// Müssen wie alles hier oben stehen: die core-lib wird schon beim Modul-Load gecheckt und läuft
 // dabei durch beide Funktionen.
 let typeComparisonDepth = 0;
 let typeEqualsDepth = 0;
 
 /**
- * Einheit fuer eine Einrueckungsebene in generiertem Diagnosetext (Fehlerketten, Typ-Dumps) -
+ * Einheit für eine Einrückungsebene in generiertem Diagnosetext (Fehlerketten, Typ-Dumps) -
  * geteilt zwischen indentLines und bracketedExpressionToString, damit beide nie auseinanderlaufen
  * (Fund im echten yugioh-Fehlerbild: Tabs vs. Leerzeichen mischten sich, weil beide Stellen ihre
- * eigene Einrueckung hatten). Leerzeichen statt Tabs: das ist generierter Diagnosetext, kein
+ * eigene Einrückung hatten). Leerzeichen statt Tabs: das ist generierter Diagnosetext, kein
  * Quellcode (JULs Tab-Konvention gilt dort) - ein Tab-Zeichen rendert je nach Terminal/Editor-
- * Tabstop unterschiedlich breit, Leerzeichen sind ueberall gleich breit.
+ * Tabstop unterschiedlich breit, Leerzeichen sind überall gleich breit.
  */
 const indentUnit = '  ';
 
@@ -215,9 +215,9 @@ const indentUnit = '  ';
 const subtypeReductionLimit = 20;
 
 /**
- * Kombinieren auf derselben Ebene, statt eine Datenebene hinzuzufuegen - siehe
+ * Kombinieren auf derselben Ebene, statt eine Datenebene hinzuzufügen - siehe
  * findUnproductiveSelfReference. Muss wie subtypeReductionLimit hier oben stehen: die core-lib
- * wird schon beim Modul-Load gecheckt und laeuft dabei durch die Pruefung.
+ * wird schon beim Modul-Load gecheckt und läuft dabei durch die Prüfung.
  */
 const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
 
@@ -318,7 +318,7 @@ export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
 
 /**
  * JUL-Konvention: Typdefinitionen beginnen mit einem Grossbuchstaben, Werte mit einem
- * Kleinbuchstaben. Waehrend eine Definition selbst gecheckt wird, ist ihr typeInfo noch leer -
+ * Kleinbuchstaben. Während eine Definition selbst gecheckt wird, ist ihr typeInfo noch leer -
  * der Name ist dann das Einzige, woran eine Selbstreferenz die beiden unterscheiden kann.
  */
 function isTypeName(name: string): boolean {
@@ -327,12 +327,12 @@ function isTypeName(name: string): boolean {
 
 /**
  * Steht die Referenz innerhalb der Definition dieses Namens?
- * Ein leeres typeInfo heisst nur "Symbol noch nicht gecheckt" und trifft auch auf eine
- * Vorwaertsreferenz zu - die ist aber bereits als JUL4002 gemeldet und darf keinen Folgefehler
+ * Ein leeres typeInfo heißt nur "Symbol noch nicht gecheckt" und trifft auch auf eine
+ * Vorwärtsreferenz zu - die ist aber bereits als JUL4002 gemeldet und darf keinen Folgefehler
  * bekommen. Nur die Selbstreferenz beschreibt einen rekursiven Typ.
- * Verglichen wird der Name, nicht die Objektidentitaet: die parent-Kette endet an einem anderen
+ * Verglichen wird der Name, nicht die Objektidentität: die parent-Kette endet an einem anderen
  * Definition-Objekt als dem in der Symboltabelle (siehe TODO, Parser-Backtracking). Eine
- * Namensueberdeckung waere ohnehin bereits JUL4003.
+ * Namensüberdeckung wäre ohnehin bereits JUL4003.
  */
 function isSelfReference(reference: ParseReference, name: string): boolean {
 	let current: PositionedExpression | undefined = reference.parent;
@@ -393,9 +393,9 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	const referencedType = foundSymbol.typeInfo;
 	if (!referencedType) {
 		// Das Symbol wird gerade selbst gecheckt: eine Selbstreferenz. Ein Typ bekommt den
-		// Alias-Knoten, der den Namen haelt und erst aufloest, wenn das Symbol fertig ist -
+		// Alias-Knoten, der den Namen hält und erst auflöst, wenn das Symbol fertig ist -
 		// unproduktive Zyklen sind hier bereits als JUL5170 gemeldet. Ein Wert (rekursive
-		// Funktion) bleibt bei Any, sonst stuende sein Name faelschlich fuer einen Typ.
+		// Funktion) bleibt bei Any, sonst stünde sein Name fälschlich für einen Typ.
 		return {
 			type: isTypeName(name) && isSelfReference(reference, name)
 				? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol))
@@ -405,7 +405,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 			isBuiltIn: isBuiltIn,
 		};
 	}
-	// Jede Referenz auf eine Typdefinition traegt ihren Namen mit: nur so erscheint er an der
+	// Jede Referenz auf eine Typdefinition trägt ihren Namen mit: nur so erscheint er an der
 	// Schreibstelle statt des ausgeschriebenen Typs. Der Name gilt pro Schreibstelle, PositiveInteger
 	// wird also nirgends zu GameCardId, nur weil GameCardId darauf zeigt.
 	return {
@@ -531,7 +531,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'typeOf':
 			return dereferenceUnknownKeyFromObject(nestedKey, source.value);
 		// Weder Positionen noch benannte Felder mit unbekanntem Schlüssel bekannt - bisheriges,
-		// unveraendertes Verhalten wie vor der Exhaustivitaetspruefung: permissiv wie 'any'.
+		// unverändertes Verhalten wie vor der Exhaustivitätsprüfung: permissiv wie 'any'.
 		case 'and':
 		case 'blob':
 		case 'boolean':
@@ -740,8 +740,8 @@ export function dereferenceNameFromObject(
 			const innerType = sourceObjectType.value;
 			return dereferenceNameFromObjectType(name, innerType, sourceObjectType);
 		}
-		// Keine benannten Felder und kein Sonderfall noetig - unveraendertes Verhalten wie vor der
-		// Exhaustivitaetspruefung.
+		// Keine benannten Felder und kein Sonderfall nötig - unverändertes Verhalten wie vor der
+		// Exhaustivitätsprüfung.
 		case 'and':
 		case 'blob':
 		case 'boolean':
@@ -808,10 +808,10 @@ function dereferenceNameFromObjectType(
 		}
 		case 'concat': {
 			// Gleiches Prinzip wie 'or': jede Quelle einzeln dereferenzieren (mit eigener TypeOf-
-			// Huelle, aus demselben Grund wie dort) und die Ergebnisse zur Union zusammenfassen.
-			// Eine noch unaufgeloeste Quelle (z.B. ein generischer Funktionsparameter hinter einem
-			// Spread) liefert ueber den 'parameterReference'-Fall bereits eine offene
-			// nestedReference zurueck - die Generizitaet bleibt so erhalten, statt hier auf Any
+			// Hülle, aus demselben Grund wie dort) und die Ergebnisse zur Union zusammenfassen.
+			// Eine noch unaufgelöste Quelle (z.B. ein generischer Funktionsparameter hinter einem
+			// Spread) liefert über den 'parameterReference'-Fall bereits eine offene
+			// nestedReference zurück - die Generizität bleibt so erhalten, statt hier auf Any
 			// zu kollabieren.
 			const dereferencedSources = innerType.Sources.map(sourceType => {
 				return dereferenceNameFromObjectType(name, sourceType, createCompileTimeTypeOfType(sourceType));
@@ -825,8 +825,8 @@ function dereferenceNameFromObjectType(
 				default:
 					return undefined;
 			}
-		// Keine Eigenschaft mit diesem Namen bekannt - unveraendertes Verhalten wie vor der
-		// Exhaustivitaetspruefung.
+		// Keine Eigenschaft mit diesem Namen bekannt - unverändertes Verhalten wie vor der
+		// Exhaustivitätsprüfung.
 		case 'and':
 		case 'any':
 		case 'blob':
@@ -892,8 +892,8 @@ export function dereferenceIndexFromObject(
 			return createNestedReference(sourceObjectType, index);
 		case 'tuple':
 			return sourceObjectType.ElementTypes[index - 1];
-		// Keine Position mit diesem Index bekannt - unveraendertes Verhalten wie vor der
-		// Exhaustivitaetspruefung. 'concat' fehlt hier bewusst noch eine echte Behandlung
+		// Keine Position mit diesem Index bekannt - unverändertes Verhalten wie vor der
+		// Exhaustivitätsprüfung. 'concat' fehlt hier bewusst noch eine echte Behandlung
 		// (offener Punkt #4 in docs/CHECKER-AUDIT.md, analog zum Fix in
 		// dereferenceNameFromObjectType/dereferenceUnknownKeyFromObject).
 		case 'and':
@@ -999,7 +999,7 @@ function dereferenceArgumentTypesNested(
  *
  * Bewusst nur diese eine Verschachtelungsebene statt einer Erweiterung von traversePlaceholders:
  * dort steigt der argumentContext-Zweig nicht in Funktions- und Parameterknoten ab, und das
- * nachzuruesten zerstoert die Aufloesung generischer Rueckgabetypen (`callback/ReturnType`).
+ * nachzurüsten zerstört die Auflösung generischer Rückgabetypen (`callback/ReturnType`).
  */
 function dereferenceCallbackParams(
 	calledFunction: CompileTimeType,
@@ -1195,7 +1195,7 @@ function traversePlaceholders(
 		case 'text':
 		case 'textLiteral':
 		case 'type':
-			// Blatt-Typen: kein verschachtelter CompileTimeType, der einen Platzhalter tragen koennte.
+			// Blatt-Typen: kein verschachtelter CompileTimeType, der einen Platzhalter tragen könnte.
 			return rawType;
 		case 'and': {
 			const rawChoices = rawType.ChoiceTypes;
@@ -1374,7 +1374,7 @@ function traversePlaceholders(
 				&& dereferencedValue === rawValue) {
 				return rawType;
 			}
-			// Neu falten statt neu einpacken, sonst bleibt der Knoten trotz aufgeloester Teile stehen.
+			// Neu falten statt neu einpacken, sonst bleibt der Knoten trotz aufgelöster Teile stehen.
 			return withElementAtFromTypes(dereferencedSource, dereferencedIndex, dereferencedValue);
 		}
 		case 'range': {
@@ -1410,7 +1410,7 @@ function traversePlaceholders(
 			return concatFromTypes(dereferencedSources);
 		}
 		case 'alias':
-			// Stoppt hier: ein Alias traegt keine Platzhalter, und Absteigen wuerde bei einem
+			// Stoppt hier: ein Alias trägt keine Platzhalter, und Absteigen würde bei einem
 			// rekursiven Typ nicht terminieren.
 			return rawType;
 		default: {
@@ -2241,16 +2241,16 @@ function inferType(
 				const assignmentError = dereferencedTargetType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), dereferencedTargetType);
 				if (assignmentError) {
 					// Position wandert beim Abstieg durch verschachtelte Dictionary-Literale auf
-					// die innerste noch vorhandene, tatsaechlich falsche Stelle (TypeScript/
-					// Rust/Elm-Vorbild: eine Diagnose, eine moeglichst genaue Position, statt
+					// die innerste noch vorhandene, tatsächlich falsche Stelle (TypeScript/
+					// Rust/Elm-Vorbild: eine Diagnose, eine möglichst genaue Position, statt
 					// einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle).
 					const innerPosition = dereferencedTargetType && findInnermostErrorPosition(value, dereferencedTargetType);
 					const position = innerPosition ?? expression;
 					
-					// Ob die umhuellende "Can not assign X to Y."-Zeile fehlt, entscheidet
+					// Ob die umhüllende "Can not assign X to Y."-Zeile fehlt, entscheidet
 					// getTypeError bereits an der Quelle (case 'dictionaryLiteral': in
 					// getTypeError, hasMultipleFields) - hier nur noch die fertige Meldung
-					// uebernehmen, kein nachtraegliches Textschneiden mehr.
+					// übernehmen, kein nachträgliches Textschneiden mehr.
 					const message = `Definition type mismatch.\n${assignmentError}`;
 					
 					errors.push({
@@ -2385,9 +2385,9 @@ function inferType(
 						return;
 					}
 					case 'spread':
-						// resolvePlaceholders noetig: sonst wird z.B. eine Parameter-Typreferenz
-						// nicht als dictionaryLiteral erkannt und der gesamte Literal-Typ faellt
-						// still auf Any zurueck (verschluckt dann jeden Folgefehler).
+						// resolvePlaceholders nötig: sonst wird z.B. eine Parameter-Typreferenz
+						// nicht als dictionaryLiteral erkannt und der gesamte Literal-Typ fällt
+						// still auf Any zurück (verschluckt dann jeden Folgefehler).
 						const valueType = value?.typeInfo && resolveAlias(resolvePlaceholders(value.typeInfo.type));
 						// TODO DictionaryType, ChoiceType etc ?
 						if (isDictionaryLiteralType(valueType)) {
@@ -2443,8 +2443,8 @@ function inferType(
 					}
 					case 'spread': {
 						setInferredType(field.value, typeContext, parsedDocuments, folder, file, filePath);
-						// resolvePlaceholders/valueOf noetig: die Quelle steht als Typausdruck
-						// (TypeOf(dictionaryLiteral)) da, nicht als Wert - dieselbe Begruendung
+						// resolvePlaceholders/valueOf nötig: die Quelle steht als Typausdruck
+						// (TypeOf(dictionaryLiteral)) da, nicht als Wert - dieselbe Begründung
 						// wie beim Spread in case 'dictionary'.
 						const spreadType = field.value.typeInfo
 							&& resolveAlias(valueOf(resolvePlaceholders(field.value.typeInfo.type)));
@@ -2667,8 +2667,8 @@ function inferType(
 				setInferredType(bodyExpression, branchTypeContext, parsedDocuments, folder, file, filePath);
 			});
 			//#region Purity-Inferenz (docs/pure-inference-umsetzung.md Schritt 3)
-			// E6: der Dummy-Rumpf importierter TS-Funktionen wuerde sie faelschlich als beweisbar
-			// unrein ausweisen - fuer sie bleibt es bei der Auskunft aus dem geschriebenen Pfeil.
+			// E6: der Dummy-Rumpf importierter TS-Funktionen würde sie fälschlich als beweisbar
+			// unrein ausweisen - für sie bleibt es bei der Auskunft aus dem geschriebenen Pfeil.
 			if (!isTypeScriptFile(filePath)) {
 				const bodyPurity = inferBodyPurity(expression.body, functionType);
 				// Ein Rumpf, der nur deshalb unentscheidbar ist, weil er eigene funktionswertige
@@ -2772,8 +2772,8 @@ function inferType(
 					|| isUnresolvedPlaceholderType(rawDeclaredReturnType)) {
 					// Any: kein body-Typ bekannt, deklarierter Typ ist die einzige Information.
 					// Platzhalter: der deklarierte Typ referenziert eigene Parameter (z.B.
-					// Concat(TypeOf(a) TypeOf(b))) und muss je Aufruf neu aufgeloest werden - der
-					// body-Typ waere nur die an der Deklaration sichtbare, fest verdrahtete Instanz.
+					// Concat(TypeOf(a) TypeOf(b))) und muss je Aufruf neu aufgelöst werden - der
+					// body-Typ wäre nur die an der Deklaration sichtbare, fest verdrahtete Instanz.
 					returnType = rawDeclaredReturnType;
 				}
 			}
@@ -2823,9 +2823,9 @@ function inferType(
 			});
 
 			// Bleibt eine Spread-Quelle bis zum Aufruf offen (z.B. ein eigener Parameter), muss
-			// die Aneinanderreihung ebenso offen bleiben - sonst faellt sie hier schon auf den
-			// deklarierten Parametertyp zurueck, obwohl Concat sie am Aufrufort exakt berechnen
-			// koennte (docs/generic-types-through-function-body.md).
+			// die Aneinanderreihung ebenso offen bleiben - sonst fällt sie hier schon auf den
+			// deklarierten Parametertyp zurück, obwohl Concat sie am Aufrufort exakt berechnen
+			// könnte (docs/generic-types-through-function-body.md).
 			const hasDeferredSpread = expression.values.some(element =>
 				element.type === 'spread' && isUnresolvedPlaceholderType(element.value.typeInfo!.type));
 			if (hasDeferredSpread) {
@@ -2991,7 +2991,7 @@ function inferType(
 			});
 
 			// Bleibt eine Spread-Quelle bis zum Aufruf offen, muss die Aneinanderreihung ebenso
-			// offen bleiben (dieselbe Begruendung wie bei case 'list').
+			// offen bleiben (dieselbe Begründung wie bei case 'list').
 			const hasDeferredSpread = expression.values.some(element =>
 				isUnresolvedPlaceholderType(element.value.typeInfo!.type));
 			if (hasDeferredSpread) {
@@ -3200,12 +3200,12 @@ function isTypeCombinatorCall(functionCall: ParseFunctionCall): boolean {
 }
 
 /**
- * Die Selbstreferenz einer Definition, die durch keinen datentragenden Konstruktor laeuft.
- * Eine solche Gleichung (Bad = Or(Integer Bad)) hat keine eindeutige Loesung - sie wird von jeder
- * Obermenge von Integer erfuellt - und beim Pruefen eines Werts wird nichts kleiner. Genau daran
- * wuerde auch die Aufloesung nicht terminieren.
+ * Die Selbstreferenz einer Definition, die durch keinen datentragenden Konstruktor läuft.
+ * Eine solche Gleichung (Bad = Or(Integer Bad)) hat keine eindeutige Lösung - sie wird von jeder
+ * Obermenge von Integer erfüllt - und beim Prüfen eines Werts wird nichts kleiner. Genau daran
+ * würde auch die Auflösung nicht terminieren.
  * Konservativ: was hier nicht als Kombinator erkannt wird, gilt als produktiv und wird nicht
- * gemeldet. Eine Falschmeldung waere teurer als eine ausgelassene.
+ * gemeldet. Eine Falschmeldung wäre teurer als eine ausgelassene.
  */
 function findUnproductiveSelfReference(
 	expression: PositionedExpression,
@@ -3228,7 +3228,7 @@ function findUnproductiveSelfReference(
 				return undefined;
 			}
 			// Nur in die Argumente absteigen: die Argumentliste ist syntaktisch eine Kollektion
-			// (list/dictionary), fuegt aber keine Datenebene hinzu.
+			// (list/dictionary), fügt aber keine Datenebene hinzu.
 			const args = expression.arguments;
 			return args
 				&& forEachChild(args, child =>
@@ -3423,10 +3423,10 @@ function getReturnTypeFromFunctionCall(
 //#region Sequenz Arithmetik
 
 /**
- * Elemente, die ein Spread in ein List-Literal einbringt, und ob dadurch die Gesamtlaenge
+ * Elemente, die ein Spread in ein List-Literal einbringt, und ob dadurch die Gesamtlänge
  * unbestimmt wird (dann muss das Literal zur List werden statt zum Tuple). `Or([] List(X))`
- * (Idiom fuer eine moeglicherweise leere Liste) muss dafuer durch seine Choices hindurchschauen:
- * unterschiedliche Laengen zwischen den Choices bedeuten ebenfalls eine unbestimmte Gesamtlaenge.
+ * (Idiom für eine möglicherweise leere Liste) muss dafür durch seine Choices hindurchschauen:
+ * unterschiedliche Längen zwischen den Choices bedeuten ebenfalls eine unbestimmte Gesamtlänge.
  */
 function getSpreadElementTypes(
 	rawSourceType: CompileTimeType,
@@ -3540,7 +3540,7 @@ function rangeCoversFirstPosition(rawStart: CompileTimeType, rawEnd: CompileTime
 }
 
 /**
- * Count Positionen vom Typ ElementType. Nur bei literalem Count steht die Laenge fest und das
+ * Count Positionen vom Typ ElementType. Nur bei literalem Count steht die Länge fest und das
  * Ergebnis ist ein Tuple; sonst bleibt nur "eine Liste davon".
  */
 function tupleOfFromTypes(
@@ -3548,8 +3548,8 @@ function tupleOfFromTypes(
 	elementType: CompileTimeType,
 ): CompileTimeType {
 	const countType = resolveAlias(rawCountType);
-	// Eine Laenge ueber einer noch offenen Quelle kann sich zum Literal auflösen (Tuple), eine
-	// ueber einer bekannten List dagegen nie - nur im ersten Fall lohnt das Warten.
+	// Eine Länge über einer noch offenen Quelle kann sich zum Literal auflösen (Tuple), eine
+	// über einer bekannten List dagegen nie - nur im ersten Fall lohnt das Warten.
 	const countCanBecomeLiteral = isUnresolvedPlaceholderType(countType)
 		|| (countType.julType === 'lengthOf' && isUnresolvedPlaceholderType(countType.Source));
 	if (countCanBecomeLiteral) {
@@ -3582,8 +3582,8 @@ function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
 	if (sourceTypes.some(isUnresolvedPlaceholderType)) {
 		return createCompileTimeConcatType(sourceTypes);
 	}
-	// Or-Quelle zuerst verteilen (Fund: Or([] List(X)) ist das Idiom fuer eine moeglicherweise
-	// leere Liste, CLAUDE.md) - sonst gilt eine Quelle mit unbestimmter Laenge faelschlich als
+	// Or-Quelle zuerst verteilen (Fund: Or([] List(X)) ist das Idiom für eine möglicherweise
+	// leere Liste, CLAUDE.md) - sonst gilt eine Quelle mit unbestimmter Länge fälschlich als
 	// nicht auflösbar. Analog zu tupleOfFromTypes' 'or'-Fall bei Count.
 	const orIndex = sourceTypes.findIndex(source => resolveAlias(valueOf(source)).julType === 'or');
 	if (orIndex !== -1) {
@@ -3600,7 +3600,7 @@ function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
 	const elementTypes: CompileTimeType[] = [];
 	let hasListSource = false;
 	for (const rawSource of sourceTypes) {
-		// TypeOf(X) faellt hier zu X, sonst wuerde z.B. Concat(TypeOf(a) TypeOf(b)) nie greifen.
+		// TypeOf(X) fällt hier zu X, sonst würde z.B. Concat(TypeOf(a) TypeOf(b)) nie greifen.
 		const source = resolveAlias(valueOf(rawSource));
 		if (source.julType === 'empty') {
 			continue;
@@ -3768,8 +3768,8 @@ function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
 function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeType {
 	//#region flatten UnionTypes
 	// Or(1 Or(2 3)) => Or(1 2 3)
-	// Ein Alias auf eine Union wird NICHT aufgeflacht: er ist der einzige Traeger seines Namens,
-	// und die Dedup- bzw. Teilmengen-Elimination unten loest ihn ohnehin auf (typeEquals und
+	// Ein Alias auf eine Union wird NICHT aufgeflacht: er ist der einzige Träger seines Namens,
+	// und die Dedup- bzw. Teilmengen-Elimination unten löst ihn ohnehin auf (typeEquals und
 	// getTypeError dealiasen beide).
 	const flatChoices: CompileTimeType[] = choiceTypes.filter(choiceType =>
 		!isUnionType(choiceType));
@@ -3882,7 +3882,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 	}
 
 	// Ab hier bauen die Regeln den Typ um (Distribution, Feld-Merge, Teilmengen-Shortcut) - ein
-	// Alias ueberlebt das ohnehin nicht, also gleich auf den aufgeloesten Choices arbeiten.
+	// Alias überlebt das ohnehin nicht, also gleich auf den aufgelösten Choices arbeiten.
 	const resolvedChoices = ChoiceTypes.map(resolveAlias);
 
 	// Distributivgesetz anwenden:
@@ -4108,8 +4108,8 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 	if (isComplementType(second)) {
 		return isNotAssignableTo(first, second.SourceType);
 	}
-	// getTypeFamily ordnet 'greater' keiner Familie zu (Integer oder Float moeglich) - daher
-	// hier vorab behandeln, bevor die Familienpruefung mit undefined aufgibt.
+	// getTypeFamily ordnet 'greater' keiner Familie zu (Integer oder Float möglich) - daher
+	// hier vorab behandeln, bevor die Familienprüfung mit undefined aufgibt.
 	if (first.julType === 'greater') {
 		return greaterOverlapsWith(first, second);
 	}
@@ -4153,13 +4153,13 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 }
 
 /**
- * Greater(Value) ist nach oben unbeschraenkt - Ueberlappung ist daher nur bei gleichem
+ * Greater(Value) ist nach oben unbeschränkt - Überlappung ist daher nur bei gleichem
  * Literaltyp (Integer/Integer oder Float/Float) entscheidbar, sonst undefined.
  */
 function greaterOverlapsWith(greater: CompileTimeGreaterType, other: ResolvedType): boolean | undefined {
 	switch (other.julType) {
 		case 'greater':
-			// Beide nach oben unbeschraenkt - es gibt immer einen gemeinsamen groesseren Wert.
+			// Beide nach oben unbeschränkt - es gibt immer einen gemeinsamen größeren Wert.
 			return true;
 		case 'integerLiteral':
 		case 'floatLiteral':
@@ -4562,8 +4562,8 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 	if (first === second) {
 		return true;
 	}
-	// Dieselbe Notbremse wie in getTypeError. Hier faellt sie auf "nicht gleich" zurueck: eine
-	// ausgelassene Deduplizierung ist harmlos, eine faelschlich angenommene Gleichheit nicht.
+	// Dieselbe Notbremse wie in getTypeError. Hier fällt sie auf "nicht gleich" zurück: eine
+	// ausgelassene Deduplizierung ist harmlos, eine fälschlich angenommene Gleichheit nicht.
 	if (typeEqualsDepth >= maxTypeComparisonDepth) {
 		return false;
 	}
@@ -4577,8 +4577,8 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 }
 
 function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boolean {
-	// Der Alias ist reine Beschriftung: geprueft wird der Typ dahinter. Vor dem switch, weil sonst
-	// jeder Zweig seinen eigenen Alias-Fall auf der Gegenseite braeuchte.
+	// Der Alias ist reine Beschriftung: geprüft wird der Typ dahinter. Vor dem switch, weil sonst
+	// jeder Zweig seinen eigenen Alias-Fall auf der Gegenseite bräuchte.
 	// Liegt das Paar bereits auf dem Stack, gilt es als gleich - dieselbe coinduktive Annahme wie
 	// in getTypeError, ohne die der Vergleich rekursiver Typen nicht endet.
 	if (first.julType === 'alias'
@@ -4981,16 +4981,16 @@ function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
 	if (!symbolType) {
 		return builtinAny;
 	}
-	// Eine Typdefinition haelt ihren Typ als TypeOf; der Alias steht fuer den Typ selbst.
+	// Eine Typdefinition hält ihren Typ als TypeOf; der Alias steht für den Typ selbst.
 	return symbolType.julType === 'typeOf'
 		? symbolType.value
 		: symbolType;
 }
 
 /**
- * Der Typ ohne Alias-Huellen, auch mehrfach geschachtelte (B = A = ...).
+ * Der Typ ohne Alias-Hüllen, auch mehrfach geschachtelte (B = A = ...).
  * Die Schleifengrenze ist eine Notbremse: unproduktive Zyklen meldet bereits JUL5170, aber ein
- * haengender Language Server waere ein schlechterer Ausgang als ein ungenauer Typ.
+ * hängender Language Server wäre ein schlechterer Ausgang als ein ungenauer Typ.
  */
 export function resolveAlias(type: CompileTimeType): ResolvedType {
 	let current = type;
@@ -5124,7 +5124,7 @@ function getTypeErrorAtDepth(
 	}
 	// Der Alias ist reine Beschriftung: zugewiesen wird gegen den Typ dahinter, in beide Richtungen.
 	// Liegt das Paar bereits auf dem Stack, gilt es als zuweisbar - bei rekursiven Typen ist das
-	// die einzige Annahme, unter der der Vergleich ueberhaupt endet (TypeScripts "maybe stack").
+	// die einzige Annahme, unter der der Vergleich überhaupt endet (TypeScripts "maybe stack").
 	if (argumentsType.julType === 'alias'
 		|| targetType.julType === 'alias') {
 		if (aliasComparisonsInProgress.some(pair =>
@@ -5216,8 +5216,8 @@ function getTypeErrorAtDepth(
 			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
 			// ausschließlich X-Werte zulässt (target Teilmenge von X), der Wert also garantiert
 			// ausgeschlossen wäre. Sonst permissiv, wie bei Any: wir wissen nichts Genaueres.
-			// isNotAssignableTo traegt den hasReliableTypeError-Guard schon (undefined bei
-			// unaufgeloesten/generischen Zielen), das wird hier mitgenutzt statt dupliziert.
+			// isNotAssignableTo trägt den hasReliableTypeError-Guard schon (undefined bei
+			// unaufgelösten/generischen Zielen), das wird hier mitgenutzt statt dupliziert.
 			if (isNotAssignableTo(targetType, argumentsType.SourceType) === false) {
 				return {
 					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
@@ -5346,14 +5346,14 @@ function getTypeErrorAtDepth(
 			// targetType mit depth=1, damit z.B. GameBoard als kurzer Alias erscheint statt
 			// voll ausgeschrieben (typeToString zeigt Aliase nur ab depth>0). argumentsType
 			// dagegen mit suppressAlias=true: sein aliasName ist der Name der Definition, die
-			// den Wert haelt (z.B. "newGameState"), kein Typname - der wuerde hier faelschlich
+			// den Wert hält (z.B. "newGameState"), kein Typname - der würde hier fälschlich
 			// als Typ erscheinen, auch bei verschachtelten Feldern (Fund newBoard, s.o.).
-			// Wuerde diese Kopfzeile selbst mehrzeilig rendern (z.B. weil ein Feld einen
-			// groesseren verschachtelten Typ enthaelt), traegt sie neben der folgenden
+			// Würde diese Kopfzeile selbst mehrzeilig rendern (z.B. weil ein Feld einen
+			// größeren verschachtelten Typ enthält), trägt sie neben der folgenden
 			// "Invalid value for field"-Kette nichts bei und lenkt vom eigentlichen Fehler ab
-			// (Fund im echten yugioh-Fehlerbild, Session 2026-09-10) - dann faellt sie ganz weg.
-			// Entscheidung anhand des tatsaechlich gerenderten Textes, bevor er mit dem Detail
-			// verklebt wird, statt den fertigen String spaeter wieder aufzutrennen.
+			// (Fund im echten yugioh-Fehlerbild, Session 2026-09-10) - dann fällt sie ganz weg.
+			// Entscheidung anhand des tatsächlich gerenderten Textes, bevor er mit dem Detail
+			// verklebt wird, statt den fertigen String später wieder aufzutrennen.
 			const header = `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.`;
 			if (header.includes('\n')) {
 				return error;
@@ -5445,7 +5445,7 @@ function getTypeErrorAtDepth(
 					if (!elementError) {
 						return undefined;
 					}
-					// Ohne Huelle stand der Element-Fehler roh neben anderen Or-Choice-Fehlern,
+					// Ohne Hülle stand der Element-Fehler roh neben anderen Or-Choice-Fehlern,
 					// ohne erkennbaren Bezug zur umschliessenden Liste (Fund im echten
 					// yugioh-Fehlerbild, Session 2026-09-10) - analog zum dictionaryLiteral-Fall.
 					return {
@@ -5506,7 +5506,7 @@ function getTypeErrorAtDepth(
 					return getTypeError(prefixArgumentType, asLiteralUnion, targetType);
 				}
 				// Best-Match statt Alle-Choices-Dump (TS/Flow-Vorbild, Fund im echten
-				// yugioh-Fehlerbild, Session 2026-09-10): nur den strukturell naechsten Choice
+				// yugioh-Fehlerbild, Session 2026-09-10): nur den strukturell nächsten Choice
 				// (gleicher julType wie der Wert) vertiefen, statt jeden fehlgeschlagenen
 				// Choice einzeln zu zeigen - sonst stehen triviale Fehler ("List ist kein
 				// Empty") gleichberechtigt neben dem eigentlich relevanten. Der volle
@@ -5616,14 +5616,14 @@ function getTypeErrorAtDepth(
 		case 'typeOf':
 			break;
 		case 'lengthOf':
-			// In der Oberflaeche nicht konstruierbar, nur zur Vollstaendigkeit des Switches.
+			// In der Oberfläche nicht konstruierbar, nur zur Vollständigkeit des Switches.
 			return getTypeError(prefixArgumentType, argumentsType, CompileTimeNonZeroInteger);
 		case 'withElementAt':
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference, sonst
-			// entstuenden Fehler an einem Typ, der noch gar nicht feststeht.
+			// entstünden Fehler an einem Typ, der noch gar nicht feststeht.
 			return undefined;
 		case 'range':
-			// Nur als Schluessel sinnvoll, nie als Zieltyp einer Zuweisung.
+			// Nur als Schlüssel sinnvoll, nie als Zieltyp einer Zuweisung.
 			return undefined;
 		case 'tupleOf':
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference.
@@ -5709,8 +5709,8 @@ function getDictionaryLiteralTypeError(
 ): TypeError | true | undefined {
 	switch (argumentsType.julType) {
 		case 'dictionaryLiteral': {
-			// Fuer ein fehlendes Feld gibt es keinen Wert zum Vergleichen - der erwartete Typ
-			// steht bereits an der Zieltyp-Deklaration selbst, ihn hier zusaetzlich auszuschreiben
+			// Für ein fehlendes Feld gibt es keinen Wert zum Vergleichen - der erwartete Typ
+			// steht bereits an der Zieltyp-Deklaration selbst, ihn hier zusätzlich auszuschreiben
 			// ist reine Wiederholung (TypeScript/Rust/Elm/GHC tun das ebenfalls nicht). Fehlende
 			// Feldnamen werden deshalb gesammelt und zu einer Zeile zusammengefasst, statt je
 			// Feld eine eigene "Missing field X, expected Y."-Zeile zu erzeugen.
@@ -5722,12 +5722,12 @@ function getDictionaryLiteralTypeError(
 					if (knownField === undefined) {
 						if (!argumentsType.complete) {
 							// Unwissen ist keine Ablehnung: taucht das Feld in einem
-							// unvollstaendigen Dictionary nicht auf, ist das kein Beweis, dass
+							// unvollständigen Dictionary nicht auf, ist das kein Beweis, dass
 							// es fehlt.
 							return undefined;
 						}
 						if (isFieldOptional(fieldType, prefixArgumentType)) {
-							// Or([] X) ist das Idiom fuer optionale Felder - Weglassen bleibt erlaubt.
+							// Or([] X) ist das Idiom für optionale Felder - Weglassen bleibt erlaubt.
 							return undefined;
 						}
 						missingFieldNames.push(fieldName);
@@ -5780,7 +5780,7 @@ function getDictionaryFieldError(
 
 /**
  * Pendant zu getDictionaryFieldError für positionale Funktionsargumente: ohne den Parameternamen
- * ist bei mehreren Argumenten/Ueberladungen nicht erkennbar, welches Argument betroffen ist
+ * ist bei mehreren Argumenten/Überladungen nicht erkennbar, welches Argument betroffen ist
  * (Fund: JUL5050 nannte nur den Typkonflikt, nie die Parameterposition).
  */
 function getParameterError(
@@ -5789,7 +5789,7 @@ function getParameterError(
 	argumentType: CompileTimeType,
 	/**
 	 * 'type' beim kontravarianten Vergleich zweier Funktionstypen: dort steht die deklarierte
-	 * Signatur zur Pruefung, kein Wert, der an den Parameter uebergeben wird.
+	 * Signatur zur Prüfung, kein Wert, der an den Parameter übergeben wird.
 	 */
 	subject: 'value' | 'type' = 'value',
 ): TypeError | undefined {
@@ -5803,8 +5803,8 @@ function getParameterError(
 }
 
 /**
- * Darf ein Feld dieses Zieltyps im Literal fehlen? Or([] X) ist das Idiom fuer optionale Felder
- * (CLAUDE.md) - Empty erfuellt das Ziel dann bereits, ohne dass es explizit als `feld = []`
+ * Darf ein Feld dieses Zieltyps im Literal fehlen? Or([] X) ist das Idiom für optionale Felder
+ * (CLAUDE.md) - Empty erfüllt das Ziel dann bereits, ohne dass es explizit als `feld = []`
  * dastehen muss.
  */
 function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: CompileTimeType | undefined): boolean {
@@ -5812,11 +5812,11 @@ function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: C
 }
 
 /**
- * Findet die innerste Position im Quelltext, an der der Zuweisungsfehler tatsaechlich sitzt:
+ * Findet die innerste Position im Quelltext, an der der Zuweisungsfehler tatsächlich sitzt:
  * steigt durch verschachtelte Dictionary-Literale ab, solange es ein konkretes Feld mit
  * falschem Wert gibt. Ein fehlendes Feld hat keinen Ausdruck zum Zeigen und bricht den Abstieg
- * an dieser Stelle ab - undefined heisst "keine genauere Position als die aufrufende Stelle".
- * Nach dem Vorbild von TypeScript/Rust/Elm: eine Diagnose, eine moeglichst genaue Position,
+ * an dieser Stelle ab - undefined heißt "keine genauere Position als die aufrufende Stelle".
+ * Nach dem Vorbild von TypeScript/Rust/Elm: eine Diagnose, eine möglichst genaue Position,
  * statt einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle.
  */
 function findInnermostErrorPosition(
@@ -5867,8 +5867,8 @@ function findInnermostErrorPosition(
 
 /**
  * Tupel-/Listen-Pendant zu findInnermostFieldErrorPosition: findet das erste Element mit
- * tatsaechlichem Fehler und steigt rekursiv weiter ab, falls das Element selbst wieder ein
- * Literal ist. Ein Spread verschiebt die Zuordnung unbekannt weit (dieselbe Begruendung wie bei
+ * tatsächlichem Fehler und steigt rekursiv weiter ab, falls das Element selbst wieder ein
+ * Literal ist. Ein Spread verschiebt die Zuordnung unbekannt weit (dieselbe Begründung wie bei
  * getWrittenArguments/getTupleTypeError2) - dann bricht der Abstieg ab, ebenso bei einem
  * fehlenden Element (kein Ausdruck zum Zeigen vorhanden).
  */
@@ -6145,9 +6145,9 @@ function typeErrorToString(typeError: TypeError): string {
 }
 
 /**
- * Rueckt jede Zeile eines mehrzeiligen Fehlertexts eine Ebene tiefer - fuer verschachtelte
+ * Rückt jede Zeile eines mehrzeiligen Fehlertexts eine Ebene tiefer - für verschachtelte
  * Dictionary-Felder, damit die Tiefe beim Lesen sichtbar ist (TypeScript-Vorbild), statt nur
- * ueber die Abfolge von Typ-Mismatch/Feldname-Zeilen erschlossen werden zu muessen.
+ * über die Abfolge von Typ-Mismatch/Feldname-Zeilen erschlossen werden zu müssen.
  */
 function indentLines(text: string): string {
 	return text.split('\n').map(line => `${indentUnit}${line}`).join('\n');
@@ -6158,9 +6158,9 @@ function indentLines(text: string): string {
 //#region ToString
 
 // TODO expand ReferenceType 1 level deep?
-// suppressAlias unterdrueckt aliasName in der gesamten Rekursion, nicht nur an der Aufrufstelle -
-// noetig, um einen Wert zu beschreiben (der Alias ist dort immer nur der Name der Definition,
-// die den Wert haelt, nie ein echter Typname; siehe Fund newGameState/newBoard, Session 2026-09-10).
+// suppressAlias unterdrückt aliasName in der gesamten Rekursion, nicht nur an der Aufrufstelle -
+// nötig, um einen Wert zu beschreiben (der Alias ist dort immer nur der Name der Definition,
+// die den Wert hält, nie ein echter Typname; siehe Fund newGameState/newBoard, Session 2026-09-10).
 export function typeToString(type: CompileTimeType, indent: number, depth: number, suppressAlias = false): string {
 	if (depth && type.aliasName && !suppressAlias) {
 		return type.aliasName;
@@ -6259,9 +6259,9 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'typeOf':
 			return `TypeOf(${typeToString(type.value, indent, depth, suppressAlias)})`;
 		case 'alias':
-			// Wie aliasName: ab depth > 0 nur der Name, die aeusserste Ebene wird ausgeschrieben.
+			// Wie aliasName: ab depth > 0 nur der Name, die äußerste Ebene wird ausgeschrieben.
 			// suppressAlias greift nicht - es zielt auf Namen von Wertdefinitionen, und ein
-			// Alias-Knoten entsteht nur fuer Typdefinitionen.
+			// Alias-Knoten entsteht nur für Typdefinitionen.
 			return depth
 				? type.name
 				: typeToString(dereferenceAlias(type), indent, depth, suppressAlias);
@@ -6299,9 +6299,9 @@ function arrayTypeToString(
 
 /**
  * Ob typeToString(dictionary) mehrzeilig rendert - auch genutzt, um vor dem Bauen einer
- * umhuellenden "Can not assign X to Y."-Fehlerzeile zu entscheiden, ob X selbst ausgeschrieben
- * werden wuerde (dann traegt die Huelle nichts bei, was die Feld-Kette nicht ohnehin zeigt).
- * Eine Quelle statt zweier, die auseinanderlaufen koennten.
+ * umhüllenden "Can not assign X to Y."-Fehlerzeile zu entscheiden, ob X selbst ausgeschrieben
+ * werden würde (dann trägt die Hülle nichts bei, was die Feld-Kette nicht ohnehin zeigt).
+ * Eine Quelle statt zweier, die auseinanderlaufen könnten.
  */
 function hasMultipleFields(dictionary: CompileTimeDictionary): boolean {
 	return Object.keys(dictionary).length > 1;
@@ -6350,7 +6350,7 @@ function bracketedExpressionToString(
 	kind: 'round' | 'square' = 'square',
 ): string {
 	// Dieselbe Einheit wie indentLines (indentUnit) - sonst mischen sich Tabs und Leerzeichen,
-	// sobald dieser Dump in eine bereits eingerueckte Fehlerkette eingebettet wird (Fund im
+	// sobald dieser Dump in eine bereits eingerückte Fehlerkette eingebettet wird (Fund im
 	// echten yugioh-Fehlerbild, Session 2026-09-10).
 	const indentString = indentUnit.repeat(indent + 1);
 	const openingBracketSeparator = multiline

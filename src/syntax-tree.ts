@@ -654,9 +654,9 @@ export type CompileTimeType =
 
 /**
  * Ein Typ, der garantiert kein Alias mehr ist.
- * Funktionen, die einen Typ strukturell untersuchen (Felder, Elemente, Choices, Ueberlappung),
+ * Funktionen, die einen Typ strukturell untersuchen (Felder, Elemente, Choices, Überlappung),
  * deklarieren diesen Typ statt CompileTimeType - dann erzwingt der Compiler an jeder Aufrufstelle
- * ein resolveAlias, statt dass ein uebersehener Alias still in einen default-Zweig faellt.
+ * ein resolveAlias, statt dass ein übersehener Alias still in einen default-Zweig fällt.
  * Vorbild: mypys ProperType.
  */
 export type ResolvedType = Exclude<CompileTimeType, CompileTimeAliasType>;
@@ -782,9 +782,9 @@ export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTim
 
 /**
  * Die Anzahl der Elemente von Source, solange Source nicht als Tuple/Empty feststeht (dort
- * faltet getLengthFromType direkt zu einem Literal). Traegt die Quelle weiter, damit ElementAt
- * erkennen kann, wenn ein Index exakt die Laenge derselben Quelle ist - dann ist er nie ausserhalb
- * des Bereichs. Ueberall sonst verhaelt sich lengthOf wie PositiveInteger/NonZeroInteger.
+ * faltet getLengthFromType direkt zu einem Literal). Trägt die Quelle weiter, damit ElementAt
+ * erkennen kann, wenn ein Index exakt die Länge derselben Quelle ist - dann ist er nie außerhalb
+ * des Bereichs. Überall sonst verhält sich lengthOf wie PositiveInteger/NonZeroInteger.
  */
 export interface CompileTimeLengthOfType extends CompileTimeTypeBase {
 	readonly julType: 'lengthOf';
@@ -803,8 +803,8 @@ export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileT
 
 /**
  * Source, aber an Position Index steht Value. Bleibt stehen, solange Source oder Index noch
- * Platzhalter sind - erst mit festem Index laesst sich sagen, welche Position sich aendert.
- * Das Gegenstueck zum lesenden Zugriff (docs/type-level-sequence-algebra.md).
+ * Platzhalter sind - erst mit festem Index lässt sich sagen, welche Position sich ändert.
+ * Das Gegenstück zum lesenden Zugriff (docs/type-level-sequence-algebra.md).
  */
 export interface CompileTimeWithElementAtType extends CompileTimeTypeBase {
 	readonly julType: 'withElementAt';
@@ -828,8 +828,8 @@ export function createCompileTimeWithElementAtType(
 }
 
 /**
- * Die Positionen Start bis End, beide inklusive, 1-basiert. End Empty heisst "bis zum Ende".
- * Nur als Schluessel eines Zugriffs sinnvoll: dort wird daraus die Teilfolge der Quelle.
+ * Die Positionen Start bis End, beide inklusive, 1-basiert. End Empty heißt "bis zum Ende".
+ * Nur als Schlüssel eines Zugriffs sinnvoll: dort wird daraus die Teilfolge der Quelle.
  */
 export interface CompileTimeRangeType extends CompileTimeTypeBase {
 	readonly julType: 'range';
@@ -851,7 +851,7 @@ export function createCompileTimeRangeType(
 
 /**
  * Count Positionen, jede vom Typ ElementType. Steht Count als Literal fest, wird daraus ein
- * Tuple dieser Laenge, sonst eine List.
+ * Tuple dieser Länge, sonst eine List.
  */
 export interface CompileTimeTupleOfType extends CompileTimeTypeBase {
 	readonly julType: 'tupleOf';
@@ -961,7 +961,7 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 }
 
 /**
- * Was aus dem Ergebnis eines Praedikats folgt, je Richtung getrennt - beide Richtungen sind
+ * Was aus dem Ergebnis eines Prädikats folgt, je Richtung getrennt - beide Richtungen sind
  * verschiedene Mengen, keine Umkehrung voneinander (Typed Racket: φ⁺ | φ⁻).
  */
 export interface PredicateFacts {
@@ -1111,7 +1111,7 @@ export function createParameterReference(name: string, index: number): Parameter
 
 /**
  * Ein Typ unter dem Namen, unter dem er an dieser Stelle geschrieben wurde.
- * Haelt eine Symbolreferenz statt eines Typs - nur so ist eine Definition beschreibbar, die sich
+ * Hält eine Symbolreferenz statt eines Typs - nur so ist eine Definition beschreibbar, die sich
  * selbst nennt: das Ziel wird erst beim Zugriff gelesen, wenn das Symbol fertig ist.
  */
 export interface CompileTimeAliasType extends CompileTimeTypeBase {
@@ -1125,8 +1125,8 @@ export function createCompileTimeAliasType(name: string, symbol: SymbolDefinitio
 		julType: 'alias',
 		name: name,
 		symbol: symbol,
-		// Ein Alias ist immer aufloesbar, nur nicht sofort - anders als parameterReference, der auf
-		// einen Aufrufort wartet, der nie kommen muss. Als unaufgeloest gemeldet wuerde er jeden
+		// Ein Alias ist immer auflösbar, nur nicht sofort - anders als parameterReference, der auf
+		// einen Aufrufort wartet, der nie kommen muss. Als unaufgelöst gemeldet würde er jeden
 		// Konsumenten verteuern, ohne dass er je auf etwas wartet.
 		isUnresolvedPlaceholder: false,
 	};

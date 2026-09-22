@@ -524,12 +524,12 @@ s = assume(start Any)
 			errors: [],
 		},
 		{
-			// Der Schnitt aus einem vollstaendig bekannten Typ und einem unvollstaendigen Fakt
-			// (aus der Verengung ueber einen Feldpfad) darf den vollstaendigen Typ nicht ersetzen.
-			// card/face wird auf §up§ verengt, das erzeugt fuer card den Fakt [face: §up§] mit
+			// Der Schnitt aus einem vollständig bekannten Typ und einem unvollständigen Fakt
+			// (aus der Verengung über einen Feldpfad) darf den vollständigen Typ nicht ersetzen.
+			// card/face wird auf §up§ verengt, das erzeugt für card den Fakt [face: §up§] mit
 			// complete: false. Der ist "zuweisbar an" Card (fehlende Felder gelten als unbekannt),
 			// der Teilmengen-Shortcut in createNormalizedIntersectionType gibt ihn deshalb
-			// wholesale zurueck statt die Felder zu vereinigen - dataId geht beim Spread verloren.
+			// wholesale zurück statt die Felder zu vereinigen - dataId geht beim Spread verloren.
 			name: 'branch-narrowing-field-fact-does-not-replace-known-type',
 			code: `Card = [
 	dataId: Text
@@ -549,12 +549,12 @@ card = getCard()
 		},
 		{
 			// Not(X), das durch Branch-Narrowing auf einem Any-Ursprung entsteht, ist genauso
-			// unwissend wie das Any davor - Any ist ueberall sonst permissiv als Quelle
-			// (getTypeError gibt bei julType 'any' sofort undefined zurueck). Hier wird aus dem
-			// Nichtwissen "koennte alles ausser Integer sein" faelschlich eine harte Ablehnung,
-			// weil Not(Integer) einzeln gegen Empty und gegen Integer geprueft wird statt die
+			// unwissend wie das Any davor - Any ist überall sonst permissiv als Quelle
+			// (getTypeError gibt bei julType 'any' sofort undefined zurück). Hier wird aus dem
+			// Nichtwissen "könnte alles außer Integer sein" fälschlich eine harte Ablehnung,
+			// weil Not(Integer) einzeln gegen Empty und gegen Integer geprüft wird statt die
 			// Any-Herkunft weiterzutragen. aggregate (core-lib.jul, Akkumulator: Any) zeigt
-			// denselben Fehler, weil sein Rueckgabetyp ebenfalls durch Any erzeugt wird.
+			// denselben Fehler, weil sein Rückgabetyp ebenfalls durch Any erzeugt wird.
 			name: 'narrowed-not-type-from-any-source-is-not-checked',
 			code: `combined = assume([] Any)
 ?(combined/index)
@@ -566,8 +566,8 @@ card = getCard()
 		},
 		{
 			// Gegenprobe zu narrowed-not-type-from-any-source-is-not-checked: Not(X) darf nur
-			// dann permissiv sein, wenn das Ziel mehr als X zulaesst. Ziel = Integer ist eine
-			// Teilmenge von X = Integer, der Wert waere also garantiert ausgeschlossen.
+			// dann permissiv sein, wenn das Ziel mehr als X zulässt. Ziel = Integer ist eine
+			// Teilmenge von X = Integer, der Wert wäre also garantiert ausgeschlossen.
 			name: 'narrowed-not-type-still-errors-when-target-is-subset-of-excluded',
 			code: `combined = assume([] Any)
 ?(combined/index)
@@ -805,11 +805,11 @@ useType(isLegal)`,
 	sliced.filterMap((value) => value)`,
 		},
 		{
-			// Der Elementtyp bleibt erhalten (slice-keeps-element-type), die Laenge nicht: bei
+			// Der Elementtyp bleibt erhalten (slice-keeps-element-type), die Länge nicht: bei
 			// einem Tuple mit Literalgrenzen steht sie aber fest. [1 2 3] ab 2 bis 3 (1-basiert,
 			// beide inklusive) sind genau zwei Elemente - dieselbe Arity-Erhaltung, die map
-			// schon leistet (map-keeps-tuple-arity). Weil die Laenge damit feststeht und groesser
-			// 0 ist, gehoert auch kein Empty ins Ergebnis.
+			// schon leistet (map-keeps-tuple-arity). Weil die Länge damit feststeht und größer
+			// 0 ist, gehört auch kein Empty ins Ergebnis.
 			name: 'slice-keeps-tuple-arity-for-literal-bounds',
 			code: 'x: [Integer Integer] = [1 2 3].slice(2 3)',
 		},
@@ -856,9 +856,9 @@ useType(isLegal)`,
 			// Fund (Session 2026-09-10, echter yugioh-Fehler activatableGameCardIds): filter
 			// kann die Liste genau wie slice leeren (Laufzeit: `return filtered.length ?
 			// filtered : undefined`) - die Signatur in core-lib.jul deklariert das inzwischen
-			// korrekt als `Or([] TypeOf(values))`. Dieser Test prueft genau das: ein deklarierter
-			// Rueckgabetyp ohne Or([] ...) (List(Integer) statt Or([] List(Integer))) muss am
-			// moeglichen Empty-Ergebnis scheitern.
+			// korrekt als `Or([] TypeOf(values))`. Dieser Test prüft genau das: ein deklarierter
+			// Rückgabetyp ohne Or([] ...) (List(Integer) statt Or([] List(Integer))) muss am
+			// möglichen Empty-Ergebnis scheitern.
 			name: 'filter-return-type-accounts-for-possibly-empty-result',
 			code: `f = (values: List(Integer)) :> List(Integer) =>
 	values.filter((value) => true)`,
@@ -934,8 +934,8 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 			// ?-Branch-Arm überall funktioniert) bekommt beim Checken einen 'tuple'-förmigen
 			// ParamsType (aus bracketedExpressionToValueExpression), filter verlangt für
 			// predicate aber die 'parameters'-förmige Form `(value: X index: Y) :> Boolean`.
-			// getTupleTypeError kennt keinen case 'parameters' und faellt auf den generischen
-			// Fehler zurueck - die Bruecke fehlt komplett. Bisher gibt es dafuer auch keinen
+			// getTupleTypeError kennt keinen case 'parameters' und fällt auf den generischen
+			// Fehler zurück - die Brücke fehlt komplett. Bisher gibt es dafür auch keinen
 			// funktionierenden Beleg in jul-examples oder yugioh.
 			name: 'unnamed-tuple-predicate-is-assignable-to-named-filter-predicate',
 			code: `f = (values: List(Integer)) :> Or([] List(Integer)) =>
@@ -957,16 +957,16 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 	picked.filterMap((value) => value)`,
 		},
 		{
-			// Praefix-Argument (values in values.first()) referenzierte beim Type-Checken den
+			// Präfix-Argument (values in values.first()) referenzierte beim Type-Checken den
 			// eigenen Parameter nur als abstrakte parameterReference (zeigt auf f), nicht als
-			// deren konkreten deklarierten Typ List(Text). Die unaufgeloeste Referenz floss in
-			// firsts generische Rueckgabetyp-Aufloesung (TypeOf(values)/ElementType) und blieb
-			// dort haengen - getTypeErrors laxe nestedReference-Rueckfallregel verschluckte den
+			// deren konkreten deklarierten Typ List(Text). Die unaufgelöste Referenz floss in
+			// firsts generische Rückgabetyp-Auflösung (TypeOf(values)/ElementType) und blieb
+			// dort hängen - getTypeErrors laxe nestedReference-Rückfallregel verschluckte den
 			// Fehler lautlos. Fix: resolvePlaceholders auf prefixArgumentType vor der Verwendung.
 			// Wie core-lib (slice, filter, ...) via nativeFunction deklariert - eine reine
 			// Signatur ohne Rumpf (case 'functionTypeLiteral'), damit der generische
-			// Rueckgabetyp nicht wie bei einer echten Funktion mit Rumpf (case 'functionLiteral')
-			// schon bei der Deklaration ueber resolvePlaceholders fest verdrahtet wird.
+			// Rückgabetyp nicht wie bei einer echten Funktion mit Rumpf (case 'functionLiteral')
+			// schon bei der Deklaration über resolvePlaceholders fest verdrahtet wird.
 			name: 'prefix-argument-resolves-to-declared-type-in-generic-return',
 			code: `first = nativeFunction(
 	(values: List(Any)) :> TypeOf(values)/ElementType
@@ -990,8 +990,8 @@ f = (values: List(Text)) =>
 			// Anderer Fall als oben, nicht dieselbe Ursache: first hat hier einen echten Rumpf
 			// (case 'functionLiteral' statt 'functionTypeLiteral') mit einem Any-Fallback
 			// (assume(1 Any)) statt einer functionTypeLiteral-Deklaration - der deklarierte
-			// Rueckgabetyp TypeOf(values)/ElementType wird dadurch ueber einen anderen Codepfad
-			// aufgeloest als in der Signatur-Variante oben.
+			// Rückgabetyp TypeOf(values)/ElementType wird dadurch über einen anderen Codepfad
+			// aufgelöst als in der Signatur-Variante oben.
 			name: 'generic-return-type-is-frozen-at-declaration-for-function-literal',
 			code: `first = (values: List(Any)) :> TypeOf(values)/ElementType => assume(1 Any)
 g = (n: Integer) => n
@@ -1009,7 +1009,7 @@ f = (values: List(Text)) =>
 			],
 		},
 		{
-			// Urspruenglicher Fund (Vorarbeit zu Schritt 3, Callback-Konsumstelle): derselbe Bug
+			// Ursprünglicher Fund (Vorarbeit zu Schritt 3, Callback-Konsumstelle): derselbe Bug
 			// wie oben, hier am echten core-lib-Fall slice statt am minimalen Repro first.
 			name: 'chained-generic-call-checks-element-type',
 			code: `g = (n: Or(List(Integer) [])) => n
@@ -1178,9 +1178,9 @@ d/a`,
 			// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
 			// ob sein Wert tatsächlich Empty ist - deshalb eine eigene, eindeutige Meldung.
 			// KEINE zusätzliche Elaboration (anders als bei falschen Feldwerten): fehlt ein Feld,
-			// gibt es keinen Feld-Ausdruck, auf den man praeziser zeigen koennte, als es die
+			// gibt es keinen Feld-Ausdruck, auf den man präziser zeigen könnte, als es die
 			// Hauptmeldung schon tut (dieselbe Literal-Klammer) - eine zweite CompilerError mit
-			// identischem Text an fast derselben Position waere reine Verdopplung, besonders
+			// identischem Text an fast derselben Position wäre reine Verdopplung, besonders
 			// sichtbar seit dem Rust-Code-Frame (C2): zwei fast gleiche mehrzeilige Frames statt
 			// einem. Fund: docs/error-message-elaboration.md, Session 2026-09-10.
 			name: 'missing-dictionary-field-has-distinct-message',
@@ -1219,7 +1219,7 @@ x: T = [a = 1 b = []]`,
 			// Wie present-empty-dictionary-field-keeps-assignment-message, aber Ziel ist ein
 			// generisches Dictionary(T) statt eines dictionaryLiteral mit benannten Feldern -
 			// der Abstieg geht hier durch ZWEI Ebenen (Eintrag "bad", darin Feld "a") bis zum
-			// tatsaechlichen Wert §wrong§.
+			// tatsächlichen Wert §wrong§.
 			name: 'generic-dictionary-target-elaborates-per-entry',
 			code: `T = [a: Integer]
 x: Dictionary(T) = [
@@ -1237,9 +1237,9 @@ x: Dictionary(T) = [
 			],
 		},
 		{
-			// Or([] X) ist das Idiom fuer optionale Felder (CLAUDE.md) - Weglassen muss dafuer
+			// Or([] X) ist das Idiom für optionale Felder (CLAUDE.md) - Weglassen muss dafür
 			// erlaubt bleiben, wie vor der "Missing field"-Verbesserung. Nur ein Feld, dessen
-			// Typ Empty nicht zulaesst, darf beim Fehlen gemeldet werden.
+			// Typ Empty nicht zulässt, darf beim Fehlen gemeldet werden.
 			name: 'optional-field-with-or-empty-type-may-be-omitted',
 			code: `T = [a: Integer b: Or([] Text)]
 x: T = [a = 1]`,
@@ -1502,7 +1502,7 @@ y: List(Or(Integer Text)) = f([1] [§a§])`,
 			// deklarierten Parametertyp (List(Any)), statt wie am Aufrufort mit
 			// dereferenceArgumentTypesNested die konkreten Argumenttypen einzusetzen - die
 			// Tuple-Arität geht verloren, obwohl Concat sie mit Annotation exakt berechnet
-			// (siehe concat-in-user-function). Red test fuer
+			// (siehe concat-in-user-function). Red test für
 			// docs/generic-types-through-function-body.md.
 			name: 'concat-in-user-function-without-annotation',
 			code: `myConcat = (a: List(Any) b: List(Any)) => [...a ...b]
@@ -1702,8 +1702,8 @@ f(...values)`,
 		{
 			// War CHECKER-AUDIT.md #6: eine reine Spread-Argumentliste (kein Feld/Element daneben)
 			// parst zu 'object' statt zu 'list' (ParseUnknownObjectLiteral - Liste oder
-			// Dictionary, je nach Typ der Quelle), und case 'object' loeste das nie auf, sondern
-			// gab immer Any zurueck. Fix: Auflösung wie in case 'list' über getSpreadElementTypes.
+			// Dictionary, je nach Typ der Quelle), und case 'object' löste das nie auf, sondern
+			// gab immer Any zurück. Fix: Auflösung wie in case 'list' über getSpreadElementTypes.
 			name: 'spread-argument-is-not-type-checked',
 			code: `values = [§x§]
 f = (a: Integer) => a
@@ -2176,7 +2176,7 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 		]);
 	});
 	// Dieselbe Komposition, die lastElement in core-lib benutzt, in Nutzercode nachgebaut: der
-	// Rueckgabetyp wird in der eigenen Deklaration aus ElementAt und length zusammengesetzt. Weil
+	// Rückgabetyp wird in der eigenen Deklaration aus ElementAt und length zusammengesetzt. Weil
 	// kein Namens-Sonderfall mehr existiert, muss die Deklaration allein tragen - auch durch einen
 	// Alias hindurch, der jeden Namensbezug kappt.
 	it('element-at-plus-length-composed-in-declaration-survives-alias', () => {
@@ -2189,10 +2189,10 @@ f = (values: List(Integer)) :> Integer =>
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
-	// length deklariert seinen Rueckgabetyp ueber LengthOf(TypeOf(values)) und hat keinen
+	// length deklariert seinen Rückgabetyp über LengthOf(TypeOf(values)) und hat keinen
 	// Namens-Sonderfall im Checker. Nur deshalb entsteht der lengthOf-Knoten auch hinter einem
-	// Alias, und nur mit ihm erkennt ElementAt, dass der Index genau die Laenge dieser Quelle ist -
-	// sonst bliebe faelschlich ein Empty im Ergebnis.
+	// Alias, und nur mit ihm erkennt ElementAt, dass der Index genau die Länge dieser Quelle ist -
+	// sonst bliebe fälschlich ein Empty im Ergebnis.
 	it('length-via-alias-keeps-length-identity', () => {
 		const code = `len = length
 f = (values: List(Integer)) :> Integer =>
@@ -2230,7 +2230,7 @@ x: [1 5] = se([1 §a§] 2 5)`;
 	// Aufrufkontext) ein ungefaltetes WithElementAt(...) - Source und Index sind ja gerade erst
 	// die eigenen Parameter (siehe withElementAtFromTypes: Platzhalter bleibt stehen, bis
 	// Source/Index feststehen). Solange dieser Wert die Funktion nur verlässt und direkt
-	// zurückgegeben wird, faellt das nicht auf. Erst wenn er an einer WEITEREN Stelle erneut als
+	// zurückgegeben wird, fällt das nicht auf. Erst wenn er an einer WEITEREN Stelle erneut als
 	// Argument geprüft wird (hier useRow, in yugioh: reduceLifePoints), schlägt getTypeError zu:
 	// es behandelt ein unaufgelöstes WithElementAt als Argument nicht permissiv - nur als Zieltyp
 	// (getTypeError, case 'withElementAt' im zweiten switch)
@@ -2249,7 +2249,7 @@ f = (row: List(Integer) index: PositiveInteger value: Integer) :> List(Integer) 
 	// Funktionsdefinition ist chain noch der eigene, offene Parameter (parameterReference) -
 	// [...chain value] bleibt deshalb als Concat(...) stehen (concatFromTypes:
 	// isUnresolvedPlaceholderType-Guard). Solange dieser Wert die Funktion nur verlässt und
-	// direkt zurückgegeben wird, faellt das nicht auf. Erst wenn er an einer WEITEREN Stelle
+	// direkt zurückgegeben wird, fällt das nicht auf. Erst wenn er an einer WEITEREN Stelle
 	// erneut als Argument geprüft wird (hier useChain, in yugioh: getController), schlägt
 	// getTypeError zu: es behandelt ein unaufgelöstes Concat als Argument nicht permissiv - nur
 	// als Zieltyp (siehe yugioh: game-logic.jul, addChainLink: chain = [...oldChain chainLink],
@@ -2472,7 +2472,7 @@ f = (cards: List(Integer)) =>
 			'Deklarierter Rückgabetyp Integer sollte gelten, tatsächlich: ' + returnType?.julType);
 	});
 	// Ein Spread innerhalb eines List-Literals muss den tatsächlichen Elementtyp der gespreadeten
-	// Quelle uebernehmen (nicht zu Any verbreitern) - sonst ein falscher returnTypeMismatch wie in
+	// Quelle übernehmen (nicht zu Any verbreitern) - sonst ein falscher returnTypeMismatch wie in
 	// yugioh/game-logic.jul (updatePendingTriggers, activatableGameCardIds).
 	it('list-literal-spread-collapses-to-list', () => {
 		// List-Spreads sollten sich zu einer List zusammensetzen (unbekannte Länge bleibt unbekannt)
@@ -2488,9 +2488,9 @@ f = (cards: List(Integer)) =>
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
 		const rawReturnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
-		// Ohne Annotation bleibt der Rueckgabetyp ein aufschiebbarer Concat-Knoten (fuer die
-		// praezise Aufloesung am Aufrufort) - resolvePlaceholders liefert die deklarationsseitige,
-		// verbreiterte Anzeige, wie beim Hover ueber die Funktion selbst.
+		// Ohne Annotation bleibt der Rückgabetyp ein aufschiebbarer Concat-Knoten (für die
+		// präzise Auflösung am Aufrufort) - resolvePlaceholders liefert die deklarationsseitige,
+		// verbreiterte Anzeige, wie beim Hover über die Funktion selbst.
 		const returnType = rawReturnType && resolvePlaceholders(rawReturnType);
 
 		// Erwartet: List(Union(Integer, Text))
@@ -2502,10 +2502,10 @@ f = (cards: List(Integer)) =>
 		}
 	});
 
-	// Fund in yugioh (game-logic.jul, allGameCardIds): Or([] List(X)) ist das Idiom fuer eine
-	// moeglicherweise leere Liste (CLAUDE.md) - ihr julType ist 'or', nicht 'list'. Umgesetzt in
+	// Fund in yugioh (game-logic.jul, allGameCardIds): Or([] List(X)) ist das Idiom für eine
+	// möglicherweise leere Liste (CLAUDE.md) - ihr julType ist 'or', nicht 'list'. Umgesetzt in
 	// getSpreadElementTypes (checker.ts): schaut durch die Or-Choices hindurch und erkennt an
-	// unterschiedlichen Choice-Laengen, dass die Gesamtlaenge unbestimmt ist.
+	// unterschiedlichen Choice-Längen, dass die Gesamtlänge unbestimmt ist.
 	it('possibly-empty-list-spread-collapses-to-list', () => {
 		const code = `f = (hand: Or([] List(Integer)) spellTraps: [Integer Integer] field: Integer) =>
 	[
@@ -2530,10 +2530,10 @@ f = (cards: List(Integer)) =>
 		}
 	});
 
-	// a.filterMap(...) und [...a].filterMap(...) muessen denselben Elementtyp liefern - a wird nur
-	// zwischenzeitlich in ein neues List-Literal gespreadet, nicht veraendert. Der Spread-Zweig
-	// (checker.ts, case 'list') bestimmt den ElementType fuer das neue Literal ueber a's Typ, und a
-	// ist als Parameter der noch nicht aufgerufenen Funktion ein unaufgeloester Platzhalter - der
+	// a.filterMap(...) und [...a].filterMap(...) müssen denselben Elementtyp liefern - a wird nur
+	// zwischenzeitlich in ein neues List-Literal gespreadet, nicht verändert. Der Spread-Zweig
+	// (checker.ts, case 'list') bestimmt den ElementType für das neue Literal über a's Typ, und a
+	// ist als Parameter der noch nicht aufgerufenen Funktion ein unaufgelöster Platzhalter - der
 	// darf dabei nicht auf Any verbreitert werden.
 	it('spread-of-generic-list-parameter-keeps-element-type', () => {
 		const code = `myFn = (a: List(Or([] Integer))) =>
@@ -2559,10 +2559,10 @@ f = (cards: List(Integer)) =>
 			'Or(Empty List(Integer))');
 	});
 
-	// Der Parser kuerzt Bruchliterale nicht (TODO in parser.ts), deshalb bekommen zwei
+	// Der Parser kürzt Bruchliterale nicht (TODO in parser.ts), deshalb bekommen zwei
 	// Schreibweisen derselben Zahl verschiedene Typen. Das verletzt 'gleiche Werte, gleiche
-	// Typen' schon ohne constant folding und wuerde mit der Faltung in den Checker
-	// durchschlagen. Erwartet wird der gekuerzte Bruch, bei Nenner 1 ein Integer-Literal.
+	// Typen' schon ohne constant folding und würde mit der Faltung in den Checker
+	// durchschlagen. Erwartet wird der gekürzte Bruch, bei Nenner 1 ein Integer-Literal.
 	it('fraction-literals-are-reduced', () => {
 		const code = `a = 0.5
 b = 0.50
@@ -2579,10 +2579,10 @@ c = 1.0`;
 		expect(typeOf(2)).to.equal('1');
 	});
 
-	// Grosser Zieltyp (Dictionary mit vielen Feldern) in der Fehlermeldung wird gekuerzt
+	// Grosser Zieltyp (Dictionary mit vielen Feldern) in der Fehlermeldung wird gekürzt
 	// (checker.ts maxFieldsInTypeDump) statt alle Felder aufzulisten. Wert ist ein Integer
 	// statt eines dictionaryLiteral, damit keine Feld-Elaboration greift und der Zieltyp
-	// direkt (ungekuerzt waere er 20 Zeilen lang) in den Header gerendert wird.
+	// direkt (ungekürzt wäre er 20 Zeilen lang) in den Header gerendert wird.
 	it('large-dictionary-type-in-error-message-is-truncated', () => {
 		const fieldNames = Array(20).fill(null).map((_, i) => `field${i}`);
 		const fieldDeclarations = fieldNames.map(name => `${name}: Integer`).join(' ');
@@ -2601,8 +2601,8 @@ c = 1.0`;
 	// steht bereits an der Zieltyp-Deklaration selbst. TypeScript/Rust/Elm/GHC schreiben ihn dort
 	// deshalb nicht noch einmal aus, TypeScript sammelt mehrere fehlende Felder zusätzlich in
 	// einer Zeile. Siehe docs/missing-field-message-format.md. Keine separate Elaboration-Zeile
-	// je fehlendem Feld (Fund Session 2026-09-10): ohne Feld-Ausdruck gibt es keine praezisere
-	// Position als die Hauptmeldung schon zeigt - eine zweite CompilerError waere nur Verdopplung.
+	// je fehlendem Feld (Fund Session 2026-09-10): ohne Feld-Ausdruck gibt es keine präzisere
+	// Position als die Hauptmeldung schon zeigt - eine zweite CompilerError wäre nur Verdopplung.
 	it('missing-fields-are-collected-in-one-line', () => {
 		const code = `T = [a: Integer b: Text c: Boolean]
 x: T = [a = 1]`;
@@ -2614,24 +2614,24 @@ x: T = [a = 1]`;
 		]);
 	});
 	// Fund in jul-examples/yugioh/game-logic.jul (Session 2026-09-10): bei verschachtelten
-	// Dictionary-Literalen erzeugte das fruehere Zwei-Diagnosen-Modell (volle Kette an der
-	// AEUSSEREN Position + Elaboration mit dem inneren Teil der Kette an der PRAEZISEN Position)
+	// Dictionary-Literalen erzeugte das frühere Zwei-Diagnosen-Modell (volle Kette an der
+	// AEUSSEREN Position + Elaboration mit dem inneren Teil der Kette an der PRÄZISEN Position)
 	// denselben Text zweimal - bei mehreren Verschachtelungsebenen mit dem Rust-Code-Frame (C2)
-	// zwei fast komplette, sich ueberlappende Frames. TypeScript/Rust/Elm loesen das strukturell
+	// zwei fast komplette, sich überlappende Frames. TypeScript/Rust/Elm lösen das strukturell
 	// anders (siehe docs/error-message-elaboration.md): EINE Diagnose, deren Position beim
-	// rekursiven Abstieg durch die Literale auf die innerste noch vorhandene, tatsaechlich
+	// rekursiven Abstieg durch die Literale auf die innerste noch vorhandene, tatsächlich
 	// falsche Stelle wandert (hier: der Wert §wrong§ im inneren Literal) - die Kette bleibt
-	// vollstaendig, aber nur einmal (findInnermostErrorPosition in checker.ts).
+	// vollständig, aber nur einmal (findInnermostErrorPosition in checker.ts).
 	//
-	// Ausserdem (echtes yugioh-Fehlerbild): die Typ-Kette liest sich aussen nach innen ("Can not
+	// Außerdem (echtes yugioh-Fehlerbild): die Typ-Kette liest sich aussen nach innen ("Can not
 	// assign X to Outer." vor "... to Inner." vor "... to Integer."), aber die "Invalid value for
-	// field"-Zeilen haengen alle ans Ende, in umgekehrter Verschachtelungs-Reihenfolge (innerstes
+	// field"-Zeilen hängen alle ans Ende, in umgekehrter Verschachtelungs-Reihenfolge (innerstes
 	// Feld zuerst) - man muss sie im Kopf wieder der richtigen Ebene der Typ-Kette zuordnen statt
-	// sie direkt an der Stelle zu lesen, wo sie hingehoeren. TypeScript interleaved das (Feldname
-	// direkt vor dem Fehler, den er erklaert) UND rueckt jede Zeile eine Ebene tiefer ein, je
-	// weiter man in die Verschachtelung absteigt - ohne Einrueckung bleibt bei 3+ Ebenen (wie im
+	// sie direkt an der Stelle zu lesen, wo sie hingehören. TypeScript interleaved das (Feldname
+	// direkt vor dem Fehler, den er erklärt) UND rückt jede Zeile eine Ebene tiefer ein, je
+	// weiter man in die Verschachtelung absteigt - ohne Einrückung bleibt bei 3+ Ebenen (wie im
 	// echten Fund: GameState -> boards -> GameBoard -> activatableGameCardIds) unklar, welche
-	// Zeile zu welcher Tiefe gehoert. Umgesetzt in getDictionaryFieldError/indentLines.
+	// Zeile zu welcher Tiefe gehört. Umgesetzt in getDictionaryFieldError/indentLines.
 	it('field-name-precedes-the-type-mismatch-it-explains', () => {
 		const code = `Inner = [a: Integer]
 Outer = [inner: Inner]
@@ -2651,12 +2651,12 @@ x: Outer = [inner = [a = §wrong§]]`;
 		]);
 	});
 
-	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): typeToString hat fuer mehrzeilige
-	// Typen (Tupel/Dictionary) eine EIGENE Einrueckung (`bracketedExpressionToString`, Tabs, own
-	// depth-Zaehler ab 0), die nichts von der Kettentiefe weiss, in die sie via indentLines
-	// eingebettet wird - Tabs und Leerzeichen mischen sich, die Verschachtelung sieht zufaellig
+	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): typeToString hat für mehrzeilige
+	// Typen (Tupel/Dictionary) eine EIGENE Einrückung (`bracketedExpressionToString`, Tabs, own
+	// depth-Zähler ab 0), die nichts von der Kettentiefe weiss, in die sie via indentLines
+	// eingebettet wird - Tabs und Leerzeichen mischen sich, die Verschachtelung sieht zufällig
 	// aus statt konsistent. Ziel: typeToString nutzt dieselbe Leerzeichen-Einheit wie indentLines
-	// (2 Leerzeichen), dann fuegt sich die eigene Einrueckung sauber in jede Einbettungstiefe.
+	// (2 Leerzeichen), dann fügt sich die eigene Einrückung sauber in jede Einbettungstiefe.
 	// Umgesetzt in bracketedExpressionToString (indentUnit).
 	it('multiline-type-dump-uses-the-same-indent-unit-as-the-surrounding-chain', () => {
 		const code = `Inner = [a: [Integer Integer Integer Integer Integer Integer]]
@@ -2759,9 +2759,9 @@ f = (cards: List(Integer)) =>
 
 	it('assigned-value-alias-name-should-not-appear-as-type-name', () => {
 		// Realer yugioh-Fehler: "Can not assign newGameState to GameState." - newGameState
-		// ist der Name der Definition, die den Wert haelt, kein Typname. aliasName wird fuer
-		// jede Dictionary-Definition gesetzt (auch fuer normale Werte), aber beim Ausdrucken
-		// der argumentsType-Seite (der tatsaechliche Wert) darf er nicht verwendet werden -
+		// ist der Name der Definition, die den Wert hält, kein Typname. aliasName wird für
+		// jede Dictionary-Definition gesetzt (auch für normale Werte), aber beim Ausdrucken
+		// der argumentsType-Seite (der tatsächliche Wert) darf er nicht verwendet werden -
 		// nur die targetType-Seite (der erwartete Typ) darf ihren Alias zeigen.
 		const code = `GameState = [board: Integer]
 newGameState: GameState = [
@@ -2777,7 +2777,7 @@ newGameState: GameState = [
 
 	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): Ziel Or(Empty List(Integer)),
 	// Wert List(Text) - der List-gegen-List-Zweig in getTypeError gibt den Element-Fehler
-	// unveraendert durch, ohne ihn als "Can not assign List(X) to List(Y)." zu umhuellen (anders
+	// unverändert durch, ohne ihn als "Can not assign List(X) to List(Y)." zu umhüllen (anders
 	// als der dictionaryLiteral-Fall). Im Or-Ziel stehen dadurch zwei Fehler ohne erkennbaren
 	// Zusammenhang nebeneinander: "Can not assign List(Text) to Empty." (Choice Empty) und roh
 	// "Can not assign Text to Integer." (Choice List(Integer), ohne "das war in einer Liste").
@@ -2793,12 +2793,12 @@ newGameState: GameState = [
 	});
 
 	// Fund im echten yugioh-Fehlerbild (Session 2026-09-10): Ziel Or(Empty List(Integer))
-	// (Idiom "moeglicherweise leere Liste"), Wert List(Or(Integer Empty)) (Idiom "Liste mit
-	// moeglicherweise fehlenden Eintraegen") - strukturell verschieden, aber leicht zu verwechseln.
-	// Bisher wurden ALLE Or-Choices einzeln gegen den Wert geprueft und ALLE Fehler gezeigt,
+	// (Idiom "möglicherweise leere Liste"), Wert List(Or(Integer Empty)) (Idiom "Liste mit
+	// möglicherweise fehlenden Einträgen") - strukturell verschieden, aber leicht zu verwechseln.
+	// Bisher wurden ALLE Or-Choices einzeln gegen den Wert geprüft und ALLE Fehler gezeigt,
 	// auch der triviale/uninteressante ("List ist kein Empty") - der eigentlich relevante Choice
 	// (List(Integer)) ging darin unter, und der volle Or-Zieltyp war nirgends sichtbar (TS/Flow-
-	// Vorbild: Ziel-Union vollstaendig im Kopf zeigen, dann nur den strukturell naechsten Choice
+	// Vorbild: Ziel-Union vollständig im Kopf zeigen, dann nur den strukturell nächsten Choice
 	// vertiefen statt alle Choices einzeln durchzukauen).
 	it('or-target-shows-full-union-and-elaborates-only-the-closest-choice', () => {
 		const code = `f = (y: List(Or(Integer Empty))) =>
@@ -3088,8 +3088,8 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked!.errors).to.deep.equal([]);
 	});
-	// Haelt den Befund fest, der zu den Purity-Pfeilen gefuehrt hat (docs/pure-functions.md,
-	// "Stand"): frueher trug jede core-lib-Funktion pure: true, weil functionTypeLiteral das
+	// Hält den Befund fest, der zu den Purity-Pfeilen geführt hat (docs/pure-functions.md,
+	// "Stand"): früher trug jede core-lib-Funktion pure: true, weil functionTypeLiteral das
 	// hart setzte - auch log und currentDate, die offensichtlich nicht pure sind. Seit der
 	// Migration kommt die Purity aus dem geschriebenen Pfeil.
 	function purityOf(name: string): TypePurity | undefined {
@@ -3563,8 +3563,8 @@ describe('constant folding', () => {
 	//#region 5d Nutzerfunktionen
 
 	it('Nutzerfunktion mit konstantem Argument faltet', () => {
-		// Eroeffnungsfall, zugleich Gegenprobe zur Faltbarkeitsregel: multiply ist eine
-		// nativeFunction, und double ist trotzdem faltbar - die Regel haengt am emittierten
+		// Eröffnungsfall, zugleich Gegenprobe zur Faltbarkeitsregel: multiply ist eine
+		// nativeFunction, und double ist trotzdem faltbar - die Regel hängt am emittierten
 		// Slice, nicht am Aufrufgraphen.
 		expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
 r = double(21)`)).to.equal('42');
@@ -3596,17 +3596,17 @@ r = fibonacciHelper(10 1 0)`)).to.equal('55');
 	});
 
 	it('Nutzerfunktion ohne konstantes Argument faltet nicht', () => {
-		// Ungefalteter Rueckgabetyp ist Rational, nicht Integer: multiply ist in core-lib.jul
+		// Ungefalteter Rückgabetyp ist Rational, nicht Integer: multiply ist in core-lib.jul
 		// generisch als (...args: List(Rational)) -> Rational deklariert, ohne dependent
-		// Rueckgabetyp fuer Integer-Operanden - das gilt unabhaengig von dieser Faltungsstufe.
+		// Rückgabetyp für Integer-Operanden - das gilt unabhängig von dieser Faltungsstufe.
 		expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
 r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Rational');
 	});
 
 	it('eine per nativeFunction definierte Funktion wird nicht gefaltet', () => {
-		// myFn behauptet -> (ungeprueft, per nativeFunction definiert), f ist damit rein und
-		// enthaelt selbst kein nativeFunction-Literal. Die Faltung wird also versucht und muss am
-		// Umgebungsaufbau scheitern: myFn traegt weder literal noch einen Runtime-Export-Namen.
+		// myFn behauptet -> (ungeprüft, per nativeFunction definiert), f ist damit rein und
+		// enthält selbst kein nativeFunction-Literal. Die Faltung wird also versucht und muss am
+		// Umgebungsaufbau scheitern: myFn trägt weder literal noch einen Runtime-Export-Namen.
 		expect(typeOfLastDefinition(`myFn = nativeFunction(
 	(a: Integer) -> Integer
 	§js
@@ -3619,8 +3619,8 @@ r = f(21)`)).to.equal('Integer');
 
 	it('nicht terminierende Rekursion faltet nicht und meldet nichts', () => {
 		// Budget. Das Listen-Argument ist wesentlich: mit Dictionary-Argument liefe der Aufruf
-		// ueber _callFunction, und der Test waere auch mit einem Budget an der falschen Stelle
-		// gruen. Der erwartete Typ ist der ungefaltete Rueckgabetyp - aus dem roten Lauf
+		// über _callFunction, und der Test wäre auch mit einem Budget an der falschen Stelle
+		// grün. Der erwartete Typ ist der ungefaltete Rückgabetyp - aus dem roten Lauf
 		// ablesen.
 		expect(typeOfLastDefinition(`spin = (n: Integer) => spin(add(n 1))
 r = spin(0)`)).to.equal('Any');
@@ -3670,7 +3670,7 @@ r = map([1 2] tag)`)).to.equal('[Date Date]');
 	});
 
 	it('toDictionary mit zwei Nutzer-Callbacks faltet', () => {
-		// Beide Callbacks muessen materialisiert werden, nicht nur der erste.
+		// Beide Callbacks müssen materialisiert werden, nicht nur der erste.
 		expect(typeOfLastDefinition(`getKey = (value: Integer index: PositiveInteger) =>
 	?(index)
 		[1] => §first§

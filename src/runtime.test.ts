@@ -171,10 +171,10 @@ describe('subtract', () => {
 	});
 });
 
-// Brueche werden beim Rechnen nicht gekuerzt (TODO in add/subtract/multiply), deshalb haengt
+// Brüche werden beim Rechnen nicht gekürzt (TODO in add/subtract/multiply), deshalb hängt
 // der Bruch vom Rechenweg ab statt vom Wert: 0.25+0.25 und 0.5 sind mathematisch gleich, aber
 // strukturell verschieden - deepEqual sagt false. Sobald das Ergebnis als Literaltyp in den
-// Checker zurueckfliesst (constant folding), bricht das die Annahme 'gleiche Werte, gleiche
+// Checker zurückfließt (constant folding), bricht das die Annahme 'gleiche Werte, gleiche
 // Typen'. Ein Bruch mit Nenner 1 wird zum Integer normalisiert, vgl. Rational = Or(Integer Fraction).
 describe('Bruch kuerzen', () => {
 	const half = { numerator: 1n, denominator: 2n };
