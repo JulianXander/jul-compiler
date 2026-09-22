@@ -469,7 +469,7 @@ const logoLines = [
 	'        ████    ████',
 	'████▄  ▄████▄  ▄████▄',
 	'▝███████████████████████████',
-	'  xx▀▀▀▀x  x▀▀▀▀x  x▀▀▀▀▀▀▀▀',
+	'  ▔x▀▀▀▀x  x▀▀▀▀x  x▀▀▀▀▀▀▀▀',
 ];
 const logoWidth = Math.max(...logoLines.map(line => line.length));
 
