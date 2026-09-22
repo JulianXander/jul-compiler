@@ -28,13 +28,13 @@ const flags = args.filter(arg => arg.startsWith('--'));
 // auszuloesen.
 const unknownFlags = flags.filter(flag => !knownFlags.has(flag));
 if (unknownFlags.length) {
-	throw new Error(`Unbekannte Option(en): ${unknownFlags.join(', ')}. Bekannte Optionen: ${[...knownFlags].join(', ')}`);
+	throw new Error(`Unknown option(s): ${unknownFlags.join(', ')}. Known options: ${[...knownFlags].join(', ')}`);
 }
 // Nur parsen und checken, kein Emit/Bundle - siehe checkOnly in compiler.ts.
 const checkOnly = flags.includes('--check');
 const positionalArgs = args.filter(arg => !arg.startsWith('--'));
 if (positionalArgs.length > 1) {
-	throw new Error(`Zu viele Argumente: ${positionalArgs.join(', ')}. Erwartet wird höchstens der Pfad zur jul-config.yaml.`);
+	throw new Error(`Too many arguments: ${positionalArgs.join(', ')}. Expected at most the path to jul-config.yaml.`);
 }
 const configFilePath = positionalArgs[0] ?? 'jul-config.yaml';
 const configYaml = readTextFile(configFilePath);
