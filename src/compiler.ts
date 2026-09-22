@@ -256,6 +256,8 @@ function compileFile(
 	return { outFilePath: outFilePath };
 }
 
+//#region rendering
+
 // https://askubuntu.com/questions/558280/changing-colour-of-text-and-background-of-terminal
 export enum ConsoleColor {
 	// red = 31,
@@ -622,3 +624,5 @@ export class LiveRenderer {
 		this.frameHeight = lines.length;
 	}
 }
+
+//#endregion rendering
