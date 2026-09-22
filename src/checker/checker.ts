@@ -6006,6 +6006,56 @@ function getTypeErrorForParameters(
 			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, undefined, targetType);
 		case 'tuple':
 			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
+		case 'list': {
+			// Eine Liste als Argumentliste hat unbekannte Länge (entsteht durch einen Spread, dessen
+			// Quelle erst zur Laufzeit feststeht). Welche Position welchen Parameter trifft, steht
+			// damit nicht fest: jeder Einzelparameter muss den Elementtyp annehmen können. Belegt
+			// ist nur die erste Position - List(X) schließt das Leere aus -, jede weitere kann
+			// fehlen und muss deshalb zusätzlich Empty vertragen.
+			const elementType = argumentsType.ElementType;
+			const optionalElementType = createNormalizedUnionType([builtinEmpty, elementType]);
+			const singleNames = targetType.singleNames;
+			// Ein Prefix-Argument belegt die erste Parameterposition selbst; die Liste beginnt erst
+			// dahinter, die garantierte Position rückt also mit.
+			const guaranteedIndex = prefixArgumentType ? 1 : 0;
+			for (let index = 0; index < singleNames.length; index++) {
+				const parameter = singleNames[index]!;
+				const parameterType = parameter.type;
+				if (!parameterType) {
+					continue;
+				}
+				const argumentType = prefixArgumentType && !index
+					? prefixArgumentType
+					: index === guaranteedIndex
+						? elementType
+						: optionalElementType;
+				const error = getParameterError(parameter.name, parameterType, argumentType);
+				if (error) {
+					// TODO collect inner errors
+					return error;
+				}
+			}
+			const rest = targetType.rest;
+			const restType = rest?.type;
+			if (restType) {
+				// Übrig bleibt wieder eine Liste desselben Elementtyps - aber womöglich keine mehr,
+				// sobald Einzelparameter Positionen verbraucht haben. Ein Prefix-Argument, das kein
+				// Einzelparameter aufgenommen hat, landet ebenfalls im Rest und geht in den
+				// Elementtyp ein.
+				const restElementType = prefixArgumentType && !singleNames.length
+					? createNormalizedUnionType([prefixArgumentType, elementType])
+					: elementType;
+				const remainingType = singleNames.length
+					? createNormalizedUnionType([builtinEmpty, createCompileTimeListType(restElementType)])
+					: createCompileTimeListType(restElementType);
+				const error = getParameterError(rest!.name, restType, remainingType);
+				if (error) {
+					// TODO collect inner errors
+					return error;
+				}
+			}
+			return undefined;
+		}
 		case 'parameters': {
 			// Parameter gegen Parameter tritt nur beim Vergleich zweier Funktionstypen auf, und
 			// der ruft kontravariant auf: targetType ist die übergebene Funktion, argumentsType

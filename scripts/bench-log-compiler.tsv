@@ -96,3 +96,4 @@
 2026-09-21 09:35:25	2836862+	-	ADV-DEV-56627	yugioh	parse+check	5	3613.71	3824.62	3824.62	nach constant folding fuer Nutzerfunktionen (Schritte 1-4 + Purity-Fix)
 2026-09-22 10:13:01	546656d+	-	ADV-DEV-56627	yugioh	parse+check	5	3824.12	3993.98	3993.98	vor purity-bedingte-reinheit
 2026-09-22 10:29:51	546656d+	-	ADV-DEV-56627	yugioh	parse+check	5	4775.74	4935.71	4935.71	nach purity-bedingte-reinheit
+2026-09-22 17:39:19	d4ec271+	-	ADV-DEV-56627	yugioh	parse+check	5	3610.47	4007.35	4007.35	nach spread-liste gegen parameter (case list in getTypeErrorForParameters)
