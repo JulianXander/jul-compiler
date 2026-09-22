@@ -61,7 +61,16 @@ if (positionalArgs.length > 1) {
 	throw new Error(`Too many arguments: ${positionalArgs.join(', ')}. Expected at most the path to jul-config.yaml.`);
 }
 const configFilePath = positionalArgs[0] ?? 'jul-config.yaml';
-const configYaml = readTextFile(configFilePath);
+let configYaml: string;
+try {
+	configYaml = readTextFile(configFilePath);
+}
+catch (error) {
+	if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+		throw new Error(`Config file not found: ${configFilePath}. Provide the path to a jul-config.yaml as argument, or run in a directory that contains one.`);
+	}
+	throw error;
+}
 const config = load(configYaml) as JulCompilerConfiguration;
 const ajv = new Ajv();
 const validateConfig = ajv.compile(configSchema);
