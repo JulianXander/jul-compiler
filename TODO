@@ -147,6 +147,24 @@
 			() => Fraction
 	-typfunktionen gibt es schon, vgl Without in der core-lib. nur die fallunterscheidung fehlt
 	?zweige liefern typen oder typwerte? F(Integer) liefert heute TypeOf(Integer)
+	-nachgemessen: das Never-Idiom trägt heute schon weiter als "unlesbar" vermuten lässt.
+	 (a: Rational b: Rational) -> Or(And(Integer And(TypeOf(a) TypeOf(b))) And(Fraction Or(TypeOf(a) TypeOf(b))))
+	 liefert für Integer/Integer exakt Integer, für Fraction/Integer exakt Fraction, für
+	 Rational/Rational Or(Integer Fraction). Zuweisbarkeit stimmt in beide Richtungen.
+	 Was dagegen heute wirklich fehlt, sind drei Dinge:
+		-die And müssen paarweise geschachtelt geschrieben werden; dreistellig bleibt
+		 And(Integer Integer Integer) stehen (siehe nächster Punkt)
+		-die Abstraktion trägt nicht: SumType = (A: Type B: Type) => Or(And(Integer And(A B)) ...)
+		 und dann -> SumType(TypeOf(a) TypeOf(b)) verliert die Reduktion und liefert für
+		 Fraction/Integer nur noch Or(Integer Fraction). Grund: der Checker normalisiert nur im
+		 Namens-Sonderfall case 'And' (createNormalizedIntersectionType); steht das And im Rumpf
+		 einer Nutzer-Typfunktion, faltet der Aufruf über die Runtime-And, die nur einen Knoten
+		 baut und nichts reduziert. Ohne tragende Abstraktion muss die Formel an jeder Signatur
+		 ausgeschrieben werden - das ist der eigentliche Lesbarkeitsschaden, nicht die Formel selbst
+		-variadisch geht es gar nicht: TypeOf(args) ist der Tupeltyp, And(Integer [Integer Integer])
+		 wird Never. Damit sind add, maxInteger nicht erreichbar, subtract dagegen schon.
+		 Braucht den Elementtyp eines Tuples, also mapped types (siehe unten)
+	-Nebenbefund: Never-Zweige lecken in Fehlermeldungen ("Can not assign Never to Text")
 	-heute schon ausdrückbar, aber unlesbar, weil Never aus der Or herausfällt:
 	 Or(And(And(TypeOf(a) Integer) And(TypeOf(b) Integer)) And(Or(TypeOf(a) TypeOf(b)) Fraction))
 	-map arity löst das nicht, dafür bräuchte es mapped types
