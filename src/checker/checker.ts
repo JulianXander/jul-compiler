@@ -55,6 +55,7 @@ import {
 	ParseReference,
 	PredicateFacts,
 	Purity,
+	TypePurity,
 	SimpleExpression,
 	SymbolDefinition,
 	SymbolTable,
@@ -2582,6 +2583,25 @@ function inferType(
 				: prefixArgumentType;
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, returnPrefixArgumentType, argsType, returnType);
+			// :> an der äußersten Signatur eines nativeFunction-Aufrufs ist eine bedingte
+			// Zusicherung (Purity folgt den übergebenen Funktionsargumenten), keine unbestimmte -
+			// verschachtelte :> an Callback-Parametern derselben Signatur bleiben unknown. Der
+			// Ergebnistyp ist dasselbe Objekt wie der Typ des Argumentknotens (dereferenceArgumentTypesNested
+			// substituiert den parameterReference von nativeFunction ohne zu klonen); interne
+			// parameterReference-Knoten in ParamsType/ReturnType zeigen per functionRef auf genau
+			// dieses Objekt, deshalb hier gezielt mutiert statt kopiert - eine Kopie würde diese
+			// Identität brechen und generische Rückgabetypen nicht mehr auflösbar machen.
+			const outermostFunctionTypeArg = argValues[0];
+			const isConditionallyPureSignature = functionExpression.type === 'reference'
+				&& functionExpression.name.name === 'nativeFunction'
+				&& outermostFunctionTypeArg?.type === 'functionTypeLiteral'
+				&& outermostFunctionTypeArg.arrow === 'unknown';
+			if (isConditionallyPureSignature) {
+				const resolvedReturnType = resolveAlias(dereferencedReturnType);
+				if (isFunctionType(resolvedReturnType)) {
+					resolvedReturnType.purity = 'pureIfArgsPure';
+				}
+			}
 			const foldedType = tryFoldCall(
 				functionExpression, functionType, prefixArgumentType, argsType, assignArgsError);
 			return { type: foldedType ?? dereferencedReturnType };
@@ -2651,15 +2671,24 @@ function inferType(
 			// unrein ausweisen - fuer sie bleibt es bei der Auskunft aus dem geschriebenen Pfeil.
 			if (!isTypeScriptFile(filePath)) {
 				const bodyPurity = inferBodyPurity(expression.body, functionType);
+				// Ein Rumpf, der nur deshalb unentscheidbar ist, weil er eigene funktionswertige
+				// Parameter aufruft, ist nicht grundsätzlich unentscheidbar, sondern bedingt rein.
+				const conditionallyPure = bodyPurity.purity === 'unknown' && bodyPurity.unknownOnlyFromOwnParameterCalls;
 				switch (expression.arrow) {
 					case undefined:
 					case 'unknown':
-						functionType.purity = bodyPurity.purity;
+						functionType.purity = conditionallyPure ? 'pureIfArgsPure' : bodyPurity.purity;
 						break;
 					case 'impure':
 						break;
 					case 'pure':
-						if (bodyPurity.purity === 'impure') {
+						if (conditionallyPure) {
+							// Still herabgesetzt, keine Diagnose: das Ergebnis ist strikt
+							// präziser als die geschriebene Zusicherung und erhält das bisherige
+							// konservative Verhalten an der Aufrufstelle.
+							functionType.purity = 'pureIfArgsPure';
+						}
+						else if (bodyPurity.purity === 'impure') {
 							functionType.purity = 'impure';
 							// expression.returnType ist gesetzt: ein Pfeil bedingt einen Rückgabetyp
 							// (functionTypeBodyParser), siehe "Geprüfte Voraussetzungen".
@@ -4192,9 +4221,9 @@ function isLiteralType(type: ResolvedType): boolean {
 	}
 }
 
-// 'unknown' und 'impure' fallen zusammen, weil kein Algorithmus sie unterscheidet - sonst
-// bekäme createNormalizedUnionType eine zweite künstliche Trennung.
-function effectivePurity(purity: Purity): 'pure' | 'notPure' {
+// 'unknown', 'impure' und 'pureIfArgsPure' fallen zusammen, weil kein Algorithmus sie
+// unterscheidet - sonst bekäme createNormalizedUnionType eine zweite künstliche Trennung.
+function effectivePurity(purity: TypePurity): 'pure' | 'notPure' {
 	return purity === 'pure' ? 'pure' : 'notPure';
 }
 
@@ -4219,7 +4248,9 @@ function joinPurity(first: Purity, second: Purity): Purity {
 function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: CompileTimeFunctionType | undefined): Purity {
 	const argType = resolveAlias(rawArgType);
 	if (isFunctionType(argType)) {
-		return argType.purity;
+		// Mit welchen Argumenten eine bedingt reine Funktion später gerufen wird, ist an der
+		// Übergabestelle nicht bekannt - sie zählt hier wie 'unknown'.
+		return argType.purity === 'pureIfArgsPure' ? 'unknown' : argType.purity;
 	}
 	if (argType.julType === 'parameterReference') {
 		if (argType.functionRef === ownFunctionType) {
@@ -4298,7 +4329,7 @@ export function getCallPurityInfo(
 	if (!isFunctionType(resolvedFunctionType)) {
 		return 'unknown';
 	}
-	if (resolvedFunctionType.purity !== 'pure') {
+	if (resolvedFunctionType.purity !== 'pureIfArgsPure') {
 		return resolvedFunctionType.purity;
 	}
 	const prefixPurity = prefixArgumentType
@@ -4331,6 +4362,13 @@ export interface BodyPurity {
 	purity: Purity;
 	/** Erste beweisbar unreine Stelle - für JUL5101, damit der Fehler dort steht, wo er entsteht. */
 	impureExpression?: PositionedExpression;
+	/**
+	 * Nur relevant, wenn purity 'unknown' ist: true, wenn jeder unentscheidbare Beitrag aus dem
+	 * Aufruf eines eigenen funktionswertigen Parameters stammt (E1) - dann ist der Rumpf nicht
+	 * grundsätzlich unentscheidbar, sondern bedingt rein (pureIfArgsPure). Ein fremder, über eine
+	 * äußere Funktion geschlossener Parameter (E2) oder jede andere Unknown-Quelle macht false.
+	 */
+	unknownOnlyFromOwnParameterCalls: boolean;
 }
 
 /**
@@ -4346,10 +4384,14 @@ export function inferBodyPurity(
 ): BodyPurity {
 	let purity: Purity = 'pure';
 	let impureExpression: PositionedExpression | undefined;
+	let unknownOnlyFromOwnParameterCalls = true;
 
-	function contribute(contributedPurity: Purity, expression: PositionedExpression): void {
+	function contribute(contributedPurity: Purity, expression: PositionedExpression, fromOwnParameterCall = false): void {
 		if (contributedPurity === 'impure' && !impureExpression) {
 			impureExpression = expression;
+		}
+		if (contributedPurity === 'unknown' && !fromOwnParameterCall) {
+			unknownOnlyFromOwnParameterCalls = false;
 		}
 		purity = joinPurity(purity, contributedPurity);
 	}
@@ -4370,9 +4412,12 @@ export function inferBodyPurity(
 				else {
 					const calleeType = functionExpression?.typeInfo && resolveAlias(functionExpression.typeInfo.type);
 					if (calleeType?.julType === 'parameterReference') {
-						// E1/E2: der eigene Parameter direkt aufzurufen ist rein, ein fremder
-						// (aus einer äußeren Funktion geschlossener) Parameter nicht beweisbar.
-						contribute(calleeType.functionRef === ownFunctionType ? 'pure' : 'unknown', expression);
+						// E1/E2: der eigene Parameter direkt aufzurufen ist bedingt rein - mit
+						// welchen Argumenten er später gerufen wird, entscheidet sich erst an der
+						// Aufrufstelle dieser Funktion (Schritt 4). Ein fremder (aus einer äußeren
+						// Funktion geschlossener) Parameter bleibt uneingeschränkt unentscheidbar.
+						const isOwnParameter = calleeType.functionRef === ownFunctionType;
+						contribute('unknown', expression, isOwnParameter);
 					}
 					else {
 						const prefixArgumentType = expression.prefixArgument?.typeInfo?.type;
@@ -4396,7 +4441,12 @@ export function inferBodyPurity(
 				// Literal sein, er kann auch eine Referenz auf eine Funktion sein.
 				const branchesPurity = expression.branches.reduce<Purity>((accumulated, branch) => {
 					const branchType = branch.typeInfo && resolveAlias(branch.typeInfo.type);
-					return joinPurity(accumulated, branchType && isFunctionType(branchType) ? branchType.purity : 'unknown');
+					if (!branchType || !isFunctionType(branchType)) {
+						return joinPurity(accumulated, 'unknown');
+					}
+					// Mit welchen Argumenten der getroffene Zweig gerufen wird, ist hier nicht
+					// bekannt - eine bedingt reine Funktion zählt wie bei getArgumentPurity als 'unknown'.
+					return joinPurity(accumulated, branchType.purity === 'pureIfArgsPure' ? 'unknown' : branchType.purity);
 				}, 'pure');
 				contribute(branchesPurity, expression);
 				if (expression.args) {
@@ -4415,7 +4465,7 @@ export function inferBodyPurity(
 	}
 
 	body.forEach(walk);
-	return { purity, impureExpression };
+	return { purity, impureExpression, unknownOnlyFromOwnParameterCalls };
 }
 
 /**

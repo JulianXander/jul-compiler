@@ -94,3 +94,5 @@
 2026-09-17 12:21:19	0fbf0cf	-	ADV-DEV-56627	yugioh	parse+check	5	3473.96	3715.64	3715.64	nach pure inference Schritt 1-4 (Aufruf-Purity dreiwertig, Rumpf-Walker, Verdrahtung, JUL5101)
 2026-09-21 09:35:00	eedaa94	-	ADV-DEV-56627	yugioh	parse+check	5	3312.24	3535.00	3535.00	vor constant folding fuer Nutzerfunktionen
 2026-09-21 09:35:25	2836862+	-	ADV-DEV-56627	yugioh	parse+check	5	3613.71	3824.62	3824.62	nach constant folding fuer Nutzerfunktionen (Schritte 1-4 + Purity-Fix)
+2026-09-22 10:13:01	546656d+	-	ADV-DEV-56627	yugioh	parse+check	5	3824.12	3993.98	3993.98	vor purity-bedingte-reinheit
+2026-09-22 10:29:51	546656d+	-	ADV-DEV-56627	yugioh	parse+check	5	4775.74	4935.71	4935.71	nach purity-bedingte-reinheit

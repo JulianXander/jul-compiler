@@ -84,6 +84,7 @@ Eine allgemeine Regel mit Ausnahmenliste ist teurer als eine strengere Regel ohn
 - **Klammer-Regel:** rund = Bindungsstelle, eckig = Daten — ausnahmslos.
 - **Keine Magie für Typen:** Was für Typen gebraucht wird, wird zuerst als gewöhnlicher Wert bzw. gewöhnliche Funktion versucht, statt einer Ausnahme extra Typ-Syntax zu geben. `Or`, `And`, `Not`, `TypeOf`, `Without` sind normale Funktionen, nicht Syntax. Bedingte Typen sind heute schon ausdrückbar, aber nur als `Or(And(And(TypeOf(a) Integer) …) …)` — unbenutzbar. Erst wenn das unlesbar bleibt, ist die Ausnahme (neue Syntax) gerechtfertigt (Schwelle, an der `:?` gerade steht).
 - **Spread:** `x` und `...x` bedeuten Verschiedenes → beide erlaubt, weil es zwei verschiedene Sachen sind, keine Ausnahme.
+- **Purity-Pfeile:** Die Argument-Regel für Funktionen höherer Ordnung steckte als Sonderfall in `->` (unbedingt rein, außer bei Funktionsargumenten), während `:>` unbenutzt blieb, obwohl es „unbestimmt, wird über den Kontext aufgelöst" schon bedeutete. Statt der Ausnahme in `->` trägt jetzt `:>` den bedingten Fall (`pureIfArgsPure`) als dritten Auflösungsmechanismus neben Parametertyp und Rumpf-Inferenz — ein Pfeil sagt wieder genau eine Sache (siehe [purity-bedingte-reinheit.md](purity-bedingte-reinheit.md)).
 - **Offen:** `() => x` und `Any => x` matchen beide jeden Wert und sind für Typverengung gleichwertig — sind sie zu verbieten oder kommt eines weg?
 
 #### Kosten

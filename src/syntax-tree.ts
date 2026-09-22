@@ -373,6 +373,14 @@ export type Purity =
 	| 'pure'     // ->
 	| 'impure';  // ~>
 
+/**
+ * Purity am Typ: zusätzlich der bedingte Fall, den kein Pfeil direkt schreibt - rein, sofern die
+ * übergebenen Funktionsargumente rein sind. Entsteht an der äußersten Signatur eines
+ * nativeFunction-Aufrufs mit :> und aus der Rumpf-Inferenz, wenn ein Rumpf nur deshalb
+ * unentscheidbar ist, weil er eigene funktionswertige Parameter aufruft.
+ */
+export type TypePurity = Purity | 'pureIfArgsPure';
+
 export interface ParseFunctionLiteral extends ParseExpressionBase {
 	type: 'functionLiteral';
 	params: SimpleExpression | ParseParameterFields;
@@ -935,7 +943,7 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	readonly julType: 'function';
 	ParamsType: CompileTimeType;
 	ReturnType: CompileTimeType;
-	purity: Purity;
+	purity: TypePurity;
 	predicate?: PredicateFacts;
 	/**
 	 * Nur bei Funktionsliteralen aus .jul-Dateien gesetzt (siehe 'functionLiteral' im Checker).
@@ -966,7 +974,7 @@ export interface PredicateFacts {
 export function createCompileTimeFunctionType(
 	ParamsType: CompileTimeType,
 	ReturnType: CompileTimeType,
-	purity: Purity,
+	purity: TypePurity,
 	aliasName?: string,
 ): CompileTimeFunctionType {
 	return {

@@ -5,6 +5,7 @@ import { join } from 'path';
 
 import {
 	builtinEmpty,
+	createCompileTimeDictionaryLiteralType,
 	createCompileTimeFunctionType,
 	createCompileTimeListType,
 	createCompileTimeTupleType,
@@ -16,6 +17,7 @@ import {
 	ParseSingleDefinition,
 	PositionedExpression,
 	Purity,
+	TypePurity,
 } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
@@ -3090,7 +3092,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// "Stand"): frueher trug jede core-lib-Funktion pure: true, weil functionTypeLiteral das
 	// hart setzte - auch log und currentDate, die offensichtlich nicht pure sind. Seit der
 	// Migration kommt die Purity aus dem geschriebenen Pfeil.
-	function purityOf(name: string): Purity | undefined {
+	function purityOf(name: string): TypePurity | undefined {
 		const type = builtInSymbols[name]?.typeInfo?.type;
 		return type && isFunctionType(type) ? type.purity : undefined;
 	}
@@ -3102,7 +3104,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	});
 	// Seit Schritt 3 (docs/pure-inference-umsetzung.md) wird der Rumpf inferiert und der
 	// geschriebene Pfeil nach der E3-Tabelle damit abgeglichen - kein reines Durchreichen mehr.
-	function purityOfDefinition(code: string, name: string): Purity | undefined {
+	function purityOfDefinition(code: string, name: string): TypePurity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		const type = parsed.checked?.expressions
@@ -3114,7 +3116,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// Für die beiden "Rumpf unbekannt"-Fälle der Tabelle: nur über eine Closure erreichbar
 	// (E2, "outer"s Parameter ist für die zurückgegebene innere Funktion fremd), da eine
 	// Top-Level-Funktion den eigenen Parameter immer als rein zählen darf (E1).
-	function innerPurityOf(code: string): Purity | undefined {
+	function innerPurityOf(code: string): TypePurity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		const outer = parsed.checked?.expressions
@@ -3274,40 +3276,87 @@ f([1 2] add)`)).to.equal('pure');
 apply = (cb: () :> Any) -> Any => cb()
 imp.apply()`)).to.equal('impure');
 	});
-	it('unreine Funktion in einem Dictionary-Argument ist impure', () => {
-		expect(callPurityOf(`imp = () ~> Any => 1
-f = (opts: [cb: () :> Any]) -> Any => 1
-f([cb = imp])`)).to.equal('impure');
+	// Direkt an getCallPurityInfo statt über Quelltext: eine bedingt reine Zielfunktion ist
+	// Voraussetzung dafür, dass die Argument-Regel überhaupt greift (nur pureIfArgsPure löst sie
+	// aus, nicht mehr jede -> Funktion unabhängig davon, ob sie ihr Argument überhaupt benutzt).
+	it('getCallPurityInfo: unreine Funktion in einem Dictionary-Argument ist impure', () => {
+		const conditionallyPureFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
+		const impureFieldType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'impure');
+		const dictionaryArgType = createCompileTimeDictionaryLiteralType({ cb: impureFieldType }, true);
+		const argsType = createCompileTimeTupleType([dictionaryArgType]);
+		expect(getCallPurityInfo(conditionallyPureFunctionType, undefined, argsType)).to.equal('impure');
 	});
-	it('Spread-Argumentliste (kein Tuple) ist impure, weil sie nicht mehr durchrutscht', () => {
-		expect(callPurityOf(`f = (nums: List(Integer)) -> Integer => add(...nums)`)).to.equal('impure');
+	// Eine Spread-Argumentliste wird zu List(Type), nicht zu einem Tuple mit einem Element je
+	// Position - getArgumentPurity kann dann nicht mehr in die einzelnen Argumente absteigen und
+	// bleibt bei 'unknown', selbst wenn jedes einzelne Element für sich pure wäre. getCallPurity
+	// faltet das zweiwertig auf 'impure' ab, weil nur ein Beweis als pure zählt.
+	it('getCallPurity: Spread-Argumentliste (List, kein Tuple) ist impure, weil sie nicht mehr durchrutscht', () => {
+		const conditionallyPureFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
+		const pureFieldType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const listArgsType = createCompileTimeListType(pureFieldType);
+		expect(getCallPurity(conditionallyPureFunctionType, undefined, listArgsType)).to.equal('impure');
 	});
 	it('getCallPurityInfo: Spread-Argumentliste ist unknown, nicht impure', () => {
-		const pureFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const conditionallyPureFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const listArgsType = createCompileTimeListType(builtinEmpty);
-		expect(getCallPurityInfo(pureFunctionType, undefined, listArgsType)).to.equal('unknown');
+		expect(getCallPurityInfo(conditionallyPureFunctionType, undefined, listArgsType)).to.equal('unknown');
 	});
 	it('getCallPurityInfo: Weitergabe des eigenen Parameters ist pure', () => {
-		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const ownParameter = createParameterReference('cb', 0);
 		ownParameter.functionRef = ownFunctionType;
 		const argsType = createCompileTimeTupleType([ownParameter]);
 		expect(getCallPurityInfo(ownFunctionType, undefined, argsType, ownFunctionType)).to.equal('pure');
 	});
 	it('getCallPurityInfo: Weitergabe eines Parameters ohne Eigentümer-Kontext ist unknown', () => {
-		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const someParameter = createParameterReference('cb', 0);
 		someParameter.functionRef = ownFunctionType;
 		const argsType = createCompileTimeTupleType([someParameter]);
 		expect(getCallPurityInfo(ownFunctionType, undefined, argsType)).to.equal('unknown');
 	});
 	it('getCallPurityInfo: Weitergabe eines fremden Parameters ist unknown', () => {
-		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
-		const otherFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
+		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
+		const otherFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const foreignParameter = createParameterReference('cb', 0);
 		foreignParameter.functionRef = otherFunctionType;
 		const argsType = createCompileTimeTupleType([foreignParameter]);
 		expect(getCallPurityInfo(ownFunctionType, undefined, argsType, ownFunctionType)).to.equal('unknown');
+	});
+
+	// Vierter Purity-Zustand pureIfArgsPure: rein, sofern die übergebenen Funktionsargumente
+	// rein sind. Trägt künftig, was heute unsichtbar in getCallPurityInfo steckt.
+	it('map trägt bedingte Purity, kein pure', () => {
+		expect(purityOf('map')).to.equal('pureIfArgsPure');
+	});
+	it('map(add ...) bleibt pure', () => {
+		expect(callPurityOf('map([1 2] add)')).to.equal('pure');
+	});
+	it('map(log ...) bleibt impure', () => {
+		expect(callPurityOf('map([1 2] log)')).to.equal('impure');
+	});
+	it('-> ignoriert die Argumente: unbedingte Zusicherung', () => {
+		expect(callPurityOf(`imp = () ~> Any => 1
+f = (cb: () :> Any) -> Any => 1
+f(imp)`)).to.equal('pure');
+	});
+	it('Nutzer-HOF, die den eigenen Parameter aufruft, wird bedingt rein', () => {
+		expect(purityOfDefinition('apply = (cb: () :> Any) -> Any => cb()', 'apply')).to.equal('pureIfArgsPure');
+	});
+	it('bedingt reine Nutzer-HOF mit unreinem Argument ist impure', () => {
+		expect(callPurityOf(`imp = () ~> Any => 1
+apply = (cb: () :> Any) -> Any => cb()
+imp.apply()`)).to.equal('impure');
+	});
+	// Anders als im vorigen Test ruft f hier cb tatsächlich auf und wird dadurch selbst
+	// pureIfArgsPure - erst das macht die Argument-Regel an dieser Aufrufstelle scharf: map ist
+	// selbst pureIfArgsPure und zählt als Argument-Wert (nicht als Aufruf) wie unknown.
+	it('bedingt reine Funktion als Wert weitergegeben zählt als unknown', () => {
+		expect(callPurityOf(`f = (cb: () :> Any) -> Any => cb()
+f(map)`)).to.equal('impure');
+	});
+	it('unbekannter Callback bleibt unknown, auch bei reinen Datenargumenten', () => {
+		expect(innerPurityOf('outer = (cb: (x: Integer) :> Any) => () => cb(5)')).to.equal('unknown');
 	});
 
 	// docs/pure-inference-umsetzung.md Schritt 2: der Rumpf-Walker. Läuft direkt auf dem bereits
@@ -3397,9 +3446,12 @@ f = (x: Or(1 2)) => ?(x)
 	it('Weitergabe des eigenen Parameters an map ist pure', () => {
 		expect(bodyPurityOf('f = (cb: () :> Any) => map([1 2] cb)')).to.equal('pure');
 	});
-	it('log tief in einem Dictionary-Argument ist impure', () => {
+	// id gibt x nur zurück, ruft es nicht auf - id selbst bleibt beweisbar pure (-> ist eine
+	// unbedingte Zusicherung, keine Argumentprüfung), auch wenn das übergebene Dictionary
+	// eine unreine Funktion enthält. Unrein wäre erst ein Aufruf des Rückgabewerts.
+	it('log tief in einem Dictionary-Argument bleibt pure, weil id es nur durchreicht', () => {
 		expect(bodyPurityOf(`id = (x) -> Any => x
-f = () => id([cb = log])`)).to.equal('impure');
+f = () => id([cb = log])`)).to.equal('pure');
 	});
 });
 

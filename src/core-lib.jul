@@ -652,7 +652,7 @@ map = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) -> TupleOf(length(values) callback/ReturnType)
+	) :> TupleOf(length(values) callback/ReturnType)
 	§js
 		(values, callback) => {
 			if (!values) {
@@ -675,7 +675,7 @@ filter = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) -> Or([] List(And(TypeOf(values)/ElementType predicate/PredicateIfTrue)))
+	) :> Or([] List(And(TypeOf(values)/ElementType predicate/PredicateIfTrue)))
 	§js
 		(values, predicate) => {
 			if (!values) {
@@ -698,7 +698,7 @@ filterMap = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) -> Or([] List(Without(callback/ReturnType [])))
+	) :> Or([] List(Without(callback/ReturnType [])))
 	§js
 		(values, callback) => {
 			if (!values) {
@@ -763,7 +763,7 @@ findFirst = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) -> Or([] And(TypeOf(values)/ElementType predicate/PredicateIfTrue))
+	) :> Or([] And(TypeOf(values)/ElementType predicate/PredicateIfTrue))
 	§js
 		(values, predicate) => {
 			return values?.find((value, index) => {
@@ -780,7 +780,7 @@ findLast = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) -> Or([] And(TypeOf(values)/ElementType predicate/PredicateIfTrue))
+	) :> Or([] And(TypeOf(values)/ElementType predicate/PredicateIfTrue))
 	§js
 		(values, predicate) => {
 			return values?.findLast((value, index) => {
@@ -797,7 +797,7 @@ findLastIndex = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) -> Or([] PositiveInteger)
+	) :> Or([] PositiveInteger)
 	§js
 		(values, predicate) => {
 			if (!values) {
@@ -842,7 +842,7 @@ exists = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) -> Boolean
+	) :> Boolean
 	§js
 		(values, predicate) => {
 			if (!values) {
@@ -862,7 +862,7 @@ all = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) -> Boolean
+	) :> Boolean
 	§js
 		(values, predicate) => {
 			if (!values) {
@@ -885,7 +885,7 @@ toDictionary = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) -> Or([] Dictionary(Any))
+	) :> Or([] Dictionary(Any))
 	§js
 		(values, getKey, getValue) => {
 			if (!values) {
@@ -913,7 +913,7 @@ aggregate = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) -> callback/ReturnType
+	) :> callback/ReturnType
 	§js
 		(values, initialValue, callback) => {
 			if (!values) {

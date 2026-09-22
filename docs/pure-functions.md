@@ -2,10 +2,17 @@
 
 ## Stand
 
-Umgesetzt: Purity-Pfeile (`->` rein, `~>` unrein, `:>` keine Aussage) im Parser und im Typ
-(`Purity`-Enum an `CompileTimeFunctionType`), die Argument-Regel für Funktionen höherer Ordnung
-(`getCallPurity`: ein Aufruf ist beweisbar rein, wenn die aufgerufene Funktion `->` trägt und jedes
-Funktionsargument seinerseits beweisbar rein ist), `typeToString` zeigt den Pfeil.
+Umgesetzt: drei geschriebene Purity-Pfeile (`->` unbedingt rein, `~>` unrein, `:>` unbestimmt,
+kontextabhängig aufgelöst) im Parser, dazu am Typ ein vierter, nicht schreibbarer Zustand
+`pureIfArgsPure` (rein, sofern die übergebenen Funktionsargumente rein sind - siehe
+[purity-bedingte-reinheit.md](purity-bedingte-reinheit.md)). Die Purity eines Funktionsliterals wird
+aus seinem Rumpf inferiert, nicht nur aus dem geschriebenen Pfeil übernommen; `->` ist dabei eine
+Zusicherung, gegen den inferierten Rumpf geprüft, `:>`/kein Pfeil übernimmt das Inferenzergebnis.
+Die Argument-Regel für Funktionen höherer Ordnung (`getCallPurityInfo`: ein Aufruf einer
+`pureIfArgsPure`-Funktion ist rein, wenn jedes Funktionsargument seinerseits beweisbar rein ist)
+hängt seit diesem Umbau am vierten Zustand, nicht mehr an `->` selbst - `->` heißt seither
+durchgehend „unbedingt rein, egal was übergeben wird" und ignoriert die Argumente. `typeToString`
+zeigt den geschriebenen bzw. abgeleiteten Pfeil.
 
 Darauf aufbauend ist Constant Folding vollständig umgesetzt und verdrahtet: `tryFoldCall` im
 [Checker](../src/checker/checker.ts) und die Übersetzung zwischen Typ und Wert in
@@ -64,8 +71,12 @@ die Entscheidungen einzeln mit Begründung. Drei Annahmen, die hier zuvor stande
 als falsch erwiesen:
 
 - **Funktionen höherer Ordnung sind sehr wohl ein eigenes Thema.** Die Argument-Regel löst nur die
-  *Aufrufstelle*. Für die Inferenz bleibt die Frage, was ein Rumpf aussagt, der einen eigenen
-  Funktionsparameter benutzt — die Antwort entscheidet, ob Nutzer-HOFs jemals rein werden können.
+  *Aufrufstelle*. Für die Inferenz war offen, was ein Rumpf aussagt, der einen eigenen
+  Funktionsparameter benutzt — beantwortet in
+  [purity-bedingte-reinheit.md](purity-bedingte-reinheit.md): ein Rumpf, der nur deshalb
+  unentscheidbar ist, weil er einen eigenen funktionswertigen Parameter aufruft, wird nicht als
+  `unknown` eingestuft, sondern als `pureIfArgsPure` - Nutzer-HOFs können damit rein werden, sofern
+  sie tatsächlich nur eigene Parameter aufrufen.
 - **Fixpunkt-Iteration ist nicht nötig.** Gegenseitige Rekursion gibt es außerhalb der core-lib
   nicht (Vorwärtsreferenzen sind `JUL4002`), und für direkte Selbstrekursion genügt eine
   optimistische Annahme in einem Durchlauf.
