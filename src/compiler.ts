@@ -54,7 +54,7 @@ export function compileProject(
 		return;
 	}
 	if (!outFilePath) {
-		renderer.finish([colorize(`(${formatMs(performance.now() - startTime)})`, ConsoleColor.cyan)]);
+		renderer.finish([durationSuffix(startTime)]);
 		return;
 	}
 	//#endregion 2. compile
@@ -444,12 +444,19 @@ function formatMs(durationMs: number): string {
 }
 
 /**
+ * Dauer seit startTime, in Klammern und cyan - das Suffix, das sowohl je Checklisten-Schritt
+ * (LiveRenderer.finishStep) als auch an den Abschlusszeilen (withDuration) angehängt wird.
+ */
+function durationSuffix(startTime: number): string {
+	return colorize(`(${formatMs(performance.now() - startTime)})`, ConsoleColor.cyan);
+}
+
+/**
  * Statuszeile mit angehängter Dauer in einer Zeile, analog zum Dauer-Suffix je Schritt in der
  * Checkliste (siehe LiveRenderer.finishStep) statt einer separaten "compiler took ..."-Zeile.
  */
 function withDuration(message: string, color: ConsoleColor, startTime: number): string {
-	const duration = colorize(`(${formatMs(performance.now() - startTime)})`, ConsoleColor.cyan);
-	return `${colorize(message, color)} ${duration}`;
+	return `${colorize(message, color)} ${durationSuffix(startTime)}`;
 }
 
 export function colorize(text: any, color: ConsoleColor): string {
@@ -532,14 +539,14 @@ export class LiveRenderer {
 
 	finishStep(status: 'done' | 'failed'): void {
 		const label = this.currentStepLabel;
-		const duration = performance.now() - this.currentStepStartTime;
+		const duration = durationSuffix(this.currentStepStartTime);
 		this.currentStepLabel = undefined;
 		this.currentDetail = undefined;
 		if (!this.isTty || !label) {
 			return;
 		}
 		const icon = status === 'done' ? colorize('✓', ConsoleColor.green) : colorize('✗', ConsoleColor.lightRed);
-		this.doneSteps.push(`${icon} ${label} ${colorize(`(${formatMs(duration)})`, ConsoleColor.cyan)}`);
+		this.doneSteps.push(`${icon} ${label} ${duration}`);
 		this.render();
 	}
 
