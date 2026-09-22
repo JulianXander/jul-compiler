@@ -42,19 +42,19 @@ export function compileProject(
 	renderer.finishStep(error ? 'failed' : 'done');
 	if (error) {
 		// Mehrzeiliger, detaillierter Fehlertext gehört wie Warnungen ins Scrollback oberhalb des
-		// Frames (siehe log()) - nur die kurzen Abschlusszeilen (Statuszeile, Dauer) stehen im
-		// Frame, analog zu "build/check finished successfully" im Erfolgsfall.
+		// Frames (siehe log()) - nur die kurze Statuszeile (mit Dauer) steht im Frame, analog zu
+		// "build/check finished successfully" im Erfolgsfall.
 		renderer.log(error);
-		renderer.finish([colorize('compiling failed.', ConsoleColor.lightRed), formatDuration(startTime)]);
+		renderer.finish([withDuration('compiling failed.', ConsoleColor.lightRed, startTime)]);
 		process.exitCode = 1;
 		return;
 	}
 	if (checkOnly) {
-		renderer.finish([colorize('check finished successfully', ConsoleColor.green), formatDuration(startTime)]);
+		renderer.finish([withDuration('check finished successfully', ConsoleColor.green, startTime)]);
 		return;
 	}
 	if (!outFilePath) {
-		renderer.finish([formatDuration(startTime)]);
+		renderer.finish([colorize(`(${formatMs(performance.now() - startTime)})`, ConsoleColor.cyan)]);
 		return;
 	}
 	//#endregion 2. compile
@@ -91,12 +91,12 @@ export function compileProject(
 		const hasErrors = stats?.hasErrors();
 		renderer.finishStep(hasErrors ? 'failed' : 'done');
 		if (hasErrors) {
-			renderer.finish([colorize('bundling failed.', ConsoleColor.lightRed), formatDuration(startTime)]);
+			renderer.finish([withDuration('bundling failed.', ConsoleColor.lightRed, startTime)]);
 			console.error(stats?.compilation.errors);
 			process.exitCode = 1;
 		}
 		else {
-			renderer.finish([colorize('build finished successfully', ConsoleColor.green), formatDuration(startTime)]);
+			renderer.finish([withDuration('build finished successfully', ConsoleColor.green, startTime)]);
 		}
 	});
 	//#endregion 4. bundle
@@ -442,8 +442,14 @@ function formatMs(durationMs: number): string {
 		? `${durationMs.toFixed(0)}ms`
 		: `${(durationMs / 1000).toFixed(2)}s`;
 }
-function formatDuration(startTime: number): string {
-	return colorize(`compiler took ${formatMs(performance.now() - startTime)}`, ConsoleColor.cyan);
+
+/**
+ * Statuszeile mit angehängter Dauer in einer Zeile, analog zum Dauer-Suffix je Schritt in der
+ * Checkliste (siehe LiveRenderer.finishStep) statt einer separaten "compiler took ..."-Zeile.
+ */
+function withDuration(message: string, color: ConsoleColor, startTime: number): string {
+	const duration = colorize(`(${formatMs(performance.now() - startTime)})`, ConsoleColor.cyan);
+	return `${colorize(message, color)} ${duration}`;
 }
 
 export function colorize(text: any, color: ConsoleColor): string {
