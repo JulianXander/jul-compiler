@@ -40,7 +40,7 @@ if (flags.includes('--help')) {
 ████    ████    ████
 ████▄  ▄████▄  ▄████▄
  ███████████████████████████
-  ▀▀█████▀▀▀████▀▀▀█████████`;
+  ▀▀████▀▀▀▀████▀▀▀▀████████`;
 	console.log(colorize(logo, ConsoleColor.yellow));
 	console.log('\nUsage: jul [options] [path-to-jul-config.yaml]');
 	console.log('\nOptions:');
