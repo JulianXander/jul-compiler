@@ -20,6 +20,8 @@ export function compileProject(
 	checkOnly: boolean = false,
 ): void {
 	const startTime = performance.now();
+	const renderer = new LiveRenderer();
+	renderer.start(entryFilePath);
 	//#region 1. cleanup out
 	// Bei checkOnly entsteht kein Output, also auch nichts aufzuräumen.
 	if (!checkOnly) {
@@ -29,26 +31,30 @@ export function compileProject(
 
 	//#region 2. compile
 	const runtimePath = resolve(join(outputFolderPath, runtimeFileName));
+	renderer.startStep('compiling');
 	const { outFilePath, error } = compileFile({
 		sourceFilePath: entryFilePath,
 		outputFolderPath: outputFolderPath,
 		runtimePath: runtimePath,
 		shebang: cli,
 		checkOnly,
-	}, {});
+	}, {}, renderer);
+	renderer.finishStep(error ? 'failed' : 'done');
 	if (error) {
-		console.error(error);
-		console.log(formatDuration(startTime));
+		// Mehrzeiliger, detaillierter Fehlertext gehört wie Warnungen ins Scrollback oberhalb des
+		// Frames (siehe log()) - nur die kurzen Abschlusszeilen (Statuszeile, Dauer) stehen im
+		// Frame, analog zu "build/check finished successfully" im Erfolgsfall.
+		renderer.log(error);
+		renderer.finish([colorize('compiling failed.', ConsoleColor.lightRed), formatDuration(startTime)]);
 		process.exitCode = 1;
 		return;
 	}
 	if (checkOnly) {
-		console.log(colorize('check finished successfully', ConsoleColor.green));
-		console.log(formatDuration(startTime));
+		renderer.finish([colorize('check finished successfully', ConsoleColor.green), formatDuration(startTime)]);
 		return;
 	}
 	if (!outFilePath) {
-		console.log(formatDuration(startTime));
+		renderer.finish([formatDuration(startTime)]);
 		return;
 	}
 	//#endregion 2. compile
@@ -59,8 +65,7 @@ export function compileProject(
 	//#endregion 3. copy runtime
 
 	//#region 4. bundle
-	process.stdout.write('bundling ');
-	const stopSpinner = busySpinner();
+	renderer.startStep('bundling');
 	const absoluteOutFilePath = resolve(outFilePath);
 	const absoluteFolderPath = resolve(outputFolderPath);
 	const bundler = webpack({
@@ -84,16 +89,15 @@ export function compileProject(
 	bundler.run((error, stats) => {
 		// console.log(error, stats);
 		const hasErrors = stats?.hasErrors();
-		stopSpinner();
+		renderer.finishStep(hasErrors ? 'failed' : 'done');
 		if (hasErrors) {
-			console.error(colorize('bundling failed.', ConsoleColor.lightRed));
+			renderer.finish([colorize('bundling failed.', ConsoleColor.lightRed), formatDuration(startTime)]);
 			console.error(stats?.compilation.errors);
 			process.exitCode = 1;
 		}
 		else {
-			console.log(colorize('build finished successfully', ConsoleColor.green));
+			renderer.finish([colorize('build finished successfully', ConsoleColor.green), formatDuration(startTime)]);
 		}
-		console.log(formatDuration(startTime));
 	});
 	//#endregion 4. bundle
 }
@@ -109,16 +113,19 @@ interface JulCompilerOptions {
 	checkOnly: boolean;
 }
 
-function compileFile(
-	options: JulCompilerOptions,
-	compiledDocuments: ParsedDocuments,
-): {
+interface CompileFileResult {
 	/**
 	 * undefined wenn schon compiled und bei error.
 	 */
 	outFilePath?: string;
 	error?: string;
-} {
+}
+
+function compileFile(
+	options: JulCompilerOptions,
+	compiledDocuments: ParsedDocuments,
+	renderer: LiveRenderer,
+): CompileFileResult {
 	const {
 		sourceFilePath,
 		outputFolderPath,
@@ -129,7 +136,10 @@ function compileFile(
 	if (compiledDocuments[sourceFilePath]) {
 		return {};
 	}
-	console.log(`compiling ${sourceFilePath} ...`);
+	// Einzelne Dateien sind kein eigener Checklisten-Schritt (das bleibt den großen Schritten wie
+	// "compiling" und "bundling" vorbehalten), sondern nur die Detailanzeige neben dem laufenden
+	// Schritt.
+	renderer.updateDetail(sourceFilePath);
 
 	//#region 1. read
 	const sourceCode = readTextFile(sourceFilePath);
@@ -220,7 +230,7 @@ function compileFile(
 					...options,
 					shebang: false,
 					sourceFilePath: importedPath,
-				}, compiledDocuments);
+				}, compiledDocuments, renderer);
 				if (importedResult.error) {
 					return importedResult;
 				}
@@ -239,7 +249,7 @@ function compileFile(
 					error: formattedErrors,
 				};
 			}
-			console.log(formattedErrors);
+			renderer.log(formattedErrors);
 		}
 		//#endregion 6. check
 	}
@@ -427,30 +437,182 @@ function formatSpanLines(
 	}
 	return resultLines;
 }
-function formatDuration(startTime: number): string {
-	const duration = performance.now() - startTime;
-	const formatted = duration < 1000
-		? `${duration.toFixed(0)}ms`
-		: `${(duration / 1000).toFixed(2)}s`;
-	return colorize(`compiler took ${formatted}`, ConsoleColor.cyan);
+function formatMs(durationMs: number): string {
+	return durationMs < 1000
+		? `${durationMs.toFixed(0)}ms`
+		: `${(durationMs / 1000).toFixed(2)}s`;
 }
-
-function busySpinner() {
-	let step = 0;
-	// const characters = '⡀⠄⠂⠁⠈⠐⠠⢀';
-	const characters = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
-	process.stdout.write(characters[0] + ' ');
-	const timer = setInterval(() => {
-		step++;
-		process.stdout.write(`\b\b${characters[step % characters.length]!} `);
-		// move back: \x1b[1D
-	}, 100);
-	return () => {
-		clearInterval(timer);
-		process.stdout.write('\b\b  \n');
-	};
+function formatDuration(startTime: number): string {
+	return colorize(`compiler took ${formatMs(performance.now() - startTime)}`, ConsoleColor.cyan);
 }
 
 export function colorize(text: any, color: ConsoleColor): string {
+	if (!process.stdout.isTTY) {
+		return String(text);
+	}
 	return `\x1b[${color}m${text}\x1b[0m`;
+}
+
+const logoLines = [
+	'        ████    ████',
+	'        ████    ████',
+	'        ████    ████',
+	'        ████    ████',
+	'████    ████    ████',
+	'████▄  ▄████▄  ▄████▄',
+	' ███████████████████████████',
+	'  ▀▀████▀▀▀▀████▀▀▀▀████████',
+];
+const logoWidth = Math.max(...logoLines.map(line => line.length));
+const spinnerCharacters = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
+
+/**
+ * Zeichnet während eines Compile-Laufs einen Frame mit dem Logo links und einer daneben
+ * wachsenden Häkchen-Liste. Checklisten-Einträge sind nur die großen Schritte ("compiling",
+ * "bundling"); einzelne kompilierte Dateien sind kein eigener Schritt, sondern nur ein
+ * Status-Detail neben dem laufenden Schritt (siehe updateDetail) - sonst würde die Liste bei
+ * vielen Dateien unübersichtlich wachsen. Nur die aktuell laufende Zeile wird per Spinner
+ * überschrieben. Im nicht-interaktiven Fall (kein TTY, z.B. CI/Umleitung) degradiert das auf
+ * einfache, sequentielle Zeilen ohne Logo/Cursor-Codes, weil ANSI-Cursorbewegung dort nicht
+ * sinnvoll ist.
+ */
+export class LiveRenderer {
+	private readonly isTty = !!process.stdout.isTTY;
+	private entryLine = '';
+	private readonly doneSteps: string[] = [];
+	private currentStepLabel: string | undefined;
+	private currentDetail: string | undefined;
+	private currentStepStartTime = 0;
+	private spinnerIndex = 0;
+	private spinnerTimer: NodeJS.Timeout | undefined;
+	private frameHeight = 0;
+
+	start(entryFilePath: string): void {
+		this.entryLine = `entry file: ${entryFilePath}`;
+		if (!this.isTty) {
+			console.log(`Compiler started with entry file ${entryFilePath} ...`);
+			return;
+		}
+		this.spinnerTimer = setInterval(() => {
+			this.spinnerIndex++;
+			this.render();
+		}, 100);
+		this.render();
+	}
+
+	startStep(label: string): void {
+		this.currentStepLabel = label;
+		this.currentDetail = undefined;
+		this.currentStepStartTime = performance.now();
+		if (!this.isTty) {
+			console.log(`${label} ...`);
+			return;
+		}
+		this.render();
+	}
+
+	/**
+	 * Aktualisiert die Detailanzeige neben dem laufenden Schritt (z.B. die aktuell kompilierte
+	 * Datei), ohne einen eigenen Checklisten-Eintrag zu erzeugen.
+	 */
+	updateDetail(detail: string): void {
+		this.currentDetail = detail;
+		if (!this.isTty) {
+			console.log(`${this.currentStepLabel} ${detail} ...`);
+			return;
+		}
+		this.render();
+	}
+
+	finishStep(status: 'done' | 'failed'): void {
+		const label = this.currentStepLabel;
+		const duration = performance.now() - this.currentStepStartTime;
+		this.currentStepLabel = undefined;
+		this.currentDetail = undefined;
+		if (!this.isTty || !label) {
+			return;
+		}
+		const icon = status === 'done' ? colorize('✓', ConsoleColor.green) : colorize('✗', ConsoleColor.lightRed);
+		this.doneSteps.push(`${icon} ${label} ${colorize(`(${formatMs(duration)})`, ConsoleColor.cyan)}`);
+		this.render();
+	}
+
+	/**
+	 * Für Ausgaben, die dauerhaft im Scrollback stehen bleiben sollen (z.B. Warnungen), während
+	 * der Live-Frame darunter weiterläuft.
+	 */
+	log(text: string): void {
+		if (!this.isTty) {
+			console.log(text);
+			return;
+		}
+		this.erase();
+		console.log(text);
+		// erase() hat den alten Frame bereits gelöscht - frameHeight zurücksetzen, sonst würde
+		// render() gleich erneut (mit der alten Höhe) nach oben löschen und dabei den gerade
+		// gedruckten Text mit abschneiden.
+		this.frameHeight = 0;
+		this.render();
+	}
+
+	stop(): void {
+		if (this.spinnerTimer) {
+			clearInterval(this.spinnerTimer);
+			this.spinnerTimer = undefined;
+		}
+	}
+
+	/**
+	 * Beendet den Live-Frame: die übergebenen Abschlusszeilen (Erfolgs-/Fehlermeldung, Dauer)
+	 * werden noch in denselben Frame aufgenommen, direkt unter der Checkliste rechts neben dem
+	 * Logo (bzw. darunter, sobald das Logo aufgebraucht ist) - nicht als separate Ausgabe danach.
+	 */
+	finish(lines: string[]): void {
+		this.stop();
+		if (!this.isTty) {
+			for (const line of lines) {
+				console.log(line);
+			}
+			return;
+		}
+		for (const line of lines) {
+			this.doneSteps.push(...line.split('\n'));
+		}
+		this.render();
+	}
+
+	private buildLines(): string[] {
+		const checklist = [this.entryLine, ...this.doneSteps];
+		if (this.currentStepLabel) {
+			const spinnerChar = spinnerCharacters[this.spinnerIndex % spinnerCharacters.length];
+			const detailSuffix = this.currentDetail ? ` (${this.currentDetail})` : '';
+			checklist.push(`${spinnerChar} ${this.currentStepLabel}${detailSuffix} ...`);
+		}
+		const rowCount = Math.max(logoLines.length, checklist.length);
+		const lines: string[] = [];
+		for (let i = 0; i < rowCount; i++) {
+			const checklistPart = checklist[i] ?? '';
+			if (i < logoLines.length) {
+				const logoPart = colorize(logoLines[i]!.padEnd(logoWidth, ' '), ConsoleColor.yellow);
+				lines.push(checklistPart ? `${logoPart}  ${checklistPart}` : logoPart);
+			}
+			else {
+				lines.push(checklistPart);
+			}
+		}
+		return lines;
+	}
+
+	private erase(): void {
+		if (this.frameHeight > 0) {
+			process.stdout.write(`\x1b[${this.frameHeight}A\x1b[0J`);
+		}
+	}
+
+	private render(): void {
+		this.erase();
+		const lines = this.buildLines();
+		process.stdout.write(lines.join('\n') + '\n');
+		this.frameHeight = lines.length;
+	}
 }

@@ -3,7 +3,7 @@ import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
-import { formatErrors } from './compiler.js';
+import { formatErrors, LiveRenderer } from './compiler.js';
 import { CompilerError, ErrorCode } from './compiler-errors.js';
 
 // eslint-disable-next-line no-control-regex
@@ -208,20 +208,69 @@ describe('formatErrors', () => {
 	// Fund: formatErrors färbt Label und Code immer mit ConsoleColor.lightRed, unabhängig von
 	// severity - eine Warning (z.B. unreachableBranch) erscheint dadurch genauso rot wie ein
 	// Error. Deshalb hier bewusst OHNE stripAnsi: der Test soll gerade die Farbcodes prüfen.
+	// colorize färbt nur bei TTY-Ausgabe (siehe compiler.ts) - der Testrunner selbst ist kein TTY,
+	// isTTY wird deshalb für die Dauer des Tests erzwungen.
 	it('colors a warning severity error yellow, not red', () => {
-		const errors: CompilerError[] = [
-			{
-				code: ErrorCode.unreachableBranch,
-				message: 'Unreachable branch detected.',
-				startRowIndex: 0,
-				startColumnIndex: 0,
-				endRowIndex: 0,
-				endColumnIndex: 1,
-			},
-		];
-		const output = formatErrors(filePath, errors);
-		const firstLine = output.split('\n')[0]!;
-		expect(firstLine).to.include('\x1b[33m', 'Warning sollte gelb (33) statt rot (91) gefärbt sein');
-		expect(firstLine).not.to.include('\x1b[91m');
+		const originalIsTty = process.stdout.isTTY;
+		(process.stdout as any).isTTY = true;
+		try {
+			const errors: CompilerError[] = [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable branch detected.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 1,
+				},
+			];
+			const output = formatErrors(filePath, errors);
+			const firstLine = output.split('\n')[0]!;
+			expect(firstLine).to.include('\x1b[33m', 'Warning sollte gelb (33) statt rot (91) gefärbt sein');
+			expect(firstLine).not.to.include('\x1b[91m');
+		}
+		finally {
+			(process.stdout as any).isTTY = originalIsTty;
+		}
+	});
+});
+
+describe('LiveRenderer', () => {
+	// Kein g-Flag: mit /g würde .test() über den lastIndex-State zwischen Aufrufen Treffer
+	// verschlucken.
+	const eraseRegex = /\x1b\[\d+A\x1b\[0J/;
+
+	// Fund: log() löschte den alten Frame selbst, rief danach aber render() auf, das intern
+	// nochmal löschte - mit der noch alten, nicht zurückgesetzten frameHeight. Das zweite Löschen
+	// sprang dadurch über den gerade gedruckten Text hinaus und schnitt ihn ab (Session
+	// 2026-09-22). Test schreibt direkt auf process.stdout, deshalb kein stripAnsi-Vergleich
+	// gegen einen einzelnen String, sondern eine Prüfung der einzelnen write()-Aufrufe.
+	it('erases only once per log() call, otherwise the just-printed text gets cut off', () => {
+		const writes: string[] = [];
+		const originalIsTty = process.stdout.isTTY;
+		const originalWrite = process.stdout.write;
+		(process.stdout as any).isTTY = true;
+		(process.stdout as any).write = (chunk: any) => {
+			writes.push(String(chunk));
+			return true;
+		};
+		let renderer: LiveRenderer | undefined;
+		try {
+			renderer = new LiveRenderer();
+			renderer.start('entry.jul');
+			renderer.startStep('compiling');
+			renderer.finishStep('failed');
+			writes.length = 0; // nur den log()-Aufruf selbst betrachten
+			renderer.log('line-one\nline-two');
+			const eraseCount = writes.filter(write => eraseRegex.test(write)).length;
+			expect(eraseCount).to.equal(1, 'log() darf pro Aufruf nur einmal löschen');
+			expect(writes.some(write => stripAnsi(write).includes('line-one'))).to.be.true;
+			expect(writes.some(write => stripAnsi(write).includes('line-two'))).to.be.true;
+		}
+		finally {
+			renderer?.stop();
+			(process.stdout as any).isTTY = originalIsTty;
+			process.stdout.write = originalWrite;
+		}
 	});
 });

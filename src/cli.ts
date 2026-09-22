@@ -2,7 +2,7 @@
 import { Ajv } from 'ajv';
 import { load } from 'js-yaml';
 import { dirname, join } from 'path';
-import { ConsoleColor, colorize, compileProject } from './compiler.js';
+import { compileProject } from './compiler.js';
 import configSchema from './jul-config-schema.json' with { type: 'json' };
 import { executingDirectory, readTextFile } from './util.js';
 
@@ -33,15 +33,6 @@ const knownFlags: Record<string, string> = {
 };
 const flags = args.filter(arg => arg.startsWith('--'));
 if (flags.includes('--help')) {
-	const logo = `        ████    ████
-        ████    ████
-        ████    ████
-        ████    ████
-████    ████    ████
-████▄  ▄████▄  ▄████▄
- ███████████████████████████
-  ▀▀████▀▀▀▀████▀▀▀▀████████`;
-	console.log(colorize(logo, ConsoleColor.yellow));
 	console.log('\nUsage: jul [options] [path-to-jul-config.yaml]');
 	console.log('\nOptions:');
 	for (const [flag, description] of Object.entries(knownFlags)) {
@@ -80,7 +71,6 @@ if (!valid) {
 }
 const rootFolder = dirname(configFilePath);
 const outputFolder = config.outputFolder ?? 'out';
-console.log(`Compiler started with entry file ${config.entryFilePath} ...`);
 compileProject(
 	join(rootFolder, config.entryFilePath),
 	join(rootFolder, outputFolder),
