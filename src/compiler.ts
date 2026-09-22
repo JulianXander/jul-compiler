@@ -439,6 +439,7 @@ function formatSpanLines(
 	}
 	return resultLines;
 }
+
 function formatMs(durationMs: number): string {
 	return durationMs < 1000
 		? `${durationMs.toFixed(0)}ms`
