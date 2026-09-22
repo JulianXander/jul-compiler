@@ -468,11 +468,26 @@ const logoLines = [
 	'        ████    ████',
 	'        ████    ████',
 	'████    ████    ████',
-	'████▄  ▄████▄  ▄████▄',
-	' ███████████████████████████',
-	'  ▀▀████▀▀▀▀████▀▀▀▀████████',
+	'y███▄  ▄████▄  ▄████▄',
+	'▝███████████████████████████',
+	'  xx▀▀▀▀x  x▀▀▀▀x  x▀▀▀▀▀▀▀▀',
 ];
 const logoWidth = Math.max(...logoLines.map(line => line.length));
+
+/**
+ * "Oberes Viertel"-Blockzeichen (U+1FB82) fehlt in vielen Terminal-Fonts, weil es erst mit
+ * Unicode 13 im Legacy-Computing-Block nachgereicht wurde. Ersatz: das überall vorhandene
+ * komplementäre Zeichen ▆ (unteres Dreiviertel, U+2586) mit Reverse-Video (SGR 7) umgekehrt -
+ * dadurch tauschen Vorder- und Hintergrund, ohne dass die Terminal-Hintergrundfarbe bekannt sein
+ * muss. `x` in logoLines ist der Platzhalter dafür.
+ */
+const upperQuarterBlock = '\x1b[7m▆\x1b[27m';
+/**
+ * "Rechtes Dreiviertel"-Block gibt es gar nicht als eigenes Unicode-Zeichen - der Block-Elements-
+ * Bereich hat rechtsseitig nur Half und One-Eighth. Ersatz nach demselben Reverse-Video-Prinzip:
+ * das komplementäre ▎ (linkes Viertel, U+258E) umgekehrt. `y` in logoLines ist der Platzhalter.
+ */
+const rightThreeQuarterBlock = '\x1b[7m▎\x1b[27m';
 const spinnerCharacters = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
 
 /**
@@ -602,7 +617,12 @@ export class LiveRenderer {
 		for (let i = 0; i < rowCount; i++) {
 			const checklistPart = checklist[i] ?? '';
 			if (i < logoLines.length) {
-				const logoPart = colorize(logoLines[i]!.padEnd(logoWidth, ' '), ConsoleColor.yellow);
+				// x/y-Platzhalter erst NACH padEnd ersetzen, damit die Breitenberechnung auf den
+				// reinen Zeichen basiert statt auf den unsichtbaren ANSI-Codes der Ersatzzeichen.
+				const logoText = logoLines[i]!.padEnd(logoWidth, ' ')
+					.replaceAll('x', upperQuarterBlock)
+					.replaceAll('y', rightThreeQuarterBlock);
+				const logoPart = colorize(logoText, ConsoleColor.yellow);
 				lines.push(checklistPart ? `${logoPart}  ${checklistPart}` : logoPart);
 			}
 			else {
