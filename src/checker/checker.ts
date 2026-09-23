@@ -1681,7 +1681,13 @@ function getNarrowedType(
 	}
 	let type = longestMatch.type;
 	for (const key of keys.slice(longestMatch.keys.length)) {
-		const dereferenced = dereferenceNestedKeyFromObject(key, type);
+		// Die Verengung legt ein And über den noch unaufgelösten Typ der Quelle ab (etwa einen
+		// Parameter). dereferenceNestedKeyFromObject behandelt And nicht und fiele auf Any, erst
+		// der aufgelöste Typ kennt seine Felder.
+		const sourceType = type.julType === 'and'
+			? resolvePlaceholders(type)
+			: type;
+		const dereferenced = dereferenceNestedKeyFromObject(key, sourceType);
 		if (!dereferenced) {
 			return undefined;
 		}
@@ -4099,13 +4105,23 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 				&& second.julType === 'dictionaryLiteral') {
 				const keys = new Set([...Object.keys(first.Fields), ...Object.keys(second.Fields)]);
 				const mergedFields: CompileTimeDictionary = {};
-				keys.forEach(key => {
+				for (const key of keys) {
 					const firstFieldType = first.Fields[key];
 					const secondFieldType = second.Fields[key];
-					mergedFields[key] = firstFieldType && secondFieldType
-						? createNormalizedIntersectionType([firstFieldType, secondFieldType])
-						: firstFieldType ?? secondFieldType!;
-				});
+					if (firstFieldType && secondFieldType) {
+						const mergedFieldType = createNormalizedIntersectionType([firstFieldType, secondFieldType]);
+						// Beide Seiten verlangen das Feld, kein Wert erfüllt beide: dann gibt es auch
+						// kein Dictionary, das beide erfüllt. So fällt z.B. beim Verengen über
+						// step/type die Choice mit dem anderen type aus der Union.
+						if (mergedFieldType.julType === 'never') {
+							return builtinNever;
+						}
+						mergedFields[key] = mergedFieldType;
+					}
+					else {
+						mergedFields[key] = firstFieldType ?? secondFieldType!;
+					}
+				}
 				return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
 			}
 			if (typesOverlap(first, second) === false) {
