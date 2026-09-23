@@ -384,6 +384,41 @@ f = (flag: Boolean) =>
 		() => §§`,
 		},
 		{
+			// Das Feld der Quelle wählt die Choice aus: im Zweig §a§ bleibt von step nur die
+			// Choice mit type §a§ übrig, die andere fällt weg. Die Zuweisung an Empty macht den
+			// verengten Typ sichtbar.
+			name: 'branch-narrowing-field-selects-choice-of-source',
+			code: `f = (step: Or([type: §a§ amount: Integer] [type: §b§])) =>
+	t = step/type
+	?(t)
+		[§a§] =>
+			narrowed: Empty = step
+			narrowed
+		[§b§] => []`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 25,
+					"endRowIndex": 4,
+					"message": "Definition type mismatch.\nCan not assign [\n  type: §a§\n  amount: Integer\n] to Empty.",
+					"startColumnIndex": 3,
+					"startRowIndex": 4,
+				},
+			],
+		},
+		{
+			// Dasselbe als Argument: mit Any statt Integer wählte der bedingte Rückgabetyp von add
+			// den Rational-Zweig.
+			name: 'branch-narrowing-field-selects-choice-of-source-as-argument',
+			code: `f = (step: Or([type: §a§ amount: Integer] [type: §b§])) =>
+	t = step/type
+	?(t)
+		[§a§] =>
+			sum: Integer = assume(3 Integer).add(step/amount)
+			sum
+		[§b§] => 0`,
+		},
+		{
 			// Gegenprobe: die Verengung darf nur an einem Namen hängen. Zwei Aufrufe sind zwei
 			// Werte — vom Typ des einen folgt nichts über den anderen.
 			name: 'branch-narrowing-needs-a-name-as-source',
