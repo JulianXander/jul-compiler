@@ -219,7 +219,9 @@ als Ausdruck zu parsen, damit JUL1050 nicht zusätzlich erscheint.
 keine Folgefehler. Deshalb:
 
 - O1 (U1, U2): Der Rest wird gelesen, als stünde der Pfeil schon in der nächsten Zeile. Ein
-  eingerückter Typblock darunter wird also normal übernommen.
+  eingerückter Typblock darunter wird also normal übernommen, ob er nun eine Ebene unter der
+  Kopfzeile steht (wie ein Rumpf unter `=>`, so in `test1.jul:11`) oder zwei (wie unter einer
+  Pfeilzeile).
 - `-> T =>` nach Umbruch (U3): Rumpf und Typ werden übernommen, nur die Stelle wird gemeldet.
 - Branching oder Funktionstyp inline (U4–U8): Der Ausdruck wird trotzdem als Rückgabetyp
   übernommen. Nicht über `valueExpressionParser`, der würde bei `(a) -> Integer => a` das
@@ -422,10 +424,13 @@ Einzeilige Entsprechung steht in der letzten Spalte (`equivalentTo`), sonst eine
 | U6 | `f = (a: Integer) -> :?(a)\n\t[Integer] => Integer` | 1107, 0 | `:?` in der Kopfzeile (Token wird dafür schon erkannt) |
 | U7 | `F = (a: Integer) :> (b: Integer) :> Integer` | 1107, 0 (und kein 2105/1102 mehr) | Funktionstyp in der Kopfzeile |
 | U8 | `F = (a: Integer)\n\t:> (b: Integer) :> Integer` | 1107, 1 | Funktionstyp inline in der Pfeilzeile |
-| U9 | `f = (a: Integer)\n\n\t=> a` | 1106, 2 | Leerzeile zwischen Kopf und Pfeilzeile |
-| U10 | `f = (a: Integer)\n#\t-> Integer\n\t=> a` | 1106, 2 | Kommentar in Spalte 0 beendet den Kopf |
-| U11 | `f = (a: Integer)\n=> a` | 1106, 1 | Pfeilzeile auf Ebene des Kopfs |
-| U12 | `f = (a: Integer)\n\t\t=> a` | 1105, 1 | Pfeilzeile zwei Ebenen zu tief |
+| U9 | `f = (a: Integer)\n\n\t=> a` | 2105, 0; 1106, 2 | Leerzeile zwischen Kopf und Pfeilzeile |
+| U10 | `f = (a: Integer)\n#\t-> Integer\n\t=> a` | 2105, 0; 1106, 2 | Kommentar in Spalte 0 beendet den Kopf |
+| U11 | `f = (a: Integer)\n=> a` | 2105, 0; 1106, 1 | Pfeilzeile auf Ebene des Kopfs |
+| U12 | `f = (a: Integer)\n\t\t=> a` | 2105, 0; 1105, 1 | Pfeilzeile zwei Ebenen zu tief |
+
+In U9–U12 bleibt vom Kopf ohne Pfeilzeilen nur `(a: Integer)` als rundes Datenliteral stehen,
+daher zusätzlich JUL2105.
 | U13 | `f = (a: Integer)\n\t=> a\n\t-> Integer` | 1106, 2 | `=>` vor dem Rückgabepfeil |
 | U14 | `f = (a: Integer)\n\t-> Integer\n\t-> Text\n\t=> a` | 1106, 2 | zwei Rückgabepfeile |
 | U15 | `f = (a: Integer)\n\t=> a\n\t=> a` | 1106, 2 | zwei `=>` |

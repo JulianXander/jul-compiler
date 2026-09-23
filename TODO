@@ -24,10 +24,8 @@
 -unit testing konzept für jul
 	?eigene lib oder bestehende js libs verwendbar machen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
--multiline returntype parser
-	-plan: docs/multiline-function-head.md
-?verpuffte Ausdrücke in Blöcken melden: im Funktionsrumpf (und künftig im Typblock unter einem
-	umgebrochenen Rückgabepfeil) gilt der letzte Ausdruck, davorstehende Ausdrücke ohne Definition
+?verpuffte Ausdrücke in Blöcken melden: im Funktionsrumpf und im Typblock unter einem
+	umgebrochenen Rückgabepfeil gilt der letzte Ausdruck, davorstehende Ausdrücke ohne Definition
 	verschwinden heute ohne Meldung (z.B. Rumpf `1` + Zeile `a`). Nur Ausdrücke, die nachweislich
 	pure sind, wären wirklich wirkungslos, `log(x)` davor ist gewollt. Warnung (JUL2500
 	discardedValue ausweiten oder eigener Code) oder gar nichts? Im Typblock sind alle Ausdrücke

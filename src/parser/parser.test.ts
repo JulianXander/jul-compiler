@@ -1100,25 +1100,26 @@ const multilineHeadCases: {
 			code: 'F = (a: Integer)\n\t:> (b: Integer) :> Integer',
 			errors: [{ code: ErrorCode.returnTypeRequiresBlock, row: 1 }],
 		},
+		// U9-U12: Ohne Pfeilzeilen bleibt vom Kopf nur das runde Datenliteral, daher zusätzlich JUL2105.
 		{
 			name: 'U9 Leerzeile zwischen Kopf und Pfeilzeile',
 			code: 'f = (a: Integer)\n\n\t=> a',
-			errors: [{ code: ErrorCode.misplacedArrow, row: 2 }],
+			errors: [{ code: ErrorCode.dataLiteralMustUseSquareBrackets, row: 0 }, { code: ErrorCode.misplacedArrow, row: 2 }],
 		},
 		{
 			name: 'U10 Kommentar in Spalte 0 beendet den Kopf',
 			code: 'f = (a: Integer)\n#\t-> Integer\n\t=> a',
-			errors: [{ code: ErrorCode.misplacedArrow, row: 2 }],
+			errors: [{ code: ErrorCode.dataLiteralMustUseSquareBrackets, row: 0 }, { code: ErrorCode.misplacedArrow, row: 2 }],
 		},
 		{
 			name: 'U11 Pfeilzeile auf Ebene des Kopfs',
 			code: 'f = (a: Integer)\n=> a',
-			errors: [{ code: ErrorCode.misplacedArrow, row: 1 }],
+			errors: [{ code: ErrorCode.dataLiteralMustUseSquareBrackets, row: 0 }, { code: ErrorCode.misplacedArrow, row: 1 }],
 		},
 		{
 			name: 'U12 Pfeilzeile zwei Ebenen zu tief',
 			code: 'f = (a: Integer)\n\t\t=> a',
-			errors: [{ code: ErrorCode.unexpectedIndentation, row: 1 }],
+			errors: [{ code: ErrorCode.dataLiteralMustUseSquareBrackets, row: 0 }, { code: ErrorCode.unexpectedIndentation, row: 1 }],
 		},
 		{
 			name: 'U13 =>-Zeile vor der Rückgabepfeil-Zeile',

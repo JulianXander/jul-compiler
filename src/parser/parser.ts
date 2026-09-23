@@ -60,7 +60,7 @@ import {
 	mapNonEmpty,
 	readTextFile,
 } from '../util.js';
-import { CompilerError, ErrorCode } from '../compiler-errors.js';
+import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { parseTsCode } from './typescript-parser.js';
 import {
 	createParseFunctionLiteral,
@@ -648,7 +648,7 @@ function expressionBlockParser(
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
-	const result = multilineParser(expressionParser)(rows, startRowIndex, startColumnIndex, indent);
+	const result = multilineParser(withOrphanArrowLineCheck(expressionParser))(rows, startRowIndex, startColumnIndex, indent);
 	const expressions = result.parsed && assignDescriptions(result.parsed);
 	return {
 		...result,
@@ -1050,6 +1050,16 @@ function valueExpressionBaseParser(
 				predicate: anyReturnTypeTokenParser,
 				parser: functionTypeBodyParser,
 			},
+			// Rückgabepfeil am Ende der Kopfzeile (ungültig)
+			{
+				predicate: returnArrowAtEndOfRowPredicate,
+				parser: returnArrowAtEndOfRowParser,
+			},
+			// Pfeilzeilen unter dem Kopf
+			{
+				predicate: functionHeadContinuationPredicate,
+				parser: functionHeadContinuationParser,
+			},
 			// SimpleExpressionBase
 			{
 				predicate: emptyParser,
@@ -1102,7 +1112,7 @@ function valueExpressionBaseParser(
 		}
 		case 'functionTypeBody': {
 			const body = parsed2.body;
-			const returnType = baseValueExpressionToValueExpression(parsed2.returnTypeBase, errors);
+			const returnType = parsed2.returnTypeBase && baseValueExpressionToValueExpression(parsed2.returnTypeBase, errors);
 			const params = bracketedParamsToParams(parsed1, errors);
 			if (body) {
 				// FunctionLiteral mit ReturnType
@@ -1128,22 +1138,26 @@ function valueExpressionBaseParser(
 				};
 			}
 			// FunctionTypeLiteral
-			const symbols: SymbolTable = {};
-			if (params.type === 'binding'
-				|| params.type === 'parameters') {
-				fillSymbolTableWithParams(symbols, errors, params);
-			}
-			const functionTypeLiteral: ParseFunctionTypeLiteral = {
-				type: 'functionTypeLiteral',
-				params: params,
-				returnType: returnType,
-				symbols: symbols,
-				arrow: parsed2.arrow,
-				startRowIndex: startRowIndex,
-				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-			};
+			const functionTypeLiteral = createParseFunctionTypeLiteral(
+				params,
+				// Rückgabepfeil ohne Typ (schon gemeldet): Platzhalter, damit der Knoten für den
+				// Language Server erhalten bleibt
+				returnType ?? {
+					type: 'empty',
+					startRowIndex: result.endRowIndex,
+					startColumnIndex: result.endColumnIndex,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+				},
+				parsed2.arrow,
+				{
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: result.endRowIndex,
+					endColumnIndex: result.endColumnIndex,
+				},
+				errors,
+			);
 			return {
 				hasParsed: true,
 				endRowIndex: result.endRowIndex,
@@ -1599,7 +1613,7 @@ function branchingParser(
 		// dieselbe Argumentliste wie beim Aufruf, damit ... und benannte Argumente hier gelten
 		functionArgumentsParser,
 		newLineParser,
-		incrementIndent(multilineParser(valueExpressionParser)),
+		incrementIndent(multilineParser(withOrphanArrowLineCheck(valueExpressionParser))),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed = result.parsed;
 	if (!parsed) {
@@ -1625,58 +1639,569 @@ function branchingParser(
 	};
 }
 
+//#region Funktionskopf
+
 /**
- * enthält ggf. endständiges Zeilenende nicht
+ * Rest eines Funktionskopfs hinter den Parametern: nur der Rumpf, oder Rückgabepfeil samt Typ mit
+ * optionalem Rumpf.
  */
-function functionBodyParser(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<{
+type FunctionHeadRest =
+	| FunctionBody
+	| FunctionTypeBody;
+
+interface FunctionBody {
 	type: 'functionBody';
 	body: ParseExpression[];
-}> {
-	const result = sequenceParser(
-		functionTokenParser,
-		discriminatedChoiceParser<ParseExpression[][]>(
-			// multiline FunctionLiteral
-			{
-				predicate: endOfLineParser,
-				parser: functionBodyBlockParser,
-			},
-			// inline FunctionLiteral
-			{
-				predicate: spaceParser,
-				parser: moveColumnIndex(1, mapParser(
-					valueExpressionParser,
-					valueResult => {
-						const expression = valueResult.parsed;
-						return expression && [expression];
-					})),
-			},
-		),
-	)(rows, startRowIndex, startColumnIndex, indent);
+}
+
+interface FunctionTypeBody {
+	type: 'functionTypeBody';
+	arrow: Purity;
+	/**
+	 * Fehlt nur in fehlerhaftem Code: Rückgabepfeil ohne Operand.
+	 */
+	returnTypeBase?: ParseValueExpression;
+	body?: ParseExpression[];
+}
+
+type ReturnArrow = '->' | ':>' | '~>';
+type Arrow = ReturnArrow | '=>';
+
+const returnArrowPurities: { [arrow in ReturnArrow]: Purity } = {
+	'->': 'pure',
+	':>': 'unknown',
+	'~>': 'impure',
+};
+
+/**
+ * Pfeil an columnIndex, gefolgt von Leerzeichen oder Zeilenende.
+ */
+function getArrowAt(row: string, columnIndex: number): Arrow | undefined {
+	const arrow = row.substring(columnIndex, columnIndex + 2);
+	if (arrow !== '->'
+		&& arrow !== ':>'
+		&& arrow !== '~>'
+		&& arrow !== '=>') {
+		return undefined;
+	}
+	const nextChar = row[columnIndex + 2];
+	if (nextChar !== undefined && nextChar !== ' ') {
+		return undefined;
+	}
+	return arrow;
+}
+
+interface ArrowLine {
+	rowIndex: number;
+	/**
+	 * Spalte des Pfeils
+	 */
+	columnIndex: number;
+	arrow: Arrow;
+	/**
+	 * spaceIndentation
+	 */
+	indentErrors?: CompilerError[];
+}
+
+/**
+ * Sucht ab rowIndex die nächste Pfeilzeile auf der Ebene arrowIndent. Kommentarzeilen auf dieser
+ * Ebene werden übersprungen, Leerzeilen nur bei allowEmptyRows. Jede andere Zeile beendet die Suche.
+ */
+function findArrowLine(
+	rows: string[],
+	rowIndex: number,
+	arrowIndent: number,
+	allowEmptyRows: boolean,
+): ArrowLine | undefined {
+	for (let currentRowIndex = rowIndex; currentRowIndex < rows.length; currentRowIndex++) {
+		const row = rows[currentRowIndex]!;
+		if (row === '') {
+			if (allowEmptyRows) {
+				continue;
+			}
+			return undefined;
+		}
+		const indentResult = indentParser(rows, currentRowIndex, 0, arrowIndent);
+		if (!indentResult.hasParsed) {
+			return undefined;
+		}
+		const columnIndex = indentResult.endColumnIndex;
+		if (row[columnIndex] === '#') {
+			continue;
+		}
+		const arrow = getArrowAt(row, columnIndex);
+		if (!arrow) {
+			return undefined;
+		}
+		return {
+			rowIndex: currentRowIndex,
+			columnIndex: columnIndex,
+			arrow: arrow,
+			indentErrors: indentResult.errors,
+		};
+	}
+	return undefined;
+}
+
+/**
+ * Letzte Zeile ab rowIndex, bis zu der die Folgezeilen tiefer als indent eingerückt sind.
+ * Leerzeilen dazwischen gehören dazu, am Ende nicht.
+ */
+function getLastDeeperRowIndex(rows: string[], rowIndex: number, indent: number): number {
+	let lastRowIndex = rowIndex;
+	for (let currentRowIndex = rowIndex + 1; currentRowIndex < rows.length; currentRowIndex++) {
+		if (rows[currentRowIndex] === '') {
+			continue;
+		}
+		if (!indentParser(rows, currentRowIndex, 0, indent + 1).hasParsed) {
+			break;
+		}
+		lastRowIndex = currentRowIndex;
+	}
+	return lastRowIndex;
+}
+
+/**
+ * Ist die Zeile genau auf der Ebene indent eingerückt und beginnt weder mit einem Pfeil noch mit
+ * einem Kommentar?
+ */
+function isRowAtIndent(rows: string[], rowIndex: number, indent: number): boolean {
+	const row = rows[rowIndex];
+	if (!row) {
+		return false;
+	}
+	const indentResult = indentParser(rows, rowIndex, 0, indent);
+	if (!indentResult.hasParsed) {
+		return false;
+	}
+	const columnIndex = indentResult.endColumnIndex;
+	return row[columnIndex] !== '\t'
+		&& row[columnIndex] !== '#'
+		&& !getArrowAt(row, columnIndex);
+}
+
+function misplacedArrowError(rowIndex: number, columnIndex: number, message: string): CompilerError {
 	return {
-		...result,
-		parsed: result.parsed && {
-			type: 'functionBody',
-			body: result.parsed[1],
-		},
+		code: ErrorCode.misplacedArrow,
+		message: message,
+		startRowIndex: rowIndex,
+		startColumnIndex: columnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: columnIndex + 2,
 	};
 }
 
 /**
- * Eingerückter Rumpf unter einem `=>` am Zeilenende.
- * Enthält der Block keinen Ausdruck (Dateiende, nächste Zeile nicht eingerückt oder nur Kommentare
- * und Leerzeilen), wird expectedExpression am Pfeil gemeldet. Der Rumpf ist dann leer, geparst
- * gilt er trotzdem, damit der Funktionsknoten für den Language Server erhalten bleibt.
+ * Parst 0 Zeichen.
+ * Passt, wenn die Zeile zu Ende ist und die nächste Zeile eine Ebene tiefer mit einem Pfeil
+ * beginnt. Kommentarzeilen auf dieser Ebene dürfen davor stehen, Leerzeilen nicht.
  */
-function functionBodyBlockParser(
+function functionHeadContinuationPredicate(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
+): ParserResult<undefined> {
+	const row = rows[startRowIndex];
+	const isContinued = row !== undefined
+		&& startColumnIndex === row.length
+		&& !!findArrowLine(rows, startRowIndex + 1, indent + 1, false);
+	return {
+		hasParsed: isContinued,
+		endRowIndex: startRowIndex,
+		endColumnIndex: startColumnIndex,
+	};
+}
+
+/**
+ * Pfeilzeilen unter dem Funktionskopf, eine Ebene tiefer eingerückt als die Zeile, in der der Kopf
+ * beginnt.
+ */
+function functionHeadContinuationParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<FunctionHeadRest> {
+	return arrowLinesParser(rows, startRowIndex, startColumnIndex, indent, undefined, false);
+}
+
+/**
+ * Parst die Pfeilzeilen ab der Zeile nach startRowIndex: höchstens eine Rückgabepfeil-Zeile, danach
+ * höchstens eine =>-Zeile. Weitere Pfeilzeilen werden gemeldet und samt tiefer eingerückten
+ * Folgezeilen übersprungen. Leer- und Kommentarzeilen sind zwischen den Pfeilzeilen erlaubt, werden
+ * aber nur verbraucht, wenn danach noch eine Pfeilzeile folgt.
+ */
+function arrowLinesParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+	/**
+	 * Rückgabepfeil samt Typ, der schon vor der ersten Pfeilzeile steht (in der Kopfzeile).
+	 */
+	headReturnType: { arrow: Purity; returnTypeBase?: ParseValueExpression; } | undefined,
+	allowLeadingEmptyRows: boolean,
+): ParserResult<FunctionHeadRest> {
+	const arrowIndent = indent + 1;
+	const errors: CompilerError[] = [];
+	let returnType = headReturnType;
+	let body: ParseExpression[] | undefined;
+	let endRowIndex = startRowIndex;
+	let endColumnIndex = startColumnIndex;
+	for (
+		let arrowLine = findArrowLine(rows, endRowIndex + 1, arrowIndent, allowLeadingEmptyRows);
+		arrowLine;
+		arrowLine = findArrowLine(rows, endRowIndex + 1, arrowIndent, true)
+	) {
+		const { rowIndex, columnIndex, arrow } = arrowLine;
+		if (arrowLine.indentErrors) {
+			errors.push(...arrowLine.indentErrors);
+		}
+		const misplacedMessage = arrow === '=>'
+			? body && 'A function has only one => line.'
+			: body
+				? 'The return type line must come before the => line.'
+				: returnType && 'A function has only one return type.';
+		if (misplacedMessage) {
+			errors.push(misplacedArrowError(rowIndex, columnIndex, misplacedMessage));
+			endRowIndex = getLastDeeperRowIndex(rows, rowIndex, arrowIndent);
+			endColumnIndex = rows[endRowIndex]!.length;
+			continue;
+		}
+		const operandColumnIndex = columnIndex + 2;
+		const operandResult = arrow === '=>'
+			? bodyOperandParser(rows, rowIndex, operandColumnIndex, arrowIndent)
+			: returnTypeOperandParser(rows, rowIndex, operandColumnIndex, arrowIndent, arrow, true);
+		if (operandResult.errors) {
+			errors.push(...operandResult.errors);
+		}
+		endRowIndex = operandResult.endRowIndex;
+		endColumnIndex = operandResult.endColumnIndex;
+		if (arrow === '=>') {
+			body = (operandResult.parsed as ParseExpression[] | undefined) ?? [];
+		}
+		else {
+			returnType = {
+				arrow: returnArrowPurities[arrow],
+				returnTypeBase: operandResult.parsed as ParseValueExpression | undefined,
+			};
+			if (functionTokenParser(rows, endRowIndex, endColumnIndex, arrowIndent).hasParsed) {
+				// Rumpf in derselben Zeile wie der umgebrochene Rückgabepfeil: gemeldet, aber übernommen
+				errors.push(misplacedArrowError(
+					endRowIndex,
+					endColumnIndex + 1,
+					'After a wrapped return arrow, => starts its own line at the level of the return arrow.',
+				));
+				const bodyResult = functionBodyParser(rows, endRowIndex, endColumnIndex, arrowIndent);
+				if (bodyResult.errors) {
+					errors.push(...bodyResult.errors);
+				}
+				endRowIndex = bodyResult.endRowIndex;
+				endColumnIndex = bodyResult.endColumnIndex;
+				body = bodyResult.parsed?.body ?? [];
+			}
+		}
+		const endRow = rows[endRowIndex];
+		if (endRow !== undefined && endColumnIndex !== endRow.length) {
+			if (operandResult.hasParsed) {
+				errors.push({
+					code: ErrorCode.unparsedRestOfRow,
+					message: 'Unexpected code after the end of the expression.',
+					startRowIndex: endRowIndex,
+					startColumnIndex: endColumnIndex,
+					endRowIndex: endRowIndex,
+					endColumnIndex: endRow.length,
+				});
+			}
+			endColumnIndex = endRow.length;
+		}
+	}
+	return {
+		hasParsed: true,
+		endRowIndex: endRowIndex,
+		endColumnIndex: endColumnIndex,
+		parsed: returnType
+			? {
+				type: 'functionTypeBody',
+				arrow: returnType.arrow,
+				returnTypeBase: returnType.returnTypeBase,
+				body: body,
+			}
+			: {
+				type: 'functionBody',
+				body: body ?? [],
+			},
+		errors: errors,
+	};
+}
+
+/**
+ * Parst 0 Zeichen.
+ * Passt, wenn die Zeile mit einem Rückgabepfeil endet (` ->`, ` :>`, ` ~>` ohne Operand dahinter).
+ */
+function returnArrowAtEndOfRowPredicate(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<undefined> {
+	const row = rows[startRowIndex];
+	const arrow = row !== undefined
+		&& row[startColumnIndex] === ' '
+		&& startColumnIndex + 3 === row.length
+		? getArrowAt(row, startColumnIndex + 1)
+		: undefined;
+	return {
+		hasParsed: !!arrow && arrow !== '=>',
+		endRowIndex: startRowIndex,
+		endColumnIndex: startColumnIndex,
+	};
+}
+
+/**
+ * Rückgabepfeil am Ende der Kopfzeile ist ungültig. Gemeldet wird er, der Rest wird aber gelesen,
+ * als stünde der Pfeil schon am Anfang der nächsten Zeile, damit keine Folgefehler entstehen.
+ */
+function returnArrowAtEndOfRowParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<FunctionHeadRest> {
+	const row = rows[startRowIndex]!;
+	const arrowColumnIndex = startColumnIndex + 1;
+	const arrow = getArrowAt(row, arrowColumnIndex) as ReturnArrow;
+	const errors: CompilerError[] = [misplacedArrowError(
+		startRowIndex,
+		arrowColumnIndex,
+		'The return arrow must not end the row. Put it at the start of the next row, indented one level deeper than the function head.',
+	)];
+	// Der Typblock darf eine Ebene unter der Kopfzeile stehen (wie ein Rumpf unter =>) oder zwei
+	// (wie unter einer Pfeilzeile). Fehlt der Typ, ist das schon mit misplacedArrow gesagt.
+	const isTypeBlockBelowHeadRow = isRowAtIndent(rows, startRowIndex + 1, indent + 1);
+	const typeResult = returnTypeOperandParser(
+		rows,
+		startRowIndex,
+		row.length,
+		isTypeBlockBelowHeadRow ? indent : indent + 1,
+		arrow,
+		false,
+	);
+	if (typeResult.errors) {
+		errors.push(...typeResult.errors);
+	}
+	const restResult = arrowLinesParser(
+		rows,
+		typeResult.endRowIndex,
+		typeResult.endColumnIndex,
+		indent,
+		{
+			arrow: returnArrowPurities[arrow],
+			returnTypeBase: typeResult.parsed,
+		},
+		true,
+	);
+	if (restResult.errors) {
+		errors.push(...restResult.errors);
+	}
+	return {
+		...restResult,
+		errors: errors,
+	};
+}
+
+/**
+ * Operand hinter einem =>: inline ein Ausdruck, am Zeilenende ein eingerückter Block.
+ * startColumnIndex steht direkt hinter dem Pfeil.
+ */
+function bodyOperandParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ParseExpression[]> {
+	return discriminatedChoiceParser<ParseExpression[][]>(
+		// multiline FunctionLiteral
+		{
+			predicate: endOfLineParser,
+			parser: (rows, startRowIndex, startColumnIndex, indent) =>
+				blockOperandParser(rows, startRowIndex, startColumnIndex, indent, '=>', true),
+		},
+		// inline FunctionLiteral
+		{
+			predicate: spaceParser,
+			parser: moveColumnIndex(1, mapParser(
+				valueExpressionParser,
+				valueResult => {
+					const expression = valueResult.parsed;
+					return expression && [expression];
+				})),
+		},
+	)(rows, startRowIndex, startColumnIndex, indent);
+}
+
+/**
+ * Operand hinter einem Rückgabepfeil: inline eine simpleExpression, am Zeilenende ein eingerückter
+ * Block, dessen letzter Ausdruck der Rückgabetyp ist.
+ * startColumnIndex steht direkt hinter dem Pfeil.
+ */
+function returnTypeOperandParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+	arrow: ReturnArrow,
+	reportMissingOperand: boolean,
+): ParserResult<ParseValueExpression> {
+	const row = rows[startRowIndex]!;
+	if (startColumnIndex === row.length) {
+		const blockResult = blockOperandParser(rows, startRowIndex, startColumnIndex, indent, arrow, reportMissingOperand);
+		const errors = blockResult.errors ?? [];
+		return {
+			...blockResult,
+			parsed: typeBlockToReturnType(blockResult.parsed ?? [], errors),
+			errors: errors,
+		};
+	}
+	return moveColumnIndex(1, returnTypeInlineParser)(rows, startRowIndex, startColumnIndex, indent);
+}
+
+/**
+ * Rückgabetyp in derselben Zeile wie der Pfeil. Erlaubt ist nur eine simpleExpression, sonst wäre
+ * nicht entscheidbar, wem ein folgendes => gehört. Branching und Funktionstypen werden trotzdem
+ * gelesen und übernommen, damit der Knoten vollständig entsteht, aber mit
+ * returnTypeRequiresBlock gemeldet.
+ */
+function returnTypeInlineParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ParseValueExpression> {
+	const row = rows[startRowIndex];
+	const branchingColumnIndex = row?.startsWith(':?', startColumnIndex)
+		? startColumnIndex + 1
+		: row?.[startColumnIndex] === '?'
+			? startColumnIndex
+			: undefined;
+	if (branchingColumnIndex !== undefined) {
+		const result = branchingParser(rows, startRowIndex, branchingColumnIndex, indent);
+		const errors = result.errors ?? [];
+		errors.push({
+			code: ErrorCode.returnTypeRequiresBlock,
+			message: 'Branching as return type must be written as a block below the return arrow.',
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: startRowIndex,
+			endColumnIndex: branchingColumnIndex + 1,
+		});
+		return {
+			...result,
+			parsed: result.parsed && {
+				...result.parsed,
+				startColumnIndex: startColumnIndex,
+			},
+			errors: errors,
+		};
+	}
+	const result = simpleExpressionBaseParser(rows, startRowIndex, startColumnIndex, indent);
+	const paramsBase = result.parsed;
+	if (paramsBase?.type !== 'binding'
+		|| !anyReturnTypeTokenParser(rows, result.endRowIndex, result.endColumnIndex, indent).hasParsed) {
+		return result;
+	}
+	// Funktionstyp als Rückgabetyp
+	const innerResult = sequenceParser(
+		returnArrowParser,
+		simpleExpressionBaseParser,
+	)(rows, result.endRowIndex, result.endColumnIndex, indent);
+	const errors = [
+		...(result.errors ?? []),
+		...(innerResult.errors ?? []),
+	];
+	errors.push({
+		code: ErrorCode.returnTypeRequiresBlock,
+		message: 'A function type as return type must be written as a block below the return arrow.',
+		startRowIndex: startRowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: innerResult.endRowIndex,
+		endColumnIndex: innerResult.endColumnIndex,
+	});
+	if (!innerResult.parsed) {
+		return {
+			...innerResult,
+			parsed: undefined,
+			errors: errors,
+		};
+	}
+	const [arrow, innerReturnTypeBase] = innerResult.parsed;
+	const innerReturnType = baseValueExpressionToValueExpression(innerReturnTypeBase, errors);
+	const params = bracketedParamsToParams(paramsBase, errors);
+	return {
+		hasParsed: true,
+		endRowIndex: innerResult.endRowIndex,
+		endColumnIndex: innerResult.endColumnIndex,
+		parsed: createParseFunctionTypeLiteral(
+			params,
+			innerReturnType,
+			arrow,
+			{
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: innerResult.endRowIndex,
+				endColumnIndex: innerResult.endColumnIndex,
+			},
+			errors,
+		),
+		errors: errors,
+	};
+}
+
+/**
+ * Letzter Ausdruck des Typblocks. Definitionen sind im Typblock (noch) nicht erlaubt, die
+ * Ausdrücke davor werden wie im Rumpf ohne Meldung verworfen.
+ */
+function typeBlockToReturnType(
+	expressions: ParseExpression[],
+	errors: CompilerError[],
+): ParseValueExpression | undefined {
+	let returnType: ParseValueExpression | undefined;
+	for (const expression of expressions) {
+		switch (expression.type) {
+			case 'definition':
+			case 'destructuring':
+			case 'field':
+				errors.push({
+					code: ErrorCode.definitionNotAllowedForValueExpression,
+					message: 'Definitions are not allowed in the return type block.',
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				});
+				break;
+			default:
+				returnType = expression;
+		}
+	}
+	return returnType;
+}
+
+/**
+ * Eingerückter Block unter einem Pfeil am Zeilenende.
+ * Enthält der Block keinen Ausdruck (Dateiende, nächste Zeile nicht eingerückt oder nur Kommentare
+ * und Leerzeilen), wird expectedExpression am Pfeil gemeldet. Der Block ist dann leer, geparst
+ * gilt er trotzdem, damit der Funktionsknoten für den Language Server erhalten bleibt.
+ */
+function blockOperandParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+	arrow: Arrow,
+	reportMissingOperand: boolean,
 ): ParserResult<ParseExpression[]> {
 	const result = moveToNextLine(incrementIndent(expressionBlockParser))(rows, startRowIndex, startColumnIndex, indent);
 	if (result.hasParsed && result.parsed?.length) {
@@ -1687,11 +2212,11 @@ function functionBodyBlockParser(
 	const errors = result.hasParsed
 		? [...(result.errors ?? [])]
 		: [];
-	if (!errors.length) {
-		// Hat der Block nur fehlerhafte Zeilen, ist expectedExpression ein Folgefehler.
+	// Hat der Block nur fehlerhafte Zeilen, ist expectedExpression ein Folgefehler.
+	if (!errors.length && reportMissingOperand) {
 		errors.push({
 			code: ErrorCode.expectedExpression,
-			message: 'expression expected after =>',
+			message: `expression expected after ${arrow}`,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex - 2,
 			endRowIndex: startRowIndex,
@@ -1708,7 +2233,30 @@ function functionBodyBlockParser(
 }
 
 /**
- * FunctionTypeLiteral/FunctionLiteral mit ReturnType
+ * enthält ggf. endständiges Zeilenende nicht
+ */
+function functionBodyParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<FunctionBody> {
+	const result = sequenceParser(
+		functionTokenParser,
+		bodyOperandParser,
+	)(rows, startRowIndex, startColumnIndex, indent);
+	return {
+		...result,
+		parsed: result.parsed && {
+			type: 'functionBody',
+			body: result.parsed[1],
+		},
+	};
+}
+
+/**
+ * FunctionTypeLiteral/FunctionLiteral mit ReturnType, Rückgabepfeil in der Kopfzeile.
+ * Der Rumpf steht in derselben Zeile oder in einer =>-Zeile darunter.
  * enthält ggf. endständiges Zeilenende nicht
  */
 function functionTypeBodyParser(
@@ -1716,38 +2264,149 @@ function functionTypeBodyParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<{
-	type: 'functionTypeBody';
-	arrow: Purity;
-	returnTypeBase: SimpleExpression;
-	body?: ParseExpression[];
-}> {
-	const result = sequenceParser(
+): ParserResult<FunctionTypeBody> {
+	const headResult = sequenceParser(
 		returnArrowParser,
-		simpleExpressionBaseParser,
-		discriminatedChoiceParser(
-			// FunctionLiteral mit ReturnType
-			{
-				predicate: functionTokenParser,
-				parser: functionBodyParser
-			},
-			// FunctionTypeLiteral
-			{
-				predicate: emptyParser,
-				parser: emptyParser,
-			},
-		),
+		returnTypeInlineParser,
 	)(rows, startRowIndex, startColumnIndex, indent);
+	if (!headResult.parsed) {
+		return {
+			...headResult,
+			parsed: undefined,
+		};
+	}
+	const [arrow, returnTypeBase] = headResult.parsed;
+	const errors = headResult.errors ?? [];
+	const { endRowIndex, endColumnIndex } = headResult;
+	if (functionTokenParser(rows, endRowIndex, endColumnIndex, indent).hasParsed) {
+		const bodyResult = functionBodyParser(rows, endRowIndex, endColumnIndex, indent);
+		if (bodyResult.errors) {
+			errors.push(...bodyResult.errors);
+		}
+		return {
+			...bodyResult,
+			parsed: bodyResult.parsed && {
+				type: 'functionTypeBody',
+				arrow: arrow,
+				returnTypeBase: returnTypeBase,
+				body: bodyResult.parsed.body,
+			},
+			errors: errors,
+		};
+	}
+	if (functionHeadContinuationPredicate(rows, endRowIndex, endColumnIndex, indent).hasParsed) {
+		// Rückgabetyp in der Kopfzeile, nur => umgebrochen
+		const restResult = arrowLinesParser(
+			rows,
+			endRowIndex,
+			endColumnIndex,
+			indent,
+			{
+				arrow: arrow,
+				returnTypeBase: returnTypeBase,
+			},
+			false,
+		);
+		if (restResult.errors) {
+			errors.push(...restResult.errors);
+		}
+		return {
+			...restResult,
+			// arrowLinesParser liefert mit headReturnType immer functionTypeBody
+			parsed: restResult.parsed as FunctionTypeBody,
+			errors: errors,
+		};
+	}
 	return {
-		...result,
-		parsed: result.parsed && {
+		hasParsed: true,
+		endRowIndex: endRowIndex,
+		endColumnIndex: endColumnIndex,
+		parsed: {
 			type: 'functionTypeBody',
-			arrow: result.parsed[0],
-			returnTypeBase: result.parsed[1],
-			body: result.parsed[2]?.body,
+			arrow: arrow,
+			returnTypeBase: returnTypeBase,
 		},
+		errors: errors,
 	};
 }
+
+function createParseFunctionTypeLiteral(
+	params: SimpleExpression | ParseParameterFields,
+	returnType: ParseValueExpression,
+	arrow: Purity,
+	position: Positioned,
+	errors: CompilerError[],
+): ParseFunctionTypeLiteral {
+	const symbols: SymbolTable = {};
+	if (params.type === 'binding'
+		|| params.type === 'parameters') {
+		fillSymbolTableWithParams(symbols, errors, params);
+	}
+	return {
+		type: 'functionTypeLiteral',
+		params: params,
+		returnType: returnType,
+		symbols: symbols,
+		arrow: arrow,
+		...position,
+	};
+}
+
+/**
+ * Pfeilzeile, die zu keinem Funktionskopf gehört: nach einer Leerzeile, nach einem weniger tief
+ * eingerückten Kommentar, auf Ebene des Kopfs oder zu tief eingerückt. Sie wird samt tiefer
+ * eingerückten Folgezeilen gemeldet und übersprungen, statt sie als Ausdruck zu parsen.
+ * Gültige Programme enthalten solche Zeilen nie.
+ */
+function withOrphanArrowLineCheck<T>(parser: Parser<T>): Parser<T> {
+	return (rows, startRowIndex, startColumnIndex, indent) => {
+		const row = rows[startRowIndex];
+		if (row === undefined) {
+			return parser(rows, startRowIndex, startColumnIndex, indent);
+		}
+		let arrowColumnIndex = startColumnIndex;
+		while (row[arrowColumnIndex] === '\t') {
+			arrowColumnIndex++;
+		}
+		if (!getArrowAt(row, arrowColumnIndex)) {
+			return parser(rows, startRowIndex, startColumnIndex, indent);
+		}
+		const extraIndent = arrowColumnIndex - startColumnIndex;
+		const error: CompilerError = extraIndent >= 2
+			? {
+				code: ErrorCode.unexpectedIndentation,
+				message: `Arrow line is indented ${extraIndent} levels deeper than the function head, expected one level.`,
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: startRowIndex,
+				endColumnIndex: arrowColumnIndex,
+			}
+			: misplacedArrowError(startRowIndex, arrowColumnIndex, getOrphanArrowLineMessage(rows, startRowIndex, extraIndent));
+		const lastRowIndex = getLastDeeperRowIndex(rows, startRowIndex, indent + extraIndent);
+		return {
+			hasParsed: false,
+			endRowIndex: lastRowIndex,
+			endColumnIndex: rows[lastRowIndex]!.length,
+			errors: [error],
+		};
+	};
+}
+
+function getOrphanArrowLineMessage(rows: string[], rowIndex: number, extraIndent: number): string {
+	if (!extraIndent) {
+		return 'An arrow line must be indented one level deeper than the function head.';
+	}
+	const previousRow = rows[rowIndex - 1];
+	if (previousRow === '') {
+		return 'A blank line ends the function head. Remove the blank line before the arrow line.';
+	}
+	if (previousRow?.trimStart().startsWith('#')) {
+		return 'A comment indented less than the arrow lines ends the function head. Indent the comment to the level of the arrow lines.';
+	}
+	return 'Arrow line without function head.';
+}
+
+//#endregion Funktionskopf
 
 //#endregion ValueExpression
 
@@ -1824,7 +2483,7 @@ function createBracketedMultilineParser(kind: BracketKind): Parser<(ParseFieldBa
 		const result = sequenceParser(
 			opening,
 			newLineParser,
-			incrementIndent(multilineParser(fieldParser)),
+			incrementIndent(multilineParser(withOrphanArrowLineCheck(fieldParser))),
 			newLineParser,
 			indentParser,
 			closing,

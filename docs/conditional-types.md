@@ -14,15 +14,19 @@ Eingabe, aus einem Tuple wird nie ein Skalar.
 
 ```jul
 add = nativeFunction(
-	(...args: List(Rational)) -> :?(TypeOf(args))
-		[Or([] List(Integer))] => Integer
-		() => Fraction
+	(...args: List(Rational))
+		->
+			:?(TypeOf(args))
+				[Or([] List(Integer))] => Integer
+				() => Fraction
 	§js … §
 )
 subtract = nativeFunction(
-	(minuend: Rational subtrahend: Rational) -> :?(TypeOf(minuend) TypeOf(subtrahend))
-		[Integer Integer] => Integer
-		() => Fraction
+	(minuend: Rational subtrahend: Rational)
+		->
+			:?(TypeOf(minuend) TypeOf(subtrahend))
+				[Integer Integer] => Integer
+				() => Fraction
 	§js … §
 )
 ```
@@ -90,9 +94,11 @@ Eingaben feststehen.
 `:?` als Präfix-Token neben `?`, in `valueExpressionBaseParser` vor der simpleExpression.
 `branchingParser` wird mit dem Token parametrisiert, der AST-Knoten bekommt ein Kennzeichen
 (`type: 'branching'` mit `kind: 'type'` oder eigener Typ `typeBranching`, siehe Fragen).
-Nachzuweisen ist, dass ein mehrzeiliger Ausdruck im Rückgabetyp hinter `->` und vor dem
-nächsten Argument (`§js`) sauber endet. Einen eingerückten Block an dieser Stelle gibt es heute
-noch nicht.
+`:?` steht als Rückgabetyp immer im Block unter einem umgebrochenen Rückgabepfeil
+([multiline-function-head.md](multiline-function-head.md)). Der Typblock endet an der Einrückung,
+also vor dem nächsten Argument (`§js`). Im Typblock kennt der Parser `:?` noch nicht, das Token
+kommt dort mit diesem Schritt hinzu. In der Kopfzeile hinter dem Pfeil (`-> :?(…)`) erkennt er es
+schon und meldet JUL1107.
 
 ### 4. Checker-Fall für den AST-Knoten
 
