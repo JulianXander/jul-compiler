@@ -298,7 +298,7 @@ add = nativeFunction(
 		->
 			:?(TypeOf(args))
 				[List(Integer)] => Integer
-				() => Fraction
+				() => Rational
 	§js
 		(...args) => args.reduce(
 			(accumulator, current) => {
@@ -317,10 +317,10 @@ add = nativeFunction(
 						denominator: accumulator.denominator,
 					};
 				}
-				return {
-					numerator: accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
-					denominator: accumulator.denominator * current.denominator,
-				};
+				// Zwei Fractions können einen Integer ergeben (1/2 + 1/2), deshalb normalisieren.
+				return normalizeRational(
+					accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
+					accumulator.denominator * current.denominator);
 			},
 			0n)
 	§
@@ -342,7 +342,9 @@ subtract = nativeFunction(
 		->
 			:?(TypeOf(minuend) TypeOf(subtrahend))
 				[Integer Integer] => Integer
-				() => Fraction
+				[Integer Fraction] => Fraction
+				[Fraction Integer] => Fraction
+				() => Rational
 	§js
 		(minuend, subtrahend) => {
 			if (typeof minuend === 'bigint') {
@@ -360,10 +362,9 @@ subtract = nativeFunction(
 					denominator: minuend.denominator,
 				};
 			}
-			return {
-				numerator: minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
-				denominator: minuend.denominator * subtrahend.denominator,
-			};
+			return normalizeRational(
+				minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
+				minuend.denominator * subtrahend.denominator);
 		}
 	§
 )

@@ -3903,15 +3903,23 @@ describe('bedingte Typen', () => {
 			//#region K: core-lib
 			{ name: 'K1', code: 'h = (x: Integer y: Integer) => subtract(x y)', returnType: 'Integer' },
 			{ name: 'K2', code: 'h = (x: Fraction y: Integer) => subtract(x y)', returnType: 'Fraction' },
-			{ name: 'K3', code: 'h = (x: Rational y: Integer) => subtract(x y)', returnType: 'Or(Integer Fraction)' },
+			{ name: 'K3', code: 'h = (x: Rational y: Integer) => subtract(x y)', returnType: 'Rational' },
 			{ name: 'K4', code: 'h = (x: Integer y: Integer z: Integer) => add(x y z)', returnType: 'Integer' },
-			{ name: 'K5', code: 'h = (x: Integer y: Fraction) => add(x y)', returnType: 'Fraction' },
-			{ name: 'K6', code: 'h = (x: Integer y: Rational) => add(x y)', returnType: 'Or(Integer Fraction)' },
+			// Nicht Fraction: ein Tuple-Kopf nennt nur Mindestpositionen, [Integer Fraction] passte
+			// auch auf [Integer Fraction Fraction], und das kann ein Integer sein.
+			{ name: 'K5', code: 'h = (x: Integer y: Fraction) => add(x y)', returnType: 'Rational' },
+			{ name: 'K6', code: 'h = (x: Integer y: Rational) => add(x y)', returnType: 'Rational' },
 			{ name: 'K7', code: 'h = (ys: List(Integer)) => add(...ys)', returnType: 'Integer' },
 			{ name: 'K8 Präfix', code: 'h = (x: Integer) => x.add(1)', returnType: 'Integer' },
 			{ name: 'K9 Länge minus eins', code: 'h = (xs: List(Integer)) => xs.length().subtract(1)', returnType: 'Integer' },
 			{ name: 'K10 Faltung add', code: 'r = add(2 3)', type: '5' },
 			{ name: 'K10 Faltung subtract', code: 'r = subtract(5 3)', type: '2' },
+			// Zwei Fractions können einen Integer ergeben: 1/2 + 1/2 = 1, 1/2 - 1/2 = 0.
+			{ name: 'K13 Fraction plus Fraction', code: 'h = (x: Fraction y: Fraction) => add(x y)', returnType: 'Rational' },
+			{ name: 'K14 Fraction minus Fraction', code: 'h = (x: Fraction y: Fraction) => subtract(x y)', returnType: 'Rational' },
+			{ name: 'K15 Integer minus Fraction', code: 'h = (x: Integer y: Fraction) => subtract(x y)', returnType: 'Fraction' },
+			{ name: 'K16 Faltung add normalisiert', code: 'r = add(0.5 0.5)', type: '1' },
+			{ name: 'K16 Faltung subtract normalisiert', code: 'r = subtract(0.5 0.5)', type: '0' },
 			{
 				name: 'K11 ohne Argumente',
 				code: 'r = add()',
@@ -3948,7 +3956,7 @@ describe('bedingte Typen', () => {
 	it('K12 Hover', () => {
 		const type = builtInSymbols['add']?.typeInfo?.type;
 		expect(type && typeToString(resolvePlaceholders(type), 0, 0))
-			.to.equal('(...args: List(Rational)) -> Or(Integer Fraction)');
+			.to.equal('(...args: List(Rational)) -> Rational');
 	});
 });
 

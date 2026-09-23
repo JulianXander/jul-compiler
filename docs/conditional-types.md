@@ -18,7 +18,7 @@ add = nativeFunction(
 		->
 			:?(TypeOf(args))
 				[List(Integer)] => Integer
-				() => Fraction
+				() => Rational
 	§js … §
 )
 subtract = nativeFunction(
@@ -26,21 +26,32 @@ subtract = nativeFunction(
 		->
 			:?(TypeOf(minuend) TypeOf(subtrahend))
 				[Integer Integer] => Integer
-				() => Fraction
+				[Integer Fraction] => Fraction
+				[Fraction Integer] => Fraction
+				() => Rational
 	§js … §
 )
 ```
+
+Der catchAll liefert `Rational`, nicht `Fraction`: Zwei Fractions können einen Integer ergeben
+(`1/2 + 1/2`, `1/2 - 1/2`). Sicher eine Fraction ist das Ergebnis nur bei genau einer Fraction
+unter Integern. `subtract` zählt diese Fälle auf, `add` kann das nicht, denn ein Tuple-Kopf nennt
+nur Mindestpositionen: `[Integer Fraction]` passte auch auf `[Integer Fraction Fraction]`. Damit
+der Wert zum Typ passt, normalisiert das `§js` von `add` und `subtract` das Ergebnis zweier
+Fractions (`normalizeRational`), sonst entstünde `{numerator: 2, denominator: 2}` statt `1`.
 
 | Aufruf | Ergebnis |
 |---|---|
 | `subtract(Integer Integer)` | `Integer` |
 | `subtract(Fraction Integer)` | `Fraction` |
-| `subtract(Rational Integer)` | `Or(Integer Fraction)` |
+| `subtract(Fraction Fraction)` | `Rational` |
+| `subtract(Rational Integer)` | `Rational` |
 | `add(Integer Integer Integer)` | `Integer` |
-| `add(Integer Fraction)` | `Fraction` |
-| `add(Integer Rational)` | `Or(Integer Fraction)` |
-| `add(...xs)` mit `xs: List(Rational)` | `Or(Integer Fraction)` |
+| `add(Integer Fraction)` | `Rational` |
+| `add(Integer Rational)` | `Rational` |
+| `add(...xs)` mit `xs: List(Rational)` | `Rational` |
 | `add(2 3)` | `5` (constant folding wie bisher bei `addInteger`) |
+| `add(0.5 0.5)` | `1` |
 
 ## Semantik
 
@@ -332,16 +343,19 @@ auffängt. Bei `nativeFunction` fehlt dieser Schutz.
 |---|---|---|
 | K1 | `h = (x: Integer y: Integer) => subtract(x y)` | `Integer` |
 | K2 | `h = (x: Fraction y: Integer) => subtract(x y)` | `Fraction` |
-| K3 | `h = (x: Rational y: Integer) => subtract(x y)` | `Or(Integer Fraction)` |
+| K3 | `h = (x: Rational y: Integer) => subtract(x y)` | `Rational` |
 | K4 | `h = (x: Integer y: Integer z: Integer) => add(x y z)` | `Integer` |
-| K5 | `h = (x: Integer y: Fraction) => add(x y)` | `Fraction` |
-| K6 | `h = (x: Integer y: Rational) => add(x y)` | `Or(Integer Fraction)` |
+| K5 | `h = (x: Integer y: Fraction) => add(x y)` | `Rational` (variadisch nicht genauer ausdrückbar) |
+| K6 | `h = (x: Integer y: Rational) => add(x y)` | `Rational` |
 | K7 | `h = (ys: List(Integer)) => add(...ys)` | `Integer` |
 | K8 Präfix | `h = (x: Integer) => x.add(1)` | `Integer` |
 | K9 Länge (yugioh-Muster) | `h = (xs: List(Integer)) => xs.length().subtract(1)` | `Integer` |
 | K10 Folding | `r = add(2 3)` bzw. `r = subtract(5 3)` | `5` bzw. `2` (`typeOfLastDefinition`) |
 | K11 ohne Argumente | `r = add()` | JUL5050 wie bisher |
-| K12 Hover | Symbol `add` | `Or(Integer Fraction)`, mit Alias `Fraction` statt ausgeschriebenem Dictionary |
+| K12 Hover | Symbol `add` | `Rational`, als Alias statt ausgeschriebenem Dictionary |
+| K13, K14 | `Fraction` plus bzw. minus `Fraction` | `Rational` |
+| K15 | `h = (x: Integer y: Fraction) => subtract(x y)` | `Fraction` |
+| K16 Normalisierung | `r = add(0.5 0.5)` bzw. `r = subtract(0.5 0.5)` | `1` bzw. `0` |
 
 Umgestellt werden außerdem die vorhandenen Tests auf `addInteger` (siehe Migration). Die
 Folding-Tests laufen danach mit `add` und müssen dieselben Werte liefern.
@@ -409,7 +423,7 @@ Folding-Tests laufen danach mit `add` und müssen dieselben Werte liefern.
    heute JUL5050 („Can not assign Empty to List(Rational)“). Der Kopf `[List(Integer)]` reicht,
    `Empty` braucht keinen Zweig.
 9. ~~**Anzeige.**~~ Entschieden: Der Hover auf das Symbol zeigt die aufgelöste Union
-   (`add: (...args: List(Rational)) -> Or(Integer Fraction)`), nicht die `:?`-Zweige. Das ist
+   (`add: (...args: List(Rational)) -> Rational`), nicht die `:?`-Zweige. Das ist
    lesbarer, und die Zweige helfen einem Aufrufer nicht. Den genauen Typ sieht er am Aufruf. So
    werden heute schon alle offenen Signaturen angezeigt (`getElement -> Any`,
    `setElement -> List(Any)`, der Hover löst per `resolvePlaceholders` auf). Schritt 2 bleibt
