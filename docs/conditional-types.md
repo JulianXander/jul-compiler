@@ -164,23 +164,204 @@ Es ist eine reine Umbenennung ohne Syntaxänderung, ein Migrationsskript unter `
 es nicht. Abnahme: yugioh checkt mit dem neuen Compiler fehlerfrei, und die Stellen, die
 `Integer` erwarten (`slice`, `lifePoints`), bekommen es weiterhin.
 
-### Reihenfolge und Tests
+## Testfälle
 
-1. `npm run bench -- --save --note "vor :?"` (Compiler und LSP).
-2. Rote Tests, tabellengetrieben in `checker.test.ts`: alle Zeilen der Tabelle im Zielbild,
-   dazu `PositiveInteger`, Platzhalter im generischen Kontext und `add()` ohne Argumente (bleibt JUL5050).
-   Außerdem eine eigene Funktion mit `-> :?(…)`: Ihr Rumpf wird gegen die Union geprüft, und am
-   Aufruf wird ihr Rückgabetyp aufgelöst (Frage 11).
-   Anhalten und den roten Zustand zeigen.
-3. Typknoten und Auswertung (Schritte 1, 2), zuerst über einen Unit-Test direkt auf
-   `createConditionalType`, noch ohne Parser.
-4. Parser und Checker-Fall (Schritte 3, 4).
-5. core-lib umstellen, Integer-Varianten entfernen, Tests und Handbuch migrieren.
-6. `npm test`, `npm run typecheck`, `npm run test-update-snapshot`, die Änderungen an der
-   Baseline durchsehen. Im LSP `test-snapshot`, Hover auf `add` prüfen.
-7. yugioh migrieren und checken, danach `bench --save --note "nach :?"`.
-8. TODO: den Eintrag zu bedingten Typen auf den Stand bringen, auch die Aussage „variadisch
-   nicht erreichbar“ für `add` korrigieren.
+Alle Tests entstehen zuerst und laufen gemeinsam rot, dann wird angehalten (Reihenfolge unten).
+Tabellengetrieben wie im Bestand. Codebeispiele stehen hier mehrzeilig, im Test als `'…\n\t…'`.
+
+### Hilfsmittel
+
+- **Parser** (`parser.test.ts`, `expectedResults`): neue Region „gültig: bedingter Typ im
+  Typblock“ neben G10, mit `check` bzw. `errors` wie dort.
+- **Checker** (`checker.test.ts`): neuer `describe('bedingte Typen')` mit einer Tabelle
+  `{ name, code, returnType?, errors? }`. `returnType` wird über einen neuen Helfer
+  `returnTypeOfLastDefinition(code)` geprüft: letzte Definition, deren Wert ein Funktionstyp ist,
+  `typeToString(resolvePlaceholders(ReturnType), 0, 5)`. Tiefe 5 wie `typeOfLastDefinition`,
+  damit Alias-Namen (`Fraction`) erscheinen. `errors` wird als `{ code, startRowIndex,
+  startColumnIndex }` verglichen wie `multilineHeadCases`. Ohne `errors` gilt: fehlerfrei.
+- Die Reihenfolge in erwarteten Unions (`Or(Integer Fraction)`) ist die der Zweige. Gibt
+  `createNormalizedUnionType` sie anders aus, wird die Erwartung angepasst, nicht der Test
+  gelockert.
+
+### Gemeinsame Definitionen
+
+Die Tests S, M, V, P und R hängen nicht an der core-lib, sie laufen also schon vor deren
+Umstellung.
+
+```jul
+# f: ein Operand
+f = (a: Rational)
+	->
+		:?(TypeOf(a))
+			[Integer] => Integer
+			() => Fraction
+	=> a
+
+# d: zwei Operanden
+d = (a: Rational b: Rational)
+	->
+		:?(TypeOf(a) TypeOf(b))
+			[Integer Integer] => Integer
+			() => Fraction
+	=> a
+
+# s: variadisch
+s = (...xs: List(Rational))
+	->
+		:?(TypeOf(xs))
+			[List(Integer)] => Integer
+			() => Fraction
+	=> 1
+```
+
+Jeder Fall hängt `h = (…) => …` an. Geprüft wird der Rückgabetyp von `h`.
+
+### S: Semantik, ein Operand
+
+| Name | `h` | Rückgabetyp von `h` |
+|---|---|---|
+| S1 Teilmenge | `(x: Integer) => f(x)` | `Integer` |
+| S2 Teilmenge über Untertyp | `(x: PositiveInteger) => f(x)` | `Integer` |
+| S3 disjunkt | `(x: Fraction) => f(x)` | `Fraction` |
+| S4 Überlappung | `(x: Rational) => f(x)` | `Or(Integer Fraction)` |
+| S5 Literal | `() => f(5)` | `5` (constant folding über das reine `f`) |
+
+Erster Treffer gewinnt, mit eigener Definition:
+
+```jul
+g = (a: Rational)
+	->
+		:?(TypeOf(a))
+			[PositiveInteger] => Text
+			[Integer] => Integer
+			() => Fraction
+	=> a
+```
+
+| Name | `h` | Rückgabetyp |
+|---|---|---|
+| S6 Teilmenge beendet | `(x: PositiveInteger) => g(x)` | `Text` |
+| S7 Überlappung, dann Teilmenge | `(x: Integer) => g(x)` | `Or(Text Integer)` |
+| S8 zwei Mal disjunkt | `(x: Fraction) => g(x)` | `Fraction` |
+
+Kein Treffer bleibt still (Frage 6). Die Tests halten das MVP-Verhalten fest, einschließlich
+des bekannten Risikos:
+
+```jul
+n = (a: Rational)
+	->
+		:?(TypeOf(a))
+			[Integer] => Integer
+	=> 1
+```
+
+| Name | `h` | Rückgabetyp |
+|---|---|---|
+| S9 kein Treffer | `(x: Fraction) => n(x)` | `Never` |
+| S10 Teiltreffer, bekanntes Risiko | `(x: Rational) => n(x)` | `Integer` |
+
+### M: zwei Operanden (`d`)
+
+| Name | `h` | Rückgabetyp |
+|---|---|---|
+| M1 | `(x: Integer y: Integer) => d(x y)` | `Integer` |
+| M2 | `(x: Fraction y: Integer) => d(x y)` | `Fraction` |
+| M3 | `(x: Rational y: Integer) => d(x y)` | `Or(Integer Fraction)` |
+| M4 | `(x: PositiveInteger y: Integer) => d(x y)` | `Integer` |
+| M5 Präfix | `(x: Integer y: Integer) => x.d(y)` | `Integer` |
+
+### V: variadisch (`s`)
+
+| Name | `h` | Rückgabetyp |
+|---|---|---|
+| V1 | `(x: Integer y: Integer z: Integer) => s(x y z)` | `Integer` |
+| V2 | `(x: Integer y: Fraction) => s(x y)` | `Fraction` |
+| V3 | `(x: Integer y: Rational) => s(x y)` | `Or(Integer Fraction)` |
+| V4 Spread Integer | `(ys: List(Integer)) => s(...ys)` | `Integer` (braucht den Spread-Fix aus Schritt 2) |
+| V5 Spread Rational | `(ys: List(Rational)) => s(...ys)` | `Or(Integer Fraction)` |
+| V6 Präfix | `(x: Integer) => x.s(1)` | `Integer` |
+
+### P: offene Signatur und Weitergabe
+
+| Name | Code | Erwartung |
+|---|---|---|
+| P1 Hover-Form | nur `f` | `returnTypeOfLastDefinition` ergibt `Or(Integer Fraction)` (Frage 9) |
+| P2 generische Weitergabe | `k = (y: Rational) => f(y)`, dann `h = (x: Integer) => k(x)` | `Integer` |
+
+P2 prüft, ob der vorhandene Mechanismus ein offenes `:?` durch eine Funktion ohne deklarierten
+Rückgabetyp trägt. Schlägt der Test nach der Umsetzung aus diesem Grund fehl und nicht wegen
+`:?`, wird das besprochen, bevor die Erwartung geändert wird.
+
+### R: Rumpfprüfung (Frage 11)
+
+| Name | Code | Erwartung |
+|---|---|---|
+| R1 Rumpf in der Union | `f` wie oben | fehlerfrei |
+| R2 Rumpf außerhalb | wie `f`, aber `=> §x§` | `returnTypeMismatch` am Rumpf |
+| R3 bekannte Großzügigkeit | wie `d`, aber `=> 0.5` | fehlerfrei, obwohl `d(1 2)` `Integer` zusagt |
+| R4 Teiltreffer im Rumpf | wie `n`, aber `=> a` | `returnTypeMismatch`: `Rational` liegt nicht in `Integer` |
+
+R4 zeigt, dass die Rumpfprüfung bei eigenen Funktionen einen fehlenden catchAll teilweise
+auffängt. Bei `nativeFunction` fehlt dieser Schutz.
+
+### E: Fehler
+
+| Name | Code | Erwartung |
+|---|---|---|
+| E1 außerhalb des Rückgabetyps | `x = :?(Integer)` mit Zweig `[Integer] => Integer` | JUL5153 an `:?` |
+| E2 Bindung im Kopf | wie `f`, aber Zweig `(x: Integer) => Integer` | JUL5154 am Zweig |
+| E3 Kopfzeile | `F = (a: Integer) -> :?(TypeOf(a))` mit Zweigen darunter | JUL1107 (Parser, vorhanden) |
+| E4 unvollständig | `F = (a: Integer)`, `->`, `:?(` beim Tippen | wirft nicht, dieselbe Parser-Meldung wie bei `?(` |
+
+### PA: Parser
+
+| Name | Code | Erwartung |
+|---|---|---|
+| PA1 Typblock | `F = (a: Integer)`, `->`, `:?(TypeOf(a))` mit `[Integer] => Integer` und `() => Text` | `returnType.type === 'typeBranching'`, 2 Zweige, beide `functionLiteral` |
+| PA2 zwei Operanden | `F = (a: Integer b: Integer)`, `->`, `:?(TypeOf(a) TypeOf(b))`, ein Zweig | `args` mit 2 Elementen |
+| PA3 in `nativeFunction` | Aufruf mit Funktionskopf und `:?`-Typblock, danach `§js … §` als zweites Argument | Aufruf hat 2 Argumente, das erste ist ein `functionTypeLiteral` mit `typeBranching` als Rückgabetyp |
+| PA4 `?` unverändert | G10 | bleibt `branching` |
+
+### K: core-lib (nach Schritt 6)
+
+| Name | Code | Erwartung |
+|---|---|---|
+| K1 | `h = (x: Integer y: Integer) => subtract(x y)` | `Integer` |
+| K2 | `h = (x: Fraction y: Integer) => subtract(x y)` | `Fraction` |
+| K3 | `h = (x: Rational y: Integer) => subtract(x y)` | `Or(Integer Fraction)` |
+| K4 | `h = (x: Integer y: Integer z: Integer) => add(x y z)` | `Integer` |
+| K5 | `h = (x: Integer y: Fraction) => add(x y)` | `Fraction` |
+| K6 | `h = (x: Integer y: Rational) => add(x y)` | `Or(Integer Fraction)` |
+| K7 | `h = (ys: List(Integer)) => add(...ys)` | `Integer` |
+| K8 Präfix | `h = (x: Integer) => x.add(1)` | `Integer` |
+| K9 Länge (yugioh-Muster) | `h = (xs: List(Integer)) => xs.length().subtract(1)` | `Integer` |
+| K10 Folding | `r = add(2 3)` bzw. `r = subtract(5 3)` | `5` bzw. `2` (`typeOfLastDefinition`) |
+| K11 ohne Argumente | `r = add()` | JUL5050 wie bisher |
+| K12 Hover | Symbol `add` | `Or(Integer Fraction)`, mit Alias `Fraction` statt ausgeschriebenem Dictionary |
+
+Umgestellt werden außerdem die vorhandenen Tests auf `addInteger` (siehe Migration). Die
+Folding-Tests laufen danach mit `add` und müssen dieselben Werte liefern.
+
+## Reihenfolge
+
+1. `npm run bench -- --save --note "vor :?"` in `jul-compiler` und `jul-language-server`.
+2. Alle Tests oben schreiben (S, M, V, P, R, E, PA, K). Das Paket muss typechecken, deshalb
+   stehen die Fehlercodes JUL5153/5154 schon im Enum, noch ohne Verwendung. `npm test` laufen
+   lassen, den roten Output zeigen und **anhalten**.
+3. Typknoten `conditional` und Auswertung (Schritte 1, 2) samt Spread-Fix.
+4. Parser (Schritt 3), dann PA grün.
+5. Checker-Fall und Fehlercodes (Schritt 4), dann S, M, V, P, R, E grün.
+6. core-lib umstellen (Schritt 6), `addInteger`/`subtractInteger` entfernen, bestehende Tests
+   migrieren, dann K grün.
+7. `npm test`, `npm run typecheck`, `npm run test-update-snapshot`, die Änderungen an der
+   Baseline durchsehen. `npm run build-all`, dann im LSP `npm test` und `npm run test-snapshot`.
+8. Öffentliche Doku: `jul-homepage/docs/docs/documentation/handbook.md` bekommt einen Abschnitt
+   „Bedingte Typen“ (Verhalten mit Beispiel, ohne Begründungen), das `myAdd`-Beispiel wird auf
+   `add` umgestellt, und `error-codes.md` bekommt JUL5153 und JUL5154.
+9. yugioh migrieren (16 Aufrufe) und mit `--check` prüfen, danach
+   `bench --save --note "nach :?"` in beiden Projekten.
+10. `jul-compiler/TODO`: Den Eintrag zu bedingten Typen auf den Stand bringen, auch die Aussage
+    „variadisch nicht erreichbar“ für `add` korrigieren.
 
 ## Offene Fragen
 
