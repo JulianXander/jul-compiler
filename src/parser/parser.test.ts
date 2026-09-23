@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { forEachChild, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDictionaryTypeField, PositionedExpression } from '../syntax-tree.js';
+import { forEachChild, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseBranching, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDefinition, ParseSingleDictionaryTypeField, ParseValueExpression, PositionedExpression } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
 
@@ -340,26 +340,18 @@ const expectedResults: {
 			],
 		},
 		{
-			// Steht nach => gar nichts, gibt es keinen Wert für die Definition. Gegenstück in
-			// checker.test.ts: mit einer Kommentarzeile darunter parst das Funktionsliteral durch
-			// und hat einen leeren body.
+			// Steht nach => gar nichts, fehlt der Rumpf. Der Knoten entsteht trotzdem mit leerem
+			// body, damit die Definition ihren Wert behält. Gegenstück in checker.test.ts:
+			// function-with-empty-body-does-not-throw.
 			name: 'function-without-body',
 			code: 'f = () =>',
 			errors: [
 				{
-					"code": ErrorCode.assignedValueMissingForDefinition,
-					"endColumnIndex": 4,
+					"code": ErrorCode.expectedExpression,
+					"endColumnIndex": 9,
 					"endRowIndex": 0,
-					"message": "assignedValue missing for definition",
-					"startColumnIndex": 0,
-					"startRowIndex": 0,
-				},
-				{
-					"code": ErrorCode.unparsedRestOfRow,
-					"endColumnIndex": 4,
-					"endRowIndex": 0,
-					"message": "multilineParser should parse until end of row",
-					"startColumnIndex": 4,
+					"message": "expression expected after =>",
+					"startColumnIndex": 7,
 					"startRowIndex": 0,
 				},
 			],
@@ -844,3 +836,402 @@ describe('Parser', () => {
 		expect(functionLiteralWithoutArrow.arrow).to.equal(undefined);
 	});
 });
+
+//#region Mehrzeiliger Funktionskopf
+
+const multilineHeadCases: {
+	name: string;
+	code: string;
+	/** Gültiger Fall: gleiche AST-Struktur wie diese Form, Positionen und parent ausgenommen. */
+	equivalentTo?: string;
+	/** Zusätzliche Prüfung am ersten Ausdruck, für Fälle ohne einzeilige Entsprechung. */
+	check?: (expression: ParseExpression) => void;
+	/** Ungültiger Fall: erwartete Fehler, nur Code und Zeile. */
+	errors?: { code: ErrorCode; row: number; }[];
+	/** Anzahl der Ausdrücke auf oberster Ebene, belegt, dass der Rest der Datei nicht verloren geht. */
+	expressionCount?: number;
+}[] = [
+		//#region => ohne Rumpf
+		{
+			name: 'B1 => ohne Rumpf am Dateiende',
+			code: 'g = (a: Integer) =>',
+			errors: [{ code: ErrorCode.expectedExpression, row: 0 }],
+		},
+		{
+			name: 'B2 => ohne Rumpf vor weiterer Definition',
+			code: 'g = (a: Integer) =>\nx = 1',
+			errors: [{ code: ErrorCode.expectedExpression, row: 0 }],
+			expressionCount: 2,
+		},
+		{
+			name: 'B3 => ohne Rumpf, Block nur mit Kommentar',
+			code: 'g = (a: Integer) =>\n\t# nur Kommentar\nx = 1',
+			errors: [{ code: ErrorCode.expectedExpression, row: 0 }],
+			expressionCount: 2,
+		},
+		{
+			name: 'B4 => mit eingerücktem Rumpf',
+			code: 'g = (a: Integer) =>\n\ta',
+		},
+		//#endregion => ohne Rumpf
+		//#region gültig: Rückgabepfeil umgebrochen
+		{
+			name: 'G1 Pfeilzeilen mit Operand inline',
+			code: 'f = (a: Integer)\n\t-> Integer\n\t=> a',
+			equivalentTo: 'f = (a: Integer) -> Integer => a',
+		},
+		{
+			name: 'G2 Rückgabetyp inline, Rumpf als Block',
+			code: 'f = (a: Integer)\n\t-> Integer\n\t=>\n\t\tb = a\n\t\tb',
+			equivalentTo: 'f = (a: Integer) -> Integer =>\n\tb = a\n\tb',
+		},
+		{
+			name: 'G3 Rückgabetyp als Block, Rumpf inline',
+			code: 'f = (a: Integer)\n\t->\n\t\tInteger\n\t=> a',
+			equivalentTo: 'f = (a: Integer) -> Integer => a',
+		},
+		{
+			name: 'G4 Rückgabetyp und Rumpf als Block',
+			code: 'f = (a: Integer)\n\t->\n\t\tInteger\n\t=>\n\t\tb = a\n\t\tb',
+			equivalentTo: 'f = (a: Integer) -> Integer =>\n\tb = a\n\tb',
+		},
+		{
+			name: 'G5 mehrzeilige Parameterliste mit Pfeilzeilen',
+			code: 'f = (\n\ta: Integer\n\tb: Integer\n)\n\t->\n\t\tInteger\n\t=>\n\t\tadd(a b)',
+			equivalentTo: 'f = (\n\ta: Integer\n\tb: Integer\n) -> Integer =>\n\tadd(a b)',
+		},
+		{
+			name: 'G6 Rückgabepfeil :>',
+			code: 'f = (a: Integer)\n\t:> Integer\n\t=> a',
+			equivalentTo: 'f = (a: Integer) :> Integer => a',
+		},
+		{
+			name: 'G7 Rückgabepfeil ~>',
+			code: 'f = (a: Integer)\n\t~> Integer\n\t=> a',
+			equivalentTo: 'f = (a: Integer) ~> Integer => a',
+		},
+		//#endregion gültig: Rückgabepfeil umgebrochen
+		//#region gültig: ohne Rumpf
+		{
+			name: 'G8 Funktionstyp, Rückgabetyp inline',
+			code: 'F = (a: Integer)\n\t-> Integer',
+			equivalentTo: 'F = (a: Integer) -> Integer',
+		},
+		{
+			name: 'G9 Funktionstyp, Rückgabetyp als Block',
+			code: 'F = (a: Integer)\n\t->\n\t\tInteger',
+			equivalentTo: 'F = (a: Integer) -> Integer',
+		},
+		//#endregion gültig: ohne Rumpf
+		//#region gültig: Typen, die den Block brauchen
+		{
+			name: 'G10 Branching als Rückgabetyp',
+			code: 'f = (a: Integer)\n\t->\n\t\t?(a)\n\t\t\t[Integer] => Integer\n\t\t\t() => Text\n\t=> a',
+			check: expression => {
+				const value = definedValue(expression) as ParseFunctionLiteral;
+				expect(value.type).to.equal('functionLiteral');
+				const returnType = value.returnType as ParseBranching;
+				expect(returnType.type).to.equal('branching');
+				expect(returnType.branches).to.have.lengthOf(2);
+			},
+		},
+		{
+			name: 'G11 Funktionstyp als Rückgabetyp',
+			code: 'F = (a: Integer)\n\t:>\n\t\t(b: Integer) :> Integer',
+			check: expression => {
+				const value = definedValue(expression) as ParseFunctionTypeLiteral;
+				expect(value.type).to.equal('functionTypeLiteral');
+				expect(value.returnType.type).to.equal('functionTypeLiteral');
+			},
+		},
+		{
+			name: 'G12 mehrere Ausdrücke im Typblock, der letzte gilt',
+			code: 'F = (a: Integer)\n\t->\n\t\tText\n\t\tInteger',
+			equivalentTo: 'F = (a: Integer) -> Integer',
+		},
+		//#endregion gültig: Typen, die den Block brauchen
+		//#region gültig: Typ-Parameter als Kopf
+		{
+			name: 'G13 Typ-Parameter als Kopf',
+			code: 'f = [Integer]\n\t-> Integer\n\t=> 1',
+			equivalentTo: 'f = [Integer] -> Integer => 1',
+		},
+		{
+			name: 'G14 Branching-Zweig mit Pfeilzeilen',
+			code: 'x = ?(1)\n\t[Integer]\n\t\t-> Integer\n\t\t=> 1',
+			equivalentTo: 'x = ?(1)\n\t[Integer] -> Integer => 1',
+		},
+		//#endregion gültig: Typ-Parameter als Kopf
+		//#region gültig: Umbruch ohne Rückgabetyp
+		{
+			name: 'G15 nur =>-Zeile, Rumpf inline',
+			code: 'f = (a: Integer)\n\t=> a',
+			equivalentTo: 'f = (a: Integer) => a',
+		},
+		{
+			name: 'G16 nur =>-Zeile, Rumpf als Block',
+			code: 'f = (a: Integer)\n\t=>\n\t\tb = a\n\t\tb',
+			equivalentTo: 'f = (a: Integer) =>\n\tb = a\n\tb',
+		},
+		{
+			name: 'G17 mehrzeilige Parameterliste, nur =>-Zeile',
+			code: 'f = (\n\ta: Integer\n)\n\t=> a',
+			equivalentTo: 'f = (\n\ta: Integer\n) => a',
+		},
+		//#endregion gültig: Umbruch ohne Rückgabetyp
+		//#region gültig: Mischform
+		{
+			name: 'G18 Rückgabetyp in der Kopfzeile, =>-Zeile mit Rumpf inline',
+			code: 'f = (a: Integer) -> Integer\n\t=> a',
+			equivalentTo: 'f = (a: Integer) -> Integer => a',
+		},
+		{
+			name: 'G19 Rückgabetyp in der Kopfzeile, =>-Zeile mit Rumpf als Block',
+			code: 'f = (a: Integer) -> Integer\n\t=>\n\t\tb = a\n\t\tb',
+			equivalentTo: 'f = (a: Integer) -> Integer =>\n\tb = a\n\tb',
+		},
+		//#endregion gültig: Mischform
+		//#region gültig: Kommentare und Leerzeilen
+		{
+			name: 'G20 Kommentar im Typblock',
+			code: 'f = (a: Integer)\n\t->\n\t\t# Typ\n\t\tInteger\n\t=> a',
+			check: expression => {
+				const value = definedValue(expression) as ParseFunctionLiteral;
+				expect(value.type).to.equal('functionLiteral');
+				const returnType = value.returnType as ParseReference;
+				expect(returnType.type).to.equal('reference');
+				expect(returnType.name.name).to.equal('Integer');
+			},
+		},
+		{
+			name: 'G21 Leerzeile am Anfang des Typblocks',
+			code: 'f = (a: Integer)\n\t->\n\n\t\tInteger\n\t=> a',
+			equivalentTo: 'f = (a: Integer) -> Integer => a',
+		},
+		{
+			name: 'G22 Leerzeile und Kommentar im Rumpf-Block',
+			code: 'f = (a: Integer)\n\t-> Integer\n\t=>\n\t\tb = a\n\n\t\t# Ergebnis\n\t\tb',
+		},
+		{
+			name: 'G23 Leerzeile zwischen Typblock und =>-Zeile',
+			code: 'f = (a: Integer)\n\t->\n\t\tInteger\n\n\t=> a',
+			equivalentTo: 'f = (a: Integer) -> Integer => a',
+		},
+		{
+			name: 'G24 Kommentar zwischen Typblock und =>-Zeile',
+			code: 'f = (a: Integer)\n\t->\n\t\tInteger\n\t# Rumpf\n\t=> a',
+			equivalentTo: 'f = (a: Integer) -> Integer => a',
+		},
+		{
+			name: 'G25 Kommentar zwischen Kopf und erster Pfeilzeile',
+			code: 'f = (a: Integer)\n\t# Rückgabetyp\n\t-> Integer\n\t=> a',
+			equivalentTo: 'f = (a: Integer) -> Integer => a',
+		},
+		{
+			name: 'G26 Rückgabetypzeile auskommentiert',
+			code: 'f = (a: Integer)\n\t# -> Integer\n\t=> a',
+			equivalentTo: 'f = (a: Integer) => a',
+		},
+		{
+			name: 'G27 Typblock auskommentiert',
+			code: 'f = (a: Integer)\n\t# ->\n\t# \tInteger\n\t=> a',
+			equivalentTo: 'f = (a: Integer) => a',
+		},
+		//#endregion gültig: Kommentare und Leerzeilen
+		//#region gültig: Einbettung
+		{
+			name: 'G28 Funktionskopf als Argument',
+			code: 'x = map(\n\tvalues\n\t(v: Integer)\n\t\t-> Integer\n\t\t=> v\n)',
+			equivalentTo: 'x = map(\n\tvalues\n\t(v: Integer) -> Integer => v\n)',
+		},
+		{
+			name: 'G29 Funktionskopf im Rumpf',
+			code: 'g = () =>\n\tf = (a: Integer)\n\t\t-> Integer\n\t\t=> a\n\tf',
+			equivalentTo: 'g = () =>\n\tf = (a: Integer) -> Integer => a\n\tf',
+		},
+		//#endregion gültig: Einbettung
+		//#region gültig: in Kauf genommen
+		{
+			// Eine eingerückte =>-Zeile unter einem beliebigen Ausdruck wird zu dessen
+			// Funktionskopf, genau wie die einzeilige Form.
+			name: 'G30 eingerückte =>-Zeile unter einer Referenz',
+			code: 'x = foo\n\t=> 1',
+			equivalentTo: 'x = foo => 1',
+		},
+		//#endregion gültig: in Kauf genommen
+		//#region ungültig
+		{
+			name: 'U1 Rückgabepfeil am Ende der Kopfzeile, Typ darunter',
+			code: 'f = (a: Integer) ->\n\t\tInteger\n\t=> a',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 0 }],
+		},
+		{
+			name: 'U2 Rückgabepfeil am Ende der Kopfzeile, nichts darunter',
+			code: 'F = (a: Integer) ->',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 0 }],
+		},
+		{
+			name: 'U3 => nach umgebrochenem Rückgabepfeil in derselben Zeile',
+			code: 'f = (a: Integer)\n\t-> Integer => a',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 1 }],
+		},
+		{
+			name: 'U4 Branching als Rückgabetyp in der Kopfzeile',
+			code: 'f = (a: Integer) -> ?(a)\n\t[Integer] => Integer',
+			errors: [{ code: ErrorCode.returnTypeRequiresBlock, row: 0 }],
+		},
+		{
+			name: 'U5 Branching als Rückgabetyp inline in der Pfeilzeile',
+			code: 'f = (a: Integer)\n\t-> ?(a)\n\t\t[Integer] => Integer\n\t=> a',
+			errors: [{ code: ErrorCode.returnTypeRequiresBlock, row: 1 }],
+		},
+		{
+			name: 'U6 :? als Rückgabetyp in der Kopfzeile',
+			code: 'f = (a: Integer) -> :?(a)\n\t[Integer] => Integer',
+			errors: [{ code: ErrorCode.returnTypeRequiresBlock, row: 0 }],
+		},
+		{
+			name: 'U7 Funktionstyp als Rückgabetyp in der Kopfzeile',
+			code: 'F = (a: Integer) :> (b: Integer) :> Integer',
+			errors: [{ code: ErrorCode.returnTypeRequiresBlock, row: 0 }],
+		},
+		{
+			name: 'U8 Funktionstyp als Rückgabetyp inline in der Pfeilzeile',
+			code: 'F = (a: Integer)\n\t:> (b: Integer) :> Integer',
+			errors: [{ code: ErrorCode.returnTypeRequiresBlock, row: 1 }],
+		},
+		{
+			name: 'U9 Leerzeile zwischen Kopf und Pfeilzeile',
+			code: 'f = (a: Integer)\n\n\t=> a',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 2 }],
+		},
+		{
+			name: 'U10 Kommentar in Spalte 0 beendet den Kopf',
+			code: 'f = (a: Integer)\n#\t-> Integer\n\t=> a',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 2 }],
+		},
+		{
+			name: 'U11 Pfeilzeile auf Ebene des Kopfs',
+			code: 'f = (a: Integer)\n=> a',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 1 }],
+		},
+		{
+			name: 'U12 Pfeilzeile zwei Ebenen zu tief',
+			code: 'f = (a: Integer)\n\t\t=> a',
+			errors: [{ code: ErrorCode.unexpectedIndentation, row: 1 }],
+		},
+		{
+			name: 'U13 =>-Zeile vor der Rückgabepfeil-Zeile',
+			code: 'f = (a: Integer)\n\t=> a\n\t-> Integer',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 2 }],
+		},
+		{
+			name: 'U14 zwei Rückgabepfeil-Zeilen',
+			code: 'f = (a: Integer)\n\t-> Integer\n\t-> Text\n\t=> a',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 2 }],
+		},
+		{
+			name: 'U15 zwei =>-Zeilen',
+			code: 'f = (a: Integer)\n\t=> a\n\t=> a',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 2 }],
+		},
+		{
+			name: 'U16 Rückgabepfeil-Zeile ohne Operand',
+			code: 'f = (a: Integer)\n\t->\n\t=> a',
+			errors: [{ code: ErrorCode.expectedExpression, row: 1 }],
+		},
+		{
+			name: 'U17 =>-Zeile ohne Operand',
+			code: 'f = (a: Integer)\n\t-> Integer\n\t=>',
+			errors: [{ code: ErrorCode.expectedExpression, row: 2 }],
+		},
+		{
+			name: 'U18 Definition im Typblock, Rest der Datei bleibt',
+			code: 'f = (a: Integer)\n\t->\n\t\tA = Integer\n\t\tA\n\t=> a\ng = 1',
+			errors: [{ code: ErrorCode.definitionNotAllowedForValueExpression, row: 2 }],
+			expressionCount: 2,
+		},
+		{
+			name: 'U19 halb getippt: Rückgabepfeil-Zeile ohne Typ',
+			code: 'f = (a: Integer)\n\t->',
+			errors: [{ code: ErrorCode.expectedExpression, row: 1 }],
+			check: expression => {
+				expect(definedValue(expression).type).to.equal('functionTypeLiteral');
+			},
+		},
+		{
+			name: 'U20 halb getippt: =>-Zeile ohne Rumpf',
+			code: 'f = (a: Integer)\n\t=>',
+			errors: [{ code: ErrorCode.expectedExpression, row: 1 }],
+			check: expression => {
+				const value = definedValue(expression) as ParseFunctionLiteral;
+				expect(value.type).to.equal('functionLiteral');
+				expect(value.body).to.deep.equal([]);
+			},
+		},
+		{
+			name: 'U21 Rückgabepfeil-Zeile nach Rückgabetyp in der Kopfzeile',
+			code: 'f = (a: Integer) -> Integer\n\t-> Text\n\t=> a',
+			errors: [{ code: ErrorCode.misplacedArrow, row: 1 }],
+		},
+		//#endregion ungültig
+	];
+
+/**
+ * Wert einer Definition auf oberster Ebene, an dem die Fälle den Funktionsknoten prüfen.
+ */
+function definedValue(expression: ParseExpression): ParseValueExpression {
+	expect(expression.type).to.equal('definition');
+	const value = (expression as ParseSingleDefinition).value;
+	expect(value, 'Definition ohne Wert').to.not.equal(undefined);
+	return value!;
+}
+
+const positionKeys = new Set(['startRowIndex', 'startColumnIndex', 'endRowIndex', 'endColumnIndex', 'parent']);
+
+/**
+ * Entfernt Positionen und parent rekursiv, damit sich mehrzeilige und einzeilige Form
+ * strukturell vergleichen lassen.
+ */
+function stripPositions(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(stripPositions);
+	}
+	if (value && typeof value === 'object') {
+		const result: Record<string, unknown> = {};
+		for (const [key, child] of Object.entries(value)) {
+			if (!positionKeys.has(key)) {
+				result[key] = stripPositions(child);
+			}
+		}
+		return result;
+	}
+	return value;
+}
+
+describe('Mehrzeiliger Funktionskopf', () => {
+	multilineHeadCases.forEach(({ name, code, equivalentTo, check, errors, expressionCount }) => {
+		it(name, () => {
+			const parsed = parseCode(code, 'dummy.jul').unchecked;
+			const actualErrors = parsed.errors.map(error => ({ code: error.code, row: error.startRowIndex }));
+			expect(actualErrors).to.deep.equal(errors ?? []);
+			for (const error of parsed.errors) {
+				expect(error.message).to.not.match(/Parser/);
+			}
+			if (expressionCount !== undefined) {
+				expect(parsed.expressions?.length).to.equal(expressionCount);
+			}
+			if (equivalentTo !== undefined) {
+				const equivalent = parseCode(equivalentTo, 'dummy.jul').unchecked;
+				expect(equivalent.errors, 'einzeilige Entsprechung muss fehlerfrei sein').to.deep.equal([]);
+				expect(stripPositions(parsed.expressions)).to.deep.equal(stripPositions(equivalent.expressions));
+				expect(stripPositions(parsed.symbols)).to.deep.equal(stripPositions(equivalent.symbols));
+			}
+			if (check) {
+				check(parsed.expressions![0]!);
+			}
+		});
+	});
+});
+
+//#endregion Mehrzeiliger Funktionskopf

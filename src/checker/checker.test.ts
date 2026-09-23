@@ -1943,19 +1943,6 @@ g: Text = f(3)`,
 			],
 		},
 		{
-			// Ein Funktionsliteral, dessen body nur aus einem Kommentar besteht, ist ungültig -
-			// der Parser meldet das aber nicht, und der Checker wirft daran:
-			// "Cannot read properties of undefined (reading 'type')" in case 'functionLiteral',
-			// weil last(expression.body) undefined ist und das ! darüber hinwegtäuscht.
-			// Prinzip 8: halbfertiger Code ist der Normalfall, der Checker darf nicht werfen.
-			// Beim Tippen entsteht der Zustand bei jedem Funktionsliteral, und im Sprachserver
-			// fällt dann die Diagnostik für die ganze Datei aus.
-			// Vgl. jul-examples/ui/dialog/dialog.jul, das deshalb nicht gecheckt werden kann.
-			// Abgrenzung in parser.test.ts: function-without-body - ohne Folgezeile greift der Parser.
-			name: 'function-with-only-comment-body-does-not-throw',
-			code: 'f = () =>\n\t# TODO',
-		},
-		{
 			// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
 			// eines core-lib Namens weiterhin ein Fehler sein.
 			name: 'redefinition-of-core-lib-name-still-errors',
@@ -2086,6 +2073,60 @@ describe('Checker', () => {
 			}
 		});
 	});
+	// Ein Funktionsliteral ohne Ausdruck im Rumpf ist ungültig. Der Parser meldet expectedExpression,
+	// liefert den Knoten aber mit leerem body. Früher warf der Checker daran:
+	// "Cannot read properties of undefined (reading 'type')" in case 'functionLiteral',
+	// weil last(expression.body) undefined ist und das ! darüber hinwegtäuscht.
+	// Prinzip 8: halbfertiger Code ist der Normalfall, der Checker darf nicht werfen.
+	// Beim Tippen entsteht der Zustand bei jedem Funktionsliteral, und im Sprachserver
+	// fällt dann die Diagnostik für die ganze Datei aus. Vgl. jul-examples/ui/dialog/dialog.jul.
+	// Eigener Test, weil die Tabelle oben fehlerfreies Parsen voraussetzt.
+	[
+		'f = () =>\n\t# TODO',
+		'f = () =>',
+	].forEach(code => {
+		it(`function-with-empty-body-does-not-throw: ${JSON.stringify(code)}`, () => {
+			const parsed = parseCode(code, 'dummy.jul');
+			expect(parsed.unchecked.errors.map(error => error.code)).to.deep.equal([ErrorCode.expectedExpression]);
+			checkTypes(parsed, {});
+		});
+	});
+	//#region Mehrzeiliger Funktionskopf
+	// Eigene Tests, weil nur Code und Position der Meldungen geprüft werden, nicht ihr Wortlaut.
+	const multilineHeadCases: {
+		name: string;
+		code: string;
+		errors: { code: ErrorCode; startRowIndex: number; startColumnIndex: number; }[];
+	}[] = [
+			{
+				name: 'C1 Rückgabetyp im Typblock wird gegen den Rumpf geprüft',
+				code: 'f = (a: Integer)\n\t->\n\t\tText\n\t=> a',
+				errors: [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 3, startColumnIndex: 4 }],
+			},
+			{
+				name: 'C2 Parameter im Typblock auflösbar',
+				code: 'f = (a: Integer)\n\t->\n\t\tTypeOf(a)\n\t=> a',
+				errors: [],
+			},
+			{
+				name: 'C3 Funktionstyp als Rückgabetyp',
+				code: 'F = (a: Integer)\n\t:>\n\t\t(b: Integer) :> Integer\nf: F = (a: Integer) => (b: Integer) => b',
+				errors: [],
+			},
+		];
+	multilineHeadCases.forEach(({ name, code, errors }) => {
+		it(name, () => {
+			const parsed = parseCode(code, 'dummy.jul');
+			expect(parsed.unchecked.errors).to.deep.equal([]);
+			checkTypes(parsed, {});
+			expect(parsed.checked?.errors?.map(error => ({
+				code: error.code,
+				startRowIndex: error.startRowIndex,
+				startColumnIndex: error.startColumnIndex,
+			}))).to.deep.equal(errors);
+		});
+	});
+	//#endregion Mehrzeiliger Funktionskopf
 	// Passt der Elementtyp des gespreadeten Listentyps nicht zum Rest-Parameter, muss ein
 	// echter Typfehler kommen - keine Platzhaltermeldung über eine nicht behandelte Form.
 	// Eigener Test, weil nur die Meldung geprüft wird, nicht ihr genauer Wortlaut.

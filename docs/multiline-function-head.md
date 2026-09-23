@@ -237,10 +237,11 @@ Checker-Snapshot-Baseline, gehört also in einen eigenen Schritt. Hier wird es n
 verwendet. `misplacedArrow` bekommt je Fall eine eigene Meldung. Alle drei neuen Codes kommen
 auf die Homepage-Fehlerseite (`jul-homepage/docs/docs/documentation/error-codes.md`).
 
-Vorab zu beheben (Schritt 1 der Reihenfolge): `g = (a: Integer) =>` ohne Rumpf läuft heute
-fehlerfrei durch, am Dateiende wie vor einer weiteren Definition. Beim Rückgabepfeil (`:>` am Zeilenende) kommt immerhin JUL1102.
-Der fehlende Rumpf muss JUL1152 melden, sonst kann der Test für „Pfeil ohne Operand“ nicht rot
-werden, ohne dass zwei Ursachen vermischt sind.
+Vorab zu beheben (Schritt 1 der Reihenfolge): `g = (a: Integer) =>` ohne Rumpf läuft vor einer
+weiteren Definition oder mit nur einem Kommentar darunter fehlerfrei durch. Am Dateiende kommen
+JUL2100 und JUL1102 (mit Parser-Namen), die Definition verliert dabei ihren Wert. Beim
+Rückgabepfeil (`:>` am Zeilenende) kommt JUL1102. Der fehlende Rumpf muss JUL1152 melden, sonst
+kann der Test für „Pfeil ohne Operand“ nicht rot werden, ohne dass zwei Ursachen vermischt sind.
 
 ### 4. Language Server
 
@@ -258,7 +259,8 @@ SignatureHelp und DocumentSymbol für die neue Form sowie das Verhalten beim Tip
    3. Fix: Ursache zuerst klären, es sind zwei. Vor einer weiteren Definition liefert
       `multilineParser` für den Block einen Erfolg mit leerer Liste, weil schon die erste Zeile
       nicht tief genug eingerückt ist. Am Dateiende schlägt `checkEndOfCode` in
-      `expressionBlockParser` an, der Fehler kommt aber nicht beim Nutzer an. Beide Fälle landen
+      `expressionBlockParser` an. Der ganze Funktionskopf scheitert daran, beim Nutzer kommen
+      nur JUL2100 und JUL1102 an. Beide Fälle landen
       in einer Prüfung im Block-Zweig von `functionBodyParser`: Enthält der Block keinen Ausdruck
       (auch nicht, wenn nur Kommentare oder Leerzeilen darin stehen), wird JUL1152 gemeldet. Der
       Knoten entsteht trotzdem, mit leerem Rumpf, damit der Language Server weiterarbeitet.

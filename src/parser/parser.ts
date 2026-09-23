@@ -1643,7 +1643,7 @@ function functionBodyParser(
 			// multiline FunctionLiteral
 			{
 				predicate: endOfLineParser,
-				parser: moveToNextLine(incrementIndent(expressionBlockParser))
+				parser: functionBodyBlockParser,
 			},
 			// inline FunctionLiteral
 			{
@@ -1663,6 +1663,47 @@ function functionBodyParser(
 			type: 'functionBody',
 			body: result.parsed[1],
 		},
+	};
+}
+
+/**
+ * Eingerückter Rumpf unter einem `=>` am Zeilenende.
+ * Enthält der Block keinen Ausdruck (Dateiende, nächste Zeile nicht eingerückt oder nur Kommentare
+ * und Leerzeilen), wird expectedExpression am Pfeil gemeldet. Der Rumpf ist dann leer, geparst
+ * gilt er trotzdem, damit der Funktionsknoten für den Language Server erhalten bleibt.
+ */
+function functionBodyBlockParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ParseExpression[]> {
+	const result = moveToNextLine(incrementIndent(expressionBlockParser))(rows, startRowIndex, startColumnIndex, indent);
+	if (result.hasParsed && result.parsed?.length) {
+		return result;
+	}
+	// Scheitern kann der Block nur am Dateiende. Der endOfCode-Fehler wird durch
+	// expectedExpression ersetzt.
+	const errors = result.hasParsed
+		? [...(result.errors ?? [])]
+		: [];
+	if (!errors.length) {
+		// Hat der Block nur fehlerhafte Zeilen, ist expectedExpression ein Folgefehler.
+		errors.push({
+			code: ErrorCode.expectedExpression,
+			message: 'expression expected after =>',
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex - 2,
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex,
+		});
+	}
+	return {
+		hasParsed: true,
+		endRowIndex: result.hasParsed ? result.endRowIndex : startRowIndex,
+		endColumnIndex: result.hasParsed ? result.endColumnIndex : startColumnIndex,
+		parsed: [],
+		errors: errors,
 	};
 }
 
