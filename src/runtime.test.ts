@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import {
-	_branch, _callFunction, _createFunction, add, addDate, addInteger, and, combine$, combineTexts,
+	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts,
 	completed$, create$, deepEqual, findLastIndex, multiply, or, parseJson, push, rationalToFloat,
 	regex, subscribe, subtract, take$, toJson,
 } from './runtime.js';
@@ -328,14 +328,14 @@ describe('combine$', () => {
 describe('_callFunction folgt der vom Emitter erzeugten Aufrufkonvention (Listen-Argumente)', () => {
 	it('Rest-Parameter', () => {
 		const values = [2n, 3n];
-		expect(_callFunction(addInteger, undefined, values)).to.equal(addInteger(...values));
+		expect(_callFunction(add, undefined, values)).to.equal(add(...values));
 	});
 	it('singleNames-Parameter', () => {
 		const values: [bigint, bigint] = [5n, 3n];
 		expect(_callFunction(subtract, undefined, values)).to.deep.equal(subtract(...values));
 	});
 	it('Prefixargument mit Rest-Parameter', () => {
-		expect(_callFunction(addInteger, 2n, [3n])).to.equal(addInteger(2n, 3n));
+		expect(_callFunction(add, 2n, [3n])).to.equal(add(2n, 3n));
 	});
 	it('Prefixargument mit singleNames-Parameter', () => {
 		const texts = ['x', 'y'];

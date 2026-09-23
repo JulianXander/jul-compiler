@@ -301,7 +301,9 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			return textLiteralToJs(expression, indent);
 		case 'binding':
 		case 'data':
-		case 'field': {
+		case 'field':
+		// Nur im Rückgabetyp erlaubt, und der wird nicht emittiert.
+		case 'typeBranching': {
 			throw new Error(`Unexpected expression.type: ${expression.type}`);
 		}
 		default: {

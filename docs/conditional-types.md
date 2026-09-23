@@ -82,9 +82,13 @@ Eingaben feststehen.
 - `createConditionalType(operands, branches)`: sind alle Operanden frei von Platzhaltern, wird
   sofort nach den drei Fällen oben ausgewertet, sonst entsteht der Knoten.
 - Teilmenge über `getTypeError(undefined, kollektion, kopf)`, disjunkt über
-  `createNormalizedIntersectionType([kollektion, kopf])` = `Never`, dazu die Verlässlichkeit
-  aus `hasReliableTypeError`, damit eine unbestimmte Bedingung nicht vorzeitig wegfällt (dasselbe
-  Problem, das beim Never-Idiom schon einmal aufgetreten ist).
+  `typesOverlap(kollektion, kopf) === false`. Die Kollektion ist immer ein Tuple, und für
+  Tuples und Lists gab `typesOverlap` bisher nur „unbekannt“ zurück, damit wäre jeder disjunkte
+  Fall als Überlappung durchgegangen. `typesOverlap` vergleicht Tuples und Lists deshalb jetzt
+  Position für Position, und das gilt überall, auch für `And` und die Unreachable-Prüfung von `?`.
+  Die Teilmenge zählt nur, wenn in der Kollektion kein `Any` steckt (`containsAny`), denn
+  `hasReliableTypeError` steigt nicht in Tuples ab und hielte `[Any]` für eine Teilmenge von
+  `[Integer]`.
 - `traversePlaceholders`: Fall `conditional` löst die Operanden auf und ruft
   `createConditionalType` neu auf. Darüber greift der Mechanismus, der `SumType(TypeOf(a) …)`
   heute am Aufruf konkret macht (`dereferenceArgumentTypesNested`), ohne weitere Änderung.

@@ -1738,23 +1738,6 @@ _createFunction(
 		]
 	}
 );
-export const subtractInteger = (minuend: bigint, subtrahend: bigint) =>
-	minuend - subtrahend;
-_createFunction(
-	subtractInteger,
-	{
-		singleNames: [
-			{
-				name: 'minuend',
-				type: Integer,
-			},
-			{
-				name: 'subtrahend',
-				type: Integer,
-			}
-		]
-	}
-);
 export const subtractFloat = (minuend: number, subtrahend: number) =>
 	minuend - subtrahend;
 _createFunction(
@@ -1800,19 +1783,6 @@ _createFunction(
 	{
 		rest: {
 			type: List(Rational)
-		}
-	}
-);
-export const addInteger = (...args: bigint[]): bigint =>
-	args.reduce(
-		(accumulator, current) =>
-			accumulator + current,
-		0n);
-_createFunction(
-	addInteger,
-	{
-		rest: {
-			type: List(Integer)
 		}
 	}
 );

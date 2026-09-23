@@ -31,6 +31,8 @@ import {
 	createCompileTimeTupleOfType,
 	createCompileTimeTypeOfType,
 	createCompileTimeWithElementAtType,
+	createCompileTimeConditionalType,
+	ConditionalTypeBranch,
 	createNestedReference,
 	createParameterReference,
 	createParametersType,
@@ -556,6 +558,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'textLiteral':
 		case 'tupleOf':
 		case 'type':
+		case 'conditional':
 		case 'withElementAt':
 			return builtinAny;
 		default: {
@@ -761,6 +764,7 @@ export function dereferenceNameFromObject(
 		case 'textLiteral':
 		case 'tupleOf':
 		case 'type':
+		case 'conditional':
 		case 'withElementAt':
 			return undefined;
 		default: {
@@ -852,6 +856,7 @@ function dereferenceNameFromObjectType(
 		case 'tupleOf':
 		case 'type':
 		case 'typeOf':
+		case 'conditional':
 		case 'withElementAt':
 			return undefined;
 		default: {
@@ -922,6 +927,7 @@ export function dereferenceIndexFromObject(
 		case 'tupleOf':
 		case 'type':
 		case 'typeOf':
+		case 'conditional':
 		case 'withElementAt':
 			return undefined;
 		default: {
@@ -1097,6 +1103,12 @@ function dereferenceParameterFromArgumentType(
 	if (isRest) {
 		const allArgTypes = getAllArgTypes(prefixArgumentType, argsType);
 		if (allArgTypes === undefined) {
+			// Ist der Rest der einzige Parameter, sammelt er die ganze Argumentkollektion, auch
+			// wenn sie keine Tuple ist (f(...ys) mit ys: List(Integer)).
+			if (paramIndex === 0
+				&& !prefixArgumentType) {
+				return rawArgsType;
+			}
 			return builtinAny;
 		}
 		return createCompileTimeTupleType(allArgTypes.slice(paramIndex));
@@ -1376,6 +1388,25 @@ function traversePlaceholders(
 			}
 			// Neu falten statt neu einpacken, sonst bleibt der Knoten trotz aufgelöster Teile stehen.
 			return withElementAtFromTypes(dereferencedSource, dereferencedIndex, dereferencedValue);
+		}
+		case 'conditional': {
+			// Nur die Operanden entscheiden über den Zweig. Köpfe und Ergebnisse werden mit
+			// aufgelöst, damit ein Ergebnis wie TypeOf(a) am Aufruf ebenfalls konkret wird.
+			const rawOperands = rawType.Operands;
+			const dereferencedOperands = rawOperands.map(operand => traversePlaceholders(operand, argumentContext));
+			const rawBranches = rawType.Branches;
+			const dereferencedBranches = rawBranches.map(branch => ({
+				Head: traversePlaceholders(branch.Head, argumentContext),
+				Result: traversePlaceholders(branch.Result, argumentContext),
+			}));
+			if (elementsEqual(rawOperands, dereferencedOperands)
+				&& rawBranches.every((branch, index) =>
+					branch.Head === dereferencedBranches[index]!.Head
+					&& branch.Result === dereferencedBranches[index]!.Result)) {
+				return rawType;
+			}
+			// Neu auswerten statt neu einpacken.
+			return createConditionalType(dereferencedOperands, dereferencedBranches);
 		}
 		case 'range': {
 			const rawStart = rawType.Start;
@@ -2193,6 +2224,74 @@ function inferType(
 					? branchReturnTypes
 					: [...branchReturnTypes, builtinError]);
 			return { type: rawType };
+		}
+		case 'typeBranching': {
+			// Nur als Rückgabetyp erlaubt: dort wird es nie emittiert, anderswo bräuchte es eine
+			// Runtime-Implementierung.
+			const parent = expression.parent;
+			const isReturnType = (parent?.type === 'functionLiteral' || parent?.type === 'functionTypeLiteral')
+				&& parent.returnType === expression;
+			if (!isReturnType) {
+				errors.push({
+					code: ErrorCode.typeBranchingOutsideReturnType,
+					message: 'Type branching (:?) is only allowed as return type.',
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.startRowIndex,
+					endColumnIndex: expression.startColumnIndex + 2,
+				});
+			}
+			const args = expression.args;
+			if (args) {
+				setInferredType(args, typeContext, parsedDocuments, folder, file, filePath);
+			}
+			// Operanden, Köpfe und Ergebnisse werden gelesen wie der Ausdruck hinter ->: als
+			// Wertemenge, nicht als Typwert.
+			const operands = args
+				? getArgValueExpressions(args).map(arg => valueOf(arg?.typeInfo?.type))
+				: [];
+			const conditionalBranches: ConditionalTypeBranch[] = [];
+			expression.branches.forEach(branch => {
+				setInferredType(branch, typeContext, parsedDocuments, folder, file, filePath);
+				if (!checkIsFunction(branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors)) {
+					return;
+				}
+				const branchType = resolveAlias(branch.typeInfo!.type);
+				if (!isFunctionType(branchType)) {
+					return;
+				}
+				const paramsType = branchType.ParamsType;
+				let head: CompileTimeType;
+				if (isParametersType(paramsType)) {
+					// () ist der catchAll. Eine Bindung im Kopf bleibt für ihre Bedeutung auf
+					// Typebene frei. Als Kopf gelten dann die Typen der Parameter, damit auf den
+					// Fehler keine Folgefehler kommen.
+					if (paramsType.singleNames.length || paramsType.rest) {
+						head = paramsType.singleNames.length && !paramsType.rest
+							? createCompileTimeTupleType(paramsType.singleNames.map(parameter => parameter.type ?? builtinAny))
+							: builtinAny;
+						errors.push({
+							code: ErrorCode.typeBranchHeadBinding,
+							message: 'A branch of :? must not bind a name in its head. Use a type as head, e.g. [Integer] => Integer.',
+							startRowIndex: branch.startRowIndex,
+							startColumnIndex: branch.startColumnIndex,
+							endRowIndex: branch.endRowIndex,
+							endColumnIndex: branch.endColumnIndex,
+						});
+					}
+					else {
+						head = builtinAny;
+					}
+				}
+				else {
+					head = valueOf(paramsType);
+				}
+				conditionalBranches.push({
+					Head: head,
+					Result: valueOf(branchType.ReturnType),
+				});
+			});
+			return { type: createCompileTimeTypeOfType(createConditionalType(operands, conditionalBranches)) };
 		}
 		case 'definition': {
 			const value = expression.value;
@@ -3721,6 +3820,72 @@ function withElementAtFromTypes(
 
 //#endregion Sequenz Arithmetik
 
+//#region Bedingte Typen
+
+/**
+ * `:?(Operanden)`: prüft die Kollektion der Operanden der Reihe nach gegen die Köpfe der Zweige.
+ * Teilmenge: Ergebnis aufnehmen, fertig. Disjunkt: Zweig überspringen. Überlappend: Ergebnis
+ * aufnehmen, weiter mit dem nächsten Zweig. Das Ergebnis ist die Union der aufgenommenen
+ * Ergebnisse, ohne Treffer also Never.
+ * Solange ein Operand noch Platzhalter enthält, bleibt der Knoten stehen und wird am Aufruf bzw.
+ * per resolvePlaceholders erneut ausgewertet.
+ */
+function createConditionalType(
+	operands: CompileTimeType[],
+	branches: ConditionalTypeBranch[],
+): CompileTimeType {
+	if (operands.some(isUnresolvedPlaceholderType)) {
+		return createCompileTimeConditionalType(operands, branches);
+	}
+	const collection = operands.length
+		? createCompileTimeTupleType(operands)
+		: builtinEmpty;
+	// Gegen Any meldet getTypeError nie einen Fehler. Ein Operand, in dem Any steckt, ist
+	// deshalb nie Teilmenge eines Kopfs, sondern überlappt ihn höchstens.
+	const isReliable = !containsAny(collection);
+	const results: CompileTimeType[] = [];
+	for (const branch of branches) {
+		if (isReliable
+			&& !getTypeError(undefined, collection, branch.Head)) {
+			results.push(branch.Result);
+			break;
+		}
+		if (typesOverlap(collection, branch.Head) === false) {
+			continue;
+		}
+		results.push(branch.Result);
+	}
+	return createNormalizedUnionType(results);
+}
+
+/**
+ * Steckt irgendwo in diesem Typ Any (oder ein Typ, gegen den getTypeError ebenso nichts aussagt)?
+ * Anders als hasReliableTypeError steigt das auch in Kollektionen ab.
+ */
+function containsAny(rawType: CompileTimeType): boolean {
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'and':
+		case 'or':
+			return type.ChoiceTypes.some(containsAny);
+		case 'not':
+			return containsAny(type.SourceType);
+		case 'tuple':
+			return type.ElementTypes.some(containsAny);
+		case 'list':
+		case 'dictionary':
+			return containsAny(type.ElementType);
+		case 'dictionaryLiteral':
+			return Object.values(type.Fields).some(containsAny);
+		case 'stream':
+			return containsAny(type.ValueType);
+		default:
+			return !hasReliableTypeError(type);
+	}
+}
+
+//#endregion Bedingte Typen
+
 //#region Typ Arithmetik
 
 /**
@@ -3990,6 +4155,8 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'nestedReference':
 		case 'parameterReference':
 		case 'parameters':
+		// Ein stehengebliebener bedingter Typ wartet noch auf seine Operanden.
+		case 'conditional':
 			return false;
 		// alias: getTypeError und typeEquals lösen ihn selbst auf, die Verlässlichkeit des Ziels
 		// wird hier bewusst nicht mitgeprüft.
@@ -4143,11 +4310,11 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 		return true;
 	}
 	switch (firstFamily) {
-		// strukturierte Typen derselben Familie können sich beliebig überschneiden,
-		// z.B. enthalten List(Integer) und List(Text) beide die leere Liste
+		case 'list':
+			return sequencesOverlap(first, second);
+		// strukturierte Typen derselben Familie können sich beliebig überschneiden
 		case 'dictionary':
 		case 'function':
-		case 'list':
 		case 'stream':
 			return undefined;
 		default:
@@ -4155,6 +4322,40 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 			return true;
 	}
 	//#endregion gleiche Familie
+}
+
+/**
+ * Überlappung zweier Tuples oder Lists, Position für Position. Beide schließen das Leere aus, und
+ * ein Tuple nennt nur Mindestpositionen: [Integer] und [Integer Text] teilen sich [1 §x§].
+ * Gemeinsam ist ein Wert daher genau dann, wenn jede Position, die beide festlegen, überlappt.
+ * Eine List legt jede Position auf ihren Elementtyp fest.
+ */
+function sequencesOverlap(first: ResolvedType, second: ResolvedType): boolean | undefined {
+	let pairs: [CompileTimeType, CompileTimeType][];
+	if (first.julType === 'tuple' && second.julType === 'tuple') {
+		const length = Math.min(first.ElementTypes.length, second.ElementTypes.length);
+		pairs = first.ElementTypes.slice(0, length).map((element, index) =>
+			[element, second.ElementTypes[index]!]);
+	}
+	else if (first.julType === 'tuple' && second.julType === 'list') {
+		pairs = first.ElementTypes.map(element => [element, second.ElementType]);
+	}
+	else if (first.julType === 'list' && second.julType === 'tuple') {
+		pairs = second.ElementTypes.map(element => [first.ElementType, element]);
+	}
+	else if (first.julType === 'list' && second.julType === 'list') {
+		pairs = [[first.ElementType, second.ElementType]];
+	}
+	else {
+		return undefined;
+	}
+	const results = pairs.map(([firstElement, secondElement]) => typesOverlap(firstElement, secondElement));
+	if (results.some(result => result === false)) {
+		return false;
+	}
+	return results.every(result => result === true)
+		? true
+		: undefined;
 }
 
 /**
@@ -4459,6 +4660,9 @@ export function inferBodyPurity(
 				}
 				return undefined;
 			}
+			case 'typeBranching':
+				// Rechnet nur auf Typen, und die Zweige werden nie aufgerufen.
+				return undefined;
 			case 'reference':
 				// Der bloße Zugriff ist rein, auch auf einen fremden Parameter (E2) - nur Aufruf
 				// und Weitergabe zählen.
@@ -4647,6 +4851,14 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 				&& typeEquals(first.ParamsType, second.ParamsType)
 				&& typeEquals(first.ReturnType, second.ReturnType)
 				&& effectivePurity(first.purity) === effectivePurity(second.purity);
+		case 'conditional':
+			return second.julType === 'conditional'
+				&& first.Operands.length === second.Operands.length
+				&& first.Operands.every((operand, i) => typeEquals(operand, second.Operands[i]!))
+				&& first.Branches.length === second.Branches.length
+				&& first.Branches.every((branch, i) =>
+					typeEquals(branch.Head, second.Branches[i]!.Head)
+					&& typeEquals(branch.Result, second.Branches[i]!.Result));
 		case 'withElementAt':
 			return second.julType === 'withElementAt'
 				&& typeEquals(first.Source, second.Source)
@@ -5045,6 +5257,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'boolean':
 		case 'booleanLiteral':
 		case 'concat':
+		case 'conditional':
 		case 'date':
 		case 'dictionary':
 		case 'empty':
@@ -5253,6 +5466,14 @@ function getTypeErrorAtDepth(
 		case 'tupleOf': {
 			// Wie concat/withElementAt: solange die Anzahl noch offen ist, bleibt der Knoten
 			// stehen - erst neu falten versuchen, sonst permissiv.
+			const resolved = resolvePlaceholders(argumentsType);
+			if (resolved !== argumentsType) {
+				return getTypeError(prefixArgumentType, resolved, targetType);
+			}
+			return undefined;
+		}
+		case 'conditional': {
+			// Wie withElementAt: erst auswerten versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
 				return getTypeError(prefixArgumentType, resolved, targetType);
@@ -5623,6 +5844,9 @@ function getTypeErrorAtDepth(
 		case 'lengthOf':
 			// In der Oberfläche nicht konstruierbar, nur zur Vollständigkeit des Switches.
 			return getTypeError(prefixArgumentType, argumentsType, CompileTimeNonZeroInteger);
+		case 'conditional':
+			// Wartet noch auf seine Operanden: permissiv wie withElementAt.
+			return undefined;
 		case 'withElementAt':
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference, sonst
 			// entstünden Fehler an einem Typ, der noch gar nicht feststeht.
@@ -6300,6 +6524,12 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return `§${type.value.replaceAll('§', '§§')}§`;
 		case 'tuple':
 			return arrayTypeToString(type.ElementTypes, indent, depth + 1, suppressAlias);
+		case 'conditional': {
+			const operands = type.Operands.map(operand => typeToString(operand, indent, depth + 1, suppressAlias)).join(' ');
+			const branches = type.Branches.map(branch =>
+				`${typeToString(branch.Head, indent, depth + 1, suppressAlias)} => ${typeToString(branch.Result, indent, depth + 1, suppressAlias)}`);
+			return `:?(${operands}) [${branches.join(', ')}]`;
+		}
 		case 'withElementAt':
 			return `WithElementAt(${typeToString(type.Source, indent, depth + 1, suppressAlias)} ${typeToString(type.Index, indent, depth + 1, suppressAlias)} ${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
 		case 'range':

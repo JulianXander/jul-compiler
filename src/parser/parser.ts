@@ -22,6 +22,7 @@ import {
 	Name,
 	NumberLiteral,
 	ParseBranching,
+	ParseTypeBranching,
 	ParseDestructuringDefinition,
 	ParseDestructuringField,
 	ParseDestructuringFields,
@@ -254,6 +255,7 @@ const nestedReferenceTokenParser = tokenParser('/');
 // SVO InfixFunctionCall
 const infixFunctionTokenParser = tokenParser('.');
 const branchingTokenParser = tokenParser('?');
+const typeBranchingTokenParser = tokenParser(':?');
 const definitionTokenParser = tokenParser(' = ');
 const functionTokenParser = tokenParser(' =>');
 const typeGuardTokenParser = tokenParser(': ');
@@ -1033,8 +1035,11 @@ function valueExpressionBaseParser(
 		return endOfCodeError;
 	}
 	// Branching steht praefix und kann daher nicht hinter der simpleExpression haengen.
+	if (typeBranchingTokenParser(rows, startRowIndex, startColumnIndex, indent).hasParsed) {
+		return branchingParser(rows, startRowIndex, startColumnIndex, indent, 'typeBranching');
+	}
 	if (branchingTokenParser(rows, startRowIndex, startColumnIndex, indent).hasParsed) {
-		return branchingParser(rows, startRowIndex, startColumnIndex, indent);
+		return branchingParser(rows, startRowIndex, startColumnIndex, indent, 'branching');
 	}
 	const result = sequenceParser(
 		simpleExpressionBaseParser,
@@ -1598,18 +1603,22 @@ function functionArgumentsParser(
 
 //#endregion SimpleExpression
 
+/**
+ * `?` und `:?` teilen sich die Form: Präfix-Token, Argumentliste, eingerückte Zweige.
+ */
 function branchingParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
-): ParserResult<ParseBranching> {
+	kind: 'branching' | 'typeBranching',
+): ParserResult<ParseBranching | ParseTypeBranching> {
 	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'branching');
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
 	const result = sequenceParser(
-		branchingTokenParser,
+		kind === 'branching' ? branchingTokenParser : typeBranchingTokenParser,
 		// dieselbe Argumentliste wie beim Aufruf, damit ... und benannte Argumente hier gelten
 		functionArgumentsParser,
 		newLineParser,
@@ -1624,8 +1633,8 @@ function branchingParser(
 	}
 	const branches = parsed[3].filter((x): x is ParseValueExpression =>
 		typeof x === 'object');
-	const branching: ParseBranching = {
-		type: 'branching',
+	const branching: ParseBranching | ParseTypeBranching = {
+		type: kind,
 		args: parsed[1],
 		branches: branches,
 		startRowIndex: startRowIndex,
@@ -2081,13 +2090,14 @@ function returnTypeInlineParser(
 	indent: number,
 ): ParserResult<ParseValueExpression> {
 	const row = rows[startRowIndex];
-	const branchingColumnIndex = row?.startsWith(':?', startColumnIndex)
-		? startColumnIndex + 1
+	const branchingKind = row?.startsWith(':?', startColumnIndex)
+		? 'typeBranching'
 		: row?.[startColumnIndex] === '?'
-			? startColumnIndex
+			? 'branching'
 			: undefined;
-	if (branchingColumnIndex !== undefined) {
-		const result = branchingParser(rows, startRowIndex, branchingColumnIndex, indent);
+	if (branchingKind !== undefined) {
+		const tokenLength = branchingKind === 'typeBranching' ? 2 : 1;
+		const result = branchingParser(rows, startRowIndex, startColumnIndex, indent, branchingKind);
 		const errors = result.errors ?? [];
 		errors.push({
 			code: ErrorCode.returnTypeRequiresBlock,
@@ -2095,7 +2105,7 @@ function returnTypeInlineParser(
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: startRowIndex,
-			endColumnIndex: branchingColumnIndex + 1,
+			endColumnIndex: startColumnIndex + tokenLength,
 		});
 		return {
 			...result,

@@ -294,7 +294,11 @@ or = nativeFunction(
 #region arithmetic
 # Liefert die Summe der args.
 add = nativeFunction(
-	(...args: List(Rational)) -> Rational
+	(...args: List(Rational))
+		->
+			:?(TypeOf(args))
+				[List(Integer)] => Integer
+				() => Fraction
 	§js
 		(...args) => args.reduce(
 			(accumulator, current) => {
@@ -322,17 +326,6 @@ add = nativeFunction(
 	§
 )
 # Liefert die Summe der args.
-addInteger = nativeFunction(
-	(...args: List(Integer)) -> Integer
-	§js
-		(...args) =>
-			args.reduce(
-				(accumulator, current) =>
-					accumulator + current,
-				0n)
-	§
-)
-# Liefert die Summe der args.
 addFloat = nativeFunction(
 	(...args: List(Float)) -> Float
 	§js
@@ -345,7 +338,11 @@ addFloat = nativeFunction(
 )
 # minuend - subtrahend
 subtract = nativeFunction(
-	(minuend: Rational subtrahend: Rational) -> Rational
+	(minuend: Rational subtrahend: Rational)
+		->
+			:?(TypeOf(minuend) TypeOf(subtrahend))
+				[Integer Integer] => Integer
+				() => Fraction
 	§js
 		(minuend, subtrahend) => {
 			if (typeof minuend === 'bigint') {
@@ -368,13 +365,6 @@ subtract = nativeFunction(
 				denominator: minuend.denominator * subtrahend.denominator,
 			};
 		}
-	§
-)
-# minuend - subtrahend
-subtractInteger = nativeFunction(
-	(minuend: Integer subtrahend: Integer) -> Integer
-	§js
-		(minuend, subtrahend) => minuend - subtrahend
 	§
 )
 # minuend - subtrahend

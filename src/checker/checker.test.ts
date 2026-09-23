@@ -3262,7 +3262,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// machen. Ohne diese Unterscheidung wäre praktisch jede geschachtelte Funktion, die einen
 	// äußeren Wert weiterreicht, unentscheidbar.
 	it('fremder Parameter mit nicht-funktionalem Typ ist rein weitergebbar (nested)', () => {
-		expect(innerPurityOf('outer = (a: Integer) => () => a.addInteger(1)')).to.equal('pure');
+		expect(innerPurityOf('outer = (a: Integer) => () => a.add(1)')).to.equal('pure');
 	});
 	// Derselbe Fall in der Branch-Variante - das ist die Struktur von
 	// jul-examples/fibonacci/fibonacci.jul, hier ohne Rekursion. Eine zweite, unabhängige Ursache:
@@ -3570,17 +3570,17 @@ describe('constant folding', () => {
 
 	//#region 5a Faltung greift
 
-	it('addInteger(2 3) faltet zu 5', () => {
-		expect(typeOfLastDefinition('r = addInteger(2 3)')).to.equal('5');
+	it('subtract(5 3) faltet zu 2', () => {
+		expect(typeOfLastDefinition('r = subtract(5 3)')).to.equal('2');
 	});
-	it('Variablen tragen ihren Literaltyp: addInteger(x 3) faltet zu 8', () => {
-		expect(typeOfLastDefinition('x = 5\nr = addInteger(x 3)')).to.equal('8');
+	it('Variablen tragen ihren Literaltyp: add(x 3) faltet zu 8', () => {
+		expect(typeOfLastDefinition('x = 5\nr = add(x 3)')).to.equal('8');
 	});
 	it('combineTexts faltet Text-Argumente', () => {
 		expect(typeOfLastDefinition('r = combineTexts([§x§ §y§] §-§)')).to.equal('§x-y§');
 	});
 	it('Prefixargument wird mitgefaltet', () => {
-		expect(typeOfLastDefinition('r = 2.addInteger(3)')).to.equal('5');
+		expect(typeOfLastDefinition('r = 2.add(3)')).to.equal('5');
 	});
 	it('Rest-Parameter wird gefaltet', () => {
 		expect(typeOfLastDefinition('r = add(2 3)')).to.equal('5');
@@ -3612,9 +3612,9 @@ describe('constant folding', () => {
 	it('faltet nicht bei nicht-konstantem Argument (Funktionsparameter statt Literal)', () => {
 		// Der Pfeil ist hier :> geschrieben, wird aber seit Schritt 3 durch den beweisbar reinen
 		// Rumpf ersetzt (E3) - das ist nicht der Punkt dieses Tests, nur die Signatur zur
-		// Identifikation. Worum es geht: addInteger(x 3) faltet trotz Purity nicht, weil x kein
+		// Identifikation. Worum es geht: add(x 3) faltet trotz Purity nicht, weil x kein
 		// konstanter Wert ist.
-		expect(typeOfLastDefinition('f = (x: Integer) :> Integer => addInteger(x 3)'))
+		expect(typeOfLastDefinition('f = (x: Integer) :> Integer => add(x 3)'))
 			.to.equal('(x: Integer) -> Integer');
 	});
 	it('faltet nicht bei log (purity impure)', () => {
@@ -3627,13 +3627,14 @@ describe('constant folding', () => {
 		expect(typeOfLastDefinition('r = map([1 2] log)')).to.equal('[Empty Empty]');
 	});
 	it('faltet nicht bei einem Aufruf mit Argumenttypfehler', () => {
-		const parsed = parseCode('r = addInteger(§abc§ 3)', 'dummy.jul');
+		// Eine Funktion mit festem Rückgabetyp, damit das Ergebnis nicht von den Argumenten abhängt.
+		const parsed = parseCode('r = subtractFloat(§abc§ 1.5f)', 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		const def = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const type = def.value?.typeInfo?.type;
-		expect(type && typeToString(resolvePlaceholders(type), 0, 5)).to.equal('Integer');
+		expect(type && typeToString(resolvePlaceholders(type), 0, 5)).to.equal('Float');
 	});
 
 	//#endregion 5b
@@ -3727,7 +3728,7 @@ r = spin(0)`)).to.equal('Any');
 
 	it('Nutzerfunktion mit konstanten Argumenten faltet (Runtime-Export ist keine Voraussetzung mehr)', () => {
 		expect(typeOfLastDefinition(
-			'f = (a: Integer b: Integer) -> Integer => addInteger(a b)\nr = f(2 3)'))
+			'f = (a: Integer b: Integer) -> Integer => add(a b)\nr = f(2 3)'))
 			.to.equal('5');
 	});
 

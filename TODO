@@ -139,45 +139,19 @@
 	-vorbild: rust non-exhaustive patterns. ts hat nur das never idiom von hand
 	-vorsicht bei Or über streams/generics: nicht auflösbarer resttyp darf nicht als
 	 "fall fehlt" gemeldet werden, sonst wird aus unwissen eine falschmeldung
-?bedingte typen: eigener operator :? für branching über typen
-	-? kann das nicht: es liefert die union aller branch returnTypes und wählt nie einen zweig
-	-constant folding allein reicht auch nicht: das liefert die auswahl, nicht die relation
-	-gebraucht für arithmetik: subtract(Integer Integer) ist Integer, deklariert ist Rational
-	-die Integer-Varianten in der core-lib (addInteger, subtractInteger, maxInteger) sind reine
-	 Workarounds dafür: add/subtract/max decken Integer über den bigint-Pfad schon ab, deklarieren
-	 aber Rational und verlieren dabei den Integer. Mit :? entfallen sie ersatzlos.
-	 Die Float-Varianten bleiben: Float ist kein Rational, das ist echte Zweitimplementierung.
-	-matching als teilmenge, nicht als zuweisbarkeit eines werts.
-	 sonst matcht PositiveInteger nicht gegen Integer und fällt in den catchAll
-	-über unions verteilen, dann wird Rational - Integer zu Or(Integer Fraction)
-	-nicht auflösbarer typ => union aller zweig ergebnisse, nie "passt nicht"
-	-mehrere operanden als datenliteral, liest sich als wahrheitstabelle:
-		[A B] :?
-			[Integer Integer] => Integer
-			() => Fraction
-	-typfunktionen gibt es schon, vgl Without in der core-lib. nur die fallunterscheidung fehlt
-	?zweige liefern typen oder typwerte? F(Integer) liefert heute TypeOf(Integer)
-	-nachgemessen und nachgebessert: das Never-Idiom trägt weiter als "unlesbar" vermuten lässt.
-	 (a: Rational b: Rational) -> Or(And(Integer And(TypeOf(a) TypeOf(b))) And(Fraction Or(TypeOf(a) TypeOf(b))))
-	 liefert für Integer/Integer exakt Integer, für Fraction/Integer exakt Fraction, für
-	 Rational/Rational Or(Integer Fraction). Zuweisbarkeit stimmt in beide Richtungen, und die
-	 Bedingung überlebt es, hinter einem Namen zu stehen:
-	 SumType = (A: Type B: Type) => Or(And(Integer And(A B)) And(Fraction Or(A B)))
-	 Das ging vorher nicht: hasReliableTypeError hielt einen and-Knoten mit noch unbestimmten
-	 Choices für zuverlässig, der Teilmengen-Shortcut kürzte die Bedingung daraufhin weg. Seit
-	 zusammengesetzte Typen die Verlässlichkeit ihrer Bestandteile erben, bleibt sie stehen, bis
-	 die Argumente bekannt sind. Damit steht :? nur noch für die Lesbarkeit zur Debatte, nicht
-	 mehr für die Ausdrucksstärke.
-	 Offen bleibt:
-		-dreistellig geschrieben bleibt And(Integer Integer Integer) stehen statt zu Integer zu
-		 werden. Nur die Anzeige, der Typ ist korrekt (siehe nächster Punkt)
-		-variadisch geht es gar nicht: TypeOf(args) ist der Tupeltyp, And(Integer [Integer Integer])
-		 wird Never. Damit sind add, maxInteger nicht erreichbar, subtract dagegen schon.
-		 Braucht den Elementtyp eines Tuples, also mapped types (siehe unten)
+-bedingte typen :? als MVP umgesetzt, siehe docs/conditional-types.md (nur als Rückgabetyp).
+	 add und subtract liefern für Integer-Argumente Integer, addInteger und subtractInteger sind entfallen.
+	 Variadisch geht es damit doch: :?(TypeOf(args)) mit Kopf [List(Integer)] trägt add.
+	 Offen:
+	-die späteren Ausbaustufen stehen in docs/conditional-types.md (multiply, Rest abziehen,
+	 auswählendes ?, :? außerhalb des Rückgabetyps, Bindung im Kopf, Diagnose ohne Treffer,
+	 Rumpf je Zweig prüfen)
+	-maxInteger bleibt, bis es einen Elementtyp für Tuples gibt (Bindung im Kopf)
+	-yugioh: ein Any-Operand ergibt Or(Integer Fraction) statt wie früher bei addInteger still
+	 Integer. Betroffen sind 6 Stellen in game-logic.jul (countPreviousConsecutive aus util.ts,
+	 effectStep/amount, oldSkippedDrawPhaseCount), alle drei kommen als Any an. Warum, ist noch
+	 nicht untersucht
 	-Nebenbefund: Never-Zweige lecken in Fehlermeldungen ("Can not assign Never to Text")
-	-heute schon ausdrückbar, aber unlesbar, weil Never aus der Or herausfällt:
-	 Or(And(And(TypeOf(a) Integer) And(TypeOf(b) Integer)) And(Or(TypeOf(a) TypeOf(b)) Fraction))
-	-map arity löst das nicht, dafür bräuchte es mapped types
 -n-stellige And/Or in createNormalizedIntersectionType paarweise reduzieren
 	-die regeln greifen heute nur bei genau zwei choices
 	-And(TypeOf(a) TypeOf(b) Integer) bleibt sonst als knoten stehen statt zu Integer zu werden

@@ -57,6 +57,7 @@ export type ParseExpression =
 
 export type ParseValueExpression =
 	| ParseBranching
+	| ParseTypeBranching
 	| ParseFunctionLiteral
 	| ParseFunctionTypeLiteral
 	| SimpleExpression
@@ -293,6 +294,18 @@ export interface ParseBranching extends ParseExpressionBase {
 	branches: ParseValueExpression[];
 }
 
+/**
+ * `:?`: wählt den Zweig nicht nach einem Wert, sondern danach, ob die Operanden als Typ Teilmenge
+ * des Kopfs sind. Eigener Knoten, damit Narrowing und Prädikate von `?` hier nie greifen.
+ */
+export interface ParseTypeBranching extends ParseExpressionBase {
+	type: 'typeBranching';
+	/** Die Operanden, als Kollektion wie die args von `?`. */
+	args?: BracketedExpression;
+	/** Nicht auf Funktionen eingeengt: der checker meldet den Rest als branchIsNotFunction. */
+	branches: ParseValueExpression[];
+}
+
 export interface ParseTextLiteral extends ParseExpressionBase {
 	type: 'text';
 	language?: string;
@@ -475,6 +488,7 @@ export function forEachChild<T>(
 		case 'dictionaryType':
 			return forEachOf(expression.fields, callback);
 		case 'branching':
+		case 'typeBranching':
 			return visit(expression.args, callback)
 				?? forEachOf(expression.branches, callback);
 		case 'definition':
@@ -633,6 +647,7 @@ export type CompileTimeType =
 	| CompileTimeGreaterType
 	| CompileTimeLengthOfType
 	| CompileTimeWithElementAtType
+	| CompileTimeConditionalType
 	| CompileTimeRangeType
 	| CompileTimeTupleOfType
 	| CompileTimeConcatType
@@ -823,6 +838,35 @@ export function createCompileTimeWithElementAtType(
 		Source: Source,
 		Index: Index,
 		Value: Value,
+		isUnresolvedPlaceholder: true,
+	};
+}
+
+/**
+ * Bedingter Typ `:?(Operanden)`: die Union der Ergebnisse der Zweige, deren Kopf die Kollektion
+ * der Operanden trifft. Entsteht nur, solange ein Operand noch Platzhalter enthält - sonst wird
+ * sofort ausgewertet (createConditionalType im Checker). Die Operanden sind Wertemengen, keine
+ * Typwerte, genauso Kopf und Ergebnis jedes Zweigs.
+ */
+export interface CompileTimeConditionalType extends CompileTimeTypeBase {
+	readonly julType: 'conditional';
+	Operands: CompileTimeType[];
+	Branches: ConditionalTypeBranch[];
+}
+
+export interface ConditionalTypeBranch {
+	Head: CompileTimeType;
+	Result: CompileTimeType;
+}
+
+export function createCompileTimeConditionalType(
+	Operands: CompileTimeType[],
+	Branches: ConditionalTypeBranch[],
+): CompileTimeConditionalType {
+	return {
+		julType: 'conditional',
+		Operands: Operands,
+		Branches: Branches,
 		isUnresolvedPlaceholder: true,
 	};
 }
