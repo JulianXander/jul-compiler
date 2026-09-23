@@ -482,6 +482,83 @@ const logoWidth = Math.max(...logoLines.map(line => line.length));
  */
 const upperQuarterBlock = '\x1b[7m▆\x1b[27m';
 const spinnerCharacters = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
+const spinnerFrameMs = 100;
+
+//#region Farbwelle
+
+/**
+ * Über das Logo wandert diagonal ein heller Streifen auf der Grundfarbe. Die Position eines
+ * Zeichens zählt die Zeile doppelt, weil Terminalzellen etwa doppelt so hoch wie breit sind -
+ * sonst wäre die Diagonale zu steil.
+ */
+type Rgb = readonly [number, number, number];
+const waveBaseColor: Rgb = [230, 200, 0];
+const waveHighlightColor: Rgb = [255, 250, 180];
+/** Zellen pro Sekunde */
+const waveSpeed = 35;
+/**
+ * Abstand zweier Streifen in Zellen: genau die diagonale Ausdehnung des Logos (siehe
+ * waveIntensity), damit der nächste Streifen oben links einsetzt, wenn der vorige unten rechts
+ * austritt - ohne Pause dazwischen.
+ */
+const wavePeriod = logoWidth + 2 * logoLines.length;
+/** Standardabweichung der Glockenkurve, die den Streifen formt, in Zellen */
+const waveWidth = 4;
+const waveFrameMs = 40;
+
+/**
+ * 0 = Grundfarbe, 1 = Mitte des Streifens.
+ */
+function waveIntensity(column: number, row: number, elapsedMs: number): number {
+	const position = column + 2 * row;
+	const offset = position - waveSpeed * elapsedMs / 1000;
+	const wrapped = ((offset % wavePeriod) + wavePeriod) % wavePeriod;
+	// Abstand zur nächstgelegenen Streifenmitte, egal ob davor oder dahinter
+	const distance = Math.min(wrapped, wavePeriod - wrapped);
+	return Math.exp(-(distance ** 2) / (2 * waveWidth ** 2));
+}
+
+function mixColor(intensity: number): Rgb {
+	return waveBaseColor.map((base, i) =>
+		Math.round(base + (waveHighlightColor[i]! - base) * intensity)) as unknown as Rgb;
+}
+
+/**
+ * Vordergrundfarbe passend zur Farbtiefe des Terminals: Truecolor, sonst der 6x6x6-Würfel der
+ * 256er-Palette, sonst nur Gelb und helles Gelb.
+ */
+function foregroundCode(intensity: number, colorDepth: number): string {
+	if (colorDepth < 8) {
+		return intensity > 0.5 ? '\x1b[93m' : '\x1b[33m';
+	}
+	const [r, g, b] = mixColor(intensity);
+	if (colorDepth >= 24) {
+		return `\x1b[38;2;${r};${g};${b}m`;
+	}
+	const toCube = (value: number) => Math.round(value / 255 * 5);
+	return `\x1b[38;5;${16 + 36 * toCube(r) + 6 * toCube(g) + toCube(b)}m`;
+}
+
+/**
+ * elapsedMs undefined zeichnet das ruhende Logo, einheitlich in der Grundfarbe der Welle.
+ */
+function renderLogoLine(row: number, elapsedMs: number | undefined, colorDepth: number): string {
+	const line = logoLines[row]!.padEnd(logoWidth, ' ');
+	let result = '';
+	for (let column = 0; column < line.length; column++) {
+		const character = line[column]!;
+		if (character === ' ') {
+			result += ' ';
+			continue;
+		}
+		const intensity = elapsedMs === undefined ? 0 : waveIntensity(column, row, elapsedMs);
+		result += foregroundCode(intensity, colorDepth)
+			+ (character === 'x' ? upperQuarterBlock : character);
+	}
+	return result + '\x1b[39m';
+}
+
+//#endregion Farbwelle
 
 /**
  * Zeichnet während eines Compile-Laufs einen Frame mit dem Logo links und einer daneben
@@ -500,8 +577,12 @@ export class LiveRenderer {
 	private currentStepLabel: string | undefined;
 	private currentDetail: string | undefined;
 	private currentStepStartTime = 0;
-	private spinnerIndex = 0;
+	// getColorDepth gibt es nur an echten TTY-Streams, nicht an einem nachträglich als TTY
+	// markierten Stream (z.B. im Test) - dann bleibt es bei den 16 Grundfarben.
+	private readonly colorDepth = this.isTty ? process.stdout.getColorDepth?.() ?? 4 : 1;
+	private readonly animationStartTime = performance.now();
 	private spinnerTimer: NodeJS.Timeout | undefined;
+	private animationFinished = false;
 	private frameHeight = 0;
 
 	start(entryFilePath: string): void {
@@ -511,9 +592,8 @@ export class LiveRenderer {
 			return;
 		}
 		this.spinnerTimer = setInterval(() => {
-			this.spinnerIndex++;
 			this.render();
-		}, 100);
+		}, waveFrameMs);
 		this.render();
 	}
 
@@ -576,6 +656,10 @@ export class LiveRenderer {
 		if (this.spinnerTimer) {
 			clearInterval(this.spinnerTimer);
 			this.spinnerTimer = undefined;
+			// Letzter Frame mit ruhendem Logo, sonst bliebe die Welle an einer zufälligen Stelle
+			// stehen.
+			this.animationFinished = true;
+			this.render();
 		}
 	}
 
@@ -599,9 +683,11 @@ export class LiveRenderer {
 	}
 
 	private buildLines(): string[] {
+		const elapsedMs = performance.now() - this.animationStartTime;
 		const checklist = [this.entryLine, ...this.doneSteps];
 		if (this.currentStepLabel) {
-			const spinnerChar = spinnerCharacters[this.spinnerIndex % spinnerCharacters.length];
+			const spinnerIndex = Math.floor(elapsedMs / spinnerFrameMs);
+			const spinnerChar = spinnerCharacters[spinnerIndex % spinnerCharacters.length];
 			const detailSuffix = this.currentDetail ? ` (${this.currentDetail})` : '';
 			checklist.push(`${spinnerChar} ${this.currentStepLabel}${detailSuffix} ...`);
 		}
@@ -610,11 +696,7 @@ export class LiveRenderer {
 		for (let i = 0; i < rowCount; i++) {
 			const checklistPart = checklist[i] ?? '';
 			if (i < logoLines.length) {
-				// x/y-Platzhalter erst NACH padEnd ersetzen, damit die Breitenberechnung auf den
-				// reinen Zeichen basiert statt auf den unsichtbaren ANSI-Codes der Ersatzzeichen.
-				const logoText = logoLines[i]!.padEnd(logoWidth, ' ')
-					.replaceAll('x', upperQuarterBlock);
-				const logoPart = colorize(logoText, ConsoleColor.yellow);
+				const logoPart = renderLogoLine(i, this.animationFinished ? undefined : elapsedMs, this.colorDepth);
 				lines.push(checklistPart ? `${logoPart}  ${checklistPart}` : logoPart);
 			}
 			else {
@@ -631,9 +713,12 @@ export class LiveRenderer {
 	}
 
 	private render(): void {
-		this.erase();
 		const lines = this.buildLines();
-		process.stdout.write(lines.join('\n') + '\n');
+		const eraseSequence = this.frameHeight > 0 ? `\x1b[${this.frameHeight}A\x1b[0J` : '';
+		// Synchronized Output (DEC 2026): das Terminal zeigt Löschen und Neuzeichnen als einen
+		// Frame an, sonst flackert das Logo bei jedem Farbwechsel. Terminals ohne Unterstützung
+		// ignorieren die Sequenz.
+		process.stdout.write(`\x1b[?2026h${eraseSequence}${lines.join('\n')}\n\x1b[?2026l`);
 		this.frameHeight = lines.length;
 	}
 }
