@@ -2,10 +2,11 @@ import { writeFileSync, copyFileSync, rmSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
-import { ParsedDocuments, checkTypes } from './checker/checker.js';
-import { parseCode } from './parser/parser.js';
+import { ParsedDocuments } from './checker/checker.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos, Positioned } from './compiler-errors.js';
-import { Extension, changeExtension, executingDirectory, readTextFile, tryReadTextFile, tryCreateDirectory } from './util.js';
+import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
+import { ParsedFile } from './syntax-tree.js';
+import { Extension, changeExtension, executingDirectory, tryReadTextFile, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
 import ShebangPlugin from 'webpack-shebang-plugin';
@@ -29,22 +30,55 @@ export function compileProject(
 	}
 	//#endregion 1. cleanup out
 
-	//#region 2. compile
-	const runtimePath = resolve(join(outputFolderPath, runtimeFileName));
+	//#region 2. load
+	// Parst und checkt alle Dateien samt Abhängigkeiten, jede Endung - derselbe Weg wie im
+	// Language Server (project-loader.ts). Die gelesenen Texte bleiben für den Emit erhalten.
 	renderer.startStep('compiling');
-	const { outFilePath, error } = compileFile({
-		sourceFilePath: entryFilePath,
-		outputFolderPath: outputFolderPath,
-		runtimePath: runtimePath,
-		shebang: cli,
-		checkOnly,
-	}, {}, renderer);
-	renderer.finishStep(error ? 'failed' : 'done');
-	if (error) {
-		// Mehrzeiliger, detaillierter Fehlertext gehört wie Warnungen ins Scrollback oberhalb des
-		// Frames (siehe log()) - nur die kurze Statuszeile (mit Dauer) steht im Frame, analog zu
-		// "build/check finished successfully" im Erfolgsfall.
-		renderer.log(error);
+	const sourceCodes = new Map<string, string>();
+	const fileSystemHost = createFileSystemHost();
+	const host: ProjectHost = {
+		readSource: filePath => {
+			// Einzelne Dateien sind kein eigener Checklisten-Schritt (das bleibt den großen
+			// Schritten wie "compiling" und "bundling" vorbehalten), sondern nur die
+			// Detailanzeige neben dem laufenden Schritt.
+			renderer.updateDetail(filePath);
+			const readResult = fileSystemHost.readSource(filePath);
+			if (readResult.type === 'code') {
+				sourceCodes.set(filePath, readResult.code);
+			}
+			return readResult;
+		},
+	};
+	const documents: ParsedDocuments = {};
+	const entry = loadFile(entryFilePath, documents, host);
+	//#endregion 2. load
+
+	//#region 3. report errors
+	// Die Fehler aller Dateien, nicht nur die der ersten fehlerhaften (wie tsc). checked enthält
+	// die Parse-Fehler schon (Klon von unchecked), deshalb nicht beide Listen.
+	let hasError = entry === 'notFound';
+	const formattedErrors = entry === 'notFound'
+		? [`File not found: ${entryFilePath}`]
+		: [];
+	Object.values(documents).forEach(document => {
+		const errors = document.checked?.errors ?? document.unchecked.errors;
+		if (!errors.length) {
+			return;
+		}
+		// Warnungen sagen etwas über den Code, machen das Ergebnis aber nicht unbrauchbar.
+		if (errors.some(error => errorInfos[error.code].severity === 'error')) {
+			hasError = true;
+		}
+		formattedErrors.push(formatErrors(document.filePath, errors));
+	});
+	renderer.finishStep(hasError ? 'failed' : 'done');
+	// Mehrzeiliger, detaillierter Fehlertext gehört wie Warnungen ins Scrollback oberhalb des
+	// Frames (siehe log()) - nur die kurze Statuszeile (mit Dauer) steht im Frame, analog zu
+	// "build/check finished successfully" im Erfolgsfall.
+	if (formattedErrors.length) {
+		renderer.log(formattedErrors.join('\n'));
+	}
+	if (hasError) {
 		renderer.finish([`${colorize('compiling failed.', ConsoleColor.lightRed)} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
 		return;
@@ -53,20 +87,30 @@ export function compileProject(
 		renderer.finish([`${colorize('check finished successfully', ConsoleColor.green)} ${durationSuffix(startTime)}`]);
 		return;
 	}
-	if (!outFilePath) {
-		renderer.finish([durationSuffix(startTime)]);
-		return;
-	}
-	//#endregion 2. compile
+	//#endregion 3. report errors
 
-	//#region 3. copy runtime
+	//#region 4. emit
+	renderer.startStep('emitting');
+	const runtimePath = resolve(join(outputFolderPath, runtimeFileName));
+	let outFilePath: string | undefined;
+	Object.values(documents).forEach(document => {
+		const isEntry = document.filePath === entryFilePath;
+		const fileOutPath = emitFile(document, sourceCodes.get(document.filePath)!, outputFolderPath, runtimePath, cli && isEntry);
+		if (isEntry) {
+			outFilePath = fileOutPath;
+		}
+	});
+	renderer.finishStep('done');
+	//#endregion 4. emit
+
+	//#region 5. copy runtime
 	const runtimeSourcePath = join(executingDirectory, runtimeFileName);
 	copyFileSync(runtimeSourcePath, runtimePath);
-	//#endregion 3. copy runtime
+	//#endregion 5. copy runtime
 
-	//#region 4. bundle
+	//#region 6. bundle
 	renderer.startStep('bundling');
-	const absoluteOutFilePath = resolve(outFilePath);
+	const absoluteOutFilePath = resolve(outFilePath!);
 	const absoluteFolderPath = resolve(outputFolderPath);
 	const bundler = webpack({
 		// mode: 'none',
@@ -99,161 +143,67 @@ export function compileProject(
 			renderer.finish([`${colorize('build finished successfully', ConsoleColor.green)} ${durationSuffix(startTime)}`]);
 		}
 	});
-	//#endregion 4. bundle
+	//#endregion 6. bundle
 }
 
-interface JulCompilerOptions {
-	sourceFilePath: string;
-	outputFolderPath: string;
-	runtimePath: string;
-	shebang: boolean;
-	/**
-	 * Nur parsen und checken, kein JS erzeugen/schreiben und kein Bundling.
-	 */
-	checkOnly: boolean;
-}
-
-interface CompileFileResult {
-	/**
-	 * undefined wenn schon compiled und bei error.
-	 */
-	outFilePath?: string;
-	error?: string;
-}
-
-function compileFile(
-	options: JulCompilerOptions,
-	compiledDocuments: ParsedDocuments,
-	renderer: LiveRenderer,
-): CompileFileResult {
-	const {
-		sourceFilePath,
-		outputFolderPath,
-		runtimePath,
-		shebang,
-		checkOnly,
-	} = options;
-	if (compiledDocuments[sourceFilePath]) {
-		return {};
-	}
-	// Einzelne Dateien sind kein eigener Checklisten-Schritt (das bleibt den großen Schritten wie
-	// "compiling" und "bundling" vorbehalten), sondern nur die Detailanzeige neben dem laufenden
-	// Schritt.
-	renderer.updateDetail(sourceFilePath);
-
-	//#region 1. read
-	const sourceCode = readTextFile(sourceFilePath);
-	//#endregion 1. read
-
-	//#region 2. parse
-	const parsed = parseCode(sourceCode, sourceFilePath);
-	compiledDocuments[sourceFilePath] = parsed;
+/**
+ * Schreibt die Ausgabe einer geladenen, fehlerfreien Datei und liefert deren Pfad.
+ */
+function emitFile(
+	parsed: ParsedFile,
+	sourceCode: string,
+	outputFolderPath: string,
+	runtimePath: string,
+	shebang: boolean,
+): string {
+	const sourceFilePath = parsed.filePath;
+	let compiled: string;
+	let outFilePath: string;
 	const extension = parsed.extension;
-	//#endregion 2. parse
-
-	//#region 2b. check parse errors
-	// Abbrechen, bevor der Emitter einen unvollständigen Baum zu sehen bekommt.
-	// Parser und Checker tolerieren unvollständige Ausdrücke bewusst, damit der Language Server
-	// beim Tippen weiterarbeiten kann - für die CLI gilt das nicht.
-	// Enthält nicht nur syntax, sondern auch semantic (z.B. File not found, already defined).
-	const parseErrors = parsed.unchecked.errors;
-	if (parseErrors?.length) {
-		return {
-			error: formatErrors(parsed.filePath, parseErrors),
-		};
-	}
-	//#endregion 2b. check parse errors
-
-	//#region 3. compile
-	// Bei checkOnly entfallen Emit und Write komplett - nur .jul-Dateien werden unten noch
-	// dependency-rekursiv geparst und gecheckt, für die anderen Extensions gibt es ohne Emit
-	// nichts zu tun (sie werden sonst nur unverändert bzw. transpiliert kopiert).
-	let outFilePath: string | undefined;
-	if (!checkOnly) {
-		let compiled;
-		switch (extension) {
-			case Extension.js: {
-				// copy js file to output folder
-				compiled = sourceCode;
-				outFilePath = join(outputFolderPath, sourceFilePath);
-				break;
-			}
-			case Extension.json:
-			// parse json and write to js in output folder
-			case Extension.jul: {
-				const expressions = parsed.unchecked.expressions ?? [];
-				compiled = syntaxTreeToJs(expressions, runtimePath);
-				const jsFileName = changeExtension(sourceFilePath, Extension.js);
-				outFilePath = join(outputFolderPath, jsFileName);
-				break;
-			}
-			case Extension.ts: {
-				const js = transpileModule(sourceCode, {
-					compilerOptions: {
-						module: ModuleKind.ESNext
-					}
-				});
-				compiled = js.outputText;
-				const jsFileName = changeExtension(sourceFilePath, Extension.js);
-				outFilePath = join(outputFolderPath, jsFileName);
-				break;
-			}
-			case Extension.yaml: {
-				// parse yaml and write to json in output folder
-				// TODO compile
-				const parsedYaml = load(sourceCode);
-				compiled = JSON.stringify(parsedYaml);
-				outFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
-				break;
-			}
-			default: {
-				const assertNever: never = extension;
-				return { error: `Unexpected extension for compileFile: ${assertNever}` };
-			}
+	switch (extension) {
+		case Extension.js: {
+			// copy js file to output folder
+			compiled = sourceCode;
+			outFilePath = join(outputFolderPath, sourceFilePath);
+			break;
 		}
-		//#endregion 3. compile
-
-		//#region 4. write
-		const outDir = dirname(outFilePath);
-		tryCreateDirectory(outDir);
-		writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
-		//#endregion 4. write
-	}
-
-	if (extension === Extension.jul) {
-		//#region 5. compile dependencies
-		// TODO check cyclic dependencies? sind cyclic dependencies erlaubt/technisch möglich/sinnvoll?
-		const importedFilePaths = parsed.dependencies;
-		if (importedFilePaths) {
-			for (const importedPath of importedFilePaths) {
-				const importedResult = compileFile({
-					...options,
-					shebang: false,
-					sourceFilePath: importedPath,
-				}, compiledDocuments, renderer);
-				if (importedResult.error) {
-					return importedResult;
+		case Extension.json:
+		// parse json and write to js in output folder
+		case Extension.jul: {
+			const expressions = parsed.unchecked.expressions ?? [];
+			compiled = syntaxTreeToJs(expressions, runtimePath);
+			const jsFileName = changeExtension(sourceFilePath, Extension.js);
+			outFilePath = join(outputFolderPath, jsFileName);
+			break;
+		}
+		case Extension.ts: {
+			const js = transpileModule(sourceCode, {
+				compilerOptions: {
+					module: ModuleKind.ESNext
 				}
-			}
+			});
+			compiled = js.outputText;
+			const jsFileName = changeExtension(sourceFilePath, Extension.js);
+			outFilePath = join(outputFolderPath, jsFileName);
+			break;
 		}
-		//#endregion 5. compile dependencies
-
-		//#region 6. check
-		checkTypes(parsed, compiledDocuments);
-		const errors = parsed.checked?.errors;
-		if (errors?.length) {
-			const formattedErrors = formatErrors(parsed.filePath, errors);
-			// Warnungen sagen etwas über den Code, machen das Ergebnis aber nicht unbrauchbar.
-			if (errors.some(error => errorInfos[error.code].severity === 'error')) {
-				return {
-					error: formattedErrors,
-				};
-			}
-			renderer.log(formattedErrors);
+		case Extension.yaml: {
+			// parse yaml and write to json in output folder
+			// TODO compile
+			const parsedYaml = load(sourceCode);
+			compiled = JSON.stringify(parsedYaml);
+			outFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
+			break;
 		}
-		//#endregion 6. check
+		default: {
+			const assertNever: never = extension;
+			throw new Error(`Unexpected extension for emitFile: ${assertNever}`);
+		}
 	}
-	return { outFilePath: outFilePath };
+	const outDir = dirname(outFilePath);
+	tryCreateDirectory(outDir);
+	writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
+	return outFilePath;
 }
 
 //#region rendering

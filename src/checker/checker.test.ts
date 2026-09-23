@@ -2091,6 +2091,23 @@ describe('Checker', () => {
 			checkTypes(parsed, {});
 		});
 	});
+	// Der Parser meldet Import-Fehler schon beim Auflösen der Abhängigkeiten. checked ist ein Klon
+	// von unchecked und enthält sie also bereits - der Checker darf sie nicht ein zweites Mal
+	// anhängen, sonst steht jede Meldung doppelt im Editor und in der CLI. fileNotFound meldet der
+	// Loader, dafür siehe project-loader.test.ts.
+	it('import-error-reported-once', () => {
+		const parsed = parseCode('(a) = import(§./datei.txt§)', 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.invalidImportExtension]);
+	});
+	// Ein verschachtelter Import ist keine Abhängigkeit, getImportedPaths meldet ihn nicht - hier
+	// bleibt die Meldung des Checkers die einzige.
+	it('nested-import-error-reported-by-checker', () => {
+		const parsed = parseCode('a = [import(§./datei.txt§)]', 'dummy.jul');
+		checkTypes(parsed, {});
+		expect(parsed.checked?.errors.map(error => error.code)).to.include(ErrorCode.invalidImportExtension);
+		expect(parsed.checked?.errors.filter(error => error.code === ErrorCode.invalidImportExtension)).to.have.lengthOf(1);
+	});
 	//#region Mehrzeiliger Funktionskopf
 	// Eigene Tests, weil nur Code und Position der Meldungen geprüft werden, nicht ihr Wortlaut.
 	const multilineHeadCases: {

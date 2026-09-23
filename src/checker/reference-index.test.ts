@@ -1,64 +1,47 @@
 import { expect } from 'chai';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
 
 import { checkTypes, ParsedDocuments } from './checker.js';
-import { parseCode } from '../parser/parser.js';
+import { createInMemoryHost, loadFile, ProjectHost } from '../project-loader.js';
 import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
 import { ReferenceIndex } from './reference-index.js';
 
-/**
- * Parst rekursiv inklusive Importe und checkt, analog zu checker-snapshot.test.ts, aber mit
- * echten Dateien in einem Temp-Ordner statt jul-examples - so lässt sich der Import-Graph für
- * diesen Test gezielt konstruieren (Re-Export-Kette, Alias).
- */
-function parseAndCheck(filePath: string, documents: ParsedDocuments, referenceIndex: ReferenceIndex): ParsedFile {
-	const existing = documents[filePath];
-	if (existing) {
-		return existing;
+// Die Dateien gibt es nur im Speicher - so lässt sich der Import-Graph für diesen Test gezielt
+// konstruieren (Re-Export-Kette, Alias).
+const folder = resolve('/reference-index-test');
+
+function load(filePath: string, documents: ParsedDocuments, host: ProjectHost, code?: string): ParsedFile {
+	const parsed = loadFile(filePath, documents, host, code);
+	if (typeof parsed === 'string') {
+		throw new Error(`${parsed}: ${filePath}`);
 	}
-	const code = readFileSync(filePath, { encoding: 'utf8' });
-	const parsed = parseCode(code, filePath);
-	documents[filePath] = parsed;
-	parsed.dependencies?.forEach(dependencyPath => {
-		parseAndCheck(dependencyPath, documents, referenceIndex);
-	});
-	checkTypes(parsed, documents, referenceIndex);
 	return parsed;
 }
 
 describe('ReferenceIndex', () => {
-	let folder: string;
-	let originPath: string;
-	let reexportPath: string;
-	let directPath: string;
-	let aliasPath: string;
+	const originPath = join(folder, 'origin.jul');
+	const reexportPath = join(folder, 'reexport.jul');
+	const directPath = join(folder, 'direct.jul');
+	const aliasPath = join(folder, 'alias.jul');
 	let documents: ParsedDocuments;
 	let referenceIndex: ReferenceIndex;
+	let host: ProjectHost;
 
 	beforeEach(() => {
-		folder = mkdtempSync(join(tmpdir(), 'jul-reference-index-'));
-		originPath = join(folder, 'origin.jul');
-		reexportPath = join(folder, 'reexport.jul');
-		directPath = join(folder, 'direct.jul');
-		aliasPath = join(folder, 'alias.jul');
-		writeFileSync(originPath, 'foo = 1\n');
-		// nicht-aliasierter Re-Export: foo bleibt über diese Datei importierbar
-		writeFileSync(reexportPath, '(foo) = import(§./origin.jul§)\n');
-		// nicht-aliasierter Import + lokale Nutzung
-		writeFileSync(directPath, '(foo) = import(§./origin.jul§)\nusage = foo\n');
-		// aliasierter Import (über die Re-Export-Kette) + lokale Nutzung des Alias
-		writeFileSync(aliasPath, '(bar = foo) = import(§./reexport.jul§)\nusage = bar\n');
 		documents = {};
 		referenceIndex = new ReferenceIndex();
+		host = createInMemoryHost({
+			[originPath]: 'foo = 1\n',
+			// nicht-aliasierter Re-Export: foo bleibt über diese Datei importierbar
+			[reexportPath]: '(foo) = import(§./origin.jul§)\n',
+			// nicht-aliasierter Import + lokale Nutzung
+			[directPath]: '(foo) = import(§./origin.jul§)\nusage = foo\n',
+			// aliasierter Import (über die Re-Export-Kette) + lokale Nutzung des Alias
+			[aliasPath]: '(bar = foo) = import(§./reexport.jul§)\nusage = bar\n',
+		}, referenceIndex);
 		[originPath, reexportPath, directPath, aliasPath].forEach(filePath => {
-			parseAndCheck(filePath, documents, referenceIndex);
+			load(filePath, documents, host);
 		});
-	});
-
-	afterEach(() => {
-		rmSync(folder, { recursive: true, force: true });
 	});
 
 	it('sammelt alle Referenzen auf eine Deklaration über Re-Export-Ketten und Alias-Importe hinweg', () => {
@@ -87,10 +70,7 @@ describe('ReferenceIndex', () => {
 		expect(referenceIndex.getReferences(fooSymbol, originPath)).to.have.lengthOf(4);
 
 		// direct.jul ändert sich: Nutzung von foo entfällt, Import bleibt
-		writeFileSync(directPath, '(foo) = import(§./origin.jul§)\n');
-		const reparsed = parseCode(readFileSync(directPath, { encoding: 'utf8' }), directPath);
-		documents[directPath] = reparsed;
-		checkTypes(reparsed, documents, referenceIndex);
+		const reparsed = load(directPath, documents, host, '(foo) = import(§./origin.jul§)\n');
 
 		const afterEdit = referenceIndex.getReferences(fooSymbol, originPath);
 		expect(afterEdit).to.have.lengthOf(3);
@@ -103,15 +83,14 @@ describe('ReferenceIndex', () => {
 });
 
 describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
-	let folder: string;
-	let filePath: string;
+	const filePath = join(folder, 'fields.jul');
 	let documents: ParsedDocuments;
 	let referenceIndex: ReferenceIndex;
 
 	beforeEach(() => {
-		folder = mkdtempSync(join(tmpdir(), 'jul-reference-index-fields-'));
-		filePath = join(folder, 'fields.jul');
-		writeFileSync(filePath, [
+		documents = {};
+		referenceIndex = new ReferenceIndex();
+		const code = [
 			'MyType = [',
 			'	name: Text',
 			'	age: Integer',
@@ -121,14 +100,8 @@ describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
 			'greet = (value: MyType) =>',
 			'	value/name',
 			'',
-		].join('\n'));
-		documents = {};
-		referenceIndex = new ReferenceIndex();
-		parseAndCheck(filePath, documents, referenceIndex);
-	});
-
-	afterEach(() => {
-		rmSync(folder, { recursive: true, force: true });
+		].join('\n');
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, referenceIndex));
 	});
 
 	function getFieldSymbol(typeName: string, fieldName: string): SymbolDefinition {

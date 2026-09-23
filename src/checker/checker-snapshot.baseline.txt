@@ -304,7 +304,6 @@ numberInput: Any
 stackPanel: Any
 textInput: Any
   error 3010 at 1:88 Unexpected extension for import: 
-  error 3010 at 1:88 Unexpected extension for import: 
 === ui/dynamic-form/dynamic-form2.jul ===
 ageInput: Any
 body: Any
@@ -318,7 +317,6 @@ numberInput: Any
 stackPanel: Any
 textInput: Any
 visibleInput: Any
-  error 3010 at 1:88 Unexpected extension for import: 
   error 3010 at 1:88 Unexpected extension for import: 
   error 5050 at 6:9 Argument type mismatch. | Can not assign dictionary to rest parameter
   error 4001 at 29:3 'button' is not defined.

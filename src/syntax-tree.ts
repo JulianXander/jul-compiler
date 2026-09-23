@@ -13,7 +13,15 @@ export interface ParsedFile {
 	/**
 	 * nur für .jul Dateien
 	 */
-	dependencies?: string[];
+	dependencies?: ImportedDependency[];
+}
+
+export interface ImportedDependency {
+	fullPath: string;
+	/**
+	 * Das Pfad-Textliteral im import - dort meldet der Loader, wenn die Datei fehlt.
+	 */
+	source: Positioned;
 }
 
 export interface ParsedExpressions2 extends ParsedExpressions {

@@ -3,8 +3,8 @@ import { existsSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { basename, join, resolve } from 'path';
 
-import { checkerStats, checkTypes, ParsedDocuments, resetCheckerStats } from '../src/checker/checker.js';
-import { parseCode } from '../src/parser/parser.js';
+import { checkerStats, resetCheckerStats } from '../src/checker/checker.js';
+import { createFileSystemHost, loadFile } from '../src/project-loader.js';
 import {
 	alarmingDeviation,
 	appendEntries,
@@ -47,20 +47,6 @@ function findJulFiles(folder: string): string[] {
 	});
 }
 
-function parseAndCheck(filePath: string, parsedDocuments: ParsedDocuments): void {
-	if (parsedDocuments[filePath]) {
-		return;
-	}
-	const parsed = parseCode(readFileSync(filePath, { encoding: 'utf8' }), filePath);
-	parsedDocuments[filePath] = parsed;
-	parsed.dependencies?.forEach(dependencyPath => {
-		if (existsSync(dependencyPath)) {
-			parseAndCheck(dependencyPath, parsedDocuments);
-		}
-	});
-	checkTypes(parsed, parsedDocuments);
-}
-
 function benchFolder(folder: string, save: boolean, note: string): void {
 	if (!existsSync(folder)) {
 		console.log(`${folder}: nicht gefunden, übersprungen`);
@@ -75,7 +61,7 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 		const start = performance.now();
 		julFiles.forEach(filePath => {
 			try {
-				parseAndCheck(filePath, {});
+				loadFile(filePath, {}, createFileSystemHost());
 			}
 			catch {
 				// Fehlerhafte Beispiele sind im Snapshot festgehalten, hier nur Laufzeit relevant

@@ -3,9 +3,9 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { existsSync } from 'fs';
 import { basename, join, relative, resolve } from 'path';
 
-import { resolvePlaceholders, checkerStats, checkTypes, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
+import { resolvePlaceholders, checkerStats, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
 import { errorInfos } from '../compiler-errors.js';
-import { parseCode } from '../parser/parser.js';
+import { createFileSystemHost, loadFile } from '../project-loader.js';
 import { ParsedFile } from '../syntax-tree.js';
 
 /**
@@ -40,25 +40,13 @@ function findJulFiles(folder: string): string[] {
 }
 
 /**
- * Parst rekursiv inklusive Importe und checkt, analog zum language server.
+ * Parst rekursiv inklusive Importe und checkt, auf demselben Weg wie CLI und Language Server.
  */
 function parseAndCheck(filePath: string, parsedDocuments: ParsedDocuments): ParsedFile {
-	const existing = parsedDocuments[filePath];
-	if (existing) {
-		if (!existing.checked) {
-			checkTypes(existing, parsedDocuments);
-		}
-		return existing;
+	const parsed = loadFile(filePath, parsedDocuments, createFileSystemHost());
+	if (typeof parsed === 'string') {
+		throw new Error(`${parsed}: ${filePath}`);
 	}
-	const code = readFileSync(filePath, { encoding: 'utf8' });
-	const parsed = parseCode(code, filePath);
-	parsedDocuments[filePath] = parsed;
-	parsed.dependencies?.forEach(dependencyPath => {
-		if (existsSync(dependencyPath)) {
-			parseAndCheck(dependencyPath, parsedDocuments);
-		}
-	});
-	checkTypes(parsed, parsedDocuments);
 	return parsed;
 }
 

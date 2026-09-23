@@ -91,7 +91,7 @@ import {
 	updateFunctionTypeUnresolvedFlag,
 } from '../syntax-tree.js';
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
-import { coreLibPath, getPathFromImport, isCoreLibPath, parseFile } from '../parser/parser.js';
+import { coreLibPath, getPathFromImport, isCoreLibPath, isTopLevelImport, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName } from '../parser/parser-utils.js';
 import { getFieldSymbolsFromDictionaryType, ReferenceIndex, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
@@ -3357,7 +3357,10 @@ function getReturnTypeFromFunctionCall(
 		switch (functionName) {
 			case 'import': {
 				const { path, error } = getPathFromImport(functionCall, folder);
-				if (error) {
+				// Für einen Top-Level-Import hat der Parser den Fehler schon gemeldet
+				// (getImportedPaths), und checked ist ein Klon von unchecked - sonst stünde er doppelt da.
+				if (error
+					&& !isTopLevelImport(functionCall)) {
 					errors.push(error);
 				}
 				if (!path) {

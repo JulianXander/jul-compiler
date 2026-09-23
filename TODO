@@ -148,9 +148,10 @@
 	 Rumpf je Zweig prüfen)
 	-maxInteger bleibt, bis es einen Elementtyp für Tuples gibt (Bindung im Kopf)
 	-yugioh: ein Any-Operand ergibt Or(Integer Fraction) statt wie früher bei addInteger still
-	 Integer. Betroffen sind 6 Stellen in game-logic.jul (countPreviousConsecutive aus util.ts,
-	 effectStep/amount, oldSkippedDrawPhaseCount), alle drei kommen als Any an. Warum, ist noch
-	 nicht untersucht
+	 Integer. Betroffen waren 6 Stellen in game-logic.jul (countPreviousConsecutive aus util.ts,
+	 effectStep/amount, oldSkippedDrawPhaseCount), alle drei kommen als Any an.
+	 countPreviousConsecutive ist behoben (TS-Rückgabetyp, docs/typescript-import-types.md),
+	 effectStep/amount und oldSkippedDrawPhaseCount sind noch nicht untersucht
 	-Nebenbefund: Never-Zweige lecken in Fehlermeldungen ("Can not assign Never to Text")
 -n-stellige And/Or in createNormalizedIntersectionType paarweise reduzieren
 	-die regeln greifen heute nur bei genau zwei choices
@@ -160,6 +161,15 @@
 	-würde die checker sonderfälle getElement, lastElement, length, setElement, map ersetzen
 	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
 	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
+-TS-Typannotationen übernehmen, siehe docs/typescript-import-types.md
+	-Stufe 1 (Rückgabetyp) erledigt, Stufe 2 (Parametertypen) offen
+	-yugioh: mapDictionary ist gröber annotiert als es sich verhält (| undefined), 5 Fehler in
+	 game-logic.jul - in yugioh auflösen
+	-später: Funktionstypen (Callbacks) übersetzen. Offen: JUL vergleicht Parameternamen, TS nur
+	 positional - wörtliche Übernahme bräche jeden Aufrufer mit (value) => ...
+-gemeinsamer Projekt-Loader: erledigt, siehe docs/project-loader.md
+	-getPathFromImport meldet importArgumentsMissing und dynamicImportNotAllowed mit
+	 endRowIndex = endColumnIndex (Tippfehler, Position der Meldung falsch)
 -cross-file rename (language server): erledigt, siehe docs/cross-file-reference-index.md
 	-Document Highlight ebenfalls erledigt (nutzt denselben reverse-index, auf die aktuelle Datei
 	 gefiltert)

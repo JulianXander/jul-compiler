@@ -103,3 +103,6 @@
 2026-09-23 09:45:27	fc0dbc8+	-	ADV-DEV-56627	yugioh	parse+check	5	3846.65	3993.59	3993.59	nach mehrzeiligem Funktionskopf
 2026-09-23 11:02:21	2635535	-	ADV-DEV-56627	yugioh	parse+check	5	3589.39	3932.62	3932.62	vor :?
 2026-09-23 11:40:46	ba86e2f+	-	ADV-DEV-56627	yugioh	parse+check	5	3882.63	4352.73	4352.73	nach :?
+2026-09-23 12:01:27	1e7f2d7+	-	ADV-DEV-56627	yugioh	parse+check	5	3752.40	3982.63	3982.63	vor TS-Typannotationen
+2026-09-23 12:06:46	1e7f2d7+	-	ADV-DEV-56627	yugioh	parse+check	5	3681.27	3912.09	3912.09	Stufe 1: TS-Rückgabetypen
+2026-09-23 12:29:29	1e7f2d7+	-	ADV-DEV-56627	yugioh	parse+check	5	3817.61	4002.61	4002.61	gemeinsamer Loader (Compiler-Seite)

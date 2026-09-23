@@ -46,6 +46,7 @@ import {
 	ParseTextLiteral,
 	ParseValueExpression,
 	PositionedExpression,
+	ImportedDependency,
 	ParseReference,
 	Purity,
 	SimpleExpression,
@@ -75,7 +76,6 @@ import { basename, dirname, extname, join } from 'path';
 import { _parseJson, normalizeRational } from '../runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
-import { existsSync } from 'fs';
 
 const coreLibFileName = 'core-lib.jul';
 export const coreLibPath = join(executingDirectory, coreLibFileName);
@@ -117,7 +117,7 @@ export function parseCode(
 	}
 	const sourceFolder = dirname(filePath);
 	let parsedExpressions: ParsedExpressions;
-	let dependencies: string[] | undefined;
+	let dependencies: ImportedDependency[] | undefined;
 	switch (extension) {
 		case Extension.js:
 			parsedExpressions = parseTsCode(code);
@@ -145,7 +145,7 @@ export function parseCode(
 			parsedExpressions = parseJulCode(code);
 			const imported = getImportedPaths(parsedExpressions.expressions, sourceFolder);
 			parsedExpressions.errors.push(...imported.errors);
-			dependencies = imported.paths;
+			dependencies = imported.dependencies;
 			break;
 		case Extension.ts:
 			parsedExpressions = parseTsCode(code);
@@ -3132,10 +3132,10 @@ function getImportedPaths(
 	expressions: ParseExpression[] | undefined,
 	sourceFolder: string,
 ): {
-	paths: string[];
+	dependencies: ImportedDependency[];
 	errors: CompilerError[];
 } {
-	const importedPaths: string[] = [];
+	const dependencies: ImportedDependency[] = [];
 	const errors: CompilerError[] = [];
 	expressions?.forEach(expression => {
 		switch (expression.type) {
@@ -3160,12 +3160,12 @@ function getImportedPaths(
 			case 'destructuring':
 				const value = expression.value;
 				if (value && isImportFunctionCall(value)) {
-					const { fullPath, error } = getPathFromImport(value, sourceFolder);
+					const { fullPath, source, error } = getPathFromImport(value, sourceFolder);
 					if (error) {
 						errors.push(error);
 					}
-					if (fullPath) {
-						importedPaths.push(fullPath);
+					if (fullPath && source) {
+						dependencies.push({ fullPath: fullPath, source: source });
 					}
 				}
 				return;
@@ -3175,13 +3175,14 @@ function getImportedPaths(
 		}
 	});
 	return {
-		paths: importedPaths,
+		dependencies: dependencies,
 		errors: errors,
 	};
 }
 
 /**
- * Prüft extension und file exists
+ * Prüft die extension. Ob die Datei existiert, weiß erst der Loader (project-loader.ts) - er
+ * meldet fileNotFound, der Parser bleibt frei von Dateizugriffen.
  */
 export function getPathFromImport(
 	importExpression: ParseFunctionCall,
@@ -3195,6 +3196,10 @@ export function getPathFromImport(
 	 */
 	path?: string;
 	fullPath?: string;
+	/**
+	 * Das Pfad-Textliteral, für Meldungen zur importierten Datei.
+	 */
+	source?: Positioned;
 	error?: CompilerError;
 } {
 	if (!importExpression.arguments) {
@@ -3227,21 +3232,15 @@ export function getPathFromImport(
 				}
 			};
 		}
-		const fullPath = join(sourceFolder, importedPath);
-		const fileNotFoundError: CompilerError | undefined = existsSync(fullPath)
-			? undefined
-			: {
-				code: ErrorCode.fileNotFound,
-				message: `File not found: ${fullPath}`,
+		return {
+			path: importedPath,
+			fullPath: join(sourceFolder, importedPath),
+			source: {
 				startRowIndex: pathExpression.startRowIndex,
 				startColumnIndex: pathExpression.startColumnIndex,
 				endRowIndex: pathExpression.endRowIndex,
 				endColumnIndex: pathExpression.endColumnIndex,
-			};
-		return {
-			path: importedPath,
-			fullPath: fullPath,
-			error: fileNotFoundError,
+			},
 		};
 	}
 	// TODO dynamische imports verbieten???
@@ -3282,6 +3281,17 @@ export function isImportFunctionCall(expression: PositionedExpression): expressi
 	}
 	const functionExpression = expression.functionExpression;
 	return !!functionExpression && isImportFunction(functionExpression);
+}
+
+/**
+ * Direkter Wert einer Top-Level-Definition/Destructuring - nur diese Importe sammelt
+ * getImportedPaths als Abhängigkeit.
+ */
+export function isTopLevelImport(importExpression: ParseFunctionCall): boolean {
+	const parent = importExpression.parent;
+	return (parent?.type === 'definition' || parent?.type === 'destructuring')
+		&& parent.value === importExpression
+		&& !parent.parent;
 }
 
 export function isImportFunction(functionExpression: SimpleExpression): boolean {

@@ -1,206 +1,212 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="680" height="500" font-family="sans-serif"><rect width="680" height="500" fill="#1e1e1e"/><text x="52" y="22" font-size="14" font-weight="bold" fill="#e8e8e8">Benchmarks auf ADV-DEV-56627</text><g transform="translate(0 40)"><rect x="0" y="0" width="680" height="30" fill="#252525"/><text x="52" y="22" font-size="12" font-weight="bold" fill="#e8e8e8">yugioh</text><text x="668" y="22" text-anchor="end" font-size="9" fill="#999">101 Messungen</text><g transform="translate(0 30)"><g transform="translate(0 0)"><rect x="6" y="4" width="668" height="178" fill="none" stroke="#333"/><text x="52" y="20" font-size="11" font-weight="bold" fill="#e8e8e8">parse+check</text><text x="52" y="33" font-size="9" fill="#999">3882.63 ms (+3% seit 2026-09-08)</text><line x1="52" y1="144.0" x2="664" y2="144.0" stroke="#3a3a3a"/><text x="46" y="144.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">0.00</text><line x1="52" y1="92.0" x2="664" y2="92.0" stroke="#3a3a3a"/><text x="46" y="92.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">5919.27</text><line x1="52" y1="40.0" x2="664" y2="40.0" stroke="#3a3a3a"/><text x="46" y="40.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">11838.55</text><text x="52" y="158" font-size="9" fill="#999">2026-09-08</text><text x="664" y="158" text-anchor="end" font-size="9" fill="#999">2026-09-23</text><polyline fill="none" stroke="#5aa9e6" stroke-width="1.5" points="52.0,110.8 58.1,112.6 64.2,113.5 70.4,112.3 76.5,114.3 82.6,111.6 88.7,114.2 94.8,114.9 101.0,114.0 107.1,114.2 113.2,112.9 119.3,113.8 125.4,113.9 131.6,113.3 137.7,113.6 143.8,114.1 149.9,112.1 156.0,108.9 162.2,113.5 168.3,111.8 174.4,111.1 180.5,109.4 186.6,53.6 192.8,108.4 198.9,114.3 205.0,113.1 211.1,112.8 217.2,112.4 223.4,113.1 229.5,112.1 235.6,101.0 241.7,107.0 247.8,102.7 254.0,109.6 260.1,113.7 266.2,111.9 272.3,112.9 278.4,88.4 284.6,61.7 290.7,112.4 296.8,111.0 302.9,110.6 309.0,109.1 315.2,112.3 321.3,111.9 327.4,111.7 333.5,112.0 339.6,111.7 345.8,110.6 351.9,109.9 358.0,109.5 364.1,111.5 370.2,111.7 376.4,112.0 382.5,111.9 388.6,109.8 394.7,99.5 400.8,100.6 407.0,111.2 413.1,109.0 419.2,110.8 425.3,111.3 431.4,110.0 437.6,110.7 443.7,110.1 449.8,110.6 455.9,110.1 462.0,110.8 468.2,109.3 474.3,111.2 480.4,110.8 486.5,105.5 492.6,110.9 498.8,111.0 504.9,110.1 511.0,105.3 517.1,107.1 523.2,106.5 529.4,107.4 535.5,107.7 541.6,105.5 547.7,105.2 553.8,108.9 560.0,108.5 566.1,110.4 572.2,107.3 578.3,111.5 584.4,108.1 590.6,111.3 596.7,113.5 602.8,114.9 608.9,112.3 615.0,110.4 621.2,102.0 627.3,112.3 633.4,111.2 639.5,111.5 645.6,112.5 651.8,110.2 657.9,112.5 664.0,109.9"/><circle cx="52.0" cy="110.8" r="2.5" fill="#5aa9e6"><title>2026-09-08 11:10:48
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="500" font-family="sans-serif"><rect width="680" height="500" fill="#1e1e1e"/><text x="52" y="22" font-size="14" font-weight="bold" fill="#e8e8e8">Benchmarks auf ADV-DEV-56627</text><g transform="translate(0 40)"><rect x="0" y="0" width="680" height="30" fill="#252525"/><text x="52" y="22" font-size="12" font-weight="bold" fill="#e8e8e8">yugioh</text><text x="668" y="22" text-anchor="end" font-size="9" fill="#999">104 Messungen</text><g transform="translate(0 30)"><g transform="translate(0 0)"><rect x="6" y="4" width="668" height="178" fill="none" stroke="#333"/><text x="52" y="20" font-size="11" font-weight="bold" fill="#e8e8e8">parse+check</text><text x="52" y="33" font-size="9" fill="#999">3817.61 ms (+1% seit 2026-09-08)</text><line x1="52" y1="144.0" x2="664" y2="144.0" stroke="#3a3a3a"/><text x="46" y="144.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">0.00</text><line x1="52" y1="92.0" x2="664" y2="92.0" stroke="#3a3a3a"/><text x="46" y="92.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">5919.27</text><line x1="52" y1="40.0" x2="664" y2="40.0" stroke="#3a3a3a"/><text x="46" y="40.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">11838.55</text><text x="52" y="158" font-size="9" fill="#999">2026-09-08</text><text x="664" y="158" text-anchor="end" font-size="9" fill="#999">2026-09-23</text><polyline fill="none" stroke="#5aa9e6" stroke-width="1.5" points="52.0,110.8 57.9,112.6 63.9,113.5 69.8,112.3 75.8,114.3 81.7,111.6 87.7,114.2 93.6,114.9 99.5,114.0 105.5,114.2 111.4,112.9 117.4,113.8 123.3,113.9 129.2,113.3 135.2,113.6 141.1,114.1 147.1,112.1 153.0,108.9 159.0,113.5 164.9,111.8 170.8,111.1 176.8,109.4 182.7,53.6 188.7,108.4 194.6,114.3 200.5,113.1 206.5,112.8 212.4,112.4 218.4,113.1 224.3,112.1 230.3,101.0 236.2,107.0 242.1,102.7 248.1,109.6 254.0,113.7 260.0,111.9 265.9,112.9 271.8,88.4 277.8,61.7 283.7,112.4 289.7,111.0 295.6,110.6 301.6,109.1 307.5,112.3 313.4,111.9 319.4,111.7 325.3,112.0 331.3,111.7 337.2,110.6 343.1,109.9 349.1,109.5 355.0,111.5 361.0,111.7 366.9,112.0 372.9,111.9 378.8,109.8 384.7,99.5 390.7,100.6 396.6,111.2 402.6,109.0 408.5,110.8 414.4,111.3 420.4,110.0 426.3,110.7 432.3,110.1 438.2,110.6 444.2,110.1 450.1,110.8 456.0,109.3 462.0,111.2 467.9,110.8 473.9,105.5 479.8,110.9 485.7,111.0 491.7,110.1 497.6,105.3 503.6,107.1 509.5,106.5 515.5,107.4 521.4,107.7 527.3,105.5 533.3,105.2 539.2,108.9 545.2,108.5 551.1,110.4 557.0,107.3 563.0,111.5 568.9,108.1 574.9,111.3 580.8,113.5 586.8,114.9 592.7,112.3 598.6,110.4 604.6,102.0 610.5,112.3 616.5,111.2 622.4,111.5 628.3,112.5 634.3,110.2 640.2,112.5 646.2,109.9 652.1,111.0 658.1,111.7 664.0,110.5"/><circle cx="52.0" cy="110.8" r="2.5" fill="#5aa9e6"><title>2026-09-08 11:10:48
 78cb717+
-3778.63 ms</title></circle><circle cx="58.1" cy="112.6" r="2.5" fill="#5aa9e6"><title>2026-09-08 15:38:38
+3778.63 ms</title></circle><circle cx="57.9" cy="112.6" r="2.5" fill="#5aa9e6"><title>2026-09-08 15:38:38
 58b008f+
-3574.07 ms</title></circle><circle cx="64.2" cy="113.5" r="2.5" fill="#5aa9e6"><title>2026-09-08 15:55:19
+3574.07 ms</title></circle><circle cx="63.9" cy="113.5" r="2.5" fill="#5aa9e6"><title>2026-09-08 15:55:19
 58b008f+
-3470.54 ms</title></circle><circle cx="70.4" cy="112.3" r="2.5" fill="#5aa9e6"><title>2026-09-09 10:10:45
+3470.54 ms</title></circle><circle cx="69.8" cy="112.3" r="2.5" fill="#5aa9e6"><title>2026-09-09 10:10:45
 4bc1cab+
-3612.75 ms</title></circle><circle cx="76.5" cy="114.3" r="2.5" fill="#5aa9e6"><title>2026-09-09 10:32:05
+3612.75 ms</title></circle><circle cx="75.8" cy="114.3" r="2.5" fill="#5aa9e6"><title>2026-09-09 10:32:05
 4bc1cab+
-3382.16 ms</title></circle><circle cx="82.6" cy="111.6" r="2.5" fill="#5aa9e6"><title>2026-09-09 11:24:34
+3382.16 ms</title></circle><circle cx="81.7" cy="111.6" r="2.5" fill="#5aa9e6"><title>2026-09-09 11:24:34
 2f37659+
-3684.55 ms</title></circle><circle cx="88.7" cy="114.2" r="2.5" fill="#5aa9e6"><title>2026-09-09 14:23:34
+3684.55 ms</title></circle><circle cx="87.7" cy="114.2" r="2.5" fill="#5aa9e6"><title>2026-09-09 14:23:34
 2f37659+
-3397.82 ms</title></circle><circle cx="94.8" cy="114.9" r="2.5" fill="#5aa9e6"><title>2026-09-09 18:44:40
+3397.82 ms</title></circle><circle cx="93.6" cy="114.9" r="2.5" fill="#5aa9e6"><title>2026-09-09 18:44:40
 2961841
-3316.90 ms</title></circle><circle cx="101.0" cy="114.0" r="2.5" fill="#5aa9e6"><title>2026-09-09 19:15:16
+3316.90 ms</title></circle><circle cx="99.5" cy="114.0" r="2.5" fill="#5aa9e6"><title>2026-09-09 19:15:16
 2961841+
-3419.49 ms</title></circle><circle cx="107.1" cy="114.2" r="2.5" fill="#5aa9e6"><title>2026-09-09 20:10:35
+3419.49 ms</title></circle><circle cx="105.5" cy="114.2" r="2.5" fill="#5aa9e6"><title>2026-09-09 20:10:35
 c494862+
-3390.08 ms</title></circle><circle cx="113.2" cy="112.9" r="2.5" fill="#5aa9e6"><title>2026-09-09 22:08:08
+3390.08 ms</title></circle><circle cx="111.4" cy="112.9" r="2.5" fill="#5aa9e6"><title>2026-09-09 22:08:08
 4f4700e+
-3544.51 ms</title></circle><circle cx="119.3" cy="113.8" r="2.5" fill="#5aa9e6"><title>2026-09-10 09:47:53
+3544.51 ms</title></circle><circle cx="117.4" cy="113.8" r="2.5" fill="#5aa9e6"><title>2026-09-10 09:47:53
 3dae426+
-3433.64 ms</title></circle><circle cx="125.4" cy="113.9" r="2.5" fill="#5aa9e6"><title>2026-09-10 10:06:41
+3433.64 ms</title></circle><circle cx="123.3" cy="113.9" r="2.5" fill="#5aa9e6"><title>2026-09-10 10:06:41
 1cb6051+
-3425.68 ms</title></circle><circle cx="131.6" cy="113.3" r="2.5" fill="#5aa9e6"><title>2026-09-10 10:35:04
+3425.68 ms</title></circle><circle cx="129.2" cy="113.3" r="2.5" fill="#5aa9e6"><title>2026-09-10 10:35:04
 bd049c8+
-3495.44 ms</title></circle><circle cx="137.7" cy="113.6" r="2.5" fill="#5aa9e6"><title>2026-09-10 12:19:19
+3495.44 ms</title></circle><circle cx="135.2" cy="113.6" r="2.5" fill="#5aa9e6"><title>2026-09-10 12:19:19
 139fbde+
-3460.11 ms</title></circle><circle cx="143.8" cy="114.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 12:22:12
+3460.11 ms</title></circle><circle cx="141.1" cy="114.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 12:22:12
 139fbde+
-3402.61 ms</title></circle><circle cx="149.9" cy="112.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 12:38:01
+3402.61 ms</title></circle><circle cx="147.1" cy="112.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 12:38:01
 9d05a26+
-3627.45 ms</title></circle><circle cx="156.0" cy="108.9" r="2.5" fill="#5aa9e6"><title>2026-09-10 12:41:04
+3627.45 ms</title></circle><circle cx="153.0" cy="108.9" r="2.5" fill="#5aa9e6"><title>2026-09-10 12:41:04
 9d05a26+
-3993.20 ms</title></circle><circle cx="162.2" cy="113.5" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:12:55
+3993.20 ms</title></circle><circle cx="159.0" cy="113.5" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:12:55
 0dbc86b
-3469.60 ms</title></circle><circle cx="168.3" cy="111.8" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:31:07
+3469.60 ms</title></circle><circle cx="164.9" cy="111.8" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:31:07
 66641a8+
-3665.74 ms</title></circle><circle cx="174.4" cy="111.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:35:56
+3665.74 ms</title></circle><circle cx="170.8" cy="111.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:35:56
 977056a+
-3744.47 ms</title></circle><circle cx="180.5" cy="109.4" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:45:03
+3744.47 ms</title></circle><circle cx="176.8" cy="109.4" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:45:03
 9fb37a0+
-3942.61 ms</title></circle><circle cx="186.6" cy="53.6" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:59:54
+3942.61 ms</title></circle><circle cx="182.7" cy="53.6" r="2.5" fill="#5aa9e6"><title>2026-09-10 14:59:54
 9c22e50+
-10294.39 ms</title></circle><circle cx="192.8" cy="108.4" r="2.5" fill="#5aa9e6"><title>2026-09-10 15:03:38
+10294.39 ms</title></circle><circle cx="188.7" cy="108.4" r="2.5" fill="#5aa9e6"><title>2026-09-10 15:03:38
 9c22e50+
-4046.82 ms</title></circle><circle cx="198.9" cy="114.3" r="2.5" fill="#5aa9e6"><title>2026-09-10 15:23:19
+4046.82 ms</title></circle><circle cx="194.6" cy="114.3" r="2.5" fill="#5aa9e6"><title>2026-09-10 15:23:19
 7db6623+
-3383.02 ms</title></circle><circle cx="205.0" cy="113.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 15:37:09
+3383.02 ms</title></circle><circle cx="200.5" cy="113.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 15:37:09
 16c5e89+
-3515.81 ms</title></circle><circle cx="211.1" cy="112.8" r="2.5" fill="#5aa9e6"><title>2026-09-10 15:48:06
+3515.81 ms</title></circle><circle cx="206.5" cy="112.8" r="2.5" fill="#5aa9e6"><title>2026-09-10 15:48:06
 2277f04+
-3550.16 ms</title></circle><circle cx="217.2" cy="112.4" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:01:55
+3550.16 ms</title></circle><circle cx="212.4" cy="112.4" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:01:55
 733e44d+
-3601.40 ms</title></circle><circle cx="223.4" cy="113.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:08:43
+3601.40 ms</title></circle><circle cx="218.4" cy="113.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:08:43
 a35c8ba+
-3512.89 ms</title></circle><circle cx="229.5" cy="112.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:15:52
+3512.89 ms</title></circle><circle cx="224.3" cy="112.1" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:15:52
 dca69d5+
-3629.24 ms</title></circle><circle cx="235.6" cy="101.0" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:22:14
+3629.24 ms</title></circle><circle cx="230.3" cy="101.0" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:22:14
 dca69d5+
-4898.61 ms</title></circle><circle cx="241.7" cy="107.0" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:45:12
+4898.61 ms</title></circle><circle cx="236.2" cy="107.0" r="2.5" fill="#5aa9e6"><title>2026-09-10 16:45:12
 dca69d5+
-4208.41 ms</title></circle><circle cx="247.8" cy="102.7" r="2.5" fill="#5aa9e6"><title>2026-09-10 17:12:56
+4208.41 ms</title></circle><circle cx="242.1" cy="102.7" r="2.5" fill="#5aa9e6"><title>2026-09-10 17:12:56
 ea2a1f3+
-4697.28 ms</title></circle><circle cx="254.0" cy="109.6" r="2.5" fill="#5aa9e6"><title>2026-09-10 17:25:13
+4697.28 ms</title></circle><circle cx="248.1" cy="109.6" r="2.5" fill="#5aa9e6"><title>2026-09-10 17:25:13
 7ed9a84+
-3913.62 ms</title></circle><circle cx="260.1" cy="113.7" r="2.5" fill="#5aa9e6"><title>2026-09-10 17:45:18
+3913.62 ms</title></circle><circle cx="254.0" cy="113.7" r="2.5" fill="#5aa9e6"><title>2026-09-10 17:45:18
 7ed9a84+
-3453.40 ms</title></circle><circle cx="266.2" cy="111.9" r="2.5" fill="#5aa9e6"><title>2026-09-10 17:55:59
+3453.40 ms</title></circle><circle cx="260.0" cy="111.9" r="2.5" fill="#5aa9e6"><title>2026-09-10 17:55:59
 398e670+
-3652.58 ms</title></circle><circle cx="272.3" cy="112.9" r="2.5" fill="#5aa9e6"><title>2026-09-10 18:11:17
+3652.58 ms</title></circle><circle cx="265.9" cy="112.9" r="2.5" fill="#5aa9e6"><title>2026-09-10 18:11:17
 a1efc13+
-3543.16 ms</title></circle><circle cx="278.4" cy="88.4" r="2.5" fill="#5aa9e6"><title>2026-09-11 08:37:52
+3543.16 ms</title></circle><circle cx="271.8" cy="88.4" r="2.5" fill="#5aa9e6"><title>2026-09-11 08:37:52
 67e9c86+
-6333.85 ms</title></circle><circle cx="284.6" cy="61.7" r="2.5" fill="#5aa9e6"><title>2026-09-11 09:11:59
+6333.85 ms</title></circle><circle cx="277.8" cy="61.7" r="2.5" fill="#5aa9e6"><title>2026-09-11 09:11:59
 837efef+
-9368.46 ms</title></circle><circle cx="290.7" cy="112.4" r="2.5" fill="#5aa9e6"><title>2026-09-11 09:23:39
+9368.46 ms</title></circle><circle cx="283.7" cy="112.4" r="2.5" fill="#5aa9e6"><title>2026-09-11 09:23:39
 837efef+
-3601.33 ms</title></circle><circle cx="296.8" cy="111.0" r="2.5" fill="#5aa9e6"><title>2026-09-11 09:42:05
+3601.33 ms</title></circle><circle cx="289.7" cy="111.0" r="2.5" fill="#5aa9e6"><title>2026-09-11 09:42:05
 9e714a1+
-3753.73 ms</title></circle><circle cx="302.9" cy="110.6" r="2.5" fill="#5aa9e6"><title>2026-09-11 15:40:30
+3753.73 ms</title></circle><circle cx="295.6" cy="110.6" r="2.5" fill="#5aa9e6"><title>2026-09-11 15:40:30
 549a23b+
-3807.36 ms</title></circle><circle cx="309.0" cy="109.1" r="2.5" fill="#5aa9e6"><title>2026-09-11 17:04:23
+3807.36 ms</title></circle><circle cx="301.6" cy="109.1" r="2.5" fill="#5aa9e6"><title>2026-09-11 17:04:23
 d8bb361+
-3972.56 ms</title></circle><circle cx="315.2" cy="112.3" r="2.5" fill="#5aa9e6"><title>2026-09-11 19:30:11
+3972.56 ms</title></circle><circle cx="307.5" cy="112.3" r="2.5" fill="#5aa9e6"><title>2026-09-11 19:30:11
 2a27a92+
-3607.67 ms</title></circle><circle cx="321.3" cy="111.9" r="2.5" fill="#5aa9e6"><title>2026-09-11 23:25:44
+3607.67 ms</title></circle><circle cx="313.4" cy="111.9" r="2.5" fill="#5aa9e6"><title>2026-09-11 23:25:44
 e0beea7
-3655.47 ms</title></circle><circle cx="327.4" cy="111.7" r="2.5" fill="#5aa9e6"><title>2026-09-11 23:29:37
+3655.47 ms</title></circle><circle cx="319.4" cy="111.7" r="2.5" fill="#5aa9e6"><title>2026-09-11 23:29:37
 e0beea7+
-3674.17 ms</title></circle><circle cx="333.5" cy="112.0" r="2.5" fill="#5aa9e6"><title>2026-09-11 23:34:05
+3674.17 ms</title></circle><circle cx="325.3" cy="112.0" r="2.5" fill="#5aa9e6"><title>2026-09-11 23:34:05
 dfd708d+
-3638.65 ms</title></circle><circle cx="339.6" cy="111.7" r="2.5" fill="#5aa9e6"><title>2026-09-11 23:55:53
+3638.65 ms</title></circle><circle cx="331.3" cy="111.7" r="2.5" fill="#5aa9e6"><title>2026-09-11 23:55:53
 8899bc6+
-3677.67 ms</title></circle><circle cx="345.8" cy="110.6" r="2.5" fill="#5aa9e6"><title>2026-09-12 00:01:20
+3677.67 ms</title></circle><circle cx="337.2" cy="110.6" r="2.5" fill="#5aa9e6"><title>2026-09-12 00:01:20
 8899bc6+
-3800.17 ms</title></circle><circle cx="351.9" cy="109.9" r="2.5" fill="#5aa9e6"><title>2026-09-12 00:14:24
+3800.17 ms</title></circle><circle cx="343.1" cy="109.9" r="2.5" fill="#5aa9e6"><title>2026-09-12 00:14:24
 6b05802+
-3884.05 ms</title></circle><circle cx="358.0" cy="109.5" r="2.5" fill="#5aa9e6"><title>2026-09-12 00:29:43
+3884.05 ms</title></circle><circle cx="349.1" cy="109.5" r="2.5" fill="#5aa9e6"><title>2026-09-12 00:29:43
 6b05802+
-3927.75 ms</title></circle><circle cx="364.1" cy="111.5" r="2.5" fill="#5aa9e6"><title>2026-09-12 01:02:44
+3927.75 ms</title></circle><circle cx="355.0" cy="111.5" r="2.5" fill="#5aa9e6"><title>2026-09-12 01:02:44
 49d047c+
-3696.56 ms</title></circle><circle cx="370.2" cy="111.7" r="2.5" fill="#5aa9e6"><title>2026-09-12 01:20:50
+3696.56 ms</title></circle><circle cx="361.0" cy="111.7" r="2.5" fill="#5aa9e6"><title>2026-09-12 01:20:50
 49d047c+
-3679.63 ms</title></circle><circle cx="376.4" cy="112.0" r="2.5" fill="#5aa9e6"><title>2026-09-12 01:48:53
+3679.63 ms</title></circle><circle cx="366.9" cy="112.0" r="2.5" fill="#5aa9e6"><title>2026-09-12 01:48:53
 06da68e+
-3645.90 ms</title></circle><circle cx="382.5" cy="111.9" r="2.5" fill="#5aa9e6"><title>2026-09-12 13:24:06
+3645.90 ms</title></circle><circle cx="372.9" cy="111.9" r="2.5" fill="#5aa9e6"><title>2026-09-12 13:24:06
 68c1f99+
-3652.50 ms</title></circle><circle cx="388.6" cy="109.8" r="2.5" fill="#5aa9e6"><title>2026-09-12 14:28:22
+3652.50 ms</title></circle><circle cx="378.8" cy="109.8" r="2.5" fill="#5aa9e6"><title>2026-09-12 14:28:22
 6a2fb8d+
-3888.90 ms</title></circle><circle cx="394.7" cy="99.5" r="2.5" fill="#5aa9e6"><title>2026-09-12 14:31:18
+3888.90 ms</title></circle><circle cx="384.7" cy="99.5" r="2.5" fill="#5aa9e6"><title>2026-09-12 14:31:18
 6a2fb8d+
-5070.34 ms</title></circle><circle cx="400.8" cy="100.6" r="2.5" fill="#5aa9e6"><title>2026-09-12 14:34:45
+5070.34 ms</title></circle><circle cx="390.7" cy="100.6" r="2.5" fill="#5aa9e6"><title>2026-09-12 14:34:45
 6a2fb8d+
-4939.52 ms</title></circle><circle cx="407.0" cy="111.2" r="2.5" fill="#5aa9e6"><title>2026-09-12 19:38:50
+4939.52 ms</title></circle><circle cx="396.6" cy="111.2" r="2.5" fill="#5aa9e6"><title>2026-09-12 19:38:50
 e4ac2d6+
-3733.65 ms</title></circle><circle cx="413.1" cy="109.0" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:01:53
+3733.65 ms</title></circle><circle cx="402.6" cy="109.0" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:01:53
 4dc8177+
-3985.65 ms</title></circle><circle cx="419.2" cy="110.8" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:06:48
+3985.65 ms</title></circle><circle cx="408.5" cy="110.8" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:06:48
 c30feb6
-3774.58 ms</title></circle><circle cx="425.3" cy="111.3" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:13:48
+3774.58 ms</title></circle><circle cx="414.4" cy="111.3" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:13:48
 c30feb6+
-3726.04 ms</title></circle><circle cx="431.4" cy="110.0" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:26:20
+3726.04 ms</title></circle><circle cx="420.4" cy="110.0" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:26:20
 71ccc28+
-3867.61 ms</title></circle><circle cx="437.6" cy="110.7" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:34:32
+3867.61 ms</title></circle><circle cx="426.3" cy="110.7" r="2.5" fill="#5aa9e6"><title>2026-09-12 20:34:32
 71ccc28+
-3792.08 ms</title></circle><circle cx="443.7" cy="110.1" r="2.5" fill="#5aa9e6"><title>2026-09-12 21:14:50
+3792.08 ms</title></circle><circle cx="432.3" cy="110.1" r="2.5" fill="#5aa9e6"><title>2026-09-12 21:14:50
 1b9aaf6+
-3863.89 ms</title></circle><circle cx="449.8" cy="110.6" r="2.5" fill="#5aa9e6"><title>2026-09-12 21:20:47
+3863.89 ms</title></circle><circle cx="438.2" cy="110.6" r="2.5" fill="#5aa9e6"><title>2026-09-12 21:20:47
 fe73419+
-3806.14 ms</title></circle><circle cx="455.9" cy="110.1" r="2.5" fill="#5aa9e6"><title>2026-09-13 06:57:26
+3806.14 ms</title></circle><circle cx="444.2" cy="110.1" r="2.5" fill="#5aa9e6"><title>2026-09-13 06:57:26
 b985b0b+
-3862.21 ms</title></circle><circle cx="462.0" cy="110.8" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:18:34
+3862.21 ms</title></circle><circle cx="450.1" cy="110.8" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:18:34
 1c92171
-3775.60 ms</title></circle><circle cx="468.2" cy="109.3" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:19:05
+3775.60 ms</title></circle><circle cx="456.0" cy="109.3" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:19:05
 1c92171+
-3946.74 ms</title></circle><circle cx="474.3" cy="111.2" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:19:59
+3946.74 ms</title></circle><circle cx="462.0" cy="111.2" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:19:59
 1c92171+
-3737.96 ms</title></circle><circle cx="480.4" cy="110.8" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:20:55
+3737.96 ms</title></circle><circle cx="467.9" cy="110.8" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:20:55
 1c92171+
-3774.32 ms</title></circle><circle cx="486.5" cy="105.5" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:34:23
+3774.32 ms</title></circle><circle cx="473.9" cy="105.5" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:34:23
 b3c389c+
-4382.56 ms</title></circle><circle cx="492.6" cy="110.9" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:35:50
+4382.56 ms</title></circle><circle cx="479.8" cy="110.9" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:35:50
 b3c389c+
-3770.70 ms</title></circle><circle cx="498.8" cy="111.0" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:41:50
+3770.70 ms</title></circle><circle cx="485.7" cy="111.0" r="2.5" fill="#5aa9e6"><title>2026-09-13 07:41:50
 b3c389c+
-3753.91 ms</title></circle><circle cx="504.9" cy="110.1" r="2.5" fill="#5aa9e6"><title>2026-09-13 08:19:36
+3753.91 ms</title></circle><circle cx="491.7" cy="110.1" r="2.5" fill="#5aa9e6"><title>2026-09-13 08:19:36
 0fe302e+
-3854.47 ms</title></circle><circle cx="511.0" cy="105.3" r="2.5" fill="#5aa9e6"><title>2026-09-13 09:05:03
+3854.47 ms</title></circle><circle cx="497.6" cy="105.3" r="2.5" fill="#5aa9e6"><title>2026-09-13 09:05:03
 5726ca5+
-4403.79 ms</title></circle><circle cx="517.1" cy="107.1" r="2.5" fill="#5aa9e6"><title>2026-09-13 09:11:00
+4403.79 ms</title></circle><circle cx="503.6" cy="107.1" r="2.5" fill="#5aa9e6"><title>2026-09-13 09:11:00
 5726ca5+
-4199.44 ms</title></circle><circle cx="523.2" cy="106.5" r="2.5" fill="#5aa9e6"><title>2026-09-13 10:40:52
+4199.44 ms</title></circle><circle cx="509.5" cy="106.5" r="2.5" fill="#5aa9e6"><title>2026-09-13 10:40:52
 020b631
-4270.42 ms</title></circle><circle cx="529.4" cy="107.4" r="2.5" fill="#5aa9e6"><title>2026-09-13 10:41:34
+4270.42 ms</title></circle><circle cx="515.5" cy="107.4" r="2.5" fill="#5aa9e6"><title>2026-09-13 10:41:34
 020b631+
-4163.98 ms</title></circle><circle cx="535.5" cy="107.7" r="2.5" fill="#5aa9e6"><title>2026-09-13 10:48:48
+4163.98 ms</title></circle><circle cx="521.4" cy="107.7" r="2.5" fill="#5aa9e6"><title>2026-09-13 10:48:48
 730a947
-4137.05 ms</title></circle><circle cx="541.6" cy="105.5" r="2.5" fill="#5aa9e6"><title>2026-09-13 11:59:24
+4137.05 ms</title></circle><circle cx="527.3" cy="105.5" r="2.5" fill="#5aa9e6"><title>2026-09-13 11:59:24
 0fd01d0+
-4387.37 ms</title></circle><circle cx="547.7" cy="105.2" r="2.5" fill="#5aa9e6"><title>2026-09-13 12:04:27
+4387.37 ms</title></circle><circle cx="533.3" cy="105.2" r="2.5" fill="#5aa9e6"><title>2026-09-13 12:04:27
 0fd01d0+
-4421.66 ms</title></circle><circle cx="553.8" cy="108.9" r="2.5" fill="#5aa9e6"><title>2026-09-13 12:16:31
+4421.66 ms</title></circle><circle cx="539.2" cy="108.9" r="2.5" fill="#5aa9e6"><title>2026-09-13 12:16:31
 bef9732
-3991.98 ms</title></circle><circle cx="560.0" cy="108.5" r="2.5" fill="#5aa9e6"><title>2026-09-13 12:27:13
+3991.98 ms</title></circle><circle cx="545.2" cy="108.5" r="2.5" fill="#5aa9e6"><title>2026-09-13 12:27:13
 7046c1e+
-4046.44 ms</title></circle><circle cx="566.1" cy="110.4" r="2.5" fill="#5aa9e6"><title>2026-09-13 12:36:33
+4046.44 ms</title></circle><circle cx="551.1" cy="110.4" r="2.5" fill="#5aa9e6"><title>2026-09-13 12:36:33
 e115c97+
-3828.26 ms</title></circle><circle cx="572.2" cy="107.3" r="2.5" fill="#5aa9e6"><title>2026-09-13 13:22:29
+3828.26 ms</title></circle><circle cx="557.0" cy="107.3" r="2.5" fill="#5aa9e6"><title>2026-09-13 13:22:29
 a6856e4
-4176.43 ms</title></circle><circle cx="578.3" cy="111.5" r="2.5" fill="#5aa9e6"><title>2026-09-16 11:37:47
+4176.43 ms</title></circle><circle cx="563.0" cy="111.5" r="2.5" fill="#5aa9e6"><title>2026-09-16 11:37:47
 8509628
-3701.78 ms</title></circle><circle cx="584.4" cy="108.1" r="2.5" fill="#5aa9e6"><title>2026-09-16 11:57:32
+3701.78 ms</title></circle><circle cx="568.9" cy="108.1" r="2.5" fill="#5aa9e6"><title>2026-09-16 11:57:32
 8509628+
-4090.96 ms</title></circle><circle cx="590.6" cy="111.3" r="2.5" fill="#5aa9e6"><title>2026-09-16 16:45:48
+4090.96 ms</title></circle><circle cx="574.9" cy="111.3" r="2.5" fill="#5aa9e6"><title>2026-09-16 16:45:48
 5038bbd
-3721.21 ms</title></circle><circle cx="596.7" cy="113.5" r="2.5" fill="#5aa9e6"><title>2026-09-17 12:21:19
+3721.21 ms</title></circle><circle cx="580.8" cy="113.5" r="2.5" fill="#5aa9e6"><title>2026-09-17 12:21:19
 0fbf0cf
-3473.96 ms</title></circle><circle cx="602.8" cy="114.9" r="2.5" fill="#5aa9e6"><title>2026-09-21 09:35:00
+3473.96 ms</title></circle><circle cx="586.8" cy="114.9" r="2.5" fill="#5aa9e6"><title>2026-09-21 09:35:00
 eedaa94
-3312.24 ms</title></circle><circle cx="608.9" cy="112.3" r="2.5" fill="#5aa9e6"><title>2026-09-21 09:35:25
+3312.24 ms</title></circle><circle cx="592.7" cy="112.3" r="2.5" fill="#5aa9e6"><title>2026-09-21 09:35:25
 2836862+
-3613.71 ms</title></circle><circle cx="615.0" cy="110.4" r="2.5" fill="#5aa9e6"><title>2026-09-22 10:13:01
+3613.71 ms</title></circle><circle cx="598.6" cy="110.4" r="2.5" fill="#5aa9e6"><title>2026-09-22 10:13:01
 546656d+
-3824.12 ms</title></circle><circle cx="621.2" cy="102.0" r="2.5" fill="#5aa9e6"><title>2026-09-22 10:29:51
+3824.12 ms</title></circle><circle cx="604.6" cy="102.0" r="2.5" fill="#5aa9e6"><title>2026-09-22 10:29:51
 546656d+
-4775.74 ms</title></circle><circle cx="627.3" cy="112.3" r="2.5" fill="#5aa9e6"><title>2026-09-22 17:39:19
+4775.74 ms</title></circle><circle cx="610.5" cy="112.3" r="2.5" fill="#5aa9e6"><title>2026-09-22 17:39:19
 d4ec271+
-3610.47 ms</title></circle><circle cx="633.4" cy="111.2" r="2.5" fill="#5aa9e6"><title>2026-09-22 17:50:22
+3610.47 ms</title></circle><circle cx="616.5" cy="111.2" r="2.5" fill="#5aa9e6"><title>2026-09-22 17:50:22
 2452abf+
-3737.80 ms</title></circle><circle cx="639.5" cy="111.5" r="2.5" fill="#5aa9e6"><title>2026-09-22 17:52:57
+3737.80 ms</title></circle><circle cx="622.4" cy="111.5" r="2.5" fill="#5aa9e6"><title>2026-09-22 17:52:57
 2452abf+
-3698.49 ms</title></circle><circle cx="645.6" cy="112.5" r="2.5" fill="#5aa9e6"><title>2026-09-23 09:08:01
+3698.49 ms</title></circle><circle cx="628.3" cy="112.5" r="2.5" fill="#5aa9e6"><title>2026-09-23 09:08:01
 b7693a9
-3584.53 ms</title></circle><circle cx="651.8" cy="110.2" r="2.5" fill="#5aa9e6"><title>2026-09-23 09:45:27
+3584.53 ms</title></circle><circle cx="634.3" cy="110.2" r="2.5" fill="#5aa9e6"><title>2026-09-23 09:45:27
 fc0dbc8+
-3846.65 ms</title></circle><circle cx="657.9" cy="112.5" r="2.5" fill="#5aa9e6"><title>2026-09-23 11:02:21
+3846.65 ms</title></circle><circle cx="640.2" cy="112.5" r="2.5" fill="#5aa9e6"><title>2026-09-23 11:02:21
 2635535
-3589.39 ms</title></circle><circle cx="664.0" cy="109.9" r="2.5" fill="#5aa9e6"><title>2026-09-23 11:40:46
+3589.39 ms</title></circle><circle cx="646.2" cy="109.9" r="2.5" fill="#5aa9e6"><title>2026-09-23 11:40:46
 ba86e2f+
-3882.63 ms</title></circle></g></g></g><g transform="translate(0 260)"><rect x="0" y="0" width="680" height="30" fill="#252525"/><text x="52" y="22" font-size="12" font-weight="bold" fill="#e8e8e8">jul-examples</text><text x="668" y="22" text-anchor="end" font-size="9" fill="#999">3 Messungen</text><g transform="translate(0 30)"><g transform="translate(0 0)"><rect x="6" y="4" width="668" height="178" fill="none" stroke="#333"/><text x="52" y="20" font-size="11" font-weight="bold" fill="#e8e8e8">parse+check</text><text x="52" y="33" font-size="9" fill="#999">19.45 ms (-9% seit 2026-09-09)</text><line x1="52" y1="144.0" x2="664" y2="144.0" stroke="#3a3a3a"/><text x="46" y="144.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">0.00</text><line x1="52" y1="92.0" x2="664" y2="92.0" stroke="#3a3a3a"/><text x="46" y="92.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">12.23</text><line x1="52" y1="40.0" x2="664" y2="40.0" stroke="#3a3a3a"/><text x="46" y="40.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">24.46</text><text x="52" y="158" font-size="9" fill="#999">2026-09-09</text><text x="664" y="158" text-anchor="end" font-size="9" fill="#999">2026-09-10</text><polyline fill="none" stroke="#5aa9e6" stroke-width="1.5" points="52.0,53.6 358.0,58.1 664.0,61.3"/><circle cx="52.0" cy="53.6" r="2.5" fill="#5aa9e6"><title>2026-09-09 22:08:42
+3882.63 ms</title></circle><circle cx="652.1" cy="111.0" r="2.5" fill="#5aa9e6"><title>2026-09-23 12:01:27
+1e7f2d7+
+3752.40 ms</title></circle><circle cx="658.1" cy="111.7" r="2.5" fill="#5aa9e6"><title>2026-09-23 12:06:46
+1e7f2d7+
+3681.27 ms</title></circle><circle cx="664.0" cy="110.5" r="2.5" fill="#5aa9e6"><title>2026-09-23 12:29:29
+1e7f2d7+
+3817.61 ms</title></circle></g></g></g><g transform="translate(0 260)"><rect x="0" y="0" width="680" height="30" fill="#252525"/><text x="52" y="22" font-size="12" font-weight="bold" fill="#e8e8e8">jul-examples</text><text x="668" y="22" text-anchor="end" font-size="9" fill="#999">3 Messungen</text><g transform="translate(0 30)"><g transform="translate(0 0)"><rect x="6" y="4" width="668" height="178" fill="none" stroke="#333"/><text x="52" y="20" font-size="11" font-weight="bold" fill="#e8e8e8">parse+check</text><text x="52" y="33" font-size="9" fill="#999">19.45 ms (-9% seit 2026-09-09)</text><line x1="52" y1="144.0" x2="664" y2="144.0" stroke="#3a3a3a"/><text x="46" y="144.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">0.00</text><line x1="52" y1="92.0" x2="664" y2="92.0" stroke="#3a3a3a"/><text x="46" y="92.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">12.23</text><line x1="52" y1="40.0" x2="664" y2="40.0" stroke="#3a3a3a"/><text x="46" y="40.0" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">24.46</text><text x="52" y="158" font-size="9" fill="#999">2026-09-09</text><text x="664" y="158" text-anchor="end" font-size="9" fill="#999">2026-09-10</text><polyline fill="none" stroke="#5aa9e6" stroke-width="1.5" points="52.0,53.6 358.0,58.1 664.0,61.3"/><circle cx="52.0" cy="53.6" r="2.5" fill="#5aa9e6"><title>2026-09-09 22:08:42
 4f4700e+
 21.27 ms</title></circle><circle cx="358.0" cy="58.1" r="2.5" fill="#5aa9e6"><title>2026-09-09 22:28:47
 4f4700e+
