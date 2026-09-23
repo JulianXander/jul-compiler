@@ -145,6 +145,16 @@ export enum ErrorCode {
 	branchIsNotFunction = 5150,
 	valueIsNotFunction = 5151,
 	unreachableBranch = 5152,
+	/**
+	 * `:?` steht nicht als Rückgabetyp. Nur dort wird es nie emittiert, anderswo bräuchte es eine
+	 * Runtime-Implementierung.
+	 */
+	typeBranchingOutsideReturnType = 5153,
+	/**
+	 * Ein Zweig von `:?` bindet im Kopf einen Namen (`(x: Integer) => …`). Die Bindung bleibt für
+	 * ihre Bedeutung auf Typebene frei.
+	 */
+	typeBranchHeadBinding = 5154,
 	dereferenceFailed = 5160,
 	/**
 	 * Eine Definition nennt sich selbst, ohne dass ein datentragender Konstruktor dazwischenliegt.
@@ -228,6 +238,8 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.branchIsNotFunction]: { type: 'type', severity: 'error' },
 	[ErrorCode.valueIsNotFunction]: { type: 'type', severity: 'error' },
 	[ErrorCode.unreachableBranch]: { type: 'type', severity: 'warning' },
+	[ErrorCode.typeBranchingOutsideReturnType]: { type: 'type', severity: 'error' },
+	[ErrorCode.typeBranchHeadBinding]: { type: 'type', severity: 'error' },
 	[ErrorCode.dereferenceFailed]: { type: 'type', severity: 'error' },
 	[ErrorCode.circularTypeDefinition]: { type: 'type', severity: 'error' },
 };

@@ -3780,3 +3780,175 @@ r = toDictionary([1 2] getKey getValue)`)).to.equal('[\n  first: 10\n  rest: 20\
 
 	//#endregion 5e
 });
+
+//#region Bedingte Typen
+
+// Die Definitionen f, d, s, g und n hängen nicht an der core-lib, S bis E laufen also unabhängig
+// von deren Umstellung. Jeder Fall hängt h an, geprüft wird der Rückgabetyp von h.
+const conditionalOneOperand = 'f = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t\t\t() => Fraction\n\t=> a';
+const conditionalTwoOperands = 'd = (a: Rational b: Rational)\n\t->\n\t\t:?(TypeOf(a) TypeOf(b))\n\t\t\t[Integer Integer] => Integer\n\t\t\t() => Fraction\n\t=> a';
+const conditionalVariadic = 's = (...xs: List(Rational))\n\t->\n\t\t:?(TypeOf(xs))\n\t\t\t[List(Integer)] => Integer\n\t\t\t() => Fraction\n\t=> 1';
+const conditionalFirstMatch = 'g = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[PositiveInteger] => Text\n\t\t\t[Integer] => Integer\n\t\t\t() => Fraction\n\t=> a';
+const conditionalWithoutCatchAll = 'n = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t=> 1';
+
+describe('bedingte Typen', () => {
+	function check(code: string) {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		return parsed;
+	}
+
+	/**
+	 * Rückgabetyp der letzten Definition, deren Wert eine Funktion ist. Tiefe 5 wie bei
+	 * typeOfLastDefinition, damit Alias-Namen (Fraction) erscheinen.
+	 */
+	function returnTypeOfLastDefinition(expressions: ParseExpression[]): string | undefined {
+		const definitions = expressions.filter((expression): expression is ParseSingleDefinition =>
+			expression.type === 'definition');
+		for (let index = definitions.length - 1; index >= 0; index--) {
+			const type = definitions[index]!.value?.typeInfo?.type;
+			if (isFunctionType(type)) {
+				return typeToString(resolvePlaceholders(type.ReturnType), 0, 5);
+			}
+		}
+		return undefined;
+	}
+
+	function typeOfLastDefinition(expressions: ParseExpression[]): string | undefined {
+		const last = expressions[expressions.length - 1] as ParseSingleDefinition;
+		const type = last.value?.typeInfo?.type;
+		return type && typeToString(resolvePlaceholders(type), 0, 5);
+	}
+
+	const cases: {
+		name: string;
+		code: string;
+		/** Rückgabetyp der letzten Funktionsdefinition. */
+		returnType?: string;
+		/** Typ der letzten Definition, für Aufrufe auf oberster Ebene. */
+		type?: string;
+		/** Ohne errors gilt: fehlerfrei. Die Parserfehler sind in den Checker-Fehlern enthalten. */
+		errors?: { code: ErrorCode; startRowIndex: number; startColumnIndex: number; }[];
+	}[] = [
+			//#region S: Semantik, ein Operand
+			{ name: 'S1 Teilmenge', code: `${conditionalOneOperand}\nh = (x: Integer) => f(x)`, returnType: 'Integer' },
+			{ name: 'S2 Teilmenge über Untertyp', code: `${conditionalOneOperand}\nh = (x: PositiveInteger) => f(x)`, returnType: 'Integer' },
+			{ name: 'S3 disjunkt', code: `${conditionalOneOperand}\nh = (x: Fraction) => f(x)`, returnType: 'Fraction' },
+			{ name: 'S4 Überlappung', code: `${conditionalOneOperand}\nh = (x: Rational) => f(x)`, returnType: 'Or(Integer Fraction)' },
+			{ name: 'S5 Literal wird über das reine f gefaltet', code: `${conditionalOneOperand}\nh = () => f(5)`, returnType: '5' },
+			{ name: 'S6 Teilmenge beendet', code: `${conditionalFirstMatch}\nh = (x: PositiveInteger) => g(x)`, returnType: 'Text' },
+			{ name: 'S7 Überlappung, dann Teilmenge', code: `${conditionalFirstMatch}\nh = (x: Integer) => g(x)`, returnType: 'Or(Text Integer)' },
+			{ name: 'S8 zwei Mal disjunkt', code: `${conditionalFirstMatch}\nh = (x: Fraction) => g(x)`, returnType: 'Fraction' },
+			// Kein Treffer bleibt still, auch der Teiltreffer ohne catchAll (bekanntes Risiko).
+			{ name: 'S9 kein Treffer', code: `${conditionalWithoutCatchAll}\nh = (x: Fraction) => n(x)`, returnType: 'Never' },
+			{ name: 'S10 Teiltreffer, bekanntes Risiko', code: `${conditionalWithoutCatchAll}\nh = (x: Rational) => n(x)`, returnType: 'Integer' },
+			//#endregion S: Semantik, ein Operand
+			//#region M: zwei Operanden
+			{ name: 'M1', code: `${conditionalTwoOperands}\nh = (x: Integer y: Integer) => d(x y)`, returnType: 'Integer' },
+			{ name: 'M2', code: `${conditionalTwoOperands}\nh = (x: Fraction y: Integer) => d(x y)`, returnType: 'Fraction' },
+			{ name: 'M3', code: `${conditionalTwoOperands}\nh = (x: Rational y: Integer) => d(x y)`, returnType: 'Or(Integer Fraction)' },
+			{ name: 'M4', code: `${conditionalTwoOperands}\nh = (x: PositiveInteger y: Integer) => d(x y)`, returnType: 'Integer' },
+			{ name: 'M5 Präfix', code: `${conditionalTwoOperands}\nh = (x: Integer y: Integer) => x.d(y)`, returnType: 'Integer' },
+			//#endregion M: zwei Operanden
+			//#region V: variadisch
+			{ name: 'V1', code: `${conditionalVariadic}\nh = (x: Integer y: Integer z: Integer) => s(x y z)`, returnType: 'Integer' },
+			{ name: 'V2', code: `${conditionalVariadic}\nh = (x: Integer y: Fraction) => s(x y)`, returnType: 'Fraction' },
+			{ name: 'V3', code: `${conditionalVariadic}\nh = (x: Integer y: Rational) => s(x y)`, returnType: 'Or(Integer Fraction)' },
+			{ name: 'V4 Spread Integer', code: `${conditionalVariadic}\nh = (ys: List(Integer)) => s(...ys)`, returnType: 'Integer' },
+			{ name: 'V5 Spread Rational', code: `${conditionalVariadic}\nh = (ys: List(Rational)) => s(...ys)`, returnType: 'Or(Integer Fraction)' },
+			{ name: 'V6 Präfix', code: `${conditionalVariadic}\nh = (x: Integer) => x.s(1)`, returnType: 'Integer' },
+			//#endregion V: variadisch
+			//#region P: offene Signatur und Weitergabe
+			{ name: 'P1 Hover-Form', code: conditionalOneOperand, returnType: 'Or(Integer Fraction)' },
+			// Trägt der vorhandene Mechanismus ein offenes :? durch eine Funktion ohne deklarierten Rückgabetyp?
+			{ name: 'P2 generische Weitergabe', code: `${conditionalOneOperand}\nk = (y: Rational) => f(y)\nh = (x: Integer) => k(x)`, returnType: 'Integer' },
+			//#endregion P: offene Signatur und Weitergabe
+			//#region R: Rumpfprüfung gegen die Union aller Zweige
+			{ name: 'R1 Rumpf in der Union', code: conditionalOneOperand },
+			{
+				name: 'R2 Rumpf außerhalb der Union',
+				code: 'f = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t\t\t() => Fraction\n\t=> §x§',
+				errors: [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 5, startColumnIndex: 4 }],
+			},
+			// Großzügig: d(1 2) sagt Integer zu, der Rumpf liefert eine Fraction.
+			{
+				name: 'R3 bekannte Großzügigkeit',
+				code: 'd = (a: Rational b: Rational)\n\t->\n\t\t:?(TypeOf(a) TypeOf(b))\n\t\t\t[Integer Integer] => Integer\n\t\t\t() => Fraction\n\t=> 0.5',
+			},
+			// Rational liegt nicht in Integer: Die Rumpfprüfung fängt den fehlenden catchAll teilweise auf.
+			{
+				name: 'R4 Teiltreffer im Rumpf',
+				code: 'n = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t=> a',
+				errors: [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 4, startColumnIndex: 4 }],
+			},
+			//#endregion R: Rumpfprüfung gegen die Union aller Zweige
+			//#region E: Fehler
+			{
+				name: 'E1 außerhalb des Rückgabetyps',
+				code: 'x = :?(Integer)\n\t[Integer] => Integer',
+				errors: [{ code: ErrorCode.typeBranchingOutsideReturnType, startRowIndex: 0, startColumnIndex: 4 }],
+			},
+			{
+				name: 'E2 Bindung im Kopf',
+				code: 'f = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t(x: Integer) => Integer\n\t\t\t() => Fraction\n\t=> a',
+				errors: [{ code: ErrorCode.typeBranchHeadBinding, startRowIndex: 3, startColumnIndex: 3 }],
+			},
+			{
+				name: 'E3 in der Kopfzeile',
+				code: 'F = (a: Integer) -> :?(TypeOf(a))\n\t[Integer] => Integer',
+				errors: [{ code: ErrorCode.returnTypeRequiresBlock, startRowIndex: 0, startColumnIndex: 20 }],
+			},
+			//#endregion E: Fehler
+			//#region K: core-lib
+			{ name: 'K1', code: 'h = (x: Integer y: Integer) => subtract(x y)', returnType: 'Integer' },
+			{ name: 'K2', code: 'h = (x: Fraction y: Integer) => subtract(x y)', returnType: 'Fraction' },
+			{ name: 'K3', code: 'h = (x: Rational y: Integer) => subtract(x y)', returnType: 'Or(Integer Fraction)' },
+			{ name: 'K4', code: 'h = (x: Integer y: Integer z: Integer) => add(x y z)', returnType: 'Integer' },
+			{ name: 'K5', code: 'h = (x: Integer y: Fraction) => add(x y)', returnType: 'Fraction' },
+			{ name: 'K6', code: 'h = (x: Integer y: Rational) => add(x y)', returnType: 'Or(Integer Fraction)' },
+			{ name: 'K7', code: 'h = (ys: List(Integer)) => add(...ys)', returnType: 'Integer' },
+			{ name: 'K8 Präfix', code: 'h = (x: Integer) => x.add(1)', returnType: 'Integer' },
+			{ name: 'K9 Länge minus eins', code: 'h = (xs: List(Integer)) => xs.length().subtract(1)', returnType: 'Integer' },
+			{ name: 'K10 Faltung add', code: 'r = add(2 3)', type: '5' },
+			{ name: 'K10 Faltung subtract', code: 'r = subtract(5 3)', type: '2' },
+			{
+				name: 'K11 ohne Argumente',
+				code: 'r = add()',
+				errors: [{ code: ErrorCode.argumentTypeMismatch, startRowIndex: 0, startColumnIndex: 4 }],
+			},
+			//#endregion K: core-lib
+		];
+	cases.forEach(({ name, code, returnType, type, errors }) => {
+		it(name, () => {
+			const parsed = check(code);
+			expect(parsed.checked?.errors?.map(error => ({
+				code: error.code,
+				startRowIndex: error.startRowIndex,
+				startColumnIndex: error.startColumnIndex,
+			}))).to.deep.equal(errors ?? []);
+			const expressions = parsed.checked?.expressions ?? [];
+			if (returnType !== undefined) {
+				expect(returnTypeOfLastDefinition(expressions)).to.equal(returnType);
+			}
+			if (type !== undefined) {
+				expect(typeOfLastDefinition(expressions)).to.equal(type);
+			}
+		});
+	});
+
+	// Beim Tippen: wirft nicht und meldet dasselbe wie ein halbes ?(.
+	it('E4 unvollständig', () => {
+		const errorCodes = (code: string) => check(code).checked?.errors?.map(error => error.code);
+		expect(errorCodes('F = (a: Integer)\n\t->\n\t\t:?('))
+			.to.deep.equal(errorCodes('F = (a: Integer)\n\t->\n\t\t?('));
+	});
+
+	// Der Hover zeigt die aufgelöste Union, mit Alias statt ausgeschriebenem Dictionary.
+	it('K12 Hover', () => {
+		const type = builtInSymbols['add']?.typeInfo?.type;
+		expect(type && typeToString(resolvePlaceholders(type), 0, 0))
+			.to.equal('(...args: List(Rational)) -> Or(Integer Fraction)');
+	});
+});
+
+//#endregion Bedingte Typen

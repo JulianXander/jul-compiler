@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { forEachChild, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseBranching, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDefinition, ParseSingleDictionaryTypeField, ParseValueExpression, PositionedExpression } from '../syntax-tree.js';
+import { BracketedExpression, forEachChild, ParseFunctionCall, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseBranching, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDefinition, ParseSingleDictionaryTypeField, ParseValueExpression, PositionedExpression } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
 
@@ -950,6 +950,46 @@ const multilineHeadCases: {
 			equivalentTo: 'F = (a: Integer) -> Integer',
 		},
 		//#endregion gültig: Typen, die den Block brauchen
+		//#region gültig: bedingter Typ im Typblock
+		// Der Knoten typeBranching ist unabhängig von branching (G10 bleibt branching).
+		{
+			name: 'PA1 bedingter Typ im Typblock',
+			code: 'F = (a: Integer)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t\t\t() => Text',
+			check: expression => {
+				const value = definedValue(expression) as ParseFunctionTypeLiteral;
+				expect(value.type).to.equal('functionTypeLiteral');
+				const returnType = value.returnType as unknown as TypeBranchingShape;
+				expect(returnType.type).to.equal('typeBranching');
+				expect(returnType.branches).to.have.lengthOf(2);
+				expect(returnType.branches.map(branch => branch.type)).to.deep.equal(['functionLiteral', 'functionLiteral']);
+			},
+		},
+		{
+			name: 'PA2 bedingter Typ mit zwei Operanden',
+			code: 'F = (a: Integer b: Integer)\n\t->\n\t\t:?(TypeOf(a) TypeOf(b))\n\t\t\t[Integer Integer] => Integer',
+			check: expression => {
+				const value = definedValue(expression) as ParseFunctionTypeLiteral;
+				const returnType = value.returnType as unknown as TypeBranchingShape;
+				expect(returnType.type).to.equal('typeBranching');
+				expect(argumentCount(returnType.args)).to.equal(2);
+				expect(returnType.branches).to.have.lengthOf(1);
+			},
+		},
+		{
+			name: 'PA3 bedingter Typ im Funktionskopf von nativeFunction',
+			code: 'f = nativeFunction(\n\t(a: Integer)\n\t\t->\n\t\t\t:?(TypeOf(a))\n\t\t\t\t[Integer] => Integer\n\t\t\t\t() => Text\n\t§js\n\t\t(a) => a\n\t§\n)',
+			check: expression => {
+				const call = definedValue(expression) as ParseFunctionCall;
+				expect(call.type).to.equal('functionCall');
+				const args = argumentValues(call.arguments);
+				expect(args).to.have.lengthOf(2);
+				const functionType = args[0] as ParseFunctionTypeLiteral;
+				expect(functionType.type).to.equal('functionTypeLiteral');
+				expect(functionType.returnType.type).to.equal('typeBranching');
+				expect(args[1]!.type).to.equal('text');
+			},
+		},
+		//#endregion gültig: bedingter Typ im Typblock
 		//#region gültig: Typ-Parameter als Kopf
 		{
 			name: 'G13 Typ-Parameter als Kopf',
@@ -1186,6 +1226,42 @@ function definedValue(expression: ParseExpression): ParseValueExpression {
 	const value = (expression as ParseSingleDefinition).value;
 	expect(value, 'Definition ohne Wert').to.not.equal(undefined);
 	return value!;
+}
+
+/**
+ * Form, an der die Fälle den Knoten von `:?` prüfen, ohne den Knotentyp zu importieren.
+ */
+interface TypeBranchingShape {
+	type: string;
+	args?: BracketedExpression;
+	branches: ParseValueExpression[];
+}
+
+/**
+ * Werte einer Argumentliste, egal ob der Parser sie schon als Kollektion aufgelöst hat.
+ */
+function argumentValues(args: BracketedExpression | undefined): { type: string; }[] {
+	if (!args) {
+		return [];
+	}
+	switch (args.type) {
+		case 'empty':
+			return [];
+		case 'binding':
+		case 'data':
+			// Ein Positionsargument steht vor der Auflösung im Namen des Felds.
+			return args.fields.map(field => field.name);
+		case 'dictionary':
+		case 'dictionaryType':
+			return args.fields;
+		case 'list':
+		case 'object':
+			return args.values;
+	}
+}
+
+function argumentCount(args: BracketedExpression | undefined): number {
+	return argumentValues(args).length;
 }
 
 const positionKeys = new Set(['startRowIndex', 'startColumnIndex', 'endRowIndex', 'endColumnIndex', 'parent']);
