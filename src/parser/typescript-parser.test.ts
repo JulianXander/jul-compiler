@@ -45,10 +45,12 @@ describe('TypeScript Parser', () => {
 			{ name: 'void', code: 'export function f(): void {}', result: '() :> Empty' },
 			{ name: 'any', code: 'export function f(): any {}', result: '() :> Any' },
 			{ name: 'union mit undefined', code: 'export function f(): bigint | undefined {}', result: '() :> Or(Empty Integer)' },
-			{ name: 'array', code: 'export function f(): string[] {}', result: '() :> Or(Empty List(Text))' },
-			{ name: 'Array<T>', code: 'export function f(): Array<bigint> {}', result: '() :> Or(Empty List(Integer))' },
-			{ name: 'index signature', code: 'export function f(): { [key: string]: any; } | undefined {}', result: '() :> Or(Empty Dictionary(Any))' },
-			{ name: 'Record', code: 'export function f(): Record<string, number> {}', result: '() :> Or(Empty Dictionary(Float))' },
+			{ name: 'array', code: 'export function f(): string[] {}', result: '() :> List(Text)' },
+			{ name: 'Array<T>', code: 'export function f(): Array<bigint> {}', result: '() :> List(Integer)' },
+			{ name: 'array mit undefined', code: 'export function f(): string[] | undefined {}', result: '() :> Or(Empty List(Text))' },
+			{ name: 'index signature', code: 'export function f(): { [key: string]: any; } {}', result: '() :> Dictionary(Any)' },
+			{ name: 'index signature mit undefined', code: 'export function f(): { [key: string]: any; } | undefined {}', result: '() :> Or(Empty Dictionary(Any))' },
+			{ name: 'Record', code: 'export function f(): Record<string, number> {}', result: '() :> Dictionary(Float)' },
 			{
 				name: 'Objekt-Typliteral mit optionalem Feld und Error',
 				code: 'export function f(): { main: string[] | undefined, extra?: bigint } | Error {}',
@@ -65,7 +67,7 @@ describe('TypeScript Parser', () => {
 			{ name: 'Promise', code: 'export function f(): Promise<number> {}', result: '() :> Any' },
 			{ name: 'Funktionstyp', code: 'export function f(): () => void {}', result: '() :> Any' },
 			{ name: 'Union mit nicht übersetzbarem Glied', code: 'export function f(): bigint | Foo {}', result: '() :> Any' },
-			{ name: 'verschachtelt nicht übersetzbar', code: 'export function f(): Foo[] {}', result: '() :> Or(Empty List(Any))' },
+			{ name: 'verschachtelt nicht übersetzbar', code: 'export function f(): Foo[] {}', result: '() :> List(Any)' },
 		];
 	describe('Rückgabetyp', () => {
 		expectedReturnTypes.forEach(({ name, code, result }) => {

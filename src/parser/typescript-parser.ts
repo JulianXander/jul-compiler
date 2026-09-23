@@ -203,7 +203,7 @@ function tsTypeToJulType(
 		case SyntaxKind.LiteralType:
 			return tsLiteralTypeToJulType(tsType as LiteralTypeNode, position);
 		case SyntaxKind.ArrayType:
-			return createPossiblyEmptyCollection(
+			return createCollection(
 				'List',
 				(tsType as ArrayTypeNode).elementType,
 				position,
@@ -228,7 +228,7 @@ function tsTypeToJulType(
 }
 
 /**
- * Für verschachtelte Stellen: dort ist Any genauer als gar nichts, z.B. Foo[] -> Or([] List(Any)).
+ * Für verschachtelte Stellen: dort ist Any genauer als gar nichts, z.B. Foo[] -> List(Any).
  */
 function tsTypeToJulTypeOrAny(
 	tsType: TypeNode,
@@ -294,14 +294,14 @@ function tsTypeReferenceToJulType(
 		case 'ReadonlyArray': {
 			const [elementType] = typeArguments;
 			return typeArguments.length === 1
-				? createPossiblyEmptyCollection('List', elementType!, position, sourceFile, errors)
+				? createCollection('List', elementType!, position, sourceFile, errors)
 				: undefined;
 		}
 		case 'Record': {
 			const [keyType, valueType] = typeArguments;
 			return typeArguments.length === 2
 				&& keyType!.kind === SyntaxKind.StringKeyword
-				? createPossiblyEmptyCollection('Dictionary', valueType!, position, sourceFile, errors)
+				? createCollection('Dictionary', valueType!, position, sourceFile, errors)
 				: undefined;
 		}
 		case 'Error':
@@ -336,7 +336,7 @@ function tsTypeLiteralToJulType(
 			|| keyType?.kind !== SyntaxKind.StringKeyword) {
 			return undefined;
 		}
-		return createPossiblyEmptyCollection('Dictionary', indexSignature.type, position, sourceFile, errors);
+		return createCollection('Dictionary', indexSignature.type, position, sourceFile, errors);
 	}
 	const fields: ParseSingleDictionaryTypeField[] = [];
 	for (const member of members) {
@@ -431,9 +431,11 @@ function orEmpty(
 }
 
 /**
- * List und Dictionary schließen in JUL das Leere aus, ein TS-Array bzw. -Objekt darf leer sein.
+ * Ohne Empty: In JUL gibt es keine leere Liste und kein leeres Dictionary, leer ist immer Empty.
+ * Eine TS-Funktion, die leer liefern kann, muss daher undefined zurückgeben und das mit
+ * | undefined annotieren.
  */
-function createPossiblyEmptyCollection(
+function createCollection(
 	collectionName: 'List' | 'Dictionary',
 	tsElementType: TypeNode,
 	position: Positioned,
@@ -441,13 +443,7 @@ function createPossiblyEmptyCollection(
 	errors: CompilerError[],
 ): ParseFunctionCall {
 	const elementType = tsTypeToJulTypeOrAny(tsElementType, sourceFile, errors);
-	return createCall(
-		'Or',
-		[
-			{ type: 'empty', ...position },
-			createCall(collectionName, [elementType], position),
-		],
-		position);
+	return createCall(collectionName, [elementType], position);
 }
 
 function createCall(

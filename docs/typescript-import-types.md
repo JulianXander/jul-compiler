@@ -26,11 +26,13 @@ der core-lib.
   erst nach [project-loader.md](project-loader.md): Die CLI checkte nur `.jul`-Dateien, der
   Import aus der ungecheckten `.ts`-Datei lieferte `Any`. Seitdem sind die beiden
   `countPreviousConsecutive`-Stellen in yugioh (`game-logic.jul` 211, 235) behoben.
-- Neu in yugioh, dieselbe Ursache an 5 Stellen (`game-logic.jul` 656, 668, 723, 2043, 2060):
-  `mapDictionary` ist mit `{ [key: string]: U; } | undefined` annotiert, also
-  `Or(Empty Dictionary(Any))`, `GameState/cards` verlangt `Dictionary(GameCard)`. Die Annotation
-  ist gröber als das Verhalten (`undefined` nur bei `undefined`-Eingabe). Das ist eine echte
-  Diskrepanz auf TS-Seite, kein Übersetzungsfehler. Wie sie aufgelöst wird, ist offen.
+- Behoben: `mapDictionary` in yugioh (`game-logic.jul` 656, 668, 723, 2043, 2060) kam als
+  `Or(Empty Dictionary(Any))` an, `GameState/cards` verlangt `Dictionary(GameCard)`. Ursache
+  war zweierlei: die Annotation `| undefined` (in yugioh entfernt) und ein Übersetzungsfehler.
+  Arrays und Index-Signaturen wurden als „darf leer sein“ mit `Or([] …)` übersetzt. In JUL gibt
+  es aber keine leere Liste und kein leeres Dictionary, leer ist immer `Empty`. Deshalb wird
+  jetzt ohne `Empty` übersetzt. Eine TS-Funktion, die leer liefern kann, gibt `undefined`
+  zurück und annotiert `| undefined`.
 - **Stufe 2** folgt.
 
 ## Was schon da ist (keine Checker-Änderung nötig)
@@ -63,8 +65,8 @@ TS-Typknotens (`getPositionFromTsNode`). Kleine Helfer: `createReference(name, p
 | `boolean` | `Boolean` |
 | `any`, `unknown` | `Any` |
 | `null`, `undefined`, `void` | `[]` (`empty`) |
-| `T[]`, `readonly T[]`, `Array<T>`, `ReadonlyArray<T>` | `Or([] List(T))`, weil TS-Arrays leer sein dürfen |
-| `{ [key: string]: T }`, `Record<string, T>` | `Or([] Dictionary(T))` |
+| `T[]`, `readonly T[]`, `Array<T>`, `ReadonlyArray<T>` | `List(T)`, ohne `Empty`: leer ist in JUL immer `Empty`, dafür muss TS `\| undefined` annotieren |
+| `{ [key: string]: T }`, `Record<string, T>` | `Dictionary(T)` |
 | `{ a: T; b?: U }` (Objekt-Typliteral) | `[a: T b: Or([] U)]` (`dictionaryType`, Aufbau wie [parser.ts:3020-3043](jul-compiler/src/parser/parser.ts#L3020-L3043), inkl. `fillSymbolTableWithFields`) |
 | `A \| B` | `Or(A B)` |
 | `'x'`, `1n`, `1`, `true`/`false` | `§x§`, `1`, `1f`, `true`/`false` |
@@ -74,7 +76,7 @@ TS-Typknotens (`getPositionFromTsNode`). Kleine Helfer: `createReference(name, p
 **Nicht übersetzbar:** Funktionstypen, Generics (`T`), Interfaces, Typ-Aliase, DOM-Typen,
 `Promise`, Tuples, Intersection und alles Übrige. Auf oberster Ebene gibt die Funktion dann
 `undefined` zurück; es bleibt beim heutigen Verhalten, `Any` aus dem Rumpf. Verschachtelt wird
-`Any` eingesetzt: `Foo[]` → `Or([] List(Any))`. Eine unbekannte Typreferenz wird **nie** als
+`Any` eingesetzt: `Foo[]` → `List(Any)`. Eine unbekannte Typreferenz wird **nie** als
 JUL-Referenz ausgegeben, sonst gäbe `T` einen JUL-Fehler „not defined“. Ein Union mit einem
 nicht übersetzbaren Glied wird im Ganzen zu `Any`/`undefined`, weil `Or(X Any)` ohnehin `Any` ist.
 
@@ -103,13 +105,13 @@ geprüft, dass `checked.errors` leer ist.
 
 Stufe 1, Fälle:
 - `function f(): bigint` → `() :> Integer`; analog `number`, `string`, `boolean`, `void`.
-- `bigint | undefined` → `Or([] Integer)`, `string[]` → `Or([] List(Text))`
-- `{ [key: string]: any } | undefined`, `Record<string, number>`
+- `bigint | undefined` → `Or([] Integer)`, `string[]` → `List(Text)`, `string[] | undefined` → `Or([] List(Text))`
+- `{ [key: string]: any }` mit und ohne `| undefined`, `Record<string, number>`
 - Objekt-Typliteral mit optionalem Feld (das `parseYdk`-Muster, inkl. `| Error`)
 - Literaltypen, Klammertyp
 - `const f = (): bigint => 1n` (ArrowFunction im VariableStatement)
 - nicht übersetzbar: generisches `T`, `Promise<number>`, Funktionstyp → bleibt `Any`, **ohne** Fehler
-- verschachtelt nicht übersetzbar: `Foo[]` → `Or([] List(Any))`
+- verschachtelt nicht übersetzbar: `Foo[]` → `List(Any)`
 - ohne Annotation: unverändert `Any`
 
 Stufe 2, Fälle:
