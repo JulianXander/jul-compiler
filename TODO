@@ -25,6 +25,17 @@
 	?eigene lib oder bestehende js libs verwendbar machen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 -multiline returntype parser
+	-plan: docs/multiline-function-head.md
+?verpuffte Ausdrücke in Blöcken melden: im Funktionsrumpf (und künftig im Typblock unter einem
+	umgebrochenen Rückgabepfeil) gilt der letzte Ausdruck, davorstehende Ausdrücke ohne Definition
+	verschwinden heute ohne Meldung (z.B. Rumpf `1` + Zeile `a`). Nur Ausdrücke, die nachweislich
+	pure sind, wären wirklich wirkungslos, `log(x)` davor ist gewollt. Warnung (JUL2500
+	discardedValue ausweiten oder eigener Code) oder gar nichts? Im Typblock sind alle Ausdrücke
+	pure.
+-gewichtung der designprinzipien überdenken (docs/design-principles.md): die Rangfolge in
+	"Wenn Prinzipien kollidieren" ist aus Einzelfällen gewachsen. Beim mehrzeiligen Funktionskopf
+	hat Editierbarkeit gegen Einheitlichkeit gewonnen, Editierbarkeit steht aber nicht unter den
+	vier Prinzipien. Klären: eigenes Prinzip oder Teil eines bestehenden, und wo in der Rangfolge.
 ?builtin types/literale direkt als prädikat-argument (filter(Integer) statt filter(isInteger)) -
 	siehe docs/predicate-types-and-filter-narrowing.md, Abschnitt "Weitergehende Idee (nicht
 	umgesetzt)", fuer Generalisierung, Checker/Runtime-Symmetrie-Problem und skizzierten

@@ -121,6 +121,14 @@ Sie tun es regelmäßig. Die bisher praktizierte Rangfolge (daraus ergibt sich d
   an der `:?` gerade steht.
 - **Einheitlichkeit schlägt Endzustand.** Kohärenz vor Umstellungskosten, siehe Klammer-Regel.
 - **Klarheit schlägt Vertrautheit.** Kein Konstrukt, nur weil andere Sprachen es so schreiben.
+- **Editierbarkeit schlägt Einheitlichkeit.** Eine lokale Änderung soll keine Umformatierung an
+  anderer Stelle erzwingen. Beim mehrzeiligen Funktionskopf darf `=>` eine eigene Zeile beginnen,
+  auch wenn davor keine umgebrochene Rückgabetypzeile steht. Damit gibt es für einen mehrzeiligen
+  Rumpf zwei Schreibweisen (`=>` am Zeilenende oder in eigener Zeile). Die strengere Regel mit
+  genau einer Schreibweise hätte verlangt, beim Löschen der Rückgabetypzeile die `=>`-Zeile
+  umzuformatieren. Aus demselben Grund darf zwischen Kopf und `=>`-Zeile ein Kommentar stehen,
+  damit sich die Rückgabetypzeile auskommentieren lässt. Kosten: die zweite Schreibweise, und eine versehentlich eingerückte
+  `=>`-Zeile wird still zum Funktionskopf statt zum Fehler.
 
 ## Wie eine Entscheidung getroffen wird
 
