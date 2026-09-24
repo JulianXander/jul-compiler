@@ -1775,6 +1775,43 @@ f(...namedArgs)`,
 			],
 		},
 		{
+			// Der Spread einer Union verteilt sich über ihre Choices: jede Choice ergibt ein eigenes
+			// Dictionary mit den zusätzlichen Feldern. Die Zuweisung an Empty macht den Typ sichtbar.
+			name: 'dictionary-spread-of-union-distributes-over-choices',
+			code: `f = (s: Or([a: Integer] [b: Text])) =>
+	x: Empty = [...s c = 1]
+	x`,
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign [\n  a: Integer\n  c: 1\n] to Empty.\nCan not assign [\n  b: Text\n  c: 1\n] to Empty.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 24,
+				},
+			],
+		},
+		{
+			// Wechsel des Diskriminators per Spread: kommt der Wert aus einer Choice ohne
+			// attackerId, fehlt das Feld, das die Ziel-Choice zu §attack§ verlangt.
+			name: 'dictionary-spread-of-union-checks-each-choice',
+			code: `State = Or([status: []] [status: §attack§ attackerId: Integer])
+f = (s: State) =>
+	x: State = [...s status = §attack§]
+	x`,
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign [status: §attack§] to [status: Empty].\n  Invalid value for field \'status\'\n    Can not assign §attack§ to Empty.\nMissing field \'attackerId\'.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 36,
+				},
+			],
+		},
+		{
 			// Eine Variable darf legitim mehr enthalten, als die Parameterliste fordert - das ist
 			// die Regel der Sprache, und im Quelltext steht an dieser Stelle nichts zu löschen.
 			name: 'variable-with-longer-tuple-is-not-discarded',

@@ -2462,7 +2462,8 @@ function inferType(
 			return { type: builtinAny };
 		}
 		case 'dictionary': {
-			const fieldTypes: CompileTimeDictionary = {};
+			// Je Choice einer gespreadeten Union eine eigene Feldmenge, ohne Union genau eine.
+			let fieldTypeChoices: CompileTimeDictionary[] = [{}];
 			let isUnknownType = false;
 			expression.fields.forEach(field => {
 				const value = field.value;
@@ -2481,7 +2482,9 @@ function inferType(
 							return;
 						}
 						const fieldType = field.value?.typeInfo?.type ?? builtinAny;
-						fieldTypes[fieldName] = fieldType;
+						for (const fieldTypes of fieldTypeChoices) {
+							fieldTypes[fieldName] = fieldType;
+						}
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
@@ -2494,16 +2497,23 @@ function inferType(
 						// nicht als dictionaryLiteral erkannt und der gesamte Literal-Typ fällt
 						// still auf Any zurück (verschluckt dann jeden Folgefehler).
 						const valueType = value?.typeInfo && resolveAlias(resolvePlaceholders(value.typeInfo.type));
-						// TODO DictionaryType, ChoiceType etc ?
-						if (isDictionaryLiteralType(valueType)) {
-							const valueFieldTypes = valueType.Fields;
-							for (const key in valueType.Fields) {
-								fieldTypes[key] = valueFieldTypes[key]!;
-							}
-						}
-						else {
+						// Eine Union aus Dictionaries verteilt sich über ihre Choices: jede bisherige
+						// Feldmenge wird mit jeder Choice fortgesetzt.
+						// TODO DictionaryType, Empty als Choice etc ?
+						const spreadChoices = isDictionaryLiteralType(valueType)
+							? [valueType]
+							: valueType && isUnionType(valueType)
+								? valueType.ChoiceTypes.map(resolveAlias)
+								: undefined;
+						if (!spreadChoices?.every(isDictionaryLiteralType)) {
 							isUnknownType = true;
+							return;
 						}
+						fieldTypeChoices = fieldTypeChoices.flatMap(fieldTypes =>
+							spreadChoices.map(spreadChoice => ({
+								...fieldTypes,
+								...spreadChoice.Fields,
+							})));
 						return;
 					default: {
 						const assertNever: never = field;
@@ -2515,11 +2525,14 @@ function inferType(
 				return { type: builtinAny };
 			}
 			const aliasName = getNameFromValue(expression);
-			const rawType = createCompileTimeDictionaryLiteralType(
+			const dictionaryTypes = fieldTypeChoices.map(fieldTypes => createCompileTimeDictionaryLiteralType(
 				fieldTypes,
 				true,
 				{ expression: expression, filePath: filePath },
-				aliasName);
+				aliasName));
+			const rawType = dictionaryTypes.length === 1
+				? dictionaryTypes[0]!
+				: createNormalizedUnionType(dictionaryTypes);
 			return { type: rawType };
 		}
 		case 'dictionaryType': {
