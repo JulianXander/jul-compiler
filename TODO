@@ -92,18 +92,6 @@
 	-vorbild: rust non-exhaustive patterns. ts hat nur das never idiom von hand
 	-vorsicht bei Or über streams/generics: nicht auflösbarer resttyp darf nicht als
 	 "fall fehlt" gemeldet werden, sonst wird aus unwissen eine falschmeldung
--bedingte typen :? als MVP umgesetzt, siehe docs/conditional-types.md (nur als Rückgabetyp).
-	 add und subtract liefern für Integer-Argumente Integer, addInteger und subtractInteger sind entfallen.
-	 Variadisch geht es damit doch: :?(TypeOf(args)) mit Kopf [List(Integer)] trägt add.
-	 Offen:
-	-die späteren Ausbaustufen stehen in docs/conditional-types.md (Rest abziehen,
-	 auswählendes ?, :? außerhalb des Rückgabetyps, Bindung im Kopf, Diagnose ohne Treffer,
-	 Rumpf je Zweig prüfen)
-	-maxInteger bleibt, bis es einen Elementtyp für Tuples gibt (Bindung im Kopf)
-	-yugioh: ein Any-Operand ergibt Or(Integer Fraction) statt wie früher bei addInteger still
-	 Integer. Offen in game-logic.jul: effectStep/amount und oldSkippedDrawPhaseCount kommen als
-	 Any an, noch nicht untersucht
-	-Nebenbefund: Never-Zweige lecken in Fehlermeldungen ("Can not assign Never to Text")
 -n-stellige And/Or in createNormalizedIntersectionType paarweise reduzieren
 	-die regeln greifen heute nur bei genau zwei choices
 	-And(TypeOf(a) TypeOf(b) Integer) bleibt sonst als knoten stehen statt zu Integer zu werden
