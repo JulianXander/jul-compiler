@@ -104,7 +104,7 @@ function tsFunctionToJulAst(
 	errors: CompilerError[],
 ) {
 	return createParseFunctionLiteral(
-		tsParametersToJulParameters(parameters, position, sourceFile),
+		tsParametersToJulParameters(parameters, position, sourceFile, errors),
 		// Die Annotation wird ungeprüft übernommen. Der Checker fällt auf sie zurück, weil der
 		// Dummy-Rumpf nur Any liefert.
 		returnType && tsTypeToJulType(returnType, sourceFile, errors),
@@ -150,21 +150,54 @@ function tsParametersToJulParameters(
 	tsParameters: NodeArray<ParameterDeclaration>,
 	position: Positioned,
 	sourceFile: SourceFile,
+	errors: CompilerError[],
 ): ParseParameterFields {
-	const julParameters = tsParameters.map(tsParameter => {
+	const singleFields: ParseParameterField[] = [];
+	let rest: ParseParameterField | undefined;
+	tsParameters.forEach(tsParameter => {
 		const julName = tsNameToJulName(tsParameter.name, sourceFile);
-		if (!julName) {
-			return undefined;
+		// this ist in TS eine reine Typangabe, kein Argument
+		if (!julName
+			|| julName.name === 'this') {
+			return;
 		}
 		const julParameter: ParseParameterField = {
 			type: 'parameter',
 			name: julName,
+			typeGuard: tsParameterToJulType(tsParameter, sourceFile, errors),
 			...getPositionFromTsNode(tsParameter, sourceFile),
 		};
-		return julParameter;
-	}).filter(isDefined);
-	// TODO errors
-	return createParseParameters(julParameters, undefined, position, []);
+		if (tsParameter.dotDotDotToken) {
+			rest = julParameter;
+		}
+		else {
+			singleFields.push(julParameter);
+		}
+	});
+	return createParseParameters(singleFields, rest, position, errors);
+}
+
+/**
+ * Die Annotation wird ungeprüft übernommen. Funktionstypen lassen sich nicht übersetzen, der
+ * Parameter bleibt dann ungetypt.
+ */
+function tsParameterToJulType(
+	tsParameter: ParameterDeclaration,
+	sourceFile: SourceFile,
+	errors: CompilerError[],
+): ParseValueExpression | undefined {
+	const tsType = tsParameter.type;
+	const julType = tsType && tsTypeToJulType(tsType, sourceFile, errors);
+	if (!julType) {
+		return undefined;
+	}
+	// Ein Aufruf ohne Rest-Argumente kommt in JUL als Empty an, und am Rest-Parameter kann TS das
+	// nicht mit | undefined annotieren. Optional und mit Default darf das Argument fehlen.
+	return tsParameter.dotDotDotToken
+		|| tsParameter.questionToken
+		|| tsParameter.initializer
+		? orEmpty(julType, tsType, sourceFile, errors)
+		: julType;
 }
 
 //#region Typannotation

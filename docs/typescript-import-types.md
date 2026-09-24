@@ -33,7 +33,14 @@ der core-lib.
   es aber keine leere Liste und kein leeres Dictionary, leer ist immer `Empty`. Deshalb wird
   jetzt ohne `Empty` übersetzt. Eine TS-Funktion, die leer liefern kann, gibt `undefined`
   zurück und annotiert `| undefined`.
-- **Stufe 2** folgt.
+- **Stufe 2 umgesetzt.** In `jul-examples` werden `string`-Parameter zu `Text` (`ts-file.ts`,
+  beide `dom.ts`), Callbacks bleiben `Any`, neue Fehler gibt es dort keine. Messung: Die Zähler
+  steigen nur um die neuen Parameterprüfungen (`getTypeError` +758 auf yugioh), didOpen im LSP
+  bleibt im Rauschen.
+- Befund in yugioh (`main.jul` 563, 565): `activeDeck` kann `[]` sein, dann ist
+  `deckTitleToRemove` Empty, `removeField` und `deleteRecordFromDb` verlangen aber `key: string`.
+  `deleteRecordFromDb` riefe `tableStore.delete(undefined)` auf, IndexedDB wirft dort einen
+  `DataError`. Ein echter Fehler in yugioh, noch nicht behoben.
 
 ## Was schon da ist (keine Checker-Änderung nötig)
 
@@ -93,7 +100,11 @@ nicht übersetzbaren Glied wird im Ganzen zu `Any`/`undefined`, weil `Or(X Any)`
   kein typeGuard.
 - Funktionstypen: kein typeGuard, der Parameter bleibt ungetypt (siehe spätere Ausbaustufe).
 - Rest-Parameter (`...args: T[]`): heute fälschlich als normaler Einzelparameter übernommen.
-  Er wandert nach `rest`, mit typeGuard `List(T)`, wie in der core-lib (`...args: List(Boolean)`).
+  Er wandert nach `rest`, mit typeGuard `Or([] List(T))`. Das ist die einzige Stelle, an der ein
+  Array mit `Empty` übersetzt wird: Ein Aufruf ohne Rest-Argumente kommt in JUL als `Empty` an,
+  und TS kann am Rest-Parameter kein `| undefined` annotieren. Mit `List(T)` meldete schon
+  `f()` einen Fehler.
+- `this`-Parameter entfällt, er ist in TS eine reine Typangabe, kein Argument.
 
 ## Tests
 

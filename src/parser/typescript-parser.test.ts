@@ -1,8 +1,11 @@
 import { expect } from 'chai';
+import { join, resolve } from 'path';
 import { parseTsCode } from './typescript-parser.js';
 import { parseCode } from './parser.js';
-import { checkTypes, typeToString } from '../checker/checker.js';
-import { ParseSingleDefinition } from '../syntax-tree.js';
+import { checkTypes, ParsedDocuments, typeToString } from '../checker/checker.js';
+import { ErrorCode } from '../compiler-errors.js';
+import { createInMemoryHost, loadFile } from '../project-loader.js';
+import { ParsedFile, ParseSingleDefinition } from '../syntax-tree.js';
 
 describe('TypeScript Parser', () => {
 	it('sollte Zeile/Spalte statt rohem Zeichen-Offset für die Position einer Funktionsdeklaration liefern', () => {
@@ -75,6 +78,56 @@ describe('TypeScript Parser', () => {
 				expect(typeOfF(code)).to.equal(result);
 			});
 		});
+	});
+
+	const expectedParameterTypes: {
+		name: string;
+		code: string;
+		result: string;
+	}[] = [
+			{ name: 'einfacher Parameter', code: 'export function f(a: bigint) {}', result: '(a: Integer) :> Any' },
+			{
+				name: 'optionaler Parameter',
+				code: 'export function f(a: bigint, b?: string) {}',
+				result: '(\n  a: Integer\n  b: Or(Empty Text)\n) :> Any',
+			},
+			{ name: 'optionaler Parameter mit Union', code: 'export function f(a?: bigint | string) {}', result: '(a: Or(Empty Integer Text)) :> Any' },
+			{ name: 'Default mit Annotation', code: 'export function f(a: bigint = 1n) {}', result: '(a: Or(Empty Integer)) :> Any' },
+			{ name: 'Default ohne Annotation', code: 'export function f(a = 1n) {}', result: '(a: Any) :> Any' },
+			{ name: 'ohne Annotation', code: 'export function f(a) {}', result: '(a: Any) :> Any' },
+			{ name: 'Callback bleibt ungetypt', code: 'export function f(cb: (x: any) => boolean) {}', result: '(cb: Any) :> Any' },
+			{ name: 'optionaler Callback bleibt ungetypt', code: 'export function f(cb?: () => void) {}', result: '(cb: Any) :> Any' },
+			// Ein Aufruf ohne Rest-Argumente kommt in JUL als Empty an, und TS kann das am
+			// Rest-Parameter nicht mit | undefined annotieren - deshalb hier Empty zusätzlich.
+			{ name: 'Rest-Parameter', code: 'export function f(...args: bigint[]) {}', result: '(...args: Or(Empty List(Integer))) :> Any' },
+			{
+				name: 'Rest-Parameter nach Einzelparameter',
+				code: 'export function f(a: string, ...args: bigint[]) {}',
+				result: '(\n  a: Text\n  ...args: Or(Empty List(Integer))\n) :> Any',
+			},
+			{ name: 'Rest-Parameter ohne Annotation', code: 'export function f(...args) {}', result: '(...args: Any) :> Any' },
+			// this ist in TS eine reine Typangabe, kein Argument
+			{ name: 'this-Parameter entfällt', code: 'export function f(this: Window, a: bigint) {}', result: '(a: Integer) :> Any' },
+			{ name: 'ArrowFunction', code: 'export const f = (a: bigint): bigint => a;', result: '(a: Integer) :> Integer' },
+		];
+	describe('Parametertyp', () => {
+		expectedParameterTypes.forEach(({ name, code, result }) => {
+			it(name, () => {
+				expect(typeOfF(code)).to.equal(result);
+			});
+		});
+	});
+
+	it('JUL-Aufruf mit falschem Argumenttyp wird gemeldet', () => {
+		const folder = resolve('/typescript-parser-test');
+		const mainPath = join(folder, 'main.jul');
+		const documents: ParsedDocuments = {};
+		const main = loadFile(mainPath, documents, createInMemoryHost({
+			[mainPath]: '(double) = import(§./util.ts§)\nwrong = double(§x§)',
+			[join(folder, 'util.ts')]: 'export function double(a: bigint): bigint { return a * 2n; }',
+		}));
+		expect(typeof main).to.not.equal('string');
+		expect((main as ParsedFile).checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.argumentTypeMismatch]);
 	});
 
 	//#endregion Typannotationen

@@ -162,9 +162,9 @@
 	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
 	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
 -TS-Typannotationen übernehmen, siehe docs/typescript-import-types.md
-	-Stufe 1 (Rückgabetyp) erledigt, Stufe 2 (Parametertypen) offen
-	-yugioh: mapDictionary ist gröber annotiert als es sich verhält (| undefined), 5 Fehler in
-	 game-logic.jul - in yugioh auflösen
+	-Stufe 1 (Rückgabetyp) und Stufe 2 (Parametertypen) erledigt
+	-yugioh: deleteDeck ohne aktives Deck gibt Empty an removeField/deleteRecordFromDb
+	 (key: string), main.jul 563/565 - in yugioh auflösen
 	-später: Funktionstypen (Callbacks) übersetzen. Offen: JUL vergleicht Parameternamen, TS nur
 	 positional - wörtliche Übernahme bräche jeden Aufrufer mit (value) => ...
 -gemeinsamer Projekt-Loader: erledigt, siehe docs/project-loader.md
