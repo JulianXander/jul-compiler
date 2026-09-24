@@ -1,4 +1,4 @@
-import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolTable } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
@@ -100,6 +100,27 @@ export function fillSymbolTableWithExpressions(
 				return;
 		}
 	});
+}
+
+/**
+ * Was eine Datei beim Import anbietet: ihre Top-Level-Definitionen. Destructuring bindet lokal,
+ * auch als Import - der Emitter exportiert es nicht, sonst würde jeder Import zum Re-Export.
+ */
+export function getExportedSymbols(fileSymbols: SymbolTable): SymbolTable {
+	const exported: SymbolTable = {};
+	forEach(fileSymbols, (symbol, name) => {
+		if (isExportedSymbol(symbol)) {
+			exported[name] = symbol;
+		}
+	});
+	return exported;
+}
+
+/**
+ * Für ein Symbol aus der Top-Level-Symboltabelle einer Datei, siehe getExportedSymbols.
+ */
+export function isExportedSymbol(fileSymbol: SymbolDefinition): boolean {
+	return fileSymbol.definition?.type === 'definition';
 }
 
 export function fillSymbolTableWithParams(

@@ -1,5 +1,6 @@
 import { dirname } from 'path';
 import { getPathFromImport, isImportFunctionCall } from '../parser/parser.js';
+import { isExportedSymbol } from '../parser/parser-utils.js';
 import { builtinAny, CompileTimeType, ParseDestructuringField, SymbolDefinition } from '../syntax-tree.js';
 import { Positioned } from '../compiler-errors.js';
 import type { ParsedDocuments } from './checker.js';
@@ -92,7 +93,8 @@ function followImportHop(
 	}
 	const importedExpressions = importedDocument.checked ?? importedDocument.unchecked;
 	const importedSymbol = importedExpressions.symbols[definition.source?.name ?? definition.name.name];
-	if (!importedSymbol) {
+	if (!importedSymbol
+		|| !isExportedSymbol(importedSymbol)) {
 		return undefined;
 	}
 	return {
@@ -102,34 +104,25 @@ function followImportHop(
 }
 
 /**
- * Löst ein Symbol bis zur kanonischen Ursprungsdeklaration auf, auch über mehrere Re-Export-Stufen.
+ * Löst ein Symbol auf seine kanonische Ursprungsdeklaration auf. Ein Hop genügt: Exportiert werden
+ * nur Definitionen, ein Import-Binding zeigt also immer direkt auf die Deklaration.
  *
  * Ein Alias (`(local: source) = import(...)`) ist eine eigene Identität: der lokale Name lebt
  * unabhängig vom Ursprungsnamen weiter, Rename/Find-All-References dürfen ihn nicht mitziehen.
  * Deshalb wird nur bei unaliasierten Import-Bindings weiterverfolgt - das `source`-Token selbst
- * wird separat behandelt (siehe checker.ts, Aufrufstelle von `followImportHop`).
+ * wird separat behandelt (siehe checker.ts, Aufrufstelle von `resolveImportBinding`).
  */
 export function resolveCanonicalSymbol(
 	symbol: SymbolDefinition,
 	filePath: string,
 	documents: ParsedDocuments,
 ): { symbol: SymbolDefinition; filePath: string; } {
-	let currentSymbol = symbol;
-	let currentFilePath = filePath;
-	const visitedFilePaths = new Set<string>([filePath]);
-	for (; ;) {
-		const definition = currentSymbol.definition;
-		if (definition?.type !== 'destructuringField' || definition.source) {
-			return { symbol: currentSymbol, filePath: currentFilePath };
-		}
-		const hop = followImportHop(definition, currentFilePath, documents);
-		if (!hop || visitedFilePaths.has(hop.filePath)) {
-			return { symbol: currentSymbol, filePath: currentFilePath };
-		}
-		visitedFilePaths.add(hop.filePath);
-		currentSymbol = hop.symbol;
-		currentFilePath = hop.filePath;
+	const definition = symbol.definition;
+	if (definition?.type !== 'destructuringField' || definition.source) {
+		return { symbol, filePath };
 	}
+	return followImportHop(definition, filePath, documents)
+		?? { symbol, filePath };
 }
 
 /**
@@ -142,11 +135,7 @@ export function resolveImportBinding(
 	filePath: string,
 	documents: ParsedDocuments,
 ): { symbol: SymbolDefinition; filePath: string; } | undefined {
-	const hop = followImportHop(definition, filePath, documents);
-	if (!hop) {
-		return undefined;
-	}
-	return resolveCanonicalSymbol(hop.symbol, hop.filePath, documents);
+	return followImportHop(definition, filePath, documents);
 }
 
 interface IndexEntry {

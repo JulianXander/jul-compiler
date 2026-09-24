@@ -7,7 +7,7 @@ import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
 import { ReferenceIndex } from './reference-index.js';
 
 // Die Dateien gibt es nur im Speicher - so lässt sich der Import-Graph für diesen Test gezielt
-// konstruieren (Re-Export-Kette, Alias).
+// konstruieren (mehrere Importeure, Alias).
 const folder = resolve('/reference-index-test');
 
 function load(filePath: string, documents: ParsedDocuments, host: ProjectHost, code?: string): ParsedFile {
@@ -20,7 +20,7 @@ function load(filePath: string, documents: ParsedDocuments, host: ProjectHost, c
 
 describe('ReferenceIndex', () => {
 	const originPath = join(folder, 'origin.jul');
-	const reexportPath = join(folder, 'reexport.jul');
+	const importOnlyPath = join(folder, 'import-only.jul');
 	const directPath = join(folder, 'direct.jul');
 	const aliasPath = join(folder, 'alias.jul');
 	let documents: ParsedDocuments;
@@ -32,26 +32,26 @@ describe('ReferenceIndex', () => {
 		referenceIndex = new ReferenceIndex();
 		host = createInMemoryHost({
 			[originPath]: 'foo = 1\n',
-			// nicht-aliasierter Re-Export: foo bleibt über diese Datei importierbar
-			[reexportPath]: '(foo) = import(§./origin.jul§)\n',
+			// nicht-aliasierter Import ohne Nutzung
+			[importOnlyPath]: '(foo) = import(§./origin.jul§)\n',
 			// nicht-aliasierter Import + lokale Nutzung
 			[directPath]: '(foo) = import(§./origin.jul§)\nusage = foo\n',
-			// aliasierter Import (über die Re-Export-Kette) + lokale Nutzung des Alias
-			[aliasPath]: '(bar = foo) = import(§./reexport.jul§)\nusage = bar\n',
+			// aliasierter Import + lokale Nutzung des Alias
+			[aliasPath]: '(bar = foo) = import(§./origin.jul§)\nusage = bar\n',
 		}, referenceIndex);
-		[originPath, reexportPath, directPath, aliasPath].forEach(filePath => {
+		[originPath, importOnlyPath, directPath, aliasPath].forEach(filePath => {
 			load(filePath, documents, host);
 		});
 	});
 
-	it('sammelt alle Referenzen auf eine Deklaration über Re-Export-Ketten und Alias-Importe hinweg', () => {
+	it('sammelt alle Referenzen auf eine Deklaration über mehrere Importeure und Alias-Importe hinweg', () => {
 		const fooSymbol = documents[originPath]!.checked!.symbols['foo']!;
 		const references = referenceIndex.getReferences(fooSymbol, originPath);
 
-		// reexport.jul (Import-Binding), direct.jul (Import-Binding), direct.jul (Nutzung),
+		// import-only.jul (Import-Binding), direct.jul (Import-Binding), direct.jul (Nutzung),
 		// alias.jul (source-Token) - nicht aber alias.jul's lokaler Alias-Name oder dessen Nutzung.
 		expect(references).to.have.lengthOf(4);
-		expect(references.some(location => location.filePath === reexportPath)).to.equal(true);
+		expect(references.some(location => location.filePath === importOnlyPath)).to.equal(true);
 		expect(references.filter(location => location.filePath === directPath)).to.have.lengthOf(2);
 		expect(references.some(location => location.filePath === aliasPath)).to.equal(true);
 	});

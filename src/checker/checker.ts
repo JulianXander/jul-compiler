@@ -93,7 +93,7 @@ import {
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isTopLevelImport, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
-import { getCheckedEscapableName } from '../parser/parser-utils.js';
+import { getCheckedEscapableName, getExportedSymbols } from '../parser/parser-utils.js';
 import { getFieldSymbolsFromDictionaryType, ReferenceIndex, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
@@ -3384,8 +3384,9 @@ function getReturnTypeFromFunctionCall(
 				}
 				// definitions import
 				// a dictionary containing all definitions is imported
-				if (Object.keys(importedFile.symbols).length) {
-					const importedTypes = mapDictionary(importedFile.symbols, symbol => {
+				const exportedSymbols = getExportedSymbols(importedFile.symbols);
+				if (Object.keys(exportedSymbols).length) {
+					const importedTypes = mapDictionary(exportedSymbols, symbol => {
 						const symbolType: CompileTimeType = symbol.typeInfo
 							? symbol.typeInfo.type
 							: builtinAny;

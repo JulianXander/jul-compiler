@@ -1,7 +1,4 @@
 import { expect } from 'chai';
-import { writeFileSync, unlinkSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
 
 import {
 	builtinEmpty,
@@ -21,7 +18,7 @@ import {
 } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
-import { checkTypes, ParsedDocuments } from './checker.js';
+import { checkTypes } from './checker.js';
 import { builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
 const expectedResults: {
@@ -3381,25 +3378,17 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		[0] => 0
 		() => subtract(a 1)`, 'f')).to.equal('pure');
 	});
-	// E6: der Dummy-Rumpf (nativeValue) importierter TS-Funktionen darf nicht als beweisbar
-	// unrein gewertet werden - für sie greift die Inferenz nicht, ihr Typ bleibt unknown.
-	it('aus TypeScript importierte Funktion bleibt unknown (E6)', () => {
-		const tsPath = join(tmpdir(), `pure-inference-e6-${Date.now()}.ts`);
-		writeFileSync(tsPath, 'export function imported(x: number): number { return x; }\n');
-		try {
-			const parsedDocuments: ParsedDocuments = {};
-			const parsed = parseFile(tsPath);
-			parsedDocuments[tsPath] = parsed;
-			checkTypes(parsed, parsedDocuments);
-			const type = parsed.checked?.expressions
-				?.find((expression): expression is ParseSingleDefinition =>
-					expression.type === 'definition' && expression.name.name === 'imported')
-				?.value?.typeInfo?.type;
-			expect(type && isFunctionType(type) ? type.purity : undefined).to.equal('unknown');
-		}
-		finally {
-			unlinkSync(tsPath);
-		}
+	// Der Dummy-Rumpf (nativeValue) importierter TS-Funktionen darf nicht als beweisbar unrein
+	// gewertet werden - für sie greift die Inferenz nicht, ihr Typ bleibt unknown.
+	it('aus TypeScript importierte Funktion bleibt unknown', () => {
+		const tsPath = 'imported.ts';
+		const parsed = parseCode('export function imported(x: number): number { return x; }\n', tsPath);
+		checkTypes(parsed, { [tsPath]: parsed });
+		const type = parsed.checked?.expressions
+			?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === 'imported')
+			?.value?.typeInfo?.type;
+		expect(type && isFunctionType(type) ? type.purity : undefined).to.equal('unknown');
 	});
 	// Schritt 4 (docs/pure-inference-umsetzung.md): JUL5101, gemeldet nur gegen einen echten
 	// Widerspruch, nicht gegen einen bloß unentscheidbaren Rumpf.
