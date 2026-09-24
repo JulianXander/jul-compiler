@@ -171,7 +171,8 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 					return singleDictionaryFieldToJs(field.name, typeGuardJs);
 				}
 				else {
-					return spreadDictionaryFieldToJs(expressionToJs(field.value, fieldsIndent));
+					// Der gespreadete Wert ist selbst ein Typobjekt, übernommen werden seine Fields.
+					return spreadDictionaryFieldToJs(`${expressionToJs(field.value, fieldsIndent)}.Fields`);
 				}
 			}), newIndent);
 			return dictionaryToJs([

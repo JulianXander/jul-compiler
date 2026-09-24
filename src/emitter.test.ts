@@ -171,6 +171,18 @@ const expectedResults: {
 }`
 		},
 		{
+			// Der gespreadete Typ ist selbst ein Typobjekt, übernommen werden seine Fields.
+			name: 'dictionary-type-spread',
+			code: '[...a b: String]',
+			result: `export default {
+	[_julTypeSymbol]: 'dictionaryLiteral',
+	Fields: {
+		...a.Fields,
+		'b': _String,
+	},
+}`
+		},
+		{
 			code: '[1 ...a ...b]',
 			result: `export default [
 	1n,
