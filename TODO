@@ -13,8 +13,12 @@
 	direkt als Prädikat-Argument", fuer Generalisierung, Checker/Runtime-Symmetrie-Problem und skizzierten
 	Predicate(X)-Mittelweg. Reine Ideensammlung, keine Entscheidung getroffen.
 -dictionary literal field completion anhand des erwarteten Zieltyps
--erwarteter typ je ausdruck (kontextuelle typprüfung), siehe docs/expected-types.md
-	-schließt CHECKER-AUDIT #5: funktionsliterale bekommen parametertypen nur als direktes argument
+-erwarteter typ je ausdruck: folgeschritte, siehe docs/expected-types.md
+	-getDeclaredType im language server liest expectedType statt aufwärts zu rekonstruieren
+	-findInnermostErrorPosition/findArgumentErrorPosition lesen expectedType
+	-zwei durchgänge für aufrufargumente (callback vor dem argument, aus dem sein typ kommt)
+	-präfix-argument und typguard eines dictionary-felds als erwarteter typ
+	-union mit mehreren funktionszweigen (docs/expected-types.md, frage 3)
 -find-all-references/rename auf dictionary-feldern an kontextuell typisierten stellen und beim
 	destructuring, siehe docs/field-references.md. baut auf dem erwarteten typ auf.
 	rename lässt heute alle literale stehen und erzeugt damit fehler

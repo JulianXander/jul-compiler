@@ -1680,6 +1680,221 @@ f((value: Integer) => 0)`,
 )`,
 		},
 		//#endregion Callback-Parametertypen
+		//#region erwarteter Typ
+		// Ein Funktionsliteral bekommt die Typen seiner untypisierten Parameter aus dem erwarteten
+		// Typ der Stelle, an der es steht - nicht nur als direktes Argument eines Aufrufs. Der Rumpf
+		// wird dann gegen diesen Typ geprüft: x ist Integer, der Rückgabewert also kein Text.
+		// Die erwarteten Meldungen entsprechen denen mit ausgeschriebenem (x: Integer).
+		{
+			name: 'expected-type-definition-type-guard',
+			code: 'f: (x: Integer) :> Text = (x) => x',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 34,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nInvalid return value\n  Can not assign Integer to Text.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			name: 'expected-type-dictionary-field-behind-type-guard',
+			code: 'h: [cb: (x: Integer) :> Text] = [cb = (x) => x]',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 46,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nCan not assign [cb: (x: Integer) -> Integer] to [cb: (x: Integer) :> Text].\n  Invalid value for field 'cb'\n    Invalid return value\n      Can not assign Integer to Text.",
+					"startColumnIndex": 38,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			name: 'expected-type-dictionary-argument',
+			code: `g = (o: [cb: (x: Integer) :> Text]) => o
+g([cb = (x) => x])`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 16,
+					"endRowIndex": 1,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'o'\n  Can not assign [cb: (x: Integer) -> x] to [cb: (x: Integer) :> Text].\n    Invalid value for field 'cb'\n      Invalid return value\n        Can not assign Integer to Text.",
+					"startColumnIndex": 8,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			name: 'expected-type-list-element',
+			code: 'l: List((x: Integer) :> Text) = [(x) => x]',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 41,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nInvalid return value\n  Can not assign Integer to Text.",
+					"startColumnIndex": 33,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Benannte Argumente werden über den Namen zugeordnet, nicht über die Position.
+			name: 'expected-type-named-argument',
+			code: `g = (a: Integer cb: (x: Integer) :> Text) => a
+g(cb = (x) => x a = 1)`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 15,
+					"endRowIndex": 1,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'cb'\n  Invalid return value\n    Can not assign Integer to Text.",
+					"startColumnIndex": 7,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			name: 'expected-type-declared-return-type',
+			code: `k = ()
+	:>
+		(x: Integer) :> Text
+	=>
+		(x) => x`,
+			errors: [
+				{
+					"code": ErrorCode.returnTypeMismatch,
+					"endColumnIndex": 10,
+					"endRowIndex": 4,
+					"message": "Return type mismatch.\nInvalid return value\n  Can not assign Integer to Text.",
+					"relatedInformation": {
+						"endColumnIndex": 22,
+						"endRowIndex": 2,
+						"message": "Declared as (x: Integer) :> Text here.",
+						"startColumnIndex": 2,
+						"startRowIndex": 2,
+					},
+					"startColumnIndex": 2,
+					"startRowIndex": 4,
+				},
+			],
+		},
+		{
+			name: 'expected-type-nested-dictionary',
+			code: 'h: [outer: [cb: (x: Integer) :> Text]] = [outer = [cb = (x) => x]]',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 64,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nCan not assign [outer: [cb: (x: Integer) -> Integer]] to [outer: [cb: (x: Integer) :> Text]].\n  Invalid value for field 'outer'\n    Can not assign [cb: (x: Integer) -> Integer] to [cb: (x: Integer) :> Text].\n      Invalid value for field 'cb'\n        Invalid return value\n          Can not assign Integer to Text.",
+					"startColumnIndex": 56,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Ein Platzhalter auf einen Parameter der umgebenden Funktion bleibt im erwarteten Typ
+			// stehen und wird erst beim Prüfen über dessen Deklaration aufgelöst.
+			name: 'expected-type-placeholder-of-enclosing-function',
+			code: `f = (values: List(Integer)) =>
+	h: [cb: (x: TypeOf(values)/ElementType) :> Text] = [cb = (x) => x]
+	h`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 66,
+					"endRowIndex": 1,
+					"message": "Definition type mismatch.\nCan not assign [cb: (x: Integer) -> Integer] to [cb: (x: Integer) :> Text].\n  Invalid value for field 'cb'\n    Invalid return value\n      Can not assign Integer to Text.",
+					"startColumnIndex": 58,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Aus einer Union zählen nur die Zweige, die ein Funktionsliteral aufnehmen können.
+			name: 'expected-type-optional-callback-argument',
+			code: `g = (cb: Or([] (x: Integer) :> Text)) => 1
+g((x) => x)`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 10,
+					"endRowIndex": 1,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'cb'\n  Can not assign (x: Integer) -> x to Or(Empty (x: Integer) :> Text).\n    Invalid return value\n      Can not assign Integer to Text.",
+					"startColumnIndex": 2,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			name: 'expected-type-optional-callback-type-guard',
+			code: 'f: Or([] (x: Integer) :> Text) = (x) => x',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 41,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nCan not assign (x: Integer) -> Integer to Or(Empty (x: Integer) :> Text).\n  Invalid return value\n    Can not assign Integer to Text.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Die schon geschriebenen Felder des Literals sortieren die Zweige aus: kind = §a§
+			// passt nur zum ersten, cb erwartet also (x: Integer) :> Text.
+			name: 'expected-type-discriminated-union',
+			code: 'h: Or([kind: §a§ cb: (x: Integer) :> Text] [kind: §b§ cb: (x: Text) :> Text]) = [kind = §a§ cb = (x) => x]',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 106,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nInvalid value for field 'cb'\n  Invalid return value\n    Can not assign Integer to Text.\nInvalid value for field 'kind'\n  Can not assign §a§ to §b§.\nInvalid value for field 'cb'\n  Invalid type for parameter 'x'\n    Can not assign Text to Integer.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Gegenprobe: ohne erwarteten Typ bleibt ein untypisierter Parameter Any.
+			name: 'expected-type-absent-leaves-parameter-untyped',
+			code: 'f = (x) => x',
+		},
+		{
+			// Gegenprobe: ein passender Rumpf bleibt ohne Meldung.
+			name: 'expected-type-matching-body',
+			code: 'f: (x: Integer) :> Integer = (x) => x',
+		},
+		{
+			// Gegenprobe: ein geschriebener Parametertyp geht dem erwarteten vor, gemeldet wird die
+			// Kontravarianz.
+			name: 'expected-type-written-parameter-type-wins',
+			code: 'f: (x: Integer) :> Text = (x: Text) => x',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 40,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nInvalid type for parameter 'x'\n  Can not assign Integer to Text.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Gegenprobe: bleiben nach dem Aussortieren mehrere Funktionszweige, gibt es keinen
+			// erwarteten Parametertyp, x bleibt Any.
+			name: 'expected-type-several-function-branches-leave-parameter-untyped',
+			code: `g = (cb: Or((x: Integer) :> Text (x: Text) :> Text)) => 1
+g((x) => x)`,
+		},
+		//#endregion erwarteter Typ
 		//#region verworfene Werte
 		{
 			// Ein längerer Wert ist zulässig - ein Typ nennt Anforderungen, kein vollständiges

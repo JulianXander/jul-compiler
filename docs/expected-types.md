@@ -71,8 +71,11 @@ jede ausdrücklich entscheidet, was sie weitergibt. So erwarten auch rustc
 Kotlin den Typ, und es ist dieselbe Entscheidung wie für die Umgebung beim Pfad-Narrowing (siehe
 [narrowing-path-facts.md](narrowing-path-facts.md), Entscheidung 1).
 
-Zusätzlich wird er an `TypeInfo` gespeichert, nur als Ergebnis zum Nachlesen für spätere Nutzer,
-nie als Eingabe. Jeder Lauf schreibt ihn zusammen mit dem inferierten Typ neu.
+Zusätzlich wird er am Ausdruck gemerkt (Feld `expectedType` neben `typeInfo`), nur als Ergebnis
+zum Nachlesen für spätere Nutzer, nie als Eingabe. Nicht an `TypeInfo`: Diese Objekte werden
+geteilt, eine Definition übernimmt das ihres Werts, Symbole ebenso. Ein erwarteter Typ daran
+schlüge auf andere Ausdrücke durch. Veralten kann das Feld nicht, jeder Checklauf arbeitet auf
+einem frischen Klon des Baums.
 `inferredTypeFromCall` entfällt.
 
 Verworfen:
@@ -98,7 +101,7 @@ Ein Typ durchläuft drei Stufen, am Beispiel `values.map((x) => …)` mit `value
 | über die Deklaration aufgelöst | `Any` | `resolvePlaceholders`, fragt die Deklaration von `values` statt des Aufrufs |
 
 Die Aufrufstelle instanziiert mit ihren Argumenten und reicht das Ergebnis durch. Genau das wird
-an `TypeInfo` gemerkt, ohne `resolvePlaceholders`. Was danach noch Platzhalter ist, etwa ein
+am Ausdruck gemerkt, ohne `resolvePlaceholders`. Was danach noch Platzhalter ist, etwa ein
 Verweis auf einen Parameter der umgebenden Funktion, bleibt roh. Leser lösen beim Nachschlagen
 und Anzeigen selbst auf, wie beim inferierten Typ, der auch roh gespeichert wird.
 
@@ -107,8 +110,8 @@ Begründung:
 - Eine aufgelöste Kopie wäre eine Momentaufnahme. Ein Funktionstyp wird mit leeren Parametern und
   leerem Rückgabetyp erzeugt und erst danach befüllt. Der rohe Verweis bekommt das mit, die Kopie
   nicht (vgl. TODO „cache für resolvePlaceholders“).
-- `resolvePlaceholders` an jedem Ausdruck wäre teuer, es ist schon heute die häufigste
-  Operation (rund 2,6 Mio. Aufrufe in yugioh).
+- `resolvePlaceholders` an jedem Ausdruck wäre teuer: In yugioh sind es schon heute rund
+  0,9 Mio. Aufrufe, bei 0,27 Mio. inferierten Ausdrücken (Messung vom 2026-09-24).
 - Roh durchreichen und den Leser instanziieren lassen geht nicht: Der Leser kennt den Aufruf
   nicht mehr. Daran krankt `inferredTypeFromCall`, das deshalb die Elternkette hochklettert.
 
@@ -258,11 +261,25 @@ sonst hängt etwas an der alten Reihenfolge.
 ### 4. Erwarteten Typ durchreichen
 
 `setInferredType` bekommt den erwarteten Typ als Argument (Frage 1). Er wird gesetzt an:
-Definition mit Typguard, Funktionsargumenten (positional, benannt, Präfix), deklariertem
-Rückgabetyp, Destructuring-Feld mit Typguard. Er wird weitergereicht durch Dictionary-Felder,
+Definition mit Typguard, Funktionsargumenten (positional und benannt), deklariertem
+Rückgabetyp. Er wird weitergereicht durch Dictionary-Felder,
 Listen- und Tuple-Elemente. Beim Spread bricht er ab, wie bei den bestehenden Zuordnungen. `Any`
 wird wie kein erwarteter Typ behandelt, eine Union wird unverändert weitergereicht und erst beim
 Funktionsliteral bzw. Dictionary-Literal aussortiert (Frage 3 und 4).
+
+Abweichend vom ursprünglichen Plan nicht umgesetzt:
+
+- **Präfix-Argument:** Es wird inferiert, bevor die aufgerufene Funktion bekannt ist. Ein
+  erwarteter Typ bräuchte eine weitere Umstellung der Reihenfolge, und ein Funktionsliteral als
+  Präfix-Argument ist selten.
+- **Destructuring-Feld mit Typguard:** Das Feld bindet einen Teil des Werts, es gibt keinen
+  geschriebenen Ausdruck, der den Typ bekommen könnte.
+- **Typguard eines Dictionary-Felds** (`[a: T = …]`): Er wird heute nach dem Wert inferiert, wie
+  früher bei der Definition.
+
+Die Argumente eines Aufrufs werden dafür einzeln und in Reihenfolge inferiert, bevor die
+Argumentliste zusammengesetzt wird. Ein Callback wird dabei mit den schon inferierten vorherigen
+Argumenten instanziiert (`instantiateExpectedCallback`).
 
 ### 5. Parameter lesen den erwarteten Typ
 
@@ -272,14 +289,24 @@ grün.
 
 ### 6. Merken
 
-Der instanziierte, nicht aufgelöste erwartete Typ wird an `TypeInfo` gespeichert (Frage 2 und 4). Damit ist der Weg
-für [field-references.md](field-references.md) frei.
+Der instanziierte, nicht aufgelöste erwartete Typ steht am Ausdruck in `expectedType` (Frage 1, 2
+und 4). Damit ist der Weg für [field-references.md](field-references.md) frei.
 
 ### 7. Nachher-Messung und Verifikation
 
 Compiler-Bench mit `--save` und jul-examples bauen. Neue Meldungen in jul-examples werden bewertet
 und behoben. yugioh wird nur geprüft, ohne zu installieren, und die Zahl der neuen Meldungen
 festgehalten. Die Bereinigung folgt später (Frage 5).
+
+Ergebnis (2026-09-24):
+
+- Compiler-Bench yugioh: parse+check im Median 3643 ms vorher, 3779 ms nachher (+4 %, innerhalb
+  der Streuung zwischen Läufen). `inferType` unverändert 274 189, `resolvePlaceholders` 923 166
+  → 926 624, `getTypeError` 1 194 756 → 1 236 442 (+3,5 %).
+- Checker-Snapshot und Zähler-Baseline des Beispielkorpus unverändert, LSP-Snapshot unverändert.
+- jul-examples: unverändert, alle fehlerfrei außer `./import` mit dem vorbestehenden `JUL1151`.
+- yugioh: keine neue Meldung. Die Bereinigung aus Frage 5 entfällt damit, und Installieren bricht
+  yugioh nicht.
 
 ### Folgeschritte
 
@@ -289,6 +316,7 @@ festgehalten. Die Bereinigung folgt später (Frage 5).
   selbst zuzuordnen.
 - Zwei Durchgänge für die Argumente eines Aufrufs (Frage 2), damit ein Callback auch vor dem
   Argument stehen darf, aus dem sein Typ kommt.
+- Erwarteter Typ für das Präfix-Argument und aus dem Typguard eines Dictionary-Felds (Schritt 4).
 
 ## Risiken
 

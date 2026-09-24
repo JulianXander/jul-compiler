@@ -121,6 +121,14 @@ export interface ParseExpressionBase extends PositionedExpressionBase {
 	 * Wird vom checker gesetzt.
 	 */
 	typeInfo?: TypeInfo;
+	/**
+	 * Der Typ, den die Stelle verlangt, an der der Ausdruck steht (Typguard, Parameter,
+	 * Rückgabetyp, Feld oder Element eines solchen). Mit den Argumenten des Aufrufs instanziiert,
+	 * aber nicht über Deklarationen aufgelöst. undefined, wenn die Stelle nichts verlangt.
+	 * Eigenes Feld statt Teil von TypeInfo, weil TypeInfo-Objekte zwischen Ausdrücken und Symbolen
+	 * geteilt werden. Wird vom checker gesetzt.
+	 */
+	expectedType?: CompileTimeType;
 }
 
 export interface ParseSpreadValueExpression extends PositionedExpressionBase {
@@ -431,10 +439,6 @@ export interface ParseParameterField extends ParseExpressionBase {
 	name: Name;
 	typeGuard?: ParseValueExpression;
 	source?: string;
-	/**
-	 * Wird vom checker gesetzt.
-	 */
-	inferredTypeFromCall?: CompileTimeType;
 }
 
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
