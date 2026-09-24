@@ -9,7 +9,8 @@ import { readTextFile } from './util.js';
 /**
  * Der einzige Weg von einer Datei zum geprüften Baum samt Abhängigkeiten - für CLI, Language
  * Server, Bench und Tests. Parser und Checker greifen selbst nicht aufs Dateisystem zu, gelesen
- * wird nur über den ProjectHost.
+ * wird nur über den ProjectHost. Ausnahme ist die core-lib, die der Checker beim Modul-Load selbst
+ * liest (siehe checker.ts).
  */
 
 export type SourceReadResult =

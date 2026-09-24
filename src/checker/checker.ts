@@ -311,6 +311,9 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	),
 };
 
+// Einziger Dateizugriff des Checkers, bewusst am ProjectHost vorbei: die core-lib gehört zum
+// Compiler, nicht zum Projekt, ändert sich während eines Laufs nicht und wird deshalb einmal je
+// Prozess gelesen statt je Host.
 const parsedCoreLib = parseFile(coreLibPath);
 const parsedCoreLib2 = parsedCoreLib.unchecked;
 inferFileTypes(parsedCoreLib2, [], {}, '', '');
