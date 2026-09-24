@@ -21,7 +21,6 @@
 		Bräuchte einen WeakMap<CompileTimeFunctionType, Map<Schlüssel, Ergebnis>>, dessen Lebensdauer
 		sich von selbst löst, weil der Funktionstyp je Check-Lauf neu erzeugt wird. Schlüssel muss
 		Prefix- und normale Argumente kanonisch serialisieren (JSON.stringify wirft bei bigint).
--conditional types
 -unit testing konzept für jul
 	?eigene lib oder bestehende js libs verwendbar machen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
@@ -55,12 +54,10 @@
 	 zuweisbarkeit ohnehin im checker gerechnet wird - TS muss sie beim suchen rekonstruieren
 	-NICHT strukturell ueber den blossen feldnamen matchen: zwei unabhaengig geschriebene [name: Text]
 	 sind derselbe typ, aber rename darf das fremde feld nicht mitziehen
-	-braucht dann auch n:1 im index (eine fundstelle, mehrere symbol-keys)-debug experience vebessern
+	-braucht dann auch n:1 im index (eine fundstelle, mehrere symbol-keys)
+-debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
--doku
-	-https://docusaurus.io/
-	-en übersetzung vgl https://docusaurus.io/docs/i18n/tutorial
 ?tryAssignParams mit rest dictionary
 ?was tun mit typeGuard bei destructuring import
 ?alias bei rest parameter
@@ -75,15 +72,7 @@
 	?interpreter oder runtime benutzen
 	-vgl. type-checking-test.jul Zeile 50 vs 51 variable type
 	-statisch bekannt <=> type = primitive/collection
--branch verengung auch für nestedReference, nicht nur für reference
-	-hängt an argument.type === 'reference', vgl checker narrowed type symbol für branching
-	-?(gameCard/face) §up§ => ... verengt face im body nicht, der pfad hat kein symbol zum shadowen
-	-in yugioh betrifft das 34 von 245 branchings, nach plain name der häufigste fall
-	-nur pfade aus namen/feldern/indizes verengen, alles mit aufruf drin ausnehmen
-	-vgl test branch-narrowing-field-path-is-missing, der die lücke festhält
-	-die argumentprüfung greift bei feldpfaden auf parametern ohnehin nicht:
-	 g(d/a) meldet nichts, x: Integer = d/a schon. siehe dereference parameterReference oben
-	?was gilt für felder auf einem stream
+?branch verengung über feldpfade: was gilt für felder auf einem stream
 -branch verengung auch für benannte argumente
 	-getWrittenArguments liefert nur bei args.type === 'list', bei ?(a = someVar) ist es
 	 'dictionary' und es wird gar nicht verengt
@@ -107,16 +96,6 @@
 	 "nicht entscheidbar" darf nie zu "passt nicht" werden
 	-liefert den unerreichbaren branch mit, vgl checker case 'branching'
 	-für laufzeitwerte bleibt die union richtig: x: Integer kann 1 sein oder nicht
--rekursive funktionen: deklarierter rückgabetyp wird nicht durchgereicht
-	-bei der selbstreferenz im body ist das symbol noch nicht inferiert, dereferenceType
-	 fällt auf Any zurück. vgl das TODO dort: "was wenn referencedsymbol type noch nicht
-	 inferred ist? tritt vermutlich bei rekursion auf"
-	-folge: f = (x: Integer) :> Integer => ... f(x) ... liefert am aufruf Any statt Integer,
-	 g: Text = f(3) meldet nichts
-	-vgl test recursive-function-return-type-is-not-checked, der die lücke festhält
-	-der deklarierte returnType steht schon da, er müsste nur vor dem body ins symbol
-	-hängt mit der cache idee weiter unten zusammen: solange die lücke besteht, ist der
-	 halbfertige functionType nicht erreichbar
 ?cache für resolvePlaceholders
 	-gemessen (2026-09-07): yugioh 2664581 → 22861 aufrufe, laufzeit 3800ms → 3158ms
 	 = 99% weniger aufrufe, aber nur 17% zeit. apparentType ist nach dem umbau nicht
@@ -148,10 +127,8 @@
 	 Rumpf je Zweig prüfen)
 	-maxInteger bleibt, bis es einen Elementtyp für Tuples gibt (Bindung im Kopf)
 	-yugioh: ein Any-Operand ergibt Or(Integer Fraction) statt wie früher bei addInteger still
-	 Integer. Betroffen waren 6 Stellen in game-logic.jul (countPreviousConsecutive aus util.ts,
-	 effectStep/amount, oldSkippedDrawPhaseCount), alle drei kommen als Any an.
-	 countPreviousConsecutive ist behoben (TS-Rückgabetyp, docs/typescript-import-types.md),
-	 effectStep/amount und oldSkippedDrawPhaseCount sind noch nicht untersucht
+	 Integer. Offen in game-logic.jul: effectStep/amount und oldSkippedDrawPhaseCount kommen als
+	 Any an, noch nicht untersucht
 	-Nebenbefund: Never-Zweige lecken in Fehlermeldungen ("Can not assign Never to Text")
 -n-stellige And/Or in createNormalizedIntersectionType paarweise reduzieren
 	-die regeln greifen heute nur bei genau zwei choices
@@ -162,19 +139,15 @@
 	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
 	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
 -TS-Typannotationen übernehmen, siehe docs/typescript-import-types.md
-	-Stufe 1 (Rückgabetyp) und Stufe 2 (Parametertypen) erledigt
 	-yugioh: deleteDeck ohne aktives Deck gibt Empty an removeField/deleteRecordFromDb
 	 (key: string), main.jul 563/565 - in yugioh auflösen
 	-später: Funktionstypen (Callbacks) übersetzen. Offen: JUL vergleicht Parameternamen, TS nur
 	 positional - wörtliche Übernahme bräche jeden Aufrufer mit (value) => ...
--gemeinsamer Projekt-Loader: erledigt, siehe docs/project-loader.md
-	-getPathFromImport meldet importArgumentsMissing und dynamicImportNotAllowed mit
-	 endRowIndex = endColumnIndex (Tippfehler, Position der Meldung falsch)
--cross-file rename (language server): erledigt, siehe docs/cross-file-reference-index.md
-	-Document Highlight ebenfalls erledigt (nutzt denselben reverse-index, auf die aktuelle Datei
-	 gefiltert)
-	-offen davon: transitive Invalidierung bisher nur beim Speichern statt bei jedem Tastendruck,
-	 und die "ganze-datei-als-dictionary"-Importform (x = import(...); x/feld) hängt nicht am index
+-getPathFromImport meldet importArgumentsMissing und dynamicImportNotAllowed mit
+ endRowIndex = endColumnIndex (Tippfehler, Position der Meldung falsch)
+-cross-file reference index (language server), siehe docs/cross-file-reference-index.md
+	-transitive Invalidierung bisher nur beim Speichern statt bei jedem Tastendruck
+	-die "ganze-datei-als-dictionary"-Importform (x = import(...); x/feld) hängt nicht am index
 -fehlermeldungen für ungültige syntax verbessern, vermessen an 14 invaliden snippets
 	-"multilineParser should parse until end of row" ist die sammelmeldung: in 7 von 14 fällen
 	 das einzige, was der nutzer sieht, u.a. bei f(1 2 / a = / a = 1 2 / a = 0x10.
