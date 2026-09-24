@@ -7,7 +7,9 @@ ein enger, geprüfter Mechanismus: erkennt der Checker im Rumpf eines Boolean-Ca
 ([syntax-tree.ts](../src/syntax-tree.ts)) - `ifTrue` als Obermenge zum Schneiden im branch selbst,
 `excludedIfFalse` als Untermenge zum Abziehen in späteren branches. Konsumiert wird das an zwei
 Stellen: der Branch-Verengung am Typ-Kopf und der Projektion `predicate/PredicateIfTrue` in den
-core-lib-Signaturen von `filter`, `findFirst` und `findLast`.
+core-lib-Signaturen von `filter`, `findFirst` und `findLast`. `findLastIndex` liefert einen Index,
+`exists` und `all` liefern `Boolean` - dort gibt es keinen ElementType zum Schneiden, die
+Verengung am Aufrufort ist der ganze Nutzen.
 
 Dieses Dokument hält fest, **was daran noch offen ist** - und warum die Grenze dort liegt, wo sie
 liegt.
@@ -92,15 +94,6 @@ immer zuerst mit dem Element aufrufen (Index kommt an Position 1). Erst ein Call
 Element an anderer Stelle übergibt, bräuchte die Angabe explizit - dann bekommt `PredicateFacts`
 einen `parameterIndex`. TypeScript (`x is T`) und Flow (`param is Type`) benennen den Parameter
 aus genau diesem Grund.
-
-### 4. Testlücke bei `findFirst`/`findLast`
-
-Beide tragen die `predicate/PredicateIfTrue`-Projektion in ihrer Signatur, geprüft ist sie aber
-nur für `filter` (`filter-narrows-element-type-through-predicate`).
-
-`findLastIndex` bleibt ohne Projektion (liefert einen Index), `exists` und `all` ebenfalls (sie
-liefern `Boolean` und haben keinen ElementType zum Schneiden) - das ist keine Lücke, sondern der
-Endzustand: dort ist die bereits vorhandene Verengung am Aufrufort der ganze Nutzen.
 
 ## Weitergehende Idee: Typ-/Literal-Werte direkt als Prädikat-Argument
 
