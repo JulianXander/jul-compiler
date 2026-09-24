@@ -143,7 +143,7 @@
 	 add und subtract liefern für Integer-Argumente Integer, addInteger und subtractInteger sind entfallen.
 	 Variadisch geht es damit doch: :?(TypeOf(args)) mit Kopf [List(Integer)] trägt add.
 	 Offen:
-	-die späteren Ausbaustufen stehen in docs/conditional-types.md (multiply, Rest abziehen,
+	-die späteren Ausbaustufen stehen in docs/conditional-types.md (Rest abziehen,
 	 auswählendes ?, :? außerhalb des Rückgabetyps, Bindung im Kopf, Diagnose ohne Treffer,
 	 Rumpf je Zweig prüfen)
 	-maxInteger bleibt, bis es einen Elementtyp für Tuples gibt (Bindung im Kopf)

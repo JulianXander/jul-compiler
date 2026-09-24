@@ -1,6 +1,7 @@
 # Bedingte Typen: `:?`
 
-`add` und `subtract` in der core-lib liefern für Integer-Argumente `Integer` statt `Rational`.
+`add`, `subtract` und `multiply` in der core-lib liefern für Integer-Argumente `Integer` statt
+`Rational`.
 Damit sind `addInteger` und `subtractInteger` ersatzlos entfallen. `subtractFloat` und
 `maxInteger` bleiben (Float ist kein Rational, `max` braucht den Elementtyp eines Tuples, siehe
 unten). `:?` ist nur als Rückgabetyp erlaubt (Frage 5).
@@ -21,6 +22,14 @@ add = nativeFunction(
 				() => Rational
 	§js … §
 )
+multiply = nativeFunction(
+	(...args: List(Rational))
+		->
+			:?(TypeOf(args))
+				[List(Integer)] => Integer
+				() => Rational
+	§js … §
+)
 subtract = nativeFunction(
 	(minuend: Rational subtrahend: Rational)
 		->
@@ -34,11 +43,11 @@ subtract = nativeFunction(
 ```
 
 Der catchAll liefert `Rational`, nicht `Fraction`: Zwei Fractions können einen Integer ergeben
-(`1/2 + 1/2`, `1/2 - 1/2`). Sicher eine Fraction ist das Ergebnis nur bei genau einer Fraction
-unter Integern. `subtract` zählt diese Fälle auf, `add` kann das nicht, denn ein Tuple-Kopf nennt
-nur Mindestpositionen: `[Integer Fraction]` passte auch auf `[Integer Fraction Fraction]`. Damit
-der Wert zum Typ passt, normalisiert das `§js` von `add` und `subtract` das Ergebnis zweier
-Fractions (`normalizeRational`), sonst entstünde `{numerator: 2, denominator: 2}` statt `1`.
+(`1/2 + 1/2`, `1/2 - 1/2`), bei `multiply` schon eine einzige (`2 * 1/2`). Sicher eine Fraction
+ist das Ergebnis nur bei `add` und `subtract` mit genau einer Fraction unter Integern. `subtract` zählt diese Fälle auf, `add` kann das nicht, denn ein Tuple-Kopf nennt
+nur Mindestpositionen: `[Integer Fraction]` passte auch auf `[Integer Fraction Fraction]`. Dass der
+Wert zum Typ passt, hängt daran, dass die Implementierungen in `runtime.ts` normalisieren
+(`normalizeRational`): `1/2 + 1/2` ergibt `1n`, nicht `{numerator: 2, denominator: 2}`.
 
 | Aufruf | Ergebnis |
 |---|---|
@@ -52,6 +61,8 @@ Fractions (`normalizeRational`), sonst entstünde `{numerator: 2, denominator: 2
 | `add(...xs)` mit `xs: List(Rational)` | `Rational` |
 | `add(2 3)` | `5` (constant folding) |
 | `add(0.5 0.5)` | `1` |
+| `multiply(Integer Integer)` | `Integer` |
+| `multiply(Integer Fraction)` | `Rational` |
 
 ## Semantik
 
@@ -124,7 +135,8 @@ Das Ergebnis ist die Union der aufgenommenen Zweig-Ergebnisse.
    lesbarer, und die Zweige helfen einem Aufrufer nicht. Den genauen Typ sieht er am Aufruf. So
    werden heute schon alle offenen Signaturen angezeigt (`getElement -> Any`,
    `setElement -> List(Any)`, der Hover löst per `resolvePlaceholders` auf).
-10. **`multiply` gleich mit?** Spätere Ausbaustufe, siehe unten.
+10. **`multiply` gleich mit?** Zunächst zurückgestellt, dann mit derselben Form wie `add`
+    nachgezogen.
 11. **Wie wird der Rumpf einer eigenen Funktion mit `-> :?(…)` geprüft?** Gegen
     die Union aller Zweige, ohne zusätzlichen Code. Der Fall `functionLiteral` prüft den Rumpf
     schon heute gegen `resolvePlaceholders(deklariert)`. Ist der deklarierte Typ ein offener
@@ -136,11 +148,6 @@ Das Ergebnis ist die Union der aufgenommenen Zweig-Ergebnisse.
 
 ## Spätere Ausbaustufen
 
-- **`multiply`:** Es hat dieselbe Form wie `add` (`(...args: List(Rational)) -> Rational`) und
-  bekommt denselben Rückgabetyp `:?(TypeOf(args))` mit `[List(Integer)] => Integer` und
-  `() => Rational` (auch `2 * 1/2` ist ein Integer). Eine `multiplyInteger` gibt es nicht zu entfernen, der Gewinn liegt allein
-  im genaueren Typ an den Aufrufstellen. `divide` bleibt außen vor, Integer durch Integer
-  ergibt Fraction.
 - **Rest nach einer Überlappung abziehen:** Statt mit der ganzen Kollektion wird mit
   `Without(kollektion kopf)` weitergeprüft. Ohne Abziehen ist das Ergebnis korrekt, kann aber
   zu weit sein, weil unerreichbare Zweige mitgezählt werden:

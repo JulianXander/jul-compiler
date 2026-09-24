@@ -377,13 +377,28 @@ subtractFloat = nativeFunction(
 )
 # Liefert das Produkt der args
 multiply = nativeFunction(
-	(...args: List(Rational)) -> Rational
+	(...args: List(Rational))
+		->
+			:?(TypeOf(args))
+				[List(Integer)] => Integer
+				() => Rational
 	§js
-		(...args) =>
-			args.reduce(
-				(accumulator, current) =>
-					accumulator * current,
-				0)
+		(...args) => args.reduce(
+			(accumulator, current) => {
+				if (typeof accumulator === 'bigint') {
+					if (typeof current === 'bigint') {
+						return accumulator * current;
+					}
+					return normalizeRational(accumulator * current.numerator, current.denominator);
+				}
+				if (typeof current === 'bigint') {
+					return normalizeRational(accumulator.numerator * current, accumulator.denominator);
+				}
+				return normalizeRational(
+					accumulator.numerator * current.numerator,
+					accumulator.denominator * current.denominator);
+			},
+			1n)
 	§
 )
 # Liefert das Produkt der args

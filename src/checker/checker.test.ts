@@ -3803,11 +3803,10 @@ r = fibonacciHelper(10 1 0)`)).to.equal('55');
 	});
 
 	it('Nutzerfunktion ohne konstantes Argument faltet nicht', () => {
-		// Ungefalteter Rückgabetyp ist Rational, nicht Integer: multiply ist in core-lib.jul
-		// generisch als (...args: List(Rational)) -> Rational deklariert, ohne dependent
-		// Rückgabetyp für Integer-Operanden - das gilt unabhängig von dieser Faltungsstufe.
+		// Ungefaltet bleibt der Rückgabetyp von multiply stehen: Integer für Integer-Operanden,
+		// kein Literal.
 		expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
-r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Rational');
+r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Integer');
 	});
 
 	it('eine per nativeFunction definierte Funktion wird nicht gefaltet', () => {
@@ -4027,6 +4026,13 @@ describe('bedingte Typen', () => {
 			{ name: 'K15 Integer minus Fraction', code: 'h = (x: Integer y: Fraction) => subtract(x y)', returnType: 'Fraction' },
 			{ name: 'K16 Faltung add normalisiert', code: 'r = add(0.5 0.5)', type: '1' },
 			{ name: 'K16 Faltung subtract normalisiert', code: 'r = subtract(0.5 0.5)', type: '0' },
+			{ name: 'K17 multiply Integer', code: 'h = (x: Integer y: Integer z: Integer) => multiply(x y z)', returnType: 'Integer' },
+			// Auch ein Integer mal eine Fraction kann ein Integer sein: 2 * 1/2 = 1.
+			{ name: 'K18 multiply mit Fraction', code: 'h = (x: Integer y: Fraction) => multiply(x y)', returnType: 'Rational' },
+			{ name: 'K19 multiply Spread Integer', code: 'h = (ys: List(Integer)) => multiply(...ys)', returnType: 'Integer' },
+			{ name: 'K20 multiply Präfix', code: 'h = (x: Integer) => x.multiply(2)', returnType: 'Integer' },
+			{ name: 'K21 Faltung multiply', code: 'r = multiply(2 3)', type: '6' },
+			{ name: 'K21 Faltung multiply normalisiert', code: 'r = multiply(0.5 2)', type: '1' },
 			{
 				name: 'K11 ohne Argumente',
 				code: 'r = add()',
