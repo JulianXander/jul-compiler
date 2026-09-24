@@ -260,16 +260,6 @@ export function readTextFile(path: string): string {
 	return text;
 }
 
-export function tryReadTextFile(path: string): string | undefined {
-	try {
-		return readTextFile(path);
-	}
-	catch (error) {
-		console.error(error);
-		return undefined;
-	}
-}
-
 export function tryCreateDirectory(path: string): void {
 	mkdirSync(path, { recursive: true });
 }
