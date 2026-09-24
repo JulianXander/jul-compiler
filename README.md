@@ -52,14 +52,14 @@ jul jul-config.yaml --check
 ```
 
 ## Test
-`npm test`  
+`node --run test` (oder `npm test`, startet aber ~0,4 s langsamer)  
 Mocha über `src/**/*.test.ts`, via tsx — kein Build nötig.
 
 Einzelne Testdatei bzw. einzelnen Test (`-g` sucht im `it(...)`-Text):
 
 ```bash
-npx mocha --import=tsx --require ./test-setup.mjs src/checker/checker.test.ts
-npx mocha --import=tsx --require ./test-setup.mjs "src/**/*.test.ts" -g pattern
+node --import=tsx ./node_modules/mocha/bin/mocha.js --require ./test-setup.mjs src/checker/checker.test.ts
+node --run test -- -g pattern
 ```
 
 `npm run test-update-snapshot` schreibt die Baselines unter `src/checker/` neu — die Änderung
