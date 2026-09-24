@@ -13,18 +13,11 @@
 	direkt als Prädikat-Argument", fuer Generalisierung, Checker/Runtime-Symmetrie-Problem und skizzierten
 	Predicate(X)-Mittelweg. Reine Ideensammlung, keine Entscheidung getroffen.
 -dictionary literal field completion anhand des erwarteten Zieltyps
-?find-all-references auf dictionary-feldern erfasst nur feldzugriffe (a/feld), nicht feldnamen an
-	kontextuell typisierten stellen - `x: MyType = [feld = 1]`, funktionsargumente, listenelemente.
-	go-to-definition kann das dort bereits, weil der language server mit getDeclaredType den
-	kontextuellen typ rekonstruiert; der checker kennt nur den inferierten typ des literals, und
-	eine definition uebernimmt den inferierten typ des werts, nicht den typguard
-	-ausbaustufe waere das, was typescript "related symbols" nennt: beim pruefen der zuweisbarkeit
-	 (areArgsAssignableTo literal gegen deklarierten typ) die feldsymbole beider seiten verknuepfen,
-	 analog zu resolveCanonicalSymbol beim import-alias. in JUL billiger als in TS, weil die
-	 zuweisbarkeit ohnehin im checker gerechnet wird - TS muss sie beim suchen rekonstruieren
-	-NICHT strukturell ueber den blossen feldnamen matchen: zwei unabhaengig geschriebene [name: Text]
-	 sind derselbe typ, aber rename darf das fremde feld nicht mitziehen
-	-braucht dann auch n:1 im index (eine fundstelle, mehrere symbol-keys)
+-erwarteter typ je ausdruck (kontextuelle typprüfung), siehe docs/expected-types.md
+	-schließt CHECKER-AUDIT #5: funktionsliterale bekommen parametertypen nur als direktes argument
+-find-all-references/rename auf dictionary-feldern an kontextuell typisierten stellen und beim
+	destructuring, siehe docs/field-references.md. baut auf dem erwarteten typ auf.
+	rename lässt heute alle literale stehen und erzeugt damit fehler
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
