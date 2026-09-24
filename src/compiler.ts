@@ -6,7 +6,7 @@ import { ParsedDocuments } from './checker/checker.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos, Positioned } from './compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
 import { ParsedFile } from './syntax-tree.js';
-import { Extension, changeExtension, executingDirectory, tryReadTextFile, tryCreateDirectory } from './util.js';
+import { Extension, changeExtension, executingDirectory, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
 import ShebangPlugin from 'webpack-shebang-plugin';
@@ -32,22 +32,15 @@ export function compileProject(
 
 	//#region 2. load
 	// Parst und checkt alle Dateien samt Abhängigkeiten, jede Endung - derselbe Weg wie im
-	// Language Server (project-loader.ts). Die gelesenen Texte bleiben für den Emit erhalten.
+	// Language Server (project-loader.ts). Der Host cacht die gelesenen Texte, Fehlerausgabe und
+	// Emit bekommen sie von dort, ohne erneut zu lesen.
 	renderer.startStep('compiling');
-	const sourceCodes = new Map<string, string>();
-	const fileSystemHost = createFileSystemHost();
+	// Einzelne Dateien sind kein eigener Checklisten-Schritt (das bleibt den großen Schritten wie
+	// "compiling" und "bundling" vorbehalten), sondern nur die Detailanzeige neben dem laufenden
+	// Schritt.
 	const host: ProjectHost = {
-		readSource: filePath => {
-			// Einzelne Dateien sind kein eigener Checklisten-Schritt (das bleibt den großen
-			// Schritten wie "compiling" und "bundling" vorbehalten), sondern nur die
-			// Detailanzeige neben dem laufenden Schritt.
-			renderer.updateDetail(filePath);
-			const readResult = fileSystemHost.readSource(filePath);
-			if (readResult.type === 'code') {
-				sourceCodes.set(filePath, readResult.code);
-			}
-			return readResult;
-		},
+		...createFileSystemHost(),
+		onParsed: parsed => renderer.updateDetail(parsed.filePath),
 	};
 	const documents: ParsedDocuments = {};
 	const entry = loadFile(entryFilePath, documents, host);
@@ -77,7 +70,7 @@ export function compileProject(
 				warningCount++;
 			}
 		});
-		formattedErrors.push(formatErrors(document.filePath, errors));
+		formattedErrors.push(formatErrors(document.filePath, errors, host));
 	});
 	const hasError = errorCount > 0;
 	const summary = formatSummary(Object.keys(documents).length, errorCount, warningCount);
@@ -105,7 +98,7 @@ export function compileProject(
 	let outFilePath: string | undefined;
 	Object.values(documents).forEach(document => {
 		const isEntry = document.filePath === entryFilePath;
-		const fileOutPath = emitFile(document, sourceCodes.get(document.filePath)!, outputFolderPath, runtimePath, cli && isEntry);
+		const fileOutPath = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimePath, cli && isEntry);
 		if (isEntry) {
 			outFilePath = fileOutPath;
 		}
@@ -277,7 +270,14 @@ const errorSeverityColors: { [Severity in CompilerErrorSeverity]: ConsoleColor; 
  * `relatedInformation` bekommt keine eigene `-->`-Zeile - ihre Position steckt in der Lage der
  * Markierung selbst, das Label steht direkt hinter dem Marker der zugehörigen Quellzeile.
  */
-export function formatErrors(filePath: string, errors: CompilerError[]): string {
+export function formatErrors(
+	filePath: string,
+	errors: CompilerError[],
+	/**
+	 * Liefert den Quelltext für den Ausschnitt, auch den der Datei aus relatedInformation.
+	 */
+	host: ProjectHost,
+): string {
 	return errors.map(error => {
 		const { type, severity } = errorInfos[error.code];
 		const severityColor = errorSeverityColors[severity];
@@ -312,25 +312,24 @@ export function formatErrors(filePath: string, errors: CompilerError[]): string 
 			`${' '.repeat(gutterWidth)} |`,
 		];
 		for (const span of spans) {
-			lines.push(...formatSpanLines(getSourceLines(span.filePath), span.positioned, span.label, gutterWidth));
+			lines.push(...formatSpanLines(getSourceLines(host, span.filePath), span.positioned, span.label, gutterWidth));
 		}
 		return lines.join('\n');
 	}).join('\n');
 }
 
+function getSourceCode(host: ProjectHost, filePath: string): string | undefined {
+	const readResult = host.readSource(filePath);
+	return readResult.type === 'code'
+		? readResult.code
+		: undefined;
+}
+
 /**
- * Cache je Datei, damit bei mehreren Fehlern in derselben Datei nicht mehrfach gelesen wird -
- * läuft nur im Fehlerfall, ein Compiler-Lauf ist ohnehin kurzlebig, kein Invalidieren nötig.
+ * Ohne Quelltext (nicht gefunden, übersprungen) keine Zeilen, der Ausschnitt bleibt dann leer.
  */
-const sourceLinesCache = new Map<string, string[]>();
-function getSourceLines(filePath: string): string[] {
-	const cached = sourceLinesCache.get(filePath);
-	if (cached) {
-		return cached;
-	}
-	const lines = tryReadTextFile(filePath)?.split('\n') ?? [];
-	sourceLinesCache.set(filePath, lines);
-	return lines;
+function getSourceLines(host: ProjectHost, filePath: string): string[] {
+	return getSourceCode(host, filePath)?.split('\n') ?? [];
 }
 
 /**

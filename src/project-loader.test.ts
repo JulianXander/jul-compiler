@@ -62,6 +62,26 @@ describe('project-loader', () => {
 				},
 				errors: [{ code: ErrorCode.fileNotFound, startRowIndex: 0, startColumnIndex: 13 }],
 			},
+			{
+				// Exportiert werden nur Top-Level-Definitionen, der Emitter gibt Destructuring kein
+				// export. Hielte der Checker das Feld für importierbar, käme zur Laufzeit undefined an.
+				name: 'per Destructuring gebundener Name ist kein Export',
+				files: {
+					'main.jul': '(a) = import(§./b.jul§)',
+					'b.jul': '(a) = [a = 1]\nc = 2',
+				},
+				errors: [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }],
+			},
+			{
+				// Sonst würde jeder Import stillschweigend zum Re-Export.
+				name: 'importierter Name wird nicht weiterexportiert',
+				files: {
+					'main.jul': '(d) = import(§./b.jul§)',
+					'b.jul': '(d) = import(§./d.jul§)\nb = d',
+					'd.jul': 'd = 1',
+				},
+				errors: [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }],
+			},
 		];
 	expectedResults.forEach(({ name, files, errors }) => {
 		it(name, () => {

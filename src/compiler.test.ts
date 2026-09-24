@@ -1,10 +1,9 @@
 import { expect } from 'chai';
-import { writeFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { join, resolve } from 'path';
 
 import { formatErrors, LiveRenderer } from './compiler.js';
 import { CompilerError, ErrorCode } from './compiler-errors.js';
+import { createInMemoryHost } from './project-loader.js';
 
 // eslint-disable-next-line no-control-regex
 const ansiPattern = /\x1b\[[0-9;]*m/g;
@@ -14,19 +13,14 @@ function stripAnsi(text: string): string {
 
 describe('formatErrors', () => {
 	// Rust-Stil (docs/error-message-elaboration.md, Option C2): der Quellcode-Ausschnitt mit
-	// ^^^^^-Markierung braucht eine echte Datei auf der Platte, formatErrors liest sie selbst.
+	// ^^^^^-Markierung kommt aus dem übergebenen Host, hier aus dem Speicher.
 	// ANSI-Farbcodes werden vor dem Vergleich entfernt, sonst wäre der erwartete String voller
 	// unsichtbarer Steuerzeichen und schon bei harmlosen Farbänderungen im Code hinfällig.
-	let filePath: string;
-
-	beforeEach(() => {
-		filePath = join(tmpdir(), `jul-compiler-formatErrors-test-${Date.now()}.jul`);
-		writeFileSync(filePath, 'a: Integer = 4\nb: Text = 5\n');
-	});
-
-	afterEach(() => {
-		unlinkSync(filePath);
-	});
+	const filePath = join(resolve('/format-errors-test'), 'main.jul');
+	function hostWith(code: string) {
+		return createInMemoryHost({ [filePath]: code });
+	}
+	const defaultHost = hostWith('a: Integer = 4\nb: Text = 5\n');
 
 	it('shows the exact source line with a caret marker under the error position', () => {
 		const errors: CompilerError[] = [
@@ -39,7 +33,7 @@ describe('formatErrors', () => {
 				endColumnIndex: 11,
 			},
 		];
-		const output = stripAnsi(formatErrors(filePath, errors));
+		const output = stripAnsi(formatErrors(filePath, errors, defaultHost));
 		expect(output).to.equal([
 			`TypeError JUL5000: Definition type mismatch. ${filePath}:2:1`,
 			'Can not assign 5 to Text.',
@@ -56,7 +50,7 @@ describe('formatErrors', () => {
 	// echte Funktion mit deklariertem Rückgabetyp, nicht nur beliebige Definitionen - sonst passt
 	// der Code nicht zum simulierten returnTypeMismatch.
 	it('adds a second frame for relatedInformation without a separate position line', () => {
-		writeFileSync(filePath, 'f = () :> Integer =>\n\t§hello§\n');
+		const host = hostWith('f = () :> Integer =>\n\t§hello§\n');
 		const errors: CompilerError[] = [
 			{
 				code: ErrorCode.returnTypeMismatch,
@@ -74,7 +68,7 @@ describe('formatErrors', () => {
 				},
 			},
 		];
-		const output = stripAnsi(formatErrors(filePath, errors));
+		const output = stripAnsi(formatErrors(filePath, errors, host));
 		expect(output).to.equal([
 			`TypeError JUL5100: Return type mismatch. ${filePath}:2:2`,
 			'Can not assign Text to Integer.',
@@ -95,7 +89,7 @@ describe('formatErrors', () => {
 	// checker.ts es tatsächlich (expression.startRowIndex/endRowIndex der ganzen Definition),
 	// sonst sähe es aus wie eine gezielte Markierung des Aufrufs (Argument type mismatch).
 	it('brackets a multiline span with connector bars like rustc', () => {
-		writeFileSync(filePath, 'f = (x: Integer) =>\n\tx\nresult: Text = f(\n\t1\n)\n');
+		const host = hostWith('f = (x: Integer) =>\n\tx\nresult: Text = f(\n\t1\n)\n');
 		const errors: CompilerError[] = [
 			{
 				code: ErrorCode.definitionTypeMismatch,
@@ -106,7 +100,7 @@ describe('formatErrors', () => {
 				endColumnIndex: 1,
 			},
 		];
-		const output = stripAnsi(formatErrors(filePath, errors));
+		const output = stripAnsi(formatErrors(filePath, errors, host));
 		expect(output).to.equal([
 			`TypeError JUL5000: Definition type mismatch. ${filePath}:3:1`,
 			'Can not assign Integer to Text.',
@@ -121,7 +115,7 @@ describe('formatErrors', () => {
 	});
 
 	it('brackets a multiline argument list for an argument type mismatch', () => {
-		writeFileSync(filePath, 'myFunc = (x: Text) => x\nresult = myFunc(\n\t5\n)\n');
+		const host = hostWith('myFunc = (x: Text) => x\nresult = myFunc(\n\t5\n)\n');
 		const errors: CompilerError[] = [
 			{
 				code: ErrorCode.argumentTypeMismatch,
@@ -132,7 +126,7 @@ describe('formatErrors', () => {
 				endColumnIndex: 1,
 			},
 		];
-		const output = stripAnsi(formatErrors(filePath, errors));
+		const output = stripAnsi(formatErrors(filePath, errors, host));
 		expect(output).to.equal([
 			`TypeError JUL5050: Argument type mismatch. ${filePath}:2:10`,
 			'Can not assign 5 to Text.',
@@ -151,7 +145,7 @@ describe('formatErrors', () => {
 	// mehrere sichtbare Spalten im Terminal - ohne Umrechnung läuft der Marker dem Text davon,
 	// sobald die Zeile mit Tabs eingerückt ist (expandTabs/visualColumn in compiler.ts).
 	it('aligns connector markers under tab-indented, nested multiline content', () => {
-		writeFileSync(filePath, 'f = (values: List(Integer)) =>\n\tnewBoard: Text = [\n\t\t...values\n\t]\n\tnewBoard\n');
+		const host = hostWith('f = (values: List(Integer)) =>\n\tnewBoard: Text = [\n\t\t...values\n\t]\n\tnewBoard\n');
 		const errors: CompilerError[] = [
 			{
 				code: ErrorCode.definitionTypeMismatch,
@@ -162,7 +156,7 @@ describe('formatErrors', () => {
 				endColumnIndex: 2,
 			},
 		];
-		const output = stripAnsi(formatErrors(filePath, errors));
+		const output = stripAnsi(formatErrors(filePath, errors, host));
 		expect(output).to.equal([
 			`TypeError JUL5000: Definition type mismatch. ${filePath}:2:2`,
 			'Can not assign List(Integer) to Text.',
@@ -180,7 +174,7 @@ describe('formatErrors', () => {
 	// endColumnIndex ist exklusiv (die einzeilige Markierung rechnet damit), der Caret gehört
 	// also unter das Zeichen davor - hier unter das schliessende ']', nicht unter das ')'.
 	it('marks the last character of a multiline span, not the one behind it', () => {
-		writeFileSync(filePath, 'f = (t: Text) => t\nf([\n\t1\n])\n');
+		const host = hostWith('f = (t: Text) => t\nf([\n\t1\n])\n');
 		const errors: CompilerError[] = [
 			{
 				code: ErrorCode.argumentTypeMismatch,
@@ -191,7 +185,7 @@ describe('formatErrors', () => {
 				endColumnIndex: 1,
 			},
 		];
-		const output = stripAnsi(formatErrors(filePath, errors));
+		const output = stripAnsi(formatErrors(filePath, errors, host));
 		expect(output).to.equal([
 			`TypeError JUL5050: Argument type mismatch. ${filePath}:2:3`,
 			'Can not assign [1] to Text.',
@@ -224,7 +218,7 @@ describe('formatErrors', () => {
 					endColumnIndex: 1,
 				},
 			];
-			const output = formatErrors(filePath, errors);
+			const output = formatErrors(filePath, errors, defaultHost);
 			const firstLine = output.split('\n')[0]!;
 			expect(firstLine).to.include('\x1b[33m', 'Warning sollte gelb (33) statt rot (91) gefärbt sein');
 			expect(firstLine).not.to.include('\x1b[91m');

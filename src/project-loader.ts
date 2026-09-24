@@ -115,11 +115,25 @@ function loadFileRecursive(
 
 //#region Hosts
 
+/**
+ * Liest jede Datei höchstens einmal: spätere Abfragen (Fehlerausschnitt, Emit) bekommen genau
+ * den Stand, der geprüft wurde. Deshalb nur für einen einzelnen Lauf gedacht, nicht für
+ * langlebige Prozesse - dort würden Änderungen auf der Platte nicht mehr gesehen.
+ */
 export function createFileSystemHost(referenceIndex?: ReferenceIndex): ProjectHost {
+	const cache = new Map<string, SourceReadResult>();
 	return {
-		readSource: filePath => existsSync(filePath)
-			? { type: 'code', code: readTextFile(filePath) }
-			: { type: 'notFound' },
+		readSource: filePath => {
+			const cached = cache.get(filePath);
+			if (cached) {
+				return cached;
+			}
+			const readResult: SourceReadResult = existsSync(filePath)
+				? { type: 'code', code: readTextFile(filePath) }
+				: { type: 'notFound' };
+			cache.set(filePath, readResult);
+			return readResult;
+		},
 		referenceIndex: referenceIndex,
 	};
 }

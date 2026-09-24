@@ -117,7 +117,6 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
-				// TODO export
 				return getImportJs(`{${fields.map(field => {
 					const name = field.name.name;
 					const nameJs = escapeReservedJsVariableName(name);
