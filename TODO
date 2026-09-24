@@ -21,20 +21,8 @@
 -debug experience vebessern
 	?sourcemap
 	?intermediate js files direkt mit node ausführbar
-?tryAssignParams mit rest dictionary
 ?was tun mit typeGuard bei destructuring import
-?alias bei rest parameter
-	?rest arg mit parameter namen übergeben
-?anonyme parameter mit _/_1, _2 etc
-	-anonymer parameter für type parametered functions
-	?rest args anonym
 ?shared code? libraries?
-?dereference parameterReference in getTypeError oder infer paramterReference type mit path?
-?fully dereferenced type und nicht dereferenced inferred type in expression speichern, fully dereferenced für hover info nutzen
-?type inference: infer pure function call return type wenn alle argumente statisch bekannt durch aufruf der funktion
-	?interpreter oder runtime benutzen
-	-vgl. type-checking-test.jul Zeile 50 vs 51 variable type
-	-statisch bekannt <=> type = primitive/collection
 ?branch verengung über feldpfade: was gilt für felder auf einem stream
 -branch verengung auch für benannte argumente
 	-getWrittenArguments liefert nur bei args.type === 'list', bei ?(a = someVar) ist es
