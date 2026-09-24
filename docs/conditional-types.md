@@ -135,9 +135,7 @@ Das Ergebnis ist die Union der aufgenommenen Zweig-Ergebnisse.
    lesbarer, und die Zweige helfen einem Aufrufer nicht. Den genauen Typ sieht er am Aufruf. So
    werden heute schon alle offenen Signaturen angezeigt (`getElement -> Any`,
    `setElement -> List(Any)`, der Hover löst per `resolvePlaceholders` auf).
-10. **`multiply` gleich mit?** Zunächst zurückgestellt, dann mit derselben Form wie `add`
-    nachgezogen.
-11. **Wie wird der Rumpf einer eigenen Funktion mit `-> :?(…)` geprüft?** Gegen
+10. **Wie wird der Rumpf einer eigenen Funktion mit `-> :?(…)` geprüft?** Gegen
     die Union aller Zweige, ohne zusätzlichen Code. Der Fall `functionLiteral` prüft den Rumpf
     schon heute gegen `resolvePlaceholders(deklariert)`. Ist der deklarierte Typ ein offener
     Platzhalter, behält er ihn als Rückgabetyp und löst ihn je Aufruf neu auf. `conditional`
