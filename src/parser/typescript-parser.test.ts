@@ -28,7 +28,7 @@ describe('TypeScript Parser', () => {
 	 */
 	function typeOfF(code: string): string | undefined {
 		const parsed = parseCode(code, 'test.ts');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 		const definition = parsed.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 			expression.type === 'definition' && expression.name.name === 'f');
@@ -125,7 +125,7 @@ describe('TypeScript Parser', () => {
 		const main = loadFile(mainPath, documents, createInMemoryHost({
 			[mainPath]: '(double) = import(§./util.ts§)\nwrong = double(§x§)',
 			[join(folder, 'util.ts')]: 'export function double(a: bigint): bigint { return a * 2n; }',
-		}));
+		}, { cloneUnchecked: false }));
 		expect(typeof main).to.not.equal('string');
 		expect((main as ParsedFile).checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.argumentTypeMismatch]);
 	});

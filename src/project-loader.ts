@@ -1,6 +1,5 @@
 import { existsSync } from 'fs';
-import { checkTypes, ParsedDocuments } from './checker/checker.js';
-import { ReferenceIndex } from './checker/reference-index.js';
+import { CheckOptions, checkTypes, ParsedDocuments } from './checker/checker.js';
 import { ErrorCode } from './compiler-errors.js';
 import { parseCode } from './parser/parser.js';
 import { ParsedFile } from './syntax-tree.js';
@@ -22,12 +21,11 @@ export type SourceReadResult =
 	 */
 	| { type: 'skipped'; };
 
-export interface ProjectHost {
+/**
+ * Die CheckOptions werden bei jedem checkTypes-Lauf mitgegeben.
+ */
+export interface ProjectHost extends CheckOptions {
 	readSource(filePath: string): SourceReadResult;
-	/**
-	 * Wird bei jedem checkTypes-Lauf mitgegeben (siehe dort).
-	 */
-	referenceIndex?: ReferenceIndex;
 	/**
 	 * Nach dem Parsen, vor dem Laden der Abhängigkeiten. previous ist der ersetzte Stand, falls
 	 * die Datei schon in documents stand - der Language Server pflegt damit seinen
@@ -81,7 +79,7 @@ function loadFileRecursive(
 		&& code === undefined) {
 		if (!previous.checked
 			&& !loading.has(filePath)) {
-			checkTypes(previous, documents, host.referenceIndex);
+			checkTypes(previous, documents, host);
 		}
 		return previous;
 	}
@@ -110,7 +108,7 @@ function loadFileRecursive(
 		}
 	});
 	loading.delete(filePath);
-	checkTypes(parsed, documents, host.referenceIndex);
+	checkTypes(parsed, documents, host);
 	return parsed;
 }
 
@@ -121,7 +119,7 @@ function loadFileRecursive(
  * den Stand, der geprüft wurde. Deshalb nur für einen einzelnen Lauf gedacht, nicht für
  * langlebige Prozesse - dort würden Änderungen auf der Platte nicht mehr gesehen.
  */
-export function createFileSystemHost(referenceIndex?: ReferenceIndex): ProjectHost {
+export function createFileSystemHost(options: CheckOptions): ProjectHost {
 	const cache = new Map<string, SourceReadResult>();
 	return {
 		readSource: filePath => {
@@ -135,7 +133,7 @@ export function createFileSystemHost(referenceIndex?: ReferenceIndex): ProjectHo
 			cache.set(filePath, readResult);
 			return readResult;
 		},
-		referenceIndex: referenceIndex,
+		...options,
 	};
 }
 
@@ -143,7 +141,7 @@ export function createFileSystemHost(referenceIndex?: ReferenceIndex): ProjectHo
  * Für Tests: Dateien im Speicher. Die Schlüssel mit join bilden, wie getPathFromImport die
  * Importpfade auflöst - sonst passen sie unter Windows nicht zusammen.
  */
-export function createInMemoryHost(files: { [filePath: string]: string; }, referenceIndex?: ReferenceIndex): ProjectHost {
+export function createInMemoryHost(files: { [filePath: string]: string; }, options: CheckOptions): ProjectHost {
 	return {
 		readSource: filePath => {
 			const code = files[filePath];
@@ -151,7 +149,7 @@ export function createInMemoryHost(files: { [filePath: string]: string; }, refer
 				? { type: 'notFound' }
 				: { type: 'code', code: code };
 		},
-		referenceIndex: referenceIndex,
+		...options,
 	};
 }
 

@@ -30,6 +30,8 @@ describe('ReferenceIndex', () => {
 	beforeEach(() => {
 		documents = {};
 		referenceIndex = new ReferenceIndex();
+		// Mit Klon wie im Language Server: der Recheck-Test checkt eine Datei ohne neues Parsen
+		// erneut.
 		host = createInMemoryHost({
 			[originPath]: 'foo = 1\n',
 			// nicht-aliasierter Import ohne Nutzung
@@ -38,7 +40,7 @@ describe('ReferenceIndex', () => {
 			[directPath]: '(foo) = import(§./origin.jul§)\nusage = foo\n',
 			// aliasierter Import + lokale Nutzung des Alias
 			[aliasPath]: '(bar = foo) = import(§./origin.jul§)\nusage = bar\n',
-		}, referenceIndex);
+		}, { cloneUnchecked: true, referenceIndex: referenceIndex });
 		[originPath, importOnlyPath, directPath, aliasPath].forEach(filePath => {
 			load(filePath, documents, host);
 		});
@@ -77,7 +79,7 @@ describe('ReferenceIndex', () => {
 		expect(afterEdit.filter(location => location.filePath === directPath)).to.have.lengthOf(1);
 
 		// erneutes Checken ohne weitere Änderung darf nichts verdoppeln
-		checkTypes(reparsed, documents, referenceIndex);
+		checkTypes(reparsed, documents, { cloneUnchecked: true, referenceIndex: referenceIndex });
 		expect(referenceIndex.getReferences(fooSymbol, originPath)).to.have.lengthOf(3);
 	});
 });
@@ -101,7 +103,7 @@ describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
 			'	value/name',
 			'',
 		].join('\n');
-		load(filePath, documents, createInMemoryHost({ [filePath]: code }, referenceIndex));
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
 	});
 
 	function getFieldSymbol(typeName: string, fieldName: string): SymbolDefinition {

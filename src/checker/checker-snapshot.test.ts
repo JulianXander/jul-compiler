@@ -43,7 +43,7 @@ function findJulFiles(folder: string): string[] {
  * Parst rekursiv inklusive Importe und checkt, auf demselben Weg wie CLI und Language Server.
  */
 function parseAndCheck(filePath: string, parsedDocuments: ParsedDocuments): ParsedFile {
-	const parsed = loadFile(filePath, parsedDocuments, createFileSystemHost());
+	const parsed = loadFile(filePath, parsedDocuments, createFileSystemHost({ cloneUnchecked: false }));
 	if (typeof parsed === 'string') {
 		throw new Error(`${parsed}: ${filePath}`);
 	}

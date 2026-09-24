@@ -39,8 +39,10 @@ export function compileProject(
 	// "compiling" und "bundling" vorbehalten), sondern nur die Detailanzeige neben dem laufenden
 	// Schritt.
 	const host: ProjectHost = {
-		...createFileSystemHost(),
+		...createFileSystemHost({ cloneUnchecked: false }),
 		onParsed: parsed => renderer.updateDetail(parsed.filePath),
+		// Der Checker blockiert den Event-Loop, der Frame-Timer kommt währenddessen nicht dran.
+		onProgress: () => renderer.tick(),
 	};
 	const documents: ParsedDocuments = {};
 	const entry = loadFile(entryFilePath, documents, host);
@@ -127,6 +129,8 @@ export function compileProject(
 		},
 		plugins: [
 			new ShebangPlugin(),
+			// Wie onProgress beim Checken: webpack arbeitet großteils synchron.
+			new webpack.ProgressPlugin(() => renderer.tick()),
 		],
 		target: 'node',
 		// resolve: {
@@ -574,7 +578,13 @@ export class LiveRenderer {
 	// getColorDepth gibt es nur an echten TTY-Streams, nicht an einem nachträglich als TTY
 	// markierten Stream (z.B. im Test) - dann bleibt es bei den 16 Grundfarben.
 	private readonly colorDepth = this.isTty ? process.stdout.getColorDepth?.() ?? 4 : 1;
-	private readonly animationStartTime = performance.now();
+	/**
+	 * Animationszeit statt Wanduhr: rückt je Frame höchstens um einen Frame-Takt vor. Bleibt ein
+	 * Frame aus, weil synchrone Arbeit den Event-Loop blockiert, steht die Welle kurz still, statt
+	 * danach um die ganze Pause weiterzuspringen.
+	 */
+	private animationMs = 0;
+	private lastFrameTime = performance.now();
 	private spinnerTimer: NodeJS.Timeout | undefined;
 	private animationFinished = false;
 	private frameHeight = 0;
@@ -613,6 +623,18 @@ export class LiveRenderer {
 			return;
 		}
 		this.render();
+	}
+
+	/**
+	 * Aus laufender synchroner Arbeit heraus aufrufbar, beliebig oft: zeichnet nur, wenn seit dem
+	 * letzten Frame ein Frame-Takt vergangen ist.
+	 */
+	tick(): void {
+		if (this.isTty
+			&& !this.animationFinished
+			&& performance.now() - this.lastFrameTime >= waveFrameMs) {
+			this.render();
+		}
 	}
 
 	finishStep(status: 'done' | 'failed'): void {
@@ -677,7 +699,11 @@ export class LiveRenderer {
 	}
 
 	private buildLines(): string[] {
-		const elapsedMs = performance.now() - this.animationStartTime;
+		const now = performance.now();
+		// Zwei Takte statt einem, damit das übliche Nachgehen des Timers die Welle nicht bremst.
+		this.animationMs += Math.min(now - this.lastFrameTime, 2 * waveFrameMs);
+		this.lastFrameTime = now;
+		const elapsedMs = this.animationMs;
 		const checklist = [this.entryLine, ...this.doneSteps];
 		if (this.currentStepLabel) {
 			const spinnerIndex = Math.floor(elapsedMs / spinnerFrameMs);

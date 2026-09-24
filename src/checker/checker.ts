@@ -315,6 +315,7 @@ inferFileTypes([], {
 	folder: '',
 	filePath: '',
 	referenceIndex: undefined,
+	onProgress: undefined,
 });
 export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
 
@@ -1527,6 +1528,29 @@ export function isUnionType(type: CompileTimeType | undefined): type is CompileT
 
 //#endregion CompileTimeType guards
 
+export interface CheckOptions {
+	/**
+	 * Der Checker schreibt seine Ergebnisse (typeInfo, Fehler) in den Baum und überspringt
+	 * Ausdrücke, die schon eine typeInfo haben. Wer dieselbe Datei später ohne neues Parsen erneut
+	 * checkt (Language Server: Abhängige nach Änderung eines Imports), braucht deshalb checked als
+	 * Klon von unchecked. Sonst ist checked dasselbe Objekt wie unchecked - das spart bei großen
+	 * Dateien den Großteil der Ladezeit. Pflicht, damit jeder Aufrufer das ausdrücklich entscheidet.
+	 */
+	readonly cloneUnchecked: boolean;
+	/**
+	 * Wird während des Checklaufs mit den aufgelösten Referenzen der Datei befüllt (vorher
+	 * geleert). Nur der Language Server hält einen Index über die Lebensdauer mehrerer Checkläufe
+	 * hinweg; CLI und Tests lassen ihn weg und zahlen keine Buchführungskosten.
+	 */
+	readonly referenceIndex?: ReferenceIndex;
+	/**
+	 * Wird während des Checklaufs regelmäßig aufgerufen, damit der Aufrufer aus der synchronen
+	 * Arbeit heraus etwas tun kann, wofür sein Event-Loop nicht drankommt (CLI: Fortschritt
+	 * zeichnen). Der Abstand ist eine Anzahl inferierter Ausdrücke, keine Zeit.
+	 */
+	readonly onProgress?: () => void;
+}
+
 /**
  * infer types of expressions, normalize typeGuards
  * fills errors
@@ -1534,16 +1558,14 @@ export function isUnionType(type: CompileTimeType | undefined): type is CompileT
 export function checkTypes(
 	document: ParsedFile,
 	documents: ParsedDocuments,
-	/**
-	 * Optional: wird während dieses Checklaufs mit den aufgelösten Referenzen dieser Datei befüllt
-	 * (vorher geleert). Nur der Language Server hält einen Index über die Lebensdauer mehrerer
-	 * Checkläufe hinweg; CLI und Tests lassen ihn weg und zahlen keine Buchführungskosten.
-	 */
-	referenceIndex?: ReferenceIndex,
+	options: CheckOptions,
 ): void {
+	const { cloneUnchecked, referenceIndex, onProgress } = options;
 	referenceIndex?.clearReferencesFromFile(document.filePath);
 	resetFoldBudget();
-	const checked = structuredClone(document.unchecked);
+	const checked = cloneUnchecked
+		? structuredClone(document.unchecked)
+		: document.unchecked;
 	document.checked = checked;
 	// Die core-lib definiert die builtInSymbols selbst. Bekäme sie sie zusätzlich als oberen
 	// Scope, stünde ihre Symboltabelle zweimal im Stack und jede Definition wäre
@@ -1557,6 +1579,7 @@ export function checkTypes(
 		folder: document.sourceFolder,
 		filePath: document.filePath,
 		referenceIndex: referenceIndex,
+		onProgress: onProgress,
 	});
 }
 
@@ -1590,11 +1613,10 @@ interface CheckContext {
 	 * Leerstring, wenn builtin.
 	 */
 	readonly filePath: string;
-	/**
-	 * Wird mit den aufgelösten Referenzen dieser Datei befüllt, undefined, wenn der Aufrufer
-	 * keinen mitgibt (siehe checkTypes).
-	 */
+	/** Siehe CheckOptions. */
 	readonly referenceIndex: ReferenceIndex | undefined;
+	/** Siehe CheckOptions. */
+	readonly onProgress: (() => void) | undefined;
 }
 
 /**
@@ -2317,6 +2339,11 @@ function inferType(
 	checkContext: CheckContext,
 ): TypeInfo {
 	checkerStats.inferType++;
+	// Jeder 256. Ausdruck: selten genug, dass der Aufruf nicht ins Gewicht fällt, oft genug, dass
+	// auch bei einer großen Datei mehrmals je Frame-Takt nachgefragt wird.
+	if ((checkerStats.inferType & 0xff) === 0) {
+		checkContext.onProgress?.();
+	}
 	const { scopes, narrowedTypes } = typeContext;
 	const { documents: parsedDocuments, folder, filePath, referenceIndex } = checkContext;
 	const errors = checkContext.file.errors;

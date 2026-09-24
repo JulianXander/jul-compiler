@@ -2365,10 +2365,11 @@ describe('Checker', () => {
 	expectedResults.forEach(({ name, code, result, errors }) => {
 		it(name ?? code, () => {
 			const parserResult = parseCode(code, 'dummy.jul');
-			checkTypes(parserResult, {});
 			// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
-			// unvollständigen Baum schlicht nichts zu melden hat.
+			// unvollständigen Baum schlicht nichts zu melden hat. Vor dem Check, weil ohne Klon
+			// danach auch die Checker-Fehler in unchecked stehen.
 			expect(parserResult.unchecked.errors).to.deep.equal([]);
+			checkTypes(parserResult, {}, { cloneUnchecked: false });
 			expect(parserResult.checked?.errors).to.deep.equal(errors ?? []);
 			if (result) {
 				expect(parserResult.checked?.expressions).to.deep.equal(result);
@@ -2390,7 +2391,7 @@ describe('Checker', () => {
 		it(`function-with-empty-body-does-not-throw: ${JSON.stringify(code)}`, () => {
 			const parsed = parseCode(code, 'dummy.jul');
 			expect(parsed.unchecked.errors.map(error => error.code)).to.deep.equal([ErrorCode.expectedExpression]);
-			checkTypes(parsed, {});
+			checkTypes(parsed, {}, { cloneUnchecked: false });
 		});
 	});
 	// Der Parser meldet Import-Fehler schon beim Auflösen der Abhängigkeiten. checked ist ein Klon
@@ -2399,14 +2400,14 @@ describe('Checker', () => {
 	// Loader, dafür siehe project-loader.test.ts.
 	it('import-error-reported-once', () => {
 		const parsed = parseCode('(a) = import(§./datei.txt§)', 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.invalidImportExtension]);
 	});
 	// Ein verschachtelter Import ist keine Abhängigkeit, getImportedPaths meldet ihn nicht - hier
 	// bleibt die Meldung des Checkers die einzige.
 	it('nested-import-error-reported-by-checker', () => {
 		const parsed = parseCode('a = [import(§./datei.txt§)]', 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors.map(error => error.code)).to.include(ErrorCode.invalidImportExtension);
 		expect(parsed.checked?.errors.filter(error => error.code === ErrorCode.invalidImportExtension)).to.have.lengthOf(1);
 	});
@@ -2437,7 +2438,7 @@ describe('Checker', () => {
 		it(name, () => {
 			const parsed = parseCode(code, 'dummy.jul');
 			expect(parsed.unchecked.errors).to.deep.equal([]);
-			checkTypes(parsed, {});
+			checkTypes(parsed, {}, { cloneUnchecked: false });
 			expect(parsed.checked?.errors?.map(error => ({
 				code: error.code,
 				startRowIndex: error.startRowIndex,
@@ -2453,7 +2454,7 @@ describe('Checker', () => {
 		const code = `myFn = (a: List(Text)) =>
 	c = add(...a)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const errors = parsed.checked!.errors!;
 		expect(errors, 'Typfehler erwartet').to.have.lengthOf(1);
 		expect(errors[0]!.message).to.not.contain('not implemented');
@@ -2465,7 +2466,7 @@ describe('Checker', () => {
 		const parsed = parseCode('a = [1 2]\na/0', 'dummy.jul');
 		const parseErrors = parsed.unchecked.errors;
 		expect(parseErrors, 'Parse-Fehler erwartet').to.have.lengthOf(1);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked!.errors).to.deep.equal(parseErrors);
 	});
 	// lastElement deklariert seinen Rückgabetyp über ElementAt(TypeOf(values) length(values)) und
@@ -2476,7 +2477,7 @@ describe('Checker', () => {
 f = (values: List(Integer)) :> Integer =>
 	le(values)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	it('last-element-via-alias-keeps-empty-for-possibly-empty-input', () => {
@@ -2486,7 +2487,7 @@ f = (values: List(Integer)) :> Integer =>
 f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 	le(values)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Die Fallunterscheidung steckt in And/Or: And(Integer And(A B)) ist genau dann nicht Never,
@@ -2501,7 +2502,7 @@ f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 f = (x: Fraction y: Integer) :> Fraction =>
 	mySubtract(x y)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Dieselbe Bedingung hinter einem Namen. Ohne tragende Abstraktion müsste die Formel an jeder
@@ -2512,7 +2513,7 @@ mySubtract = (a: Rational b: Rational) -> SumType(TypeOf(a) TypeOf(b)) => subtra
 f = (x: Fraction y: Integer) :> Fraction =>
 	mySubtract(x y)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Gegenprobe, heute grün: dieselbe Bedingung dreistellig statt geschachtelt. Sie hält die
@@ -2523,7 +2524,7 @@ f = (x: Fraction y: Integer) :> Fraction =>
 f = (x: Fraction y: Integer) :> Fraction =>
 	mySubtract(x y)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Bug: kommt die List nicht als Parameter selbst, sondern über einen Feldzugriff
@@ -2537,7 +2538,7 @@ f = (x: Fraction y: Integer) :> Fraction =>
 		const code = `f = (history: [gameStates: List(Integer)]) :> Integer =>
 	lastElement(history/gameStates)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// getElement(values length(values)) liefert bei garantiert nicht-leerer List präzise Integer,
@@ -2548,7 +2549,7 @@ f = (x: Fraction y: Integer) :> Fraction =>
 		const code = `f = (values: List(Integer)) :> Integer =>
 	getElement(values length(values))`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	it('element-at-plus-length-keeps-empty-for-different-source', () => {
@@ -2557,7 +2558,7 @@ f = (x: Fraction y: Integer) :> Fraction =>
 		const code = `f = (values: List(Integer) other: List(Integer)) :> Or([] Integer) =>
 	getElement(values length(other))`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Bug (gefunden 2026-09-13): List(X) schliesst Empty als Typ aus (CLAUDE.md), ein Wert
@@ -2568,7 +2569,7 @@ f = (x: Fraction y: Integer) :> Fraction =>
 		const code = `f = (l: List(Integer)) :> Integer =>
 	x = l/1`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	it('element-at-plus-length-keeps-empty-for-possibly-empty-input', () => {
@@ -2581,7 +2582,7 @@ f = (x: Fraction y: Integer) :> Fraction =>
 		const code = `f = (values: Or([] List(Integer))) :> Or([] Integer) =>
 	getElement(values length(values))`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([
 			{
 				code: ErrorCode.argumentTypeMismatch,
@@ -2604,7 +2605,7 @@ alias = myLast
 f = (values: List(Integer)) :> Integer =>
 	alias(values)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// length deklariert seinen Rückgabetyp über LengthOf(TypeOf(values)) und hat keinen
@@ -2616,7 +2617,7 @@ f = (values: List(Integer)) :> Integer =>
 f = (values: List(Integer)) :> Integer =>
 	getElement(values len(values))`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// setElement deklariert nur :> List(Any) und bekommt seine Präzision ausschließlich aus dem
@@ -2628,7 +2629,7 @@ f = (values: List(Integer)) :> Integer =>
 f = (values: List(Integer)) :> List(Integer) =>
 	se(values 1 §kaputt§)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const messages = (parsed.checked?.errors ?? []).map(error => error.message).join('\n');
 		expect(messages).to.include('Can not assign §kaputt§ to Integer.',
 			'Ein Text an einer List(Integer)-Position muss auch hinter einem Alias auffallen');
@@ -2641,7 +2642,7 @@ f = (values: List(Integer)) :> List(Integer) =>
 		const code = `se = setElement
 x: [1 5] = se([1 §a§] 2 5)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Bug: setElement liefert innerhalb der eigenen Funktionsdefinition (also ohne konkreten
@@ -2660,7 +2661,7 @@ f = (row: List(Integer) index: PositiveInteger value: Integer) :> List(Integer) 
 	newRow = row.setElement(index value)
 	useRow(newRow)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Bug: dasselbe Muster wie bei withElementAt, diesmal bei Concat. Innerhalb der eigenen
@@ -2683,7 +2684,7 @@ f = (chain: Or([] List(Integer)) value: Integer) :> List(Integer) =>
 	]
 	useChain(newChain)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Dasselbe Muster wie bei Concat, diesmal bei TupleOf. map liefert
@@ -2696,7 +2697,7 @@ f = (chain: Or([] List(Integer)) value: Integer) :> List(Integer) =>
 f = (cards: List(Integer)) =>
 	g(cards.map((value: Integer index: Integer) => value))`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Bug: withElementAtFromTypes ignoriert bei Source Empty den tatsächlichen Index und liefert
@@ -2712,7 +2713,7 @@ f = (cards: List(Integer)) =>
 	it('set-element-on-empty-at-literal-index-two-keeps-value-at-correct-position', () => {
 		const code = `x: [[] Integer] = [].setElement(2 5)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Bug: withElementAtFromTypes' case 'empty'/'tuple' setzt bei literalem Index über das
@@ -2729,7 +2730,7 @@ f = (cards: List(Integer)) =>
 		const code = `f = (x: Or(1 2)) :> Integer =>
 	[].setElement(x true).setElement(x false)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(() => checkTypes(parsed, {})).not.to.throw();
+		expect(() => checkTypes(parsed, {}, { cloneUnchecked: false })).not.to.throw();
 	});
 	it('union-deduplicates-function-types', () => {
 		// Zwei branches mit identischer Funktion als Rückgabetyp sollten nicht zu
@@ -2740,7 +2741,7 @@ f = (cards: List(Integer)) =>
 	[1] => (a) => a
 	() => (a) => a`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		// Prüfe, dass der Rückgabetyp des Branchings kein 'or' Typ ist
@@ -2758,7 +2759,7 @@ f = (cards: List(Integer)) =>
 	it('union-collapses-boolean-literal-into-boolean', () => {
 		const code = 'f = (x: Or(Boolean false)) => x';
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2773,7 +2774,7 @@ f = (cards: List(Integer)) =>
 	it('union-collapses-integer-literal-into-integer', () => {
 		const code = 'f = (x: Or(Integer 5)) => x';
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2788,7 +2789,7 @@ f = (cards: List(Integer)) =>
 	it('union-keeps-unrelated-choices', () => {
 		const code = 'f = (x: Or(Text Integer)) => x';
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2806,7 +2807,7 @@ f = (cards: List(Integer)) =>
 	[1] => §eins§
 	[2] => §zwei§`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2823,7 +2824,7 @@ f = (cards: List(Integer)) =>
 	[1] => §eins§
 	() => §andere§`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2841,7 +2842,7 @@ f = (cards: List(Integer)) =>
 	[1] => §eins§
 	[2] => §zwei§`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2858,7 +2859,7 @@ f = (cards: List(Integer)) =>
 	[1] => §eins§
 	[2] => §zwei§`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2880,7 +2881,7 @@ f = (cards: List(Integer)) =>
 	x = assume(1 Any)
 	x`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2900,7 +2901,7 @@ f = (cards: List(Integer)) =>
 		§"hello"§
 	]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2932,7 +2933,7 @@ f = (cards: List(Integer)) =>
 		field
 	]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2960,7 +2961,7 @@ f = (cards: List(Integer)) =>
 `;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const fnDef = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -2987,7 +2988,7 @@ b = 0.50
 c = 1.0`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const typeOf = (index: number) => {
 			const def = parsed.checked?.expressions?.[index] as ParseSingleDefinition;
 			const type = def.value?.typeInfo?.type;
@@ -3007,7 +3008,7 @@ c = 1.0`;
 		const code = `x: [${fieldDeclarations}] = 5`;
 
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const error = parsed.checked?.errors?.[0];
 
 		expect(error?.message).to.include('(and 15 more fields)',
@@ -3025,7 +3026,7 @@ c = 1.0`;
 		const code = `T = [a: Integer b: Text c: Boolean]
 x: T = [a = 1]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
 			'Definition type mismatch.\nCan not assign [a: 1] to T.\n  Missing fields: \'b\', \'c\'.',
@@ -3055,7 +3056,7 @@ x: T = [a = 1]`;
 Outer = [inner: Inner]
 x: Outer = [inner = [a = §wrong§]]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
 			[
@@ -3080,7 +3081,7 @@ x: Outer = [inner = [a = §wrong§]]`;
 		const code = `Inner = [a: [Integer Integer Integer Integer Integer Integer]]
 x: Inner = [a = []]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const messages = parsed.checked?.errors.map(error => error.message);
 		expect(messages).to.deep.equal([
 			[
@@ -3106,7 +3107,7 @@ x: Inner = [a = []]`;
 	it('tuple-literal-element-error-points-at-the-element-not-the-whole-definition', () => {
 		const code = 'x: [Integer Integer Integer] = [1 §wrong§ 3]';
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([
 			{
 				code: ErrorCode.definitionTypeMismatch,
@@ -3125,7 +3126,7 @@ x: Inner = [a = []]`;
 		const code = `f = (a: Integer b: Greater(0)) => a
 f(1 0)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([
 			{
 				code: ErrorCode.argumentTypeMismatch,
@@ -3146,7 +3147,7 @@ f(1 0)`;
 f = (cards: List(Integer)) =>
 	g(cards.map((value: Integer index: Integer) => value))`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const error = parsed.checked?.errors[0];
 		expect(error?.code).to.equal(ErrorCode.argumentTypeMismatch);
 		expect([error?.startColumnIndex, error?.endColumnIndex]).to.deep.equal([3, 54]);
@@ -3164,7 +3165,7 @@ f = (cards: List(Integer)) =>
 	boards = []
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const error = parsed.checked?.errors?.[0];
 
 		// Nach dem Fix: erste Zeile nach "Definition type mismatch." sollte mit
@@ -3186,7 +3187,7 @@ newGameState: GameState = [
 	board = []
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const error = parsed.checked?.errors?.[0];
 
 		expect(error?.message).not.to.include('newGameState to GameState',
@@ -3204,7 +3205,7 @@ newGameState: GameState = [
 	x: List(Integer) = y
 	x`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const error = parsed.checked?.errors?.[0];
 		expect(error?.message).to.include('Can not assign List(Text) to List(Integer).',
 			`Element-Fehler sollte mit dem umschliessenden List-Typ-Paar eingeleitet werden: ${error?.message}`);
@@ -3223,7 +3224,7 @@ newGameState: GameState = [
 	x: Or(Empty List(Integer)) = y
 	x`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const error = parsed.checked?.errors?.[0];
 
 		expect(error?.message).to.include('Or(Empty List(Integer))',
@@ -3240,7 +3241,7 @@ newGameState: GameState = [
 		[a = 1]
 	]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -3265,7 +3266,7 @@ f = (source: T) => [
 	c = true
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
@@ -3290,7 +3291,7 @@ f = (source: T) => [
 		const code = `SourceType = [x: Integer y: Text]
 TargetType = [...SourceType z: Boolean]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
@@ -3310,7 +3311,7 @@ Target = [
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
@@ -3330,7 +3331,7 @@ Target = [
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
@@ -3349,7 +3350,7 @@ Target = [
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const treeDef = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -3365,7 +3366,7 @@ Target = [
 		const code = 'Bad = Or(Integer Bad)';
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors[0]?.message).to.equal(
 			'Circular type definition \'Bad\'. A type can only refer to itself through a field, list, tuple, stream or function.');
@@ -3387,7 +3388,7 @@ f = (t: Tree) => t
 g = (t: Tree2) => f(t)`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Dieselbe Zyklusfalle auf dem zweiten Vergleichspfad: createNormalizedUnionType dedupliziert
@@ -3406,7 +3407,7 @@ Tree2 = [
 Both = Or(Tree Tree2)`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Die Besuchsmenge deckt nur Zyklen ab; eine sehr tiefe, nicht zyklische Verschachtelung läuft
@@ -3427,7 +3428,7 @@ Both = Or(Tree Tree2)`;
 		code += `g = (u: U${depth}) => f(u)`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const messages = parsed.checked?.errors.map(error => error.message) ?? [];
 		expect(messages.some(message => message.includes('excessively deep'))).to.equal(
 			true,
@@ -3446,7 +3447,7 @@ Both = Or(Tree Tree2)`;
 result = [1 §a§].second()`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
 		const resultType = resultDef.value?.typeInfo?.type;
@@ -3462,7 +3463,7 @@ result = [1 §a§].second()`;
 result = [1 §a§].second()`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
 		const resultType = resultDef.value?.typeInfo?.type;
@@ -3474,7 +3475,7 @@ result = [1 §a§].second()`;
 result = [x = §a§].getX()`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
 		const resultType = resultDef.value?.typeInfo?.type;
@@ -3492,7 +3493,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	values.getElement(trigger/effectIndex)`;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors[0]?.message).to.equal(
 			'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign Integer to Greater(0).');
@@ -3503,7 +3504,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// Definition wurde als alreadyDefinedInUpperScope gemeldet (94 Scheinfehler im Editor).
 	it('core-lib checks without errors', () => {
 		const parsed = parseFile(coreLibPath);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked!.errors).to.deep.equal([]);
 	});
 	// Hält den Befund fest, der zu den Purity-Pfeilen geführt hat (docs/pure-functions.md,
@@ -3524,7 +3525,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// geschriebene Pfeil nach der E3-Tabelle damit abgeglichen - kein reines Durchreichen mehr.
 	function purityOfDefinition(code: string, name: string): TypePurity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const type = parsed.checked?.expressions
 			?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === name)
@@ -3536,7 +3537,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// Top-Level-Funktion den eigenen Parameter immer als rein zählen darf (E1).
 	function innerPurityOf(code: string): TypePurity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const outer = parsed.checked?.expressions
 			?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'outer')
@@ -3598,7 +3599,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	it('aus TypeScript importierte Funktion bleibt unknown', () => {
 		const tsPath = 'imported.ts';
 		const parsed = parseCode('export function imported(x: number): number { return x; }\n', tsPath);
-		checkTypes(parsed, { [tsPath]: parsed });
+		checkTypes(parsed, { [tsPath]: parsed }, { cloneUnchecked: false });
 		const type = parsed.checked?.expressions
 			?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'imported')
@@ -3609,13 +3610,13 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// Widerspruch, nicht gegen einen bloß unentscheidbaren Rumpf.
 	it('JUL5101: -> mit beweisbar unreinem Rumpf wird gemeldet', () => {
 		const parsed = parseCode('f = () -> Any => log()', 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors?.[0]?.code).to.equal(ErrorCode.purityMismatch);
 	});
 	it('JUL5101: -> über einem unentscheidbaren Rumpf meldet nichts', () => {
 		const parsed = parseCode('outer = (cb: () :> Any) => () -> Any => cb()', 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	it('JUL5101: der Fehler steht an der Aufrufstelle, nicht an der ganzen Funktion', () => {
@@ -3623,7 +3624,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	1
 	log()`;
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const error = parsed.checked?.errors?.find(e => e.code === ErrorCode.purityMismatch);
 		expect(error).to.not.equal(undefined);
 		// Die Funktion selbst spannt Zeile 0-2 auf - steht der Fehler an "log()" (Zeile 2), nicht
@@ -3637,7 +3638,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// functionCall-Knoten, den letzten im Code, statt über einen sichtbaren Effekt.
 	function callPurityOf(code: string): Purity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		function findLastCall(expression: PositionedExpression): ParseFunctionCall | undefined {
 			return forEachChild(expression, findLastCall)
 				?? (expression.type === 'functionCall' ? expression : undefined);
@@ -3773,7 +3774,7 @@ f(map)`)).to.equal('impure');
 	// geprüften Baum, unabhängig von der Verdrahtung in case 'functionLiteral' (Schritt 3).
 	function bodyPurityOf(code: string, definitionName = 'f'): Purity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const definition = parsed.checked?.expressions
 			?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === definitionName);
@@ -3792,7 +3793,7 @@ f(map)`)).to.equal('impure');
 	// innere Funktion von "outer", nicht "outer" selbst.
 	function innerBodyPurityOf(code: string): Purity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const definition = parsed.checked?.expressions
 			?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'outer');
@@ -3871,7 +3872,7 @@ describe('constant folding', () => {
 	function typeOfLastDefinition(code: string): string | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 		const expressions = parsed.checked?.expressions ?? [];
 		const last = expressions[expressions.length - 1] as ParseSingleDefinition;
@@ -3941,7 +3942,7 @@ describe('constant folding', () => {
 		// Eine Funktion mit festem Rückgabetyp, damit das Ergebnis nicht von den Argumenten abhängt.
 		const parsed = parseCode('r = subtractFloat(§abc§ 1.5f)', 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		const def = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const type = def.value?.typeInfo?.type;
@@ -4050,7 +4051,7 @@ r = spin(0)`)).to.equal('Any');
 	it('ein Parameter mit gleichem Namen wie eine äußere Definition ist JUL4003', () => {
 		const parsed = parseCode('factor = 99\nf = (factor: Integer) => factor.multiply(2)\nr = f(4)', 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors?.[0]?.code).to.equal(ErrorCode.alreadyDefinedInUpperScope);
 	});
@@ -4105,7 +4106,7 @@ const conditionalWithoutCatchAll = 'n = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n
 describe('bedingte Typen', () => {
 	function check(code: string) {
 		const parsed = parseCode(code, 'dummy.jul');
-		checkTypes(parsed, {});
+		checkTypes(parsed, {}, { cloneUnchecked: false });
 		return parsed;
 	}
 

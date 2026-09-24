@@ -61,7 +61,7 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 		const start = performance.now();
 		julFiles.forEach(filePath => {
 			try {
-				loadFile(filePath, {}, createFileSystemHost());
+				loadFile(filePath, {}, createFileSystemHost({ cloneUnchecked: false }));
 			}
 			catch {
 				// Fehlerhafte Beispiele sind im Snapshot festgehalten, hier nur Laufzeit relevant

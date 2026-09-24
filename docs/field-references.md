@@ -42,7 +42,7 @@ fließen (`x = [name = 1]` und dann `f(x)`), siehe Frage 3.
   ([util.ts](../../jul-language-server/src/util.ts)). Go-to-Definition auf `[name = …]`
   springt deshalb schon heute zu `MyType.name`. Das hilft dem Index aber nicht, er wird im Checker
   gefüllt.
-- Die CLI legt keinen `ReferenceIndex` an (`createFileSystemHost()` ohne Argument). Alles, was
+- Die CLI legt keinen `ReferenceIndex` an (`createFileSystemHost` ohne `referenceIndex`). Alles, was
   nur bei aktivem Index läuft, kostet die CLI nichts.
 
 ## Voraussetzung

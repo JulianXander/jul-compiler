@@ -115,3 +115,5 @@
 2026-09-24 18:55:49	a859d87+	-	ADV-DEV-56627	yugioh	parse+check	5	3778.63	4272.43	4272.43	erwarteter typ
 2026-09-24 19:32:57	aa873a6+	-	ADV-DEV-56627	yugioh	parse+check	5	3668.01	3909.50	3909.50	vor CheckRun-Umbau
 2026-09-24 19:35:14	aa873a6+	-	ADV-DEV-56627	yugioh	parse+check	5	3561.63	3870.33	3870.33	nach CheckRun-Umbau
+2026-09-24 19:45:43	4d0d742+	-	ADV-DEV-56627	yugioh	parse+check	5	3919.89	3941.18	3941.18	onProgress-Haken in inferType
+2026-09-24 20:34:09	4d0d742+	-	ADV-DEV-56627	yugioh	parse+check	5	1204.95	1548.08	1548.08	Bench wie CLI ohne Klon von unchecked (cloneUnchecked: false)

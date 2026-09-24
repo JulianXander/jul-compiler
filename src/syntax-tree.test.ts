@@ -10,7 +10,7 @@ import { checkTypes } from './checker/checker.js';
 
 function parse(code: string): PositionedExpression[] {
 	const parsed = parseCode(code, 'test.jul');
-	checkTypes(parsed, {});
+	checkTypes(parsed, {}, { cloneUnchecked: false });
 	return parsed.checked!.expressions ?? [];
 }
 

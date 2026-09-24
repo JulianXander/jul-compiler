@@ -18,7 +18,7 @@ describe('formatErrors', () => {
 	// unsichtbarer Steuerzeichen und schon bei harmlosen Farbänderungen im Code hinfällig.
 	const filePath = join(resolve('/format-errors-test'), 'main.jul');
 	function hostWith(code: string) {
-		return createInMemoryHost({ [filePath]: code });
+		return createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false });
 	}
 	const defaultHost = hostWith('a: Integer = 4\nb: Text = 5\n');
 
