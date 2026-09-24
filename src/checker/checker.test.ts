@@ -1793,6 +1793,24 @@ f(...namedArgs)`,
 			],
 		},
 		{
+			// Empty trägt beim Spread keine Felder bei. Aus Or([] [a: Integer]) werden [c: 1] und
+			// [a: Integer c: 1], zusammengefasst [c: 1].
+			name: 'dictionary-spread-of-possibly-empty-value',
+			code: `f = (s: Or([] [a: Integer])) =>
+	x: Empty = [...s c = 1]
+	x`,
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign [c: 1] to Empty.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 24,
+				},
+			],
+		},
+		{
 			// Wechsel des Diskriminators per Spread: kommt der Wert aus einer Choice ohne
 			// attackerId, fehlt das Feld, das die Ziel-Choice zu §attack§ verlangt.
 			name: 'dictionary-spread-of-union-checks-each-choice',

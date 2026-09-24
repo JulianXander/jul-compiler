@@ -2462,9 +2462,15 @@ function inferType(
 			return { type: builtinAny };
 		}
 		case 'dictionary': {
-			// Je Choice einer gespreadeten Union eine eigene Feldmenge, ohne Union genau eine.
-			let fieldTypeChoices: CompileTimeDictionary[] = [{}];
-			let isUnknownType = false;
+			const aliasName = getNameFromValue(expression);
+			const createDictionary = (fieldTypes: CompileTimeDictionary) => createCompileTimeDictionaryLiteralType(
+				fieldTypes,
+				true,
+				{ expression: expression, filePath: filePath },
+				aliasName);
+			// Das Literal entsteht von links nach rechts: jedes Feld und jeder Spread wird auf das
+			// bisherige Ergebnis gemergt. undefined heißt, der Typ ist nicht mehr entscheidbar.
+			let literalType: CompileTimeType | undefined = createDictionary({});
 			expression.fields.forEach(field => {
 				const value = field.value;
 				if (value) {
@@ -2482,9 +2488,8 @@ function inferType(
 							return;
 						}
 						const fieldType = field.value?.typeInfo?.type ?? builtinAny;
-						for (const fieldTypes of fieldTypeChoices) {
-							fieldTypes[fieldName] = fieldType;
-						}
+						literalType = literalType
+							&& spreadDictionaryTypes(literalType, createDictionary({ [fieldName]: fieldType }), createDictionary);
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
@@ -2496,24 +2501,10 @@ function inferType(
 						// resolvePlaceholders nötig: sonst wird z.B. eine Parameter-Typreferenz
 						// nicht als dictionaryLiteral erkannt und der gesamte Literal-Typ fällt
 						// still auf Any zurück (verschluckt dann jeden Folgefehler).
-						const valueType = value?.typeInfo && resolveAlias(resolvePlaceholders(value.typeInfo.type));
-						// Eine Union aus Dictionaries verteilt sich über ihre Choices: jede bisherige
-						// Feldmenge wird mit jeder Choice fortgesetzt.
-						// TODO DictionaryType, Empty als Choice etc ?
-						const spreadChoices = isDictionaryLiteralType(valueType)
-							? [valueType]
-							: valueType && isUnionType(valueType)
-								? valueType.ChoiceTypes.map(resolveAlias)
-								: undefined;
-						if (!spreadChoices?.every(isDictionaryLiteralType)) {
-							isUnknownType = true;
-							return;
-						}
-						fieldTypeChoices = fieldTypeChoices.flatMap(fieldTypes =>
-							spreadChoices.map(spreadChoice => ({
-								...fieldTypes,
-								...spreadChoice.Fields,
-							})));
+						const valueType = value?.typeInfo && resolvePlaceholders(value.typeInfo.type);
+						literalType = literalType
+							&& valueType
+							&& spreadDictionaryTypes(literalType, valueType, createDictionary);
 						return;
 					default: {
 						const assertNever: never = field;
@@ -2521,19 +2512,7 @@ function inferType(
 					}
 				}
 			});
-			if (isUnknownType) {
-				return { type: builtinAny };
-			}
-			const aliasName = getNameFromValue(expression);
-			const dictionaryTypes = fieldTypeChoices.map(fieldTypes => createCompileTimeDictionaryLiteralType(
-				fieldTypes,
-				true,
-				{ expression: expression, filePath: filePath },
-				aliasName));
-			const rawType = dictionaryTypes.length === 1
-				? dictionaryTypes[0]!
-				: createNormalizedUnionType(dictionaryTypes);
-			return { type: rawType };
+			return { type: literalType ?? builtinAny };
 		}
 		case 'dictionaryType': {
 			const fieldTypes: CompileTimeDictionary = {};
@@ -4042,6 +4021,44 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	}
 	//#endregion collapse Streams
 	return createCompileTimeUnionType(collapsedStreamChoices);
+}
+
+/**
+ * Der Typ von [...left ...right]: Felder von right überschreiben gleichnamige von left.
+ * Eine Union verteilt sich über ihre Choices, auf jeder Seite. Empty trägt keine Felder bei.
+ * Liefert undefined, wenn eine Seite kein Dictionary-Literal ist - dann ist nichts entscheidbar.
+ */
+function spreadDictionaryTypes(
+	rawLeft: CompileTimeType,
+	rawRight: CompileTimeType,
+	createDictionary: (fieldTypes: CompileTimeDictionary) => CompileTimeType,
+): CompileTimeType | undefined {
+	const left = resolveAlias(rawLeft);
+	const right = resolveAlias(rawRight);
+	const distributed = isUnionType(left)
+		? left.ChoiceTypes.map(choice => spreadDictionaryTypes(choice, right, createDictionary))
+		: isUnionType(right)
+			? right.ChoiceTypes.map(choice => spreadDictionaryTypes(left, choice, createDictionary))
+			: undefined;
+	if (distributed) {
+		return distributed.every(isDefined)
+			? createNormalizedUnionType(distributed)
+			: undefined;
+	}
+	if (right.julType === 'empty') {
+		return left;
+	}
+	if (left.julType === 'empty') {
+		return right;
+	}
+	if (isDictionaryLiteralType(left)
+		&& isDictionaryLiteralType(right)) {
+		return createDictionary({
+			...left.Fields,
+			...right.Fields,
+		});
+	}
+	return undefined;
 }
 
 function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeType {
