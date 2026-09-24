@@ -2468,9 +2468,20 @@ function inferType(
 				true,
 				{ expression: expression, filePath: filePath },
 				aliasName);
-			// Das Literal entsteht von links nach rechts: jedes Feld und jeder Spread wird auf das
-			// bisherige Ergebnis gemergt. undefined heißt, der Typ ist nicht mehr entscheidbar.
+			// Das Literal entsteht von links nach rechts: jeder Spread wird auf das bisherige Ergebnis
+			// gemergt. undefined heißt, der Typ ist nicht mehr entscheidbar.
 			let literalType: CompileTimeType | undefined = createDictionary({});
+			// Aufeinanderfolgende Felder werden gesammelt und erst vor dem nächsten Spread bzw. am
+			// Ende gemergt. Ein Merge je Feld kopiert jedes Mal alle Felder und normalisiert eine
+			// Union jedes Mal neu, das hat parse+check von yugioh mehr als verdreifacht.
+			let pendingFieldTypes: CompileTimeDictionary = {};
+			const mergePendingFields = () => {
+				if (Object.keys(pendingFieldTypes).length) {
+					literalType = literalType
+						&& spreadDictionaryTypes(literalType, createDictionary(pendingFieldTypes), createDictionary);
+					pendingFieldTypes = {};
+				}
+			};
 			expression.fields.forEach(field => {
 				const value = field.value;
 				if (value) {
@@ -2488,8 +2499,7 @@ function inferType(
 							return;
 						}
 						const fieldType = field.value?.typeInfo?.type ?? builtinAny;
-						literalType = literalType
-							&& spreadDictionaryTypes(literalType, createDictionary({ [fieldName]: fieldType }), createDictionary);
+						pendingFieldTypes[fieldName] = fieldType;
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
@@ -2502,6 +2512,7 @@ function inferType(
 						// nicht als dictionaryLiteral erkannt und der gesamte Literal-Typ fällt
 						// still auf Any zurück (verschluckt dann jeden Folgefehler).
 						const valueType = value?.typeInfo && resolvePlaceholders(value.typeInfo.type);
+						mergePendingFields();
 						literalType = literalType
 							&& valueType
 							&& spreadDictionaryTypes(literalType, valueType, createDictionary);
@@ -2512,6 +2523,7 @@ function inferType(
 					}
 				}
 			});
+			mergePendingFields();
 			return { type: literalType ?? builtinAny };
 		}
 		case 'dictionaryType': {
