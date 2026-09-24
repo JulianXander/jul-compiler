@@ -57,9 +57,9 @@ zuordnen.
 
 Zwei Arten von Einträgen, beide im Checker und nur bei aktivem Index:
 
-1. **Kontext-Referenz.** Hat ein Feld eines Dictionary-Literals einen erwarteten Typ, weil das
-   Literal einen hat, wird der Feldname als Referenz auf das Feld des erwarteten Typs
-   eingetragen. Das deckt `a: MyType = [name = …]`, `f([name = …])`, `List(MyType)`,
+1. **Kontext-Referenz.** Hat ein Dictionary-Literal einen erwarteten Typ, wird jeder
+   ausgeschriebene Feldname als Referenz auf das Feld des erwarteten Typs eingetragen, bei einer
+   Union auf das Feld jedes passenden Zweigs (Frage 2). Das deckt `a: MyType = [name = …]`, `f([name = …])`, `List(MyType)`,
    verschachtelte Literale und den Rückgabewert ab.
 2. **Verknüpfung.** Zusätzlich merkt sich der Index, dass das Feldsymbol des Literals und das Feld
    des Zieltyps zusammengehören (TypeScript nennt das „related symbols“). `getReferences` liefert
@@ -71,7 +71,7 @@ Der Index wird damit n:1: eine Fundstelle kann mehreren Symbolschlüsseln gehör
 Verknüpfung ist ein Hop vom Typfeld zu den Literalfeldern, nicht transitiv (Frage 2). Sie lebt in
 der Datei des Literals und wird mit `clearReferencesFromFile` dieser Datei wieder entfernt.
 
-## Offene Fragen
+## Entscheidungen
 
 ### 1. Destructuring ohne Alias: `(name) = a` — entschieden
 
@@ -94,75 +94,109 @@ eine eigene Identität.
 Dieselbe Konfliktregel gilt dann sinnvollerweise auch für den Import. Ob Rename dort heute einen
 Konflikt erzeugt, ist noch zu prüfen.
 
-### 2. Zieltyp ist eine Union: `x: Or(A B) = [name = 1]`
+### 2. Zieltyp ist eine Union — entschieden
 
 Ausgangspunkt für alle Beispiele:
 
 ```jul
 Person = [name: Text age: Integer]
 Pet = [name: Text species: Text]
+x: Or(Person Pet) = [name = §Ada§ age = 36]                  # passt nur zu Person
+y: Or(Person Pet) = [name = §Rex§ age = 3 species = §Hund§]  # passt zu beiden
 ```
 
-`getFieldSymbolsFromDictionaryType` liefert bei `or` die Felder aller Zweige, die `name`
-deklarieren, hier also `Person.name` und `Pet.name`. Die Frage ist, wie viel davon das Literal
-abbekommt.
+**Mit welchen Zweigen wird ein Literalfeld verknüpft?** Mit allen Zweigen, die nach dem
+Aussortieren übrig bleiben und das Feld deklarieren. Aussortiert wird wie beim erwarteten Typ
+(`narrowExpectedTypeByFields`), erweitert um fehlende Felder:
 
-**Fall A: Das Literal passt nur zu einem Zweig.**
+- Ein Zweig fällt weg, wenn ein geschriebenes Feld seinem Feldtyp widerspricht (`getTypeError` je
+  Feld).
+- Ein Zweig fällt weg, wenn er ein Feld verlangt, das im Literal fehlt. Das ist ein Namensvergleich
+  ohne `getTypeError`. Ein Feld, dessen Typ `Empty` zulässt (`Or([] X)`), darf fehlen.
+
+Bei `x` fällt `Pet` weg, weil `species` fehlt, bei `y` bleiben beide. Ein Widerspruch tief in einem
+verschachtelten Wert wird übersehen, das ist dieselbe Unschärfe wie beim erwarteten Typ.
+
+Verworfen:
+
+- **alle Zweige, die das Feld deklarieren:** `x/name` hinge dann an `Pet.name`, ein Rename von
+  `Pet.name` machte `x` zu einem Literal, das zu keinem Zweig passt.
+- **nur zuweisbare Zweige mit vollem `getTypeError`:** exakt, aber das ganze Literal je Zweig bei
+  jedem Tastendruck im Language Server.
+- **Unions gar nicht verknüpfen:** lässt gerade diskriminierte Unions aus, den häufigen Fall.
+
+TypeScript macht es ähnlich: Es verengt über die Diskriminanten
+(`discriminateContextualTypeByObjectMembers`) und verknüpft mit allen verbleibenden Zweigen, die
+die Eigenschaft deklarieren (`getPropertySymbolsFromContextualType`), prüft aber nicht auf fehlende
+Felder.
+
+**Die Verknüpfung ist nicht transitiv.** `y` hängt an `Person.name` und an `Pet.name`, die beiden
+hängen dadurch nicht aneinander. Sonst benennte ein Rename von `Person.name` jedes Haustier im
+Projekt um, nur weil irgendwo ein Literal zufällig beides ist. Ein Rename von `Person.name` macht aus
+`y` ein `[label = … age = 3 species = …]`, das ist kein `Pet` mehr, aber noch eine `Person`, und
+`Or` verlangt nur einen Zweig.
+
+**Rename von einer mehrdeutigen Stelle** (Cursor auf `name` in `y` oder auf `y/name`) benennt alle
+verknüpften Typfelder um, hier `Person.name` und `Pet.name` samt allem, was an ihnen hängt. So
+verhält sich meines Wissens auch TypeScript bei einer Union-Eigenschaft. Damit der Nutzer sieht,
+dass ein Typ betroffen ist, an den er vielleicht nicht gedacht hat, tragen die Änderungen über den
+ersten Typ hinaus eine `changeAnnotation` mit `needsConfirmation` (etwa „Feld auch in Pet“). VS Code
+zeigt dann die Refactoring-Vorschau, in der jede Änderung abwählbar ist. Das ist etwa wichtig,
+wenn `Pet` die Antwort eines Servers beschreibt und der Checker die Daten nicht sieht.
+
+Find-All-References von einer mehrdeutigen Stelle zeigt die Fundstellen aller verknüpften
+Typfelder.
+
+### 3. Werte, die über Variablen fließen — entschieden: nicht verknüpfen
 
 ```jul
-x: Or(Person Pet) = [name = §Ada§ age = 36]
+MyType = [name: Text]
+f = (v: MyType) => v/name
+x = [name = §Ada§]      # kein Typguard, das Literal hat keinen erwarteten Typ
+f(x)
 ```
 
-Das Literal ist eine `Person`, für `Pet` fehlt `species`. Würde das Literalfeld trotzdem mit
-`Pet.name` verknüpft, zöge ein Rename von `Pet.name` zu `nickname` dieses Literal mit:
-`[nickname = §Ada§ age = 36]` ist dann keine `Person` mehr und auch kein `Pet`, der Code hat einen
-Fehler. Außerdem zeigte Find-All-References auf `Pet.name` eine Person an. Deshalb: nur mit den
-Zweigen verknüpfen, denen das Literal zuweisbar ist, hier nur mit `Person.name`.
+Verknüpft werden nur Literale, die direkt an einer typisierten Stelle stehen. Ein Rename von
+`MyType.name` lässt `x` stehen, der Fehler erscheint dann bei `f(x)` und nennt das fehlende Feld.
+Wer die Verknüpfung will, schreibt den Typguard: `x: MyType = [name = §Ada§]`. So verhalten sich
+auch TypeScript, Flow und Pyright (`TypedDict`). Sprachen mit nominalen Struct-Literalen (Rust,
+Kotlin, C#) kennen das Problem nicht, das Literal nennt dort seinen Typ.
 
-**Fall B: Das Literal passt zu beiden Zweigen.**
+Verworfen:
 
-```jul
-y: Or(Person Pet) = [name = §Rex§ age = 3 species = §Hund§]
-```
+- **Über den Datenfluss verknüpfen:** In JUL billig, weil der Typ eines Dictionary-Literals seine
+  Deklaration mitträgt. Aber die Reichweite ist nicht kontrollierbar: Landet `x` bei `f` und bei
+  `g = (w: OtherType) => …`, hängt das Literal an beiden Typen, und ein Rename von `MyType.name`
+  bricht `g(x)`. Werte laufen außerdem durch generische Funktionen und Listen und sammeln so
+  Verknüpfungen im ganzen Projekt.
+- **Nur Find-All-References über den Datenfluss, Rename nicht:** Beide Funktionen wären sich
+  uneinig, und LSP kann „nur informativ“ nicht kennzeichnen.
 
-Das Literal ist beides. Es wird mit `Person.name` und mit `Pet.name` verknüpft, beide
-Find-All-References zeigen es. Ein Rename von `Person.name` zu `fullName` macht daraus
-`[fullName = §Rex§ age = 3 species = §Hund§]`. Das ist kein `Pet` mehr, aber noch eine `Person`,
-und `Or` verlangt nur einen der beiden. Der Code bleibt gültig.
+Möglicher Ausbau, falls weitergereichte Literale im Alltag oft fehlen: über den Datenfluss
+verknüpfen, ein Rename nimmt ein solches Literal aber nur mit, wenn alle seine Verknüpfungen auf
+dasselbe Typfeld zeigen. Sonst bleibt es stehen, und der Rename warnt. Vorbild sind die „dynamic
+usages“ in WebStorm/IntelliJ, die getrennt angezeigt und beim Rename abgefragt werden.
 
-Daraus folgt: Die Verknüpfung darf **nicht transitiv** sein. Das Literalfeld hängt an beiden,
-aber `Person.name` und `Pet.name` hängen dadurch nicht aneinander. Wäre sie transitiv, benennte
-ein Rename von `Person.name` auch `Pet.name` um, und damit jedes Haustier im ganzen Projekt, nur
-weil irgendwo ein Literal zufällig beides ist.
+### 4. Wohin springt Go-to-Definition bei `d = a/name`? — entschieden: zum Typfeld
 
-**Offen bleibt der Rename vom Literal aus.** Steht der Cursor auf `name` in `y` oder auf `y/name`,
-meint die Stelle beide Felder zugleich. Möglich sind:
+Mit `a: MyType = [name = §x§]` springt Go-to-Definition auf `name` in `a/name` zu `MyType.name`,
+nicht wie heute zum Literalfeld. Allgemein: Ist das Literalfeld verknüpft, sind die verknüpften
+Typfelder das Ziel, bei einer mehrdeutigen Stelle alle (VS Code zeigt dann die Peek-Ansicht). Ohne
+Verknüpfung, etwa bei `x = [name = …]` ohne Typguard, bleibt das Literalfeld das Ziel.
 
-- beide Typfelder umbenennen, mit allem, was an ihnen hängt, denn der Nutzer hat eine Stelle
-  gewählt, die beides ist
-- nur das Literal und seine Zugriffe umbenennen. Das ist gültig, solange das Literal danach noch
-  zu einem Zweig passt, hier also nicht: `[label = … age = 3 species = …]` ist weder `Person` noch
-  `Pet`.
-- den Rename ablehnen mit der Meldung, dass die Stelle mehrdeutig ist
+Begründung:
 
-Empfehlung: nur mit den zuweisbaren Zweigen verknüpfen, nicht transitiv. Beim Rename von einer
-mehrdeutigen Stelle aus beide Typfelder umbenennen.
+- Einheitlich mit dem Parameterfall: `value/name` mit `value: MyType` springt schon heute zu
+  `MyType.name`. Ob der Typ an einem Parameter oder an einer Definition steht, sieht der Nutzer
+  dem Zugriff nicht an.
+- Dasselbe Ziel, das Rename und Find-All-References als eigentliche Deklaration behandeln.
+- So verhalten sich TypeScript, Rust, Kotlin und C#.
+- Der Wert bleibt einen Schritt entfernt: Go-to-Definition auf `a` führt zur Definition mit dem
+  Literal. Umgekehrt führt Go-to-Definition auf `name` im Literal schon heute zu `MyType.name`
+  (Fall `singleDictionaryField` in [server.ts](../../jul-language-server/src/server.ts)).
 
-### 3. Werte, die über Variablen fließen
-
-`x = [name = 1]` und dann `f(x)` mit `f = (v: MyType) => …`: Soll `x/name` bzw. das Literal zu
-`MyType.name` gehören? TypeScript verknüpft nur kontextuell typisierte Literale, keine Werte, die
-später irgendwohin fließen. Ein Rename lässt dort das Literal stehen, der Fehler erscheint dann
-bei `f(x)`.
-
-Empfehlung: nicht verknüpfen, genau wie TypeScript. Sonst verknüpft ein einziger Aufruf beliebig
-entfernte Typen miteinander.
-
-### 4. Zu welchem Zweig zeigt Go-to-Definition bei `d = a/name`?
-
-Heute springt Go-to-Definition zum Literalfeld in `a: MyType = [name = §x§]`. Nach der
-Verknüpfung wäre auch `MyType.name` begründbar. Empfehlung: unverändert lassen, das Literal ist
-die Stelle, an der der Wert entsteht. Find-All-References zeigt ohnehin beide.
+Verworfen: beim Literalfeld lassen (uneinheitlich mit dem Parameterfall) und beide Ziele liefern
+(Peek-Ansicht bei jedem Sprung, obwohl meist genau eines gemeint ist).
 
 ### 5. Welche Stellen zählen?
 
@@ -199,7 +233,9 @@ Die Tests prüfen `getReferences(MyType.name)` auf die erwarteten Zeilen:
 | über Dateigrenzen | Literal in `b.jul`, `MyType` aus `a.jul` importiert | rot |
 | Destructuring mit Alias | `(n = name) = a` | rot, `name` zählt |
 | Destructuring ohne Alias | `(name) = a` | rot, `name` zählt |
-| Union als Ziel | `x: Or(MyType Other) = [name = 1]` | hängt an Frage 2 |
+| Union, ein passender Zweig | `x: Or(Person Pet) = [name = §Ada§ age = 36]`: liegt bei `Person.name`, nicht bei `Pet.name` | rot |
+| Union, beide Zweige passen | `y: Or(Person Pet) = [name = §Rex§ age = 3 species = §Hund§]`: liegt bei beiden | rot |
+| Union, Widerspruch | `z: Or([kind: §a§ name: Text] [kind: §b§ name: Text]) = [kind = §a§ name = §x§]`: nur beim ersten Zweig | rot |
 
 Gegenproben, die grün sein und grün bleiben müssen:
 
@@ -212,33 +248,54 @@ Gegenproben, die grün sein und grün bleiben müssen:
 
 Rote Tests laufen lassen, den Output zeigen, anhalten.
 
-### 3. Kontext-Referenzen eintragen
+### 3. Aussortieren um fehlende Felder erweitern
 
-Im Fall `dictionary` für jedes ausgeschriebene Feld mit erwartetem Typ `recordFieldReference`
-gegen diesen Typ aufrufen, nur bei aktivem Index. Danach sind alle Tests grün außer „Zugriff über
+`narrowExpectedTypeByFields` sortiert zusätzlich Zweige aus, die ein Feld verlangen, das im
+Literal nicht ausgeschrieben ist. Verlangt heißt: Der Feldtyp lässt `Empty` nicht zu, denn ein Feld
+vom Typ `Or([] X)` darf fehlen. Die ausgeschriebenen Feldnamen stehen syntaktisch fest, dafür
+zählen alle Felder des Literals, nicht nur die vorherigen. Ein Spread im Literal schaltet diese
+Prüfung ab, seine Felder sind nicht ausgeschrieben.
+
+Davon profitiert auch der erwartete Typ. Deshalb vorher ein roter Test in `checker.test.ts`, Region
+`erwarteter Typ`:
+
+```jul
+x: Or([name: Text age: Integer cb: (v: Integer) :> Text]  [name: Text species: Text cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]
+```
+
+`species` fehlt, also bleibt nur der erste Zweig, `v` ist `Integer`, und der Rückgabewert ist kein
+`Text`. Heute bleibt `v` ohne Typ, weil zwei Funktionszweige übrig sind.
+
+### 4. Kontext-Referenzen eintragen
+
+Im Fall `dictionary`, nachdem alle Felder inferiert sind, das Literal mit seinen Feldern gegen
+seinen erwarteten Typ aussortieren und für jedes ausgeschriebene Feld `recordFieldReference`
+gegen das Ergebnis aufrufen, nur bei aktivem Index. Danach sind alle Tests grün außer „Zugriff über
 typisierte Variable“ und den beiden Destructuring-Tests.
 
-### 4. Destructuring
+### 5. Destructuring
 
 Im Fall `destructuring` das Feld-Token (`source` beim Alias, sonst `name`) als Referenz auf das
 Feld des Werttyps eintragen. Ohne Alias ist der lokale Name dabei das Feld selbst (Frage 1).
 
-### 5. Verknüpfung im Index
+### 6. Verknüpfung im Index
 
 `ReferenceIndex` bekommt eine Verknüpfung Typfeld → Literalfelder (ein Hop, nicht transitiv, je
 Datei entfernbar). `getReferences` auf einem Typfeld liefert die eigenen Fundstellen, die
 Deklarationen der verknüpften Literalfelder und deren Fundstellen. Danach ist auch „Zugriff über
 typisierte Variable“ grün.
 
-### 6. Sprachserver
+### 7. Sprachserver
 
 `resolveRenameTarget` löst ein Literalfeld über die Verknüpfung auf das Typfeld auf, bei einer
 mehrdeutigen Stelle auf alle (Frage 2). Rename benennt dabei auch die verknüpften Literalfelder
-um, und beim Destructuring ohne Alias gilt die Konfliktregel aus Frage 1. Abgedeckt wird das
+um, und beim Destructuring ohne Alias gilt die Konfliktregel aus Frage 1. Go-to-Definition auf
+einen Zugriff wie `a/name` liefert die verknüpften Typfelder (Frage 4). Änderungen, die über den
+ersten Typ hinausgehen, tragen eine `changeAnnotation` mit `needsConfirmation`. Abgedeckt wird das
 über neue Einträge im LSP-Snapshot (References und Rename auf `MyType.name`, auf einem
-Literalfeld und auf `d = a/name`).
+Literalfeld und auf `d = a/name`, Go-to-Definition auf `d = a/name`).
 
-### 7. Nachher-Messung und Aufräumen
+### 8. Nachher-Messung und Aufräumen
 
 LSP-Bench mit `--save`. Den TODO-Punkt entfernen, falls danach nichts mehr offen ist.
 
@@ -250,6 +307,12 @@ LSP-Bench mit `--save`. Den TODO-Punkt entfernen, falls danach nichts mehr offen
 - **Zu weite Verknüpfung:** Jede Verknüpfung über Unions (Frage 2) vergrößert, was ein Rename
   anfasst. Eine falsche Verknüpfung ist schlimmer als eine fehlende, denn sie benennt fremden Code
   um. Im Zweifel nicht verknüpfen.
+- **Zugriff auf eine Union:** `u/name` mit `u: Or(Pet Robot)` hängt an `Pet.name` und an
+  `Robot.name`. Ein Rename von `Pet.name` benennt den Zugriff mit um, `Robot.name` aber nicht, und
+  der Robot-Zweig hat danach kein passendes Feld mehr. Das gilt für jeden Rename eines Felds, das
+  auch in einer Union vorkommt, nicht nur von einer mehrdeutigen Stelle aus, und TypeScript hat
+  dieselbe Grenze. Gelöst würde es nur durch Transitivität über Union-Zugriffe, und die ist
+  ausgeschlossen (Frage 2). Nicht in diesem Plan.
 - **Veraltete Einträge über Dateigrenzen:** Das Literal in `b.jul` verweist auf `MyType` in
   `a.jul`. Solange die transitive Invalidierung nur beim Speichern läuft, sieht `b.jul` eine
   Änderung an `a.jul` erst dann. Das ist dieselbe Einschränkung wie für die bestehenden
