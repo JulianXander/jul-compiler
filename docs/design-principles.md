@@ -9,17 +9,54 @@ sondern eine Beschreibung. Belegt sind sie an Fragen, die tatsächlich so entsch
 
 ## Kurzfassung
 
-1. **Klarheit** — Was im Code steht, ist was der Code macht
-2. **Freiheit** — Unwissen ist keine Ablehnung, keine gültigen Programme verbieten
-3. **Einheitlichkeit** — Keine Ausnahmen, keine Alternativen für dieselbe Sache
-4. **Endzustand** — Umstellungskosten sind kein Kriterium
+1. **Pragmatismus** — Realer Nutzen in echten Programmen vor theoretischer Reinheit
+2. **Klarheit** — Was im Code steht, ist was der Code macht
+3. **Freiheit** — Unwissen ist keine Ablehnung, keine gültigen Programme verbieten
+4. **Einheitlichkeit** — Keine Ausnahmen, keine Alternativen für dieselbe Sache
+5. **Endzustand** — Umstellungskosten sind kein Kriterium
 
 Die Reihenfolge ist die praktizierte Rangfolge aus dem Kollisions-Abschnitt unten; wo dort nichts
 belegt ist, ist die Position ein Erfahrungswert, kein gemessener Wert.
 
 ## Die Prinzipien im Detail
 
-### 1. Klarheit
+### 1. Pragmatismus
+
+Eine Sprachentscheidung muss sich an echtem Code bewähren, nicht an Symmetrie, Vollständigkeit
+oder Eleganz des Regelwerks. Eine Regel, die im realen Schreiben, Lesen und Ändern von Programmen
+stört, ist falsch, auch wenn sie formal sauber ist.
+
+#### Details
+
+- **Realer Anlass:** Ein Konstrukt wird eingeführt, verboten oder umgebaut, weil ein realer Fall
+  es verlangt — nicht „der Ordnung halber". Fehlt der Fall, bleibt die Frage liegen.
+- **Pragmatismus ist nicht Kürze:** Zum Gebrauch gehört das Lesen und Verstehen. Ein Konstrukt, das
+  Zeichen spart und dafür die Bedeutung verschleiert, ist nicht nützlich, sondern bequem.
+  Deshalb verlor das Auto-Spread im Branching, obwohl es kürzer war.
+- **Abgrenzung zu Endzustand:** Endzustand schließt *Umstellungskosten* als Argument aus, Pragmatismus
+  wägt den *Gewinn*. Beides zusammen: Was dauerhaft besser zu benutzen ist, wird umgesetzt, egal
+  was die Migration kostet.
+
+#### Beispiele
+
+- **Editierbarkeit:** Beim mehrzeiligen Funktionskopf darf `=>` eine eigene Zeile beginnen, auch
+  ohne umgebrochene Rückgabetypzeile davor, damit das Löschen oder Auskommentieren dieser Zeile
+  keine Umformatierung an anderer Stelle erzwingt (siehe Kollisionen).
+- **Neue Syntax erst bei realem Bedarf:** Bedingte Typen sind mit `Or`/`And`/`TypeOf`
+  ausdrückbar; eigene Syntax (`:?`) ist erst dran, wenn ein realer Fall ausgeschrieben unlesbar
+  bleibt.
+- **if ohne else:** Erzwungene Exhaustivität würde den alltäglichen Fall bedingter Ausführung
+  verbieten, nur um eine Invariante zu garantieren (siehe Freiheit).
+
+#### Kosten
+
+Asymmetrien und Lücken bleiben stehen, bis jemand in echtem Code darüber stolpert; die Sprache
+wächst auf Nachfrage, nicht nach Plan. Und die Entscheidungen hängen an der Stichprobe: yugioh
+und jul-examples sind wenig Code von wenigen Autoren.
+
+---
+
+### 2. Klarheit
 
 Der Leser muss die Bedeutung einer Stelle aus dem ableiten können, was dort steht. WYSIWYG: Es gibt keine verborgene Regel, die die Bedeutung von außen ändert.
 
@@ -43,7 +80,7 @@ Zeichen und Wiederholung (`?(x)` ist länger als `x ?`); Parser-Aufbau für gute
 
 ---
 
-### 2. Freiheit
+### 3. Freiheit
 
 Wo der Checker etwas nicht auflösen kann, fällt er zugunsten des Programms aus: Union statt Auswahl, weiter Typ statt enger, kein Fehler statt falscher Fehler. Auf Sprachebene heißt dasselbe Prinzip: Ein semantisch sinnvolles, gültiges Programm wird nicht verboten, nur um eine designmäßige Invariante zu erzwingen.
 
@@ -69,7 +106,7 @@ Verpasste Fehler beim Checker — das ist der bewusste Preis. Auf Sprachebene: k
 
 ---
 
-### 3. Einheitlichkeit
+### 4. Einheitlichkeit
 
 Wenn ein neues Konstrukt einen Sonderfall in einer bestehenden Regel braucht, ist zuerst die Regel zu ändern. Zwei Schreibweisen für dasselbe sind ebenso keine Ausnahme, sondern derselbe Fehler: eine Entscheidung, die jeder Leser und Schreiber jedes Mal neu treffen muss.
 
@@ -93,7 +130,7 @@ Umstellung der gesamten Codebasis (die Klammer-Regel brauchte ein Migrationswerk
 
 ---
 
-### 4. Endzustand
+### 5. Endzustand
 
 Umstellungskosten sind kein Kriterium. Zu bewerten ist allein, welche Sprache dauerhaft besser zu schreiben und zu erklären ist.
 
@@ -121,7 +158,7 @@ Sie tun es regelmäßig. Die bisher praktizierte Rangfolge (daraus ergibt sich d
   an der `:?` gerade steht.
 - **Einheitlichkeit schlägt Endzustand.** Kohärenz vor Umstellungskosten, siehe Klammer-Regel.
 - **Klarheit schlägt Vertrautheit.** Kein Konstrukt, nur weil andere Sprachen es so schreiben.
-- **Editierbarkeit schlägt Einheitlichkeit.** Eine lokale Änderung soll keine Umformatierung an
+- **Pragmatismus schlägt Einheitlichkeit.** Beispiel Editierbarkeit: Eine lokale Änderung soll keine Umformatierung an
   anderer Stelle erzwingen. Beim mehrzeiligen Funktionskopf darf `=>` eine eigene Zeile beginnen,
   auch wenn davor keine umgebrochene Rückgabetypzeile steht. Damit gibt es für einen mehrzeiligen
   Rumpf zwei Schreibweisen (`=>` am Zeilenende oder in eigener Zeile). Die strengere Regel mit

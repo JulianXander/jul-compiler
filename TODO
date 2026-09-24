@@ -8,10 +8,6 @@
 	pure sind, wären wirklich wirkungslos, `log(x)` davor ist gewollt. Warnung (JUL2500
 	discardedValue ausweiten oder eigener Code) oder gar nichts? Im Typblock sind alle Ausdrücke
 	pure.
--gewichtung der designprinzipien überdenken (docs/design-principles.md): die Rangfolge in
-	"Wenn Prinzipien kollidieren" ist aus Einzelfällen gewachsen. Beim mehrzeiligen Funktionskopf
-	hat Editierbarkeit gegen Einheitlichkeit gewonnen, Editierbarkeit steht aber nicht unter den
-	vier Prinzipien. Klären: eigenes Prinzip oder Teil eines bestehenden, und wo in der Rangfolge.
 ?builtin types/literale direkt als prädikat-argument (filter(Integer) statt filter(isInteger)) -
 	siehe docs/predicate-types-and-filter-narrowing.md, Abschnitt "Weitergehende Idee (nicht
 	umgesetzt)", fuer Generalisierung, Checker/Runtime-Symmetrie-Problem und skizzierten
