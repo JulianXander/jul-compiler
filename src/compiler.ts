@@ -1,5 +1,5 @@
-import { writeFileSync, copyFileSync, rmSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import { writeFileSync, copyFileSync, rmSync, statSync } from 'fs';
+import { dirname, join, relative, resolve } from 'path';
 import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
 import { ParsedDocuments } from './checker/checker.js';
@@ -56,7 +56,9 @@ export function compileProject(
 	//#region 3. report errors
 	// Die Fehler aller Dateien, nicht nur die der ersten fehlerhaften (wie tsc). checked enthält
 	// die Parse-Fehler schon (Klon von unchecked), deshalb nicht beide Listen.
-	let hasError = entry === 'notFound';
+	// Gezählt für die Abschlusszeile. Hinweise zählen nicht mit, sie sind keine Beanstandung.
+	let errorCount = entry === 'notFound' ? 1 : 0;
+	let warningCount = 0;
 	const formattedErrors = entry === 'notFound'
 		? [`File not found: ${entryFilePath}`]
 		: [];
@@ -66,11 +68,19 @@ export function compileProject(
 			return;
 		}
 		// Warnungen sagen etwas über den Code, machen das Ergebnis aber nicht unbrauchbar.
-		if (errors.some(error => errorInfos[error.code].severity === 'error')) {
-			hasError = true;
-		}
+		errors.forEach(error => {
+			const { severity } = errorInfos[error.code];
+			if (severity === 'error') {
+				errorCount++;
+			}
+			else if (severity === 'warning') {
+				warningCount++;
+			}
+		});
 		formattedErrors.push(formatErrors(document.filePath, errors));
 	});
+	const hasError = errorCount > 0;
+	const summary = formatSummary(Object.keys(documents).length, errorCount, warningCount);
 	renderer.finishStep(hasError ? 'failed' : 'done');
 	// Mehrzeiliger, detaillierter Fehlertext gehört wie Warnungen ins Scrollback oberhalb des
 	// Frames (siehe log()) - nur die kurze Statuszeile (mit Dauer) steht im Frame, analog zu
@@ -79,12 +89,12 @@ export function compileProject(
 		renderer.log(formattedErrors.join('\n'));
 	}
 	if (hasError) {
-		renderer.finish([`${colorize('compiling failed.', ConsoleColor.lightRed)} ${durationSuffix(startTime)}`]);
+		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
 		return;
 	}
 	if (checkOnly) {
-		renderer.finish([`${colorize('check finished successfully', ConsoleColor.green)} ${durationSuffix(startTime)}`]);
+		renderer.finish([`${colorize('check finished successfully', ConsoleColor.green)} ${summary} ${durationSuffix(startTime)}`]);
 		return;
 	}
 	//#endregion 3. report errors
@@ -135,12 +145,19 @@ export function compileProject(
 		const hasErrors = stats?.hasErrors();
 		renderer.finishStep(hasErrors ? 'failed' : 'done');
 		if (hasErrors) {
-			renderer.finish([`${colorize('bundling failed.', ConsoleColor.lightRed)} ${durationSuffix(startTime)}`]);
+			renderer.finish([`${colorize('bundling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
 			console.error(stats?.compilation.errors);
 			process.exitCode = 1;
 		}
 		else {
-			renderer.finish([`${colorize('build finished successfully', ConsoleColor.green)} ${durationSuffix(startTime)}`]);
+			// Pfad und Größe des Ergebnisses, damit ein unerwartet großes Bundle (z.B. ein
+			// versehentlich mitgebündelter Import) sofort auffällt.
+			const bundlePath = join(absoluteFolderPath, 'bundle.js');
+			const bundleSize = formatBytes(statSync(bundlePath).size);
+			renderer.finish([
+				`${colorize('build finished successfully', ConsoleColor.green)} ${summary} ${durationSuffix(startTime)}`,
+				`${relative(process.cwd(), bundlePath)}  ${colorize(bundleSize, ConsoleColor.cyan)}`,
+			]);
 		}
 	});
 	//#endregion 6. bundle
@@ -394,6 +411,34 @@ function formatMs(durationMs: number): string {
 	return durationMs < 1000
 		? `${durationMs.toFixed(0)}ms`
 		: `${(durationMs / 1000).toFixed(2)}s`;
+}
+
+/**
+ * Kurzfassung für die Abschlusszeile, z.B. "- 3 files, 2 warnings". Fehler und Warnungen erscheinen
+ * nur, wenn es welche gibt, damit die Erfolgszeile im Normalfall kurz bleibt.
+ */
+function formatSummary(fileCount: number, errorCount: number, warningCount: number): string {
+	const parts = [pluralize(fileCount, 'file')];
+	if (errorCount) {
+		parts.push(pluralize(errorCount, 'error'));
+	}
+	if (warningCount) {
+		parts.push(pluralize(warningCount, 'warning'));
+	}
+	return `- ${parts.join(', ')}`;
+}
+
+function pluralize(count: number, noun: string): string {
+	return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+/**
+ * Dezimale Einheiten (1 kB = 1000 B) wie bei esbuild und Vite.
+ */
+function formatBytes(byteCount: number): string {
+	return byteCount < 1000
+		? `${byteCount} B`
+		: `${(byteCount / 1000).toFixed(1)} kB`;
 }
 
 /**
