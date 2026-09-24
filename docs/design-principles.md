@@ -26,6 +26,25 @@ Eine Sprachentscheidung muss sich an echtem Code bewähren, nicht an Symmetrie, 
 oder Eleganz des Regelwerks. Eine Regel, die im realen Schreiben, Lesen und Ändern von Programmen
 stört, ist falsch, auch wenn sie formal sauber ist.
 
+#### Was optimiert wird
+
+Realer Nutzen heißt konkret:
+
+- **Laufzeit-Performance:** wie schnell das erzeugte Programm läuft.
+- **Compilezeit-Performance:** wie schnell Parser und Checker antworten, in der CLI wie beim
+  Tippen im Language Server. Gemessen wird mit dem Bench, nicht geschätzt (siehe Schritt 5 unten).
+- **Feedbackloop:** wie früh und wie treffend man erfährt, dass etwas falsch ist, und was
+  stattdessen geht. Prüfbar an drei Fragen: Wird der Fehler beim Tippen, beim Compilieren oder
+  erst zur Laufzeit sichtbar? Nennt die Meldung die eigentliche Ursache? Bleiben Completion und
+  Hover nutzbar, oder liefert der Checker dort `Any`?
+- **Lesbarkeit:** wie leicht sich ein Stück Code erfassen lässt. Klarheit fragt, *ob* sich die
+  Bedeutung aus der Stelle ableiten lässt, Lesbarkeit fragt, *wie mühsam* das ist.
+- **Mächtigkeit:** was sich überhaupt ausdrücken lässt — in der Sprache selbst, und bei Bedarf
+  auch durch Verlassen der Sprache: `nativeFunction(... §js ... §)` und Importe aus `.ts`/`.js`
+  sind Teil davon, keine Notlösung.
+- **Editierbarkeit:** wie lokal eine Änderung bleibt; eine kleine Änderung soll keine
+  Umformatierung an anderer Stelle erzwingen.
+
 #### Details
 
 - **Realer Anlass:** Ein Konstrukt wird eingeführt, verboten oder umgebaut, weil ein realer Fall
