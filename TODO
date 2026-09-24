@@ -176,3 +176,27 @@
 	 dafür eine schnellere Darstellung sein
 	-prüfen ob sich lohnt oder ob der ansatz nur bei elixirs deutlich größerem
 	 typ-vokabular (maps, tuples, domains) greift
+-language server: diagnostics beim öffnen beschleunigen (gemessen 2026-09-24 auf yugioh: parse
+	fällt kaum ins gewicht, teuer sind check und recheck der importeure - öffnen von game-types.jul
+	checkt 8 importeure neu, 185 ms, obwohl sich nichts geändert hat; workspace-scan ~950 ms)
+	-didOpen ohne änderung: stimmt der editor-text mit dem gecheckten stand überein, nur die
+	 vorhandenen diagnostics senden - kein reparse, kein check, kein recheckDependents. dafür den
+	 quelltext je ParsedFile merken (map im server oder feld am ParsedFile). vorbild: versionen je
+	 datei in tsserver, "unchanged" + resultId bei lsp pull diagnostics (3.17)
+	-workspace-scan in onInitialized läuft synchron und blockiert das erste didOpen: geöffnete datei
+	 zuerst, rest häppchenweise per setImmediate. rename/find-all-references warten solange auf den
+	 fertigen scan. vorbild: pyright, roslyn, rust-analyzer (hintergrund-indexierung)
+	-recheckDependents nur bei geänderter schnittstelle: nach dem check einen fingerabdruck der
+	 exportierten symboltypen bilden (z.b. über typeToString), importeure nur neu checken, wenn er
+	 sich geändert hat. entlastet auch didChange, tippen im funktionsrumpf ändert selten den typ.
+	 vorbild: signatur-hash der .d.ts im inkrementellen tsc, export-hash im cache-key bei gopls,
+	 "early cutoff" in salsa/rust-analyzer
+	-bei didChange zuerst die eigenen diagnostics senden, recheck der importeure per setImmediate
+	 danach; debounce wie bei clangd/tsserver
+	?find-all-references über textfilter auf den symbolnamen statt workspace-scan beim start: nur
+	 kandidaten-dateien per loadFile laden und semantisch auflösen (wie rust-analyzer). würde den
+	 scan ganz ersparen und könnte auch feldnamen an literalen finden (siehe find-all-references
+	 auf dictionary-feldern oben)
+	?check selbst: game-logic.jul braucht allein 140 ms - profiling im checker, vgl. cache für
+	 resolvePlaceholders
+	-vor und nach jedem schritt npm run bench -- --save
