@@ -3197,6 +3197,51 @@ f(1 0)`;
 		]);
 	});
 
+	// Die Fehlerposition folgt dem Typ, den die Stelle verlangt: auch hinter einem Spread, solange
+	// jede Position dasselbe verlangt, und in einer Union, wenn nur ein Zweig passen kann.
+	// marked ist der Text, den die einzige Meldung markieren soll.
+	([
+		{
+			name: 'list-element-after-spread',
+			code: 'xs: List(Integer) = [1]\nl: List(Integer) = [...xs §x§]',
+			marked: '§x§',
+		},
+		{
+			name: 'rest-argument-after-spread',
+			code: 'g = (...ns: List(Integer)) => ns\nxs: List(Integer) = [1]\ng(...xs §x§)',
+			marked: '§x§',
+		},
+		{
+			name: 'dictionary-field-in-union',
+			code: 'h: Or([] [a: Integer]) = [a = §x§]',
+			marked: '§x§',
+		},
+		{
+			name: 'list-element-in-union',
+			code: 'l: Or([] List(Integer)) = [1 §x§]',
+			marked: '§x§',
+		},
+		{
+			name: 'argument-field-in-union',
+			code: 'g = (o: Or([] [a: Integer])) => o\ng([a = §x§])',
+			marked: '§x§',
+		},
+	] as const).forEach(({ name, code, marked }) => {
+		it(`error-position-${name}`, () => {
+			const parsed = parseCode(code, 'dummy.jul');
+			expect(parsed.unchecked.errors).to.deep.equal([]);
+			checkTypes(parsed, {}, { cloneUnchecked: false });
+			const errors = parsed.checked?.errors ?? [];
+			expect(errors).to.have.length(1);
+			const error = errors[0]!;
+			const rows = code.split('\n');
+			const markedText = error.startRowIndex === error.endRowIndex
+				? rows[error.startRowIndex]!.slice(error.startColumnIndex, error.endColumnIndex)
+				: '(mehrzeilig)';
+			expect(markedText).to.equal(marked);
+		});
+	});
+
 	// Der Aufruf wird gegen den ungelösten Argumenttyp geprüft (areArgsAssignableTo bekommt
 	// argsType bewusst ungelöst). Suchte die Positionssuche nur auf dem gelösten Typ, fände sie
 	// den gemeldeten Fehler nicht wieder und fiele auf den ganzen Aufruf zurück.
