@@ -20,8 +20,6 @@
 	-präfix-argument und typguard eines dictionary-felds als erwarteter typ
 	-union mit mehreren funktionszweigen (docs/expected-types.md, frage 3)
 -feldreferenzen (docs/field-references.md): umgesetzt, offen
-	-go-to-definition auf a/name und die rename-vorschau (changeAnnotation) haben keinen
-	 automatischen test
 	-zugriff auf eine union (u/name) hängt an allen zweigen, rename einer deklaration kann den
 	 anderen zweig brechen, siehe risiken im dokument
 	-möglicher ausbau: eindeutige literale über den datenfluss verknüpfen (frage 3)

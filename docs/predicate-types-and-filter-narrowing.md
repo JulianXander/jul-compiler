@@ -150,39 +150,94 @@ Aussage enthalten, und die Laufzeit prüft.
 Empfehlung: Option 3. Den Ausschlag gibt Freiheit, weil der Checker heute falsche Fehler meldet.
 Klarheit kommt dazu: Checker und Laufzeit lesen dieselbe Zeile dann gleich.
 
+### Regel für die Laufzeit
+
+Ein Wert `v` erfüllt ein Prädikat `p`, wenn `p` mit der Argumentliste `[v]` aufrufbar ist und
+genau `true` liefert. Zulässig als Typ ist damit **jede Funktion, die `true` liefern kann**. Eine
+Einschränkung der Parameterform ist nicht nötig. Zwei Änderungen an `getTypeError`
+(runtime.ts, `case 'function'`) gehören dazu:
+
+- **`=== true` statt truthy.** Heute matcht jeder truthy-Wert, also auch `5`, ein Text oder der
+  Error eines nicht erschöpfenden Branchings.
+- **Aufruf über die Parameterbindung.** Heute ruft die Laufzeit `type(value)` direkt als
+  JS-Funktion auf und umgeht damit `tryAssignArgs`. Dadurch werden die Parametertypen des
+  Prädikats nicht geprüft. Eine Funktion mit Typ-Kopf (`[Integer] => true`) bekommt ihr Argument
+  gar nicht, denn der Emitter erzeugt dafür `() => …`. Künftig läuft der Aufruf wie in `_branch`
+  über `tryAssignArgs(p.params, undefined, [v])`. Passt `[v]` nicht auf die Parameter, gilt das
+  als `false`, nicht als Fehler. JS-Funktionen ohne `params` (`nativeFunction`, Importe aus
+  `.ts`/`.js`) ruft die Laufzeit weiter direkt auf, wie `_callFunction` es auch tut.
+
+Damit gilt für jede Parameterform dasselbe wie für einen Aufruf mit einem Argument. Ein zweiter
+Parameter ohne Typ bekommt `[]`. Ein zweiter Pflichtparameter mit Typ, der `[]` ausschließt, führt
+dazu, dass das Prädikat nie `true` liefert.
+
 ### Regel für den Checker
 
-Ein Prädikattyp `P` trägt die Fakten des Funktionswerts (`ifTrue`, `excludedIfFalse`), soweit
-es welche gibt.
+Ein Funktionswert und der Typ, den er als Prädikat beschreibt, sind verschiedene Mengen:
 
-- **Wert gegen `P` prüfen:**
-  - Liegt der Wert ganz in `excludedIfFalse`, ist er sicher gültig.
-  - Hat er mit `ifTrue` nichts gemeinsam, ist er sicher ein Fehler.
-  - Sonst kann der Checker nichts sagen. Er nimmt den Wert an, und die Laufzeit prüft.
-  - Ohne Fakten wird jeder Wert angenommen.
-- **`P` als Typ eines Symbols** (Parameter, Definition, verengter Branch): Das Symbol hat den Typ
-  `ifTrue`, ohne Fakten `Any`.
-- **In `And`/`Or`/`Not`/`List`:** `P` ist ein gewöhnlicher Operand. `And(Integer isPositive)` ist
-  damit für den Checker `Integer` und wird zur Laufzeit zusätzlich geprüft.
+| | enthält | Beispiel |
+|---|---|---|
+| Funktionstyp `(x: Any) :> Boolean` | Funktionen mit dieser Signatur | `isInteger` passt, `5` nicht |
+| Prädikat `isInteger` in Typ-Position | Werte, für die es `true` liefert | `5` passt, `isInteger` nicht |
 
-Der Branch-Kopf verliert dadurch seinen Sonderweg. `[isInteger]` ist ein Tuple mit einem `P`
-darin und läuft durch dieselbe Zuweisungsprüfung wie `(a: isInteger)`.
+Heute kommt nach `valueOf` für beide dasselbe heraus. Dafür braucht es aber **keinen eigenen
+Typ**: Es genügt, wenn `valueOf` einen Funktionswert gleich in die Menge übersetzt, die er als
+Prädikat beschreibt. Das ist die beste Obermenge, die der Checker kennt:
+
+```
+valueOf(Funktionswert) = And(Typ des ersten Parameters, predicate.ifTrue)   // fehlt beides: Any
+```
+
+Das Funktionstyp-Literal bleibt davon unberührt. Es kommt als `TypeOf(F)` an, und `valueOf` packt
+es zu `F` aus, ohne den neuen Fall zu erreichen.
+
+Der Typ des ersten Parameters zählt mit, weil die Laufzeit die Parameter künftig prüft.
+`isPositive = (x: Integer) => x > 0` beschreibt also mindestens `Integer`, auch ohne erkanntes
+Branching. `(a: isPositive)` ist für den Checker dann `(a: Integer)`, und `And(Integer isPositive)`
+ist nicht mehr nötig.
+
+Danach ist das Ergebnis ein gewöhnlicher Typ, und alles Weitere läuft über die bestehenden Wege:
+
+- **Zuweisung:** Ein Wert muss ganz in der Obermenge liegen, wie bei jedem anderen Typ auch.
+  `Or(Integer Text)` gegen `isInteger` ist also ein Fehler, genau wie gegen `Integer`. Innerhalb
+  der Obermenge prüft die Laufzeit den Rest. `getTypeError` bleibt zweiwertig.
+- **Typ des Symbols:** Parameter, Definition und verengter Branch haben die Obermenge als Typ.
+- **`And`/`Or`/`List`:** Das Prädikat ist ein gewöhnlicher Operand. Aus Obermengen entstehen
+  wieder Obermengen.
+- **`Not`** ist die Ausnahme, denn es dreht die Richtung um. `Not(isPositive)` würde zu
+  `Not(Integer)` und lehnte damit `-1` ab, das die Laufzeit annimmt. Für das Komplement braucht es
+  eine Untermenge, also `Not(excludedIfFalse)`, ohne Fakten `Any`. Der `Not`-Fall im Checker kann
+  das am rohen Argument ablesen, solange das Prädikat direkt darin steht. Steht es tiefer, etwa in
+  `Not(Or(isPositive Text))`, hat `Or` es schon zur Obermenge gemacht, und der Checker meldet einen
+  falschen Fehler. `Without` ist in der core-lib als `And(Not(…))` definiert und erbt das.
+
+Verloren geht dabei `excludedIfFalse`, denn eine Obermenge sagt nichts darüber, was sicher `true`
+liefert. Gebraucht wird es nur im Branching, zum Abziehen in späteren Branches. Das liest schon
+heute den rohen Typ vor `valueOf` (`getBranchPredicateFacts`) und bleibt so. Im Branch selbst
+kann der Kopf dann einfach mit der Obermenge schneiden, statt über `getBranchArgumentType`
+auszusteigen.
+
+Als Typ abgelehnt (JUL5002) wird eine Funktion nur, wenn feststeht, dass sie nie `true` liefert:
+Ihr Rückgabetyp schließt `true` aus, oder `[v]` passt für kein `v` auf ihre Parameter. Eine
+Funktion mit Rückgabetyp `Any` wird angenommen.
 
 ### Schritte
 
 1. **Rote Tests.** Tabellengetrieben in checker.test.ts: Parameter-, Rückgabe- und
-   Definitions-Annotation, `List`/`Or`/`And` mit Prädikat, ein sicher falsches Argument (Text
-   gegen `isInteger`), ein nicht erkanntes Prädikat (wird angenommen), Verengung im Rumpf und
-   `TypeOf(f)`, das bei der Signatur bleibt. Dann anhalten.
-2. **Darstellung** von `P` festlegen, siehe offene Frage 5, und `valueOf` im Fall `'function'`
-   umstellen.
-3. **`getTypeError`** mit `P` als Ziel (dreiwertig wie oben) und als Quelle (`ifTrue`).
-4. **Branch-Kopf** auf den gemeinsamen Weg legen: `getBranchArgumentType` und
-   `getBranchPredicateFacts` gehen darin auf. Die Unerreichbarkeits-Prüfung (`TODO` bei
-   „Prädikat-Fakten checken“) kann danach `excludedIfFalse` nutzen.
-5. **`checkTypeGuardIsType`/JUL5002** an die Entscheidung zu Frage 2 anpassen.
-6. **Drumherum:** `typeToString` und Hover im Language Server, Checker- und LSP-Snapshot, Bench
-   vor und nach dem Umbau mit `--save`, öffentliche Doku in jul-homepage.
+   Definitions-Annotation, `List`/`Or`/`And` mit Prädikat, ein falsches Argument (Text gegen
+   `isInteger`), ein nicht erkanntes Prädikat (wird angenommen), ein Prädikat mit typisiertem
+   Parameter (`isPositive`), Verengung im Rumpf und ein Funktionstyp-Literal in Typ-Position,
+   das weiter Funktionen verlangt. Für die Laufzeit: `=== true`, Typ-Kopf-Funktion als Prädikat,
+   Parametertyp des Prädikats wird geprüft. Dann anhalten.
+2. **Laufzeit:** `getTypeError` im `case 'function'` auf `tryAssignArgs` und `=== true` umstellen.
+3. **`valueOf`** im Fall `'function'` auf die Obermenge umstellen, nach Klärung von Frage 6.
+4. **Branch-Kopf:** mit der Obermenge schneiden statt auszusteigen. `getBranchPredicateFacts`
+   bleibt für `excludedIfFalse`. Die Unerreichbarkeits-Prüfung (`TODO` bei „Prädikat-Fakten
+   checken“) kann `excludedIfFalse` danach nutzen.
+5. **`checkTypeGuardIsType`/JUL5002** an die Entscheidung zu Frage 2 anpassen, und den Schutz in
+   `getPredicateFacts` entfernen (Frage 3).
+6. **Drumherum:** Checker- und LSP-Snapshot, Bench vor und nach dem Umbau mit `--save`,
+   öffentliche Doku in jul-homepage.
 7. **Offener Punkt 1 oben** ist mit diesem Plan mitentschieden, siehe Frage 8. Diesen Abschnitt
    danach anpassen.
 
@@ -191,23 +246,24 @@ darin und läuft durch dieselbe Zuweisungsprüfung wie `(a: isInteger)`.
 1. **Realer Anlass.** yugioh enthält vier Funktionen mit explizitem `:> Boolean`, und keine davon
    steht in Typ-Position. Der Anlass ist also nicht Bedarf, sondern dass der Checker lauffähigen
    Code ablehnt. Reicht das, oder bleibt der Plan liegen, bis es einen Fall gibt?
-2. **Welche Funktionen als Typ zulässig sind.** Die Laufzeit nimmt jede. Mögliche Grenzen: nur
-   Funktionen mit Rückgabetyp `Boolean`, oder wie heute (`predicate-assignable-to-type-1a`) nur
-   erkannte Prädikate. Nach Freiheit wäre es mindestens jedes `Boolean`-Callback. Dann kippt der
-   Test `arbitrary-boolean-function-not-assignable-to-type`.
-3. **Wahrheitsprüfung der Laufzeit.** `getTypeError` prüft mit `if (type(value))`, also auf
-   truthy. Damit matcht auch der Error eines nicht erschöpfenden Branchings, und ebenso `5` oder
-   ein Text. Mit `=== true` würde der Error nicht mehr matchen, und der Schutz in
-   `getPredicateFacts` davor (checker.ts, „Die Laufzeit matcht ein Prädikat in Typ-Position mit
-   einer Wahrheitsprüfung“) könnte entfallen.
-4. **Funktionsformen.** Die Laufzeit ruft `type(value)` direkt als JS auf, mit einem
-   positionalen Argument. Was gilt bei zwei Pflichtparametern, bei `...rest` oder bei
-   Dictionary-Parametern? Vermutlich: genau ein Pflichtparameter, sonst JUL5002.
-5. **Darstellung von `P`.** Ein eigener `julType: 'predicate'` trennt „Typ eines Funktionswerts“
-   sauber von „Menge, die ein Prädikat beschreibt“. Er berührt aber jeden erschöpfenden Switch
-   über `julType`: 15 `assertNever` in checker.ts, 3 im Language Server. Die Alternative ist ein
-   Flag am Funktionstyp. Das ist billiger, aber genau die Doppelbedeutung, die das Problem
-   verursacht.
+2. **Welche Funktionen als Typ zulässig sind.** Entschieden 2026-09-25: jede, die `true`
+   liefern kann, siehe „Regel für die Laufzeit“. Der Test
+   `arbitrary-boolean-function-not-assignable-to-type` kippt damit.
+3. **Wahrheitsprüfung der Laufzeit.** Entschieden 2026-09-25: `=== true`. Der Schutz in
+   `getPredicateFacts` davor, dass der Error eines nicht erschöpfenden Branchings matcht
+   (checker.ts, „Die Laufzeit matcht ein Prädikat in Typ-Position mit einer Wahrheitsprüfung“),
+   kann dann entfallen.
+4. **Funktionsformen.** Entschieden 2026-09-25: keine Einschränkung, der Aufruf läuft über die
+   Parameterbindung, siehe „Regel für die Laufzeit“. Offen ist nur noch, was der zusätzliche
+   `tryAssignArgs`-Aufruf je Prüfung kostet. Das misst der Bench.
+5. **Darstellung.** Empfehlung: kein eigener `julType`, `valueOf` übersetzt direkt in die
+   Obermenge (siehe „Regel für den Checker“). Ein eigener Typ würde zusätzlich `excludedIfFalse`
+   und den Namen des Prädikats durch Zuweisungen tragen. Dafür bräuchte `getTypeError` einen
+   dritten Ausgang „unbekannt“, und jeder erschöpfende Switch über `julType` müsste ihn kennen:
+   15 `assertNever` in checker.ts, 3 im Language Server. Der einzige Fall, der
+   `excludedIfFalse` außerhalb des Branchings braucht, ist ein Prädikat verschachtelt in `Not`
+   oder `Without` (siehe „Regel für den Checker“). Ist das selten genug, um dort einen falschen
+   Fehler hinzunehmen, oder ist das der Grund für den eigenen Typ?
 6. **Wo umgewandelt wird.** Ein neuer Fall in `valueOf` wirkt überall. Mindestens eine Stelle ruft
    `valueOf` aber auf einen Wert und nicht auf einen Typwert auf: das Auflösen einer
    Parameter-Referenz im Argumentkontext (`// TODO immer valueOf?`). Über diesen Weg gehen
@@ -215,15 +271,16 @@ darin und läuft durch dieselbe Zuweisungsprüfung wie `(a: isInteger)`.
    `TypeOf(intitialValue)`. Ist das Argument dort eine Funktion, würde daraus fälschlich ein
    Prädikat. Zu klären ist, ob die Stelle `valueOf` wirklich braucht, oder ob die Umwandlung
    besser als eigene Funktion nur an Typ-Positionen läuft.
-7. **Dreiwertigkeit in `getTypeError`.** Die Funktion kennt nur „passt“ oder „Fehler“ (siehe
-   `// TODO return true/false = always/never, sometimes/maybe?`). „Unbekannt“ als „passt“ zu
-   werten reicht für Zuweisungen. Die Unerreichbarkeits- und die Erschöpfungsprüfung brauchen es
-   aber getrennt, sonst gilt ein Branch mit Prädikat als sicher treffend.
+7. **Erschöpfungsprüfung.** Mit der Obermenge bleibt `getTypeError` zweiwertig. Die
+   Erschöpfungsprüfung darf einen Branch mit Prädikat-Kopf aber nicht als treffend für seine ganze
+   Obermenge zählen, sondern nur für `excludedIfFalse`. Sonst gälte `?(x) [isPositive] => …` ohne
+   catchAll für jeden Integer als erschöpfend.
 8. **Verengung über gespeicherte Werte (offener Punkt 1).** `pred = isInteger` trägt dieselben
    Fakten wie `isInteger`, und ein `Type`-Parameter bekommt sie beim Auflösen mit. Damit
    verengt `?(x) [pred]` automatisch. Die Frage aus Punkt 1, ob das über den Datenfluss passieren
    soll, fällt also hier und muss ausdrücklich entschieden werden.
-9. **Anzeige.** Was zeigt der Hover für `(a: isInteger)`: den Namen, `ifTrue` oder beides?
+9. **Anzeige.** Ohne eigenen Typ zeigt der Hover für `(a: isPositive)` nur `Integer`. Der Name des
+   Prädikats ist nach `valueOf` weg. Reicht das?
 
 Nicht Teil dieses Plans ist die umgekehrte Richtung: ein Typ als Prädikat-Argument
 (`filter(Integer)`). Dazu der nächste Abschnitt.
