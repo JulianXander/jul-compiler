@@ -26,9 +26,12 @@ import {
  * Emittiert wird gegen src/runtime.ts (über tsx), also ohne Build und ohne webpack.
  * Aufruf: npm run bench-runtime [--save] [--note "grund"]
  * Mit --save wird die Messung an scripts/bench-log-runtime.tsv angehängt, sonst nur verglichen.
+ * Protokolliert werden ms je normCalls Aufrufe, unabhängig davon, wie viele ein Durchlauf macht:
+ * so bleibt ein Fall vergleichbar, wenn seine Aufrufzahl später angepasst werden muss.
  */
 
 const runCount = 15;
+const normCalls = 1_000_000;
 const target = 'bench-runtime';
 const fixtureFolder = resolve(import.meta.dirname, 'bench-runtime');
 const logPath = resolve(import.meta.dirname, 'bench-log-runtime.tsv');
@@ -43,8 +46,8 @@ interface BenchCase {
 	/** Ergebnis je Eingabe: eine Optimierung, die den Branch verwechselt, soll hier auffallen, nicht erst in der Zeit */
 	expected: unknown[];
 	/**
-	 * Aufrufe je Durchlauf. Je Fall eigens gewählt: der Median soll über der Bewertungsgrenze
-	 * (minComparableMedian) liegen, ohne dass teure Fälle den Bench in die Länge ziehen.
+	 * Aufrufe je Durchlauf. Je Fall eigens gewählt: genug, dass ein Durchlauf nicht im Rauschen
+	 * des Timers liegt, ohne dass teure Fälle den Bench in die Länge ziehen.
 	 */
 	calls: number;
 }
@@ -62,21 +65,21 @@ const cases: BenchCase[] = [
 		functionName: 'emptyOrComplex',
 		inputs: [undefined, complexValue],
 		expected: [2n, 1n],
-		calls: 20_000,
+		calls: 200_000,
 	},
 	{
 		file: 'branching.jul',
 		functionName: 'textListOrDictionary',
 		inputs: ['text', Array.from({ length: 50 }, (_, index) => BigInt(index)), { name: 'name' }],
 		expected: [1n, 2n, 3n],
-		calls: 20_000,
+		calls: 200_000,
 	},
 	{
 		file: 'branching.jul',
 		functionName: 'tagField',
 		inputs: [{ kind: 'circle', radius: 1.5 }, { kind: 'rect', width: 1.5, height: 2.5 }],
 		expected: [1n, 2n],
-		calls: 20_000,
+		calls: 200_000,
 	},
 	{
 		file: 'named-arguments.jul',
@@ -127,17 +130,26 @@ function verify(benchCase: BenchCase, fn: Function): void {
 }
 
 function measure(benchCase: BenchCase, fn: Function): number[] {
-	const inputs = benchCase.inputs;
+	const { inputs, expected } = benchCase;
 	const durations: number[] = [];
 	// erster Lauf wärmt den JIT auf und zählt nicht
 	for (let run = 0; run <= runCount; run++) {
+		// Jedes Ergebnis wird verwendet: ein unbenutztes darf der JIT samt Aufruf wegwerfen, dann
+		// misst die Schleife nichts mehr.
+		let mismatches = 0;
 		const start = performance.now();
 		for (let call = 0; call < benchCase.calls; call++) {
-			fn(inputs[call % inputs.length]);
+			const index = call % inputs.length;
+			if (fn(inputs[index]) !== expected[index]) {
+				mismatches++;
+			}
 		}
 		const duration = performance.now() - start;
+		if (mismatches) {
+			throw new Error(`${benchCase.file} ${benchCase.functionName}: ${mismatches} falsche Ergebnisse`);
+		}
 		if (run) {
-			durations.push(duration);
+			durations.push(duration * normCalls / benchCase.calls);
 		}
 	}
 	return durations;
@@ -163,7 +175,7 @@ try {
 	});
 	const previous = readPrevious(logPath, target, getMachine());
 	console.log(fixtureFolder);
-	console.log(`  ${cases.length} Fälle, je ${runCount} Durchläufe`);
+	console.log(`  ${cases.length} Fälle, je ${runCount} Durchläufe, ms je ${normCalls} Aufrufe`);
 	results.forEach(({ label, values }) =>
 		console.log(formatResult(label, values, previous?.[label])));
 	if (save) {

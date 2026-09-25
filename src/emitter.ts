@@ -1,5 +1,6 @@
 import {
 	Name,
+	ParseBranching,
 	ParseExpression,
 	ParseFunctionCall,
 	ParseFunctionLiteral,
@@ -15,9 +16,16 @@ import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName
 import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from './parser/parser.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
+import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from './checker/branch-dispatch.js';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
+/**
+ * Nur beim Emittieren einer ganzen Datei nach dem Check: dann liegt die typeInfo vollständig am
+ * Baum. functionLiteralToEvaluableJs läuft dagegen mitten im Checklauf (constant folding) und
+ * emittiert weiter ohne Typen.
+ */
+let useTypeInfo = false;
 
 export function getRuntimeImportJs(runtimePath: string): string {
 	return getImportJs(`{ ${runtimeImports} }`, runtimePath);
@@ -27,18 +35,24 @@ export function getRuntimeImportJs(runtimePath: string): string {
 export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: string): string {
 	// _branch, _callFunction, _createFunction, log
 	let hasDefinition = false;
-	return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
-		const expressionJs = expressionToJs(expression, 0, true);
-		if (expression.type === 'definition') {
-			hasDefinition = true;
-		}
-		// default export = last expression
-		if (index === expressions.length - 1
-			&& !hasDefinition) {
-			return `export default ${expressionJs}`;
-		}
-		return expressionJs;
-	}).join('\n')}`;
+	useTypeInfo = true;
+	try {
+		return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
+			const expressionJs = expressionToJs(expression, 0, true);
+			if (expression.type === 'definition') {
+				hasDefinition = true;
+			}
+			// default export = last expression
+			if (index === expressions.length - 1
+				&& !hasDefinition) {
+				return `export default ${expressionJs}`;
+			}
+			return expressionJs;
+		}).join('\n')}`;
+	}
+	finally {
+		useTypeInfo = false;
+	}
 }
 
 /**
@@ -79,6 +93,12 @@ function expressionToJs(
 			const args = expression.args;
 			if (!args) {
 				throw new Error('args missing in branching');
+			}
+			const dispatch = useTypeInfo
+				? getBranchDispatch(expression)
+				: undefined;
+			if (dispatch) {
+				return branchDispatchToJs(expression, dispatch, indent);
 			}
 			const innerIndent = indent + 1;
 			const jsValues = [
@@ -428,6 +448,119 @@ function functionLiteralToJsParts(
 	const functionJs = `(${argsJs}) => {${functionBodyToJs(body, indent + 2)}${delimiterJs}}`;
 	return { functionJs, paramsJs, delimiterJs };
 }
+
+//#region branching mit Typinformation
+
+/**
+ * Eine ?:-Kette statt _branch: je branch der Test aus getBranchDispatch, der branch selbst als
+ * Arrow an Ort und Stelle aufgerufen, ohne _createFunction. Ein nicht-Referenz-Argument wird
+ * über ein umschließendes Arrow genau einmal ausgewertet.
+ */
+function branchDispatchToJs(branching: ParseBranching, dispatch: BranchDispatch, indent: number): string {
+	// getBranchDispatch liefert nur für ?(x) mit genau einem Argument ohne Spread ein Ergebnis
+	const argument = (branching.args as { values: ParseListValue[]; }).values[0] as ParseValueExpression;
+	const isReference = argument.type === 'reference';
+	const argumentJs = isReference
+		? referenceToJs(argument)
+		: '_arg';
+	const chainIndent = isReference
+		? indent
+		: indent + 1;
+	const delimiterJs = getRowDelimiterJs(chainIndent + 1);
+	let chainJs = '';
+	dispatch.tests.forEach((test, index) => {
+		if (test.kind === 'never') {
+			return;
+		}
+		const callJs = branchCallToJs(branching.branches[index]!, argumentJs, chainIndent);
+		if (test.kind === 'always') {
+			chainJs += callJs;
+			return;
+		}
+		chainJs += `${branchTestToJs(test, argumentJs)}${delimiterJs}? ${callJs}${delimiterJs}: `;
+	});
+	if (!dispatch.exhaustive) {
+		chainJs += `_noBranchMatched(${argumentJs})`;
+	}
+	return isReference
+		? chainJs
+		: `((${argumentJs}) => ${chainJs})(${expressionToJs(argument, indent)})`;
+}
+
+function branchCallToJs(branch: ParseValueExpression, argumentJs: string, indent: number): string {
+	if (branch.type !== 'functionLiteral') {
+		throw new Error('branch is not a functionLiteral');
+	}
+	const { functionJs } = functionLiteralToJsParts(branch.params, branch.body, indent);
+	// Ein Typ-Kopf und () binden nichts, nur ein einzelner Parameter bekommt das Argument.
+	const bindsArgument = branch.params.type === 'parameters'
+		&& branch.params.singleFields.length === 1;
+	return `(${functionJs})(${bindsArgument ? argumentJs : ''})`;
+}
+
+function branchTestToJs(test: BranchTest, argumentJs: string): string {
+	switch (test.kind) {
+		case 'always':
+			return 'true';
+		case 'never':
+			return 'false';
+		case 'jsKind':
+			return test.kinds
+				.map(kind => jsKindTestToJs(kind, argumentJs, test.negated))
+				.join(test.negated ? ' && ' : ' || ');
+		case 'literal':
+			return `${argumentJs} === ${literalValueToJs(test.value)}`;
+		case 'field':
+			return `${argumentJs}?.[${stringToJs(test.name)}] === ${literalValueToJs(test.value)}`;
+		default: {
+			const assertNever: never = test;
+			throw new Error(`Unexpected BranchTest ${(assertNever as BranchTest).kind}`);
+		}
+	}
+}
+
+function jsKindTestToJs(kind: JsKind, argumentJs: string, negated: boolean): string {
+	switch (kind) {
+		case 'undefined':
+			return `${argumentJs} ${negated ? '!==' : '==='} undefined`;
+		case 'boolean':
+		case 'bigint':
+		case 'number':
+		case 'string':
+		case 'function':
+			return `typeof ${argumentJs} ${negated ? '!==' : '==='} '${kind}'`;
+		case 'array':
+			return `${negated ? '!' : ''}Array.isArray(${argumentJs})`;
+		case 'date':
+		case 'blob':
+		case 'error': {
+			const instanceTestJs = `${argumentJs} instanceof ${kind === 'date' ? 'Date' : kind === 'blob' ? 'Blob' : 'Error'}`;
+			return negated
+				? `!(${instanceTestJs})`
+				: instanceTestJs;
+		}
+		case 'object':
+			// getBranchDispatch testet die Seite mit object nie direkt
+			throw new Error('no exact test for object');
+		default: {
+			const assertNever: never = kind;
+			throw new Error(`Unexpected JsKind ${assertNever}`);
+		}
+	}
+}
+
+function literalValueToJs(value: LiteralValue): string {
+	switch (typeof value) {
+		case 'bigint':
+			return `${value}n`;
+		case 'string':
+			return stringToJs(value);
+		default:
+			return String(value);
+	}
+}
+
+//#endregion branching mit Typinformation
 
 function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;

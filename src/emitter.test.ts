@@ -1,5 +1,7 @@
 import { expect } from 'chai';
 import { parseCode } from './parser/parser.js';
+import { checkTypes } from './checker/checker.js';
+import { errorInfos } from './compiler-errors.js';
 import { getRuntimeImportJs, syntaxTreeToJs } from './emitter.js';
 import { reportAtCaller } from './test-util.js';
 
@@ -178,5 +180,191 @@ describe('Emitter', () => {
 	},
 	{type: Empty},
 )`);
+	});
+});
+
+/**
+ * Emittiert nach dem Check, damit der Emitter die typeInfo sieht. Verglichen wird nur der Rumpf
+ * der Funktion f: das _createFunction mit den Parametertypen dahinter ist hier nicht Gegenstand
+ * und würde jeden Fall aufblähen.
+ */
+function emitCheckedFunctionBody(code: string): string {
+	const parsed = parseCode(code, 'dummy.jul');
+	checkTypes(parsed, {}, { cloneUnchecked: false });
+	const checked = parsed.checked!;
+	const errors = checked.errors.filter(error => errorInfos[error.code].severity === 'error');
+	expect(errors.map(error => error.message)).to.deep.equal([]);
+	const compiled = syntaxTreeToJs(checked.expressions!, '');
+	const functionStart = compiled.indexOf('export const f = (');
+	const bodyStart = compiled.indexOf(' => {', functionStart) + ' => {'.length;
+	const bodyEnd = compiled.indexOf('\n\t}\n\t_createFunction(\n\tf,', bodyStart);
+	expect(functionStart, 'f fehlt').to.be.greaterThan(-1);
+	expect(bodyEnd, 'Ende von f nicht gefunden').to.be.greaterThan(-1);
+	return compiled.slice(bodyStart, bodyEnd);
+}
+
+const expectBranchingEmit = reportAtCaller((code: string, bodyJs: string) => {
+	expect(emitCheckedFunctionBody(code)).to.equal(bodyJs);
+});
+
+/** Fälle, in denen die Typen keinen billigeren Test hergeben: dort bleibt der volle Check über _branch */
+const expectBranchingFallback = reportAtCaller((code: string) => {
+	expect(emitCheckedFunctionBody(code)).to.match(/^\n\t\treturn _branch\(/);
+});
+
+describe('Emitter branching mit Typinformation', () => {
+	it('Empty gegen komplexen Typ wird zu undefined-Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or([] [a: Integer b: Text])) =>
+	?(x)
+		[[a: Integer b: Text]] => 1
+		() => 2`, `
+		return x !== undefined
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('verschiedene Laufzeitarten werden mit typeof und Array.isArray unterschieden', () => {
+		expectBranchingEmit(`f = (x: Or(Text List(Integer) [name: Text])) =>
+	?(x)
+		[Text] => 1
+		[List(Integer)] => 2
+		() => 3`, `
+		return typeof x === 'string'
+			? (() => {
+				return 1n
+			})()
+			: Array.isArray(x)
+			? (() => {
+				return 2n
+			})()
+			: (() => {
+				return 3n
+			})()`);
+	});
+	it('Literal-Kopf wird zu Gleichheitsvergleich', () => {
+		expectBranchingEmit(`f = (x: Integer) =>
+	?(x)
+		[1] => 1
+		() => 2`, `
+		return x === 1n
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Branch mit Parameter bekommt das Argument direkt', () => {
+		expectBranchingEmit(`f = (x: Or([] Text)) =>
+	?(x)
+		(t: Text) => t
+		() => §leer§`, `
+		return x !== undefined
+			? ((t) => {
+				return t
+			})(x)
+			: (() => {
+				return \`leer\`
+			})()`);
+	});
+	it('erster Branch deckt alles ab: kein Test, keine weiteren Branches', () => {
+		expectBranchingEmit(`f = (x: Text) =>
+	?(x)
+		[Text] => 1
+		() => 2`, `
+		return (() => {
+				return 1n
+			})()`);
+	});
+	it('nicht erschöpfend: nach dem letzten Test folgt _noBranchMatched', () => {
+		expectBranchingEmit(`f = (x: Or(Text Integer)) =>
+	?(x)
+		[Text] => 1`, `
+		return typeof x === 'string'
+			? (() => {
+				return 1n
+			})()
+			: _noBranchMatched(x)`);
+	});
+	it('letzter Literal-Branch fängt den Rest: Aufruf ohne Test statt offenem Zweig', () => {
+		expectBranchingEmit(`f = (x: Or(§a§ §b§)) =>
+	?(x)
+		[§a§] => 1
+		[§b§] => 2`, `
+		return x === 'a'
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Branch, der keinen der noch möglichen Werte fängt, entfällt', () => {
+		expectBranchingEmit(`f = (x: Or([] §a§)) =>
+	?(x)
+		[§a§] => 1
+		[Text] => 2
+		() => 3`, `
+		return x === 'a'
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 3n
+			})()`);
+	});
+	it('unterscheidendes Feld wird direkt verglichen', () => {
+		expectBranchingEmit(`f = (x: Or([kind: §circle§ radius: Float] [kind: §rect§ width: Float])) =>
+	?(x)
+		[[kind: §circle§]] => 1
+		() => 2`, `
+		return x?.['kind'] === 'circle'
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Argument ohne Referenz wird genau einmal ausgewertet', () => {
+		expectBranchingEmit(`g = (y: Or([] Text)) => y
+f = (x: Or([] Text)) =>
+	?(g(x))
+		[Text] => 1
+		() => 2`, `
+		return ((_arg) => _arg !== undefined
+				? (() => {
+					return 1n
+				})()
+				: (() => {
+					return 2n
+				})())(g(x))`);
+	});
+	it('Rückfall: Any in einem Glied, die Teilmengenprüfung wäre dort permissiv', () => {
+		expectBranchingFallback(`f = (x: Or([] [a: Any])) =>
+	?(x)
+		[[a: Integer]] => 1
+		() => 2`);
+	});
+	it('Rückfall: untypisiertes Argument', () => {
+		expectBranchingFallback(`f = (x) =>
+	?(x)
+		[Integer] => 1
+		() => 2`);
+	});
+	it('Rückfall: zwei Argumente', () => {
+		expectBranchingFallback(`f = (x: Integer y: Integer) =>
+	?(x y)
+		[1 Integer] => 1
+		() => 2`);
+	});
+	it('Rückfall: komplexe Typen, die sich nur tief in der Struktur unterscheiden', () => {
+		expectBranchingFallback(`f = (x: Or(List(Integer) List(Or(Integer Text)))) =>
+	?(x)
+		[List(Integer)] => 1
+		() => 2`);
 	});
 });

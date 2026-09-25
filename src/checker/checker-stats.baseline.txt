@@ -1,4 +1,4 @@
-inferType: 1983
-resolvePlaceholders: 3401
-getTypeError: 2651
-foldableCall: 24
+inferType: 1977
+resolvePlaceholders: 3384
+getTypeError: 2640
+foldableCall: 22

@@ -187,7 +187,8 @@ function emitFile(
 		case Extension.json:
 		// parse json and write to js in output folder
 		case Extension.jul: {
-			const expressions = parsed.unchecked.expressions ?? [];
+			// checked trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht
+			const expressions = (parsed.checked ?? parsed.unchecked).expressions ?? [];
 			compiled = syntaxTreeToJs(expressions, runtimePath);
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);
 			outFilePath = join(outputFolderPath, jsFileName);

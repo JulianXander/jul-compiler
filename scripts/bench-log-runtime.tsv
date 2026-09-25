@@ -1,7 +1,13 @@
 # timestamp	commit	deps	machine	target	label	n	median	p95	max	note
-2026-09-25 14:37:40	3bf5840+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	64.99	72.65	72.65	vor typgestuetzter emission
-2026-09-25 14:37:40	3bf5840+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	169.96	186.87	186.87	vor typgestuetzter emission
-2026-09-25 14:37:40	3bf5840+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	85.41	88.83	88.83	vor typgestuetzter emission
-2026-09-25 14:37:40	3bf5840+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	3.79	4.20	4.20	vor typgestuetzter emission
-2026-09-25 14:37:40	3bf5840+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	33.25	37.46	37.46	vor typgestuetzter emission
-2026-09-25 14:37:40	3bf5840+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	32.67	35.87	35.87	vor typgestuetzter emission
+2026-09-25 15:03:30	7820997+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	3782.76	4063.03	4063.03	vor typgestuetzter emission
+2026-09-25 15:03:30	7820997+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	8922.47	9182.47	9182.47	vor typgestuetzter emission
+2026-09-25 15:03:30	7820997+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	4461.81	4668.04	4668.04	vor typgestuetzter emission
+2026-09-25 15:03:30	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.11	9.99	9.99	vor typgestuetzter emission
+2026-09-25 15:03:30	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	38.67	42.11	42.11	vor typgestuetzter emission
+2026-09-25 15:03:30	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	39.08	41.36	41.36	vor typgestuetzter emission
+2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.78	15.91	15.91	branching-diskriminatoren
+2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.79	13.13	13.13	branching-diskriminatoren
+2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	8.27	9.15	9.15	branching-diskriminatoren
+2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	7.89	8.72	8.72	branching-diskriminatoren
+2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	34.73	37.23	37.23	branching-diskriminatoren
+2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	35.59	38.16	38.16	branching-diskriminatoren

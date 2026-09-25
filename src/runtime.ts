@@ -27,6 +27,14 @@ export function _branch(args: Collection | undefined, ...branches: JulFunction[]
 			return branch(...assignedParams);
 		}
 	}
+	return _noBranchMatched(args);
+}
+
+/**
+ * Ergebnis eines branchings, das keinen branch trifft. Eigener Helper, weil der Emitter bei
+ * statisch unterscheidbaren branches ohne _branch auskommt und den Fall selbst emittiert.
+ */
+export function _noBranchMatched(args: unknown) {
 	return new Error(`${args} did not match any branch`);
 }
 

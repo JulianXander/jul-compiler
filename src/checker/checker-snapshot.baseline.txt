@@ -42,7 +42,6 @@ divisibleBy: (divisor: NonZeroInteger) -> (dividend: Integer) -> Boolean
 fizzBuzz: (index: PositiveInteger) ~> Empty
 === fizz-buzz/fizz-buzz.jul ===
 divisibleBy: (divisor: NonZeroInteger) -> (dividend: Integer) -> Boolean
-x: 45
 === function-call.jul ===
 MyType: TypeOf([   a: 1   b: 2 ])
 aliasFn: (   a: Boolean   b: Any ) ~> Empty
