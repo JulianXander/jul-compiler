@@ -1,0 +1,25 @@
+MyComplexType = [
+	a: Integer
+	b: [
+		c: Text
+		d: List(Integer)
+	]
+]
+
+emptyOrComplex = (x: Or([] MyComplexType)) =>
+	?(x)
+		[MyComplexType] => 1
+		() => 2
+
+textListOrDictionary = (v: Or(Text List(Integer) [name: Text])) =>
+	?(v)
+		[Text] => 1
+		[List(Integer)] => 2
+		() => 3
+
+Shape = Or([kind: §circle§ radius: Float] [kind: §rect§ width: Float height: Float])
+
+tagField = (s: Shape) =>
+	?(s)
+		[[kind: §circle§]] => 1
+		() => 2

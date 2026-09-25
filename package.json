@@ -29,6 +29,7 @@
 		"test-update-snapshot": "set UPDATE_SNAPSHOT=1&& node --run test",
 		"bench": "tsx scripts/bench.ts",
 		"bench-chart": "node scripts/bench-chart.mjs",
+		"bench-runtime": "tsx scripts/bench-runtime.ts",
 		"typecheck": "tsc -p tsconfig.json",
 		"install-cli": "npm i -g"
 	},

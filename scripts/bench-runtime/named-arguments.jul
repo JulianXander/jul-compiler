@@ -1,0 +1,7 @@
+first = (a: Integer b: Integer) => a
+
+positional = (x: Integer) => first(x x)
+
+namedInOrder = (x: Integer) => first(a = x b = x)
+
+namedSwapped = (x: Integer) => first(b = x a = x)
