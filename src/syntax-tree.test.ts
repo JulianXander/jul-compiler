@@ -2,6 +2,7 @@ import { strict as assert } from 'assert';
 import { forEachChild, PositionedExpression } from './syntax-tree.js';
 import { parseCode } from './parser/parser.js';
 import { checkTypes } from './checker/checker.js';
+import { reportAtCaller } from './test-util.js';
 
 /**
  * forEachChild ist die einzige Stelle, die die Kinder eines Knotens kennt. Ein vergessenes Kind
@@ -28,54 +29,40 @@ function collectAll(code: string): string {
 	return parse(code).flatMap(collectTypes).join(' ');
 }
 
-const expectedResults: { code: string; types: string; }[] = [
-	{
-		code: 'a = 1',
-		types: 'definition name integer',
-	},
-	{
-		code: 'a: Integer = 1',
-		types: 'definition name reference integer',
-	},
-	{
-		code: 'f(1 2)',
-		types: 'functionCall reference list integer integer',
-	},
-	{
-		code: '[a = 1]',
-		types: 'dictionary singleDictionaryField name integer',
-	},
-	{
-		code: '[a: Integer]',
-		types: 'dictionaryType singleDictionaryTypeField name reference',
-	},
-	{
-		code: '[1 2]',
-		types: 'list integer integer',
-	},
-	{
-		code: '[]',
-		types: 'empty',
-	},
-	{
-		code: '(a: Integer) => a',
-		types: 'functionLiteral parameters parameter name reference reference',
-	},
-	{
-		code: '(a b) = [1 2]',
-		types: 'destructuring destructuringFields destructuringField name destructuringField name list integer integer',
-	},
-	{
-		code: 'a/b',
-		types: 'nestedReference reference name',
-	},
-];
+const expectTypes = reportAtCaller((code: string, types: string) => {
+	assert.equal(collectAll(code), types);
+});
 
 describe('forEachChild', () => {
-	expectedResults.forEach(({ code, types }) => {
-		it(code, () => {
-			assert.equal(collectAll(code), types);
-		});
+	it('a = 1', () => {
+		expectTypes('a = 1', 'definition name integer');
+	});
+	it('a: Integer = 1', () => {
+		expectTypes('a: Integer = 1', 'definition name reference integer');
+	});
+	it('f(1 2)', () => {
+		expectTypes('f(1 2)', 'functionCall reference list integer integer');
+	});
+	it('[a = 1]', () => {
+		expectTypes('[a = 1]', 'dictionary singleDictionaryField name integer');
+	});
+	it('[a: Integer]', () => {
+		expectTypes('[a: Integer]', 'dictionaryType singleDictionaryTypeField name reference');
+	});
+	it('[1 2]', () => {
+		expectTypes('[1 2]', 'list integer integer');
+	});
+	it('[]', () => {
+		expectTypes('[]', 'empty');
+	});
+	it('(a: Integer) => a', () => {
+		expectTypes('(a: Integer) => a', 'functionLiteral parameters parameter name reference reference');
+	});
+	it('(a b) = [1 2]', () => {
+		expectTypes('(a b) = [1 2]', 'destructuring destructuringFields destructuringField name destructuringField name list integer integer');
+	});
+	it('a/b', () => {
+		expectTypes('a/b', 'nestedReference reference name');
 	});
 
 	it('bricht beim ersten Treffer ab', () => {

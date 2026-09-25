@@ -6,6 +6,7 @@ import { checkTypes, ParsedDocuments, typeToString } from '../checker/checker.js
 import { ErrorCode } from '../compiler-errors.js';
 import { createInMemoryHost, loadFile } from '../project-loader.js';
 import { ParsedFile, ParseSingleDefinition } from '../syntax-tree.js';
+import { reportAtCaller } from '../test-util.js';
 
 describe('TypeScript Parser', () => {
 	it('sollte Zeile/Spalte statt rohem Zeichen-Offset für die Position einer Funktionsdeklaration liefern', () => {
@@ -36,86 +37,61 @@ describe('TypeScript Parser', () => {
 		return type && typeToString(type, 0, 3);
 	}
 
-	const expectedReturnTypes: {
-		name: string;
-		code: string;
-		result: string;
-	}[] = [
-			{ name: 'bigint', code: 'export function f(): bigint { return 1n; }', result: '() :> Integer' },
-			{ name: 'number', code: 'export function f(): number { return 1; }', result: '() :> Float' },
-			{ name: 'string', code: 'export function f(): string { return ""; }', result: '() :> Text' },
-			{ name: 'boolean', code: 'export function f(): boolean { return true; }', result: '() :> Boolean' },
-			{ name: 'void', code: 'export function f(): void {}', result: '() :> Empty' },
-			{ name: 'any', code: 'export function f(): any {}', result: '() :> Any' },
-			{ name: 'union mit undefined', code: 'export function f(): bigint | undefined {}', result: '() :> Or(Empty Integer)' },
-			{ name: 'array', code: 'export function f(): string[] {}', result: '() :> List(Text)' },
-			{ name: 'Array<T>', code: 'export function f(): Array<bigint> {}', result: '() :> List(Integer)' },
-			{ name: 'array mit undefined', code: 'export function f(): string[] | undefined {}', result: '() :> Or(Empty List(Text))' },
-			{ name: 'index signature', code: 'export function f(): { [key: string]: any; } {}', result: '() :> Dictionary(Any)' },
-			{ name: 'index signature mit undefined', code: 'export function f(): { [key: string]: any; } | undefined {}', result: '() :> Or(Empty Dictionary(Any))' },
-			{ name: 'Record', code: 'export function f(): Record<string, number> {}', result: '() :> Dictionary(Float)' },
-			{
-				name: 'Objekt-Typliteral mit optionalem Feld und Error',
-				code: 'export function f(): { main: string[] | undefined, extra?: bigint } | Error {}',
-				result: `() :> Or([
+	const expectTypeOfF = reportAtCaller((code: string, result: string) => {
+		expect(typeOfF(code)).to.equal(result);
+	});
+	describe('Rückgabetyp', () => {
+		it('bigint', () => expectTypeOfF('export function f(): bigint { return 1n; }', '() :> Integer'));
+		it('number', () => expectTypeOfF('export function f(): number { return 1; }', '() :> Float'));
+		it('string', () => expectTypeOfF('export function f(): string { return ""; }', '() :> Text'));
+		it('boolean', () => expectTypeOfF('export function f(): boolean { return true; }', '() :> Boolean'));
+		it('void', () => expectTypeOfF('export function f(): void {}', '() :> Empty'));
+		it('any', () => expectTypeOfF('export function f(): any {}', '() :> Any'));
+		it('union mit undefined', () => expectTypeOfF('export function f(): bigint | undefined {}', '() :> Or(Empty Integer)'));
+		it('array', () => expectTypeOfF('export function f(): string[] {}', '() :> List(Text)'));
+		it('Array<T>', () => expectTypeOfF('export function f(): Array<bigint> {}', '() :> List(Integer)'));
+		it('array mit undefined', () => expectTypeOfF('export function f(): string[] | undefined {}', '() :> Or(Empty List(Text))'));
+		it('index signature', () => expectTypeOfF('export function f(): { [key: string]: any; } {}', '() :> Dictionary(Any)'));
+		it('index signature mit undefined', () => expectTypeOfF('export function f(): { [key: string]: any; } | undefined {}', '() :> Or(Empty Dictionary(Any))'));
+		it('Record', () => expectTypeOfF('export function f(): Record<string, number> {}', '() :> Dictionary(Float)'));
+		it('Objekt-Typliteral mit optionalem Feld und Error', () => {
+			expectTypeOfF('export function f(): { main: string[] | undefined, extra?: bigint } | Error {}', `() :> Or([
   main: Or(Empty List(Text))
   extra: Or(Empty Integer)
-] Error)`,
-			},
-			{ name: 'Literaltypen', code: 'export function f(): \'a\' | 1n | 2 | true {}', result: '() :> Or(§a§ 1 2f true)' },
-			{ name: 'Klammertyp', code: 'export function f(): (bigint) {}', result: '() :> Integer' },
-			{ name: 'ArrowFunction', code: 'export const f = (): bigint => 1n;', result: '() :> Integer' },
-			{ name: 'ohne Annotation', code: 'export function f() { return 1n; }', result: '() :> Any' },
-			{ name: 'generisch', code: 'export function f<T>(): T {}', result: '() :> Any' },
-			{ name: 'Promise', code: 'export function f(): Promise<number> {}', result: '() :> Any' },
-			{ name: 'Funktionstyp', code: 'export function f(): () => void {}', result: '() :> Any' },
-			{ name: 'Union mit nicht übersetzbarem Glied', code: 'export function f(): bigint | Foo {}', result: '() :> Any' },
-			{ name: 'verschachtelt nicht übersetzbar', code: 'export function f(): Foo[] {}', result: '() :> List(Any)' },
-		];
-	describe('Rückgabetyp', () => {
-		expectedReturnTypes.forEach(({ name, code, result }) => {
-			it(name, () => {
-				expect(typeOfF(code)).to.equal(result);
-			});
+] Error)`);
 		});
+		it('Literaltypen', () => expectTypeOfF('export function f(): \'a\' | 1n | 2 | true {}', '() :> Or(§a§ 1 2f true)'));
+		it('Klammertyp', () => expectTypeOfF('export function f(): (bigint) {}', '() :> Integer'));
+		it('ArrowFunction', () => expectTypeOfF('export const f = (): bigint => 1n;', '() :> Integer'));
+		it('ohne Annotation', () => expectTypeOfF('export function f() { return 1n; }', '() :> Any'));
+		it('generisch', () => expectTypeOfF('export function f<T>(): T {}', '() :> Any'));
+		it('Promise', () => expectTypeOfF('export function f(): Promise<number> {}', '() :> Any'));
+		it('Funktionstyp', () => expectTypeOfF('export function f(): () => void {}', '() :> Any'));
+		it('Union mit nicht übersetzbarem Glied', () => expectTypeOfF('export function f(): bigint | Foo {}', '() :> Any'));
+		it('verschachtelt nicht übersetzbar', () => expectTypeOfF('export function f(): Foo[] {}', '() :> List(Any)'));
 	});
 
-	const expectedParameterTypes: {
-		name: string;
-		code: string;
-		result: string;
-	}[] = [
-			{ name: 'einfacher Parameter', code: 'export function f(a: bigint) {}', result: '(a: Integer) :> Any' },
-			{
-				name: 'optionaler Parameter',
-				code: 'export function f(a: bigint, b?: string) {}',
-				result: '(\n  a: Integer\n  b: Or(Empty Text)\n) :> Any',
-			},
-			{ name: 'optionaler Parameter mit Union', code: 'export function f(a?: bigint | string) {}', result: '(a: Or(Empty Integer Text)) :> Any' },
-			{ name: 'Default mit Annotation', code: 'export function f(a: bigint = 1n) {}', result: '(a: Or(Empty Integer)) :> Any' },
-			{ name: 'Default ohne Annotation', code: 'export function f(a = 1n) {}', result: '(a: Any) :> Any' },
-			{ name: 'ohne Annotation', code: 'export function f(a) {}', result: '(a: Any) :> Any' },
-			{ name: 'Callback bleibt ungetypt', code: 'export function f(cb: (x: any) => boolean) {}', result: '(cb: Any) :> Any' },
-			{ name: 'optionaler Callback bleibt ungetypt', code: 'export function f(cb?: () => void) {}', result: '(cb: Any) :> Any' },
-			// Ein Aufruf ohne Rest-Argumente kommt in JUL als Empty an, und TS kann das am
-			// Rest-Parameter nicht mit | undefined annotieren - deshalb hier Empty zusätzlich.
-			{ name: 'Rest-Parameter', code: 'export function f(...args: bigint[]) {}', result: '(...args: Or(Empty List(Integer))) :> Any' },
-			{
-				name: 'Rest-Parameter nach Einzelparameter',
-				code: 'export function f(a: string, ...args: bigint[]) {}',
-				result: '(\n  a: Text\n  ...args: Or(Empty List(Integer))\n) :> Any',
-			},
-			{ name: 'Rest-Parameter ohne Annotation', code: 'export function f(...args) {}', result: '(...args: Any) :> Any' },
-			// this ist in TS eine reine Typangabe, kein Argument
-			{ name: 'this-Parameter entfällt', code: 'export function f(this: Window, a: bigint) {}', result: '(a: Integer) :> Any' },
-			{ name: 'ArrowFunction', code: 'export const f = (a: bigint): bigint => a;', result: '(a: Integer) :> Integer' },
-		];
 	describe('Parametertyp', () => {
-		expectedParameterTypes.forEach(({ name, code, result }) => {
-			it(name, () => {
-				expect(typeOfF(code)).to.equal(result);
-			});
+		it('einfacher Parameter', () => expectTypeOfF('export function f(a: bigint) {}', '(a: Integer) :> Any'));
+		it('optionaler Parameter', () => {
+			expectTypeOfF('export function f(a: bigint, b?: string) {}', '(\n  a: Integer\n  b: Or(Empty Text)\n) :> Any');
 		});
+		it('optionaler Parameter mit Union', () => expectTypeOfF('export function f(a?: bigint | string) {}', '(a: Or(Empty Integer Text)) :> Any'));
+		it('Default mit Annotation', () => expectTypeOfF('export function f(a: bigint = 1n) {}', '(a: Or(Empty Integer)) :> Any'));
+		it('Default ohne Annotation', () => expectTypeOfF('export function f(a = 1n) {}', '(a: Any) :> Any'));
+		it('ohne Annotation', () => expectTypeOfF('export function f(a) {}', '(a: Any) :> Any'));
+		it('Callback bleibt ungetypt', () => expectTypeOfF('export function f(cb: (x: any) => boolean) {}', '(cb: Any) :> Any'));
+		it('optionaler Callback bleibt ungetypt', () => expectTypeOfF('export function f(cb?: () => void) {}', '(cb: Any) :> Any'));
+		// Ein Aufruf ohne Rest-Argumente kommt in JUL als Empty an, und TS kann das am
+		// Rest-Parameter nicht mit | undefined annotieren - deshalb hier Empty zusätzlich.
+		it('Rest-Parameter', () => expectTypeOfF('export function f(...args: bigint[]) {}', '(...args: Or(Empty List(Integer))) :> Any'));
+		it('Rest-Parameter nach Einzelparameter', () => {
+			expectTypeOfF('export function f(a: string, ...args: bigint[]) {}', '(\n  a: Text\n  ...args: Or(Empty List(Integer))\n) :> Any');
+		});
+		it('Rest-Parameter ohne Annotation', () => expectTypeOfF('export function f(...args) {}', '(...args: Any) :> Any'));
+		// this ist in TS eine reine Typangabe, kein Argument
+		it('this-Parameter entfällt', () => expectTypeOfF('export function f(this: Window, a: bigint) {}', '(a: Integer) :> Any'));
+		it('ArrowFunction', () => expectTypeOfF('export const f = (a: bigint): bigint => a;', '(a: Integer) :> Integer'));
 	});
 
 	it('JUL-Aufruf mit falschem Argumenttyp wird gemeldet', () => {

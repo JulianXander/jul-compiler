@@ -181,19 +181,29 @@ describe('ReferenceIndex: Feldnamen an Stellen mit erwartetem Typ', () => {
 		expect(getErrorsWithSeverityError(documents, filePath)).to.deep.equal([]);
 	});
 
-	[
-		{ name: 'Definition mit Typguard', row: 7 },
-		{ name: 'positionales Argument', row: 8 },
-		{ name: 'benanntes Argument', row: 9 },
-		{ name: 'Listenelement', row: 10 },
-		{ name: 'verschachteltes Literal', row: 11 },
-		{ name: 'Rückgabewert', row: 12 },
-		{ name: 'Zugriff über eine typisierte Variable', row: 13 },
-		{ name: 'Destructuring ohne Alias', row: 15 },
-	].forEach(({ name, row }) => {
-		it(`${name}: der Feldname ist eine Referenz auf das Feld des erwarteten Typs`, () => {
-			expect(getReferenceRows()).to.include(row);
-		});
+	it('Definition mit Typguard: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include(7);
+	});
+	it('positionales Argument: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include(8);
+	});
+	it('benanntes Argument: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include(9);
+	});
+	it('Listenelement: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include(10);
+	});
+	it('verschachteltes Literal: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include(11);
+	});
+	it('Rückgabewert: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include(12);
+	});
+	it('Zugriff über eine typisierte Variable: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include(13);
+	});
+	it('Destructuring ohne Alias: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include(15);
 	});
 
 	it('Destructuring mit Alias: der Feldname ist die Referenz, nicht der lokale Name', () => {
@@ -206,15 +216,17 @@ describe('ReferenceIndex: Feldnamen an Stellen mit erwartetem Typ', () => {
 		expect(getReferenceRows()).to.include(20);
 	});
 
-	[
-		{ name: 'ein gleichnamiges Feld eines anderen Typs', row: 16 },
-		{ name: 'ein Literal ohne erwarteten Typ', row: 17 },
-		{ name: 'ein Literal, das Any erwartet', row: 19 },
-		{ name: 'die Verwendung eines Alias aus einem Destructuring', row: 21 },
-	].forEach(({ name, row }) => {
-		it(`Gegenprobe: ${name} ist keine Referenz`, () => {
-			expect(getReferenceRows()).to.not.include(row);
-		});
+	it('Gegenprobe: ein gleichnamiges Feld eines anderen Typs ist keine Referenz', () => {
+		expect(getReferenceRows()).to.not.include(16);
+	});
+	it('Gegenprobe: ein Literal ohne erwarteten Typ ist keine Referenz', () => {
+		expect(getReferenceRows()).to.not.include(17);
+	});
+	it('Gegenprobe: ein Literal, das Any erwartet ist keine Referenz', () => {
+		expect(getReferenceRows()).to.not.include(19);
+	});
+	it('Gegenprobe: die Verwendung eines Alias aus einem Destructuring ist keine Referenz', () => {
+		expect(getReferenceRows()).to.not.include(21);
 	});
 });
 

@@ -17,19 +17,30 @@ import {
 	TypePurity,
 } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
+import { reportAtCaller } from '../test-util.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
 import { builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
-const expectedResults: {
-	name: string;
-	code: string;
+const expectCheck = reportAtCaller((code: string, { result, errors }: {
 	result?: ParseExpression[];
 	errors?: CompilerError[];
-}[] = [
-		{
-			name: 'text-interpolation-reference-error',
-			code: '§§(a)§',
+} = {}) => {
+	const parserResult = parseCode(code, 'dummy.jul');
+	// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
+	// unvollständigen Baum schlicht nichts zu melden hat. Vor dem Check, weil ohne Klon
+	// danach auch die Checker-Fehler in unchecked stehen.
+	expect(parserResult.unchecked.errors).to.deep.equal([]);
+	checkTypes(parserResult, {}, { cloneUnchecked: false });
+	expect(parserResult.checked?.errors).to.deep.equal(errors ?? []);
+	if (result) {
+		expect(parserResult.checked?.expressions).to.deep.equal(result);
+	}
+});
+
+describe('Checker', () => {
+	it('text-interpolation-reference-error', () => {
+		expectCheck('§§(a)§', {
 			errors: [
 				{
 					"code": ErrorCode.notDefined,
@@ -40,11 +51,11 @@ const expectedResults: {
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			name: 'used-before-defined-error',
-			code: `a
-a = 5`,
+		});
+	});
+	it('used-before-defined-error', () => {
+		expectCheck(`a
+a = 5`, {
 			errors: [
 				{
 					"code": ErrorCode.usedBeforeDefined,
@@ -55,12 +66,12 @@ a = 5`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Position zeigt über findInnermostErrorPosition auf das falsche Element (4),
-			// nicht mehr auf die ganze Definition.
-			name: 'list-type-error',
-			code: 'a: List(Text) = [4]',
+		});
+	});
+	// Position zeigt über findInnermostErrorPosition auf das falsche Element (4),
+	// nicht mehr auf die ganze Definition.
+	it('list-type-error', () => {
+		expectCheck('a: List(Text) = [4]', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -71,20 +82,19 @@ a = 5`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		//#region Params-Typ
-		{
-			// Ein Typ als Params-Typ ist zulässig, die Funktion bleibt aufrufbar.
-			name: 'type-function',
-			code: `t = Any => []
-t(1)`,
-		},
-		{
-			// Der Params-Typ wird gegen die Argumentkollektion geprüft, und die ist List,
-			// Dictionary oder Empty. Integer kann das nie sein, die Funktion ist also nicht
-			// aufrufbar — unabhängig davon, ob sie je in einem branching auftaucht.
-			name: 'params-type-must-be-collection',
-			code: 'f = Integer => 0',
+		});
+	});
+	//#region Params-Typ
+	// Ein Typ als Params-Typ ist zulässig, die Funktion bleibt aufrufbar.
+	it('type-function', () => {
+		expectCheck(`t = Any => []
+t(1)`);
+	});
+	// Der Params-Typ wird gegen die Argumentkollektion geprüft, und die ist List,
+	// Dictionary oder Empty. Integer kann das nie sein, die Funktion ist also nicht
+	// aufrufbar — unabhängig davon, ob sie je in einem branching auftaucht.
+	it('params-type-must-be-collection', () => {
+		expectCheck('f = Integer => 0', {
 			errors: [
 				{
 					"code": ErrorCode.paramsTypeIsNotCollection,
@@ -95,21 +105,20 @@ t(1)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Gegenprobe: gewickelt ist derselbe Typ aufrufbar.
-			name: 'params-type-collection-is-callable',
-			code: `f = [Integer] => 0
-f(1)`,
-		},
-		{
-			// Dieselbe Regel am branch: ein Kopf, der keine Argumentkollektion sein kann, ist
-			// eine nicht aufrufbare Funktion — gemeldet an der Funktion, nicht am branching.
-			name: 'branch-head-must-be-collection',
-			code: `f = (x: Integer) =>
+		});
+	});
+	// Gegenprobe: gewickelt ist derselbe Typ aufrufbar.
+	it('params-type-collection-is-callable', () => {
+		expectCheck(`f = [Integer] => 0
+f(1)`);
+	});
+	// Dieselbe Regel am branch: ein Kopf, der keine Argumentkollektion sein kann, ist
+	// eine nicht aufrufbare Funktion — gemeldet an der Funktion, nicht am branching.
+	it('branch-head-must-be-collection', () => {
+		expectCheck(`f = (x: Integer) =>
 	?(x)
 		Integer => 0
-		() => 1`,
+		() => 1`, {
 			errors: [
 				{
 					"code": ErrorCode.paramsTypeIsNotCollection,
@@ -120,35 +129,32 @@ f(1)`,
 					"startRowIndex": 2,
 				},
 			],
-		},
-		{
-			// Empty ist die Kollektion eines Aufrufs ohne Argumente und damit gültig.
-			name: 'params-type-empty-is-collection',
-			code: `f = Empty => 0
-f()`,
-		},
-		{
-			// Never ist unbewohnt, es gibt also keinen Wert, der keine Kollektion sein könnte.
-			// Schreibbar ist Never nicht, es entsteht nur aus Typarithmetik — ein Fehler hier
-			// träfe niemanden, der etwas Falsches geschrieben hat.
-			name: 'params-type-never-is-not-reported',
-			code: 'f = And(Integer Text) => 0',
-		},
-		{
-			// Unwissen ist keine Ablehnung: ein nicht auflösbarer Params-Typ darf nicht gemeldet
-			// werden, sonst wird aus "nicht entscheidbar" ein "passt nicht".
-			name: 'params-type-unknown-is-not-reported',
-			code: `T = Any
-f = T => 0`,
-		},
-		//#endregion Params-Typ
-		//#region branching: Bindung
-		// ? ist ein Präfix-Operator mit runder Argumentliste: ein Kopf prüft ausnahmslos gegen
-		// die Argumentkollektion, und der gebranchte Wert ist deren Element 0.
-		{
-			// Ein branch ist eine Funktion — ein anderer Wert kann nicht matchen.
-			name: 'branch-non-function-error',
-			code: '?([])\n\t4',
+		});
+	});
+	// Empty ist die Kollektion eines Aufrufs ohne Argumente und damit gültig.
+	it('params-type-empty-is-collection', () => {
+		expectCheck(`f = Empty => 0
+f()`);
+	});
+	// Never ist unbewohnt, es gibt also keinen Wert, der keine Kollektion sein könnte.
+	// Schreibbar ist Never nicht, es entsteht nur aus Typarithmetik — ein Fehler hier
+	// träfe niemanden, der etwas Falsches geschrieben hat.
+	it('params-type-never-is-not-reported', () => {
+		expectCheck('f = And(Integer Text) => 0');
+	});
+	// Unwissen ist keine Ablehnung: ein nicht auflösbarer Params-Typ darf nicht gemeldet
+	// werden, sonst wird aus "nicht entscheidbar" ein "passt nicht".
+	it('params-type-unknown-is-not-reported', () => {
+		expectCheck(`T = Any
+f = T => 0`);
+	});
+	//#endregion Params-Typ
+	//#region branching: Bindung
+	// ? ist ein Präfix-Operator mit runder Argumentliste: ein Kopf prüft ausnahmslos gegen
+	// die Argumentkollektion, und der gebranchte Wert ist deren Element 0.
+	// Ein branch ist eine Funktion — ein anderer Wert kann nicht matchen.
+	it('branch-non-function-error', () => {
+		expectCheck('?([])\n\t4', {
 			errors: [
 				{
 					"code": ErrorCode.branchIsNotFunction,
@@ -159,124 +165,113 @@ f = T => 0`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Kein Auto-Spread mehr: ein geschriebenes Argument bleibt ein Argument, auch wenn
-			// es eine Collection ist. Der 1. Parameter bekommt die ganze Liste.
-			name: 'branch-binds-whole-collection',
-			code: `h = (x: List(Integer)) => x
+		});
+	});
+	// Kein Auto-Spread mehr: ein geschriebenes Argument bleibt ein Argument, auch wenn
+	// es eine Collection ist. Der 1. Parameter bekommt die ganze Liste.
+	it('branch-binds-whole-collection', () => {
+		expectCheck(`h = (x: List(Integer)) => x
 f = (someVar: List(Integer)) =>
 	?(someVar)
 		(a: List(Integer)) => h(a)
-		() => []`,
-		},
-		{
-			// Gegenstück: gespreadet wird nur mit geschriebenem ..., dann beschreiben die
-			// Parameter die Elemente.
-			name: 'branch-spread-binds-elements',
-			code: `g = (x: Integer) => x
+		() => []`);
+	});
+	// Gegenstück: gespreadet wird nur mit geschriebenem ..., dann beschreiben die
+	// Parameter die Elemente.
+	it('branch-spread-binds-elements', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (pair: [Integer Integer]) =>
 	?(...pair)
 		(a: Integer b: Integer) => g(a)
-		() => 0`,
-		},
-		{
-			// Ein leerer Wert ist kein leeres Argument: ?(value) schreibt ein Argument, die
-			// Kollektion ist also [()] und der passende Kopf [Empty], nicht Empty.
-			name: 'branch-empty-value-is-one-argument',
-			code: `f = (value: Or([] Integer)) =>
+		() => 0`);
+	});
+	// Ein leerer Wert ist kein leeres Argument: ?(value) schreibt ein Argument, die
+	// Kollektion ist also [()] und der passende Kopf [Empty], nicht Empty.
+	it('branch-empty-value-is-one-argument', () => {
+		expectCheck(`f = (value: Or([] Integer)) =>
 	?(value)
 		[Empty] => 0
-		Any => 1`,
-		},
-		{
-			// Umgekehrt: ohne geschriebenes Argument ist die Kollektion selbst Empty.
-			name: 'branch-empty-collection-matches-empty-head',
-			code: `?()
+		Any => 1`);
+	});
+	// Umgekehrt: ohne geschriebenes Argument ist die Kollektion selbst Empty.
+	it('branch-empty-collection-matches-empty-head', () => {
+		expectCheck(`?()
 	Empty => 0
-	() => 1`,
-		},
-		//#endregion branching: Bindung
-		//#region branching: Verengung
-		// Die Verengung schneidet (sie ersetzt nicht) und wirkt auf den gebundenen Wert.
-		{
-			// Der catchAll () => ... bindet nichts und matcht jeden Wert, sagt über den Wert
-			// also nichts aus. countdown behält daher Integer und ist weiter an einen
-			// Integer-Parameter zuweisbar. Vgl. jul-examples/fibonacci/fibonacci.jul.
-			name: 'branch-narrowing-catch-all',
-			code: `g = (x: Integer) => x
+	() => 1`);
+	});
+	//#endregion branching: Bindung
+	//#region branching: Verengung
+	// Die Verengung schneidet (sie ersetzt nicht) und wirkt auf den gebundenen Wert.
+	// Der catchAll () => ... bindet nichts und matcht jeden Wert, sagt über den Wert
+	// also nichts aus. countdown behält daher Integer und ist weiter an einen
+	// Integer-Parameter zuweisbar. Vgl. jul-examples/fibonacci/fibonacci.jul.
+	it('branch-narrowing-catch-all', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (countdown: Integer) =>
 	?(countdown)
 		[0] => 0
-		() => g(countdown)`,
-		},
-		{
-			// Die Parameterliste beschreibt die Argumentkollektion, der 1. Parameter bekommt
-			// also das 1. Argument. Verengt wird auf dessen Typ, nicht auf die Liste als Ganzes.
-			name: 'branch-narrowing-named-param',
-			code: `g = (x: Integer) => x
+		() => g(countdown)`);
+	});
+	// Die Parameterliste beschreibt die Argumentkollektion, der 1. Parameter bekommt
+	// also das 1. Argument. Verengt wird auf dessen Typ, nicht auf die Liste als Ganzes.
+	it('branch-narrowing-named-param', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (countdown: Integer) =>
 	?(countdown)
 		[0] => 0
-		(y: Integer) => g(countdown)`,
-		},
-		{
-			// Ohne Einzelparameter bekommt der rest die ganze Kollektion, also [countdown].
-			// Verengt wird daher auf den Elementtyp der rest-Liste, hier Integer.
-			name: 'branch-narrowing-rest-param',
-			code: `g = (x: Integer) => x
+		(y: Integer) => g(countdown)`);
+	});
+	// Ohne Einzelparameter bekommt der rest die ganze Kollektion, also [countdown].
+	// Verengt wird daher auf den Elementtyp der rest-Liste, hier Integer.
+	it('branch-narrowing-rest-param', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (countdown: Integer) =>
 	?(countdown)
 		[0] => 0
-		(...rest: List(Integer)) => g(countdown)`,
-		},
-		{
-			// Ein Parameter ohne TypeGuard hat den Typ Any, das darf nicht verbreitern.
-			name: 'branch-narrowing-untyped-param',
-			code: `g = (x: Integer) => x
+		(...rest: List(Integer)) => g(countdown)`);
+	});
+	// Ein Parameter ohne TypeGuard hat den Typ Any, das darf nicht verbreitern.
+	it('branch-narrowing-untyped-param', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (countdown: Integer) =>
 	?(countdown)
 		[0] => 0
-		(y) => g(countdown)`,
-		},
-		{
-			// Any matcht auch die Kollektion und bleibt daher ungewickelt. Verbreitern darf
-			// es nicht, der Schnitt behält Integer.
-			name: 'branch-narrowing-any-branch',
-			code: `g = (x: Integer) => x
+		(y) => g(countdown)`);
+	});
+	// Any matcht auch die Kollektion und bleibt daher ungewickelt. Verbreitern darf
+	// es nicht, der Schnitt behält Integer.
+	it('branch-narrowing-any-branch', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (countdown: Integer) =>
 	?(countdown)
 		[0] => 0
-		Any => g(countdown)`,
-		},
-		{
-			// Ein Typ-Kopf bindet nichts und prüft die Kollektion. Verengt wird auf sein
-			// Element 0: someVar wird hier zu Integer.
-			name: 'branch-narrowing-type-param',
-			code: `g = (x: Integer) => x
+		Any => g(countdown)`);
+	});
+	// Ein Typ-Kopf bindet nichts und prüft die Kollektion. Verengt wird auf sein
+	// Element 0: someVar wird hier zu Integer.
+	it('branch-narrowing-type-param', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (someVar: Any) =>
 	?(someVar)
 		[Integer] => g(someVar)
-		() => 0`,
-		},
-		{
-			// Distributivgesetz: And(Or(Text Integer) Text) => Or(Text Never) => Text
-			name: 'branch-narrowing-union',
-			code: `t = (x: Text) => x
+		() => 0`);
+	});
+	// Distributivgesetz: And(Or(Text Integer) Text) => Or(Text Never) => Text
+	it('branch-narrowing-union', () => {
+		expectCheck(`t = (x: Text) => x
 f = (someVar: Or(Text Integer)) =>
 	?(someVar)
 		(y: Text) => t(someVar)
-		() => §§`,
-		},
-		{
-			// Gegenprobe: die Verengung muss auch wirklich greifen. Im Text-Branch ist someVar
-			// auf Text verengt und damit nicht mehr an einen Integer-Parameter zuweisbar.
-			name: 'branch-narrowing-applies',
-			code: `g = (x: Integer) => x
+		() => §§`);
+	});
+	// Gegenprobe: die Verengung muss auch wirklich greifen. Im Text-Branch ist someVar
+	// auf Text verengt und damit nicht mehr an einen Integer-Parameter zuweisbar.
+	it('branch-narrowing-applies', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (someVar: Or(Text Integer)) =>
 	?(someVar)
 		(y: Text) => g(someVar)
-		() => 0`,
+		() => 0`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -287,26 +282,25 @@ f = (someVar: Or(Text Integer)) =>
 					"startRowIndex": 3,
 				},
 			],
-		},
-		{
-			// _branch probiert die branches der Reihe nach. Wer den Empty-branch passiert hat,
-			// kann kein Empty mehr sein — die Verengung muss die Typen der vorherigen branches
-			// also abziehen.
-			name: 'branch-narrowing-excludes-previous-branches',
-			code: `g = (x: Integer) => x
+		});
+	});
+	// _branch probiert die branches der Reihe nach. Wer den Empty-branch passiert hat,
+	// kann kein Empty mehr sein — die Verengung muss die Typen der vorherigen branches
+	// also abziehen.
+	it('branch-narrowing-excludes-previous-branches', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (value: Or([] Integer)) =>
 	?(value)
 		[Empty] => 0
-		Any => g(value)`,
-		},
-		{
-			// Gegenprobe: ohne vorherigen branch bleibt Empty möglich und muss gemeldet werden.
-			// Die Verengung darf also nicht pauschal Empty abziehen.
-			name: 'branch-narrowing-keeps-unhandled-types',
-			code: `g = (x: Integer) => x
+		Any => g(value)`);
+	});
+	// Gegenprobe: ohne vorherigen branch bleibt Empty möglich und muss gemeldet werden.
+	// Die Verengung darf also nicht pauschal Empty abziehen.
+	it('branch-narrowing-keeps-unhandled-types', () => {
+		expectCheck(`g = (x: Integer) => x
 f = (value: Or([] Integer)) =>
 	?(value)
-		Any => g(value)`,
+		Any => g(value)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -317,23 +311,22 @@ f = (value: Or([] Integer)) =>
 					"startRowIndex": 3,
 				},
 			],
-		},
-		{
-			// Branching über mehrere Werte: Element i des Kopfes verengt das i-te Argument.
-			name: 'branch-narrowing-multiple-values',
-			code: `g = (x: Integer y: Integer) => x
+		});
+	});
+	// Branching über mehrere Werte: Element i des Kopfes verengt das i-te Argument.
+	it('branch-narrowing-multiple-values', () => {
+		expectCheck(`g = (x: Integer y: Integer) => x
 f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 	?(a b)
 		[Integer Integer] => g(a b)
-		() => 0`,
-		},
-		{
-			// Ohne Parameternamen ist bei mehreren Argumenten nicht erkennbar, welches falsch ist -
-			// Fund an einem echten Aufruf mit mehreren Kandidaten-Fehlern ohne Zuordnung
-			// (game-logic.jul: 3 "Can not assign"-Zeilen, keine sagt welches Argument gemeint ist).
-			name: 'argument-type-mismatch-names-the-parameter',
-			code: `f = (a: Integer b: Greater(0)) => a
-f(1 0)`,
+		() => 0`);
+	});
+	// Ohne Parameternamen ist bei mehreren Argumenten nicht erkennbar, welches falsch ist -
+	// Fund an einem echten Aufruf mit mehreren Kandidaten-Fehlern ohne Zuordnung
+	// (game-logic.jul: 3 "Can not assign"-Zeilen, keine sagt welches Argument gemeint ist).
+	it('argument-type-mismatch-names-the-parameter', () => {
+		expectCheck(`f = (a: Integer b: Greater(0)) => a
+f(1 0)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -344,24 +337,23 @@ f(1 0)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Ein Feldpfad als Branch-Argument verengt die Quelle: im Integer-Zweig ist d/a auf
-			// Integer verengt, also auch beim erneuten Lesen.
-			name: 'branch-narrowing-through-field-path',
-			code: `f = (d: [a: Or(Text Integer)]) =>
+		});
+	});
+	// Ein Feldpfad als Branch-Argument verengt die Quelle: im Integer-Zweig ist d/a auf
+	// Integer verengt, also auch beim erneuten Lesen.
+	it('branch-narrowing-through-field-path', () => {
+		expectCheck(`f = (d: [a: Or(Text Integer)]) =>
 	?(d/a)
 		(y: Integer) =>
 			narrowed: Integer = d/a
 			narrowed
-		() => 0`,
-		},
-		{
-			// Die Verengung wirkt auch rückwärts auf die Quelle: dass stepType ein Text ist,
-			// beweist, dass step nicht empty ist — Empty hat kein Feld type. Auch über die
-			// Zwischenvariable hinweg, denn ein Name bezeichnet in JUL genau einen Wert.
-			name: 'branch-narrowing-reaches-source-of-field',
-			code: `g = (q: Text) => q
+		() => 0`);
+	});
+	// Die Verengung wirkt auch rückwärts auf die Quelle: dass stepType ein Text ist,
+	// beweist, dass step nicht empty ist — Empty hat kein Feld type. Auch über die
+	// Zwischenvariable hinweg, denn ein Name bezeichnet in JUL genau einen Wert.
+	it('branch-narrowing-reaches-source-of-field', () => {
+		expectCheck(`g = (q: Text) => q
 Step = [
 	type: Text
 	query: Text
@@ -378,20 +370,19 @@ f = (flag: Boolean) =>
 	stepType = step/type
 	?(stepType)
 		[Text] => g(step/query)
-		() => §§`,
-		},
-		{
-			// Das Feld der Quelle wählt die Choice aus: im Zweig §a§ bleibt von step nur die
-			// Choice mit type §a§ übrig, die andere fällt weg. Die Zuweisung an Empty macht den
-			// verengten Typ sichtbar.
-			name: 'branch-narrowing-field-selects-choice-of-source',
-			code: `f = (step: Or([type: §a§ amount: Integer] [type: §b§])) =>
+		() => §§`);
+	});
+	// Das Feld der Quelle wählt die Choice aus: im Zweig §a§ bleibt von step nur die
+	// Choice mit type §a§ übrig, die andere fällt weg. Die Zuweisung an Empty macht den
+	// verengten Typ sichtbar.
+	it('branch-narrowing-field-selects-choice-of-source', () => {
+		expectCheck(`f = (step: Or([type: §a§ amount: Integer] [type: §b§])) =>
 	t = step/type
 	?(t)
 		[§a§] =>
 			narrowed: Empty = step
 			narrowed
-		[§b§] => []`,
+		[§b§] => []`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -402,24 +393,23 @@ f = (flag: Boolean) =>
 					"startRowIndex": 4,
 				},
 			],
-		},
-		{
-			// Dasselbe als Argument: mit Any statt Integer wählte der bedingte Rückgabetyp von add
-			// den Rational-Zweig.
-			name: 'branch-narrowing-field-selects-choice-of-source-as-argument',
-			code: `f = (step: Or([type: §a§ amount: Integer] [type: §b§])) =>
+		});
+	});
+	// Dasselbe als Argument: mit Any statt Integer wählte der bedingte Rückgabetyp von add
+	// den Rational-Zweig.
+	it('branch-narrowing-field-selects-choice-of-source-as-argument', () => {
+		expectCheck(`f = (step: Or([type: §a§ amount: Integer] [type: §b§])) =>
 	t = step/type
 	?(t)
 		[§a§] =>
 			sum: Integer = assume(3 Integer).add(step/amount)
 			sum
-		[§b§] => 0`,
-		},
-		{
-			// Gegenprobe: die Verengung darf nur an einem Namen hängen. Zwei Aufrufe sind zwei
-			// Werte — vom Typ des einen folgt nichts über den anderen.
-			name: 'branch-narrowing-needs-a-name-as-source',
-			code: `g = (q: Text) => q
+		[§b§] => 0`);
+	});
+	// Gegenprobe: die Verengung darf nur an einem Namen hängen. Zwei Aufrufe sind zwei
+	// Werte — vom Typ des einen folgt nichts über den anderen.
+	it('branch-narrowing-needs-a-name-as-source', () => {
+		expectCheck(`g = (q: Text) => q
 Step = [
 	type: Text
 	query: Text
@@ -434,7 +424,7 @@ getStep = (flag: Boolean) :> Or([] Step) =>
 f = (flag: Boolean) =>
 	?(getStep(flag)/type)
 		[Text] => g(getStep(flag)/query)
-		() => §§`,
+		() => §§`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -445,18 +435,18 @@ f = (flag: Boolean) =>
 					"startRowIndex": 14,
 				},
 			],
-		},
-		{
-			// Gegenprobe: jeder branch verengt für sich. Im Text-Zweig ist d/a Text und damit
-			// nicht an Integer zuweisbar, obwohl ein vorheriger Zweig auf Integer verengt hat.
-			name: 'branch-narrowing-field-path-is-per-branch',
-			code: `f = (d: [a: Or(Text Integer)]) =>
+		});
+	});
+	// Gegenprobe: jeder branch verengt für sich. Im Text-Zweig ist d/a Text und damit
+	// nicht an Integer zuweisbar, obwohl ein vorheriger Zweig auf Integer verengt hat.
+	it('branch-narrowing-field-path-is-per-branch', () => {
+		expectCheck(`f = (d: [a: Or(Text Integer)]) =>
 	?(d/a)
 		(y: Integer) => 0
 		(y: Text) =>
 			narrowed: Integer = d/a
 			narrowed
-		() => 0`,
+		() => 0`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -467,17 +457,17 @@ f = (flag: Boolean) =>
 					"startRowIndex": 4,
 				},
 			],
-		},
-		{
-			// Gegenprobe: Any sagt über den Wert nichts aus, der Schnitt darf also nicht
-			// verbreitern — d/a bleibt Or(Text Integer).
-			name: 'branch-narrowing-field-path-any-does-not-widen',
-			code: `f = (d: [a: Or(Text Integer)]) =>
+		});
+	});
+	// Gegenprobe: Any sagt über den Wert nichts aus, der Schnitt darf also nicht
+	// verbreitern — d/a bleibt Or(Text Integer).
+	it('branch-narrowing-field-path-any-does-not-widen', () => {
+		expectCheck(`f = (d: [a: Or(Text Integer)]) =>
 	?(d/a)
 		(y: Any) =>
 			narrowed: Integer = d/a
 			narrowed
-		() => 0`,
+		() => 0`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -488,17 +478,17 @@ f = (flag: Boolean) =>
 					"startRowIndex": 3,
 				},
 			],
-		},
-		{
-			// Gegenprobe: die Verengung gilt nur im Rumpf des branches. Danach ist d/a wieder
-			// Or(Text Integer) — das verengte Symbol liegt im Scope des branches, nicht außen.
-			name: 'branch-narrowing-field-path-ends-with-the-branch',
-			code: `f = (d: [a: Or(Text Integer)]) =>
+		});
+	});
+	// Gegenprobe: die Verengung gilt nur im Rumpf des branches. Danach ist d/a wieder
+	// Or(Text Integer) — das verengte Symbol liegt im Scope des branches, nicht außen.
+	it('branch-narrowing-field-path-ends-with-the-branch', () => {
+		expectCheck(`f = (d: [a: Or(Text Integer)]) =>
 	?(d/a)
 		(y: Integer) => 0
 		() => 0
 	narrowed: Integer = d/a
-	narrowed`,
+	narrowed`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -509,11 +499,11 @@ f = (flag: Boolean) =>
 					"startRowIndex": 4,
 				},
 			],
-		},
-		{
-			// Ein innerer branch sieht die Verengung des äußeren.
-			name: 'branch-narrowing-field-path-in-nested-branching',
-			code: `g = (n: Integer) => n
+		});
+	});
+	// Ein innerer branch sieht die Verengung des äußeren.
+	it('branch-narrowing-field-path-in-nested-branching', () => {
+		expectCheck(`g = (n: Integer) => n
 getD = (flag: Boolean) =>
 	?(flag)
 		[true] => [a = 1]
@@ -525,13 +515,12 @@ f = (flag: Boolean) =>
 			?(flag)
 				[true] => g(d/a)
 				() => 0
-		() => 0`,
-		},
-		{
-			// Auch ein mehrstufiger Pfad verengt: der Fakt liegt auf d/a/b, gelesen wird
-			// derselbe Pfad.
-			name: 'branch-narrowing-deep-field-path',
-			code: `g = (n: Integer) => n
+		() => 0`);
+	});
+	// Auch ein mehrstufiger Pfad verengt: der Fakt liegt auf d/a/b, gelesen wird
+	// derselbe Pfad.
+	it('branch-narrowing-deep-field-path', () => {
+		expectCheck(`g = (n: Integer) => n
 getD = (flag: Boolean) =>
 	?(flag)
 		[true] => [a = [b = 1]]
@@ -540,30 +529,29 @@ f = (flag: Boolean) =>
 	d = getD(flag)
 	?(d/a/b)
 		(y: Integer) => g(d/a/b)
-		() => 0`,
-		},
-		{
-			// Ist die Quelle vom Typ Any, weiß der Checker über ihre Felder nichts. Der
-			// Schnitt aus Any und dem Fakt [index: ...] darf daher nicht heißen, dass s nur
-			// noch dieses eine Feld hat - sonst gilt jedes andere Feld (hier boards) als Empty.
-			name: 'branch-narrowing-through-any-source-keeps-other-fields',
-			code: `start: [boards: Integer index: Or([] Integer)] = [boards = 1 index = 1]
+		() => 0`);
+	});
+	// Ist die Quelle vom Typ Any, weiß der Checker über ihre Felder nichts. Der
+	// Schnitt aus Any und dem Fakt [index: ...] darf daher nicht heißen, dass s nur
+	// noch dieses eine Feld hat - sonst gilt jedes andere Feld (hier boards) als Empty.
+	it('branch-narrowing-through-any-source-keeps-other-fields', () => {
+		expectCheck(`start: [boards: Integer index: Or([] Integer)] = [boards = 1 index = 1]
 s = assume(start Any)
 ?(s/index)
 	[Integer] => 0
 	() =>
-		boardsValue: Integer = s/boards`,
+		boardsValue: Integer = s/boards`, {
 			errors: [],
-		},
-		{
-			// Der Schnitt aus einem vollständig bekannten Typ und einem unvollständigen Fakt
-			// (aus der Verengung über einen Feldpfad) darf den vollständigen Typ nicht ersetzen.
-			// card/face wird auf §up§ verengt, das erzeugt für card den Fakt [face: §up§] mit
-			// complete: false. Der ist "zuweisbar an" Card (fehlende Felder gelten als unbekannt),
-			// der Teilmengen-Shortcut in createNormalizedIntersectionType gibt ihn deshalb
-			// wholesale zurück statt die Felder zu vereinigen - dataId geht beim Spread verloren.
-			name: 'branch-narrowing-field-fact-does-not-replace-known-type',
-			code: `Card = [
+		});
+	});
+	// Der Schnitt aus einem vollständig bekannten Typ und einem unvollständigen Fakt
+	// (aus der Verengung über einen Feldpfad) darf den vollständigen Typ nicht ersetzen.
+	// card/face wird auf §up§ verengt, das erzeugt für card den Fakt [face: §up§] mit
+	// complete: false. Der ist "zuweisbar an" Card (fehlende Felder gelten als unbekannt),
+	// der Teilmengen-Shortcut in createNormalizedIntersectionType gibt ihn deshalb
+	// wholesale zurück statt die Felder zu vereinigen - dataId geht beim Spread verloren.
+	it('branch-narrowing-field-fact-does-not-replace-known-type', () => {
+		expectCheck(`Card = [
 	dataId: Text
 	face: Or([] Text)
 ]
@@ -576,37 +564,37 @@ card = getCard()
 			...card
 			face = §up§
 		]
-	() => card`,
+	() => card`, {
 			errors: [],
-		},
-		{
-			// Not(X), das durch Branch-Narrowing auf einem Any-Ursprung entsteht, ist genauso
-			// unwissend wie das Any davor - Any ist überall sonst permissiv als Quelle
-			// (getTypeError gibt bei julType 'any' sofort undefined zurück). Hier wird aus dem
-			// Nichtwissen "könnte alles außer Integer sein" fälschlich eine harte Ablehnung,
-			// weil Not(Integer) einzeln gegen Empty und gegen Integer geprüft wird statt die
-			// Any-Herkunft weiterzutragen. aggregate (core-lib.jul, Akkumulator: Any) zeigt
-			// denselben Fehler, weil sein Rückgabetyp ebenfalls durch Any erzeugt wird.
-			name: 'narrowed-not-type-from-any-source-is-not-checked',
-			code: `combined = assume([] Any)
+		});
+	});
+	// Not(X), das durch Branch-Narrowing auf einem Any-Ursprung entsteht, ist genauso
+	// unwissend wie das Any davor - Any ist überall sonst permissiv als Quelle
+	// (getTypeError gibt bei julType 'any' sofort undefined zurück). Hier wird aus dem
+	// Nichtwissen "könnte alles außer Integer sein" fälschlich eine harte Ablehnung,
+	// weil Not(Integer) einzeln gegen Empty und gegen Integer geprüft wird statt die
+	// Any-Herkunft weiterzutragen. aggregate (core-lib.jul, Akkumulator: Any) zeigt
+	// denselben Fehler, weil sein Rückgabetyp ebenfalls durch Any erzeugt wird.
+	it('narrowed-not-type-from-any-source-is-not-checked', () => {
+		expectCheck(`combined = assume([] Any)
 ?(combined/index)
 	[Integer] => 0
 	() =>
 		result: Or([] Integer) = combined/index
-		result`,
+		result`, {
 			errors: [],
-		},
-		{
-			// Gegenprobe zu narrowed-not-type-from-any-source-is-not-checked: Not(X) darf nur
-			// dann permissiv sein, wenn das Ziel mehr als X zulässt. Ziel = Integer ist eine
-			// Teilmenge von X = Integer, der Wert wäre also garantiert ausgeschlossen.
-			name: 'narrowed-not-type-still-errors-when-target-is-subset-of-excluded',
-			code: `combined = assume([] Any)
+		});
+	});
+	// Gegenprobe zu narrowed-not-type-from-any-source-is-not-checked: Not(X) darf nur
+	// dann permissiv sein, wenn das Ziel mehr als X zulässt. Ziel = Integer ist eine
+	// Teilmenge von X = Integer, der Wert wäre also garantiert ausgeschlossen.
+	it('narrowed-not-type-still-errors-when-target-is-subset-of-excluded', () => {
+		expectCheck(`combined = assume([] Any)
 ?(combined/index)
 	[Integer] => 0
 	() =>
 		result: Integer = combined/index
-		result`,
+		result`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -617,17 +605,17 @@ card = getCard()
 					endColumnIndex: 34,
 				},
 			],
-		},
-		{
-			// Ein Prädikat als Typ-Kopf. Die Laufzeit matcht hier bereits korrekt: _branch prüft
-			// über getTypeError, und dort wird ein Funktionswert in Typ-Position aufgerufen
-			// (runtime.ts, case 'function'). Der Checker schneidet stattdessen Or(Integer Text)
-			// mit dem Funktionstyp und kommt auf Never - er erklärt den erreichbaren branch für
-			// unerreichbar und meldet an lauffähigem Code JUL5050.
-			// Verengt wird nur der true-Zweig: aus isInteger(x) == true folgt x ist Integer.
-			// Die Gegenrichtung gilt nicht, deshalb sagt der catchAll darunter nichts aus.
-			name: 'branch-narrowing-predicate-head',
-			code: `isInteger = (x: Any) :> Boolean =>
+		});
+	});
+	// Ein Prädikat als Typ-Kopf. Die Laufzeit matcht hier bereits korrekt: _branch prüft
+	// über getTypeError, und dort wird ein Funktionswert in Typ-Position aufgerufen
+	// (runtime.ts, case 'function'). Der Checker schneidet stattdessen Or(Integer Text)
+	// mit dem Funktionstyp und kommt auf Never - er erklärt den erreichbaren branch für
+	// unerreichbar und meldet an lauffähigem Code JUL5050.
+	// Verengt wird nur der true-Zweig: aus isInteger(x) == true folgt x ist Integer.
+	// Die Gegenrichtung gilt nicht, deshalb sagt der catchAll darunter nichts aus.
+	it('branch-narrowing-predicate-head', () => {
+		expectCheck(`isInteger = (x: Any) :> Boolean =>
 	?(x)
 		[Integer] => true
 		() => false
@@ -635,17 +623,17 @@ g = (n: Integer) => n
 f = (someVar: Or(Integer Text)) =>
 	?(someVar)
 		[isInteger] => g(someVar)
-		() => 0`,
+		() => 0`, {
 			errors: [],
-		},
-		{
-			// Gegenrichtung: was ein späterer branch NICHT mehr sein kann. Dafür reicht
-			// narrowsTo nicht - das sagt nur "höchstens diese Werte liefern true". Abziehen
-			// darf man nur, was nachweislich true liefert: branches mit Rückgabetyp literal
-			// true, abzüglich dessen, was frühere branches des Prädikats abfangen. Hier deckt
-			// [Integer] => true ganz Integer ab, im catchAll bleibt also Text.
-			name: 'branch-narrowing-predicate-head-false-branch',
-			code: `isInteger = (x: Any) :> Boolean =>
+		});
+	});
+	// Gegenrichtung: was ein späterer branch NICHT mehr sein kann. Dafür reicht
+	// narrowsTo nicht - das sagt nur "höchstens diese Werte liefern true". Abziehen
+	// darf man nur, was nachweislich true liefert: branches mit Rückgabetyp literal
+	// true, abzüglich dessen, was frühere branches des Prädikats abfangen. Hier deckt
+	// [Integer] => true ganz Integer ab, im catchAll bleibt also Text.
+	it('branch-narrowing-predicate-head-false-branch', () => {
+		expectCheck(`isInteger = (x: Any) :> Boolean =>
 	?(x)
 		[Integer] => true
 		() => false
@@ -653,34 +641,34 @@ g = (t: Text) => t
 f = (someVar: Or(Integer Text)) =>
 	?(someVar)
 		[isInteger] => 0
-		() => g(someVar)`,
+		() => g(someVar)`, {
 			errors: [],
-		},
-		{
-			// Phase 1a, nur Type-Akzeptanz (kein Narrowing): isInteger hat exakt die
-			// erkannte Branching-Form (siehe branch-narrowing-predicate-head) und soll dort
-			// als Type-Wert durchgehen, wo ein Type-Wert verlangt wird - hier als Argument
-			// für einen Type-Parameter. Aktuell prüft checkTypeGuardIsType nur gegen
-			// { julType: 'type' } und kennt PredicateFacts an Funktionstypen nicht, meldet
-			// also JUL5002. Narrowing über diesen Weg (z.B. useType(isInteger) als Typ-Kopf
-			// weiterverwenden) ist bewusst ein späterer Schritt.
-			name: 'predicate-assignable-to-type-1a',
-			code: `isInteger = (x: Any) :> Boolean =>
+		});
+	});
+	// Phase 1a, nur Type-Akzeptanz (kein Narrowing): isInteger hat exakt die
+	// erkannte Branching-Form (siehe branch-narrowing-predicate-head) und soll dort
+	// als Type-Wert durchgehen, wo ein Type-Wert verlangt wird - hier als Argument
+	// für einen Type-Parameter. Aktuell prüft checkTypeGuardIsType nur gegen
+	// { julType: 'type' } und kennt PredicateFacts an Funktionstypen nicht, meldet
+	// also JUL5002. Narrowing über diesen Weg (z.B. useType(isInteger) als Typ-Kopf
+	// weiterverwenden) ist bewusst ein späterer Schritt.
+	it('predicate-assignable-to-type-1a', () => {
+		expectCheck(`isInteger = (x: Any) :> Boolean =>
 	?(x)
 		[Integer] => true
 		() => false
 useType = (t: Type) => t
-useType(isInteger)`,
+useType(isInteger)`, {
 			errors: [],
-		},
-		{
-			// Gegenprobe: ein beliebiges Boolean-Callback ohne die erkannte Branching-Form
-			// bleibt kein Type-Wert - genau die Grenze aus getPredicateFacts (Satz von Rice,
-			// siehe predicate-types-and-filter-narrowing.md).
-			name: 'arbitrary-boolean-function-not-assignable-to-type',
-			code: `isLegal = (x: Any) :> Boolean => true
+		});
+	});
+	// Gegenprobe: ein beliebiges Boolean-Callback ohne die erkannte Branching-Form
+	// bleibt kein Type-Wert - genau die Grenze aus getPredicateFacts (Satz von Rice,
+	// siehe predicate-types-and-filter-narrowing.md).
+	it('arbitrary-boolean-function-not-assignable-to-type', () => {
+		expectCheck(`isLegal = (x: Any) :> Boolean => true
 useType = (t: Type) => t
-useType(isLegal)`,
+useType(isLegal)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -691,16 +679,16 @@ useType(isLegal)`,
 					endColumnIndex: 15,
 				},
 			],
-		},
-		//#endregion branching: Verengung
+		});
+	});
+	//#endregion branching: Verengung
 
-		//#region branching: Erreichbarkeit
-		{
-			name: 'unreachable-branch-is-detected',
-			code: `f = (value: Integer) =>
+	//#region branching: Erreichbarkeit
+	it('unreachable-branch-is-detected', () => {
+		expectCheck(`f = (value: Integer) =>
 	?(value)
 		[Integer] => 1
-		[Integer] => 2`,
+		[Integer] => 2`, {
 			errors: [
 				{
 					code: ErrorCode.unreachableBranch,
@@ -711,21 +699,21 @@ useType(isLegal)`,
 					endColumnIndex: 16,
 				},
 			],
-		},
-		{
-			name: 'orthogonal-branches-are-not-unreachable',
-			code: `f = (value: Or(Integer Empty)) =>
+		});
+	});
+	it('orthogonal-branches-are-not-unreachable', () => {
+		expectCheck(`f = (value: Or(Integer Empty)) =>
 	?(value)
 		[Integer] => 1
-		() => 2`,
+		() => 2`, {
 			errors: [],
-		},
-		{
-			name: 'subset-branch-is-unreachable',
-			code: `f = (value: Integer) =>
+		});
+	});
+	it('subset-branch-is-unreachable', () => {
+		expectCheck(`f = (value: Integer) =>
 	?(value)
 		[Integer] => 1
-		[0] => 2`,
+		[0] => 2`, {
 			errors: [
 				{
 					code: ErrorCode.unreachableBranch,
@@ -736,15 +724,15 @@ useType(isLegal)`,
 					endColumnIndex: 10,
 				},
 			],
-		},
-		//#endregion branching: Erreichbarkeit
+		});
+	});
+	//#endregion branching: Erreichbarkeit
 
-		//#region Not
-		{
-			// Not(X) schließt X aus. NonZeroInteger ist Integer.Without(0), also
-			// And(Integer Not(0)) — 0 muss daran scheitern, obwohl es zu Integer passt.
-			name: 'not-type-is-checked',
-			code: 'a: NonZeroInteger = 0',
+	//#region Not
+	// Not(X) schließt X aus. NonZeroInteger ist Integer.Without(0), also
+	// And(Integer Not(0)) — 0 muss daran scheitern, obwohl es zu Integer passt.
+	it('not-type-is-checked', () => {
+		expectCheck('a: NonZeroInteger = 0', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -755,20 +743,19 @@ useType(isLegal)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Gegenprobe: die Prüfung darf nicht zu streng werden
-			name: 'not-type-accepts-other-values',
-			code: 'a: NonZeroInteger = 5',
-		},
-		{
-			// Not(X) muss auch für Mengentypen greifen, nicht nur für Literale. Der Unterschied:
-			// verboten ist alles, was X überlappt — bei einem Literal ist das dasselbe wie
-			// "ist Teilmenge von X", bei Integer gegen Not(0) nicht. Integer ist keine Teilmenge
-			// von 0, enthält 0 aber, ist also unzulässig. Deshalb dieser Fall zusätzlich zu
-			// not-type-is-checked.
-			name: 'not-type-is-checked-for-set-types',
-			code: 'f = (x: Integer) => modulo(1 x)',
+		});
+	});
+	// Gegenprobe: die Prüfung darf nicht zu streng werden
+	it('not-type-accepts-other-values', () => {
+		expectCheck('a: NonZeroInteger = 5');
+	});
+	// Not(X) muss auch für Mengentypen greifen, nicht nur für Literale. Der Unterschied:
+	// verboten ist alles, was X überlappt — bei einem Literal ist das dasselbe wie
+	// "ist Teilmenge von X", bei Integer gegen Not(0) nicht. Integer ist keine Teilmenge
+	// von 0, enthält 0 aber, ist also unzulässig. Deshalb dieser Fall zusätzlich zu
+	// not-type-is-checked.
+	it('not-type-is-checked-for-set-types', () => {
+		expectCheck('f = (x: Integer) => modulo(1 x)', {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -779,32 +766,30 @@ useType(isLegal)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// PositiveInteger ist And(Integer Greater(0)) und damit nie 0, passt also zu
-			// NonZeroInteger. Kein einzelner der beiden Choices reicht dafür aus: Integer
-			// scheitert an Not(0), Greater(0) an Integer. Erst das Zerlegen des targets zeigt es.
-			name: 'not-type-accepts-intersection-without-single-matching-choice',
-			code: 'f = (x: PositiveInteger) => modulo(1 x)',
-		},
-		{
-			// Bug: getTypeError zerlegt bei args='and'/target='or' nur die args Choices
-			// (Integer, Greater(0)) und prüft jeden einzeln gegen das GANZE target - keiner
-			// reicht dafür, weil weder Integer noch Greater(0) allein Empty oder PositiveInteger
-			// erfüllt. Das target selbst wird dabei nie zerlegt (anders als beim symmetrischen
-			// Fall target='and', siehe not-type-accepts-intersection-without-single-matching-
-			// choice), obwohl PositiveInteger als zweiter Choice von Or([] PositiveInteger)
-			// exakt passt.
-			name: 'and-type-accepts-or-target-containing-same-intersection',
-			code: 'f = (x: PositiveInteger) :> Or([] PositiveInteger) => x',
-		},
-		{
-			// getTypeFamily ordnet 'greater' bewusst keiner Familie zu (Integer oder Float
-			// möglich, daher keine Aussage) - dadurch liefert typesOverlap(Greater(0) 5)
-			// undefined, und Not(5) prüft das fälschlich nicht: 5 erfüllt Greater(0), Not(5)
-			// müsste es also ausschließen.
-			name: 'not-type-is-not-checked-against-greater',
-			code: 'f = (positive: Greater(0)) :> Not(5) => positive',
+		});
+	});
+	// PositiveInteger ist And(Integer Greater(0)) und damit nie 0, passt also zu
+	// NonZeroInteger. Kein einzelner der beiden Choices reicht dafür aus: Integer
+	// scheitert an Not(0), Greater(0) an Integer. Erst das Zerlegen des targets zeigt es.
+	it('not-type-accepts-intersection-without-single-matching-choice', () => {
+		expectCheck('f = (x: PositiveInteger) => modulo(1 x)');
+	});
+	// Bug: getTypeError zerlegt bei args='and'/target='or' nur die args Choices
+	// (Integer, Greater(0)) und prüft jeden einzeln gegen das GANZE target - keiner
+	// reicht dafür, weil weder Integer noch Greater(0) allein Empty oder PositiveInteger
+	// erfüllt. Das target selbst wird dabei nie zerlegt (anders als beim symmetrischen
+	// Fall target='and', siehe not-type-accepts-intersection-without-single-matching-
+	// choice), obwohl PositiveInteger als zweiter Choice von Or([] PositiveInteger)
+	// exakt passt.
+	it('and-type-accepts-or-target-containing-same-intersection', () => {
+		expectCheck('f = (x: PositiveInteger) :> Or([] PositiveInteger) => x');
+	});
+	// getTypeFamily ordnet 'greater' bewusst keiner Familie zu (Integer oder Float
+	// möglich, daher keine Aussage) - dadurch liefert typesOverlap(Greater(0) 5)
+	// undefined, und Not(5) prüft das fälschlich nicht: 5 erfüllt Greater(0), Not(5)
+	// müsste es also ausschließen.
+	it('not-type-is-not-checked-against-greater', () => {
+		expectCheck('f = (positive: Greater(0)) :> Not(5) => positive', {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
@@ -822,50 +807,46 @@ useType(isLegal)`,
 					},
 				},
 			],
-		},
-		//#endregion Not
-		//#region generische Rückgabetypen
-		{
-			// slice liefert eine Teilliste, der Elementtyp bleibt also erhalten: aus
-			// List(Integer) wird Or([] List(Integer)), nicht Or([] List(Any)).
-			// Der Verlust wird erst über filterMap sichtbar, dessen Rückgabetyp
-			// Or([] List(Without(callback/ReturnType []))) ist: aus einem Any wird dabei
-			// Not(Empty), und das passt zu keinem konkreten Elementtyp mehr.
-			name: 'slice-keeps-element-type',
-			code: `f = (values: List(Integer)) :> Or([] List(Integer)) =>
+		});
+	});
+	//#endregion Not
+	//#region generische Rückgabetypen
+	// slice liefert eine Teilliste, der Elementtyp bleibt also erhalten: aus
+	// List(Integer) wird Or([] List(Integer)), nicht Or([] List(Any)).
+	// Der Verlust wird erst über filterMap sichtbar, dessen Rückgabetyp
+	// Or([] List(Without(callback/ReturnType []))) ist: aus einem Any wird dabei
+	// Not(Empty), und das passt zu keinem konkreten Elementtyp mehr.
+	it('slice-keeps-element-type', () => {
+		expectCheck(`f = (values: List(Integer)) :> Or([] List(Integer)) =>
 	sliced = values.slice(1)
-	sliced.filterMap((value) => value)`,
-		},
-		{
-			// Der Elementtyp bleibt erhalten (slice-keeps-element-type), die Länge nicht: bei
-			// einem Tuple mit Literalgrenzen steht sie aber fest. [1 2 3] ab 2 bis 3 (1-basiert,
-			// beide inklusive) sind genau zwei Elemente - dieselbe Arity-Erhaltung, die map
-			// schon leistet (map-keeps-tuple-arity). Weil die Länge damit feststeht und größer
-			// 0 ist, gehört auch kein Empty ins Ergebnis.
-			name: 'slice-keeps-tuple-arity-for-literal-bounds',
-			code: 'x: [Integer Integer] = [1 2 3].slice(2 3)',
-		},
-		{
-			// flatten löst eine Ebene Verschachtelung auf und erhält dabei den Elementtyp
-			// (analog zu slice-keeps-element-type): aus List(List(Integer)) wird
-			// Or([] List(Integer)), nicht Or([] List(Any)).
-			name: 'flatten-keeps-element-type',
-			code: `f = (values: List(List(Integer))) :> Or([] List(Integer)) =>
-	values.flatten()`,
-		},
-		{
-			// Leere innere Listen (Or([] List(...)) als Elementtyp) tragen nichts zum
-			// Ergebnis bei, sind aber ein gültiges Element der äußeren Liste.
-			name: 'flatten-accepts-empty-inner-lists',
-			code: 'x: Or([] List(Integer)) = [[1 2] [] [3]].flatten()',
-		},
-		{
-			// Wie filter-return-type-accounts-for-possibly-empty-result: flatten kann die
-			// Liste leeren (alle inneren Listen sind Empty), ein deklarierter Rückgabetyp ohne
-			// Or([] ...) muss daran scheitern.
-			name: 'flatten-return-type-accounts-for-possibly-empty-result',
-			code: `f = (values: List(List(Integer))) :> List(Integer) =>
-	values.flatten()`,
+	sliced.filterMap((value) => value)`);
+	});
+	// Der Elementtyp bleibt erhalten (slice-keeps-element-type), die Länge nicht: bei
+	// einem Tuple mit Literalgrenzen steht sie aber fest. [1 2 3] ab 2 bis 3 (1-basiert,
+	// beide inklusive) sind genau zwei Elemente - dieselbe Arity-Erhaltung, die map
+	// schon leistet (map-keeps-tuple-arity). Weil die Länge damit feststeht und größer
+	// 0 ist, gehört auch kein Empty ins Ergebnis.
+	it('slice-keeps-tuple-arity-for-literal-bounds', () => {
+		expectCheck('x: [Integer Integer] = [1 2 3].slice(2 3)');
+	});
+	// flatten löst eine Ebene Verschachtelung auf und erhält dabei den Elementtyp
+	// (analog zu slice-keeps-element-type): aus List(List(Integer)) wird
+	// Or([] List(Integer)), nicht Or([] List(Any)).
+	it('flatten-keeps-element-type', () => {
+		expectCheck(`f = (values: List(List(Integer))) :> Or([] List(Integer)) =>
+	values.flatten()`);
+	});
+	// Leere innere Listen (Or([] List(...)) als Elementtyp) tragen nichts zum
+	// Ergebnis bei, sind aber ein gültiges Element der äußeren Liste.
+	it('flatten-accepts-empty-inner-lists', () => {
+		expectCheck('x: Or([] List(Integer)) = [[1 2] [] [3]].flatten()');
+	});
+	// Wie filter-return-type-accounts-for-possibly-empty-result: flatten kann die
+	// Liste leeren (alle inneren Listen sind Empty), ein deklarierter Rückgabetyp ohne
+	// Or([] ...) muss daran scheitern.
+	it('flatten-return-type-accounts-for-possibly-empty-result', () => {
+		expectCheck(`f = (values: List(List(Integer))) :> List(Integer) =>
+	values.flatten()`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
@@ -883,17 +864,17 @@ useType(isLegal)`,
 					},
 				},
 			],
-		},
-		{
-			// Fund (Session 2026-09-10, echter yugioh-Fehler activatableGameCardIds): filter
-			// kann die Liste genau wie slice leeren (Laufzeit: `return filtered.length ?
-			// filtered : undefined`) - die Signatur in core-lib.jul deklariert das inzwischen
-			// korrekt als `Or([] TypeOf(values))`. Dieser Test prüft genau das: ein deklarierter
-			// Rückgabetyp ohne Or([] ...) (List(Integer) statt Or([] List(Integer))) muss am
-			// möglichen Empty-Ergebnis scheitern.
-			name: 'filter-return-type-accounts-for-possibly-empty-result',
-			code: `f = (values: List(Integer)) :> List(Integer) =>
-	values.filter((value) => true)`,
+		});
+	});
+	// Fund (Session 2026-09-10, echter yugioh-Fehler activatableGameCardIds): filter
+	// kann die Liste genau wie slice leeren (Laufzeit: `return filtered.length ?
+	// filtered : undefined`) - die Signatur in core-lib.jul deklariert das inzwischen
+	// korrekt als `Or([] TypeOf(values))`. Dieser Test prüft genau das: ein deklarierter
+	// Rückgabetyp ohne Or([] ...) (List(Integer) statt Or([] List(Integer))) muss am
+	// möglichen Empty-Ergebnis scheitern.
+	it('filter-return-type-accounts-for-possibly-empty-result', () => {
+		expectCheck(`f = (values: List(Integer)) :> List(Integer) =>
+	values.filter((value) => true)`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
@@ -911,102 +892,101 @@ useType(isLegal)`,
 					},
 				},
 			],
-		},
-		{
-			// Schritt 4 (predicate-types-and-filter-narrowing.md): der auslösende yugioh-Fall.
-			// isInteger hat die erkannte Branching-Form (PredicateFacts.ifTrue = Integer).
-			// filters Signatur soll den ElementType daher auf Integer schneiden, statt ihn
-			// unverändert als Or(Integer Text) durchzureichen.
-			name: 'filter-narrows-element-type-through-predicate',
-			code: `isInteger = (value: Any) :> Boolean =>
+		});
+	});
+	// Schritt 4 (predicate-types-and-filter-narrowing.md): der auslösende yugioh-Fall.
+	// isInteger hat die erkannte Branching-Form (PredicateFacts.ifTrue = Integer).
+	// filters Signatur soll den ElementType daher auf Integer schneiden, statt ihn
+	// unverändert als Or(Integer Text) durchzureichen.
+	it('filter-narrows-element-type-through-predicate', () => {
+		expectCheck(`isInteger = (value: Any) :> Boolean =>
 	?(value)
 		[Integer] => true
 		() => false
 f = (values: List(Or(Integer Text))) :> Or([] List(Integer)) =>
-	values.filter(isInteger)`,
+	values.filter(isInteger)`, {
 			errors: [],
-		},
-		{
-			// Gegenprobe: ohne erkannte Prädikat-Form bleibt der ElementType unverändert -
-			// predicate/PredicateIfTrue muss dann neutral (Any) sein, sonst würde And(...)
-			// den ElementType fälschlich einschränken.
-			name: 'filter-keeps-element-type-without-recognized-predicate',
-			code: `isLegal = (value: Any) :> Boolean => true
+		});
+	});
+	// Gegenprobe: ohne erkannte Prädikat-Form bleibt der ElementType unverändert -
+	// predicate/PredicateIfTrue muss dann neutral (Any) sein, sonst würde And(...)
+	// den ElementType fälschlich einschränken.
+	it('filter-keeps-element-type-without-recognized-predicate', () => {
+		expectCheck(`isLegal = (value: Any) :> Boolean => true
 f = (values: List(Integer)) :> Or([] List(Integer)) =>
-	values.filter(isLegal)`,
+	values.filter(isLegal)`, {
 			errors: [],
-		},
-		{
-			// findFirst hat dieselbe Lücke wie filter vor Schritt 4: die Signatur liefert
-			// bisher stur Or([] TypeOf(values)/ElementType) statt mit
-			// predicate/PredicateIfTrue zu schneiden.
-			name: 'find-first-narrows-element-type-through-predicate',
-			code: `isInteger = (value: Any) :> Boolean =>
+		});
+	});
+	// findFirst hat dieselbe Lücke wie filter vor Schritt 4: die Signatur liefert
+	// bisher stur Or([] TypeOf(values)/ElementType) statt mit
+	// predicate/PredicateIfTrue zu schneiden.
+	it('find-first-narrows-element-type-through-predicate', () => {
+		expectCheck(`isInteger = (value: Any) :> Boolean =>
 	?(value)
 		[Integer] => true
 		() => false
 f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
-	values.findFirst(isInteger)`,
+	values.findFirst(isInteger)`, {
 			errors: [],
-		},
-		{
-			// findLast hat denselben Fix und dasselbe Narrowing wie findFirst.
-			name: 'find-last-narrows-element-type-through-predicate',
-			code: `isInteger = (value: Any) :> Boolean =>
+		});
+	});
+	// findLast hat denselben Fix und dasselbe Narrowing wie findFirst.
+	it('find-last-narrows-element-type-through-predicate', () => {
+		expectCheck(`isInteger = (value: Any) :> Boolean =>
 	?(value)
 		[Integer] => true
 		() => false
 f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
-	values.findLast(isInteger)`,
+	values.findLast(isInteger)`, {
 			errors: [],
-		},
-		{
-			// Lücke (Session 2026-09-15, predicate-types-and-filter-narrowing Vorarbeit):
-			// ein unbenanntes Klammer-Pattern wie `[Integer] => true` (dieselbe Form, die als
-			// ?-Branch-Arm überall funktioniert) bekommt beim Checken einen 'tuple'-förmigen
-			// ParamsType (aus bracketedExpressionToValueExpression), filter verlangt für
-			// predicate aber die 'parameters'-förmige Form `(value: X index: Y) :> Boolean`.
-			// getTupleTypeError kennt keinen case 'parameters' und fällt auf den generischen
-			// Fehler zurück - die Brücke fehlt komplett. Bisher gibt es dafür auch keinen
-			// funktionierenden Beleg in jul-examples oder yugioh.
-			name: 'unnamed-tuple-predicate-is-assignable-to-named-filter-predicate',
-			code: `f = (values: List(Integer)) :> Or([] List(Integer)) =>
-	values.filter([Integer] => true)`,
+		});
+	});
+	// Lücke (Session 2026-09-15, predicate-types-and-filter-narrowing Vorarbeit):
+	// ein unbenanntes Klammer-Pattern wie `[Integer] => true` (dieselbe Form, die als
+	// ?-Branch-Arm überall funktioniert) bekommt beim Checken einen 'tuple'-förmigen
+	// ParamsType (aus bracketedExpressionToValueExpression), filter verlangt für
+	// predicate aber die 'parameters'-förmige Form `(value: X index: Y) :> Boolean`.
+	// getTupleTypeError kennt keinen case 'parameters' und fällt auf den generischen
+	// Fehler zurück - die Brücke fehlt komplett. Bisher gibt es dafür auch keinen
+	// funktionierenden Beleg in jul-examples oder yugioh.
+	it('unnamed-tuple-predicate-is-assignable-to-named-filter-predicate', () => {
+		expectCheck(`f = (values: List(Integer)) :> Or([] List(Integer)) =>
+	values.filter([Integer] => true)`, {
 			errors: [],
-		},
-		{
-			// Ein generischer Rückgabetyp muss auch dann noch auflösbar sein, wenn der Wert
-			// vorher durch ein branching gelaufen ist. Die Union der branch Rückgabetypen
-			// enthält im rawType noch das unaufgelöste TypeOf(values)/ElementType aus slice,
-			// und der folgende filterMap-Aufruf leitet seinen Callback-Parametertyp aus genau
-			// diesem rawType ab. Scheitert das, wird der Elementtyp zu Any und über
-			// Without(Any []) zu Not(Empty).
-			name: 'generic-return-type-survives-branching',
-			code: `f = (values: List(Integer) flag: Boolean) :> Or([] List(Integer)) =>
+		});
+	});
+	// Ein generischer Rückgabetyp muss auch dann noch auflösbar sein, wenn der Wert
+	// vorher durch ein branching gelaufen ist. Die Union der branch Rückgabetypen
+	// enthält im rawType noch das unaufgelöste TypeOf(values)/ElementType aus slice,
+	// und der folgende filterMap-Aufruf leitet seinen Callback-Parametertyp aus genau
+	// diesem rawType ab. Scheitert das, wird der Elementtyp zu Any und über
+	// Without(Any []) zu Not(Empty).
+	it('generic-return-type-survives-branching', () => {
+		expectCheck(`f = (values: List(Integer) flag: Boolean) :> Or([] List(Integer)) =>
 	picked = ?(flag)
 		[true] => values.slice(1)
 		[false] => values
-	picked.filterMap((value) => value)`,
-		},
-		{
-			// Präfix-Argument (values in values.first()) referenzierte beim Type-Checken den
-			// eigenen Parameter nur als abstrakte parameterReference (zeigt auf f), nicht als
-			// deren konkreten deklarierten Typ List(Text). Die unaufgelöste Referenz floss in
-			// firsts generische Rückgabetyp-Auflösung (TypeOf(values)/ElementType) und blieb
-			// dort hängen - getTypeErrors laxe nestedReference-Rückfallregel verschluckte den
-			// Fehler lautlos. Fix: resolvePlaceholders auf prefixArgumentType vor der Verwendung.
-			// Wie core-lib (slice, filter, ...) via nativeFunction deklariert - eine reine
-			// Signatur ohne Rumpf (case 'functionTypeLiteral'), damit der generische
-			// Rückgabetyp nicht wie bei einer echten Funktion mit Rumpf (case 'functionLiteral')
-			// schon bei der Deklaration über resolvePlaceholders fest verdrahtet wird.
-			name: 'prefix-argument-resolves-to-declared-type-in-generic-return',
-			code: `first = nativeFunction(
+	picked.filterMap((value) => value)`);
+	});
+	// Präfix-Argument (values in values.first()) referenzierte beim Type-Checken den
+	// eigenen Parameter nur als abstrakte parameterReference (zeigt auf f), nicht als
+	// deren konkreten deklarierten Typ List(Text). Die unaufgelöste Referenz floss in
+	// firsts generische Rückgabetyp-Auflösung (TypeOf(values)/ElementType) und blieb
+	// dort hängen - getTypeErrors laxe nestedReference-Rückfallregel verschluckte den
+	// Fehler lautlos. Fix: resolvePlaceholders auf prefixArgumentType vor der Verwendung.
+	// Wie core-lib (slice, filter, ...) via nativeFunction deklariert - eine reine
+	// Signatur ohne Rumpf (case 'functionTypeLiteral'), damit der generische
+	// Rückgabetyp nicht wie bei einer echten Funktion mit Rumpf (case 'functionLiteral')
+	// schon bei der Deklaration über resolvePlaceholders fest verdrahtet wird.
+	it('prefix-argument-resolves-to-declared-type-in-generic-return', () => {
+		expectCheck(`first = nativeFunction(
 	(values: List(Any)) :> TypeOf(values)/ElementType
 	§js values => values[0]§
 )
 g = (n: Integer) => n
 f = (values: List(Text)) =>
-	g(values.first())`,
+	g(values.first())`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -1017,18 +997,18 @@ f = (values: List(Text)) =>
 					endColumnIndex: 17,
 				},
 			],
-		},
-		{
-			// Anderer Fall als oben, nicht dieselbe Ursache: first hat hier einen echten Rumpf
-			// (case 'functionLiteral' statt 'functionTypeLiteral') mit einem Any-Fallback
-			// (assume(1 Any)) statt einer functionTypeLiteral-Deklaration - der deklarierte
-			// Rückgabetyp TypeOf(values)/ElementType wird dadurch über einen anderen Codepfad
-			// aufgelöst als in der Signatur-Variante oben.
-			name: 'generic-return-type-is-frozen-at-declaration-for-function-literal',
-			code: `first = (values: List(Any)) :> TypeOf(values)/ElementType => assume(1 Any)
+		});
+	});
+	// Anderer Fall als oben, nicht dieselbe Ursache: first hat hier einen echten Rumpf
+	// (case 'functionLiteral' statt 'functionTypeLiteral') mit einem Any-Fallback
+	// (assume(1 Any)) statt einer functionTypeLiteral-Deklaration - der deklarierte
+	// Rückgabetyp TypeOf(values)/ElementType wird dadurch über einen anderen Codepfad
+	// aufgelöst als in der Signatur-Variante oben.
+	it('generic-return-type-is-frozen-at-declaration-for-function-literal', () => {
+		expectCheck(`first = (values: List(Any)) :> TypeOf(values)/ElementType => assume(1 Any)
 g = (n: Integer) => n
 f = (values: List(Text)) =>
-	g(values.first())`,
+	g(values.first())`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -1039,14 +1019,14 @@ f = (values: List(Text)) =>
 					endColumnIndex: 17,
 				},
 			],
-		},
-		{
-			// Ursprünglicher Fund (Vorarbeit zu Schritt 3, Callback-Konsumstelle): derselbe Bug
-			// wie oben, hier am echten core-lib-Fall slice statt am minimalen Repro first.
-			name: 'chained-generic-call-checks-element-type',
-			code: `g = (n: Or(List(Integer) [])) => n
+		});
+	});
+	// Ursprünglicher Fund (Vorarbeit zu Schritt 3, Callback-Konsumstelle): derselbe Bug
+	// wie oben, hier am echten core-lib-Fall slice statt am minimalen Repro first.
+	it('chained-generic-call-checks-element-type', () => {
+		expectCheck(`g = (n: Or(List(Integer) [])) => n
 f = (values: List(Or(Integer Text))) =>
-	g(values.slice(1))`,
+	g(values.slice(1))`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -1057,14 +1037,14 @@ f = (values: List(Or(Integer Text))) =>
 					endColumnIndex: 18,
 				},
 			],
-		},
-		{
-			// Gegenprobe zum vorigen Fund: derselbe Zieltyp meldet den Fehler korrekt, wenn
-			// der Wert nicht durch eine Aufrufkette läuft.
-			name: 'direct-value-checks-element-type-without-chaining',
-			code: `g = (n: Or(List(Integer) [])) => n
+		});
+	});
+	// Gegenprobe zum vorigen Fund: derselbe Zieltyp meldet den Fehler korrekt, wenn
+	// der Wert nicht durch eine Aufrufkette läuft.
+	it('direct-value-checks-element-type-without-chaining', () => {
+		expectCheck(`g = (n: Or(List(Integer) [])) => n
 f = (value: Or([] List(Or(Integer Text)))) =>
-	g(value)`,
+	g(value)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -1075,16 +1055,16 @@ f = (value: Or([] List(Or(Integer Text)))) =>
 					endColumnIndex: 8,
 				},
 			],
-		},
-		{
-			// Gegenprobe zum vorigen Test: OHNE Prädikat wird Or([] List(Or(Integer Text)))
-			// zurecht NICHT als Or([] List(Integer)) akzeptiert. Zeigt, dass ein grüner
-			// vorheriger Test tatsächlich an einer echten Verengung liegt (nicht an einer
-			// generell laxen Prüfung).
-			name: 'list-or-text-not-assignable-to-list-or-integer',
-			code: `g = (n: Or([] List(Integer))) => n
+		});
+	});
+	// Gegenprobe zum vorigen Test: OHNE Prädikat wird Or([] List(Or(Integer Text)))
+	// zurecht NICHT als Or([] List(Integer)) akzeptiert. Zeigt, dass ein grüner
+	// vorheriger Test tatsächlich an einer echten Verengung liegt (nicht an einer
+	// generell laxen Prüfung).
+	it('list-or-text-not-assignable-to-list-or-integer', () => {
+		expectCheck(`g = (n: Or([] List(Integer))) => n
 f = (values: List(Or(Integer Text))) =>
-	g(values)`,
+	g(values)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -1095,71 +1075,65 @@ f = (values: List(Or(Integer Text))) =>
 					endColumnIndex: 9,
 				},
 			],
-		},
-		{
-			// Branching innerhalb des filterMap-callback selbst: callback/ReturnType wird zu
-			// Or(Integer Empty), Without(... Empty) muss davon Integer übrig lassen. Statt
-			// dessen wird der Parametertyp offenbar zu Never aufgelöst, sobald values ein
-			// Funktionsparameter ist (ein Literal oder eine lokale Variable mit derselben
-			// Deklaration lösen den Fehler nicht aus).
-			name: 'generic-return-type-survives-branching-inside-callback',
-			code: `f = (values: List(Integer)) :> Or([] List(Integer)) =>
+		});
+	});
+	// Branching innerhalb des filterMap-callback selbst: callback/ReturnType wird zu
+	// Or(Integer Empty), Without(... Empty) muss davon Integer übrig lassen. Statt
+	// dessen wird der Parametertyp offenbar zu Never aufgelöst, sobald values ein
+	// Funktionsparameter ist (ein Literal oder eine lokale Variable mit derselben
+	// Deklaration lösen den Fehler nicht aus).
+	it('generic-return-type-survives-branching-inside-callback', () => {
+		expectCheck(`f = (values: List(Integer)) :> Or([] List(Integer)) =>
 	values.filterMap(
 		(value) =>
 			?(value)
 				[Integer] => value
 				() => []
-	)`,
-		},
-		{
-			// map liefert laut Implementierung nur dann empty, wenn schon die Eingabe empty war.
-			// Empty ist ein eigener Typ, List und Tuple schließen es also aus: für beide darf
-			// im Ergebnis kein Empty stehen.
-			name: 'map-adds-no-empty-for-list',
-			code: `f = (values: List(Integer)) :> List(Integer) =>
-	values.map((value) => value)`,
-		},
-		{
-			// Zusätzlich zum Empty muss bei einem Tuple die Arity erhalten bleiben: map bildet
-			// elementweise ab, die Länge ändert sich nicht.
-			name: 'map-keeps-tuple-arity',
-			code: `T = [Integer Integer]
+	)`);
+	});
+	// map liefert laut Implementierung nur dann empty, wenn schon die Eingabe empty war.
+	// Empty ist ein eigener Typ, List und Tuple schließen es also aus: für beide darf
+	// im Ergebnis kein Empty stehen.
+	it('map-adds-no-empty-for-list', () => {
+		expectCheck(`f = (values: List(Integer)) :> List(Integer) =>
+	values.map((value) => value)`);
+	});
+	// Zusätzlich zum Empty muss bei einem Tuple die Arity erhalten bleiben: map bildet
+	// elementweise ab, die Länge ändert sich nicht.
+	it('map-keeps-tuple-arity', () => {
+		expectCheck(`T = [Integer Integer]
 f = (values: T) :> T =>
-	values.map((value) => value)`,
-		},
-		{
-			// Die Arity darf nicht am geschriebenen Namen hängen: über einen Alias trifft kein
-			// Namens-Sonderfall mehr, die Deklaration muss sie allein tragen.
-			name: 'map-keeps-tuple-arity-via-alias',
-			code: `T = [Integer Integer]
+	values.map((value) => value)`);
+	});
+	// Die Arity darf nicht am geschriebenen Namen hängen: über einen Alias trifft kein
+	// Namens-Sonderfall mehr, die Deklaration muss sie allein tragen.
+	it('map-keeps-tuple-arity-via-alias', () => {
+		expectCheck(`T = [Integer Integer]
 m = map
 f = (values: T) :> T =>
-	m(values (value) => value)`,
-		},
-		{
-			// Gegenprobe: kann die Eingabe empty sein, ist das Empty im Ergebnis korrekt.
-			name: 'map-keeps-empty-for-possibly-empty-input',
-			code: `f = (values: Or([] List(Integer))) :> Or([] List(Integer)) =>
-	values.map((value) => value)`,
-		},
-		{
-			// Bug #2, Kandidat lastElement: bei garantiert nicht-leerer Eingabe deklariert
-			// lastElement dennoch Or([] TypeOf(values)/ElementType) unconditioned - map macht es
-			// mit And(TypeOf(values) []) richtig (siehe map-adds-no-empty-for-list oben).
-			name: 'last-element-adds-no-empty-for-list',
-			code: `f = (values: List(Integer)) :> Integer =>
-	values.lastElement()`,
-		},
-		//#endregion generische Rückgabetypen
-		//#region dereference
-		{
-			// Ein Feld, das der Dictionary-Typ nicht hat, ist ein Fehler und nicht Any.
-			// Der stille Rückfall auf Any schaltet in getTypeError alle Folgeprüfungen ab,
-			// ein einziger blinder Ausdruck macht damit die ganze Kette darunter blind.
-			// Der Fehler sitzt auf dem Schlüssel, wie beim Destructuring.
-			name: 'unknown-dictionary-field',
-			code: `d = [a = 1]
-d/b`,
+	m(values (value) => value)`);
+	});
+	// Gegenprobe: kann die Eingabe empty sein, ist das Empty im Ergebnis korrekt.
+	it('map-keeps-empty-for-possibly-empty-input', () => {
+		expectCheck(`f = (values: Or([] List(Integer))) :> Or([] List(Integer)) =>
+	values.map((value) => value)`);
+	});
+	// Bug #2, Kandidat lastElement: bei garantiert nicht-leerer Eingabe deklariert
+	// lastElement dennoch Or([] TypeOf(values)/ElementType) unconditioned - map macht es
+	// mit And(TypeOf(values) []) richtig (siehe map-adds-no-empty-for-list oben).
+	it('last-element-adds-no-empty-for-list', () => {
+		expectCheck(`f = (values: List(Integer)) :> Integer =>
+	values.lastElement()`);
+	});
+	//#endregion generische Rückgabetypen
+	//#region dereference
+	// Ein Feld, das der Dictionary-Typ nicht hat, ist ein Fehler und nicht Any.
+	// Der stille Rückfall auf Any schaltet in getTypeError alle Folgeprüfungen ab,
+	// ein einziger blinder Ausdruck macht damit die ganze Kette darunter blind.
+	// Der Fehler sitzt auf dem Schlüssel, wie beim Destructuring.
+	it('unknown-dictionary-field', () => {
+		expectCheck(`d = [a = 1]
+d/b`, {
 			errors: [
 				{
 					"code": ErrorCode.dereferenceFailed,
@@ -1170,29 +1144,27 @@ d/b`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Gegenprobe: ein vorhandenes Feld darf nicht melden.
-			name: 'known-dictionary-field',
-			code: `d = [a = 1]
-d/a`,
-		},
-		{
-			// Gegenprobe: bei Any kann der Checker nicht wissen, ob es das Feld gibt.
-			// "weiß ich nicht" darf nicht zu "gibt es nicht" werden.
-			name: 'dictionary-field-on-unknown-type',
-			code: `f = (d: Any) => d/b`,
-		},
-		{
-			// Keiner der beiden Choices hat das Feld 'b': Empty liefert bei JEDEM Feldnamen vakuos
-			// Empty zurück (dereferenceNameFromObject, case 'empty'), [a: Integer] hat 'b' nicht.
-			// dereferenceNameFromObject's 'or'-Fall muss deshalb prüfen, ob ALLE Choices das Feld
-			// haben, statt nur die erfolgreichen herauszufiltern und zu vereinigen - sonst
-			// verschluckt der vakuose Erfolg von Empty den echten Fehler von [a: Integer]
-			// (Fund: yugioh game-logic.jul:2194, targets: Or([] SelectInputTargets), targets/gameCardId
-			// - SelectInputTargets hat nur gameCardIds, nicht gameCardId).
-			name: 'unknown-field-on-union-with-empty-choice',
-			code: `f = (d: Or([] [a: Integer])) => d/b`,
+		});
+	});
+	// Gegenprobe: ein vorhandenes Feld darf nicht melden.
+	it('known-dictionary-field', () => {
+		expectCheck(`d = [a = 1]
+d/a`);
+	});
+	// Gegenprobe: bei Any kann der Checker nicht wissen, ob es das Feld gibt.
+	// "weiß ich nicht" darf nicht zu "gibt es nicht" werden.
+	it('dictionary-field-on-unknown-type', () => {
+		expectCheck(`f = (d: Any) => d/b`);
+	});
+	// Keiner der beiden Choices hat das Feld 'b': Empty liefert bei JEDEM Feldnamen vakuos
+	// Empty zurück (dereferenceNameFromObject, case 'empty'), [a: Integer] hat 'b' nicht.
+	// dereferenceNameFromObject's 'or'-Fall muss deshalb prüfen, ob ALLE Choices das Feld
+	// haben, statt nur die erfolgreichen herauszufiltern und zu vereinigen - sonst
+	// verschluckt der vakuose Erfolg von Empty den echten Fehler von [a: Integer]
+	// (Fund: yugioh game-logic.jul:2194, targets: Or([] SelectInputTargets), targets/gameCardId
+	// - SelectInputTargets hat nur gameCardIds, nicht gameCardId).
+	it('unknown-field-on-union-with-empty-choice', () => {
+		expectCheck(`f = (d: Or([] [a: Integer])) => d/b`, {
 			errors: [
 				{
 					code: ErrorCode.dereferenceFailed,
@@ -1203,21 +1175,21 @@ d/a`,
 					endColumnIndex: 35,
 				},
 			],
-		},
-		{
-			// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
-			// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
-			// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
-			// ob sein Wert tatsächlich Empty ist - deshalb eine eigene, eindeutige Meldung.
-			// KEINE zusätzliche Elaboration (anders als bei falschen Feldwerten): fehlt ein Feld,
-			// gibt es keinen Feld-Ausdruck, auf den man präziser zeigen könnte, als es die
-			// Hauptmeldung schon tut (dieselbe Literal-Klammer) - eine zweite CompilerError mit
-			// identischem Text an fast derselben Position wäre reine Verdopplung, besonders
-			// sichtbar seit dem Rust-Code-Frame (C2): zwei fast gleiche mehrzeilige Frames statt
-			// einem. Fund: docs/error-message-elaboration.md, Session 2026-09-10.
-			name: 'missing-dictionary-field-has-distinct-message',
-			code: `T = [a: Integer b: Text]
-x: T = [a = 1]`,
+		});
+	});
+	// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
+	// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
+	// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
+	// ob sein Wert tatsächlich Empty ist - deshalb eine eigene, eindeutige Meldung.
+	// KEINE zusätzliche Elaboration (anders als bei falschen Feldwerten): fehlt ein Feld,
+	// gibt es keinen Feld-Ausdruck, auf den man präziser zeigen könnte, als es die
+	// Hauptmeldung schon tut (dieselbe Literal-Klammer) - eine zweite CompilerError mit
+	// identischem Text an fast derselben Position wäre reine Verdopplung, besonders
+	// sichtbar seit dem Rust-Code-Frame (C2): zwei fast gleiche mehrzeilige Frames statt
+	// einem. Fund: docs/error-message-elaboration.md, Session 2026-09-10.
+	it('missing-dictionary-field-has-distinct-message', () => {
+		expectCheck(`T = [a: Integer b: Text]
+x: T = [a = 1]`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -1228,14 +1200,14 @@ x: T = [a = 1]`,
 					endColumnIndex: 14,
 				},
 			],
-		},
-		{
-			// Gegenprobe: ein tatsächlich vorhandenes Empty-Feld bleibt bei der bisherigen
-			// Meldung - der Unterschied ist nur, ob das Feld überhaupt geschrieben wurde. Eine
-			// Diagnose, Position am Feldwert [] (TypeScript/Rust/Elm-Vorbild, Session 2026-09-10).
-			name: 'present-empty-dictionary-field-keeps-assignment-message',
-			code: `T = [a: Integer b: Text]
-x: T = [a = 1 b = []]`,
+		});
+	});
+	// Gegenprobe: ein tatsächlich vorhandenes Empty-Feld bleibt bei der bisherigen
+	// Meldung - der Unterschied ist nur, ob das Feld überhaupt geschrieben wurde. Eine
+	// Diagnose, Position am Feldwert [] (TypeScript/Rust/Elm-Vorbild, Session 2026-09-10).
+	it('present-empty-dictionary-field-keeps-assignment-message', () => {
+		expectCheck(`T = [a: Integer b: Text]
+x: T = [a = 1 b = []]`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -1246,17 +1218,17 @@ x: T = [a = 1 b = []]`,
 					endColumnIndex: 20,
 				},
 			],
-		},
-		{
-			// Wie present-empty-dictionary-field-keeps-assignment-message, aber Ziel ist ein
-			// generisches Dictionary(T) statt eines dictionaryLiteral mit benannten Feldern -
-			// der Abstieg geht hier durch ZWEI Ebenen (Eintrag "bad", darin Feld "a") bis zum
-			// tatsächlichen Wert §wrong§.
-			name: 'generic-dictionary-target-elaborates-per-entry',
-			code: `T = [a: Integer]
+		});
+	});
+	// Wie present-empty-dictionary-field-keeps-assignment-message, aber Ziel ist ein
+	// generisches Dictionary(T) statt eines dictionaryLiteral mit benannten Feldern -
+	// der Abstieg geht hier durch ZWEI Ebenen (Eintrag "bad", darin Feld "a") bis zum
+	// tatsächlichen Wert §wrong§.
+	it('generic-dictionary-target-elaborates-per-entry', () => {
+		expectCheck(`T = [a: Integer]
 x: Dictionary(T) = [
 	bad = [a = §wrong§]
-]`,
+]`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -1267,30 +1239,30 @@ x: Dictionary(T) = [
 					endColumnIndex: 19,
 				},
 			],
-		},
-		{
-			// Or([] X) ist das Idiom für optionale Felder (CLAUDE.md) - Weglassen muss dafür
-			// erlaubt bleiben, wie vor der "Missing field"-Verbesserung. Nur ein Feld, dessen
-			// Typ Empty nicht zulässt, darf beim Fehlen gemeldet werden.
-			name: 'optional-field-with-or-empty-type-may-be-omitted',
-			code: `T = [a: Integer b: Or([] Text)]
-x: T = [a = 1]`,
+		});
+	});
+	// Or([] X) ist das Idiom für optionale Felder (CLAUDE.md) - Weglassen muss dafür
+	// erlaubt bleiben, wie vor der "Missing field"-Verbesserung. Nur ein Feld, dessen
+	// Typ Empty nicht zulässt, darf beim Fehlen gemeldet werden.
+	it('optional-field-with-or-empty-type-may-be-omitted', () => {
+		expectCheck(`T = [a: Integer b: Or([] Text)]
+x: T = [a = 1]`, {
 			errors: [],
-		},
-		{
-			// Ein aliasierter Callback-Parameter ("item = value") referenziert sich im Rumpf
-			// über eine ParameterReference mit dem LOKALEN Namen ("item"). Deren Auflösung
-			// (dereferenceParameterTypeFromFunctionRef) suchte bisher per Name in ParamsType,
-			// wo der Parameter aber unter dem QUELLNAMEN ("value") steht - bei einem Alias
-			// liefen beide auseinander und der Typ fiel still auf Any zurück. Fund/Ursache
-			// eines falschen returnTypeMismatch bei draw() in yugioh/game-logic.jul.
-			name: 'map-callback-parameter-infers-element-type-through-alias',
-			code: `T = [a: Integer]
+		});
+	});
+	// Ein aliasierter Callback-Parameter ("item = value") referenziert sich im Rumpf
+	// über eine ParameterReference mit dem LOKALEN Namen ("item"). Deren Auflösung
+	// (dereferenceParameterTypeFromFunctionRef) suchte bisher per Name in ParamsType,
+	// wo der Parameter aber unter dem QUELLNAMEN ("value") steht - bei einem Alias
+	// liefen beide auseinander und der Typ fiel still auf Any zurück. Fund/Ursache
+	// eines falschen returnTypeMismatch bei draw() in yugioh/game-logic.jul.
+	it('map-callback-parameter-infers-element-type-through-alias', () => {
+		expectCheck(`T = [a: Integer]
 f = (values: List(T)) :> Text =>
 	newValues = values.map(
 		(item = value) => item
 	)
-	newValues`,
+	newValues`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
@@ -1308,21 +1280,20 @@ f = (values: List(T)) :> Text =>
 					},
 				},
 			],
-		},
-		{
-			// Aufgeschobener Zugriff: beim Prüfen von f ist d noch ein Platzhalter, der Zugriff
-			// bleibt als Knoten stehen und wird erst am Aufruf aufgelöst. Ein bekanntes Feld
-			// muss dabei seinen genauen Typ behalten.
-			name: 'deferred-dictionary-field-keeps-exact-type',
-			code: `f = (d: [a: Integer b: Text]) => d/b
-y: Text = f([a = 1 b = §x§])`,
-		},
-		{
-			// Gegenprobe zum vorigen: aufgelöst wird gegen den Argumenttyp, das Ergebnis ist
-			// also das Textliteral und nicht die Vereinigung aller Felder.
-			name: 'deferred-dictionary-field-is-not-union-of-all-fields',
-			code: `f = (d: [a: Integer b: Text]) => d/b
-y: Integer = f([a = 1 b = §x§])`,
+		});
+	});
+	// Aufgeschobener Zugriff: beim Prüfen von f ist d noch ein Platzhalter, der Zugriff
+	// bleibt als Knoten stehen und wird erst am Aufruf aufgelöst. Ein bekanntes Feld
+	// muss dabei seinen genauen Typ behalten.
+	it('deferred-dictionary-field-keeps-exact-type', () => {
+		expectCheck(`f = (d: [a: Integer b: Text]) => d/b
+y: Text = f([a = 1 b = §x§])`);
+	});
+	// Gegenprobe zum vorigen: aufgelöst wird gegen den Argumenttyp, das Ergebnis ist
+	// also das Textliteral und nicht die Vereinigung aller Felder.
+	it('deferred-dictionary-field-is-not-union-of-all-fields', () => {
+		expectCheck(`f = (d: [a: Integer b: Text]) => d/b
+y: Integer = f([a = 1 b = §x§])`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1333,13 +1304,13 @@ y: Integer = f([a = 1 b = §x§])`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Die Länge eines Tuples ist bekannt, ein Zugriff dahinter also nachweisbar falsch.
-			// Indizes sind 1-basiert.
-			name: 'index-out-of-tuple-range',
-			code: `a = [1 2]
-a/5`,
+		});
+	});
+	// Die Länge eines Tuples ist bekannt, ein Zugriff dahinter also nachweisbar falsch.
+	// Indizes sind 1-basiert.
+	it('index-out-of-tuple-range', () => {
+		expectCheck(`a = [1 2]
+a/5`, {
 			errors: [
 				{
 					"code": ErrorCode.dereferenceFailed,
@@ -1350,24 +1321,22 @@ a/5`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Gegenprobe: ein gültiger Index darf nicht melden.
-			name: 'index-in-tuple-range',
-			code: `a = [1 2]
-a/2`,
-		},
-		{
-			// Gegenprobe: eine List hat keine bekannte Länge, dort ist kein Index zu weit.
-			name: 'index-on-list',
-			code: `f = (x: List(Integer)) => x/5`,
-		},
-		{
-			// Ohne bekannte Länge ist die Position aber auch nicht beweisbar vorhanden: eine
-			// List kann ein einziges Element haben, Empty gehört also in den Typ.
-			name: 'index-on-list-may-be-empty',
-			code: `f = (x: List(Integer)) => x/5
-y: Integer = f([1 2])`,
+		});
+	});
+	// Gegenprobe: ein gültiger Index darf nicht melden.
+	it('index-in-tuple-range', () => {
+		expectCheck(`a = [1 2]
+a/2`);
+	});
+	// Gegenprobe: eine List hat keine bekannte Länge, dort ist kein Index zu weit.
+	it('index-on-list', () => {
+		expectCheck(`f = (x: List(Integer)) => x/5`);
+	});
+	// Ohne bekannte Länge ist die Position aber auch nicht beweisbar vorhanden: eine
+	// List kann ein einziges Element haben, Empty gehört also in den Typ.
+	it('index-on-list-may-be-empty', () => {
+		expectCheck(`f = (x: List(Integer)) => x/5
+y: Integer = f([1 2])`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1378,15 +1347,15 @@ y: Integer = f([1 2])`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Eine positionale Kollektion trägt keine benannten Felder. Der Name kann dort nicht
-			// danebenliegen, er passt gar nicht zur Art der Quelle - beweisbar falsch, nicht unbekannt.
-			// Die Meldung nennt die Anforderung des Zugriffs, nicht die Beschaffenheit der Quelle:
-			// sonst bräuchte jede Quellart eine eigene Variante.
-			name: 'field-name-on-positional-collection',
-			code: `a = [1 5]
-a/name`,
+		});
+	});
+	// Eine positionale Kollektion trägt keine benannten Felder. Der Name kann dort nicht
+	// danebenliegen, er passt gar nicht zur Art der Quelle - beweisbar falsch, nicht unbekannt.
+	// Die Meldung nennt die Anforderung des Zugriffs, nicht die Beschaffenheit der Quelle:
+	// sonst bräuchte jede Quellart eine eigene Variante.
+	it('field-name-on-positional-collection', () => {
+		expectCheck(`a = [1 5]
+a/name`, {
 			errors: [
 				{
 					"code": ErrorCode.dereferenceFailed,
@@ -1397,12 +1366,12 @@ a/name`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Gegenstück: ein Dictionary hat keine Positionen.
-			name: 'index-on-dictionary',
-			code: `dict = [key = 5]
-dict/1`,
+		});
+	});
+	// Gegenstück: ein Dictionary hat keine Positionen.
+	it('index-on-dictionary', () => {
+		expectCheck(`dict = [key = 5]
+dict/1`, {
 			errors: [
 				{
 					"code": ErrorCode.dereferenceFailed,
@@ -1413,13 +1382,13 @@ dict/1`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Ein Primitive trägt weder Felder noch Positionen - dieselben beiden Meldungen greifen,
-			// ohne dass der Typ in ihnen vorkommt.
-			name: 'field-name-on-primitive',
-			code: `n = 5
-n/name`,
+		});
+	});
+	// Ein Primitive trägt weder Felder noch Positionen - dieselben beiden Meldungen greifen,
+	// ohne dass der Typ in ihnen vorkommt.
+	it('field-name-on-primitive', () => {
+		expectCheck(`n = 5
+n/name`, {
 			errors: [
 				{
 					"code": ErrorCode.dereferenceFailed,
@@ -1430,11 +1399,11 @@ n/name`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			name: 'index-on-primitive',
-			code: `n = 5
-n/1`,
+		});
+	});
+	it('index-on-primitive', () => {
+		expectCheck(`n = 5
+n/1`, {
 			errors: [
 				{
 					"code": ErrorCode.dereferenceFailed,
@@ -1445,116 +1414,103 @@ n/1`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		//#endregion dereference
-		//#region Zugriffstypen
-		// getElement deklariert seinen Rückgabetyp über ElementAt, die Präzision hängt also
-		// nicht mehr am Funktionsnamen. Von der genauesten Lage zur unbestimmtesten sortiert.
-		{
-			// Ein Literal-Index in ein Tuple kennt seine Position exakt: Text, nicht die
-			// Vereinigung aller Positionen und kein Empty.
-			name: 'get-element-literal-index-in-tuple',
-			code: `x: Text = [1 §a§].getElement(2)`,
-		},
-		{
-			// Ein Literal-Index hinter dem Ende eines bekannten Tuples trifft nachweisbar
-			// nichts. getElement meldet das nicht (ein berechneter Index darf danebenliegen),
-			// liefert aber Empty statt der Vereinigung aller Positionen.
-			name: 'get-element-index-out-of-tuple-range-is-empty',
-			code: `x: [] = [1 §a§].getElement(5)`,
-		},
-		{
-			// Jeder Choice eines Union-Index ist ein eigener Zugriff. Trifft jeder von ihnen
-			// eine vorhandene Position, gehört kein Empty ins Ergebnis. Der Index muss dafür
-			// als Variable mit Union-Typ ankommen — ein Literal-Argument wäre schon verengt.
-			name: 'get-element-union-index-in-tuple-range',
-			code: `f = (index: Or(1 2)) =>
+		});
+	});
+	//#endregion dereference
+	//#region Zugriffstypen
+	// getElement deklariert seinen Rückgabetyp über ElementAt, die Präzision hängt also
+	// nicht mehr am Funktionsnamen. Von der genauesten Lage zur unbestimmtesten sortiert.
+	// Ein Literal-Index in ein Tuple kennt seine Position exakt: Text, nicht die
+	// Vereinigung aller Positionen und kein Empty.
+	it('get-element-literal-index-in-tuple', () => {
+		expectCheck(`x: Text = [1 §a§].getElement(2)`);
+	});
+	// Ein Literal-Index hinter dem Ende eines bekannten Tuples trifft nachweisbar
+	// nichts. getElement meldet das nicht (ein berechneter Index darf danebenliegen),
+	// liefert aber Empty statt der Vereinigung aller Positionen.
+	it('get-element-index-out-of-tuple-range-is-empty', () => {
+		expectCheck(`x: [] = [1 §a§].getElement(5)`);
+	});
+	// Jeder Choice eines Union-Index ist ein eigener Zugriff. Trifft jeder von ihnen
+	// eine vorhandene Position, gehört kein Empty ins Ergebnis. Der Index muss dafür
+	// als Variable mit Union-Typ ankommen — ein Literal-Argument wäre schon verengt.
+	it('get-element-union-index-in-tuple-range', () => {
+		expectCheck(`f = (index: Or(1 2)) =>
 	values: [Integer Text] = [1 §a§]
 	element: Or(Integer Text) = values.getElement(index)
-	element`,
-		},
-		{
-			// Gegenprobe: liegt ein Choice daneben, steuert er Empty bei.
-			name: 'get-element-union-index-partly-out-of-range',
-			code: `f = (index: Or(2 5)) =>
+	element`);
+	});
+	// Gegenprobe: liegt ein Choice daneben, steuert er Empty bei.
+	it('get-element-union-index-partly-out-of-range', () => {
+		expectCheck(`f = (index: Or(2 5)) =>
 	values: [Integer Text] = [1 §a§]
 	element: Or([] Text) = values.getElement(index)
-	element`,
-		},
-		{
-			// Ohne Literal-Index steht die Position nicht fest: Vereinigung aller Positionen,
-			// dazu Empty, weil der Index danebenliegen kann.
-			name: 'get-element-non-literal-index',
-			code: `f = (values: [Integer Text] index: PositiveInteger) => values.getElement(index)
-y: Or([] Integer Text) = f([1 §a§] 1)`,
-		},
-		{
-			// Kann die Quelle selbst empty sein, bleibt Empty im Ergebnis.
-			name: 'get-element-on-possibly-empty-list',
-			code: `f = (values: Or([] List(Integer))) => values.getElement(1)
-y: Or([] Integer) = f([1])`,
-		},
-		{
-			// ElementAt faltet den Zugriff schon in der Typposition.
-			name: 'element-at-in-type-position',
-			code: `x: ElementAt([Integer Text] 2) = §a§`,
-		},
-		{
-			// Dieselbe Präzision steht Nutzercode offen: ein eigener Wrapper kann den genauen
-			// Rückgabetyp deklarieren, statt ihn an getElement zu binden.
-			name: 'element-at-in-user-function',
-			code: `second = (values: List(Any)) :> ElementAt(TypeOf(values) 2) => values.getElement(2)
-y: Text = [1 §a§].second()`,
-		},
-		{
-			// Ein Spread im Literal setzt die Folgen schon heute genau zusammen ([...a ...b] auf
-			// zwei Tupeln ergibt deren Aneinanderreihung). Diese Faltung ist von einer
-			// Deklaration aus aber nicht erreichbar - Concat gibt ihr einen Namen.
-			name: 'concat-in-type-position',
-			code: `x: Concat([Integer Text] [Boolean]) = [1 §a§ true]`,
-		},
-		{
-			// Der eigentliche Fund: über die Funktionsgrenze geht die Zusammensetzung verloren.
-			// Der Rumpf wird einmal mit den deklarierten Parametertypen inferiert, hier also zu
-			// List(Any); nur ein deklarierter Rückgabetyp aus aufschiebbaren Konstruktoren wird
-			// je Aufruf neu aufgelöst.
-			name: 'concat-in-user-function',
-			code: `myConcat = (a: List(Any) b: List(Any)) :> Concat(TypeOf(a) TypeOf(b)) => [...a ...b]
-y: [Integer Text Boolean] = myConcat([1 §a§] [true])`,
-		},
-		{
-			// Gegenprobe: bei Listen steht die Länge nicht fest, also bleibt nur eine List -
-			// aber eine nicht-leere, denn beide Teile sind es.
-			name: 'concat-of-lists-keeps-element-types',
-			code: `f = (a: List(Integer) b: List(Text)) :> Concat(TypeOf(a) TypeOf(b)) => [...a ...b]
-y: List(Or(Integer Text)) = f([1] [§a§])`,
-		},
-		{
-			// Ohne Annotation: Spread im Rumpf faltet heute eager mit resolvePlaceholders auf den
-			// deklarierten Parametertyp (List(Any)), statt wie am Aufrufort mit
-			// dereferenceArgumentTypesNested die konkreten Argumenttypen einzusetzen - die
-			// Tuple-Arität geht verloren, obwohl Concat sie mit Annotation exakt berechnet
-			// (siehe concat-in-user-function). Red test für
-			// docs/generic-types-through-function-body.md.
-			name: 'concat-in-user-function-without-annotation',
-			code: `myConcat = (a: List(Any) b: List(Any)) => [...a ...b]
-y: [Integer Text Boolean] = myConcat([1 §a§] [true])`,
-		},
-		//#endregion Zugriffstypen
-		//#region Aufruf
-		{
-			// Infix-Aufruf: das prefixArgument wird zum 1. Argument.
-			name: 'prefix-function-call',
-			code: '4.log()',
-		},
-		{
-			// Ein Wert, der keine Funktion ist, kann nicht aufgerufen werden. Heute liefert
-			// getParamsType dafür Any, damit ist auch die Argumentprüfung wirkungslos und der
-			// Fehler bleibt still. Die Meldung folgt dem Muster von branchIsNotFunction.
-			// Der Fehler sitzt auf dem aufgerufenen Ausdruck, nicht auf dem ganzen Aufruf.
-			name: 'call-of-non-function',
-			code: `a = 1
-a(1)`,
+	element`);
+	});
+	// Ohne Literal-Index steht die Position nicht fest: Vereinigung aller Positionen,
+	// dazu Empty, weil der Index danebenliegen kann.
+	it('get-element-non-literal-index', () => {
+		expectCheck(`f = (values: [Integer Text] index: PositiveInteger) => values.getElement(index)
+y: Or([] Integer Text) = f([1 §a§] 1)`);
+	});
+	// Kann die Quelle selbst empty sein, bleibt Empty im Ergebnis.
+	it('get-element-on-possibly-empty-list', () => {
+		expectCheck(`f = (values: Or([] List(Integer))) => values.getElement(1)
+y: Or([] Integer) = f([1])`);
+	});
+	// ElementAt faltet den Zugriff schon in der Typposition.
+	it('element-at-in-type-position', () => {
+		expectCheck(`x: ElementAt([Integer Text] 2) = §a§`);
+	});
+	// Dieselbe Präzision steht Nutzercode offen: ein eigener Wrapper kann den genauen
+	// Rückgabetyp deklarieren, statt ihn an getElement zu binden.
+	it('element-at-in-user-function', () => {
+		expectCheck(`second = (values: List(Any)) :> ElementAt(TypeOf(values) 2) => values.getElement(2)
+y: Text = [1 §a§].second()`);
+	});
+	// Ein Spread im Literal setzt die Folgen schon heute genau zusammen ([...a ...b] auf
+	// zwei Tupeln ergibt deren Aneinanderreihung). Diese Faltung ist von einer
+	// Deklaration aus aber nicht erreichbar - Concat gibt ihr einen Namen.
+	it('concat-in-type-position', () => {
+		expectCheck(`x: Concat([Integer Text] [Boolean]) = [1 §a§ true]`);
+	});
+	// Der eigentliche Fund: über die Funktionsgrenze geht die Zusammensetzung verloren.
+	// Der Rumpf wird einmal mit den deklarierten Parametertypen inferiert, hier also zu
+	// List(Any); nur ein deklarierter Rückgabetyp aus aufschiebbaren Konstruktoren wird
+	// je Aufruf neu aufgelöst.
+	it('concat-in-user-function', () => {
+		expectCheck(`myConcat = (a: List(Any) b: List(Any)) :> Concat(TypeOf(a) TypeOf(b)) => [...a ...b]
+y: [Integer Text Boolean] = myConcat([1 §a§] [true])`);
+	});
+	// Gegenprobe: bei Listen steht die Länge nicht fest, also bleibt nur eine List -
+	// aber eine nicht-leere, denn beide Teile sind es.
+	it('concat-of-lists-keeps-element-types', () => {
+		expectCheck(`f = (a: List(Integer) b: List(Text)) :> Concat(TypeOf(a) TypeOf(b)) => [...a ...b]
+y: List(Or(Integer Text)) = f([1] [§a§])`);
+	});
+	// Ohne Annotation: Spread im Rumpf faltet heute eager mit resolvePlaceholders auf den
+	// deklarierten Parametertyp (List(Any)), statt wie am Aufrufort mit
+	// dereferenceArgumentTypesNested die konkreten Argumenttypen einzusetzen - die
+	// Tuple-Arität geht verloren, obwohl Concat sie mit Annotation exakt berechnet
+	// (siehe concat-in-user-function). Red test für
+	// docs/generic-types-through-function-body.md.
+	it('concat-in-user-function-without-annotation', () => {
+		expectCheck(`myConcat = (a: List(Any) b: List(Any)) => [...a ...b]
+y: [Integer Text Boolean] = myConcat([1 §a§] [true])`);
+	});
+	//#endregion Zugriffstypen
+	//#region Aufruf
+	// Infix-Aufruf: das prefixArgument wird zum 1. Argument.
+	it('prefix-function-call', () => {
+		expectCheck('4.log()');
+	});
+	// Ein Wert, der keine Funktion ist, kann nicht aufgerufen werden. Heute liefert
+	// getParamsType dafür Any, damit ist auch die Argumentprüfung wirkungslos und der
+	// Fehler bleibt still. Die Meldung folgt dem Muster von branchIsNotFunction.
+	// Der Fehler sitzt auf dem aufgerufenen Ausdruck, nicht auf dem ganzen Aufruf.
+	it('call-of-non-function', () => {
+		expectCheck(`a = 1
+a(1)`, {
 			errors: [
 				{
 					"code": ErrorCode.valueIsNotFunction,
@@ -1565,25 +1521,23 @@ a(1)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Gegenprobe: der Aufruf einer Funktion darf nicht melden.
-			name: 'call-of-function',
-			code: `a = (x: Integer) => x
-a(1)`,
-		},
-		{
-			// Gegenprobe: bei Any kann der Checker nicht wissen, ob der Wert aufrufbar ist.
-			name: 'call-of-unknown-type',
-			code: `f = (a: Any) => a(1)`,
-		},
-		{
-			// Argumente werden auch dann geprüft, wenn der Aufruf selbst ungültig ist —
-			// sie sind eigene Ausdrücke mit eigenen Fehlern.
-			name: 'call-of-non-function-still-checks-arguments',
-			code: `g = (x: Text) => x
+		});
+	});
+	// Gegenprobe: der Aufruf einer Funktion darf nicht melden.
+	it('call-of-function', () => {
+		expectCheck(`a = (x: Integer) => x
+a(1)`);
+	});
+	// Gegenprobe: bei Any kann der Checker nicht wissen, ob der Wert aufrufbar ist.
+	it('call-of-unknown-type', () => {
+		expectCheck(`f = (a: Any) => a(1)`);
+	});
+	// Argumente werden auch dann geprüft, wenn der Aufruf selbst ungültig ist —
+	// sie sind eigene Ausdrücke mit eigenen Fehlern.
+	it('call-of-non-function-still-checks-arguments', () => {
+		expectCheck(`g = (x: Text) => x
 a = 1
-a(g(5))`,
+a(g(5))`, {
 			errors: [
 				{
 					"code": ErrorCode.valueIsNotFunction,
@@ -1602,18 +1556,18 @@ a(g(5))`,
 					"startRowIndex": 2,
 				},
 			],
-		},
-		//#endregion Aufruf
-		//#region Callback-Parametertypen
-		{
-			// Kontravarianz an der Parameterposition: der Callback muss alles annehmen, was der
-			// Aufrufer ihm übergibt. Fordert er PositiveInteger, wo Integer durchgereicht wird,
-			// bleibt die 0 (und jede negative Zahl) unversorgt.
-			// Beschriftet wird der TYP des Parameters, nicht ein Wert: hier steht die Signatur des
-			// Callbacks zur Prüfung, kein Argument, das an 'value' übergeben würde.
-			name: 'callback-parameter-type-narrower-than-declared',
-			code: `f = (callback: (value: Integer) :> Any) => callback(1)
-f((value: PositiveInteger) => value)`,
+		});
+	});
+	//#endregion Aufruf
+	//#region Callback-Parametertypen
+	// Kontravarianz an der Parameterposition: der Callback muss alles annehmen, was der
+	// Aufrufer ihm übergibt. Fordert er PositiveInteger, wo Integer durchgereicht wird,
+	// bleibt die 0 (und jede negative Zahl) unversorgt.
+	// Beschriftet wird der TYP des Parameters, nicht ein Wert: hier steht die Signatur des
+	// Callbacks zur Prüfung, kein Argument, das an 'value' übergeben würde.
+	it('callback-parameter-type-narrower-than-declared', () => {
+		expectCheck(`f = (callback: (value: Integer) :> Any) => callback(1)
+f((value: PositiveInteger) => value)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -1624,21 +1578,20 @@ f((value: PositiveInteger) => value)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Gegenprobe: fordert der Callback weniger, als der Aufrufer zusichert, ist alles gut.
-			name: 'callback-parameter-type-wider-than-declared',
-			code: `f = (callback: (value: PositiveInteger) :> Any) => callback(1)
-f((value: Integer) => value)`,
-		},
-		{
-			// Bug: anders als bei einem Parameter (siehe callback-parameter-type-narrower-
-			// than-declared, "Invalid value for parameter 'value'") bekommt der Rückgabetyp
-			// keine eigene Beschriftung - der Leser sieht nur "Can not assign 0 to Text." unter
-			// 'callback' und muss selbst erschliessen, dass damit der Rückgabewert gemeint ist.
-			name: 'callback-return-type-mismatch-names-the-return-value',
-			code: `f = (callback: (value: Integer) :> Text) => callback(1)
-f((value: Integer) => 0)`,
+		});
+	});
+	// Gegenprobe: fordert der Callback weniger, als der Aufrufer zusichert, ist alles gut.
+	it('callback-parameter-type-wider-than-declared', () => {
+		expectCheck(`f = (callback: (value: PositiveInteger) :> Any) => callback(1)
+f((value: Integer) => value)`);
+	});
+	// Bug: anders als bei einem Parameter (siehe callback-parameter-type-narrower-
+	// than-declared, "Invalid value for parameter 'value'") bekommt der Rückgabetyp
+	// keine eigene Beschriftung - der Leser sieht nur "Can not assign 0 to Text." unter
+	// 'callback' und muss selbst erschliessen, dass damit der Rückgabewert gemeint ist.
+	it('callback-return-type-mismatch-names-the-return-value', () => {
+		expectCheck(`f = (callback: (value: Integer) :> Text) => callback(1)
+f((value: Integer) => 0)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -1649,16 +1602,16 @@ f((value: Integer) => 0)`,
 					endRowIndex: 1,
 				},
 			],
-		},
-		{
-			// Derselbe Fall über einen generischen Elementtyp: aggregate reicht die Elemente von
-			// [0 1 2] durch, der Callback fordert aber PositiveInteger - die 0 passt nicht.
-			name: 'callback-parameter-type-narrower-than-passed-element',
-			code: `aggregate(
+		});
+	});
+	// Derselbe Fall über einen generischen Elementtyp: aggregate reicht die Elemente von
+	// [0 1 2] durch, der Callback fordert aber PositiveInteger - die 0 passt nicht.
+	it('callback-parameter-type-narrower-than-passed-element', () => {
+		expectCheck(`aggregate(
 	[0 1 2]
 	0
 	(accumulator value: PositiveInteger) => value
-)`,
+)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -1669,25 +1622,24 @@ f((value: Integer) => 0)`,
 					"startRowIndex": 3,
 				},
 			],
-		},
-		{
-			// Gegenprobe: fordert der Callback nur Integer, passt jedes Element.
-			name: 'callback-parameter-type-wide-enough',
-			code: `aggregate(
+		});
+	});
+	// Gegenprobe: fordert der Callback nur Integer, passt jedes Element.
+	it('callback-parameter-type-wide-enough', () => {
+		expectCheck(`aggregate(
 	[0 1 2]
 	0
 	(accumulator value: Integer) => value
-)`,
-		},
-		//#endregion Callback-Parametertypen
-		//#region erwarteter Typ
-		// Ein Funktionsliteral bekommt die Typen seiner untypisierten Parameter aus dem erwarteten
-		// Typ der Stelle, an der es steht - nicht nur als direktes Argument eines Aufrufs. Der Rumpf
-		// wird dann gegen diesen Typ geprüft: x ist Integer, der Rückgabewert also kein Text.
-		// Die erwarteten Meldungen entsprechen denen mit ausgeschriebenem (x: Integer).
-		{
-			name: 'expected-type-definition-type-guard',
-			code: 'f: (x: Integer) :> Text = (x) => x',
+)`);
+	});
+	//#endregion Callback-Parametertypen
+	//#region erwarteter Typ
+	// Ein Funktionsliteral bekommt die Typen seiner untypisierten Parameter aus dem erwarteten
+	// Typ der Stelle, an der es steht - nicht nur als direktes Argument eines Aufrufs. Der Rumpf
+	// wird dann gegen diesen Typ geprüft: x ist Integer, der Rückgabewert also kein Text.
+	// Die erwarteten Meldungen entsprechen denen mit ausgeschriebenem (x: Integer).
+	it('expected-type-definition-type-guard', () => {
+		expectCheck('f: (x: Integer) :> Text = (x) => x', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1698,10 +1650,10 @@ f((value: Integer) => 0)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			name: 'expected-type-dictionary-field-behind-type-guard',
-			code: 'h: [cb: (x: Integer) :> Text] = [cb = (x) => x]',
+		});
+	});
+	it('expected-type-dictionary-field-behind-type-guard', () => {
+		expectCheck('h: [cb: (x: Integer) :> Text] = [cb = (x) => x]', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1712,11 +1664,11 @@ f((value: Integer) => 0)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			name: 'expected-type-dictionary-argument',
-			code: `g = (o: [cb: (x: Integer) :> Text]) => o
-g([cb = (x) => x])`,
+		});
+	});
+	it('expected-type-dictionary-argument', () => {
+		expectCheck(`g = (o: [cb: (x: Integer) :> Text]) => o
+g([cb = (x) => x])`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -1727,10 +1679,10 @@ g([cb = (x) => x])`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			name: 'expected-type-list-element',
-			code: 'l: List((x: Integer) :> Text) = [(x) => x]',
+		});
+	});
+	it('expected-type-list-element', () => {
+		expectCheck('l: List((x: Integer) :> Text) = [(x) => x]', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1741,12 +1693,12 @@ g([cb = (x) => x])`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Bei List(X) verlangt jede Position dasselbe, ein Spread davor ändert daran nichts.
-			name: 'expected-type-list-element-after-spread',
-			code: `others: List((x: Integer) :> Text) = [(x: Integer) => §a§]
-l: List((x: Integer) :> Text) = [...others (x) => x]`,
+		});
+	});
+	// Bei List(X) verlangt jede Position dasselbe, ein Spread davor ändert daran nichts.
+	it('expected-type-list-element-after-spread', () => {
+		expectCheck(`others: List((x: Integer) :> Text) = [(x: Integer) => §a§]
+l: List((x: Integer) :> Text) = [...others (x) => x]`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1757,14 +1709,14 @@ l: List((x: Integer) :> Text) = [...others (x) => x]`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Hinter einem Spread ist die Position unbekannt, das Argument landet aber in jedem Fall
-			// im Rest-Parameter, wenn der Spread erst dort beginnt.
-			name: 'expected-type-rest-argument-after-spread',
-			code: `g = (...cbs: List((x: Integer) :> Text)) => cbs
+		});
+	});
+	// Hinter einem Spread ist die Position unbekannt, das Argument landet aber in jedem Fall
+	// im Rest-Parameter, wenn der Spread erst dort beginnt.
+	it('expected-type-rest-argument-after-spread', () => {
+		expectCheck(`g = (...cbs: List((x: Integer) :> Text)) => cbs
 others: List((x: Integer) :> Text) = [(x: Integer) => §a§]
-g(...others (x) => x)`,
+g(...others (x) => x)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -1775,12 +1727,12 @@ g(...others (x) => x)`,
 					"startRowIndex": 2,
 				},
 			],
-		},
-		{
-			// Benannte Argumente werden über den Namen zugeordnet, nicht über die Position.
-			name: 'expected-type-named-argument',
-			code: `g = (a: Integer cb: (x: Integer) :> Text) => a
-g(cb = (x) => x a = 1)`,
+		});
+	});
+	// Benannte Argumente werden über den Namen zugeordnet, nicht über die Position.
+	it('expected-type-named-argument', () => {
+		expectCheck(`g = (a: Integer cb: (x: Integer) :> Text) => a
+g(cb = (x) => x a = 1)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -1791,14 +1743,14 @@ g(cb = (x) => x a = 1)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			name: 'expected-type-declared-return-type',
-			code: `k = ()
+		});
+	});
+	it('expected-type-declared-return-type', () => {
+		expectCheck(`k = ()
 	:>
 		(x: Integer) :> Text
 	=>
-		(x) => x`,
+		(x) => x`, {
 			errors: [
 				{
 					"code": ErrorCode.returnTypeMismatch,
@@ -1816,10 +1768,10 @@ g(cb = (x) => x a = 1)`,
 					"startRowIndex": 4,
 				},
 			],
-		},
-		{
-			name: 'expected-type-nested-dictionary',
-			code: 'h: [outer: [cb: (x: Integer) :> Text]] = [outer = [cb = (x) => x]]',
+		});
+	});
+	it('expected-type-nested-dictionary', () => {
+		expectCheck('h: [outer: [cb: (x: Integer) :> Text]] = [outer = [cb = (x) => x]]', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1830,14 +1782,14 @@ g(cb = (x) => x a = 1)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Ein Platzhalter auf einen Parameter der umgebenden Funktion bleibt im erwarteten Typ
-			// stehen und wird erst beim Prüfen über dessen Deklaration aufgelöst.
-			name: 'expected-type-placeholder-of-enclosing-function',
-			code: `f = (values: List(Integer)) =>
+		});
+	});
+	// Ein Platzhalter auf einen Parameter der umgebenden Funktion bleibt im erwarteten Typ
+	// stehen und wird erst beim Prüfen über dessen Deklaration aufgelöst.
+	it('expected-type-placeholder-of-enclosing-function', () => {
+		expectCheck(`f = (values: List(Integer)) =>
 	h: [cb: (x: TypeOf(values)/ElementType) :> Text] = [cb = (x) => x]
-	h`,
+	h`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1848,12 +1800,12 @@ g(cb = (x) => x a = 1)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Aus einer Union zählen nur die Zweige, die ein Funktionsliteral aufnehmen können.
-			name: 'expected-type-optional-callback-argument',
-			code: `g = (cb: Or([] (x: Integer) :> Text)) => 1
-g((x) => x)`,
+		});
+	});
+	// Aus einer Union zählen nur die Zweige, die ein Funktionsliteral aufnehmen können.
+	it('expected-type-optional-callback-argument', () => {
+		expectCheck(`g = (cb: Or([] (x: Integer) :> Text)) => 1
+g((x) => x)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -1864,10 +1816,10 @@ g((x) => x)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			name: 'expected-type-optional-callback-type-guard',
-			code: 'f: Or([] (x: Integer) :> Text) = (x) => x',
+		});
+	});
+	it('expected-type-optional-callback-type-guard', () => {
+		expectCheck('f: Or([] (x: Integer) :> Text) = (x) => x', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1878,12 +1830,12 @@ g((x) => x)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Die schon geschriebenen Felder des Literals sortieren die Zweige aus: kind = §a§
-			// passt nur zum ersten, cb erwartet also (x: Integer) :> Text. Markiert wird deshalb cb.
-			name: 'expected-type-discriminated-union',
-			code: 'h: Or([kind: §a§ cb: (x: Integer) :> Text] [kind: §b§ cb: (x: Text) :> Text]) = [kind = §a§ cb = (x) => x]',
+		});
+	});
+	// Die schon geschriebenen Felder des Literals sortieren die Zweige aus: kind = §a§
+	// passt nur zum ersten, cb erwartet also (x: Integer) :> Text. Markiert wird deshalb cb.
+	it('expected-type-discriminated-union', () => {
+		expectCheck('h: Or([kind: §a§ cb: (x: Integer) :> Text] [kind: §b§ cb: (x: Text) :> Text]) = [kind = §a§ cb = (x) => x]', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1894,12 +1846,12 @@ g((x) => x)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Ein Zweig, der ein im Literal fehlendes Feld verlangt, fällt weg: species fehlt, also
-			// erwartet cb (v: Integer) :> Text. Markiert wird deshalb cb.
-			name: 'expected-type-union-branch-with-missing-field',
-			code: 'x: Or([name: Text age: Integer cb: (v: Integer) :> Text] [name: Text species: Text cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]',
+		});
+	});
+	// Ein Zweig, der ein im Literal fehlendes Feld verlangt, fällt weg: species fehlt, also
+	// erwartet cb (v: Integer) :> Text. Markiert wird deshalb cb.
+	it('expected-type-union-branch-with-missing-field', () => {
+		expectCheck('x: Or([name: Text age: Integer cb: (v: Integer) :> Text] [name: Text species: Text cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1910,28 +1862,25 @@ g((x) => x)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Gegenprobe: ein Feld, dessen Typ Empty zulässt, darf fehlen - der Zweig bleibt, es
-			// bleiben also zwei Funktionszweige und v ohne Typ.
-			name: 'expected-type-union-branch-with-optional-field-stays',
-			code: 'x: Or([name: Text age: Integer cb: (v: Integer) :> Text] [name: Text species: Or([] Text) cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]',
-		},
-		{
-			// Gegenprobe: ohne erwarteten Typ bleibt ein untypisierter Parameter Any.
-			name: 'expected-type-absent-leaves-parameter-untyped',
-			code: 'f = (x) => x',
-		},
-		{
-			// Gegenprobe: ein passender Rumpf bleibt ohne Meldung.
-			name: 'expected-type-matching-body',
-			code: 'f: (x: Integer) :> Integer = (x) => x',
-		},
-		{
-			// Gegenprobe: ein geschriebener Parametertyp geht dem erwarteten vor, gemeldet wird die
-			// Kontravarianz.
-			name: 'expected-type-written-parameter-type-wins',
-			code: 'f: (x: Integer) :> Text = (x: Text) => x',
+		});
+	});
+	// Gegenprobe: ein Feld, dessen Typ Empty zulässt, darf fehlen - der Zweig bleibt, es
+	// bleiben also zwei Funktionszweige und v ohne Typ.
+	it('expected-type-union-branch-with-optional-field-stays', () => {
+		expectCheck('x: Or([name: Text age: Integer cb: (v: Integer) :> Text] [name: Text species: Or([] Text) cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]');
+	});
+	// Gegenprobe: ohne erwarteten Typ bleibt ein untypisierter Parameter Any.
+	it('expected-type-absent-leaves-parameter-untyped', () => {
+		expectCheck('f = (x) => x');
+	});
+	// Gegenprobe: ein passender Rumpf bleibt ohne Meldung.
+	it('expected-type-matching-body', () => {
+		expectCheck('f: (x: Integer) :> Integer = (x) => x');
+	});
+	// Gegenprobe: ein geschriebener Parametertyp geht dem erwarteten vor, gemeldet wird die
+	// Kontravarianz.
+	it('expected-type-written-parameter-type-wins', () => {
+		expectCheck('f: (x: Integer) :> Text = (x: Text) => x', {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -1942,23 +1891,22 @@ g((x) => x)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Gegenprobe: bleiben nach dem Aussortieren mehrere Funktionszweige, gibt es keinen
-			// erwarteten Parametertyp, x bleibt Any.
-			name: 'expected-type-several-function-branches-leave-parameter-untyped',
-			code: `g = (cb: Or((x: Integer) :> Text (x: Text) :> Text)) => 1
-g((x) => x)`,
-		},
-		//#endregion erwarteter Typ
-		//#region verworfene Werte
-		{
-			// Ein längerer Wert ist zulässig - ein Typ nennt Anforderungen, kein vollständiges
-			// Bild. Die 2 steht aber im Quelltext und kommt nirgends an. Gemeldet wird der
-			// überzählige Ausdruck selbst, damit der Leser sieht, was er löschen kann.
-			name: 'call-surplus-argument-is-discarded',
-			code: `f = (a: Integer) => a
-f(1 2)`,
+		});
+	});
+	// Gegenprobe: bleiben nach dem Aussortieren mehrere Funktionszweige, gibt es keinen
+	// erwarteten Parametertyp, x bleibt Any.
+	it('expected-type-several-function-branches-leave-parameter-untyped', () => {
+		expectCheck(`g = (cb: Or((x: Integer) :> Text (x: Text) :> Text)) => 1
+g((x) => x)`);
+	});
+	//#endregion erwarteter Typ
+	//#region verworfene Werte
+	// Ein längerer Wert ist zulässig - ein Typ nennt Anforderungen, kein vollständiges
+	// Bild. Die 2 steht aber im Quelltext und kommt nirgends an. Gemeldet wird der
+	// überzählige Ausdruck selbst, damit der Leser sieht, was er löschen kann.
+	it('call-surplus-argument-is-discarded', () => {
+		expectCheck(`f = (a: Integer) => a
+f(1 2)`, {
 			errors: [
 				{
 					"code": ErrorCode.discardedValue,
@@ -1969,12 +1917,12 @@ f(1 2)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Jeder überzählige Ausdruck ist einzeln löschbar und wird einzeln gemeldet.
-			name: 'every-surplus-argument-is-reported',
-			code: `f = (a: Integer) => a
-f(1 2 3)`,
+		});
+	});
+	// Jeder überzählige Ausdruck ist einzeln löschbar und wird einzeln gemeldet.
+	it('every-surplus-argument-is-reported', () => {
+		expectCheck(`f = (a: Integer) => a
+f(1 2 3)`, {
 			errors: [
 				{
 					"code": ErrorCode.discardedValue,
@@ -1993,24 +1941,23 @@ f(1 2 3)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Ein Spread verschiebt die Zuordnung unbekannt weit: welcher Wert überzählig wäre,
-			// steht nicht im Quelltext, und zu löschen gäbe es nichts.
-			name: 'spread-argument-is-not-discarded',
-			code: `values = [1 2 3]
+		});
+	});
+	// Ein Spread verschiebt die Zuordnung unbekannt weit: welcher Wert überzählig wäre,
+	// steht nicht im Quelltext, und zu löschen gäbe es nichts.
+	it('spread-argument-is-not-discarded', () => {
+		expectCheck(`values = [1 2 3]
 f = (a: Integer) => a
-f(...values)`,
-		},
-		{
-			// War CHECKER-AUDIT.md #6: eine reine Spread-Argumentliste (kein Feld/Element daneben)
-			// parst zu 'object' statt zu 'list' (ParseUnknownObjectLiteral - Liste oder
-			// Dictionary, je nach Typ der Quelle), und case 'object' löste das nie auf, sondern
-			// gab immer Any zurück. Fix: Auflösung wie in case 'list' über getSpreadElementTypes.
-			name: 'spread-argument-is-not-type-checked',
-			code: `values = [§x§]
+f(...values)`);
+	});
+	// War CHECKER-AUDIT.md #6: eine reine Spread-Argumentliste (kein Feld/Element daneben)
+	// parst zu 'object' statt zu 'list' (ParseUnknownObjectLiteral - Liste oder
+	// Dictionary, je nach Typ der Quelle), und case 'object' löste das nie auf, sondern
+	// gab immer Any zurück. Fix: Auflösung wie in case 'list' über getSpreadElementTypes.
+	it('spread-argument-is-not-type-checked', () => {
+		expectCheck(`values = [§x§]
 f = (a: Integer) => a
-f(...values)`,
+f(...values)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -2021,16 +1968,16 @@ f(...values)`,
 					endColumnIndex: 12,
 				},
 			],
-		},
-		{
-			// Gegenstück zu spread-argument-is-not-type-checked: eine reine Spread-Argumentliste
-			// kann laut ParseUnknownObjectLiteral auch ein Dictionary werden (benannte Argumente) -
-			// case 'object' muss also denselben Fehler melden wie derselbe Wert direkt geschrieben
-			// (f(a = §x§)), nicht nur case 'list'.
-			name: 'dictionary-spread-argument-is-not-type-checked',
-			code: `namedArgs = [a = §x§]
+		});
+	});
+	// Gegenstück zu spread-argument-is-not-type-checked: eine reine Spread-Argumentliste
+	// kann laut ParseUnknownObjectLiteral auch ein Dictionary werden (benannte Argumente) -
+	// case 'object' muss also denselben Fehler melden wie derselbe Wert direkt geschrieben
+	// (f(a = §x§)), nicht nur case 'list'.
+	it('dictionary-spread-argument-is-not-type-checked', () => {
+		expectCheck(`namedArgs = [a = §x§]
 f = (a: Integer) => a
-f(...namedArgs)`,
+f(...namedArgs)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -2041,14 +1988,14 @@ f(...namedArgs)`,
 					endColumnIndex: 15,
 				},
 			],
-		},
-		{
-			// Der Spread einer Union verteilt sich über ihre Choices: jede Choice ergibt ein eigenes
-			// Dictionary mit den zusätzlichen Feldern. Die Zuweisung an Empty macht den Typ sichtbar.
-			name: 'dictionary-spread-of-union-distributes-over-choices',
-			code: `f = (s: Or([a: Integer] [b: Text])) =>
+		});
+	});
+	// Der Spread einer Union verteilt sich über ihre Choices: jede Choice ergibt ein eigenes
+	// Dictionary mit den zusätzlichen Feldern. Die Zuweisung an Empty macht den Typ sichtbar.
+	it('dictionary-spread-of-union-distributes-over-choices', () => {
+		expectCheck(`f = (s: Or([a: Integer] [b: Text])) =>
 	x: Empty = [...s c = 1]
-	x`,
+	x`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -2059,14 +2006,14 @@ f(...namedArgs)`,
 					endColumnIndex: 24,
 				},
 			],
-		},
-		{
-			// Empty trägt beim Spread keine Felder bei. Aus Or([] [a: Integer]) werden [c: 1] und
-			// [a: Integer c: 1], zusammengefasst [c: 1].
-			name: 'dictionary-spread-of-possibly-empty-value',
-			code: `f = (s: Or([] [a: Integer])) =>
+		});
+	});
+	// Empty trägt beim Spread keine Felder bei. Aus Or([] [a: Integer]) werden [c: 1] und
+	// [a: Integer c: 1], zusammengefasst [c: 1].
+	it('dictionary-spread-of-possibly-empty-value', () => {
+		expectCheck(`f = (s: Or([] [a: Integer])) =>
 	x: Empty = [...s c = 1]
-	x`,
+	x`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -2077,15 +2024,15 @@ f(...namedArgs)`,
 					endColumnIndex: 24,
 				},
 			],
-		},
-		{
-			// Wechsel des Diskriminators per Spread: kommt der Wert aus einer Choice ohne
-			// attackerId, fehlt das Feld, das die Ziel-Choice zu §attack§ verlangt.
-			name: 'dictionary-spread-of-union-checks-each-choice',
-			code: `State = Or([status: []] [status: §attack§ attackerId: Integer])
+		});
+	});
+	// Wechsel des Diskriminators per Spread: kommt der Wert aus einer Choice ohne
+	// attackerId, fehlt das Feld, das die Ziel-Choice zu §attack§ verlangt.
+	it('dictionary-spread-of-union-checks-each-choice', () => {
+		expectCheck(`State = Or([status: []] [status: §attack§ attackerId: Integer])
 f = (s: State) =>
 	x: State = [...s status = §attack§]
-	x`,
+	x`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -2096,41 +2043,37 @@ f = (s: State) =>
 					endColumnIndex: 36,
 				},
 			],
-		},
-		{
-			// Eine Variable darf legitim mehr enthalten, als die Parameterliste fordert - das ist
-			// die Regel der Sprache, und im Quelltext steht an dieser Stelle nichts zu löschen.
-			name: 'variable-with-longer-tuple-is-not-discarded',
-			code: `v = [1 2 3]
+		});
+	});
+	// Eine Variable darf legitim mehr enthalten, als die Parameterliste fordert - das ist
+	// die Regel der Sprache, und im Quelltext steht an dieser Stelle nichts zu löschen.
+	it('variable-with-longer-tuple-is-not-discarded', () => {
+		expectCheck(`v = [1 2 3]
 f = (a: Integer) => a
-f(...v)`,
-		},
-		{
-			// Die Werteliste gehört dem branching, nicht einem einzelnen branch: ein späterer
-			// branch darf das zweite Element aufnehmen.
-			name: 'branch-value-list-is-not-discarded',
-			code: `x = ?(1 2)
-	(a: Integer) => a`,
-		},
-		{
-			// Der Rest-Parameter nimmt alles auf, überzählig ist damit nichts.
-			name: 'rest-parameter-consumes-surplus',
-			code: `f = (...args: Or([] List(Integer))) => args
-f(1 2 3)`,
-		},
-		{
-			// Gegenprobe: genau so viele Argumente wie Parameter meldet nicht.
-			name: 'matching-argument-count-is-not-discarded',
-			code: `f = (a: Integer b: Integer) => a
-f(1 2)`,
-		},
-		{
-			// Dasselbe für ein Dictionary-Literal als Argumentkollektion: b kommt nirgends an,
-			// weil die Parameterliste kein b hat. Gemeldet wird das ganze Feld, denn das ist
-			// die Einheit, die gelöscht wird.
-			name: 'call-surplus-named-argument-is-discarded',
-			code: `f = (a: Integer) => a
-f(a = 1 b = 2)`,
+f(...v)`);
+	});
+	// Die Werteliste gehört dem branching, nicht einem einzelnen branch: ein späterer
+	// branch darf das zweite Element aufnehmen.
+	it('branch-value-list-is-not-discarded', () => {
+		expectCheck(`x = ?(1 2)
+	(a: Integer) => a`);
+	});
+	// Der Rest-Parameter nimmt alles auf, überzählig ist damit nichts.
+	it('rest-parameter-consumes-surplus', () => {
+		expectCheck(`f = (...args: Or([] List(Integer))) => args
+f(1 2 3)`);
+	});
+	// Gegenprobe: genau so viele Argumente wie Parameter meldet nicht.
+	it('matching-argument-count-is-not-discarded', () => {
+		expectCheck(`f = (a: Integer b: Integer) => a
+f(1 2)`);
+	});
+	// Dasselbe für ein Dictionary-Literal als Argumentkollektion: b kommt nirgends an,
+	// weil die Parameterliste kein b hat. Gemeldet wird das ganze Feld, denn das ist
+	// die Einheit, die gelöscht wird.
+	it('call-surplus-named-argument-is-discarded', () => {
+		expectCheck(`f = (a: Integer) => a
+f(a = 1 b = 2)`, {
 			errors: [
 				{
 					"code": ErrorCode.discardedValue,
@@ -2141,33 +2084,30 @@ f(a = 1 b = 2)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Eine Zuweisung verwirft nichts: der TypeGuard prüft, er formt nicht um. x behält
-			// den Typ des Werts samt drittem Element, x/3 bleibt lesbar und das emittierte JS
-			// enthält alle drei. Nur der Aufruf lässt überzählige Werte fallen.
-			name: 'assignment-discards-nothing',
-			code: 'x: [Integer Integer] = [1 2 3]',
-		},
-		{
-			// Dasselbe für Felder: x behält b, der TypeGuard schneidet es nicht weg.
-			// Vgl. jul-examples/type-checking-test.jul testDictionaryLiteral3a.
-			name: 'assignment-keeps-surplus-field',
-			code: 'x: [a: Integer] = [a = 1 b = 2]',
-		},
-		{
-			// Gegenprobe: ein Feld, das die Parameterliste kennt, meldet nicht.
-			name: 'known-named-argument-is-not-discarded',
-			code: `f = (a: Integer b: Integer) => a
-f(a = 1 b = 2)`,
-		},
-		{
-			// Ein Prefix-Argument bindet schon Parameter — eine gleichnamige explizite
-			// Bindung sollte als discarded gemeldet werden, tut es aber nicht.
-			// Beispiel: 1.f(a = 2) bindet a = 1 positionell, a = 2 ist überzählig.
-			name: 'prefix-argument-overrides-same-named-argument',
-			code: `f = (a: Integer) => a
-1.f(a = 2)`,
+		});
+	});
+	// Eine Zuweisung verwirft nichts: der TypeGuard prüft, er formt nicht um. x behält
+	// den Typ des Werts samt drittem Element, x/3 bleibt lesbar und das emittierte JS
+	// enthält alle drei. Nur der Aufruf lässt überzählige Werte fallen.
+	it('assignment-discards-nothing', () => {
+		expectCheck('x: [Integer Integer] = [1 2 3]');
+	});
+	// Dasselbe für Felder: x behält b, der TypeGuard schneidet es nicht weg.
+	// Vgl. jul-examples/type-checking-test.jul testDictionaryLiteral3a.
+	it('assignment-keeps-surplus-field', () => {
+		expectCheck('x: [a: Integer] = [a = 1 b = 2]');
+	});
+	// Gegenprobe: ein Feld, das die Parameterliste kennt, meldet nicht.
+	it('known-named-argument-is-not-discarded', () => {
+		expectCheck(`f = (a: Integer b: Integer) => a
+f(a = 1 b = 2)`);
+	});
+	// Ein Prefix-Argument bindet schon Parameter — eine gleichnamige explizite
+	// Bindung sollte als discarded gemeldet werden, tut es aber nicht.
+	// Beispiel: 1.f(a = 2) bindet a = 1 positionell, a = 2 ist überzählig.
+	it('prefix-argument-overrides-same-named-argument', () => {
+		expectCheck(`f = (a: Integer) => a
+1.f(a = 2)`, {
 			errors: [
 				{
 					code: ErrorCode.discardedValue,
@@ -2178,14 +2118,14 @@ f(a = 1 b = 2)`,
 					endColumnIndex: 9,
 				},
 			],
-		},
-		{
-			// Benannte Argumente gegen einen rest-Parameter sind nicht umgesetzt: der Checker
-			// meldet es, und tryAssignArgs wirft zur Laufzeit. Der Test hält den Zustand fest -
-			// verschwindet die Meldung, ist die Lücke geschlossen.
-			name: 'named-arguments-with-rest-parameter-are-not-supported',
-			code: `f = (a: Integer ...args: Or([] List(Any))) => a
-f(a = 1 b = 2)`,
+		});
+	});
+	// Benannte Argumente gegen einen rest-Parameter sind nicht umgesetzt: der Checker
+	// meldet es, und tryAssignArgs wirft zur Laufzeit. Der Test hält den Zustand fest -
+	// verschwindet die Meldung, ist die Lücke geschlossen.
+	it('named-arguments-with-rest-parameter-are-not-supported', () => {
+		expectCheck(`f = (a: Integer ...args: Or([] List(Any))) => a
+f(a = 1 b = 2)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -2196,12 +2136,12 @@ f(a = 1 b = 2)`,
 					"startRowIndex": 1,
 				},
 			],
-		},
-		{
-			// Beim Destructuring hält keine Variable den ganzen Wert: _temp ist blocklokal, nur
-			// die gebundenen Namen kommen heraus. b ist danach unerreichbar.
-			name: 'destructuring-surplus-field-is-discarded',
-			code: '(a) = [a = 1 b = 2]',
+		});
+	});
+	// Beim Destructuring hält keine Variable den ganzen Wert: _temp ist blocklokal, nur
+	// die gebundenen Namen kommen heraus. b ist danach unerreichbar.
+	it('destructuring-surplus-field-is-discarded', () => {
+		expectCheck('(a) = [a = 1 b = 2]', {
 			errors: [
 				{
 					"code": ErrorCode.discardedValue,
@@ -2212,11 +2152,11 @@ f(a = 1 b = 2)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Gelesen wird über die Quelle, nicht über den neuen Namen: (x = a) bindet a.
-			name: 'destructuring-alias-uses-source-name',
-			code: '(x = a) = [a = 1 b = 2]',
+		});
+	});
+	// Gelesen wird über die Quelle, nicht über den neuen Namen: (x = a) bindet a.
+	it('destructuring-alias-uses-source-name', () => {
+		expectCheck('(x = a) = [a = 1 b = 2]', {
 			errors: [
 				{
 					"code": ErrorCode.discardedValue,
@@ -2227,30 +2167,27 @@ f(a = 1 b = 2)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Gegenprobe: alle Felder werden gebunden.
-			name: 'destructuring-known-fields-are-not-discarded',
-			code: '(a b) = [a = 1 b = 2]',
-		},
-		{
-			// Positionelles Destructuring: die Liste hat keine Felder namens a/b, nur Indizes.
-			// Die Laufzeit löst das über die Position auf (_isArray ? _temp[0] : _temp.a), der
-			// Checker sucht bisher nur über den Namen und meldet fälschlich dereferenceFailed.
-			name: 'positional-destructuring-from-list',
-			code: '(a b) = [1 2]',
-		},
-		{
-			// Eine Variable darf legitim mehr Felder haben, und zu löschen gäbe es hier nichts.
-			name: 'destructuring-from-variable-is-not-discarded',
-			code: `v = [a = 1 b = 2]
-(a) = v`,
-		},
-		{
-			// Löst ein gewünschter Name nicht auf, ist das die Ursache - dass a übrig bleibt,
-			// ist nur ihre Folge. Gemeldet wird deshalb nur der Name, nicht zusätzlich das Feld.
-			name: 'unresolved-destructuring-name-suppresses-discarded-warning',
-			code: '(myA1 b) = [a = 1 b = 2]',
+		});
+	});
+	// Gegenprobe: alle Felder werden gebunden.
+	it('destructuring-known-fields-are-not-discarded', () => {
+		expectCheck('(a b) = [a = 1 b = 2]');
+	});
+	// Positionelles Destructuring: die Liste hat keine Felder namens a/b, nur Indizes.
+	// Die Laufzeit löst das über die Position auf (_isArray ? _temp[0] : _temp.a), der
+	// Checker sucht bisher nur über den Namen und meldet fälschlich dereferenceFailed.
+	it('positional-destructuring-from-list', () => {
+		expectCheck('(a b) = [1 2]');
+	});
+	// Eine Variable darf legitim mehr Felder haben, und zu löschen gäbe es hier nichts.
+	it('destructuring-from-variable-is-not-discarded', () => {
+		expectCheck(`v = [a = 1 b = 2]
+(a) = v`);
+	});
+	// Löst ein gewünschter Name nicht auf, ist das die Ursache - dass a übrig bleibt,
+	// ist nur ihre Folge. Gemeldet wird deshalb nur der Name, nicht zusätzlich das Feld.
+	it('unresolved-destructuring-name-suppresses-discarded-warning', () => {
+		expectCheck('(myA1 b) = [a = 1 b = 2]', {
 			errors: [
 				{
 					"code": ErrorCode.dereferenceFailed,
@@ -2261,34 +2198,32 @@ f(a = 1 b = 2)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		//#endregion verworfene Werte
-		{
-			// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
-			name: 'type-parameter-as-type-argument',
-			code: 'f = (T: Type) => Stream(T)',
-		},
-		{
-			// Der functionType wird mit Platzhaltern erzeugt, an die Parameter-Symbole gehängt und
-			// erst danach mutiert (ParamsType, ReturnType). Wer ihn zwischendurch auflöst - hier die
-			// Selbstreferenz im body - darf kein Zwischenergebnis festhalten.
-			name: 'recursive-function-return-type',
-			code: `f = (x: Integer) :> Integer =>
+		});
+	});
+	//#endregion verworfene Werte
+	// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
+	it('type-parameter-as-type-argument', () => {
+		expectCheck('f = (T: Type) => Stream(T)');
+	});
+	// Der functionType wird mit Platzhaltern erzeugt, an die Parameter-Symbole gehängt und
+	// erst danach mutiert (ParamsType, ReturnType). Wer ihn zwischendurch auflöst - hier die
+	// Selbstreferenz im body - darf kein Zwischenergebnis festhalten.
+	it('recursive-function-return-type', () => {
+		expectCheck(`f = (x: Integer) :> Integer =>
 	?(x)
 		[0] => 0
 		() => f(x)
-g: Integer = f(3)`,
-		},
-		{
-			// Fix im functionLiteral-Fall: bei Any als inferiertem Rückgabetyp (hier durch die
-			// Selbstreferenz im body verursacht) wird auf den geprüften deklarierten Rückgabetyp
-			// zurückgefallen statt Any durchzureichen. g: Text = f(3) meldet das jetzt korrekt.
-			name: 'recursive-function-return-type-is-not-checked',
-			code: `f = (x: Integer) :> Integer =>
+g: Integer = f(3)`);
+	});
+	// Fix im functionLiteral-Fall: bei Any als inferiertem Rückgabetyp (hier durch die
+	// Selbstreferenz im body verursacht) wird auf den geprüften deklarierten Rückgabetyp
+	// zurückgefallen statt Any durchzureichen. g: Text = f(3) meldet das jetzt korrekt.
+	it('recursive-function-return-type-is-not-checked', () => {
+		expectCheck(`f = (x: Integer) :> Integer =>
 	?(x)
 		[0] => 0
 		() => f(x)
-g: Text = f(3)`,
+g: Text = f(3)`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -2299,12 +2234,12 @@ g: Text = f(3)`,
 					endColumnIndex: 14,
 				},
 			],
-		},
-		{
-			// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
-			// eines core-lib Namens weiterhin ein Fehler sein.
-			name: 'redefinition-of-core-lib-name-still-errors',
-			code: 'add = 4',
+		});
+	});
+	// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
+	// eines core-lib Namens weiterhin ein Fehler sein.
+	it('redefinition-of-core-lib-name-still-errors', () => {
+		expectCheck('add = 4', {
 			errors: [
 				{
 					"code": ErrorCode.alreadyDefinedInUpperScope,
@@ -2315,17 +2250,17 @@ g: Text = f(3)`,
 					"startRowIndex": 0,
 				},
 			],
-		},
-		{
-			// Fund in jul-examples/types.jul (addNums): der letzte Ausdruck im Funktionsrumpf war
-			// ein mehrzeiliges branching. returnTypeMismatch markierte davor die GANZE Funktion
-			// (Zeile 0 bis Ende des branchings) statt nur des branchings selbst, das den
-			// tatsächlich zurückgegebenen Wert bildet.
-			name: 'return-type-mismatch-marks-only-the-last-body-expression',
-			code: `f = (x: Integer) :> Integer =>
+		});
+	});
+	// Fund in jul-examples/types.jul (addNums): der letzte Ausdruck im Funktionsrumpf war
+	// ein mehrzeiliges branching. returnTypeMismatch markierte davor die GANZE Funktion
+	// (Zeile 0 bis Ende des branchings) statt nur des branchings selbst, das den
+	// tatsächlich zurückgegebenen Wert bildet.
+	it('return-type-mismatch-marks-only-the-last-body-expression', () => {
+		expectCheck(`f = (x: Integer) :> Integer =>
 	?(x)
 		[0] => true
-		() => 1`,
+		() => 1`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
@@ -2343,16 +2278,16 @@ g: Text = f(3)`,
 					},
 				},
 			],
-		},
-		{
-			// Fund in jul-examples/yugioh/game-logic.jul: fehlende Tupel-Elemente werden alle als
-			// Empty behandelt (getTupleTypeError2, `argumentElementTypes[index] ?? { julType:
-			// 'empty' }`) - bei mehreren fehlenden Elementen mit demselben Zieltyp entsteht so
-			// dieselbe Meldung mehrfach hintereinander, ohne neue Information je Wiederholung.
-			// Deduplikation nach demselben Muster wie beim 'and'-Fall in getTypeError
-			// (`new Set(subErrors.map(typeErrorToString))`).
-			name: 'duplicate-tuple-element-errors-are-deduplicated',
-			code: 'x: [Integer Integer Integer] = [1]',
+		});
+	});
+	// Fund in jul-examples/yugioh/game-logic.jul: fehlende Tupel-Elemente werden alle als
+	// Empty behandelt (getTupleTypeError2, `argumentElementTypes[index] ?? { julType:
+	// 'empty' }`) - bei mehreren fehlenden Elementen mit demselben Zieltyp entsteht so
+	// dieselbe Meldung mehrfach hintereinander, ohne neue Information je Wiederholung.
+	// Deduplikation nach demselben Muster wie beim 'and'-Fall in getTypeError
+	// (`new Set(subErrors.map(typeErrorToString))`).
+	it('duplicate-tuple-element-errors-are-deduplicated', () => {
+		expectCheck('x: [Integer Integer Integer] = [1]', {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -2363,20 +2298,20 @@ g: Text = f(3)`,
 					endColumnIndex: 34,
 				},
 			],
-		},
-		{
-			// Nachbar-Fall zu 'duplicate-tuple-element-errors-are-deduplicated': Ziel List(X) mit
-			// Tupel-Literal als Wert (case 'list' => case 'tuple' in getTypeError) hatte denselben
-			// Dedup-Fehler, nur ohne den getTupleTypeError2-Fix von oben. Fund im selben
-			// yugioh-Beispiel: eine List(GameBoard) mit mehreren strukturell identischen Boards
-			// erzeugte denselben mehrzeiligen Fehler mehrfach hintereinander.
-			// Seit constant folding für Nutzerfunktionen faltet f(...) zum präzisen Tupel-Typ
-			// statt zu List(Text) - mit zwei unterschiedlichen
-			// Argumenten dedupte die Meldung deshalb nicht mehr (zwei verschiedene Literale). Mit
-			// demselben Argument zweimal bleiben beide Elemente dasselbe Literal und die Meldung
-			// dedupt weiterhin - das ist der eigentliche Testzweck.
-			name: 'duplicate-list-element-errors-are-deduplicated',
-			code: 'f = (a: Text b: Text) => [a b]\nx: List(Integer) = f(§a§ §a§)',
+		});
+	});
+	// Nachbar-Fall zu 'duplicate-tuple-element-errors-are-deduplicated': Ziel List(X) mit
+	// Tupel-Literal als Wert (case 'list' => case 'tuple' in getTypeError) hatte denselben
+	// Dedup-Fehler, nur ohne den getTupleTypeError2-Fix von oben. Fund im selben
+	// yugioh-Beispiel: eine List(GameBoard) mit mehreren strukturell identischen Boards
+	// erzeugte denselben mehrzeiligen Fehler mehrfach hintereinander.
+	// Seit constant folding für Nutzerfunktionen faltet f(...) zum präzisen Tupel-Typ
+	// statt zu List(Text) - mit zwei unterschiedlichen
+	// Argumenten dedupte die Meldung deshalb nicht mehr (zwei verschiedene Literale). Mit
+	// demselben Argument zweimal bleiben beide Elemente dasselbe Literal und die Meldung
+	// dedupt weiterhin - das ist der eigentliche Testzweck.
+	it('duplicate-list-element-errors-are-deduplicated', () => {
+		expectCheck('f = (a: Text b: Text) => [a b]\nx: List(Integer) = f(§a§ §a§)', {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -2387,14 +2322,14 @@ g: Text = f(3)`,
 					endColumnIndex: 29,
 				},
 			],
-		},
-		{
-			// Kontravarianz bei Parametern: map erwartet (value: X, index: PositiveInteger) => Y.
-			// Wer eine Funktion mit anderslautenden Parameternamen schreibt, bricht den Contract.
-			// Die Fehlermeldung muss "Got 'i' but expected 'value'" sagen (an Position 1 wird
-			// 'value' erwartet, wir geben aber 'i') - nicht umgekehrt.
-			name: 'parameter-name-mismatch-reports-names-in-wrong-order',
-			code: `x = map([1 2] (i: Integer value: Integer) => i)`,
+		});
+	});
+	// Kontravarianz bei Parametern: map erwartet (value: X, index: PositiveInteger) => Y.
+	// Wer eine Funktion mit anderslautenden Parameternamen schreibt, bricht den Contract.
+	// Die Fehlermeldung muss "Got 'i' but expected 'value'" sagen (an Position 1 wird
+	// 'value' erwartet, wir geben aber 'i') - nicht umgekehrt.
+	it('parameter-name-mismatch-reports-names-in-wrong-order', () => {
+		expectCheck(`x = map([1 2] (i: Integer value: Integer) => i)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -2405,31 +2340,15 @@ g: Text = f(3)`,
 					endColumnIndex: 46,
 				},
 			],
-		},
-		{
-			// Ein Spread einer Liste unbekannter Länge macht die Argumentliste selbst zu einem
-			// Listentyp. Gegen einen Rest-Parameter ist das gültig, solange der Elementtyp passt:
-			// List(Integer) erfüllt ...args: List(Rational).
-			name: 'spread-list-into-rest-parameter',
-			code: `myFn = (a: List(Integer)) =>
-	c = add(...a)`,
+		});
+	});
+	// Ein Spread einer Liste unbekannter Länge macht die Argumentliste selbst zu einem
+	// Listentyp. Gegen einen Rest-Parameter ist das gültig, solange der Elementtyp passt:
+	// List(Integer) erfüllt ...args: List(Rational).
+	it('spread-list-into-rest-parameter', () => {
+		expectCheck(`myFn = (a: List(Integer)) =>
+	c = add(...a)`, {
 			errors: [],
-		},
-	];
-
-describe('Checker', () => {
-	expectedResults.forEach(({ name, code, result, errors }) => {
-		it(name, () => {
-			const parserResult = parseCode(code, 'dummy.jul');
-			// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
-			// unvollständigen Baum schlicht nichts zu melden hat. Vor dem Check, weil ohne Klon
-			// danach auch die Checker-Fehler in unchecked stehen.
-			expect(parserResult.unchecked.errors).to.deep.equal([]);
-			checkTypes(parserResult, {}, { cloneUnchecked: false });
-			expect(parserResult.checked?.errors).to.deep.equal(errors ?? []);
-			if (result) {
-				expect(parserResult.checked?.expressions).to.deep.equal(result);
-			}
 		});
 	});
 	// Ein Funktionsliteral ohne Ausdruck im Rumpf ist ungültig. Der Parser meldet expectedExpression,
@@ -2439,16 +2358,17 @@ describe('Checker', () => {
 	// Prinzip 8: halbfertiger Code ist der Normalfall, der Checker darf nicht werfen.
 	// Beim Tippen entsteht der Zustand bei jedem Funktionsliteral, und im Sprachserver
 	// fällt dann die Diagnostik für die ganze Datei aus. Vgl. jul-examples/ui/dialog/dialog.jul.
-	// Eigener Test, weil die Tabelle oben fehlerfreies Parsen voraussetzt.
-	[
-		'f = () =>\n\t# TODO',
-		'f = () =>',
-	].forEach(code => {
-		it(`function-with-empty-body-does-not-throw: ${JSON.stringify(code)}`, () => {
-			const parsed = parseCode(code, 'dummy.jul');
-			expect(parsed.unchecked.errors.map(error => error.code)).to.deep.equal([ErrorCode.expectedExpression]);
-			checkTypes(parsed, {}, { cloneUnchecked: false });
-		});
+	// Eigener Test, weil expectCheck fehlerfreies Parsen voraussetzt.
+	const expectEmptyBodyDoesNotThrow = reportAtCaller((code: string) => {
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors.map(error => error.code)).to.deep.equal([ErrorCode.expectedExpression]);
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+	});
+	it('function-with-empty-body-does-not-throw: "f = () =>\\n\\t# TODO"', () => {
+		expectEmptyBodyDoesNotThrow('f = () =>\n\t# TODO');
+	});
+	it('function-with-empty-body-does-not-throw: "f = () =>"', () => {
+		expectEmptyBodyDoesNotThrow('f = () =>');
 	});
 	// Der Parser meldet Import-Fehler schon beim Auflösen der Abhängigkeiten. checked ist ein Klon
 	// von unchecked und enthält sie also bereits - der Checker darf sie nicht ein zweites Mal
@@ -2469,38 +2389,27 @@ describe('Checker', () => {
 	});
 	//#region Mehrzeiliger Funktionskopf
 	// Eigene Tests, weil nur Code und Position der Meldungen geprüft werden, nicht ihr Wortlaut.
-	const multilineHeadCases: {
-		name: string;
-		code: string;
-		errors: { code: ErrorCode; startRowIndex: number; startColumnIndex: number; }[];
-	}[] = [
-			{
-				name: 'C1 Rückgabetyp im Typblock wird gegen den Rumpf geprüft',
-				code: 'f = (a: Integer)\n\t->\n\t\tText\n\t=> a',
-				errors: [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 3, startColumnIndex: 4 }],
-			},
-			{
-				name: 'C2 Parameter im Typblock auflösbar',
-				code: 'f = (a: Integer)\n\t->\n\t\tTypeOf(a)\n\t=> a',
-				errors: [],
-			},
-			{
-				name: 'C3 Funktionstyp als Rückgabetyp',
-				code: 'F = (a: Integer)\n\t:>\n\t\t(b: Integer) :> Integer\nf: F = (a: Integer) => (b: Integer) => b',
-				errors: [],
-			},
-		];
-	multilineHeadCases.forEach(({ name, code, errors }) => {
-		it(name, () => {
-			const parsed = parseCode(code, 'dummy.jul');
-			expect(parsed.unchecked.errors).to.deep.equal([]);
-			checkTypes(parsed, {}, { cloneUnchecked: false });
-			expect(parsed.checked?.errors?.map(error => ({
-				code: error.code,
-				startRowIndex: error.startRowIndex,
-				startColumnIndex: error.startColumnIndex,
-			}))).to.deep.equal(errors);
-		});
+	const expectMultilineHead = reportAtCaller((
+		code: string,
+		errors: { code: ErrorCode; startRowIndex: number; startColumnIndex: number; }[],
+	) => {
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors?.map(error => ({
+			code: error.code,
+			startRowIndex: error.startRowIndex,
+			startColumnIndex: error.startColumnIndex,
+		}))).to.deep.equal(errors);
+	});
+	it('C1 Rückgabetyp im Typblock wird gegen den Rumpf geprüft', () => {
+		expectMultilineHead('f = (a: Integer)\n\t->\n\t\tText\n\t=> a', [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 3, startColumnIndex: 4 }]);
+	});
+	it('C2 Parameter im Typblock auflösbar', () => {
+		expectMultilineHead('f = (a: Integer)\n\t->\n\t\tTypeOf(a)\n\t=> a', []);
+	});
+	it('C3 Funktionstyp als Rückgabetyp', () => {
+		expectMultilineHead('F = (a: Integer)\n\t:>\n\t\t(b: Integer) :> Integer\nf: F = (a: Integer) => (b: Integer) => b', []);
 	});
 	//#endregion Mehrzeiliger Funktionskopf
 	// Passt der Elementtyp des gespreadeten Listentyps nicht zum Rest-Parameter, muss ein
@@ -2517,7 +2426,7 @@ describe('Checker', () => {
 	});
 	// Ein Index kleiner 1 ist ungültig, nicht "daneben" - der Parser meldet das bereits
 	// (parser.test.ts: index-zero). Der Checker darf nicht zusätzlich dereferenceFailed melden.
-	// Eigener Test, weil die Tabelle oben fehlerfrei parsenden Code voraussetzt.
+	// Eigener Test, weil expectCheck fehlerfrei parsenden Code voraussetzt.
 	it('index-zero-reports-once', () => {
 		const parsed = parseCode('a = [1 2]\na/0', 'dummy.jul');
 		const parseErrors = parsed.unchecked.errors;
@@ -3198,46 +3107,33 @@ f(1 0)`;
 	// Die Fehlerposition folgt dem Typ, den die Stelle verlangt: auch hinter einem Spread, solange
 	// jede Position dasselbe verlangt, und in einer Union, wenn nur ein Zweig passen kann.
 	// marked ist der Text, den die einzige Meldung markieren soll.
-	([
-		{
-			name: 'list-element-after-spread',
-			code: 'xs: List(Integer) = [1]\nl: List(Integer) = [...xs §x§]',
-			marked: '§x§',
-		},
-		{
-			name: 'rest-argument-after-spread',
-			code: 'g = (...ns: List(Integer)) => ns\nxs: List(Integer) = [1]\ng(...xs §x§)',
-			marked: '§x§',
-		},
-		{
-			name: 'dictionary-field-in-union',
-			code: 'h: Or([] [a: Integer]) = [a = §x§]',
-			marked: '§x§',
-		},
-		{
-			name: 'list-element-in-union',
-			code: 'l: Or([] List(Integer)) = [1 §x§]',
-			marked: '§x§',
-		},
-		{
-			name: 'argument-field-in-union',
-			code: 'g = (o: Or([] [a: Integer])) => o\ng([a = §x§])',
-			marked: '§x§',
-		},
-	] as const).forEach(({ name, code, marked }) => {
-		it(`error-position-${name}`, () => {
-			const parsed = parseCode(code, 'dummy.jul');
-			expect(parsed.unchecked.errors).to.deep.equal([]);
-			checkTypes(parsed, {}, { cloneUnchecked: false });
-			const errors = parsed.checked?.errors ?? [];
-			expect(errors).to.have.length(1);
-			const error = errors[0]!;
-			const rows = code.split('\n');
-			const markedText = error.startRowIndex === error.endRowIndex
-				? rows[error.startRowIndex]!.slice(error.startColumnIndex, error.endColumnIndex)
-				: '(mehrzeilig)';
-			expect(markedText).to.equal(marked);
-		});
+	const expectErrorMarks = reportAtCaller((code: string, marked: string) => {
+		const parsed = parseCode(code, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		const errors = parsed.checked?.errors ?? [];
+		expect(errors).to.have.length(1);
+		const error = errors[0]!;
+		const rows = code.split('\n');
+		const markedText = error.startRowIndex === error.endRowIndex
+			? rows[error.startRowIndex]!.slice(error.startColumnIndex, error.endColumnIndex)
+			: '(mehrzeilig)';
+		expect(markedText).to.equal(marked);
+	});
+	it('error-position-list-element-after-spread', () => {
+		expectErrorMarks('xs: List(Integer) = [1]\nl: List(Integer) = [...xs §x§]', '§x§');
+	});
+	it('error-position-rest-argument-after-spread', () => {
+		expectErrorMarks('g = (...ns: List(Integer)) => ns\nxs: List(Integer) = [1]\ng(...xs §x§)', '§x§');
+	});
+	it('error-position-dictionary-field-in-union', () => {
+		expectErrorMarks('h: Or([] [a: Integer]) = [a = §x§]', '§x§');
+	});
+	it('error-position-list-element-in-union', () => {
+		expectErrorMarks('l: Or([] List(Integer)) = [1 §x§]', '§x§');
+	});
+	it('error-position-argument-field-in-union', () => {
+		expectErrorMarks('g = (o: Or([] [a: Integer])) => o\ng([a = §x§])', '§x§');
 	});
 
 	// Der Aufruf wird gegen den ungelösten Argumenttyp geprüft (areArgsAssignableTo bekommt
@@ -4233,136 +4129,129 @@ describe('bedingte Typen', () => {
 		return type && typeToString(resolvePlaceholders(type), 0, 5);
 	}
 
-	const cases: {
-		name: string;
-		code: string;
+	const expectConditional = reportAtCaller((code: string, { returnType, type, errors }: {
 		/** Rückgabetyp der letzten Funktionsdefinition. */
 		returnType?: string;
 		/** Typ der letzten Definition, für Aufrufe auf oberster Ebene. */
 		type?: string;
 		/** Ohne errors gilt: fehlerfrei. Die Parserfehler sind in den Checker-Fehlern enthalten. */
 		errors?: { code: ErrorCode; startRowIndex: number; startColumnIndex: number; }[];
-	}[] = [
-			//#region S: Semantik, ein Operand
-			{ name: 'S1 Teilmenge', code: `${conditionalOneOperand}\nh = (x: Integer) => f(x)`, returnType: 'Integer' },
-			{ name: 'S2 Teilmenge über Untertyp', code: `${conditionalOneOperand}\nh = (x: PositiveInteger) => f(x)`, returnType: 'Integer' },
-			{ name: 'S3 disjunkt', code: `${conditionalOneOperand}\nh = (x: Fraction) => f(x)`, returnType: 'Fraction' },
-			{ name: 'S4 Überlappung', code: `${conditionalOneOperand}\nh = (x: Rational) => f(x)`, returnType: 'Or(Integer Fraction)' },
-			{ name: 'S5 Literal wird über das reine f gefaltet', code: `${conditionalOneOperand}\nh = () => f(5)`, returnType: '5' },
-			{ name: 'S6 Teilmenge beendet', code: `${conditionalFirstMatch}\nh = (x: PositiveInteger) => g(x)`, returnType: 'Text' },
-			{ name: 'S7 Überlappung, dann Teilmenge', code: `${conditionalFirstMatch}\nh = (x: Integer) => g(x)`, returnType: 'Or(Text Integer)' },
-			{ name: 'S8 zwei Mal disjunkt', code: `${conditionalFirstMatch}\nh = (x: Fraction) => g(x)`, returnType: 'Fraction' },
-			// Kein Treffer bleibt still, auch der Teiltreffer ohne catchAll (bekanntes Risiko).
-			{ name: 'S9 kein Treffer', code: `${conditionalWithoutCatchAll}\nh = (x: Fraction) => n(x)`, returnType: 'Never' },
-			{ name: 'S10 Teiltreffer, bekanntes Risiko', code: `${conditionalWithoutCatchAll}\nh = (x: Rational) => n(x)`, returnType: 'Integer' },
-			//#endregion S: Semantik, ein Operand
-			//#region M: zwei Operanden
-			{ name: 'M1', code: `${conditionalTwoOperands}\nh = (x: Integer y: Integer) => d(x y)`, returnType: 'Integer' },
-			{ name: 'M2', code: `${conditionalTwoOperands}\nh = (x: Fraction y: Integer) => d(x y)`, returnType: 'Fraction' },
-			{ name: 'M3', code: `${conditionalTwoOperands}\nh = (x: Rational y: Integer) => d(x y)`, returnType: 'Or(Integer Fraction)' },
-			{ name: 'M4', code: `${conditionalTwoOperands}\nh = (x: PositiveInteger y: Integer) => d(x y)`, returnType: 'Integer' },
-			{ name: 'M5 Präfix', code: `${conditionalTwoOperands}\nh = (x: Integer y: Integer) => x.d(y)`, returnType: 'Integer' },
-			//#endregion M: zwei Operanden
-			//#region V: variadisch
-			{ name: 'V1', code: `${conditionalVariadic}\nh = (x: Integer y: Integer z: Integer) => s(x y z)`, returnType: 'Integer' },
-			{ name: 'V2', code: `${conditionalVariadic}\nh = (x: Integer y: Fraction) => s(x y)`, returnType: 'Fraction' },
-			{ name: 'V3', code: `${conditionalVariadic}\nh = (x: Integer y: Rational) => s(x y)`, returnType: 'Or(Integer Fraction)' },
-			{ name: 'V4 Spread Integer', code: `${conditionalVariadic}\nh = (ys: List(Integer)) => s(...ys)`, returnType: 'Integer' },
-			{ name: 'V5 Spread Rational', code: `${conditionalVariadic}\nh = (ys: List(Rational)) => s(...ys)`, returnType: 'Or(Integer Fraction)' },
-			{ name: 'V6 Präfix', code: `${conditionalVariadic}\nh = (x: Integer) => x.s(1)`, returnType: 'Integer' },
-			//#endregion V: variadisch
-			//#region P: offene Signatur und Weitergabe
-			{ name: 'P1 Hover-Form', code: conditionalOneOperand, returnType: 'Or(Integer Fraction)' },
-			// Trägt der vorhandene Mechanismus ein offenes :? durch eine Funktion ohne deklarierten Rückgabetyp?
-			{ name: 'P2 generische Weitergabe', code: `${conditionalOneOperand}\nk = (y: Rational) => f(y)\nh = (x: Integer) => k(x)`, returnType: 'Integer' },
-			//#endregion P: offene Signatur und Weitergabe
-			//#region R: Rumpfprüfung gegen die Union aller Zweige
-			{ name: 'R1 Rumpf in der Union', code: conditionalOneOperand },
-			{
-				name: 'R2 Rumpf außerhalb der Union',
-				code: 'f = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t\t\t() => Fraction\n\t=> §x§',
-				errors: [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 5, startColumnIndex: 4 }],
-			},
-			// Großzügig: d(1 2) sagt Integer zu, der Rumpf liefert eine Fraction.
-			{
-				name: 'R3 bekannte Großzügigkeit',
-				code: 'd = (a: Rational b: Rational)\n\t->\n\t\t:?(TypeOf(a) TypeOf(b))\n\t\t\t[Integer Integer] => Integer\n\t\t\t() => Fraction\n\t=> 0.5',
-			},
-			// Rational liegt nicht in Integer: Die Rumpfprüfung fängt den fehlenden catchAll teilweise auf.
-			{
-				name: 'R4 Teiltreffer im Rumpf',
-				code: 'n = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t=> a',
-				errors: [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 4, startColumnIndex: 4 }],
-			},
-			//#endregion R: Rumpfprüfung gegen die Union aller Zweige
-			//#region E: Fehler
-			{
-				name: 'E1 außerhalb des Rückgabetyps',
-				code: 'x = :?(Integer)\n\t[Integer] => Integer',
-				errors: [{ code: ErrorCode.typeBranchingOutsideReturnType, startRowIndex: 0, startColumnIndex: 4 }],
-			},
-			{
-				name: 'E2 Bindung im Kopf',
-				code: 'f = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t(x: Integer) => Integer\n\t\t\t() => Fraction\n\t=> a',
-				errors: [{ code: ErrorCode.typeBranchHeadBinding, startRowIndex: 3, startColumnIndex: 3 }],
-			},
-			{
-				name: 'E3 in der Kopfzeile',
-				code: 'F = (a: Integer) -> :?(TypeOf(a))\n\t[Integer] => Integer',
-				errors: [{ code: ErrorCode.returnTypeRequiresBlock, startRowIndex: 0, startColumnIndex: 20 }],
-			},
-			//#endregion E: Fehler
-			//#region K: core-lib
-			{ name: 'K1', code: 'h = (x: Integer y: Integer) => subtract(x y)', returnType: 'Integer' },
-			{ name: 'K2', code: 'h = (x: Fraction y: Integer) => subtract(x y)', returnType: 'Fraction' },
-			{ name: 'K3', code: 'h = (x: Rational y: Integer) => subtract(x y)', returnType: 'Rational' },
-			{ name: 'K4', code: 'h = (x: Integer y: Integer z: Integer) => add(x y z)', returnType: 'Integer' },
-			// Nicht Fraction: ein Tuple-Kopf nennt nur Mindestpositionen, [Integer Fraction] passte
-			// auch auf [Integer Fraction Fraction], und das kann ein Integer sein.
-			{ name: 'K5', code: 'h = (x: Integer y: Fraction) => add(x y)', returnType: 'Rational' },
-			{ name: 'K6', code: 'h = (x: Integer y: Rational) => add(x y)', returnType: 'Rational' },
-			{ name: 'K7', code: 'h = (ys: List(Integer)) => add(...ys)', returnType: 'Integer' },
-			{ name: 'K8 Präfix', code: 'h = (x: Integer) => x.add(1)', returnType: 'Integer' },
-			{ name: 'K9 Länge minus eins', code: 'h = (xs: List(Integer)) => xs.length().subtract(1)', returnType: 'Integer' },
-			{ name: 'K10 Faltung add', code: 'r = add(2 3)', type: '5' },
-			{ name: 'K10 Faltung subtract', code: 'r = subtract(5 3)', type: '2' },
-			// Zwei Fractions können einen Integer ergeben: 1/2 + 1/2 = 1, 1/2 - 1/2 = 0.
-			{ name: 'K13 Fraction plus Fraction', code: 'h = (x: Fraction y: Fraction) => add(x y)', returnType: 'Rational' },
-			{ name: 'K14 Fraction minus Fraction', code: 'h = (x: Fraction y: Fraction) => subtract(x y)', returnType: 'Rational' },
-			{ name: 'K15 Integer minus Fraction', code: 'h = (x: Integer y: Fraction) => subtract(x y)', returnType: 'Fraction' },
-			{ name: 'K16 Faltung add normalisiert', code: 'r = add(0.5 0.5)', type: '1' },
-			{ name: 'K16 Faltung subtract normalisiert', code: 'r = subtract(0.5 0.5)', type: '0' },
-			{ name: 'K17 multiply Integer', code: 'h = (x: Integer y: Integer z: Integer) => multiply(x y z)', returnType: 'Integer' },
-			// Auch ein Integer mal eine Fraction kann ein Integer sein: 2 * 1/2 = 1.
-			{ name: 'K18 multiply mit Fraction', code: 'h = (x: Integer y: Fraction) => multiply(x y)', returnType: 'Rational' },
-			{ name: 'K19 multiply Spread Integer', code: 'h = (ys: List(Integer)) => multiply(...ys)', returnType: 'Integer' },
-			{ name: 'K20 multiply Präfix', code: 'h = (x: Integer) => x.multiply(2)', returnType: 'Integer' },
-			{ name: 'K21 Faltung multiply', code: 'r = multiply(2 3)', type: '6' },
-			{ name: 'K21 Faltung multiply normalisiert', code: 'r = multiply(0.5 2)', type: '1' },
-			{
-				name: 'K11 ohne Argumente',
-				code: 'r = add()',
-				errors: [{ code: ErrorCode.argumentTypeMismatch, startRowIndex: 0, startColumnIndex: 4 }],
-			},
-			//#endregion K: core-lib
-		];
-	cases.forEach(({ name, code, returnType, type, errors }) => {
-		it(name, () => {
-			const parsed = check(code);
-			expect(parsed.checked?.errors?.map(error => ({
-				code: error.code,
-				startRowIndex: error.startRowIndex,
-				startColumnIndex: error.startColumnIndex,
-			}))).to.deep.equal(errors ?? []);
-			const expressions = parsed.checked?.expressions ?? [];
-			if (returnType !== undefined) {
-				expect(returnTypeOfLastDefinition(expressions)).to.equal(returnType);
-			}
-			if (type !== undefined) {
-				expect(typeOfLastDefinition(expressions)).to.equal(type);
-			}
+	} = {}) => {
+		const parsed = check(code);
+		expect(parsed.checked?.errors?.map(error => ({
+			code: error.code,
+			startRowIndex: error.startRowIndex,
+			startColumnIndex: error.startColumnIndex,
+		}))).to.deep.equal(errors ?? []);
+		const expressions = parsed.checked?.expressions ?? [];
+		if (returnType !== undefined) {
+			expect(returnTypeOfLastDefinition(expressions)).to.equal(returnType);
+		}
+		if (type !== undefined) {
+			expect(typeOfLastDefinition(expressions)).to.equal(type);
+		}
+	});
+	//#region S: Semantik, ein Operand
+	it('S1 Teilmenge', () => expectConditional(`${conditionalOneOperand}\nh = (x: Integer) => f(x)`, { returnType: 'Integer' }));
+	it('S2 Teilmenge über Untertyp', () => expectConditional(`${conditionalOneOperand}\nh = (x: PositiveInteger) => f(x)`, { returnType: 'Integer' }));
+	it('S3 disjunkt', () => expectConditional(`${conditionalOneOperand}\nh = (x: Fraction) => f(x)`, { returnType: 'Fraction' }));
+	it('S4 Überlappung', () => expectConditional(`${conditionalOneOperand}\nh = (x: Rational) => f(x)`, { returnType: 'Or(Integer Fraction)' }));
+	it('S5 Literal wird über das reine f gefaltet', () => expectConditional(`${conditionalOneOperand}\nh = () => f(5)`, { returnType: '5' }));
+	it('S6 Teilmenge beendet', () => expectConditional(`${conditionalFirstMatch}\nh = (x: PositiveInteger) => g(x)`, { returnType: 'Text' }));
+	it('S7 Überlappung, dann Teilmenge', () => expectConditional(`${conditionalFirstMatch}\nh = (x: Integer) => g(x)`, { returnType: 'Or(Text Integer)' }));
+	it('S8 zwei Mal disjunkt', () => expectConditional(`${conditionalFirstMatch}\nh = (x: Fraction) => g(x)`, { returnType: 'Fraction' }));
+	// Kein Treffer bleibt still, auch der Teiltreffer ohne catchAll (bekanntes Risiko).
+	it('S9 kein Treffer', () => expectConditional(`${conditionalWithoutCatchAll}\nh = (x: Fraction) => n(x)`, { returnType: 'Never' }));
+	it('S10 Teiltreffer, bekanntes Risiko', () => expectConditional(`${conditionalWithoutCatchAll}\nh = (x: Rational) => n(x)`, { returnType: 'Integer' }));
+	//#endregion S: Semantik, ein Operand
+	//#region M: zwei Operanden
+	it('M1', () => expectConditional(`${conditionalTwoOperands}\nh = (x: Integer y: Integer) => d(x y)`, { returnType: 'Integer' }));
+	it('M2', () => expectConditional(`${conditionalTwoOperands}\nh = (x: Fraction y: Integer) => d(x y)`, { returnType: 'Fraction' }));
+	it('M3', () => expectConditional(`${conditionalTwoOperands}\nh = (x: Rational y: Integer) => d(x y)`, { returnType: 'Or(Integer Fraction)' }));
+	it('M4', () => expectConditional(`${conditionalTwoOperands}\nh = (x: PositiveInteger y: Integer) => d(x y)`, { returnType: 'Integer' }));
+	it('M5 Präfix', () => expectConditional(`${conditionalTwoOperands}\nh = (x: Integer y: Integer) => x.d(y)`, { returnType: 'Integer' }));
+	//#endregion M: zwei Operanden
+	//#region V: variadisch
+	it('V1', () => expectConditional(`${conditionalVariadic}\nh = (x: Integer y: Integer z: Integer) => s(x y z)`, { returnType: 'Integer' }));
+	it('V2', () => expectConditional(`${conditionalVariadic}\nh = (x: Integer y: Fraction) => s(x y)`, { returnType: 'Fraction' }));
+	it('V3', () => expectConditional(`${conditionalVariadic}\nh = (x: Integer y: Rational) => s(x y)`, { returnType: 'Or(Integer Fraction)' }));
+	it('V4 Spread Integer', () => expectConditional(`${conditionalVariadic}\nh = (ys: List(Integer)) => s(...ys)`, { returnType: 'Integer' }));
+	it('V5 Spread Rational', () => expectConditional(`${conditionalVariadic}\nh = (ys: List(Rational)) => s(...ys)`, { returnType: 'Or(Integer Fraction)' }));
+	it('V6 Präfix', () => expectConditional(`${conditionalVariadic}\nh = (x: Integer) => x.s(1)`, { returnType: 'Integer' }));
+	//#endregion V: variadisch
+	//#region P: offene Signatur und Weitergabe
+	it('P1 Hover-Form', () => expectConditional(conditionalOneOperand, { returnType: 'Or(Integer Fraction)' }));
+	// Trägt der vorhandene Mechanismus ein offenes :? durch eine Funktion ohne deklarierten Rückgabetyp?
+	it('P2 generische Weitergabe', () => expectConditional(`${conditionalOneOperand}\nk = (y: Rational) => f(y)\nh = (x: Integer) => k(x)`, { returnType: 'Integer' }));
+	//#endregion P: offene Signatur und Weitergabe
+	//#region R: Rumpfprüfung gegen die Union aller Zweige
+	it('R1 Rumpf in der Union', () => expectConditional(conditionalOneOperand));
+	it('R2 Rumpf außerhalb der Union', () => {
+		expectConditional('f = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t\t\t() => Fraction\n\t=> §x§', {
+			errors: [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 5, startColumnIndex: 4 }],
 		});
 	});
+	// Großzügig: d(1 2) sagt Integer zu, der Rumpf liefert eine Fraction.
+	it('R3 bekannte Großzügigkeit', () => {
+		expectConditional('d = (a: Rational b: Rational)\n\t->\n\t\t:?(TypeOf(a) TypeOf(b))\n\t\t\t[Integer Integer] => Integer\n\t\t\t() => Fraction\n\t=> 0.5');
+	});
+	// Rational liegt nicht in Integer: Die Rumpfprüfung fängt den fehlenden catchAll teilweise auf.
+	it('R4 Teiltreffer im Rumpf', () => {
+		expectConditional('n = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t=> a', {
+			errors: [{ code: ErrorCode.returnTypeMismatch, startRowIndex: 4, startColumnIndex: 4 }],
+		});
+	});
+	//#endregion R: Rumpfprüfung gegen die Union aller Zweige
+	//#region E: Fehler
+	it('E1 außerhalb des Rückgabetyps', () => {
+		expectConditional('x = :?(Integer)\n\t[Integer] => Integer', {
+			errors: [{ code: ErrorCode.typeBranchingOutsideReturnType, startRowIndex: 0, startColumnIndex: 4 }],
+		});
+	});
+	it('E2 Bindung im Kopf', () => {
+		expectConditional('f = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t(x: Integer) => Integer\n\t\t\t() => Fraction\n\t=> a', {
+			errors: [{ code: ErrorCode.typeBranchHeadBinding, startRowIndex: 3, startColumnIndex: 3 }],
+		});
+	});
+	it('E3 in der Kopfzeile', () => {
+		expectConditional('F = (a: Integer) -> :?(TypeOf(a))\n\t[Integer] => Integer', {
+			errors: [{ code: ErrorCode.returnTypeRequiresBlock, startRowIndex: 0, startColumnIndex: 20 }],
+		});
+	});
+	//#endregion E: Fehler
+	//#region K: core-lib
+	it('K1', () => expectConditional('h = (x: Integer y: Integer) => subtract(x y)', { returnType: 'Integer' }));
+	it('K2', () => expectConditional('h = (x: Fraction y: Integer) => subtract(x y)', { returnType: 'Fraction' }));
+	it('K3', () => expectConditional('h = (x: Rational y: Integer) => subtract(x y)', { returnType: 'Rational' }));
+	it('K4', () => expectConditional('h = (x: Integer y: Integer z: Integer) => add(x y z)', { returnType: 'Integer' }));
+	// Nicht Fraction: ein Tuple-Kopf nennt nur Mindestpositionen, [Integer Fraction] passte
+	// auch auf [Integer Fraction Fraction], und das kann ein Integer sein.
+	it('K5', () => expectConditional('h = (x: Integer y: Fraction) => add(x y)', { returnType: 'Rational' }));
+	it('K6', () => expectConditional('h = (x: Integer y: Rational) => add(x y)', { returnType: 'Rational' }));
+	it('K7', () => expectConditional('h = (ys: List(Integer)) => add(...ys)', { returnType: 'Integer' }));
+	it('K8 Präfix', () => expectConditional('h = (x: Integer) => x.add(1)', { returnType: 'Integer' }));
+	it('K9 Länge minus eins', () => expectConditional('h = (xs: List(Integer)) => xs.length().subtract(1)', { returnType: 'Integer' }));
+	it('K10 Faltung add', () => expectConditional('r = add(2 3)', { type: '5' }));
+	it('K10 Faltung subtract', () => expectConditional('r = subtract(5 3)', { type: '2' }));
+	// Zwei Fractions können einen Integer ergeben: 1/2 + 1/2 = 1, 1/2 - 1/2 = 0.
+	it('K13 Fraction plus Fraction', () => expectConditional('h = (x: Fraction y: Fraction) => add(x y)', { returnType: 'Rational' }));
+	it('K14 Fraction minus Fraction', () => expectConditional('h = (x: Fraction y: Fraction) => subtract(x y)', { returnType: 'Rational' }));
+	it('K15 Integer minus Fraction', () => expectConditional('h = (x: Integer y: Fraction) => subtract(x y)', { returnType: 'Fraction' }));
+	it('K16 Faltung add normalisiert', () => expectConditional('r = add(0.5 0.5)', { type: '1' }));
+	it('K16 Faltung subtract normalisiert', () => expectConditional('r = subtract(0.5 0.5)', { type: '0' }));
+	it('K17 multiply Integer', () => expectConditional('h = (x: Integer y: Integer z: Integer) => multiply(x y z)', { returnType: 'Integer' }));
+	// Auch ein Integer mal eine Fraction kann ein Integer sein: 2 * 1/2 = 1.
+	it('K18 multiply mit Fraction', () => expectConditional('h = (x: Integer y: Fraction) => multiply(x y)', { returnType: 'Rational' }));
+	it('K19 multiply Spread Integer', () => expectConditional('h = (ys: List(Integer)) => multiply(...ys)', { returnType: 'Integer' }));
+	it('K20 multiply Präfix', () => expectConditional('h = (x: Integer) => x.multiply(2)', { returnType: 'Integer' }));
+	it('K21 Faltung multiply', () => expectConditional('r = multiply(2 3)', { type: '6' }));
+	it('K21 Faltung multiply normalisiert', () => expectConditional('r = multiply(0.5 2)', { type: '1' }));
+	it('K11 ohne Argumente', () => {
+		expectConditional('r = add()', {
+			errors: [{ code: ErrorCode.argumentTypeMismatch, startRowIndex: 0, startColumnIndex: 4 }],
+		});
+	});
+	//#endregion K: core-lib
 
 	// Beim Tippen: wirft nicht und meldet dasselbe wie ein halbes ?(.
 	it('E4 unvollständig', () => {

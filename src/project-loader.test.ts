@@ -4,6 +4,7 @@ import { ParsedDocuments } from './checker/checker.js';
 import { ErrorCode } from './compiler-errors.js';
 import { createInMemoryHost, loadFile, ProjectHost } from './project-loader.js';
 import { ParsedFile } from './syntax-tree.js';
+import { reportAtCaller } from './test-util.js';
 
 // Ein ausgedachter Ordner - die Dateien gibt es nur im Speicher.
 const root = resolve('/project-loader-test');
@@ -40,59 +41,46 @@ function loadMain(files: { [fileName: string]: string; }, host?: ProjectHost): {
 }
 
 describe('project-loader', () => {
-	const expectedResults: {
-		name: string;
-		files: { [fileName: string]: string; };
-		errors: { code: ErrorCode; startRowIndex: number; startColumnIndex: number; }[];
-	}[] = [
-			{
-				// Die CLI checkte früher nur .jul-Dateien - der Import aus der ungecheckten
-				// TS-Datei lieferte Any, und der falsche Typ fiel nicht auf.
-				name: 'importierte TS-Datei wird gecheckt, ihr Typ kommt beim Importeur an',
-				files: {
-					'main.jul': '(count) = import(§./util.ts§)\nwrong: Text = count()',
-					'util.ts': 'export function count(): bigint { return 1n; }',
-				},
-				errors: [{ code: ErrorCode.definitionTypeMismatch, startRowIndex: 1, startColumnIndex: 0 }],
-			},
-			{
-				// Genau einmal: früher meldeten Parser und Checker den Fehler je für sich.
-				name: 'fehlende Abhängigkeit wird einmal am Pfad-Literal gemeldet',
-				files: {
-					'main.jul': '(a) = import(§./gibtsnicht.jul§)',
-				},
-				errors: [{ code: ErrorCode.fileNotFound, startRowIndex: 0, startColumnIndex: 13 }],
-			},
-			{
-				// Exportiert werden nur Top-Level-Definitionen, der Emitter gibt Destructuring kein
-				// export. Hielte der Checker das Feld für importierbar, käme zur Laufzeit undefined an.
-				name: 'per Destructuring gebundener Name ist kein Export',
-				files: {
-					'main.jul': '(a) = import(§./b.jul§)',
-					'b.jul': '(a) = [a = 1]\nc = 2',
-				},
-				errors: [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }],
-			},
-			{
-				// Sonst würde jeder Import stillschweigend zum Re-Export.
-				name: 'importierter Name wird nicht weiterexportiert',
-				files: {
-					'main.jul': '(d) = import(§./b.jul§)',
-					'b.jul': '(d) = import(§./d.jul§)\nb = d',
-					'd.jul': 'd = 1',
-				},
-				errors: [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }],
-			},
-		];
-	expectedResults.forEach(({ name, files, errors }) => {
-		it(name, () => {
-			const { main } = loadMain(files);
-			expect(main.checked?.errors.map(error => ({
-				code: error.code,
-				startRowIndex: error.startRowIndex,
-				startColumnIndex: error.startColumnIndex,
-			}))).to.deep.equal(errors);
-		});
+	const expectLoadErrors = reportAtCaller((
+		files: { [fileName: string]: string; },
+		errors: { code: ErrorCode; startRowIndex: number; startColumnIndex: number; }[],
+	) => {
+		const { main } = loadMain(files);
+		expect(main.checked?.errors.map(error => ({
+			code: error.code,
+			startRowIndex: error.startRowIndex,
+			startColumnIndex: error.startColumnIndex,
+		}))).to.deep.equal(errors);
+	});
+	// Die CLI checkte früher nur .jul-Dateien - der Import aus der ungecheckten
+	// TS-Datei lieferte Any, und der falsche Typ fiel nicht auf.
+	it('importierte TS-Datei wird gecheckt, ihr Typ kommt beim Importeur an', () => {
+		expectLoadErrors({
+			'main.jul': '(count) = import(§./util.ts§)\nwrong: Text = count()',
+			'util.ts': 'export function count(): bigint { return 1n; }',
+		}, [{ code: ErrorCode.definitionTypeMismatch, startRowIndex: 1, startColumnIndex: 0 }]);
+	});
+	// Genau einmal: früher meldeten Parser und Checker den Fehler je für sich.
+	it('fehlende Abhängigkeit wird einmal am Pfad-Literal gemeldet', () => {
+		expectLoadErrors({
+			'main.jul': '(a) = import(§./gibtsnicht.jul§)',
+		}, [{ code: ErrorCode.fileNotFound, startRowIndex: 0, startColumnIndex: 13 }]);
+	});
+	// Exportiert werden nur Top-Level-Definitionen, der Emitter gibt Destructuring kein
+	// export. Hielte der Checker das Feld für importierbar, käme zur Laufzeit undefined an.
+	it('per Destructuring gebundener Name ist kein Export', () => {
+		expectLoadErrors({
+			'main.jul': '(a) = import(§./b.jul§)',
+			'b.jul': '(a) = [a = 1]\nc = 2',
+		}, [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }]);
+	});
+	// Sonst würde jeder Import stillschweigend zum Re-Export.
+	it('importierter Name wird nicht weiterexportiert', () => {
+		expectLoadErrors({
+			'main.jul': '(d) = import(§./b.jul§)',
+			'b.jul': '(d) = import(§./d.jul§)\nb = d',
+			'd.jul': 'd = 1',
+		}, [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }]);
 	});
 
 	it('übersprungene Abhängigkeit ist kein Fehler', () => {

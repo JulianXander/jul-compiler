@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { reportAtCaller } from './test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts,
 	completed$, create$, deepEqual, findLastIndex, multiply, or, parseJson, push, rationalToFloat,
@@ -23,83 +24,60 @@ describe('_branch', () => {
 
 //#region parseJson
 
-const expectedParseJsonResults: {
-	json: string;
-	result: any;
-}[] = [
-		{
-			// null und leere Kollektionen werden zu Empty, vgl. Prinzip 6
-			json: 'null',
-			result: undefined,
-		},
-		{
-			json: 'true',
-			result: true,
-		},
-		{
-			json: 'false',
-			result: false,
-		},
-		{
-			json: '12',
-			result: 12n,
-		},
-		{
-			json: '12.3',
-			result: { numerator: 123n, denominator: 10n },
-		},
-		{
-			json: '-12.3',
-			result: { numerator: -123n, denominator: 10n },
-		},
-		{
-			json: '-12.3e-4',
-			result: { numerator: -123n, denominator: 100000n },
-		},
-		{
-			json: '-12.3e+4',
-			result: -123000n,
-		},
-		{
-			json: '"12"',
-			result: '12',
-		},
-		{
-			json: '   "12"  	\n\r',
-			result: '12',
-		},
-		{
-			json: '"\\\\"',
-			result: '\\',
-		},
-		{
-			json: '"\\u1234"',
-			result: 'ሴ',
-		},
-		{
-			json: '[  ]',
-			result: undefined,
-		},
-		{
-			json: '[1]',
-			result: [1n],
-		},
-		{
-			json: '{"a":"b"}',
-			result: { a: 'b' },
-		},
-		{
-			json: '[{"a":"b"}]',
-			result: [{ a: 'b' }],
-		},
-	];
+const expectParseJson = reportAtCaller((json: string, result?: any) => {
+	const parserResult = parseJson(json);
+	expect(parserResult).to.deep.equal(result);
+});
 
 describe('parseJson', () => {
-	expectedParseJsonResults.forEach(({ json, result }) => {
-		it(json, () => {
-			const parserResult = parseJson(json);
-			expect(parserResult).to.deep.equal(result);
-		});
+	// null und leere Kollektionen werden zu Empty, vgl. Prinzip 6
+	it('null', () => {
+		expectParseJson('null', undefined);
+	});
+	it('true', () => {
+		expectParseJson('true', true);
+	});
+	it('false', () => {
+		expectParseJson('false', false);
+	});
+	it('12', () => {
+		expectParseJson('12', 12n);
+	});
+	it('12.3', () => {
+		expectParseJson('12.3', { numerator: 123n, denominator: 10n });
+	});
+	it('-12.3', () => {
+		expectParseJson('-12.3', { numerator: -123n, denominator: 10n });
+	});
+	it('-12.3e-4', () => {
+		expectParseJson('-12.3e-4', { numerator: -123n, denominator: 100000n });
+	});
+	it('-12.3e+4', () => {
+		expectParseJson('-12.3e+4', -123000n);
+	});
+	it('"12"', () => {
+		expectParseJson('"12"', '12');
+	});
+	it('   "12"  	\n\r', () => {
+		expectParseJson('   "12"  	\n\r', '12');
+	});
+	it('"\\\\"', () => {
+		expectParseJson('"\\\\"', '\\');
+	});
+	it('"\\u1234"', () => {
+		expectParseJson('"\\u1234"', 'ሴ');
+	});
+	it('[  ]', () => {
+		expectParseJson('[  ]', undefined);
+	});
+	it('[1]', () => {
+		expectParseJson('[1]', [1n]);
+	});
+	it('{"a":"b"}', () => {
+		expectParseJson('{"a":"b"}', { a: 'b' });
+	});
+	it('[{"a":"b"}]', () => {
+		expectParseJson('[{"a":"b"}]', [{ a: 'b' }]);
 	});
 });
 
@@ -107,24 +85,17 @@ describe('parseJson', () => {
 
 //#region toJson
 
-const expectedToJsonResults: {
-	value: any;
-	result: string;
-}[] = [
-		{ value: undefined, result: 'null' },
-		{ value: true, result: 'true' },
-		{ value: 12n, result: '12' },
-		{ value: 'ab', result: '"ab"' },
-		{ value: [1n, 2n], result: '[1,2]' },
-		{ value: { a: 'b' }, result: '{"a":"b"}' },
-	];
+const expectToJson = reportAtCaller((value: any, result: string) => {
+	expect(toJson(value)).to.equal(result);
+});
 
 describe('toJson', () => {
-	expectedToJsonResults.forEach(({ value, result }) => {
-		it(result, () => {
-			expect(toJson(value)).to.equal(result);
-		});
-	});
+	it('null', () => expectToJson(undefined, 'null'));
+	it('true', () => expectToJson(true, 'true'));
+	it('12', () => expectToJson(12n, '12'));
+	it('"ab"', () => expectToJson('ab', '"ab"'));
+	it('[1,2]', () => expectToJson([1n, 2n], '[1,2]'));
+	it('{"a":"b"}', () => expectToJson({ a: 'b' }, '{"a":"b"}'));
 });
 
 //#endregion toJson
