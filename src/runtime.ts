@@ -219,6 +219,14 @@ function bracketedExpressionToString(
 
 //#region check type
 
+/**
+ * Erfüllt value den Typ? Für den Checker, der ein Prädikat für einen konstanten Wert faltet und
+ * dabei dieselbe Regel braucht wie die Laufzeit.
+ */
+export function _isOfType(value: any, type: RuntimeType): boolean {
+	return getTypeError(value, type) === undefined;
+}
+
 function getTypeError(value: any, type: RuntimeType): string | undefined {
 	switch (typeof type) {
 		case 'bigint':
@@ -403,7 +411,21 @@ function getTypeError(value: any, type: RuntimeType): string | undefined {
 			return getDictionaryLiteralTypeError(value, type);
 		}
 		case 'function':
-			if (type(value)) {
+			// Ein Prädikat: erfüllt ist es nur bei genau true, nicht bei jedem truthy Ergebnis wie
+			// dem Error eines nicht erschöpfenden branchings. Eine JUL-Funktion bekommt den Wert über
+			// ihre Parameterbindung wie in _branch, damit ihre Parametertypen mitzählen und ein
+			// Typ-Kopf wie [Integer] => true das Argument überhaupt bekommt. Passt der Wert nicht auf
+			// die Parameter, ist das Prädikat nicht erfüllt.
+			if ('params' in type) {
+				const predicate = type as JulFunction;
+				const assignedParams = tryAssignArgs(predicate.params, undefined, [value]);
+				if (!(assignedParams instanceof Error)
+					&& predicate(...assignedParams) === true) {
+					return undefined;
+				}
+				break;
+			}
+			if (type(value) === true) {
 				return undefined;
 			}
 			break;

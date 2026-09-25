@@ -17,8 +17,10 @@ import {
 	CompileTimeType,
 	CompileTimeTypeOfType,
 	CompileTimeUnionType,
+	CompileTimePredicateType,
 	createCompileTimeConcatType,
 	createCompileTimeComplementType,
+	createCompileTimePredicateType,
 	createCompileTimeDictionaryLiteralType,
 	createCompileTimeDictionaryType,
 	createCompileTimeFunctionType,
@@ -310,6 +312,8 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	Error: createCompileTimeTypeOfType(builtinError),
 	List: (() => {
 		const parameterReference = createParameterReference('ElementType', 0);
+		// Das Argument ist ein Typwert, gemeint ist der Typ, den er beschreibt.
+		parameterReference.deferValueOf = true;
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ElementType',
@@ -323,6 +327,8 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	})(),
 	Dictionary: (() => {
 		const parameterReference = createParameterReference('ElementType', 0);
+		// Das Argument ist ein Typwert, gemeint ist der Typ, den er beschreibt.
+		parameterReference.deferValueOf = true;
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ElementType',
@@ -336,6 +342,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	})(),
 	Stream: (() => {
 		const parameterReference = createParameterReference('ValueType', 0);
+		parameterReference.deferValueOf = true;
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ValueType',
@@ -349,6 +356,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	})(),
 	nativeFunction: (() => {
 		const parameterReference = createParameterReference('FunctionType', 0);
+		parameterReference.deferValueOf = true;
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([
 				{
@@ -610,6 +618,9 @@ function dereferenceUnknownKeyFromObject(
 			return createNestedReference(source, nestedKey);
 		case 'typeOf':
 			return dereferenceUnknownKeyFromObject(nestedKey, source.value);
+		// Ein Wert, der das Prädikat erfüllt, liegt in dessen Obermenge und hat deren Gestalt.
+		case 'predicate':
+			return dereferenceUnknownKeyFromObject(nestedKey, source.UpperBound);
 		// Weder Positionen noch benannte Felder mit unbekanntem Schlüssel bekannt - bisheriges,
 		// unverändertes Verhalten wie vor der Exhaustivitätsprüfung: permissiv wie 'any'.
 		case 'and':
@@ -821,6 +832,9 @@ export function dereferenceNameFromObject(
 			const innerType = sourceObjectType.value;
 			return dereferenceNameFromObjectType(name, innerType, sourceObjectType);
 		}
+		// Ein Wert, der das Prädikat erfüllt, liegt in dessen Obermenge und hat deren Gestalt.
+		case 'predicate':
+			return dereferenceNameFromObject(name, sourceObjectType.UpperBound);
 		// Keine benannten Felder und kein Sonderfall nötig - unverändertes Verhalten wie vor der
 		// Exhaustivitätsprüfung.
 		case 'and':
@@ -936,6 +950,8 @@ function dereferenceNameFromObjectType(
 		case 'typeOf':
 		case 'conditional':
 		case 'withElementAt':
+		// Ein Prädikat als Typwert hat keine benannten Felder wie ElementType.
+		case 'predicate':
 			return undefined;
 		default: {
 			const assertNever: never = innerType;
@@ -955,6 +971,9 @@ export function dereferenceIndexFromObject(
 	switch (sourceObjectType.julType) {
 		case 'empty':
 			return builtinEmpty;
+		// Ein Wert, der das Prädikat erfüllt, liegt in dessen Obermenge und hat deren Gestalt.
+		case 'predicate':
+			return dereferenceIndexFromObject(index, sourceObjectType.UpperBound);
 		case 'dictionaryLiteral':
 			// Ein Dictionary trägt keine Positionen; gemeldet wird an der Aufrufstelle.
 			return undefined;
@@ -1327,9 +1346,12 @@ function traversePlaceholders(
 				return rawType;
 			}
 			const dereferencedType = createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.purity, rawType.aliasName);
-			// Die Prädikat-Fakten beschreiben den Wert, nicht die Platzhalter darin - sie gehen
-			// beim Neubau sonst still verloren.
+			// Die Prädikat-Fakten und das Literal beschreiben den Wert, nicht die Platzhalter darin -
+			// sie gehen beim Neubau sonst still verloren. Am Literal hängen Faltung und Identität.
 			dereferencedType.predicate = rawType.predicate;
+			dereferencedType.literal = rawType.literal;
+			dereferencedType.foldable = rawType.foldable;
+			dereferencedType.boundArguments = rawType.boundArguments;
 			return dereferencedType;
 		}
 		case 'greater': {
@@ -1398,8 +1420,10 @@ function traversePlaceholders(
 				const dereferencedNested = dereferencedParameter === rawType
 					? dereferencedParameter
 					: traversePlaceholders(dereferencedParameter, argumentContext);
-				// TODO immer valueOf?
-				return valueOf(dereferencedNested);
+				// Ein nacktes T meint das Argument als Typ, TypeOf(value) den Typ des Arguments.
+				return rawType.deferValueOf
+					? valueOf(dereferencedNested)
+					: dereferencedNested;
 			}
 			const dereferenced1 = dereferenceParameterTypeFromFunctionRef(rawType);
 			if (!dereferenced1) {
@@ -1522,6 +1546,19 @@ function traversePlaceholders(
 			// Stoppt hier: ein Alias trägt keine Platzhalter, und Absteigen würde bei einem
 			// rekursiven Typ nicht terminieren.
 			return rawType;
+		case 'predicate': {
+			// Aufgelöst werden nur die Schranken. Die Funktion bleibt dasselbe Objekt, an ihr
+			// hängen Identität und Faltung.
+			const rawUpper = rawType.UpperBound;
+			const rawLower = rawType.LowerBound;
+			const dereferencedUpper = traversePlaceholders(rawUpper, argumentContext);
+			const dereferencedLower = traversePlaceholders(rawLower, argumentContext);
+			if (dereferencedUpper === rawUpper
+				&& dereferencedLower === rawLower) {
+				return rawType;
+			}
+			return createCompileTimePredicateType(rawType.FunctionType, dereferencedUpper, dereferencedLower, rawType.name);
+		}
 		default: {
 			const assertNever: never = rawType;
 			throw new Error('Unexpected rawType.julType: ' + (assertNever as CompileTimeType).julType);
@@ -1994,30 +2031,75 @@ function getBranchArgumentType(
 	argumentIndex: number,
 ): CompileTimeType | undefined {
 	const rawArgumentType = getRawBranchArgumentType(paramsType, argumentIndex);
-	const rawType = rawArgumentType && resolveAlias(rawArgumentType);
-	// Ein Funktionswert in Typ-Position ist ein Prädikat - die Laufzeit ruft ihn auf
-	// (runtime.ts, getTypeError case 'function') - und keine Zusicherung über die Gestalt des
-	// Werts. Damit zu schneiden ergäbe Never, also hier keine Aussage. Was ein Prädikat hergibt,
-	// liefert getBranchPredicateFacts - je Richtung getrennt.
-	return isFunctionType(rawType)
-		? undefined
-		: rawType;
+	// Ein Funktionswert im Kopf ist hier schon ein Prädikat (valueOf), mit dem geschnitten und
+	// das abgezogen werden kann wie jeder andere Typ.
+	return rawArgumentType && resolveAlias(rawArgumentType);
 }
 
 /**
- * Die Prädikat-Fakten des branch-Kopfs an dieser Argumentstelle.
- * Welche Richtung gilt, entscheidet die Aufrufstelle über das Feld - ifTrue nur für den branch
- * selbst, excludedIfFalse nur für spätere branches. isBranchingExhaustive bräuchte eine dritte
- * Aussage (das Prädikat muss für jeden Wert definiert sein) und rechnet deshalb ohne beide.
+ * Höchstens diese Werte liegen im Typ: ein Prädikat zählt mit seiner Obermenge, unter Not mit
+ * seiner Untermenge. Für die Frage "könnte der Wert hier liegen".
  */
-function getBranchPredicateFacts(
-	paramsType: CompileTimeType,
-	argumentIndex: number,
-): PredicateFacts | undefined {
-	const rawType = getRawBranchArgumentType(paramsType, argumentIndex);
-	return isFunctionType(rawType)
-		? rawType.predicate
-		: undefined;
+function getUpperBoundType(type: CompileTimeType): CompileTimeType {
+	return mapBoundType(type, true);
+}
+
+/**
+ * Mindestens diese Werte liegen im Typ: ein Prädikat zählt nur mit dem, wofür es nachweislich
+ * true liefert. Für die Frage "fängt dieser Kopf den Wert sicher ab".
+ */
+function getLowerBoundType(type: CompileTimeType): CompileTimeType {
+	return mapBoundType(type, false);
+}
+
+function mapBoundType(rawType: CompileTimeType, upper: boolean): CompileTimeType {
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'predicate':
+			return upper
+				? type.UpperBound
+				: type.LowerBound;
+		case 'not': {
+			const source = mapBoundType(type.SourceType, !upper);
+			return source === type.SourceType
+				? type
+				: createNormalizedComplementType(source);
+		}
+		case 'or':
+		case 'and': {
+			const choices = type.ChoiceTypes.map(choice => mapBoundType(choice, upper));
+			if (elementsEqual(choices, type.ChoiceTypes)) {
+				return type;
+			}
+			return type.julType === 'or'
+				? createNormalizedUnionType(choices)
+				: createNormalizedIntersectionType(choices);
+		}
+		case 'tuple': {
+			const elements = type.ElementTypes.map(element => mapBoundType(element, upper));
+			return elementsEqual(elements, type.ElementTypes)
+				? type
+				: createCompileTimeTupleType(elements);
+		}
+		default:
+			return type;
+	}
+}
+
+/**
+ * Not mit den beiden Randfällen, die als Quelle sonst permissiv blieben: Not(Never) ist alles,
+ * Not(Any) nichts.
+ */
+function createNormalizedComplementType(source: CompileTimeType): CompileTimeType {
+	const resolved = resolveAlias(source);
+	switch (resolved.julType) {
+		case 'never':
+			return builtinAny;
+		case 'any':
+			return builtinNever;
+		default:
+			return createCompileTimeComplementType(source);
+	}
 }
 
 function getRawBranchArgumentType(
@@ -2073,7 +2155,19 @@ function isBranchingExhaustive(
 		return false;
 	}
 	const combinedType = createNormalizedUnionType(branchValueTypes as CompileTimeType[]);
-	return !getTypeError(undefined, argValueType, combinedType);
+	// Abgedeckt ist nur, was die Köpfe sicher abfangen: von einem Prädikat die Untermenge. Oder
+	// es bleibt nach dem Abziehen nichts übrig - dort greift die Identität, sodass isEven im
+	// Kopf den isEven-Anteil des Arguments abdeckt. Abgezogen wird Kopf für Kopf: die ganze
+	// Union auf einmal würde über das Or des Arguments verteilt und nie mit dem gleichen Kopf
+	// verglichen.
+	if (!getTypeError(undefined, argValueType, getLowerBoundType(combinedType))) {
+		return true;
+	}
+	const remainingType = (branchValueTypes as CompileTimeType[]).reduce<CompileTimeType>(
+		(remaining, branchValueType) =>
+			createNormalizedIntersectionType([remaining, createCompileTimeComplementType(branchValueType)]),
+		argValueType);
+	return resolveAlias(remainingType).julType === 'never';
 }
 
 /**
@@ -2400,8 +2494,7 @@ function getPreviousBranchArgumentType(
 	const previousValueTypes: CompileTimeType[] = [];
 	for (const previousBranch of branching.branches.slice(0, branchIndex)) {
 		const previousParamsType = getParamsType(previousBranch.typeInfo && resolvePlaceholders(previousBranch.typeInfo.type));
-		const previousValueType = getBranchArgumentType(previousParamsType, argumentIndex)
-			?? getBranchPredicateFacts(previousParamsType, argumentIndex)?.excludedIfFalse;
+		const previousValueType = getBranchArgumentType(previousParamsType, argumentIndex);
 		if (!previousValueType
 			|| previousValueType.julType === 'any') {
 			return undefined;
@@ -2654,7 +2747,22 @@ function inferType(
 					// Prüfe ob currentArgumentType Teilmenge von combinedPreviousArgumentType ist.
 					// areArgsAssignableTo gibt einen Error zurück wenn NICHT assignierbar (nicht ⊆),
 					// undefined wenn OK (d.h. assignierbar).
-					const error = areArgsAssignableTo(undefined, currentArgumentType, combinedPreviousArgumentType);
+					// Sicher abgefangen haben die vorherigen Köpfe nur ihre Untermenge, und der
+					// aktuelle kann alles aus seiner Obermenge treffen - das zählt bei Prädikaten.
+					// Derselbe Kopf ist dagegen über die Identität abgefangen.
+					// Kann der aktuelle alles treffen, ist er erreichbar - Any als Quelle wäre in
+					// areArgsAssignableTo permissiv und hieße sonst "abgedeckt".
+					const isSameAsPrevious = previousArgumentTypes.some(previousArgumentType =>
+						typeEquals(previousArgumentType, currentArgumentType));
+					const currentUpperBound = getUpperBoundType(currentArgumentType);
+					const error = isSameAsPrevious
+						? undefined
+						: currentUpperBound.julType === 'any'
+							? 'reachable'
+							: areArgsAssignableTo(
+								undefined,
+								currentUpperBound,
+								getLowerBoundType(combinedPreviousArgumentType));
 					if (!error) {
 						// Kein Error = currentArgumentType ist Teilmenge = unreachable
 						errors.push({
@@ -3241,7 +3349,10 @@ function inferType(
 			}
 			const foldedType = tryFoldCall(
 				functionExpression, functionType, prefixArgumentType, argsType, assignArgsError);
-			return { type: foldedType ?? dereferencedReturnType };
+			const boundReturnType = !foldedType && !assignArgsError
+				? bindClosureArguments(functionExpression, functionType, prefixArgumentType, argsType, dereferencedReturnType)
+				: undefined;
+			return { type: foldedType ?? boundReturnType ?? dereferencedReturnType };
 		}
 		case 'functionLiteral': {
 			const ownSymbols = expression.symbols;
@@ -3265,6 +3376,7 @@ function inferType(
 			setInferredType(params, functionTypeContext, expectedFunctionType?.ParamsType, checkContext);
 			const paramsTypeValue = valueOf(params.typeInfo!.type);
 			checkParamsTypeIsCollection(params, errors);
+			checkTypeHeadPredicates(params, errors);
 			functionType.ParamsType = paramsTypeValue;
 			updateFunctionTypeUnresolvedFlag(functionType);
 			//#region verengte Typen für branching
@@ -3276,8 +3388,7 @@ function inferType(
 					if (!path) {
 						return;
 					}
-					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex)
-						?? getBranchPredicateFacts(paramsTypeValue, argumentIndex)?.ifTrue;
+					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex);
 					// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
 					const previousBranchValueType = getPreviousBranchArgumentType(branching, expression, argumentIndex);
 					if (!branchRawType
@@ -4513,6 +4624,17 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		return uniqueChoices[0]!;
 	}
 	//#endregion remove duplicates
+	//#region complement
+	// Or(A Not(A)) => Any: jeder Wert liegt in A oder nicht. Gilt auch für ein Prädikat, dessen
+	// Inhalt der Checker nicht kennt - nur so ist [isEven] … [Not(isEven)] erschöpfend.
+	if (uniqueChoices.some(choice => {
+		const resolved = resolveAlias(choice);
+		return isComplementType(resolved)
+			&& uniqueChoices.some(other => typeEquals(other, resolved.SourceType));
+	})) {
+		return builtinAny;
+	}
+	//#endregion complement
 	//#region collapse Boolean
 	// Or(true false) => Boolean: die einzigen zwei möglichen Werte, kein Informationsverlust.
 	if (uniqueChoices.length === 2
@@ -4661,7 +4783,9 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		// Wenn B keine Schnittmenge mit A hat: nur A liefern
 		const secondAssignToFirstError = areArgsAssignableTo(undefined, second, first);
 		if (secondAssignToFirstError) {
-			return first;
+			// Der geschriebene Typ statt des aufgelösten, damit ein Alias wie PositiveInteger in
+			// der Anzeige erhalten bleibt.
+			return ChoiceTypes[0]!;
 		}
 	}
 
@@ -4750,6 +4874,8 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'parameters':
 		// Ein stehengebliebener bedingter Typ wartet noch auf seine Operanden.
 		case 'conditional':
+		// Gegen ein Prädikat heißt "kein Fehler" nur "liegt in der Obermenge", nicht "erfüllt es".
+		case 'predicate':
 			return false;
 		// alias: getTypeError und typeEquals lösen ihn selbst auf, die Verlässlichkeit des Ziels
 		// wird hier bewusst nicht mitgeprüft.
@@ -4838,6 +4964,24 @@ function getTypeFamily(type: ResolvedType): string | undefined {
  * Integer ist keine Teilmenge von 0, überlappt mit 0 aber sehr wohl.
  * undefined = unbekannt. Aufrufer müssen dann permissiv sein, sonst entstehen Falschfehler.
  */
+/**
+ * Sicher überlappend nur für dasselbe Prädikat oder einen konstanten Wert, für den es true
+ * liefert. Sicher disjunkt, wenn der Wert es nicht erfüllt oder außerhalb der Obermenge liegt.
+ */
+function predicateOverlapsWith(predicate: CompileTimePredicateType, other: ResolvedType): boolean | undefined {
+	if (other.julType === 'predicate'
+		&& isSamePredicate(predicate, other)) {
+		return true;
+	}
+	const folded = tryFoldPredicate(predicate, other);
+	if (folded !== undefined) {
+		return folded;
+	}
+	return typesOverlap(predicate.UpperBound, other) === false
+		? false
+		: undefined;
+}
+
 function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): boolean | undefined {
 	const first = resolveAlias(rawFirst);
 	const second = resolveAlias(rawSecond);
@@ -4872,6 +5016,12 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 	}
 	if (isComplementType(second)) {
 		return isNotAssignableTo(first, second.SourceType);
+	}
+	if (first.julType === 'predicate') {
+		return predicateOverlapsWith(first, second);
+	}
+	if (second.julType === 'predicate') {
+		return predicateOverlapsWith(second, first);
 	}
 	// getTypeFamily ordnet 'greater' keiner Familie zu (Integer oder Float möglich) - daher
 	// hier vorab behandeln, bevor die Familienprüfung mit undefined aufgibt.
@@ -5360,6 +5510,81 @@ function tryFoldCall(
 	}
 }
 
+/**
+ * Liefert der Aufruf eine Funktion, die im Rumpf der aufgerufenen steht, hält der Funktionstyp
+ * fest, woran die Parameter gebunden sind - sonst teilen alle Aufrufe denselben deklarierten
+ * Rückgabetyp, und divisibleBy(5) wäre weder faltbar noch von divisibleBy(3) zu unterscheiden.
+ * Nur bei einem reinen Aufruf mit konstanten Argumenten, und nur wenn die aufgerufene Funktion
+ * selbst nichts Ungebundenes aus einer umgebenden Funktion mitbringt. undefined heißt: bleibt
+ * beim deklarierten Rückgabetyp.
+ */
+function bindClosureArguments(
+	functionExpression: SimpleExpression,
+	functionType: CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
+	argsType: CompileTimeType,
+	returnType: CompileTimeType,
+): CompileTimeFunctionType | undefined {
+	if (functionExpression.type !== 'reference') {
+		return undefined;
+	}
+	const callee = resolveAlias(functionType);
+	const result = resolveAlias(returnType);
+	if (!isFunctionType(callee)
+		|| !isFunctionType(result)
+		|| !result.literal
+		|| callee.purity !== 'pure') {
+		return undefined;
+	}
+	const calleeLiteral = callee.literal;
+	if (!calleeLiteral
+		|| calleeLiteral.params.type !== 'parameters'
+		|| calleeLiteral.params.rest) {
+		return undefined;
+	}
+	if (isInsideFunctionLiteral(calleeLiteral)
+		&& !callee.boundArguments) {
+		return undefined;
+	}
+	if (!isInside(result.literal, calleeLiteral)) {
+		return undefined;
+	}
+	const argsValue = typeToConstantValue(argsType);
+	const prefixValue = prefixArgumentType && typeToConstantValue(prefixArgumentType);
+	if (!argsValue
+		|| (prefixArgumentType && !prefixValue)) {
+		return undefined;
+	}
+	const positionalValues: unknown[] = [
+		...(prefixValue ? [prefixValue.value] : []),
+		...(Array.isArray(argsValue.value)
+			? argsValue.value
+			: argsValue.value === undefined
+				? []
+				: [argsValue.value]),
+	];
+	const parameterNames = calleeLiteral.params.singleFields.map(field => field.name.name);
+	if (positionalValues.length > parameterNames.length) {
+		return undefined;
+	}
+	const values: { [name: string]: unknown; } = { ...callee.boundArguments?.values };
+	parameterNames.forEach((parameterName, index) => {
+		values[parameterName] = positionalValues[index];
+	});
+	const argumentsDisplay = getAllArgTypes(prefixArgumentType, argsType)
+		?.map(argType => typeToString(argType, 0, 1))
+		.join(' ') ?? '';
+	const boundType = createCompileTimeFunctionType(result.ParamsType, result.ReturnType, result.purity, result.aliasName);
+	boundType.predicate = result.predicate;
+	boundType.literal = result.literal;
+	boundType.foldable = result.foldable;
+	boundType.boundArguments = {
+		values: values,
+		display: `${functionExpression.name.name}(${argumentsDisplay})`,
+	};
+	return boundType;
+}
+
 function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 	if (first === second) {
 		return true;
@@ -5496,7 +5721,8 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 		case 'parameterReference':
 			return second.julType === 'parameterReference'
 				&& first.name === second.name
-				&& first.index === second.index;
+				&& first.index === second.index
+				&& first.deferValueOf === second.deferValueOf;
 		case 'nestedReference':
 			return second.julType === 'nestedReference'
 				&& nestedKeysEqual(first.nestedKey, second.nestedKey)
@@ -5516,10 +5742,67 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 						&& first.rest.name === second.rest.name
 						&& (first.rest.type === undefined && second.rest.type === undefined
 							|| first.rest.type !== undefined && second.rest.type !== undefined && typeEquals(first.rest.type, second.rest.type)));
+		case 'predicate':
+			return second.julType === 'predicate'
+				&& isSamePredicate(first, second);
 		default:
 			const assertNever: never = first;
 			throw new Error('Unexpected julType: ' + (assertNever as CompileTimeType).julType);
 	}
+}
+
+/**
+ * Zwei Prädikate sind gleich, wenn es dieselbe Funktion ist und sie rein ist - nur dann liefert
+ * sie für denselben Wert bei jeder Auswertung dasselbe. Gleiches Verhalten zweier verschiedener
+ * Funktionen lässt sich nicht feststellen. Eine fälschlich angenommene Gleichheit wäre unsound,
+ * deshalb zählt nur dasselbe Funktionstyp-Objekt. Auch das reicht nicht, wenn das Literal in
+ * einer anderen Funktion steht: dann ist der Funktionstyp der deklarierte Rückgabetyp, den jeder
+ * Aufruf teilt, und divisibleBy(5) wäre dasselbe wie divisibleBy(3). Solange der Funktionstyp
+ * nicht festhält, woran seine freien Referenzen gebunden sind, gilt so ein Prädikat nie als gleich.
+ */
+function isSamePredicate(first: CompileTimePredicateType, second: CompileTimePredicateType): boolean {
+	const firstFunction = first.FunctionType;
+	const secondFunction = second.FunctionType;
+	if (firstFunction.purity !== 'pure'
+		|| secondFunction.purity !== 'pure') {
+		return false;
+	}
+	const literal = firstFunction.literal;
+	if (!literal) {
+		// Ohne Literal (nativeFunction, Import aus .ts) bleibt nur dasselbe Objekt.
+		return firstFunction === secondFunction;
+	}
+	if (literal !== secondFunction.literal) {
+		return false;
+	}
+	if (!isInsideFunctionLiteral(literal)) {
+		return true;
+	}
+	const firstBound = firstFunction.boundArguments;
+	const secondBound = secondFunction.boundArguments;
+	return !!firstBound
+		&& !!secondBound
+		&& haveSameBoundValues(firstBound.values, secondBound.values);
+}
+
+function haveSameBoundValues(
+	first: { [name: string]: unknown; },
+	second: { [name: string]: unknown; },
+): boolean {
+	const names = Object.keys(first);
+	return names.length === Object.keys(second).length
+		&& names.every(name =>
+			name in second
+			&& runtime.deepEqual(first[name], second[name]));
+}
+
+function isInsideFunctionLiteral(expression: TypedExpression): boolean {
+	for (let parent = expression.parent; parent; parent = parent.parent) {
+		if (parent.type === 'functionLiteral') {
+			return true;
+		}
+	}
+	return false;
 }
 
 //#endregion Typ Arithmetik
@@ -5736,6 +6019,40 @@ function checkParamsTypeIsCollection(
 }
 
 /**
+ * Ein Funktionswert in einem Typ-Kopf wie [isEven] ist ein Prädikat und muss dieselben
+ * Bedingungen erfüllen wie in einem Typguard. Tiefer verschachtelte, etwa in Or(isEven Text),
+ * prüft bereits der Type-Parameter von Or.
+ */
+function checkTypeHeadPredicates(
+	params: SimpleExpression | ParseParameterFields,
+	errors: CompilerError[],
+): void {
+	if (params.type !== 'list') {
+		return;
+	}
+	params.values.forEach(value => {
+		if (value.type === 'spread') {
+			return;
+		}
+		const valueType = value.typeInfo && resolveAlias(resolvePlaceholders(value.typeInfo.type));
+		if (!isFunctionType(valueType)) {
+			return;
+		}
+		const error = getPredicateFunctionError(valueType);
+		if (error) {
+			errors.push({
+				code: ErrorCode.typeGuardIsNotType,
+				message: error.message,
+				startRowIndex: value.startRowIndex,
+				startColumnIndex: value.startColumnIndex,
+				endRowIndex: value.endRowIndex,
+				endColumnIndex: value.endColumnIndex,
+			});
+		}
+	});
+}
+
+/**
  * true, wenn kein Wert dieses Typs eine Argumentkollektion sein kann.
  * Empty gehört dazu (der Aufruf ohne Argumente) und fällt daher nicht darunter.
  * Im Zweifel false: nicht aufgelöste Typen und Never bleiben ungemeldet.
@@ -5813,6 +6130,40 @@ export function resolveAlias(type: CompileTimeType): ResolvedType {
 	return current;
 }
 
+/**
+ * Die Menge der Werte, für die functionType true liefert, soweit der Checker sie kennt.
+ * Obermenge ist der erste Parametertyp, denn die Laufzeit bindet den Wert als einziges Argument
+ * und ein unpassender Wert erfüllt das Prädikat nicht. Dazu kommen die erkannten Fakten.
+ */
+function createPredicateFromFunctionType(functionType: CompileTimeFunctionType): CompileTimePredicateType {
+	const parameterType = getFirstParameterType(functionType.ParamsType);
+	const facts = functionType.predicate;
+	const upperBound = facts
+		? createNormalizedIntersectionType([parameterType, facts.ifTrue])
+		: parameterType;
+	const name = functionType.boundArguments?.display
+		?? (functionType.literal && getNameFromValue(functionType.literal));
+	return createCompileTimePredicateType(functionType, upperBound, facts?.excludedIfFalse ?? builtinNever, name);
+}
+
+/**
+ * Was ein einzelnes Argument erfüllen muss, um an die erste Stelle gebunden zu werden.
+ * Ohne Parameter wird ein einzelnes Argument schlicht nicht gebunden, jeder Wert passt.
+ */
+function getFirstParameterType(paramsType: CompileTimeType): CompileTimeType {
+	if (isParametersType(paramsType)) {
+		const firstParameter = paramsType.singleNames[0];
+		if (firstParameter) {
+			return firstParameter.type ?? builtinAny;
+		}
+		const restType = paramsType.rest?.type;
+		return restType
+			? getElementTypeAtIndex(restType, 0) ?? builtinAny
+			: builtinAny;
+	}
+	return getElementTypeAtIndex(paramsType, 0) ?? builtinAny;
+}
+
 function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 	if (!type) {
 		return builtinAny;
@@ -5823,7 +6174,10 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			return createCompileTimeDictionaryLiteralType(fieldValues, type.complete);
 		}
 		case 'function':
-			// TODO?
+			// Ein Funktionswert in Typ-Position ist ein Prädikat. Das Funktionstyp-Literal kommt
+			// hier nicht an: es steht als TypeOf(F) und wird oben zu F ausgepackt.
+			return createPredicateFromFunctionType(type);
+		case 'predicate':
 			return type;
 		case 'nestedReference':
 			// TODO?
@@ -5831,8 +6185,11 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'parameters':
 			return type;
 		case 'parameterReference':
-			// TODO wo deref? wo Type => value auspacken?
-			return type;
+			// Der Argumenttyp steht erst beim Aufruf fest, dort holt traversePlaceholders das
+			// valueOf nach.
+			return type.deferValueOf
+				? type
+				: { ...type, deferValueOf: true };
 		case 'stream':
 			// TODO?
 			return type;
@@ -6056,6 +6413,19 @@ function getTypeErrorAtDepth(
 			}
 			return getTypeError(prefixArgumentType, dereferencedParameterType, targetType);
 		}
+		case 'predicate':
+			switch (targetType.julType) {
+				// Diese Ziele werden erst zerlegt, damit ein gleiches Prädikat darin gefunden wird.
+				case 'and':
+				case 'not':
+				case 'or':
+				case 'predicate':
+					break;
+				// Ein Wert, der das Prädikat erfüllt, liegt in der Obermenge.
+				default:
+					return getTypeError(prefixArgumentType, argumentsType.UpperBound, targetType);
+			}
+			break;
 		case 'tupleOf': {
 			// Wie concat/withElementAt: solange die Anzahl noch offen ist, bleibt der Knoten
 			// stehen - erst neu falten versuchen, sonst permissiv.
@@ -6402,12 +6772,11 @@ function getTypeErrorAtDepth(
 				case 'typeOf':
 					return undefined;
 				case 'function':
-					// Phase 1a: nur erkannte Prädikate (getPredicateFacts) sind als Type-Wert
-					// zulässig, kein beliebiges Boolean-Callback (JUL5002 sonst).
-					if (argumentsType.predicate) {
-						return undefined;
-					}
-					break;
+					return getPredicateFunctionError(argumentsType);
+				// Ein Wert, der das Prädikat erfüllt, ist ein Typ, wenn seine Obermenge aus
+				// Typen besteht.
+				case 'predicate':
+					return getTypeError(prefixArgumentType, argumentsType.UpperBound, targetType);
 				case 'tuple': {
 					// alle ElementTypes müssen Typen sein
 					const subErrors = argumentsType.ElementTypes.map(elementType =>
@@ -6453,12 +6822,73 @@ function getTypeErrorAtDepth(
 		case 'concat':
 			// Ungefaltete Konkatenation: permissiv wie nestedReference.
 			return undefined;
+		case 'predicate': {
+			if (argumentsType.julType === 'predicate'
+				&& isSamePredicate(argumentsType, targetType)) {
+				return undefined;
+			}
+			const folded = tryFoldPredicate(targetType, argumentsType);
+			if (folded !== undefined) {
+				if (folded) {
+					return undefined;
+				}
+				break;
+			}
+			// Was das Prädikat für einen Wert in der Obermenge liefert, weiß der Checker nicht.
+			// Das prüft die Laufzeit.
+			if (getTypeError(prefixArgumentType, argumentsType, targetType.UpperBound)) {
+				break;
+			}
+			return undefined;
+		}
 		default: {
 			const assertNever: never = targetType;
 			throw new Error(`Unexpected targetType.type: ${(assertNever as CompileTimeType).julType}`);
 		}
 	}
 	return { message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.` };
+}
+
+/**
+ * Jede Funktion ist als Typ zulässig, die true liefern kann und rein ist: Identität und Faltung
+ * setzen voraus, dass sie für denselben Wert immer dasselbe liefert. Unbekannte Reinheit ist
+ * keine Ablehnung, gefaltet wird dann nur nicht.
+ */
+function getPredicateFunctionError(functionType: CompileTimeFunctionType): TypeError | undefined {
+	if (functionType.purity === 'impure') {
+		return { message: 'A predicate used as a type must be pure.' };
+	}
+	if (getTypeError(undefined, createBooleanLiteral(true), resolvePlaceholders(functionType.ReturnType))) {
+		return { message: 'A predicate used as a type must be able to return true.' };
+	}
+	return undefined;
+}
+
+/**
+ * Liefert das Prädikat für diesen konstanten Wert true? undefined, wenn es sich nicht ausrechnen
+ * lässt: der Wert ist nicht konstant, die Funktion nicht rein oder nicht faltbar, oder das Budget
+ * ist erschöpft. Ausgewertet wird nach derselben Regel wie zur Laufzeit.
+ */
+function tryFoldPredicate(predicate: CompileTimePredicateType, argumentsType: CompileTimeType): boolean | undefined {
+	const functionType = predicate.FunctionType;
+	if (functionType.purity !== 'pure') {
+		return undefined;
+	}
+	const value = typeToConstantValue(argumentsType);
+	if (!value) {
+		return undefined;
+	}
+	const callable = tryBuildCallable(functionType);
+	if (!callable) {
+		return undefined;
+	}
+	checkerStats.foldableCall++;
+	try {
+		return runtime._isOfType(value.value, callable as Parameters<typeof runtime._isOfType>[1]);
+	}
+	catch {
+		return undefined;
+	}
 }
 
 /**
@@ -7020,6 +7450,10 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return depth
 				? type.name
 				: typeToString(dereferenceAlias(type), indent, depth, suppressAlias);
+		case 'predicate':
+			// Gezeigt wird, was in Typ-Position stand. Die Obermenge wäre falsch: isEven ist nicht
+			// Integer.
+			return type.name ?? typeToString(type.FunctionType, indent, depth + 1, suppressAlias);
 		default: {
 			const assertNever: never = type;
 			throw new Error(`Unexpected BuiltInType ${(assertNever as CompileTimeType).julType}`);
@@ -7229,11 +7663,13 @@ export function classifyTypeness(type: CompileTimeType | undefined, depth = 0): 
 				? 'unknown'
 				: isType ? 'type' : 'value';
 		}
+		// Wie jede Funktion nach ihrem Rückgabetyp: ein Prädikat liefert einen Boolean und wird
+		// klein geschrieben wie or und equal, auch wenn es in Typ-Position stehen kann.
 		case 'function':
-			if (resolved.predicate) {
-				return 'unknown';
-			}
 			return classifyTypeness(resolved.ReturnType, depth + 1);
+		// Ein Wert, der das Prädikat erfüllt, ist einer aus der Obermenge.
+		case 'predicate':
+			return classifyTypeness(resolved.UpperBound, depth + 1);
 		case 'parameterReference': {
 			// Die Referenz steht für das Argument selbst (`(T: Type) => T`) oder für die Werte, die
 			// es beschreibt (`(T: Type v: T) => v`). Bei einem Wert als Argument ist beides dasselbe

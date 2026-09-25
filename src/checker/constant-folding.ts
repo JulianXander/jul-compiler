@@ -244,7 +244,10 @@ function collectFreeReferences(literal: ParseFunctionLiteral): ParseReference[] 
  * gefalteten Funktion ist ausgenommen - sie wird beim Emit an die gerade gebaute Closure gebunden
  * (siehe functionLiteralToEvaluableJs), nicht hier aufgelöst.
  */
-function buildEnvironment(literal: ParseFunctionLiteral): { name: string; value: unknown; }[] | undefined {
+function buildEnvironment(
+	literal: ParseFunctionLiteral,
+	boundValues: { [name: string]: unknown; } | undefined,
+): { name: string; value: unknown; }[] | undefined {
 	const ownName = literal.parent?.type === 'definition' && literal.parent.value === literal
 		? literal.parent.name.name
 		: undefined;
@@ -274,15 +277,21 @@ function buildEnvironment(literal: ParseFunctionLiteral): { name: string; value:
 		if (runtimeKeys.includes(escapeReservedJsVariableName(name))) {
 			continue;
 		}
-		const type = reference.typeInfo?.type;
-		if (!type) {
-			return undefined;
-		}
 		// Emittierte Referenzen im Rumpf heißen escaped (referenceToJs), die Bindung muss also
 		// genauso heißen - sonst bricht schon eine reservierte Wortreferenz wie `true`/`false`
 		// (in JUL gewöhnliche core-lib-Referenzen, keine Literalsyntax) new Function mit einem
 		// SyntaxError.
 		const escapedName = escapeReservedJsVariableName(name);
+		// Ein Parameter der umgebenden Funktion, an den der Aufruf, der diesen Funktionstyp
+		// geliefert hat, einen konstanten Wert gebunden hat.
+		if (boundValues && name in boundValues) {
+			environment.push({ name: escapedName, value: boundValues[name] });
+			continue;
+		}
+		const type = reference.typeInfo?.type;
+		if (!type) {
+			return undefined;
+		}
 		const constantValue = typeToConstantValue(type);
 		if (constantValue) {
 			environment.push({ name: escapedName, value: constantValue.value });
@@ -316,7 +325,7 @@ export function tryBuildCallable(functionType: CompileTimeFunctionType): Functio
 	if (!literal || !functionType.foldable) {
 		return undefined;
 	}
-	const environment = buildEnvironment(literal);
+	const environment = buildEnvironment(literal, functionType.boundArguments?.values);
 	if (!environment) {
 		return undefined;
 	}

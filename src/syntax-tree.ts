@@ -676,6 +676,7 @@ export type CompileTimeType =
 	| CompileTimeIntersectionType
 	| CompileTimeUnionType
 	| CompileTimeComplementType
+	| CompileTimePredicateType
 	| CompileTimeTypeOfType
 	| NestedReferenceType
 	| ParameterReference
@@ -790,6 +791,41 @@ export function createCompileTimeComplementType(SourceType: CompileTimeType): Co
 		julType: 'not',
 		SourceType: SourceType,
 		isUnresolvedPlaceholder: SourceType.isUnresolvedPlaceholder,
+	};
+}
+
+/**
+ * Ein Funktionswert in Typ-Position: die Menge der Werte, für die die Funktion true liefert.
+ * Nicht zu verwechseln mit dem Funktionstyp, der die Menge der Funktionen mit einer Signatur
+ * ist. Was die Funktion für einen Wert liefert, lässt sich im Allgemeinen nicht vorhersagen,
+ * bekannt sind nur die beiden Schranken UpperBound ⊇ Prädikat ⊇ LowerBound.
+ * Ist nicht gleich seiner Obermenge und wird deshalb nicht wie ein Alias aufgelöst: isEven
+ * ist nicht Integer.
+ */
+export interface CompileTimePredicateType extends CompileTimeTypeBase {
+	readonly julType: 'predicate';
+	FunctionType: CompileTimeFunctionType;
+	/** Werte, für die die Funktion true liefern kann: erster Parametertyp und predicate.ifTrue. */
+	UpperBound: CompileTimeType;
+	/** Werte, für die die Funktion nachweislich true liefert: predicate.excludedIfFalse. */
+	LowerBound: CompileTimeType;
+	/** Für die Anzeige: der Name, unter dem das Prädikat in Typ-Position geschrieben wurde. */
+	name?: string;
+}
+
+export function createCompileTimePredicateType(
+	FunctionType: CompileTimeFunctionType,
+	UpperBound: CompileTimeType,
+	LowerBound: CompileTimeType,
+	name: string | undefined,
+): CompileTimePredicateType {
+	return {
+		julType: 'predicate',
+		FunctionType: FunctionType,
+		UpperBound: UpperBound,
+		LowerBound: LowerBound,
+		name: name,
+		isUnresolvedPlaceholder: FunctionType.isUnresolvedPlaceholder,
 	};
 }
 
@@ -1018,6 +1054,20 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	 * (constant-folding.ts, buildEnvironment).
 	 */
 	foldable?: boolean;
+	/**
+	 * Nur gesetzt, wenn literal in einer anderen Funktion steht und ein Aufruf dieser Funktion mit
+	 * konstanten Argumenten den Funktionstyp geliefert hat: woran die Parameter der umgebenden
+	 * Funktionen gebunden sind. Ohne das wäre divisibleBy(5) nicht von divisibleBy(3) zu
+	 * unterscheiden und nicht faltbar, denn beide teilen den deklarierten Rückgabetyp.
+	 */
+	boundArguments?: BoundArguments;
+}
+
+export interface BoundArguments {
+	/** JS-Werte je Parametername, wie typeToConstantValue sie liefert. */
+	values: { [name: string]: unknown; };
+	/** Der Aufruf für die Anzeige, z.B. divisibleBy(5). */
+	display: string;
 }
 
 /**
@@ -1158,6 +1208,13 @@ export interface ParameterReference extends CompileTimeTypeBase {
 	 * Muss nach dem Erzeugen gesetzt werden.
 	 */
 	functionRef?: CompileTimeFunctionType;
+	/**
+	 * Die Referenz steht für den Typ des Arguments. Gesetzt heißt: hier war zusätzlich valueOf
+	 * verlangt, das erst beim Aufruf auf den Argumenttyp angewendet werden kann. Ein nacktes T in
+	 * Typ-Position trägt es, TypeOf(value) nicht - ohne die Markierung wären beide nach dem
+	 * Auspacken derselbe Platzhalter.
+	 */
+	deferValueOf?: true;
 }
 
 export function createParameterReference(name: string, index: number): ParameterReference {

@@ -127,3 +127,5 @@
 2026-09-25 11:31:43	cd3399c+	-	ADV-DEV-56627	yugioh	parse+check	5	2217.95	2621.42	2621.42	Typguard im Dictionary-Literal abgeschafft
 2026-09-25 11:46:47	72972ac	-	ADV-DEV-56627	yugioh	parse+check	5	2083.42	2207.24	2207.24	vor Namensprüfung
 2026-09-25 11:54:38	72972ac+	-	ADV-DEV-56627	yugioh	parse+check	5	2042.38	2392.14	2392.14	Namensprüfung
+2026-09-25 13:33:13	6fc3cdc+	-	ADV-DEV-56627	yugioh	parse+check	5	1384.78	1709.03	1709.03	vor Praedikate als Typ
+2026-09-25 13:52:44	6fc3cdc+	-	ADV-DEV-56627	yugioh	parse+check	5	1345.34	1663.15	1663.15	nach Praedikate als Typ

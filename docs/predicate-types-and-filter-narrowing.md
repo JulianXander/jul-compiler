@@ -99,7 +99,7 @@ aus genau diesem Grund.
 
 ## Plan: Ein Funktionswert in Typ-Position ist ein Prädikat
 
-**Entwurf 2026-09-25, teilweise entschieden.** Was entschieden ist und was offen, steht am Ende
+**Entschieden und umgesetzt 2026-09-25.** Stand und Abweichungen stehen am Ende
 des Abschnitts.
 
 ### Ist-Zustand
@@ -289,7 +289,9 @@ das Budget pro Check-Lauf ist nicht erschöpft. Greift es nicht, gilt Regel 3 mi
 
 ### Schritte
 
-1. **Rote Tests**, je ein `it` mit `expectCheck`:
+1. **Rote Tests**, je ein `it` mit `expectCheck`. Geschrieben 2026-09-25: im Bereich „Prädikate als
+   Typ“ in checker.test.ts, dazu zwei Tests zu Frage 6 unter „generische Rückgabetypen“ und
+   „Prädikat als Typ“ in runtime.test.ts.
    - Parameter-, Rückgabe- und Definitions-Annotation mit Prädikat,
    - `List`/`Or`/`And`/`Not` mit Prädikat, auch verschachtelt in `Not`,
    - ein falsches Argument (Text gegen `isInteger`),
@@ -321,6 +323,12 @@ das Budget pro Check-Lauf ist nicht erschöpft. Greift es nicht, gilt Regel 3 mi
    `getBranchArgumentType` und `getBranchPredicateFacts` gehen darin auf. Die
    Unerreichbarkeits-Prüfung (`TODO` bei „Prädikat-Fakten checken“) kann danach die Untermenge
    nutzen.
+
+   Für `[isEven] … [Not(isEven)]` reicht die Identität nicht. Die Erschöpfungsprüfung
+   vergleicht mit der Union der Köpfe, und die Normalisierung kennt keine Regel
+   `Or(A Not(A)) => Any`. Gemessen: Schon `[0] … [Not(0)]` über einen `Integer` gilt heute als
+   nicht erschöpfend und liefert „Can not assign Error to Text“. Diese Regel kommt deshalb in
+   `createNormalizedUnionType` dazu, über `typeEquals` und damit auch für Prädikate.
 6. **Folding für Prädikate** über das vorhandene `tryBuildCallable`. Das deckt benannte Prädikate
    wie `isFive` ab.
 7. **Gebundene Argumente im Funktionstyp**, damit `divisibleBy(5)` faltbar wird und an zwei
@@ -333,6 +341,47 @@ das Budget pro Check-Lauf ist nicht erschöpft. Greift es nicht, gilt Regel 3 mi
    mit `--save`, öffentliche Doku in jul-homepage.
 10. **Offener Punkt 1 oben** ist mit diesem Plan mitentschieden, siehe Frage 8. Diesen Abschnitt
     danach anpassen.
+
+### Stand der Umsetzung
+
+2026-09-25: Schritte 1 bis 9 sind umgesetzt, bis auf einen Test (siehe unten). Abweichungen vom
+Plan oben:
+
+- **Das Prädikat ist ein gewöhnlicher `ResolvedType`** und wird von `resolveAlias` nicht
+  aufgelöst. Jeder erschöpfende Switch über `julType` hat einen eigenen Fall `'predicate'`: Wo er
+  eine Gestalt braucht (Feld- und Indexzugriff, `classifyTypeness`), nimmt er die Obermenge. Wo er
+  Mengen vergleicht, bleibt das Prädikat stehen. Ein `resolveAlias`, das still zur Obermenge
+  auflöst, wäre genau die Falle aus „Auflösen wie `alias`“ gewesen.
+- **Schranken als eigene Funktionen:** `getUpperBoundType`/`getLowerBoundType` bilden einen Typ auf
+  das ab, was er höchstens bzw. sicher enthält, auch durch `Not` hindurch. Die
+  Unerreichbarkeits-Prüfung vergleicht die Obermenge des aktuellen Kopfs mit der Untermenge der
+  vorherigen. Die Erschöpfungsprüfung nimmt die Untermenge, oder sie zieht Kopf für Kopf ab, bis
+  `Never` übrig bleibt. Kopf für Kopf deshalb, weil die ganze Union auf einmal über das `Or` des
+  Arguments verteilt würde und dann nie auf den gleichen Kopf träfe.
+- **`Or(A Not(A)) => Any`** steht in `createNormalizedUnionType`.
+- **Identität:** dasselbe Literal genügt, solange es nicht in einer anderen Funktion steht. Steht
+  es darin, braucht es auf beiden Seiten `boundArguments` mit gleichen Werten. Der erste Anlauf
+  mit „dasselbe Funktionstyp-Objekt“ hielt `divisibleBy(15)`, `divisibleBy(5)` und
+  `divisibleBy(3)` für dasselbe Prädikat, weil alle den deklarierten Rückgabetyp teilen.
+- **`traversePlaceholders` übernimmt beim Neubau eines Funktionstyps jetzt `literal`, `foldable`
+  und `boundArguments`.** Vorher gingen sie verloren. Das betrifft auch `tryFoldCall`, deshalb
+  steigt `foldableCall` im Zähler-Gate.
+- **Frage 6** ist über das Feld `deferValueOf` am Platzhalter gelöst. Die eingebauten Platzhalter
+  von `List`, `Dictionary`, `Stream` und `nativeFunction` tragen es von Anfang an.
+- **Faltung:** Die Runtime exportiert `_isOfType`, damit der Checker nach derselben Regel
+  auswertet wie die Laufzeit.
+- **`And(A Not(B))`** liefert bei disjunktem `B` jetzt das geschriebene `A` statt des aufgelösten.
+  Sonst ging im Hover von fizz-buzz der Name `PositiveInteger` verloren.
+
+Offen:
+
+- `predicate-identity-needs-same-literal` bleibt rot wegen eines Fehlers, den es schon vorher
+  gab: `Not(X)` als Quelle ist in `getTypeError` permissiv, gilt aber als zuverlässig. Siehe
+  [CHECKER-AUDIT.md](CHECKER-AUDIT.md), Punkt 0, mit drei eigenen roten Tests.
+- Checker-Snapshot, Zähler-Gate und LSP-Snapshot sind neu zu schreiben. Die Checker-Seite ändert
+  sich nur an der neuen Zeile 18 in fizz-buzz.jul und an der Meldung zu Zeile 24 in
+  type-function.jul. Die LSP-Baseline weicht schon unabhängig davon ab.
+- Den LSP-Bench gibt es nur ohne Messung vor dem Umbau.
 
 ### Was noch zu klären ist
 
@@ -443,9 +492,9 @@ das Budget pro Check-Lauf ist nicht erschöpft. Greift es nicht, gilt Regel 3 mi
    Typ benutzt wird, oder einen Import aus `.ts`. Das folgt Freiheit: „Unwissen ist keine
    Ablehnung“. Folgerung: Auch die Identität gilt für ein `unknown`-Prädikat nicht, denn sie ist
    aus demselben Grund nur für reine Prädikate sicher.
-10. **Typguards an Definitionen zur Laufzeit.** Der Emitter gibt sie nicht aus. `x: isPrime = 4`
-    fällt also nur auf, wenn der Checker faltet. Ist das gewollt, oder sollen sie wie
-    Parametertypen zur Laufzeit geprüft werden? Das betrifft nicht nur Prädikate.
+10. **Typguards an Definitionen zur Laufzeit.** Entschieden 2026-09-25: Sie werden weiterhin nicht
+    zur Laufzeit geprüft, das übernimmt der Checker. `x: isPrime = 4` fällt also nur auf, wenn
+    der Checker faltet. Ist das Prädikat nicht faltbar, gilt die Obermenge.
 
 11. **Schreibweise.** Entschieden 2026-09-25: Prädikate werden **klein** geschrieben. Die
     Schreibweise richtet sich wie bisher danach, was eine Funktion liefert: Liefert sie einen

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { reportAtCaller } from './test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts,
-	completed$, create$, deepEqual, findLastIndex, multiply, or, parseJson, push, rationalToFloat,
+	completed$, create$, deepEqual, findLastIndex, Integer, multiply, or, parseJson, push, rationalToFloat,
 	regex, subscribe, subtract, take$, toJson,
 } from './runtime.js';
 
@@ -17,6 +17,37 @@ describe('_branch', () => {
 		);
 		const result = _branch([1n, 2n], branch);
 		expect(result).to.deep.equal([1n, 2n]);
+	});
+});
+
+describe('Prädikat als Typ', () => {
+	const fallback = _createFunction(() => 'fallback', {});
+	const branchWithType = (type: unknown) => _createFunction(
+		() => 'matched',
+		{ singleNames: [{ name: 'x', type: type as any }] },
+	);
+	// Ein truthy Ergebnis wie 5 oder ein Error ist kein true.
+	it('matches only on true', () => {
+		const predicate = _createFunction(() => 5n, { singleNames: [{ name: 'x' }] });
+		expect(_branch([1n], branchWithType(predicate), fallback)).to.equal('fallback');
+	});
+	// Der Parametertyp des Prädikats gehört zu dem, was es beschreibt.
+	it('checks the parameter type of the predicate', () => {
+		const predicate = _createFunction(() => true, { singleNames: [{ name: 'x', type: Integer }] });
+		expect(_branch(['a'], branchWithType(predicate), fallback)).to.equal('fallback');
+	});
+	// Eine Funktion mit Typ-Kopf wie [Integer] => true bekommt ihr Argument nicht positional,
+	// sondern über ihre Parameterbindung.
+	it('binds the value to a predicate with a type head', () => {
+		const predicate = _createFunction(() => true, { type: [Integer] });
+		expect(_branch(['a'], branchWithType(predicate), fallback)).to.equal('fallback');
+		expect(_branch([1n], branchWithType(predicate), fallback)).to.equal('matched');
+	});
+	// Eine JS-Funktion ohne Parameterbindung wird weiter direkt aufgerufen.
+	it('calls a plain JS function directly', () => {
+		const predicate = (value: unknown) => value === 1n;
+		expect(_branch([1n], branchWithType(predicate), fallback)).to.equal('matched');
+		expect(_branch([2n], branchWithType(predicate), fallback)).to.equal('fallback');
 	});
 });
 

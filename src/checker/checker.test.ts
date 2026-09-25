@@ -607,13 +607,9 @@ card = getCard()
 			],
 		});
 	});
-	// Ein Prädikat als Typ-Kopf. Die Laufzeit matcht hier bereits korrekt: _branch prüft
-	// über getTypeError, und dort wird ein Funktionswert in Typ-Position aufgerufen
-	// (runtime.ts, case 'function'). Der Checker schneidet stattdessen Or(Integer Text)
-	// mit dem Funktionstyp und kommt auf Never - er erklärt den erreichbaren branch für
-	// unerreichbar und meldet an lauffähigem Code JUL5050.
-	// Verengt wird nur der true-Zweig: aus isInteger(x) == true folgt x ist Integer.
-	// Die Gegenrichtung gilt nicht, deshalb sagt der catchAll darunter nichts aus.
+	// Ein Prädikat als Typ-Kopf: _branch ruft es über getTypeError auf (runtime.ts, case
+	// 'function'). Im branch selbst wird mit dem geschnitten, was das Prädikat höchstens
+	// durchlässt: aus isInteger(x) == true folgt x ist Integer.
 	it('branch-narrowing-predicate-head', () => {
 		expectCheck(`isInteger = (x: Any) :> Boolean =>
 	?(x)
@@ -645,13 +641,7 @@ f = (someVar: Or(Integer Text)) =>
 			errors: [],
 		});
 	});
-	// Phase 1a, nur Type-Akzeptanz (kein Narrowing): isInteger hat exakt die
-	// erkannte Branching-Form (siehe branch-narrowing-predicate-head) und soll dort
-	// als Type-Wert durchgehen, wo ein Type-Wert verlangt wird - hier als Argument
-	// für einen Type-Parameter. Aktuell prüft checkTypeGuardIsType nur gegen
-	// { julType: 'type' } und kennt PredicateFacts an Funktionstypen nicht, meldet
-	// also JUL5002. Narrowing über diesen Weg (z.B. useType(isInteger) als Typ-Kopf
-	// weiterverwenden) ist bewusst ein späterer Schritt.
+	// Ein Prädikat ist ein Type-Wert und geht deshalb als Argument für einen Type-Parameter durch.
 	it('predicate-assignable-to-type-1a', () => {
 		expectCheck(`isInteger = (x: Any) :> Boolean =>
 	?(x)
@@ -662,24 +652,12 @@ useType(isInteger)`, {
 			errors: [],
 		});
 	});
-	// Gegenprobe: ein beliebiges Boolean-Callback ohne die erkannte Branching-Form
-	// bleibt kein Type-Wert - genau die Grenze aus getPredicateFacts (Satz von Rice,
-	// siehe predicate-types-and-filter-narrowing.md).
-	it('arbitrary-boolean-function-not-assignable-to-type', () => {
+	// Auch ein Boolean-Callback ohne erkannte Branching-Form ist ein Typ: Die Laufzeit ruft es in
+	// Typ-Position auf. Der Checker weiß darüber nur nichts.
+	it('arbitrary-boolean-function-assignable-to-type', () => {
 		expectCheck(`isLegal = (x: Any) :> Boolean => true
 useType = (T: Type) => T
-useType(isLegal)`, {
-			errors: [
-				{
-					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nInvalid value for parameter \'T\'\n  Can not assign (x: Any) -> true to Type.',
-					startRowIndex: 2,
-					startColumnIndex: 8,
-					endRowIndex: 2,
-					endColumnIndex: 15,
-				},
-			],
-		});
+useType(isLegal)`);
 	});
 	//#endregion branching: Verengung
 
@@ -727,6 +705,241 @@ useType(isLegal)`, {
 		});
 	});
 	//#endregion branching: Erreichbarkeit
+
+	//#region Prädikate als Typ
+	// Ein Funktionswert in Typ-Position ist ein Prädikat: Er beschreibt die Werte, für die er
+	// true liefert, nicht die Funktionen mit seiner Signatur. isEven wird vom Checker nicht als
+	// Prädikat erkannt, bekannt ist nur sein Parametertyp Integer.
+	it('predicate-as-parameter-type', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+g = (n: Integer) => n
+f = (a: isEven) => g(a)
+f(2)`);
+	});
+	it('predicate-as-return-type', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+f = (a: Integer) :> isEven => 2`);
+	});
+	it('predicate-as-definition-type', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+x: isEven = 2`);
+	});
+	it('predicate-in-type-functions', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+f = (a: List(isEven)) => a
+g = (a: Or(isEven Text)) => a
+h = (a: And(Integer isEven)) => a
+f([2 4])
+g(§x§)
+g(2)
+h(2)`);
+	});
+	// Ein Wert außerhalb des Parametertyps kann das Prädikat nie erfüllen.
+	it('predicate-rejects-value-outside-parameter-type', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+f = (a: isEven) => a
+f(§x§)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'a\'\n  Can not assign §x§ to isEven.',
+					startRowIndex: 2,
+					startColumnIndex: 2,
+					endRowIndex: 2,
+					endColumnIndex: 5,
+				},
+			],
+		});
+	});
+	// Ob ein beliebiger Integer gerade ist, weiß der Checker nicht. Das prüft die Laufzeit.
+	it('predicate-accepts-unknown-value-inside-parameter-type', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+f = (a: isEven) => a
+g = (n: Integer) => f(n)`);
+	});
+	// Ein Literal rechnet der Checker aus, wenn das Prädikat faltbar ist.
+	it('predicate-rejects-folded-constant', () => {
+		expectCheck(`isFive = (dividend: Integer) => dividend.modulo(5).equal(0)
+x: isFive = 45
+y: isFive = 44`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 44 to isFive.',
+					startRowIndex: 2,
+					startColumnIndex: 0,
+					endRowIndex: 2,
+					endColumnIndex: 14,
+				},
+			],
+		});
+	});
+	// Ein Prädikat, das ein Aufruf liefert, ist nur faltbar, wenn sein Funktionstyp das
+	// gebundene Argument kennt.
+	it('predicate-with-bound-argument-rejects-folded-constant', () => {
+		expectCheck(`divisibleBy = (divisor: NonZeroInteger) =>
+	(dividend: Integer) =>
+		dividend.modulo(divisor).equal(0)
+x: divisibleBy(5) = 45
+y: divisibleBy(5) = 44`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 44 to divisibleBy(5).',
+					startRowIndex: 4,
+					startColumnIndex: 0,
+					endRowIndex: 4,
+					endColumnIndex: 22,
+				},
+			],
+		});
+	});
+	// Not dreht die Richtung um: 3 ist nicht gerade und kein Text, 4 ist gerade.
+	it('predicate-nested-in-not', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+h = (v: Not(Or(isEven Text))) => v
+h(3)
+h(4)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'v\'\n  Can not assign 4 to Not(Or(isEven Text)).',
+					startRowIndex: 3,
+					startColumnIndex: 2,
+					endRowIndex: 3,
+					endColumnIndex: 3,
+				},
+			],
+		});
+	});
+	// Im catchAll ist der isEven-Anteil schon abgefangen, übrig bleibt Text. Dafür muss der
+	// Checker erkennen, dass Parametertyp und Kopf dasselbe Prädikat sind.
+	it('predicate-identity-subtracts-in-catch-all', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+g = (t: Text) => t
+f = (v: Or(isEven Text)) =>
+	?(v)
+		[isEven] => 0
+		() => g(v)`);
+	});
+	it('predicate-identity-through-stored-value', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+even = isEven
+g = (t: Text) => t
+f = (v: Or(even Text)) =>
+	?(v)
+		[isEven] => 0
+		() => g(v)`);
+	});
+	it('predicate-identity-with-bound-argument', () => {
+		expectCheck(`divisibleBy = (divisor: NonZeroInteger) =>
+	(dividend: Integer) =>
+		dividend.modulo(divisor).equal(0)
+g = (t: Text) => t
+f = (v: Or(divisibleBy(5) Text)) =>
+	?(v)
+		[divisibleBy(5)] => 0
+		() => g(v)`);
+	});
+	// Gleiches Verhalten ist nicht dasselbe Prädikat: zwei Literale sind nie gleich.
+	// Verglichen werden nur Code und Position, weil die Meldung den verbleibenden Typ anzeigt,
+	// dessen Darstellung dieser Test nicht festlegen soll.
+	it('predicate-identity-needs-same-literal', () => {
+		const parserResult = parseCode(`isEvenA = (n: Integer) => n.modulo(2).equal(0)
+isEvenB = (n: Integer) => n.modulo(2).equal(0)
+g = (t: Text) => t
+f = (v: Or(isEvenA Text)) =>
+	?(v)
+		[isEvenB] => 0
+		() => g(v)`, 'dummy.jul');
+		expect(parserResult.unchecked.errors).to.deep.equal([]);
+		checkTypes(parserResult, {}, { cloneUnchecked: false });
+		expect(parserResult.checked?.errors.map(error => ({
+			code: error.code,
+			startRowIndex: error.startRowIndex,
+			startColumnIndex: error.startColumnIndex,
+		}))).to.deep.equal([
+			{
+				code: ErrorCode.argumentTypeMismatch,
+				startRowIndex: 6,
+				startColumnIndex: 10,
+			},
+		]);
+	});
+	it('predicate-and-its-complement-are-exhaustive', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+f = (n: Integer) :> Text =>
+	?(n)
+		[isEven] => §gerade§
+		[Not(isEven)] => §ungerade§`);
+	});
+	it('predicate-or-empty-is-exhaustive', () => {
+		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
+f = (v: Or(isEven Empty)) :> Integer =>
+	?(v)
+		[isEven] => 1
+		[Empty] => 2`);
+	});
+	// Das Funktionstyp-Literal ist davon nicht betroffen: Es verlangt weiter eine Funktion.
+	it('function-type-literal-still-requires-function', () => {
+		expectCheck(`isAnything = (x: Any) => true
+f = (callback: (x: Any) :> Boolean) => callback
+f(isAnything)
+f(5)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'callback\'\n  Can not assign 5 to (x: Any) :> Boolean.',
+					startRowIndex: 3,
+					startColumnIndex: 2,
+					endRowIndex: 3,
+					endColumnIndex: 3,
+				},
+			],
+		});
+	});
+	// Identität und Faltung setzen voraus, dass das Prädikat für denselben Wert immer dasselbe
+	// liefert.
+	it('impure-predicate-rejected-as-type-guard', () => {
+		expectCheck(`isChecked = (x: Integer) ~> Boolean => true
+f = (a: isChecked) => a`, {
+			errors: [
+				{
+					code: ErrorCode.typeGuardIsNotType,
+					message: 'A predicate used as a type must be pure.',
+					startRowIndex: 1,
+					startColumnIndex: 8,
+					endRowIndex: 1,
+					endColumnIndex: 17,
+				},
+			],
+		});
+	});
+	it('impure-predicate-rejected-as-branch-head', () => {
+		expectCheck(`isChecked = (x: Integer) ~> Boolean => true
+f = (a: Integer) =>
+	?(a)
+		[isChecked] => 1
+		() => 2`, {
+			errors: [
+				{
+					code: ErrorCode.typeGuardIsNotType,
+					message: 'A predicate used as a type must be pure.',
+					startRowIndex: 3,
+					startColumnIndex: 3,
+					endRowIndex: 3,
+					endColumnIndex: 12,
+				},
+			],
+		});
+	});
+	// Unbekannte Reinheit ist keine Ablehnung, es wird dann nur nicht gefaltet.
+	it('predicate-with-unknown-purity-is-accepted', () => {
+		expectCheck(`f = (p: (x: Integer) :> Boolean v: Integer) =>
+	g = (a: p) => a
+	g(v)`);
+	});
+	//#endregion Prädikate als Typ
 
 	//#region Not
 	// Not(X) schließt X aus. NonZeroInteger ist Integer.Without(0), also
@@ -805,6 +1018,50 @@ useType(isLegal)`, {
 						endColumnIndex: 36,
 						endRowIndex: 0,
 					},
+				},
+			],
+		});
+	});
+	// Für And genügt ein passender Choice. Not(0) passt als Quelle aber fast überall, weil es
+	// absichtlich permissiv ist - das darf nicht als "passt" zählen, sonst ist ein Integer
+	// ohne die 0 einem Text zuweisbar.
+	// Not(1) als Quelle ist permissiv, "kein Fehler" heißt dort nicht "Teilmenge". Die 2 trifft
+	// den zweiten branch, er ist also erreichbar.
+	it('complement-head-after-literal-is-reachable', () => {
+		expectCheck(`f = (n: Integer) =>
+	?(n)
+		[0] => 1
+		[Not(1)] => 2
+		() => 3`);
+	});
+	// Aus demselben Grund darf der Teilmengen-Shortcut And(A B) => A hier nicht greifen, sonst
+	// geht Integer verloren und ein Text wäre zuweisbar.
+	it('and-with-complement-keeps-both-choices', () => {
+		expectCheck(`f = (n: And(Not(0) Integer)) => n
+f(§x§)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'n\'\n  Can not assign §x§ to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 2,
+					endRowIndex: 1,
+					endColumnIndex: 5,
+				},
+			],
+		});
+	});
+	it('and-with-complement-is-not-assignable-to-unrelated-type', () => {
+		expectCheck(`g = (t: Text) => t
+h = (n: And(Integer Not(0))) => g(n)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign Integer to Text.',
+					startRowIndex: 1,
+					startColumnIndex: 34,
+					endRowIndex: 1,
+					endColumnIndex: 35,
 				},
 			],
 		});
@@ -1124,6 +1381,46 @@ f = (values: T) :> T =>
 	it('last-element-adds-no-empty-for-list', () => {
 		expectCheck(`f = (values: List(Integer)) :> Integer =>
 	values.lastElement()`);
+	});
+	// TypeOf(value) meint den Typ des Arguments, ein nacktes T das Argument als Typ. Wird
+	// beides zum selben Platzhalter, bekommt ein Typ als Argument den Typ "ist ein Integer"
+	// statt TypeOf(Integer). Geprüft wird über die Zuweisung an Integer: Ein Typ ist kein
+	// Integer. Die Zuweisung an Type taugt dafür nicht, die nimmt auch Integer an.
+	it('type-of-parameter-keeps-type-value', () => {
+		expectCheck(`typeOfValue = (value: Any) :> TypeOf(value) => value
+x: Integer = typeOfValue(Integer)`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign TypeOf(Integer) to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 0,
+					endRowIndex: 1,
+					endColumnIndex: 33,
+				},
+			],
+		});
+	});
+	it('element-type-keeps-type-value', () => {
+		expectCheck('x: Integer = [Integer 5].getElement(1)', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign TypeOf(Integer) to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 38,
+				},
+			],
+		});
+	});
+	// Eine Funktion als Argument bleibt ein Funktionswert und wird nicht zum Prädikat.
+	it('type-of-parameter-keeps-function-type', () => {
+		expectCheck(`typeOfValue = (value: Any) :> TypeOf(value) => value
+f = (x: Integer) => x
+b: (x: Integer) :> Integer = typeOfValue(f)
+s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	});
 	//#endregion generische Rückgabetypen
 	//#region dereference
@@ -2324,11 +2621,17 @@ h = (T: Type) => T
 P = (T: Type v: T) => v
 p = (T: Type v: T) => v`);
 	});
-	it('naming-case-predicate-is-free', () => {
+	// Ein Prädikat liefert einen Boolean und wird deshalb klein geschrieben wie or und equal,
+	// auch wenn der Checker es als Prädikat erkennt.
+	it('naming-case-predicate-is-lowercase', () => {
 		expectCheck(`IsInteger = (x: Any) :> Boolean =>
 	?(x)
 		[Integer] => true
-		() => false`);
+		() => false`, {
+			errors: [
+				namingCaseWarning('IsInteger', false, 0, 0),
+			],
+		});
 	});
 	//#endregion Schreibweise
 	// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
