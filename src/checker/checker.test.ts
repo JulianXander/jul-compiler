@@ -2141,7 +2141,7 @@ f(a = 1 b = 2)`, {
 	// Beim Destructuring hält keine Variable den ganzen Wert: _temp ist blocklokal, nur
 	// die gebundenen Namen kommen heraus. b ist danach unerreichbar.
 	it('destructuring-surplus-field-is-discarded', () => {
-		expectCheck('(a) = [a = 1 b = 2]', {
+		expectCheck('(a) = [a = 1 b = 2]\nc = a', {
 			errors: [
 				{
 					"code": ErrorCode.discardedValue,
@@ -2156,7 +2156,7 @@ f(a = 1 b = 2)`, {
 	});
 	// Gelesen wird über die Quelle, nicht über den neuen Namen: (x = a) bindet a.
 	it('destructuring-alias-uses-source-name', () => {
-		expectCheck('(x = a) = [a = 1 b = 2]', {
+		expectCheck('(x = a) = [a = 1 b = 2]\nc = x', {
 			errors: [
 				{
 					"code": ErrorCode.discardedValue,
@@ -2171,23 +2171,24 @@ f(a = 1 b = 2)`, {
 	});
 	// Gegenprobe: alle Felder werden gebunden.
 	it('destructuring-known-fields-are-not-discarded', () => {
-		expectCheck('(a b) = [a = 1 b = 2]');
+		expectCheck('(a b) = [a = 1 b = 2]\nc = [a b]');
 	});
 	// Positionelles Destructuring: die Liste hat keine Felder namens a/b, nur Indizes.
 	// Die Laufzeit löst das über die Position auf (_isArray ? _temp[0] : _temp.a), der
 	// Checker sucht bisher nur über den Namen und meldet fälschlich dereferenceFailed.
 	it('positional-destructuring-from-list', () => {
-		expectCheck('(a b) = [1 2]');
+		expectCheck('(a b) = [1 2]\nc = [a b]');
 	});
 	// Eine Variable darf legitim mehr Felder haben, und zu löschen gäbe es hier nichts.
 	it('destructuring-from-variable-is-not-discarded', () => {
 		expectCheck(`v = [a = 1 b = 2]
-(a) = v`);
+(a) = v
+c = a`);
 	});
 	// Löst ein gewünschter Name nicht auf, ist das die Ursache - dass a übrig bleibt,
 	// ist nur ihre Folge. Gemeldet wird deshalb nur der Name, nicht zusätzlich das Feld.
 	it('unresolved-destructuring-name-suppresses-discarded-warning', () => {
-		expectCheck('(myA1 b) = [a = 1 b = 2]', {
+		expectCheck('(myA1 b) = [a = 1 b = 2]\nc = [myA1 b]', {
 			errors: [
 				{
 					"code": ErrorCode.dereferenceFailed,
@@ -2375,7 +2376,7 @@ g: Text = f(3)`, {
 	// anhängen, sonst steht jede Meldung doppelt im Editor und in der CLI. fileNotFound meldet der
 	// Loader, dafür siehe project-loader.test.ts.
 	it('import-error-reported-once', () => {
-		const parsed = parseCode('(a) = import(§./datei.txt§)', 'dummy.jul');
+		const parsed = parseCode('(a) = import(§./datei.txt§)\nb = a', 'dummy.jul');
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.invalidImportExtension]);
 	});
@@ -2923,6 +2924,7 @@ f = (cards: List(Integer)) =>
 		const code = `myFn = (a: List(Or([] Integer))) =>
 	c = a.filterMap((value) => value)
 	b = [...a].filterMap((value) => value)
+	[b c]
 `;
 		const parsed = parseCode(code, 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
@@ -4269,3 +4271,72 @@ describe('bedingte Typen', () => {
 });
 
 //#endregion Bedingte Typen
+//#region Ungenutzte Definitionen
+
+describe('ungenutzte Definitionen', () => {
+	/**
+	 * Erwartet genau die Hinweise auf diese Namen, an Zeile und Spalte ihrer Bindung, und keine
+	 * weiteren Fehler.
+	 */
+	const expectUnused = reportAtCaller((code: string, unused: [name: string, rowIndex: number, columnIndex: number][]) => {
+		expectCheck(code, {
+			errors: unused.map(([name, rowIndex, columnIndex]) => ({
+				code: ErrorCode.unusedDefinition,
+				message: `'${name}' is defined but never used.`,
+				startRowIndex: rowIndex,
+				startColumnIndex: columnIndex,
+				endRowIndex: rowIndex,
+				endColumnIndex: columnIndex + name.length,
+			})),
+		});
+	});
+
+	it('ungenutzte Definition im Rumpf', () => {
+		expectUnused('f = (a: Integer) =>\n\tunused = 1\n\tresult = a', [['unused', 1, 1]]);
+	});
+	it('letzte Definition ist der Rückgabewert', () => {
+		expectUnused('f = () =>\n\tx = 1', []);
+	});
+	it('Top-Level-Definition ist exportiert', () => {
+		expectUnused('x = 1', []);
+	});
+	it('ungenutzter Parameter', () => {
+		expectUnused('f = (a: Integer) => 1', []);
+	});
+	it('Dictionary-Felder sind keine Bindungen', () => {
+		expectUnused('f = () =>\n\tx = [a = 1 b = 2]\n\tx', []);
+	});
+	it('Nutzung in verschachteltem Lambda', () => {
+		expectUnused('f = (a: Integer) =>\n\tx = a\n\tg = () => x\n\tg', []);
+	});
+	it('Nutzung im TypeGuard', () => {
+		expectUnused('f = (a: Integer) =>\n\tT = Integer\n\tx: T = a\n\tx', []);
+	});
+	it('Nutzung in Interpolation', () => {
+		expectUnused('f = () =>\n\tx = 1\n\t§§(x)§', []);
+	});
+	it('Nutzung als Quelle von a/b', () => {
+		expectUnused('f = () =>\n\tx = [b = 1]\n\tx/b', []);
+	});
+	it('ungenutzte Definition in ?-Zweig', () => {
+		expectUnused('f = (a: Integer) =>\n\t?(a)\n\t\t(x: Integer) =>\n\t\t\tunused = 1\n\t\t\tx', [['unused', 3, 3]]);
+	});
+	it('teilweise genutztes Destructuring', () => {
+		expectUnused('f = () =>\n\t(a b) = [a = 1 b = 2]\n\ta', [['b', 1, 4]]);
+	});
+	// Zurückgegeben wird der ganze Wert, nicht die Felder.
+	it('Destructuring am Ende des Rumpfs', () => {
+		expectUnused('f = () =>\n\t(a b) = [a = 1 b = 2]', [['a', 1, 2], ['b', 1, 4]]);
+	});
+	it('Top-Level-Destructuring ist nicht exportiert', () => {
+		expectUnused('(a b) = [a = 1 b = 2]\nc = a', [['b', 0, 3]]);
+	});
+	it('Referenz in der eigenen Definition zählt nicht', () => {
+		expectUnused('f = () =>\n\tg = (n: Integer) => g(n)\n\t1', [['g', 1, 1]]);
+	});
+	it('Rekursion zählt nicht, Aufruf von außen schon', () => {
+		expectUnused('f = () =>\n\tg = (n: Integer) => g(n)\n\tg(1)', []);
+	});
+});
+
+//#endregion Ungenutzte Definitionen

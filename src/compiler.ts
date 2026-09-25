@@ -58,7 +58,10 @@ export function compileProject(
 		? [`File not found: ${entryFilePath}`]
 		: [];
 	Object.values(documents).forEach(document => {
-		const errors = document.checked?.errors ?? document.unchecked.errors;
+		// Hinweise sind für den Editor, der sie an der Stelle zeigt. In der Ausgabe gingen die
+		// Beanstandungen darin unter.
+		const errors = (document.checked?.errors ?? document.unchecked.errors)
+			.filter(error => errorInfos[error.code].severity !== 'hint');
 		if (!errors.length) {
 			return;
 		}

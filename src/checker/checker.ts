@@ -90,7 +90,7 @@ import {
 	createTextLiteral,
 	updateFunctionTypeUnresolvedFlag,
 } from '../syntax-tree.js';
-import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
+import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, forEach, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName, getExportedSymbols } from '../parser/parser-utils.js';
@@ -1650,7 +1650,78 @@ export function checkTypes(
 		referenceIndex: referenceIndex,
 		onProgress: onProgress,
 	});
+	if (extname(document.filePath) === Extension.jul
+		&& !isCoreLibPath(document.filePath)) {
+		reportUnusedDefinitions(checked);
+	}
 }
+
+//#region ungenutzte Definitionen
+
+/**
+ * Meldet lokale Bindungen, die keine Referenz gefunden hat (isUsed).
+ * Ausgenommen ist, was außerhalb des Scopes noch ankommt: Top-Level-Definitionen sind exportiert,
+ * die letzte Definition eines Funktionsrumpfs ist sein Rückgabewert, Parameter werden vom Aufrufer
+ * belegt. Destructuring auf oberster Ebene wird nicht exportiert und daher geprüft.
+ */
+function reportUnusedDefinitions(file: ParsedExpressions2): void {
+	const { errors } = file;
+	forEach(file.symbols, (symbol, name) => {
+		if (symbol.definition?.type === 'destructuringField') {
+			reportIfUnused(symbol, name, errors);
+		}
+	});
+	file.expressions?.forEach(expression => {
+		reportUnusedInFunctionBodies(expression, errors);
+	});
+}
+
+function reportUnusedInFunctionBodies(expression: PositionedExpression, errors: CompilerError[]): void {
+	if (expression.type === 'functionLiteral') {
+		const returnedDefinition = last(expression.body);
+		forEach(expression.symbols, (symbol, name) => {
+			const definition = symbol.definition;
+			if ((definition?.type === 'definition' && definition !== returnedDefinition)
+				|| definition?.type === 'destructuringField') {
+				reportIfUnused(symbol, name, errors);
+			}
+		});
+	}
+	forEachChild(expression, child => {
+		reportUnusedInFunctionBodies(child, errors);
+	});
+}
+
+function reportIfUnused(symbol: SymbolDefinition, name: string, errors: CompilerError[]): void {
+	if (symbol.isUsed) {
+		return;
+	}
+	errors.push({
+		code: ErrorCode.unusedDefinition,
+		message: `'${name}' is defined but never used.`,
+		startRowIndex: symbol.startRowIndex,
+		startColumnIndex: symbol.startColumnIndex,
+		endRowIndex: symbol.endRowIndex,
+		endColumnIndex: symbol.endColumnIndex,
+	});
+}
+
+/**
+ * Liegt der Ausdruck innerhalb von ancestor (oder ist er es selbst)?
+ */
+function isInside(expression: PositionedExpression, ancestor: PositionedExpression | undefined): boolean {
+	if (!ancestor) {
+		return false;
+	}
+	for (let current: PositionedExpression | undefined = expression; current; current = current.parent) {
+		if (current === ancestor) {
+			return true;
+		}
+	}
+	return false;
+}
+
+//#endregion ungenutzte Definitionen
 
 function inferFileTypes(
 	scopes: SymbolTable[],
@@ -3695,6 +3766,12 @@ function inferType(
 					endRowIndex: expression.endRowIndex,
 					endColumnIndex: expression.endColumnIndex,
 				});
+			}
+			if (foundSymbol
+				&& !isBuiltIn
+				&& !foundSymbol.isUsed
+				&& !isInside(expression, foundSymbol.definition)) {
+				foundSymbol.isUsed = true;
 			}
 			if (referenceIndex && foundSymbol && !isBuiltIn) {
 				const canonical = resolveCanonicalSymbol(foundSymbol, filePath, parsedDocuments);

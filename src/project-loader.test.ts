@@ -63,24 +63,30 @@ describe('project-loader', () => {
 	// Genau einmal: früher meldeten Parser und Checker den Fehler je für sich.
 	it('fehlende Abhängigkeit wird einmal am Pfad-Literal gemeldet', () => {
 		expectLoadErrors({
-			'main.jul': '(a) = import(§./gibtsnicht.jul§)',
+			'main.jul': '(a) = import(§./gibtsnicht.jul§)\nb = a',
 		}, [{ code: ErrorCode.fileNotFound, startRowIndex: 0, startColumnIndex: 13 }]);
 	});
 	// Exportiert werden nur Top-Level-Definitionen, der Emitter gibt Destructuring kein
 	// export. Hielte der Checker das Feld für importierbar, käme zur Laufzeit undefined an.
 	it('per Destructuring gebundener Name ist kein Export', () => {
 		expectLoadErrors({
-			'main.jul': '(a) = import(§./b.jul§)',
+			'main.jul': '(a) = import(§./b.jul§)\nb = a',
 			'b.jul': '(a) = [a = 1]\nc = 2',
 		}, [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }]);
 	});
 	// Sonst würde jeder Import stillschweigend zum Re-Export.
 	it('importierter Name wird nicht weiterexportiert', () => {
 		expectLoadErrors({
-			'main.jul': '(d) = import(§./b.jul§)',
+			'main.jul': '(d) = import(§./b.jul§)\nb = d',
 			'b.jul': '(d) = import(§./d.jul§)\nb = d',
 			'd.jul': 'd = 1',
 		}, [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }]);
+	});
+	it('ungenutzter Import wird gemeldet', () => {
+		expectLoadErrors({
+			'main.jul': '(a b) = import(§./b.jul§)\nc = a',
+			'b.jul': 'a = 1\nb = 2',
+		}, [{ code: ErrorCode.unusedDefinition, startRowIndex: 0, startColumnIndex: 3 }]);
 	});
 
 	it('übersprungene Abhängigkeit ist kein Fehler', () => {

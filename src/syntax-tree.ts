@@ -48,6 +48,12 @@ export interface SymbolDefinition extends Positioned {
 	 * inferred type aus dem value
 	 */
 	typeInfo?: TypeInfo;
+	/**
+	 * Wird vom checker gesetzt, sobald eine Referenz außerhalb der eigenen Definition das Symbol
+	 * findet. Gilt nur für den Checklauf, der den Baum erzeugt hat: checked entsteht dafür jedes
+	 * Mal frisch.
+	 */
+	isUsed?: true;
 	//#region FunctionParameter
 	functionRef?: CompileTimeFunctionType;
 	functionParameterIndex?: number;

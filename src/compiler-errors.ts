@@ -121,6 +121,12 @@ export enum ErrorCode {
 	notDefined = 4001,
 	usedBeforeDefined = 4002,
 	alreadyDefinedInUpperScope = 4003,
+	/**
+	 * Eine lokale Bindung wird nirgends referenziert. Ausgenommen ist, was außerhalb des Scopes
+	 * noch ankommt: Top-Level-Definitionen (exportiert), die letzte Definition eines
+	 * Funktionsrumpfs (Rückgabewert) und Parameter.
+	 */
+	unusedDefinition = 4004,
 	//#endregion 4000 semantic: Namensauflösung und Scopes
 
 	//#region 5000 type: Typprüfung
@@ -228,6 +234,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.notDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.usedBeforeDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.alreadyDefinedInUpperScope]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.unusedDefinition]: { type: 'semantic', severity: 'hint' },
 	[ErrorCode.definitionTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.destructuringFieldTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.typeGuardIsNotType]: { type: 'type', severity: 'error' },
