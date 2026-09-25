@@ -10,16 +10,11 @@ Type = nativeValue(§Type§)
 List = nativeFunction(
 	(ElementType: Type) -> Type
 	§js
-		x => {
-			if (!Array.isArray(x)
-				|| !x.length) {
-				return false;
-			}
-			if (ElementType === Any) {
-				return true;
-			}
-			return x.every(element =>
-				isOfType(element, ElementType));
+		(ElementType) => {
+			return {
+				[_julTypeSymbol]: 'list',
+				ElementType: ElementType,
+			};
 		}
 	§
 )
@@ -27,14 +22,24 @@ List = nativeFunction(
 And = nativeFunction(
 	(...ChoiceTypes: List(Type)) -> Type
 	§js
-		(...args) => new IntersectionType(args)
+		(...ChoiceTypes) => {
+			return {
+				[_julTypeSymbol]: 'and',
+				ChoiceTypes: ChoiceTypes,
+			};
+		}
 	§
 )
 # UnionType
 Or = nativeFunction(
 	(...ChoiceTypes: List(Type)) -> Type
 	§js
-		(...args) => new UnionType(args)
+		(...ChoiceTypes) => {
+			return {
+				[_julTypeSymbol]: 'or',
+				ChoiceTypes: ChoiceTypes,
+			};
+		}
 	§
 )
 # ComplementType
@@ -59,7 +64,12 @@ Without = (
 TypeOf = nativeFunction(
 	(value: Any) -> Type
 	§js
-		value => new TypeOfType(value)
+		(value) => {
+			return {
+				[_julTypeSymbol]: 'typeOf',
+				value: value,
+			};
+		}
 	§
 )
 # The type that only contains the empty literal ().
@@ -79,7 +89,12 @@ NonZeroInteger = Integer.Without(0)
 Greater = nativeFunction(
 	(value: Or(Integer Float)) -> Type
 	§js
-		x => x > value
+		(value) => {
+			return {
+				[_julTypeSymbol]: 'greater',
+				Value: value,
+			};
+		}
 	§
 )
 PositiveInteger = And(
@@ -103,20 +118,11 @@ Error = nativeValue(§_Error§)
 Dictionary = nativeFunction(
 	(ElementType: Type) -> Type
 	§js
-		x => {
-			if (!isDictionary(value)) {
-				return false;
-			}
-			if (ElementType === Any) {
-				return true;
-			}
-			for (const key in value) {
-				const elementValue = value[key];
-				if (!isOfType(elementValue, ElementType)) {
-					return false;
-				}
-			}
-			return true;
+		(ElementType) => {
+			return {
+				[_julTypeSymbol]: 'dictionary',
+				ElementType: ElementType,
+			};
 		}
 	§
 )
@@ -126,10 +132,15 @@ Dictionary = nativeFunction(
 #	completed: Boolean
 # )
 # Type structure: (ValueType: Type)
+# Zur Laufzeit wird ValueType nicht geprüft, nur ob es ein Stream ist.
 Stream = nativeFunction(
 	(ValueType: Type) -> Type
 	§js
-		x => x instanceof StreamClass
+		(ValueType) => {
+			return {
+				[_julTypeSymbol]: 'stream',
+			};
+		}
 	§
 )
 #region sequence arithmetic
