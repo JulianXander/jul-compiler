@@ -1254,7 +1254,7 @@ _createFunction(
 	{
 		singleNames: [
 			{
-				name: 'Value',
+				name: 'value',
 				type: Or(Integer, Float),
 			},
 		]
@@ -1286,7 +1286,7 @@ _createFunction(
 				type: Type,
 			},
 			{
-				name: 'index',
+				name: 'Index',
 				type: Integer,
 			},
 		]

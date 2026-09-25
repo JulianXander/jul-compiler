@@ -77,9 +77,9 @@ NonZeroInteger = Integer.Without(0)
 # x is part of Greater(y) <=> x > y
 # TODO Greater Rational vs GreaterInteger, GreaterFloat
 Greater = nativeFunction(
-	(Value: Or(Integer Float)) -> Type
+	(value: Or(Integer Float)) -> Type
 	§js
-		x => x > Value
+		x => x > value
 	§
 )
 PositiveInteger = And(
@@ -133,18 +133,18 @@ Stream = nativeFunction(
 	§
 )
 #region sequence arithmetic
-# Der Typ an Position index.
-# index ist eine Position oder ein Bereich (Range), dann ist das Ergebnis die Teilfolge.
+# Der Typ an Position Index.
+# Index ist eine Position oder ein Bereich (Range), dann ist das Ergebnis die Teilfolge.
 # Empty, wenn die Position nachweislich nicht existiert; die Vereinigung aller Positionen,
 # wenn der Index nicht feststeht.
 ElementAt = nativeFunction(
 	(
 		Source: Type
 		# 1 basiert
-		index: Or(Integer Type)
+		Index: Or(Integer Type)
 	) -> Type
 	§js
-		(Source, index) => ElementAt(Source, index)
+		(Source, Index) => ElementAt(Source, Index)
 	§
 )
 # Die Anzahl der Elemente von Source.
@@ -199,10 +199,10 @@ TupleOf = nativeFunction(
 # Hat eine Quelle eine List, das Ergebnis List(Union der Elementtypen).
 Concat = nativeFunction(
 	(
-		...sources: List(Type)
+		...Sources: List(Type)
 	) -> Type
 	§js
-		(...sources) => Concat(...sources)
+		(...Sources) => Concat(...Sources)
 	§
 )
 #endregion sequence arithmetic

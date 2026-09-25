@@ -2,7 +2,7 @@
 
 Typen und höhere Typen (Funktionen, die einen Typ liefern) beginnen mit einem Großbuchstaben,
 alles, was sicher kein Typ ist, mit einem Kleinbuchstaben. Der Checker meldet Verstöße als
-Warnung.
+Warnung `JUL2600`.
 
 ## Warum semantisch und nicht in der Grammatik
 
@@ -25,23 +25,30 @@ Warnung statt Fehler: Die Einteilung hängt an der Inferenz. Wird der Checker ge
 ## Einteilung
 
 `classifyTypeness(type): 'type' | 'value' | 'unknown'` im Checker, auf dem statischen Typ nach
-`resolveAlias`. Ein `isUnresolvedPlaceholder` ergibt `unknown`. Rekursive Typen (`Tree =
-[children: List(Tree)]`) brauchen einen Rekursionsschutz.
+`resolveAlias`. Die Rekursion ist über `maxTypenessDepth` begrenzt.
 
 | statischer Typ | Ergebnis |
 |---|---|
 | `typeOf`, `type` | `type` |
 | `boolean`, `integer`, `float`, `text`, `date`, `blob`, `error`, deren Literale, `empty`, `stream`, `greater`, `lengthOf`, `range` | `value` |
-| `tuple`, `list`, `dictionary`, `dictionaryLiteral` | `type`, wenn alle Elemente `type` sind; `value`, wenn alle `value` sind; sonst `unknown` |
-| `or` | wie bei den Kollektionen, über die Choices |
+| `list`, `dictionary` | Einteilung des Elementtyps |
+| `tuple`, `dictionaryLiteral`, `or` | `type`, wenn alle Teile `type` sind; `value`, wenn alle `value` sind; sonst `unknown` |
+| `and` | eindeutig, sobald ein Operand eindeutig ist und keiner widerspricht (der Schnitt ist Teilmenge jedes Operanden) |
 | `function` | Einteilung des `ReturnType`; `type` heißt höherer Typ |
 | `function` mit `predicate` | `unknown` (Prädikate sind vorerst ausgenommen) |
-| `parameterReference` | über `dereferenceParameterTypeFromFunctionRef` auf den deklarierten Parametertyp, dann dieser |
-| `any`, `never`, `and`, `not`, `conditional`, `tupleOf`, `concat`, `withElementAt`, `nestedReference`, `parametersType` | `unknown` |
+| `parameterReference` | `value`, wenn der deklarierte Parametertyp `value` ist, sonst `unknown` |
+| `any`, `never`, `not`, `conditional`, `tupleOf`, `concat`, `withElementAt`, `nestedReference`, `parameters` | `unknown` |
 
 `unknown` wird nie gemeldet.
 
-Stichprobe mit dem heutigen Checker:
+**`parameterReference` ist mehrdeutig.** In `(T: Type) => T` steht die Rückgabe für das Argument
+selbst, in `(T: Type v: T) => v` hat `v` den Typ `parameterReference(T)` und steht damit für einen
+Wert aus T. Ist das Argument ein Wert, fallen beide Lesarten zusammen (ein Wert als Typ ist ein
+Singleton), bei einem Typ nicht. Deshalb bleibt `H = (T: Type) => T` frei. `f = (x: Integer) => x`
+wird dagegen als Wert erkannt. Ohne diese Auflösung wären fast alle Funktionsliterale `unknown`,
+weil ihr Rückgabetyp meist eine `parameterReference` ist.
+
+Stichprobe:
 
 | Definition | statischer Typ | Einteilung |
 |---|---|---|
@@ -51,57 +58,49 @@ Stichprobe mit dem heutigen Checker:
 | `Mixed = [Integer 4]` | `tuple[typeOf integerLiteral]` | unknown |
 | `x = 4`, `list = [1 2]`, `dict = [a = 1]`, `e = []` | Literale | value |
 | `f = (x: Integer) => x` | `function -> parameterReference(x: Integer)` | value |
-| `H = (T: Type) => T` | `function -> parameterReference(T: Type)` | type |
+| `H = (T: Type) => T` | `function -> parameterReference(T: Type)` | unknown |
 | `G = (T: Type) => List(T)`, `Greater`, `Without` | `function -> typeOf` bzw. `type` | type |
 | `s = (x: Any) => x` | `function -> parameterReference(x: Any)` | unknown |
 | `map` | `function -> tupleOf` | unknown |
 
-Die Rückgabe eines Funktionsliterals ist oft eine `parameterReference`, deshalb ist deren
-Auflösung Pflicht, sonst fielen fast alle Funktionen auf `unknown`.
-
 ## Wo geprüft wird
 
-Wo ein Name eingeführt wird, jeweils am Namensknoten:
+Wo ein Name eingeführt wird, jeweils am Namensknoten, über `checkNamingCase`:
 
-- `case 'definition'` in `setInferredType`: Hat die Definition einen Typguard, zählt dessen
-  `valueOf`, sonst das endgültige `typeInfo` (einschließlich `coreBuiltInSymbolTypes`).
-- `case 'destructuring'`: der aufgelöste `fieldType` je Feld, geprüft am lokalen Namen
-  (`field.name`), auch beim Import.
-- `case 'parameter'`: der schon berechnete `inferredType`. `T: Type` ergibt `type`, ein
-  Parameter ohne Typguard und ohne erwarteten Typ ergibt `Any` und bleibt frei. Auch der
-  Rest-Parameter wird geprüft (`...ChoiceTypes: List(Type)` ergibt `type`).
+- `case 'definition'`: Hat die Definition einen TypeGuard, zählt dessen `valueOf`, sonst das
+  endgültige `typeInfo` (einschließlich `coreBuiltInSymbolTypes`).
+- `case 'destructuring'`: der aufgelöste `fieldType` je Feld, geprüft am lokalen Namen, auch beim
+  Import.
+- `case 'parameter'`: der schon berechnete `inferredType`, auch beim Rest-Parameter. Ein Parameter
+  ohne TypeGuard und ohne erwarteten Typ ist `Any` und bleibt frei.
 
-Nicht geprüft werden vorerst Dictionary-Felder und Namen, die nicht mit einem Buchstaben beginnen
-oder escaped sind. Groß und klein werden über `\p{Lu}` und `\p{Ll}` bestimmt.
+Dictionary-Felder werden vorerst nicht geprüft. Groß und klein werden über `\p{Lu}` und `\p{Ll}`
+bestimmt, ein Name, der mit keinem von beiden beginnt, bleibt frei.
 
-## Fehlercode
+## Umgesetzt
 
-`namingCase = 2600` im Abschnitt „2000 semantic: Sprachregeln“, `{ type: 'semantic', severity:
-'warning' }`. Meldungen:
-
-- `'foo' is a type and should start with an uppercase letter.`
-- `'Foo' is not a type and should start with a lowercase letter.`
-
-Dazu, laut Kopfkommentar in `compiler-errors.ts`, ein Abschnitt in
-`jul-homepage/docs/docs/documentation/error-codes.md` mit Beispiel. Die englische i18n muss
-ebenfalls ergänzt werden.
-
-## Umsetzungsschritte
-
-1. `npm run bench -- --save --note "vor Namensprüfung"`
-2. `classifyTypeness` mit tabellengetriebenen Unit-Tests über die Fälle der Stichprobe oben.
-3. Prüfung an den drei Stellen, dazu `checker.test.ts`-Fälle je Stelle, je Richtung und je
-   `unknown`-Fall (keine Meldung).
-4. Bestehende Tests, die jetzt eine Warnung bekommen, auf regelkonforme Namen umstellen, statt
-   die Warnung in die Erwartung aufzunehmen, sofern der Test nicht die Namen selbst prüft.
-5. `npm run test-update-snapshot` und die Änderung an beiden Baselines ansehen. Neue Warnungen im
-   Checker-Snapshot sind zu erwarten und dienen zugleich als Bestandsaufnahme.
-6. Fehlercode dokumentieren (Homepage de und en).
-7. `npm run bench -- --save --note "Namensprüfung"`, dann `build-all` und im Language Server
-   `npm run test-snapshot`.
+- `ErrorCode.namingCase = 2600`, `semantic`, `warning`.
+- Tests im Abschnitt „Schreibweise“ in `checker.test.ts`, je Prüfstelle, je Richtung und für die
+  freien Fälle. Bestehende Tests mit nicht regelkonformen Namen wurden umbenannt.
+- Checker-Snapshot: zehn neue Warnungen in `jul-examples` (`type-checking-test.jul`, `types.jul`),
+  die Zähler-Baseline ist unverändert.
+- Abschnitt `JUL2600` in `jul-homepage/docs/docs/documentation/error-codes.md` (eine englische
+  Fassung der Seite gibt es nicht).
 
 Bestehender Code in `jul-examples` und yugioh wird nicht migriert, die Warnungen bleiben dort
 stehen.
+
+## core-lib
+
+Drei Parameter wurden umbenannt, jeweils auch im JS-Rumpf und bei `Greater` und `ElementAt` in
+den Parameternamen, die `runtime.ts` über `_createFunction` hinterlegt:
+
+- `Greater(value: Or(Integer Float))`, vorher `Value`: ein Wert.
+- `Concat(...Sources: List(Type))`, vorher `sources`: Typen.
+- `ElementAt(Source Index: Or(Integer Type))`, vorher `index`: `Or(Integer Type)` wird zu `Type`
+  normalisiert, denn jede Zahl ist als Typ verwendbar. Gemeint war „Position oder Typ“, für die
+  Typfunktion `ElementAt` ist der Index aber tatsächlich ein Typ. Es ist der eine Fall, in dem die
+  Normalisierung die ursprüngliche Absicht verdeckt.
 
 ## Später
 

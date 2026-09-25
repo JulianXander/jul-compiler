@@ -657,7 +657,7 @@ f = (someVar: Or(Integer Text)) =>
 	?(x)
 		[Integer] => true
 		() => false
-useType = (t: Type) => t
+useType = (T: Type) => T
 useType(isInteger)`, {
 			errors: [],
 		});
@@ -667,12 +667,12 @@ useType(isInteger)`, {
 	// siehe predicate-types-and-filter-narrowing.md).
 	it('arbitrary-boolean-function-not-assignable-to-type', () => {
 		expectCheck(`isLegal = (x: Any) :> Boolean => true
-useType = (t: Type) => t
+useType = (T: Type) => T
 useType(isLegal)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign (x: Any) -> true to Type.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'T\'\n  Can not assign (x: Any) -> true to Type.',
 					startRowIndex: 2,
 					startColumnIndex: 8,
 					endRowIndex: 2,
@@ -2218,9 +2218,122 @@ c = a`);
 		});
 	});
 	//#endregion verworfene Werte
+	//#region Schreibweise
+	const namingCaseWarning = (name: string, isType: boolean, row: number, column: number): CompilerError => ({
+		code: ErrorCode.namingCase,
+		message: isType
+			? `'${name}' is a type and should start with an uppercase letter.`
+			: `'${name}' is not a type and should start with a lowercase letter.`,
+		startRowIndex: row,
+		startColumnIndex: column,
+		endRowIndex: row,
+		endColumnIndex: column + name.length,
+	});
+	it('naming-case-conforming', () => {
+		expectCheck(`Pair = [Integer Text]
+Point = [x: Integer y: Integer]
+Number = Or(Integer Float)
+Wrap = (T: Type) => List(T)
+x = 4
+values = [1 2]
+f = (value: Integer) => value`);
+	});
+	it('naming-case-tuple-type-lowercase', () => {
+		expectCheck('pair = [Integer Text]', {
+			errors: [namingCaseWarning('pair', true, 0, 0)],
+		});
+	});
+	it('naming-case-dictionary-type-lowercase', () => {
+		expectCheck('point = [x: Integer y: Integer]', {
+			errors: [namingCaseWarning('point', true, 0, 0)],
+		});
+	});
+	it('naming-case-alias-lowercase', () => {
+		expectCheck('number = Integer', {
+			errors: [namingCaseWarning('number', true, 0, 0)],
+		});
+	});
+	it('naming-case-value-uppercase', () => {
+		expectCheck('X = 4', {
+			errors: [namingCaseWarning('X', false, 0, 0)],
+		});
+	});
+	it('naming-case-list-value-uppercase', () => {
+		expectCheck('Values = [1 2]', {
+			errors: [namingCaseWarning('Values', false, 0, 0)],
+		});
+	});
+	// Eine Funktion, die sicher einen Typ liefert, ist ein höherer Typ.
+	it('naming-case-higher-type-lowercase', () => {
+		expectCheck('wrap = (T: Type) => List(T)', {
+			errors: [namingCaseWarning('wrap', true, 0, 0)],
+		});
+	});
+	it('naming-case-function-value-uppercase', () => {
+		expectCheck('F = (x: Integer) => x', {
+			errors: [namingCaseWarning('F', false, 0, 0)],
+		});
+	});
+	it('naming-case-parameter-type-lowercase', () => {
+		expectCheck('f = (t: Type) => []', {
+			errors: [namingCaseWarning('t', true, 0, 5)],
+		});
+	});
+	it('naming-case-parameter-value-uppercase', () => {
+		expectCheck('f = (X: Integer) => []', {
+			errors: [namingCaseWarning('X', false, 0, 5)],
+		});
+	});
+	// And ist Teilmenge jedes Operanden, Integer genügt für die Einteilung.
+	it('naming-case-parameter-intersection-uppercase', () => {
+		expectCheck('f = (N: PositiveInteger) => []', {
+			errors: [namingCaseWarning('N', false, 0, 5)],
+		});
+	});
+	it('naming-case-rest-parameter-lowercase', () => {
+		expectCheck('f = (...types: List(Type)) => []', {
+			errors: [namingCaseWarning('types', true, 0, 8)],
+		});
+	});
+	it('naming-case-destructuring', () => {
+		expectCheck(`(t N) = [Integer 4]
+[t N]`, {
+			errors: [
+				namingCaseWarning('t', true, 0, 1),
+				namingCaseWarning('N', false, 0, 3),
+			],
+		});
+	});
+	// Der TypeGuard ist die erklärte Absicht: Any sagt nichts, also keine Meldung.
+	it('naming-case-type-guard-wins', () => {
+		expectCheck('x: Any = Integer');
+	});
+	// Ohne TypeGuard ist der Parameter Any, und die Rückgabe damit auch.
+	it('naming-case-any-is-free', () => {
+		expectCheck(`F = (x) => x
+g = (X) => X`);
+	});
+	it('naming-case-mixed-tuple-is-free', () => {
+		expectCheck(`Mixed = [Integer 4]
+mixed = [Integer 4]`);
+	});
+	// T kann das Argument selbst sein oder für die Werte stehen, die es beschreibt.
+	it('naming-case-generic-return-is-free', () => {
+		expectCheck(`H = (T: Type) => T
+h = (T: Type) => T
+P = (T: Type v: T) => v
+p = (T: Type v: T) => v`);
+	});
+	it('naming-case-predicate-is-free', () => {
+		expectCheck(`IsInteger = (x: Any) :> Boolean =>
+	?(x)
+		[Integer] => true
+		() => false`);
+	});
+	//#endregion Schreibweise
 	// Ein generischer Parameter vom Typ Type muss als Typargument zulässig sein.
 	it('type-parameter-as-type-argument', () => {
-		expectCheck('f = (T: Type) => Stream(T)');
+		expectCheck('F = (T: Type) => Stream(T)');
 	});
 	// Der functionType wird mit Platzhaltern erzeugt, an die Parameter-Symbole gehängt und
 	// erst danach mutiert (ParamsType, ReturnType). Wer ihn zwischendurch auflöst - hier die
@@ -4225,7 +4338,7 @@ describe('bedingte Typen', () => {
 	//#endregion R: Rumpfprüfung gegen die Union aller Zweige
 	//#region E: Fehler
 	it('E1 außerhalb des Rückgabetyps', () => {
-		expectConditional('x = :?(Integer)\n\t[Integer] => Integer', {
+		expectConditional('X = :?(Integer)\n\t[Integer] => Integer', {
 			errors: [{ code: ErrorCode.typeBranchingOutsideReturnType, startRowIndex: 0, startColumnIndex: 4 }],
 		});
 	});

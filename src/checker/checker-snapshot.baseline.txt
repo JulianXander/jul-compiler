@@ -194,6 +194,9 @@ testWithout21: true
   error 5000 at 56:1 Definition type mismatch. | Can not assign 6 to Never.
   error 5000 at 71:6 Definition type mismatch. | Invalid value for field 'b' |   Can not assign 6 to 5.
   error 5000 at 74:1 Definition type mismatch. | Can not assign true to Not(true).
+  warning 2600 at 77:1 't1' is a type and should start with an uppercase letter.
+  warning 2600 at 78:1 't2' is a type and should start with an uppercase letter.
+  warning 2600 at 79:1 't3' is a type and should start with an uppercase letter.
   error 5000 at 84:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 85:1 Definition type mismatch. | Can not assign true to Not(true).
   error 5000 at 89:29 Definition type mismatch. | Can not assign 1 to 2.
@@ -274,12 +277,17 @@ myVarIsText: Any
   error 4001 at 26:39 'Decimal' is not defined.
   error 4001 at 26:47 'Real0' is not defined.
   error 5050 at 26:25 Argument type mismatch. | Invalid value for parameter 'args' |   Can not assign TypeOf(Integer) to Boolean. |   Can not assign TypeOf(Float) to Boolean.
+  warning 2600 at 26:1 'Number' is not a type and should start with a lowercase letter.
   error 5000 at 30:1 Definition type mismatch. | Can not assign 3 to 4.
   error 4001 at 34:18 'T' is not defined.
   error 4001 at 34:26 'T' is not defined.
   error 4001 at 34:32 'T' is not defined.
+  warning 2600 at 34:1 'addNums' is a type and should start with an uppercase letter.
+  warning 2600 at 40:12 'T' is not a type and should start with a lowercase letter.
   error 5100 at 42:3 Return type mismatch. | Can not assign [Boolean Boolean] to Boolean.
   error 4002 at 48:1 'ParserResult' is used before it is defined.
+  warning 2600 at 53:17 'TypeParam' is not a type and should start with a lowercase letter.
+  warning 2600 at 57:17 'TypeParam' is not a type and should start with a lowercase letter.
   error 4001 at 58:2 'x' is not defined.
   error 5151 at 59:7 Expected a function to call. | Can not assign Text to Any :> Any.
   error 4001 at 59:19 'type' is not defined.
@@ -287,6 +295,8 @@ myVarIsText: Any
   error 5151 at 59:25 Expected a function to call. | Can not assign TypeOf(List(Text)) to Any :> Any.
   error 4001 at 59:38 'errors' is not defined.
   error 4001 at 59:36 'x' is not defined.
+  warning 2600 at 57:1 'ParserResult' is not a type and should start with a lowercase letter.
+  warning 2600 at 62:1 'Even' is not a type and should start with a lowercase letter.
 === ui/dialog/dialog.jul ===
   error 1152 at 11:20 expression expected after =>
   error 4001 at 2:1 'body' is not defined.

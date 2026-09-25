@@ -1,4 +1,6 @@
--upper case für types und higher order types enforcen
+-schreibweise von namen (JUL2600), siehe docs/naming-case.md
+	?quick-fix im language server über rename
+	?prädikate, dictionary-felder, tupleOf/conditional genauer einteilen
 -unit testing konzept für jul
 	?eigene lib oder bestehende js libs verwendbar machen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln

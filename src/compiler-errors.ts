@@ -101,6 +101,12 @@ export enum ErrorCode {
 	 * nicht ein Spread und nicht eine Variable, die zufällig mehr enthält.
 	 */
 	discardedValue = 2500,
+	/**
+	 * Ein Name passt in der Schreibweise nicht zu seinem Wert: Typen und Funktionen, die einen Typ
+	 * liefern, beginnen groß, alles, was sicher kein Typ ist, beginnt klein. Gemeldet wird nur,
+	 * wenn der statische Typ das eindeutig sagt - bei Any, gemischten Typen und Prädikaten nicht.
+	 */
+	namingCase = 2600,
 	//#endregion 2000 semantic: Sprachregeln
 
 	//#region 3000 semantic: Import und Modulauflösung
@@ -227,6 +233,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.invalidParameterSource]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.restArgumentNotLast]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.discardedValue]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.namingCase]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },

@@ -234,6 +234,12 @@ const maxFieldsInTypeDump = 5;
 const maxAliasDepth = 100;
 
 /**
+ * Schutz gegen Zyklen über Aliase und verschachtelte Typen in classifyTypeness. Echte Typen sind
+ * nie annähernd so tief. Steht hier oben, weil die core-lib schon beim Modul-Load gecheckt wird.
+ */
+const maxTypenessDepth = 50;
+
+/**
  * Alias-Paare, deren Vergleich gerade läuft.
  * Ein Zyklus im Typgraph führt zwingend über einen Alias - nur er kann zurückverweisen -,
  * deshalb genügt die Besuchsmenge dort. Modul-Slot statt CheckContext-Feld, weil die
@@ -2794,6 +2800,12 @@ function inferType(
 				throw new Error(`Definition Symbol ${name} not found`);
 			}
 			symbol.typeInfo = typeInfo;
+			// Ein hingeschriebener TypeGuard ist die erklärte Absicht und geht dem inferierten Typ vor.
+			checkNamingCase(
+				expression.name,
+				typeGuard?.typeInfo ? valueOf(typeGuard.typeInfo.type) : typeInfo.type,
+				errors,
+			);
 			if (typeGuard) {
 				const typeGuardType = typeGuard.typeInfo;
 				const dereferencedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
@@ -2893,6 +2905,7 @@ function inferType(
 				}
 				const symbol = currentScope[fieldName]!;
 				symbol.typeInfo = { type: fieldType };
+				checkNamingCase(field.name, fieldType, errors);
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
 					setInferredType(typeGuard, typeContext, undefined, checkContext);
@@ -3710,6 +3723,7 @@ function inferType(
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			const typeInfo: TypeInfo = { type: inferredType };
 			parameterSymbol.typeInfo = typeInfo;
+			checkNamingCase(expression.name, inferredType, errors);
 			return typeInfo;
 		}
 		case 'parameters': {
@@ -7157,6 +7171,145 @@ function getArgValueExpressions(args: BracketedExpression): (ParseValueExpressio
 		}
 	}
 }
+
+//#region Schreibweise
+
+/**
+ * 'type': die Werte sind sicher Typen, 'value': sicher keine, 'unknown': lässt sich nicht sagen.
+ * Kriterium ist der statische Typ, nicht die Zuweisbarkeit an Type - die erfüllt jeder Literalwert.
+ */
+export type Typeness = 'type' | 'value' | 'unknown';
+
+/**
+ * Teilt einen statischen Typ danach ein, ob die Werte, die er beschreibt, Typen sind.
+ * Eine Funktion ist so viel Typ wie ihr Rückgabetyp: liefert sie sicher einen Typ, ist sie ein
+ * höherer Typ. Prädikate sind vorerst ausgenommen.
+ */
+export function classifyTypeness(type: CompileTimeType | undefined, depth = 0): Typeness {
+	if (!type || depth > maxTypenessDepth) {
+		return 'unknown';
+	}
+	const resolved = resolveAlias(type);
+	switch (resolved.julType) {
+		case 'type':
+		case 'typeOf':
+			return 'type';
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'integer':
+		case 'integerLiteral':
+		case 'float':
+		case 'floatLiteral':
+		case 'text':
+		case 'textLiteral':
+		case 'date':
+		case 'blob':
+		case 'error':
+		case 'empty':
+		case 'stream':
+		case 'greater':
+		case 'lengthOf':
+		case 'range':
+			return 'value';
+		case 'list':
+		case 'dictionary':
+			return classifyTypeness(resolved.ElementType, depth + 1);
+		case 'tuple':
+			return combineTypeness(resolved.ElementTypes.map(elementType => classifyTypeness(elementType, depth + 1)));
+		case 'dictionaryLiteral':
+			return combineTypeness(Object.values(resolved.Fields).map(fieldType => classifyTypeness(fieldType, depth + 1)));
+		case 'or':
+			return combineTypeness(resolved.ChoiceTypes.map(choiceType => classifyTypeness(choiceType, depth + 1)));
+		case 'and': {
+			// Der Schnitt ist Teilmenge jedes Operanden: ein eindeutiger Operand genügt.
+			const choices = resolved.ChoiceTypes.map(choiceType => classifyTypeness(choiceType, depth + 1));
+			const isType = choices.includes('type');
+			const isValue = choices.includes('value');
+			return isType === isValue
+				? 'unknown'
+				: isType ? 'type' : 'value';
+		}
+		case 'function':
+			if (resolved.predicate) {
+				return 'unknown';
+			}
+			return classifyTypeness(resolved.ReturnType, depth + 1);
+		case 'parameterReference': {
+			// Die Referenz steht für das Argument selbst (`(T: Type) => T`) oder für die Werte, die
+			// es beschreibt (`(T: Type v: T) => v`). Bei einem Wert als Argument ist beides dasselbe
+			// Singleton, bei einem Typ nicht - dann bleibt es offen.
+			const declared = classifyTypeness(dereferenceParameterTypeFromFunctionRef(resolved), depth + 1);
+			return declared === 'value' ? 'value' : 'unknown';
+		}
+		case 'any':
+		case 'never':
+		case 'not':
+		case 'conditional':
+		case 'tupleOf':
+		case 'concat':
+		case 'withElementAt':
+		case 'nestedReference':
+		case 'parameters':
+			return 'unknown';
+		default: {
+			const assertNever: never = resolved;
+			throw new Error(`Unexpected julType: ${(assertNever as CompileTimeType).julType}`);
+		}
+	}
+}
+
+/**
+ * Eindeutig nur, wenn alle Teile dasselbe sagen.
+ */
+function combineTypeness(parts: Typeness[]): Typeness {
+	const first = parts[0];
+	if (!first) {
+		return 'unknown';
+	}
+	return parts.every(part => part === first)
+		? first
+		: 'unknown';
+}
+
+/**
+ * Typen und höhere Typen beginnen groß, alles, was sicher kein Typ ist, klein.
+ * Namen, die nicht mit einem Buchstaben beginnen, bleiben frei.
+ */
+function checkNamingCase(
+	name: Name,
+	type: CompileTimeType,
+	errors: CompilerError[],
+): void {
+	const firstCharacter = name.name[0];
+	if (!firstCharacter) {
+		return;
+	}
+	const isUpperCase = /\p{Lu}/u.test(firstCharacter);
+	const isLowerCase = /\p{Ll}/u.test(firstCharacter);
+	if (!isUpperCase && !isLowerCase) {
+		return;
+	}
+	const typeness = classifyTypeness(type);
+	let message: string | undefined;
+	if (typeness === 'type' && isLowerCase) {
+		message = `'${name.name}' is a type and should start with an uppercase letter.`;
+	}
+	else if (typeness === 'value' && isUpperCase) {
+		message = `'${name.name}' is not a type and should start with a lowercase letter.`;
+	}
+	if (message) {
+		errors.push({
+			code: ErrorCode.namingCase,
+			message,
+			startRowIndex: name.startRowIndex,
+			startColumnIndex: name.startColumnIndex,
+			endRowIndex: name.endRowIndex,
+			endColumnIndex: name.endColumnIndex,
+		});
+	}
+}
+
+//#endregion Schreibweise
 
 function checkNameDefinedInUpperScope(
 	expression: TypedExpression,

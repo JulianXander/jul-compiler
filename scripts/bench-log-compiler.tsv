@@ -125,3 +125,5 @@
 2026-09-25 10:56:22	ef8cdeb+	-	ADV-DEV-56627	yugioh	parse+check	5	1361.24	1667.63	1667.63	nach unused-definitions
 2026-09-25 11:05:24	c01e970+	-	ADV-DEV-56627	yugioh	parse+check	5	1305.46	1606.77	1606.77	erwarteter Typ für Präfix-Argument
 2026-09-25 11:31:43	cd3399c+	-	ADV-DEV-56627	yugioh	parse+check	5	2217.95	2621.42	2621.42	Typguard im Dictionary-Literal abgeschafft
+2026-09-25 11:46:47	72972ac	-	ADV-DEV-56627	yugioh	parse+check	5	2083.42	2207.24	2207.24	vor Namensprüfung
+2026-09-25 11:54:38	72972ac+	-	ADV-DEV-56627	yugioh	parse+check	5	2042.38	2392.14	2392.14	Namensprüfung
