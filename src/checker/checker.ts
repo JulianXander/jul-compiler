@@ -2732,7 +2732,7 @@ function inferType(
 					// die innerste noch vorhandene, tatsächlich falsche Stelle (TypeScript/
 					// Rust/Elm-Vorbild: eine Diagnose, eine möglichst genaue Position, statt
 					// einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle).
-					const innerPosition = dereferencedTargetType && findInnermostErrorPosition(value, dereferencedTargetType);
+					const innerPosition = dereferencedTargetType && findInnermostErrorPosition(value);
 					const position = innerPosition ?? expression;
 					
 					// Ob die umhüllende "Can not assign X to Y."-Zeile fehlt, entscheidet
@@ -3112,7 +3112,7 @@ function inferType(
 			const dereferencedParamsType = dereferenceCallbackParams(functionType, prefixArgumentType, argsType, paramsType);
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, dereferencedParamsType);
 			if (assignArgsError) {
-				const position = findArgumentErrorPosition(args, dereferencedParamsType, prefixArgumentType) ?? expression;
+				const position = findInnermostErrorPosition(args) ?? expression;
 				errors.push({
 					code: ErrorCode.argumentTypeMismatch,
 					message: `Argument type mismatch.\n${assignArgsError}`,
@@ -6541,183 +6541,50 @@ function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: C
 
 /**
  * Findet die innerste Position im Quelltext, an der der Zuweisungsfehler tatsächlich sitzt:
- * steigt durch verschachtelte Dictionary-Literale ab, solange es ein konkretes Feld mit
- * falschem Wert gibt. Ein fehlendes Feld hat keinen Ausdruck zum Zeigen und bricht den Abstieg
- * an dieser Stelle ab - undefined heißt "keine genauere Position als die aufrufende Stelle".
+ * steigt durch verschachtelte Listen- und Dictionary-Literale sowie durch die Argumentliste
+ * eines Aufrufs ab, solange ein geschriebenes Kind dem Typ widerspricht, den seine Stelle
+ * verlangt. Welcher Typ das ist, hat der Checker beim Inferieren am Kind gemerkt (expectedType),
+ * samt Spread und Aussortieren von Union-Zweigen. Ein fehlendes Feld oder Element hat keinen
+ * Ausdruck zum Zeigen und bricht den Abstieg an dieser Stelle ab - undefined heißt "keine
+ * genauere Position als die aufrufende Stelle".
  * Nach dem Vorbild von TypeScript/Rust/Elm: eine Diagnose, eine möglichst genaue Position,
  * statt einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle.
  */
-function findInnermostErrorPosition(
-	value: ParseValueExpression | undefined,
-	rawTargetType: CompileTimeType,
-): Positioned | undefined {
-	const targetType = resolveAlias(rawTargetType);
-	if (value?.type === 'list') {
-		if (isTupleType(targetType)) {
-			return findInnermostElementErrorPosition(value, index => targetType.ElementTypes[index]);
-		}
-		if (isListType(targetType)) {
-			return findInnermostElementErrorPosition(value, () => targetType.ElementType);
-		}
-		return undefined;
-	}
-	if (value?.type !== 'dictionary') {
-		return undefined;
-	}
-	if (isDictionaryLiteralType(targetType)) {
-		let result: Positioned | undefined;
-		map(targetType.Fields, (fieldTargetType, fieldName) => {
-			if (result) {
-				return;
-			}
-			result = findInnermostFieldErrorPosition(value, fieldName, fieldTargetType);
-		});
-		return result;
-	}
-	if (isDictionaryType(targetType)) {
-		const elementType = targetType.ElementType;
-		for (const field of value.fields) {
-			if (field.type !== 'singleDictionaryField') {
-				continue;
-			}
-			const fieldName = getCheckedEscapableName(field.name);
-			if (!fieldName) {
-				continue;
-			}
-			const result = findInnermostFieldErrorPosition(value, fieldName, elementType);
-			if (result) {
-				return result;
-			}
+function findInnermostErrorPosition(value: PositionedExpression | undefined): Positioned | undefined {
+	for (const child of getWrittenChildValues(value)) {
+		if (hasExpectedTypeError(child)) {
+			return findInnermostErrorPosition(child) ?? child;
 		}
 	}
 	return undefined;
 }
 
 /**
- * Tupel-/Listen-Pendant zu findInnermostFieldErrorPosition: findet das erste Element mit
- * tatsächlichem Fehler und steigt rekursiv weiter ab, falls das Element selbst wieder ein
- * Literal ist. Ein Spread verschiebt die Zuordnung unbekannt weit (dieselbe Begründung wie bei
- * getWrittenArguments/getTupleTypeError2) - dann bricht der Abstieg ab, ebenso bei einem
- * fehlenden Element (kein Ausdruck zum Zeigen vorhanden).
+ * Die geschriebenen Elemente einer Liste bzw. Feldwerte eines Dictionaries, ohne Spreads.
  */
-function findInnermostElementErrorPosition(
-	value: ParseListLiteral,
-	getElementTargetType: (index: number) => CompileTimeType | undefined,
-): Positioned | undefined {
-	if (value.values.some(element => element.type === 'spread')) {
-		return undefined;
-	}
-	for (let index = 0; index < value.values.length; index++) {
-		const elementExpression = value.values[index] as ParseValueExpression;
-		const elementTargetType = getElementTargetType(index);
-		if (!elementTargetType || !elementExpression.typeInfo) {
-			continue;
-		}
-		const elementError = getTypeError(undefined, resolvePlaceholders(elementExpression.typeInfo.type), elementTargetType);
-		if (!elementError) {
-			continue;
-		}
-		return findInnermostErrorPosition(elementExpression, elementTargetType) ?? elementExpression;
-	}
-	return undefined;
-}
-
-/**
- * Das geschriebene Argument, an dem der Fehler des Aufrufs sitzt - sonst markierte die Diagnose
- * den ganzen Aufruf samt Argumentliste. Gleiche Idee wie findInnermostErrorPosition, nur ist die
- * Zuordnung hier Argument zu Parameter statt Feld zu Feld.
- */
-function findArgumentErrorPosition(
-	args: BracketedExpression,
-	paramsType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
-): Positioned | undefined {
-	const prefixArgumentCount = prefixArgumentType ? 1 : 0;
-	switch (args.type) {
-		case 'list': {
-			// Ein Spread verschiebt alle folgenden Indizes unbekannt weit, damit ist keinem
-			// Argument mehr ein Parameter zuzuordnen.
-			if (args.values.some(value => value.type === 'spread')) {
-				return undefined;
-			}
-			for (let index = 0; index < args.values.length; index++) {
-				const argument = args.values[index] as ParseValueExpression;
-				const parameterType = getRawBranchArgumentType(paramsType, index + prefixArgumentCount);
-				const position = parameterType
-					&& findErrorPositionForArgument(argument, parameterType);
-				if (position) {
-					return position;
-				}
-			}
-			return undefined;
-		}
-		case 'dictionary': {
-			if (args.fields.some(field => field.type === 'spread')) {
-				return undefined;
-			}
-			for (const field of args.fields) {
-				const argument = field.type === 'singleDictionaryField' && field.value;
-				if (!argument) {
-					continue;
-				}
-				const fieldName = getCheckedEscapableName(field.name);
-				const parameterType = fieldName === undefined
-					? undefined
-					: dereferenceNameFromObject(fieldName, paramsType);
-				const position = parameterType
-					&& findErrorPositionForArgument(argument, parameterType);
-				if (position) {
-					return position;
-				}
-			}
-			return undefined;
-		}
+function getWrittenChildValues(value: PositionedExpression | undefined): ParseValueExpression[] {
+	switch (value?.type) {
+		case 'list':
+			return value.values.filter((element): element is ParseValueExpression => element.type !== 'spread');
+		case 'dictionary':
+			return value.fields
+				.map(field => field.type === 'singleDictionaryField' ? field.value : undefined)
+				.filter(isDefined);
 		default:
-			return undefined;
+			return [];
 	}
 }
 
-function findErrorPositionForArgument(
-	argument: ParseValueExpression,
-	parameterType: CompileTimeType,
-): Positioned | undefined {
-	if (!argument.typeInfo) {
-		return undefined;
+function hasExpectedTypeError(expression: ParseValueExpression): boolean {
+	const expectedType = expression.expectedType;
+	const ownType = expression.typeInfo?.type;
+	if (!expectedType || !ownType) {
+		return false;
 	}
-	const argumentType = argument.typeInfo.type;
 	// Zuerst ungelöst, wie die Prüfung des Aufrufs selbst (areArgsAssignableTo bekommt argsType
 	// bewusst ungelöst) - sonst findet die Suche den Fehler nicht wieder, den sie erklären soll.
-	if (getTypeError(undefined, argumentType, parameterType)) {
-		return findInnermostErrorPosition(argument, parameterType) ?? argument;
-	}
-	const targetType = resolvePlaceholders(parameterType);
-	const error = getTypeError(undefined, resolvePlaceholders(argumentType), targetType);
-	if (!error) {
-		return undefined;
-	}
-	return findInnermostErrorPosition(argument, targetType) ?? argument;
-}
-
-function findInnermostFieldErrorPosition(
-	value: ParseDictionaryLiteral,
-	fieldName: string,
-	fieldTargetType: CompileTimeType,
-): Positioned | undefined {
-	const fieldExpression = value.fields.find(field =>
-		field.type === 'singleDictionaryField'
-		&& getCheckedEscapableName(field.name) === fieldName);
-	if (!fieldExpression || fieldExpression.type !== 'singleDictionaryField') {
-		return undefined;
-	}
-	const fieldValue = fieldExpression.value;
-	if (!fieldValue?.typeInfo) {
-		return undefined;
-	}
-	const fieldError = getTypeError(undefined, resolvePlaceholders(fieldValue.typeInfo.type), fieldTargetType);
-	if (!fieldError) {
-		return undefined;
-	}
-	return findInnermostErrorPosition(fieldValue, fieldTargetType) ?? fieldValue;
+	return !!getTypeError(undefined, ownType, expectedType)
+		|| !!getTypeError(undefined, resolvePlaceholders(ownType), resolvePlaceholders(expectedType));
 }
 
 

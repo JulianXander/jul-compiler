@@ -316,8 +316,10 @@ Ergebnis (2026-09-24):
   Typguard werden noch selbst bestimmt. Im LSP-Snapshot entfallen dadurch Hover auf Literale in
   Kollektionen ohne erwarteten Typ, die bisher über den eigenen Typ der Definition zustande kamen.
   Zugleich reicht der Checker hinter einem Spread `List(X)` und den Rest-Parameter weiter.
-- `findInnermostErrorPosition` und `findArgumentErrorPosition` lesen den gemerkten Typ, statt
-  selbst zuzuordnen.
+- Erledigt (2026-09-25): Die Fehlerposition liest den gemerkten Typ, statt selbst zuzuordnen.
+  `findInnermostErrorPosition` deckt Literale und Argumentlisten gemeinsam ab, das eigene
+  `findArgumentErrorPosition` entfällt. Hinter einem Spread und in einer Union zeigt die Meldung
+  damit auf das falsche Element statt auf die ganze Definition bzw. den ganzen Aufruf.
 - Zwei Durchgänge für die Argumente eines Aufrufs (Frage 2), damit ein Callback auch vor dem
   Argument stehen darf, aus dem sein Typ kommt.
 - Erwarteter Typ für das Präfix-Argument und aus dem Typguard eines Dictionary-Felds (Schritt 4).

@@ -57,7 +57,7 @@ a = 5`,
 			],
 		},
 		{
-			// Position zeigt seit findInnermostElementErrorPosition auf das falsche Element (4),
+			// Position zeigt über findInnermostErrorPosition auf das falsche Element (4),
 			// nicht mehr auf die ganze Definition.
 			name: 'list-type-error',
 			code: 'a: List(Text) = [4]',
@@ -1744,18 +1744,16 @@ g([cb = (x) => x])`,
 		},
 		{
 			// Bei List(X) verlangt jede Position dasselbe, ein Spread davor ändert daran nichts.
-			// Die Fehlerposition ist die ganze Definition, weil die Suche nach dem Element beim
-			// Spread abbricht.
 			name: 'expected-type-list-element-after-spread',
 			code: `others: List((x: Integer) :> Text) = [(x: Integer) => §a§]
 l: List((x: Integer) :> Text) = [...others (x) => x]`,
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
-					"endColumnIndex": 52,
+					"endColumnIndex": 51,
 					"endRowIndex": 1,
 					"message": "Definition type mismatch.\nInvalid return value\n  Can not assign Integer to Text.",
-					"startColumnIndex": 0,
+					"startColumnIndex": 43,
 					"startRowIndex": 1,
 				},
 			],
@@ -1770,10 +1768,10 @@ g(...others (x) => x)`,
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
-					"endColumnIndex": 21,
+					"endColumnIndex": 20,
 					"endRowIndex": 2,
 					"message": "Argument type mismatch.\nInvalid value for parameter 'cbs'\n  Invalid return value\n    Can not assign Integer to Text.",
-					"startColumnIndex": 0,
+					"startColumnIndex": 12,
 					"startRowIndex": 2,
 				},
 			],
@@ -1883,32 +1881,32 @@ g((x) => x)`,
 		},
 		{
 			// Die schon geschriebenen Felder des Literals sortieren die Zweige aus: kind = §a§
-			// passt nur zum ersten, cb erwartet also (x: Integer) :> Text.
+			// passt nur zum ersten, cb erwartet also (x: Integer) :> Text. Markiert wird deshalb cb.
 			name: 'expected-type-discriminated-union',
 			code: 'h: Or([kind: §a§ cb: (x: Integer) :> Text] [kind: §b§ cb: (x: Text) :> Text]) = [kind = §a§ cb = (x) => x]',
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
-					"endColumnIndex": 106,
+					"endColumnIndex": 105,
 					"endRowIndex": 0,
 					"message": "Definition type mismatch.\nInvalid value for field 'cb'\n  Invalid return value\n    Can not assign Integer to Text.\nInvalid value for field 'kind'\n  Can not assign §a§ to §b§.\nInvalid value for field 'cb'\n  Invalid type for parameter 'x'\n    Can not assign Text to Integer.",
-					"startColumnIndex": 0,
+					"startColumnIndex": 97,
 					"startRowIndex": 0,
 				},
 			],
 		},
 		{
 			// Ein Zweig, der ein im Literal fehlendes Feld verlangt, fällt weg: species fehlt, also
-			// erwartet cb (v: Integer) :> Text.
+			// erwartet cb (v: Integer) :> Text. Markiert wird deshalb cb.
 			name: 'expected-type-union-branch-with-missing-field',
 			code: 'x: Or([name: Text age: Integer cb: (v: Integer) :> Text] [name: Text species: Text cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]',
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
-					"endColumnIndex": 146,
+					"endColumnIndex": 145,
 					"endRowIndex": 0,
 					"message": "Definition type mismatch.\nInvalid value for field 'cb'\n  Invalid return value\n    Can not assign Integer to Text.\nMissing field 'species'.\nInvalid value for field 'cb'\n  Invalid type for parameter 'v'\n    Can not assign Text to Integer.",
-					"startColumnIndex": 0,
+					"startColumnIndex": 137,
 					"startRowIndex": 0,
 				},
 			],
