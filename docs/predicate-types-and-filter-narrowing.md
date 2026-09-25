@@ -373,14 +373,38 @@ Plan oben:
 - **`And(A Not(B))`** liefert bei disjunktem `B` jetzt das geschriebene `A` statt des aufgelösten.
   Sonst ging im Hover von fizz-buzz der Name `PositiveInteger` verloren.
 
+Dazu ein Fehler, den es schon vorher gab und an dem ein Prädikat-Test hing: `Not(X)` war in
+`getTypeError` als Quelle wie als Ziel permissiv, galt in `hasReliableTypeError` aber als
+zuverlässig. Behoben 2026-09-25:
+
+- `hasReliableTypeError('not')` ist `false`.
+- `And` als Quelle zählt einen `Not`-Choice nicht mehr als passend, sondern formt exakt um:
+  `And(A Not(B)) ⊆ T` genau dann, wenn `A ⊆ Or(T B)`.
+- `removeSubtypes` verwirft nur noch zwischen Choices, deren `getTypeError` verlässlich ist.
+- Die Unerreichbarkeits-Prüfung meldet über Zuweisbarkeit nur bei verlässlichem Kopf.
+- Die Länge einer nicht leeren Kollektion ist `PositiveInteger` statt `NonZeroInteger`, und
+  `Greater(a)` liegt in `Greater(b)`, wenn `a >= b`. Beides war vorher nur hinter dem permissiven
+  `Not` versteckt.
+
+Der Test `predicate-identity-needs-same-literal` prüft die Identität jetzt über die Erschöpfung.
+An einer Zuweisung lässt sie sich nicht beobachten, denn nach Regel 3 nimmt ein unbekanntes
+Prädikat jeden Wert aus seiner Obermenge an.
+
+Folgen außerhalb der Tests:
+
+- **yugioh, src/main.jul:395:** `?(oldSelectedGameCardIds.length()) [1] => … [0] => …` gilt jetzt
+  richtig als nicht erschöpfend, denn die Länge kann auch 2 sein. Das `Error` im Typ führt zu
+  JUL5000 in Zeile 404 und JUL5050 in Zeile 418. Vorher galt das branching fälschlich als
+  erschöpfend.
+- **jul-examples:** `testNonZeroInteger2: NonZeroInteger = 3.5` in type-checking-test.jul wird jetzt
+  gemeldet, wie der Kommentar dort verlangt. `Boolean.Without(true)` in derselben Datei heißt jetzt
+  `And(Boolean Not(true))` statt fälschlich `Not(true)`. Zu `false` vereinfacht wird es noch nicht.
+
 Offen:
 
-- `predicate-identity-needs-same-literal` bleibt rot wegen eines Fehlers, den es schon vorher
-  gab: `Not(X)` als Quelle ist in `getTypeError` permissiv, gilt aber als zuverlässig. Siehe
-  [CHECKER-AUDIT.md](CHECKER-AUDIT.md), Punkt 0, mit drei eigenen roten Tests.
-- Checker-Snapshot, Zähler-Gate und LSP-Snapshot sind neu zu schreiben. Die Checker-Seite ändert
-  sich nur an der neuen Zeile 18 in fizz-buzz.jul und an der Meldung zu Zeile 24 in
-  type-function.jul. Die LSP-Baseline weicht schon unabhängig davon ab.
+- Checker-Snapshot, Zähler-Gate und LSP-Snapshot sind neu zu schreiben. Im Checker-Snapshot ändern
+  sich die neue Zeile 18 in fizz-buzz.jul, die Meldung zu Zeile 24 in type-function.jul und die
+  beiden Stellen oben. Die LSP-Baseline weicht schon unabhängig davon ab.
 - Den LSP-Bench gibt es nur ohne Messung vor dem Umbau.
 
 ### Was noch zu klären ist

@@ -281,7 +281,7 @@ const indentUnit = '  ';
  * Ab wie vielen Choices die Teilmengen-Elimination in createNormalizedUnionType übersprungen
  * wird, um O(n²) getTypeError-Aufrufe bei großen Unions zu vermeiden (wie TypeScript es bei
  * getUnionType(..., UnionReduction.Subtype) macht). Wert durch Messung belegt, nicht geschätzt.
- * Muss vor CompileTimeNonZeroInteger stehen, weil das schon beim Modul-Load
+ * Muss vor CompileTimePositiveInteger stehen, weil das schon beim Modul-Load
  * createNormalizedUnionType aufruft.
  */
 const subtypeReductionLimit = 20;
@@ -293,9 +293,12 @@ const subtypeReductionLimit = 20;
  */
 const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
 
-const CompileTimeNonZeroInteger = createNormalizedIntersectionType([
+/**
+ * Die Länge einer Kollektion, die nicht Empty ist: mindestens 1.
+ */
+const CompileTimePositiveInteger = createNormalizedIntersectionType([
 	builtinInteger,
-	createCompileTimeComplementType(createIntegerLiteral(0n)),
+	createCompileTimeGreaterType(createIntegerLiteral(0n)),
 ]);
 
 const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
@@ -2754,10 +2757,12 @@ function inferType(
 					// areArgsAssignableTo permissiv und hieße sonst "abgedeckt".
 					const isSameAsPrevious = previousArgumentTypes.some(previousArgumentType =>
 						typeEquals(previousArgumentType, currentArgumentType));
+					// Ebenso, wenn "kein Fehler" für ihn nicht "Teilmenge" heißt, etwa bei Not(1).
 					const currentUpperBound = getUpperBoundType(currentArgumentType);
 					const error = isSameAsPrevious
 						? undefined
 						: currentUpperBound.julType === 'any'
+							|| !hasReliableTypeError(currentUpperBound)
 							? 'reachable'
 							: areArgsAssignableTo(
 								undefined,
@@ -4565,13 +4570,18 @@ function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
  * ohnehin nicht mehr vorkommen.
  */
 function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
+	// Wo "kein Fehler" nicht "Teilmenge" heißt (Prädikat, Not), wird weder verworfen noch
+	// verworfen lassen - wie bei einem noch ungelösten Platzhalter.
+	const isComparable = (type: CompileTimeType) =>
+		!isUnresolvedPlaceholderType(type)
+		&& hasReliableTypeError(type);
 	return choices.filter((choice, index) => {
-		if (isUnresolvedPlaceholderType(choice)) {
+		if (!isComparable(choice)) {
 			return true;
 		}
 		return !choices.some((otherChoice, otherIndex) => {
 			if (index === otherIndex
-				|| isUnresolvedPlaceholderType(otherChoice)) {
+				|| !isComparable(otherChoice)) {
 				return false;
 			}
 			const isSubtype = !getTypeError(undefined, choice, otherChoice);
@@ -4866,8 +4876,9 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'and':
 		case 'or':
 			return type.ChoiceTypes.every(hasReliableTypeError);
+		// Not(X) ist in getTypeError als Quelle wie als Ziel permissiv, auch wenn X verlässlich ist.
 		case 'not':
-			return hasReliableTypeError(type.SourceType);
+			return false;
 		case 'any':
 		case 'nestedReference':
 		case 'parameterReference':
@@ -6318,6 +6329,30 @@ function getTypeErrorAtDepth(
 				// was z.B. And(Integer Greater(0)) gegen And(Integer Not(0)) fälschlich ablehnt.
 				break;
 			}
+			// Ein Not-Choice sagt als Quelle nichts Verlässliches (siehe case 'not'), passt also
+			// fast immer und darf deshalb nicht als "passender Choice" zählen. Stattdessen exakt:
+			// And(A Not(B)) liegt in T genau dann, wenn A in Or(T B) liegt.
+			const complementChoices = argumentsType.ChoiceTypes.filter(choiceType =>
+				isComplementType(resolveAlias(choiceType)));
+			if (complementChoices.length
+				&& complementChoices.length < argumentsType.ChoiceTypes.length) {
+				const otherChoices = argumentsType.ChoiceTypes.filter(choiceType =>
+					!complementChoices.includes(choiceType));
+				const widenedTarget = createNormalizedUnionType([
+					targetType,
+					...complementChoices.map(choiceType =>
+						(resolveAlias(choiceType) as CompileTimeComplementType).SourceType),
+				]);
+				const remainingType = otherChoices.length === 1
+					? otherChoices[0]!
+					: createCompileTimeIntersectionType(otherChoices);
+				if (getTypeError(prefixArgumentType, remainingType, widenedTarget)) {
+					return {
+						message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+					};
+				}
+				return undefined;
+			}
 			// Es genügt, wenn ein args Choice zum target passt, denn der Wert erfüllt alle.
 			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
 				getTypeError(prefixArgumentType, choiceType, targetType));
@@ -6362,7 +6397,7 @@ function getTypeErrorAtDepth(
 			// getLengthFromType sie bereits aufgesplittet hat. Bei einer hier noch unaufgelösten
 			// Source (z.B. parameterReference, weil argsType bewusst ungeprüft bleibt, siehe
 			// Aufrufer) gilt das nicht automatisch - erst auflösen und ggf. neu aufsplitten,
-			// bevor NonZeroInteger unterstellt wird.
+			// bevor PositiveInteger unterstellt wird.
 			const dereferencedSource = resolvePlaceholders(argumentsType.Source);
 			if (dereferencedSource !== argumentsType.Source) {
 				const dereferencedLength = getLengthFromType(dereferencedSource);
@@ -6370,7 +6405,7 @@ function getTypeErrorAtDepth(
 					return getTypeError(prefixArgumentType, dereferencedLength, targetType);
 				}
 			}
-			return getTypeError(prefixArgumentType, CompileTimeNonZeroInteger, targetType);
+			return getTypeError(prefixArgumentType, CompileTimePositiveInteger, targetType);
 		}
 		case 'nestedReference': {
 			// Wie concat/withElementAt: erst auflösen versuchen, sonst permissiv.
@@ -6609,6 +6644,17 @@ function getTypeErrorAtDepth(
 				&& argumentsType.value > greaterValue.value) {
 				return undefined;
 			}
+			// Greater(a) liegt in Greater(b), wenn a >= b.
+			if (argumentsType.julType === 'greater') {
+				const argumentValue = argumentsType.Value;
+				if (((argumentValue.julType === 'integerLiteral'
+					&& greaterValue.julType === 'integerLiteral')
+					|| (argumentValue.julType === 'floatLiteral'
+						&& greaterValue.julType === 'floatLiteral'))
+					&& argumentValue.value >= greaterValue.value) {
+					return undefined;
+				}
+			}
 			break;
 		}
 		case 'integer':
@@ -6805,7 +6851,7 @@ function getTypeErrorAtDepth(
 			break;
 		case 'lengthOf':
 			// In der Oberfläche nicht konstruierbar, nur zur Vollständigkeit des Switches.
-			return getTypeError(prefixArgumentType, argumentsType, CompileTimeNonZeroInteger);
+			return getTypeError(prefixArgumentType, argumentsType, CompileTimePositiveInteger);
 		case 'conditional':
 			// Wartet noch auf seine Operanden: permissiv wie withElementAt.
 			return undefined;

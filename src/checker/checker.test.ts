@@ -841,30 +841,35 @@ f = (v: Or(divisibleBy(5) Text)) =>
 		[divisibleBy(5)] => 0
 		() => g(v)`);
 	});
-	// Gleiches Verhalten ist nicht dasselbe Prädikat: zwei Literale sind nie gleich.
-	// Verglichen werden nur Code und Position, weil die Meldung den verbleibenden Typ anzeigt,
-	// dessen Darstellung dieser Test nicht festlegen soll.
+	// Gleiches Verhalten ist nicht dasselbe Prädikat: zwei Literale sind nie gleich. Sichtbar wird
+	// das an der Erschöpfung - [isEvenB] fängt den isEvenA-Anteil nicht sicher ab, also bleibt
+	// Error im Rückgabetyp. Mit [isEvenA] ist dasselbe branching erschöpfend
+	// (predicate-or-empty-is-exhaustive).
 	it('predicate-identity-needs-same-literal', () => {
-		const parserResult = parseCode(`isEvenA = (n: Integer) => n.modulo(2).equal(0)
+		expectCheck(`isEvenA = (n: Integer) => n.modulo(2).equal(0)
 isEvenB = (n: Integer) => n.modulo(2).equal(0)
-g = (t: Text) => t
-f = (v: Or(isEvenA Text)) =>
+f = (v: Or(isEvenA Empty)) :> Integer =>
 	?(v)
-		[isEvenB] => 0
-		() => g(v)`, 'dummy.jul');
-		expect(parserResult.unchecked.errors).to.deep.equal([]);
-		checkTypes(parserResult, {}, { cloneUnchecked: false });
-		expect(parserResult.checked?.errors.map(error => ({
-			code: error.code,
-			startRowIndex: error.startRowIndex,
-			startColumnIndex: error.startColumnIndex,
-		}))).to.deep.equal([
-			{
-				code: ErrorCode.argumentTypeMismatch,
-				startRowIndex: 6,
-				startColumnIndex: 10,
-			},
-		]);
+		[isEvenB] => 1
+		[Empty] => 2`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Error to Integer.',
+					startRowIndex: 3,
+					startColumnIndex: 1,
+					endRowIndex: 6,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 2,
+						startColumnIndex: 30,
+						endRowIndex: 2,
+						endColumnIndex: 37,
+					},
+				},
+			],
+		});
 	});
 	it('predicate-and-its-complement-are-exhaustive', () => {
 		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
@@ -1057,7 +1062,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign Integer to Text.',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign And(Integer Not(0)) to Text.',
 					startRowIndex: 1,
 					startColumnIndex: 34,
 					endRowIndex: 1,
