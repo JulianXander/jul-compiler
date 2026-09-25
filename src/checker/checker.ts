@@ -2096,6 +2096,38 @@ function getExpectedElementType(
 }
 
 /**
+ * Der erwartete Typ eines Elements hinter einem Spread, dessen Position damit unbekannt ist. Das
+ * geht nur, wo jede in Frage kommende Position dasselbe verlangt: bei List(X) und beim
+ * Rest-Parameter, sofern der erste Spread nicht vor ihm beginnt.
+ */
+function getExpectedElementTypeAfterSpread(
+	expectedType: CompileTimeType | undefined,
+	/**
+	 * Position des ersten Spreads, samt Präfix-Argument.
+	 */
+	firstSpreadIndex: number,
+): CompileTimeType | undefined {
+	if (!expectedType) {
+		return undefined;
+	}
+	const type = resolveAlias(expectedType);
+	switch (type.julType) {
+		case 'list':
+			return toExpectedType(type.ElementType);
+		case 'parameters':
+			if (!type.rest || firstSpreadIndex < type.singleNames.length) {
+				return undefined;
+			}
+			return getExpectedElementTypeAfterSpread(type.rest.type, firstSpreadIndex - type.singleNames.length);
+		case 'or':
+			return getExpectedChildTypeOfUnion(type.ChoiceTypes, choiceType =>
+				getExpectedElementTypeAfterSpread(choiceType, firstSpreadIndex));
+		default:
+			return undefined;
+	}
+}
+
+/**
  * Der erwartete Typ des Felds fieldName eines Dictionary-Literals bzw. des benannten Arguments
  * fieldName.
  */
@@ -3001,16 +3033,16 @@ function inferType(
 			switch (args.type) {
 				case 'list': {
 					// Ein Spread verschiebt alle folgenden Positionen unbekannt weit.
-					let isPositionKnown = true;
+					let firstSpreadIndex: number | undefined;
 					args.values.forEach((value, index) => {
 						if (value.type === 'spread') {
-							isPositionKnown = false;
+							firstSpreadIndex ??= index + argsPrefixCount;
 							setInferredType(value.value, typeContext, undefined, checkContext);
 							return;
 						}
-						let expectedArgumentType = isPositionKnown
+						let expectedArgumentType = firstSpreadIndex === undefined
 							? getExpectedElementType(paramsType, index + argsPrefixCount)
-							: undefined;
+							: getExpectedElementTypeAfterSpread(paramsType, firstSpreadIndex);
 						if (value.type === 'functionLiteral') {
 							// Vorläufige Argumente: die vorherigen sind schon inferiert, die übrigen Any.
 							const provisionalArgsType = createCompileTimeTupleType(args.values.map(otherValue =>
@@ -3349,16 +3381,16 @@ function inferType(
 		case 'list': {
 			// TODO error when spread dictionary
 			// Ein Spread verschiebt alle folgenden Positionen unbekannt weit.
-			let isElementPositionKnown = true;
+			let firstSpreadIndex: number | undefined;
 			expression.values.forEach((element, index) => {
 				if (element.type === 'spread') {
-					isElementPositionKnown = false;
+					firstSpreadIndex ??= index;
 					setInferredType(element.value, typeContext, undefined, checkContext);
 					return;
 				}
-				const expectedElementType = isElementPositionKnown
+				const expectedElementType = firstSpreadIndex === undefined
 					? getExpectedElementType(expression.expectedType, index)
-					: undefined;
+					: getExpectedElementTypeAfterSpread(expression.expectedType, firstSpreadIndex);
 				setInferredType(element, typeContext, expectedElementType, checkContext);
 			});
 

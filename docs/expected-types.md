@@ -311,8 +311,11 @@ Ergebnis (2026-09-24):
 
 ### Folgeschritte
 
-- `getDeclaredType` im Language Server liest den gemerkten Typ. Abgesichert über den LSP-Snapshot
-  und `completion.test.ts`. Behebt nebenbei den falschen Index nach einem Spread.
+- Erledigt (2026-09-25): `getDeclaredType` im Language Server liest den gemerkten Typ, der
+  Index nach einem Spread stimmt damit. Nur Präfix-Argument, Argumentliste und Definition ohne
+  Typguard werden noch selbst bestimmt. Im LSP-Snapshot entfallen dadurch Hover auf Literale in
+  Kollektionen ohne erwarteten Typ, die bisher über den eigenen Typ der Definition zustande kamen.
+  Zugleich reicht der Checker hinter einem Spread `List(X)` und den Rest-Parameter weiter.
 - `findInnermostErrorPosition` und `findArgumentErrorPosition` lesen den gemerkten Typ, statt
   selbst zuzuordnen.
 - Zwei Durchgänge für die Argumente eines Aufrufs (Frage 2), damit ein Callback auch vor dem

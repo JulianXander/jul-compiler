@@ -119,3 +119,4 @@
 2026-09-24 20:34:09	4d0d742+	-	ADV-DEV-56627	yugioh	parse+check	5	1204.95	1548.08	1548.08	Bench wie CLI ohne Klon von unchecked (cloneUnchecked: false)
 2026-09-25 08:31:25	600ec3f+	-	ADV-DEV-56627	yugioh	parse+check	5	10635.22	12615.77	12615.77	feldreferenzen
 2026-09-25 08:48:47	600ec3f+	-	ADV-DEV-56627	yugioh	parse+check	5	1418.32	1688.99	1688.99	feldreferenzen, wiederholt ohne fremde last
+2026-09-25 10:16:23	c68184a+	-	ADV-DEV-56627	yugioh	parse+check	5	1336.54	1718.41	1718.41	erwarteter Typ hinter Spread bei List(X) und Rest-Parameter

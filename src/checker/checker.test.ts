@@ -1743,6 +1743,42 @@ g([cb = (x) => x])`,
 			],
 		},
 		{
+			// Bei List(X) verlangt jede Position dasselbe, ein Spread davor ändert daran nichts.
+			// Die Fehlerposition ist die ganze Definition, weil die Suche nach dem Element beim
+			// Spread abbricht.
+			name: 'expected-type-list-element-after-spread',
+			code: `others: List((x: Integer) :> Text) = [(x: Integer) => §a§]
+l: List((x: Integer) :> Text) = [...others (x) => x]`,
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 52,
+					"endRowIndex": 1,
+					"message": "Definition type mismatch.\nInvalid return value\n  Can not assign Integer to Text.",
+					"startColumnIndex": 0,
+					"startRowIndex": 1,
+				},
+			],
+		},
+		{
+			// Hinter einem Spread ist die Position unbekannt, das Argument landet aber in jedem Fall
+			// im Rest-Parameter, wenn der Spread erst dort beginnt.
+			name: 'expected-type-rest-argument-after-spread',
+			code: `g = (...cbs: List((x: Integer) :> Text)) => cbs
+others: List((x: Integer) :> Text) = [(x: Integer) => §a§]
+g(...others (x) => x)`,
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 21,
+					"endRowIndex": 2,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'cbs'\n  Invalid return value\n    Can not assign Integer to Text.",
+					"startColumnIndex": 0,
+					"startRowIndex": 2,
+				},
+			],
+		},
+		{
 			// Benannte Argumente werden über den Namen zugeordnet, nicht über die Position.
 			name: 'expected-type-named-argument',
 			code: `g = (a: Integer cb: (x: Integer) :> Text) => a
