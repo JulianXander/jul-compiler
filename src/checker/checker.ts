@@ -3081,17 +3081,23 @@ function inferType(
 			// TODO provide args types for conditional/generic/derived type?
 			// TODO infer last body expression type for returnType
 			const prefixArgument = expression.prefixArgument;
-			if (prefixArgument) {
-				setInferredType(prefixArgument, typeContext, undefined, checkContext);
-			}
 			const functionExpression = expression.functionExpression;
 			if (!functionExpression) {
+				// Beim Tippen von `a.` fehlt die Funktion noch, das Präfix-Argument braucht die
+				// Completion trotzdem inferiert.
+				if (prefixArgument) {
+					setInferredType(prefixArgument, typeContext, undefined, checkContext);
+				}
 				return { type: builtinAny };
 			}
+			// Die Funktion vor dem Präfix-Argument: es erwartet ihren ersten Parameter.
 			setInferredType(functionExpression, typeContext, undefined, checkContext);
 			const isFunction = checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
 			const functionType = functionExpression.typeInfo!.type;
 			const paramsType = getParamsType(functionType);
+			if (prefixArgument) {
+				setInferredType(prefixArgument, typeContext, getExpectedElementType(paramsType, 0), checkContext);
+			}
 			const args = expression.arguments;
 			if (!args) {
 				return { type: builtinAny };
@@ -3183,7 +3189,9 @@ function inferType(
 			const dereferencedParamsType = dereferenceCallbackParams(functionType, prefixArgumentType, argsType, paramsType);
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, dereferencedParamsType);
 			if (assignArgsError) {
-				const position = findInnermostErrorPosition(args) ?? expression;
+				const position = (prefixArgument && findErrorPositionInChild(prefixArgument))
+					?? findInnermostErrorPosition(args)
+					?? expression;
 				errors.push({
 					code: ErrorCode.argumentTypeMismatch,
 					message: `Argument type mismatch.\n${assignArgsError}`,
@@ -6629,11 +6637,21 @@ function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: C
  */
 function findInnermostErrorPosition(value: PositionedExpression | undefined): Positioned | undefined {
 	for (const child of getWrittenChildValues(value)) {
-		if (hasExpectedTypeError(child)) {
-			return findInnermostErrorPosition(child) ?? child;
+		const position = findErrorPositionInChild(child);
+		if (position) {
+			return position;
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Die innerste Position in child, falls child selbst seinem erwarteten Typ widerspricht.
+ */
+function findErrorPositionInChild(child: ParseValueExpression): Positioned | undefined {
+	return hasExpectedTypeError(child)
+		? findInnermostErrorPosition(child) ?? child
+		: undefined;
 }
 
 /**

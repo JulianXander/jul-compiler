@@ -322,7 +322,12 @@ Ergebnis (2026-09-24):
   damit auf das falsche Element statt auf die ganze Definition bzw. den ganzen Aufruf.
 - Zwei Durchgänge für die Argumente eines Aufrufs (Frage 2), damit ein Callback auch vor dem
   Argument stehen darf, aus dem sein Typ kommt.
-- Erwarteter Typ für das Präfix-Argument und aus dem Typguard eines Dictionary-Felds (Schritt 4).
+- Erledigt (2026-09-25): Erwarteter Typ für das Präfix-Argument. Die aufgerufene Funktion wird
+  dafür vor dem Präfix-Argument inferiert, zwei Durchgänge braucht es nicht, weil das Präfix
+  das erste Argument ist. Die Fehlerposition steigt auch ins Präfix-Argument ab.
+- Erwarteter Typ aus dem Typguard eines Dictionary-Felds (Schritt 4). Setzt voraus, dass der
+  Wert überhaupt gegen den Typguard des Felds geprüft wird: `[a: Integer = §x§]` meldet heute
+  nichts.
 
 ## Risiken
 

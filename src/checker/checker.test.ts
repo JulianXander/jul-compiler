@@ -1745,6 +1745,22 @@ g(cb = (x) => x a = 1)`, {
 			],
 		});
 	});
+	// Das Präfix-Argument ist das erste Argument, es erwartet den ersten Parameter.
+	it('expected-type-prefix-argument', () => {
+		expectCheck(`g = (o: [cb: (v: Integer) :> Text]) => o
+x = [cb = (v) => v].g()`, {
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 18,
+					"endRowIndex": 1,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'o'\n  Can not assign [cb: (v: Integer) -> Integer] to [cb: (v: Integer) :> Text].\n    Invalid value for field 'cb'\n      Invalid return value\n        Can not assign Integer to Text.",
+					"startColumnIndex": 10,
+					"startRowIndex": 1,
+				},
+			],
+		});
+	});
 	it('expected-type-declared-return-type', () => {
 		expectCheck(`k = ()
 	:>
@@ -3136,6 +3152,9 @@ f(1 0)`;
 	});
 	it('error-position-argument-field-in-union', () => {
 		expectErrorMarks('g = (o: Or([] [a: Integer])) => o\ng([a = §x§])', '§x§');
+	});
+	it('error-position-prefix-argument-field', () => {
+		expectErrorMarks('g = (o: [a: Integer]) => o\nx = [a = §x§].g()', '§x§');
 	});
 
 	// Der Aufruf wird gegen den ungelösten Argumenttyp geprüft (areArgsAssignableTo bekommt
