@@ -99,7 +99,8 @@ aus genau diesem Grund.
 
 ## Plan: Ein Funktionswert in Typ-Position ist ein Prädikat
 
-**Entwurf 2026-09-25, noch nicht entschieden.** Offene Fragen stehen am Ende des Abschnitts.
+**Entwurf 2026-09-25, teilweise entschieden.** Was entschieden ist und was offen, steht am Ende
+des Abschnitts.
 
 ### Ist-Zustand
 
@@ -131,7 +132,9 @@ Funktionen mit dieser Signatur“, wenn sie aus einem Typ-Literal stammt.
 
 Der Satz von Rice aus dem Abschnitt „Die Grenze, die bleibt“ gilt unverändert. Der Checker weiß
 über ein Prädikat nur, was `PredicateFacts` hergibt. Bei jedem anderen Prädikat muss er sich einer
-Aussage enthalten, und die Laufzeit prüft.
+Aussage enthalten, und die Laufzeit prüft. Das Folding widerspricht dem nicht: Es rechnet das
+Prädikat für einen konkreten Wert aus. Der Satz von Rice betrifft die Aussage für alle Werte, also
+einen symbolischen Parameter.
 
 ### Optionen
 
@@ -180,72 +183,149 @@ Ein Funktionswert und der Typ, den er als Prädikat beschreibt, sind verschieden
 | Funktionstyp `(x: Any) :> Boolean` | Funktionen mit dieser Signatur | `isInteger` passt, `5` nicht |
 | Prädikat `isInteger` in Typ-Position | Werte, für die es `true` liefert | `5` passt, `isInteger` nicht |
 
-Heute kommt nach `valueOf` für beide dasselbe heraus. Dafür braucht es aber **keinen eigenen
-Typ**: Es genügt, wenn `valueOf` einen Funktionswert gleich in die Menge übersetzt, die er als
-Prädikat beschreibt. Das ist die beste Obermenge, die der Checker kennt:
+Heute kommt für beide nach `valueOf` dasselbe heraus. **Entschieden 2026-09-25:** Das Prädikat
+bekommt einen eigenen Typ `julType: 'predicate'`. `valueOf` macht aus einem Funktionswert ein
+solches Prädikat. Das Funktionstyp-Literal ist davon nicht betroffen: Es kommt als `TypeOf(F)` an,
+und `valueOf` packt es zu `F` aus, ohne den neuen Fall zu erreichen.
 
-```
-valueOf(Funktionswert) = And(Typ des ersten Parameters, predicate.ifTrue)   // fehlt beides: Any
-```
+Das Prädikat trägt drei Dinge:
 
-Das Funktionstyp-Literal bleibt davon unberührt. Es kommt als `TypeOf(F)` an, und `valueOf` packt
-es zu `F` aus, ohne den neuen Fall zu erreichen.
+- **die Funktion selbst**, für die Identität und fürs Folding,
+- **eine Obermenge** `And(Typ des ersten Parameters, ifTrue)`, ohne beides `Any`. Der Parametertyp
+  zählt mit, weil die Laufzeit ihn prüft. `isPositive = (x: Integer) => x > 0` liegt also
+  mindestens in `Integer`, auch ohne erkanntes Branching.
+- **eine Untermenge** `excludedIfFalse`, ohne Fakten `Never`.
 
-Der Typ des ersten Parameters zählt mit, weil die Laufzeit die Parameter künftig prüft.
-`isPositive = (x: Integer) => x > 0` beschreibt also mindestens `Integer`, auch ohne erkanntes
-Branching. `(a: isPositive)` ist für den Checker dann `(a: Integer)`, und `And(Integer isPositive)`
-ist nicht mehr nötig.
+#### Warum ein eigener Typ
 
-Danach ist das Ergebnis ein gewöhnlicher Typ, und alles Weitere läuft über die bestehenden Wege:
+Würde `valueOf` gleich in die Obermenge übersetzen, vergäße der Checker, welches Prädikat dort
+stand. Drei Folgen, jeweils mit einem Prädikat `isPrime = (n: Integer) :> Boolean => …`, dessen
+Rumpf er nicht erkennt:
 
-- **Zuweisung:** Ein Wert muss ganz in der Obermenge liegen, wie bei jedem anderen Typ auch.
-  `Or(Integer Text)` gegen `isInteger` ist also ein Fehler, genau wie gegen `Integer`. Innerhalb
-  der Obermenge prüft die Laufzeit den Rest. `getTypeError` bleibt zweiwertig.
-- **Typ des Symbols:** Parameter, Definition und verengter Branch haben die Obermenge als Typ.
-- **`And`/`Or`/`List`:** Das Prädikat ist ein gewöhnlicher Operand. Aus Obermengen entstehen
-  wieder Obermengen.
-- **`Not`** ist die Ausnahme, denn es dreht die Richtung um. `Not(isPositive)` würde zu
-  `Not(Integer)` und lehnte damit `-1` ab, das die Laufzeit annimmt. Für das Komplement braucht es
-  eine Untermenge, also `Not(excludedIfFalse)`, ohne Fakten `Any`. Der `Not`-Fall im Checker kann
-  das am rohen Argument ablesen, solange das Prädikat direkt darin steht. Steht es tiefer, etwa in
-  `Not(Or(isPositive Text))`, hat `Or` es schon zur Obermenge gemacht, und der Checker meldet einen
-  falschen Fehler. `Without` ist in der core-lib als `And(Not(…))` definiert und erbt das.
+- **Abziehen im Branching.** Bei `v: Or(isPrime Text)` und `?(v) [isPrime] => … () => g(v)` bleibt
+  im catchAll nur `Text`. Mit der Obermenge hieße der Parametertyp `Or(Integer Text)`. Das lässt
+  sich nicht von einem Programm unterscheiden, in dem im catchAll wirklich eine `4` ankommt. Der
+  Checker könnte nichts abziehen und meldete `g(v)` fälschlich.
+- **Verschachteltes `Not`.** `Not(Or(isPrime Text))` würde zu `Not(Or(Integer Text))` und lehnte
+  `4` ab, obwohl die Laufzeit es annimmt.
+- **Folding.** `x: divisibleBy(5) = 44` (jul-examples/fizz-buzz) kann nur gemeldet werden, wenn die
+  Funktion noch da ist, um sie auszurechnen. Zur Laufzeit meldet es niemand, denn der Emitter gibt
+  Typguards an Definitionen nicht aus.
 
-Verloren geht dabei `excludedIfFalse`, denn eine Obermenge sagt nichts darüber, was sicher `true`
-liefert. Gebraucht wird es nur im Branching, zum Abziehen in späteren Branches. Das liest schon
-heute den rohen Typ vor `valueOf` (`getBranchPredicateFacts`) und bleibt so. Im Branch selbst
-kann der Kopf dann einfach mit der Obermenge schneiden, statt über `getBranchArgumentType`
-auszusteigen.
+#### Auflösen wie `alias`
+
+Vorbild ist `alias`: eine benannte Hülle, die `ResolvedType` per Typ ausschließt und die
+`resolveAlias` auflöst (55 Aufrufe im Checker, nur 4 eigene `case 'alias'`). Das Prädikat wird
+genauso zu seiner Obermenge aufgelöst, aber **nur dort, wo der Checker eine Gestalt braucht**:
+Feldzugriff, Elementtyp, Länge, Aufrufbarkeit.
+
+Wo er Mengen vergleicht, darf er es nicht auflösen. Ein Alias ist reine Beschriftung und gleich
+dem Typ dahinter. Ein Prädikat ist dagegen **nicht** gleich seiner Obermenge: `isPrime` ist
+nicht `Integer`. Würde man es wie einen Alias behandeln, gäbe es zwei falsche Schlüsse in
+`createNormalizedIntersectionType`, das die Choices vorab mit `resolveAlias` auflöst:
+
+- `And(Integer Not(isPrime))` würde über `typeEquals(Integer, isPrime)` zu `Never`, obwohl `4`
+  darin liegt.
+- `And(Integer isPrime)` würde über den Teilmengen-Shortcut zu `Integer`, weil „Integer passt
+  auf isPrime“ nach Regel 3 unten kein Fehler ist. Das Prädikat ginge still verloren.
+
+Deshalb gilt:
+- `typeEquals` dealiast ein Prädikat nicht.
+- `hasReliableTypeError` zählt es zu den Typen, bei denen „kein Fehler“ nicht „ist Teilmenge“
+  heißt, wie heute schon `any` und `parameterReference`.
+- Die Normalisierung von `Or`, `And` und `Not` behält es als eigenen Operanden.
+
+Die 55 Aufrufe von `resolveAlias` sind deshalb einzeln durchzusehen: Braucht die Stelle eine
+Gestalt oder vergleicht sie Mengen? Das ist der eigentliche Aufwand des eigenen Typs.
+
+In die Hülle schauen die folgenden Stellen, und zwar **vor** dem Auflösen:
+
+- **Zuweisung eines Werts an ein Prädikat `P`,** in dieser Reihenfolge:
+  1. Der Wert hat selbst den Typ `P`, dieselbe Funktion: passt.
+  2. Der Wert ist konstant (`typeToConstantValue`) und die Funktion faltbar: ausrechnen. `true`
+     passt, alles andere ist ein Fehler.
+  3. Sonst muss der Wert ganz in der Obermenge liegen, wie bei jedem anderen Typ auch. Den Rest
+     prüft die Laufzeit.
+- **Zuweisung von `P` an einen anderen Typ:** passt, wenn das Ziel `P` selbst enthält (etwa
+  `Or(P Text)`) oder die Obermenge von `P` ins Ziel passt.
+- **`Or`/`And`/`List`:** Das Prädikat bleibt ein eigener Operand. Die Normalisierung darf es für
+  Vergleiche auflösen, im Ergebnis aber nicht ersetzen.
+- **`Not`** dreht die Richtung um: Obermenge von `Not(P)` ist `Not(Untermenge)`, Untermenge ist
+  `Not(Obermenge)`. Das gilt auch verschachtelt, weil das Prädikat bis ins `Not` erhalten bleibt.
+  `Without` ist in der core-lib als `And(Not(…))` definiert und bekommt das mit.
+- **Branch-Kopf `[P]`:** Im Branch selbst wird mit der Obermenge geschnitten. Ein `P` im Typ des
+  gebranchten Werts bleibt dabei erhalten. In späteren Branches wird `P` über die Identität
+  abgezogen, sonst die Untermenge. Die Erschöpfungsprüfung zählt einen Prädikat-Kopf ebenfalls nur
+  mit Identität oder Untermenge. Sonst gälte `?(x) [isPositive] => …` ohne catchAll für jeden
+  Integer als erschöpfend.
+- **`typeToString`:** zeigt den Namen des Prädikats bzw. den Aufruf, der es erzeugt hat
+  (`divisibleBy(5)`), nicht die Obermenge.
 
 Als Typ abgelehnt (JUL5002) wird eine Funktion nur, wenn feststeht, dass sie nie `true` liefert:
 Ihr Rückgabetyp schließt `true` aus, oder `[v]` passt für kein `v` auf ihre Parameter. Eine
 Funktion mit Rückgabetyp `Any` wird angenommen.
 
+#### Folding: was heute geht und was fehlt
+
+Gemessen am Quellstand:
+
+| Ausdruck | Typ heute |
+|---|---|
+| `isFive = (dividend: Integer) => dividend.modulo(5).equal(0)`, dann `isFive(45)` | `true`, gefaltet |
+| `divisibleBy(5)(45)` | `Boolean`, nicht gefaltet |
+| `divisibleBy(5)` | Funktionstyp mit `literal` und `foldable`, aber ohne Bindung von `divisor` |
+
+Für eine benannte Funktion wie `isFive` reicht das vorhandene Folding (`tryFoldCall`,
+`tryBuildCallable`) also schon. Für ein Prädikat, das ein Aufruf erzeugt, reicht es nicht, und
+genau so ein Fall steht im fizz-buzz-Beispiel: Die zurückgegebene Funktion trägt ihr Literal,
+aber nicht, dass `divisor` an `5` gebunden ist. `buildEnvironment` findet für die freie Referenz
+`divisor` keinen Wert und gibt auf. Voraussetzung ist deshalb, dass der Funktionstyp, den ein
+gefalteter Aufruf liefert, die gebundenen Argumente mitführt. Das ist ein eigener Schritt und
+nützt auch ohne Prädikate.
+
+Das Folding greift unter denselben Bedingungen wie heute: Die Funktion ist faltbar, rein, und
+das Budget pro Check-Lauf ist nicht erschöpft. Greift es nicht, gilt Regel 3 mit der Obermenge.
+
 ### Schritte
 
-1. **Rote Tests.** Tabellengetrieben in checker.test.ts: Parameter-, Rückgabe- und
-   Definitions-Annotation, `List`/`Or`/`And` mit Prädikat, ein falsches Argument (Text gegen
-   `isInteger`), ein nicht erkanntes Prädikat (wird angenommen), ein Prädikat mit typisiertem
-   Parameter (`isPositive`), Verengung im Rumpf und ein Funktionstyp-Literal in Typ-Position,
-   das weiter Funktionen verlangt. Für die Laufzeit: `=== true`, Typ-Kopf-Funktion als Prädikat,
-   Parametertyp des Prädikats wird geprüft. Dann anhalten.
+1. **Rote Tests**, je ein `it` mit `expectCheck`:
+   - Parameter-, Rückgabe- und Definitions-Annotation mit Prädikat,
+   - `List`/`Or`/`And`/`Not` mit Prädikat, auch verschachtelt in `Not`,
+   - ein falsches Argument (Text gegen `isInteger`),
+   - ein nicht erkanntes Prädikat, das angenommen wird,
+   - ein unreines Prädikat, das abgelehnt wird, als Typguard und als Branch-Kopf,
+   - ein Prädikat mit typisiertem Parameter (`isPositive`),
+   - das Abziehen über die Identität im catchAll,
+   - ein Literal, das per Folding abgelehnt wird (`x: isFive = 44`),
+   - ein Funktionstyp-Literal in Typ-Position, das weiter Funktionen verlangt.
+
+   Für die Laufzeit: `=== true`, eine Funktion mit Typ-Kopf als Prädikat, der Parametertyp des
+   Prädikats wird geprüft. Dann anhalten.
 2. **Laufzeit:** `getTypeError` im `case 'function'` auf `tryAssignArgs` und `=== true` umstellen.
-3. **`valueOf`** im Fall `'function'` auf die Obermenge umstellen, nach Klärung von Frage 6.
-4. **Branch-Kopf:** mit der Obermenge schneiden statt auszusteigen. `getBranchPredicateFacts`
-   bleibt für `excludedIfFalse`. Die Unerreichbarkeits-Prüfung (`TODO` bei „Prädikat-Fakten
-   checken“) kann `excludedIfFalse` danach nutzen.
-5. **`checkTypeGuardIsType`/JUL5002** an die Entscheidung zu Frage 2 anpassen, und den Schutz in
+3. **Typ `predicate`** in syntax-tree.ts anlegen, in `ResolvedType` ausschließen und in
+   `resolveAlias` auflösen. Danach `valueOf` im Fall `'function'` umstellen, nach Klärung von
+   Frage 6.
+4. **Zuweisung, `Not` und Normalisierung** wie in „Auflösen wie `alias`“.
+5. **Branch-Kopf:** Identität und Untermenge fürs Abziehen und die Erschöpfungsprüfung.
+   `getBranchArgumentType` und `getBranchPredicateFacts` gehen darin auf. Die
+   Unerreichbarkeits-Prüfung (`TODO` bei „Prädikat-Fakten checken“) kann danach die Untermenge
+   nutzen.
+6. **Folding für Prädikate** über das vorhandene `tryBuildCallable`. Das deckt benannte Prädikate
+   wie `isFive` ab.
+7. **Gebundene Argumente im Funktionstyp**, damit auch `divisibleBy(5)` faltbar wird.
+8. **`checkTypeGuardIsType`/JUL5002** an Frage 2 anpassen, unreine Prädikate ablehnen
+   (Frage 9), auch an Branch-Köpfen, die heute nicht darauf geprüft werden. Den Schutz in
    `getPredicateFacts` entfernen (Frage 3).
-6. **Drumherum:** Checker- und LSP-Snapshot, Bench vor und nach dem Umbau mit `--save`,
-   öffentliche Doku in jul-homepage.
-7. **Offener Punkt 1 oben** ist mit diesem Plan mitentschieden, siehe Frage 8. Diesen Abschnitt
-   danach anpassen.
+9. **Drumherum:** `typeToString`, Hover, Checker- und LSP-Snapshot, Bench vor und nach dem Umbau
+   mit `--save`, öffentliche Doku in jul-homepage.
+10. **Offener Punkt 1 oben** ist mit diesem Plan mitentschieden, siehe Frage 8. Diesen Abschnitt
+    danach anpassen.
 
 ### Was noch zu klären ist
 
-1. **Realer Anlass.** yugioh enthält vier Funktionen mit explizitem `:> Boolean`, und keine davon
-   steht in Typ-Position. Der Anlass ist also nicht Bedarf, sondern dass der Checker lauffähigen
-   Code ablehnt. Reicht das, oder bleibt der Plan liegen, bis es einen Fall gibt?
+1. **Realer Anlass.** Beantwortet 2026-09-25: `x: divisibleBy(5) = 45` in
+   jul-examples/fizz-buzz scheitert heute an JUL5002 und JUL5000, obwohl die Branch-Köpfe
+   darüber dasselbe Prädikat nutzen. In yugioh steht kein Prädikat in Typ-Position.
 2. **Welche Funktionen als Typ zulässig sind.** Entschieden 2026-09-25: jede, die `true`
    liefern kann, siehe „Regel für die Laufzeit“. Der Test
    `arbitrary-boolean-function-not-assignable-to-type` kippt damit.
@@ -256,14 +336,8 @@ Funktion mit Rückgabetyp `Any` wird angenommen.
 4. **Funktionsformen.** Entschieden 2026-09-25: keine Einschränkung, der Aufruf läuft über die
    Parameterbindung, siehe „Regel für die Laufzeit“. Offen ist nur noch, was der zusätzliche
    `tryAssignArgs`-Aufruf je Prüfung kostet. Das misst der Bench.
-5. **Darstellung.** Empfehlung: kein eigener `julType`, `valueOf` übersetzt direkt in die
-   Obermenge (siehe „Regel für den Checker“). Ein eigener Typ würde zusätzlich `excludedIfFalse`
-   und den Namen des Prädikats durch Zuweisungen tragen. Dafür bräuchte `getTypeError` einen
-   dritten Ausgang „unbekannt“, und jeder erschöpfende Switch über `julType` müsste ihn kennen:
-   15 `assertNever` in checker.ts, 3 im Language Server. Der einzige Fall, der
-   `excludedIfFalse` außerhalb des Branchings braucht, ist ein Prädikat verschachtelt in `Not`
-   oder `Without` (siehe „Regel für den Checker“). Ist das selten genug, um dort einen falschen
-   Fehler hinzunehmen, oder ist das der Grund für den eigenen Typ?
+5. **Darstellung.** Entschieden 2026-09-25: eigener Typ nach dem Vorbild `alias`, siehe
+   „Regel für den Checker“. Den Ausschlag gab das Folding.
 6. **Wo umgewandelt wird.** Ein neuer Fall in `valueOf` wirkt überall. Mindestens eine Stelle ruft
    `valueOf` aber auf einen Wert und nicht auf einen Typwert auf: das Auflösen einer
    Parameter-Referenz im Argumentkontext (`// TODO immer valueOf?`). Über diesen Weg gehen
@@ -271,16 +345,45 @@ Funktion mit Rückgabetyp `Any` wird angenommen.
    `TypeOf(intitialValue)`. Ist das Argument dort eine Funktion, würde daraus fälschlich ein
    Prädikat. Zu klären ist, ob die Stelle `valueOf` wirklich braucht, oder ob die Umwandlung
    besser als eigene Funktion nur an Typ-Positionen läuft.
-7. **Erschöpfungsprüfung.** Mit der Obermenge bleibt `getTypeError` zweiwertig. Die
-   Erschöpfungsprüfung darf einen Branch mit Prädikat-Kopf aber nicht als treffend für seine ganze
-   Obermenge zählen, sondern nur für `excludedIfFalse`. Sonst gälte `?(x) [isPositive] => …` ohne
-   catchAll für jeden Integer als erschöpfend.
+7. **Identität.** Wann sind zwei Prädikate dieselben? Sicher bei derselben benannten Funktion,
+   auch über `pred = isPrime`. Offen ist der Aufruf: `x: divisibleBy(5)` und später
+   `?(x) [divisibleBy(5)]` sind zwei Aufrufe mit zwei Ergebnissen. Gleich wären sie über dasselbe
+   Literal mit denselben gebundenen Argumenten (Schritt 7). Ein Lambda, das an zwei Stellen neu
+   hingeschrieben wird, ist nie gleich.
 8. **Verengung über gespeicherte Werte (offener Punkt 1).** `pred = isInteger` trägt dieselben
    Fakten wie `isInteger`, und ein `Type`-Parameter bekommt sie beim Auflösen mit. Damit
    verengt `?(x) [pred]` automatisch. Die Frage aus Punkt 1, ob das über den Datenfluss passieren
    soll, fällt also hier und muss ausdrücklich entschieden werden.
-9. **Anzeige.** Ohne eigenen Typ zeigt der Hover für `(a: isPositive)` nur `Integer`. Der Name des
-   Prädikats ist nach `valueOf` weg. Reicht das?
+9. **Reinheit.** Identität und Folding setzen ein reines Prädikat voraus. Ein Prädikat, das
+   Zustand liest, kann für denselben Wert beim zweiten Aufruf etwas anderes liefern. Dann
+   stimmt `P ⊆ P` über zwei Aufrufe hinweg nicht mehr. Das gilt auch innerhalb eines
+   Branchings: Bei `v: Or(isPrime Text)` wertet die Laufzeit `isPrime` einmal beim Parametertyp
+   aus und ein zweites Mal im Kopf `[isPrime]`. Bei `[isPrime] … [Not(isPrime)]` wertet sie es
+   einmal je Kopf aus.
+
+   **Entschieden 2026-09-25:** Ein Prädikat in Typ-Position muss rein sein. Ist es `impure`
+   (Pfeil `~>` oder so abgeleitet), meldet der Checker JUL5002. Das gilt an jeder Stelle, an der
+   `valueOf` aus einem Funktionswert ein Prädikat macht: Typguards, Branch-Köpfe und Argumente
+   für `Type`-Parameter, also auch `Or`/`And`/`Not`. Identität und Folding sind damit für jedes
+   zulässige Prädikat sicher. Als Argument für `filter` & Co. bleibt jede Funktion erlaubt, denn
+   das ist keine Typ-Position.
+
+   Getroffen wird heute nichts. Die einzigen Funktionen in Branch-Köpfen in jul-examples und
+   yugioh sind `divisibleBy(…)` in den beiden fizz-buzz-Dateien. Der Checker leitet
+   `divisibleBy`, `divisibleBy(5)` und `isFive` als `pure` ab, `(x: Integer) => log(x)` als
+   `impure`.
+
+   Das ist die erste Stelle, an der die Reinheit eine Anforderung ist und nicht nur Anzeige
+   (vgl. „Bewusst nicht enthalten“ in [pure-functions.md](pure-functions.md)).
+
+   **`unknown`, entschieden 2026-09-25:** wird angenommen, aber ohne Folding. Das betrifft den
+   Pfeil `:>` ohne auflösbaren Rumpf, etwa einen Parameter `(p: (x: Any) :> Boolean)`, der dann als
+   Typ benutzt wird, oder einen Import aus `.ts`. Das folgt Freiheit: „Unwissen ist keine
+   Ablehnung“. Folgerung: Auch die Identität gilt für ein `unknown`-Prädikat nicht, denn sie ist
+   aus demselben Grund nur für reine Prädikate sicher.
+10. **Typguards an Definitionen zur Laufzeit.** Der Emitter gibt sie nicht aus. `x: isPrime = 4`
+    fällt also nur auf, wenn der Checker faltet. Ist das gewollt, oder sollen sie wie
+    Parametertypen zur Laufzeit geprüft werden? Das betrifft nicht nur Prädikate.
 
 Nicht Teil dieses Plans ist die umgekehrte Richtung: ein Typ als Prädikat-Argument
 (`filter(Integer)`). Dazu der nächste Abschnitt.

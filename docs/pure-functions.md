@@ -75,6 +75,9 @@ ja/nein", keine Zurückweisung nicht-pure Argumente. Denkbare spätere Konsument
 
 - **Ein künftiges `memoize`**: Caching ist falsch, wenn die gecachte Funktion nicht bei gleichen
   Argumenten immer dasselbe liefert — hier wäre Durchsetzung, nicht nur Anzeige, der Punkt.
+- **Prädikate in Typ-Position**: entschieden 2026-09-25, ein Prädikat als Typ muss rein sein.
+  Identität und Folding gelten sonst nicht. Siehe
+  [predicate-types-and-filter-narrowing.md](predicate-types-and-filter-narrowing.md), Frage 9.
 - **Vergleichsfunktionen bei Sortierung**: eine unreine Compare-Funktion kann eine in sich
   widersprüchliche Ordnung liefern und damit die Algorithmus-Invariante brechen, nicht nur das
   Ergebnis überraschen.
