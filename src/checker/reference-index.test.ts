@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { join, resolve } from 'path';
 
 import { checkTypes, ParsedDocuments } from './checker.js';
+import { errorInfos } from '../compiler-errors.js';
 import { createInMemoryHost, loadFile, ProjectHost } from '../project-loader.js';
 import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
 import { ReferenceIndex } from './reference-index.js';
@@ -121,5 +122,191 @@ describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
 
 	it('hält gleichnamige Felder verschiedener Felder derselben Deklaration auseinander', () => {
 		expect(referenceIndex.getReferences(getFieldSymbol('MyType', 'age'), filePath)).to.have.lengthOf(0);
+	});
+});
+
+function getErrorsWithSeverityError(documents: ParsedDocuments, filePath: string) {
+	return documents[filePath]!.checked!.errors.filter(error => errorInfos[error.code].severity === 'error');
+}
+
+function getFieldSymbolOfType(documents: ParsedDocuments, filePath: string, typeName: string, fieldName: string): SymbolDefinition {
+	const typeSymbol = documents[filePath]!.checked!.symbols[typeName]!;
+	const type = typeSymbol.typeInfo!.type as any;
+	const declaration = (type.julType === 'typeOf' ? type.value : type).declaration;
+	return declaration.expression.symbols[fieldName];
+}
+
+describe('ReferenceIndex: Feldnamen an Stellen mit erwartetem Typ', () => {
+	const filePath = join(folder, 'expected-fields.jul');
+	let documents: ParsedDocuments;
+	let referenceIndex: ReferenceIndex;
+
+	beforeEach(() => {
+		documents = {};
+		referenceIndex = new ReferenceIndex();
+		const code = [
+			'MyType = [',
+			'	name: Text',
+			']',
+			'Outer = [inner: MyType]',
+			'Other = [name: Text]',
+			'f = (value: MyType) => value/name',
+			'g = (count: Integer value: MyType) => count',
+			'a: MyType = [name = §a§]',
+			'b = f([name = §b§])',
+			'c = g(value = [name = §c§] count = 1)',
+			'd: List(MyType) = [[name = §d§]]',
+			'o: Outer = [inner = [name = §o§]]',
+			'r = () :> MyType => [name = §r§]',
+			'e = a/name',
+			'(aliased = name) = a',
+			'(name) = a',
+			'other: Other = [name = §p§]',
+			'untyped = [name = §q§]',
+			'h = (v: Any) => v',
+			'i = h([name = §s§])',
+			'nameUsage = name',
+			'aliasedUsage = aliased',
+			'',
+		].join('\n');
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
+	});
+
+	function getReferenceRows(): number[] {
+		return referenceIndex.getReferences(getFieldSymbolOfType(documents, filePath, 'MyType', 'name'), filePath)
+			.map(location => location.startRowIndex);
+	}
+
+	it('der Testcode prüft ohne Fehler', () => {
+		expect(getErrorsWithSeverityError(documents, filePath)).to.deep.equal([]);
+	});
+
+	[
+		{ name: 'Definition mit Typguard', row: 7 },
+		{ name: 'positionales Argument', row: 8 },
+		{ name: 'benanntes Argument', row: 9 },
+		{ name: 'Listenelement', row: 10 },
+		{ name: 'verschachteltes Literal', row: 11 },
+		{ name: 'Rückgabewert', row: 12 },
+		{ name: 'Zugriff über eine typisierte Variable', row: 13 },
+		{ name: 'Destructuring ohne Alias', row: 15 },
+	].forEach(({ name, row }) => {
+		it(`${name}: der Feldname ist eine Referenz auf das Feld des erwarteten Typs`, () => {
+			expect(getReferenceRows()).to.include(row);
+		});
+	});
+
+	it('Destructuring mit Alias: der Feldname ist die Referenz, nicht der lokale Name', () => {
+		const references = referenceIndex.getReferences(getFieldSymbolOfType(documents, filePath, 'MyType', 'name'), filePath)
+			.filter(location => location.startRowIndex === 14);
+		expect(references.map(location => location.startColumnIndex)).to.deep.equal([11]);
+	});
+
+	it('Destructuring ohne Alias: der lokale Name ist das Feld, seine Verwendungen gehören dazu', () => {
+		expect(getReferenceRows()).to.include(20);
+	});
+
+	[
+		{ name: 'ein gleichnamiges Feld eines anderen Typs', row: 16 },
+		{ name: 'ein Literal ohne erwarteten Typ', row: 17 },
+		{ name: 'ein Literal, das Any erwartet', row: 19 },
+		{ name: 'die Verwendung eines Alias aus einem Destructuring', row: 21 },
+	].forEach(({ name, row }) => {
+		it(`Gegenprobe: ${name} ist keine Referenz`, () => {
+			expect(getReferenceRows()).to.not.include(row);
+		});
+	});
+});
+
+describe('ReferenceIndex: Feldnamen mit erwartetem Typ aus einer anderen Datei', () => {
+	const typePath = join(folder, 'type.jul');
+	const usagePath = join(folder, 'usage.jul');
+
+	it('der Feldname ist eine Referenz auf das Feld in der importierten Datei', () => {
+		const documents: ParsedDocuments = {};
+		const referenceIndex = new ReferenceIndex();
+		const host = createInMemoryHost({
+			[typePath]: 'MyType = [\n\tname: Text\n]\n',
+			[usagePath]: '(MyType) = import(§./type.jul§)\nb: MyType = [name = §b§]\n',
+		}, { cloneUnchecked: false, referenceIndex: referenceIndex });
+		load(typePath, documents, host);
+		load(usagePath, documents, host);
+		const references = referenceIndex.getReferences(getFieldSymbolOfType(documents, typePath, 'MyType', 'name'), typePath)
+			.filter(location => location.filePath === usagePath);
+		expect(references.map(location => location.startRowIndex)).to.deep.equal([1]);
+	});
+
+	it('entfernt beim Recheck die Verknüpfungen der Datei, ohne sie zu verdoppeln', () => {
+		const documents: ParsedDocuments = {};
+		const referenceIndex = new ReferenceIndex();
+		const host = createInMemoryHost({
+			[typePath]: 'MyType = [\n\tname: Text\n]\n',
+			[usagePath]: '(MyType) = import(§./type.jul§)\nb: MyType = [name = §b§]\nc = b/name\n',
+		}, { cloneUnchecked: true, referenceIndex: referenceIndex });
+		load(typePath, documents, host);
+		const usage = load(usagePath, documents, host);
+		const getUsageRows = () => referenceIndex.getReferences(getFieldSymbolOfType(documents, typePath, 'MyType', 'name'), typePath)
+			.filter(location => location.filePath === usagePath)
+			.map(location => location.startRowIndex)
+			.sort();
+		expect(getUsageRows()).to.deep.equal([1, 2]);
+
+		checkTypes(usage, documents, { cloneUnchecked: true, referenceIndex: referenceIndex });
+		expect(getUsageRows()).to.deep.equal([1, 2]);
+
+		load(usagePath, documents, host, '(MyType) = import(§./type.jul§)\n');
+		expect(getUsageRows()).to.deep.equal([]);
+	});
+});
+
+describe('ReferenceIndex: Feldnamen mit einer Union als erwartetem Typ', () => {
+	const filePath = join(folder, 'union-fields.jul');
+	let documents: ParsedDocuments;
+	let referenceIndex: ReferenceIndex;
+
+	beforeEach(() => {
+		documents = {};
+		referenceIndex = new ReferenceIndex();
+		const code = [
+			'Person = [name: Text age: Integer]',
+			'Pet = [name: Text species: Text]',
+			'A = [kind: §a§ name: Text]',
+			'B = [kind: §b§ name: Text]',
+			'x: Or(Person Pet) = [name = §Ada§ age = 36]',
+			'y: Or(Person Pet) = [name = §Rex§ age = 3 species = §Hund§]',
+			'z: Or(A B) = [kind = §a§ name = §z§]',
+			'',
+		].join('\n');
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
+	});
+
+	function getReferenceRows(typeName: string): number[] {
+		return referenceIndex.getReferences(getFieldSymbolOfType(documents, filePath, typeName, 'name'), filePath)
+			.map(location => location.startRowIndex);
+	}
+
+	it('der Testcode prüft ohne Fehler', () => {
+		expect(getErrorsWithSeverityError(documents, filePath)).to.deep.equal([]);
+	});
+
+	it('ein Literal, das nur zu einem Zweig passt, gehört zu diesem Zweig', () => {
+		expect(getReferenceRows('Person')).to.include(4);
+	});
+
+	it('Gegenprobe: ein Literal gehört nicht zu einem Zweig, dessen Pflichtfeld ihm fehlt', () => {
+		expect(getReferenceRows('Pet')).to.not.include(4);
+	});
+
+	it('ein Literal, das zu beiden Zweigen passt, gehört zu beiden', () => {
+		expect(getReferenceRows('Person')).to.include(5);
+		expect(getReferenceRows('Pet')).to.include(5);
+	});
+
+	it('ein Literal gehört zu dem Zweig, dem seine übrigen Felder nicht widersprechen', () => {
+		expect(getReferenceRows('A')).to.include(6);
+	});
+
+	it('Gegenprobe: ein Literal gehört nicht zu einem Zweig, dem ein Feld widerspricht', () => {
+		expect(getReferenceRows('B')).to.not.include(6);
 	});
 });

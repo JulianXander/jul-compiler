@@ -291,13 +291,39 @@ typisierte Variable“ grün.
 mehrdeutigen Stelle auf alle (Frage 2). Rename benennt dabei auch die verknüpften Literalfelder
 um, und beim Destructuring ohne Alias gilt die Konfliktregel aus Frage 1. Go-to-Definition auf
 einen Zugriff wie `a/name` liefert die verknüpften Typfelder (Frage 4). Änderungen, die über den
-ersten Typ hinausgehen, tragen eine `changeAnnotation` mit `needsConfirmation`. Abgedeckt wird das
-über neue Einträge im LSP-Snapshot (References und Rename auf `MyType.name`, auf einem
-Literalfeld und auf `d = a/name`, Go-to-Definition auf `d = a/name`).
+ersten Typ hinausgehen, tragen eine `changeAnnotation` mit `needsConfirmation`.
+
+Umgesetzt abweichend vom ursprünglichen Plan nicht über den LSP-Snapshot, der nur Hover,
+Definition, Completion und SignatureHelp an Positionen in jul-examples abfragt. Stattdessen stehen
+Zielauflösung, Find-All-References und Rename samt Konfliktregel in einem eigenen Modul
+[references.ts](../../jul-language-server/src/references.ts) mit Unit-Tests, `server.ts` verdrahtet
+es nur. Go-to-Definition auf `a/name` und die Annotation wurden einmalig über echtes LSP gegen den
+gebauten Server geprüft, sie haben keinen automatischen Test.
+
+Die Konfliktprüfung ist bewusst grob: Jede Definition des neuen Namens irgendwo in der Datei und
+jedes Builtin zählt als Konflikt. Im Zweifel entsteht ein Alias zu viel, nie falscher Code.
+
+Auf dem lokalen Namen eines Destructurings ohne Alias, das kein Import ist, war Rename bisher gar
+nicht möglich (es wurde nur eine Import-Bindung gesucht). Jetzt fällt es auf das lokale Symbol und
+über die Verknüpfung auf das Typfeld.
 
 ### 8. Nachher-Messung und Aufräumen
 
 LSP-Bench mit `--save`. Den TODO-Punkt entfernen, falls danach nichts mehr offen ist.
+
+Stand (2026-09-25): Schritte 1 bis 7 umgesetzt, alle Tests grün (Compiler 678, Language Server 52),
+Checker-Snapshot, Zähler-Baseline und LSP-Snapshot unverändert, jul-examples unverändert, yugioh
+ohne Fehler.
+
+Messung (2026-09-25, yugioh). Die erste Nachher-Messung lief unter fremder Last (Compiler 10,6 s
+bei identischen Zählern). Sie steht weiter im Protokoll, gültig ist der wiederholte Eintrag direkt
+danach, Notiz „feldreferenzen, wiederholt ohne fremde last“:
+
+- Compiler: 1205 → 1418 ms. Die Zähler sind gegenüber vorher praktisch gleich (`getTypeError`
+  +0,06 %), ein ungespeicherter Lauf desselben Stands lag bei 1288 ms. Der Unterschied liegt in
+  der Streuung zwischen Läufen.
+- Language Server: didOpen 52 → 62 ms (hier wird der Index gefüllt), didChange 156 → 153 ms,
+  completion 1,9 → 1,6 ms, hover und definition unter der Messgrenze.
 
 ## Risiken
 

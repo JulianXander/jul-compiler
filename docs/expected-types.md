@@ -74,8 +74,9 @@ Kotlin den Typ, und es ist dieselbe Entscheidung wie für die Umgebung beim Pfad
 Zusätzlich wird er am Ausdruck gemerkt (Feld `expectedType` neben `typeInfo`), nur als Ergebnis
 zum Nachlesen für spätere Nutzer, nie als Eingabe. Nicht an `TypeInfo`: Diese Objekte werden
 geteilt, eine Definition übernimmt das ihres Werts, Symbole ebenso. Ein erwarteter Typ daran
-schlüge auf andere Ausdrücke durch. Veralten kann das Feld nicht, jeder Checklauf arbeitet auf
-einem frischen Klon des Baums.
+schlüge auf andere Ausdrücke durch. Veralten kann das Feld nicht: Wo derselbe Baum erneut geprüft
+wird (Language Server, `cloneUnchecked: true`), arbeitet jeder Lauf auf einem frischen Klon. Die
+CLI prüft jede Datei nur einmal und beschriftet den Baum direkt.
 `inferredTypeFromCall` entfällt.
 
 Verworfen:

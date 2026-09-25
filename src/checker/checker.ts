@@ -91,10 +91,10 @@ import {
 	updateFunctionTypeUnresolvedFlag,
 } from '../syntax-tree.js';
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
-import { coreLibPath, getPathFromImport, isCoreLibPath, isTopLevelImport, parseFile } from '../parser/parser.js';
+import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName, getExportedSymbols } from '../parser/parser-utils.js';
-import { getFieldSymbolsFromDictionaryType, ReferenceIndex, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
+import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex, ReferenceLocation, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -113,20 +113,89 @@ function recordFieldReference(
 	if (!fieldName || !sourceType) {
 		return;
 	}
+	getDeclaredFieldSymbols(sourceType, fieldName).forEach(fieldSymbol => {
+		referenceIndex.recordReference(fieldSymbol.symbol, fieldSymbol.filePath, toReferenceLocation(nestedKey, filePath));
+	});
+}
+
+/**
+ * Die Felddeklarationen, auf die ein Feldname in sourceType zeigt, ohne builtins.
+ */
+function getDeclaredFieldSymbols(sourceType: CompileTimeType, fieldName: string): FieldSymbolLocation[] {
 	const fieldSymbols = getFieldSymbolsFromDictionaryType(sourceType, fieldName);
 	if (!fieldSymbols.length) {
 		getFieldSymbolsFromDictionaryType(resolvePlaceholders(sourceType), fieldName, fieldSymbols);
 	}
-	fieldSymbols.forEach(fieldSymbol => {
-		if (fieldSymbol.filePath === '') {
+	return fieldSymbols.filter(fieldSymbol => fieldSymbol.filePath !== '');
+}
+
+function toReferenceLocation(position: Positioned, filePath: string): ReferenceLocation {
+	return {
+		filePath: filePath,
+		startRowIndex: position.startRowIndex,
+		startColumnIndex: position.startColumnIndex,
+		endRowIndex: position.endRowIndex,
+		endColumnIndex: position.endColumnIndex,
+	};
+}
+
+/**
+ * Destructuring eines Dictionary-Werts: Das Feld-Token (source beim Alias, sonst name) ist eine
+ * Referenz auf das Feld des Werttyps. Ohne Alias ist der lokale Name das Feld selbst, wie beim
+ * Import. Er wird deshalb mit den Typfeldern verknüpft, damit seine Verwendungen zu ihnen gehören.
+ * Ist das Feld des Werttyps selbst ein Literalfeld mit erwartetem Typ (a: MyType = [...]), sind
+ * dessen Typfelder gemeint.
+ */
+function recordDestructuringFieldReferences(
+	field: ParseDestructuringField,
+	valueType: CompileTimeType,
+	localSymbol: SymbolDefinition | undefined,
+	referenceIndex: ReferenceIndex,
+	filePath: string,
+): void {
+	const fieldToken = field.source ?? field.name;
+	getDeclaredFieldSymbols(valueType, fieldToken.name).forEach(valueField => {
+		referenceIndex.recordReference(valueField.symbol, valueField.filePath, toReferenceLocation(fieldToken, filePath));
+		if (field.source || !localSymbol) {
 			return;
 		}
-		referenceIndex.recordReference(fieldSymbol.symbol, fieldSymbol.filePath, {
-			filePath: filePath,
-			startRowIndex: nestedKey.startRowIndex,
-			startColumnIndex: nestedKey.startColumnIndex,
-			endRowIndex: nestedKey.endRowIndex,
-			endColumnIndex: nestedKey.endColumnIndex,
+		const typeFields = referenceIndex.getRelatedTypeFields(valueField.symbol, valueField.filePath);
+		(typeFields.length ? typeFields : [valueField]).forEach(typeField => {
+			referenceIndex.recordRelatedSymbol(typeField, { symbol: localSymbol, filePath: filePath });
+		});
+	});
+}
+
+/**
+ * Trägt die Feldnamen eines Dictionary-Literals als Referenzen auf die Felder seines erwarteten
+ * Typs ein und verknüpft die Feldsymbole des Literals mit ihnen. Über die Verknüpfung findet sich
+ * auch ein späterer Zugriff auf das Literalfeld (a/name). Bei einer Union zählen die Zweige, die
+ * nach dem Aussortieren übrig bleiben, und zwar alle davon.
+ */
+function recordContextualFieldReferences(
+	dictionary: ParseDictionaryLiteral,
+	fieldTypes: CompileTimeDictionary,
+	referenceIndex: ReferenceIndex,
+	filePath: string,
+): void {
+	const expectedType = narrowExpectedTypeByFields(dictionary.expectedType, fieldTypes, getWrittenFieldNames(dictionary));
+	if (!expectedType) {
+		return;
+	}
+	dictionary.fields.forEach(field => {
+		if (field.type !== 'singleDictionaryField') {
+			return;
+		}
+		const fieldName = getCheckedEscapableName(field.name);
+		const literalFieldSymbol = fieldName === undefined
+			? undefined
+			: dictionary.symbols[fieldName];
+		if (!fieldName || !literalFieldSymbol) {
+			return;
+		}
+		getDeclaredFieldSymbols(expectedType, fieldName).forEach(typeField => {
+			referenceIndex.recordReference(typeField.symbol, typeField.filePath, toReferenceLocation(field.name, filePath));
+			referenceIndex.recordRelatedSymbol(typeField, { symbol: literalFieldSymbol, filePath: filePath });
 		});
 	});
 }
@@ -2078,13 +2147,40 @@ function getExpectedFunctionType(expectedType: CompileTimeType | undefined): Com
 }
 
 /**
- * Sortiert aus einer Union die Zweige aus, denen die schon inferierten Felder eines
- * Dictionary-Literals widersprechen (diskriminierte Union: kind = §a§ passt nicht zu
- * [kind: §b§ ...]). Ein Zweig fällt nur bei einem nachgewiesenen Widerspruch weg.
+ * Die ausgeschriebenen Feldnamen eines Dictionary-Literals.
+ * undefined bei einem Spread, dessen Felder sind nicht ausgeschrieben.
+ */
+function getWrittenFieldNames(dictionary: ParseDictionaryLiteral): Set<string> | undefined {
+	const fieldNames = new Set<string>();
+	for (const field of dictionary.fields) {
+		if (field.type === 'spread') {
+			return undefined;
+		}
+		const fieldName = getCheckedEscapableName(field.name);
+		if (fieldName !== undefined) {
+			fieldNames.add(fieldName);
+		}
+	}
+	return fieldNames;
+}
+
+/**
+ * Sortiert aus einer Union die Zweige aus, die ein Dictionary-Literal nicht aufnehmen können:
+ * - ein schon inferiertes Feld widerspricht dem Feldtyp des Zweigs (diskriminierte Union:
+ *   kind = §a§ passt nicht zu [kind: §b§ ...])
+ * - der Zweig verlangt ein Feld, das im Literal nicht ausgeschrieben ist. Ein Feld, dessen Typ
+ *   Empty zulässt, darf fehlen.
+ * Ein Zweig fällt nur bei einem nachgewiesenen Widerspruch weg.
  */
 function narrowExpectedTypeByFields(
 	expectedType: CompileTimeType | undefined,
 	fieldTypes: CompileTimeDictionary,
+	/**
+	 * Alle ausgeschriebenen Feldnamen des Literals, auch die noch nicht inferierten.
+	 * undefined bei einem Spread im Literal: dessen Felder sind nicht bekannt, es wird dann nicht
+	 * auf fehlende Felder geprüft.
+	 */
+	writtenFieldNames: Set<string> | undefined,
 ): CompileTimeType | undefined {
 	if (!expectedType) {
 		return undefined;
@@ -2106,6 +2202,14 @@ function narrowExpectedTypeByFields(
 			if (choiceFieldType
 				&& getTypeError(undefined, resolvePlaceholders(fieldTypes[fieldName]!), resolvePlaceholders(choiceFieldType))) {
 				return false;
+			}
+		}
+		if (writtenFieldNames) {
+			for (const fieldName in resolvedChoiceType.Fields) {
+				if (!writtenFieldNames.has(fieldName)
+					&& getTypeError(undefined, builtinEmpty, resolvePlaceholders(resolvedChoiceType.Fields[fieldName]!))) {
+					return false;
+				}
 			}
 		}
 		return true;
@@ -2661,6 +2765,9 @@ function inferType(
 							});
 						}
 					}
+					if (value?.typeInfo && !isImportFunctionCall(value)) {
+						recordDestructuringFieldReferences(field, value.typeInfo.type, localSymbol, referenceIndex, filePath);
+					}
 				}
 				const valueType: CompileTimeType = value?.typeInfo
 					? value.typeInfo.type
@@ -2729,8 +2836,10 @@ function inferType(
 					pendingFieldTypes = {};
 				}
 			};
-			// Die schon geschriebenen Felder, für das Aussortieren einer erwarteten Union.
+			// Die schon inferierten und alle ausgeschriebenen Felder, für das Aussortieren einer
+			// erwarteten Union.
 			const writtenFieldTypes: CompileTimeDictionary = {};
+			const writtenFieldNames = getWrittenFieldNames(expression);
 			expression.fields.forEach(field => {
 				const value = field.value;
 				if (value) {
@@ -2745,7 +2854,7 @@ function inferType(
 							|| value.type === 'dictionary'
 							|| value.type === 'list';
 						const expectedDictionaryType = needsUniqueChoice
-							? narrowExpectedTypeByFields(expression.expectedType, writtenFieldTypes)
+							? narrowExpectedTypeByFields(expression.expectedType, writtenFieldTypes, writtenFieldNames)
 							: expression.expectedType;
 						expectedFieldType = getExpectedFieldType(expectedDictionaryType, fieldName);
 					}
@@ -2791,6 +2900,9 @@ function inferType(
 				}
 			});
 			mergePendingFields();
+			if (referenceIndex) {
+				recordContextualFieldReferences(expression, writtenFieldTypes, referenceIndex, filePath);
+			}
 			return { type: literalType ?? builtinAny };
 		}
 		case 'dictionaryType': {

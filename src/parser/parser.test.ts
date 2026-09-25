@@ -5,7 +5,7 @@ import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
 
 const expectedResults: {
-	name?: string;
+	name: string;
 	code: string;
 	result?: ParseExpression[];
 	errors?: CompilerError[];
@@ -753,7 +753,7 @@ const expectedResults: {
 
 describe('Parser', () => {
 	expectedResults.forEach(({ name, code, result, errors }) => {
-		it(name ?? code, () => {
+		it(name, () => {
 			const parserResult = parseCode(code, 'dummy.jul');
 			// if (parserResult.errors?.length) {
 			// 	console.log(parserResult.errors);

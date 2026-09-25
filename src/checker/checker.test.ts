@@ -22,7 +22,7 @@ import { checkTypes } from './checker.js';
 import { builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
 const expectedResults: {
-	name?: string;
+	name: string;
 	code: string;
 	result?: ParseExpression[];
 	errors?: CompilerError[];
@@ -1862,6 +1862,28 @@ g((x) => x)`,
 			],
 		},
 		{
+			// Ein Zweig, der ein im Literal fehlendes Feld verlangt, fällt weg: species fehlt, also
+			// erwartet cb (v: Integer) :> Text.
+			name: 'expected-type-union-branch-with-missing-field',
+			code: 'x: Or([name: Text age: Integer cb: (v: Integer) :> Text] [name: Text species: Text cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]',
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 146,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nInvalid value for field 'cb'\n  Invalid return value\n    Can not assign Integer to Text.\nMissing field 'species'.\nInvalid value for field 'cb'\n  Invalid type for parameter 'v'\n    Can not assign Text to Integer.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		},
+		{
+			// Gegenprobe: ein Feld, dessen Typ Empty zulässt, darf fehlen - der Zweig bleibt, es
+			// bleiben also zwei Funktionszweige und v ohne Typ.
+			name: 'expected-type-union-branch-with-optional-field-stays',
+			code: 'x: Or([name: Text age: Integer cb: (v: Integer) :> Text] [name: Text species: Or([] Text) cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]',
+		},
+		{
 			// Gegenprobe: ohne erwarteten Typ bleibt ein untypisierter Parameter Any.
 			name: 'expected-type-absent-leaves-parameter-untyped',
 			code: 'f = (x) => x',
@@ -2363,7 +2385,7 @@ g: Text = f(3)`,
 
 describe('Checker', () => {
 	expectedResults.forEach(({ name, code, result, errors }) => {
-		it(name ?? code, () => {
+		it(name, () => {
 			const parserResult = parseCode(code, 'dummy.jul');
 			// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
 			// unvollständigen Baum schlicht nichts zu melden hat. Vor dem Check, weil ohne Klon

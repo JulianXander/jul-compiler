@@ -143,6 +143,22 @@ interface IndexEntry {
 	location: ReferenceLocation;
 }
 
+export interface SymbolLocation {
+	symbol: SymbolDefinition;
+	filePath: string;
+}
+
+/**
+ * Ein Symbol, das zu einem Feld eines Typs gehört, ohne selbst dieses Feld zu sein: das Feld eines
+ * Literals an einer Stelle mit erwartetem Typ, oder der lokale Name eines Destructurings ohne Alias.
+ */
+interface RelatedEntry {
+	typeFieldKey: string;
+	typeField: SymbolLocation;
+	relatedKey: string;
+	related: SymbolLocation;
+}
+
 /**
  * Projektweiter, dateigeshardeter Referenz-Index: Rename und Find-All-References werden damit zu
  * reinen Lookups (O(Treffer)) statt Suchen über alle Dateien. Siehe
@@ -151,30 +167,83 @@ interface IndexEntry {
 export class ReferenceIndex {
 	#byReferenceFile = new Map<string, Set<IndexEntry>>();
 	#bySymbolKey = new Map<string, Set<ReferenceLocation>>();
+	#relatedByFile = new Map<string, Set<RelatedEntry>>();
+	#relatedByTypeFieldKey = new Map<string, Set<RelatedEntry>>();
+	#relatedByRelatedKey = new Map<string, Set<RelatedEntry>>();
+
+	/**
+	 * Verknüpft ein Symbol mit dem Feld eines Typs, zu dem es gehört (TypeScript: "related
+	 * symbols"). Die Verknüpfung gehört zur Datei des verknüpften Symbols und wird mit deren
+	 * Einträgen entfernt.
+	 */
+	recordRelatedSymbol(typeField: SymbolLocation, related: SymbolLocation): void {
+		const entry: RelatedEntry = {
+			typeFieldKey: getSymbolKey(typeField.filePath, typeField.symbol),
+			typeField: typeField,
+			relatedKey: getSymbolKey(related.filePath, related.symbol),
+			related: related,
+		};
+		addToSetMap(this.#relatedByFile, related.filePath, entry);
+		addToSetMap(this.#relatedByTypeFieldKey, entry.typeFieldKey, entry);
+		addToSetMap(this.#relatedByRelatedKey, entry.relatedKey, entry);
+	}
+
+	/**
+	 * Die Symbole, die mit einem Typfeld verknüpft sind.
+	 */
+	getRelatedSymbols(typeField: SymbolDefinition, filePath: string): SymbolLocation[] {
+		const entries = this.#relatedByTypeFieldKey.get(getSymbolKey(filePath, typeField));
+		return entries
+			? [...entries].map(entry => entry.related)
+			: [];
+	}
+
+	/**
+	 * Die Typfelder, mit denen ein Symbol verknüpft ist. Leer, wenn es selbst ein Typfeld ist oder
+	 * zu keinem gehört.
+	 */
+	getRelatedTypeFields(symbol: SymbolDefinition, filePath: string): SymbolLocation[] {
+		const entries = this.#relatedByRelatedKey.get(getSymbolKey(filePath, symbol));
+		return entries
+			? [...entries].map(entry => entry.typeField)
+			: [];
+	}
 
 	recordReference(canonicalSymbol: SymbolDefinition, canonicalFilePath: string, location: ReferenceLocation): void {
 		const symbolKey = getSymbolKey(canonicalFilePath, canonicalSymbol);
 		const entry: IndexEntry = { symbolKey, location };
-		let referenceFileEntries = this.#byReferenceFile.get(location.filePath);
-		if (!referenceFileEntries) {
-			referenceFileEntries = new Set();
-			this.#byReferenceFile.set(location.filePath, referenceFileEntries);
-		}
-		referenceFileEntries.add(entry);
-		let symbolEntries = this.#bySymbolKey.get(symbolKey);
-		if (!symbolEntries) {
-			symbolEntries = new Set();
-			this.#bySymbolKey.set(symbolKey, symbolEntries);
-		}
-		symbolEntries.add(location);
+		addToSetMap(this.#byReferenceFile, location.filePath, entry);
+		addToSetMap(this.#bySymbolKey, symbolKey, location);
 	}
 
-	getReferences(canonicalSymbol: SymbolDefinition, canonicalFilePath: string): ReferenceLocation[] {
-		const symbolKey = getSymbolKey(canonicalFilePath, canonicalSymbol);
-		const entries = this.#bySymbolKey.get(symbolKey);
+	/**
+	 * Nur die Referenzen auf das Symbol selbst, ohne die verknüpften Symbole.
+	 */
+	getDirectReferences(canonicalSymbol: SymbolDefinition, canonicalFilePath: string): ReferenceLocation[] {
+		const entries = this.#bySymbolKey.get(getSymbolKey(canonicalFilePath, canonicalSymbol));
 		return entries
 			? [...entries]
 			: [];
+	}
+
+	/**
+	 * Die Referenzen auf das Symbol und, wenn es ein Typfeld ist, auf die damit verknüpften
+	 * Symbole. Nur ein Schritt weit: Zwei Typfelder, die über ein gemeinsames Literal verknüpft
+	 * sind, hängen dadurch nicht aneinander.
+	 */
+	getReferences(canonicalSymbol: SymbolDefinition, canonicalFilePath: string): ReferenceLocation[] {
+		const symbolKey = getSymbolKey(canonicalFilePath, canonicalSymbol);
+		const result = new Map<string, ReferenceLocation>();
+		const addReferences = (key: string) => {
+			this.#bySymbolKey.get(key)?.forEach(location => {
+				result.set(getSymbolKey(location.filePath, location), location);
+			});
+		};
+		addReferences(symbolKey);
+		this.#relatedByTypeFieldKey.get(symbolKey)?.forEach(entry => {
+			addReferences(entry.relatedKey);
+		});
+		return [...result.values()];
 	}
 
 	/**
@@ -183,17 +252,38 @@ export class ReferenceIndex {
 	 * ein erneuter Checklauf keine veralteten/doppelten Einträge hinterlässt.
 	 */
 	clearReferencesFromFile(filePath: string): void {
+		const relatedEntries = this.#relatedByFile.get(filePath);
+		if (relatedEntries) {
+			for (const entry of relatedEntries) {
+				deleteFromSetMap(this.#relatedByTypeFieldKey, entry.typeFieldKey, entry);
+				deleteFromSetMap(this.#relatedByRelatedKey, entry.relatedKey, entry);
+			}
+			this.#relatedByFile.delete(filePath);
+		}
 		const referenceFileEntries = this.#byReferenceFile.get(filePath);
 		if (!referenceFileEntries) {
 			return;
 		}
 		for (const { symbolKey, location } of referenceFileEntries) {
-			const symbolEntries = this.#bySymbolKey.get(symbolKey);
-			symbolEntries?.delete(location);
-			if (symbolEntries?.size === 0) {
-				this.#bySymbolKey.delete(symbolKey);
-			}
+			deleteFromSetMap(this.#bySymbolKey, symbolKey, location);
 		}
 		this.#byReferenceFile.delete(filePath);
+	}
+}
+
+function addToSetMap<T>(map: Map<string, Set<T>>, key: string, value: T): void {
+	let values = map.get(key);
+	if (!values) {
+		values = new Set();
+		map.set(key, values);
+	}
+	values.add(value);
+}
+
+function deleteFromSetMap<T>(map: Map<string, Set<T>>, key: string, value: T): void {
+	const values = map.get(key);
+	values?.delete(value);
+	if (values?.size === 0) {
+		map.delete(key);
 	}
 }
