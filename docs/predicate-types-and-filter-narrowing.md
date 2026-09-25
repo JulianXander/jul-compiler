@@ -63,17 +63,12 @@ JULs struktureller Checker und außer Verhältnis zum Sprachumfang.
 
 ### 1. Narrowing über den `Type`-Wert hinweg (Scope 2b)
 
-`pred: Type = isInteger` als Zwischenschritt, danach soll `?(x) [pred] => ...` oder ein an
-anderer Stelle gespeicherter Prädikatwert narrowen. Ein Prädikat ist heute an einer
-`Type`-Position zwar *zuweisbar*, aber nicht *verengend* - das bleibt exklusiv dem direkten
-`?(pred)`-Typ-Kopf vorbehalten.
+`pred = isInteger` als Zwischenschritt, danach soll `?(x) [pred] => ...` oder ein an anderer
+Stelle gespeicherter Prädikatwert verengen.
 
-Offen ist hier keine Implementierung, sondern eine **Entscheidung**: Datenfluss-Fragilität
-(Umbenennung oder Indirektion bricht das Narrowing stillschweigend) sollte diskutiert sein, bevor
-der Weg offen steht. Alternative ist der 2a+-Pfad mit einer eigenen TypeGuard-Position, die die
-Absicht sichtbar macht, statt sie aus dem Datenfluss zu raten.
-
-Entschieden 2026-09-25 mit dem Plan unten: über den Datenfluss, siehe dort Frage 8.
+Erledigt 2026-09-25 mit dem Plan unten: Die Verengung läuft über den Datenfluss (Frage 8). Die
+Sorge, dass eine Umbenennung oder Indirektion sie still bricht, trifft mit der Identität über das
+Literal (Frage 7) nicht mehr zu. Test `predicate-identity-through-stored-value`.
 
 ### 2. Weitere Rumpfformen
 
@@ -400,12 +395,14 @@ Folgen außerhalb der Tests:
   gemeldet, wie der Kommentar dort verlangt. `Boolean.Without(true)` in derselben Datei heißt jetzt
   `And(Boolean Not(true))` statt fälschlich `Not(true)`. Zu `false` vereinfacht wird es noch nicht.
 
+Checker-Snapshot, Zähler-Gate und LSP-Snapshot sind neu geschrieben, jede Änderung darin ist
+einer der Ursachen oben zugeordnet.
+
 Offen:
 
-- Checker-Snapshot, Zähler-Gate und LSP-Snapshot sind neu zu schreiben. Im Checker-Snapshot ändern
-  sich die neue Zeile 18 in fizz-buzz.jul, die Meldung zu Zeile 24 in type-function.jul und die
-  beiden Stellen oben. Die LSP-Baseline weicht schon unabhängig davon ab.
 - Den LSP-Bench gibt es nur ohne Messung vor dem Umbau.
+- Was der zusätzliche `tryAssignArgs`-Aufruf je Prädikatprüfung zur Laufzeit kostet (Frage 4),
+  ist nicht gemessen. Der Bench misst nur parse und check.
 
 ### Was noch zu klären ist
 
