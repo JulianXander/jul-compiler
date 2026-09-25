@@ -88,7 +88,6 @@ describe('Parser', () => {
 					"startColumnIndex": 1,
 					"startRowIndex": 2,
 					"type": "singleDictionaryField",
-					"typeGuard": undefined,
 					"value": {
 						"endColumnIndex": 12,
 						"endRowIndex": 2,
@@ -153,7 +152,6 @@ describe('Parser', () => {
 					"startColumnIndex": 1,
 					"startRowIndex": 1,
 					"type": "singleDictionaryField",
-					"typeGuard": undefined,
 					"value": {
 						"endColumnIndex": 14,
 						"endRowIndex": 1,
@@ -591,7 +589,6 @@ describe('Parser', () => {
 							"startColumnIndex": 1,
 							"startRowIndex": 1,
 							"type": "singleDictionaryField",
-							"typeGuard": undefined,
 							"value": undefined,
 						},
 					],
@@ -625,6 +622,22 @@ describe('Parser', () => {
 					"message": "assignedValue missing for singleDictionaryField",
 					"startColumnIndex": 1,
 					"startRowIndex": 1,
+				},
+			],
+		});
+	});
+	// Ein Feld eines Dictionary-Literals hat keinen eigenen Typ. Geprüft wird über den Typ des
+	// ganzen Literals, z.B. an der Definition: `x: [a: Integer] = [a = 1]`.
+	it('dictionary-field-type-guard-not-allowed', () => {
+		expectParse('x = [a: Integer = 1]', {
+			errors: [
+				{
+					"code": ErrorCode.typeGuardNotAllowedForDictionaryField,
+					"message": "typeGuard is not allowed for dictionary field",
+					"startRowIndex": 0,
+					"startColumnIndex": 8,
+					"endRowIndex": 0,
+					"endColumnIndex": 15,
 				},
 			],
 		});

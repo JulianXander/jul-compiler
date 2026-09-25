@@ -325,9 +325,15 @@ Ergebnis (2026-09-24):
 - Erledigt (2026-09-25): Erwarteter Typ für das Präfix-Argument. Die aufgerufene Funktion wird
   dafür vor dem Präfix-Argument inferiert, zwei Durchgänge braucht es nicht, weil das Präfix
   das erste Argument ist. Die Fehlerposition steigt auch ins Präfix-Argument ab.
-- Erwarteter Typ aus dem Typguard eines Dictionary-Felds (Schritt 4). Setzt voraus, dass der
-  Wert überhaupt gegen den Typguard des Felds geprüft wird: `[a: Integer = §x§]` meldet heute
-  nichts.
+- Entfallen (2026-09-25): Erwarteter Typ aus dem Typguard eines Dictionary-Felds (Schritt 4).
+  Die Form `[a: T = v]` ist abgeschafft und meldet `JUL2205`. Sie wurde nirgends benutzt
+  (yugioh, jul-examples, core-lib), der Checker prüfte den Wert nicht gegen den Typguard, und der
+  Emitter ließ ihn weg. Dagegen stand eine zweite Typquelle je Feld, die jede Arbeit an
+  erwarteten Typen, Fehlerpositionen und Feldreferenzen hätte mitführen müssen, und die
+  Verwechslung von Wert- und Typ-Block (`:` heißt Typ, `=` heißt Wert). Den Typ trägt das ganze
+  Literal, etwa `x: [a: Integer] = [a = 1]`. Die Entscheidung ist ohne Bruch umkehrbar; kommt
+  der Bedarf nach einem lokalen Typ auf, wäre eine allgemeine Annotation am Ausdruck der
+  naheliegende Weg.
 
 ## Risiken
 

@@ -2933,6 +2933,17 @@ function bracketedExpressionToValueExpression(
 					return spreadDictionaryField;
 				}
 				errors.push(...getEscapableNameErrors(baseName));
+				// Ein Feld hat keinen eigenen Typ, geprüft wird über den Typ des ganzen Literals.
+				if (typeGuard) {
+					errors.push({
+						code: ErrorCode.typeGuardNotAllowedForDictionaryField,
+						message: 'typeGuard is not allowed for dictionary field',
+						startRowIndex: typeGuard.startRowIndex,
+						startColumnIndex: typeGuard.startColumnIndex,
+						endRowIndex: typeGuard.endRowIndex,
+						endColumnIndex: typeGuard.endColumnIndex,
+					});
+				}
 				const value = baseField.assignedValue;
 				if (!value) {
 					errors.push({
@@ -2951,7 +2962,6 @@ function bracketedExpressionToValueExpression(
 					type: 'singleDictionaryField',
 					description: baseField.description,
 					name: name,
-					typeGuard: typeGuard,
 					value: value,
 					startRowIndex: baseField.startRowIndex,
 					startColumnIndex: baseField.startColumnIndex,

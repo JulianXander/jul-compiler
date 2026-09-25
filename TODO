@@ -15,7 +15,6 @@
 -dictionary literal field completion anhand des erwarteten Zieltyps
 -erwarteter typ je ausdruck: folgeschritte, siehe docs/expected-types.md
 	-zwei durchgänge für aufrufargumente (callback vor dem argument, aus dem sein typ kommt)
-	-typguard eines dictionary-felds als erwarteter typ, vorher wert gegen typguard prüfen ([a: Integer = §x§] meldet nichts)
 	-union mit mehreren funktionszweigen (docs/expected-types.md, frage 3)
 -feldreferenzen (docs/field-references.md): umgesetzt, offen
 	-zugriff auf eine union (u/name) hängt an allen zweigen, rename einer deklaration kann den

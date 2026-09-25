@@ -246,7 +246,6 @@ export interface ParseSingleDictionaryField extends PositionedExpressionBase {
 	 * escapable
 	 */
 	name: ParseValueExpression | Name;
-	typeGuard?: ParseValueExpression;
 	/**
 	 * undefined bei unvollständiger Expression
 	 */
@@ -557,7 +556,6 @@ export function forEachChild<T>(
 				?? visit(expression.rest, callback);
 		case 'singleDictionaryField':
 			return visit(expression.name, callback)
-				?? visit(expression.typeGuard, callback)
 				?? visit(expression.value, callback);
 		case 'singleDictionaryTypeField':
 			return visit(expression.name, callback)

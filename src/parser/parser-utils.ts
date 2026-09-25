@@ -164,7 +164,7 @@ export function fillSymbolTableWithFields(
 			name,
 			field,
 			field.name,
-			field.typeGuard,
+			'typeGuard' in field ? field.typeGuard : undefined,
 			field.description,
 			isFunctionParameter ? index : undefined,
 		);

@@ -2968,11 +2968,6 @@ function inferType(
 				}
 				switch (field.type) {
 					case 'singleDictionaryField': {
-						const typeGuard = field.typeGuard;
-						if (typeGuard) {
-							setInferredType(typeGuard, typeContext, undefined, checkContext);
-							checkTypeGuardIsType(typeGuard, errors);
-						}
 						const fieldName = getCheckedEscapableName(field.name);
 						if (!fieldName) {
 							return;
