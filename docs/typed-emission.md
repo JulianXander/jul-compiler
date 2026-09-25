@@ -41,89 +41,95 @@ Laufzeit wieder auf Positionen verteilt. Positionale Aufrufe (`f(1 2)`) sind sch
 ### `src/checker/branch-dispatch.ts`
 
 Das Modul wird vom Emitter aufgerufen, nicht vom Checker. So kostet es im Language Server nichts, und
-Checker-Snapshot und Zähler-Gate bleiben unberührt.
+Checker-Snapshot und Zähler-Gate bleiben unberührt. Der Emitter nutzt es nur beim Emittieren einer ganzen
+Datei (`syntaxTreeToJs`), nicht beim Constant Folding mitten im Checklauf (`functionLiteralToEvaluableJs`).
 
-```ts
-type BranchTest =
-	| { kind: 'always' }                         // R_i ⊆ P_i
-	| { kind: 'jsKind'; kinds: JsKind[] }       // typeof/Array.isArray/instanceof/=== undefined
-	| { kind: 'literal'; value: bigint | string | boolean | number }
-	| { kind: 'field'; name: string; test: BranchTest }; // unterscheidendes Feld (Stufe 1b)
-export function getBranchDispatch(branching: ParseBranching): { tests: BranchTest[]; exhaustive: boolean } | undefined
-```
+`getBranchDispatch(branching)` liefert je Branch einen Test und ob das Branching erschöpfend ist, oder
+`undefined` für den Rückfall auf `_branch`:
 
-Rechnung je Branch i, mit Funktionen aus [checker.ts](../src/checker/checker.ts), die dafür exportiert werden:
+| Test | bedeutet | JS |
+|---|---|---|
+| `always` | fängt alles, was noch möglich ist; folgende Branches entfallen | kein Test |
+| `never` | fängt nichts mehr von dem, was noch möglich ist | Branch entfällt |
+| `jsKind` | Laufzeitart, direkt oder negiert | `x !== undefined`, `typeof x === 'string'`, `Array.isArray(x)`, `x instanceof Date` |
+| `literal` | Literal-Kopf | `x === 1n`, `x === 'a'` |
+| `field` | unterscheidendes Feld mit Literaltyp | `x?.['kind'] === 'circle'` |
 
-- `T` = `getElementTypeAtIndex(resolvePlaceholders(args.typeInfo.type), 0)`
-- `P_i` = `getBranchArgumentType(getParamsType(…branch.typeInfo…), 0)`, undefined = catchAll
-- `R_i` = `narrowBranchedType(T, undefined, getPreviousBranchArgumentType(branching, branch, 0))`
-- Gilt `R_i ⊆ P_i` (`areArgsAssignableTo(undefined, R_i, P_i)` ohne Fehler) oder ist `P_i` catchAll, dann `always`.
-  Alle folgenden Branches sind unerreichbar und werden nicht emittiert, `exhaustive = true`.
-- Ist `P_i` ein Literaltyp, dann `literal`.
-- Sonst werden `jsKinds(R_i ∩ P_i)` und `jsKinds(R_i ∩ ¬P_i)` berechnet. Sind beide bekannt und disjunkt, dann `jsKind`.
-- Sonst `undefined` für das ganze Branching, also Rückfall auf `_branch`.
+**Rechnung.** Der Argumenttyp wird in seine Glieder zerlegt (Or aufgelöst, Aliase aufgelöst, Never entfernt).
+Je Branch mit gefordertem Typ `P` wird jedes noch mögliche Glied eingeordnet:
 
-`jsKinds(type)` bildet auf JS-Laufzeitarten ab, passend zu `getTypeError`. Unbekannt ist konservativ `undefined`:
-`empty→undefined`, `boolean(Literal)→boolean`, `integer(Literal)→bigint`, `float(Literal)→number`,
-`text(Literal)→string`, `list/tuple/tupleOf→array`, `function→function`, `date/blob/error→instanceof`,
-`dictionary/dictionaryLiteral/stream→object`, `or→Vereinigung`, `alias→auflösen`, `never→∅`,
-alles andere (any, type, greater, and, not, Platzhalter, …) → `undefined`. Fraction ist zur Laufzeit ein
-einfaches Objekt und fällt mit Dictionary unter `object`, beide lassen sich also nicht trennen.
+- Seine Laufzeitart kommt in `P` nicht vor: sicher **verfehlt**.
+- Es ist Teilmenge von `P`: sicher **gefangen**.
+- Sonst **unentschieden**.
 
-Der Test muss nur auf `R_i` exakt sein. Getestet wird die Seite, deren Test ohne Ausschlüsse auskommt:
-`object` allein ist nicht exakt, sobald die andere Seite Error, Date oder Blob enthält, denn auch das sind
-Objekte. Dann wird die andere Seite negiert getestet (`!(x instanceof Error)`). Enthalten beide Seiten `object`,
-geht es mit Stufe 1b weiter oder zurück auf `_branch`.
+Aus den gefangenen und verfehlten Gliedern ergibt sich der Test. Die gefangenen scheiden danach aus, der Rest
+geht an den nächsten Branch. Bleibt nach einem Branch nichts übrig, wird sein Test zu `always`, auch wenn der
+Test allein das nicht sagt (letztes Literal einer Literal-Union).
 
-**Stufe 1b:** Feld-Diskriminator. Sind beide Seiten `object`, wird ein Feld gesucht, dessen Typen auf beiden
-Seiten disjunkte Literale oder `jsKinds` haben. Daraus entsteht z. B. `s?.['kind'] === 'circle'` oder `s?.['z'] !== undefined`.
+- **Literal-Kopf:** `x === literal` ist für jeden Wert exakt. Der Rest bleibt dabei bewusst zu groß (Integer statt
+  Integer ohne 1): ein Test, der auf einer Obermenge exakt ist, ist es auch auf dem Rest.
+- **Art-Test:** nur ohne unentschiedene Glieder und wenn gefangene und verfehlte Glieder keine Laufzeitart teilen.
+  Getestet wird die billigere Seite (undefined vor typeof vor `Array.isArray`/`instanceof`), bei Gleichstand die
+  gefangene. `object` hat keinen exakten Einzeltest, auch Array, Date und Error sind Objekte; die Seite mit `object`
+  scheidet deshalb aus.
+- **Feld-Test:** wenn alle noch möglichen Glieder Dictionaries sind und `P` ein Feld mit Literaltyp fordert, das jedes
+  Glied als Literal festlegt. Gleiches Literal gilt als gefangen, sofern das Glied `P` ganz erfüllt.
+- Sonst Rückfall auf `_branch` für das ganze Branching.
+
+**Any macht ein Glied unbrauchbar.** Die Teilmengenprüfung des Checkers ist für `Any` permissiv, sie hält
+`[a: Any]` für eine Teilmenge von `[a: Integer]`. Ein Glied, das irgendwo `Any` oder einen unbekannten Typ enthält,
+führt deshalb zum Rückfall.
+
+Laufzeitarten, passend zu `getTypeError` in der Runtime: `empty→undefined`, `boolean(Literal)→boolean`,
+`integer(Literal)→bigint`, `float(Literal)→number`, `text(Literal)→string`, `list/tuple→array`, `function→function`,
+`date/blob/error→instanceof`, `dictionary/dictionaryLiteral/stream→object`. Alles andere ist unbestimmt. Fraction ist
+zur Laufzeit ein einfaches Objekt und fällt mit Dictionary unter `object`.
 
 ### Emitter
 
-- Liefert `getBranchDispatch` ein Ergebnis, entsteht eine `?:`-Kette:
-  - Ist das Argument eine `reference`, wird dessen JS direkt verwendet. Sonst `((_arg) => …)(argJs)`, damit es nur einmal ausgewertet wird.
-  - Jeder Branch wird als Arrow aus `functionLiteralToJsParts(...).functionJs` aufgerufen, ohne `_createFunction`:
-    mit `(argJs)`, beim Typ-Kopf mit `()`.
-  - Ist der letzte Test nicht `always`, folgt `: _noBranchMatched(argJs)`. Das ist ein neuer Runtime-Helper mit der
-    bisherigen Meldung aus `_branch`.
-- Test-JS: `x !== undefined`, `typeof x === 'string'`, `Array.isArray(x)`, `x instanceof Date`, `x === 1n`,
-  `x?.['kind'] === 'circle'`.
+- Eine `?:`-Kette, flach hintereinander. Ist das Argument eine `reference`, wird dessen JS direkt verwendet. Sonst
+  `((_arg) => …)(argJs)`, damit es genau einmal ausgewertet wird.
+- Jeder Branch wird als Arrow an Ort und Stelle aufgerufen, ohne `_createFunction`: mit `(argJs)`, wenn er einen
+  Parameter bindet, sonst mit `()`.
+- Ist das Branching nicht erschöpfend, endet die Kette mit `_noBranchMatched(argJs)`, einem Runtime-Helper mit der
+  bisherigen Meldung aus `_branch`.
 - `compiler.ts` emittiert aus `parsed.checked ?? parsed.unchecked`. Im CLI ist das dasselbe Objekt
-  (`cloneUnchecked: false`), aber so ist sichtbar, dass die typeInfo gebraucht wird. Ohne typeInfo läuft alles wie bisher.
-
-### Tests
-
-Ein neuer Helfer `expectCheckedEmit(code, result)` in `emitter.test.ts` (`parseCode` → `checkTypes` →
-`syntaxTreeToJs(parsed.checked.expressions)`), je ein `it`:
-
-- Empty vs. komplexer Typ → `x !== undefined ? … : …`
-- Text / List / Dictionary → `typeof` / `Array.isArray` / Rest
-- Literal-Kopf → `=== 1n`
-- nicht erschöpfend → `_noBranchMatched`
-- Rückfälle: Prädikat-Kopf, zwei Argumente, untypisiertes Argument → weiter `_branch(`
-- Stufe 1b: Tag-Feld → `x?.['kind'] === 'circle'`
-- `getBranchDispatch` selbst in `checker/branch-dispatch.test.ts`
+  (`cloneUnchecked: false`), aber so ist sichtbar, dass die typeInfo gebraucht wird.
 
 ## Schritt 2: Direkte Aufrufe bei benannten Argumenten
 
-In `case 'functionCall'` mit `args.type === 'dictionary'` wird statt `_callFunction(f, prefix, {…})` direkt
-`f(prefix, a, b)` emittiert, wenn alles Folgende gilt:
+In `case 'functionCall'` mit einem Dictionary als Argumentliste wird statt `_callFunction(f, prefix, {…})` direkt
+`f(…)` emittiert, wenn alles Folgende gilt:
 
-- Die aufgerufene Funktion ist nachweislich eine **JUL-Funktion**. Eine JS-Funktion (`nativeFunction`) bekommt
-  von `_callFunction` das Dictionary selbst. Erkennungsmerkmal ist `CompileTimeFunctionType.literal`
-  ([syntax-tree.ts](../src/syntax-tree.ts)): Es ist nur bei Funktionsliteralen aus `.jul` gesetzt, und das Symbol
-  behält den Typ des Werts. Der aufgelöste Typ von `functionExpression` muss also eine Funktion mit `literal` sein,
-  deren `params.type === 'parameters'` ist und die keinen rest hat. Funktionswertige Parameter (deklarierter Typ, kein
-  `literal`) und Unions von Funktionen fallen auf `_callFunction` zurück.
+- Die aufgerufene Funktion ist eine Referenz und nachweislich ein **JUL-Literal**. Eine `nativeFunction` bekommt von
+  `_callFunction` das Dictionary selbst. Erkennungsmerkmal ist `CompileTimeFunctionType.literal`: Es ist nur bei
+  Funktionsliteralen aus `.jul` gesetzt, und das Symbol behält den Typ des Werts. Die Parameterliste ist einfach, ohne
+  rest. Funktionswertige Parameter (deklarierter Typ, kein `literal`) fallen auf `_callFunction` zurück.
 - Das Dictionary hat keine Spread-Felder.
-- Zugeordnet wird nach `source ?? name`. Genau das legt der Checker als `ParametersType.singleNames[].name` ab, und die
-  Laufzeit ordnet genauso zu (`assignArgs`). Fehlende Parameter werden zu `undefined`, überzählige Argumente fallen weg.
-- Die Auswertung folgt der geschriebenen Reihenfolge. Weicht die Parameterreihenfolge ab und ist ein Argument weder
-  Referenz noch Literal, werden die Ausdrücke in geschriebener Reihenfolge an ein Arrow übergeben, das sie in
-  Parameterreihenfolge weiterreicht: `f(b = x() a = y())` → `((_b, _a) => f(_a, _b))(x(), y())`. Überzählige Argumente
-  werden dabei trotzdem ausgewertet. Sonst entsteht direkt `f(a, b)`.
-- Tests über `expectCheckedEmit`: gleiche Reihenfolge, umsortiert, fehlender Parameter, prefixArgument, `nativeFunction`
-  (`log(a = 1)` bleibt `_callFunction`), nicht-triviales Argument in abweichender Reihenfolge, überzähliges nicht-triviales Argument.
+
+Zuordnung wie `assignArgs`: nach `source ?? name`, das prefixArgument belegt den ersten Parameter, und ein benanntes
+Argument für denselben Parameter fällt dann weg. Fehlende Parameter werden `undefined`, am Ende werden sie weggelassen.
+
+Die Auswertung bleibt in geschriebener Reihenfolge. **Trivial** sind Referenzen und Literale (Zahlen, Text ohne
+Interpolation, Empty), sie dürfen die Position wechseln. Stehen die nicht-trivialen Argumente nicht in
+Parameterreihenfolge oder fiele eines weg, werden alle Argumente in geschriebener Reihenfolge an ein Arrow übergeben:
+`g(b = h(x) a = h(1))` → `((_arg0, _arg1) => g(_arg1, _arg0))(h(x), h(1n))`. Sonst entsteht direkt `g(x, h(x))`.
+
+## Messung
+
+`npm run bench-runtime` (ms je eine Million Aufrufe, Median):
+
+| Fall | vorher | Schritt 1 | Schritt 2 |
+|---|---|---|---|
+| `emptyOrComplex` | 3783 | 4,8 | 3,8 |
+| `textListOrDictionary` | 8922 | 7,8 | 6,8 |
+| `tagField` | 4462 | 8,3 | 7,7 |
+| `positional` | 8,1 | 7,9 | 6,5 |
+| `namedInOrder` | 38,7 | 34,7 | 6,0 |
+| `namedSwapped` | 39,1 | 35,6 | 6,2 |
+
+In yugioh laufen danach 70 von 249 Branchings weiter über `_branch`, keiner der zwei benannten Aufrufe mehr über
+`_callFunction`.
 
 ## Später: Hinweis bei unvermeidbarer voller Prüfung
 

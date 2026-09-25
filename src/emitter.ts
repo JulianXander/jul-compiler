@@ -1,6 +1,7 @@
 import {
 	Name,
 	ParseBranching,
+	ParseDictionaryLiteral,
 	ParseExpression,
 	ParseFunctionCall,
 	ParseFunctionLiteral,
@@ -17,6 +18,7 @@ import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from './parser/parser.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from './checker/branch-dispatch.js';
+import { isFunctionType, resolveAlias, resolvePlaceholders } from './checker/checker.js';
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
@@ -254,6 +256,13 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				}
 				case 'object':
 				case 'dictionary': {
+					const directCallJs = useTypeInfo
+						&& args.type === 'dictionary'
+						? namedArgumentsToDirectCallJs(functionExpression, functionJs, prefixArgument, args, indent)
+						: undefined;
+					if (directCallJs) {
+						return directCallJs;
+					}
 					const argsJs = expressionToJs(args, indent);
 					const jsValues = [functionJs, prefixArgJs, argsJs];
 					const valuesJs = listValuesToJs(jsValues, indent);
@@ -561,6 +570,119 @@ function literalValueToJs(value: LiteralValue): string {
 }
 
 //#endregion branching mit Typinformation
+
+//#region benannte Argumente mit Typinformation
+
+/**
+ * Ordnet benannte Argumente schon beim Emittieren den Parametern zu, statt zur Laufzeit über
+ * _callFunction/assignArgs. Nur, wenn die aufgerufene Funktion nachweislich ein JUL-Literal ist:
+ * eine nativeFunction bekommt von _callFunction das Dictionary selbst.
+ * Die Auswertung bleibt in geschriebener Reihenfolge. Müssten dafür nicht-triviale Argumente die
+ * Reihenfolge tauschen oder fiele eines weg, werden alle Argumente in geschriebener Reihenfolge an
+ * ein Arrow übergeben, das sie in Parameterreihenfolge weiterreicht.
+ */
+function namedArgumentsToDirectCallJs(
+	functionExpression: SimpleExpression,
+	functionJs: string,
+	prefixArgument: SimpleExpression | undefined,
+	args: ParseDictionaryLiteral,
+	indent: number,
+): string | undefined {
+	const parameterNames = getLiteralParameterNames(functionExpression);
+	if (!parameterNames) {
+		return undefined;
+	}
+	// Das prefixArgument steht vorn und belegt den ersten Parameter. Ein benanntes Argument für
+	// denselben Parameter ignoriert assignArgs, es fällt also weg.
+	const written: { value: ParseValueExpression; parameterIndex: number; }[] = [];
+	if (prefixArgument) {
+		written.push({ value: prefixArgument, parameterIndex: 0 });
+	}
+	for (const field of args.fields) {
+		if (field.type !== 'singleDictionaryField'
+			|| !field.value) {
+			return undefined;
+		}
+		const name = getCheckedEscapableName(field.name);
+		if (name === undefined) {
+			return undefined;
+		}
+		const parameterIndex = parameterNames.indexOf(name);
+		written.push({
+			value: field.value,
+			parameterIndex: prefixArgument && !parameterIndex
+				? -1
+				: parameterIndex,
+		});
+	}
+	const innerIndent = indent + 1;
+	const nonTrivial = written.filter(argument => !isTrivialArgument(argument.value));
+	const needsTemporaries = nonTrivial.some((argument, index) =>
+		argument.parameterIndex < 0
+		|| (index && argument.parameterIndex < nonTrivial[index - 1]!.parameterIndex));
+	const slotsJs: (string | undefined)[] = parameterNames.map(() => undefined);
+	written.forEach((argument, index) => {
+		if (argument.parameterIndex >= 0) {
+			slotsJs[argument.parameterIndex] = needsTemporaries
+				? `_arg${index}`
+				: expressionToJs(argument.value, innerIndent);
+		}
+	});
+	// Fehlende Parameter am Ende brauchen kein undefined, JS füllt sie selbst auf.
+	while (slotsJs.length
+		&& slotsJs[slotsJs.length - 1] === undefined) {
+		slotsJs.pop();
+	}
+	const argumentsJs = slotsJs.map(slotJs => slotJs ?? 'undefined');
+	if (!needsTemporaries) {
+		return `${functionJs}(${listValuesToJs(argumentsJs, indent)})`;
+	}
+	const temporariesJs = written.map((_, index) => `_arg${index}`).join(', ');
+	const writtenJs = written.map(argument => expressionToJs(argument.value, innerIndent));
+	return `((${temporariesJs}) => ${functionJs}(${argumentsJs.join(', ')}))(${listValuesToJs(writtenJs, indent)})`;
+}
+
+/**
+ * Die Namen, unter denen die Laufzeit benannte Argumente zuordnet (source ?? name, wie
+ * assignArgs). undefined, wenn die Funktion kein JUL-Literal mit einfacher Parameterliste ist.
+ * literal am Funktionstyp ist nur bei Funktionsliteralen aus .jul gesetzt, und das Symbol behält
+ * den Typ des Werts.
+ */
+function getLiteralParameterNames(functionExpression: SimpleExpression): string[] | undefined {
+	if (functionExpression.type !== 'reference'
+		|| !functionExpression.typeInfo) {
+		return undefined;
+	}
+	const functionType = resolveAlias(resolvePlaceholders(functionExpression.typeInfo.type));
+	if (!isFunctionType(functionType)
+		|| !functionType.literal) {
+		return undefined;
+	}
+	const params = functionType.literal.params;
+	if (params.type !== 'parameters'
+		|| params.rest) {
+		return undefined;
+	}
+	return params.singleFields.map(field => field.source ?? field.name.name);
+}
+
+/** Ohne Seiteneffekt, darf also in anderer Reihenfolge ausgewertet werden */
+function isTrivialArgument(value: ParseValueExpression): boolean {
+	switch (value.type) {
+		case 'reference':
+		case 'integer':
+		case 'float':
+		case 'fraction':
+		case 'empty':
+			return true;
+		case 'text':
+			return value.values.every(part => part.type === 'textToken');
+		default:
+			return false;
+	}
+}
+
+//#endregion benannte Argumente mit Typinformation
 
 function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;

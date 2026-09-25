@@ -368,3 +368,95 @@ f = (x: Or([] Text)) =>
 		() => 2`);
 	});
 });
+
+const expectCallEmit = reportAtCaller((code: string, bodyJs: string) => {
+	expect(emitCheckedFunctionBody(code)).to.equal(bodyJs);
+});
+
+/** Fälle, in denen der Aufruf weiter zur Laufzeit über _callFunction zugeordnet wird */
+const expectCallFallback = reportAtCaller((code: string) => {
+	expect(emitCheckedFunctionBody(code)).to.match(/^\n\t\treturn _callFunction\(/);
+});
+
+describe('Emitter benannte Argumente mit Typinformation', () => {
+	it('gleiche Reihenfolge wird zum positionalen Aufruf', () => {
+		expectCallEmit(`g = (a: Integer b: Integer) => a
+f = (x: Integer) =>
+	g(a = x b = 1)`, `
+		return g(
+			x,
+			1n,
+		)`);
+	});
+	it('abweichende Reihenfolge wird in Parameterreihenfolge übergeben', () => {
+		expectCallEmit(`g = (a: Integer b: Integer) => a
+f = (x: Integer) =>
+	g(b = 1 a = x)`, `
+		return g(
+			x,
+			1n,
+		)`);
+	});
+	it('fehlender letzter Parameter entfällt', () => {
+		expectCallEmit(`g = (a: Integer b: Or([] Integer)) => a
+f = (x: Integer) =>
+	g(a = x)`, `
+		return g(x)`);
+	});
+	it('fehlender Parameter in der Mitte wird undefined', () => {
+		expectCallEmit(`g = (a: Or([] Integer) b: Integer) => b
+f = (x: Integer) =>
+	g(b = x)`, `
+		return g(
+			undefined,
+			x,
+		)`);
+	});
+	it('prefixArgument geht an den ersten Parameter', () => {
+		expectCallEmit(`g = (a: Integer b: Integer) => a
+f = (x: Integer) =>
+	x.g(b = 1)`, `
+		return g(
+			x,
+			1n,
+		)`);
+	});
+	it('ein einzelnes nicht-triviales Argument darf die Position wechseln', () => {
+		expectCallEmit(`h = (y: Integer) => y
+g = (a: Integer b: Integer) => a
+f = (x: Integer) =>
+	g(b = h(x) a = x)`, `
+		return g(
+			x,
+			h(x),
+		)`);
+	});
+	it('mehrere nicht-triviale Argumente werden in geschriebener Reihenfolge ausgewertet', () => {
+		expectCallEmit(`h = (y: Integer) => y
+g = (a: Integer b: Integer) => a
+f = (x: Integer) =>
+	g(b = h(x) a = h(1))`, `
+		return ((_arg0, _arg1) => g(_arg1, _arg0))(
+			h(x),
+			h(1n),
+		)`);
+	});
+	it('überzähliges nicht-triviales Argument wird trotzdem ausgewertet', () => {
+		expectCallEmit(`h = (y: Integer) => y
+g = (a: Integer) => a
+f = (x: Integer) =>
+	g(a = x c = h(x))`, `
+		return ((_arg0, _arg1) => g(_arg0))(
+			x,
+			h(x),
+		)`);
+	});
+	it('Rückfall: nativeFunction bekommt weiter das Dictionary', () => {
+		expectCallFallback(`f = (x: Integer) =>
+	modulo(dividend = x divisor = 3)`);
+	});
+	it('Rückfall: funktionswertiger Parameter', () => {
+		expectCallFallback(`f = (g: (a: Integer) -> Integer) =>
+	g(a = 1)`);
+	});
+});

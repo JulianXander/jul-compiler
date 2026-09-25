@@ -11,3 +11,9 @@
 2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	7.89	8.72	8.72	branching-diskriminatoren
 2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	34.73	37.23	37.23	branching-diskriminatoren
 2026-09-25 15:03:33	7820997+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	35.59	38.16	38.16	branching-diskriminatoren
+2026-09-25 15:48:25	7e773f9+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	3.81	14.22	14.22	direkte aufrufe bei benannten argumenten
+2026-09-25 15:48:25	7e773f9+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	6.75	11.17	11.17	direkte aufrufe bei benannten argumenten
+2026-09-25 15:48:25	7e773f9+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.68	10.43	10.43	direkte aufrufe bei benannten argumenten
+2026-09-25 15:48:25	7e773f9+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.50	7.27	7.27	direkte aufrufe bei benannten argumenten
+2026-09-25 15:48:25	7e773f9+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.03	6.41	6.41	direkte aufrufe bei benannten argumenten
+2026-09-25 15:48:25	7e773f9+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.23	7.08	7.08	direkte aufrufe bei benannten argumenten
