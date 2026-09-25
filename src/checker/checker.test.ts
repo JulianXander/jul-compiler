@@ -2497,6 +2497,21 @@ f(a = 1 b = 2)`, {
 	it('positional-destructuring-from-list', () => {
 		expectCheck('(a b) = [1 2]\nc = [a b]');
 	});
+	// Im Rumpf ist a noch ein Parameter, der Spread bleibt deshalb ein unaufgelöstes Concat.
+	// Auch daraus sind die Positionen lesbar, das Destructuring darf nicht scheitern.
+	it('positional-destructuring-from-spread-of-generic-list-parameter', () => {
+		expectCheck(`myFn = (a: List(Integer)) =>
+	(x y) = [...a 1]
+	[x y]`);
+	});
+	// Position 1 existiert in einer List immer, x ist also Integer und nicht Or(Empty Integer).
+	// Die Position darf nicht verloren gehen, nur weil die Quelle ein Parameter ist.
+	it('positional-destructuring-from-generic-list-parameter-keeps-first-position', () => {
+		expectCheck(`f = (i: Integer) => i
+myFn = (a: List(Integer)) =>
+	(x y) = a
+	[f(x) y]`);
+	});
 	// Eine Variable darf legitim mehr Felder haben, und zu löschen gäbe es hier nichts.
 	it('destructuring-from-variable-is-not-discarded', () => {
 		expectCheck(`v = [a = 1 b = 2]

@@ -997,16 +997,44 @@ export function dereferenceIndexFromObject(
 			return createNestedReference(sourceObjectType, index);
 		case 'tuple':
 			return sourceObjectType.ElementTypes[index - 1];
+		case 'concat': {
+			// Ein Concat bleibt nur stehen, solange eine Quelle offen ist (siehe concatFromTypes).
+			// Die Quellen werden abgezählt, solange ihre Länge feststeht; liegt die Position
+			// dahinter, hängt sie vom Argument ab, und der Zugriff wartet auf die aufgelösten
+			// Quellen, statt verloren zu gehen.
+			const deferred = sourceObjectType.Sources.some(isUnresolvedPlaceholderType)
+				? createNestedReference(sourceObjectType, index)
+				: undefined;
+			let remainingIndex = index;
+			for (const rawSource of sourceObjectType.Sources) {
+				const source = resolveAlias(valueOf(rawSource));
+				switch (source.julType) {
+					case 'empty':
+						continue;
+					case 'tuple':
+						if (remainingIndex <= source.ElementTypes.length) {
+							return source.ElementTypes[remainingIndex - 1];
+						}
+						remainingIndex -= source.ElementTypes.length;
+						continue;
+					case 'list':
+						// Wie im Fall 'list': nur die erste Position ist beweisbar belegt.
+						return remainingIndex === 1
+							? source.ElementType
+							: deferred;
+					default:
+						return deferred;
+				}
+			}
+			return deferred;
+		}
 		// Keine Position mit diesem Index bekannt - unverändertes Verhalten wie vor der
-		// Exhaustivitätsprüfung. 'concat' fehlt hier bewusst noch eine echte Behandlung
-		// (offener Punkt #4 in docs/CHECKER-AUDIT.md, analog zum Fix in
-		// dereferenceNameFromObjectType/dereferenceUnknownKeyFromObject).
+		// Exhaustivitätsprüfung.
 		case 'and':
 		case 'any':
 		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
-		case 'concat':
 		case 'date':
 		case 'dictionary':
 		case 'error':
@@ -3002,8 +3030,15 @@ function inferType(
 					: builtinAny;
 				// Die Laufzeit greift bei einem Array über die Position zu, sonst über den Namen
 				// (_isArray ? _temp[index] : _temp.name) - der Checker prüft deshalb beides.
-				const fieldType = dereferenceNameFromObject(referenceName, valueType)
-					?? dereferenceIndexFromObject(index + 1, valueType);
+				// Bei einer offenen Quelle legt sich dereferenceNameFromObject aber auf den Namen
+				// fest (a/x), und die Position ginge verloren. Schließt der Typ der Quelle benannte
+				// Felder aus, ist jedes Argument ein Array, gelesen wird also über die Position.
+				const readsByPosition = isUnresolvedPlaceholderType(valueType)
+					&& !canHaveFields(resolvePlaceholders(valueType));
+				const fieldType = readsByPosition
+					? dereferenceIndexFromObject(index + 1, valueType)
+					: dereferenceNameFromObject(referenceName, valueType)
+						?? dereferenceIndexFromObject(index + 1, valueType);
 				if (!fieldType) {
 					allFieldsResolved = false;
 					errors.push({
