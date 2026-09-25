@@ -73,7 +73,7 @@ Offen ist hier keine Implementierung, sondern eine **Entscheidung**: Datenfluss-
 der Weg offen steht. Alternative ist der 2a+-Pfad mit einer eigenen TypeGuard-Position, die die
 Absicht sichtbar macht, statt sie aus dem Datenfluss zu raten.
 
-Der Plan unten würde diese Frage mitentscheiden, siehe dort Frage 8.
+Entschieden 2026-09-25 mit dem Plan unten: über den Datenfluss, siehe dort Frage 8.
 
 ### 2. Weitere Rumpfformen
 
@@ -241,7 +241,8 @@ Gestalt oder vergleicht sie Mengen? Das ist der eigentliche Aufwand des eigenen 
 In die Hülle schauen die folgenden Stellen, und zwar **vor** dem Auflösen:
 
 - **Zuweisung eines Werts an ein Prädikat `P`,** in dieser Reihenfolge:
-  1. Der Wert hat selbst den Typ `P`, dieselbe Funktion: passt.
+  1. Der Wert hat selbst den Typ `P`, und sein Prädikat ist gleich `P` im Sinne von Frage 7:
+     passt.
   2. Der Wert ist konstant (`typeToConstantValue`) und die Funktion faltbar: ausrechnen. `true`
      passt, alles andere ist ein Fehler.
   3. Sonst muss der Wert ganz in der Obermenge liegen, wie bei jedem anderen Typ auch. Den Rest
@@ -296,26 +297,38 @@ das Budget pro Check-Lauf ist nicht erschöpft. Greift es nicht, gilt Regel 3 mi
    - ein unreines Prädikat, das abgelehnt wird, als Typguard und als Branch-Kopf,
    - ein Prädikat mit typisiertem Parameter (`isPositive`),
    - das Abziehen über die Identität im catchAll,
+   - Erschöpfung über `[isPrime] … [Not(isPrime)]` und über `Or(isValidEmail Empty)`,
+   - zwei getrennt hingeschriebene Lambdas, die nicht als gleich gelten,
    - ein Literal, das per Folding abgelehnt wird (`x: isFive = 44`),
-   - ein Funktionstyp-Literal in Typ-Position, das weiter Funktionen verlangt.
+   - ein Funktionstyp-Literal in Typ-Position, das weiter Funktionen verlangt,
+   - `typeOfValue(f)` und `completed$(f)`, die den Funktionstyp behalten,
+   - JUL2600 an einem groß geschriebenen Prädikat, auch einem erkannten, und keine Warnung an
+     `divisibleBy`.
 
    Für die Laufzeit: `=== true`, eine Funktion mit Typ-Kopf als Prädikat, der Parametertyp des
    Prädikats wird geprüft. Dann anhalten.
 2. **Laufzeit:** `getTypeError` im `case 'function'` auf `tryAssignArgs` und `=== true` umstellen.
-3. **Typ `predicate`** in syntax-tree.ts anlegen, in `ResolvedType` ausschließen und in
-   `resolveAlias` auflösen. Danach `valueOf` im Fall `'function'` umstellen, nach Klärung von
-   Frage 6.
-4. **Zuweisung, `Not` und Normalisierung** wie in „Auflösen wie `alias`“.
+3. **Platzhalter reparieren** (Frage 6), vorab und für sich: Das ist ein Bugfix mit eigenen
+   roten Tests (`typeOfValue(Integer)` und `[Integer 5].getElement(1)` ergeben
+   `TypeOf(Integer)`), unabhängig von Prädikaten.
+
+   Danach den **Typ `predicate`** in syntax-tree.ts anlegen und in `ResolvedType` ausschließen. Die 55
+   Aufrufe von `resolveAlias` durchsehen: Braucht die Stelle eine Gestalt oder vergleicht sie
+   Mengen? Danach `valueOf` im Fall `'function'` umstellen, nach Klärung von Frage 6.
+4. **Zuweisung, `Not`, Normalisierung und Identität** wie in „Auflösen wie `alias`“ und
+   Frage 7. Die Identität greift zunächst für benannte Prädikate.
 5. **Branch-Kopf:** Identität und Untermenge fürs Abziehen und die Erschöpfungsprüfung.
    `getBranchArgumentType` und `getBranchPredicateFacts` gehen darin auf. Die
    Unerreichbarkeits-Prüfung (`TODO` bei „Prädikat-Fakten checken“) kann danach die Untermenge
    nutzen.
 6. **Folding für Prädikate** über das vorhandene `tryBuildCallable`. Das deckt benannte Prädikate
    wie `isFive` ab.
-7. **Gebundene Argumente im Funktionstyp**, damit auch `divisibleBy(5)` faltbar wird.
+7. **Gebundene Argumente im Funktionstyp**, damit `divisibleBy(5)` faltbar wird und an zwei
+   Stellen als dasselbe Prädikat gilt.
 8. **`checkTypeGuardIsType`/JUL5002** an Frage 2 anpassen, unreine Prädikate ablehnen
    (Frage 9), auch an Branch-Köpfen, die heute nicht darauf geprüft werden. Den Schutz in
-   `getPredicateFacts` entfernen (Frage 3).
+   `getPredicateFacts` entfernen (Frage 3). Die Ausnahme für Prädikate in `classifyTypeness`
+   entfernen (Frage 11).
 9. **Drumherum:** `typeToString`, Hover, Checker- und LSP-Snapshot, Bench vor und nach dem Umbau
    mit `--save`, öffentliche Doku in jul-homepage.
 10. **Offener Punkt 1 oben** ist mit diesem Plan mitentschieden, siehe Frage 8. Diesen Abschnitt
@@ -338,22 +351,71 @@ das Budget pro Check-Lauf ist nicht erschöpft. Greift es nicht, gilt Regel 3 mi
    `tryAssignArgs`-Aufruf je Prüfung kostet. Das misst der Bench.
 5. **Darstellung.** Entschieden 2026-09-25: eigener Typ nach dem Vorbild `alias`, siehe
    „Regel für den Checker“. Den Ausschlag gab das Folding.
-6. **Wo umgewandelt wird.** Ein neuer Fall in `valueOf` wirkt überall. Mindestens eine Stelle ruft
-   `valueOf` aber auf einen Wert und nicht auf einen Typwert auf: das Auflösen einer
-   Parameter-Referenz im Argumentkontext (`// TODO immer valueOf?`). Über diesen Weg gehen
-   `TypeOf(value)` in `WithElementAt(TypeOf(values) index TypeOf(value))` und
-   `TypeOf(intitialValue)`. Ist das Argument dort eine Funktion, würde daraus fälschlich ein
-   Prädikat. Zu klären ist, ob die Stelle `valueOf` wirklich braucht, oder ob die Umwandlung
-   besser als eigene Funktion nur an Typ-Positionen läuft.
-7. **Identität.** Wann sind zwei Prädikate dieselben? Sicher bei derselben benannten Funktion,
-   auch über `pred = isPrime`. Offen ist der Aufruf: `x: divisibleBy(5)` und später
-   `?(x) [divisibleBy(5)]` sind zwei Aufrufe mit zwei Ergebnissen. Gleich wären sie über dasselbe
-   Literal mit denselben gebundenen Argumenten (Schritt 7). Ein Lambda, das an zwei Stellen neu
-   hingeschrieben wird, ist nie gleich.
+6. **Wo umgewandelt wird.** Geklärt 2026-09-25: Die Umwandlung bleibt in `valueOf`. Vorher muss
+   aber ein Fehler im Platzhalter für Parameter behoben werden, den es schon heute gibt.
+
+   *Ursache:* In einer Signatur hat der Ausdruck `value` den Platzhalter `parameterReference` als
+   Typ. Er steht für den Typ des Arguments. Aus `TypeOf(value)` wird zunächst `TypeOf(pr)`, und
+   `valueOf` packt das bei der Definition gleich wieder zu `pr` aus. Der Hover zeigt deshalb
+   `typeOfValue = (value: Any) :> TypeOf(value)` als `(value: Any) -> value`. Das nackte `:> T`
+   ergibt ebenfalls `pr`. Danach sind beide Schreibweisen nicht mehr zu unterscheiden, obwohl sie
+   Verschiedenes meinen:
+
+   | Schreibweise | meint | beim Aufruf richtig |
+   |---|---|---|
+   | `(T: Type) :> T` | das Argument als Typ | `valueOf(Argumenttyp)` |
+   | `(value: Any) :> TypeOf(value)` | der Typ des Arguments | `Argumenttyp` |
+
+   Beim Aufruf wendet `traversePlaceholders` im Fall `'parameterReference'` für beide `valueOf` an
+   (`// TODO immer valueOf?`). Für die erste Zeile ist das nötig, für die zweite falsch.
+   Bei Literalen fällt es nicht auf, weil `valueOf(5)` wieder `5` ist. Bei einem Typ als Argument
+   ist es schon heute falsch. Gemessen am Quellstand:
+
+   | Ausdruck | Typ heute | richtig |
+   |---|---|---|
+   | `typeOfValue(5)` | `5` | `5` |
+   | `typeOfValue(Integer)` | `Integer` | `TypeOf(Integer)` |
+   | `[Integer 5].getElement(1)` | `Integer` | `TypeOf(Integer)` |
+   | `typeOfValue(f)`, `completed$(f)`, `[1 2].setElement(1 f)` | Funktionstyp `F` | `F` |
+
+   Die Zeilen 2 und 3 geben einem Wert, der der Typ `Integer` ist, den Typ „ist ein Integer“.
+   Mit dem neuen `function`-Fall in `valueOf` würde auch die letzte Zeile falsch: Aus `F` würde
+   das Prädikat `f`.
+
+   *Behebung:* `valueOf` auf einem Platzhalter wird aufgeschoben, und das sichtbar. `valueOf(pr)`
+   ergibt einen markierten Platzhalter, etwa `pr` mit `valueOf: true`. `valueOf(TypeOf(pr))`
+   ergibt den unmarkierten. Beim Aufruf wendet `traversePlaceholders` `valueOf` nur auf den
+   markierten an. Das gilt auch für die Handler von `Or`, `And`, `ElementAt` usw., die `valueOf`
+   auf ihre Argumente anwenden: `Or(T Text)` mit `T: Type` wird korrekt aufgeschoben,
+   `ElementAt(TypeOf(values) index)` bekommt den Argumenttyp unverändert. Eine eigene Funktion
+   nur für Typ-Positionen ist dann nicht nötig.
+
+   Nicht Teil davon: Ohne Argumentkontext, also im Rumpf, löst derselbe Platzhalter zum
+   deklarierten Parametertyp auf. Bei `(T: Type v: T)` heißt das für `v` der Typ `Type` statt
+   `Any`. Dieselbe Doppeldeutigkeit beschreibt schon `classifyTypeness` im Fall
+   `'parameterReference'`.
+7. **Identität.** Entschieden 2026-09-25: Zwei Prädikate sind gleich, wenn sie **dasselbe
+   Funktionsliteral mit denselben gebundenen Argumenten** sind, und beide rein. Ohne gebundene
+   Argumente heißt das: dieselbe benannte Funktion, auch über `pred = isPrime`. Mit Schritt 7
+   sind auch `x: divisibleBy(5)` und `?(x) [divisibleBy(5)]` gleich, obwohl es zwei Aufrufe
+   sind. Ein Lambda, das an zwei Stellen neu hingeschrieben wird, ist nie gleich. Gleichheit
+   nach Verhalten schließt der Satz von Rice aus.
+
+   Umgesetzt wird das als Fall `'predicate'` in `typeEquals`, dazu ein Direktweg `P → P` in
+   `getTypeError`. Abziehen, Erschöpfung und `Or`-Deduplizierung laufen dann über die
+   vorhandene Normalisierung: Das Abziehen baut `And(Wert Not(vorherige Köpfe))`
+   (`narrowBranchedType`), und die Normalisierung kennt schon `And(A Not(A)) => Never` über
+   `typeEquals`. Den Fall braucht der neue Typ ohnehin. Ohne Identität stünde darin
+   `return false`, und die Beispiele aus „Warum ein eigener Typ“ blieben falsche Fehler.
+
+   Einzige Gefahr ist eine fälschlich angenommene Gleichheit, denn die ist unsound. Deshalb wird
+   streng verglichen: dasselbe Literal-Objekt, gebundene Argumente wertgleich.
 8. **Verengung über gespeicherte Werte (offener Punkt 1).** `pred = isInteger` trägt dieselben
    Fakten wie `isInteger`, und ein `Type`-Parameter bekommt sie beim Auflösen mit. Damit
-   verengt `?(x) [pred]` automatisch. Die Frage aus Punkt 1, ob das über den Datenfluss passieren
-   soll, fällt also hier und muss ausdrücklich entschieden werden.
+   verengt `?(x) [pred]` automatisch. **Entschieden 2026-09-25:** ja, die Verengung läuft über den
+   Datenfluss. Die Sorge aus Punkt 1, dass eine Umbenennung oder Indirektion das stillschweigend
+   bricht, trifft mit der Identität nach Frage 7 nicht mehr zu: `pred = isInteger` ist dasselbe
+   Literal. Brechen kann es nur noch, wenn man dasselbe Lambda zweimal hinschreibt.
 9. **Reinheit.** Identität und Folding setzen ein reines Prädikat voraus. Ein Prädikat, das
    Zustand liest, kann für denselben Wert beim zweiten Aufruf etwas anderes liefern. Dann
    stimmt `P ⊆ P` über zwei Aufrufe hinweg nicht mehr. Das gilt auch innerhalb eines
@@ -384,6 +446,32 @@ das Budget pro Check-Lauf ist nicht erschöpft. Greift es nicht, gilt Regel 3 mi
 10. **Typguards an Definitionen zur Laufzeit.** Der Emitter gibt sie nicht aus. `x: isPrime = 4`
     fällt also nur auf, wenn der Checker faltet. Ist das gewollt, oder sollen sie wie
     Parametertypen zur Laufzeit geprüft werden? Das betrifft nicht nur Prädikate.
+
+11. **Schreibweise.** Entschieden 2026-09-25: Prädikate werden **klein** geschrieben. Die
+    Schreibweise richtet sich wie bisher danach, was eine Funktion liefert: Liefert sie einen
+    Typ, beginnt sie groß (`Or`, `List`, `Greater`, `TypeOf`). Liefert sie einen Wert, beginnt
+    sie klein (`or`, `equal`, `greater`). So arbeitet `classifyTypeness` schon heute. Ein
+    Prädikat liefert einen Boolean und ist damit klein, ebenso `divisibleBy`, das ein Prädikat
+    liefert.
+
+    Dass ein Prädikat in Typ-Position steht, ändert daran nichts. Dort stehen auch heute kleine
+    Werte (`[true] =>`, `Or(1 2)`, `[§activation§] =>`). `x: isPrime` ist dieselbe implizite
+    Umwandlung „Wert als Typ“ wie bei den Literalen, nur dass sie bei einer Funktion aufruft
+    statt zu vergleichen.
+
+    Verworfen wurde die Großschreibung. Sie hätte an der Verwendung ansetzen müssen, weil sich
+    an der Definition nicht erkennen lässt, ob eine Boolean-Funktion ein Prädikat ist: Nach
+    Frage 2 ist jede reine Funktion, die `true` liefern kann, eines. Eine Regel an der
+    Definition hätte in der core-lib `equal`, `deepEqual`, `not`, `and`, `or`, `greater`,
+    `exists` und `all` getroffen, und `not`, `and` und `or` hätten mit `Not`, `And` und `Or`
+    kollidiert. Das Paar `or`/`Or` zeigt zugleich, warum die Schreibweise hier nötig ist:
+    `or(true false)` und `Or(true false)` bekommen dieselben Argumente und meinen `true` bzw.
+    den Typ `Boolean`.
+
+    Umzusetzen ist nur, die Ausnahme in `classifyTypeness` zu entfernen: Im Fall `'function'`
+    steht heute `if (resolved.predicate) return 'unknown'`. Danach gilt die Regel ohne
+    Sonderfall. Migriert werden muss nichts, denn keine Boolean-Funktion in yugioh oder
+    jul-examples ist groß geschrieben.
 
 Nicht Teil dieses Plans ist die umgekehrte Richtung: ein Typ als Prädikat-Argument
 (`filter(Integer)`). Dazu der nächste Abschnitt.
