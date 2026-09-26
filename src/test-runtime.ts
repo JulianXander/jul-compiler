@@ -1,4 +1,4 @@
-// Laufzeit für `jul --test`: Register, Instrumentierung und Ausgabe der Tests.
+// Laufzeit für `jul test`: Register, Instrumentierung und Ausgabe der Tests.
 // Getrennt von runtime.ts, damit nichts davon in einen normalen Build gelangt. Importiert wird
 // dieses Modul nur von *.test.jul-Dateien (siehe Emitter) und vom Compiler, der _runTests aufruft -
 // beide über denselben Pfad, sonst hätten sie getrennte Register.

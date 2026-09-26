@@ -1184,7 +1184,7 @@ log = nativeFunction(
 		console.log
 	§
 )
-# Registriert einen Test, den `jul --test` ausführt. Er ist bestanden, wenn callback true liefert.
+# Registriert einen Test, den `jul test` ausführt. Er ist bestanden, wenn callback true liefert.
 # Nur in *.test.jul erlaubt. Implementiert in test-runtime.ts, nicht in runtime.ts.
 test = nativeFunction(
 	(

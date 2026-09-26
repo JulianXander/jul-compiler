@@ -250,7 +250,7 @@ export function changeExtension(
 }
 
 /**
- * Nur in solchen Dateien ist `test` erlaubt, und nur `jul --test` lädt sie.
+ * Nur in solchen Dateien ist `test` erlaubt, und nur `jul test` lädt sie.
  */
 export function isTestFilePath(path: string): boolean {
 	return path.endsWith('.test.jul');

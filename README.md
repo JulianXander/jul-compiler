@@ -35,30 +35,31 @@ nur so findet die installierte Extension den Server.
 `npm i -g` (bzw. `npm run install-cli`)
 
 ## Cli ausführen
-Argument ist die **Config**, nicht die Quelldatei:
+Ohne Kommando wird gebaut. Gelesen wird die `jul-config.yaml` im aktuellen Ordner, eine andere
+Config gibt `--config pfad` (oder `--config=pfad`) an — nie die Quelldatei:
 
 ```bash
 cd ../jul-examples/fizz-buzz
-jul jul-config.yaml                        # nach install-cli
-node ../../jul-compiler/out/cli.js jul-config.yaml
+jul                                        # nach install-cli
+node ../../jul-compiler/out/cli.js
+jul --config ../fibonacci/jul-config.yaml  # andere Config
 node out/bundle.js                         # Ergebnis ausführen
 ```
 
-`--check` (vor oder nach der Config) parst und checkt nur, ohne zu emittieren oder zu bundeln —
-es entsteht kein `out`-Ordner:
+`check` parst und checkt nur, ohne zu emittieren oder zu bundeln — es entsteht kein `out`-Ordner:
 
 ```bash
-jul jul-config.yaml --check
+jul check
 ```
 
-`--test` checkt alle `*.test.jul` unterhalb des Config-Ordners samt Importen und führt deren
+`test` checkt alle `*.test.jul` unterhalb des Config-Ordners samt Importen und führt deren
 `test(...)`-Aufrufe aus; Exit-Code 1, sobald einer fehlschlägt. Es wird nichts geschrieben, das
 erzeugte JS wird im Speicher gehalten und über Module-Hooks geladen (braucht Node ≥ 22.15).
 Hintergrund in [docs/testing.md](docs/testing.md).
 
 ```bash
 cd ../jul-examples/fibonacci
-jul jul-config.yaml --test
+jul test
 ```
 
 ## Test

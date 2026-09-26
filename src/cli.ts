@@ -23,26 +23,82 @@ interface PackageJson {
 }
 
 try {
-	// Flags (z.B. --check) und der positionale Config-Pfad werden getrennt eingesammelt, nicht per
-	// Index gelesen - sonst würde ein Flag ohne Config-Angabe als Config-Pfad interpretiert.
 	const args = process.argv.slice(2);
-	// Eine Quelle für Validierung und --help, damit ein neues Flag nur an einer Stelle einzutragen ist.
-	const knownFlags: Record<string, string> = {
-		'--check': 'Only parse and check, without emitting or bundling output.',
-		'--test': 'Check and run all *.test.jul files below the config folder, without writing output.',
-		'--help': 'Print this help text and exit.',
-		'--version': 'Print the compiler version and exit.',
+	// Eine Quelle für Validierung und --help, damit ein neues Kommando bzw. Flag nur an einer Stelle
+	// einzutragen ist. build steht nicht darin: Der Build ist der Aufruf ohne Kommando.
+	const knownCommands: Record<string, string> = {
+		check: 'Only parse and check, without emitting or bundling output.',
+		test: 'Check and run all *.test.jul files below the config folder, without writing output.',
 	};
-	const flags = args.filter(arg => arg.startsWith('--'));
-	if (flags.includes('--help')) {
-		console.log('\nUsage: jul [options] [path-to-jul-config.yaml]');
-		console.log('\nOptions:');
-		for (const [flag, description] of Object.entries(knownFlags)) {
-			console.log(`  ${flag.padEnd(11)}${description}`);
+	const knownOptions: Record<string, { description: string; value?: string; }> = {
+		'--config': {
+			value: '<path>',
+			description: 'Path to the jul-config.yaml. Default: jul-config.yaml in the current directory.',
+		},
+		'--help': { description: 'Print this help text and exit.' },
+		'--version': { description: 'Print the compiler version and exit.' },
+	};
+	const flags = new Set<string>();
+	const optionValues: Record<string, string> = {};
+	const positionalArgs: string[] = [];
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index]!;
+		if (!arg.startsWith('--')) {
+			positionalArgs.push(arg);
+			continue;
 		}
+		// Werte gehen als --config pfad und als --config=pfad.
+		const separatorIndex = arg.indexOf('=');
+		const name = separatorIndex === -1 ? arg : arg.slice(0, separatorIndex);
+		const option = knownOptions[name];
+		// Ein Tippfehler im Flag-Namen (z.B. --confg) soll auffallen statt still ignoriert zu werden.
+		if (!option) {
+			throw new Error(`Unknown option: ${name}. Known options: ${Object.keys(knownOptions).join(', ')}`);
+		}
+		if (!option.value) {
+			if (separatorIndex !== -1) {
+				throw new Error(`Option ${name} does not take a value.`);
+			}
+			flags.add(name);
+			continue;
+		}
+		const value = separatorIndex === -1
+			? args[++index]
+			: arg.slice(separatorIndex + 1);
+		if (!value || value.startsWith('--')) {
+			throw new Error(`Missing value for option ${name}.`);
+		}
+		if (name in optionValues) {
+			throw new Error(`Option ${name} given more than once.`);
+		}
+		optionValues[name] = value;
+	}
+	// Jedes positionale Argument ist ein Kommando. Ein Tippfehler (z.B. chekc) schlägt deshalb fehl,
+	// statt als Pfad gelesen zu werden.
+	if (positionalArgs.length > 1) {
+		throw new Error(`Too many arguments: ${positionalArgs.join(', ')}. Expected at most one command.`);
+	}
+	const command = positionalArgs[0];
+	if (command !== undefined && !(command in knownCommands)) {
+		throw new Error(`Unknown command: ${command}. Known commands: ${Object.keys(knownCommands).join(', ')}`);
+	}
+	if (flags.has('--help')) {
+		const printEntries = (entries: [string, string][]) => {
+			const width = Math.max(...entries.map(([name]) => name.length)) + 2;
+			for (const [name, description] of entries) {
+				console.log(`  ${name.padEnd(width)}${description}`);
+			}
+		};
+		console.log('\nUsage: jul [command] [options]');
+		console.log('\nWithout command, the project is checked, emitted and bundled into the output folder.');
+		console.log('\nCommands:');
+		printEntries(Object.entries(knownCommands));
+		console.log('\nOptions:');
+		printEntries(Object.entries(knownOptions).map(([name, option]) =>
+			[option.value ? `${name} ${option.value}` : name, option.description]));
 		process.exit(0);
 	}
-	if (flags.includes('--version')) {
+	if (flags.has('--version')) {
 		// package.json liegt nicht unter src/ (rootDir in tsconfig.build.json) und lässt sich deshalb
 		// nicht per JSON-Import einbinden - stattdessen zur Laufzeit relativ zur ausgeführten Datei
 		// gelesen, wie runtime.js in compiler.ts.
@@ -50,30 +106,17 @@ try {
 		console.log(packageJson.version);
 		process.exit(0);
 	}
-	// Ein Tippfehler im Flag-Namen (z.B. --chekc) soll auffallen statt still einen Vollbuild
-	// auszulösen.
-	const unknownFlags = flags.filter(flag => !(flag in knownFlags));
-	if (unknownFlags.length) {
-		throw new Error(`Unknown option(s): ${unknownFlags.join(', ')}. Known options: ${Object.keys(knownFlags).join(', ')}`);
-	}
 	// Nur parsen und checken, kein Emit/Bundle - siehe checkOnly in compiler.ts.
-	const checkOnly = flags.includes('--check');
-	const runTests = flags.includes('--test');
-	if (checkOnly && runTests) {
-		throw new Error('--check and --test can not be combined. --test also checks.');
-	}
-	const positionalArgs = args.filter(arg => !arg.startsWith('--'));
-	if (positionalArgs.length > 1) {
-		throw new Error(`Too many arguments: ${positionalArgs.join(', ')}. Expected at most the path to jul-config.yaml.`);
-	}
-	const configFilePath = positionalArgs[0] ?? 'jul-config.yaml';
+	const checkOnly = command === 'check';
+	const runTests = command === 'test';
+	const configFilePath = optionValues['--config'] ?? 'jul-config.yaml';
 	let configYaml: string;
 	try {
 		configYaml = readTextFile(configFilePath);
 	}
 	catch (error) {
 		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-			throw new Error(`Config file not found: ${configFilePath}.\nProvide the path to a jul-config.yaml as argument, or run in a directory that contains one.`);
+			throw new Error(`Config file not found: ${configFilePath}.\nProvide the path to a jul-config.yaml with --config, or run in a directory that contains one.`);
 		}
 		throw error;
 	}

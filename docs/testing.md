@@ -9,7 +9,7 @@ konzept für jul"). Entschieden wurde im Gespräch:
   Prüflogik baut man mit normalen Funktionen (`equal`, `deepEqual`, `and`, eigene Helfer).
 - Der Checker meldet einen Fehler, wenn der Callback statisch zu `false` faltet (Feedback beim
   Tippen, weil constant folding für reine Aufrufe schon existiert).
-- `jul --test` führt alle Tests zur Laufzeit aus und meldet Name, `.jul`-Position und die Werte
+- `jul test` führt alle Tests zur Laufzeit aus und meldet Name, `.jul`-Position und die Werte
   der Argumente des äußersten Aufrufs im Callback (z. B. `equal(§Fizz§ §FizzBuzz§)`).
 - Tests stehen ausschließlich in `*.test.jul`-Dateien (fest, kein Config-Eintrag); `test` in
   einer anderen Datei ist ein Fehler.
@@ -64,7 +64,7 @@ Umgesetzt wie unten beschrieben. Abweichungen und Nebenwirkungen:
 
 [core-lib.jul](../src/core-lib.jul), neben `log`:
 ```jul
-# Registriert einen Test, den `jul --test` ausführt. Nur in *.test.jul erlaubt.
+# Registriert einen Test, den `jul test` ausführt. Nur in *.test.jul erlaubt.
 test = nativeFunction(
 	(message: Text callback: () :> Boolean) ~> []
 	§js
@@ -131,9 +131,9 @@ Fold-Budget erschöpft → nicht gefaltet → keine statische Meldung, der Laufz
 
 ### 5. CLI und Compiler
 
-[cli.ts](../src/cli.ts): `--test` in `knownFlags`
-(`'Check and run all *.test.jul files below the config folder.'`); `--test` zusammen mit `--check`
-ist ein Fehler. Aufruf einer neuen Funktion `testProject(rootFolder, outputFolderPath)`.
+[cli.ts](../src/cli.ts): Kommando `test` in `knownCommands`
+(`'Check and run all *.test.jul files below the config folder.'`); als Kommando schließt es `check`
+von selbst aus. Aufruf einer neuen Funktion `testProject(rootFolder, outputFolderPath)`.
 
 [compiler.ts](../src/compiler.ts):
 - Fehlerausgabe von `compileProject` (Zeilen 55–97) in eine gemeinsame Funktion ziehen, die über
@@ -198,9 +198,9 @@ Schweregrad aus `errorInfos` durch.
 ### 8. Doku
 
 - `jul-homepage/docs/docs/documentation/handbook.md`: neuer Abschnitt „Tests" (nur Verhalten mit
-  Beispiel: `*.test.jul`, `test(...)`, `jul --test`, statische Meldung).
-- `jul-compiler/README.md` (`## Cli ausführen`, nach `--check`) und Root-`CLAUDE.md` (CLI-Block):
-  `--test`.
+  Beispiel: `*.test.jul`, `test(...)`, `jul test`, statische Meldung).
+- `jul-compiler/README.md` (`## Cli ausführen`, nach `check`) und Root-`CLAUDE.md` (CLI-Block):
+  `test`.
 - `jul-compiler/TODO`: Punkt „unit testing konzept" auf die offenen Ausbauten umschreiben
   (`is`-Regel, Reporter für `is`/`deepEqual`, Streams, Code Lens).
 - Dieser Plan als `jul-compiler/docs/testing.md`.
@@ -210,11 +210,11 @@ Schweregrad aus `errorInfos` durch.
 1. Vorher und nachher: `npm run bench -- --save --note "..."` in `jul-compiler` (Checker-Umbau).
 2. `cd jul-compiler && npm run typecheck && node --run test`; Snapshot-Diff prüfen.
 3. `npm run build`, dann in `jul-examples/fibonacci`:
-   - `node ../../jul-compiler/out/cli.js jul-config.yaml --test` → alle grün, Exit-Code 0.
+   - `node ../../jul-compiler/out/cli.js test` → alle grün, Exit-Code 0.
    - Erwartung absichtlich falsch machen (statisch faltbar) → Fehler JUL5200 beim Checken, kein Lauf.
    - Nicht faltbaren Test absichtlich falsch machen → Laufzeitmeldung mit Argumentwerten, Exit-Code 1.
    - `test(...)` in `fibonacci.jul` → JUL2700.
-   - Normaler Build `jul-config.yaml` läuft unverändert, `out/` enthält keine Testdatei.
-   - Nach `--test` existiert kein neuer Ordner oder Datei.
+   - Normaler Build (`jul` ohne Kommando) läuft unverändert, `out/` enthält keine Testdatei.
+   - Nach `jul test` existiert kein neuer Ordner oder Datei.
 4. `npm run build-all`, VSCode: statisch fehlschlagender Test erscheint rot im Editor.
 5. `cd jul-language-server && npm test && npm run test-snapshot`.
