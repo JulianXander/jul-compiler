@@ -1,6 +1,6 @@
-import { writeFileSync, copyFileSync, readdirSync, rmSync, statSync } from 'fs';
+import { writeFileSync, copyFileSync, globSync, rmSync, statSync } from 'fs';
 import { registerHooks } from 'module';
-import { dirname, join, relative, resolve, sep } from 'path';
+import { dirname, join, relative, resolve } from 'path';
 import { pathToFileURL } from 'url';
 import { format } from 'util';
 import webpack from 'webpack';
@@ -10,7 +10,7 @@ import { ParsedDocuments } from './checker/checker.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from './compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
 import { ParsedFile } from './syntax-tree.js';
-import { Extension, changeExtension, executingDirectory, isTestFilePath, tryCreateDirectory } from './util.js';
+import { Extension, changeExtension, executingDirectory, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
 import ShebangPlugin from 'webpack-shebang-plugin';
@@ -326,21 +326,17 @@ function formatTestResult(result: TestResult): string {
 
 /**
  * Relativ zum Arbeitsverzeichnis wie rootFolder selbst, damit die Pfade zu denen passen, die der
- * Loader für Importe bildet (join(sourceFolder, importedPath)). Ausgelassen werden node_modules
- * und der Out-Ordner, dort liegen keine eigenen Quellen.
+ * Loader für Importe bildet (join(sourceFolder, importedPath)). Ausgelassen werden node_modules,
+ * der Out-Ordner und Ordner mit . am Anfang (.git, .vscode), dort liegen keine eigenen Quellen.
+ * Ordner mit . am Anfang lässt globSync von selbst aus. Ausgelassene Ordner betritt globSync gar
+ * nicht erst - bei node_modules oder .git ist das der Großteil der Laufzeit.
  */
 function findTestFiles(rootFolder: string, outputFolderPath: string): string[] {
-	const excludedFolders = [
-		join(rootFolder, 'node_modules'),
-		outputFolderPath,
-	].map(folder => resolve(folder) + sep);
-	return (readdirSync(rootFolder, { recursive: true }) as string[])
-		.filter(isTestFilePath)
+	return globSync('**/*.test.jul', {
+		cwd: rootFolder,
+		exclude: ['node_modules', relative(rootFolder, outputFolderPath)],
+	})
 		.map(relativePath => join(rootFolder, relativePath))
-		.filter(filePath => {
-			const absolutePath = resolve(filePath);
-			return !excludedFolders.some(folder => absolutePath.startsWith(folder));
-		})
 		.sort();
 }
 

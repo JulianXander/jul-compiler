@@ -147,8 +147,8 @@ von selbst aus. Aufruf einer neuen Funktion `testProject(rootFolder, outputFolde
 - Fehlerausgabe von `compileProject` (Zeilen 55–97) in eine gemeinsame Funktion ziehen, die über
   alle `documents` läuft statt an einem `entry` zu hängen.
 - `testProject`:
-  1. Testdateien suchen: `readdirSync(rootFolder, { recursive: true })`, Endung `.test.jul`,
-     `node_modules` und den Out-Ordner auslassen. Pfade wie bei `loadFile` mit
+  1. Testdateien suchen: rekursiv ab `rootFolder`, Endung `.test.jul`,
+     `node_modules`, den Out-Ordner und Ordner mit `.` am Anfang nicht betreten. Pfade wie bei `loadFile` mit
      `join(rootFolder, rel)` bilden (sonst passen `documents`-Keys und Out-Pfade nicht).
      Keine Testdatei gefunden → Meldung, `exitCode = 1`.
   2. Jede Datei mit `loadFile` in dasselbe `documents` laden (Cache verhindert Doppelladen).
