@@ -1,4 +1,3 @@
--hover info bei destructuring fehlt
 -tests (MVP umgesetzt: test-builtin, jul test, siehe docs/testing.md), offen:
 	?is(value Type) mit Checker-Regel: true bei bewiesener Teilmenge, false bei disjunkt
 	?reporter: begründung für is (getTypeError) und diff für deepEqual
