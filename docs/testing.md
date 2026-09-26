@@ -44,6 +44,11 @@ Umgesetzt wie unten beschrieben. Abweichungen und Nebenwirkungen:
   `jul-examples/fibonacci/fibonacci.jul` und die Exporte `test` in
   `jul-examples/import/ts-file.ts` und `js-file.js`. yugioh war nicht betroffen.
 - Beispiel: `jul-examples/fibonacci/fibonacci.test.jul`.
+- Ein statisch fehlschlagender Test (JUL5200) bricht `jul test` nicht ab, anders als unten in
+  Schritt 5.3 geplant. `testProject` blendet ihn in der Fehlerausgabe aus, der Lauf führt ihn als
+  fehlgeschlagen. Sonst verhinderte ein bekannter roter Test, dass die übrigen laufen. Möglich ist
+  das, weil der Checker JUL5200 nur bei fehlerfreien Argumenten meldet, der Aufruf also emittierbar
+  ist. Im Editor bleibt es ein Fehler.
 
 ## Umsetzung
 

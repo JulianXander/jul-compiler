@@ -7,7 +7,7 @@ import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
 import { _runTests, TestResult } from './test-runtime.js';
 import { ParsedDocuments } from './checker/checker.js';
-import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos, Positioned } from './compiler-errors.js';
+import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from './compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
 import { ParsedFile } from './syntax-tree.js';
 import { Extension, changeExtension, executingDirectory, isTestFilePath, tryCreateDirectory } from './util.js';
@@ -144,6 +144,8 @@ function reportErrors(
 	notFoundPaths: string[],
 	host: ProjectHost,
 	renderer: LiveRenderer,
+	// Codes, die der Aufrufer selbst abdeckt: weder gemeldet noch Abbruchgrund.
+	ignoredCodes: ErrorCode[] = [],
 ): { hasError: boolean; summary: string; } {
 	// checked enthält die Parse-Fehler schon (Klon von unchecked), deshalb nicht beide Listen.
 	let errorCount = notFoundPaths.length;
@@ -153,7 +155,8 @@ function reportErrors(
 		// Hinweise sind für den Editor, der sie an der Stelle zeigt. In der Ausgabe gingen die
 		// Beanstandungen darin unter.
 		const errors = (document.checked?.errors ?? document.unchecked.errors)
-			.filter(error => errorInfos[error.code].severity !== 'hint');
+			.filter(error => errorInfos[error.code].severity !== 'hint'
+				&& !ignoredCodes.includes(error.code));
 		if (!errors.length) {
 			return;
 		}
@@ -211,7 +214,10 @@ export async function testProject(
 	//#endregion load
 
 	//#region report errors
-	const { hasError, summary } = reportErrors(documents, notFoundPaths, host, renderer);
+	// Ein statisch fehlschlagender Test ist kein Abbruchgrund: Der Checker meldet JUL5200 nur bei
+	// fehlerfreien Argumenten, der Aufruf lässt sich also emittieren. Der Lauf führt ihn dann als
+	// fehlgeschlagen, samt Argumentwerten - die statische Meldung wäre daneben doppelt.
+	const { hasError, summary } = reportErrors(documents, notFoundPaths, host, renderer, [ErrorCode.testFails]);
 	if (hasError) {
 		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
