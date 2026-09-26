@@ -1,4 +1,6 @@
 import { expect } from 'chai';
+import { join, resolve } from 'path';
+import { pathToFileURL } from 'url';
 import { deepEqual, equal } from './runtime.js';
 import { _runTests, _testCall, test, TestResult } from './test-runtime.js';
 import { reportAtCaller } from './test-util.js';
@@ -71,6 +73,37 @@ describe('_runTests', () => {
 				test('b', () => true, location);
 			},
 			['threw kaputt', undefined],
+			1);
+	});
+	// Mit Source Maps steht die .jul-Stelle im Stack. Frames davor (Runtime) zählen nicht.
+	it('reports-jul-location-of-exception', () => {
+		const error = new Error('kaputt');
+		error.stack = [
+			'Error: kaputt',
+			`    at _callFunction (${pathToFileURL(resolve('out/runtime.js')).href}:10:5)`,
+			`    at fibonacci (${pathToFileURL(resolve('src/fibonacci.jul')).href}:4:3)`,
+			`    at test (${pathToFileURL(resolve('fibonacci.test.jul')).href}:2:1)`,
+		].join('\n');
+		expectTestRun(
+			() => test('a', () => { throw error; }, location),
+			[`threw kaputt (${join('src', 'fibonacci.jul')}:4:3)`],
+			1);
+	});
+	it('reports-jul-location-of-exception-with-windows-path', () => {
+		const error = new Error('kaputt');
+		error.stack = `Error: kaputt\n    at fibonacci (${resolve('fibonacci.jul')}:4:3)`;
+		expectTestRun(
+			() => test('a', () => { throw error; }, location),
+			['threw kaputt (fibonacci.jul:4:3)'],
+			1);
+	});
+	// Eine .jul-Stelle in der Meldung selbst ist kein Frame.
+	it('ignores-jul-location-in-message', () => {
+		const error = new Error('a.jul:1:1');
+		error.stack = 'Error: a.jul:1:1\n    at f (C:\\x\\runtime.js:1:1)';
+		expectTestRun(
+			() => test('a', () => { throw error; }, location),
+			['threw a.jul:1:1'],
 			1);
 	});
 	it('reports-name-and-location', () => {

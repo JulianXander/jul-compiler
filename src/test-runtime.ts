@@ -3,6 +3,8 @@
 // dieses Modul nur von *.test.jul-Dateien (siehe Emitter) und vom Compiler, der _runTests aufruft -
 // beide über denselben Pfad, sonst hätten sie getrennte Register.
 
+import { relative } from 'path';
+import { fileURLToPath } from 'url';
 import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _Text, _typeToString } from './runtime.js';
 
 /**
@@ -122,9 +124,33 @@ function getTestFailureText(
 		: '';
 	if (thrown) {
 		const error = thrown.error;
-		return `${callText}threw ${error instanceof Error ? error.message : String(error)}`;
+		if (!(error instanceof Error)) {
+			return `${callText}threw ${String(error)}`;
+		}
+		const julLocation = getJulStackLocation(error);
+		return `${callText}threw ${error.message}${julLocation ? ` (${julLocation})` : ''}`;
 	}
 	return `${callText}returned ${valueToString(result)}`;
+}
+
+/**
+ * Die erste Stelle im Stack, die in eine .jul-Datei zeigt, relativ zum Arbeitsverzeichnis. Die gibt
+ * es nur mit Source Maps (siehe testProject). Frames in der Runtime und im Compiler fallen so von
+ * selbst heraus. Die erste Zeile des Stacks ist die Meldung und wird übergangen.
+ */
+function getJulStackLocation(error: Error): string | undefined {
+	const frames = error.stack?.split('\n').slice(1) ?? [];
+	for (const frame of frames) {
+		const match = /((?:file:\/\/)?[^\s()]+\.jul):(\d+):(\d+)/.exec(frame);
+		if (match) {
+			const [, pathOrUrl, row, column] = match;
+			const path = pathOrUrl!.startsWith('file://')
+				? fileURLToPath(pathOrUrl!)
+				: pathOrUrl!;
+			return `${relative(process.cwd(), path)}:${row}:${column}`;
+		}
+	}
+	return undefined;
 }
 
 /**

@@ -16,6 +16,35 @@ ClojureScript, Dart; CoffeeScript erst nachträglich). Ohne kommen vor allem Spr
 Ausgabe bewusst wie handgeschriebenes JS aussieht (ReScript), oder die den Debugger über Purity und
 eigene Werkzeuge ersetzen (Elm).
 
+## Stand
+
+Umgesetzt wie unten beschrieben. Abweichungen und Nebenwirkungen:
+
+- `syntaxTreeToJs` liefert weiter einen String. Neu ist `syntaxTreeToJsWithMappings`, das zusätzlich
+  die Zuordnungen als reine Positionen liefert (`SourceMapping`). Die Map selbst baut der Compiler
+  (`createSourceMap` in [compiler.ts](../src/compiler.ts)), denn Pfade relativ zur Ausgabedatei sind
+  seine Sache. Emitter-Tests, Bench und Constant Folding bleiben dadurch unberührt.
+- Der Marker steht vor dem `return` des letzten Rumpfausdrucks, nicht dahinter.
+- **`webpack-shebang-plugin` ist ersetzt** durch `webpack.BannerPlugin` (nur bei `cli: true`) und ein
+  eigenes `chmodSync(bundle, 0o755)`. Das Plugin hängt jedem Modul, das Loader hat, einen eigenen
+  Loader an, der den Shebang samt Zeilenumbruch herausschneidet, ohne die Map anzupassen. Seit
+  `source-map-loader` traf das die Einstiegsdatei, deren Stellen im Bundle eine Zeile zu hoch
+  landeten. Der Shebang steht deshalb nicht mehr in `out/<entry>.js`, sondern kommt erst über
+  webpack ins Bundle. Der in Schritt 2 geplante Trick mit dem `;` vor den Mappings entfällt.
+  Dependency und `src/webpack-shebang-plugin.d.ts` sind entfernt.
+- Zu Schritt 3: Der Shebang lautet `#!/usr/bin/env -S node --enable-source-maps`. Ob die
+  Windows-Shims von `npm i -g` die Argumente übernehmen, ist nicht geprüft. Ohne `cli` steht im
+  Handbuch, dass man `--enable-source-maps` selbst übergibt.
+- `output.devtoolModuleFilenameTemplate: '[absolute-resource-path]'`. Ohne das stehen im Bundle
+  `webpack:///src/x.jul`-Pfade, im Terminal nicht klickbar und für den Debugger nur mit
+  `sourceMapPathOverrides` auflösbar.
+- Geprüft: Node wertet die inline Map auch bei Modulen aus, die über `registerHooks` aus dem
+  Speicher kommen (`jul test` meldet `threw … (src\lib.jul:3:2)`). Ebenso gemappt: Stacktraces im
+  Bundle für `.jul`-Einstiegsdatei, importierte `.jul` und `.ts`.
+- Nicht geprüft, weil nur interaktiv möglich: Breakpoints und `skipFiles` im VSCode-Debug-Terminal,
+  und ob `configurationDefaults` `debug.javascript.terminalOptions` wirklich vorbelegt.
+- Das Handbuch nennt die `.jul`-Stelle geworfener Tests jetzt auch im Abschnitt „Tests“.
+
 ## Entscheidungen
 
 - **Mapping auf Statement-Ebene.** Gemappt werden die Top-Level-Ausdrücke einer Datei und jeder

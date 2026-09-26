@@ -35,3 +35,15 @@
 2026-09-26 10:27:27	17c9c34+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.98	8.76	8.76	test-runtime getrennt
 2026-09-26 10:27:27	17c9c34+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.48	8.14	8.14	test-runtime getrennt
 2026-09-26 10:27:27	17c9c34+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.77	8.90	8.90	test-runtime getrennt
+2026-09-26 14:05:30	e54a9b8	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.04	15.89	15.89	vor source maps
+2026-09-26 14:05:30	e54a9b8	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.45	11.79	11.79	vor source maps
+2026-09-26 14:05:30	e54a9b8	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.22	12.16	12.16	vor source maps
+2026-09-26 14:05:30	e54a9b8	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.44	7.28	7.28	vor source maps
+2026-09-26 14:05:30	e54a9b8	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.71	6.94	6.94	vor source maps
+2026-09-26 14:05:30	e54a9b8	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.34	7.39	7.39	vor source maps
+2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.76	15.31	15.31	nach source maps
+2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.59	10.47	10.47	nach source maps
+2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.47	9.50	9.50	nach source maps
+2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	7.17	9.19	9.19	nach source maps
+2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.87	7.77	7.77	nach source maps
+2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	7.07	8.06	8.06	nach source maps

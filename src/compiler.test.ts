@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import { join, resolve } from 'path';
+import { SourceMapConsumer } from 'source-map';
 
-import { formatErrors, LiveRenderer } from './compiler.js';
+import { createSourceMap, formatErrors, LiveRenderer } from './compiler.js';
 import { CompilerError, ErrorCode } from './compiler-errors.js';
 import { createInMemoryHost } from './project-loader.js';
 
@@ -266,5 +267,27 @@ describe('LiveRenderer', () => {
 			(process.stdout as any).isTTY = originalIsTty;
 			process.stdout.write = originalWrite;
 		}
+	});
+});
+
+describe('createSourceMap', () => {
+	const mappings = [{ generatedLine: 1, generatedColumn: 2, sourceLine: 4, sourceColumn: 1 }];
+	// source-map ist 1-basiert bei Zeilen, 0-basiert bei Spalten.
+	it('maps-generated-to-source-position', () => {
+		const consumer = new SourceMapConsumer(createSourceMap(mappings, join('src', 'a.jul'), join('out', 'src', 'a.js'), 'code'));
+		expect(consumer.originalPositionFor({ line: 2, column: 2 })).to.deep.equal({
+			source: '../../src/a.jul',
+			line: 5,
+			column: 1,
+			name: null,
+		});
+	});
+	it('source-is-relative-to-out-file-with-forward-slashes', () => {
+		const sourceMap = createSourceMap(mappings, join('src', 'a.jul'), join('out', 'b', 'a.js'), 'code');
+		expect(sourceMap.sources).to.deep.equal(['../../src/a.jul']);
+	});
+	it('contains-source-code', () => {
+		const sourceMap = createSourceMap(mappings, 'a.jul', 'a.js', 'code');
+		expect(sourceMap.sourcesContent).to.deep.equal(['code']);
 	});
 });

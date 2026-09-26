@@ -15,7 +15,7 @@
 			"default": "out"
 		},
 		"cli": {
-			"description": "Add shebang #!/usr/bin/env node",
+			"description": "Add shebang #!/usr/bin/env -S node --enable-source-maps and make the bundle executable",
 			"type": "boolean",
 			"default": false
 		}

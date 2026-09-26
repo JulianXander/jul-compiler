@@ -12,6 +12,7 @@ import {
 	ParseReference,
 	SimpleExpression,
 } from './syntax-tree.js';
+import { Positioned } from './compiler-errors.js';
 import * as runtime from './runtime.js';
 import * as testRuntime from './test-runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from './util.js';
@@ -40,6 +41,77 @@ let sourceFilePath = '';
  * _testCall, damit ein Fehlschlag seine ausgewerteten Argumente nennen kann.
  */
 let instrumentedTestCall: ParseExpression | undefined;
+/**
+ * Nur beim Emittieren einer ganzen Datei: dann schreibt der Emitter an jeden Statement-Anfang einen
+ * Marker mit der Quellposition, aus dem extractSourceMappings die Source Map gewinnt.
+ * functionLiteralToEvaluableJs emittiert ohne Marker.
+ */
+let emitSourcePositions = false;
+
+//#region source map
+
+/**
+ * Die Steuerzeichen kommen in gültigem JS nur in String- und Template-Literalen vor, und deren
+ * Inhalt escapen escapeStringForBacktickJs/escapeStringForSingleQuoteJs. Ein Markerzeichen im
+ * erzeugten JS stammt also immer von sourcePositionMarkerJs.
+ */
+const markerStart = '\u0001';
+const markerEnd = '\u0002';
+
+/**
+ * Zuordnung einer Stelle im erzeugten JS zu einer Stelle im Quelltext, alles 0-basiert.
+ */
+export interface SourceMapping {
+	generatedLine: number;
+	generatedColumn: number;
+	sourceLine: number;
+	sourceColumn: number;
+}
+
+function sourcePositionMarkerJs(expression: Positioned): string {
+	return emitSourcePositions
+		? `${markerStart}${expression.startRowIndex}:${expression.startColumnIndex}${markerEnd}`
+		: '';
+}
+
+/**
+ * Entfernt die Marker und liefert dafür je Marker die Position, an der er im bereinigten JS stand.
+ */
+function extractSourceMappings(markedJs: string): { js: string; mappings: SourceMapping[]; } {
+	const mappings: SourceMapping[] = [];
+	const chunks: string[] = [];
+	let jsLength = 0;
+	let generatedLine = 0;
+	let lineStartIndex = 0;
+	let index = 0;
+	while (true) {
+		const startIndex = markedJs.indexOf(markerStart, index);
+		const chunk = markedJs.slice(index, startIndex < 0 ? undefined : startIndex);
+		let newlineIndex = chunk.indexOf('\n');
+		while (newlineIndex >= 0) {
+			generatedLine++;
+			lineStartIndex = jsLength + newlineIndex + 1;
+			newlineIndex = chunk.indexOf('\n', newlineIndex + 1);
+		}
+		chunks.push(chunk);
+		jsLength += chunk.length;
+		if (startIndex < 0) {
+			break;
+		}
+		const endIndex = markedJs.indexOf(markerEnd, startIndex);
+		const [sourceLine, sourceColumn] = markedJs.slice(startIndex + 1, endIndex).split(':').map(Number);
+		mappings.push({
+			generatedLine: generatedLine,
+			generatedColumn: jsLength - lineStartIndex,
+			sourceLine: sourceLine!,
+			sourceColumn: sourceColumn!,
+		});
+		index = endIndex + 1;
+	}
+	return { js: chunks.join(''), mappings: mappings };
+}
+
+//#endregion source map
 
 export function getRuntimeImportJs(runtimePath: string): string {
 	return getImportJs(`{ ${runtimeImports} }`, runtimePath);
@@ -62,29 +134,45 @@ export function syntaxTreeToJs(
 	 */
 	filePath: string = '',
 ): string {
+	return syntaxTreeToJsWithMappings(expressions, runtimePath, filePath).js;
+}
+
+/**
+ * Wie syntaxTreeToJs, dazu je Statement (Top-Level-Ausdruck, Ausdruck in einem Funktionsrumpf) die
+ * Zuordnung seines Anfangs zur Quellposition, für die Source Map.
+ */
+export function syntaxTreeToJsWithMappings(
+	expressions: ParseExpression[],
+	runtimePath: string,
+	filePath: string = '',
+): { js: string; mappings: SourceMapping[]; } {
 	// _branch, _callFunction, _createFunction, log
 	let hasDefinition = false;
 	useTypeInfo = true;
+	emitSourcePositions = true;
 	sourceFilePath = filePath;
 	try {
 		const testRuntimeImportJs = isTestFilePath(filePath)
 			? getTestRuntimeImportJs(runtimePath)
 			: '';
-		return `${getRuntimeImportJs(runtimePath)}${testRuntimeImportJs}${expressions.map((expression, index) => {
+		const markedJs = `${getRuntimeImportJs(runtimePath)}${testRuntimeImportJs}${expressions.map((expression, index) => {
 			const expressionJs = expressionToJs(expression, 0, true);
 			if (expression.type === 'definition') {
 				hasDefinition = true;
 			}
+			const markerJs = sourcePositionMarkerJs(expression);
 			// default export = last expression
 			if (index === expressions.length - 1
 				&& !hasDefinition) {
-				return `export default ${expressionJs}`;
+				return `${markerJs}export default ${expressionJs}`;
 			}
-			return expressionJs;
+			return markerJs + expressionJs;
 		}).join('\n')}`;
+		return extractSourceMappings(markedJs);
 	}
 	finally {
 		useTypeInfo = false;
+		emitSourcePositions = false;
 		sourceFilePath = '';
 	}
 }
@@ -455,15 +543,16 @@ function getPathFromImport(importExpression: ParseFunctionCall): string {
 function functionBodyToJs(expressions: ParseExpression[], indent: number): string {
 	const delimiter = getRowDelimiterJs(indent);
 	const js = delimiter + expressions.map((expression, index) => {
+		const markerJs = sourcePositionMarkerJs(expression);
 		const expressionJs = expressionToJs(expression, indent);
 		// Die letzte Expression ist der Rückgabewert
 		if (index === expressions.length - 1) {
 			if (expression.type === 'definition') {
-				return `${expressionJs}${delimiter}return ${escapeReservedJsVariableName(expression.name.name)};`;
+				return `${markerJs}${expressionJs}${delimiter}return ${escapeReservedJsVariableName(expression.name.name)};`;
 			}
-			return `return ${expressionJs}`;
+			return `${markerJs}return ${expressionJs}`;
 		}
-		return expressionJs;
+		return markerJs + expressionJs;
 	}).join(delimiter);
 	return js;
 }
@@ -799,15 +888,24 @@ function spreadDictionaryFieldToJs(valueJs: string): string {
 }
 
 function escapeStringForBacktickJs(value: string): string {
-	return value
+	return escapeSourceMapMarkers(value
 		.replaceAll('\\', '\\\\')
-		.replaceAll('`', '\\`');
+		.replaceAll('`', '\\`'));
 }
 
 function escapeStringForSingleQuoteJs(value: string): string {
-	return value
+	return escapeSourceMapMarkers(value
 		.replaceAll('\\', '\\\\')
-		.replaceAll('\'', '\\\'');
+		.replaceAll('\'', '\\\''));
+}
+
+/**
+ * Nach dem Escapen der Backslashes, sonst würde der Backslash der Escape-Sequenz verdoppelt.
+ */
+function escapeSourceMapMarkers(escapedValue: string): string {
+	return escapedValue
+		.replaceAll(markerStart, '\\u0001')
+		.replaceAll(markerEnd, '\\u0002');
 }
 
 function stringToJs(value: string): string {

@@ -2,7 +2,8 @@ import { expect } from 'chai';
 import { parseCode } from './parser/parser.js';
 import { checkTypes } from './checker/checker.js';
 import { errorInfos } from './compiler-errors.js';
-import { getRuntimeImportJs, getTestRuntimeImportJs, syntaxTreeToJs } from './emitter.js';
+import { functionLiteralToEvaluableJs, getRuntimeImportJs, getTestRuntimeImportJs, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
+import { ParseFunctionLiteral, ParseSingleDefinition } from './syntax-tree.js';
 import { reportAtCaller } from './test-util.js';
 
 const expectEmit = reportAtCaller((code: string, result: string) => {
@@ -519,5 +520,64 @@ describe('Emitter test', () => {
 	),
 	{ file: 'dummy.test.jul', row: 1, column: 1 },
 )`);
+	});
+});
+
+/**
+ * An der Quellposition (0-basiert) beginnt ein Statement, dessen erzeugtes JS mit generatedJs
+ * anfängt.
+ */
+const expectMapping = reportAtCaller((
+	code: string,
+	sourceLine: number,
+	sourceColumn: number,
+	generatedJs: string,
+) => {
+	const parsed = parseCode(code, 'dummy.jul');
+	const { js, mappings } = syntaxTreeToJsWithMappings(parsed.unchecked.expressions!, '');
+	const mapping = mappings.find(candidate =>
+		candidate.sourceLine === sourceLine
+		&& candidate.sourceColumn === sourceColumn);
+	expect(mapping, `mapping für ${sourceLine}:${sourceColumn}`).to.not.equal(undefined);
+	const generatedLine = js.split('\n')[mapping!.generatedLine]!;
+	expect(generatedLine.slice(mapping!.generatedColumn)).to.satisfy(
+		(generated: string) => generated.startsWith(generatedJs),
+		`erzeugt: ${generatedLine}`);
+});
+
+describe('Emitter source map', () => {
+	it('top-level-definition', () => {
+		expectMapping('a = 1\n\nb = 2', 2, 0, 'export const b = 2n;');
+	});
+	it('default-export', () => {
+		expectMapping('§a§', 0, 0, 'export default `a`');
+	});
+	it('expression-in-function-body-maps-to-own-line', () => {
+		expectMapping('f = (x: Integer) =>\n\ty = x\n\ty', 1, 1, 'const y = x;');
+	});
+	// Der Marker steht vor dem return, nicht dahinter.
+	it('last-expression-in-function-body-includes-return', () => {
+		expectMapping('f = (x: Integer) =>\n\ty = x\n\ty', 2, 1, 'return y');
+	});
+	it('last-definition-in-function-body', () => {
+		expectMapping('f = (x: Integer) =>\n\ty = x', 1, 1, 'const y = x;');
+	});
+	it('nested-function-body', () => {
+		expectMapping('f = (x: Integer) =>\n\tg = (y: Integer) =>\n\t\tz = y\n\t\tz\n\tg(x)', 2, 2, 'const z = y;');
+	});
+	it('statement-after-nested-function', () => {
+		expectMapping('f = (x: Integer) =>\n\tg = (y: Integer) =>\n\t\ty\n\tg(x)', 3, 1, 'return g(x)');
+	});
+	// Ein Markerzeichen aus dem Quelltext darf nicht als Marker gelesen werden.
+	it('marker-character-in-text-is-escaped', () => {
+		const parsed = parseCode('a = §x\u0001y\u0002z§', 'dummy.jul');
+		const { js, mappings } = syntaxTreeToJsWithMappings(parsed.unchecked.expressions!, '');
+		expect(js).to.equal(getRuntimeImportJs('') + 'export const a = `x\\u0001y\\u0002z`;');
+		expect(mappings).to.have.length(1);
+	});
+	it('constant-folding-emits-without-markers', () => {
+		const parsed = parseCode('f = (x: Integer) =>\n\ty = x\n\ty', 'dummy.jul');
+		const literal = (parsed.unchecked.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
+		expect(functionLiteralToEvaluableJs(literal)).to.not.match(/[\u0001\u0002]/);
 	});
 });

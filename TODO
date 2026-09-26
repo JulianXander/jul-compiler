@@ -28,8 +28,11 @@
 	 anderen zweig brechen, siehe risiken im dokument
 	-möglicher ausbau: eindeutige literale über den datenfluss verknüpfen (frage 3)
 -debug experience vebessern
-	-source maps und breakpoints: plan in docs/source-maps.md, dort auch optionale spätere stufen
-	 (stream-inspektor/time travel, mapping auf ausdrucksebene)
+	-source maps und breakpoints (docs/source-maps.md): umgesetzt, offen
+		-breakpoints und skipFiles im vscode-debug-terminal von hand prüfen
+		-shebang mit env -S unter den windows-shims von npm i -g prüfen
+		-optionale spätere stufen im dokument (stream-inspektor/time travel, mapping auf
+		 ausdrucksebene, werte in jul-schreibweise im debugger)
 	?intermediate js files direkt mit node ausführbar
 ?was tun mit typeGuard bei destructuring import
 ?shared code? libraries?
@@ -197,3 +200,22 @@
 	?check selbst: game-logic.jul braucht allein 140 ms - profiling im checker, vgl. cache für
 	 resolvePlaceholders
 	-vor und nach jedem schritt npm run bench -- --save
+-bundling: target und cli aus der package.json des projekts ableiten statt eigener felder in jul-config
+	-target: webpack mit target 'browserslist' (liest "browserslist" aus der package.json, z.b.
+	 ["node >= 22"] oder browser-versionen), rückfall node wie heute. heute fest target 'node', yugioh
+	 läuft im browser nur, weil kein node-builtin importiert wird. nötig spätestens mit code-splitting:
+	 target node lädt chunks per require, das bricht im browser
+	-cli: aus "bin" ableiten, wenn es aufs bundle zeigt, dann cli aus jul-config-schema entfernen
+	-tradeoffs: ohne package.json (yugioh) greift der rückfall; ein browserslist-feld für andere tools
+	 (css) ändert auch den jul-build; keine schema-hilfe wie bei jul-config
+	-große json-importe vom code trennen (eigener chunk), card-data.json ist 84 % des yugioh-bundles und
+	 jede codeänderung invalidiert den browser-cache für die ganzen 2 mb
+	?minify als opt-in: auf yugioh nur -9 % nach gzip, toter code fällt kaum weg, weil die top-level
+	 _createFunction(...)-aufrufe der runtime ohne /*#__PURE__*/ bzw. terser pure_funcs bleiben
+-json-import verliert \r: emitter schreibt texte als template-literal mit echtem zeilenumbruch, js
+	normalisiert crlf darin zu lf. import von card-data.json (yugioh, karte 295517) liefert dadurch
+	andere texte als _parseJson auf dieselbe datei
+?_parseJson über JSON.parse mit reviver (context.source für exakte bigint/fraction) statt eigenem
+	parser: auf card-data.json 21,5 statt 31,7 ms. achtung: reviver-rückgabe undefined löscht den
+	schlüssel, _parseJson behält ihn mit undefined. context.source gibt es ab chrome/edge 114,
+	 firefox 135, safari 18.4, node 21 (überall seit frühjahr 2025)
