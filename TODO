@@ -6,7 +6,7 @@
 	discardedValue ausweiten oder eigener Code) oder gar nichts? Im Typblock sind alle Ausdrücke
 	pure.
 ?builtin types/literale direkt als prädikat-argument (filter(Integer) statt filter(isInteger)) -
-	siehe docs/predicate-types-and-filter-narrowing.md, Abschnitt "Weitergehende Idee: Typ-/Literal-Werte
+	siehe docs/backlog/predicate-types-and-filter-narrowing.md, Abschnitt "Weitergehende Idee: Typ-/Literal-Werte
 	direkt als Prädikat-Argument", fuer Generalisierung, Checker/Runtime-Symmetrie-Problem und skizzierten
 	Predicate(X)-Mittelweg. Reine Ideensammlung, keine Entscheidung getroffen.
 -dictionary literal field completion anhand des erwarteten Zieltyps

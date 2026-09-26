@@ -1202,7 +1202,6 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 			],
 		});
 	});
-	// Schritt 4 (predicate-types-and-filter-narrowing.md): der auslösende yugioh-Fall.
 	// isInteger hat die erkannte Branching-Form (PredicateFacts.ifTrue = Integer).
 	// filters Signatur soll den ElementType daher auf Integer schneiden, statt ihn
 	// unverändert als Or(Integer Text) durchzureichen.
@@ -1226,9 +1225,8 @@ f = (values: List(Integer)) :> Or([] List(Integer)) =>
 			errors: [],
 		});
 	});
-	// findFirst hat dieselbe Lücke wie filter vor Schritt 4: die Signatur liefert
-	// bisher stur Or([] TypeOf(values)/ElementType) statt mit
-	// predicate/PredicateIfTrue zu schneiden.
+	// findFirst schneidet wie filter über predicate/PredicateIfTrue, statt stur
+	// Or([] TypeOf(values)/ElementType) zu liefern.
 	it('find-first-narrows-element-type-through-predicate', () => {
 		expectCheck(`isInteger = (value: Any) :> Boolean =>
 	?(value)
@@ -1250,14 +1248,10 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 			errors: [],
 		});
 	});
-	// Lücke (Session 2026-09-15, predicate-types-and-filter-narrowing Vorarbeit):
-	// ein unbenanntes Klammer-Pattern wie `[Integer] => true` (dieselbe Form, die als
-	// ?-Branch-Arm überall funktioniert) bekommt beim Checken einen 'tuple'-förmigen
-	// ParamsType (aus bracketedExpressionToValueExpression), filter verlangt für
-	// predicate aber die 'parameters'-förmige Form `(value: X index: Y) :> Boolean`.
-	// getTupleTypeError kennt keinen case 'parameters' und fällt auf den generischen
-	// Fehler zurück - die Brücke fehlt komplett. Bisher gibt es dafür auch keinen
-	// funktionierenden Beleg in jul-examples oder yugioh.
+	// Ein unbenanntes Klammer-Pattern wie `[Integer] => true` (dieselbe Form wie ein
+	// ?-Branch-Arm) bekommt beim Checken einen 'tuple'-förmigen ParamsType, filter
+	// verlangt für predicate aber die 'parameters'-förmige Form
+	// `(value: X index: Y) :> Boolean`. Die Zuweisung muss beide Formen verbinden.
 	it('unnamed-tuple-predicate-is-assignable-to-named-filter-predicate', () => {
 		expectCheck(`f = (values: List(Integer)) :> Or([] List(Integer)) =>
 	values.filter([Integer] => true)`, {
