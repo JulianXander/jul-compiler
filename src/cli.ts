@@ -62,14 +62,26 @@ try {
 	// einer Stelle einzutragen ist. build steht nicht in knownCommands: Der Build ist der Aufruf ohne
 	// Kommando, seine Optionen stehen in buildOptions.
 	// help und version sind Kommandos, keine Flags - sie sind eigene Aktionen, keine Abwandlung.
-	const knownOptions: Record<string, { value: string; description: string; }> = {
+	// repeatable: darf mehrfach stehen, die Werte sammeln sich. Sonst ist eine Wiederholung ein
+	// Fehler, weil unklar wäre, welcher Wert gilt.
+	const knownOptions: Record<string, { value: string; description: string; repeatable?: true; }> = {
 		'--config': {
 			value: '<path>',
 			description: 'Path to the jul-config.yaml. Default: jul-config.yaml in the current directory.',
 		},
+		'--file': {
+			value: '<path>',
+			description: 'Run only the tests in this *.test.jul file. Repeatable.',
+			repeatable: true,
+		},
 		'--name': {
 			value: '<name>',
-			description: 'Run only the tests with exactly this name.',
+			description: 'Run only the tests with exactly this name. Repeatable.',
+			repeatable: true,
+		},
+		'--report': {
+			value: '<path>',
+			description: 'Write one JSON line per test result to this file, for tools like the VSCode Test Explorer.',
 		},
 	};
 	const buildOptions: string[] = ['--config'];
@@ -82,7 +94,7 @@ try {
 		},
 		test: {
 			description: 'Check and run all *.test.jul files below the config folder, without writing output.',
-			options: ['--config', '--name'],
+			options: ['--config', '--file', '--name', '--report'],
 		},
 		help: {
 			description: 'Print this help text.',
@@ -96,7 +108,7 @@ try {
 	type Command = keyof typeof knownCommands;
 	// Object.hasOwn statt in: in fände auch geerbte Schlüssel wie toString.
 	const isCommand = (value: string): value is Command => Object.hasOwn(knownCommands, value);
-	const optionValues: Record<string, string> = {};
+	const optionValues: Record<string, string[]> = {};
 	const positionalArgs: string[] = [];
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index]!;
@@ -118,10 +130,16 @@ try {
 		if (!value || value.startsWith('--')) {
 			throw new Error(`Missing value for option ${name}.`);
 		}
-		if (name in optionValues) {
+		const values = optionValues[name];
+		if (!values) {
+			optionValues[name] = [value];
+		}
+		else if (option.repeatable) {
+			values.push(value);
+		}
+		else {
 			throw new Error(`Option ${name} given more than once.`);
 		}
-		optionValues[name] = value;
 	}
 	// Jedes positionale Argument ist ein Kommando. Ein Tippfehler (z.B. chekc) schlägt deshalb fehl,
 	// statt als Pfad gelesen zu werden.
@@ -150,7 +168,7 @@ try {
 		case undefined:
 		// Nur parsen und checken, kein Emit/Bundle - siehe checkOnly in compiler.ts.
 		case 'check': {
-			const { rootFolder, outputFolder, config } = loadConfig(optionValues['--config']);
+			const { rootFolder, outputFolder, config } = loadConfig(optionValues['--config']?.[0]);
 			compileProject(
 				join(rootFolder, config.entryFilePath),
 				outputFolder,
@@ -160,8 +178,12 @@ try {
 			break;
 		}
 		case 'test': {
-			const { rootFolder, outputFolder } = loadConfig(optionValues['--config']);
-			await testProject(rootFolder, outputFolder, optionValues['--name']);
+			const { rootFolder, outputFolder } = loadConfig(optionValues['--config']?.[0]);
+			await testProject(rootFolder, outputFolder, {
+				files: optionValues['--file'],
+				names: optionValues['--name'],
+				reportPath: optionValues['--report']?.[0],
+			});
 			break;
 		}
 		case 'help': {

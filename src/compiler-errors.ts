@@ -111,6 +111,22 @@ export enum ErrorCode {
 	 * `test` steht außerhalb einer *.test.jul-Datei. Tests gehören nie in den normalen Build.
 	 */
 	testOutsideTestFile = 2700,
+	/**
+	 * Der Name ist die Identität eines Tests (Test Explorer, --name, Zuordnung der Ergebnisse) und
+	 * muss deshalb ohne Lauf feststehen.
+	 */
+	testNameNotLiteral = 2701,
+	/**
+	 * Ein test in einer Funktion registriert bei jedem Aufruf einen Test gleichen Namens und ist
+	 * ohne Lauf nicht auffindbar.
+	 */
+	testNotTopLevel = 2702,
+	duplicateTestName = 2703,
+	/**
+	 * test wie ein Keyword: Über einen Alias ließen sich die übrigen Test-Regeln umgehen, und der
+	 * Emitter setzte keine Stelle ein.
+	 */
+	testNotCalled = 2704,
 	//#endregion 2000 semantic: Sprachregeln
 
 	//#region 3000 semantic: Import und Modulauflösung
@@ -249,6 +265,10 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.discardedValue]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.namingCase]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.testOutsideTestFile]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.testNameNotLiteral]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.testNotTopLevel]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.duplicateTestName]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.testNotCalled]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },

@@ -57,12 +57,15 @@ jul check
 erzeugte JS wird im Speicher gehalten und über Module-Hooks geladen (braucht Node ≥ 22.15).
 Hintergrund in [docs/testing.md](docs/testing.md). Mit `--name` laufen nur die Tests genau
 dieses Namens; gecheckt werden trotzdem alle Testdateien. Passt kein Test, endet der Lauf mit
-Exit-Code 1.
+Exit-Code 1. `--file` beschränkt den Lauf auf diese Testdateien, beide Optionen sind wiederholbar.
+`--report <pfad>` schreibt je Ergebnis eine JSON-Zeile, darüber liest der Test Explorer der
+VSCode-Extension die Ergebnisse ([docs/test-explorer.md](docs/test-explorer.md)).
 
 ```bash
 cd ../jul-examples/fibonacci
 jul test
 jul test --name "die 12. Zahl ist 144"
+jul test --file fibonacci.test.jul --name "die 12. Zahl ist 144" --report report.jsonl
 ```
 
 ## Test

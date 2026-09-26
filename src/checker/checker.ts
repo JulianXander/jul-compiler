@@ -95,7 +95,7 @@ import {
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, forEach, isDefined, isNonEmpty, isTestFilePath, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
-import { getCheckedEscapableName, getExportedSymbols } from '../parser/parser-utils.js';
+import { getCheckedEscapableName, getExportedSymbols, getTestCallArguments, getTestName } from '../parser/parser-utils.js';
 import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex, ReferenceLocation, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
@@ -1727,6 +1727,9 @@ export function checkTypes(
 	if (extname(document.filePath) === Extension.jul
 		&& !isCoreLibPath(document.filePath)) {
 		reportUnusedDefinitions(checked);
+	}
+	if (isTestFilePath(document.filePath)) {
+		reportDuplicateTestNames(checked);
 	}
 }
 
@@ -3361,7 +3364,7 @@ function inferType(
 			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL4003.
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'test') {
-				checkTestCall(expression, args, !!assignArgsError, checkContext.filePath, errors);
+				checkTestCall(expression, !!assignArgsError, checkContext.filePath, errors);
 			}
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, checkContext);
 			// Für den Rückgabetyp bleibt ein Platzhalter stehen, statt hier schon auf den
@@ -3914,6 +3917,19 @@ function inferType(
 				isBuiltIn,
 			} = dereferenceType(expression, scopes);
 			const name = expression.name.name;
+			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL4003.
+			if (name === 'test'
+				&& isBuiltIn
+				&& !isCalledFunction(expression)) {
+				errors.push({
+					code: ErrorCode.testNotCalled,
+					message: `'test' can only be called directly.`,
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				});
+			}
 			if (!found) {
 				errors.push({
 					code: ErrorCode.notDefined,
@@ -5868,7 +5884,6 @@ function isInsideFunctionLiteral(expression: TypedExpression): boolean {
  */
 function checkTestCall(
 	call: ParseFunctionCall,
-	args: BracketedExpression,
 	hasArgumentError: boolean,
 	filePath: string,
 	errors: CompilerError[],
@@ -5884,10 +5899,30 @@ function checkTestCall(
 		});
 		return;
 	}
+	if (call.parent) {
+		errors.push({
+			code: ErrorCode.testNotTopLevel,
+			message: `'test' is only allowed at the top level of a file.`,
+			startRowIndex: call.startRowIndex,
+			startColumnIndex: call.startColumnIndex,
+			endRowIndex: call.endRowIndex,
+			endColumnIndex: call.endColumnIndex,
+		});
+	}
+	const { name, callback } = getTestCallArguments(call);
+	if (name && getTestName(call) === undefined) {
+		errors.push({
+			code: ErrorCode.testNameNotLiteral,
+			message: 'The name of a test must be a text literal without interpolation.',
+			startRowIndex: name.startRowIndex,
+			startColumnIndex: name.startColumnIndex,
+			endRowIndex: name.endRowIndex,
+			endColumnIndex: name.endColumnIndex,
+		});
+	}
 	if (hasArgumentError) {
 		return;
 	}
-	const callback = getTestCallback(call.prefixArgument, args);
 	const callbackType = callback?.typeInfo && resolveAlias(resolvePlaceholders(callback.typeInfo.type));
 	if (!isFunctionType(callbackType)) {
 		return;
@@ -5917,21 +5952,43 @@ function checkTestCall(
 }
 
 /**
- * Das Argument für den Parameter callback, positionell oder benannt.
+ * Die Referenz ist selbst die aufgerufene Funktion eines Aufrufs, auch in der Präfixform.
  */
-function getTestCallback(
-	prefixArgument: ParseValueExpression | undefined,
-	args: BracketedExpression,
-): ParseValueExpression | undefined {
-	if (args.type === 'dictionary') {
-		return args.fields.find(field =>
-			field.type === 'singleDictionaryField'
-			&& getCheckedEscapableName(field.name) === 'callback')?.value;
-	}
-	const values = getArgValueExpressions(args);
-	return prefixArgument
-		? values[0]
-		: values[1];
+function isCalledFunction(reference: ParseReference): boolean {
+	const parent = reference.parent;
+	return parent?.type === 'functionCall'
+		&& parent.functionExpression === reference;
+}
+
+/**
+ * Jeder weitere Test gleichen Namens in der Datei. Nur auf oberster Ebene, ein test anderswo ist
+ * schon JUL2702, und ohne literalen Namen JUL2701.
+ */
+function reportDuplicateTestNames(file: ParsedExpressions2): void {
+	const names = new Set<string>();
+	file.expressions?.forEach(expression => {
+		if (expression.type !== 'functionCall'
+			|| expression.functionExpression?.type !== 'reference'
+			|| expression.functionExpression.name.name !== 'test') {
+			return;
+		}
+		const name = getTestName(expression);
+		if (name === undefined) {
+			return;
+		}
+		if (names.has(name)) {
+			const nameExpression = getTestCallArguments(expression).name!;
+			file.errors.push({
+				code: ErrorCode.duplicateTestName,
+				message: `Duplicate test name '${name}' in this file.`,
+				startRowIndex: nameExpression.startRowIndex,
+				startColumnIndex: nameExpression.startColumnIndex,
+				endRowIndex: nameExpression.endRowIndex,
+				endColumnIndex: nameExpression.endColumnIndex,
+			});
+		}
+		names.add(name);
+	});
 }
 
 /**

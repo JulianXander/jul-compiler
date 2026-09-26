@@ -18,7 +18,7 @@ import * as testRuntime from './test-runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from './util.js';
 import { dirname, extname, isAbsolute, join } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from './parser/parser.js';
-import { getCheckedEscapableName } from './parser/parser-utils.js';
+import { getCheckedEscapableName, getTestCallArguments } from './parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from './checker/branch-dispatch.js';
 import { isFunctionType, resolveAlias, resolvePlaceholders } from './checker/checker.js';
 
@@ -938,31 +938,7 @@ function testCallToJs(call: ParseFunctionCall, functionExpression: SimpleExpress
 }
 
 function getTestArguments(call: ParseFunctionCall): { name: ParseValueExpression; callback: ParseValueExpression; } {
-	const args = call.arguments;
-	if (args?.type === 'dictionary') {
-		const getField = (fieldName: string) => {
-			const field = args.fields.find(field =>
-				field.type === 'singleDictionaryField'
-				&& getCheckedEscapableName(field.name) === fieldName);
-			if (!field?.value) {
-				throw new Error(`argument ${fieldName} missing for test`);
-			}
-			return field.value;
-		};
-		return { name: getField('name'), callback: getField('callback') };
-	}
-	const values: ParseValueExpression[] = call.prefixArgument
-		? [call.prefixArgument]
-		: [];
-	if (args?.type === 'list') {
-		args.values.forEach(value => {
-			if (value.type === 'spread') {
-				throw new Error('spread not implemented yet for test');
-			}
-			values.push(value);
-		});
-	}
-	const [name, callback] = values;
+	const { name, callback } = getTestCallArguments(call);
 	if (!name || !callback) {
 		throw new Error('arguments missing for test');
 	}

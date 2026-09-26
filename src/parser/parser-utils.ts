@@ -1,4 +1,4 @@
-import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
@@ -240,3 +240,51 @@ export function setParentsRecursive(expression: PositionedExpression): void {
 		return undefined;
 	});
 }
+//#region test
+
+/**
+ * Name- und Callback-Argument eines test-Aufrufs, positionell, mit Präfix-Argument oder benannt.
+ * Fehlt eines, ist es undefined. Ein Spread zählt nicht als Argument.
+ */
+export function getTestCallArguments(call: ParseFunctionCall): {
+	name: ParseValueExpression | undefined;
+	callback: ParseValueExpression | undefined;
+} {
+	const args = call.arguments;
+	if (args?.type === 'dictionary') {
+		const getField = (fieldName: string) => args.fields.find(field =>
+			field.type === 'singleDictionaryField'
+			&& getCheckedEscapableName(field.name) === fieldName)?.value;
+		return { name: getField('name'), callback: getField('callback') };
+	}
+	const values: (ParseValueExpression | undefined)[] = call.prefixArgument
+		? [call.prefixArgument]
+		: [];
+	if (args?.type === 'list') {
+		args.values.forEach(value => {
+			values.push(value.type === 'spread' ? undefined : value);
+		});
+	}
+	return { name: values[0], callback: values[1] };
+}
+
+/**
+ * Der Name eines test-Aufrufs, sofern er ein Text-Literal ohne Interpolation ist. Nur dann steht
+ * er ohne Lauf fest und taugt als Identität des Tests.
+ */
+export function getTestName(call: ParseFunctionCall): string | undefined {
+	const name = getTestCallArguments(call).name;
+	if (name?.type !== 'text') {
+		return undefined;
+	}
+	let text = '';
+	for (const value of name.values) {
+		if (value.type !== 'textToken') {
+			return undefined;
+		}
+		text += value.value;
+	}
+	return text;
+}
+
+//#endregion test

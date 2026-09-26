@@ -1,8 +1,10 @@
 import { expect } from 'chai';
+import { readFileSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { SourceMapConsumer } from 'source-map';
 
-import { createSourceMap, formatErrors, LiveRenderer } from './compiler.js';
+import { createSourceMap, createTestReport, formatErrors, formatTestResult, LiveRenderer, toReportResult } from './compiler.js';
 import { CompilerError, ErrorCode } from './compiler-errors.js';
 import { createInMemoryHost } from './project-loader.js';
 
@@ -289,5 +291,61 @@ describe('createSourceMap', () => {
 	it('contains-source-code', () => {
 		const sourceMap = createSourceMap(mappings, 'a.jul', 'a.js', 'code');
 		expect(sourceMap.sourcesContent).to.deep.equal(['code']);
+	});
+});
+
+describe('formatTestResult', () => {
+	const location = { file: 'a.test.jul', row: 3, column: 1 };
+	it('passed', () => {
+		expect(stripAnsi(formatTestResult({ name: 'a', location: location, failure: undefined, durationMs: 1 }))).to.equal('✓ a');
+	});
+	it('failed-with-location-of-exception', () => {
+		expect(stripAnsi(formatTestResult({
+			name: 'a',
+			location: location,
+			failure: 'threw kaputt',
+			failureLocation: { file: 'b.jul', row: 4, column: 2 },
+			durationMs: 1,
+		}))).to.equal('✗ a (a.test.jul:3:1)\n    threw kaputt (b.jul:4:2)');
+	});
+});
+
+describe('createTestReport', () => {
+	const reportPath = join(tmpdir(), 'jul-test-report.test.jsonl');
+	afterEach(() => {
+		rmSync(reportPath, { force: true });
+	});
+	it('writes-one-json-line-per-event', () => {
+		const writeReport = createTestReport(reportPath);
+		writeReport({ type: 'finished', testCount: 1, failedCount: 0, skippedCount: 0 });
+		writeReport({ type: 'finished', testCount: 2, failedCount: 1, skippedCount: 0 });
+		expect(readFileSync(reportPath, 'utf8').split('\n')).to.deep.equal([
+			'{"type":"finished","testCount":1,"failedCount":0,"skippedCount":0}',
+			'{"type":"finished","testCount":2,"failedCount":1,"skippedCount":0}',
+			'',
+		]);
+	});
+	// Ein zweiter Lauf hängt nicht an den ersten an.
+	it('clears-existing-file', () => {
+		writeFileSync(reportPath, 'alt\n');
+		createTestReport(reportPath);
+		expect(readFileSync(reportPath, 'utf8')).to.equal('');
+	});
+	it('result-has-absolute-paths', () => {
+		expect(toReportResult({
+			name: 'a',
+			location: { file: 'a.test.jul', row: 3, column: 1 },
+			failure: 'threw kaputt',
+			failureLocation: { file: join('src', 'b.jul'), row: 4, column: 2 },
+			durationMs: 5,
+		})).to.deep.equal({
+			type: 'result',
+			file: resolve('a.test.jul'),
+			name: 'a',
+			location: { file: resolve('a.test.jul'), row: 3, column: 1 },
+			failure: 'threw kaputt',
+			failureLocation: { file: resolve('src', 'b.jul'), row: 4, column: 2 },
+			durationMs: 5,
+		});
 	});
 });

@@ -4907,6 +4907,119 @@ describe('test builtin', () => {
 			],
 		});
 	});
+	it('name-with-interpolation', () => {
+		expectCheck('n = 1\ntest(§a §(n)§ () => true)', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testNameNotLiteral,
+					message: 'The name of a test must be a text literal without interpolation.',
+					startRowIndex: 1,
+					startColumnIndex: 5,
+					endRowIndex: 1,
+					endColumnIndex: 13,
+				},
+			],
+		});
+	});
+	it('name-as-reference', () => {
+		expectCheck('name = §a§\ntest(name () => true)', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testNameNotLiteral,
+					message: 'The name of a test must be a text literal without interpolation.',
+					startRowIndex: 1,
+					startColumnIndex: 5,
+					endRowIndex: 1,
+					endColumnIndex: 9,
+				},
+			],
+		});
+	});
+	it('named-name-argument-as-literal', () => {
+		expectCheck('test(callback = () => true name = §a§)', { filePath: 'dummy.test.jul' });
+	});
+	it('test-in-function-body', () => {
+		expectCheck('f = () =>\n\ttest(§a§ () => true)', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testNotTopLevel,
+					message: `'test' is only allowed at the top level of a file.`,
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 21,
+				},
+			],
+		});
+	});
+	// Auch als Wert einer Definition steht der Aufruf nicht selbst auf oberster Ebene.
+	it('test-as-definition-value', () => {
+		expectCheck('x = test(§a§ () => true)', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testNotTopLevel,
+					message: `'test' is only allowed at the top level of a file.`,
+					startRowIndex: 0,
+					startColumnIndex: 4,
+					endRowIndex: 0,
+					endColumnIndex: 24,
+				},
+			],
+		});
+	});
+	// Gemeldet wird jedes weitere Vorkommen, nicht das erste.
+	it('duplicate-test-name', () => {
+		expectCheck('test(§a§ () => true)\ntest(§b§ () => true)\ntest(§a§ () => true)', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.duplicateTestName,
+					message: `Duplicate test name 'a' in this file.`,
+					startRowIndex: 2,
+					startColumnIndex: 5,
+					endRowIndex: 2,
+					endColumnIndex: 8,
+				},
+			],
+		});
+	});
+	it('test-as-value', () => {
+		expectCheck('f = test', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testNotCalled,
+					message: `'test' can only be called directly.`,
+					startRowIndex: 0,
+					startColumnIndex: 4,
+					endRowIndex: 0,
+					endColumnIndex: 8,
+				},
+			],
+		});
+	});
+	it('test-in-list', () => {
+		expectCheck('x = [test]', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testNotCalled,
+					message: `'test' can only be called directly.`,
+					startRowIndex: 0,
+					startColumnIndex: 5,
+					endRowIndex: 0,
+					endColumnIndex: 9,
+				},
+			],
+		});
+	});
+	it('prefix-call-is-allowed', () => {
+		expectCheck('§a§.test(() => true)', { filePath: 'dummy.test.jul' });
+	});
 	// Ein Nicht-Boolean meldet die normale Argumentprüfung, nicht die Test-Prüfung.
 	it('non-boolean-callback-is-argument-mismatch', () => {
 		expectCheck('test(§a§ () => 5)', {

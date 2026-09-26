@@ -5,8 +5,9 @@
 	?instrumentierung tiefer als der äußerste aufruf, auch bei benannten argumenten - idee mit
 	 zwischenwerten aller teilausdrücke in docs/test-instrumentation.md
 	?stream-/async-tests, virtuelle zeit für timer$ und currentDate
-	?code lens "run test" im language server (über jul test --name)
-	?warnung bei doppelten testnamen, --name führt dann mehrere aus
+	-test explorer in vscode (docs/test-explorer.md): umgesetzt, offen
+		-explorer, run/debug, abbruch und färbung in vscode von hand prüfen
+		?ergebnisse live über eine named pipe statt report-datei (optionale stufe im dokument)
 	-test debuggen (breakpoints, siehe docs/source-maps.md)
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 ?verpuffte Ausdrücke in Blöcken melden: im Funktionsrumpf und im Typblock unter einem

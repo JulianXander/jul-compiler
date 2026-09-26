@@ -1,4 +1,4 @@
-import { chmodSync, writeFileSync, copyFileSync, globSync, rmSync, statSync } from 'fs';
+import { appendFileSync, chmodSync, writeFileSync, copyFileSync, globSync, rmSync, statSync } from 'fs';
 import { registerHooks } from 'module';
 import { basename, dirname, join, relative, resolve } from 'path';
 import { RawSourceMap, SourceMapGenerator } from 'source-map';
@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { format } from 'util';
 import webpack from 'webpack';
 import { SourceMapping, syntaxTreeToJsWithMappings } from './emitter.js';
-import { _runTests, TestResult } from './test-runtime.js';
+import { _runTests, TestLocation, TestResult } from './test-runtime.js';
 import { ParsedDocuments } from './checker/checker.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from './compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
@@ -212,6 +212,22 @@ function reportErrors(
 	};
 }
 
+export interface TestProjectOptions {
+	/**
+	 * Nur diese Testdateien, relativ zum Arbeitsverzeichnis oder absolut.
+	 */
+	files?: string[];
+	/**
+	 * Nur die Tests, deren Name genau einer davon ist.
+	 */
+	names?: string[];
+	/**
+	 * Schreibt je Ereignis eine JSON-Zeile in diese Datei (TestReportEvent), für Werkzeuge wie den
+	 * Test Explorer. Die Terminalausgabe bleibt unverändert.
+	 */
+	reportPath?: string;
+}
+
 /**
  * Checkt alle *.test.jul unterhalb von rootFolder samt ihrer Importe und führt die Tests aus.
  * Anders als compileProject entsteht keine Datei: Das erzeugte JS wird aus dem Speicher geladen,
@@ -221,11 +237,24 @@ function reportErrors(
 export async function testProject(
 	rootFolder: string,
 	outputFolderPath: string,
-	testName?: string,
+	{ files, names, reportPath }: TestProjectOptions = {},
 ): Promise<void> {
 	const startTime = performance.now();
 	const renderer = new LiveRenderer();
-	const testFilePaths = findTestFiles(rootFolder, outputFolderPath);
+	const writeReport = reportPath
+		? createTestReport(reportPath)
+		: () => { };
+	const allTestFilePaths = findTestFiles(rootFolder, outputFolderPath);
+	let testFilePaths = allTestFilePaths;
+	if (files) {
+		const resolvedFiles = files.map(file => resolve(file));
+		const unknownFiles = resolvedFiles.filter(file =>
+			!allTestFilePaths.some(testFilePath => resolve(testFilePath) === file));
+		if (unknownFiles.length) {
+			throw new Error(`Not a *.test.jul file below ${rootFolder}: ${unknownFiles.join(', ')}`);
+		}
+		testFilePaths = allTestFilePaths.filter(testFilePath => resolvedFiles.includes(resolve(testFilePath)));
+	}
 	renderer.start(String(testFilePaths.length), 'test files');
 
 	//#region load
@@ -245,11 +274,13 @@ export async function testProject(
 	// fehlgeschlagen, samt Argumentwerten - die statische Meldung wäre daneben doppelt.
 	const { hasError, summary } = reportErrors(documents, notFoundPaths, host, renderer, [ErrorCode.testFails]);
 	if (hasError) {
+		writeReport({ type: 'compileFailed', errors: getCompileErrors(documents, notFoundPaths, [ErrorCode.testFails]) });
 		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
 		return;
 	}
 	if (!testFilePaths.length) {
+		writeReport({ type: 'finished', testCount: 0, failedCount: 0, skippedCount: 0 });
 		renderer.finish([`${colorize('no *.test.jul files found', ConsoleColor.lightRed)} in ${rootFolder} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
 		return;
@@ -312,17 +343,21 @@ export async function testProject(
 			await import(pathToFileURL(resolve(changeExtension(testFilePath, Extension.js))).href);
 		}
 		({ testCount, failedCount, skippedCount } = _runTests(
-			result => renderer.log(formatTestResult(result)),
-			testName));
+			result => {
+				renderer.log(formatTestResult(result));
+				writeReport(toReportResult(result));
+			},
+			names));
 	}
 	finally {
 		hooks.deregister();
 		Object.assign(console, originalConsole);
 	}
+	writeReport({ type: 'finished', testCount: testCount, failedCount: failedCount, skippedCount: skippedCount });
 	// Ohne Treffer wäre der Lauf sonst grün, ein Tippfehler im Namen fiele nicht auf.
-	if (testName !== undefined && !testCount) {
+	if (names !== undefined && !testCount) {
 		renderer.finishStep('failed');
-		renderer.finish([`${colorize(`no test named ${testName}`, ConsoleColor.lightRed)} - ${pluralize(skippedCount, 'test')} skipped ${durationSuffix(startTime)}`]);
+		renderer.finish([`${colorize(`no test named ${names.join(' or ')}`, ConsoleColor.lightRed)} - ${pluralize(skippedCount, 'test')} skipped ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
 		return;
 	}
@@ -345,16 +380,100 @@ export async function testProject(
  * Bestandene Tests grün, fehlgeschlagene rot samt Stelle, darunter eingerückt, was stattdessen
  * herauskam.
  */
-function formatTestResult(result: TestResult): string {
+export function formatTestResult(result: TestResult): string {
 	if (result.failure === undefined) {
 		return colorize(`✓ ${result.name}`, ConsoleColor.green);
 	}
-	const location = result.location;
-	const locationText = location
+	return `${colorize(`✗ ${result.name}${formatTestLocation(result.location)}`, ConsoleColor.lightRed)}\n    ${result.failure}${formatTestLocation(result.failureLocation)}`;
+}
+
+function formatTestLocation(location: TestLocation | undefined): string {
+	return location
 		? ` (${location.file}:${location.row}:${location.column})`
 		: '';
-	return `${colorize(`✗ ${result.name}${locationText}`, ConsoleColor.lightRed)}\n    ${result.failure}`;
 }
+
+//#region test report
+
+/**
+ * Eine Zeile der Report-Datei von jul test --report. Pfade sind absolut, Positionen 1-basiert.
+ */
+export type TestReportEvent =
+	| {
+		type: 'result';
+		/**
+		 * Die Testdatei.
+		 */
+		file: string | undefined;
+		name: string;
+		location: TestLocation | undefined;
+		failure: string | undefined;
+		failureLocation: TestLocation | undefined;
+		durationMs: number;
+	}
+	| {
+		type: 'compileFailed';
+		errors: (TestLocation & { message: string; })[];
+	}
+	| {
+		type: 'finished';
+		testCount: number;
+		failedCount: number;
+		skippedCount: number;
+	};
+
+/**
+ * Leert die Datei und liefert eine Funktion, die je Ereignis sofort eine Zeile anhängt. Bis zu
+ * einem Absturz bleibt so jedes Ergebnis erhalten.
+ */
+export function createTestReport(reportPath: string): (event: TestReportEvent) => void {
+	writeFileSync(reportPath, '');
+	return event => {
+		appendFileSync(reportPath, JSON.stringify(event) + '\n');
+	};
+}
+
+export function toReportResult(result: TestResult): TestReportEvent {
+	const location = toAbsoluteLocation(result.location);
+	return {
+		type: 'result',
+		file: location?.file,
+		name: result.name,
+		location: location,
+		failure: result.failure,
+		failureLocation: toAbsoluteLocation(result.failureLocation),
+		durationMs: result.durationMs,
+	};
+}
+
+function toAbsoluteLocation(location: TestLocation | undefined): TestLocation | undefined {
+	return location && { ...location, file: resolve(location.file) };
+}
+
+/**
+ * Die Fehler, die einen Testlauf verhindern, wie reportErrors sie zählt, aber strukturiert.
+ */
+function getCompileErrors(
+	documents: ParsedDocuments,
+	notFoundPaths: string[],
+	ignoredCodes: ErrorCode[],
+): (TestLocation & { message: string; })[] {
+	return [
+		...notFoundPaths.map(path => ({ file: resolve(path), row: 1, column: 1, message: `File not found: ${path}` })),
+		...Object.values(documents).flatMap(document =>
+			(document.checked?.errors ?? document.unchecked.errors)
+				.filter(error => errorInfos[error.code].severity === 'error'
+					&& !ignoredCodes.includes(error.code))
+				.map(error => ({
+					file: resolve(document.filePath),
+					row: error.startRowIndex + 1,
+					column: error.startColumnIndex + 1,
+					message: `JUL${error.code}: ${error.message}`,
+				}))),
+	];
+}
+
+//#endregion test report
 
 /**
  * Relativ zum Arbeitsverzeichnis wie rootFolder selbst, damit die Pfade zu denen passen, die der

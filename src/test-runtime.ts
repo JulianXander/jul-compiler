@@ -69,42 +69,54 @@ export interface TestResult {
 	 * Nur bei einem Fehlschlag: was stattdessen herauskam, z.B. `equal(1 2) returned false`.
 	 */
 	failure: string | undefined;
+	/**
+	 * Nur bei einer Exception: die erste Stelle im Stack, die in eine .jul-Datei zeigt.
+	 */
+	failureLocation?: TestLocation;
+	durationMs: number;
 }
 
 /**
  * Führt alle bisher registrierten Tests aus und entfernt sie aus dem Register. Jedes Ergebnis geht
  * an report, sobald es feststeht; wie es dargestellt wird, entscheidet der Aufrufer.
- * Mit name nur die Tests genau dieses Namens, die übrigen werden übersprungen.
+ * Mit names nur die Tests, deren Name genau einer davon ist, die übrigen werden übersprungen.
  */
 export function _runTests(
 	report: (result: TestResult) => void,
-	name?: string,
+	names?: string[],
 ): { testCount: number; failedCount: number; skippedCount: number; } {
 	const allTests = registeredTests.splice(0);
-	const tests = name === undefined
+	const tests = names === undefined
 		? allTests
-		: allTests.filter(candidate => candidate.name === name);
+		: allTests.filter(candidate => names.includes(candidate.name));
 	let failedCount = 0;
 	for (const registered of tests) {
 		lastTestCall = undefined;
 		let result: unknown;
 		let thrown: { error: unknown; } | undefined;
+		const startTime = performance.now();
 		try {
 			result = registered.callback();
 		}
 		catch (error) {
 			thrown = { error };
 		}
+		const durationMs = performance.now() - startTime;
 		const passed = !thrown && result === true;
 		if (!passed) {
 			failedCount++;
 		}
+		const failureLocation = thrown?.error instanceof Error
+			? getJulStackLocation(thrown.error)
+			: undefined;
 		report({
 			name: registered.name,
 			location: registered.location,
 			failure: passed
 				? undefined
 				: getTestFailureText(result, thrown, lastTestCall),
+			...failureLocation && { failureLocation: failureLocation },
+			durationMs: durationMs,
 		});
 	}
 	return {
@@ -124,11 +136,7 @@ function getTestFailureText(
 		: '';
 	if (thrown) {
 		const error = thrown.error;
-		if (!(error instanceof Error)) {
-			return `${callText}threw ${String(error)}`;
-		}
-		const julLocation = getJulStackLocation(error);
-		return `${callText}threw ${error.message}${julLocation ? ` (${julLocation})` : ''}`;
+		return `${callText}threw ${error instanceof Error ? error.message : String(error)}`;
 	}
 	return `${callText}returned ${valueToString(result)}`;
 }
@@ -138,7 +146,7 @@ function getTestFailureText(
  * es nur mit Source Maps (siehe testProject). Frames in der Runtime und im Compiler fallen so von
  * selbst heraus. Die erste Zeile des Stacks ist die Meldung und wird übergangen.
  */
-function getJulStackLocation(error: Error): string | undefined {
+function getJulStackLocation(error: Error): TestLocation | undefined {
 	const frames = error.stack?.split('\n').slice(1) ?? [];
 	for (const frame of frames) {
 		const match = /((?:file:\/\/)?[^\s()]+\.jul):(\d+):(\d+)/.exec(frame);
@@ -147,7 +155,11 @@ function getJulStackLocation(error: Error): string | undefined {
 			const path = pathOrUrl!.startsWith('file://')
 				? fileURLToPath(pathOrUrl!)
 				: pathOrUrl!;
-			return `${relative(process.cwd(), path)}:${row}:${column}`;
+			return {
+				file: relative(process.cwd(), path),
+				row: Number(row),
+				column: Number(column),
+			};
 		}
 	}
 	return undefined;
