@@ -55,11 +55,14 @@ jul check
 `test` checkt alle `*.test.jul` unterhalb des Config-Ordners samt Importen und führt deren
 `test(...)`-Aufrufe aus; Exit-Code 1, sobald einer fehlschlägt. Es wird nichts geschrieben, das
 erzeugte JS wird im Speicher gehalten und über Module-Hooks geladen (braucht Node ≥ 22.15).
-Hintergrund in [docs/testing.md](docs/testing.md).
+Hintergrund in [docs/testing.md](docs/testing.md). Mit `--name` laufen nur die Tests genau
+dieses Namens; gecheckt werden trotzdem alle Testdateien. Passt kein Test, endet der Lauf mit
+Exit-Code 1.
 
 ```bash
 cd ../jul-examples/fibonacci
 jul test
+jul test --name "die 12. Zahl ist 144"
 ```
 
 ## Test

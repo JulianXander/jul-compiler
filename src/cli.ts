@@ -38,6 +38,10 @@ try {
 			value: '<path>',
 			description: 'Path to the jul-config.yaml. Default: jul-config.yaml in the current directory.',
 		},
+		'--name': {
+			value: '<name>',
+			description: 'Only with test: run only the tests with exactly this name.',
+		},
 	};
 	const optionValues: Record<string, string> = {};
 	const positionalArgs: string[] = [];
@@ -79,6 +83,10 @@ try {
 	const givenOptions = Object.keys(optionValues);
 	if ((command === 'help' || command === 'version') && givenOptions.length) {
 		throw new Error(`Command ${command} takes no options: ${givenOptions.join(', ')}.`);
+	}
+	// Sonst würde --name beim Build oder check still ignoriert.
+	if ('--name' in optionValues && command !== 'test') {
+		throw new Error('Option --name is only allowed with command test.');
 	}
 	if (command === 'help') {
 		const printEntries = (entries: [string, string][]) => {
@@ -128,7 +136,7 @@ try {
 	const rootFolder = dirname(configFilePath);
 	const outputFolder = config.outputFolder ?? 'out';
 	if (runTests) {
-		await testProject(rootFolder, join(rootFolder, outputFolder));
+		await testProject(rootFolder, join(rootFolder, outputFolder), optionValues['--name']);
 	}
 	else {
 		compileProject(

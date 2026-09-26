@@ -72,9 +72,16 @@ export interface TestResult {
 /**
  * Führt alle bisher registrierten Tests aus und entfernt sie aus dem Register. Jedes Ergebnis geht
  * an report, sobald es feststeht; wie es dargestellt wird, entscheidet der Aufrufer.
+ * Mit name nur die Tests genau dieses Namens, die übrigen werden übersprungen.
  */
-export function _runTests(report: (result: TestResult) => void): { testCount: number; failedCount: number; } {
-	const tests = registeredTests.splice(0);
+export function _runTests(
+	report: (result: TestResult) => void,
+	name?: string,
+): { testCount: number; failedCount: number; skippedCount: number; } {
+	const allTests = registeredTests.splice(0);
+	const tests = name === undefined
+		? allTests
+		: allTests.filter(candidate => candidate.name === name);
 	let failedCount = 0;
 	for (const registered of tests) {
 		lastTestCall = undefined;
@@ -98,7 +105,11 @@ export function _runTests(report: (result: TestResult) => void): { testCount: nu
 				: getTestFailureText(result, thrown, lastTestCall),
 		});
 	}
-	return { testCount: tests.length, failedCount: failedCount };
+	return {
+		testCount: tests.length,
+		failedCount: failedCount,
+		skippedCount: allTests.length - tests.length,
+	};
 }
 
 function getTestFailureText(

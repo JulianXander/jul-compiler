@@ -16,7 +16,24 @@ const expectTestRun = reportAtCaller((
 	const results: TestResult[] = [];
 	const counts = _runTests(result => results.push(result));
 	expect(results.map(result => result.failure)).to.deep.equal(failures);
-	expect(counts).to.deep.equal({ testCount: failures.length, failedCount: failedCount });
+	expect(counts).to.deep.equal({ testCount: failures.length, failedCount: failedCount, skippedCount: 0 });
+});
+
+/**
+ * Registriert über register, führt nur die Tests mit name aus und prüft die Namen der gemeldeten
+ * Ergebnisse samt Zahl der übersprungenen.
+ */
+const expectFilteredRun = reportAtCaller((
+	register: () => void,
+	name: string,
+	names: string[],
+	skippedCount: number,
+) => {
+	register();
+	const results: TestResult[] = [];
+	const counts = _runTests(result => results.push(result), name);
+	expect(results.map(result => result.name)).to.deep.equal(names);
+	expect(counts).to.deep.equal({ testCount: names.length, failedCount: 0, skippedCount: skippedCount });
 });
 
 const location = { file: 'a.test.jul', row: 3, column: 1 };
@@ -66,6 +83,42 @@ describe('_runTests', () => {
 	it('runs-each-test-once', () => {
 		test('a', () => true, location);
 		_runTests(() => { });
+		expectTestRun(() => { }, [], 0);
+	});
+	it('runs-only-tests-with-name', () => {
+		expectFilteredRun(
+			() => {
+				test('a', () => true, location);
+				test('b', () => true, location);
+			},
+			'b',
+			['b'],
+			1);
+	});
+	// Namen müssen nicht eindeutig sein, ausgeführt werden dann alle gleichnamigen.
+	it('runs-all-tests-with-same-name', () => {
+		expectFilteredRun(
+			() => {
+				test('a', () => true, location);
+				test('b', () => true, location);
+				test('a', () => true, location);
+			},
+			'a',
+			['a', 'a'],
+			1);
+	});
+	// Kein Teilstring-Treffer: 'a' wählt 'ab' nicht aus.
+	it('matches-name-exactly', () => {
+		expectFilteredRun(
+			() => test('ab', () => true, location),
+			'a',
+			[],
+			1);
+	});
+	// Das Register wird auch ohne Treffer geleert.
+	it('clears-skipped-tests', () => {
+		test('a', () => true, location);
+		_runTests(() => { }, 'b');
 		expectTestRun(() => { }, [], 0);
 	});
 });

@@ -4,8 +4,9 @@
 	?reporter: begründung für is (getTypeError) und diff für deepEqual
 	?instrumentierung tiefer als der äußerste aufruf, auch bei benannten argumenten
 	?stream-/async-tests, virtuelle zeit für timer$ und currentDate
-	?code lens "run test" im language server
-	-einzelnen test ausführen
+	?code lens "run test" im language server (über jul test --name)
+	?warnung bei doppelten testnamen, --name führt dann mehrere aus
+	?mit --name statisch fehlschlagende andere tests (JUL5200) nicht als abbruchgrund werten
 	-test debuggen
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 ?verpuffte Ausdrücke in Blöcken melden: im Funktionsrumpf und im Typblock unter einem

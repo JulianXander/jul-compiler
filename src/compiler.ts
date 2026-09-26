@@ -192,6 +192,7 @@ function reportErrors(
 export async function testProject(
 	rootFolder: string,
 	outputFolderPath: string,
+	testName?: string,
 ): Promise<void> {
 	const startTime = performance.now();
 	const renderer = new LiveRenderer();
@@ -266,21 +267,33 @@ export async function testProject(
 	});
 	let testCount = 0;
 	let failedCount = 0;
+	let skippedCount = 0;
 	try {
 		for (const testFilePath of testFilePaths) {
 			// Registriert die Tests beim Import, ausgeführt werden sie erst danach gemeinsam.
 			await import(pathToFileURL(resolve(changeExtension(testFilePath, Extension.js))).href);
 		}
-		({ testCount, failedCount } = _runTests(result => renderer.log(formatTestResult(result))));
+		({ testCount, failedCount, skippedCount } = _runTests(
+			result => renderer.log(formatTestResult(result)),
+			testName));
 	}
 	finally {
 		hooks.deregister();
 		Object.assign(console, originalConsole);
 	}
+	// Ohne Treffer wäre der Lauf sonst grün, ein Tippfehler im Namen fiele nicht auf.
+	if (testName !== undefined && !testCount) {
+		renderer.finishStep('failed');
+		renderer.finish([`${colorize(`no test named ${testName}`, ConsoleColor.lightRed)} - ${pluralize(skippedCount, 'test')} skipped ${durationSuffix(startTime)}`]);
+		process.exitCode = 1;
+		return;
+	}
 	renderer.finishStep(failedCount ? 'failed' : 'done');
-	const testSummary = failedCount
-		? `- ${pluralize(testCount, 'test')}, ${failedCount} failed`
-		: `- ${pluralize(testCount, 'test')}`;
+	const testSummary = [
+		`- ${pluralize(testCount, 'test')}`,
+		...failedCount ? [`${failedCount} failed`] : [],
+		...skippedCount ? [`${skippedCount} skipped`] : [],
+	].join(', ');
 	renderer.finish([failedCount
 		? `${colorize('tests failed', ConsoleColor.lightRed)} ${testSummary} ${durationSuffix(startTime)}`
 		: `${colorize('tests passed', ConsoleColor.green)} ${testSummary} ${durationSuffix(startTime)}`]);
