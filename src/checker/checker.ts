@@ -2205,6 +2205,80 @@ function isBranchingExhaustive(
 }
 
 /**
+ * Ob der Kopf dieses branches beweisbar keinen Wert der Argumente trifft: An einer Stelle
+ * haben Argument und Kopf keinen gemeinsamen Wert. Was sich nicht entscheiden lässt, gilt
+ * als erreichbar.
+ */
+function isBranchDisjointToArgs(
+	args: ParseValueExpression | undefined,
+	branch: ParseValueExpression,
+): boolean {
+	const argsType = args?.typeInfo && resolvePlaceholders(args.typeInfo.type);
+	if (!argsType) {
+		return false;
+	}
+	const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
+	const headLength = getBranchHeadLength(paramsType);
+	for (let argumentIndex = 0; argumentIndex < headLength; argumentIndex++) {
+		const headType = getBranchArgumentType(paramsType, argumentIndex);
+		if (!headType) {
+			continue;
+		}
+		const argumentType = getArgumentTypeAtIndex(argsType, argumentIndex);
+		if (argumentType
+			&& typesOverlap(argumentType, headType) === false) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Anzahl der Stellen, die ein branch-Kopf einzeln benennt. Ein Rest-Parameter und eine Liste
+ * als Typ-Kopf zählen nicht mit, ihre Länge ist offen.
+ */
+function getBranchHeadLength(paramsType: CompileTimeType): number {
+	if (isParametersType(paramsType)) {
+		return paramsType.singleNames.length;
+	}
+	const resolvedType = resolveAlias(paramsType);
+	return resolvedType.julType === 'tuple'
+		? resolvedType.ElementTypes.length
+		: 0;
+}
+
+/**
+ * Der Typ des Arguments an dieser Stelle der Argumentkollektion. Fehlt die Stelle in einem
+ * Tuple, kommt dort Empty an. undefined, wenn er sich nicht bestimmen lässt.
+ */
+function getArgumentTypeAtIndex(
+	argsType: CompileTimeType,
+	index: number,
+): CompileTimeType | undefined {
+	const resolvedType = resolveAlias(argsType);
+	switch (resolvedType.julType) {
+		case 'empty':
+			return builtinEmpty;
+		case 'tuple':
+			return resolvedType.ElementTypes[index] ?? builtinEmpty;
+		case 'or': {
+			const choiceTypes: CompileTimeType[] = [];
+			for (const choiceType of resolvedType.ChoiceTypes) {
+				const elementType = getArgumentTypeAtIndex(choiceType, index);
+				if (!elementType) {
+					return undefined;
+				}
+				choiceTypes.push(elementType);
+			}
+			return createNormalizedUnionType(choiceTypes);
+		}
+		// Bei List steht die Länge nicht fest, bei Dictionary hängt die Stelle an den Namen.
+		default:
+			return undefined;
+	}
+}
+
+/**
  * Der Typ des Elements an dieser Stelle einer Kollektion.
  * undefined, wenn er sich nicht bestimmen lässt - dann wird nicht verengt.
  */
@@ -2703,6 +2777,19 @@ function inferType(
 			branches.forEach((branch, index) => {
 				setInferredType(branch, typeContext, undefined, checkContext);
 				checkIsFunction(branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
+				// Unreachable auch ohne vorherigen Branch: Der Kopf hat mit den Argumenten keinen
+				// gemeinsamen Wert, etwa ein zweistelliger Kopf bei ?([a b]).
+				if (isBranchDisjointToArgs(args, branch)) {
+					errors.push({
+						code: ErrorCode.unreachableBranch,
+						message: 'Unreachable branch detected.',
+						startRowIndex: branch.startRowIndex,
+						startColumnIndex: branch.startColumnIndex,
+						endRowIndex: branch.endRowIndex,
+						endColumnIndex: branch.endColumnIndex,
+					});
+					return;
+				}
 				if (index) {
 					// Unreachable: Ein Branch ist unreachable, wenn sein Argument-Typ bereits
 					// von vorherigen Branches abgedeckt wird. Sonderfall: () ist orthogonal zu

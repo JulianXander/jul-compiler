@@ -26,6 +26,8 @@ myEmpty: Empty
 myFunction: (a: Integer) ~> Empty
 myList: [1 2]
 myVal: 6
+  warning 5152 at 10:2 Unreachable branch detected.
+  warning 5152 at 16:2 Unreachable branch detected.
 === cli/cli.jul ===
 cliArguments: Any
 === console-progress/console-progress.jul ===
@@ -238,6 +240,8 @@ typeFnShort: BlubType -> Empty
   error 5050 at 27:15 Argument type mismatch. | Invalid value for parameter 'lowerFn' |   Can not assign ( |     arg2: Any |     arg1: Any |   ) -> Empty to ( |     arg1: Text |     arg2: Boolean |   ) -> Empty.
 === type-switch.jul ===
 someVar: 32
+  warning 5152 at 4:2 Unreachable branch detected.
+  warning 5152 at 5:2 Unreachable branch detected.
   error 4001 at 6:3 'Number' is not defined.
   warning 5152 at 8:2 Unreachable branch detected.
 === types.jul ===

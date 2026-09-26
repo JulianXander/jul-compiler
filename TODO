@@ -76,8 +76,9 @@
 	-ist der resttyp nicht Never, gibt es werte, die keinen branch treffen
 	-zur laufzeit liefert _branch dafür new Error(`... did not match any branch`), also ein
 	 stiller fehlerwert statt einer meldung beim schreiben
-	-gegenrichtung (unerreichbare branches) steht als auskommentierter block im checker,
-	 case 'branching'. beide brauchen dieselbe rechnung
+	-gegenrichtung (unerreichbare branches) ist umgesetzt: JUL5152 im checker, case 'branching'.
+	 sie vergleicht mit der union der vorherigen köpfe, nicht mit dem abgezogenen resttyp,
+	 und über typesOverlap mit den argumenten (kopf ohne gemeinsamen wert)
 	-hängt an der catchAll frage weiter unten: () und Any decken beide alles ab, ein branching
 	 mit einem davon ist immer exhaustiv
 	-vorbild: rust non-exhaustive patterns. ts hat nur das never idiom von hand

@@ -705,6 +705,51 @@ useType(isLegal)`);
 			],
 		});
 	});
+	// Auch ohne vorherigen Branch ist ein Kopf unerreichbar, wenn der gebranchte Wert ihn nie
+	// treffen kann.
+	it('branch-disjoint-to-value-is-unreachable', () => {
+		expectCheck(`f = (value: Integer) =>
+	?(value)
+		[Text] => 1
+		() => 2`, {
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable branch detected.',
+					startRowIndex: 2,
+					startColumnIndex: 2,
+					endRowIndex: 2,
+					endColumnIndex: 13,
+				},
+			],
+		});
+	});
+	// ?([a b]) übergibt ein einziges Argument, ein Tupel. Ein zweistelliger Kopf trifft das nie.
+	it('branch-with-more-params-than-args-is-unreachable', () => {
+		expectCheck(`f = (value: Integer) =>
+	?([value value])
+		(a: Integer b: Integer) => 1
+		() => 2`, {
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable branch detected.',
+					startRowIndex: 2,
+					startColumnIndex: 2,
+					endRowIndex: 2,
+					endColumnIndex: 30,
+				},
+			],
+		});
+	});
+	it('branch-with-matching-param-count-is-reachable', () => {
+		expectCheck(`f = (value: Integer) =>
+	?(value value)
+		(a: Integer b: Integer) => 1
+		() => 2`, {
+			errors: [],
+		});
+	});
 	//#endregion branching: Erreichbarkeit
 
 	//#region Prädikate als Typ
@@ -3156,7 +3201,8 @@ f = (cards: List(Integer)) =>
 		// Or(FunctionType FunctionType) führen, sondern zu einer einzigen FunctionType.
 		// catchAll im 2. branch, damit das Ergebnis nicht durch das Error-in-Union-Verhalten
 		// (branching ohne catchAll) verfälscht wird - das ist hier nicht das Thema des Tests.
-		const code = `x = ?(5)
+		// Ein Integer, der nicht feststeht: Bei ?(5) wäre der Kopf [1] unerreichbar.
+		const code = `x = ?(assume(5 Integer))
 	[1] => (a) => a
 	() => (a) => a`;
 		const parsed = parseCode(code, 'dummy.jul');
@@ -3222,7 +3268,8 @@ f = (cards: List(Integer)) =>
 	// Fehlt ein catchAll-Branch, kann `_branch` zur Laufzeit ein Error zurückgeben (siehe
 	// runtime.ts). Der Rückgabetyp muss das zeigen.
 	it('branching-without-catchall-adds-error-to-union', () => {
-		const code = `x = ?(5)
+		// Ein Integer, der nicht feststeht: Bei ?(5) wäre der Kopf [1] unerreichbar.
+		const code = `x = ?(assume(5 Integer))
 	[1] => §eins§
 	[2] => §zwei§`;
 		const parsed = parseCode(code, 'dummy.jul');
@@ -3239,7 +3286,8 @@ f = (cards: List(Integer)) =>
 	});
 	// Gegenstück: Mit catchAll ist _branch nie ohne Match, Error gehört also nicht in den Typ.
 	it('branching-with-catchall-has-no-error-in-union', () => {
-		const code = `x = ?(5)
+		// Ein Integer, der nicht feststeht: Bei ?(5) wäre der Kopf [1] unerreichbar.
+		const code = `x = ?(assume(5 Integer))
 	[1] => §eins§
 	() => §andere§`;
 		const parsed = parseCode(code, 'dummy.jul');

@@ -138,3 +138,5 @@
 2026-09-26 15:11:45	83ef5b6+	-	ADV-DEV-56627	yugioh	parse+check	5	1451.85	1890.53	1890.53	vor nativem JSON.parse
 2026-09-26 15:13:08	83ef5b6+	-	ADV-DEV-56627	yugioh	parse+check	5	1371.09	1737.90	1737.90	natives JSON.parse mit reviver
 2026-09-26 15:41:09	83ef5b6+	-	ADV-DEV-56627	yugioh	parse+check	5	1466.04	1873.12	1873.12	json-parser: fraction-kürzung, strikter, strings per substring
+2026-09-26 15:58:36	c0e2241+	-	ADV-DEV-56627	yugioh	parse+check	5	1397.29	1757.84	1757.84	vor unreachable branch gegen argumenttyp
+2026-09-26 16:00:52	c0e2241+	-	ADV-DEV-56627	yugioh	parse+check	5	1378.00	1763.11	1763.11	unreachable branch auch gegen argumenttyp (typesOverlap)
