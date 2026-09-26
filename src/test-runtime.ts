@@ -9,7 +9,7 @@ import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _Text, _typeT
  * Stelle des test-Aufrufs im .jul-Quelltext, 1-basiert. Setzt der Emitter als drittes Argument,
  * es gehört nicht zur Signatur in der core-lib.
  */
-interface TestLocation {
+export interface TestLocation {
 	file: string;
 	row: number;
 	column: number;
@@ -60,11 +60,20 @@ export function _testCall(name: string, fn: Function, args: unknown[]): unknown 
 	lastTestCall = { name, args };
 	return fn(...args);
 }
+export interface TestResult {
+	message: string;
+	location: TestLocation | undefined;
+	/**
+	 * Nur bei einem Fehlschlag: was stattdessen herauskam, z.B. `equal(1 2) returned false`.
+	 */
+	failure: string | undefined;
+}
+
 /**
- * Führt alle bisher registrierten Tests aus und entfernt sie aus dem Register.
- * Liefert, ob alle bestanden haben.
+ * Führt alle bisher registrierten Tests aus und entfernt sie aus dem Register. Jedes Ergebnis geht
+ * an report, sobald es feststeht; wie es dargestellt wird, entscheidet der Aufrufer.
  */
-export function _runTests(writeLine: (line: string) => void = console.log): boolean {
+export function _runTests(report: (result: TestResult) => void): { testCount: number; failedCount: number; } {
 	const tests = registeredTests.splice(0);
 	let failedCount = 0;
 	for (const registered of tests) {
@@ -77,20 +86,19 @@ export function _runTests(writeLine: (line: string) => void = console.log): bool
 		catch (error) {
 			thrown = { error };
 		}
-		if (!thrown && result === true) {
-			writeLine(`✓ ${registered.message}`);
-			continue;
+		const passed = !thrown && result === true;
+		if (!passed) {
+			failedCount++;
 		}
-		failedCount++;
-		const location = registered.location;
-		const locationText = location
-			? ` (${location.file}:${location.row}:${location.column})`
-			: '';
-		writeLine(`✗ ${registered.message}${locationText}`);
-		writeLine(`    ${getTestFailureText(result, thrown, lastTestCall)}`);
+		report({
+			message: registered.message,
+			location: registered.location,
+			failure: passed
+				? undefined
+				: getTestFailureText(result, thrown, lastTestCall),
+		});
 	}
-	writeLine(`${tests.length} ${tests.length === 1 ? 'test' : 'tests'}, ${failedCount} failed`);
-	return failedCount === 0;
+	return { testCount: tests.length, failedCount: failedCount };
 }
 
 function getTestFailureText(

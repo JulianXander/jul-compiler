@@ -81,16 +81,19 @@ test = nativeFunction(
   aufgerufen, das Register ist dann wirkungslos.
 - `export function _testCall(name, fn, args)`: merkt sich `{ name, args }` des zuletzt
   instrumentierten Aufrufs und liefert `fn(...args)`.
-- `export function _runTests(): boolean`: führt die Tests der Reihe nach aus, setzt vorher den
+- `export function _runTests(report)`: führt die Tests der Reihe nach aus, setzt vorher den
   gemerkten Aufruf zurück, fängt Exceptions ab. Ergebnis `true` = bestanden; `false`, anderer Wert
-  oder Exception = fehlgeschlagen. Ausgabe (englisch wie die übrigen CLI-Meldungen):
+  oder Exception = fehlgeschlagen. Jedes Ergebnis geht strukturiert an `report`
+  (`{ message, location, failure }`), zurück kommen die Zählungen. Die Darstellung macht der
+  Compiler (`formatTestResult` in `compiler.ts`): über dem Frame des `LiveRenderer`, bestandene
+  grün, fehlgeschlagene rot, die Zusammenfassung als Abschlusszeile neben dem Logo. Was Testcode
+  oder Importe per `console.*` ausgeben, leitet `testProject` während des Laufs ebenfalls über
+  `renderer.log`, sonst zerrisse es den Frame. Beispiel der Fehlschlagsmeldung:
   ```
-  ✓ 12th number is 144
   ✗ 13th number is 234 (fibonacci.test.jul:5:1)
       fibonacci(13) returned 233      ← nicht instrumentiert: nur Ergebnis
   ✗ … 
       equal(233 234) returned false   ← instrumentiert
-  3 tests, 1 failed
   ```
   Werte über die vorhandene `typeToString` der Runtime formatieren (Literale erscheinen dort schon in
   JUL-Schreibweise: `600`, `§x§`, `[1 2]`); als `valueToString` kapseln.

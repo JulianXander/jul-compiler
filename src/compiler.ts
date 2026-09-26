@@ -2,9 +2,10 @@ import { writeFileSync, copyFileSync, readdirSync, rmSync, statSync } from 'fs';
 import { registerHooks } from 'module';
 import { dirname, join, relative, resolve, sep } from 'path';
 import { pathToFileURL } from 'url';
+import { format } from 'util';
 import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
-import { _runTests } from './test-runtime.js';
+import { _runTests, TestResult } from './test-runtime.js';
 import { ParsedDocuments } from './checker/checker.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos, Positioned } from './compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
@@ -195,7 +196,7 @@ export async function testProject(
 	const startTime = performance.now();
 	const renderer = new LiveRenderer();
 	const testFilePaths = findTestFiles(rootFolder, outputFolderPath);
-	renderer.start(pluralize(testFilePaths.length, 'test file'), 'test files');
+	renderer.start(String(testFilePaths.length), 'test files');
 
 	//#region load
 	renderer.startStep('compiling');
@@ -234,10 +235,15 @@ export async function testProject(
 			format: outFilePath.endsWith(Extension.json) ? 'json' : 'module',
 		});
 	});
-	renderer.finish([`${colorize('check finished successfully', ConsoleColor.green)} ${summary} ${durationSuffix(startTime)}`]);
 	//#endregion emit
 
 	//#region run
+	renderer.startStep('testing');
+	// Was Tests und importierte Dateien ausgeben (log), gehört wie die Testergebnisse ins
+	// Scrollback über dem Frame. Direkt auf stdout geschrieben, zerrisse es den Frame.
+	const originalConsole = { log: console.log, info: console.info, warn: console.warn, error: console.error };
+	const logAboveFrame = (...args: unknown[]) => renderer.log(format(...args));
+	console.log = console.info = console.warn = console.error = logAboveFrame;
 	const hooks = registerHooks({
 		resolve: (specifier, context, nextResolve) => {
 			// Nur was im Speicher liegt, sonst normal auflösen. Gilt auch für einen Pfad ohne ./,
@@ -258,20 +264,45 @@ export async function testProject(
 			return nextLoad(url, context);
 		},
 	});
+	let testCount = 0;
+	let failedCount = 0;
 	try {
 		for (const testFilePath of testFilePaths) {
 			// Registriert die Tests beim Import, ausgeführt werden sie erst danach gemeinsam.
 			await import(pathToFileURL(resolve(changeExtension(testFilePath, Extension.js))).href);
 		}
-		const passed = _runTests();
-		if (!passed) {
-			process.exitCode = 1;
-		}
+		({ testCount, failedCount } = _runTests(result => renderer.log(formatTestResult(result))));
 	}
 	finally {
 		hooks.deregister();
+		Object.assign(console, originalConsole);
+	}
+	renderer.finishStep(failedCount ? 'failed' : 'done');
+	const testSummary = failedCount
+		? `- ${pluralize(testCount, 'test')}, ${failedCount} failed`
+		: `- ${pluralize(testCount, 'test')}`;
+	renderer.finish([failedCount
+		? `${colorize('tests failed', ConsoleColor.lightRed)} ${testSummary} ${durationSuffix(startTime)}`
+		: `${colorize('tests passed', ConsoleColor.green)} ${testSummary} ${durationSuffix(startTime)}`]);
+	if (failedCount) {
+		process.exitCode = 1;
 	}
 	//#endregion run
+}
+
+/**
+ * Bestandene Tests grün, fehlgeschlagene rot samt Stelle, darunter eingerückt, was stattdessen
+ * herauskam.
+ */
+function formatTestResult(result: TestResult): string {
+	if (result.failure === undefined) {
+		return colorize(`✓ ${result.message}`, ConsoleColor.green);
+	}
+	const location = result.location;
+	const locationText = location
+		? ` (${location.file}:${location.row}:${location.column})`
+		: '';
+	return `${colorize(`✗ ${result.message}${locationText}`, ConsoleColor.lightRed)}\n    ${result.failure}`;
 }
 
 /**
@@ -803,12 +834,14 @@ export class LiveRenderer {
 	 * der Live-Frame darunter weiterläuft.
 	 */
 	log(text: string): void {
+		// Über stdout statt console.log: testProject leitet console.log während des Testlaufs
+		// hierher um.
 		if (!this.isTty) {
-			console.log(text);
+			process.stdout.write(text + '\n');
 			return;
 		}
 		this.erase();
-		console.log(text);
+		process.stdout.write(text + '\n');
 		// erase() hat den alten Frame bereits gelöscht - frameHeight zurücksetzen, sonst würde
 		// render() gleich erneut (mit der alten Höhe) nach oben löschen und dabei den gerade
 		// gedruckten Text mit abschneiden.
