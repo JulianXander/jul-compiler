@@ -15,8 +15,11 @@ const cellHeight = 190;
 const maxColumnCount = 2;
 const padding = { top: 40, right: 16, bottom: 46, left: 52 };
 
+/**
+ * @param {string[]} argv
+ */
 function parseArgs(argv) {
-	const getValue = name => {
+	const getValue = (/** @type {string} */ name) => {
 		const index = argv.indexOf(name);
 		return index >= 0
 			? argv[index + 1]
@@ -30,6 +33,9 @@ function parseArgs(argv) {
 	};
 }
 
+/**
+ * @param {string} logPath
+ */
 function readEntries(logPath) {
 	return readFileSync(logPath, { encoding: 'utf8' }).split('\n').flatMap(row => {
 		if (!row || row.startsWith('#')) {
@@ -49,6 +55,9 @@ function readEntries(logPath) {
 	});
 }
 
+/**
+ * @param {string} text
+ */
 function escapeText(text) {
 	return text
 		.replace(/&/g, '&amp;')
@@ -56,15 +65,22 @@ function escapeText(text) {
 		.replace(/>/g, '&gt;');
 }
 
-/** ein Diagramm, x nach Position im Protokoll, nicht nach Datum: Messungen sind ungleich verteilt */
+/**
+ * ein Diagramm, x nach Position im Protokoll, nicht nach Datum: Messungen sind ungleich verteilt
+ * @param {string} label
+ * @param {any[]} entries
+ * @param {number} cellWidth
+ * @param {number} offsetX
+ * @param {number} offsetY
+ */
 function renderCell(label, entries, cellWidth, offsetX, offsetY) {
 	const plotWidth = cellWidth - padding.left - padding.right;
 	const plotHeight = cellHeight - padding.top - padding.bottom;
 	const maxValue = Math.max(...entries.map(entry => entry.median)) * 1.15 || 1;
-	const getX = index => entries.length > 1
+	const getX = (/** @type {number} */ index) => entries.length > 1
 		? padding.left + (index / (entries.length - 1)) * plotWidth
 		: padding.left + plotWidth / 2;
-	const getY = value => padding.top + plotHeight - (value / maxValue) * plotHeight;
+	const getY = (/** @type {number} */ value) => padding.top + plotHeight - (value / maxValue) * plotHeight;
 	const points = entries.map((entry, index) => `${getX(index).toFixed(1)},${getY(entry.median).toFixed(1)}`);
 	const dots = entries.map((entry, index) =>
 		`<circle cx="${getX(index).toFixed(1)}" cy="${getY(entry.median).toFixed(1)}" r="2.5" fill="#5aa9e6">`
@@ -122,14 +138,19 @@ else {
 		const columnCount = Math.max(1, Math.min(maxColumnCount, ...[...labelsByTarget.values()].map(labels => labels.length)));
 		const cellWidth = gridWidth / columnCount;
 		let totalHeight = 40; // Header
+		/**
+		 * @type {string[]}
+		 */
 		const targetSvgParts = [];
 
 		allTargets.forEach(chosenTarget => {
 			const entries = allEntries.filter(entry => entry.target === chosenTarget);
 			const labels = labelsByTarget.get(chosenTarget);
+			// @ts-ignore
 			const rowCount = Math.ceil(labels.length / columnCount);
 			const gridHeight = rowCount * cellHeight;
 
+			// @ts-ignore
 			const cells = labels.map((label, index) => renderCell(
 				label,
 				entries.filter(entry => entry.label === label),
@@ -138,6 +159,7 @@ else {
 				Math.floor(index / columnCount) * cellHeight,
 			)).join('');
 
+			// @ts-ignore
 			const measurementCount = entries.length / labels.length;
 			const targetSection = `<g transform="translate(0 ${totalHeight})">`
 				+ `<rect x="0" y="0" width="${gridWidth}" height="30" fill="#252525"/>`
