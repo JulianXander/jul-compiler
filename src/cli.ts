@@ -25,14 +25,9 @@ interface PackageJson {
 try {
 	const args = process.argv.slice(2);
 	// Eine Quelle für Validierung und help, damit ein neues Kommando bzw. eine neue Option nur an
-	// einer Stelle einzutragen ist. build steht nicht darin: Der Build ist der Aufruf ohne Kommando.
+	// einer Stelle einzutragen ist. build steht nicht in knownCommands: Der Build ist der Aufruf ohne
+	// Kommando, seine Optionen stehen in buildOptions.
 	// help und version sind Kommandos, keine Flags - sie sind eigene Aktionen, keine Abwandlung.
-	const knownCommands: Record<string, string> = {
-		check: 'Only parse and check, without emitting or bundling output.',
-		test: 'Check and run all *.test.jul files below the config folder, without writing output.',
-		help: 'Print this help text.',
-		version: 'Print the compiler version.',
-	};
 	const knownOptions: Record<string, { value: string; description: string; }> = {
 		'--config': {
 			value: '<path>',
@@ -40,7 +35,26 @@ try {
 		},
 		'--name': {
 			value: '<name>',
-			description: 'Only with test: run only the tests with exactly this name.',
+			description: 'Run only the tests with exactly this name.',
+		},
+	};
+	const buildOptions: string[] = ['--config'];
+	const knownCommands: Record<string, { description: string; options: string[]; }> = {
+		check: {
+			description: 'Only parse and check, without emitting or bundling output.',
+			options: ['--config'],
+		},
+		test: {
+			description: 'Check and run all *.test.jul files below the config folder, without writing output.',
+			options: ['--config', '--name'],
+		},
+		help: {
+			description: 'Print this help text.',
+			options: [],
+		},
+		version: {
+			description: 'Print the compiler version.',
+			options: [],
 		},
 	};
 	const optionValues: Record<string, string> = {};
@@ -79,14 +93,18 @@ try {
 	if (command !== undefined && !(command in knownCommands)) {
 		throw new Error(`Unknown command: ${command}. Known commands: ${Object.keys(knownCommands).join(', ')}`);
 	}
-	// Optionen beziehen sich aufs Projekt; bei help und version würden sie still ignoriert.
-	const givenOptions = Object.keys(optionValues);
-	if ((command === 'help' || command === 'version') && givenOptions.length) {
-		throw new Error(`Command ${command} takes no options: ${givenOptions.join(', ')}.`);
-	}
-	// Sonst würde --name beim Build oder check still ignoriert.
-	if ('--name' in optionValues && command !== 'test') {
-		throw new Error('Option --name is only allowed with command test.');
+	// Eine Option, die das Kommando nicht kennt, würde sonst still ignoriert.
+	const allowedOptions = command === undefined
+		? buildOptions
+		: knownCommands[command]!.options;
+	const commandText = command === undefined
+		? 'Build (without command)'
+		: `Command ${command}`;
+	const unexpectedOptions = Object.keys(optionValues).filter(name => !allowedOptions.includes(name));
+	if (unexpectedOptions.length) {
+		throw new Error(allowedOptions.length
+			? `${commandText} does not take option ${unexpectedOptions.join(', ')}. Allowed options: ${allowedOptions.join(', ')}`
+			: `${commandText} takes no options: ${unexpectedOptions.join(', ')}.`);
 	}
 	if (command === 'help') {
 		const printEntries = (entries: [string, string][]) => {
@@ -95,10 +113,14 @@ try {
 				console.log(`  ${name.padEnd(width)}${description}`);
 			}
 		};
+		const withOptions = (description: string, options: string[]) => options.length
+			? `${description} Options: ${options.join(', ')}`
+			: description;
 		console.log('\nUsage: jul [command] [options]');
-		console.log('\nWithout command, the project is checked, emitted and bundled into the output folder.');
+		console.log(`\n${withOptions('Without command, the project is checked, emitted and bundled into the output folder.', buildOptions)}`);
 		console.log('\nCommands:');
-		printEntries(Object.entries(knownCommands));
+		printEntries(Object.entries(knownCommands).map(([name, knownCommand]) =>
+			[name, withOptions(knownCommand.description, knownCommand.options)]));
 		console.log('\nOptions:');
 		printEntries(Object.entries(knownOptions).map(([name, option]) =>
 			[`${name} ${option.value}`, option.description]));
