@@ -15,7 +15,7 @@ export interface TestLocation {
 	column: number;
 }
 interface RegisteredTest {
-	message: string;
+	name: string;
 	callback: () => unknown;
 	location: TestLocation | undefined;
 }
@@ -33,15 +33,15 @@ let lastTestCall: TestCall | undefined;
  * Registriert nur, ausgeführt wird erst über _runTests. Ein Test ist bestanden, wenn der Callback
  * true liefert.
  */
-export const test = (message: string, callback: () => unknown, location?: TestLocation) => {
-	registeredTests.push({ message, callback, location });
+export const test = (name: string, callback: () => unknown, location?: TestLocation) => {
+	registeredTests.push({ name, callback, location });
 };
 _createFunction(
 	test,
 	{
 		singleNames: [
 			{
-				name: 'message',
+				name: 'name',
 				type: _Text
 			},
 			{
@@ -61,7 +61,7 @@ export function _testCall(name: string, fn: Function, args: unknown[]): unknown 
 	return fn(...args);
 }
 export interface TestResult {
-	message: string;
+	name: string;
 	location: TestLocation | undefined;
 	/**
 	 * Nur bei einem Fehlschlag: was stattdessen herauskam, z.B. `equal(1 2) returned false`.
@@ -91,7 +91,7 @@ export function _runTests(report: (result: TestResult) => void): { testCount: nu
 			failedCount++;
 		}
 		report({
-			message: registered.message,
+			name: registered.name,
 			location: registered.location,
 			failure: passed
 				? undefined

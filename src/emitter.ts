@@ -821,7 +821,7 @@ function stringToJs(value: string): string {
  * benannt geschrieben sind.
  */
 function testCallToJs(call: ParseFunctionCall, functionExpression: SimpleExpression, indent: number): string {
-	const { message, callback } = getTestArguments(call);
+	const { name, callback } = getTestArguments(call);
 	const previousInstrumentedCall = instrumentedTestCall;
 	instrumentedTestCall = callback.type === 'functionLiteral'
 		? last(callback.body)
@@ -830,7 +830,7 @@ function testCallToJs(call: ParseFunctionCall, functionExpression: SimpleExpress
 		const innerIndent = indent + 1;
 		const locationJs = `{ file: ${stringToJs(sourceFilePath)}, row: ${call.startRowIndex + 1}, column: ${call.startColumnIndex + 1} }`;
 		const valuesJs = listValuesToJs(
-			[expressionToJs(message, innerIndent), expressionToJs(callback, innerIndent), locationJs],
+			[expressionToJs(name, innerIndent), expressionToJs(callback, innerIndent), locationJs],
 			indent);
 		return `${expressionToJs(functionExpression, indent)}(${valuesJs})`;
 	}
@@ -839,19 +839,19 @@ function testCallToJs(call: ParseFunctionCall, functionExpression: SimpleExpress
 	}
 }
 
-function getTestArguments(call: ParseFunctionCall): { message: ParseValueExpression; callback: ParseValueExpression; } {
+function getTestArguments(call: ParseFunctionCall): { name: ParseValueExpression; callback: ParseValueExpression; } {
 	const args = call.arguments;
 	if (args?.type === 'dictionary') {
-		const getField = (name: string) => {
+		const getField = (fieldName: string) => {
 			const field = args.fields.find(field =>
 				field.type === 'singleDictionaryField'
-				&& getCheckedEscapableName(field.name) === name);
+				&& getCheckedEscapableName(field.name) === fieldName);
 			if (!field?.value) {
-				throw new Error(`argument ${name} missing for test`);
+				throw new Error(`argument ${fieldName} missing for test`);
 			}
 			return field.value;
 		};
-		return { message: getField('message'), callback: getField('callback') };
+		return { name: getField('name'), callback: getField('callback') };
 	}
 	const values: ParseValueExpression[] = call.prefixArgument
 		? [call.prefixArgument]
@@ -864,11 +864,11 @@ function getTestArguments(call: ParseFunctionCall): { message: ParseValueExpress
 			values.push(value);
 		});
 	}
-	const [message, callback] = values;
-	if (!message || !callback) {
+	const [name, callback] = values;
+	if (!name || !callback) {
 		throw new Error('arguments missing for test');
 	}
-	return { message, callback };
+	return { name, callback };
 }
 
 /**

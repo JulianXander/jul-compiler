@@ -509,7 +509,7 @@ describe('Emitter test', () => {
 	});
 	// Benannte Argumente werden positionell emittiert, damit die Stelle mitgehen kann.
 	it('named-arguments-are-emitted-positionally', () => {
-		expectTestEmit('test(message = §a§ callback = () => true)', `export default test(
+		expectTestEmit('test(name = §a§ callback = () => true)', `export default test(
 	\`a\`,
 	_createFunction(
 		() => {

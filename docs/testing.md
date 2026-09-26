@@ -5,7 +5,7 @@
 JUL hat bisher kein Testframework für in JUL geschriebenen Code (`jul-compiler/TODO`: „unit testing
 konzept für jul"). Entschieden wurde im Gespräch:
 
-- Ein Builtin `test(message: Text callback: () :> Boolean)` — ein Test ist eine Bedingung,
+- Ein Builtin `test(name: Text callback: () :> Boolean)` — ein Test ist eine Bedingung,
   Prüflogik baut man mit normalen Funktionen (`equal`, `deepEqual`, `and`, eigene Helfer).
 - Der Checker meldet einen Fehler, wenn der Callback statisch zu `false` faltet (Feedback beim
   Tippen, weil constant folding für reine Aufrufe schon existiert).
@@ -66,7 +66,7 @@ Umgesetzt wie unten beschrieben. Abweichungen und Nebenwirkungen:
 ```jul
 # Registriert einen Test, den `jul test` ausführt. Nur in *.test.jul erlaubt.
 test = nativeFunction(
-	(message: Text callback: () :> Boolean) ~> []
+	(name: Text callback: () :> Boolean) ~> []
 	§js
 		test
 	§
@@ -76,7 +76,7 @@ test = nativeFunction(
 
 [runtime.ts](../src/runtime.ts):
 - Modulweites Register `const registeredTests: …[] = []`.
-- `export const test = (message, callback, location?) => { registeredTests.push(...) }` mit
+- `export const test = (name, callback, location?) => { registeredTests.push(...) }` mit
   `_createFunction`-Params wie bei `equal`. Außerhalb eines Testlaufs wird nie `_runTests`
   aufgerufen, das Register ist dann wirkungslos.
 - `export function _testCall(name, fn, args)`: merkt sich `{ name, args }` des zuletzt
@@ -84,7 +84,7 @@ test = nativeFunction(
 - `export function _runTests(report)`: führt die Tests der Reihe nach aus, setzt vorher den
   gemerkten Aufruf zurück, fängt Exceptions ab. Ergebnis `true` = bestanden; `false`, anderer Wert
   oder Exception = fehlgeschlagen. Jedes Ergebnis geht strukturiert an `report`
-  (`{ message, location, failure }`), zurück kommen die Zählungen. Die Darstellung macht der
+  (`{ name, location, failure }`), zurück kommen die Zählungen. Die Darstellung macht der
   Compiler (`formatTestResult` in `compiler.ts`): über dem Frame des `LiveRenderer`, bestandene
   grün, fehlgeschlagene rot, die Zusammenfassung als Abschlusszeile neben dem Logo. Was Testcode
   oder Importe per `console.*` ausgeben, leitet `testProject` während des Laufs ebenfalls über
@@ -114,7 +114,7 @@ Im `case 'functionCall'` nach Argumentprüfung (um Zeile 3360), Muster wie die N
 3. Details der Meldung: ist der Callback ein Funktionsliteral und `last(body)` ein `functionCall`
    mit Referenz als Callee, dann `name(arg1 arg2)` aus `getAllArgTypes(prefixType, argsType)`
    mit `typeToString(resolvePlaceholders(t), 0, 1)`, gefolgt von ` is false.`; sonst nur
-   `Returns false.`. Die Testnachricht voranstellen, wenn sie ein Text-Literal ist.
+   `Returns false.`. Den Testnamen voranstellen, wenn sie ein Text-Literal ist.
 
 Fold-Budget erschöpft → nicht gefaltet → keine statische Meldung, der Laufzeitlauf fängt es.
 
@@ -123,7 +123,7 @@ Fold-Budget erschöpft → nicht gefaltet → keine statische Meldung, der Laufz
 - `syntaxTreeToJs` bekommt zusätzlich den Quellpfad der Datei (für die Positionen);
   Aufrufer `emitFile` in [compiler.ts](../src/compiler.ts) reicht ihn durch.
 - Im `case 'functionCall'` ein Namensfall `isNamedFunction(functionExpression, 'test')` wie bei
-  `assume` (Zeile 227): emittiert `test(messageJs, callbackJs, { file, row, column })`
+  `assume` (Zeile 227): emittiert `test(nameJs, callbackJs, { file, row, column })`
   (1-basiert). Beim Emittieren des Callback-Literals wird dessen letzter Rumpfausdruck, falls
   `functionCall` mit Listenargumenten und Referenz-Callee, als
   `_testCall('equal', equal, [argsJs])` emittiert (Prefix-Argument vorn, wie

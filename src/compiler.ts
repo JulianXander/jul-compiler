@@ -296,13 +296,13 @@ export async function testProject(
  */
 function formatTestResult(result: TestResult): string {
 	if (result.failure === undefined) {
-		return colorize(`✓ ${result.message}`, ConsoleColor.green);
+		return colorize(`✓ ${result.name}`, ConsoleColor.green);
 	}
 	const location = result.location;
 	const locationText = location
 		? ` (${location.file}:${location.row}:${location.column})`
 		: '';
-	return `${colorize(`✗ ${result.message}${locationText}`, ConsoleColor.lightRed)}\n    ${result.failure}`;
+	return `${colorize(`✗ ${result.name}${locationText}`, ConsoleColor.lightRed)}\n    ${result.failure}`;
 }
 
 /**

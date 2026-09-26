@@ -56,11 +56,11 @@ describe('_runTests', () => {
 			['threw kaputt', undefined],
 			1);
 	});
-	it('reports-message-and-location', () => {
+	it('reports-name-and-location', () => {
 		test('a', () => false, location);
 		const results: TestResult[] = [];
 		_runTests(result => results.push(result));
-		expect(results).to.deep.equal([{ message: 'a', location: location, failure: 'returned false' }]);
+		expect(results).to.deep.equal([{ name: 'a', location: location, failure: 'returned false' }]);
 	});
 	// Das Register wird geleert, ein zweiter Lauf wiederholt nichts.
 	it('runs-each-test-once', () => {

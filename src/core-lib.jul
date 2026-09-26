@@ -1188,7 +1188,7 @@ log = nativeFunction(
 # Nur in *.test.jul erlaubt. Implementiert in test-runtime.ts, nicht in runtime.ts.
 test = nativeFunction(
 	(
-		message: Text
+		name: Text
 		callback: () :> Boolean
 	) ~> []
 	§js

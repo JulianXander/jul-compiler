@@ -4893,16 +4893,16 @@ describe('test builtin', () => {
 		});
 	});
 	it('named-callback-argument', () => {
-		expectCheck('test(message = §a§ callback = () => equal(1 2))', {
+		expectCheck('test(name = §a§ callback = () => equal(1 2))', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
 					code: ErrorCode.testFails,
 					message: 'Test fails.\nequal(1 2) returns false.',
 					startRowIndex: 0,
-					startColumnIndex: 36,
+					startColumnIndex: 33,
 					endRowIndex: 0,
-					endColumnIndex: 46,
+					endColumnIndex: 43,
 				},
 			],
 		});
