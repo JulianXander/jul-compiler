@@ -2,11 +2,12 @@
 -tests (MVP umgesetzt: test-builtin, jul test, siehe docs/testing.md), offen:
 	?is(value Type) mit Checker-Regel: true bei bewiesener Teilmenge, false bei disjunkt
 	?reporter: begründung für is (getTypeError) und diff für deepEqual
-	?instrumentierung tiefer als der äußerste aufruf, auch bei benannten argumenten
+	?instrumentierung tiefer als der äußerste aufruf, auch bei benannten argumenten - idee mit
+	 zwischenwerten aller teilausdrücke in docs/test-instrumentation.md
 	?stream-/async-tests, virtuelle zeit für timer$ und currentDate
 	?code lens "run test" im language server (über jul test --name)
 	?warnung bei doppelten testnamen, --name führt dann mehrere aus
-	-test debuggen
+	-test debuggen (breakpoints, siehe docs/source-maps.md)
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 ?verpuffte Ausdrücke in Blöcken melden: im Funktionsrumpf und im Typblock unter einem
 	umgebrochenen Rückgabepfeil gilt der letzte Ausdruck, davorstehende Ausdrücke ohne Definition
@@ -27,7 +28,8 @@
 	 anderen zweig brechen, siehe risiken im dokument
 	-möglicher ausbau: eindeutige literale über den datenfluss verknüpfen (frage 3)
 -debug experience vebessern
-	?sourcemap
+	-source maps und breakpoints: plan in docs/source-maps.md, dort auch optionale spätere stufen
+	 (stream-inspektor/time travel, mapping auf ausdrucksebene)
 	?intermediate js files direkt mit node ausführbar
 ?was tun mit typeGuard bei destructuring import
 ?shared code? libraries?
