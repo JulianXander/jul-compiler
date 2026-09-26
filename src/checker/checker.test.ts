@@ -22,11 +22,12 @@ import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
 import { builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
-const expectCheck = reportAtCaller((code: string, { result, errors }: {
+const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: {
 	result?: ParseExpression[];
 	errors?: CompilerError[];
+	filePath?: string;
 } = {}) => {
-	const parserResult = parseCode(code, 'dummy.jul');
+	const parserResult = parseCode(code, filePath ?? 'dummy.jul');
 	// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
 	// unvollständigen Baum schlicht nichts zu melden hat. Vor dem Check, weil ohne Klon
 	// danach auch die Checker-Fehler in unchecked stehen.
@@ -4795,3 +4796,109 @@ describe('ungenutzte Definitionen', () => {
 });
 
 //#endregion Ungenutzte Definitionen
+
+//#region test
+
+describe('test builtin', () => {
+	it('test-outside-test-file', () => {
+		expectCheck('test(§a§ () => true)', {
+			errors: [
+				{
+					code: ErrorCode.testOutsideTestFile,
+					message: `'test' is only allowed in *.test.jul files.`,
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 20,
+				},
+			],
+		});
+	});
+	it('folded-false-fails-with-arguments', () => {
+		expectCheck('test(§a§ () => equal(1 2))', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testFails,
+					message: 'Test fails.\nequal(1 2) returns false.',
+					startRowIndex: 0,
+					startColumnIndex: 15,
+					endRowIndex: 0,
+					endColumnIndex: 25,
+				},
+			],
+		});
+	});
+	it('folded-true-passes', () => {
+		expectCheck('test(§a§ () => equal(1 1))', { filePath: 'dummy.test.jul' });
+	});
+	// Erst die Laufzeit kennt das Ergebnis, statisch ist es nur Boolean.
+	it('impure-callback-is-not-reported', () => {
+		expectCheck('test(§a§ () => equal(toIsoDateText(currentDate()) §x§))', { filePath: 'dummy.test.jul' });
+	});
+	// Ohne äußersten Aufruf gibt es keine Argumente zu nennen.
+	it('false-literal-fails-without-call', () => {
+		expectCheck('test(§a§ () => false)', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testFails,
+					message: 'Test fails.\nThe callback returns false.',
+					startRowIndex: 0,
+					startColumnIndex: 9,
+					endRowIndex: 0,
+					endColumnIndex: 20,
+				},
+			],
+		});
+	});
+	// Das Präfix-Argument ist das erste Argument, genannt werden die gefalteten Werte.
+	it('prefix-call-names-folded-arguments', () => {
+		expectCheck('f = (x: Integer) => x.add(1)\ntest(§a§ () => f(2).equal(4))', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testFails,
+					message: 'Test fails.\nequal(3 4) returns false.',
+					startRowIndex: 1,
+					startColumnIndex: 15,
+					endRowIndex: 1,
+					endColumnIndex: 28,
+				},
+			],
+		});
+	});
+	it('named-callback-argument', () => {
+		expectCheck('test(message = §a§ callback = () => equal(1 2))', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.testFails,
+					message: 'Test fails.\nequal(1 2) returns false.',
+					startRowIndex: 0,
+					startColumnIndex: 36,
+					endRowIndex: 0,
+					endColumnIndex: 46,
+				},
+			],
+		});
+	});
+	// Ein Nicht-Boolean meldet die normale Argumentprüfung, nicht die Test-Prüfung.
+	it('non-boolean-callback-is-argument-mismatch', () => {
+		expectCheck('test(§a§ () => 5)', {
+			filePath: 'dummy.test.jul',
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid return value\n    Can not assign 5 to Boolean.",
+					startRowIndex: 0,
+					startColumnIndex: 9,
+					endRowIndex: 0,
+					endColumnIndex: 16,
+				},
+			],
+		});
+	});
+});
+
+//#endregion test

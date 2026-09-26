@@ -92,7 +92,7 @@ import {
 	createTextLiteral,
 	updateFunctionTypeUnresolvedFlag,
 } from '../syntax-tree.js';
-import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, forEach, isDefined, isNonEmpty, last, map, mapDictionary } from '../util.js';
+import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, fieldsEqual, forEach, isDefined, isNonEmpty, isTestFilePath, last, map, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName, getExportedSymbols } from '../parser/parser-utils.js';
@@ -3358,6 +3358,11 @@ function inferType(
 				});
 			}
 			checkDiscardedArguments(args, paramsType, prefixArgumentType, errors);
+			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL4003.
+			if (functionExpression.type === 'reference'
+				&& functionExpression.name.name === 'test') {
+				checkTestCall(expression, args, !!assignArgsError, checkContext.filePath, errors);
+			}
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, checkContext);
 			// Für den Rückgabetyp bleibt ein Platzhalter stehen, statt hier schon auf den
 			// deklarierten Parametertyp zu fallen: erst der Aufrufort kennt den konkreten Typ,
@@ -5852,6 +5857,103 @@ function isInsideFunctionLiteral(expression: TypedExpression): boolean {
 }
 
 //#endregion Typ Arithmetik
+
+//#region test
+
+/**
+ * `test` ist nur in *.test.jul erlaubt. Liefert der Callback statisch false, schlägt der Test in
+ * jedem Lauf fehl und wird schon hier gemeldet. Gefaltet wird dafür nichts Zusätzliches: Der
+ * Rumpf des Callbacks ist beim Check des Literals bereits gefaltet, sein Rückgabetyp ist dann das
+ * Literal. Ist er nur Boolean, entscheidet erst der Lauf.
+ */
+function checkTestCall(
+	call: ParseFunctionCall,
+	args: BracketedExpression,
+	hasArgumentError: boolean,
+	filePath: string,
+	errors: CompilerError[],
+): void {
+	if (!isTestFilePath(filePath)) {
+		errors.push({
+			code: ErrorCode.testOutsideTestFile,
+			message: `'test' is only allowed in *.test.jul files.`,
+			startRowIndex: call.startRowIndex,
+			startColumnIndex: call.startColumnIndex,
+			endRowIndex: call.endRowIndex,
+			endColumnIndex: call.endColumnIndex,
+		});
+		return;
+	}
+	if (hasArgumentError) {
+		return;
+	}
+	const callback = getTestCallback(call.prefixArgument, args);
+	const callbackType = callback?.typeInfo && resolveAlias(resolvePlaceholders(callback.typeInfo.type));
+	if (!isFunctionType(callbackType)) {
+		return;
+	}
+	const returnType = resolveAlias(resolvePlaceholders(callbackType.ReturnType));
+	if (returnType.julType !== 'booleanLiteral'
+		|| returnType.value) {
+		return;
+	}
+	const lastExpression = callback!.type === 'functionLiteral'
+		? last(callback!.body)
+		: undefined;
+	const callText = lastExpression?.type === 'functionCall'
+		? getFoldedCallText(lastExpression)
+		: undefined;
+	const position = callText
+		? lastExpression!
+		: callback!;
+	errors.push({
+		code: ErrorCode.testFails,
+		message: `Test fails.\n${callText ?? 'The callback'} returns false.`,
+		startRowIndex: position.startRowIndex,
+		startColumnIndex: position.startColumnIndex,
+		endRowIndex: position.endRowIndex,
+		endColumnIndex: position.endColumnIndex,
+	});
+}
+
+/**
+ * Das Argument für den Parameter callback, positionell oder benannt.
+ */
+function getTestCallback(
+	prefixArgument: ParseValueExpression | undefined,
+	args: BracketedExpression,
+): ParseValueExpression | undefined {
+	if (args.type === 'dictionary') {
+		return args.fields.find(field =>
+			field.type === 'singleDictionaryField'
+			&& getCheckedEscapableName(field.name) === 'callback')?.value;
+	}
+	const values = getArgValueExpressions(args);
+	return prefixArgument
+		? values[0]
+		: values[1];
+}
+
+/**
+ * Aufruf mit seinen gefalteten Argumenten, z.B. `equal(600 400)`. Nur für eine Referenz als
+ * Funktion und für Argumente, deren Typen sich als Liste lesen lassen.
+ */
+function getFoldedCallText(call: ParseFunctionCall): string | undefined {
+	const functionExpression = call.functionExpression;
+	const argsType = call.arguments?.typeInfo?.type;
+	if (functionExpression?.type !== 'reference'
+		|| !argsType) {
+		return undefined;
+	}
+	const argTypes = getAllArgTypes(call.prefixArgument?.typeInfo?.type, argsType);
+	if (!argTypes) {
+		return undefined;
+	}
+	const argsText = argTypes.map(argType => typeToString(resolvePlaceholders(argType), 0, 1)).join(' ');
+	return `${functionExpression.name.name}(${argsText})`;
+}
+
+//#endregion test
 
 //#region verworfene Werte
 

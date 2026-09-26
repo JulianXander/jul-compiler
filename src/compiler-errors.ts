@@ -107,6 +107,10 @@ export enum ErrorCode {
 	 * wenn der statische Typ das eindeutig sagt - bei Any, gemischten Typen und Prädikaten nicht.
 	 */
 	namingCase = 2600,
+	/**
+	 * `test` steht außerhalb einer *.test.jul-Datei. Tests gehören nie in den normalen Build.
+	 */
+	testOutsideTestFile = 2700,
 	//#endregion 2000 semantic: Sprachregeln
 
 	//#region 3000 semantic: Import und Modulauflösung
@@ -121,6 +125,11 @@ export enum ErrorCode {
 	 * Aufruf fällt sonst stillschweigend auf den Typ Any zurück.
 	 */
 	unsupportedImportPosition = 3040,
+	/**
+	 * Eine *.test.jul-Datei wird aus einer Datei importiert, die selbst kein Test ist. Sonst
+	 * gelangten Tests in den normalen Build.
+	 */
+	testFileImportedOutsideTests = 3050,
 	//#endregion 3000 semantic: Import und Modulauflösung
 
 	//#region 4000 semantic: Namensauflösung und Scopes
@@ -175,6 +184,11 @@ export enum ErrorCode {
 	 * Obermenge von Integer erfüllt), und beim Prüfen eines Werts wird nichts kleiner.
 	 */
 	circularTypeDefinition = 5170,
+	/**
+	 * Der Callback eines `test` liefert statisch false: Der Checker hat ihn gefaltet, der Test
+	 * schlägt in jedem Lauf fehl.
+	 */
+	testFails = 5200,
 	//#endregion 5000 type: Typprüfung
 }
 
@@ -234,11 +248,13 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.restArgumentNotLast]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.discardedValue]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.namingCase]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.testOutsideTestFile]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.dynamicImportNotAllowed]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.unsupportedImportPosition]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.testFileImportedOutsideTests]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.alreadyDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.notDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.usedBeforeDefined]: { type: 'semantic', severity: 'error' },
@@ -258,6 +274,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.typeBranchHeadBinding]: { type: 'type', severity: 'error' },
 	[ErrorCode.dereferenceFailed]: { type: 'type', severity: 'error' },
 	[ErrorCode.circularTypeDefinition]: { type: 'type', severity: 'error' },
+	[ErrorCode.testFails]: { type: 'type', severity: 'error' },
 };
 
 /**

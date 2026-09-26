@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { parseCode } from './parser/parser.js';
 import { checkTypes } from './checker/checker.js';
 import { errorInfos } from './compiler-errors.js';
-import { getRuntimeImportJs, syntaxTreeToJs } from './emitter.js';
+import { getRuntimeImportJs, getTestRuntimeImportJs, syntaxTreeToJs } from './emitter.js';
 import { reportAtCaller } from './test-util.js';
 
 const expectEmit = reportAtCaller((code: string, result: string) => {
@@ -458,5 +458,66 @@ f = (x: Integer) =>
 	it('Rückfall: funktionswertiger Parameter', () => {
 		expectCallFallback(`f = (g: (a: Integer) -> Integer) =>
 	g(a = 1)`);
+	});
+});
+
+const expectTestEmit = reportAtCaller((code: string, result: string) => {
+	const parsed = parseCode(code, 'dummy.test.jul');
+	const compiled = syntaxTreeToJs(parsed.unchecked.expressions!, '', 'dummy.test.jul');
+	expect(compiled).to.equal(getRuntimeImportJs('') + getTestRuntimeImportJs('') + result);
+});
+
+describe('Emitter test', () => {
+	// Die Stelle geht als drittes Argument mit, der äußerste Aufruf im Callback über _testCall.
+	it('instrumented-outermost-call', () => {
+		expectTestEmit('test(§a§ () => equal(1 2))', `export default test(
+	\`a\`,
+	_createFunction(
+		() => {
+			return _testCall(
+				'equal',
+				equal,
+				[
+					1n,
+					2n,
+				],
+			)
+		},
+		{},
+	),
+	{ file: 'dummy.test.jul', row: 1, column: 1 },
+)`);
+	});
+	it('prefix-argument-is-first-instrumented-argument', () => {
+		expectTestEmit('test(§a§ () => 1.equal(2))', `export default test(
+	\`a\`,
+	_createFunction(
+		() => {
+			return _testCall(
+				'equal',
+				equal,
+				[
+					1n,
+					2n,
+				],
+			)
+		},
+		{},
+	),
+	{ file: 'dummy.test.jul', row: 1, column: 1 },
+)`);
+	});
+	// Benannte Argumente werden positionell emittiert, damit die Stelle mitgehen kann.
+	it('named-arguments-are-emitted-positionally', () => {
+		expectTestEmit('test(message = §a§ callback = () => true)', `export default test(
+	\`a\`,
+	_createFunction(
+		() => {
+			return true
+		},
+		{},
+	),
+	{ file: 'dummy.test.jul', row: 1, column: 1 },
+)`);
 	});
 });

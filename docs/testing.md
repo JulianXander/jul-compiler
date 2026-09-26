@@ -24,6 +24,27 @@ Bewusst **nicht** im MVP: `is` mit Checker-Regel, Reporter-Sonderbehandlung für
 Stream-/Async-Tests, virtuelle Zeit, Code Lens, Instrumentierung tiefer als der äußerste Aufruf,
 Aufrufe mit Dictionary-Argumenten instrumentieren.
 
+## Stand
+
+Umgesetzt wie unten beschrieben. Abweichungen und Nebenwirkungen:
+
+- Register, `test`, `_testCall` und `_runTests` liegen nicht in `runtime.ts`, sondern in
+  `test-runtime.ts`. Nur `*.test.jul`-Dateien importieren sie (der Emitter setzt den Import neben
+  den der Runtime), dazu der Compiler für `_runTests`. Da Testdateien nie in einen normalen Build
+  kommen, ist das Testgerüst dort nicht enthalten. Tree Shaking hätte das nicht geleistet: webpack
+  läuft ohne Minifizierung, und `runtime.ts` hat Seiteneffekte auf Modulebene. `runtime.ts`
+  exportiert dafür `_typeToString` und `_StreamClass`, die es intern ohnehin hat.
+- JSON-/YAML-Importe werden jetzt mit `with { type: 'json' }` statt `assert` emittiert
+  (`getImportJs`). Node 24 kennt `assert` nicht mehr, webpack verarbeitet `with` im normalen
+  Build ebenso.
+- Die Prüfung auf JUL3050 sitzt im Parser (`getImportedPaths`), nicht im Loader: Sie hängt nur an
+  den beiden Pfaden.
+- `test` ist ein neuer Name im obersten Scope. Wer ihn selbst definiert, bekommt JUL4003, auch in
+  eingebundenen `.ts`/`.js`-Dateien. Umbenannt wurden deshalb `test` in
+  `jul-examples/fibonacci/fibonacci.jul` und die Exporte `test` in
+  `jul-examples/import/ts-file.ts` und `js-file.js`. yugioh war nicht betroffen.
+- Beispiel: `jul-examples/fibonacci/fibonacci.test.jul`.
+
 ## Umsetzung
 
 ### 1. Fehlercodes — [compiler-errors.ts](../src/compiler-errors.ts)

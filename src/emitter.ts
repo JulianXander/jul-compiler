@@ -13,8 +13,9 @@ import {
 	SimpleExpression,
 } from './syntax-tree.js';
 import * as runtime from './runtime.js';
-import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName } from './util.js';
-import { extname, isAbsolute } from 'path';
+import * as testRuntime from './test-runtime.js';
+import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from './util.js';
+import { dirname, extname, isAbsolute, join } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from './parser/parser.js';
 import { getCheckedEscapableName } from './parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from './checker/branch-dispatch.js';
@@ -22,24 +23,54 @@ import { isFunctionType, resolveAlias, resolvePlaceholders } from './checker/che
 
 const runtimeKeys = Object.keys(runtime);
 const runtimeImports = runtimeKeys.join(', ');
+const testRuntimeImports = Object.keys(testRuntime).join(', ');
+const testRuntimeFileName = 'test-runtime.js';
 /**
  * Nur beim Emittieren einer ganzen Datei nach dem Check: dann liegt die typeInfo vollständig am
  * Baum. functionLiteralToEvaluableJs läuft dagegen mitten im Checklauf (constant folding) und
  * emittiert weiter ohne Typen.
  */
 let useTypeInfo = false;
+/**
+ * Quellpfad der gerade emittierten Datei, für die Stelle eines test-Aufrufs.
+ */
+let sourceFilePath = '';
+/**
+ * Der äußerste Aufruf im Rumpf des Test-Callbacks, der gerade emittiert wird. Er läuft über
+ * _testCall, damit ein Fehlschlag seine ausgewerteten Argumente nennen kann.
+ */
+let instrumentedTestCall: ParseExpression | undefined;
 
 export function getRuntimeImportJs(runtimePath: string): string {
 	return getImportJs(`{ ${runtimeImports} }`, runtimePath);
 }
 
+/**
+ * Nur *.test.jul-Dateien importieren die Test-Runtime. Sie liegt neben der Runtime, so wie beide
+ * im Compiler nebeneinander liegen.
+ */
+export function getTestRuntimeImportJs(runtimePath: string): string {
+	return getImportJs(`{ ${testRuntimeImports} }`, join(dirname(runtimePath), testRuntimeFileName));
+}
+
 // TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
-export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: string): string {
+export function syntaxTreeToJs(
+	expressions: ParseExpression[],
+	runtimePath: string,
+	/**
+	 * Wie er in Meldungen erscheinen soll. Nur für test-Aufrufe gebraucht.
+	 */
+	filePath: string = '',
+): string {
 	// _branch, _callFunction, _createFunction, log
 	let hasDefinition = false;
 	useTypeInfo = true;
+	sourceFilePath = filePath;
 	try {
-		return `${getRuntimeImportJs(runtimePath)}${expressions.map((expression, index) => {
+		const testRuntimeImportJs = isTestFilePath(filePath)
+			? getTestRuntimeImportJs(runtimePath)
+			: '';
+		return `${getRuntimeImportJs(runtimePath)}${testRuntimeImportJs}${expressions.map((expression, index) => {
 			const expressionJs = expressionToJs(expression, 0, true);
 			if (expression.type === 'definition') {
 				hasDefinition = true;
@@ -54,6 +85,7 @@ export function syntaxTreeToJs(expressions: ParseExpression[], runtimePath: stri
 	}
 	finally {
 		useTypeInfo = false;
+		sourceFilePath = '';
 	}
 }
 
@@ -244,7 +276,18 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 						throw new Error('unexpected arguments.type for assume functionCall: ' + args?.type);
 				}
 			}
+			if (isNamedFunction(functionExpression, 'test')) {
+				return testCallToJs(expression, functionExpression, indent);
+			}
 			const functionJs = expressionToJs(functionExpression, indent);
+			const testCallName = expression === instrumentedTestCall
+				&& functionExpression.type === 'reference'
+				? functionExpression.name.name
+				: undefined;
+			if (testCallName !== undefined
+				&& (args?.type === 'list' || args?.type === 'empty' || !args)) {
+				return testCallToInstrumentedJs(testCallName, functionJs, expression, indent);
+			}
 			switch (args?.type) {
 				case 'list': {
 					const jsValues = parseListValuesToJs(args.values, indent);
@@ -375,7 +418,7 @@ function listToJs(valuesJs: string[], indent: number) {
 function getImportJs(importedJs: string, path: string): string {
 	const isJson = path.endsWith(Extension.json);
 	const pathWithFileScheme = (isAbsolute(path) ? 'file://' : '') + path;
-	return `import ${importedJs} from ${stringToJs(pathWithFileScheme)}${isJson ? ' assert { type: \'json\' }' : ''};\n`;
+	return `import ${importedJs} from ${stringToJs(pathWithFileScheme)}${isJson ? ' with { type: \'json\' }' : ''};\n`;
 }
 
 function getPathFromImport(importExpression: ParseFunctionCall): string {
@@ -770,6 +813,81 @@ function escapeStringForSingleQuoteJs(value: string): string {
 function stringToJs(value: string): string {
 	return `'${escapeStringForSingleQuoteJs(value)}'`;
 }
+
+//#region test
+
+/**
+ * Immer positionell und mit der Stelle des Aufrufs als drittem Argument, auch wenn die Argumente
+ * benannt geschrieben sind.
+ */
+function testCallToJs(call: ParseFunctionCall, functionExpression: SimpleExpression, indent: number): string {
+	const { message, callback } = getTestArguments(call);
+	const previousInstrumentedCall = instrumentedTestCall;
+	instrumentedTestCall = callback.type === 'functionLiteral'
+		? last(callback.body)
+		: undefined;
+	try {
+		const innerIndent = indent + 1;
+		const locationJs = `{ file: ${stringToJs(sourceFilePath)}, row: ${call.startRowIndex + 1}, column: ${call.startColumnIndex + 1} }`;
+		const valuesJs = listValuesToJs(
+			[expressionToJs(message, innerIndent), expressionToJs(callback, innerIndent), locationJs],
+			indent);
+		return `${expressionToJs(functionExpression, indent)}(${valuesJs})`;
+	}
+	finally {
+		instrumentedTestCall = previousInstrumentedCall;
+	}
+}
+
+function getTestArguments(call: ParseFunctionCall): { message: ParseValueExpression; callback: ParseValueExpression; } {
+	const args = call.arguments;
+	if (args?.type === 'dictionary') {
+		const getField = (name: string) => {
+			const field = args.fields.find(field =>
+				field.type === 'singleDictionaryField'
+				&& getCheckedEscapableName(field.name) === name);
+			if (!field?.value) {
+				throw new Error(`argument ${name} missing for test`);
+			}
+			return field.value;
+		};
+		return { message: getField('message'), callback: getField('callback') };
+	}
+	const values: ParseValueExpression[] = call.prefixArgument
+		? [call.prefixArgument]
+		: [];
+	if (args?.type === 'list') {
+		args.values.forEach(value => {
+			if (value.type === 'spread') {
+				throw new Error('spread not implemented yet for test');
+			}
+			values.push(value);
+		});
+	}
+	const [message, callback] = values;
+	if (!message || !callback) {
+		throw new Error('arguments missing for test');
+	}
+	return { message, callback };
+}
+
+/**
+ * Der äußerste Aufruf im Callback, mit Listenargumenten. Die Argumente stehen als Array eine
+ * Ebene tiefer als bei einem direkten Aufruf.
+ */
+function testCallToInstrumentedJs(name: string, functionJs: string, call: ParseFunctionCall, indent: number): string {
+	const valuesIndent = indent + 1;
+	const jsValues = call.arguments?.type === 'list'
+		? parseListValuesToJs(call.arguments.values, valuesIndent)
+		: [];
+	if (call.prefixArgument) {
+		jsValues.unshift(expressionToJs(call.prefixArgument, valuesIndent + 1));
+	}
+	const argsJs = `[${listValuesToJs(jsValues, valuesIndent)}]`;
+	return `_testCall(${listValuesToJs([stringToJs(name), functionJs, argsJs], indent)})`;
+}
+
+//#endregion test
 
 function callCreateFunctionJs(functionJs: string, paramsJs: string, indent: number): string {
 	const argsJs = listValuesToJs([functionJs, paramsJs], indent);

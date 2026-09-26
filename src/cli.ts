@@ -2,7 +2,7 @@
 import { Ajv } from 'ajv';
 import { load } from 'js-yaml';
 import { dirname, join } from 'path';
-import { compileProject } from './compiler.js';
+import { compileProject, testProject } from './compiler.js';
 import configSchema from './jul-config-schema.json' with { type: 'json' };
 import { executingDirectory, readTextFile } from './util.js';
 
@@ -29,6 +29,7 @@ try {
 	// Eine Quelle für Validierung und --help, damit ein neues Flag nur an einer Stelle einzutragen ist.
 	const knownFlags: Record<string, string> = {
 		'--check': 'Only parse and check, without emitting or bundling output.',
+		'--test': 'Check and run all *.test.jul files below the config folder, without writing output.',
 		'--help': 'Print this help text and exit.',
 		'--version': 'Print the compiler version and exit.',
 	};
@@ -57,6 +58,10 @@ try {
 	}
 	// Nur parsen und checken, kein Emit/Bundle - siehe checkOnly in compiler.ts.
 	const checkOnly = flags.includes('--check');
+	const runTests = flags.includes('--test');
+	if (checkOnly && runTests) {
+		throw new Error('--check and --test can not be combined. --test also checks.');
+	}
 	const positionalArgs = args.filter(arg => !arg.startsWith('--'));
 	if (positionalArgs.length > 1) {
 		throw new Error(`Too many arguments: ${positionalArgs.join(', ')}. Expected at most the path to jul-config.yaml.`);
@@ -81,12 +86,17 @@ try {
 	}
 	const rootFolder = dirname(configFilePath);
 	const outputFolder = config.outputFolder ?? 'out';
-	compileProject(
-		join(rootFolder, config.entryFilePath),
-		join(rootFolder, outputFolder),
-		config.cli,
-		checkOnly,
-	);
+	if (runTests) {
+		await testProject(rootFolder, join(rootFolder, outputFolder));
+	}
+	else {
+		compileProject(
+			join(rootFolder, config.entryFilePath),
+			join(rootFolder, outputFolder),
+			config.cli,
+			checkOnly,
+		);
+	}
 }
 catch (error) {
 	// Nur die Message ausgeben, kein Stack Trace - der ist für Nutzer der CLI nicht hilfreich.

@@ -1,6 +1,10 @@
 -hover info bei destructuring fehlt
--unit testing konzept für jul
-	?eigene lib oder bestehende js libs verwendbar machen
+-tests (MVP umgesetzt: test-builtin, jul --test, siehe docs/testing.md), offen:
+	?is(value Type) mit Checker-Regel: true bei bewiesener Teilmenge, false bei disjunkt
+	?reporter: begründung für is (getTypeError) und diff für deepEqual
+	?instrumentierung tiefer als der äußerste aufruf, auch bei benannten argumenten
+	?stream-/async-tests, virtuelle zeit für timer$ und currentDate
+	?code lens "run test" im language server
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 ?verpuffte Ausdrücke in Blöcken melden: im Funktionsrumpf und im Typblock unter einem
 	umgebrochenen Rückgabepfeil gilt der letzte Ausdruck, davorstehende Ausdrücke ohne Definition

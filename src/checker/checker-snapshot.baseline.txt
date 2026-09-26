@@ -36,7 +36,9 @@ counter$: Stream(Float)
 === fibonacci/fibonacci.jul ===
 fibonacci: (x: Integer) -> Any
 fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) -> Any
-test: 144
+result: 144
+=== fibonacci/fibonacci.test.jul ===
+fibonacci: (x: Integer) -> Any
 === fizz-buzz/fizz-buzz-recursive.jul ===
 divisibleBy: (divisor: NonZeroInteger) -> (dividend: Integer) -> Boolean
 fizzBuzz: (index: PositiveInteger) ~> Empty
@@ -72,11 +74,11 @@ someText: §test token 1§
 MyType: TypeOf([hallo: Integer])
 alias: (value: Text) ~> Empty
 file2: [   someText: §test token 1§   logText: (value: Text) ~> Empty   MyType: TypeOf(MyType) ]
-javascriptImport: [   testfn1: (par1: Any) :> Any   testfn2: (par1: Any) :> Any   test: §hello js§   test2: 4f ]
+javascriptImport: [   testfn1: (par1: Any) :> Any   testfn2: (par1: Any) :> Any   greeting: §hello js§   test2: 4f ]
 jsonImport: §hello json§
 someText: §test token 1§
 test1: [hallo: 1]
-typescriptImport: [   test: §hello ts§   test2: 4f   testfn1: (par1: Text) :> Any   testfn2: (par1: Text) :> Any ]
+typescriptImport: [   greeting: §hello ts§   test2: 4f   testfn1: (par1: Text) :> Any   testfn2: (par1: Text) :> Any ]
 valueImport: 15
 yamlImport: §hello yaml§
   error 1151 at 20:3 Expected a nested key

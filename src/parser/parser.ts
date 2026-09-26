@@ -57,6 +57,7 @@ import {
 	executingDirectory,
 	Extension,
 	isNonEmpty,
+	isTestFilePath,
 	isValidExtension,
 	last,
 	mapNonEmpty,
@@ -143,7 +144,7 @@ export function parseCode(
 		}
 		case Extension.jul:
 			parsedExpressions = parseJulCode(code);
-			const imported = getImportedPaths(parsedExpressions.expressions, sourceFolder);
+			const imported = getImportedPaths(parsedExpressions.expressions, sourceFolder, isTestFilePath(filePath));
 			parsedExpressions.errors.push(...imported.errors);
 			dependencies = imported.dependencies;
 			break;
@@ -3141,6 +3142,7 @@ function getEscapableNameErrors(baseName: ParseValueExpression): CompilerError[]
 function getImportedPaths(
 	expressions: ParseExpression[] | undefined,
 	sourceFolder: string,
+	isTestFile: boolean,
 ): {
 	dependencies: ImportedDependency[];
 	errors: CompilerError[];
@@ -3176,6 +3178,13 @@ function getImportedPaths(
 					}
 					if (fullPath && source) {
 						dependencies.push({ fullPath: fullPath, source: source });
+						if (!isTestFile && isTestFilePath(fullPath)) {
+							errors.push({
+								code: ErrorCode.testFileImportedOutsideTests,
+								message: 'A *.test.jul file can only be imported from another *.test.jul file.',
+								...source,
+							});
+						}
 					}
 				}
 				return;

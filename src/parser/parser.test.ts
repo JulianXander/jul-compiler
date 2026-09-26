@@ -5,11 +5,12 @@ import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
 import { reportAtCaller } from '../test-util.js';
 
-const expectParse = reportAtCaller((code: string, { result, errors }: {
+const expectParse = reportAtCaller((code: string, { result, errors, filePath }: {
 	result?: ParseExpression[];
 	errors?: CompilerError[];
+	filePath?: string;
 } = {}) => {
-	const parserResult = parseCode(code, 'dummy.jul');
+	const parserResult = parseCode(code, filePath ?? 'dummy.jul');
 	// if (parserResult.errors?.length) {
 	// 	console.log(parserResult.errors);
 	// }
@@ -692,6 +693,24 @@ describe('Parser', () => {
 				},
 			],
 		});
+	});
+	// Sonst gelangten die Tests über den Import in den normalen Build.
+	it('test-file-import-outside-test-file-is-reported', () => {
+		expectParse('a = import(§./a.test.jul§)', {
+			errors: [
+				{
+					code: ErrorCode.testFileImportedOutsideTests,
+					message: 'A *.test.jul file can only be imported from another *.test.jul file.',
+					startRowIndex: 0,
+					startColumnIndex: 11,
+					endRowIndex: 0,
+					endColumnIndex: 25,
+				},
+			],
+		});
+	});
+	it('test-file-import-in-test-file', () => {
+		expectParse('a = import(§./a.test.jul§)', { filePath: 'dummy.test.jul' });
 	});
 	//#endregion Import
 	//#region Index

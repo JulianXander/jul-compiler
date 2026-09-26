@@ -162,6 +162,11 @@ function typeToString(type: RuntimeType, indent: number): string {
 	}
 }
 
+/**
+ * Für die Ausgabe von Werten in test-runtime.ts.
+ */
+export { typeToString as _typeToString };
+
 const maxElementsPerLine = 5;
 function arrayTypeToString(
 	array: RuntimeType[],
@@ -2609,6 +2614,10 @@ class StreamClass<T> {
 		}
 	}
 }
+/**
+ * Für die Ausgabe von Werten in test-runtime.ts.
+ */
+export { StreamClass as _StreamClass };
 
 //#region create
 

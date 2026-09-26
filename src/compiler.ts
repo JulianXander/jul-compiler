@@ -1,12 +1,15 @@
-import { writeFileSync, copyFileSync, rmSync, statSync } from 'fs';
-import { dirname, join, relative, resolve } from 'path';
+import { writeFileSync, copyFileSync, readdirSync, rmSync, statSync } from 'fs';
+import { registerHooks } from 'module';
+import { dirname, join, relative, resolve, sep } from 'path';
+import { pathToFileURL } from 'url';
 import webpack from 'webpack';
 import { syntaxTreeToJs } from './emitter.js';
+import { _runTests } from './test-runtime.js';
 import { ParsedDocuments } from './checker/checker.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, errorInfos, Positioned } from './compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
 import { ParsedFile } from './syntax-tree.js';
-import { Extension, changeExtension, executingDirectory, tryCreateDirectory } from './util.js';
+import { Extension, changeExtension, executingDirectory, isTestFilePath, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
 import ShebangPlugin from 'webpack-shebang-plugin';
@@ -49,43 +52,11 @@ export function compileProject(
 	//#endregion 2. load
 
 	//#region 3. report errors
-	// Die Fehler aller Dateien, nicht nur die der ersten fehlerhaften (wie tsc). checked enthält
-	// die Parse-Fehler schon (Klon von unchecked), deshalb nicht beide Listen.
-	// Gezählt für die Abschlusszeile. Hinweise zählen nicht mit, sie sind keine Beanstandung.
-	let errorCount = entry === 'notFound' ? 1 : 0;
-	let warningCount = 0;
-	const formattedErrors = entry === 'notFound'
-		? [`File not found: ${entryFilePath}`]
-		: [];
-	Object.values(documents).forEach(document => {
-		// Hinweise sind für den Editor, der sie an der Stelle zeigt. In der Ausgabe gingen die
-		// Beanstandungen darin unter.
-		const errors = (document.checked?.errors ?? document.unchecked.errors)
-			.filter(error => errorInfos[error.code].severity !== 'hint');
-		if (!errors.length) {
-			return;
-		}
-		// Warnungen sagen etwas über den Code, machen das Ergebnis aber nicht unbrauchbar.
-		errors.forEach(error => {
-			const { severity } = errorInfos[error.code];
-			if (severity === 'error') {
-				errorCount++;
-			}
-			else if (severity === 'warning') {
-				warningCount++;
-			}
-		});
-		formattedErrors.push(formatErrors(document.filePath, errors, host));
-	});
-	const hasError = errorCount > 0;
-	const summary = formatSummary(Object.keys(documents).length, errorCount, warningCount);
-	renderer.finishStep(hasError ? 'failed' : 'done');
-	// Mehrzeiliger, detaillierter Fehlertext gehört wie Warnungen ins Scrollback oberhalb des
-	// Frames (siehe log()) - nur die kurze Statuszeile (mit Dauer) steht im Frame, analog zu
-	// "build/check finished successfully" im Erfolgsfall.
-	if (formattedErrors.length) {
-		renderer.log(formattedErrors.join('\n'));
-	}
+	const { hasError, summary } = reportErrors(
+		documents,
+		entry === 'notFound' ? [entryFilePath] : [],
+		host,
+		renderer);
 	if (hasError) {
 		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
@@ -164,6 +135,166 @@ export function compileProject(
 }
 
 /**
+ * Die Fehler aller Dateien, nicht nur die der ersten fehlerhaften (wie tsc), und die Abschlusszeile
+ * des Schritts "compiling". Hinweise zählen nicht mit, sie sind keine Beanstandung.
+ */
+function reportErrors(
+	documents: ParsedDocuments,
+	notFoundPaths: string[],
+	host: ProjectHost,
+	renderer: LiveRenderer,
+): { hasError: boolean; summary: string; } {
+	// checked enthält die Parse-Fehler schon (Klon von unchecked), deshalb nicht beide Listen.
+	let errorCount = notFoundPaths.length;
+	let warningCount = 0;
+	const formattedErrors = notFoundPaths.map(path => `File not found: ${path}`);
+	Object.values(documents).forEach(document => {
+		// Hinweise sind für den Editor, der sie an der Stelle zeigt. In der Ausgabe gingen die
+		// Beanstandungen darin unter.
+		const errors = (document.checked?.errors ?? document.unchecked.errors)
+			.filter(error => errorInfos[error.code].severity !== 'hint');
+		if (!errors.length) {
+			return;
+		}
+		// Warnungen sagen etwas über den Code, machen das Ergebnis aber nicht unbrauchbar.
+		errors.forEach(error => {
+			const { severity } = errorInfos[error.code];
+			if (severity === 'error') {
+				errorCount++;
+			}
+			else if (severity === 'warning') {
+				warningCount++;
+			}
+		});
+		formattedErrors.push(formatErrors(document.filePath, errors, host));
+	});
+	const hasError = errorCount > 0;
+	renderer.finishStep(hasError ? 'failed' : 'done');
+	// Mehrzeiliger, detaillierter Fehlertext gehört wie Warnungen ins Scrollback oberhalb des
+	// Frames (siehe log()) - nur die kurze Statuszeile (mit Dauer) steht im Frame, analog zu
+	// "build/check finished successfully" im Erfolgsfall.
+	if (formattedErrors.length) {
+		renderer.log(formattedErrors.join('\n'));
+	}
+	return {
+		hasError: hasError,
+		summary: formatSummary(Object.keys(documents).length, errorCount, warningCount),
+	};
+}
+
+/**
+ * Checkt alle *.test.jul unterhalb von rootFolder samt ihrer Importe und führt die Tests aus.
+ * Anders als compileProject entsteht keine Datei: Das erzeugte JS wird aus dem Speicher geladen,
+ * über Module-Hooks im laufenden Prozess. Die Testmodule importieren dabei dieselbe Test-Runtime
+ * wie der Compiler, sonst sähe _runTests hier ein leeres Register.
+ */
+export async function testProject(
+	rootFolder: string,
+	outputFolderPath: string,
+): Promise<void> {
+	const startTime = performance.now();
+	const renderer = new LiveRenderer();
+	const testFilePaths = findTestFiles(rootFolder, outputFolderPath);
+	renderer.start(pluralize(testFilePaths.length, 'test file'), 'test files');
+
+	//#region load
+	renderer.startStep('compiling');
+	const host: ProjectHost = {
+		...createFileSystemHost({ cloneUnchecked: false }),
+		onParsed: parsed => renderer.updateDetail(parsed.filePath),
+		onProgress: () => renderer.tick(),
+	};
+	const documents: ParsedDocuments = {};
+	const notFoundPaths = testFilePaths.filter(filePath => loadFile(filePath, documents, host) === 'notFound');
+	//#endregion load
+
+	//#region report errors
+	const { hasError, summary } = reportErrors(documents, notFoundPaths, host, renderer);
+	if (hasError) {
+		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
+		process.exitCode = 1;
+		return;
+	}
+	if (!testFilePaths.length) {
+		renderer.finish([`${colorize('no *.test.jul files found', ConsoleColor.lightRed)} in ${rootFolder} ${durationSuffix(startTime)}`]);
+		process.exitCode = 1;
+		return;
+	}
+	//#endregion report errors
+
+	//#region emit
+	// Ausgabepfade neben der Quelldatei statt im Out-Ordner: Relative Importe untereinander lösen
+	// dann wie gewohnt auf, und eingebundene .js/.ts-Dateien finden ihre Pakete in node_modules.
+	const runtimePath = join(executingDirectory, runtimeFileName);
+	const sources = new Map<string, { source: string; format: 'module' | 'json'; }>();
+	Object.values(documents).forEach(document => {
+		const { outFilePath, compiled } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimePath);
+		sources.set(pathToFileURL(resolve(outFilePath)).href, {
+			source: compiled,
+			format: outFilePath.endsWith(Extension.json) ? 'json' : 'module',
+		});
+	});
+	renderer.finish([`${colorize('check finished successfully', ConsoleColor.green)} ${summary} ${durationSuffix(startTime)}`]);
+	//#endregion emit
+
+	//#region run
+	const hooks = registerHooks({
+		resolve: (specifier, context, nextResolve) => {
+			// Nur was im Speicher liegt, sonst normal auflösen. Gilt auch für einen Pfad ohne ./,
+			// deshalb nicht nach der Form des Specifiers gefiltert.
+			const url = URL.canParse(specifier)
+				? specifier
+				: context.parentURL && new URL(specifier, context.parentURL).href;
+			if (url && sources.has(url)) {
+				return { url: url, shortCircuit: true };
+			}
+			return nextResolve(specifier, context);
+		},
+		load: (url, context, nextLoad) => {
+			const emitted = sources.get(url);
+			if (emitted) {
+				return { ...emitted, shortCircuit: true };
+			}
+			return nextLoad(url, context);
+		},
+	});
+	try {
+		for (const testFilePath of testFilePaths) {
+			// Registriert die Tests beim Import, ausgeführt werden sie erst danach gemeinsam.
+			await import(pathToFileURL(resolve(changeExtension(testFilePath, Extension.js))).href);
+		}
+		const passed = _runTests();
+		if (!passed) {
+			process.exitCode = 1;
+		}
+	}
+	finally {
+		hooks.deregister();
+	}
+	//#endregion run
+}
+
+/**
+ * Relativ zum Arbeitsverzeichnis wie rootFolder selbst, damit die Pfade zu denen passen, die der
+ * Loader für Importe bildet (join(sourceFolder, importedPath)). Ausgelassen werden node_modules
+ * und der Out-Ordner, dort liegen keine eigenen Quellen.
+ */
+function findTestFiles(rootFolder: string, outputFolderPath: string): string[] {
+	const excludedFolders = [
+		join(rootFolder, 'node_modules'),
+		outputFolderPath,
+	].map(folder => resolve(folder) + sep);
+	return (readdirSync(rootFolder, { recursive: true }) as string[])
+		.filter(isTestFilePath)
+		.map(relativePath => join(rootFolder, relativePath))
+		.filter(filePath => {
+			const absolutePath = resolve(filePath);
+			return !excludedFolders.some(folder => absolutePath.startsWith(folder));
+		})
+		.sort();
+}
+
+/**
  * Schreibt die Ausgabe einer geladenen, fehlerfreien Datei und liefert deren Pfad.
  */
 function emitFile(
@@ -173,6 +304,22 @@ function emitFile(
 	runtimePath: string,
 	shebang: boolean,
 ): string {
+	const { outFilePath, compiled } = emitToJs(parsed, sourceCode, outputFolderPath, runtimePath);
+	const outDir = dirname(outFilePath);
+	tryCreateDirectory(outDir);
+	writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
+	return outFilePath;
+}
+
+/**
+ * Die Ausgabe einer geladenen, fehlerfreien Datei und wohin sie gehört, ohne zu schreiben.
+ */
+function emitToJs(
+	parsed: ParsedFile,
+	sourceCode: string,
+	outputFolderPath: string,
+	runtimePath: string,
+): { outFilePath: string; compiled: string; } {
 	const sourceFilePath = parsed.filePath;
 	let compiled: string;
 	let outFilePath: string;
@@ -189,7 +336,7 @@ function emitFile(
 		case Extension.jul: {
 			// checked trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht
 			const expressions = (parsed.checked ?? parsed.unchecked).expressions ?? [];
-			compiled = syntaxTreeToJs(expressions, runtimePath);
+			compiled = syntaxTreeToJs(expressions, runtimePath, sourceFilePath);
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);
 			outFilePath = join(outputFolderPath, jsFileName);
 			break;
@@ -215,13 +362,10 @@ function emitFile(
 		}
 		default: {
 			const assertNever: never = extension;
-			throw new Error(`Unexpected extension for emitFile: ${assertNever}`);
+			throw new Error(`Unexpected extension for emitToJs: ${assertNever}`);
 		}
 	}
-	const outDir = dirname(outFilePath);
-	tryCreateDirectory(outDir);
-	writeFileSync(outFilePath, (shebang ? '#!/usr/bin/env node\n' : '') + compiled);
-	return outFilePath;
+	return { outFilePath: outFilePath, compiled: compiled };
 }
 
 //#region rendering
@@ -593,10 +737,10 @@ export class LiveRenderer {
 	private animationFinished = false;
 	private frameHeight = 0;
 
-	start(entryFilePath: string): void {
-		this.entryLine = `entry file: ${entryFilePath}`;
+	start(entry: string, kind: 'entry file' | 'test files' = 'entry file'): void {
+		this.entryLine = `${kind}: ${entry}`;
 		if (!this.isTty) {
-			console.log(`Compiler started with entry file ${entryFilePath} ...`);
+			console.log(`Compiler started with ${kind} ${entry} ...`);
 			return;
 		}
 		this.spinnerTimer = setInterval(() => {

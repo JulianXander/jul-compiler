@@ -51,6 +51,16 @@ es entsteht kein `out`-Ordner:
 jul jul-config.yaml --check
 ```
 
+`--test` checkt alle `*.test.jul` unterhalb des Config-Ordners samt Importen und führt deren
+`test(...)`-Aufrufe aus; Exit-Code 1, sobald einer fehlschlägt. Es wird nichts geschrieben, das
+erzeugte JS wird im Speicher gehalten und über Module-Hooks geladen (braucht Node ≥ 22.15).
+Hintergrund in [docs/testing.md](docs/testing.md).
+
+```bash
+cd ../jul-examples/fibonacci
+jul jul-config.yaml --test
+```
+
 ## Test
 `node --run test` (oder `npm test`, startet aber ~0,4 s langsamer)  
 Mocha über `src/**/*.test.ts`, via tsx — kein Build nötig.

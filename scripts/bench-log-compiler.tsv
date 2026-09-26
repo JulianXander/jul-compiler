@@ -130,3 +130,5 @@
 2026-09-25 13:33:13	6fc3cdc+	-	ADV-DEV-56627	yugioh	parse+check	5	1384.78	1709.03	1709.03	vor Praedikate als Typ
 2026-09-25 13:52:44	6fc3cdc+	-	ADV-DEV-56627	yugioh	parse+check	5	1345.34	1663.15	1663.15	nach Praedikate als Typ
 2026-09-25 14:04:05	b637150+	-	ADV-DEV-56627	yugioh	parse+check	5	1345.27	1635.79	1635.79	Not als unzuverlaessig
+2026-09-26 10:06:41	17c9c34	-	ADV-DEV-56627	yugioh	parse+check	5	1316.85	1690.98	1690.98	vor test-builtin
+2026-09-26 10:18:40	17c9c34+	-	ADV-DEV-56627	yugioh	parse+check	5	1290.38	1580.48	1580.48	test-builtin: checkTestCall, JUL2700/3050/5200

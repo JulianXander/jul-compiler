@@ -249,6 +249,13 @@ export function changeExtension(
 	return removeExtension(path) + newExtension;
 }
 
+/**
+ * Nur in solchen Dateien ist `test` erlaubt, und nur `jul --test` lädt sie.
+ */
+export function isTestFilePath(path: string): boolean {
+	return path.endsWith('.test.jul');
+}
+
 //#endregion extension
 
 /**
