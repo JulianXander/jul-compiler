@@ -956,11 +956,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 				: 0n;
 			const combinedExponent = fractionExponent + exponent;
 			const numberValue: RuntimeRational = combinedExponent < 0
-				// TODO kürzen?
-				? {
-					numerator: numerator,
-					denominator: 10n ** (-1n * combinedExponent),
-				}
+				? normalizeRational(numerator, 10n ** (-1n * combinedExponent))
 				: numerator * 10n ** combinedExponent;
 			return {
 				parsed: numberValue,
@@ -1061,7 +1057,19 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 					if (!object) {
 						object = {};
 					}
-					object[keyResult.parsed] = valueResult.parsed;
+					const key = keyResult.parsed;
+					if (key === '__proto__') {
+						// Die Zuweisung würde den Prototyp setzen statt eines Felds
+						Object.defineProperty(object, key, {
+							value: valueResult.parsed,
+							writable: true,
+							enumerable: true,
+							configurable: true,
+						});
+					}
+					else {
+						object[key] = valueResult.parsed;
+					}
 					isSeparator = true;
 					index = valueResult.endIndex;
 				}
@@ -1095,15 +1103,19 @@ function parseJsonToken(json: string, startIndex: number, token: string, value: 
  */
 function parseJsonString(json: string, startIndex: number): ParserResult<string> {
 	let stringValue = '';
+	// Abschnitte ohne Escape werden am Stück übernommen, das Anhängen je Zeichen war der teuerste
+	// Teil des Parsers
+	let chunkStartIndex = startIndex;
 	for (let index = startIndex; index < json.length; index++) {
 		const stringCharacter = json[index];
 		switch (stringCharacter) {
 			case '"':
 				return {
-					parsed: stringValue,
+					parsed: stringValue + json.substring(chunkStartIndex, index),
 					endIndex: index + 1,
 				};
 			case '\\':
+				stringValue += json.substring(chunkStartIndex, index);
 				index++;
 				if (index === json.length) {
 					return new Error('Invalid JSON. String not terminated.');
@@ -1144,11 +1156,14 @@ function parseJsonString(json: string, startIndex: number): ParserResult<string>
 						index = hexEndIndex - 1;
 						break;
 					default:
-						return new Error();
+						return new Error(`Invalid JSON. Invalid escape sequence \\${escapedCharacter} at position ${index - 1}.`);
 				}
+				chunkStartIndex = index + 1;
 				break;
 			default:
-				stringValue += stringCharacter;
+				if (stringCharacter! < ' ') {
+					return new Error(`Invalid JSON. Unescaped control character U+${stringCharacter!.charCodeAt(0).toString(16).padStart(4, '0')} at position ${index}.`);
+				}
 				break;
 		}
 	}

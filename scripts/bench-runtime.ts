@@ -50,6 +50,13 @@ interface BenchCase {
 	 * des Timers liegt, ohne dass teure Fälle den Bench in die Länge ziehen.
 	 */
 	calls: number;
+	/** Name im Protokoll, wenn datei/funktion nicht eindeutig ist (dieselbe Funktion mit anderen Eingaben) */
+	label?: string;
+	/**
+	 * Zieht aus dem Ergebnis den Wert, der mit expected verglichen wird. Nötig, wenn die Funktion
+	 * bei jedem Aufruf ein neues Objekt liefert: das wäre nie identisch mit expected.
+	 */
+	select?: (result: any) => unknown;
 }
 
 const complexValue = {
@@ -59,6 +66,44 @@ const complexValue = {
 		d: Array.from({ length: 20 }, (_, index) => BigInt(index)),
 	},
 };
+// Deckt alles ab, was der JSON-Parser für JUL umwandelt: Integer, Dezimalzahl und Exponent,
+// null und leere Kollektionen (Empty), Escapes
+const smallJson = JSON.stringify({
+	marker: 7,
+	id: 12345,
+	name: 'Beispiel "klein"',
+	active: true,
+	price: 19.99,
+	tags: ['a', 'b', 'c'],
+	owner: null,
+	meta: {},
+	history: [],
+	address: { street: 'Hauptstraße 1', city: 'Köln', zip: '50667' },
+});
+const largeJson = JSON.stringify({
+	marker: 42,
+	records: Array.from({ length: 1000 }, (_, index) => ({
+		id: index,
+		name: `Eintrag ${index}\n"zitiert"\r\nmit é`,
+		value: index * 1.25,
+		scale: 'EXPONENT',
+		big: 'BIG',
+		enabled: index % 2 === 0,
+		parent: index % 3 ? null : index - 1,
+		children: index % 5 ? [] : [index + 1, index + 2],
+		extra: index % 7 ? {} : { note: 'selten' },
+	})),
+})
+	// JSON.stringify schreibt weder Exponenten noch Zahlen über 2^53
+	.replaceAll('"EXPONENT"', '1.5e3')
+	.replaceAll('"BIG"', '12345678901234567890');
+// Lange Texte wie Beschreibungen in Stammdaten: hier zählt das Stringparsing
+const textJson = JSON.stringify({
+	marker: 3,
+	texts: Array.from({ length: 1000 }, (_, index) =>
+		`Beschreibung ${index}: ein längerer Text mit Inhalt, wie er in Stammdaten steht. `.repeat(2)
+		+ (index % 10 ? '' : '\n"mit Escapes"\té')),
+});
 const cases: BenchCase[] = [
 	{
 		file: 'branching.jul',
@@ -101,6 +146,33 @@ const cases: BenchCase[] = [
 		inputs: [1n],
 		expected: [1n],
 		calls: 1_000_000,
+	},
+	{
+		file: 'json.jul',
+		functionName: 'parseJsonText',
+		label: 'json/small',
+		inputs: [smallJson],
+		expected: [7n],
+		select: result => result.marker,
+		calls: 20_000,
+	},
+	{
+		file: 'json.jul',
+		functionName: 'parseJsonText',
+		label: 'json/large',
+		inputs: [largeJson],
+		expected: [42n],
+		select: result => result.marker,
+		calls: 50,
+	},
+	{
+		file: 'json.jul',
+		functionName: 'parseJsonText',
+		label: 'json/texts',
+		inputs: [textJson],
+		expected: [3n],
+		select: result => result.marker,
+		calls: 200,
 	},
 ];
 
@@ -167,10 +239,15 @@ try {
 		if (typeof fn !== 'function') {
 			throw new Error(`${benchCase.file}: ${benchCase.functionName} ist keine Funktion`);
 		}
-		verify(benchCase, fn);
+		// Nur bei Fällen mit select eingewickelt: die übrigen messen weiter den nackten Aufruf
+		const { select } = benchCase;
+		const measured = select
+			? (input: unknown) => select(fn(input))
+			: fn;
+		verify(benchCase, measured);
 		return {
-			label: `${basename(benchCase.file, '.jul')}/${benchCase.functionName}`,
-			values: stats(measure(benchCase, fn)),
+			label: benchCase.label ?? `${basename(benchCase.file, '.jul')}/${benchCase.functionName}`,
+			values: stats(measure(benchCase, measured)),
 		};
 	});
 	const previous = readPrevious(logPath, target, getMachine());

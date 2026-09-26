@@ -135,3 +135,6 @@
 2026-09-26 10:54:09	595b0b9	-	ADV-DEV-56627	yugioh	parse+check	5	1512.24	1959.49	1959.49	fizzbuzz folding
 2026-09-26 14:52:46	8084930+	-	ADV-DEV-56627	yugioh	parse+check	5	1599.96	2030.00	2030.00	vor test-explorer-regeln
 2026-09-26 15:04:38	8084930+	-	ADV-DEV-56627	yugioh	parse+check	5	1551.87	2024.12	2024.12	nach test-explorer-regeln
+2026-09-26 15:11:45	83ef5b6+	-	ADV-DEV-56627	yugioh	parse+check	5	1451.85	1890.53	1890.53	vor nativem JSON.parse
+2026-09-26 15:13:08	83ef5b6+	-	ADV-DEV-56627	yugioh	parse+check	5	1371.09	1737.90	1737.90	natives JSON.parse mit reviver
+2026-09-26 15:41:09	83ef5b6+	-	ADV-DEV-56627	yugioh	parse+check	5	1466.04	1873.12	1873.12	json-parser: fraction-kürzung, strikter, strings per substring

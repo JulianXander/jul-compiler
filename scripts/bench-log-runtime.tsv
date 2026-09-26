@@ -47,3 +47,36 @@
 2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	7.17	9.19	9.19	nach source maps
 2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.87	7.77	7.77	nach source maps
 2026-09-26 14:16:44	e54a9b8+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	7.07	8.06	8.06	nach source maps
+2026-09-26 15:11:30	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.01	15.06	15.06	vor nativem JSON.parse
+2026-09-26 15:11:30	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	8.00	12.95	12.95	vor nativem JSON.parse
+2026-09-26 15:11:30	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.53	10.57	10.57	vor nativem JSON.parse
+2026-09-26 15:11:30	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	7.22	9.45	9.45	vor nativem JSON.parse
+2026-09-26 15:11:30	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.89	9.62	9.62	vor nativem JSON.parse
+2026-09-26 15:11:30	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.84	8.26	8.26	vor nativem JSON.parse
+2026-09-26 15:11:30	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/small	15	3965.55	4173.61	4173.61	vor nativem JSON.parse
+2026-09-26 15:11:30	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/large	15	3627718.00	3930586.00	3930586.00	vor nativem JSON.parse
+2026-09-26 15:12:59	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.37	16.95	16.95	natives JSON.parse mit reviver
+2026-09-26 15:12:59	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.32	12.53	12.53	natives JSON.parse mit reviver
+2026-09-26 15:12:59	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.63	11.26	11.26	natives JSON.parse mit reviver
+2026-09-26 15:12:59	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.38	7.26	7.26	natives JSON.parse mit reviver
+2026-09-26 15:12:59	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	7.21	8.42	8.42	natives JSON.parse mit reviver
+2026-09-26 15:12:59	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.75	7.01	7.01	natives JSON.parse mit reviver
+2026-09-26 15:12:59	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/small	15	6947.02	7298.10	7298.10	natives JSON.parse mit reviver
+2026-09-26 15:12:59	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/large	15	4950602.00	5147338.00	5147338.00	natives JSON.parse mit reviver
+2026-09-26 15:39:45	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.06	13.51	13.51	reviver zurückgenommen, alter parser mit fraction-kürzung und strikteren strings
+2026-09-26 15:39:45	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.57	15.04	15.04	reviver zurückgenommen, alter parser mit fraction-kürzung und strikteren strings
+2026-09-26 15:39:45	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.41	18.10	18.10	reviver zurückgenommen, alter parser mit fraction-kürzung und strikteren strings
+2026-09-26 15:39:45	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.88	8.10	8.10	reviver zurückgenommen, alter parser mit fraction-kürzung und strikteren strings
+2026-09-26 15:39:45	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.76	9.23	9.23	reviver zurückgenommen, alter parser mit fraction-kürzung und strikteren strings
+2026-09-26 15:39:45	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.73	8.14	8.14	reviver zurückgenommen, alter parser mit fraction-kürzung und strikteren strings
+2026-09-26 15:39:45	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/small	15	4170.79	4342.52	4342.52	reviver zurückgenommen, alter parser mit fraction-kürzung und strikteren strings
+2026-09-26 15:39:45	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/large	15	3860526.00	5677068.00	5677068.00	reviver zurückgenommen, alter parser mit fraction-kürzung und strikteren strings
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.23	14.83	14.83	json: strings abschnittsweise per substring
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.37	12.39	12.39	json: strings abschnittsweise per substring
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.75	12.09	12.09	json: strings abschnittsweise per substring
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.98	8.45	8.45	json: strings abschnittsweise per substring
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.64	7.50	7.50	json: strings abschnittsweise per substring
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	7.16	8.20	8.20	json: strings abschnittsweise per substring
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/small	15	3853.81	4134.32	4134.32	json: strings abschnittsweise per substring
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/large	15	4256344.00	5424612.00	5424612.00	json: strings abschnittsweise per substring
+2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/texts	15	474541.50	539263.00	539263.00	json: strings abschnittsweise per substring

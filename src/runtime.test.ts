@@ -59,6 +59,10 @@ const expectParseJson = reportAtCaller((json: string, result?: any) => {
 	const parserResult = parseJson(json);
 	expect(parserResult).to.deep.equal(result);
 });
+// Die Meldung hängt von der JS-Engine ab und wird deshalb nicht geprüft
+const expectParseJsonError = reportAtCaller((json: string) => {
+	expect(parseJson(json)).to.be.instanceOf(Error);
+});
 
 describe('parseJson', () => {
 	// null und leere Kollektionen werden zu Empty, vgl. Prinzip 6
@@ -109,6 +113,84 @@ describe('parseJson', () => {
 	});
 	it('[{"a":"b"}]', () => {
 		expectParseJson('[{"a":"b"}]', [{ a: 'b' }]);
+	});
+	it('{}', () => {
+		expectParseJson('{}', undefined);
+	});
+	// Das Feld bleibt mit Empty erhalten: der Import einer .json-Datei macht daraus ein
+	// Dictionary-Feld, fehlte es, wäre der Zugriff darauf ein Typfehler.
+	// deep.equal unterscheidet bei Objekten fehlenden Schlüssel und undefined.
+	it('{"a":null}', () => {
+		expectParseJson('{"a":null}', { a: undefined });
+	});
+	it('{"a":[]}', () => {
+		expectParseJson('{"a":[]}', { a: undefined });
+	});
+	it('{"a":{}}', () => {
+		expectParseJson('{"a":{}}', { a: undefined });
+	});
+	it('{"a":{"b":null}}', () => {
+		expectParseJson('{"a":{"b":null}}', { a: { b: undefined } });
+	});
+	it('[1,null,2]', () => {
+		const result = parseJson('[1,null,2]');
+		expect(result).to.deep.equal([1n, undefined, 2n]);
+		// deep.equal hält eine Lücke im Array für gleich
+		expect(1 in result).to.be.true;
+	});
+	// Fractions werden gekürzt wie Zahlenliterale in JUL
+	it('0.5', () => {
+		expectParseJson('0.5', { numerator: 1n, denominator: 2n });
+	});
+	it('1.50', () => {
+		expectParseJson('1.50', { numerator: 3n, denominator: 2n });
+	});
+	it('2.0', () => {
+		expectParseJson('2.0', 2n);
+	});
+	it('-2.5e-1', () => {
+		expectParseJson('-2.5e-1', { numerator: -1n, denominator: 4n });
+	});
+	it('1e3', () => {
+		expectParseJson('1e3', 1000n);
+	});
+	it('-0', () => {
+		expectParseJson('-0', 0n);
+	});
+	it('12345678901234567890', () => {
+		expectParseJson('12345678901234567890', 12345678901234567890n);
+	});
+	it('"a\\r\\nb"', () => {
+		expectParseJson('"a\\r\\nb"', 'a\r\nb');
+	});
+	it('{"a":}', () => {
+		expectParseJsonError('{"a":}');
+	});
+	it('[1,', () => {
+		expectParseJsonError('[1,');
+	});
+	it("'x'", () => {
+		expectParseJsonError("'x'");
+	});
+	// Steuerzeichen müssen in JSON-Strings escaped sein
+	it('"a<U+0001>b"', () => {
+		expectParseJsonError('"a\u0001b"');
+	});
+	it('"a<Zeilenumbruch>b"', () => {
+		expectParseJsonError('"a\nb"');
+	});
+	it('"\\x"', () => {
+		const result = parseJson('"\\x"');
+		expect(result).to.be.instanceOf(Error);
+		expect(result.message).to.not.be.empty;
+	});
+	// Der Schlüssel darf nicht den Prototyp setzen, sonst verändert fremdes JSON (z.B. eine
+	// HTTP-Antwort) das Verhalten des Objekts
+	it('{"__proto__":{"a":1}}', () => {
+		const result = parseJson('{"__proto__":{"a":1}}');
+		expect(Object.getPrototypeOf(result)).to.equal(Object.prototype);
+		expect(Object.keys(result)).to.deep.equal(['__proto__']);
+		expect(Object.getOwnPropertyDescriptor(result, '__proto__')?.value).to.deep.equal({ a: 1n });
 	});
 });
 
