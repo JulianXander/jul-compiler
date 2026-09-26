@@ -4518,6 +4518,30 @@ r = spin(0)`)).to.equal('Any');
 r = f(4)`)).to.equal('12');
 	});
 
+	// Die Typangabe eines Branches steht in dessen Parameterliste, nicht im Rumpf - eine freie
+	// Referenz dort muss genauso in die Umgebung wie eine im Rumpf.
+	it('freie Referenz in der Typangabe eines Branches wird in die Umgebung gebunden', () => {
+		expect(typeOfLastDefinition(`isFive = (n: Integer) => n.equal(5)
+f = (index: Integer) =>
+	?(index)
+		[isFive] => §five§
+		Any => index
+r = f(5)`)).to.equal('§five§');
+	});
+
+	it('Aufruf in der Typangabe eines Branches faltet (fizz-buzz)', () => {
+		expect(typeOfLastDefinition(`divisibleBy = (divisor: NonZeroInteger) =>
+	(dividend: Integer) =>
+		dividend.modulo(divisor).equal(0)
+fizzBuzzMessage = (index: Integer) =>
+	?(index)
+		[divisibleBy(15)] => §FizzBuzz§
+		[divisibleBy(5)] => §Buzz§
+		[divisibleBy(3)] => §Fizz§
+		Any => index
+r = fizzBuzzMessage(12)`)).to.equal('§Fizz§');
+	});
+
 	//#endregion 5d
 
 	//#region 5e HOF mit Nutzerfunktionen (typeToConstantValue.case 'function')

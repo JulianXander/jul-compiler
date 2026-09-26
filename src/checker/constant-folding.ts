@@ -205,10 +205,10 @@ function canonicalArgsKey(args: unknown[]): string {
 }
 
 /**
- * Freie Referenzen des Rumpfs - ohne Parameter, ohne lokale Definitionen. Derselbe Bautyp wie
- * inferBodyPurity in checker.ts, aber anders als dort steigt der Walker in verschachtelte
- * Funktionsliterale ab (mit deren eigenen symbols auf dem Stack): sie werden beim Emittieren des
- * äußeren Literals als Teil desselben Slice mit ausgeführt, nicht separat aufgelöst.
+ * Freie Referenzen von Rumpf und Parameterliste - ohne Parameter, ohne lokale Definitionen.
+ * Derselbe Bautyp wie inferBodyPurity in checker.ts, aber anders als dort steigt der Walker in
+ * verschachtelte Funktionsliterale ab (mit deren eigenen symbols auf dem Stack): sie werden beim
+ * Emittieren des äußeren Literals als Teil desselben Slice mit ausgeführt, nicht separat aufgelöst.
  */
 function collectFreeReferences(literal: ParseFunctionLiteral): ParseReference[] {
 	const freeReferences: ParseReference[] = [];
@@ -223,6 +223,7 @@ function collectFreeReferences(literal: ParseFunctionLiteral): ParseReference[] 
 				return undefined;
 			case 'functionLiteral':
 				scopeStack.push(expression.symbols);
+				walk(expression.params);
 				expression.body.forEach(walk);
 				scopeStack.pop();
 				return undefined;
@@ -232,6 +233,10 @@ function collectFreeReferences(literal: ParseFunctionLiteral): ParseReference[] 
 		}
 	}
 
+	// Die Parameterliste gehört dazu: Ihre Typangaben emittiert der Emitter in den
+	// _createFunction-Aufruf, sie werden beim Erzeugen der Funktion ausgewertet. Bei einem Branch
+	// steht dort das Prädikat, z.B. [divisibleBy(3)]. Der Rückgabetyp wird nicht emittiert.
+	walk(literal.params);
 	literal.body.forEach(walk);
 	return freeReferences;
 }
@@ -331,8 +336,7 @@ export function tryBuildCallable(functionType: CompileTimeFunctionType): Functio
 	}
 	// Volle Runtime immer binden, wie der normale Modul-Import (getRuntimeImportJs): emittierte
 	// Parameter-Typangaben (z.B. `a: Integer`) referenzieren Runtime-Exporte, die selbst keine
-	// aufrufbaren Funktionen sind (kein `params`) und deshalb im Sammler oben gar nicht erst
-	// gebunden werden - der durchsucht ohnehin nur den Rumpf, nicht die Parameterliste.
+	// aufrufbaren Funktionen sind (kein `params`) und deshalb im Sammler oben nicht gebunden werden.
 	const bindingNames = [...runtimeKeys, ...environment.map(entry => entry.name)];
 	const bindingValues: unknown[] = [...runtimeKeys.map(key => key === '_createFunction' ? createBudgetedCreateFunction() : (runtime as { [key: string]: unknown; })[key]), ...environment.map(entry => entry.value)];
 	try {
