@@ -24,21 +24,21 @@ interface PackageJson {
 
 try {
 	const args = process.argv.slice(2);
-	// Eine Quelle für Validierung und --help, damit ein neues Kommando bzw. Flag nur an einer Stelle
-	// einzutragen ist. build steht nicht darin: Der Build ist der Aufruf ohne Kommando.
+	// Eine Quelle für Validierung und help, damit ein neues Kommando bzw. eine neue Option nur an
+	// einer Stelle einzutragen ist. build steht nicht darin: Der Build ist der Aufruf ohne Kommando.
+	// help und version sind Kommandos, keine Flags - sie sind eigene Aktionen, keine Abwandlung.
 	const knownCommands: Record<string, string> = {
 		check: 'Only parse and check, without emitting or bundling output.',
 		test: 'Check and run all *.test.jul files below the config folder, without writing output.',
+		help: 'Print this help text.',
+		version: 'Print the compiler version.',
 	};
-	const knownOptions: Record<string, { description: string; value?: string; }> = {
+	const knownOptions: Record<string, { value: string; description: string; }> = {
 		'--config': {
 			value: '<path>',
 			description: 'Path to the jul-config.yaml. Default: jul-config.yaml in the current directory.',
 		},
-		'--help': { description: 'Print this help text and exit.' },
-		'--version': { description: 'Print the compiler version and exit.' },
 	};
-	const flags = new Set<string>();
 	const optionValues: Record<string, string> = {};
 	const positionalArgs: string[] = [];
 	for (let index = 0; index < args.length; index++) {
@@ -54,13 +54,6 @@ try {
 		// Ein Tippfehler im Flag-Namen (z.B. --confg) soll auffallen statt still ignoriert zu werden.
 		if (!option) {
 			throw new Error(`Unknown option: ${name}. Known options: ${Object.keys(knownOptions).join(', ')}`);
-		}
-		if (!option.value) {
-			if (separatorIndex !== -1) {
-				throw new Error(`Option ${name} does not take a value.`);
-			}
-			flags.add(name);
-			continue;
 		}
 		const value = separatorIndex === -1
 			? args[++index]
@@ -82,7 +75,12 @@ try {
 	if (command !== undefined && !(command in knownCommands)) {
 		throw new Error(`Unknown command: ${command}. Known commands: ${Object.keys(knownCommands).join(', ')}`);
 	}
-	if (flags.has('--help')) {
+	// Optionen beziehen sich aufs Projekt; bei help und version würden sie still ignoriert.
+	const givenOptions = Object.keys(optionValues);
+	if ((command === 'help' || command === 'version') && givenOptions.length) {
+		throw new Error(`Command ${command} takes no options: ${givenOptions.join(', ')}.`);
+	}
+	if (command === 'help') {
 		const printEntries = (entries: [string, string][]) => {
 			const width = Math.max(...entries.map(([name]) => name.length)) + 2;
 			for (const [name, description] of entries) {
@@ -95,10 +93,10 @@ try {
 		printEntries(Object.entries(knownCommands));
 		console.log('\nOptions:');
 		printEntries(Object.entries(knownOptions).map(([name, option]) =>
-			[option.value ? `${name} ${option.value}` : name, option.description]));
+			[`${name} ${option.value}`, option.description]));
 		process.exit(0);
 	}
-	if (flags.has('--version')) {
+	if (command === 'version') {
 		// package.json liegt nicht unter src/ (rootDir in tsconfig.build.json) und lässt sich deshalb
 		// nicht per JSON-Import einbinden - stattdessen zur Laufzeit relativ zur ausgeführten Datei
 		// gelesen, wie runtime.js in compiler.ts.
