@@ -672,7 +672,6 @@ export type CompileTimeType =
 	| CompileTimeWithElementAtType
 	| CompileTimeConditionalType
 	| CompileTimeRangeType
-	| CompileTimeTupleOfType
 	| CompileTimeMapElementsType
 	| CompileTimeConcatType
 	| CompileTimeAddType
@@ -872,7 +871,7 @@ export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileT
 		julType: 'lengthOf',
 		Source: Source,
 		// Die Länge selbst wartet nicht: sie ist immer ein Integer, egal wie offen die Quelle noch
-		// ist. Wer die Quelle meint, prüft sie ausdrücklich (siehe tupleOfFromTypes).
+		// ist. Wer die Quelle meint, prüft sie ausdrücklich.
 		isUnresolvedPlaceholder: false,
 	};
 }
@@ -955,28 +954,6 @@ export function createCompileTimeRangeType(
 }
 
 /**
- * Count Positionen, jede vom Typ ElementType. Steht Count als Literal fest, wird daraus ein
- * Tuple dieser Länge, sonst eine List.
- */
-export interface CompileTimeTupleOfType extends CompileTimeTypeBase {
-	readonly julType: 'tupleOf';
-	Count: CompileTimeType;
-	ElementType: CompileTimeType;
-}
-
-export function createCompileTimeTupleOfType(
-	Count: CompileTimeType,
-	ElementType: CompileTimeType,
-): CompileTimeTupleOfType {
-	return {
-		julType: 'tupleOf',
-		Count: Count,
-		ElementType: ElementType,
-		isUnresolvedPlaceholder: true,
-	};
-}
-
-/**
  * Source, jede Position abgebildet durch Callback: bei einem Tuple der Rückgabetyp des Callbacks
  * je Position, mit dem Element und seinem Index als Argumenten. Bleibt stehen, solange Source oder
  * Callback noch nicht feststehen.
@@ -985,6 +962,11 @@ export interface CompileTimeMapElementsType extends CompileTimeTypeBase {
 	readonly julType: 'mapElements';
 	Source: CompileTimeType;
 	Callback: CompileTimeType;
+	/**
+	 * Der Knoten steht an einer Stelle, an der ein Wert als Typ gelesen wird, wie bei
+	 * NestedReferenceType: das valueOf wird nachgeholt, sobald er aufgelöst ist.
+	 */
+	deferValueOf?: true;
 }
 
 export function createCompileTimeMapElementsType(
@@ -1442,10 +1424,6 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 			return;
 		case 'tuple':
 			type.ElementTypes.forEach(callback);
-			return;
-		case 'tupleOf':
-			callback(type.Count);
-			callback(type.ElementType);
 			return;
 		case 'mapElements':
 			callback(type.Source);

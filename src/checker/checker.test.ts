@@ -1768,6 +1768,12 @@ x: Integer = f(a$)`, {
 			errors: [integerReturnTypeMismatch('Stream([Text Or(Empty Integer) Boolean])', 84, 102, 73)],
 		});
 	});
+	// Bei einer List von Streams steht die Anzahl nicht fest, jeder Wert hat den Werttyp der Streams.
+	it('combine-of-stream-list-is-stream-of-value-list', () => {
+		expectCheck('f = (s: List(Stream(Integer))) :> Integer => combine$(...s)', {
+			errors: [integerReturnTypeMismatch('Stream(List(Integer))', 45, 59, 34)],
+		});
+	});
 	it('combine-without-sources-is-stream-of-empty', () => {
 		expectCheck('f = () :> Integer => combine$()', {
 			errors: [integerReturnTypeMismatch('Stream(Empty)', 21, 31, 10)],
@@ -3612,12 +3618,11 @@ f = (chain: Or([] List(Integer)) value: Integer) :> List(Integer) =>
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
-	// Dasselbe Muster wie bei Concat, diesmal bei TupleOf. map liefert
-	// TupleOf(LengthOf(cards) Integer); solange cards der eigene, offene Parameter ist, bleibt
-	// der Knoten stehen (tupleOfFromTypes: isUnresolvedPlaceholderType-Guard). getTypeError
-	// muss tupleOf deshalb auch auf der Argumentseite permissiv behandeln (nicht nur als Zieltyp) -
-	// ein Tuple beliebiger Länge aus Integern ist an List(Integer) aber sehr wohl zuweisbar.
-	it('tuple-of-with-unresolved-count-assigns-to-list', () => {
+	// Dasselbe Muster wie bei Concat, diesmal bei MapElements. Solange cards der eigene, offene
+	// Parameter ist, bleibt der Knoten stehen. getTypeError muss ihn deshalb auch auf der
+	// Argumentseite permissiv behandeln, nicht nur als Zieltyp - aufgelöst ist das Ergebnis eine
+	// List aus Integern und an List(Integer) zuweisbar.
+	it('map-with-unresolved-source-assigns-to-list', () => {
 		const code = `g = (b: Or([] List(Integer))) => b
 f = (cards: List(Integer)) =>
 	g(cards.map((value: Integer index: Integer) => value))`;

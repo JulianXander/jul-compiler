@@ -43,7 +43,7 @@ Zur Laufzeit gilt schon die strenge Bedeutung: `List()` und `Dictionary()` behal
 | `first([1 2])` mit `:> TypeOf(values)/ElementType` | `1` | `1` |
 
 Ausgepackt wird an den Grenzen, die das schon heute über `valueOf` tun: Annotationen von Definition,
-Parameter und Rückgabe, Argumente von Typfunktionen (`List`, `Or`, `Stream`, `TupleOf` …),
+Parameter und Rückgabe, Argumente von Typfunktionen (`List`, `Or`, `Stream`, `Concat` …),
 Typguards in Branches und beim Destructuring. Für Anwender ändert sich an der Schreibweise nichts.
 
 ## Ansatz

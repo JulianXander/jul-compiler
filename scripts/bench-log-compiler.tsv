@@ -161,3 +161,5 @@
 2026-09-27 17:36:13	614d410+	-	ADV-DEV-56627	yugioh	parse+check	5	1622.69	1853.58	1853.58	vor MapElements
 2026-09-27 17:40:32	614d410+	-	ADV-DEV-56627	yugioh	parse+check	5	1635.74	1917.29	1917.29	MapElements: map über Tupel je Position
 2026-09-27 17:42:14	614d410+	-	ADV-DEV-56627	yugioh	parse+check	5	1624.30	1908.14	1908.14	MapElements: map über Tupel je Position
+2026-09-27 17:52:11	d407122+	-	ADV-DEV-56627	yugioh	parse+check	5	1502.91	1859.24	1859.24	combine$ je Position, valueOf steigt in List ab
+2026-09-27 17:55:42	d407122+	-	ADV-DEV-56627	yugioh	parse+check	5	1505.89	1919.20	1919.20	TupleOf entfernt

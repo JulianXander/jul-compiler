@@ -4,7 +4,7 @@
 Typ: die Union aller Elemente. Dieses Dokument beschreibt, wie der Checker den Callback je Position
 auswertet, sodass das Ergebnis wieder ein Tupel mit den Typen der einzelnen Positionen ist.
 
-**Stand:** Schritte 1 und 2 umgesetzt. Setzt [type-properties.md](type-properties.md) voraus. Roter
+**Stand:** Schritte 1 bis 4 umgesetzt, Schritt 5 offen. Setzt [type-properties.md](type-properties.md) voraus. Roter
 Zieltest: `map-over-stream-types-reads-value-type-per-position`.
 
 ## Ausgangslage

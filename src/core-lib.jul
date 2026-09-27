@@ -194,17 +194,6 @@ Range = nativeFunction(
 		(start, end) => Range(start, end)
 	§
 )
-# count Positionen, jede vom Typ ElementType.
-# Empty bei count 0.
-TupleOf = nativeFunction(
-	(
-		count: Integer
-		ElementType: Type
-	) -> Type
-	§js
-		(count, ElementType) => TupleOf(count, ElementType)
-	§
-)
 # Source, jede Position abgebildet durch Callback.
 # Bei einem Tupel der Rückgabetyp von Callback je Position, mit dem Element und seinem Index.
 # Bei einer List derselbe Rückgabetyp für jedes Element.

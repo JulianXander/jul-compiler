@@ -116,18 +116,13 @@
 	-die regeln greifen heute nur bei genau zwei choices
 	-And(TypeOf(a) TypeOf(b) Integer) bleibt sonst als knoten stehen statt zu Integer zu werden
 	-macht das Never idiom für bedingte typen erst lesbar
-?mapped types über tuples
-	-würde die checker sonderfälle getElement, lastElement, length, setElement, map ersetzen
-	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
-	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
-	-anwendungsfall combine$: rückgabetyp Stream(TypeOf(sources).map((value) => TypeOf(value)/ValueType))
-	 ergibt heute List(Any), der callback wird nur einmal mit dem elementtyp ausgewertet. einzelne
-	 positionen gehen schon (sources/2/ValueType), mit fester stelligkeit greift die reihenfolge
-	 samt destructuring. ohne das verliert jul-examples/ui/dynamic-form die feldtypen von data$
-	-plan: docs/mapped-tuples.md. roter test map-over-stream-types-reads-value-type-per-position
-	 ergibt [Or(TypeOf(Text) TypeOf(Integer)) …] statt je position
-	-dereferenceNameFromObject(Type) macht aus einer union ohne entscheidbaren zweig die leere
-	 union Never statt unbekannt
+-mapped tuples (docs/mapped-tuples.md): map und combine$ je position umgesetzt, offen
+	-das gemeinsame gerüst der typfunktionen (über or verteilen, platzhalter aufschieben, bei
+	 unbekanntem zurückfallen) als helfer herausziehen: withElementAtFromTypes, getLengthFromType,
+	 mapElementsFromTypes, concatFromTypes
+	-hover auf die deklaration von combine$ zeigt ~> Stream(List(Any)), das Empty fehlt. am aufruf
+	 stimmt der typ (combine$() ergibt Stream(Empty)), vermutlich löst sich der rest-parameter ohne
+	 aufruf zu List(…) statt Or([] List(…)) auf
 	-map verlangt den parameternamen value, hält er einen typ, meldet JUL2600 groß-/kleinschreibung
 -TS-Typannotationen übernehmen, siehe docs/typescript-import-types.md
 	-yugioh: deleteDeck ohne aktives Deck gibt Empty an removeField/deleteRecordFromDb

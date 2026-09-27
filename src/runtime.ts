@@ -1480,30 +1480,6 @@ export const Range = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-export const TupleOf = /*#__PURE__*/ _createFunction(
-	function TupleOf(count: bigint, ElementType: RuntimeType): RuntimeType {
-		const length = Number(count);
-		if (length < 1) {
-			return Empty;
-		}
-		return {
-			[_julTypeSymbol]: 'tuple',
-			ElementTypes: new Array(length).fill(ElementType),
-		};
-	},
-	{
-		singleNames: [
-			{
-				name: 'count',
-				type: Integer,
-			},
-			{
-				name: 'ElementType',
-				type: Type,
-			},
-		]
-	}
-);
 export const MapElements = /*#__PURE__*/ _createFunction(
 	function MapElements(Source: RuntimeType, Callback: RuntimeType): RuntimeType {
 		// Wie Concat nur für den Checker: der Rückgabetyp von map.
