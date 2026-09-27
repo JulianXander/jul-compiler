@@ -39,6 +39,27 @@
 ?was tun mit typeGuard bei destructuring import
 ?shared code? libraries?
 ?branch verengung über feldpfade: was gilt für felder auf einem stream
+?wertebereich von timeoutMs bei httpTextRequest$/httpBlobRequest$: heute Float, 0 und negative
+	werte lösen den abbruch sofort aus (setTimeout in httpRequest$, runtime.ts). ausschließen, etwa
+	mit einem positiven Float-typ, oder so lassen?
+-warnungen per kommentar abschalten, allgemein für jeden warnungscode (JUL2500, künftig die
+	lebensdauer-warnung aus docs/stream-lifetimes.md)
+	-heute verwirft der parser alle kommentare außer der description über definitionen und feldern
+	 (assignDescriptions in parser.ts), er muss sie samt position aufbewahren
+	-nur warnungen, keine fehler: ein fehler verhindert das emittieren, abschalten hieße
+	 kaputten code bauen
+	-nur mit code, kein pauschales abschalten
+	-wie @ts-expect-error: unterdrückt der kommentar nichts, ist er selbst eine warnung, sonst
+	 verdeckt ein veralteter kommentar still eine spätere echte warnung
+	-offen: schreibweise und reichweite (nächste zeile, ganzer ausdruck, ganze definition?)
+	-language server: quick fix "warnung hier abschalten"
+?branch verengung auf typen, die die runtime gröber prüft als der checker: _branch prüft bei
+	Stream nur instanceof StreamClass, bei Funktionen nur typeof function (runtime.ts, case 'stream'
+	und 'function' im getTypeError). ?(s) (x: Stream(Text)) => … (y: Stream(Integer)) => … nimmt zur
+	laufzeit für jeden stream den ersten zweig, der checker verengt aber auf Stream(Text) und hält
+	den zweiten für erreichbar. betrifft ValueType, funktionssignaturen und künftig FiniteStream
+	(docs/stream-lifetimes.md). eine regel für alle solchen typen, keine ausnahme je typ: fehler,
+	warnung oder nur auf das zur laufzeit prüfbare verengen?
 -branch verengung auch für benannte argumente
 	-getWrittenArguments liefert nur bei args.type === 'list', bei ?(a = someVar) ist es
 	 'dictionary' und es wird gar nicht verengt
