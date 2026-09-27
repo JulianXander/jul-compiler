@@ -10,6 +10,7 @@ import {
 	ParseTextLiteral,
 	ParseValueExpression,
 	ParseReference,
+	PositionedExpression,
 	SimpleExpression,
 } from './syntax-tree.js';
 import { Positioned } from './compiler-errors.js';
@@ -848,7 +849,34 @@ function isTrivialArgument(value: ParseValueExpression): boolean {
 
 function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;
-	return escapeReservedJsVariableName(name);
+	const nameJs = escapeReservedJsVariableName(name);
+	// Die Selbstreferenz eines rekursiven Typs würde ausgewertet, bevor die Konstante fertig ist.
+	return isEvaluatedDuringOwnDefinition(reference, name)
+		? `_lazyType(${stringToJs(name)}, () => ${nameJs})`
+		: nameJs;
+}
+
+/**
+ * Steht die Referenz im Wert der Definition dieses Namens, ohne Funktionsliteral dazwischen? Ein
+ * Funktionsrumpf läuft erst beim Aufruf, bis dahin ist die Definition fertig.
+ */
+function isEvaluatedDuringOwnDefinition(reference: ParseReference, name: string): boolean {
+	let current: PositionedExpression | undefined = reference.parent;
+	while (current) {
+		switch (current.type) {
+			case 'functionLiteral':
+				return false;
+			case 'definition':
+				if (current.name.name === name) {
+					return true;
+				}
+				break;
+			default:
+				break;
+		}
+		current = current.parent;
+	}
+	return false;
 }
 
 function parametersToJs(parameters: ParseParameterFields, indent: number): string {

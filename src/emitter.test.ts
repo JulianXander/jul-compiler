@@ -657,17 +657,19 @@ describe('Emitter Runtime-Import', () => {
 /**
  * Führt den emittierten Code einer Datei aus, ohne Dateizugriff: die Import-Zeile entfällt, die
  * Runtime-Exporte werden stattdessen als Parameter gebunden (wie beim constant folding).
+ * Liefert die Definition resultName, ohne sie den export default.
  */
-function runEmitted(code: string): void {
+function runEmitted(code: string, resultName?: string): unknown {
 	const parsed = parseCode(code, 'dummy.jul');
 	checkTypes(parsed, {}, { cloneUnchecked: true });
 	expect(parsed.checked?.errors).to.deep.equal([]);
 	const compiled = syntaxTreeToJs(parsed.checked!.expressions!, '');
 	const body = withoutImports(compiled)
 		.replaceAll(/^export const /gm, 'const ')
-		.replace(/^export default /m, 'return ');
+		.replace(/^export default /m, 'return ')
+		+ (resultName ? `\nreturn ${resultName};` : '');
 	const runtimeNames = Object.keys(runtime);
-	new Function(...runtimeNames, body)(...runtimeNames.map(name => (runtime as { [name: string]: unknown; })[name]));
+	return new Function(...runtimeNames, body)(...runtimeNames.map(name => (runtime as { [name: string]: unknown; })[name]));
 }
 
 describe('Emitter Ausführung', () => {
@@ -675,5 +677,14 @@ describe('Emitter Ausführung', () => {
 	// durch. Zur Laufzeit darf sie dann nicht vor der fertigen Definition ausgewertet werden.
 	it('ein rekursiver Typ lässt sich laden', () => {
 		expect(() => runEmitted('Node = [value: Integer children: Or([] List(Node))]')).to.not.throw();
+	});
+	// Die Elemente von children werden gegen die Selbstreferenz geprüft, sie wird also aufgelöst.
+	it('ein verschachtelter Wert besteht die Prüfung gegen einen rekursiven Typ', () => {
+		const code = [
+			'Node = [value: Integer children: Or([] List(Node))]',
+			'f = (node: Node) => node/value',
+			'result = f([value = 1 children = [[value = 2 children = [[value = 3]]]]])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(1n);
 	});
 });

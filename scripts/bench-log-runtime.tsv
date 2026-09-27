@@ -116,3 +116,12 @@
 2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/small	15	3712.72	3961.14	3961.14	Add als Typfunktion fuer add
 2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/large	15	3662914.00	4181410.00	4181410.00	Add als Typfunktion fuer add
 2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/texts	15	423873.50	451266.50	451266.50	Add als Typfunktion fuer add
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	3.74	17.37	17.37	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.92	13.12	13.12	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.06	7.52	7.52	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.48	7.70	7.70	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.58	7.72	7.72	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.61	8.14	8.14	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	json/small	15	3749.44	4524.31	4524.31	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	json/large	15	3667842.00	3891450.00	3891450.00	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	json/texts	15	427364.00	476059.00	476059.00	rekursive Typen: _lazyType fuer Selbstreferenz

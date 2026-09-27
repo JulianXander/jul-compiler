@@ -146,6 +146,9 @@ function typeToString(type: RuntimeType, indent: number): string {
 						return 'Type';
 					case 'typeOf':
 						return `TypeOf(${typeToString(type.value, indent)})`;
+					case 'lazy':
+						// Der Name statt des Typs: ausgeschrieben endete die Rekursion nicht.
+						return type.name;
 					default: {
 						const assertNever: never = type;
 						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType)[_julTypeSymbol]}`);
@@ -417,6 +420,9 @@ function getTypeError(value: any, type: RuntimeType): string | undefined {
 							return undefined;
 						}
 						break;
+					// Selten, deshalb zuletzt: die Prüfung ist der heißeste Pfad der Runtime.
+					case 'lazy':
+						return getTypeError(value, type.getType());
 					default: {
 						const assertNever: never = type;
 						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType)[_julTypeSymbol]}`);
@@ -758,6 +764,7 @@ type BuiltInType =
 	| UnionType
 	| ComplementType
 	| TypeOfType
+	| LazyType
 	;
 
 
@@ -870,6 +877,17 @@ interface TypeOfType {
 /**
  * Die Selbstreferenz eines rekursiven Typs (`Node = [children: List(Node)]`). Sie wird erst beim
  * Prüfen aufgelöst, beim Bauen der Definition ist die Konstante noch nicht fertig.
+ *
+ * Wer Laufzeittypen verarbeitet, muss je nach Art unterschiedlich mit diesem Knoten umgehen:
+ * - Ein Durchlauf, der der Struktur des Typs folgt (typeToString, Typgleichheit, Serialisierung),
+ *   hält hier an und ruft getType nie auf: bei einem rekursiven Typ endete er sonst nicht.
+ * - Ein Durchlauf, der einem Wert folgt (getTypeError), darf auflösen: er geht nur so tief wie der
+ *   endliche Wert. Das setzt voraus, dass jeder Zyklus durch eine Datenebene läuft, die Wert
+ *   verbraucht - der Checker erzwingt das mit JUL5170. `A = Or([] A)` liefe hier endlos.
+ * - Wer eine Ebene in einen Typ hineinschaut (ElementAt, LengthOf), löst vorher auf, sonst fällt
+ *   der Knoten still in den default-Zweig.
+ * Fallunterscheidungen mit never-Prüfung erzwingen einen Fall für lazy, solche mit default-Zweig
+ * oder einer Prüfung wie `_julTypeSymbol in type` nicht.
  */
 interface LazyType {
 	readonly [_julTypeSymbol]: 'lazy';
