@@ -80,3 +80,21 @@
 2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/small	15	3853.81	4134.32	4134.32	json: strings abschnittsweise per substring
 2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/large	15	4256344.00	5424612.00	5424612.00	json: strings abschnittsweise per substring
 2026-09-26 15:40:51	83ef5b6+	-	ADV-DEV-56627	bench-runtime	json/texts	15	474541.50	539263.00	539263.00	json: strings abschnittsweise per substring
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.18	20.07	20.07	vor runtime-tree-shaking
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.87	11.14	11.14	vor runtime-tree-shaking
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.60	7.92	7.92	vor runtime-tree-shaking
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.70	7.20	7.20	vor runtime-tree-shaking
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.67	7.60	7.60	vor runtime-tree-shaking
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.65	7.95	7.95	vor runtime-tree-shaking
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/small	15	3801.94	4082.67	4082.67	vor runtime-tree-shaking
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/large	15	3655976.00	3909148.00	3909148.00	vor runtime-tree-shaking
+2026-09-27 06:32:21	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/texts	15	443277.00	466889.50	466889.50	vor runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	3.96	14.05	14.05	nach runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.14	11.62	11.62	nach runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.70	8.26	8.26	nach runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.41	7.27	7.27	nach runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.51	7.41	7.41	nach runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.59	7.67	7.67	nach runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/small	15	3773.71	3911.55	3911.55	nach runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/large	15	3662708.00	3778452.00	3778452.00	nach runtime-tree-shaking
+2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/texts	15	440690.50	451794.50	451794.50	nach runtime-tree-shaking

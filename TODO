@@ -201,8 +201,17 @@
 	 (css) ändert auch den jul-build; keine schema-hilfe wie bei jul-config
 	-große json-importe vom code trennen (eigener chunk), card-data.json ist 84 % des yugioh-bundles und
 	 jede codeänderung invalidiert den browser-cache für die ganzen 2 mb
-	?minify als opt-in: auf yugioh nur -9 % nach gzip, toter code fällt kaum weg, weil die top-level
-	 _createFunction(...)-aufrufe der runtime ohne /*#__PURE__*/ bzw. terser pure_funcs bleiben
+	?minify als opt-in: ungenutzte runtime entfernt seit dem runtime-tree-shaking
+	 (docs/runtime-tree-shaking.md) schon der compiler, minify brächte nur noch größe. kostet auf
+	 yugioh rund 0,9 s build-dauer (gemessen mit terser ohne mangle), kompakte ausgabe -20 % roh,
+	 -8 % gzip. mit mangle bräuchte der stacktrace die names der source map, terser ordnet sie aber
+	 node-seitig dem falschen frame zu (dort beschrieben)
+	?weitergehend (eigener linker, runtime in module aufteilen, runtime als paket):
+	 docs/backlog/runtime-linking.md
+-runtime: getElement hat die params von setElement, setElement hat keine. der
+	_createFunction-aufruf nach setElement nannte getElement, beim tree-shaking-umbau unverändert
+	übernommen (TODO in runtime.ts). fix per test: getElement.params nur values und index,
+	setElement.params values, index, value
 -json-import verliert \r: emitter schreibt texte als template-literal mit echtem zeilenumbruch, js
 	normalisiert crlf darin zu lf. import von card-data.json (yugioh, karte 295517) liefert dadurch
 	andere texte als _parseJson auf dieselbe datei

@@ -35,11 +35,10 @@ let lastTestCall: TestCall | undefined;
  * Registriert nur, ausgeführt wird erst über _runTests. Ein Test ist bestanden, wenn der Callback
  * true liefert.
  */
-export const test = (name: string, callback: () => unknown, location?: TestLocation) => {
-	registeredTests.push({ name, callback, location });
-};
-_createFunction(
-	test,
+export const test = /*#__PURE__*/ _createFunction(
+	function test(name: string, callback: () => unknown, location?: TestLocation) {
+		registeredTests.push({ name, callback, location });
+	},
 	{
 		singleNames: [
 			{

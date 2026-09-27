@@ -1,4 +1,4 @@
-import { appendFileSync, chmodSync, writeFileSync, copyFileSync, globSync, rmSync, statSync } from 'fs';
+import { appendFileSync, chmodSync, writeFileSync, globSync, readFileSync, rmSync, statSync } from 'fs';
 import { registerHooks } from 'module';
 import { basename, dirname, join, relative, resolve } from 'path';
 import { RawSourceMap, SourceMapGenerator } from 'source-map';
@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { format } from 'util';
 import webpack from 'webpack';
 import { SourceMapping, syntaxTreeToJsWithMappings } from './emitter.js';
+import { shakeRuntime } from './runtime-shaking.js';
 import { _runTests, TestLocation, TestResult } from './test-runtime.js';
 import { ParsedDocuments } from './checker/checker.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from './compiler-errors.js';
@@ -73,19 +74,24 @@ export function compileProject(
 	renderer.startStep('emitting');
 	const runtimePath = resolve(join(outputFolderPath, runtimeFileName));
 	let outFilePath: string | undefined;
+	const usedRuntimeNames = new Set<string>();
 	Object.values(documents).forEach(document => {
 		const isEntry = document.filePath === entryFilePath;
-		const fileOutPath = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimePath);
+		const emitted = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimePath);
+		emitted.runtimeNames.forEach(name => usedRuntimeNames.add(name));
 		if (isEntry) {
-			outFilePath = fileOutPath;
+			outFilePath = emitted.outFilePath;
 		}
 	});
 	renderer.finishStep('done');
 	//#endregion 4. emit
 
 	//#region 5. copy runtime
+	// Nur was die emittierten Dateien erreichen. Damit fällt der Rest auch im Bundle weg, ohne dass
+	// webpack minimieren muss: Ein Minimizer arbeitete das ganze Bundle durch, samt großer
+	// JSON-Importe.
 	const runtimeSourcePath = join(executingDirectory, runtimeFileName);
-	copyFileSync(runtimeSourcePath, runtimePath);
+	writeFileSync(runtimePath, shakeRuntime(readFileSync(runtimeSourcePath, 'utf8'), usedRuntimeNames));
 	//#endregion 5. copy runtime
 
 	//#region 6. bundle
@@ -499,8 +505,8 @@ function emitFile(
 	sourceCode: string,
 	outputFolderPath: string,
 	runtimePath: string,
-): string {
-	const { outFilePath, compiled, sourceMap } = emitToJs(parsed, sourceCode, outputFolderPath, runtimePath);
+): { outFilePath: string; runtimeNames: string[]; } {
+	const { outFilePath, compiled, sourceMap, runtimeNames } = emitToJs(parsed, sourceCode, outputFolderPath, runtimePath);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
 	let js = compiled;
@@ -510,7 +516,7 @@ function emitFile(
 		js = appendSourceMapUrl(js, mapFileName);
 	}
 	writeFileSync(outFilePath, js);
-	return outFilePath;
+	return { outFilePath: outFilePath, runtimeNames: runtimeNames };
 }
 
 function appendSourceMapUrl(js: string, url: string): string {
@@ -559,9 +565,11 @@ function emitToJs(
 	sourceCode: string,
 	outputFolderPath: string,
 	runtimePath: string,
-): { outFilePath: string; compiled: string; sourceMap?: RawSourceMap; } {
+): { outFilePath: string; compiled: string; sourceMap?: RawSourceMap; runtimeNames: string[]; } {
 	const sourceFilePath = parsed.filePath;
 	let compiled: string;
+	// Nur .jul und .json importieren die Runtime.
+	let runtimeNames: string[] = [];
 	let outFilePath: string;
 	let sourceMap: RawSourceMap | undefined;
 	const extension = parsed.extension;
@@ -577,12 +585,13 @@ function emitToJs(
 		case Extension.jul: {
 			// checked trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht
 			const expressions = (parsed.checked ?? parsed.unchecked).expressions ?? [];
-			const { js, mappings } = syntaxTreeToJsWithMappings(expressions, runtimePath, sourceFilePath);
-			compiled = js;
+			const emitted = syntaxTreeToJsWithMappings(expressions, runtimePath, sourceFilePath);
+			compiled = emitted.js;
+			runtimeNames = emitted.runtimeNames;
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);
 			outFilePath = join(outputFolderPath, jsFileName);
 			if (extension === Extension.jul) {
-				sourceMap = createSourceMap(mappings, sourceFilePath, outFilePath, sourceCode);
+				sourceMap = createSourceMap(emitted.mappings, sourceFilePath, outFilePath, sourceCode);
 			}
 			break;
 		}
@@ -621,7 +630,7 @@ function emitToJs(
 			throw new Error(`Unexpected extension for emitToJs: ${assertNever}`);
 		}
 	}
-	return { outFilePath: outFilePath, compiled: compiled, sourceMap: sourceMap };
+	return { outFilePath: outFilePath, compiled: compiled, sourceMap: sourceMap, runtimeNames: runtimeNames };
 }
 
 //#region rendering

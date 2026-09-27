@@ -2,15 +2,24 @@ import { expect } from 'chai';
 import { parseCode } from './parser/parser.js';
 import { checkTypes } from './checker/checker.js';
 import { errorInfos } from './compiler-errors.js';
-import { functionLiteralToEvaluableJs, getRuntimeImportJs, getTestRuntimeImportJs, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
+import { functionLiteralToEvaluableJs, getUsedRuntimeNames, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
 import { ParseFunctionLiteral, ParseSingleDefinition } from './syntax-tree.js';
 import { reportAtCaller } from './test-util.js';
+
+/**
+ * Die Import-Zeilen am Anfang, welche Namen sie enthalten, prüft der Abschnitt Runtime-Import.
+ */
+const importLinesRegex = /^(import \{[^}]*\} from '[^']*';\n)*/;
+
+function withoutImports(js: string): string {
+	return js.replace(importLinesRegex, '');
+}
 
 const expectEmit = reportAtCaller((code: string, result: string) => {
 	const parsed = parseCode(code, 'dummy.jul');
 	const syntaxTree = parsed.unchecked.expressions!;
 	const compiled = syntaxTreeToJs(syntaxTree, '');
-	expect(compiled).to.equal(getRuntimeImportJs('') + result);
+	expect(withoutImports(compiled)).to.equal(result);
 });
 
 describe('Emitter', () => {
@@ -465,7 +474,7 @@ f = (x: Integer) =>
 const expectTestEmit = reportAtCaller((code: string, result: string) => {
 	const parsed = parseCode(code, 'dummy.test.jul');
 	const compiled = syntaxTreeToJs(parsed.unchecked.expressions!, '', 'dummy.test.jul');
-	expect(compiled).to.equal(getRuntimeImportJs('') + getTestRuntimeImportJs('') + result);
+	expect(withoutImports(compiled)).to.equal(result);
 });
 
 describe('Emitter test', () => {
@@ -572,12 +581,74 @@ describe('Emitter source map', () => {
 	it('marker-character-in-text-is-escaped', () => {
 		const parsed = parseCode('a = §x\u0001y\u0002z§', 'dummy.jul');
 		const { js, mappings } = syntaxTreeToJsWithMappings(parsed.unchecked.expressions!, '');
-		expect(js).to.equal(getRuntimeImportJs('') + 'export const a = `x\\u0001y\\u0002z`;');
+		expect(js).to.equal('export const a = `x\\u0001y\\u0002z`;');
 		expect(mappings).to.have.length(1);
 	});
 	it('constant-folding-emits-without-markers', () => {
 		const parsed = parseCode('f = (x: Integer) =>\n\ty = x\n\ty', 'dummy.jul');
 		const literal = (parsed.unchecked.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
 		expect(functionLiteralToEvaluableJs(literal)).to.not.match(/[\u0001\u0002]/);
+	});
+});
+
+/**
+ * Die Namen der Import-Zeile aus dem Modulpfad `path`, undefined ohne solche Zeile.
+ */
+function getImportedNames(js: string, path: string): string[] | undefined {
+	const line = js.split('\n').find(candidate => candidate.startsWith('import {') && candidate.endsWith(` from '${path}';`));
+	return line?.slice('import { '.length, line.indexOf(' }')).split(', ');
+}
+
+const expectRuntimeImport = reportAtCaller((code: string, names: string[] | undefined, filePath: string = 'dummy.jul') => {
+	const parsed = parseCode(code, filePath);
+	const compiled = syntaxTreeToJs(parsed.unchecked.expressions!, '', filePath);
+	expect(getImportedNames(compiled, '')).to.deep.equal(names);
+});
+
+const expectTestRuntimeImport = reportAtCaller((code: string, names: string[] | undefined) => {
+	const parsed = parseCode(code, 'dummy.test.jul');
+	const compiled = syntaxTreeToJs(parsed.unchecked.expressions!, '', 'dummy.test.jul');
+	expect(getImportedNames(compiled, 'test-runtime.js')).to.deep.equal(names);
+});
+
+describe('Emitter Runtime-Import', () => {
+	it('Referenz auf ein Builtin importiert genau dieses', () => {
+		expectRuntimeImport('log(1)', ['log']);
+	});
+	it('ohne Runtime-Bezug keine Import-Zeile', () => {
+		expectRuntimeImport('x = 1\ny = [1 2]', undefined);
+	});
+	it('Funktionsliteral importiert _createFunction', () => {
+		expectRuntimeImport('f = (a) => a', ['_createFunction']);
+	});
+	it('Typ-Guard importiert den Builtin-Typ', () => {
+		expectRuntimeImport('f = (a: Integer) => a', ['Integer', '_createFunction']);
+	});
+	it('Branching importiert _branch', () => {
+		expectRuntimeImport('?(4)\n\t(a) => log(a)\n\t(b) => log(b)', ['_branch', '_createFunction', 'log']);
+	});
+	it('Builtin-Name in einem Textliteral wird mit importiert', () => {
+		expectRuntimeImport('a = §map§', ['map']);
+	});
+	it('Testdatei importiert aus der Runtime nur die benutzten Namen', () => {
+		expectRuntimeImport('test(§x§ () => equal(1 1))', ['_createFunction', 'equal'], 'dummy.test.jul');
+	});
+	it('Testdatei importiert aus der Test-Runtime nur die benutzten Namen', () => {
+		expectTestRuntimeImport('test(§x§ () => equal(1 1))', ['_testCall', 'test']);
+	});
+	it('Testdatei ohne test-Aufruf importiert die Test-Runtime nicht', () => {
+		expectTestRuntimeImport('x = 1', undefined);
+	});
+	it('Scan: Bezeichner hinter einem Punkt ist ein Feldzugriff', () => {
+		expect(getUsedRuntimeNames('values.map(f); x?.filter', ['map', 'filter'])).to.deep.equal([]);
+	});
+	it('Scan: Bezeichner hinter einem Spread ist eine Referenz', () => {
+		expect(getUsedRuntimeNames('[...map]', ['map'])).to.deep.equal(['map']);
+	});
+	it('Scan: Namen mit $ und Unterstrich', () => {
+		expect(getUsedRuntimeNames('combine$(a); _branch(b)', ['_branch', 'combine$', 'combine'])).to.deep.equal(['_branch', 'combine$']);
+	});
+	it('Scan: Suffix einer Zahl ist kein Bezeichner', () => {
+		expect(getUsedRuntimeNames('f(1n)', ['n'])).to.deep.equal([]);
 	});
 });

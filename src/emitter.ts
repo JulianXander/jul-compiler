@@ -23,8 +23,7 @@ import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } f
 import { isFunctionType, resolveAlias, resolvePlaceholders } from './checker/checker.js';
 
 const runtimeKeys = Object.keys(runtime);
-const runtimeImports = runtimeKeys.join(', ');
-const testRuntimeImports = Object.keys(testRuntime).join(', ');
+const testRuntimeKeys = Object.keys(testRuntime);
 const testRuntimeFileName = 'test-runtime.js';
 /**
  * Nur beim Emittieren einer ganzen Datei nach dem Check: dann liegt die typeInfo vollständig am
@@ -113,19 +112,46 @@ function extractSourceMappings(markedJs: string): { js: string; mappings: Source
 
 //#endregion source map
 
-export function getRuntimeImportJs(runtimePath: string): string {
-	return getImportJs(`{ ${runtimeImports} }`, runtimePath);
+//#region runtime import
+
+/**
+ * Ein Bezeichner im erzeugten JS, außer hinter einem einzelnen Punkt (Feldzugriff `a.map`,
+ * `a?.map`). Hinter `...` steht dagegen eine Referenz.
+ */
+const identifierRegex = /(?<![\w$])(?<!(?:^|[^.])\.)[A-Za-z_$][\w$]*/g;
+
+/**
+ * Die Namen aus `keys`, die im erzeugten JS als Bezeichner vorkommen, in der Reihenfolge von `keys`.
+ * Der Scan über den fertigen Text statt einer Sammlung beim Emittieren sieht auch die Hilfsaufrufe
+ * (_branch, _callFunction, ...), die der Emitter an vielen Stellen als festen Text schreibt. Er
+ * schätzt nach oben ab: Ein Builtin-Name in einem Textliteral wird mit importiert, das ist harmlos.
+ * Überdeckung eines Builtins durch einen lokalen Namen gibt es nicht (JUL4003).
+ */
+export function getUsedRuntimeNames(js: string, keys: string[]): string[] {
+	const identifiers = new Set(js.match(identifierRegex));
+	return keys.filter(key => identifiers.has(key));
+}
+
+export function getRuntimeImportJs(runtimePath: string, names: string[]): string {
+	if (!names.length) {
+		return '';
+	}
+	return getImportJs(`{ ${names.join(', ')} }`, runtimePath);
 }
 
 /**
  * Nur *.test.jul-Dateien importieren die Test-Runtime. Sie liegt neben der Runtime, so wie beide
  * im Compiler nebeneinander liegen.
  */
-export function getTestRuntimeImportJs(runtimePath: string): string {
-	return getImportJs(`{ ${testRuntimeImports} }`, join(dirname(runtimePath), testRuntimeFileName));
+export function getTestRuntimeImportJs(runtimePath: string, names: string[]): string {
+	if (!names.length) {
+		return '';
+	}
+	return getImportJs(`{ ${names.join(', ')} }`, join(dirname(runtimePath), testRuntimeFileName));
 }
 
-// TODO nur benutzte builtins importieren? minimale runtime erzeugen/bundling mit treeshaking?
+//#endregion runtime import
+
 export function syntaxTreeToJs(
 	expressions: ParseExpression[],
 	runtimePath: string,
@@ -139,23 +165,20 @@ export function syntaxTreeToJs(
 
 /**
  * Wie syntaxTreeToJs, dazu je Statement (Top-Level-Ausdruck, Ausdruck in einem Funktionsrumpf) die
- * Zuordnung seines Anfangs zur Quellposition, für die Source Map.
+ * Zuordnung seines Anfangs zur Quellposition, für die Source Map, und die importierten
+ * Runtime-Namen, aus denen der Compiler die verkleinerte Runtime erzeugt (shakeRuntime).
  */
 export function syntaxTreeToJsWithMappings(
 	expressions: ParseExpression[],
 	runtimePath: string,
 	filePath: string = '',
-): { js: string; mappings: SourceMapping[]; } {
-	// _branch, _callFunction, _createFunction, log
+): { js: string; mappings: SourceMapping[]; runtimeNames: string[]; } {
 	let hasDefinition = false;
 	useTypeInfo = true;
 	emitSourcePositions = true;
 	sourceFilePath = filePath;
 	try {
-		const testRuntimeImportJs = isTestFilePath(filePath)
-			? getTestRuntimeImportJs(runtimePath)
-			: '';
-		const markedJs = `${getRuntimeImportJs(runtimePath)}${testRuntimeImportJs}${expressions.map((expression, index) => {
+		const bodyJs = expressions.map((expression, index) => {
 			const expressionJs = expressionToJs(expression, 0, true);
 			if (expression.type === 'definition') {
 				hasDefinition = true;
@@ -167,8 +190,15 @@ export function syntaxTreeToJsWithMappings(
 				return `${markerJs}export default ${expressionJs}`;
 			}
 			return markerJs + expressionJs;
-		}).join('\n')}`;
-		return extractSourceMappings(markedJs);
+		}).join('\n');
+		// Die Marker stehen erst nach dem Import im Text, extractSourceMappings zählt die Zeilen des
+		// Imports also mit.
+		const runtimeNames = getUsedRuntimeNames(bodyJs, runtimeKeys);
+		const runtimeImportJs = getRuntimeImportJs(runtimePath, runtimeNames);
+		const testRuntimeImportJs = isTestFilePath(filePath)
+			? getTestRuntimeImportJs(runtimePath, getUsedRuntimeNames(bodyJs, testRuntimeKeys))
+			: '';
+		return { ...extractSourceMappings(runtimeImportJs + testRuntimeImportJs + bodyJs), runtimeNames: runtimeNames };
 	}
 	finally {
 		useTypeInfo = false;

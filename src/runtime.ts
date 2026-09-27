@@ -3,7 +3,7 @@
 //#region helper
 let processId = 1;
 
-interface Params {
+export interface Params {
 	type?: RuntimeType;
 	singleNames?: {
 		name: string;
@@ -71,8 +71,12 @@ export function _combineObject(...parts: (Collection | undefined)[]): Collection
 	}
 }
 
-export function _createFunction(fn: Function, params: Params): JulFunction {
-	const julFn = fn as JulFunction;
+/**
+ * Behält den Typ von fn: Builtins sind als `export const x = _createFunction(...)` definiert und
+ * werden in der Runtime selbst mit ihrer eigentlichen Signatur aufgerufen.
+ */
+export function _createFunction<F extends Function>(fn: F, params: Params): F & JulFunction {
+	const julFn = fn as F & JulFunction;
 	julFn.params = params;
 	return julFn;
 }
@@ -409,7 +413,7 @@ function getTypeError(value: any, type: RuntimeType): string | undefined {
 						}
 						break;
 					case 'typeOf':
-						if (deepEqual(value, type.value)) {
+						if (isDeepEqual(value, type.value)) {
 							return undefined;
 						}
 						break;
@@ -636,7 +640,7 @@ function tryAssignArgs(
 
 // TODO toString
 
-export function deepEqual(value1: any, value2: any): boolean {
+function isDeepEqual(value1: any, value2: any): boolean {
 	if (value1 === value2) {
 		return true;
 	}
@@ -667,7 +671,7 @@ export function deepEqual(value1: any, value2: any): boolean {
 					return false;
 				}
 				for (let index = 0; index < value1.length; index++) {
-					const elementValuesEqual = deepEqual(value1[index], value2[index]);
+					const elementValuesEqual = isDeepEqual(value1[index], value2[index]);
 					if (!elementValuesEqual) {
 						return false;
 					}
@@ -680,7 +684,7 @@ export function deepEqual(value1: any, value2: any): boolean {
 					return false;
 				}
 				for (const key in value1) {
-					const fieldValuesEqual = deepEqual(value1[key], value2[key]);
+					const fieldValuesEqual = isDeepEqual(value1[key], value2[key]);
 					if (!fieldValuesEqual) {
 						return false;
 					}
@@ -760,7 +764,7 @@ type BuiltInType =
 /**
  * Wird vom emitter benutzt
  */
-export const _julTypeSymbol = Symbol.for('julType');
+export const _julTypeSymbol = /*#__PURE__*/ Symbol.for('julType');
 
 interface AnyType {
 	readonly [_julTypeSymbol]: 'any';
@@ -851,25 +855,12 @@ interface UnionType {
 	readonly [_julTypeSymbol]: 'or';
 	readonly ChoiceTypes: RuntimeType[];
 }
-export const Or = (...ChoiceTypes: RuntimeType[]): UnionType => {
-	// TODO flatten nested UnionTypes?
-	return {
-		[_julTypeSymbol]: 'or',
-		ChoiceTypes: ChoiceTypes,
-	};
-};
 
 interface ComplementType {
 	readonly [_julTypeSymbol]: 'not';
 	readonly SourceType: RuntimeType;
 }
 
-export const Not = (T: RuntimeType) => {
-	return {
-		[_julTypeSymbol]: 'not',
-		SourceType: T,
-	};
-};
 
 interface TypeOfType {
 	readonly [_julTypeSymbol]: 'typeOf';
@@ -1211,22 +1202,26 @@ function _toJson(value: RuntimeType): string | Error {
 // Dieser Block ist die tatsächliche Laufzeit-Implementierung aller in core-lib.jul deklarierten Builtins.
 // core-lib.jul wird nur geparst, um dem Checker Typinformationen (builtInSymbols) zu liefern - sie wird
 // nie emittiert, ihr eigener js-Text in nativeFunction(...)-Aufrufen läuft also nie. Jedes kompilierte
-// Modul importiert stattdessen blanket alle Exporte dieser Datei (siehe getRuntimeImportJs in emitter.ts),
-// und Referenzen auf Builtin-Symbole werden vom Emitter als einfache JS-Identifier ausgegeben, die hierher
-// auflösen. core-lib.jul's js-Text dient also nur als für Menschen lesbare Referenz und muss von Hand
-// synchron zu den Implementierungen hier gehalten werden.
+// Modul importiert stattdessen die Exporte dieser Datei, die es benutzt (siehe getUsedRuntimeNames in
+// emitter.ts), und Referenzen auf Builtin-Symbole werden vom Emitter als einfache JS-Identifier ausgegeben,
+// die hierher auflösen. core-lib.jul's js-Text dient also nur als für Menschen lesbare Referenz und muss
+// von Hand synchron zu den Implementierungen hier gehalten werden.
+//
+// Jede Definition ist ein einzelner Ausdruck ohne Seiteneffekt beim Laden, Aufrufe darin sind mit
+// /*#__PURE__*/ markiert. Nur so darf der Compiler weglassen, was ein Programm nicht erreicht
+// (shakeRuntime in runtime-shaking.ts). Nach Änderungen: npm run check-runtime-purity. Die Funktion ist benannt (function x statt Arrow),
+// sonst fehlte ihr Name im Stacktrace.
 //#region Types
 export const Any: AnyType = { [_julTypeSymbol]: 'any' };
 export const Empty: EmptyType = { [_julTypeSymbol]: 'empty' };
 export const Type: TypeType = { [_julTypeSymbol]: 'type' };
-export const List = (ElementType: RuntimeType): ListType => {
-	return {
-		[_julTypeSymbol]: 'list',
-		ElementType: ElementType,
-	};
-};
-_createFunction(
-	List,
+export const List = /*#__PURE__*/ _createFunction(
+	function List(ElementType: RuntimeType): ListType {
+		return {
+			[_julTypeSymbol]: 'list',
+			ElementType: ElementType,
+		};
+	},
 	{
 		singleNames: [
 			{
@@ -1236,31 +1231,41 @@ _createFunction(
 		]
 	}
 );
-export const And = (...ChoiceTypes: RuntimeType[]): IntersectionType => {
-	// TODO flatten nested IntersectionTypes?
-	return {
-		[_julTypeSymbol]: 'and',
-		ChoiceTypes: ChoiceTypes,
-	};
-};
-_createFunction(
-	And,
+export const And = /*#__PURE__*/ _createFunction(
+	function And(...ChoiceTypes: RuntimeType[]): IntersectionType {
+		// TODO flatten nested IntersectionTypes?
+		return {
+			[_julTypeSymbol]: 'and',
+			ChoiceTypes: ChoiceTypes,
+		};
+	},
 	{
 		rest: {
-			type: List(Type)
+			type: /*#__PURE__*/ List(Type)
 		}
 	}
 );
-_createFunction(
-	Or,
+export const Or = /*#__PURE__*/ _createFunction(
+	function Or(...ChoiceTypes: RuntimeType[]): UnionType {
+		// TODO flatten nested UnionTypes?
+		return {
+			[_julTypeSymbol]: 'or',
+			ChoiceTypes: ChoiceTypes,
+		};
+	},
 	{
 		rest: {
-			type: List(Type)
+			type: /*#__PURE__*/ List(Type)
 		}
 	}
 );
-_createFunction(
-	Not,
+export const Not = /*#__PURE__*/ _createFunction(
+	function Not(T: RuntimeType) {
+		return {
+			[_julTypeSymbol]: 'not',
+			SourceType: T,
+		};
+	},
 	{
 		singleNames: [
 			{
@@ -1271,14 +1276,13 @@ _createFunction(
 	}
 );
 // TODO Without
-export const TypeOf = (value: any): TypeOfType => {
-	return {
-		[_julTypeSymbol]: 'typeOf',
-		value: value,
-	};
-};
-_createFunction(
-	TypeOf,
+export const TypeOf = /*#__PURE__*/ _createFunction(
+	function TypeOf(value: any): TypeOfType {
+		return {
+			[_julTypeSymbol]: 'typeOf',
+			value: value,
+		};
+	},
 	{
 		singleNames: [
 			{
@@ -1290,45 +1294,43 @@ _createFunction(
 export const _Boolean: BooleanType = { [_julTypeSymbol]: 'boolean' };
 //#region Number
 export const Float: FloatType = { [_julTypeSymbol]: 'float' };
-export const NonZeroFloat = And(Float, Not(0));
+export const NonZeroFloat = /*#__PURE__*/ And(Float, /*#__PURE__*/ Not(0));
 export const Integer: IntegerType = { [_julTypeSymbol]: 'integer' };
-export const NonZeroInteger = And(Integer, Not(0n));
-export const Greater = (Value: bigint | number): GreaterType => {
-	return {
-		[_julTypeSymbol]: 'greater',
-		Value: Value,
-	};
-};
-_createFunction(
-	Greater,
+export const NonZeroInteger = /*#__PURE__*/ And(Integer, /*#__PURE__*/ Not(0n));
+export const Greater = /*#__PURE__*/ _createFunction(
+	function Greater(Value: bigint | number): GreaterType {
+		return {
+			[_julTypeSymbol]: 'greater',
+			Value: Value,
+		};
+	},
 	{
 		singleNames: [
 			{
 				name: 'value',
-				type: Or(Integer, Float),
+				type: /*#__PURE__*/ Or(Integer, Float),
 			},
 		]
 	}
 );
-export const PositiveInteger = And(Integer, Greater(0n));
-export const ElementAt = (Source: any, index: bigint): RuntimeType => {
-	const position = Number(index);
-	if (Source !== null
-		&& typeof Source === 'object'
-		&& _julTypeSymbol in Source) {
-		switch (Source[_julTypeSymbol]) {
-			case 'tuple':
-				return Source.ElementTypes[position - 1] ?? Empty;
-			case 'list':
-				return Or(Empty, Source.ElementType);
-			default:
-				break;
+export const PositiveInteger = /*#__PURE__*/ And(Integer, /*#__PURE__*/ Greater(0n));
+export const ElementAt = /*#__PURE__*/ _createFunction(
+	function ElementAt(Source: any, index: bigint): RuntimeType {
+		const position = Number(index);
+		if (Source !== null
+			&& typeof Source === 'object'
+			&& _julTypeSymbol in Source) {
+			switch (Source[_julTypeSymbol]) {
+				case 'tuple':
+					return Source.ElementTypes[position - 1] ?? Empty;
+				case 'list':
+					return Or(Empty, Source.ElementType);
+				default:
+					break;
+			}
 		}
-	}
-	return Any;
-};
-_createFunction(
-	ElementAt,
+		return Any;
+	},
 	{
 		singleNames: [
 			{
@@ -1342,25 +1344,24 @@ _createFunction(
 		]
 	}
 );
-export const LengthOf = (Source: any): RuntimeType => {
-	if (Source !== null
-		&& typeof Source === 'object'
-		&& _julTypeSymbol in Source) {
-		switch (Source[_julTypeSymbol]) {
-			case 'empty':
-				return 0n;
-			case 'tuple':
-				return BigInt(Source.ElementTypes.length);
-			case 'list':
-				return PositiveInteger;
-			default:
-				break;
+export const LengthOf = /*#__PURE__*/ _createFunction(
+	function LengthOf(Source: any): RuntimeType {
+		if (Source !== null
+			&& typeof Source === 'object'
+			&& _julTypeSymbol in Source) {
+			switch (Source[_julTypeSymbol]) {
+				case 'empty':
+					return 0n;
+				case 'tuple':
+					return BigInt(Source.ElementTypes.length);
+				case 'list':
+					return PositiveInteger;
+				default:
+					break;
+			}
 		}
-	}
-	return Integer;
-};
-_createFunction(
-	LengthOf,
+		return Integer;
+	},
 	{
 		singleNames: [
 			{
@@ -1370,30 +1371,29 @@ _createFunction(
 		]
 	}
 );
-export const WithElementAt = (Source: any, index: bigint, Value: RuntimeType): RuntimeType => {
-	const position = Number(index);
-	if (Source !== null
-		&& typeof Source === 'object'
-		&& _julTypeSymbol in Source) {
-		switch (Source[_julTypeSymbol]) {
-			case 'tuple': {
-				const elementTypes = [...Source.ElementTypes];
-				elementTypes[position - 1] = Value;
-				return {
-					[_julTypeSymbol]: 'tuple',
-					ElementTypes: elementTypes,
-				};
+export const WithElementAt = /*#__PURE__*/ _createFunction(
+	function WithElementAt(Source: any, index: bigint, Value: RuntimeType): RuntimeType {
+		const position = Number(index);
+		if (Source !== null
+			&& typeof Source === 'object'
+			&& _julTypeSymbol in Source) {
+			switch (Source[_julTypeSymbol]) {
+				case 'tuple': {
+					const elementTypes = [...Source.ElementTypes];
+					elementTypes[position - 1] = Value;
+					return {
+						[_julTypeSymbol]: 'tuple',
+						ElementTypes: elementTypes,
+					};
+				}
+				case 'list':
+					return List(Or(Source.ElementType, Value));
+				default:
+					break;
 			}
-			case 'list':
-				return List(Or(Source.ElementType, Value));
-			default:
-				break;
 		}
-	}
-	return Any;
-};
-_createFunction(
-	WithElementAt,
+		return Any;
+	},
 	{
 		singleNames: [
 			{
@@ -1411,15 +1411,14 @@ _createFunction(
 		]
 	}
 );
-export const Range = (start: bigint, end: bigint | undefined): RuntimeType => {
-	return {
-		[_julTypeSymbol]: 'range',
-		Start: start,
-		End: end,
-	} as any;
-};
-_createFunction(
-	Range,
+export const Range = /*#__PURE__*/ _createFunction(
+	function Range(start: bigint, end: bigint | undefined): RuntimeType {
+		return {
+			[_julTypeSymbol]: 'range',
+			Start: start,
+			End: end,
+		} as any;
+	},
 	{
 		singleNames: [
 			{
@@ -1428,23 +1427,22 @@ _createFunction(
 			},
 			{
 				name: 'end',
-				type: Or(Empty, Integer),
+				type: /*#__PURE__*/ Or(Empty, Integer),
 			},
 		]
 	}
 );
-export const TupleOf = (count: bigint, ElementType: RuntimeType): RuntimeType => {
-	const length = Number(count);
-	if (length < 1) {
-		return Empty;
-	}
-	return {
-		[_julTypeSymbol]: 'tuple',
-		ElementTypes: new Array(length).fill(ElementType),
-	};
-};
-_createFunction(
-	TupleOf,
+export const TupleOf = /*#__PURE__*/ _createFunction(
+	function TupleOf(count: bigint, ElementType: RuntimeType): RuntimeType {
+		const length = Number(count);
+		if (length < 1) {
+			return Empty;
+		}
+		return {
+			[_julTypeSymbol]: 'tuple',
+			ElementTypes: new Array(length).fill(ElementType),
+		};
+	},
 	{
 		singleNames: [
 			{
@@ -1458,14 +1456,13 @@ _createFunction(
 		]
 	}
 );
-export const Concat = (...sources: any[]): RuntimeType => {
-	// Diese Funktion wird zur Laufzeit nie aufgerufen — Concat ist eine
-	// rein semantische Typ-Konstruktorfunktion für den Checker.
-	// Sie ist nur hier definiert, um eine gültige nativeFunction zu haben.
-	throw new Error('Concat() is only for type-level computation and should never be called at runtime');
-};
-_createFunction(
-	Concat,
+export const Concat = /*#__PURE__*/ _createFunction(
+	function Concat(...sources: any[]): RuntimeType {
+		// Diese Funktion wird zur Laufzeit nie aufgerufen — Concat ist eine
+		// rein semantische Typ-Konstruktorfunktion für den Checker.
+		// Sie ist nur hier definiert, um eine gültige nativeFunction zu haben.
+		throw new Error('Concat() is only for type-level computation and should never be called at runtime');
+	},
 	{
 		rest: { type: Type },
 	}
@@ -1477,20 +1474,19 @@ export const Fraction: DictionaryLiteralType = {
 		denominator: Integer
 	},
 };
-export const Rational = Or(Integer, Fraction);
+export const Rational = /*#__PURE__*/ Or(Integer, Fraction);
 //#endregion Number
 export const _Text: TextType = { [_julTypeSymbol]: 'text' };
 export const _Date: DateType = { [_julTypeSymbol]: 'date' };
 export const _Blob: BlobType = { [_julTypeSymbol]: 'blob' };
 export const _Error: ErrorType = { [_julTypeSymbol]: 'error' };
-export const Dictionary = (ElementType: RuntimeType): DictionaryType => {
-	return {
-		[_julTypeSymbol]: 'dictionary',
-		ElementType: ElementType,
-	};
-};
-_createFunction(
-	Dictionary,
+export const Dictionary = /*#__PURE__*/ _createFunction(
+	function Dictionary(ElementType: RuntimeType): DictionaryType {
+		return {
+			[_julTypeSymbol]: 'dictionary',
+			ElementType: ElementType,
+		};
+	},
 	{
 		singleNames: [
 			{
@@ -1500,10 +1496,10 @@ _createFunction(
 		]
 	}
 );
-export const Stream = (ValueType: RuntimeType) =>
-	_StreamType;
-_createFunction(
-	Stream,
+export const Stream = /*#__PURE__*/ _createFunction(
+	function Stream(ValueType: RuntimeType) {
+		return _StreamType;
+	},
 	{
 		singleNames: [
 			{
@@ -1516,10 +1512,10 @@ _createFunction(
 //#endregion Types
 //#region Functions
 //#region Any
-export const equal = (first: any, second: any) =>
-	first === second;
-_createFunction(
-	equal,
+export const equal = /*#__PURE__*/ _createFunction(
+	function equal(first: any, second: any) {
+		return first === second;
+	},
 	{
 		singleNames: [
 			{
@@ -1531,8 +1527,8 @@ _createFunction(
 		]
 	}
 );
-_createFunction(
-	deepEqual,
+export const deepEqual = /*#__PURE__*/ _createFunction(
+	isDeepEqual,
 	{
 		singleNames: [
 			{
@@ -1546,10 +1542,10 @@ _createFunction(
 );
 //#endregion Any
 //#region Boolean
-export const not = (value: boolean): boolean =>
-	!value;
-_createFunction(
-	not,
+export const not = /*#__PURE__*/ _createFunction(
+	function not(value: boolean): boolean {
+		return !value;
+	},
 	{
 		singleNames: [
 			{
@@ -1559,32 +1555,32 @@ _createFunction(
 		]
 	}
 );
-export const and = (...args: boolean[]): boolean =>
-	!args.includes(false);
-_createFunction(
-	and,
+export const and = /*#__PURE__*/ _createFunction(
+	function and(...args: boolean[]): boolean {
+		return !args.includes(false);
+	},
 	{
 		rest: {
-			type: List(_Boolean)
+			type: /*#__PURE__*/ List(_Boolean)
 		}
 	}
 );
-export const or = (...args: boolean[]): boolean =>
-	args.includes(true);
-_createFunction(
-	or,
+export const or = /*#__PURE__*/ _createFunction(
+	function or(...args: boolean[]): boolean {
+		return args.includes(true);
+	},
 	{
 		rest: {
-			type: List(_Boolean)
+			type: /*#__PURE__*/ List(_Boolean)
 		}
 	}
 );
 //#endregion Boolean
 //#region Number
-export const divideFloat = (dividend: number, divisor: number) =>
-	dividend / divisor;
-_createFunction(
-	divideFloat,
+export const divideFloat = /*#__PURE__*/ _createFunction(
+	function divideFloat(dividend: number, divisor: number) {
+		return dividend / divisor;
+	},
 	{
 		singleNames: [
 			{
@@ -1599,56 +1595,55 @@ _createFunction(
 	}
 );
 // TODO support Rational values
-export const greater = (first: number | bigint, second: number | bigint) =>
-	first > second;
-_createFunction(
-	greater,
+export const greater = /*#__PURE__*/ _createFunction(
+	function greater(first: number | bigint, second: number | bigint) {
+		return first > second;
+	},
 	{
 		singleNames: [
 			{
 				name: 'first',
-				type: Or(Integer, Float),
+				type: /*#__PURE__*/ Or(Integer, Float),
 			},
 			{
 				name: 'second',
-				type: Or(Integer, Float),
+				type: /*#__PURE__*/ Or(Integer, Float),
 			}
 		]
 	}
 );
-export function maxInteger(...args: bigint[]): bigint {
-	let max = args[0]!;
-	for (let index = 1; index < args.length; index++) {
-		const element = args[index]!;
-		if (element > max) {
-			max = element;
+export const maxInteger = /*#__PURE__*/ _createFunction(
+	function maxInteger(...args: bigint[]): bigint {
+		let max = args[0]!;
+		for (let index = 1; index < args.length; index++) {
+			const element = args[index]!;
+			if (element > max) {
+				max = element;
+			}
 		}
-	}
-	return max;
-}
-_createFunction(
-	maxInteger,
+		return max;
+	},
 	{
 		rest: {
-			type: List(Integer)
+			type: /*#__PURE__*/ List(Integer)
 		}
 	}
 );
-export const maxFloat = (...args: number[]) =>
-	Math.max(...args);
-_createFunction(
-	maxFloat,
+export const maxFloat = /*#__PURE__*/ _createFunction(
+	function maxFloat(...args: number[]) {
+		return Math.max(...args);
+	},
 	{
 		rest: {
-			type: List(Float)
+			type: /*#__PURE__*/ List(Float)
 		}
 	}
 );
 // TODO moduloFloat
-export const modulo = (dividend: bigint, divisor: bigint) =>
-	dividend % divisor;
-_createFunction(
-	modulo,
+export const modulo = /*#__PURE__*/ _createFunction(
+	function modulo(dividend: bigint, divisor: bigint) {
+		return dividend % divisor;
+	},
 	{
 		singleNames: [
 			{
@@ -1689,61 +1684,60 @@ export function normalizeRational(numerator: bigint, denominator: bigint): Runti
 		};
 }
 
-export const multiply = (...args: RuntimeRational[]) =>
-	args.reduce(
-		(accumulator, current) => {
-			if (typeof accumulator === 'bigint') {
-				if (typeof current === 'bigint') {
-					return accumulator * current;
+export const multiply = /*#__PURE__*/ _createFunction(
+	function multiply(...args: RuntimeRational[]) {
+		return args.reduce(
+			(accumulator, current) => {
+				if (typeof accumulator === 'bigint') {
+					if (typeof current === 'bigint') {
+						return accumulator * current;
+					}
+					else {
+						return normalizeRational(accumulator * current.numerator, current.denominator);
+					}
 				}
 				else {
-					return normalizeRational(accumulator * current.numerator, current.denominator);
+					if (typeof current === 'bigint') {
+						return normalizeRational(accumulator.numerator * current, accumulator.denominator);
+					}
+					else {
+						return normalizeRational(
+							accumulator.numerator * current.numerator,
+							accumulator.denominator * current.denominator);
+					}
 				}
-			}
-			else {
-				if (typeof current === 'bigint') {
-					return normalizeRational(accumulator.numerator * current, accumulator.denominator);
-				}
-				else {
-					return normalizeRational(
-						accumulator.numerator * current.numerator,
-						accumulator.denominator * current.denominator);
-				}
-			}
-		},
-		1n);
-_createFunction(
-	multiply,
+			},
+			1n);
+	},
 	{
 		rest: {
-			type: List(Rational)
+			type: /*#__PURE__*/ List(Rational)
 		}
 	}
 );
-export const multiplyFloat = (...args: number[]) =>
-	args.reduce(
-		(accumulator, current) => {
-			return accumulator * current;
-		},
-		1);
-_createFunction(
-	multiplyFloat,
+export const multiplyFloat = /*#__PURE__*/ _createFunction(
+	function multiplyFloat(...args: number[]) {
+		return args.reduce(
+			(accumulator, current) => {
+				return accumulator * current;
+			},
+			1);
+	},
 	{
 		rest: {
-			type: List(Float)
+			type: /*#__PURE__*/ List(Float)
 		}
 	}
 );
-export const rationalToFloat = (rational: RuntimeRational): number => {
-	if (typeof rational === 'bigint') {
-		return Number(rational);
-	}
-	else {
-		return Number(rational.numerator) / Number(rational.denominator);
-	}
-};
-_createFunction(
-	rationalToFloat,
+export const rationalToFloat = /*#__PURE__*/ _createFunction(
+	function rationalToFloat(rational: RuntimeRational): number {
+		if (typeof rational === 'bigint') {
+			return Number(rational);
+		}
+		else {
+			return Number(rational.numerator) / Number(rational.denominator);
+		}
+	},
 	{
 		singleNames: [
 			{
@@ -1753,131 +1747,128 @@ _createFunction(
 		]
 	}
 );
-export const subtract = (minuend: RuntimeRational, subtrahend: RuntimeRational): RuntimeRational => {
-	if (typeof minuend === 'bigint') {
-		if (typeof subtrahend === 'bigint') {
-			return minuend - subtrahend;
-		}
-		else {
-			return normalizeRational(minuend * subtrahend.denominator - subtrahend.numerator, subtrahend.denominator);
-		}
-	}
-	else {
-		if (typeof subtrahend === 'bigint') {
-			return normalizeRational(minuend.numerator - subtrahend * minuend.denominator, minuend.denominator);
-		}
-		else {
-			return normalizeRational(
-				minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
-				minuend.denominator * subtrahend.denominator);
-		}
-	}
-};
-_createFunction(
-	subtract,
-	{
-		singleNames: [
-			{
-				name: 'minuend',
-				type: Rational,
-			},
-			{
-				name: 'subtrahend',
-				type: Rational,
-			}
-		]
-	}
-);
-export const subtractFloat = (minuend: number, subtrahend: number) =>
-	minuend - subtrahend;
-_createFunction(
-	subtractFloat,
-	{
-		singleNames: [
-			{
-				name: 'minuend',
-				type: Float,
-			},
-			{
-				name: 'subtrahend',
-				type: Float,
-			}
-		]
-	}
-);
-export const add = (...args: RuntimeRational[]) =>
-	args.reduce(
-		(accumulator, current) => {
-			if (typeof accumulator === 'bigint') {
-				if (typeof current === 'bigint') {
-					return accumulator + current;
-				}
-				else {
-					return normalizeRational(accumulator * current.denominator + current.numerator, current.denominator);
-				}
+export const subtract = /*#__PURE__*/ _createFunction(
+	function subtract(minuend: RuntimeRational, subtrahend: RuntimeRational): RuntimeRational {
+		if (typeof minuend === 'bigint') {
+			if (typeof subtrahend === 'bigint') {
+				return minuend - subtrahend;
 			}
 			else {
-				if (typeof current === 'bigint') {
-					return normalizeRational(accumulator.numerator + current * accumulator.denominator, accumulator.denominator);
+				return normalizeRational(minuend * subtrahend.denominator - subtrahend.numerator, subtrahend.denominator);
+			}
+		}
+		else {
+			if (typeof subtrahend === 'bigint') {
+				return normalizeRational(minuend.numerator - subtrahend * minuend.denominator, minuend.denominator);
+			}
+			else {
+				return normalizeRational(
+					minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
+					minuend.denominator * subtrahend.denominator);
+			}
+		}
+	},
+	{
+		singleNames: [
+			{
+				name: 'minuend',
+				type: Rational,
+			},
+			{
+				name: 'subtrahend',
+				type: Rational,
+			}
+		]
+	}
+);
+export const subtractFloat = /*#__PURE__*/ _createFunction(
+	function subtractFloat(minuend: number, subtrahend: number) {
+		return minuend - subtrahend;
+	},
+	{
+		singleNames: [
+			{
+				name: 'minuend',
+				type: Float,
+			},
+			{
+				name: 'subtrahend',
+				type: Float,
+			}
+		]
+	}
+);
+export const add = /*#__PURE__*/ _createFunction(
+	function add(...args: RuntimeRational[]) {
+		return args.reduce(
+			(accumulator, current) => {
+				if (typeof accumulator === 'bigint') {
+					if (typeof current === 'bigint') {
+						return accumulator + current;
+					}
+					else {
+						return normalizeRational(accumulator * current.denominator + current.numerator, current.denominator);
+					}
 				}
 				else {
-					return normalizeRational(
-						accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
-						accumulator.denominator * current.denominator);
+					if (typeof current === 'bigint') {
+						return normalizeRational(accumulator.numerator + current * accumulator.denominator, accumulator.denominator);
+					}
+					else {
+						return normalizeRational(
+							accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
+							accumulator.denominator * current.denominator);
+					}
 				}
-			}
-		},
-		0n);
-_createFunction(
-	add,
+			},
+			0n);
+	},
 	{
 		rest: {
-			type: List(Rational)
+			type: /*#__PURE__*/ List(Rational)
 		}
 	}
 );
-export const addFloat = (...args: number[]): number =>
-	args.reduce(
-		(accumulator, current) =>
-			accumulator + current,
-		0);
-_createFunction(
-	addFloat,
+export const addFloat = /*#__PURE__*/ _createFunction(
+	function addFloat(...args: number[]): number {
+		return args.reduce(
+			(accumulator, current) =>
+				accumulator + current,
+			0);
+	},
 	{
 		rest: {
-			type: List(Float)
+			type: /*#__PURE__*/ List(Float)
 		}
 	}
 );
 //#endregion Number
 //#region Text
-export const combineTexts = (texts: string[] | undefined, separator: string | undefined) => {
-	return texts?.join(separator ?? '') ?? '';
-};
-_createFunction(
-	combineTexts,
+export const combineTexts = /*#__PURE__*/ _createFunction(
+	function combineTexts(texts: string[] | undefined, separator: string | undefined) {
+		return texts?.join(separator ?? '') ?? '';
+	},
 	{
 		singleNames: [
 			{
 				name: 'texts',
-				type: optionalType(List(_Text)),
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(_Text)),
 			},
 			{
 				name: 'separator',
-				type: optionalType(_Text),
+				type: /*#__PURE__*/ optionalType(_Text),
 			},
 		]
 	}
 );
-export const parseFloat = (textNumber: string) => {
-	const result = +textNumber;
-	if (Number.isNaN(result)) {
-		return new Error('Invalid number.');
-	}
-	return result;
-};
-_createFunction(
-	parseFloat,
+export const parseFloat = /*#__PURE__*/ _createFunction(
+	function parseFloat(textNumber: string) {
+		const result = +textNumber;
+		if (Number.isNaN(result)) {
+			return new Error('Invalid number.');
+		}
+		return result;
+	},
 	{
 		singleNames: [
 			{
@@ -1887,7 +1878,7 @@ _createFunction(
 		]
 	}
 );
-export const parseJson = _createFunction(
+export const parseJson = /*#__PURE__*/ _createFunction(
 	_parseJson,
 	{
 		singleNames: [
@@ -1898,7 +1889,7 @@ export const parseJson = _createFunction(
 		]
 	}
 );
-export const toJson = _createFunction(
+export const toJson = /*#__PURE__*/ _createFunction(
 	_toJson,
 	{
 		singleNames: [
@@ -1910,21 +1901,20 @@ export const toJson = _createFunction(
 		]
 	}
 );
-export const regex = (text: string, pattern: string) => {
-	try {
-		const match = text.match(pattern);
-		return {
-			isMatch: !!match,
-			unnamedCaptures: match ? Array.from(match) : undefined,
-			namedCaptures: match?.groups,
-		};
-	}
-	catch (error) {
-		return error;
-	}
-};
-_createFunction(
-	regex,
+export const regex = /*#__PURE__*/ _createFunction(
+	function regex(text: string, pattern: string) {
+		try {
+			const match = text.match(pattern);
+			return {
+				isMatch: !!match,
+				unnamedCaptures: match ? Array.from(match) : undefined,
+				namedCaptures: match?.groups,
+			};
+		}
+		catch (error) {
+			return error;
+		}
+	},
 	{
 		singleNames: [
 			{
@@ -1940,26 +1930,27 @@ _createFunction(
 );
 //#endregion Text
 //#region Date
-export const addDate = (
-	date: Date,
-	years: bigint | undefined,
-	months: bigint | undefined,
-	days: bigint | undefined,
-	hours: bigint | undefined,
-	minutes: bigint | undefined,
-	seconds: bigint | undefined,
-	milliseconds: bigint | undefined
-) => new Date(
-	date.getFullYear() + Number(years ?? 0),
-	date.getMonth() + Number(months ?? 0),
-	date.getDate() + Number(days ?? 0),
-	date.getHours() + Number(hours ?? 0),
-	date.getMinutes() + Number(minutes ?? 0),
-	date.getSeconds() + Number(seconds ?? 0),
-	date.getMilliseconds() + Number(milliseconds ?? 0),
-);
-_createFunction(
-	addDate,
+export const addDate = /*#__PURE__*/ _createFunction(
+	function addDate(
+		date: Date,
+		years: bigint | undefined,
+		months: bigint | undefined,
+		days: bigint | undefined,
+		hours: bigint | undefined,
+		minutes: bigint | undefined,
+		seconds: bigint | undefined,
+		milliseconds: bigint | undefined
+	) {
+		return new Date(
+		date.getFullYear() + Number(years ?? 0),
+		date.getMonth() + Number(months ?? 0),
+		date.getDate() + Number(days ?? 0),
+		date.getHours() + Number(hours ?? 0),
+		date.getMinutes() + Number(minutes ?? 0),
+		date.getSeconds() + Number(seconds ?? 0),
+		date.getMilliseconds() + Number(milliseconds ?? 0),
+	);
+	},
 	{
 		singleNames: [
 			{
@@ -1968,45 +1959,47 @@ _createFunction(
 			},
 			{
 				name: 'years',
-				type: optionalType(Integer)
+				type: /*#__PURE__*/ optionalType(Integer)
 			},
 			{
 				name: 'months',
-				type: optionalType(Integer)
+				type: /*#__PURE__*/ optionalType(Integer)
 			},
 			{
 				name: 'days',
-				type: optionalType(Integer)
+				type: /*#__PURE__*/ optionalType(Integer)
 			},
 			{
 				name: 'hours',
-				type: optionalType(Integer)
+				type: /*#__PURE__*/ optionalType(Integer)
 			},
 			{
 				name: 'minutes',
-				type: optionalType(Integer)
+				type: /*#__PURE__*/ optionalType(Integer)
 			},
 			{
 				name: 'seconds',
-				type: optionalType(Integer)
+				type: /*#__PURE__*/ optionalType(Integer)
 			},
 			{
 				name: 'milliseconds',
-				type: optionalType(Integer)
+				type: /*#__PURE__*/ optionalType(Integer)
 			},
 		]
 	}
 );
-export const currentDate = () => new Date();
-_createFunction(
-	currentDate,
+export const currentDate = /*#__PURE__*/ _createFunction(
+	function currentDate() {
+		return new Date();
+	},
 	{}
 );
-export const toIsoDateText = (
-	date: Date,
-) => date.toISOString();
-_createFunction(
-	toIsoDateText,
+export const toIsoDateText = /*#__PURE__*/ _createFunction(
+	function toIsoDateText(
+		date: Date,
+	) {
+		return date.toISOString();
+	},
 	{
 		singleNames: [
 			{
@@ -2018,64 +2011,37 @@ _createFunction(
 );
 //#endregion Date
 //#region List
-export const length = (
-	values: any[] | undefined,
-): bigint => {
-	if (!values) {
-		return 0n;
-	}
-	return BigInt(values.length);
-};
-_createFunction(
-	length,
+export const length = /*#__PURE__*/ _createFunction(
+	function length(
+		values: any[] | undefined,
+	): bigint {
+		if (!values) {
+			return 0n;
+		}
+		return BigInt(values.length);
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 		]
 	}
 );
-export const getElement = <T>(
-	values: T[] | undefined,
-	index: bigint,
-): T | undefined => {
-	return values?.[Number(index) - 1];
-};
-_createFunction(
-	getElement,
+// TODO Diese params gehören zu setElement (siehe TODO), getElement bräuchte values und index.
+export const getElement = /*#__PURE__*/ _createFunction(
+	function getElement<T>(
+		values: T[] | undefined,
+		index: bigint,
+	): T | undefined {
+		return values?.[Number(index) - 1];
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
-			},
-			{
-				name: 'index',
-				type: NonZeroInteger
-			},
-		]
-	}
-);
-export const setElement = <T>(
-	values: T[] | undefined,
-	index: bigint,
-	value: T,
-): T[] => {
-	const copy = values
-		? [...values]
-		: [];
-	copy[Number(index) - 1] = value;
-	return copy;
-};
-_createFunction(
-	getElement,
-	{
-		singleNames: [
-			{
-				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'index',
@@ -2087,27 +2053,38 @@ _createFunction(
 		]
 	}
 );
-export const map = <T, U>(
+// TODO ohne params, siehe getElement
+export const setElement = <T>(
 	values: T[] | undefined,
-	callback: (value: T, index: bigint) => U,
-): U[] | undefined => {
-	if (!values) {
-		return;
-	}
-	const mappedValues = values.map((value, index) => {
-		return callback(value, BigInt(index + 1));
-	});
-	return mappedValues.length
-		? mappedValues
-		: undefined;
+	index: bigint,
+	value: T,
+): T[] => {
+	const copy = values
+		? [...values]
+		: [];
+	copy[Number(index) - 1] = value;
+	return copy;
 };
-_createFunction(
-	map,
+export const map = /*#__PURE__*/ _createFunction(
+	function map<T, U>(
+		values: T[] | undefined,
+		callback: (value: T, index: bigint) => U,
+	): U[] | undefined {
+		if (!values) {
+			return;
+		}
+		const mappedValues = values.map((value, index) => {
+			return callback(value, BigInt(index + 1));
+		});
+		return mappedValues.length
+			? mappedValues
+			: undefined;
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'callback',
@@ -2116,27 +2093,26 @@ _createFunction(
 		]
 	}
 );
-export const filter = <T>(
-	values: T[] | undefined,
-	predicate: (value: T, index: bigint) => boolean,
-): T[] | undefined => {
-	if (!values) {
-		return;
-	}
-	const filtered = values.filter((value, index) => {
-		return predicate(value, BigInt(index + 1));
-	});
-	return filtered.length
-		? filtered
-		: undefined;
-};
-_createFunction(
-	filter,
+export const filter = /*#__PURE__*/ _createFunction(
+	function filter<T>(
+		values: T[] | undefined,
+		predicate: (value: T, index: bigint) => boolean,
+	): T[] | undefined {
+		if (!values) {
+			return;
+		}
+		const filtered = values.filter((value, index) => {
+			return predicate(value, BigInt(index + 1));
+		});
+		return filtered.length
+			? filtered
+			: undefined;
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'predicate',
@@ -2145,31 +2121,30 @@ _createFunction(
 		]
 	}
 );
-export const filterMap = <T, U>(
-	values: T[] | undefined,
-	callback: (value: T, index: bigint) => U | undefined,
-): U[] | undefined => {
-	if (!values) {
-		return;
-	}
-	const mappedValues: U[] = [];
-	values.forEach((value, index) => {
-		const mapped = callback(value, BigInt(index + 1));
-		if (mapped !== undefined) {
-			mappedValues.push(mapped);
+export const filterMap = /*#__PURE__*/ _createFunction(
+	function filterMap<T, U>(
+		values: T[] | undefined,
+		callback: (value: T, index: bigint) => U | undefined,
+	): U[] | undefined {
+		if (!values) {
+			return;
 		}
-	});
-	return mappedValues.length
-		? mappedValues
-		: undefined;
-};
-_createFunction(
-	filterMap,
+		const mappedValues: U[] = [];
+		values.forEach((value, index) => {
+			const mapped = callback(value, BigInt(index + 1));
+			if (mapped !== undefined) {
+				mappedValues.push(mapped);
+			}
+		});
+		return mappedValues.length
+			? mappedValues
+			: undefined;
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'callback',
@@ -2178,51 +2153,49 @@ _createFunction(
 		]
 	}
 );
-export const flatten = <T>(
-	values: (T[] | undefined)[] | undefined,
-): T[] | undefined => {
-	if (!values) {
-		return;
-	}
-	const flattened = values.flatMap(value => value ?? []);
-	return flattened.length
-		? flattened
-		: undefined;
-};
-_createFunction(
-	flatten,
+export const flatten = /*#__PURE__*/ _createFunction(
+	function flatten<T>(
+		values: (T[] | undefined)[] | undefined,
+	): T[] | undefined {
+		if (!values) {
+			return;
+		}
+		const flattened = values.flatMap(value => value ?? []);
+		return flattened.length
+			? flattened
+			: undefined;
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(optionalType(List(Any))))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(/*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))))
 			},
 		]
 	}
 );
-export const slice = <T>(
-	values: T[] | undefined,
-	start: bigint,
-	end: bigint | undefined,
-): T[] | undefined => {
-	if (!values) {
-		return;
-	}
-	const sliced = values.slice(
-		Number(start) - 1,
-		typeof end === 'bigint'
-			? Number(end)
-			: undefined
-	);
-	return sliced.length ? sliced : undefined;
-};
-_createFunction(
-	slice,
+export const slice = /*#__PURE__*/ _createFunction(
+	function slice<T>(
+		values: T[] | undefined,
+		start: bigint,
+		end: bigint | undefined,
+	): T[] | undefined {
+		if (!values) {
+			return;
+		}
+		const sliced = values.slice(
+			Number(start) - 1,
+			typeof end === 'bigint'
+				? Number(end)
+				: undefined
+		);
+		return sliced.length ? sliced : undefined;
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'start',
@@ -2230,26 +2203,25 @@ _createFunction(
 			},
 			{
 				name: 'end',
-				type: optionalType(Integer)
+				type: /*#__PURE__*/ optionalType(Integer)
 			},
 		]
 	}
 );
-export const findFirst = <T>(
-	values: T[] | undefined,
-	predicate: (value: T, index: bigint) => boolean,
-): T | undefined => {
-	return values?.find((value, index) => {
-		return predicate(value, BigInt(index + 1));
-	});
-};
-_createFunction(
-	findFirst,
+export const findFirst = /*#__PURE__*/ _createFunction(
+	function findFirst<T>(
+		values: T[] | undefined,
+		predicate: (value: T, index: bigint) => boolean,
+	): T | undefined {
+		return values?.find((value, index) => {
+			return predicate(value, BigInt(index + 1));
+		});
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'predicate',
@@ -2258,21 +2230,20 @@ _createFunction(
 		]
 	}
 );
-export const findLast = <T>(
-	values: T[] | undefined,
-	predicate: (value: T, index: bigint) => boolean,
-): T | undefined => {
-	return values?.findLast((value, index) => {
-		return predicate(value, BigInt(index + 1));
-	});
-};
-_createFunction(
-	findLast,
+export const findLast = /*#__PURE__*/ _createFunction(
+	function findLast<T>(
+		values: T[] | undefined,
+		predicate: (value: T, index: bigint) => boolean,
+	): T | undefined {
+		return values?.findLast((value, index) => {
+			return predicate(value, BigInt(index + 1));
+		});
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'predicate',
@@ -2281,27 +2252,26 @@ _createFunction(
 		]
 	}
 );
-export const findLastIndex = <T>(
-	values: T[] | undefined,
-	predicate: (value: T, index: bigint) => boolean,
-): bigint | undefined => {
-	if (!values) {
-		return;
-	}
-	const lastIndexFloat = values.findLastIndex((value, index) => {
-		return predicate(value, BigInt(index + 1));
-	});
-	return lastIndexFloat === -1
-		? undefined
-		: BigInt(lastIndexFloat + 1);
-};
-_createFunction(
-	findLastIndex,
+export const findLastIndex = /*#__PURE__*/ _createFunction(
+	function findLastIndex<T>(
+		values: T[] | undefined,
+		predicate: (value: T, index: bigint) => boolean,
+	): bigint | undefined {
+		if (!values) {
+			return;
+		}
+		const lastIndexFloat = values.findLastIndex((value, index) => {
+			return predicate(value, BigInt(index + 1));
+		});
+		return lastIndexFloat === -1
+			? undefined
+			: BigInt(lastIndexFloat + 1);
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'predicate',
@@ -2310,35 +2280,33 @@ _createFunction(
 		]
 	}
 );
-export const lastElement = <T>(values: T[] | undefined): T | undefined => {
-	return values?.[values.length - 1];
-};
-_createFunction(
-	lastElement,
+export const lastElement = /*#__PURE__*/ _createFunction(
+	function lastElement<T>(values: T[] | undefined): T | undefined {
+		return values?.[values.length - 1];
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 		]
 	}
 );
-export const forEach = <T>(
-	values: T[] | undefined,
-	callback: (value: T, index: bigint) => void,
-) => {
-	values?.forEach((value, index) => {
-		return callback(value, BigInt(index + 1));
-	});
-};
-_createFunction(
-	forEach,
+export const forEach = /*#__PURE__*/ _createFunction(
+	function forEach<T>(
+		values: T[] | undefined,
+		callback: (value: T, index: bigint) => void,
+	) {
+		values?.forEach((value, index) => {
+			return callback(value, BigInt(index + 1));
+		});
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'callback',
@@ -2347,24 +2315,23 @@ _createFunction(
 		]
 	}
 );
-export const exists = <T>(
-	values: T[] | undefined,
-	predicate: (value: T, index: bigint) => boolean,
-): boolean => {
-	if (!values) {
-		return false;
-	}
-	return values.some((value, index) => {
-		return predicate(value, BigInt(index + 1));
-	});
-};
-_createFunction(
-	exists,
+export const exists = /*#__PURE__*/ _createFunction(
+	function exists<T>(
+		values: T[] | undefined,
+		predicate: (value: T, index: bigint) => boolean,
+	): boolean {
+		if (!values) {
+			return false;
+		}
+		return values.some((value, index) => {
+			return predicate(value, BigInt(index + 1));
+		});
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'predicate',
@@ -2374,24 +2341,23 @@ _createFunction(
 	}
 );
 
-export const all = <T>(
-	values: T[] | undefined,
-	predicate: (value: T, index: bigint) => boolean,
-): boolean => {
-	if (!values) {
-		return true;
-	}
-	return values.every((value, index) => {
-		return predicate(value, BigInt(index + 1));
-	});
-};
-_createFunction(
-	all,
+export const all = /*#__PURE__*/ _createFunction(
+	function all<T>(
+		values: T[] | undefined,
+		predicate: (value: T, index: bigint) => boolean,
+	): boolean {
+		if (!values) {
+			return true;
+		}
+		return values.every((value, index) => {
+			return predicate(value, BigInt(index + 1));
+		});
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'predicate',
@@ -2400,32 +2366,31 @@ _createFunction(
 		]
 	}
 );
-export const toDictionary = (
-	values: any[] | undefined,
-	getKey: (value: any, index: bigint) => string,
-	getValue: (value: any, index: bigint) => any,
-): RuntimeDictionary | undefined => {
-	if (!values) {
-		return;
-	}
-	const dictionary: RuntimeDictionary = {};
-	let indexBigint = 1n;
-	for (let index = 0; index < values.length; index++) {
-		const oldValue = values[index];
-		const key = getKey(oldValue, indexBigint);
-		const newValue = getValue(oldValue, indexBigint);
-		dictionary[key] = newValue;
-		indexBigint++;
-	}
-	return dictionary;
-};
-_createFunction(
-	toDictionary,
+export const toDictionary = /*#__PURE__*/ _createFunction(
+	function toDictionary(
+		values: any[] | undefined,
+		getKey: (value: any, index: bigint) => string,
+		getValue: (value: any, index: bigint) => any,
+	): RuntimeDictionary | undefined {
+		if (!values) {
+			return;
+		}
+		const dictionary: RuntimeDictionary = {};
+		let indexBigint = 1n;
+		for (let index = 0; index < values.length; index++) {
+			const oldValue = values[index];
+			const key = getKey(oldValue, indexBigint);
+			const newValue = getValue(oldValue, indexBigint);
+			dictionary[key] = newValue;
+			indexBigint++;
+		}
+		return dictionary;
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'getKey',
@@ -2438,27 +2403,26 @@ _createFunction(
 		]
 	}
 );
-export const aggregate = <T, U>(
-	values: T[] | undefined,
-	initialValue: U,
-	callback: (accumulator: U, value: T, index: bigint) => U,
-): U => {
-	if (!values) {
-		return initialValue;
-	}
-	return values.reduce(
-		(accumulator, value, index) => {
-			return callback(accumulator, value, BigInt(index + 1));
-		},
-		initialValue);
-};
-_createFunction(
-	aggregate,
+export const aggregate = /*#__PURE__*/ _createFunction(
+	function aggregate<T, U>(
+		values: T[] | undefined,
+		initialValue: U,
+		callback: (accumulator: U, value: T, index: bigint) => U,
+	): U {
+		if (!values) {
+			return initialValue;
+		}
+		return values.reduce(
+			(accumulator, value, index) => {
+				return callback(accumulator, value, BigInt(index + 1));
+			},
+			initialValue);
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(List(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
 				name: 'initialValue',
@@ -2472,19 +2436,18 @@ _createFunction(
 );
 //#endregion List
 //#region Dictionary
-export const getField = <T>(
-	dictionary: { [key: string]: T; } | undefined,
-	key: string,
-): T | undefined => {
-	return dictionary?.[key];
-};
-_createFunction(
-	getField,
+export const getField = /*#__PURE__*/ _createFunction(
+	function getField<T>(
+		dictionary: { [key: string]: T; } | undefined,
+		key: string,
+	): T | undefined {
+		return dictionary?.[key];
+	},
 	{
 		singleNames: [
 			{
 				name: 'dictionary',
-				type: optionalType(Dictionary(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
 			},
 			{
 				name: 'key',
@@ -2493,23 +2456,22 @@ _createFunction(
 		]
 	}
 );
-export const setField = <T>(
-	dictionary: { [key: string]: T; } | undefined,
-	key: string,
-	value: T,
-): { [key: string]: T; } => {
-	return {
-		...dictionary,
-		[key]: value,
-	};
-};
-_createFunction(
-	setField,
+export const setField = /*#__PURE__*/ _createFunction(
+	function setField<T>(
+		dictionary: { [key: string]: T; } | undefined,
+		key: string,
+		value: T,
+	): { [key: string]: T; } {
+		return {
+			...dictionary,
+			[key]: value,
+		};
+	},
 	{
 		singleNames: [
 			{
 				name: 'dictionary',
-				type: optionalType(Dictionary(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
 			},
 			{
 				name: 'key',
@@ -2521,21 +2483,20 @@ _createFunction(
 		]
 	}
 );
-export const toList = <T>(
-	dictionary: { [key: string]: T; } | undefined,
-): T[] | undefined => {
-	if (!dictionary) {
-		return;
-	}
-	return Object.values(dictionary);
-};
-_createFunction(
-	toList,
+export const toList = /*#__PURE__*/ _createFunction(
+	function toList<T>(
+		dictionary: { [key: string]: T; } | undefined,
+	): T[] | undefined {
+		if (!dictionary) {
+			return;
+		}
+		return Object.values(dictionary);
+	},
 	{
 		singleNames: [
 			{
 				name: 'values',
-				type: optionalType(Dictionary(Any))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
 			},
 		]
 	}
@@ -2572,7 +2533,7 @@ class StreamClass<T> {
 		if (processId === this.lastProcessId) {
 			return;
 		}
-		if (deepEqual(value, this.lastValue)) {
+		if (isDeepEqual(value, this.lastValue)) {
 			return;
 		}
 		if (this.completed) {
@@ -2728,7 +2689,7 @@ function _map$<TSource, TTarget>(
 	const mapped$: StreamClass<TTarget> = createDerived$(
 		() => {
 			const currentSourceValue = source$.getValue();
-			if (deepEqual(currentSourceValue, lastSourceValue)) {
+			if (isDeepEqual(currentSourceValue, lastSourceValue)) {
 				mapped$.lastProcessId = processId;
 				return mapped$.lastValue!;
 			}
@@ -2758,7 +2719,7 @@ function _combine$<T>(
 			const lastValues = combined$.lastValue!;
 			const currentValues = source$s.map(source$ =>
 				source$.getValue());
-			if (deepEqual(currentValues, lastValues)) {
+			if (isDeepEqual(currentValues, lastValues)) {
 				combined$.lastProcessId = processId;
 				return lastValues;
 			}
@@ -2828,7 +2789,7 @@ function flatMerge$<T>(source$$: StreamClass<StreamClass<T>>): StreamClass<T> {
 		() => {
 			const lastValue = flat$.lastValue!;
 			const currentValue = source$$.getValue().getValue();
-			if (deepEqual(currentValue, lastValue)) {
+			if (isDeepEqual(currentValue, lastValue)) {
 				flat$.lastProcessId = processId;
 				return lastValue;
 			}
@@ -2868,7 +2829,7 @@ function flatSwitch$<T>(source$$: StreamClass<StreamClass<T>>): StreamClass<T> {
 		() => {
 			const lastValue = flat$.lastValue!;
 			const currentValue = source$$.getValue().getValue();
-			if (deepEqual(currentValue, lastValue)) {
+			if (isDeepEqual(currentValue, lastValue)) {
 				flat$.lastProcessId = processId;
 				return lastValue;
 			}
@@ -2956,11 +2917,10 @@ function retry$<T>(
 //#endregion transform
 //#endregion helper
 //#region core
-export const complete = (stream$: StreamClass<any>): undefined => {
-	stream$.complete();
-};
-_createFunction(
-	complete,
+export const complete = /*#__PURE__*/ _createFunction(
+	function complete(stream$: StreamClass<any>): undefined {
+		stream$.complete();
+	},
 	{
 		singleNames: [
 			{
@@ -2970,12 +2930,11 @@ _createFunction(
 		]
 	}
 );
-export const push = (stream$: StreamClass<any>, value: any) => {
-	processId++;
-	stream$.push(value, processId);
-};
-_createFunction(
-	push,
+export const push = /*#__PURE__*/ _createFunction(
+	function push(stream$: StreamClass<any>, value: any) {
+		processId++;
+		stream$.push(value, processId);
+	},
 	{
 		singleNames: [
 			{
@@ -2988,11 +2947,10 @@ _createFunction(
 		]
 	}
 );
-export const subscribe = <T>(stream$: StreamClass<T>, listener: Listener<T>) => {
-	return stream$.subscribe(listener);
-};
-_createFunction(
-	subscribe,
+export const subscribe = /*#__PURE__*/ _createFunction(
+	function subscribe<T>(stream$: StreamClass<T>, listener: Listener<T>) {
+		return stream$.subscribe(listener);
+	},
 	{
 		singleNames: [
 			{
@@ -3008,11 +2966,10 @@ _createFunction(
 );
 //#endregion core
 //#region create
-export const create$ = (ValueType: any, initialValue: any) => {
-	return _create$(initialValue);
-};
-_createFunction(
-	create$,
+export const create$ = /*#__PURE__*/ _createFunction(
+	function create$(ValueType: any, initialValue: any) {
+		return _create$(initialValue);
+	},
 	{
 		singleNames: [
 			{
@@ -3025,7 +2982,7 @@ _createFunction(
 		]
 	}
 );
-export const completed$ = _createFunction(
+export const completed$ = /*#__PURE__*/ _createFunction(
 	_completed$,
 	{
 		singleNames: [
@@ -3035,16 +2992,15 @@ export const completed$ = _createFunction(
 		]
 	}
 );
-export const httpTextRequest$ = (
-	url: string,
-	method: string,
-	headers: { [key: string]: string; } | undefined,
-	body: any,
-) => {
-	return httpRequest$(url, method, headers, body, 'text');
-};
-_createFunction(
-	httpTextRequest$,
+export const httpTextRequest$ = /*#__PURE__*/ _createFunction(
+	function httpTextRequest$(
+		url: string,
+		method: string,
+		headers: { [key: string]: string; } | undefined,
+		body: any,
+	) {
+		return httpRequest$(url, method, headers, body, 'text');
+	},
 	{
 		singleNames: [
 			{
@@ -3057,7 +3013,7 @@ _createFunction(
 			},
 			{
 				name: 'headers',
-				type: optionalType(Dictionary(_Text))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(_Text))
 			},
 			{
 				name: 'body',
@@ -3065,16 +3021,15 @@ _createFunction(
 		]
 	}
 );
-export const httpBlobRequest$ = (
-	url: string,
-	method: string,
-	headers: { [key: string]: string; } | undefined,
-	body: any,
-) => {
-	return httpRequest$(url, method, headers, body, 'blob');
-};
-_createFunction(
-	httpBlobRequest$,
+export const httpBlobRequest$ = /*#__PURE__*/ _createFunction(
+	function httpBlobRequest$(
+		url: string,
+		method: string,
+		headers: { [key: string]: string; } | undefined,
+		body: any,
+	) {
+		return httpRequest$(url, method, headers, body, 'blob');
+	},
 	{
 		singleNames: [
 			{
@@ -3087,7 +3042,7 @@ _createFunction(
 			},
 			{
 				name: 'headers',
-				type: optionalType(Dictionary(_Text))
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(_Text))
 			},
 			{
 				name: 'body',
@@ -3095,23 +3050,22 @@ _createFunction(
 		]
 	}
 );
-export const timer$ = (delayMs: number): StreamClass<number> => {
-	const stream$ = _create$(1);
-	const cycle = () => {
-		setTimeout(() => {
-			if (stream$.completed) {
-				return;
-			}
-			processId++;
-			stream$.push(stream$.lastValue! + 1, processId);
-			cycle();
-		}, delayMs);
-	};
-	cycle();
-	return stream$;
-};
-_createFunction(
-	timer$,
+export const timer$ = /*#__PURE__*/ _createFunction(
+	function timer$(delayMs: number): StreamClass<number> {
+		const stream$ = _create$(1);
+		const cycle = () => {
+			setTimeout(() => {
+				if (stream$.completed) {
+					return;
+				}
+				processId++;
+				stream$.push(stream$.lastValue! + 1, processId);
+				cycle();
+			}, delayMs);
+		};
+		cycle();
+		return stream$;
+	},
 	{
 		singleNames: [{
 			name: 'delayMs',
@@ -3121,11 +3075,10 @@ _createFunction(
 );
 //#endregion create
 //#region transform
-export const map$ = <T, U>(source$: StreamClass<T>, transform$: (value: T) => U) => {
-	return _map$(source$, transform$);
-};
-_createFunction(
-	map$,
+export const map$ = /*#__PURE__*/ _createFunction(
+	function map$<T, U>(source$: StreamClass<T>, transform$: (value: T) => U) {
+		return _map$(source$, transform$);
+	},
 	{
 		singleNames: [
 			{
@@ -3139,11 +3092,10 @@ _createFunction(
 		]
 	}
 );
-export const flatMergeMap$ = <T, U>(source$: StreamClass<T>, transform$: (value: T) => StreamClass<U>) => {
-	return flatMap$(source$, transform$, true);
-};
-_createFunction(
-	flatMergeMap$,
+export const flatMergeMap$ = /*#__PURE__*/ _createFunction(
+	function flatMergeMap$<T, U>(source$: StreamClass<T>, transform$: (value: T) => StreamClass<U>) {
+		return flatMap$(source$, transform$, true);
+	},
 	{
 		singleNames: [
 			{
@@ -3157,11 +3109,10 @@ _createFunction(
 		]
 	}
 );
-export const flatSwitchMap$ = <T, U>(source$: StreamClass<T>, transform$: (value: T) => StreamClass<U>) => {
-	return flatMap$(source$, transform$, false);
-};
-_createFunction(
-	flatSwitchMap$,
+export const flatSwitchMap$ = /*#__PURE__*/ _createFunction(
+	function flatSwitchMap$<T, U>(source$: StreamClass<T>, transform$: (value: T) => StreamClass<U>) {
+		return flatMap$(source$, transform$, false);
+	},
 	{
 		singleNames: [
 			{
@@ -3175,15 +3126,15 @@ _createFunction(
 		]
 	}
 );
-export const combine$ = _createFunction(
+export const combine$ = /*#__PURE__*/ _createFunction(
 	_combine$,
 	{
 		rest: {
-			type: optionalType(List(_StreamType))
+			type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(_StreamType))
 		}
 	}
 );
-export const take$ = _createFunction(
+export const take$ = /*#__PURE__*/ _createFunction(
 	_take$,
 	{
 		singleNames: [
@@ -3201,25 +3152,23 @@ export const take$ = _createFunction(
 //#endregion transform
 //#endregion Stream
 //#region Utility
-export const log = (...args: any[]) => {
-	console.log(...args);
-};
-_createFunction(
-	log,
+export const log = /*#__PURE__*/ _createFunction(
+	function log(...args: any[]) {
+		console.log(...args);
+	},
 	{
 		rest: {}
 	}
 );
-export const repeat = (
-	count: bigint,
-	iteratee: (index: bigint) => void,
-) => {
-	for (let index = 1n; index <= count; index++) {
-		iteratee(index);
-	}
-};
-_createFunction(
-	repeat,
+export const repeat = /*#__PURE__*/ _createFunction(
+	function repeat(
+		count: bigint,
+		iteratee: (index: bigint) => void,
+	) {
+		for (let index = 1n; index <= count; index++) {
+			iteratee(index);
+		}
+	},
 	{
 		singleNames: [
 			{
@@ -3233,8 +3182,14 @@ _createFunction(
 		]
 	}
 );
-export const runJs = _createFunction(
-	eval,
+export const runJs = /*#__PURE__*/ _createFunction(
+	// Indirektes eval, läuft im globalen Scope. Eine eigene Funktion statt eval selbst, sonst hinge
+	// _createFunction die params an das globale eval. Über globalThis statt als Bezeichner: Ein
+	// Bezeichner eval könnte ein direktes eval sein, ein Minimizer ließe dann im ganzen Bundle jede
+	// unbenutzte Definition stehen.
+	function runJs(js: string) {
+		return globalThis.eval(js);
+	},
 	{
 		singleNames: [{
 			name: 'js',

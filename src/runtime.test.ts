@@ -136,7 +136,7 @@ describe('parseJson', () => {
 		const result = parseJson('[1,null,2]');
 		expect(result).to.deep.equal([1n, undefined, 2n]);
 		// deep.equal hält eine Lücke im Array für gleich
-		expect(1 in result).to.be.true;
+		expect(1 in (result as unknown[])).to.be.true;
 	});
 	// Fractions werden gekürzt wie Zahlenliterale in JUL
 	it('0.5', () => {
@@ -182,14 +182,14 @@ describe('parseJson', () => {
 	it('"\\x"', () => {
 		const result = parseJson('"\\x"');
 		expect(result).to.be.instanceOf(Error);
-		expect(result.message).to.not.be.empty;
+		expect((result as Error).message).to.not.be.empty;
 	});
 	// Der Schlüssel darf nicht den Prototyp setzen, sonst verändert fremdes JSON (z.B. eine
 	// HTTP-Antwort) das Verhalten des Objekts
 	it('{"__proto__":{"a":1}}', () => {
 		const result = parseJson('{"__proto__":{"a":1}}');
 		expect(Object.getPrototypeOf(result)).to.equal(Object.prototype);
-		expect(Object.keys(result)).to.deep.equal(['__proto__']);
+		expect(Object.keys(result as object)).to.deep.equal(['__proto__']);
 		expect(Object.getOwnPropertyDescriptor(result, '__proto__')?.value).to.deep.equal({ a: 1n });
 	});
 });

@@ -28,7 +28,7 @@ import {
 	PositionedExpression,
 } from '../syntax-tree.js';
 
-/** Wie in emitter.ts (getRuntimeImportJs): alle Runtime-Exporte, namentlich gebunden. */
+/** Alle Runtime-Exporte, namentlich gebunden. Der Modul-Import im Emitter bindet dagegen nur die benutzten. */
 const runtimeKeys = Object.keys(runtime);
 
 /**
@@ -180,7 +180,7 @@ class FoldBudgetExhaustedError extends Error { }
  * bräuchte es zusätzlich einen Cache auf CompileTimeFunctionType-Ebene, der über tryBuildCallable
  * hinweg lebt (TODO, noch nicht gebaut).
  */
-function createBudgetedCreateFunction(): typeof runtime._createFunction {
+function createBudgetedCreateFunction(): (fn: Function, params: unknown) => Function {
 	return (fn: Function, params: unknown) => {
 		const cache = new Map<string, unknown>();
 		const wrapped = (...args: unknown[]): unknown => {
@@ -334,8 +334,8 @@ export function tryBuildCallable(functionType: CompileTimeFunctionType): Functio
 	if (!environment) {
 		return undefined;
 	}
-	// Volle Runtime immer binden, wie der normale Modul-Import (getRuntimeImportJs): emittierte
-	// Parameter-Typangaben (z.B. `a: Integer`) referenzieren Runtime-Exporte, die selbst keine
+	// Volle Runtime immer binden, das Falten liefert keinen Code aus, der klein bleiben müsste.
+	// Emittierte Parameter-Typangaben (z.B. `a: Integer`) referenzieren Runtime-Exporte, die selbst keine
 	// aufrufbaren Funktionen sind (kein `params`) und deshalb im Sammler oben nicht gebunden werden.
 	const bindingNames = [...runtimeKeys, ...environment.map(entry => entry.name)];
 	const bindingValues: unknown[] = [...runtimeKeys.map(key => key === '_createFunction' ? createBudgetedCreateFunction() : (runtime as { [key: string]: unknown; })[key]), ...environment.map(entry => entry.value)];
