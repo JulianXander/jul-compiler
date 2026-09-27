@@ -2715,6 +2715,31 @@ p = (T: Type v: T) => v`);
 	it('type-parameter-as-type-argument', () => {
 		expectCheck('F = (T: Type) => Stream(T)');
 	});
+	// Wie bei List(T) muss T auch in einem Dictionary-Literal bis zum Aufruf offen bleiben:
+	// Box(Integer) ist [value: Integer], nicht [value: Type].
+	it('type-parameter-in-dictionary-literal-is-substituted-at-call', () => {
+		expectCheck(`Box = (T: Type) => [value: T]
+f = (box: Box(Integer)) =>
+	x: Integer = box/value
+	x`);
+	});
+	// Dasselbe für ein Tupel: Pair(Integer) ist [Integer Integer], nicht [Type Type].
+	it('type-parameter-in-tuple-is-substituted-at-call', () => {
+		expectCheck(`Pair = (T: Type) => [T T]
+f = (pair: Pair(Integer)) =>
+	(a) = pair
+	x: Integer = a
+	x`);
+	});
+	// Der eigene Typparameter U, weitergereicht an Box, darf im Rumpf von BoxOf nicht schon zu
+	// seinem deklarierten Typ werden: erst BoxOf(Integer) legt ihn fest.
+	it('type-parameter-passed-on-to-dictionary-literal-stays-open-until-outer-call', () => {
+		expectCheck(`Box = (T: Type) => [value: T]
+BoxOf = (U: Type) => Box(U)
+f = (box: BoxOf(Integer)) =>
+	x: Integer = box/value
+	x`);
+	});
 	// Der functionType wird mit Platzhaltern erzeugt, an die Parameter-Symbole gehängt und
 	// erst danach mutiert (ParamsType, ReturnType). Wer ihn zwischendurch auflöst - hier die
 	// Selbstreferenz im body - darf kein Zwischenergebnis festhalten.

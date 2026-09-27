@@ -147,3 +147,7 @@
 2026-09-27 10:53:25	e0f4ecf+	-	ADV-DEV-56627	yugioh	parse+check	5	1497.74	1656.77	1656.77	Add als Typfunktion fuer add
 2026-09-27 12:32:13	ef1a297	-	ADV-DEV-56627	yugioh	parse+check	5	1378.01	1726.81	1726.81	vor Call-Site-Signatur mit eingesetzten Projektionen (Hover)
 2026-09-27 12:36:58	ef1a297+	-	ADV-DEV-56627	yugioh	parse+check	5	1374.34	1745.99	1745.99	nach Call-Site-Signatur mit eingesetzten Projektionen (Hover)
+2026-09-27 12:45:18	3e6ecd3+	-	ADV-DEV-56627	yugioh	parse+check	5	1434.65	1749.75	1749.75	vor Umbau: Lesen/Schreiben von Typ-Eigenschaften zusammenlegen
+2026-09-27 12:48:07	3e6ecd3+	-	ADV-DEV-56627	yugioh	parse+check	5	1396.82	1772.19	1772.19	nach Umbau: Lesen/Schreiben von Typ-Eigenschaften zusammengelegt
+2026-09-27 12:56:35	3e6ecd3+	-	ADV-DEV-56627	yugioh	parse+check	5	1557.98	1860.87	1860.87	Typparameter in Dictionary-Literal und Tupel am Aufruf eingesetzt
+2026-09-27 13:00:00	3e6ecd3+	-	ADV-DEV-56627	yugioh	parse+check	5	1549.36	1763.48	1763.48	Typparameter in Dictionary-Literal und Tupel am Aufruf eingesetzt, mit Platzhalter-Cache

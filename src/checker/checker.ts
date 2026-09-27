@@ -238,6 +238,157 @@ export function resetCheckerStats(): void {
  */
 const parameterProjectionsCache = new WeakMap<CompileTimeFunctionType, ParameterProjection[]>();
 
+/**
+ * Ergebnis von containsArgumentPlaceholder je Typobjekt.
+ * Muss vor der core-lib Initialisierung stehen, die den Checker bereits benutzt.
+ */
+const argumentPlaceholderCache = new WeakMap<CompileTimeType, boolean>();
+
+//#region benannte Eigenschaften
+
+/**
+ * Lesen und Schreiben einer benannten Eigenschaft einer Knotenart, nebeneinander, damit beide
+ * zusammenpassen. set liefert undefined, wenn sich die Eigenschaft nicht zurückschreiben lässt
+ * (etwa weil sie berechnet ist wie der ElementType eines Tupels).
+ * Die Tabellen stehen vor der core-lib Initialisierung, die den Checker bereits benutzt.
+ */
+interface NamedAccess<T extends ResolvedType> {
+	get(type: T, name: string): CompileTimeType | undefined;
+	set(type: T, name: string, value: CompileTimeType): CompileTimeType | undefined;
+}
+
+type NamedAccessTable = { [K in ResolvedType['julType']]?: NamedAccess<Extract<ResolvedType, { julType: K; }>> };
+
+function withReturnOrParamsType(
+	functionType: CompileTimeFunctionType,
+	name: string,
+	value: CompileTimeType,
+): CompileTimeFunctionType | undefined {
+	const paramsType = name === 'ParamsType' ? value : functionType.ParamsType;
+	const returnType = name === 'ReturnType' ? value : functionType.ReturnType;
+	if (paramsType === functionType.ParamsType
+		&& returnType === functionType.ReturnType) {
+		return undefined;
+	}
+	// Der Aliasname beschriebe die geänderte Signatur nicht mehr.
+	return {
+		...functionType,
+		ParamsType: paramsType,
+		ReturnType: returnType,
+		aliasName: undefined,
+		isUnresolvedPlaceholder: paramsType.isUnresolvedPlaceholder || returnType.isUnresolvedPlaceholder,
+	};
+}
+
+function withDictionaryLiteralField(
+	type: Extract<ResolvedType, { julType: 'dictionaryLiteral'; }>,
+	name: string,
+	value: CompileTimeType,
+): CompileTimeType | undefined {
+	if (!(name in type.Fields)) {
+		return undefined;
+	}
+	return createCompileTimeDictionaryLiteralType({ ...type.Fields, [name]: value }, type.complete, type.declaration);
+}
+
+/**
+ * Felder eines Werts: `x/name`, wobei x einen Wert dieses Typs hat (`stream$/ValueType`,
+ * `callback/ReturnType`, `point/x`).
+ */
+const valueFieldAccess: NamedAccessTable = {
+	dictionaryLiteral: {
+		get: (type, name) => type.Fields[name],
+		set: withDictionaryLiteralField,
+	},
+	dictionary: {
+		// TODO Or(() type.ElementType)
+		get: type => type.ElementType,
+		set: (_type, _name, value) => createCompileTimeDictionaryType(value),
+	},
+	function: {
+		get: (type, name) => {
+			switch (name) {
+				case 'ParamsType':
+					return type.ParamsType;
+				case 'ReturnType':
+					return type.ReturnType;
+				case 'PredicateIfTrue':
+					// Any als neutrales Element von And: ohne erkannte Prädikat-Form (kein
+					// .predicate) soll die Projektion den ElementType unverändert lassen,
+					// statt ihn fälschlich einzuschränken.
+					return type.predicate?.ifTrue ?? builtinAny;
+				default:
+					return undefined;
+			}
+		},
+		set: withReturnOrParamsType,
+	},
+	parameters: {
+		get: (type, name) => type.singleNames.find(parameter => parameter.name === name)?.type,
+		set: (type, name, value) => {
+			const index = type.singleNames.findIndex(parameter => parameter.name === name);
+			if (index === -1) {
+				return undefined;
+			}
+			const singleNames = type.singleNames.map((parameter, parameterIndex) =>
+				parameterIndex === index
+					? { name: parameter.name, type: value }
+					: parameter);
+			return createParametersType(singleNames, type.rest);
+		},
+	},
+	stream: {
+		get: (type, name) => {
+			switch (name) {
+				case 'getValue':
+					return getStreamGetValueType(type);
+				case 'ValueType':
+					return type.ValueType;
+				default:
+					return undefined;
+			}
+		},
+		set: (_type, name, value) => name === 'ValueType'
+			? createCompileTimeStreamType(value)
+			: undefined,
+	},
+};
+
+/**
+ * Eigenschaften eines Typs: `TypeOf(x)/name` (`TypeOf(values)/ElementType`).
+ */
+const typePropertyAccess: NamedAccessTable = {
+	dictionary: {
+		get: (type, name) => name === 'ElementType' ? type.ElementType : undefined,
+		set: (_type, name, value) => name === 'ElementType'
+			? createCompileTimeDictionaryType(value)
+			: undefined,
+	},
+	dictionaryLiteral: {
+		get: (type, name) => type.Fields[name],
+		set: withDictionaryLiteralField,
+	},
+	list: {
+		get: (type, name) => name === 'ElementType' ? type.ElementType : undefined,
+		set: (_type, name, value) => name === 'ElementType'
+			? createCompileTimeListType(value)
+			: undefined,
+	},
+	tuple: {
+		get: (type, name) => name === 'ElementType'
+			? createNormalizedUnionType(type.ElementTypes)
+			: undefined,
+		// Die Union der Elemente lässt sich nicht auf die einzelnen Positionen zurückverteilen.
+		set: () => undefined,
+	},
+};
+
+function getNamedAccess(table: NamedAccessTable, type: ResolvedType): NamedAccess<ResolvedType> | undefined {
+	return table[type.julType] as NamedAccess<ResolvedType> | undefined;
+}
+
+//#endregion benannte Eigenschaften
+
 const maxElementsPerLine = 5;
 const maxFieldsInTypeDump = 5;
 
@@ -780,24 +931,11 @@ export function dereferenceNameFromObject(
 		case 'any':
 			return builtinAny;
 		case 'dictionaryLiteral':
-			return sourceObjectType.Fields[name];
 		case 'dictionary':
-			// TODO Or(() sourceObjectType.ElementType)
-			return sourceObjectType.ElementType;
 		case 'function':
-			switch (name) {
-				case 'ParamsType':
-					return sourceObjectType.ParamsType;
-				case 'ReturnType':
-					return sourceObjectType.ReturnType;
-				case 'PredicateIfTrue':
-					// Any als neutrales Element von And: ohne erkannte Prädikat-Form (kein
-					// .predicate) soll die Projektion den ElementType unverändert lassen,
-					// statt ihn fälschlich einzuschränken.
-					return sourceObjectType.predicate?.ifTrue ?? builtinAny;
-				default:
-					return undefined;
-			}
+		case 'parameters':
+		case 'stream':
+			return getNamedAccess(valueFieldAccess, sourceObjectType)!.get(sourceObjectType, name);
 		case 'concat':
 		case 'list':
 		case 'tuple':
@@ -825,22 +963,6 @@ export function dereferenceNameFromObject(
 			}
 			return createNormalizedUnionType(dereferencedChoices);
 		}
-		case 'parameters': {
-			const matchedParameter = sourceObjectType.singleNames.find(parameter => parameter.name === name);
-			if (matchedParameter) {
-				return matchedParameter.type;
-			}
-			return undefined;
-		}
-		case 'stream':
-			switch (name) {
-				case 'getValue':
-					return getStreamGetValueType(sourceObjectType);
-				case 'ValueType':
-					return sourceObjectType.ValueType;
-				default:
-					return undefined;
-			}
 		case 'typeOf': {
 			const innerType = sourceObjectType.value;
 			return dereferenceNameFromObjectType(name, innerType, sourceObjectType);
@@ -888,21 +1010,10 @@ function dereferenceNameFromObjectType(
 	const innerType = resolveAlias(rawInnerType);
 	switch (innerType.julType) {
 		case 'dictionary':
-			switch (name) {
-				case 'ElementType':
-					return innerType.ElementType;
-				default:
-					return undefined;
-			}
 		case 'dictionaryLiteral':
-			return innerType.Fields[name];
 		case 'list':
-			switch (name) {
-				case 'ElementType':
-					return innerType.ElementType;
-				default:
-					return undefined;
-			}
+		case 'tuple':
+			return getNamedAccess(typePropertyAccess, innerType)!.get(innerType, name);
 		case 'nestedReference':
 		case 'parameterReference':
 			return createNestedReference(sourceObjectType, name);
@@ -928,13 +1039,6 @@ function dereferenceNameFromObjectType(
 			}).filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(dereferencedSources);
 		}
-		case 'tuple':
-			switch (name) {
-				case 'ElementType':
-					return createNormalizedUnionType(innerType.ElementTypes);
-				default:
-					return undefined;
-			}
 		// Keine Eigenschaft mit diesem Namen bekannt - unverändertes Verhalten wie vor der
 		// Exhaustivitätsprüfung.
 		case 'and':
@@ -1217,10 +1321,19 @@ function dereferenceCallbackParams(
  */
 interface ParameterProjection {
 	index: number;
-	/** Schlüssel von außen nach innen, bei `TypeOf(x)/ElementType/ValueType` also ElementType, ValueType. */
-	path: string[];
+	/** Von außen nach innen, bei `TypeOf(x)/ElementType/ValueType` also ElementType, ValueType. */
+	path: ProjectionStep[];
 	/** Der Verweis selbst, er wird gegen die Argumente aufgelöst. */
 	reference: NestedReferenceType;
+}
+
+/**
+ * Ein Schlüssel im Pfad. Hinter TypeOf ist er eine Eigenschaft des Typs (`TypeOf(values)/ElementType`),
+ * sonst ein Feld des Werts (`stream$/ValueType`) - wie beim Lesen, siehe dereferenceNameFromObject.
+ */
+interface ProjectionStep {
+	name: string;
+	ofType: boolean;
 }
 
 function getParameterProjections(functionType: CompileTimeFunctionType): ParameterProjection[] {
@@ -1249,13 +1362,13 @@ function getParameterProjection(
 	reference: NestedReferenceType,
 	functionType: CompileTimeFunctionType,
 ): ParameterProjection | undefined {
-	const path: string[] = [];
+	const path: ProjectionStep[] = [];
 	let source: CompileTimeType = reference;
 	while (source.julType === 'nestedReference') {
 		if (typeof source.nestedKey !== 'string') {
 			return undefined;
 		}
-		path.unshift(source.nestedKey);
+		path.unshift({ name: source.nestedKey, ofType: source.source.julType === 'typeOf' });
 		source = source.source;
 	}
 	if (source.julType === 'typeOf') {
@@ -1325,55 +1438,34 @@ function substituteParameterProjections(
 }
 
 /**
- * Schreibt projected an die Stelle, die path in declared bezeichnet. Or wird durchgereicht, damit
- * `Or([] List(Any))` das Empty behält. Eine Form, die zum Schlüssel nicht passt, bleibt, wie sie ist.
+ * Schreibt projected an die Stelle, die path in declared bezeichnet, über dieselben Tabellen, über
+ * die auch gelesen wird. Or wird durchgereicht, damit `Or([] List(Any))` das Empty behält. Eine
+ * Form ohne diese Eigenschaft bleibt, wie sie ist.
  */
 function substituteProjection(
 	declared: CompileTimeType,
-	path: string[],
+	path: ProjectionStep[],
 	projected: CompileTimeType,
 ): CompileTimeType {
-	const [key, ...restPath] = path;
-	if (key === undefined) {
+	const [step, ...restPath] = path;
+	if (step === undefined) {
 		return projected;
 	}
 	const resolved = resolveAlias(declared);
-	switch (resolved.julType) {
-		case 'or': {
-			const choices = resolved.ChoiceTypes;
-			const substitutedChoices = choices.map(choice => substituteProjection(choice, path, projected));
-			return elementsEqual(choices, substitutedChoices)
-				? declared
-				: createNormalizedUnionType(substitutedChoices);
-		}
-		case 'stream':
-			return key === 'ValueType'
-				? createCompileTimeStreamType(substituteProjection(resolved.ValueType, restPath, projected))
-				: declared;
-		case 'list':
-			return key === 'ElementType'
-				? createCompileTimeListType(substituteProjection(resolved.ElementType, restPath, projected))
-				: declared;
-		case 'dictionary':
-			return key === 'ElementType'
-				? createCompileTimeDictionaryType(substituteProjection(resolved.ElementType, restPath, projected))
-				: declared;
-		case 'function': {
-			if (key !== 'ReturnType') {
-				return declared;
-			}
-			const substitutedReturnType = substituteProjection(resolved.ReturnType, restPath, projected);
-			return {
-				...resolved,
-				ReturnType: substitutedReturnType,
-				aliasName: undefined,
-				isUnresolvedPlaceholder: resolved.ParamsType.isUnresolvedPlaceholder
-					|| substitutedReturnType.isUnresolvedPlaceholder,
-			};
-		}
-		default:
-			return declared;
+	if (resolved.julType === 'or') {
+		const choices = resolved.ChoiceTypes;
+		const substitutedChoices = choices.map(choice => substituteProjection(choice, path, projected));
+		return elementsEqual(choices, substitutedChoices)
+			? declared
+			: createNormalizedUnionType(substitutedChoices);
 	}
+	const access = getNamedAccess(step.ofType ? typePropertyAccess : valueFieldAccess, resolved);
+	const current = access?.get(resolved, step.name);
+	if (!access || !current) {
+		return declared;
+	}
+	const substituted = substituteProjection(current, restPath, projected);
+	return access.set(resolved, step.name, substituted) ?? declared;
 }
 
 //#endregion Signatur am Aufruf
@@ -1490,6 +1582,37 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 	return traversePlaceholders(rawType, undefined);
 }
 
+/**
+ * Enthält der Typ etwas, das traversePlaceholders mit argumentContext ersetzen würde? Folgt
+ * denselben Abstiegen, also nicht in Funktionen, Parameter und Aliase. Das Flag
+ * isUnresolvedPlaceholder taugt dafür nicht, ein Dictionary-Literal setzt es bewusst nie.
+ * Gecacht, weil große Dictionary-Literale sonst bei jedem Aufruf durchlaufen würden. Das geht, weil
+ * Dictionary-Literale und Tupel nach dem Erzeugen nicht mehr verändert werden.
+ */
+function containsArgumentPlaceholder(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'parameterReference':
+		case 'nestedReference':
+			return true;
+		case 'alias':
+		case 'function':
+		case 'parameters':
+			return false;
+		default:
+			break;
+	}
+	const cached = argumentPlaceholderCache.get(type);
+	if (cached !== undefined) {
+		return cached;
+	}
+	let contains = false;
+	forEachChildType(type, child => {
+		contains ||= containsArgumentPlaceholder(child);
+	});
+	argumentPlaceholderCache.set(type, contains);
+	return contains;
+}
+
 /** Die Argumente eines Aufrufs, über die ein parameterReference aufgelöst wird. */
 interface ArgumentContext {
 	calledFunction: CompileTimeType;
@@ -1548,11 +1671,13 @@ function traversePlaceholders(
 				argumentContext ? undefined : rawType.aliasName);
 		}
 		case 'dictionaryLiteral': {
-			if (argumentContext) {
+			// Auch mit argumentContext: ein Typparameter in einem Feld (`[value: T]`) wird erst am
+			// Aufruf der Typfunktion konkret.
+			if (argumentContext && !containsArgumentPlaceholder(rawType)) {
 				return rawType;
 			}
 			const rawFields = rawType.Fields;
-			const dereferencedFields = mapDictionary(rawFields, resolvePlaceholders);
+			const dereferencedFields = mapDictionary(rawFields, field => traversePlaceholders(field, argumentContext));
 			if (fieldsEqual(rawFields, dereferencedFields)) {
 				return rawType;
 			}
@@ -1681,11 +1806,13 @@ function traversePlaceholders(
 			return createCompileTimeStreamType(dereferencedValue);
 		}
 		case 'tuple': {
-			if (argumentContext) {
+			// Auch mit argumentContext: ein Typparameter in einem Tupel (`[T T]`) wird erst am
+			// Aufruf der Typfunktion konkret.
+			if (argumentContext && !containsArgumentPlaceholder(rawType)) {
 				return rawType;
 			}
 			const rawElements = rawType.ElementTypes;
-			const dereferencedElements = rawElements.map(resolvePlaceholders);
+			const dereferencedElements = rawElements.map(element => traversePlaceholders(element, argumentContext));
 			if (elementsEqual(rawElements, dereferencedElements)) {
 				return rawType;
 			}
@@ -1767,19 +1894,7 @@ function traversePlaceholders(
 		}
 		case 'add': {
 			const rawArgs = rawType.ArgsType;
-			// Mit argumentContext steigt traversePlaceholders nicht in Tuple ab. Die Elemente sind
-			// hier aber genau die Argumente, in denen die Parameter stehen.
-			let dereferencedArgs: CompileTimeType;
-			if (argumentContext && rawArgs.julType === 'tuple') {
-				const rawElements = rawArgs.ElementTypes;
-				const dereferencedElements = rawElements.map(element => traversePlaceholders(element, argumentContext));
-				dereferencedArgs = elementsEqual(rawElements, dereferencedElements)
-					? rawArgs
-					: createCompileTimeTupleType(dereferencedElements);
-			}
-			else {
-				dereferencedArgs = traversePlaceholders(rawArgs, argumentContext);
-			}
+			const dereferencedArgs = traversePlaceholders(rawArgs, argumentContext);
 			if (dereferencedArgs === rawArgs) {
 				return rawType;
 			}
