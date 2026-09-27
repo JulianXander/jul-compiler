@@ -125,3 +125,12 @@
 2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	json/small	15	3749.44	4524.31	4524.31	rekursive Typen: _lazyType fuer Selbstreferenz
 2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	json/large	15	3667842.00	3891450.00	3891450.00	rekursive Typen: _lazyType fuer Selbstreferenz
 2026-09-27 13:20:23	4eeadb1+	-	ADV-DEV-56627	bench-runtime	json/texts	15	427364.00	476059.00	476059.00	rekursive Typen: _lazyType fuer Selbstreferenz
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.13	14.02	14.02	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.92	11.20	11.20	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.87	9.43	9.43	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	7.20	8.44	8.44	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.59	8.14	8.14	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.57	8.53	8.53	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	json/small	15	3840.58	4068.64	4068.64	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	json/large	15	3693146.00	3872192.00	3872192.00	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	json/texts	15	443074.50	467284.50	467284.50	rekursive Typfunktionen: _lazyType merkt sich getType

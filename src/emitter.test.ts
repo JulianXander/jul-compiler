@@ -687,4 +687,14 @@ describe('Emitter Ausführung', () => {
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(1n);
 	});
+	// Der Aufruf Tree(T) im eigenen Rumpf darf erst beim Prüfen ausgewertet werden, sonst ruft
+	// jeder Aufruf von Tree sofort den nächsten auf.
+	it('ein verschachtelter Wert besteht die Prüfung gegen eine rekursive Typfunktion', () => {
+		const code = [
+			'Tree = (T: Type) => [value: T children: Or([] List(Tree(T)))]',
+			'f = (tree: Tree(Integer)) => tree/value',
+			'result = f([value = 1 children = [[value = 2 children = [[value = 3]]]]])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(1n);
+	});
 });

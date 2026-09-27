@@ -244,6 +244,23 @@ const parameterProjectionsCache = new WeakMap<CompileTimeFunctionType, Parameter
  */
 const argumentPlaceholderCache = new WeakMap<CompileTimeType, boolean>();
 
+/**
+ * Der aufgelöste Typ je Anwendungsknoten (Alias mit args), siehe dereferenceAlias.
+ * Muss vor der core-lib Initialisierung stehen, die den Checker bereits benutzt.
+ */
+const aliasApplicationCache = new WeakMap<CompileTimeAliasType, CompileTimeType>();
+
+/**
+ * Wie viele Anwendungsknoten ein Vergleich höchstens auflöst, bevor er das Paar als zuweisbar
+ * annimmt. Der Stapel laufender Alias-Vergleiche erkennt Anwendungen mit gleichen Argumenten
+ * wieder (isSameOrSameAliasApplication), aber nicht jede Rekursion wiederholt ihre Argumente -
+ * erst das Budget garantiert, dass der Vergleich endet. Gilt für getTypeError und typeEquals je
+ * eigenen Stapel.
+ */
+const maxAliasApplicationExpansions = 100;
+let aliasApplicationExpansionsRemaining = maxAliasApplicationExpansions;
+let typeEqualsApplicationExpansionsRemaining = maxAliasApplicationExpansions;
+
 //#region benannte Eigenschaften
 
 /**
@@ -585,6 +602,31 @@ function isTypeName(name: string): boolean {
  * Definition-Objekt als dem in der Symboltabelle (siehe TODO, Parser-Backtracking). Eine
  * Namensüberdeckung wäre ohnehin bereits JUL4003.
  */
+/**
+ * Ruft sich eine Typfunktion im eigenen Rumpf auf (`Tree(T)` in `Tree = (T: Type) => ...`)? Ihr
+ * Symbol hat dann noch keinen Typ, und die Referenz steht für den Alias (siehe dereferenceType).
+ */
+function getSelfAppliedTypeFunction(functionExpression: SimpleExpression): CompileTimeAliasType | undefined {
+	if (functionExpression.type !== 'reference') {
+		return undefined;
+	}
+	const type = functionExpression.typeInfo?.type;
+	if (type?.julType !== 'typeOf'
+		|| type.value.julType !== 'alias'
+		|| type.value.args) {
+		return undefined;
+	}
+	const alias = type.value;
+	if (alias.symbol.typeInfo) {
+		return undefined;
+	}
+	const definition = alias.symbol.definition;
+	return definition?.type === 'definition'
+		&& definition.value?.type === 'functionLiteral'
+		? alias
+		: undefined;
+}
+
 function isSelfReference(reference: ParseReference, name: string): boolean {
 	let current: PositionedExpression | undefined = reference.parent;
 	while (current) {
@@ -1584,7 +1626,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 
 /**
  * Enthält der Typ etwas, das traversePlaceholders mit argumentContext ersetzen würde? Folgt
- * denselben Abstiegen, also nicht in Funktionen, Parameter und Aliase. Das Flag
+ * denselben Abstiegen, also nicht in Funktionen, Parameter und das Ziel eines Alias. Das Flag
  * isUnresolvedPlaceholder taugt dafür nicht, ein Dictionary-Literal setzt es bewusst nie.
  * Gecacht, weil große Dictionary-Literale sonst bei jedem Aufruf durchlaufen würden. Das geht, weil
  * Dictionary-Literale und Tupel nach dem Erzeugen nicht mehr verändert werden.
@@ -1595,6 +1637,7 @@ function containsArgumentPlaceholder(type: CompileTimeType): boolean {
 		case 'nestedReference':
 			return true;
 		case 'alias':
+			return !!type.args && containsArgumentPlaceholder(type.args);
 		case 'function':
 		case 'parameters':
 			return false;
@@ -1901,10 +1944,19 @@ function traversePlaceholders(
 			// Neu falten statt neu einpacken.
 			return addFromTypes(dereferencedArgs);
 		}
-		case 'alias':
-			// Stoppt hier: ein Alias trägt keine Platzhalter, und Absteigen würde bei einem
-			// rekursiven Typ nicht terminieren.
-			return rawType;
+		case 'alias': {
+			// Stoppt vor dem Ziel: Absteigen würde bei einem rekursiven Typ nicht terminieren.
+			// Nur die Argumente einer Anwendung (Tree(T)) tragen Platzhalter, und die sind endlich.
+			const rawArgs = rawType.args;
+			if (!rawArgs) {
+				return rawType;
+			}
+			const dereferencedArgs = traversePlaceholders(rawArgs, argumentContext);
+			if (dereferencedArgs === rawArgs) {
+				return rawType;
+			}
+			return createCompileTimeAliasType(rawType.name, rawType.symbol, dereferencedArgs);
+		}
 		case 'predicate': {
 			// Aufgelöst werden nur die Schranken. Die Funktion bleibt dasselbe Objekt, an ihr
 			// hängen Identität und Faltung.
@@ -3345,7 +3397,7 @@ function inferType(
 				const expectedValueType = typeGuard?.typeInfo && valueOf(typeGuard.typeInfo.type);
 				setInferredType(value, typeContext, expectedValueType, checkContext);
 			}
-			const circularReference = value && findUnproductiveSelfReference(value, name);
+			const circularReference = value && findUnproductiveSelfReferenceInDefinition(value, name);
 			if (circularReference) {
 				errors.push({
 					code: ErrorCode.circularTypeDefinition,
@@ -3684,6 +3736,19 @@ function inferType(
 			}
 			// Die Funktion vor dem Präfix-Argument: es erwartet ihren ersten Parameter.
 			setInferredType(functionExpression, typeContext, undefined, checkContext);
+			const selfApplied = !prefixArgument && getSelfAppliedTypeFunction(functionExpression);
+			if (selfApplied) {
+				// Die Typfunktion wird selbst noch geprüft, ihr Rückgabetyp steht noch nicht fest:
+				// der Aufruf bleibt als Knoten stehen und wird erst beim Zugriff aufgelöst.
+				const selfArgs = expression.arguments;
+				if (selfArgs) {
+					setInferredType(selfArgs, typeContext, undefined, checkContext);
+				}
+				const selfArgsType = selfArgs?.typeInfo?.type ?? builtinEmpty;
+				return {
+					type: createCompileTimeTypeOfType(createCompileTimeAliasType(selfApplied.name, selfApplied.symbol, selfArgsType)),
+				};
+			}
 			const isFunction = checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
 			const functionType = functionExpression.typeInfo!.type;
 			const paramsType = getParamsType(functionType);
@@ -4469,9 +4534,30 @@ function isTypeCombinatorCall(functionCall: ParseFunctionCall): boolean {
  * Konservativ: was hier nicht als Kombinator erkannt wird, gilt als produktiv und wird nicht
  * gemeldet. Eine Falschmeldung wäre teurer als eine ausgelassene.
  */
+function findUnproductiveSelfReferenceInDefinition(
+	value: ParseValueExpression,
+	definitionName: string,
+): ParseReference | undefined {
+	if (value.type === 'functionLiteral') {
+		// Eine Typfunktion, die sich ohne Datenebene selbst aufruft (Loop = (T: Type) => Loop(T)),
+		// liefe beim Auflösen und beim Prüfen zur Laufzeit ebenso endlos. Maßgeblich ist, was sie
+		// liefert, also der letzte Ausdruck des Rumpfs.
+		const result = last(value.body);
+		return isTypeName(definitionName) && result
+			? findUnproductiveSelfReference(result, definitionName, true)
+			: undefined;
+	}
+	return findUnproductiveSelfReference(value, definitionName, false);
+}
+
 function findUnproductiveSelfReference(
 	expression: PositionedExpression,
 	definitionName: string,
+	/**
+	 * Im Rumpf einer Typfunktion steht ihr Aufruf für den Typ selbst. Außerhalb nicht: dort ruft
+	 * sich etwa nativeFunction = nativeFunction(...) auf, ohne einen Typ zu beschreiben.
+	 */
+	isTypeFunctionBody: boolean,
 ): ParseReference | undefined {
 	switch (expression.type) {
 		case 'reference':
@@ -4486,6 +4572,12 @@ function findUnproductiveSelfReference(
 		case 'functionTypeLiteral':
 			return undefined;
 		case 'functionCall': {
+			const functionExpression = expression.functionExpression;
+			if (isTypeFunctionBody
+				&& functionExpression?.type === 'reference'
+				&& functionExpression.name.name === definitionName) {
+				return functionExpression;
+			}
 			if (!isTypeCombinatorCall(expression)) {
 				return undefined;
 			}
@@ -4494,11 +4586,11 @@ function findUnproductiveSelfReference(
 			const args = expression.arguments;
 			return args
 				&& forEachChild(args, child =>
-					findUnproductiveSelfReference(child, definitionName));
+					findUnproductiveSelfReference(child, definitionName, isTypeFunctionBody));
 		}
 		default:
 			return forEachChild(expression, child =>
-				findUnproductiveSelfReference(child, definitionName));
+				findUnproductiveSelfReference(child, definitionName, isTypeFunctionBody));
 	}
 }
 
@@ -6202,6 +6294,30 @@ function bindClosureArguments(
 	return boundType;
 }
 
+function isAliasApplication(type: CompileTimeType): type is CompileTimeAliasType & { args: CompileTimeType; } {
+	return type.julType === 'alias' && !!type.args;
+}
+
+/**
+ * Dieselbe Typfunktion mit gleichen Argumenten, etwa Tree(Integer) und Tree(Integer) aus zwei
+ * Auflösungen: gleich, ohne aufzulösen.
+ */
+function isSameAliasApplication(first: CompileTimeType, second: CompileTimeType): boolean {
+	return isAliasApplication(first)
+		&& isAliasApplication(second)
+		&& first.symbol === second.symbol
+		&& typeEquals(first.args, second.args);
+}
+
+/**
+ * Für den Stapel laufender Alias-Vergleiche: jede Auflösung von Tree(Text) erzeugt einen neuen
+ * inneren Knoten, derselbe Vergleich eine Ebene tiefer wäre an der Identität nicht zu erkennen.
+ */
+function isSameOrSameAliasApplication(first: CompileTimeType, second: CompileTimeType): boolean {
+	return first === second
+		|| isSameAliasApplication(first, second);
+}
+
 function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 	if (first === second) {
 		return true;
@@ -6228,8 +6344,22 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 	if (first.julType === 'alias'
 		|| second.julType === 'alias') {
 		if (aliasEqualityInProgress.some(pair =>
-			pair.first === first && pair.second === second)) {
+			isSameOrSameAliasApplication(pair.first, first)
+			&& isSameOrSameAliasApplication(pair.second, second))) {
 			return true;
+		}
+		if (isSameAliasApplication(first, second)) {
+			return true;
+		}
+		if (!aliasEqualityInProgress.length) {
+			typeEqualsApplicationExpansionsRemaining = maxAliasApplicationExpansions;
+		}
+		if (isAliasApplication(first) || isAliasApplication(second)) {
+			// Wie bei der Tiefenbremse "nicht gleich": eine ausgelassene Deduplizierung ist harmlos.
+			if (typeEqualsApplicationExpansionsRemaining <= 0) {
+				return false;
+			}
+			typeEqualsApplicationExpansionsRemaining--;
 		}
 		aliasEqualityInProgress.push({ first: first, second: second });
 		try {
@@ -6866,10 +6996,40 @@ function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
 	if (!symbolType) {
 		return builtinAny;
 	}
+	if (alias.args) {
+		return dereferenceAliasApplication(alias, alias.args, symbolType);
+	}
 	// Eine Typdefinition hält ihren Typ als TypeOf; der Alias steht für den Typ selbst.
 	return symbolType.julType === 'typeOf'
 		? symbolType.value
 		: symbolType;
+}
+
+/**
+ * Tree(T) als Rückgabetyp der fertigen Typfunktion mit diesen Argumenten, eine Ebene tief: die
+ * Selbstanwendung darin bleibt wieder ein Knoten. Erst hier, nicht beim Erzeugen, denn beim
+ * Erzeugen wird die Typfunktion selbst noch geprüft.
+ */
+function dereferenceAliasApplication(
+	alias: CompileTimeAliasType,
+	args: CompileTimeType,
+	symbolType: CompileTimeType,
+): CompileTimeType {
+	const cached = aliasApplicationCache.get(alias);
+	if (cached) {
+		return cached;
+	}
+	const functionType = resolveAlias(symbolType);
+	if (!isFunctionType(functionType)) {
+		return builtinAny;
+	}
+	const returnType = dereferenceArgumentTypesNested(symbolType, undefined, args, functionType.ReturnType);
+	// Wie bei einer Typdefinition steht der Typ als TypeOf, der Alias steht für den Typ selbst.
+	const dereferenced = returnType.julType === 'typeOf'
+		? returnType.value
+		: returnType;
+	aliasApplicationCache.set(alias, dereferenced);
+	return dereferenced;
 }
 
 /**
@@ -7055,8 +7215,22 @@ function getTypeErrorAtDepth(
 	if (argumentsType.julType === 'alias'
 		|| targetType.julType === 'alias') {
 		if (aliasComparisonsInProgress.some(pair =>
-			pair.args === argumentsType && pair.target === targetType)) {
+			isSameOrSameAliasApplication(pair.args, argumentsType)
+			&& isSameOrSameAliasApplication(pair.target, targetType))) {
 			return undefined;
+		}
+		if (isSameAliasApplication(argumentsType, targetType)) {
+			return undefined;
+		}
+		if (!aliasComparisonsInProgress.length) {
+			aliasApplicationExpansionsRemaining = maxAliasApplicationExpansions;
+		}
+		if (isAliasApplication(argumentsType) || isAliasApplication(targetType)) {
+			// Siehe maxAliasApplicationExpansions: im Zweifel zuweisbar, wie beim Stapel.
+			if (aliasApplicationExpansionsRemaining <= 0) {
+				return undefined;
+			}
+			aliasApplicationExpansionsRemaining--;
 		}
 		aliasComparisonsInProgress.push({ args: argumentsType, target: targetType });
 		try {
@@ -8138,6 +8312,20 @@ function indentLines(text: string): string {
 // suppressAlias unterdrückt aliasName in der gesamten Rekursion, nicht nur an der Aufrufstelle -
 // nötig, um einen Wert zu beschreiben (der Alias ist dort immer nur der Name der Definition,
 // die den Wert hält, nie ein echter Typname; siehe Fund newGameState/newBoard, Session 2026-09-10).
+/** Der Name, bei einer Anwendung mit Argumenten: Tree(Integer). */
+function aliasNameToString(alias: CompileTimeAliasType, indent: number): string {
+	if (!alias.args) {
+		return alias.name;
+	}
+	const args = resolveAlias(alias.args);
+	const argTypes = args.julType === 'tuple'
+		? args.ElementTypes
+		: [args];
+	// Die Argumente sind Typwerte (TypeOf(Integer)), angezeigt wird der Typ.
+	const argsString = argTypes.map(arg => typeToString(valueOf(arg), indent, 1)).join(' ');
+	return `${alias.name}(${argsString})`;
+}
+
 export function typeToString(type: CompileTimeType, indent: number, depth: number, suppressAlias = false): string {
 	if (depth && type.aliasName && !suppressAlias) {
 		return type.aliasName;
@@ -8248,7 +8436,7 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			// suppressAlias greift nicht - es zielt auf Namen von Wertdefinitionen, und ein
 			// Alias-Knoten entsteht nur für Typdefinitionen.
 			return depth
-				? type.name
+				? aliasNameToString(type, indent)
 				: typeToString(dereferenceAlias(type), indent, depth, suppressAlias);
 		case 'predicate':
 			// Gezeigt wird, was in Typ-Position stand. Die Obermenge wäre falsch: isEven ist nicht

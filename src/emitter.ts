@@ -359,87 +359,14 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 		case 'fraction':
 			return `{numerator:${expression.numerator}n,denominator:${expression.denominator}n}`;
 		case 'functionCall': {
-			const functionExpression = expression.functionExpression;
-			if (!functionExpression) {
-				throw new Error('functionExpression missing for functionCall.');
-			}
-			if (isImportFunction(functionExpression)) {
-				// TODO dynamic import/parser error?
-				throw new Error('import at unexpected location.');
-				// const path = getPathFromImport(expression);
-				// const outPath = path.endsWith(Extension.yaml)
-				// 	? path + Extension.json
-				// 	: path;
-				// return `require("${outPath}")`;
-			}
-			const args = expression.arguments;
-			const prefixArgument = expression.prefixArgument;
-			const prefixArgJs = prefixArgument
-				? expressionToJs(prefixArgument, indent)
-				: 'undefined';
-			if (isNamedFunction(functionExpression, 'assume')) {
-				if (prefixArgument) {
-					return prefixArgJs;
-				}
-				switch (args?.type) {
-					case 'list': {
-						const firstValue = args.values[0];
-						if (firstValue.type === 'spread') {
-							throw new Error('spread not implemented yet for assume');
-						}
-						else {
-							return expressionToJs(firstValue, indent);
-						}
-					}
-					default:
-						throw new Error('unexpected arguments.type for assume functionCall: ' + args?.type);
-				}
-			}
-			if (isNamedFunction(functionExpression, 'test')) {
-				return testCallToJs(expression, functionExpression, indent);
-			}
-			const functionJs = expressionToJs(functionExpression, indent);
-			const testCallName = expression === instrumentedTestCall
-				&& functionExpression.type === 'reference'
-				? functionExpression.name.name
-				: undefined;
-			if (testCallName !== undefined
-				&& (args?.type === 'list' || args?.type === 'empty' || !args)) {
-				return testCallToInstrumentedJs(testCallName, functionJs, expression, indent);
-			}
-			switch (args?.type) {
-				case 'list': {
-					const jsValues = parseListValuesToJs(args.values, indent);
-					if (prefixArgument) {
-						jsValues.unshift(prefixArgJs);
-					}
-					const valuesJs = listValuesToJs(jsValues, indent);
-					return `${functionJs}(${valuesJs})`;
-				}
-				case 'object':
-				case 'dictionary': {
-					const directCallJs = useTypeInfo
-						&& args.type === 'dictionary'
-						? namedArgumentsToDirectCallJs(functionExpression, functionJs, prefixArgument, args, indent)
-						: undefined;
-					if (directCallJs) {
-						return directCallJs;
-					}
-					const argsJs = expressionToJs(args, indent);
-					const jsValues = [functionJs, prefixArgJs, argsJs];
-					const valuesJs = listValuesToJs(jsValues, indent);
-					return `_callFunction(${valuesJs})`;
-				}
-				case undefined:
-				case 'empty': {
-					if (prefixArgument) {
-						return `${functionJs}(${prefixArgJs})`;
-					}
-					return `${functionJs}()`;
-				}
-				default:
-					throw new Error('unexpected arguments.type for functionCall: ' + args?.type);
-			}
+			const callJs = functionCallToJs(expression, indent);
+			// Der Checker hat den Aufruf einer Typfunktion im eigenen Rumpf als Anwendung markiert. Sofort
+			// ausgewertet riefe jeder Aufruf von Tree den nächsten auf. Entschieden wird am geprüften
+			// Baum, nicht an useTypeInfo: das schaltet Optimierungen, hier geht es um Korrektheit.
+			const selfAppliedName = getSelfAppliedTypeFunctionName(expression);
+			return selfAppliedName === undefined
+				? callJs
+				: `_lazyType(${stringToJs(selfAppliedName)}, () => ${callJs})`;
 		}
 		case 'functionLiteral': {
 			const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(expression.params, expression.body, indent);
@@ -846,6 +773,103 @@ function isTrivialArgument(value: ParseValueExpression): boolean {
 }
 
 //#endregion benannte Argumente mit Typinformation
+
+function functionCallToJs(expression: ParseFunctionCall, indent: number): string {
+	const functionExpression = expression.functionExpression;
+	if (!functionExpression) {
+		throw new Error('functionExpression missing for functionCall.');
+	}
+	if (isImportFunction(functionExpression)) {
+		// TODO dynamic import/parser error?
+		throw new Error('import at unexpected location.');
+		// const path = getPathFromImport(expression);
+		// const outPath = path.endsWith(Extension.yaml)
+		// 	? path + Extension.json
+		// 	: path;
+		// return `require("${outPath}")`;
+	}
+	const args = expression.arguments;
+	const prefixArgument = expression.prefixArgument;
+	const prefixArgJs = prefixArgument
+		? expressionToJs(prefixArgument, indent)
+		: 'undefined';
+	if (isNamedFunction(functionExpression, 'assume')) {
+		if (prefixArgument) {
+			return prefixArgJs;
+		}
+		switch (args?.type) {
+			case 'list': {
+				const firstValue = args.values[0];
+				if (firstValue.type === 'spread') {
+					throw new Error('spread not implemented yet for assume');
+				}
+				else {
+					return expressionToJs(firstValue, indent);
+				}
+			}
+			default:
+				throw new Error('unexpected arguments.type for assume functionCall: ' + args?.type);
+		}
+	}
+	if (isNamedFunction(functionExpression, 'test')) {
+		return testCallToJs(expression, functionExpression, indent);
+	}
+	const functionJs = expressionToJs(functionExpression, indent);
+	const testCallName = expression === instrumentedTestCall
+		&& functionExpression.type === 'reference'
+		? functionExpression.name.name
+		: undefined;
+	if (testCallName !== undefined
+		&& (args?.type === 'list' || args?.type === 'empty' || !args)) {
+		return testCallToInstrumentedJs(testCallName, functionJs, expression, indent);
+	}
+	switch (args?.type) {
+		case 'list': {
+			const jsValues = parseListValuesToJs(args.values, indent);
+			if (prefixArgument) {
+				jsValues.unshift(prefixArgJs);
+			}
+			const valuesJs = listValuesToJs(jsValues, indent);
+			return `${functionJs}(${valuesJs})`;
+		}
+		case 'object':
+		case 'dictionary': {
+			const directCallJs = useTypeInfo
+				&& args.type === 'dictionary'
+				? namedArgumentsToDirectCallJs(functionExpression, functionJs, prefixArgument, args, indent)
+				: undefined;
+			if (directCallJs) {
+				return directCallJs;
+			}
+			const argsJs = expressionToJs(args, indent);
+			const jsValues = [functionJs, prefixArgJs, argsJs];
+			const valuesJs = listValuesToJs(jsValues, indent);
+			return `_callFunction(${valuesJs})`;
+		}
+		case undefined:
+		case 'empty': {
+			if (prefixArgument) {
+				return `${functionJs}(${prefixArgJs})`;
+			}
+			return `${functionJs}()`;
+		}
+		default:
+			throw new Error('unexpected arguments.type for functionCall: ' + args?.type);
+	}
+}
+
+/**
+ * Der Name der Typfunktion, wenn der Checker diesen Aufruf als ihre Anwendung auf sich selbst
+ * markiert hat (Typ TypeOf(alias mit args)).
+ */
+function getSelfAppliedTypeFunctionName(expression: ParseFunctionCall): string | undefined {
+	const type = expression.typeInfo?.type;
+	return type?.julType === 'typeOf'
+		&& type.value.julType === 'alias'
+		&& type.value.args
+		? type.value.name
+		: undefined;
+}
 
 function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;

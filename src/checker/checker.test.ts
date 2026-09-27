@@ -2731,6 +2731,97 @@ f = (pair: Pair(Integer)) =>
 	x: Integer = a
 	x`);
 	});
+	// Eine Typfunktion darf sich im eigenen Rumpf aufrufen, solange der Aufruf in einer
+	// Datenebene steht (hier List).
+	it('recursive-type-function-is-callable-in-own-body', () => {
+		expectCheck(`Tree = (T: Type) => [value: T children: Or([] List(Tree(T)))]
+f = (tree: Tree(Integer)) =>
+	x: Integer = tree/value
+	x`);
+	});
+	// Die Kinder sind wieder Tree(Integer), nicht Any: ihr value ist Integer und passt nicht zu Text.
+	it('recursive-type-function-keeps-the-argument-in-nested-levels', () => {
+		expectCheck(`Tree = (T: Type) => [value: T children: Or([] List(Tree(T)))]
+f = (tree: Tree(Integer)) =>
+	x: Text = tree/children/1/value
+	x`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign Empty to Text.\nCan not assign Integer to Text.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 32,
+				},
+			],
+		});
+	});
+	// Steht die Selbstreferenz direkt in einem Or, darf sie beim Normalisieren der Union nicht zu
+	// Any werden: left ist Or([] Node), sein value also Or(Empty Integer), und das passt nicht zu Text.
+	it('recursive-type-in-union-stays-recursive', () => {
+		expectCheck(`Node = [value: Integer left: Or([] Node)]
+f = (node: Node) =>
+	x: Text = node/left/value
+	x`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign Empty to Text.\nCan not assign Integer to Text.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 26,
+				},
+			],
+		});
+	});
+	// Zwei Auflösungen von Tree(Integer) erzeugen verschiedene innere Knoten. Der Vergleich muss
+	// sie als gleich erkennen, sonst endet er nicht.
+	it('recursive-type-function-same-application-is-assignable', () => {
+		expectCheck(`Tree = (T: Type) => [value: T children: Or([] List(Tree(T)))]
+first = (t: Tree(Integer)) => t/value
+second = (t: Tree(Integer)) => first(t)`);
+	});
+	// Der Fehler reicht eine Ebene tief: dort liegt derselbe Vergleich schon auf dem Stapel.
+	it('recursive-type-function-different-application-is-reported-once-per-level', () => {
+		expectCheck(`Tree = (T: Type) => [value: T children: Or([] List(Tree(T)))]
+first = (t: Tree(Integer)) => t/value
+second = (t: Tree(Text)) => first(t)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: `Argument type mismatch.
+Invalid value for parameter 't'
+  Invalid value for field 'value'
+    Can not assign Text to Integer.
+  Invalid value for field 'children'
+    Can not assign List(Tree(Text)) to Or(Empty List(Tree(Integer))).
+      Can not assign List(Tree(Text)) to List(Tree(Integer)).
+        Invalid value for field 'value'
+          Can not assign Text to Integer.`,
+					startRowIndex: 2,
+					startColumnIndex: 34,
+					endRowIndex: 2,
+					endColumnIndex: 35,
+				},
+			],
+		});
+	});
+	it('recursive-type-function-without-data-layer-is-circular', () => {
+		expectCheck('Loop = (T: Type) => Loop(T)', {
+			errors: [
+				{
+					code: ErrorCode.circularTypeDefinition,
+					message: "Circular type definition 'Loop'. A type can only refer to itself through a field, list, tuple, stream or function.",
+					startRowIndex: 0,
+					startColumnIndex: 20,
+					endRowIndex: 0,
+					endColumnIndex: 24,
+				},
+			],
+		});
+	});
 	// Der eigene Typparameter U, weitergereicht an Box, darf im Rumpf von BoxOf nicht schon zu
 	// seinem deklarierten Typ werden: erst BoxOf(Integer) legt ihn fest.
 	it('type-parameter-passed-on-to-dictionary-literal-stays-open-until-outer-call', () => {

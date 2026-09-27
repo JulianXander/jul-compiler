@@ -899,10 +899,19 @@ interface LazyType {
  * Wird vom emitter benutzt
  */
 export function _lazyType(name: string, getType: () => RuntimeType): LazyType {
+	// Einmal gebaut, dann gemerkt: sonst baute bei Tree(T) jede Prüfung auf jeder Ebene den Typ neu.
+	let type: RuntimeType | undefined;
+	let resolved = false;
 	return {
 		[_julTypeSymbol]: 'lazy',
 		name: name,
-		getType: getType,
+		getType: () => {
+			if (!resolved) {
+				type = getType();
+				resolved = true;
+			}
+			return type;
+		},
 	};
 }
 

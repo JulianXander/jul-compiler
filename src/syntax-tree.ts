@@ -1260,17 +1260,24 @@ export interface CompileTimeAliasType extends CompileTimeTypeBase {
 	readonly julType: 'alias';
 	name: string;
 	symbol: SymbolDefinition;
+	/**
+	 * Nur bei der Anwendung einer Typfunktion auf sich selbst (`Tree(T)` im Rumpf von Tree): die
+	 * Argumente, mit denen der Rückgabetyp beim Auflösen berechnet wird.
+	 */
+	args?: CompileTimeType;
 }
 
-export function createCompileTimeAliasType(name: string, symbol: SymbolDefinition): CompileTimeAliasType {
+export function createCompileTimeAliasType(name: string, symbol: SymbolDefinition, args?: CompileTimeType): CompileTimeAliasType {
 	return {
 		julType: 'alias',
 		name: name,
 		symbol: symbol,
+		args: args,
 		// Ein Alias ist immer auflösbar, nur nicht sofort - anders als parameterReference, der auf
 		// einen Aufrufort wartet, der nie kommen muss. Als unaufgelöst gemeldet würde er jeden
-		// Konsumenten verteuern, ohne dass er je auf etwas wartet.
-		isUnresolvedPlaceholder: false,
+		// Konsumenten verteuern, ohne dass er je auf etwas wartet. Offene Argumente warten dagegen
+		// sehr wohl auf den Aufruf der umgebenden Typfunktion.
+		isUnresolvedPlaceholder: args?.isUnresolvedPlaceholder ?? false,
 	};
 }
 
@@ -1313,8 +1320,8 @@ export function updateFunctionTypeUnresolvedFlag(functionType: CompileTimeFuncti
 
 /**
  * Ruft callback für jeden direkt enthaltenen Typ auf, auch in Funktions- und Parametertypen.
- * Steigt nicht in Aliase ab (ein rekursiver Typ terminierte sonst nicht) und nicht in die Funktion
- * eines Prädikats (sie ist ein Wert, keine Typangabe).
+ * Steigt nicht in das Ziel eines Alias ab (ein rekursiver Typ terminierte sonst nicht), nur in
+ * seine Argumente, und nicht in die Funktion eines Prädikats (sie ist ein Wert, keine Typangabe).
  */
 export function forEachChildType(type: CompileTimeType, callback: (child: CompileTimeType) => void): void {
 	switch (type.julType) {
@@ -1333,8 +1340,12 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 		case 'text':
 		case 'textLiteral':
 		case 'type':
-		case 'alias':
 		case 'parameterReference':
+			return;
+		case 'alias':
+			if (type.args) {
+				callback(type.args);
+			}
 			return;
 		case 'add':
 			callback(type.ArgsType);
