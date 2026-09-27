@@ -306,7 +306,7 @@ myVarIsText: Any
   warning 2600 at 62:1 'Even' is not a type and should start with a lowercase letter.
 === ui/dialog/dialog.jul ===
 appendHtml: (html: Text) :> Any
-bindText$: (   element: Any   text: Or(Text Stream(Text)) ) ~> Stream(Any)
+bindText: (   element: Any   text: Or(Text Stream(Text))   until$: Stream(Any) ) ~> Any
 confirm$: (   title: Or(Text Stream(Text))   question: Or(Text Stream(Text)) ) ~> Stream(Or(Empty §ok§ §cancel§))
 elementById: (id: Text) :> Any
 findElement: (   parent: Any   selector: Text ) :> Any

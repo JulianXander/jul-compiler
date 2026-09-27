@@ -2553,7 +2553,9 @@ class StreamClass<T> {
 		}
 		this.lastValue = value;
 		this.lastProcessId = processId;
-		this.listeners.forEach(listener => listener(value));
+		// Über eine Kopie, denn ein Listener kann sich währenddessen abmelden: das splice in
+		// unsubscribe würde sonst den nächsten Listener überspringen lassen.
+		[...this.listeners].forEach(listener => listener(value));
 	}
 	/**
 	 * Gibt einen unsubscribe callback zurück.
@@ -2777,19 +2779,18 @@ function _take$<T>(source$: StreamClass<T>, count: bigint): StreamClass<T> {
 	return mapped$;
 }
 
-// TODO testen
-function takeUntil$<T>(source$: StreamClass<T>, completed$: StreamClass<any>): StreamClass<T> {
+function _takeUntil$<T>(source$: StreamClass<T>, notifier$: StreamClass<any>): StreamClass<T> {
 	const mapped$ = _map$(source$, x => x);
-	const unsubscribeCompleted = completed$.subscribe(
+	const unsubscribeNotifier = notifier$.subscribe(
 		() => {
 			mapped$.complete();
 		},
 		false);
-	completed$.onCompleted(() => {
+	notifier$.onCompleted(() => {
 		mapped$.complete();
 	});
 	mapped$.onCompleted(() => {
-		unsubscribeCompleted();
+		unsubscribeNotifier();
 	});
 	return mapped$;
 }
@@ -3157,6 +3158,21 @@ export const take$ = /*#__PURE__*/ _createFunction(
 			{
 				name: 'count',
 				type: NonZeroInteger
+			}
+		]
+	}
+);
+export const takeUntil$ = /*#__PURE__*/ _createFunction(
+	_takeUntil$,
+	{
+		singleNames: [
+			{
+				name: 'source$',
+				type: _StreamType
+			},
+			{
+				name: 'notifier$',
+				type: _StreamType
 			}
 		]
 	}

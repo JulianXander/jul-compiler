@@ -1163,6 +1163,18 @@ take$ = nativeFunction(
 		(source$, count) => _take$(source$, count)
 	§
 )
+# Liefert die Werte von source$, bis notifier$ einen neuen Wert liefert oder completed wird.
+# Beginnt mit dem aktuellen Wert von source$. Der aktuelle Wert von notifier$ beendet nicht.
+# Beendet wird nur der gelieferte Stream, source$ läuft weiter.
+takeUntil$ = nativeFunction(
+	(
+		source$: Stream(Any)
+		notifier$: Stream(Any)
+	) ~> Stream(source$/ValueType)
+	§js
+		(source$, notifier$) => _takeUntil$(source$, notifier$)
+	§
+)
 #endregion transform
 #endregion Stream
 #region Utility

@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import { reportAtCaller } from './test-util.js';
 import {
-	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts,
+	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
 	completed$, create$, deepEqual, findLastIndex, getElement, Integer, multiply, or, parseJson, push, rationalToFloat,
-	regex, setElement, subscribe, subtract, take$, toJson,
+	regex, setElement, subscribe, subtract, take$, takeUntil$, toJson,
 } from './runtime.js';
 
 //#region _branch
@@ -390,6 +390,18 @@ describe('create$/push/subscribe', () => {
 		push(stream$, 3n);
 		expect(values).to.deep.equal([1n, 2n, 3n]);
 	});
+	it('notifies all listeners even if one unsubscribes during the notification', () => {
+		const stream$ = create$(undefined, 1n);
+		const values: bigint[] = [];
+		const unsubscribe = subscribe(stream$, (value: bigint) => {
+			if (value === 2n) {
+				unsubscribe();
+			}
+		});
+		subscribe(stream$, (value: bigint) => values.push(value));
+		push(stream$, 2n);
+		expect(values).to.deep.equal([1n, 2n]);
+	});
 });
 
 describe('completed$', () => {
@@ -410,6 +422,68 @@ describe('take$', () => {
 		push(source$, 3n);
 		expect(values).to.deep.equal([1n, 2n, 3n]);
 		expect((taken$ as any).completed).to.equal(true);
+	});
+});
+
+describe('takeUntil$', () => {
+	it('follows the source until the signal pushes a value', () => {
+		const source$ = create$(undefined, 1n);
+		const signal$ = create$(undefined, 'start');
+		const taken$ = takeUntil$(source$, signal$);
+		const values: bigint[] = [];
+		subscribe(taken$, (value: bigint) => values.push(value));
+		push(source$, 2n);
+		push(signal$, 'stop');
+		push(source$, 3n);
+		expect(values).to.deep.equal([1n, 2n]);
+		expect((taken$ as any).completed).to.equal(true);
+	});
+	// Nur ein neuer Wert beendet, nicht der, den das Signal beim Anlegen schon hat.
+	it('is not ended by the current value of the signal', () => {
+		const source$ = create$(undefined, 1n);
+		const signal$ = create$(undefined, 'start');
+		const taken$ = takeUntil$(source$, signal$);
+		expect((taken$ as any).completed).to.equal(false);
+	});
+	it('completes when the signal completes', () => {
+		const source$ = create$(undefined, 1n);
+		const signal$ = create$(undefined, 'start');
+		const taken$ = takeUntil$(source$, signal$);
+		complete(signal$);
+		expect((taken$ as any).completed).to.equal(true);
+	});
+	it('completes immediately with an already completed signal', () => {
+		const source$ = create$(undefined, 1n);
+		const taken$ = takeUntil$(source$, completed$('stop'));
+		expect((taken$ as any).completed).to.equal(true);
+	});
+	it('completes when the source completes', () => {
+		const source$ = create$(undefined, 1n);
+		const signal$ = create$(undefined, 'start');
+		const taken$ = takeUntil$(source$, signal$);
+		complete(source$);
+		expect((taken$ as any).completed).to.equal(true);
+	});
+	// Beendet wird nur der neue Stream: die Quelle läuft weiter, hält aber keinen Listener mehr.
+	it('unsubscribes from source and signal when ended, without completing the source', () => {
+		const source$ = create$(undefined, 1n);
+		const signal$ = create$(undefined, 'start');
+		const taken$ = takeUntil$(source$, signal$);
+		subscribe(taken$, () => { });
+		push(signal$, 'stop');
+		expect((source$ as any).completed).to.equal(false);
+		expect((source$ as any).listeners).to.have.length(0);
+		expect((signal$ as any).listeners).to.have.length(0);
+	});
+	// Das Signal kann weitere Abonnenten haben, die denselben Wert erwarten.
+	it('lets other subscribers of the signal receive the value that ends it', () => {
+		const source$ = create$(undefined, 1n);
+		const signal$ = create$(undefined, 'start');
+		takeUntil$(source$, signal$);
+		const values: string[] = [];
+		subscribe(signal$, (value: string) => values.push(value));
+		push(signal$, 'stop');
+		expect(values).to.deep.equal(['start', 'stop']);
 	});
 });
 
