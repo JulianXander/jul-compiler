@@ -107,4 +107,26 @@ describe('TypeScript Parser', () => {
 	});
 
 	//#endregion Typannotationen
+
+	//#region Beschreibung
+
+	const expectDescriptionOfF = reportAtCaller((code: string, description: string | undefined) => {
+		const parsed = parseCode(code, 'test.ts');
+		expect(parsed.unchecked.symbols.f?.description).to.equal(description);
+	});
+	describe('Beschreibung aus JSDoc', () => {
+		it('Funktion', () => expectDescriptionOfF('/**\n * Erste Zeile\n * zweite Zeile\n */\nexport function f() {}', 'Erste Zeile\nzweite Zeile'));
+		it('const', () => expectDescriptionOfF('/**\n * Beschreibung\n */\nexport const f = () => 1;', 'Beschreibung'));
+		it('einzeilig', () => expectDescriptionOfF('/** Beschreibung */\nexport function f() {}', 'Beschreibung'));
+		it('Tags bleiben als Text erhalten', () => {
+			expectDescriptionOfF('/**\n * Beschreibung\n * @param a der Wert\n * @returns nichts\n */\nexport function f(a: bigint) {}', 'Beschreibung\n@param a der Wert\n@returns nichts');
+		});
+		it('nur der letzte JSDoc-Block', () => expectDescriptionOfF('/** alt */\n/** neu */\nexport function f() {}', 'neu'));
+		it('CRLF', () => expectDescriptionOfF('/**\r\n * Erste Zeile\r\n * zweite Zeile\r\n */\r\nexport function f() {}', 'Erste Zeile\nzweite Zeile'));
+		it('Zeilenkommentar zählt nicht', () => expectDescriptionOfF('// Notiz\nexport function f() {}', undefined));
+		it('Blockkommentar zählt nicht', () => expectDescriptionOfF('/* Notiz */\nexport function f() {}', undefined));
+		it('ohne Kommentar', () => expectDescriptionOfF('export function f() {}', undefined));
+	});
+
+	//#endregion Beschreibung
 });

@@ -3,11 +3,12 @@ import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, Positioned } from '../compiler-errors.js';
 import typescript, { ArrowFunction, BindingName, FunctionDeclaration, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode } from 'typescript';
 import { createParseFunctionLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
-const { createSourceFile, ScriptTarget, SyntaxKind } = typescript;
+const { createSourceFile, getJSDocCommentsAndTags, ScriptTarget, SyntaxKind } = typescript;
 
 export function parseTsCode(code: string): ParsedExpressions {
 	// TODO pass file name?
-	const tsAst = createSourceFile('todo.ts', code, ScriptTarget.ESNext);
+	// Parent-Pointer braucht getJSDocCommentsAndTags
+	const tsAst = createSourceFile('todo.ts', code, ScriptTarget.ESNext, true);
 	const errors: CompilerError[] = [];
 	const julExpressions = tsAst.statements.map(tsNode =>
 		tsNodeToJulAst(tsNode, tsAst, errors))
@@ -67,6 +68,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 			// TODO nur exported definitions lieferen?
 			return {
 				type: 'definition',
+				description: getJsDocDescription(variableStatement, sourceFile),
 				name: test1.name,
 				value: test1.value as any,
 				...position,
@@ -84,6 +86,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 			}
 			return {
 				type: 'definition',
+				description: getJsDocDescription(functionDeclaration, sourceFile),
 				name: julName,
 				value: tsFunctionToJulAst(position, functionDeclaration.parameters, functionDeclaration.type, sourceFile, errors),
 				...position,
@@ -94,6 +97,27 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * Der Text des letzten JSDoc-Blocks vor dem Node, ohne Kommentarzeichen. Tags bleiben als
+ * Textzeilen stehen. Gewöhnliche Kommentare (// und /* *\/) sind keine Beschreibung.
+ */
+function getJsDocDescription(tsNode: Node, sourceFile: SourceFile): string | undefined {
+	const jsDoc = getJSDocCommentsAndTags(tsNode)
+		.filter(jsDocOrTag => jsDocOrTag.kind === SyntaxKind.JSDoc)
+		.at(-1);
+	if (!jsDoc) {
+		return undefined;
+	}
+	const description = jsDoc.getText(sourceFile)
+		// ohne /** und */
+		.slice(3, -2)
+		.split(/\r?\n/)
+		.map(row => row.replace(/^\s*\* ?/, ''))
+		.join('\n')
+		.trim();
+	return description || undefined;
 }
 
 function tsFunctionToJulAst(
