@@ -310,8 +310,8 @@ bindText: (   element: Any   text: Or(Text Stream(Text))   until$: Stream(Any) )
 confirm$: (   title: Or(Text Stream(Text))   question: Or(Text Stream(Text)) ) ~> Stream(Or(Empty §ok§ §cancel§))
 elementById: (id: Text) :> Any
 findElement: (   parent: Any   selector: Text ) :> Any
-onClick: (   element: Any   listener: Any ) :> Any
-onDialogClose: (   dialog: Any   listener: Any ) :> Any
+onClick: (   element: Any   listener: () :> Any ) :> Any
+onDialogClose: (   dialog: Any   listener: (returnValue: Text) :> Any ) :> Any
 removeElement: (element: Any) :> Any
 setText: (   element: Any   text: Text ) :> Any
 showModal: (dialog: Any) :> Any
@@ -325,7 +325,7 @@ inputValue$: (   element: Any   read: (input: Any) :> Any ) ~> Stream(Any)
 integerValue: (input: Any) :> Or(Empty Integer)
 isChecked: (input: Any) :> Boolean
 name$: Stream(Text)
-onInput: (   input: Any   listener: Any ) :> Empty
+onInput: (   input: Any   listener: () :> Any ) :> Empty
 output: Any
 setHidden: (   element: Any   hidden: Boolean ) :> Empty
 setText: (   element: Any   text: Text ) :> Empty

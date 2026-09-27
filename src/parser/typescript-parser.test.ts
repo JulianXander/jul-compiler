@@ -66,7 +66,7 @@ describe('TypeScript Parser', () => {
 		it('ohne Annotation', () => expectTypeOfF('export function f() { return 1n; }', '() :> Any'));
 		it('generisch', () => expectTypeOfF('export function f<T>(): T {}', '() :> Any'));
 		it('Promise', () => expectTypeOfF('export function f(): Promise<number> {}', '() :> Any'));
-		it('Funktionstyp', () => expectTypeOfF('export function f(): () => void {}', '() :> Any'));
+		it('Funktionstyp', () => expectTypeOfF('export function f(): () => void {}', '() :> () :> Any'));
 		it('Union mit nicht übersetzbarem Glied', () => expectTypeOfF('export function f(): bigint | Foo {}', '() :> Any'));
 		it('verschachtelt nicht übersetzbar', () => expectTypeOfF('export function f(): Foo[] {}', '() :> List(Any)'));
 	});
@@ -80,8 +80,18 @@ describe('TypeScript Parser', () => {
 		it('Default mit Annotation', () => expectTypeOfF('export function f(a: bigint = 1n) {}', '(a: Or(Empty Integer)) :> Any'));
 		it('Default ohne Annotation', () => expectTypeOfF('export function f(a = 1n) {}', '(a: Any) :> Any'));
 		it('ohne Annotation', () => expectTypeOfF('export function f(a) {}', '(a: Any) :> Any'));
-		it('Callback bleibt ungetypt', () => expectTypeOfF('export function f(cb: (x: any) => boolean) {}', '(cb: Any) :> Any'));
-		it('optionaler Callback bleibt ungetypt', () => expectTypeOfF('export function f(cb?: () => void) {}', '(cb: Any) :> Any'));
+		it('Callback', () => expectTypeOfF('export function f(cb: (x: any) => boolean) {}', '(cb: (x: Any) :> Boolean) :> Any'));
+		it('optionaler Callback', () => expectTypeOfF('export function f(cb?: () => void) {}', '(cb: Or(Empty () :> Any)) :> Any'));
+		it('Callback mit nicht übersetzbarem Parametertyp', () => expectTypeOfF('export function f(cb: (event: Event) => void) {}', '(cb: (event: Any) :> Any) :> Any'));
+		it('Callback mit optionalem und Rest-Parameter', () => {
+			expectTypeOfF('export function f(cb: (a?: string, ...rest: bigint[]) => void) {}', `(cb: (
+  a: Or(Empty Text)
+  ...rest: Or(Empty List(Integer))
+) :> Any) :> Any`);
+		});
+		// Ohne Namen lässt sich der Parameter nicht übersetzen, und weglassen würde die Positionen verschieben.
+		it('Callback mit Destructuring bleibt ungetypt', () => expectTypeOfF('export function f(cb: ({ a }: { a: bigint }) => void) {}', '(cb: Any) :> Any'));
+		it('generischer Callback bleibt ungetypt', () => expectTypeOfF('export function f(cb: <T>(x: T) => T) {}', '(cb: Any) :> Any'));
 		// Ein Aufruf ohne Rest-Argumente kommt in JUL als Empty an, und TS kann das am
 		// Rest-Parameter nicht mit | undefined annotieren - deshalb hier Empty zusätzlich.
 		it('Rest-Parameter', () => expectTypeOfF('export function f(...args: bigint[]) {}', '(...args: Or(Empty List(Integer))) :> Any'));
@@ -104,6 +114,41 @@ describe('TypeScript Parser', () => {
 		}, { cloneUnchecked: false }));
 		expect(typeof main).to.not.equal('string');
 		expect((main as ParsedFile).checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.argumentTypeMismatch]);
+	});
+
+	/**
+	 * Lädt main.jul, das f aus util.ts importiert, und liefert die Fehlercodes von main.jul.
+	 */
+	function errorCodesOfCallback(tsCode: string, julCode: string): ErrorCode[] | undefined {
+		const folder = resolve('/typescript-parser-test');
+		const mainPath = join(folder, 'main.jul');
+		const documents: ParsedDocuments = {};
+		const main = loadFile(mainPath, documents, createInMemoryHost({
+			[mainPath]: `(f) = import(§./util.ts§)
+${julCode}`,
+			[join(folder, 'util.ts')]: tsCode,
+		}, { cloneUnchecked: false }));
+		expect(typeof main).to.not.equal('string');
+		return (main as ParsedFile).checked?.errors.map(error => error.code);
+	}
+
+	const expectCallbackErrors = reportAtCaller((tsCode: string, julCode: string, errorCodes: ErrorCode[]) => {
+		expect(errorCodesOfCallback(tsCode, julCode)).to.deep.equal(errorCodes);
+	});
+	describe('Callback aus JUL', () => {
+		const listener = 'export function f(listener: (value: string) => void): void {}';
+		it('passender Callback', () => expectCallbackErrors(listener, 'x = f((value) => value)', []));
+		it('weniger Parameter', () => expectCallbackErrors(listener, 'x = f(() => 1)', []));
+		// void am Callback: der Rückgabewert wird ignoriert
+		it('Rückgabewert bei void', () => expectCallbackErrors(listener, 'x = f((value: Text) => 1)', []));
+		// Die Parameternamen gehören zum Typ wie bei den Callbacks der core-lib.
+		it('anderer Parametername', () => expectCallbackErrors(listener, 'x = f((v) => v)', [ErrorCode.argumentTypeMismatch]));
+		it('falscher Parametertyp', () => expectCallbackErrors(listener, 'x = f((value: Integer) => value)', [ErrorCode.argumentTypeMismatch]));
+		// Kontravarianz: der Callback bekommt jeden Text, darf also nicht weniger annehmen.
+		it('engerer Parametertyp', () => expectCallbackErrors(listener, 'x = f((value: Or(§ok§ §cancel§)) => value)', [ErrorCode.argumentTypeMismatch]));
+		// Der ungetypte Parameter bekommt Text aus der TS-Deklaration.
+		it('Parametertyp aus der Deklaration', () => expectCallbackErrors(listener, 'x = f((value) => add(value 1))', [ErrorCode.argumentTypeMismatch]));
+		it('keine Funktion', () => expectCallbackErrors(listener, 'x = f(1)', [ErrorCode.argumentTypeMismatch]));
 	});
 
 	//#endregion Typannotationen

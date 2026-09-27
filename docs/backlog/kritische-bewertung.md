@@ -44,7 +44,6 @@ Handwerk ist stark, die Semantik noch nicht belastbar.
 Stellen, die der Nutzer nicht vorhersehen kann:
 
 - `1/2` wird still zu `Any`.
-- Funktionstypen aus TS-Importen werden zu `Any`.
 - Parametertypen, die sich auf frühere Parameter beziehen, werden bei benannten Argumenten nicht
   geprüft.
 - `Any` hat drei Bedeutungen (unbekannt, bewusst permissiv, „schon kaputt, sei still“); nach einem
@@ -96,8 +95,8 @@ heute nur der Lauf gegen yugioh.
   row`, andere Meldungen leaken Kombinatornamen. Das verstößt gegen die eigene Regel „Meldungen
   sprechen vom Quelltext“ und trifft genau den Einstieg.
 - Die Vereinheitlichung von positionellen und benannten Argumenten macht Parameternamen zum Teil
-  des Funktionstyps: Umbenennen ist ein Breaking Change, TS-Callbacks lassen sich nicht übersetzen,
-  benannte Argumente gegen einen `rest`-Parameter sind semantisch ungeklärt.
+  des Funktionstyps: Umbenennen ist ein Breaking Change, auch in einer importierten TS-Signatur, deren
+  Autor das nicht weiß; benannte Argumente gegen einen `rest`-Parameter sind semantisch ungeklärt.
 - `§` als Textbegrenzer ist auf der deutschen Tastatur bequem, außerhalb davon eine Hürde.
 
 ### 6. Ökosystem und Prozess

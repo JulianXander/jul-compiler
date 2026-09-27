@@ -67,6 +67,7 @@ import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { parseTsCode } from './typescript-parser.js';
 import {
 	createParseFunctionLiteral,
+	createParseFunctionTypeLiteral,
 	createParseParameters,
 	fillSymbolTableWithFields,
 	fillSymbolTableWithExpressions,
@@ -2338,28 +2339,6 @@ function functionTypeBodyParser(
 			returnTypeBase: returnTypeBase,
 		},
 		errors: errors,
-	};
-}
-
-function createParseFunctionTypeLiteral(
-	params: SimpleExpression | ParseParameterFields,
-	returnType: ParseValueExpression,
-	arrow: Purity,
-	position: Positioned,
-	errors: CompilerError[],
-): ParseFunctionTypeLiteral {
-	const symbols: SymbolTable = {};
-	if (params.type === 'binding'
-		|| params.type === 'parameters') {
-		fillSymbolTableWithParams(symbols, errors, params);
-	}
-	return {
-		type: 'functionTypeLiteral',
-		params: params,
-		returnType: returnType,
-		symbols: symbols,
-		arrow: arrow,
-		...position,
 	};
 }
 

@@ -1,4 +1,4 @@
-import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
@@ -68,6 +68,28 @@ export function createParseFunctionLiteral(
 		...position,
 	};
 	return functionLiteral;
+}
+
+export function createParseFunctionTypeLiteral(
+	params: SimpleExpression | ParseParameterFields,
+	returnType: ParseValueExpression,
+	arrow: Purity,
+	position: Positioned,
+	errors: CompilerError[],
+): ParseFunctionTypeLiteral {
+	const symbols: SymbolTable = {};
+	if (params.type === 'binding'
+		|| params.type === 'parameters') {
+		fillSymbolTableWithParams(symbols, errors, params);
+	}
+	return {
+		type: 'functionTypeLiteral',
+		params: params,
+		returnType: returnType,
+		symbols: symbols,
+		arrow: arrow,
+		...position,
+	};
 }
 
 //#region SymbolTable

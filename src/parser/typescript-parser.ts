@@ -1,8 +1,8 @@
 import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, SymbolTable } from '../syntax-tree.js';
 import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, Positioned } from '../compiler-errors.js';
-import typescript, { ArrowFunction, BindingName, FunctionDeclaration, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode } from 'typescript';
-import { createParseFunctionLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
+import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode } from 'typescript';
+import { createParseFunctionLiteral, createParseFunctionTypeLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
 const { createSourceFile, getJSDocCommentsAndTags, ScriptTarget, SyntaxKind } = typescript;
 
 export function parseTsCode(code: string): ParsedExpressions {
@@ -202,8 +202,8 @@ function tsParametersToJulParameters(
 }
 
 /**
- * Die Annotation wird ungeprüft übernommen. Funktionstypen lassen sich nicht übersetzen, der
- * Parameter bleibt dann ungetypt.
+ * Die Annotation wird ungeprüft übernommen. Lässt sie sich nicht übersetzen, bleibt der Parameter
+ * ungetypt.
  */
 function tsParameterToJulType(
 	tsParameter: ParameterDeclaration,
@@ -231,7 +231,6 @@ function tsParameterToJulType(
  * schreiben würde. Liefert undefined, wenn sich der Typ nicht übersetzen lässt - der Aufrufer
  * bleibt dann beim bisherigen Verhalten (Any). Eine unbekannte Typreferenz wird nie als
  * JUL-Referenz ausgegeben: ein Generic T oder ein Interface wäre in JUL nicht definiert.
- * Funktionstypen bleiben unübersetzt: JUL vergleicht deren Parameternamen, TS nicht.
  */
 function tsTypeToJulType(
 	tsType: TypeNode,
@@ -279,6 +278,8 @@ function tsTypeToJulType(
 			return tsTypeLiteralToJulType(tsType as TypeLiteralNode, position, sourceFile, errors);
 		case SyntaxKind.UnionType:
 			return tsUnionToJulType((tsType as UnionTypeNode).types, false, position, sourceFile, errors);
+		case SyntaxKind.FunctionType:
+			return tsFunctionTypeToJulType(tsType as FunctionTypeNode, position, sourceFile, errors);
 		default:
 			return undefined;
 	}
@@ -466,6 +467,34 @@ function tsUnionToJulType(
 		return allChoices[0];
 	}
 	return createCall('Or', allChoices, position);
+}
+
+/**
+ * Die Parameternamen gehören zum Typ wie bei jeder JUL-Funktion, auch wenn TS den Callback
+ * positional aufruft - wie die core-lib bei map. Ein Parameter ohne Namen (Destructuring) oder ein
+ * generischer Callback macht den Funktionstyp deshalb unübersetzbar.
+ */
+function tsFunctionTypeToJulType(
+	functionType: FunctionTypeNode,
+	position: Positioned,
+	sourceFile: SourceFile,
+	errors: CompilerError[],
+): ParseValueExpression | undefined {
+	if (functionType.typeParameters
+		|| functionType.parameters.some(parameter => parameter.name.kind !== SyntaxKind.Identifier)) {
+		return undefined;
+	}
+	const tsReturnType = functionType.type;
+	// void heißt am Callback "der Rückgabewert wird ignoriert", nicht "liefert nichts"
+	const returnType = tsReturnType.kind === SyntaxKind.VoidKeyword
+		? createReference('Any', getPositionFromTsNode(tsReturnType, sourceFile))
+		: tsTypeToJulTypeOrAny(tsReturnType, sourceFile, errors);
+	return createParseFunctionTypeLiteral(
+		tsParametersToJulParameters(functionType.parameters, position, sourceFile, errors),
+		returnType,
+		'unknown',
+		position,
+		errors);
 }
 
 /**

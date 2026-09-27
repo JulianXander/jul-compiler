@@ -83,7 +83,6 @@ zurückgestuft.
 | Lücke | Warum zurückgestellt |
 |---|---|
 | `getTypeErrorForParameters` meldet „not implemented yet" für jeden `argumentsType` außer dictionaryLiteral/empty/tuple/parameters | vermutlich unerreichbar: setzt voraus, dass ein `ParametersType` erwartet wird und das Argument ein `or`/`any`/`list` ist. Kein Repro gefunden, kein bekannter Schaden |
-| Funktionstypen aus TS-Importen werden zu `Any` (`tsTypeToJulType` in `typescript-parser.ts` hat keinen Fall dafür). Ein Callback an eine TS-Funktion wird deshalb gar nicht geprüft: gegen `onClose: (returnValue: string) => void` geht `(returnValue: Or(§ok§ §cancel§)) => ...` durch, obwohl der engere Parameter nach der Kontravarianz ein Fehler ist — gegen einen JUL-Funktionstyp meldet derselbe Callback `JUL5050`. Zur Laufzeit prüft ebenfalls niemand, weil TS den Callback direkt aufruft und nicht über `_callFunction` | Bewusst: JUL vergleicht bei Funktionstypen die Parameternamen, TS nicht. Übersetzt, müsste jeder JUL-Callback genau so heißen wie der Parameter in der TS-Signatur. Voraussetzung für eine Übersetzung wäre ein Funktionstyp, dessen Parameter nur nach Position geprüft werden |
 
 ---
 

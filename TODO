@@ -119,8 +119,6 @@
 -TS-Typannotationen übernehmen, siehe docs/typescript-import-types.md
 	-yugioh: deleteDeck ohne aktives Deck gibt Empty an removeField/deleteRecordFromDb
 	 (key: string), main.jul 563/565 - in yugioh auflösen
-	-später: Funktionstypen (Callbacks) übersetzen. Offen: JUL vergleicht Parameternamen, TS nur
-	 positional - wörtliche Übernahme bräche jeden Aufrufer mit (value) => ...
 -getPathFromImport meldet importArgumentsMissing und dynamicImportNotAllowed mit
  endRowIndex = endColumnIndex (Tippfehler, Position der Meldung falsch)
 -cross-file reference index (language server), siehe docs/cross-file-reference-index.md
