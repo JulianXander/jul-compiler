@@ -316,15 +316,20 @@ removeElement: (element: Any) :> Any
 setText: (   element: Any   text: Text ) :> Any
 showModal: (dialog: Any) :> Any
 === ui/dynamic-form/dynamic-form.jul ===
-body: Any
-booleanInput: Any
-htmlIf: Any
-inputValue$: Any
-label: Any
-numberInput: Any
-stackPanel: Any
-textInput: Any
-  error 3010 at 1:88 Unexpected extension for import: 
+age$: Stream(Or(Empty Integer))
+ageField: Any
+data$: Stream([   name: Or(Empty Text Boolean Integer)   age: Or(Empty Text Boolean Integer) ])
+elementById: (id: Text) :> Any
+inputValue$: (   element: Any   ValueType: Type   read: (input: Any) :> Type ) ~> Stream(Type)
+integerValue: (input: Any) :> Or(Empty Integer)
+isChecked: (input: Any) :> Boolean
+name$: Stream(Text)
+onInput: (   input: Any   listener: Any ) :> Any
+output: Any
+setHidden: (   element: Any   hidden: Boolean ) :> Any
+setText: (   element: Any   text: Text ) :> Any
+textValue: (input: Any) :> Text
+visible$: Stream(Boolean)
 === ui/dynamic-form/dynamic-form2.jul ===
 ageInput: Any
 body: Any

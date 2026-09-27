@@ -940,6 +940,22 @@ function canHaveFields(rawType: CompileTimeType): boolean {
 }
 
 /**
+ * Wie canHaveFields, aber Empty zählt nicht mit: Aus Empty liest jeder Zugriff Empty, über den
+ * Namen wie über die Position. Or([] List(X)) trägt also ebenso wenig benannte Felder wie List(X).
+ */
+function canHaveFieldsBesideEmpty(rawType: CompileTimeType): boolean {
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'empty':
+			return false;
+		case 'or':
+			return type.ChoiceTypes.some(canHaveFieldsBesideEmpty);
+		default:
+			return canHaveFields(type);
+	}
+}
+
+/**
  * Kann dieser Typ überhaupt Positionen tragen?
  * Gegenstück zu canHaveFields, mit derselben Zweifelsregel.
  */
@@ -3522,7 +3538,7 @@ function inferType(
 				// fest (a/x), und die Position ginge verloren. Schließt der Typ der Quelle benannte
 				// Felder aus, ist jedes Argument ein Array, gelesen wird also über die Position.
 				const readsByPosition = isUnresolvedPlaceholderType(valueType)
-					&& !canHaveFields(resolvePlaceholders(valueType));
+					&& !canHaveFieldsBesideEmpty(resolvePlaceholders(valueType));
 				const fieldType = readsByPosition
 					? dereferenceIndexFromObject(index + 1, valueType)
 					: dereferenceNameFromObject(referenceName, valueType)

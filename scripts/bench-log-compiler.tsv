@@ -154,3 +154,4 @@
 2026-09-27 13:35:20	68321d7+	-	ADV-DEV-56627	yugioh	parse+check	5	1461.89	1784.02	1784.02	rekursive Typfunktionen: Anwendungsknoten, Budget, _lazyType-Aufruf
 2026-09-27 14:17:04	3d7bf03+	-	ADV-DEV-56627	yugioh	parse+check	5	1955.89	2292.91	2292.91	Or: Alias in Pruefung und Anwendungen beim Normalisieren undurchsichtig, classifyTypeness mit Pfad
 2026-09-27 14:21:04	3d7bf03+	-	ADV-DEV-56627	yugioh	parse+check	5	1459.32	1770.66	1770.66	Or: Alias in Pruefung und Anwendungen beim Normalisieren undurchsichtig, classifyTypeness mit Pfad (korrigiert)
+2026-09-27 16:02:17	61f2e0a+	-	ADV-DEV-56627	yugioh	parse+check	5	1816.20	2282.71	2282.71	Destructuring aus Or([] List(X)) liest über die Position

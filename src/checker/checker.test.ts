@@ -2569,6 +2569,15 @@ myFn = (a: List(Integer)) =>
 	(x y) = a
 	[f(x) y]`);
 	});
+	// Die Quelle ist eine List oder Empty, x also ein Element oder Empty. Aus dem Empty-Zweig darf
+	// nicht allein Empty werden, sonst hält der Checker den true-Zweig für unerreichbar.
+	it('positional-destructuring-from-list-or-empty-keeps-element-type', () => {
+		expectCheck(`myFn = (a: Or([] List(Boolean))) =>
+	(x) = a
+	?(x)
+		[true] => 1
+		() => 2`);
+	});
 	// Eine Variable darf legitim mehr Felder haben, und zu löschen gäbe es hier nichts.
 	it('destructuring-from-variable-is-not-discarded', () => {
 		expectCheck(`v = [a = 1 b = 2]
