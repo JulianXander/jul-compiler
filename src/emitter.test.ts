@@ -5,6 +5,7 @@ import { errorInfos } from './compiler-errors.js';
 import { functionLiteralToEvaluableJs, getUsedRuntimeNames, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
 import { ParseFunctionLiteral, ParseSingleDefinition } from './syntax-tree.js';
 import { reportAtCaller } from './test-util.js';
+import * as runtime from './runtime.js';
 
 /**
  * Die Import-Zeilen am Anfang, welche Namen sie enthalten, prüft der Abschnitt Runtime-Import.
@@ -650,5 +651,29 @@ describe('Emitter Runtime-Import', () => {
 	});
 	it('Scan: Suffix einer Zahl ist kein Bezeichner', () => {
 		expect(getUsedRuntimeNames('f(1n)', ['n'])).to.deep.equal([]);
+	});
+});
+
+/**
+ * Führt den emittierten Code einer Datei aus, ohne Dateizugriff: die Import-Zeile entfällt, die
+ * Runtime-Exporte werden stattdessen als Parameter gebunden (wie beim constant folding).
+ */
+function runEmitted(code: string): void {
+	const parsed = parseCode(code, 'dummy.jul');
+	checkTypes(parsed, {}, { cloneUnchecked: true });
+	expect(parsed.checked?.errors).to.deep.equal([]);
+	const compiled = syntaxTreeToJs(parsed.checked!.expressions!, '');
+	const body = withoutImports(compiled)
+		.replaceAll(/^export const /gm, 'const ')
+		.replace(/^export default /m, 'return ');
+	const runtimeNames = Object.keys(runtime);
+	new Function(...runtimeNames, body)(...runtimeNames.map(name => (runtime as { [name: string]: unknown; })[name]));
+}
+
+describe('Emitter Ausführung', () => {
+	// Die Selbstreferenz steht in einer Kollektion und ist damit produktiv, der Checker lässt sie
+	// durch. Zur Laufzeit darf sie dann nicht vor der fertigen Definition ausgewertet werden.
+	it('ein rekursiver Typ lässt sich laden', () => {
+		expect(() => runEmitted('Node = [value: Integer children: Or([] List(Node))]')).to.not.throw();
 	});
 });

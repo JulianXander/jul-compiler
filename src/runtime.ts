@@ -867,6 +867,27 @@ interface TypeOfType {
 	readonly value: RuntimeType;
 }
 
+/**
+ * Die Selbstreferenz eines rekursiven Typs (`Node = [children: List(Node)]`). Sie wird erst beim
+ * Prüfen aufgelöst, beim Bauen der Definition ist die Konstante noch nicht fertig.
+ */
+interface LazyType {
+	readonly [_julTypeSymbol]: 'lazy';
+	readonly name: string;
+	readonly getType: () => RuntimeType;
+}
+
+/**
+ * Wird vom emitter benutzt
+ */
+export function _lazyType(name: string, getType: () => RuntimeType): LazyType {
+	return {
+		[_julTypeSymbol]: 'lazy',
+		name: name,
+		getType: getType,
+	};
+}
+
 //#endregion BuiltInType
 
 function optionalType(...types: RuntimeType[]): UnionType {
