@@ -120,7 +120,7 @@
 	-würde die checker sonderfälle getElement, lastElement, length, setElement, map ersetzen
 	-die fleißarbeit steckt nicht im feature: jeder dieser helfer verteilt über or,
 	 löst parameterReference auf und fällt bei unbekanntem zurück. einmal statt fünfmal
-	-anwendungsfall combine$: rückgabetyp Stream(TypeOf(sources).map((value) => value/ValueType))
+	-anwendungsfall combine$: rückgabetyp Stream(TypeOf(sources).map((value) => TypeOf(value)/ValueType))
 	 ergibt heute List(Any), der callback wird nur einmal mit dem elementtyp ausgewertet. einzelne
 	 positionen gehen schon (sources/2/ValueType), mit fester stelligkeit greift die reihenfolge
 	 samt destructuring. ohne das verliert jul-examples/ui/dynamic-form die feldtypen von data$

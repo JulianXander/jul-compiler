@@ -340,7 +340,7 @@ f(1 0)`, {
 			],
 		});
 	});
-	// Ein Parametertyp, der auf einen früheren Parameter verweist (value: stream$/ValueType),
+	// Ein Parametertyp, der auf einen früheren Parameter verweist (value: TypeOf(stream$)/ValueType),
 	// wird mit dem Argument für diesen Parameter aufgelöst und dann geprüft wie ein fester Typ.
 	it('argument-type-mismatch-parameter-type-from-previous-parameter', () => {
 		expectCheck(`i$ = create$(Integer 1)
@@ -1139,7 +1139,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 	// slice liefert eine Teilliste, der Elementtyp bleibt also erhalten: aus
 	// List(Integer) wird Or([] List(Integer)), nicht Or([] List(Any)).
 	// Der Verlust wird erst über filterMap sichtbar, dessen Rückgabetyp
-	// Or([] List(Without(callback/ReturnType []))) ist: aus einem Any wird dabei
+	// Or([] List(Without(TypeOf(callback)/ReturnType []))) ist: aus einem Any wird dabei
 	// Not(Empty), und das passt zu keinem konkreten Elementtyp mehr.
 	it('slice-keeps-element-type', () => {
 		expectCheck(`f = (values: List(Integer)) :> Or([] List(Integer)) =>
@@ -1233,7 +1233,7 @@ f = (values: List(Or(Integer Text))) :> Or([] List(Integer)) =>
 		});
 	});
 	// Gegenprobe: ohne erkannte Prädikat-Form bleibt der ElementType unverändert -
-	// predicate/PredicateIfTrue muss dann neutral (Any) sein, sonst würde And(...)
+	// TypeOf(predicate)/PredicateIfTrue muss dann neutral (Any) sein, sonst würde And(...)
 	// den ElementType fälschlich einschränken.
 	it('filter-keeps-element-type-without-recognized-predicate', () => {
 		expectCheck(`isLegal = (value: Any) :> Boolean => true
@@ -1242,7 +1242,7 @@ f = (values: List(Integer)) :> Or([] List(Integer)) =>
 			errors: [],
 		});
 	});
-	// findFirst schneidet wie filter über predicate/PredicateIfTrue, statt stur
+	// findFirst schneidet wie filter über TypeOf(predicate)/PredicateIfTrue, statt stur
 	// Or([] TypeOf(values)/ElementType) zu liefern.
 	it('find-first-narrows-element-type-through-predicate', () => {
 		expectCheck(`isInteger = (value: Any) :> Boolean =>
@@ -1396,7 +1396,7 @@ f = (values: List(Or(Integer Text))) =>
 			],
 		});
 	});
-	// Branching innerhalb des filterMap-callback selbst: callback/ReturnType wird zu
+	// Branching innerhalb des filterMap-callback selbst: TypeOf(callback)/ReturnType wird zu
 	// Or(Integer Empty), Without(... Empty) muss davon Integer übrig lassen. Statt
 	// dessen wird der Parametertyp offenbar zu Never aufgelöst, sobald values ein
 	// Funktionsparameter ist (ein Literal oder eine lokale Variable mit derselben
@@ -1562,19 +1562,36 @@ x: Integer = typeOfValue(Integer)`, {
 			],
 		});
 	});
-	// Über den Wert gelesen gilt dasselbe wie über TypeOf(s$).
-	it('stream-value-type-is-type-value', () => {
+	// Typeigenschaften gibt es nur über einen Typwert. Ein Stream-Wert hat nur das Feld getValue,
+	// der Hinweis zeigt die richtige Schreibweise.
+	it('value-type-of-stream-value-needs-type-of', () => {
 		expectCheck(`f = (s$: Stream(Text)) =>
-	x: Integer = s$/ValueType
+	x = s$/ValueType
 	x`, {
 			errors: [
 				{
-					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign TypeOf(Text) to Integer.',
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'ValueType' in type Stream(Text). ValueType is a property of the type: TypeOf(…)/ValueType.",
 					startRowIndex: 1,
-					startColumnIndex: 1,
+					startColumnIndex: 8,
 					endRowIndex: 1,
-					endColumnIndex: 26,
+					endColumnIndex: 17,
+				},
+			],
+		});
+	});
+	it('return-type-of-function-value-needs-type-of', () => {
+		expectCheck(`g = (cb: (q: Integer) :> Text) =>
+	y = cb/ReturnType
+	y`, {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'ReturnType' in type (q: Integer) :> Text. ReturnType is a property of the type: TypeOf(…)/ReturnType.",
+					startRowIndex: 1,
+					startColumnIndex: 8,
+					endRowIndex: 1,
+					endColumnIndex: 18,
 				},
 			],
 		});
@@ -1583,10 +1600,10 @@ x: Integer = typeOfValue(Integer)`, {
 	it('type-property-named-as-type', () => {
 		expectCheck('T = List(Integer)/ElementType');
 	});
-	// Der Rückgabetyp s$/ValueType wird erst am Aufruf aufgelöst. Er bleibt dabei ein Typwert,
-	// und der Parameter s$ darf durch das Einpacken keinen falschen Typ bekommen.
+	// Der Rückgabetyp TypeOf(s$)/ValueType wird erst am Aufruf aufgelöst. Er bleibt dabei ein
+	// Typwert, und der Parameter s$ darf durch das Einpacken keinen falschen Typ bekommen.
 	it('deferred-type-property-is-type-value', () => {
-		expectCheck(`f = (s$: Stream(Any)) => s$/ValueType
+		expectCheck(`f = (s$: Stream(Any)) => TypeOf(s$)/ValueType
 a$ = create$(Integer 1)
 x: Integer = f(a$)`, {
 			errors: [

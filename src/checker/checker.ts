@@ -309,8 +309,9 @@ function withDictionaryLiteralField(
 }
 
 /**
- * Felder eines Werts: `x/name`, wobei x einen Wert dieses Typs hat (`stream$/ValueType`,
- * `callback/ReturnType`, `point/x`).
+ * Felder eines Werts: `x/name`, wobei x einen Wert dieses Typs hat (`point/x`, `s$/getValue`). Die
+ * Einträge für Funktion und Stream tragen auch deren Typeigenschaften, typePropertyAccess übernimmt
+ * sie. Über einen Wert gelesen werden sie nicht, siehe isTypePropertyOfValue.
  */
 const valueFieldAccess: NamedAccessTable = {
 	dictionaryLiteral: {
@@ -1013,10 +1014,10 @@ export function dereferenceNameFromObject(
 			return builtinAny;
 		case 'function':
 		case 'stream':
-			// Signatur und Werttyp sind Eigenschaften des Typs: s$/ValueType heißt dasselbe wie
-			// TypeOf(s$)/ValueType und ergibt wie dort einen Typwert.
+			// Signatur und Werttyp sind Eigenschaften des Typs, gelesen über TypeOf(s$)/ValueType.
+			// Der Wert selbst hat sie nicht, ein Funktionswert hat gar keine Felder.
 			if (isTypePropertyOfValue(sourceObjectType.julType, name)) {
-				return dereferenceNameFromObjectType(name, sourceObjectType, createCompileTimeTypeOfType(sourceObjectType));
+				return undefined;
 			}
 			return getNamedAccess(valueFieldAccess, sourceObjectType)!.get(sourceObjectType, name);
 		case 'dictionaryLiteral':
@@ -1341,7 +1342,7 @@ function dereferenceArgumentTypesNested(
  *
  * Bewusst nur diese eine Verschachtelungsebene statt einer Erweiterung von traversePlaceholders:
  * dort steigt der argumentContext-Zweig nicht in Funktions- und Parameterknoten ab, und das
- * nachzurüsten zerstört die Auflösung generischer Rückgabetypen (`callback/ReturnType`).
+ * nachzurüsten zerstört die Auflösung generischer Rückgabetypen (`TypeOf(callback)/ReturnType`).
  */
 function dereferenceCallbackParams(
 	calledFunction: CompileTimeType,
@@ -1359,7 +1360,7 @@ function dereferenceCallbackParams(
 			return parameter;
 		}
 		if (!isFunctionType(parameterType)) {
-			// Ein Parametertyp wie `stream$/ValueType` verweist auf ein anderes Argument und
+			// Ein Parametertyp wie `TypeOf(stream$)/ValueType` verweist auf ein anderes Argument und
 			// wird erst mit dessen Typ prüfbar.
 			const dereferenced = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, parameterType);
 			if (dereferenced === parameterType) {
@@ -1407,7 +1408,7 @@ function dereferenceCallbackParams(
 //#region Signatur am Aufruf
 
 /**
- * Ein Verweis wie `stream$/ValueType` oder `TypeOf(values)/ElementType` in der Signatur einer
+ * Ein Verweis wie `TypeOf(stream$)/ValueType` oder `TypeOf(values)/ElementType` in der Signatur einer
  * Funktion: der Parameter, auf den er zeigt, spielt die Rolle eines Typparameters.
  */
 interface ParameterProjection {
@@ -1420,7 +1421,7 @@ interface ParameterProjection {
 
 /**
  * Ein Schlüssel im Pfad. Hinter TypeOf ist er eine Eigenschaft des Typs (`TypeOf(values)/ElementType`),
- * sonst ein Feld des Werts (`stream$/ValueType`) - wie beim Lesen, siehe dereferenceNameFromObject.
+ * sonst ein Feld des Werts (`point/x`) - wie beim Lesen, siehe dereferenceNameFromObject.
  */
 interface ProjectionStep {
 	name: string;
@@ -1657,7 +1658,7 @@ function dereferenceParameterFromArgumentType(
 			return argType;
 		}
 		case 'function':
-			// Wenn der Parameter ein Callback ist und sein Typ dereferenziert wird (z. B. callback/ReturnType),
+			// Wenn der Parameter ein Callback ist und sein Typ dereferenziert wird (z. B. TypeOf(callback)/ReturnType),
 			// muss der ReturnType der Funktion extrahiert werden, nicht die Funktion selbst.
 			return argsType.ReturnType;
 		case 'list':
@@ -2977,7 +2978,7 @@ function narrowExpectedTypeByFields(
 
 /**
  * Der erwartete Typ eines Arguments, instanziiert mit den bisher bekannten Argumenten des Aufrufs:
- * bei einem Callback dessen Parametertypen, sonst der Parametertyp selbst (value: stream$/ValueType
+ * bei einem Callback dessen Parametertypen, sonst der Parametertyp selbst (value: TypeOf(stream$)/ValueType
  * wird zu value: Integer).
  */
 function instantiateExpectedArgument(
@@ -3901,7 +3902,7 @@ function inferType(
 			// permissiv durchwinkt - die Kontravarianzprüfung des Callbacks liefe ins Leere.
 			// Nur diese eine Ebene, nicht der ganze Baum: traversePlaceholders steigt mit
 			// argumentContext bewusst nicht in Funktions- und Parameterknoten ab, weil das die
-			// Auflösung des Rückgabetyps (callback/ReturnType) zerstört.
+			// Auflösung des Rückgabetyps (TypeOf(callback)/ReturnType) zerstört.
 			const dereferencedParamsType = dereferenceCallbackParams(functionType, prefixArgumentType, argsType, paramsType);
 			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, dereferencedParamsType);
 			if (assignArgsError) {
@@ -4351,7 +4352,9 @@ function inferType(
 								code: ErrorCode.dereferenceFailed,
 								message: kindMismatch
 									? `${baseMessage}. A field name needs a Dictionary.`
-									: baseMessage,
+									: isTypePropertyOfValue(resolveAlias(sourceType).julType, fieldName)
+										? `${baseMessage}. ${fieldName} is a property of the type: TypeOf(…)/${fieldName}.`
+										: baseMessage,
 								startRowIndex: nestedKey.startRowIndex,
 								startColumnIndex: nestedKey.startColumnIndex,
 								endRowIndex: nestedKey.endRowIndex,

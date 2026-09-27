@@ -5,7 +5,7 @@ DictionaryType bezeichnen einen Typ. Der Checker führt das Ergebnis heute aber 
 Dieses Dokument beschreibt die Umstellung: Eine Typeigenschaft ergibt einen Typwert mit dem Typ
 `TypeOf(T)`, ausgepackt wird erst dort, wo ein Wert als Typ gelesen wird.
 
-**Stand:** Schritte 1 bis 4 umgesetzt. Offen ist Schritt 5. Voraussetzung für
+**Stand:** Umgesetzt. Voraussetzung für
 [mapped-tuples.md](mapped-tuples.md).
 
 ## Heute
@@ -60,6 +60,7 @@ Wissen, welche Namen Typeigenschaften sind: alle Einträge von `typePropertyAcce
 2. `dereferenceNameFromObject` leitet Typeigenschaften von Funktionen und Streams an
    `dereferenceNameFromObjectType` weiter. `getValue` und Dictionary-Felder bleiben Wertzugriffe.
    `s$/ValueType` und `TypeOf(s$)/ValueType` haben damit eine Implementierung und dieselbe Bedeutung.
+   Schritt 5 schafft die Wertform danach ganz ab.
 
 Nie „nur einpacken, wenn noch kein TypeOf“: `TypeOf([Integer])/ElementType` ist zu Recht
 `TypeOf(TypeOf(Integer))`.
@@ -116,8 +117,19 @@ Jeder Schritt beginnt mit einem roten Test. Vorher und nachher `npm run bench --
    Language Server bleibt der Callback-Parameter bei der Completion ein Literal.
 4. **Baselines.** Snapshot-Diff ansehen, erwartet ist keine Änderung. `build-all`, im Language
    Server `npm test` und `test-snapshot`, `jul check` in yugioh.
-5. **Optional, getrennt:** Completion nach `List(Integer)/`, Anzeige von `TypeOf(…)` im Detail.
-   Ob die Wertform `s$/ValueType` neben `TypeOf(s$)/ValueType` bestehen bleibt.
+5. **Wertform abschaffen.** `s$/ValueType`, `cb/ReturnType`, `cb/ParamsType` und
+   `predicate/PredicateIfTrue` entfallen, Typeigenschaften gibt es nur über einen Typwert:
+   `TypeOf(s$)/ValueType`, `Stream(Text)/ValueType`. Die Wertform gab es nur für Streams und
+   Funktionen, verallgemeinern lässt sie sich nicht: Listen haben keine benannten Felder, und bei
+   einem Dictionary wäre `dict/ElementType` mit einem Schlüssel gleichen Namens mehrdeutig. Zwei
+   Schreibweisen für dasselbe sind nur Komplexität.
+   - `s$/ValueType` meldet `dereferenceFailed` mit dem Hinweis auf `TypeOf(…)/ValueType`.
+   - core-lib: die rund zwölf Signaturen auf die TypeOf-Form umstellen. Nutzercode in jul-examples,
+     yugioh und der Homepage verwendet die Wertform nicht.
+   - Die Weiterleitung aus Schritt 3 in `dereferenceNameFromObject` entfällt,
+     `valueFieldAccess` behält für Funktionen nichts und für Streams nur `getValue`.
+   - Completion folgt dem: `s$/` bietet `getValue` an, `TypeOf(s$)/` und `Stream(Text)/`
+     `ValueType`, `TypeOf(values)/` und `List(Integer)/` `ElementType`, im Detail `TypeOf(…)`.
 
 ## Risiken
 

@@ -155,15 +155,15 @@ Rückgabetypen (`:?`) aus ihren Argumenten ab:
 Die Operatoren brauchen dafür keinen neuen Mechanismus. Alle nötigen Formen von `:?` sind in der
 core-lib schon im Einsatz: mehrere Argumente (`subtract`), das Muster `[List(…)]` über `TypeOf`
 eines Rest-Parameters (`add`) und der Rückgabetyp eines Funktionsarguments
-(`transform$/ReturnType`):
+(`TypeOf(transform$)/ReturnType`):
 
 ```jul
 map$ = nativeFunction(
 	(source$: Stream(Any) transform$: …)
 		~>
 			:?(TypeOf(source$))
-				[FiniteStream(Any)] => FiniteStream(transform$/ReturnType)
-				() => Stream(transform$/ReturnType)
+				[FiniteStream(Any)] => FiniteStream(TypeOf(transform$)/ReturnType)
+				() => Stream(TypeOf(transform$)/ReturnType)
 	…
 )
 combine$ = nativeFunction(
@@ -177,9 +177,9 @@ combine$ = nativeFunction(
 flatMergeMap$ = nativeFunction(
 	(source$: Stream(Any) transform$: …)
 		~>
-			:?(TypeOf(source$) transform$/ReturnType)
-				[FiniteStream(Any) FiniteStream(Any)] => FiniteStream(transform$/ReturnType/ValueType)
-				() => Stream(transform$/ReturnType/ValueType)
+			:?(TypeOf(source$) TypeOf(transform$)/ReturnType)
+				[FiniteStream(Any) FiniteStream(Any)] => FiniteStream(TypeOf(transform$)/ReturnType/ValueType)
+				() => Stream(TypeOf(transform$)/ReturnType/ValueType)
 	…
 )
 ```

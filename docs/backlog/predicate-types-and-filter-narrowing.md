@@ -7,7 +7,7 @@ Erkennt der Checker im Rumpf eines Boolean-Callbacks exakt ein `?(param)`-Branch
 `ifTrue` als Obermenge, `excludedIfFalse` als Untermenge. Ein Funktionswert in Typ-Position ist
 ein Prädikat mit eigenem Typ `julType: 'predicate'`, seine Schranken kommen aus dem Typ des ersten
 Parameters und diesen Fakten. `filter`, `findFirst` und `findLast` schneiden ihren ElementType
-über `predicate/PredicateIfTrue`.
+über `TypeOf(predicate)/PredicateIfTrue`.
 
 Dieses Dokument hält fest, **was daran noch offen ist** - und warum die Grenze dort liegt, wo sie
 liegt.

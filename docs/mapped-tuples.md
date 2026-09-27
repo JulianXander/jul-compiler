@@ -19,13 +19,13 @@ map = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> TupleOf(length(values) callback/ReturnType)
+	) :> TupleOf(length(values) TypeOf(callback)/ReturnType)
 	…
 ```
 
 - `TypeOf(values)/ElementType` ist bei einem Tupel die Union seiner Elemente
   (`typePropertyAccess.tuple`). Mit diesem Typ wird der Rumpf des Callbacks einmal inferiert.
-- `TupleOf` füllt die Positionen mit demselben `callback/ReturnType` (`tupleOfFromTypes`).
+- `TupleOf` füllt die Positionen mit demselben `TypeOf(callback)/ReturnType` (`tupleOfFromTypes`).
 - Konstante Argumente faltet das Constant Folding je Position (`[1 2].map(…)` ergibt `[2 3]`).
   Für Streams, Typen und Parameter greift das nicht.
 
@@ -36,7 +36,7 @@ Der Anwendungsfall ist `combine$`: `combine$(a$ b$ c$)` ergibt heute
 ## Ansatz: ReturnType je Position instanziieren, nicht den Rumpf neu inferieren
 
 Der ReturnType eines Callback-Literals bleibt schon heute generisch in dessen eigenen Parametern.
-`(value) => value/ValueType` hat den ReturnType `value/ValueType` mit `value` als Verweis auf den
+`(value) => TypeOf(value)/ValueType` hat den ReturnType `TypeOf(value)/ValueType` mit `value` als Verweis auf den
 Parameter, `(value index) => [value index]` hat `[value index]`. Es genügt also, diese Verweise je
 Position durch den Elementtyp und den Index zu ersetzen. Das ist derselbe Mechanismus, mit dem ein
 generischer Rückgabetyp am Aufruf aufgelöst wird (`dereferenceArgumentTypesNested`), nur mit dem
@@ -67,7 +67,7 @@ Damit wird combine$ typisierbar, ohne Sonderfall:
 combine$ = nativeFunction(
 	(
 		...sources: Or([] List(Stream(Any)))
-	) ~> Stream(sources.map((value) => value/ValueType))
+	) ~> Stream(sources.map((value) => TypeOf(value)/ValueType))
 	…
 ```
 
@@ -92,7 +92,7 @@ jeweils Fall `or`, lassen unentschiedene Choices weg. Bleibt keiner übrig, ents
 ergibt, regelt [type-properties.md](type-properties.md): `TypeOf(T)`. Deshalb erwartet der
 Zieltest `[TypeOf(Text) TypeOf(Integer)]`.
 
-Unter dieser Semantik ist combine$ erst wirklich korrekt: je Position ergibt `value/ValueType`
+Unter dieser Semantik ist combine$ erst wirklich korrekt: je Position ergibt `TypeOf(value)/ValueType`
 `TypeOf(Ai)`, und `Stream(…)` packt das Tupel elementweise aus. `MapElements` liest den
 ReturnType des Callbacks direkt vom Funktionstyp, nicht über `dereferenceNameFromObject`.
 
@@ -107,7 +107,7 @@ Jeder Schritt beginnt mit einem roten Test. Vorher und nachher `npm run bench --
      `[[TypeOf(Integer) 1] [TypeOf(Text) 2]]`
    - `t.map((value) => [value])` mit `t: [Integer Text]` ergibt `[[Integer] [Text]]`
    - `t.map((value index) => index)` ergibt `[1 2]`
-   - `[a$ b$].map((value) => value/ValueType)` ergibt `[TypeOf(Integer) TypeOf(Text)]`
+   - `[a$ b$].map((value) => TypeOf(value)/ValueType)` ergibt `[TypeOf(Integer) TypeOf(Text)]`
    - `t: Or([] [Integer Text])` ergibt `Or([] [[Integer] [Text]])`
    - Gegenproben: `List(Integer)` bleibt `List([Integer])`, ein Callback-Parameter statt Literal
      liefert n gleiche Positionen, ein Fehler im Rumpf kommt genau einmal.
