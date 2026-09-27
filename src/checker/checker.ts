@@ -75,6 +75,8 @@ import {
 	createCompileTimeAliasType,
 	ResolvedType,
 	forEachChild,
+	forEachChildType,
+	NestedReferenceType,
 	builtinAny,
 	builtinEmpty,
 	builtinNever,
@@ -229,6 +231,12 @@ export function resetCheckerStats(): void {
 }
 
 //#endregion stats
+
+/**
+ * Die Verweise auf Parameter je Funktion (getParameterProjections), einmal gesammelt statt je Aufruf.
+ * Muss vor der core-lib Initialisierung stehen, die den Checker bereits benutzt.
+ */
+const parameterProjectionsCache = new WeakMap<CompileTimeFunctionType, ParameterProjection[]>();
 
 const maxElementsPerLine = 5;
 const maxFieldsInTypeDump = 5;
@@ -1200,6 +1208,175 @@ function dereferenceCallbackParams(
 	}
 	return createParametersType(dereferencedSingleNames, paramsType.rest);
 }
+
+//#region Signatur am Aufruf
+
+/**
+ * Ein Verweis wie `stream$/ValueType` oder `TypeOf(values)/ElementType` in der Signatur einer
+ * Funktion: der Parameter, auf den er zeigt, spielt die Rolle eines Typparameters.
+ */
+interface ParameterProjection {
+	index: number;
+	/** Schlüssel von außen nach innen, bei `TypeOf(x)/ElementType/ValueType` also ElementType, ValueType. */
+	path: string[];
+	/** Der Verweis selbst, er wird gegen die Argumente aufgelöst. */
+	reference: NestedReferenceType;
+}
+
+function getParameterProjections(functionType: CompileTimeFunctionType): ParameterProjection[] {
+	const cached = parameterProjectionsCache.get(functionType);
+	if (cached) {
+		return cached;
+	}
+	const projections: ParameterProjection[] = [];
+	const visit = (type: CompileTimeType): void => {
+		if (type.julType === 'nestedReference') {
+			const projection = getParameterProjection(type, functionType);
+			if (projection) {
+				projections.push(projection);
+				return;
+			}
+		}
+		forEachChildType(type, visit);
+	};
+	visit(functionType.ParamsType);
+	visit(functionType.ReturnType);
+	parameterProjectionsCache.set(functionType, projections);
+	return projections;
+}
+
+function getParameterProjection(
+	reference: NestedReferenceType,
+	functionType: CompileTimeFunctionType,
+): ParameterProjection | undefined {
+	const path: string[] = [];
+	let source: CompileTimeType = reference;
+	while (source.julType === 'nestedReference') {
+		if (typeof source.nestedKey !== 'string') {
+			return undefined;
+		}
+		path.unshift(source.nestedKey);
+		source = source.source;
+	}
+	if (source.julType === 'typeOf') {
+		source = source.value;
+	}
+	if (source.julType !== 'parameterReference'
+		|| source.functionRef !== functionType) {
+		return undefined;
+	}
+	return { index: source.index, path: path, reference: reference };
+}
+
+/**
+ * Setzt in die Parameter, auf die ein Verweis zeigt, den projizierten Argumenttyp ein - in die
+ * deklarierte Form, nicht den ganzen Argumenttyp: aus `stream$: Stream(Any)` wird am Aufruf
+ * `Stream(Or([] PlayerInput))`, wie ein Typparameter in TypeScript. So bleibt jede Zeile eine
+ * Anforderung. Lässt sich der Verweis nicht auflösen (falsches Argument), bleibt der Parameter
+ * deklariert.
+ */
+function substituteParameterProjections(
+	resolvedFunctionType: CompileTimeFunctionType,
+	calledFunction: CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
+	argsType: CompileTimeType,
+	paramsType: CompileTimeType,
+): CompileTimeType {
+	if (!isParametersType(paramsType)) {
+		return paramsType;
+	}
+	const projections = getParameterProjections(resolvedFunctionType);
+	if (!projections.length) {
+		return paramsType;
+	}
+	let changed = false;
+	const substitutedSingleNames = paramsType.singleNames.map((parameter, index) => {
+		const parameterType = parameter.type;
+		if (!parameterType) {
+			return parameter;
+		}
+		const substituted = projections.reduce<CompileTimeType>(
+			(currentType, projection) => {
+				if (projection.index !== index) {
+					return currentType;
+				}
+				const projected = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, projection.reference);
+				// Empty und Never sagen nichts über die Form: aus einem leeren Argument würde sonst
+				// List(Empty).
+				if (projected.isUnresolvedPlaceholder
+					|| projected.julType === 'any'
+					|| projected.julType === 'empty'
+					|| projected.julType === 'never') {
+					return currentType;
+				}
+				return substituteProjection(currentType, projection.path, projected);
+			},
+			parameterType);
+		if (substituted === parameterType) {
+			return parameter;
+		}
+		changed = true;
+		return { name: parameter.name, type: substituted };
+	});
+	if (!changed) {
+		return paramsType;
+	}
+	return createParametersType(substitutedSingleNames, paramsType.rest);
+}
+
+/**
+ * Schreibt projected an die Stelle, die path in declared bezeichnet. Or wird durchgereicht, damit
+ * `Or([] List(Any))` das Empty behält. Eine Form, die zum Schlüssel nicht passt, bleibt, wie sie ist.
+ */
+function substituteProjection(
+	declared: CompileTimeType,
+	path: string[],
+	projected: CompileTimeType,
+): CompileTimeType {
+	const [key, ...restPath] = path;
+	if (key === undefined) {
+		return projected;
+	}
+	const resolved = resolveAlias(declared);
+	switch (resolved.julType) {
+		case 'or': {
+			const choices = resolved.ChoiceTypes;
+			const substitutedChoices = choices.map(choice => substituteProjection(choice, path, projected));
+			return elementsEqual(choices, substitutedChoices)
+				? declared
+				: createNormalizedUnionType(substitutedChoices);
+		}
+		case 'stream':
+			return key === 'ValueType'
+				? createCompileTimeStreamType(substituteProjection(resolved.ValueType, restPath, projected))
+				: declared;
+		case 'list':
+			return key === 'ElementType'
+				? createCompileTimeListType(substituteProjection(resolved.ElementType, restPath, projected))
+				: declared;
+		case 'dictionary':
+			return key === 'ElementType'
+				? createCompileTimeDictionaryType(substituteProjection(resolved.ElementType, restPath, projected))
+				: declared;
+		case 'function': {
+			if (key !== 'ReturnType') {
+				return declared;
+			}
+			const substitutedReturnType = substituteProjection(resolved.ReturnType, restPath, projected);
+			return {
+				...resolved,
+				ReturnType: substitutedReturnType,
+				aliasName: undefined,
+				isUnresolvedPlaceholder: resolved.ParamsType.isUnresolvedPlaceholder
+					|| substitutedReturnType.isUnresolvedPlaceholder,
+			};
+		}
+		default:
+			return declared;
+	}
+}
+
+//#endregion Signatur am Aufruf
 
 /**
  * combine prefixArgumentType and argsType
@@ -3523,12 +3700,14 @@ function inferType(
 			// Der Aliasname entfällt, er stünde sonst in der Anzeige statt der verengten Typen.
 			const resolvedFunctionType = resolveAlias(functionType);
 			if (isFunctionType(resolvedFunctionType)) {
+				const callSiteParamsType = substituteParameterProjections(
+					resolvedFunctionType, functionType, prefixArgumentType, argsType, dereferencedParamsType);
 				expression.calledFunctionType = {
 					...resolvedFunctionType,
-					ParamsType: dereferencedParamsType,
+					ParamsType: callSiteParamsType,
 					ReturnType: dereferencedReturnType,
 					aliasName: undefined,
-					isUnresolvedPlaceholder: dereferencedParamsType.isUnresolvedPlaceholder
+					isUnresolvedPlaceholder: callSiteParamsType.isUnresolvedPlaceholder
 						|| dereferencedReturnType.isUnresolvedPlaceholder,
 				};
 			}

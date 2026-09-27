@@ -1311,6 +1311,117 @@ export function updateFunctionTypeUnresolvedFlag(functionType: CompileTimeFuncti
 		|| functionType.ReturnType.isUnresolvedPlaceholder;
 }
 
+/**
+ * Ruft callback für jeden direkt enthaltenen Typ auf, auch in Funktions- und Parametertypen.
+ * Steigt nicht in Aliase ab (ein rekursiver Typ terminierte sonst nicht) und nicht in die Funktion
+ * eines Prädikats (sie ist ein Wert, keine Typangabe).
+ */
+export function forEachChildType(type: CompileTimeType, callback: (child: CompileTimeType) => void): void {
+	switch (type.julType) {
+		case 'any':
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'date':
+		case 'empty':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'integer':
+		case 'integerLiteral':
+		case 'never':
+		case 'text':
+		case 'textLiteral':
+		case 'type':
+		case 'alias':
+		case 'parameterReference':
+			return;
+		case 'add':
+			callback(type.ArgsType);
+			return;
+		case 'and':
+		case 'or':
+			type.ChoiceTypes.forEach(callback);
+			return;
+		case 'concat':
+			type.Sources.forEach(callback);
+			return;
+		case 'conditional':
+			type.Operands.forEach(callback);
+			type.Branches.forEach(branch => {
+				callback(branch.Head);
+				callback(branch.Result);
+			});
+			return;
+		case 'dictionary':
+		case 'list':
+			callback(type.ElementType);
+			return;
+		case 'dictionaryLiteral':
+			Object.values(type.Fields).forEach(callback);
+			return;
+		case 'function':
+			callback(type.ParamsType);
+			callback(type.ReturnType);
+			return;
+		case 'greater':
+			callback(type.Value);
+			return;
+		case 'lengthOf':
+			callback(type.Source);
+			return;
+		case 'nestedReference':
+			callback(type.source);
+			if (typeof type.nestedKey === 'object') {
+				callback(type.nestedKey);
+			}
+			return;
+		case 'not':
+			callback(type.SourceType);
+			return;
+		case 'parameters':
+			type.singleNames.forEach(parameter => {
+				if (parameter.type) {
+					callback(parameter.type);
+				}
+			});
+			if (type.rest?.type) {
+				callback(type.rest.type);
+			}
+			return;
+		case 'predicate':
+			callback(type.UpperBound);
+			callback(type.LowerBound);
+			return;
+		case 'range':
+			callback(type.Start);
+			callback(type.End);
+			return;
+		case 'stream':
+			callback(type.ValueType);
+			return;
+		case 'tuple':
+			type.ElementTypes.forEach(callback);
+			return;
+		case 'tupleOf':
+			callback(type.Count);
+			callback(type.ElementType);
+			return;
+		case 'typeOf':
+			callback(type.value);
+			return;
+		case 'withElementAt':
+			callback(type.Source);
+			callback(type.Index);
+			callback(type.Value);
+			return;
+		default: {
+			const assertNever: never = type;
+			throw new Error('Unexpected julType: ' + (assertNever as CompileTimeType).julType);
+		}
+	}
+}
+
 //#endregion CompileTimeType
 
 //#region Blatt-Typ Factories - für O(1) Zugriff ohne Rekursion
