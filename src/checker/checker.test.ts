@@ -1477,6 +1477,156 @@ x: Integer = typeOfValue(Integer)`, {
 			],
 		});
 	});
+	// T ist einer von zwei Typwerten. Als Annotation gelesen heißt das: x ist ein Integer oder ein
+	// Text. Das Auspacken muss deshalb über die Union verteilen, 5 passt dann zum ersten Choice.
+	it('value-of-union-of-type-values', () => {
+		expectCheck(`f = (T: Or(TypeOf(Integer) TypeOf(Text))) =>
+	x: T = 5
+	x`);
+	});
+	// Typeigenschaften von Stream- und Funktionstypen, gelesen als Annotation. Eingepackt oder
+	// nicht, an der Annotation wird ausgepackt, x muss also ein Wert des Werttyps sein.
+	it('stream-type-value-type-as-annotation', () => {
+		expectCheck('n: Stream(Text)/ValueType = 5', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 5 to Text.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 29,
+				},
+			],
+		});
+	});
+	it('type-of-stream-value-type-as-annotation', () => {
+		expectCheck(`k = (s$: Stream(Integer)) =>
+	x: TypeOf(s$)/ValueType = §a§
+	x`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign §a§ to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 30,
+				},
+			],
+		});
+	});
+	it('type-of-function-return-type-as-annotation', () => {
+		expectCheck(`m = (cb: (q: Integer) :> Text) =>
+	x: TypeOf(cb)/ReturnType = 5
+	x`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 5 to Text.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 29,
+				},
+			],
+		});
+	});
+	// Eine Typeigenschaft ergibt einen Typwert, wie ein direkt geschriebener Typ auch
+	// (type-of-parameter-keeps-type-value). Ausgepackt wird erst, wo ein Wert als Typ gelesen wird.
+	it('type-property-is-type-value', () => {
+		expectCheck('x: Integer = List(Integer)/ElementType', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign TypeOf(Integer) to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 38,
+				},
+			],
+		});
+	});
+	it('stream-type-value-type-is-type-value', () => {
+		expectCheck('x: Integer = Stream(Text)/ValueType', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign TypeOf(Text) to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 35,
+				},
+			],
+		});
+	});
+	// Über den Wert gelesen gilt dasselbe wie über TypeOf(s$).
+	it('stream-value-type-is-type-value', () => {
+		expectCheck(`f = (s$: Stream(Text)) =>
+	x: Integer = s$/ValueType
+	x`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign TypeOf(Text) to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 26,
+				},
+			],
+		});
+	});
+	// T hält einen Typ, die Großschreibung ist also richtig.
+	it('type-property-named-as-type', () => {
+		expectCheck('T = List(Integer)/ElementType');
+	});
+	// Der Rückgabetyp s$/ValueType wird erst am Aufruf aufgelöst. Er bleibt dabei ein Typwert,
+	// und der Parameter s$ darf durch das Einpacken keinen falschen Typ bekommen.
+	it('deferred-type-property-is-type-value', () => {
+		expectCheck(`f = (s$: Stream(Any)) => s$/ValueType
+a$ = create$(Integer 1)
+x: Integer = f(a$)`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign TypeOf(Integer) to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 0,
+					endRowIndex: 2,
+					endColumnIndex: 18,
+				},
+			],
+		});
+	});
+	// Stream(Text) ist ein Typwert mit dem Feld ValueType. map über ein Tupel solcher Typwerte
+	// liest es je Position, das Ergebnis ist also das Tupel der beiden Werttypen - weder
+	// Never noch Any. Geprüft wird wie oben über die Zuweisung an Integer. Der Parameter muss
+	// value heißen, weil map ihn so deklariert, und hält hier einen Typ.
+	it('map-over-stream-types-reads-value-type-per-position', () => {
+		expectCheck('x: Integer = [Stream(Text) Stream(Integer)].map((value) => value/ValueType)', {
+			errors: [
+				{
+					code: ErrorCode.namingCase,
+					message: "'value' is a type and should start with an uppercase letter.",
+					startRowIndex: 0,
+					startColumnIndex: 49,
+					endRowIndex: 0,
+					endColumnIndex: 54,
+				},
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign [TypeOf(Text) TypeOf(Integer)] to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 75,
+				},
+			],
+		});
+	});
 	// Eine Funktion als Argument bleibt ein Funktionswert und wird nicht zum Prädikat.
 	it('type-of-parameter-keeps-function-type', () => {
 		expectCheck(`typeOfValue = (value: Any) :> TypeOf(value) => value

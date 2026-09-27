@@ -398,6 +398,14 @@ const typePropertyAccess: NamedAccessTable = {
 		// Die Union der Elemente lässt sich nicht auf die einzelnen Positionen zurückverteilen.
 		set: () => undefined,
 	},
+	// Signatur und Werttyp sind Eigenschaften des Typs, derselbe Zugriff wie über einen Wert.
+	function: valueFieldAccess.function,
+	parameters: valueFieldAccess.parameters,
+	stream: {
+		// getValue ist ein Feld des Streams, keine Eigenschaft seines Typs.
+		get: (type, name) => name === 'ValueType' ? type.ValueType : undefined,
+		set: valueFieldAccess.stream!.set,
+	},
 };
 
 function getNamedAccess(table: NamedAccessTable, type: ResolvedType): NamedAccess<ResolvedType> | undefined {
@@ -940,6 +948,21 @@ function canHaveFields(rawType: CompileTimeType): boolean {
 }
 
 /**
+ * Liest x/name bei einem Wert x dieses Typs eine Eigenschaft des Typs statt eines Felds des Werts?
+ * Die Typeigenschaften eines Typwerts (TypeOf(x)/name) sind es immer.
+ */
+function isTypePropertyOfValue(julType: ResolvedType['julType'], name: string): boolean {
+	switch (julType) {
+		case 'function':
+			return name === 'ParamsType' || name === 'ReturnType' || name === 'PredicateIfTrue';
+		case 'stream':
+			return name === 'ValueType';
+		default:
+			return false;
+	}
+}
+
+/**
  * Wie canHaveFields, aber Empty zählt nicht mit: Aus Empty liest jeder Zugriff Empty, über den
  * Namen wie über die Position. Or([] List(X)) trägt also ebenso wenig benannte Felder wie List(X).
  */
@@ -988,11 +1011,17 @@ export function dereferenceNameFromObject(
 			return builtinEmpty;
 		case 'any':
 			return builtinAny;
+		case 'function':
+		case 'stream':
+			// Signatur und Werttyp sind Eigenschaften des Typs: s$/ValueType heißt dasselbe wie
+			// TypeOf(s$)/ValueType und ergibt wie dort einen Typwert.
+			if (isTypePropertyOfValue(sourceObjectType.julType, name)) {
+				return dereferenceNameFromObjectType(name, sourceObjectType, createCompileTimeTypeOfType(sourceObjectType));
+			}
+			return getNamedAccess(valueFieldAccess, sourceObjectType)!.get(sourceObjectType, name);
 		case 'dictionaryLiteral':
 		case 'dictionary':
-		case 'function':
 		case 'parameters':
-		case 'stream':
 			return getNamedAccess(valueFieldAccess, sourceObjectType)!.get(sourceObjectType, name);
 		case 'concat':
 		case 'list':
@@ -1069,9 +1098,16 @@ function dereferenceNameFromObjectType(
 	switch (innerType.julType) {
 		case 'dictionary':
 		case 'dictionaryLiteral':
+		case 'function':
 		case 'list':
-		case 'tuple':
-			return getNamedAccess(typePropertyAccess, innerType)!.get(innerType, name);
+		case 'parameters':
+		case 'stream':
+		case 'tuple': {
+			// Die Tabelle liefert den Typ selbst, der Ausdruck bezeichnet ihn aber als Wert:
+			// List(Integer)/ElementType ist der Typ Integer, wie ein geschriebenes Integer auch.
+			const property = getNamedAccess(typePropertyAccess, innerType)!.get(innerType, name);
+			return property && createCompileTimeTypeOfType(property);
+		}
 		case 'nestedReference':
 		case 'parameterReference':
 			return createNestedReference(sourceObjectType, name);
@@ -1109,7 +1145,6 @@ function dereferenceNameFromObjectType(
 		case 'error':
 		case 'float':
 		case 'floatLiteral':
-		case 'function':
 		case 'greater':
 		case 'integer':
 		case 'integerLiteral':
@@ -1117,9 +1152,7 @@ function dereferenceNameFromObjectType(
 		case 'lengthOf':
 		case 'never':
 		case 'not':
-		case 'parameters':
 		case 'range':
-		case 'stream':
 		case 'text':
 		case 'textLiteral':
 		case 'tupleOf':
@@ -1522,7 +1555,14 @@ function substituteProjection(
 	if (!access || !current) {
 		return declared;
 	}
-	const substituted = substituteProjection(current, restPath, projected);
+	// Gelesen ergibt eine Typeigenschaft einen Typwert, in die Form gehört aber der Typ selbst:
+	// aus Stream(Any) wird Stream(Integer), nicht Stream(TypeOf(Integer)).
+	const leaf = !restPath.length
+		&& projected.julType === 'typeOf'
+		&& (step.ofType || isTypePropertyOfValue(resolved.julType, step.name))
+		? projected.value
+		: projected;
+	const substituted = substituteProjection(current, restPath, leaf);
 	return access.set(resolved, step.name, substituted) ?? declared;
 }
 
@@ -1786,7 +1826,9 @@ function traversePlaceholders(
 			if (!dereferencedNested) {
 				return builtinAny;
 			}
-			return dereferencedNested;
+			return rawType.deferValueOf
+				? valueOf(dereferencedNested)
+				: dereferencedNested;
 		}
 		case 'not': {
 			const rawSource = rawType.SourceType;
@@ -6505,7 +6547,8 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 		case 'nestedReference':
 			return second.julType === 'nestedReference'
 				&& nestedKeysEqual(first.nestedKey, second.nestedKey)
-				&& typeEquals(first.source, second.source);
+				&& typeEquals(first.source, second.source)
+				&& first.deferValueOf === second.deferValueOf;
 		case 'parameters':
 			return second.julType === 'parameters'
 				&& first.singleNames.length === second.singleNames.length
@@ -7162,8 +7205,10 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'predicate':
 			return type;
 		case 'nestedReference':
-			// TODO?
-			return type;
+			// Wie bei parameterReference: aufgelöst und ausgepackt wird am Aufruf.
+			return type.deferValueOf
+				? type
+				: { ...type, deferValueOf: true };
 		case 'parameters':
 			return type;
 		case 'parameterReference':
@@ -7177,6 +7222,15 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			return type;
 		case 'tuple':
 			return createCompileTimeTupleType(type.ElementTypes.map(valueOf));
+		case 'or': {
+			// Der Wert ist einer der Choices, als Typ gelesen also die Union ihrer Werte:
+			// Or(TypeOf(Integer) TypeOf(Text)) wird zu Or(Integer Text). Neu gebaut wird nur, wenn
+			// sich ein Choice ändert, das Normalisieren der Union ist nicht billig.
+			const choiceValues = type.ChoiceTypes.map(valueOf);
+			return choiceValues.every((choiceValue, index) => choiceValue === type.ChoiceTypes[index])
+				? type
+				: createNormalizedUnionType(choiceValues);
+		}
 		case 'typeOf':
 			return type.value;
 		// Kein TypeOf zum Auspacken und keine Felder, die eines enthalten könnten: der Typ ist
@@ -7204,7 +7258,6 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'list':
 		case 'never':
 		case 'not':
-		case 'or':
 		case 'range':
 		case 'text':
 		case 'textLiteral':

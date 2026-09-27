@@ -318,6 +318,7 @@ showModal: (dialog: Any) :> Any
 === ui/dynamic-form/dynamic-form.jul ===
 age$: Stream(Or(Empty Integer))
 ageField: Any
+ageVisible$: Stream(Boolean)
 data$: Stream([   name: Or(Empty Text Boolean Integer)   age: Or(Empty Text Boolean Integer) ])
 elementById: (id: Text) :> Any
 inputValue$: (   element: Any   ValueType: Type   read: (input: Any) :> Type ) ~> Stream(Type)
@@ -329,7 +330,6 @@ output: Any
 setHidden: (   element: Any   hidden: Boolean ) :> Any
 setText: (   element: Any   text: Text ) :> Any
 textValue: (input: Any) :> Text
-visible$: Stream(Boolean)
 === ui/dynamic-form/dynamic-form2.jul ===
 ageInput: Any
 body: Any

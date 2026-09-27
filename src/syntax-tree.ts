@@ -1209,6 +1209,11 @@ export interface NestedReferenceType extends CompileTimeTypeBase {
 	 * einem Argument folgt (ElementAt) und daher noch aufgelöst werden muss.
 	 */
 	nestedKey: string | number | CompileTimeType;
+	/**
+	 * Der Verweis steht an einer Stelle, an der ein Wert als Typ gelesen wird. Aufgelöst wird er
+	 * erst am Aufruf, dort holt traversePlaceholders das valueOf nach, wie bei ParameterReference.
+	 */
+	deferValueOf?: true;
 }
 
 export function createNestedReference(source: CompileTimeType, nestedKey: string | number | CompileTimeType): NestedReferenceType {

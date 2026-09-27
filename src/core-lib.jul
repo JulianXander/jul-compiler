@@ -745,7 +745,7 @@ filterMap = nativeFunction(
 # Führt eine Liste von Listen zu einer flachen Liste zusammen (eine Ebene).
 # Leere innere Listen tragen nichts bei; ist das Ergebnis leer, liefert flatten Empty.
 flatten = nativeFunction(
-	(values: Or([] List(Or([] List(Any))))) -> Or([] List(TypeOf(TypeOf(values)/ElementType)/ElementType))
+	(values: Or([] List(Or([] List(Any))))) -> Or([] List(TypeOf(values)/ElementType/ElementType))
 	§js
 		values => {
 			if (!values) {
