@@ -667,6 +667,7 @@ export type CompileTimeType =
 	| CompileTimeRangeType
 	| CompileTimeTupleOfType
 	| CompileTimeConcatType
+	| CompileTimeAddType
 	| CompileTimeListType
 	| CompileTimeTupleType
 	| CompileTimeDictionaryType
@@ -984,6 +985,23 @@ export function createCompileTimeConcatType(
 		julType: 'concat',
 		Sources: Sources,
 		isUnresolvedPlaceholder: Sources.some(s => s.isUnresolvedPlaceholder),
+	};
+}
+
+/**
+ * Die möglichen Summen der Integer-Argumente ArgsType (Tuple oder List). Bleibt nur stehen,
+ * solange ArgsType noch Platzhalter enthält (siehe addFromTypes im Checker).
+ */
+export interface CompileTimeAddType extends CompileTimeTypeBase {
+	readonly julType: 'add';
+	ArgsType: CompileTimeType;
+}
+
+export function createCompileTimeAddType(ArgsType: CompileTimeType): CompileTimeAddType {
+	return {
+		julType: 'add',
+		ArgsType: ArgsType,
+		isUnresolvedPlaceholder: true,
 	};
 }
 

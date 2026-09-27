@@ -18,6 +18,7 @@ import {
 	CompileTimeTypeOfType,
 	CompileTimeUnionType,
 	CompileTimePredicateType,
+	createCompileTimeAddType,
 	createCompileTimeConcatType,
 	createCompileTimeComplementType,
 	createCompileTimePredicateType,
@@ -640,6 +641,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'greater':
 		case 'integer':
 		case 'integerLiteral':
+		case 'add':
 		case 'lengthOf':
 		case 'never':
 		case 'not':
@@ -851,6 +853,7 @@ export function dereferenceNameFromObject(
 		case 'greater':
 		case 'integer':
 		case 'integerLiteral':
+		case 'add':
 		case 'lengthOf':
 		case 'never':
 		case 'not':
@@ -940,6 +943,7 @@ function dereferenceNameFromObjectType(
 		case 'greater':
 		case 'integer':
 		case 'integerLiteral':
+		case 'add':
 		case 'lengthOf':
 		case 'never':
 		case 'not':
@@ -1044,6 +1048,7 @@ export function dereferenceIndexFromObject(
 		case 'greater':
 		case 'integer':
 		case 'integerLiteral':
+		case 'add':
 		case 'lengthOf':
 		case 'never':
 		case 'not':
@@ -1582,6 +1587,27 @@ function traversePlaceholders(
 			}
 			// Neu falten statt neu einpacken.
 			return concatFromTypes(dereferencedSources);
+		}
+		case 'add': {
+			const rawArgs = rawType.ArgsType;
+			// Mit argumentContext steigt traversePlaceholders nicht in Tuple ab. Die Elemente sind
+			// hier aber genau die Argumente, in denen die Parameter stehen.
+			let dereferencedArgs: CompileTimeType;
+			if (argumentContext && rawArgs.julType === 'tuple') {
+				const rawElements = rawArgs.ElementTypes;
+				const dereferencedElements = rawElements.map(element => traversePlaceholders(element, argumentContext));
+				dereferencedArgs = elementsEqual(rawElements, dereferencedElements)
+					? rawArgs
+					: createCompileTimeTupleType(dereferencedElements);
+			}
+			else {
+				dereferencedArgs = traversePlaceholders(rawArgs, argumentContext);
+			}
+			if (dereferencedArgs === rawArgs) {
+				return rawType;
+			}
+			// Neu falten statt neu einpacken.
+			return addFromTypes(dereferencedArgs);
 		}
 		case 'alias':
 			// Stoppt hier: ein Alias trägt keine Platzhalter, und Absteigen würde bei einem
@@ -4296,6 +4322,14 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(
 					concatFromTypes(argTypes.map(valueOf)));
 			}
+			case 'Add': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argType = argTypes?.[0];
+				if (!argType) {
+					return builtinAny;
+				}
+				return createCompileTimeTypeOfType(addFromTypes(valueOf(argType)));
+			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
@@ -4556,6 +4590,96 @@ function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
 	return elementTypes.length
 		? createCompileTimeTupleType(elementTypes)
 		: builtinEmpty;
+}
+
+/**
+ * Die möglichen Summen der Integer-Argumente ArgsType (Tuple oder List). Gerechnet wird mit dem
+ * Mindestwert m je Argument (x ≥ m, siehe getIntegerMinimum): Hat jedes Argument einen, ist die
+ * Summe ≥ Σm. Eine List zählt wie ein Argument ihres Elementtyps, denn sie ist nie leer - aber nur
+ * bei m ≥ 0, sonst senkt jedes weitere Element die Summe. Ohne Grenze bleibt Integer, auch für
+ * Argumente, die nicht sicher Integer sind: Den Rest deckt der catchAll von add ab.
+ * Bleibt stehen, solange ArgsType noch Platzhalter enthält.
+ */
+function addFromTypes(rawArgsType: CompileTimeType): CompileTimeType {
+	if (isUnresolvedPlaceholderType(rawArgsType)) {
+		return createCompileTimeAddType(rawArgsType);
+	}
+	const argsType = resolveAlias(rawArgsType);
+	let elementTypes: CompileTimeType[];
+	switch (argsType.julType) {
+		case 'tuple':
+			elementTypes = argsType.ElementTypes;
+			break;
+		case 'list':
+			elementTypes = [argsType.ElementType];
+			break;
+		default:
+			return builtinInteger;
+	}
+	let sum = 0n;
+	for (const elementType of elementTypes) {
+		// Greater(a) heißt nur für einen Integer x ≥ a + 1.
+		if (getTypeError(undefined, elementType, builtinInteger)) {
+			return builtinInteger;
+		}
+		const minimum = getIntegerMinimum(elementType);
+		if (minimum === undefined
+			|| (argsType.julType === 'list' && minimum < 0n)) {
+			return builtinInteger;
+		}
+		sum += minimum;
+	}
+	return createNormalizedIntersectionType([
+		builtinInteger,
+		createCompileTimeGreaterType(createIntegerLiteral(sum - 1n)),
+	]);
+}
+
+/**
+ * Der kleinste Wert m, für den jeder Integer dieses Typs x ≥ m erfüllt. undefined heißt: nach
+ * unten offen, oder die Grenze ist hier nicht ablesbar.
+ */
+function getIntegerMinimum(rawType: CompileTimeType): bigint | undefined {
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'integerLiteral':
+			return type.value;
+		case 'greater': {
+			const value = type.Value;
+			return value.julType === 'integerLiteral'
+				? value.value + 1n
+				: undefined;
+		}
+		// Eine Länge ist nie 0 (siehe getLengthFromType).
+		case 'lengthOf':
+			return 1n;
+		case 'and': {
+			let maximum: bigint | undefined;
+			for (const choiceType of type.ChoiceTypes) {
+				const minimum = getIntegerMinimum(choiceType);
+				if (minimum !== undefined
+					&& (maximum === undefined || minimum > maximum)) {
+					maximum = minimum;
+				}
+			}
+			return maximum;
+		}
+		case 'or': {
+			let minimum: bigint | undefined;
+			for (const choiceType of type.ChoiceTypes) {
+				const choiceMinimum = getIntegerMinimum(choiceType);
+				if (choiceMinimum === undefined) {
+					return undefined;
+				}
+				if (minimum === undefined || choiceMinimum < minimum) {
+					minimum = choiceMinimum;
+				}
+			}
+			return minimum;
+		}
+		default:
+			return undefined;
+	}
 }
 
 function getLengthFromType(rawArgType: CompileTimeType | undefined): CompileTimeType {
@@ -5055,8 +5179,10 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'nestedReference':
 		case 'parameterReference':
 		case 'parameters':
-		// Ein stehengebliebener bedingter Typ wartet noch auf seine Operanden.
+		// Ein stehengebliebener bedingter Typ wartet noch auf seine Operanden, eine Summe auf ihre
+		// Argumente.
 		case 'conditional':
+		case 'add':
 		// Gegen ein Prädikat heißt "kein Fehler" nur "liegt in der Obermenge", nicht "erfüllt es".
 		case 'predicate':
 			return false;
@@ -5877,6 +6003,9 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 			return second.julType === 'concat'
 				&& first.Sources.length === second.Sources.length
 				&& first.Sources.every((source, i) => typeEquals(source, second.Sources[i]!));
+		case 'add':
+			return second.julType === 'add'
+				&& typeEquals(first.ArgsType, second.ArgsType);
 		case 'tuple':
 			return second.julType === 'tuple'
 				&& first.ElementTypes.length === second.ElementTypes.length
@@ -6525,6 +6654,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'and':
 		case 'any':
 		case 'blob':
+		case 'add':
 		case 'boolean':
 		case 'booleanLiteral':
 		case 'concat':
@@ -6690,6 +6820,7 @@ function getTypeErrorAtDepth(
 			}
 			return undefined;
 		}
+		case 'add':
 		case 'concat': {
 			// Wie withElementAt: eine noch unaufgelöste Source (z.B. der eigene Parameter, bevor
 			// er am Aufruf substituiert wird) hält den Knoten als Concat(...) stehen
@@ -7177,6 +7308,9 @@ function getTypeErrorAtDepth(
 			return undefined;
 		case 'concat':
 			// Ungefaltete Konkatenation: permissiv wie nestedReference.
+			return undefined;
+		case 'add':
+			// Ungefaltete Summe: permissiv wie concat.
 			return undefined;
 		case 'predicate': {
 			if (argumentsType.julType === 'predicate'
@@ -7795,6 +7929,8 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'concat':
 			return `Concat(${type.Sources.map((source, i) =>
 				i > 0 ? ' ' + typeToString(source, indent, depth + 1, suppressAlias) : typeToString(source, indent, depth + 1, suppressAlias)).join('')})`;
+		case 'add':
+			return `Add(${typeToString(type.ArgsType, indent, depth + 1, suppressAlias)})`;
 		case 'type':
 			return 'Type';
 		case 'typeOf':
@@ -7998,6 +8134,7 @@ export function classifyTypeness(type: CompileTimeType | undefined, depth = 0): 
 		case 'empty':
 		case 'stream':
 		case 'greater':
+		case 'add':
 		case 'lengthOf':
 		case 'range':
 			return 'value';
@@ -8175,5 +8312,3 @@ function checkIsFunction(
 	}
 	return true;
 }
-
-

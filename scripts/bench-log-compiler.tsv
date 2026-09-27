@@ -142,3 +142,6 @@
 2026-09-26 16:00:52	c0e2241+	-	ADV-DEV-56627	yugioh	parse+check	5	1378.00	1763.11	1763.11	unreachable branch auch gegen argumenttyp (typesOverlap)
 2026-09-27 08:42:14	291a43e+	-	ADV-DEV-56627	yugioh	parse+check	5	1533.06	1807.28	1807.28	vor Fix Parametertyp aus früherem Parameter
 2026-09-27 08:45:45	291a43e+	-	ADV-DEV-56627	yugioh	parse+check	5	1393.71	1769.61	1769.61	Parametertyp aus früherem Parameter wird am Aufruf geprüft
+2026-09-27 10:04:37	e0f4ecf+	-	ADV-DEV-56627	yugioh	parse+check	5	1497.49	1844.31	1844.31	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:21:19	e0f4ecf+	-	ADV-DEV-56627	yugioh	parse+check	5	1392.26	1732.71	1732.71	aufgeschobener Aufruf im Rueckgabetyp
+2026-09-27 10:53:25	e0f4ecf+	-	ADV-DEV-56627	yugioh	parse+check	5	1497.74	1656.77	1656.77	Add als Typfunktion fuer add

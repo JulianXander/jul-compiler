@@ -18,7 +18,7 @@ add = nativeFunction(
 	(...args: List(Rational))
 		->
 			:?(TypeOf(args))
-				[List(Integer)] => Integer
+				[List(Integer)] => Add(TypeOf(args))
 				() => Rational
 	§js … §
 )
@@ -56,6 +56,7 @@ Wert zum Typ passt, hängt daran, dass die Implementierungen in `runtime.ts` nor
 | `subtract(Fraction Fraction)` | `Rational` |
 | `subtract(Rational Integer)` | `Rational` |
 | `add(Integer Integer Integer)` | `Integer` |
+| `add(PositiveInteger 1)` | `And(Integer Greater(1))` (Typfunktion `Add`, siehe [typberechnung-im-rueckgabetyp.md](../typberechnung-im-rueckgabetyp.md)) |
 | `add(Integer Fraction)` | `Rational` |
 | `add(Integer Rational)` | `Rational` |
 | `add(...xs)` mit `xs: List(Rational)` | `Rational` |

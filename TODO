@@ -1,4 +1,16 @@
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
+-grenzen in der arithmetik (docs/typberechnung-im-rueckgabetyp.md): Add für add umgesetzt, offen
+	-literal-unions genau statt über die untere grenze: Or(1 2).add(1) = Or(2 3)
+	-Multiply (vorzeichenregeln), Subtract (braucht obere grenzen)
+	-Greater mit Fraction- oder Float-Wert als grenze
+	-ein aufruf im rückgabetyp faltet nicht am aufrufort: -> Greater(add(a 1)) ergibt Greater(Integer),
+	 Greater mit nicht konstantem wert wird zudem still akzeptiert
+	-anzeige: And(Integer Greater(0)) als PositiveInteger wiedererkennen
+?constant-folding.test.ts läuft einzeln nicht: der checker prüft die core-lib beim laden des moduls,
+	bevor forEachChild aus syntax-tree.ts initialisiert ist (ladezyklus). in der ganzen suite fällt
+	das nicht auf
+?lsp-snapshot (jul-language-server/scripts/snapshot.baseline.txt) ist veraltet: schon vor Add
+	2791 zeilen erwartet, 2903 gemessen
 ?verpuffte Ausdrücke in Blöcken melden: im Funktionsrumpf und im Typblock unter einem
 	umgebrochenen Rückgabepfeil gilt der letzte Ausdruck, davorstehende Ausdrücke ohne Definition
 	verschwinden heute ohne Meldung (z.B. Rumpf `1` + Zeile `a`). Nur Ausdrücke, die nachweislich

@@ -4787,6 +4787,18 @@ describe('bedingte Typen', () => {
 	it('K20 multiply Präfix', () => expectConditional('h = (x: Integer) => x.multiply(2)', { returnType: 'Integer' }));
 	it('K21 Faltung multiply', () => expectConditional('r = multiply(2 3)', { type: '6' }));
 	it('K21 Faltung multiply normalisiert', () => expectConditional('r = multiply(0.5 2)', { type: '1' }));
+	// Die Summe positiver Integer ist positiv, add darf Greater(0) nicht verlieren.
+	it('K22 add erhält die Untergrenze', () => expectConditional('h = (x: PositiveInteger) -> PositiveInteger => x.add(1)'));
+	// Gerechnet wird mit x ≥ m: PositiveInteger ist ≥ 1, das Literal ≥ 1, die Summe also ≥ 2.
+	it('K23 add rechnet die Grenze für Integer genau', () => expectConditional('h = (x: PositiveInteger) => x.add(1)', { returnType: 'And(Integer Greater(1))' }));
+	it('K24 add mit zwei Grenzen', () => expectConditional('h = (x: PositiveInteger y: PositiveInteger) => add(x y)', { returnType: 'And(Integer Greater(1))' }));
+	it('K25 add mit Greater ungleich 0', () => expectConditional('h = (x: And(Integer Greater(5))) => x.add(1)', { returnType: 'And(Integer Greater(6))' }));
+	it('K26 add mit negativem Literal', () => expectConditional('h = (x: PositiveInteger) => x.add(-5)', { returnType: 'And(Integer Greater(-5))' }));
+	it('K27 add ohne Grenze eines Arguments', () => expectConditional('h = (x: PositiveInteger y: Integer) => add(x y)', { returnType: 'Integer' }));
+	// Eine List ist nie leer, und jedes weitere Element ≥ 1 erhöht die Summe.
+	it('K28 add über Spread einer List', () => expectConditional('h = (xs: List(PositiveInteger)) => add(...xs)', { returnType: 'And(Integer Greater(0))' }));
+	// Bei m < 0 senkt jedes weitere Element die Summe, sie ist nach unten offen.
+	it('K29 add über Spread einer List mit negativer Grenze', () => expectConditional('h = (xs: List(And(Integer Greater(-3)))) => add(...xs)', { returnType: 'Integer' }));
 	it('K11 ohne Argumente', () => {
 		expectConditional('r = add()', {
 			errors: [{ code: ErrorCode.argumentTypeMismatch, startRowIndex: 0, startColumnIndex: 4 }],

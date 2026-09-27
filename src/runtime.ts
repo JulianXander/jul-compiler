@@ -1467,6 +1467,20 @@ export const Concat = /*#__PURE__*/ _createFunction(
 		rest: { type: Type },
 	}
 );
+export const Add = /*#__PURE__*/ _createFunction(
+	function Add(ArgsType: RuntimeType): RuntimeType {
+		// Wie Concat nur für den Checker: der Rückgabetyp von add.
+		throw new Error('Add() is only for type-level computation and should never be called at runtime');
+	},
+	{
+		singleNames: [
+			{
+				name: 'ArgsType',
+				type: Type,
+			},
+		]
+	}
+);
 export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {

@@ -217,6 +217,14 @@ Concat = nativeFunction(
 	§
 )
 #endregion sequence arithmetic
+# Die möglichen Summen der Integer-Argumente ArgsType (Tuple oder List), der Rückgabetyp von add.
+# Hat jedes Argument eine untere Grenze, ist die Summe größer als deren Summe.
+Add = nativeFunction(
+	(ArgsType: Type) -> Type
+	§js
+		(ArgsType) => Add(ArgsType)
+	§
+)
 # Function = nativeFunction(
 # 	# TODO?
 # 	# (
@@ -308,7 +316,7 @@ add = nativeFunction(
 	(...args: List(Rational))
 		->
 			:?(TypeOf(args))
-				[List(Integer)] => Integer
+				[List(Integer)] => Add(TypeOf(args))
 				() => Rational
 	§js
 		(...args) => args.reduce(

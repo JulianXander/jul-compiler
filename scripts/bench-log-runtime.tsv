@@ -98,3 +98,21 @@
 2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/small	15	3773.71	3911.55	3911.55	nach runtime-tree-shaking
 2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/large	15	3662708.00	3778452.00	3778452.00	nach runtime-tree-shaking
 2026-09-27 06:52:35	d96f7e4+	-	ADV-DEV-56627	bench-runtime	json/texts	15	440690.50	451794.50	451794.50	nach runtime-tree-shaking
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.94	17.87	17.87	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.59	11.28	11.28	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	8.13	8.67	8.67	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.80	7.62	7.62	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	7.88	9.53	9.53	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.89	8.19	8.19	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/small	15	3752.74	3950.67	3950.67	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/large	15	3711258.00	4120118.00	4120118.00	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:04:44	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/texts	15	446597.50	548246.50	548246.50	vor aufgeschobenem Aufruf im Rueckgabetyp
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.75	14.94	14.94	Add als Typfunktion fuer add
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.52	11.29	11.29	Add als Typfunktion fuer add
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.59	9.07	9.07	Add als Typfunktion fuer add
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.65	7.30	7.30	Add als Typfunktion fuer add
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.58	9.13	9.13	Add als Typfunktion fuer add
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	7.12	7.68	7.68	Add als Typfunktion fuer add
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/small	15	3712.72	3961.14	3961.14	Add als Typfunktion fuer add
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/large	15	3662914.00	4181410.00	4181410.00	Add als Typfunktion fuer add
+2026-09-27 10:53:32	e0f4ecf+	-	ADV-DEV-56627	bench-runtime	json/texts	15	423873.50	451266.50	451266.50	Add als Typfunktion fuer add
