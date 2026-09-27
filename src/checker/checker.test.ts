@@ -1666,7 +1666,8 @@ x: Integer = f(a$)`, {
 	// Stream(Text) ist ein Typwert mit dem Feld ValueType. map über ein Tupel solcher Typwerte
 	// liest es je Position, das Ergebnis ist also das Tupel der beiden Werttypen - weder
 	// Never noch Any. Geprüft wird wie oben über die Zuweisung an Integer. Der Parameter muss
-	// value heißen, weil map ihn so deklariert, und hält hier einen Typ.
+	// value heißen, weil map ihn so deklariert, und hält hier einen Typ. Ohne Warnung geht es mit
+	// einem Alias: (Value = value) => Value/ValueType.
 	it('map-over-stream-types-reads-value-type-per-position', () => {
 		expectCheck('x: Integer = [Stream(Text) Stream(Integer)].map((value) => value/ValueType)', {
 			errors: [
@@ -1757,6 +1758,28 @@ x: Integer = f(a$)`, {
 		});
 	});
 	// Gegenprobe: eine List hat keine Positionen, jedes Element bekommt denselben Typ.
+	// Ohne Kenntnis der Quelle kann das Ergebnis auch leer sein.
+	it('map-over-unknown-source-may-be-empty', () => {
+		expectCheck('f = (s: Any) :> Integer => s.map((value) => [value])', {
+			errors: [
+				{
+					...integerReturnTypeMismatch('', 27, 52, 16),
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.\nCan not assign List([Any]) to Integer.',
+				},
+			],
+		});
+	});
+	// Im Rumpf hat ein Rest-Parameter seinen deklarierten Typ, wie jeder andere Parameter.
+	it('rest-parameter-has-declared-type-in-body', () => {
+		expectCheck('f = (...xs: Or([] List(Integer))) :> Integer => xs', {
+			errors: [
+				{
+					...integerReturnTypeMismatch('', 48, 50, 37),
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.\nCan not assign List(Integer) to Integer.',
+				},
+			],
+		});
+	});
 	it('map-over-list-keeps-one-element-type', () => {
 		expectCheck('f = (t: List(Integer)) :> Integer => t.map((value) => [value])', {
 			errors: [integerReturnTypeMismatch('List([Integer])', 37, 62, 26)],

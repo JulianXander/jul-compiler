@@ -163,3 +163,4 @@
 2026-09-27 17:42:14	614d410+	-	ADV-DEV-56627	yugioh	parse+check	5	1624.30	1908.14	1908.14	MapElements: map über Tupel je Position
 2026-09-27 17:52:11	d407122+	-	ADV-DEV-56627	yugioh	parse+check	5	1502.91	1859.24	1859.24	combine$ je Position, valueOf steigt in List ab
 2026-09-27 17:55:42	d407122+	-	ADV-DEV-56627	yugioh	parse+check	5	1505.89	1919.20	1919.20	TupleOf entfernt
+2026-09-27 18:03:05	a7a4322+	-	ADV-DEV-56627	yugioh	parse+check	5	1595.56	1888.05	1888.05	Rest-Parameter mit deklariertem Typ im Rumpf

@@ -116,11 +116,6 @@
 	-die regeln greifen heute nur bei genau zwei choices
 	-And(TypeOf(a) TypeOf(b) Integer) bleibt sonst als knoten stehen statt zu Integer zu werden
 	-macht das Never idiom für bedingte typen erst lesbar
--mapped tuples (docs/mapped-tuples.md): map und combine$ je position umgesetzt, offen
-	-hover auf die deklaration von combine$ zeigt ~> Stream(List(Any)), das Empty fehlt. am aufruf
-	 stimmt der typ (combine$() ergibt Stream(Empty)), vermutlich löst sich der rest-parameter ohne
-	 aufruf zu List(…) statt Or([] List(…)) auf
-	-map verlangt den parameternamen value, hält er einen typ, meldet JUL2600 groß-/kleinschreibung
 -TS-Typannotationen übernehmen, siehe docs/typescript-import-types.md
 	-yugioh: deleteDeck ohne aktives Deck gibt Empty an removeField/deleteRecordFromDb
 	 (key: string), main.jul 563/565 - in yugioh auflösen

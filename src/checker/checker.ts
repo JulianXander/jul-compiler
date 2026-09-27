@@ -2078,8 +2078,12 @@ function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterRe
 		if (isParametersType(paramsType)) {
 			// Nach Index, nicht Name: ParamsType speichert bei einem aliasierten Parameter
 			// (name = source) den Quellnamen, parameterReference.name aber den lokalen Namen
-			// aus dem Rumpf - bei einem Alias laufen beide auseinander.
-			return paramsType.singleNames[parameterReference.index]?.type;
+			// aus dem Rumpf - bei einem Alias laufen beide auseinander. Der Rest-Parameter steht
+			// hinter den einzelnen.
+			const { singleNames, rest } = paramsType;
+			return parameterReference.index === singleNames.length
+				? rest?.type
+				: singleNames[parameterReference.index]?.type;
 		}
 	}
 }
@@ -5035,7 +5039,11 @@ function mapElementsFromTypes(
 			if (isUnresolvedPlaceholderType(sourceType)) {
 				return createCompileTimeMapElementsType(rawSourceType, rawCallbackType);
 			}
-			return createCompileTimeListType(mapElementType(callbackType, builtinAny, undefined));
+			// Über die Quelle ist nichts bekannt, sie kann also auch leer sein.
+			return createNormalizedUnionType([
+				builtinEmpty,
+				createCompileTimeListType(mapElementType(callbackType, builtinAny, undefined)),
+			]);
 	}
 }
 

@@ -334,7 +334,7 @@ textValue: (input: Any) :> Text
 ageInput: Any
 body: Any
 booleanInput: Any
-data$: Stream(List(Any))
+data$: Stream(Or(Empty List(Any)))
 htmlIf: Any
 inputValue$: Any
 label: Any
@@ -346,7 +346,7 @@ visibleInput: Any
   error 3010 at 1:88 Unexpected extension for import: 
   error 5050 at 6:9 Argument type mismatch. | Can not assign dictionary to rest parameter
   error 4001 at 29:3 'button' is not defined.
-  error 5160 at 32:15 Failed to dereference field 'value' in type Stream(List(Any))
+  error 5160 at 32:15 Failed to dereference field 'value' in type Stream(Or(Empty List(Any)))
   hint 4004 at 1:66 'inputValue$' is defined but never used.
 === ui/preserve-dom/main.jul ===
 addMessage: (message: Text) :> Any
