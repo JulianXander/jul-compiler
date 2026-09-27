@@ -208,10 +208,6 @@
 	 node-seitig dem falschen frame zu (dort beschrieben)
 	?weitergehend (eigener linker, runtime in module aufteilen, runtime als paket):
 	 docs/backlog/runtime-linking.md
--runtime: getElement hat die params von setElement, setElement hat keine. der
-	_createFunction-aufruf nach setElement nannte getElement, beim tree-shaking-umbau unverändert
-	übernommen (TODO in runtime.ts). fix per test: getElement.params nur values und index,
-	setElement.params values, index, value
 -json-import verliert \r: emitter schreibt texte als template-literal mit echtem zeilenumbruch, js
 	normalisiert crlf darin zu lf. import von card-data.json (yugioh, karte 295517) liefert dadurch
 	andere texte als _parseJson auf dieselbe datei

@@ -161,8 +161,9 @@ export const map = /*#__PURE__*/ _createFunction(
   `isDeepEqual`, der Export `deepEqual` ist `_createFunction(isDeepEqual, …)`.
 - **Vorhandener Fehler, beim Umbau unverändert übernommen:** Der `_createFunction`-Aufruf nach
   `setElement` nannte `getElement`. `getElement` hat deshalb die `params` von `setElement`, und
-  `setElement` hat keine. Das Verhalten ist genau erhalten und mit TODO markiert. Der Fix kommt
-  separat, mit einem Test, der zuerst rot ist.
+  `setElement` hatte keine. Beim Umbau wurde das Verhalten genau übernommen und danach separat
+  behoben, mit Tests, die zuerst rot waren (`getElement/setElement` in `runtime.test.ts`). Ohne
+  `params` bekam `setElement` bei benannten Argumenten das ganze Dictionary als `values`.
 - Typecheck: Mit der generischen Signatur aus A2 haben die Builtins in `runtime.test.ts` jetzt
   ihre echten Typen. Drei Stellen brauchten eine explizite Verengung (`parseJson`).
 

@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import { reportAtCaller } from './test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts,
-	completed$, create$, deepEqual, findLastIndex, Integer, multiply, or, parseJson, push, rationalToFloat,
-	regex, subscribe, subtract, take$, toJson,
+	completed$, create$, deepEqual, findLastIndex, getElement, Integer, multiply, or, parseJson, push, rationalToFloat,
+	regex, setElement, subscribe, subtract, take$, toJson,
 } from './runtime.js';
 
 //#region _branch
@@ -320,6 +320,28 @@ describe('findLastIndex', () => {
 	it('returns undefined when nothing matches', () => {
 		const result = findLastIndex([1n, 2n], (value: bigint) => value === 9n);
 		expect(result).to.equal(undefined);
+	});
+});
+
+/**
+ * Die Namen der Einzelparameter, die _createFunction an die Funktion gehängt hat, undefined ohne params.
+ */
+function getParamNames(fn: Function): string[] | undefined {
+	return (fn as { params?: { singleNames?: { name: string; }[]; }; }).params?.singleNames?.map(param => param.name);
+}
+
+describe('getElement/setElement', () => {
+	it('getElement hat die Parameter values und index', () => {
+		expect(getParamNames(getElement)).to.deep.equal(['values', 'index']);
+	});
+	it('setElement hat die Parameter values, index und value', () => {
+		expect(getParamNames(setElement)).to.deep.equal(['values', 'index', 'value']);
+	});
+	it('getElement mit benannten Argumenten', () => {
+		expect(_callFunction(getElement, undefined, { values: [7n, 8n], index: 2n })).to.equal(8n);
+	});
+	it('setElement mit benannten Argumenten', () => {
+		expect(_callFunction(setElement, undefined, { values: [1n, 2n], index: 2n, value: 5n })).to.deep.equal([1n, 5n]);
 	});
 });
 

@@ -2029,7 +2029,6 @@ export const length = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-// TODO Diese params gehören zu setElement (siehe TODO), getElement bräuchte values und index.
 export const getElement = /*#__PURE__*/ _createFunction(
 	function getElement<T>(
 		values: T[] | undefined,
@@ -2047,24 +2046,37 @@ export const getElement = /*#__PURE__*/ _createFunction(
 				name: 'index',
 				type: PositiveInteger
 			},
+		]
+	}
+);
+export const setElement = /*#__PURE__*/ _createFunction(
+	function setElement<T>(
+		values: T[] | undefined,
+		index: bigint,
+		value: T,
+	): T[] {
+		const copy = values
+			? [...values]
+			: [];
+		copy[Number(index) - 1] = value;
+		return copy;
+	},
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
+			},
+			{
+				name: 'index',
+				type: PositiveInteger
+			},
 			{
 				name: 'value',
 			},
 		]
 	}
 );
-// TODO ohne params, siehe getElement
-export const setElement = <T>(
-	values: T[] | undefined,
-	index: bigint,
-	value: T,
-): T[] => {
-	const copy = values
-		? [...values]
-		: [];
-	copy[Number(index) - 1] = value;
-	return copy;
-};
 export const map = /*#__PURE__*/ _createFunction(
 	function map<T, U>(
 		values: T[] | undefined,
