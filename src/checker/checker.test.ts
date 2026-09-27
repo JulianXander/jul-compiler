@@ -1597,6 +1597,51 @@ x: Integer = typeOfValue(Integer)`, {
 		});
 	});
 	// T hält einen Typ, die Großschreibung ist also richtig.
+	// Keiner der Typwerte hat eine Eigenschaft Foo, bekannt ist über das Ergebnis also nichts.
+	// Die leere Union wäre Never, das überall zuweisbar ist und den Fehler verdeckte.
+	it('name-access-on-union-of-type-values-is-unknown', () => {
+		expectCheck('f = (T: Or(TypeOf(Integer) TypeOf(Text))) :> Integer => [T/Foo]', {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign [Any] to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 56,
+					endRowIndex: 0,
+					endColumnIndex: 63,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 45,
+						endRowIndex: 0,
+						endColumnIndex: 52,
+					},
+				},
+			],
+		});
+	});
+	// Dasselbe über TypeOf eines Werts, dessen Typ eine Union ist.
+	it('name-access-on-type-of-union-is-unknown', () => {
+		expectCheck('f = (x: Or(Integer Text)) :> Integer => [TypeOf(x)/Foo]', {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign [Any] to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 40,
+					endRowIndex: 0,
+					endColumnIndex: 55,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 29,
+						endRowIndex: 0,
+						endColumnIndex: 36,
+					},
+				},
+			],
+		});
+	});
 	it('type-property-named-as-type', () => {
 		expectCheck('T = List(Integer)/ElementType');
 	});
@@ -1642,6 +1687,112 @@ x: Integer = f(a$)`, {
 					endColumnIndex: 75,
 				},
 			],
+		});
+	});
+	// Rückgabetyp-Fehler in einer einzeiligen Funktion mit deklariertem Rückgabetyp Integer.
+	function integerReturnTypeMismatch(type: string, startColumnIndex: number, endColumnIndex: number, declaredColumnIndex: number): CompilerError {
+		return {
+			code: ErrorCode.returnTypeMismatch,
+			message: `Return type mismatch.\nCan not assign ${type} to Integer.`,
+			startRowIndex: 0,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: 0,
+			endColumnIndex: endColumnIndex,
+			relatedInformation: {
+				message: 'Declared as Integer here.',
+				startRowIndex: 0,
+				startColumnIndex: declaredColumnIndex,
+				endRowIndex: 0,
+				endColumnIndex: declaredColumnIndex + 7,
+			},
+		};
+	}
+	// map über ein Tupel wertet den Callback je Position aus, mit dem Element und seinem Index.
+	it('map-over-tuple-passes-element-and-index-per-position', () => {
+		expectCheck('x: Integer = [Integer Text].map((value index) => [value index])', {
+			errors: [
+				{
+					code: ErrorCode.namingCase,
+					message: "'value' is a type and should start with an uppercase letter.",
+					startRowIndex: 0,
+					startColumnIndex: 33,
+					endRowIndex: 0,
+					endColumnIndex: 38,
+				},
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign [[TypeOf(Integer) 1] [TypeOf(Text) 2]] to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 63,
+				},
+			],
+		});
+	});
+	it('map-over-tuple-parameter-maps-per-position', () => {
+		expectCheck('f = (t: [Integer Text]) :> Integer => t.map((value) => [value])', {
+			errors: [integerReturnTypeMismatch('[[Integer] [Text]]', 38, 63, 27)],
+		});
+	});
+	it('map-over-tuple-parameter-passes-index-per-position', () => {
+		expectCheck('f = (t: [Integer Text]) :> Integer => t.map((value index) => index)', {
+			errors: [integerReturnTypeMismatch('[1 2]', 38, 67, 27)],
+		});
+	});
+	it('map-over-tuple-of-streams-reads-value-type-per-position', () => {
+		expectCheck('f = (a$: Stream(Integer) b$: Stream(Text)) :> Integer => [a$ b$].map((value) => TypeOf(value)/ValueType)', {
+			errors: [integerReturnTypeMismatch('[TypeOf(Integer) TypeOf(Text)]', 57, 104, 46)],
+		});
+	});
+	// Empty bleibt Empty, das Tupel wird je Position abgebildet.
+	it('map-over-tuple-or-empty-maps-per-position', () => {
+		expectCheck('f = (t: Or([] [Integer Text])) :> Integer => t.map((value) => [value])', {
+			errors: [
+				{
+					...integerReturnTypeMismatch('', 45, 70, 34),
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.\nCan not assign [[Integer] [Text]] to Integer.',
+				},
+			],
+		});
+	});
+	// Gegenprobe: eine List hat keine Positionen, jedes Element bekommt denselben Typ.
+	it('map-over-list-keeps-one-element-type', () => {
+		expectCheck('f = (t: List(Integer)) :> Integer => t.map((value) => [value])', {
+			errors: [integerReturnTypeMismatch('List([Integer])', 37, 62, 26)],
+		});
+	});
+	// combine$ liefert die Werte seiner Quellen in deren Reihenfolge, jede Position mit ihrem Typ.
+	it('combine-keeps-value-type-per-position', () => {
+		expectCheck('f = (a$: Stream(Text) b$: Stream(Or([] Integer)) c$: Stream(Boolean)) :> Integer => combine$(a$ b$ c$)', {
+			errors: [integerReturnTypeMismatch('Stream([Text Or(Empty Integer) Boolean])', 84, 102, 73)],
+		});
+	});
+	it('combine-without-sources-is-stream-of-empty', () => {
+		expectCheck('f = () :> Integer => combine$()', {
+			errors: [integerReturnTypeMismatch('Stream(Empty)', 21, 31, 10)],
+		});
+	});
+	// Der Rumpf wird einmal gegen die Union der Elemente geprüft, nicht je Position: ein Fehler
+	// darin erscheint genau einmal.
+	it('map-over-tuple-reports-body-error-once', () => {
+		expectCheck('f = (t: [Integer Text]) => t.map((value) => add(value 1))', {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: "Argument type mismatch.\nInvalid value for parameter 'args'\n  Can not assign Text to Integer.\n  Can not assign Text to [\n    numerator: Integer\n    denominator: Integer\n  ].",
+					startRowIndex: 0,
+					startColumnIndex: 48,
+					endRowIndex: 0,
+					endColumnIndex: 53,
+				},
+			],
+		});
+	});
+	// Gegenprobe: ein Callback, der kein Literal ist, hat einen festen Rückgabetyp.
+	it('map-over-tuple-with-callback-parameter-keeps-its-return-type', () => {
+		expectCheck('f = (t: [Integer Text] cb: (value: Or(Integer Text)) :> Text) :> Integer => t.map(cb)', {
+			errors: [integerReturnTypeMismatch('[Text Text]', 76, 85, 65)],
 		});
 	});
 	// Eine Funktion als Argument bleibt ein Funktionswert und wird nicht zum Prädikat.

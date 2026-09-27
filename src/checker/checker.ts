@@ -32,6 +32,7 @@ import {
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
 	createCompileTimeTupleOfType,
+	createCompileTimeMapElementsType,
 	createCompileTimeTypeOfType,
 	createCompileTimeWithElementAtType,
 	createCompileTimeConditionalType,
@@ -473,6 +474,13 @@ const indentUnit = '  ';
 const subtypeReductionLimit = 20;
 
 /**
+ * Ab dieser Länge bildet MapElements ein Tupel nicht mehr je Position ab, sondern alle Positionen
+ * mit der Union der Elemente. Je Position entstehen sonst n verschiedene Typen, die weiter hinten
+ * (etwa in removeSubtypes) quadratisch kosten.
+ */
+const maxMappedPositions = 50;
+
+/**
  * Kombinieren auf derselben Ebene, statt eine Datenebene hinzuzufügen - siehe
  * findUnproductiveSelfReference. Muss wie subtypeReductionLimit hier oben stehen: die core-lib
  * wird schon beim Modul-Load gecheckt und läuft dabei durch die Prüfung.
@@ -861,6 +869,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'text':
 		case 'textLiteral':
 		case 'tupleOf':
+		case 'mapElements':
 		case 'type':
 		case 'conditional':
 		case 'withElementAt':
@@ -1049,7 +1058,10 @@ export function dereferenceNameFromObject(
 					return undefined;
 				}
 			}
-			return createNormalizedUnionType(dereferencedChoices);
+			// Kein Choice hat etwas beigetragen: unbekannt, nicht die leere Union Never.
+			return dereferencedChoices.length
+				? createNormalizedUnionType(dereferencedChoices)
+				: undefined;
 		}
 		case 'typeOf': {
 			const innerType = sourceObjectType.value;
@@ -1079,6 +1091,7 @@ export function dereferenceNameFromObject(
 		case 'text':
 		case 'textLiteral':
 		case 'tupleOf':
+		case 'mapElements':
 		case 'type':
 		case 'conditional':
 		case 'withElementAt':
@@ -1120,7 +1133,10 @@ function dereferenceNameFromObjectType(
 				// eine Eigenschaft des Typs ist und nicht des Werts.
 				return dereferenceNameFromObjectType(name, choiceType, createCompileTimeTypeOfType(choiceType));
 			}).filter((type): type is CompileTimeType => !!type);
-			return createNormalizedUnionType(dereferencedChoices);
+			// Kein Choice hat die Eigenschaft: unbekannt, nicht die leere Union Never.
+			return dereferencedChoices.length
+				? createNormalizedUnionType(dereferencedChoices)
+				: undefined;
 		}
 		case 'concat': {
 			// Gleiches Prinzip wie 'or': jede Quelle einzeln dereferenzieren (mit eigener TypeOf-
@@ -1157,6 +1173,7 @@ function dereferenceNameFromObjectType(
 		case 'text':
 		case 'textLiteral':
 		case 'tupleOf':
+		case 'mapElements':
 		case 'type':
 		case 'typeOf':
 		case 'conditional':
@@ -1262,6 +1279,7 @@ export function dereferenceIndexFromObject(
 		case 'text':
 		case 'textLiteral':
 		case 'tupleOf':
+		case 'mapElements':
 		case 'type':
 		case 'typeOf':
 		case 'conditional':
@@ -1984,6 +2002,26 @@ function traversePlaceholders(
 			}
 			// Neu falten statt neu einpacken.
 			return tupleOfFromTypes(dereferencedCount, dereferencedElement);
+		}
+		case 'mapElements': {
+			const rawSource = rawType.Source;
+			const rawCallback = rawType.Callback;
+			const dereferencedSource = traversePlaceholders(rawSource, argumentContext);
+			// Die Verweise im Rückgabetyp des Callbacks zeigen auf genau dieses Funktionsobjekt.
+			// resolvePlaceholders baut Funktionen neu, in einer Kopie fände das Einsetzen sie nicht.
+			const dereferencedCallback = rawCallback.julType === 'function'
+				? rawCallback
+				: traversePlaceholders(rawCallback, argumentContext);
+			if (dereferencedSource === rawSource
+				&& dereferencedCallback === rawCallback) {
+				return rawType;
+			}
+			const mapped = mapElementsFromTypes(dereferencedSource, dereferencedCallback);
+			// Der Rückgabetyp des Callbacks kann noch Parameter der umgebenden Funktion nennen.
+			return mapped.julType === 'mapElements'
+				|| !isUnresolvedPlaceholderType(mapped)
+				? mapped
+				: traversePlaceholders(mapped, argumentContext);
 		}
 		case 'concat': {
 			const rawSources = rawType.Sources;
@@ -4775,6 +4813,17 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(
 					tupleOfFromTypes(valueOf(countType), valueOf(elementType)));
 			}
+			case 'MapElements': {
+				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const sourceType = argTypes?.[0];
+				const callbackType = argTypes?.[1];
+				if (!sourceType
+					|| !callbackType) {
+					return builtinAny;
+				}
+				return createCompileTimeTypeOfType(
+					mapElementsFromTypes(valueOf(sourceType), valueOf(callbackType)));
+			}
 			case 'Concat': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
@@ -4998,6 +5047,69 @@ function tupleOfFromTypes(
 		default:
 			return createCompileTimeListType(elementType);
 	}
+}
+
+/**
+ * Source, jede Position abgebildet durch callback. Bei einem Tuple wird der Rückgabetyp des
+ * Callbacks je Position instanziiert, mit dem Element und seinem Index als Argumenten. Der Rumpf
+ * wird dafür nicht neu inferiert: sein Rückgabetyp nennt die eigenen Parameter noch als Verweise,
+ * eingesetzt wird wie beim Aufruf einer Funktion mit generischem Rückgabetyp.
+ */
+function mapElementsFromTypes(
+	rawSourceType: CompileTimeType,
+	rawCallbackType: CompileTimeType,
+): CompileTimeType {
+	const callbackType = resolveAlias(rawCallbackType);
+	if (callbackType.julType !== 'function'
+		&& isUnresolvedPlaceholderType(callbackType)) {
+		return createCompileTimeMapElementsType(rawSourceType, rawCallbackType);
+	}
+	const sourceType = resolveAlias(rawSourceType);
+	switch (sourceType.julType) {
+		case 'empty':
+			return builtinEmpty;
+		case 'tuple': {
+			const elementTypes = sourceType.ElementTypes;
+			if (!elementTypes.length) {
+				return builtinEmpty;
+			}
+			if (elementTypes.length > maxMappedPositions) {
+				const mapped = mapElementType(callbackType, createNormalizedUnionType(elementTypes), undefined);
+				return createCompileTimeTupleType(new Array(elementTypes.length).fill(mapped));
+			}
+			return createCompileTimeTupleType(elementTypes.map((elementType, index) =>
+				mapElementType(callbackType, elementType, createIntegerLiteral(BigInt(index + 1)))));
+		}
+		case 'list':
+			// Die Länge steht nicht fest, jedes Element bekommt denselben Typ.
+			return createCompileTimeListType(mapElementType(callbackType, sourceType.ElementType, undefined));
+		case 'or':
+			return createNormalizedUnionType(sourceType.ChoiceTypes.map(choiceType =>
+				mapElementsFromTypes(choiceType, rawCallbackType)));
+		default:
+			if (isUnresolvedPlaceholderType(sourceType)) {
+				return createCompileTimeMapElementsType(rawSourceType, rawCallbackType);
+			}
+			return createCompileTimeListType(mapElementType(callbackType, builtinAny, undefined));
+	}
+}
+
+/**
+ * Der Rückgabetyp von callback für ein Element. Ohne feststehenden Index bleibt der Parameter
+ * index ungebunden und fällt später auf seinen deklarierten Typ zurück.
+ */
+function mapElementType(
+	callbackType: CompileTimeType,
+	elementType: CompileTimeType,
+	indexType: CompileTimeType | undefined,
+): CompileTimeType {
+	if (callbackType.julType !== 'function') {
+		return builtinAny;
+	}
+	const argsType = createCompileTimeTupleType(indexType
+		? [elementType, indexType]
+		: [elementType]);
+	return dereferenceArgumentTypesNested(callbackType, undefined, argsType, callbackType.ReturnType);
 }
 
 /**
@@ -5687,6 +5799,7 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'textLiteral':
 		case 'tuple':
 		case 'tupleOf':
+		case 'mapElements':
 		case 'type':
 		case 'typeOf':
 		case 'withElementAt':
@@ -6511,6 +6624,11 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 			return second.julType === 'tupleOf'
 				&& typeEquals(first.Count, second.Count)
 				&& typeEquals(first.ElementType, second.ElementType);
+		case 'mapElements':
+			// Der Callback zählt als Objekt: seine Parameterverweise hängen an genau diesem.
+			return second.julType === 'mapElements'
+				&& typeEquals(first.Source, second.Source)
+				&& first.Callback === second.Callback;
 		case 'concat':
 			return second.julType === 'concat'
 				&& first.Sources.length === second.Sources.length
@@ -7265,6 +7383,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'text':
 		case 'textLiteral':
 		case 'tupleOf':
+		case 'mapElements':
 		case 'type':
 		case 'withElementAt':
 			return type;
@@ -7509,7 +7628,8 @@ function getTypeErrorAtDepth(
 					return getTypeError(prefixArgumentType, argumentsType.UpperBound, targetType);
 			}
 			break;
-		case 'tupleOf': {
+		case 'tupleOf':
+		case 'mapElements': {
 			// Wie concat/withElementAt: solange die Anzahl noch offen ist, bleibt der Knoten
 			// stehen - erst neu falten versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
@@ -7911,6 +8031,7 @@ function getTypeErrorAtDepth(
 			// Nur als Schlüssel sinnvoll, nie als Zieltyp einer Zuweisung.
 			return undefined;
 		case 'tupleOf':
+		case 'mapElements':
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference.
 			return undefined;
 		case 'concat':
@@ -8547,6 +8668,8 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return `Range(${typeToString(type.Start, indent, depth + 1, suppressAlias)} ${typeToString(type.End, indent, depth + 1, suppressAlias)})`;
 		case 'tupleOf':
 			return `TupleOf(${typeToString(type.Count, indent, depth + 1, suppressAlias)} ${typeToString(type.ElementType, indent, depth + 1, suppressAlias)})`;
+		case 'mapElements':
+			return `MapElements(${typeToString(type.Source, indent, depth + 1, suppressAlias)} ${typeToString(type.Callback, indent, depth + 1, suppressAlias)})`;
 		case 'concat':
 			return `Concat(${type.Sources.map((source, i) =>
 				i > 0 ? ' ' + typeToString(source, indent, depth + 1, suppressAlias) : typeToString(source, indent, depth + 1, suppressAlias)).join('')})`;
@@ -8822,6 +8945,7 @@ function classifyTypenessOnPath(
 		case 'not':
 		case 'conditional':
 		case 'tupleOf':
+		case 'mapElements':
 		case 'concat':
 		case 'withElementAt':
 		case 'nestedReference':

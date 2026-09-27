@@ -1504,6 +1504,24 @@ export const TupleOf = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const MapElements = /*#__PURE__*/ _createFunction(
+	function MapElements(Source: RuntimeType, Callback: RuntimeType): RuntimeType {
+		// Wie Concat nur für den Checker: der Rückgabetyp von map.
+		throw new Error('MapElements() is only for type-level computation and should never be called at runtime');
+	},
+	{
+		singleNames: [
+			{
+				name: 'Source',
+				type: Type,
+			},
+			{
+				name: 'Callback',
+				type: Type,
+			},
+		]
+	}
+);
 export const Concat = /*#__PURE__*/ _createFunction(
 	function Concat(...sources: any[]): RuntimeType {
 		// Diese Funktion wird zur Laufzeit nie aufgerufen — Concat ist eine

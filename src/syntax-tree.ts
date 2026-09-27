@@ -673,6 +673,7 @@ export type CompileTimeType =
 	| CompileTimeConditionalType
 	| CompileTimeRangeType
 	| CompileTimeTupleOfType
+	| CompileTimeMapElementsType
 	| CompileTimeConcatType
 	| CompileTimeAddType
 	| CompileTimeListType
@@ -971,6 +972,29 @@ export function createCompileTimeTupleOfType(
 		julType: 'tupleOf',
 		Count: Count,
 		ElementType: ElementType,
+		isUnresolvedPlaceholder: true,
+	};
+}
+
+/**
+ * Source, jede Position abgebildet durch Callback: bei einem Tuple der Rückgabetyp des Callbacks
+ * je Position, mit dem Element und seinem Index als Argumenten. Bleibt stehen, solange Source oder
+ * Callback noch nicht feststehen.
+ */
+export interface CompileTimeMapElementsType extends CompileTimeTypeBase {
+	readonly julType: 'mapElements';
+	Source: CompileTimeType;
+	Callback: CompileTimeType;
+}
+
+export function createCompileTimeMapElementsType(
+	Source: CompileTimeType,
+	Callback: CompileTimeType,
+): CompileTimeMapElementsType {
+	return {
+		julType: 'mapElements',
+		Source: Source,
+		Callback: Callback,
 		isUnresolvedPlaceholder: true,
 	};
 }
@@ -1422,6 +1446,10 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 		case 'tupleOf':
 			callback(type.Count);
 			callback(type.ElementType);
+			return;
+		case 'mapElements':
+			callback(type.Source);
+			callback(type.Callback);
 			return;
 		case 'typeOf':
 			callback(type.value);

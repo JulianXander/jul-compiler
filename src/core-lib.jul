@@ -205,6 +205,18 @@ TupleOf = nativeFunction(
 		(count, ElementType) => TupleOf(count, ElementType)
 	§
 )
+# Source, jede Position abgebildet durch Callback.
+# Bei einem Tupel der Rückgabetyp von Callback je Position, mit dem Element und seinem Index.
+# Bei einer List derselbe Rückgabetyp für jedes Element.
+MapElements = nativeFunction(
+	(
+		Source: Type
+		Callback: Type
+	) -> Type
+	§js
+		(Source, Callback) => MapElements(Source, Callback)
+	§
+)
 # Die Aneinanderreihung mehrerer Quellen.
 # Sind alle Quellen Tupel, das Ergebnis ihre Verkettung.
 # Hat eine Quelle eine List, das Ergebnis List(Union der Elementtypen).
@@ -677,7 +689,7 @@ map = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> TupleOf(length(values) TypeOf(callback)/ReturnType)
+	) :> MapElements(TypeOf(values) TypeOf(callback))
 	§js
 		(values, callback) => {
 			if (!values) {
@@ -1156,12 +1168,12 @@ flatSwitchMap$ = nativeFunction(
 	§
 )
 # Wie RxJS combineLatest
+# Liefert die Werte der sources in ihrer Reihenfolge, jede Position mit dem Werttyp ihrer Quelle.
 # Wenn keine sources übergeben, dann wird Empty vom Rückgabestream emittiert.
 combine$ = nativeFunction(
 	(
 		...sources: Or([] List(Stream(Any)))
-		# TODO Mapped tuple returntype: combine$(Stream(A) Stream(B) Stream(C)) => Stream((A B C))
-	) ~> Stream(Or([] List(TypeOf(sources)/ElementType/ValueType)))
+	) ~> Stream(sources.map((value) => TypeOf(value)/ValueType))
 	§js
 		(...sources) => _combine$(...sources)
 	§
