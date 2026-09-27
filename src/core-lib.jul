@@ -1051,7 +1051,7 @@ create$ = nativeFunction(
 completed$ = nativeFunction(
 	(
 		intitialValue: Any
-	) -> Stream(TypeOf(intitialValue))
+	) ~> Stream(TypeOf(intitialValue))
 	§js
 		(initialValue) => {
 			const stream$ = new StreamClass(() => stream$.lastValue);
