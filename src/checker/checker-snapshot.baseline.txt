@@ -321,14 +321,14 @@ ageField: Any
 ageVisible$: Stream(Boolean)
 data$: Stream([   name: Text   age: Or(Empty Integer) ])
 elementById: (id: Text) :> Any
-inputValue$: (   element: Any   ValueType: Type   read: (input: Any) :> Type ) ~> Stream(Type)
+inputValue$: (   element: Any   read: (input: Any) :> Any ) ~> Stream(Any)
 integerValue: (input: Any) :> Or(Empty Integer)
 isChecked: (input: Any) :> Boolean
 name$: Stream(Text)
-onInput: (   input: Any   listener: Any ) :> Any
+onInput: (   input: Any   listener: Any ) :> Empty
 output: Any
-setHidden: (   element: Any   hidden: Boolean ) :> Any
-setText: (   element: Any   text: Text ) :> Any
+setHidden: (   element: Any   hidden: Boolean ) :> Empty
+setText: (   element: Any   text: Text ) :> Empty
 textValue: (input: Any) :> Text
 === ui/dynamic-form/dynamic-form2.jul ===
 ageInput: Any
