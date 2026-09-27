@@ -4,7 +4,7 @@
 Typ: die Union aller Elemente. Dieses Dokument beschreibt, wie der Checker den Callback je Position
 auswertet, sodass das Ergebnis wieder ein Tupel mit den Typen der einzelnen Positionen ist.
 
-**Stand:** Schritte 1 bis 4 umgesetzt, Schritt 5 offen. Setzt [type-properties.md](type-properties.md) voraus. Roter
+**Stand:** Umgesetzt. Setzt [type-properties.md](type-properties.md) voraus. Roter
 Zieltest: `map-over-stream-types-reads-value-type-per-position`.
 
 ## Ausgangslage
@@ -116,9 +116,14 @@ Jeder Schritt beginnt mit einem roten Test. Vorher und nachher `npm run bench --
 4. **Baselines.** Snapshot-Diff ansehen: erwartet sind nur engere Typen (`dynamic-form`,
    `stream.jul`), kein neues Never, keine neuen Fehler. `build-all`, LSP-Snapshot, `jul check` in
    yugioh.
-5. **Optional, getrennt gemessen:** `TupleOf` entfernen, es wird nur von map benutzt. Das
-   gemeinsame Gerüst der Typfunktionen (über Or verteilen, Platzhalter aufschieben, bei List
-   zurückfallen) als Helfer herausziehen.
+5. **`TupleOf` entfernen**, es wurde nur von map benutzt. Das gemeinsame Gerüst der
+   Typfunktionen (`getLengthFromType`, `withElementAtFromTypes`, `concatFromTypes`,
+   `mapElementsFromTypes`) wird bewusst nicht als Helfer herausgezogen. Gemeinsam ist nur das
+   Grobmuster, in den Einzelheiten weichen alle ab, und genau dort steckt die Logik: wann gewartet
+   wird (`withElementAt` vor allem anderen, damit nicht vorschnell vereinigt wird, `concat` sobald
+   eine von n Quellen offen ist), worüber und in welcher Reihenfolge über Or verteilt wird und
+   worauf zurückgefallen wird. Ein Helfer bräuchte dafür Optionen und je Art einen Callback, die
+   bewussten Abweichungen stünden dann versteckt in Optionen statt sichtbar im Code.
 
 ## Stellen
 

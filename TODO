@@ -117,9 +117,6 @@
 	-And(TypeOf(a) TypeOf(b) Integer) bleibt sonst als knoten stehen statt zu Integer zu werden
 	-macht das Never idiom für bedingte typen erst lesbar
 -mapped tuples (docs/mapped-tuples.md): map und combine$ je position umgesetzt, offen
-	-das gemeinsame gerüst der typfunktionen (über or verteilen, platzhalter aufschieben, bei
-	 unbekanntem zurückfallen) als helfer herausziehen: withElementAtFromTypes, getLengthFromType,
-	 mapElementsFromTypes, concatFromTypes
 	-hover auf die deklaration von combine$ zeigt ~> Stream(List(Any)), das Empty fehlt. am aufruf
 	 stimmt der typ (combine$() ergibt Stream(Empty)), vermutlich löst sich der rest-parameter ohne
 	 aufruf zu List(…) statt Or([] List(…)) auf
