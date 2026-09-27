@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { reportAtCaller } from './test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
-	completed$, create$, deepEqual, findLastIndex, getElement, Integer, multiply, or, parseJson, push, rationalToFloat,
+	completed$, create$, deepEqual, findLastIndex, getElement, httpTextRequest$, Integer, multiply, or, parseJson, push, rationalToFloat,
 	regex, setElement, subscribe, subtract, take$, takeUntil$, toJson,
 } from './runtime.js';
 
@@ -484,6 +484,33 @@ describe('takeUntil$', () => {
 		subscribe(signal$, (value: string) => values.push(value));
 		push(signal$, 'stop');
 		expect(values).to.deep.equal(['start', 'stop']);
+	});
+});
+
+describe('httpTextRequest$', () => {
+	const originalFetch = globalThis.fetch;
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+	});
+	// Ein Server, der nie antwortet: fetch endet erst, wenn die Anfrage abgebrochen wird.
+	function fetchNeverAnswering(): typeof fetch {
+		return (_input, init) => new Promise((_resolve, reject) => {
+			init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason));
+		});
+	}
+	it('ends with an error when no answer arrives within the timeout', async () => {
+		globalThis.fetch = fetchNeverAnswering();
+		const response$ = httpTextRequest$('https://example.org', 'get', 1, undefined, undefined);
+		await new Promise(resolve => (response$ as any).onCompleted(resolve));
+		const value = (response$ as any).lastValue;
+		expect(value).to.be.instanceOf(Error);
+		expect(value.message).to.equal('Timeout after 1 ms');
+	});
+	it('delivers the answer that arrives before the timeout', async () => {
+		globalThis.fetch = async () => new Response('answer');
+		const response$ = httpTextRequest$('https://example.org', 'get', 1000, undefined, undefined);
+		await new Promise(resolve => (response$ as any).onCompleted(resolve));
+		expect((response$ as any).lastValue).to.equal('answer');
 	});
 });
 

@@ -1063,28 +1063,34 @@ completed$ = nativeFunction(
 )
 # Startwert: ()
 # Schickt eine HTTP Anfrage ab und liefert die Antwort als Text.
+# Ist die Antwort nach timeoutMs nicht vollständig da, wird die Anfrage abgebrochen und der Stream
+# liefert einen Error. Danach ist der Stream in jedem Fall beendet.
 httpTextRequest$ = nativeFunction(
 	(
 		url: Text
 		method: Text
+		timeoutMs: Float
 		headers: Or([] Dictionary(Text))
 		body: Any
 	) ~> Stream(Or([] Text Error))
 	§js
-		(url, method, headers, body) => httpRequest$(url, method, headers, body, 'text')
+		(url, method, timeoutMs, headers, body) => httpRequest$(url, method, timeoutMs, headers, body, 'text')
 	§
 )
 # Startwert: ()
 # Schickt eine HTTP Anfrage ab und liefert die Antwort als Blob.
+# Ist die Antwort nach timeoutMs nicht vollständig da, wird die Anfrage abgebrochen und der Stream
+# liefert einen Error. Danach ist der Stream in jedem Fall beendet.
 httpBlobRequest$ = nativeFunction(
 	(
 		url: Text
 		method: Text
+		timeoutMs: Float
 		headers: Or([] Dictionary(Text))
 		body: Any
 	) ~> Stream(Or([] Blob Error))
 	§js
-		(url, method, headers, body) => httpRequest$(url, method, headers, body, 'blob')
+		(url, method, timeoutMs, headers, body) => httpRequest$(url, method, timeoutMs, headers, body, 'blob')
 	§
 )
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1

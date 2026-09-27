@@ -397,6 +397,13 @@ export interface ParseFunctionCall extends ParseExpressionBase {
 	functionExpression?: SimpleExpression;
 	// TODO primitive value direkt als arguments?
 	arguments?: BracketedExpression;
+	/**
+	 * Vom Checker gesetzt: der Typ der aufgerufenen Funktion, verengt auf diesen Aufruf.
+	 * Parametertypen, die auf ein Argument verweisen (`stream$/ValueType`), sind gegen die
+	 * Argumente aufgelöst, ebenso der Rückgabetyp. Der typeInfo der functionExpression bleibt
+	 * dagegen der Typ des Werts: dieselbe Funktion, unabhängig vom Aufruf.
+	 */
+	calledFunctionType?: CompileTimeFunctionType;
 }
 
 //#region FunctionLiteral

@@ -2645,16 +2645,25 @@ type HttpResponseType =
 	| 'text'
 	;
 
+/**
+ * Der Timeout gilt für die ganze Anfrage einschließlich des Lesens der Antwort. Er ist Pflicht,
+ * damit der Stream sicher endet, auch wenn der Server nie antwortet.
+ */
 function httpRequest$(
 	url: string,
 	method: string,
+	timeoutMs: number,
 	headers: { [key: string]: string; } | undefined,
 	body: any,
 	responseType: HttpResponseType,
 ): StreamClass<undefined | string | Blob | Error> {
 	const abortController = new AbortController();
 	const response$ = _create$<undefined | string | Blob | Error>(undefined);
+	const timeoutId = setTimeout(() => {
+		abortController.abort(new Error(`Timeout after ${timeoutMs} ms`));
+	}, timeoutMs);
 	response$.onCompleted(() => {
+		clearTimeout(timeoutId);
 		abortController.abort();
 	});
 	fetch(url, {
@@ -3023,10 +3032,11 @@ export const httpTextRequest$ = /*#__PURE__*/ _createFunction(
 	function httpTextRequest$(
 		url: string,
 		method: string,
+		timeoutMs: number,
 		headers: { [key: string]: string; } | undefined,
 		body: any,
 	) {
-		return httpRequest$(url, method, headers, body, 'text');
+		return httpRequest$(url, method, timeoutMs, headers, body, 'text');
 	},
 	{
 		singleNames: [
@@ -3037,6 +3047,10 @@ export const httpTextRequest$ = /*#__PURE__*/ _createFunction(
 			{
 				name: 'method',
 				type: _Text
+			},
+			{
+				name: 'timeoutMs',
+				type: Float
 			},
 			{
 				name: 'headers',
@@ -3052,10 +3066,11 @@ export const httpBlobRequest$ = /*#__PURE__*/ _createFunction(
 	function httpBlobRequest$(
 		url: string,
 		method: string,
+		timeoutMs: number,
 		headers: { [key: string]: string; } | undefined,
 		body: any,
 	) {
-		return httpRequest$(url, method, headers, body, 'blob');
+		return httpRequest$(url, method, timeoutMs, headers, body, 'blob');
 	},
 	{
 		singleNames: [
@@ -3066,6 +3081,10 @@ export const httpBlobRequest$ = /*#__PURE__*/ _createFunction(
 			{
 				name: 'method',
 				type: _Text
+			},
+			{
+				name: 'timeoutMs',
+				type: Float
 			},
 			{
 				name: 'headers',

@@ -3518,6 +3518,20 @@ function inferType(
 				: prefixArgumentType;
 			// evaluate generic ReturnType
 			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, returnPrefixArgumentType, argsType, returnType);
+			// Für Hover und Co.: die Signatur, gegen die dieser Aufruf geprüft wurde. Eine Kopie,
+			// denn die Platzhalter in Parameter- und Rückgabetyp zeigen auf das Original.
+			// Der Aliasname entfällt, er stünde sonst in der Anzeige statt der verengten Typen.
+			const resolvedFunctionType = resolveAlias(functionType);
+			if (isFunctionType(resolvedFunctionType)) {
+				expression.calledFunctionType = {
+					...resolvedFunctionType,
+					ParamsType: dereferencedParamsType,
+					ReturnType: dereferencedReturnType,
+					aliasName: undefined,
+					isUnresolvedPlaceholder: dereferencedParamsType.isUnresolvedPlaceholder
+						|| dereferencedReturnType.isUnresolvedPlaceholder,
+				};
+			}
 			// :> an der äußersten Signatur eines nativeFunction-Aufrufs ist eine bedingte
 			// Zusicherung (Purity folgt den übergebenen Funktionsargumenten), keine unbestimmte -
 			// verschachtelte :> an Callback-Parametern derselben Signatur bleiben unknown. Der
