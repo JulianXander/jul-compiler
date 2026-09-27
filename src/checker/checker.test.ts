@@ -340,6 +340,23 @@ f(1 0)`, {
 			],
 		});
 	});
+	// Ein Parametertyp, der auf einen früheren Parameter verweist (value: stream$/ValueType),
+	// wird mit dem Argument für diesen Parameter aufgelöst und dann geprüft wie ein fester Typ.
+	it('argument-type-mismatch-parameter-type-from-previous-parameter', () => {
+		expectCheck(`i$ = create$(Integer 1)
+push(i$ §text§)`, {
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 14,
+					"endRowIndex": 1,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'value'\n  Can not assign §text§ to Integer.",
+					"startColumnIndex": 8,
+					"startRowIndex": 1,
+				},
+			],
+		});
+	});
 	// Ein Feldpfad als Branch-Argument verengt die Quelle: im Integer-Zweig ist d/a auf
 	// Integer verengt, also auch beim erneuten Lesen.
 	it('branch-narrowing-through-field-path', () => {

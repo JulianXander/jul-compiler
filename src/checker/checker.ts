@@ -1147,8 +1147,18 @@ function dereferenceCallbackParams(
 	let changed = false;
 	const dereferencedSingleNames = paramsType.singleNames.map(parameter => {
 		const parameterType = parameter.type;
-		if (!parameterType || !isFunctionType(parameterType)) {
+		if (!parameterType) {
 			return parameter;
+		}
+		if (!isFunctionType(parameterType)) {
+			// Ein Parametertyp wie `stream$/ValueType` verweist auf ein anderes Argument und
+			// wird erst mit dessen Typ prüfbar.
+			const dereferenced = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, parameterType);
+			if (dereferenced === parameterType) {
+				return parameter;
+			}
+			changed = true;
+			return { name: parameter.name, type: dereferenced };
 		}
 		const callbackParamsType = parameterType.ParamsType;
 		if (!isParametersType(callbackParamsType)) {
@@ -2538,6 +2548,24 @@ function narrowExpectedTypeByFields(
 }
 
 /**
+ * Der erwartete Typ eines Arguments, instanziiert mit den bisher bekannten Argumenten des Aufrufs:
+ * bei einem Callback dessen Parametertypen, sonst der Parametertyp selbst (value: stream$/ValueType
+ * wird zu value: Integer).
+ */
+function instantiateExpectedArgument(
+	calledFunction: CompileTimeType,
+	prefixArgumentType: CompileTimeType | undefined,
+	argsType: CompileTimeType,
+	expectedType: CompileTimeType | undefined,
+	argument: ParseValueExpression,
+): CompileTimeType | undefined {
+	if (argument.type === 'functionLiteral') {
+		return instantiateExpectedCallback(calledFunction, prefixArgumentType, argsType, expectedType);
+	}
+	return expectedType && dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, expectedType);
+}
+
+/**
  * Instanziiert die Parametertypen eines erwarteten Callbacks mit den Argumenten des Aufrufs, so
  * dass (value: TypeOf(values)/ElementType) zu (value: Integer) wird. Wie bei
  * dereferenceCallbackParams nur diese eine Ebene. Was sich nicht instanziieren lässt, bleibt roh.
@@ -3366,12 +3394,12 @@ function inferType(
 						let expectedArgumentType = firstSpreadIndex === undefined
 							? getExpectedElementType(paramsType, index + argsPrefixCount)
 							: getExpectedElementTypeAfterSpread(paramsType, firstSpreadIndex);
-						if (value.type === 'functionLiteral') {
+						if (value.type === 'functionLiteral' || expectedArgumentType?.isUnresolvedPlaceholder) {
 							// Vorläufige Argumente: die vorherigen sind schon inferiert, die übrigen Any.
 							const provisionalArgsType = createCompileTimeTupleType(args.values.map(otherValue =>
 								(otherValue as ParseExpressionBase).typeInfo?.type ?? builtinAny));
-							expectedArgumentType = instantiateExpectedCallback(
-								functionType, rawPrefixArgumentTypeForArgs, provisionalArgsType, expectedArgumentType);
+							expectedArgumentType = instantiateExpectedArgument(
+								functionType, rawPrefixArgumentTypeForArgs, provisionalArgsType, expectedArgumentType, value);
 						}
 						setInferredType(value, typeContext, expectedArgumentType, checkContext);
 					});
@@ -3390,12 +3418,13 @@ function inferType(
 						let expectedArgumentType = fieldName === undefined
 							? undefined
 							: getExpectedFieldType(paramsType, fieldName);
-						if (value.type === 'functionLiteral') {
-							expectedArgumentType = instantiateExpectedCallback(
+						if (value.type === 'functionLiteral' || expectedArgumentType?.isUnresolvedPlaceholder) {
+							expectedArgumentType = instantiateExpectedArgument(
 								functionType,
 								rawPrefixArgumentTypeForArgs,
 								createCompileTimeDictionaryLiteralType(provisionalFieldTypes, true),
-								expectedArgumentType);
+								expectedArgumentType,
+								value);
 						}
 						setInferredType(value, typeContext, expectedArgumentType, checkContext);
 						if (fieldName !== undefined && value.typeInfo) {

@@ -140,3 +140,5 @@
 2026-09-26 15:41:09	83ef5b6+	-	ADV-DEV-56627	yugioh	parse+check	5	1466.04	1873.12	1873.12	json-parser: fraction-kürzung, strikter, strings per substring
 2026-09-26 15:58:36	c0e2241+	-	ADV-DEV-56627	yugioh	parse+check	5	1397.29	1757.84	1757.84	vor unreachable branch gegen argumenttyp
 2026-09-26 16:00:52	c0e2241+	-	ADV-DEV-56627	yugioh	parse+check	5	1378.00	1763.11	1763.11	unreachable branch auch gegen argumenttyp (typesOverlap)
+2026-09-27 08:42:14	291a43e+	-	ADV-DEV-56627	yugioh	parse+check	5	1533.06	1807.28	1807.28	vor Fix Parametertyp aus früherem Parameter
+2026-09-27 08:45:45	291a43e+	-	ADV-DEV-56627	yugioh	parse+check	5	1393.71	1769.61	1769.61	Parametertyp aus früherem Parameter wird am Aufruf geprüft

@@ -305,12 +305,16 @@ myVarIsText: Any
   warning 2600 at 57:1 'ParserResult' is not a type and should start with a lowercase letter.
   warning 2600 at 62:1 'Even' is not a type and should start with a lowercase letter.
 === ui/dialog/dialog.jul ===
-  error 1152 at 11:20 expression expected after =>
-  error 4001 at 2:1 'body' is not defined.
-  error 4001 at 3:2 'button' is not defined.
-  error 4001 at 6:4 'createDialog' is not defined.
-  error 4001 at 8:15 'stackPanel' is not defined.
-  error 4001 at 9:6 'button' is not defined.
+appendHtml: (html: Text) :> Any
+bindText$: (   element: Any   text: Or(Text Stream(Text)) ) ~> Stream(Any)
+confirm$: (   title: Or(Text Stream(Text))   question: Or(Text Stream(Text)) ) ~> Stream(Or(Empty §ok§ §cancel§))
+elementById: (id: Text) :> Any
+findElement: (   parent: Any   selector: Text ) :> Any
+onClick: (   element: Any   listener: Any ) :> Any
+onDialogClose: (   dialog: Any   listener: Any ) :> Any
+removeElement: (element: Any) :> Any
+setText: (   element: Any   text: Text ) :> Any
+showModal: (dialog: Any) :> Any
 === ui/dynamic-form/dynamic-form.jul ===
 body: Any
 booleanInput: Any
