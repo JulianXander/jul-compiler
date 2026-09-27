@@ -229,3 +229,7 @@
 -json-import: fehler ohne position (TODO position? in parser.ts). _parseJson nennt in der meldung
 	die zeichenposition, daraus zeile/spalte berechnen (besser: position als feld am error statt aus
 	dem text lesen)
+-JUL5050 bei ':' statt '=' im dictionary-literal: create$(ReplayState [replays: []]) übergibt einen
+	DictionaryType statt eines werts, die meldung sagt nur "Can not assign TypeOf([replays: Empty]) to
+	[replays: …]" (yugioh main.jul:61). eigener hinweis, wenn ein typ übergeben wird, wo ein wert
+	erwartet ist und das literal mit '=' passen würde: "meintest du '='?"
