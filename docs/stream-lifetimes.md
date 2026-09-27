@@ -7,8 +7,8 @@ meldet das bisher nicht, Leaks bleiben still.
 Dieses Dokument hält fest, welches Laufzeitmodell gilt, womit ein Stream endet und wie eine
 Analyse fehlende Enden meldet.
 
-**Stand:** Das Laufzeitmodell ist das bestehende. `takeUntil$` ist in Runtime und core-lib
-vorhanden. Die Analyse ist nicht umgesetzt.
+**Stand:** Das Laufzeitmodell ist das bestehende. `takeUntil$` und der Pflicht-Timeout für
+HTTP-Requests sind umgesetzt. `FiniteStream` und die Analyse sind es nicht.
 
 ## Zwei Arten von Leak
 
@@ -106,39 +106,152 @@ unsichtbar, und der Notifier bekommt eine zweite Rolle.
 
 Die Analyse sucht **fehlende Absicht**, keine Beweise. Sie ist eine Warnung.
 
-### Was als Leak zählt
+### Wann gewarnt wird
 
-Ein Stream, der nie endet, ist für sich kein Fehler: Eine Bindung auf oberster Ebene an einen
-app-weiten Stream soll ewig leben. Zum Leak wird er erst, wenn er in Code entsteht, der wiederholt
-läuft.
+> Warnung bei jedem Stream, der nicht endet, und bei jedem Abonnement auf einen solchen, egal wo
+> es steht.
 
-> Warnung, wenn etwas, das nie endet, in einem Callback entsteht.
+Ob ein Stream, der nicht endet, Absicht ist, weiß nur der Autor. Er sagt es, indem er die Warnung
+an dieser Stelle per Kommentar abschaltet. Das ist das allgemeine Abschalten für jeden
+Warnungscode, kein eigener Weg nur für Streams. Der Kommentar ist zugleich Dokumentation: An
+`gameUiState$ = create$(…)` sagt er dem Leser, dass der Stream absichtlich mit der App lebt.
 
-Code auf oberster Ebene läuft einmal und ist ausgenommen.
+Eine Ausnahme für Code auf oberster Ebene gibt es nicht. Dort läuft Code zwar nur einmal, ein
+Stream, der nicht endet, wächst also nicht. Die Ausnahme verlangte aber beim Lesen mitzudenken, wo
+ein Stream über Rückgaben am Ende landet, und für jeden Funktionsrumpf zu entscheiden, ob er
+wiederholt läuft. Ohne sie gibt es ein Modell ohne Sonderfall. Der Preis ist ein Kommentar an jedem
+gewollt ewigen Stream, in Yugioh an den sechs Zustands-Streams. Nebenbei erfasst die Regel auch
+CLI-Programme, die wegen eines laufenden Timers nicht enden.
 
-### Wann ein Stream endet
+Gewarnt wird einmal je Ursache. Leitet der Code im selben Rumpf von einer eigenen Quelle ab, die
+nicht endet, oder abonniert sie, deckt die Warnung an der Quelle das mit ab. Ein Abonnement wird
+eigens gewarnt, wenn der Stream geliehen ist, also Parameter ist oder aus einem umgebenden Rumpf
+oder von oberster Ebene stammt. Das ist Leak B.
 
-| Ausdruck | endet, wenn |
+### Wann ein Stream endet: `FiniteStream`
+
+Ob ein Stream sicher endet, steht in seinem Typ. `FiniteStream(T)` ist eine Teilmenge von
+`Stream(T)`: Es fordert zusätzlich, dass der Stream endet, und ist deshalb überall einsetzbar, wo
+`Stream(T)` verlangt wird. `Stream(T)` sagt über das Ende nichts zu, „endet nie“ ist kein
+eigener Typ, denn das kann niemand zusichern.
+
+Im Checker ist `FiniteStream` keine eigene Typart, sondern ein Merkmal `finite` an
+`CompileTimeStreamType`, so wie `purity` an `CompileTimeFunctionType`. `FiniteStream(T)` ist nur
+die Schreibweise dafür in der core-lib und im Hover, so wie die Pfeile `->` und `~>` die
+Schreibweise für die Reinheit sind.
+
+Native Quellen deklarieren es in ihrer Signatur in der core-lib, Operatoren leiten es über bedingte
+Rückgabetypen (`:?`) aus ihren Argumenten ab:
+
+| Ausdruck | Typ |
 |---|---|
-| `completed$`, `httpTextRequest$`, `httpBlobRequest$` | immer |
-| `create$`, `timer$` | irgendwo steht ein `complete` darauf, auch in einem Callback |
-| `map$(s)` | `s` endet |
-| `flatMergeMap$(s f)`, `flatSwitchMap$(s f)` | `s` endet und die Streams, die `f` liefert, enden |
-| `combine$(a b …)` | alle enden |
-| `take$(s n)` | immer |
-| `takeUntil$(s n)` | immer |
-| `subscribe` auf `s` | `s` endet, `subscribe` ist keine eigene Pflicht |
+| `completed$`, `httpTextRequest$`, `httpBlobRequest$` | `FiniteStream` |
+| `create$`, `timer$` | `Stream` |
+| `map$(s)` | `FiniteStream`, wenn `s` einer ist |
+| `flatMergeMap$(s f)`, `flatSwitchMap$(s f)` | `FiniteStream`, wenn `s` einer ist und `f` einen liefert |
+| `combine$(a b …)` | `FiniteStream`, wenn alle einer sind |
+| `take$(s n)`, `takeUntil$(s n)` | `FiniteStream` |
 
-`complete` in einem Callback wird anerkannt, obwohl nicht beweisbar ist, dass der Callback läuft.
-Ohne das wäre jedes `create$`-Muster rot: `result$` in `confirm$` endet nur im
-`onDialogClose`-Callback. `take$` und `takeUntil$` gelten als begrenzt, auch wenn ihr Ende von
-künftigen Werten abhängt. `takeUntil$(s clicks$)` endet beim nächsten Klick, das ist Absicht.
+Die Operatoren brauchen dafür keinen neuen Mechanismus. Alle nötigen Formen von `:?` sind in der
+core-lib schon im Einsatz: mehrere Argumente (`subtract`), das Muster `[List(…)]` über `TypeOf`
+eines Rest-Parameters (`add`) und der Rückgabetyp eines Funktionsarguments
+(`transform$/ReturnType`):
+
+```jul
+map$ = nativeFunction(
+	(source$: Stream(Any) transform$: …)
+		~>
+			:?(TypeOf(source$))
+				[FiniteStream(Any)] => FiniteStream(transform$/ReturnType)
+				() => Stream(transform$/ReturnType)
+	…
+)
+combine$ = nativeFunction(
+	(...sources: Or([] List(Stream(Any))))
+		~>
+			:?(TypeOf(sources))
+				[List(FiniteStream(Any))] => FiniteStream(…)
+				() => Stream(…)
+	…
+)
+flatMergeMap$ = nativeFunction(
+	(source$: Stream(Any) transform$: …)
+		~>
+			:?(TypeOf(source$) transform$/ReturnType)
+				[FiniteStream(Any) FiniteStream(Any)] => FiniteStream(transform$/ReturnType/ValueType)
+				() => Stream(transform$/ReturnType/ValueType)
+	…
+)
+```
+
+`flatSwitchMap$` entspricht `flatMergeMap$`. Das passt zur Runtime: `flatMerge$` endet, wenn die
+Quelle und alle inneren Streams enden, `flatSwitch$`, wenn die Quelle und der aktuelle innere
+Stream enden. `map$` schaut nur auf `source$`: Liefert `transform$` selbst Streams, endet das
+Ergebnis trotzdem mit `source$`.
+
+Noch nicht geprüft ist, ob `[List(FiniteStream(Any))]` bei `combine$` gemischte Argumente, also
+endliche und nicht endliche Streams zusammen, richtig dem catchAll zuordnet.
+
+HTTP-Requests enden sicher, weil der Timeout Pflicht ist: Kommt die Antwort nicht rechtzeitig
+vollständig an, wird abgebrochen und der Stream liefert einen Error.
+
+Ein Stream aus `create$` ist ein `FiniteStream`, wenn im Rumpf, in dem er entsteht, ein
+`complete` darauf steht, auch in einem Callback. Das ist eine Inferenz aus dem Rumpf wie bei
+der Reinheit von JUL-Funktionen. Sie gilt für das Symbol überall, im Rumpf ebenso wie nach außen,
+und schon an der Definition: Ob der Stream endet, ist eine Eigenschaft des ganzen Streams, nicht
+der Stelle, an der man ihn betrachtet. Der Preis ist, dass der Typ an der Definitionszeile von
+einer späteren Zeile abhängt. Der Checker braucht dafür vor dem Ableiten der Typen einen Durchgang
+über den Rumpf, der die `complete`-Aufrufe je Symbol einsammelt. Ein `complete` über einen
+Umweg, etwa über ein zweites Symbol, erkennt er nicht, dafür gibt es die Angabe unten.
+
+Anerkannt wird ein `complete` in einem Callback, obwohl nicht beweisbar ist, dass der Callback
+läuft. Ohne das wäre jedes `create$`-Muster rot: `result$` in `confirm$` endet nur im
+`onDialogClose`-Callback. Nach außen liefert `confirm$` damit einen `FiniteStream`.
+
+Wer einen Rückgabetyp `FiniteStream` selbst hinschreibt, dem wird geglaubt. Der Checker prüft das
+nicht nach, auch nicht, wenn der Rumpf nur einen `Stream` liefert. So wird es auch bei den nativen
+Quellen gehandhabt, deren Signatur in der core-lib ebenfalls nur deklariert ist. Die Angabe ist
+der Ausweg, wenn die Inferenz ein Ende nicht erkennt, etwa weil `complete` in einer anderen
+Funktion aufgerufen wird.
+
+`take$` und `takeUntil$` gelten als endlich, auch wenn ihr Ende von künftigen Werten abhängt.
+`takeUntil$(s clicks$)` endet beim nächsten Klick, das ist Absicht.
+
+Zur Laufzeit ist `FiniteStream` wie `ValueType` nicht prüfbar. In einem Branch-Muster passt es
+deshalb zur Laufzeit auf jeden Stream, während der Checker auf „endlich“ verengt. Das ist keine
+Eigenheit von `FiniteStream`, sondern eine allgemeine Lücke bei Typen, die die Runtime gröber
+prüft als der Checker, und wird dort für alle gemeinsam entschieden.
+
+Ein Abonnement endet mit seinem Stream. `subscribe` auf einen `FiniteStream` ist deshalb
+unbedenklich. `subscribe` auf einen geliehenen `Stream`, der kein `FiniteStream` ist, wird
+gewarnt: Das ist Leak B, jeder Aufruf hängt einen weiteren Listener an die Quelle. Abhilfe ist
+`takeUntil$` vor dem `subscribe`.
 
 Die Pflicht hängt an der Quelle, nicht an der Sicht darauf. In
 `timer$(1000f).takeUntil$(response$)` endet die Sicht mit der Antwort, der Timer läuft aber weiter
-und wird deshalb gewarnt. Ebenso stoppt `flatSwitchMap$` beim Umschalten nur das Abonnement auf
-den vorigen inneren Stream: Liefert `f` einen `timer$`, entsteht er in einem Callback und wird
+und wird deshalb gewarnt. Dasselbe gilt für `take$`: In Yugioh startet
+`timer$(2000f).take$(1).map$(…)` in `game-logic.jul` bei jeder aufgelösten Kette einen Timer, der
+nach dem ersten Wert ohne Listener für immer weitertickt. Ebenso stoppt `flatSwitchMap$` beim
+Umschalten nur das Abonnement auf den vorigen inneren Stream: Liefert `f` einen `timer$`, wird er
 gewarnt, liefert `f` einen HTTP-Request, endet dieser von selbst.
+
+#### Verworfene Alternativen
+
+- **Namensliste im Checker:** unsichtbar in der core-lib, jede neue Quelle braucht eine Änderung
+  am Checker.
+- **Merkmal an der Funktion, wie die Reinheitspfeile** (Vorbild: der Effekt `div` in Koka):
+  „endet“ ist eine Eigenschaft des Werts. Wird der Stream in einer Variablen, einer Liste oder als
+  Parameter weitergereicht, geht ein Merkmal der erzeugenden Funktion verloren.
+- **Pflicht-Typparameter `Stream(T Finite)`:** Ohne Standardwerte müsste jede Stream-Annotation
+  das Merkmal nennen.
+- **Optionales Flag als Schreibweise, `Stream(T finite = true)`**, fehlend heißt „keine Zusage“:
+  Operatoren könnten es mit `source$/finite` durchreichen statt über `:?`. Verworfen, weil
+  `FiniteStream(Text)` an der Stelle, an der es steht, ohne Wissen über den Parameter lesbar ist.
+- **Bedingtes Merkmal wie `pureIfArgsPure`**, also endlich, wenn alle Stream-Argumente endlich
+  sind und alle Funktionsargumente endliche Streams liefern: Es braucht eine eigene Schreibweise,
+  weil es nicht von selbst gelten darf. `timer$` hat kein Stream-Argument und wäre sonst endlich.
+  Bei `map$` mit einer Transformation, die Streams liefert, wäre es zu streng. `:?` leistet
+  dasselbe ohne neuen Mechanismus und genauer.
 
 ### Zusammenfassungen je Funktion
 
@@ -150,21 +263,29 @@ Für JUL-Funktionen wird abgeleitet, was sie mit Streams tun, ohne Annotationen:
   Abonnement ohne `takeUntil$` daran, endet es mit dem Parameter, geprüft wird an der
   Aufrufstelle. Mit `takeUntil$` endet es unabhängig davon (`bindText`).
 
-Eine Pflicht wandert über die Zusammenfassungen nach oben. Erreicht sie die oberste Ebene, ist
-sie erfüllt. Erreicht sie ein Lambda, das als Callback übergeben wird (`onClick`, `subscribe`,
-`map$`), wird gewarnt: am erzeugenden Ausdruck, bzw. am Argument, wenn die Pflicht aus einem
-Aufruf kommt.
+Eine Pflicht wandert über Rückgaben nach oben bis zu der Stelle, an der der Stream landet, ohne
+beendet oder weitergegeben zu werden. Dort wird gewarnt: am erzeugenden Ausdruck, bzw. am Aufruf,
+wenn die Pflicht aus einer Funktion kommt. Eine Fabrik wie `clock$ = (ms: Float) => timer$(ms)`
+wird also nicht selbst gewarnt, sondern jede Stelle, die `clock$(…)` aufruft und das Ergebnis
+nicht beendet.
+
+**Unkündbare Pflicht:** Gibt eine Funktion nur eine Ableitung ihrer eigenen Quelle zurück, etwa
+`() => timer$(1000f).map$(…)`, kann der Aufrufer die Quelle nicht beenden. Beendet er die
+Ableitung, läuft der Timer weiter, weil ein Ende nur abwärts fließt. Die Warnung landet trotzdem
+beim Aufrufer, sagt aber, dass der Fehler in der Funktion liegt, und verweist auf die Quelle dort
+(im Language Server über `relatedInformation`). Abhilfe in der Funktion: die Quelle mit
+zurückgeben oder sie als Parameter annehmen, statt sie selbst zu erzeugen.
 
 ```jul
 elementById(§delete§).onClick(
 	() =>
-		seconds$ = timer$(1000f)        # Warnung: endet nie, entsteht bei jedem Klick neu
+		seconds$ = timer$(1000f)        # Warnung: endet nie
 		…
 )
 
-user$ = create$(…)                     # oberste Ebene: keine Pflicht
+user$ = create$(…)                     # Warnung, per Kommentar abgeschaltet: lebt mit der App
 elementById(§x§).onClick(
-	() => user$.map$((u) => …).subscribe(…)   # Warnung: user$ endet nie
+	() => user$.map$((u) => …).subscribe(…)   # Warnung: user$ ist geliehen und endet nie
 )
 ```
 
@@ -178,10 +299,11 @@ elementById(§x§).onClick(
 
 ## Umsetzung
 
-1. Die Tabelle für die Builtins im Checker nach Namen hinterlegen. Eine Syntax in `core-lib.jul`
-   erst, wenn weitere Quellen dazukommen.
-2. Innerhalb einer Funktion: „endet“ je Ausdruck ableiten, `complete` im selben Rumpf samt
-   Closures suchen, in Callback-Lambdas warnen. Das deckt Leak A ab.
+1. `FiniteStream` als Typ: Merkmal an `CompileTimeStreamType`, Teilmengenbeziehung in
+   `getTypeError` und `typeEquals`, Rückgabetypen der Builtins in der core-lib. Vorher und nachher
+   messen.
+2. Innerhalb einer Funktion: `complete` im selben Rumpf samt Closures suchen, `create$`-Streams
+   danach als `FiniteStream` führen, Streams ohne Ende warnen. Das deckt Leak A ab.
 3. Zusammenfassungen je Funktion für Rückgabe und Parameter. Damit werden Leak B und die
    Weitergabe über Funktionsgrenzen erkannt.
 4. Tests über `expectCheck(code, { errors })`: je eine Zeile der Tabelle, dazu das Dialog-Beispiel
