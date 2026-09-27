@@ -2776,6 +2776,13 @@ f = (node: Node) =>
 			],
 		});
 	});
+	// Steht die Selbstanwendung direkt in einem Or, darf das Normalisieren der Union sie nicht
+	// auflösen: jede Auflösung enthielte wieder ein solches Or, und der Checker liefe endlos.
+	it('recursive-type-function-in-union-is-not-expanded-by-normalization', () => {
+		expectCheck(`Bin = (T: Type) => [value: T left: Or([] Bin(T)) right: Or([] Bin(T))]
+first = (t: Bin(Or(Integer Text))) => t
+second = (t: Bin(Integer)) => first(t)`);
+	});
 	// Zwei Auflösungen von Tree(Integer) erzeugen verschiedene innere Knoten. Der Vergleich muss
 	// sie als gleich erkennen, sonst endet er nicht.
 	it('recursive-type-function-same-application-is-assignable', () => {

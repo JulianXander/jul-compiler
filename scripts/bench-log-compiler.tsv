@@ -152,3 +152,5 @@
 2026-09-27 12:56:35	3e6ecd3+	-	ADV-DEV-56627	yugioh	parse+check	5	1557.98	1860.87	1860.87	Typparameter in Dictionary-Literal und Tupel am Aufruf eingesetzt
 2026-09-27 13:00:00	3e6ecd3+	-	ADV-DEV-56627	yugioh	parse+check	5	1549.36	1763.48	1763.48	Typparameter in Dictionary-Literal und Tupel am Aufruf eingesetzt, mit Platzhalter-Cache
 2026-09-27 13:35:20	68321d7+	-	ADV-DEV-56627	yugioh	parse+check	5	1461.89	1784.02	1784.02	rekursive Typfunktionen: Anwendungsknoten, Budget, _lazyType-Aufruf
+2026-09-27 14:17:04	3d7bf03+	-	ADV-DEV-56627	yugioh	parse+check	5	1955.89	2292.91	2292.91	Or: Alias in Pruefung und Anwendungen beim Normalisieren undurchsichtig, classifyTypeness mit Pfad
+2026-09-27 14:21:04	3d7bf03+	-	ADV-DEV-56627	yugioh	parse+check	5	1459.32	1770.66	1770.66	Or: Alias in Pruefung und Anwendungen beim Normalisieren undurchsichtig, classifyTypeness mit Pfad (korrigiert)

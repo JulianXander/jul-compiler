@@ -5270,6 +5270,7 @@ function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
 	// verworfen lassen - wie bei einem noch ungelösten Platzhalter.
 	const isComparable = (type: CompileTimeType) =>
 		!isUnresolvedPlaceholderType(type)
+		&& !isOpaqueForNormalization(type)
 		&& hasReliableTypeError(type);
 	return choices.filter((choice, index) => {
 		if (!isComparable(choice)) {
@@ -5305,12 +5306,17 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		flatChoices.push(...union.ChoiceTypes);
 	});
 	//#endregion flatten UnionTypes
-	if (flatChoices.some(choice => resolveAlias(choice).julType === 'any')) {
+	// Undurchsichtige Choices (isOpaqueForNormalization) werden hier nie aufgelöst: sie machen die
+	// Union weder zu Any noch fallen sie als Never weg.
+	if (flatChoices.some(choice =>
+		!isOpaqueForNormalization(choice)
+		&& resolveAlias(choice).julType === 'any')) {
 		return builtinAny;
 	}
 	//#region remove Never
 	const choicesWithoutNever = flatChoices.filter(choice =>
-		resolveAlias(choice).julType !== 'never');
+		isOpaqueForNormalization(choice)
+		|| resolveAlias(choice).julType !== 'never');
 	if (!choicesWithoutNever.length) {
 		return builtinNever;
 	}
@@ -5322,7 +5328,9 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	const uniqueChoices: CompileTimeType[] = [];
 	choicesWithoutNever.forEach(choice => {
 		if (!uniqueChoices.some(uniqueChoice =>
-			typeEquals(choice, uniqueChoice))) {
+			isOpaqueForNormalization(choice) || isOpaqueForNormalization(uniqueChoice)
+				? isSameOpaqueChoice(choice, uniqueChoice)
+				: typeEquals(choice, uniqueChoice))) {
 			uniqueChoices.push(choice);
 		}
 	});
@@ -5334,9 +5342,14 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	// Or(A Not(A)) => Any: jeder Wert liegt in A oder nicht. Gilt auch für ein Prädikat, dessen
 	// Inhalt der Checker nicht kennt - nur so ist [isEven] … [Not(isEven)] erschöpfend.
 	if (uniqueChoices.some(choice => {
+		if (isOpaqueForNormalization(choice)) {
+			return false;
+		}
 		const resolved = resolveAlias(choice);
 		return isComplementType(resolved)
-			&& uniqueChoices.some(other => typeEquals(other, resolved.SourceType));
+			&& uniqueChoices.some(other =>
+				!isOpaqueForNormalization(other)
+				&& typeEquals(other, resolved.SourceType));
 	})) {
 		return builtinAny;
 	}
@@ -5345,12 +5358,12 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	// Or(true false) => Boolean: die einzigen zwei möglichen Werte, kein Informationsverlust.
 	if (uniqueChoices.length === 2
 		&& uniqueChoices.some(choice => {
-			const resolved = resolveAlias(choice);
-			return resolved.julType === 'booleanLiteral' && resolved.value === true;
+			const resolved = !isOpaqueForNormalization(choice) && resolveAlias(choice);
+			return resolved && resolved.julType === 'booleanLiteral' && resolved.value === true;
 		})
 		&& uniqueChoices.some(choice => {
-			const resolved = resolveAlias(choice);
-			return resolved.julType === 'booleanLiteral' && resolved.value === false;
+			const resolved = !isOpaqueForNormalization(choice) && resolveAlias(choice);
+			return resolved && resolved.julType === 'booleanLiteral' && resolved.value === false;
 		})) {
 		return builtinBoolean;
 	}
@@ -7006,6 +7019,41 @@ function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
 }
 
 /**
+ * Ein Alias, dessen Definition gerade geprüft wird (`Node` in `Node = [left: Or([] Node)]`): sein
+ * Symbol hat noch keinen Typ, aufgelöst ergibt er Any. Wer Typen dabei vergleicht oder
+ * zusammenfasst, darf das nicht für bare Münze nehmen - er steht für den fertigen Typ.
+ */
+function isPendingAlias(type: CompileTimeType): type is CompileTimeAliasType {
+	return type.julType === 'alias'
+		&& !type.symbol.typeInfo;
+}
+
+/**
+ * Choices, die das Normalisieren einer Union nicht auflösen darf: ein Alias in Prüfung (aufgelöst
+ * Any, siehe isPendingAlias) und eine Anwendung wie Bin(T) - ihre Auflösung enthielte wieder ein Or
+ * mit einer Anwendung, das Normalisieren liefe endlos. Sie verwerfen nichts, werden nicht verworfen
+ * und gelten nur bei gleichem Symbol und gleichen args als Duplikat.
+ */
+function isOpaqueForNormalization(type: CompileTimeType): boolean {
+	return isPendingAlias(type)
+		|| isAliasApplication(type);
+}
+
+function isSameOpaqueChoice(first: CompileTimeType, second: CompileTimeType): boolean {
+	if (first === second) {
+		return true;
+	}
+	if (first.julType !== 'alias'
+		|| second.julType !== 'alias'
+		|| first.symbol !== second.symbol) {
+		return false;
+	}
+	return first.args && second.args
+		? typeEquals(first.args, second.args)
+		: !first.args && !second.args;
+}
+
+/**
  * Tree(T) als Rückgabetyp der fertigen Typfunktion mit diesen Argumenten, eine Ebene tief: die
  * Selbstanwendung darin bleibt wieder ein Knoten. Erst hier, nicht beim Erzeugen, denn beim
  * Erzeugen wird die Typfunktion selbst noch geprüft.
@@ -7214,9 +7262,14 @@ function getTypeErrorAtDepth(
 	// die einzige Annahme, unter der der Vergleich überhaupt endet (TypeScripts "maybe stack").
 	if (argumentsType.julType === 'alias'
 		|| targetType.julType === 'alias') {
+		// Mit einer Anwendung (Tree(T)) beteiligt ist jede Seite bei jeder Auflösung ein neues Objekt,
+		// auch die Union oder das Dictionary neben ihr: dann nur strukturell wiederzuerkennen. Sonst
+		// genügt die Identität, das hält die vielen gewöhnlichen Alias-Vergleiche billig.
+		const involvesApplication = isAliasApplication(argumentsType) || isAliasApplication(targetType);
 		if (aliasComparisonsInProgress.some(pair =>
-			isSameOrSameAliasApplication(pair.args, argumentsType)
-			&& isSameOrSameAliasApplication(pair.target, targetType))) {
+			involvesApplication
+				? typeEquals(pair.args, argumentsType) && typeEquals(pair.target, targetType)
+				: pair.args === argumentsType && pair.target === targetType)) {
 			return undefined;
 		}
 		if (isSameAliasApplication(argumentsType, targetType)) {
@@ -8607,9 +8660,35 @@ export type Typeness = 'type' | 'value' | 'unknown';
  * Eine Funktion ist so viel Typ wie ihr Rückgabetyp: liefert sie sicher einen Typ, ist sie ein
  * höherer Typ. Prädikate sind vorerst ausgenommen.
  */
-export function classifyTypeness(type: CompileTimeType | undefined, depth = 0): Typeness {
+export function classifyTypeness(type: CompileTimeType | undefined): Typeness {
+	return classifyTypenessOnPath(type, 0, []) ?? 'unknown';
+}
+
+/**
+ * undefined: ein Alias, der schon auf dem Pfad liegt (Node in den eigenen children). Diese Stelle
+ * ist so viel Typ wie der umgebende Typ und trägt nichts Eigenes bei. Ohne das liefe der Durchlauf
+ * bei zwei rekursiven Feldern (Bin mit left und right) exponentiell, bis zur Tiefenbremse.
+ */
+function classifyTypenessOnPath(
+	type: CompileTimeType | undefined,
+	depth: number,
+	/** Kurz, deshalb ein Array statt eines Set: das entstünde bei jedem Aufruf neu. */
+	aliasesOnPath: SymbolDefinition[],
+): Typeness | undefined {
 	if (!type || depth > maxTypenessDepth) {
 		return 'unknown';
+	}
+	if (type.julType === 'alias') {
+		if (aliasesOnPath.includes(type.symbol)) {
+			return undefined;
+		}
+		aliasesOnPath.push(type.symbol);
+		try {
+			return classifyTypenessOnPath(resolveAlias(type), depth + 1, aliasesOnPath);
+		}
+		finally {
+			aliasesOnPath.pop();
+		}
 	}
 	const resolved = resolveAlias(type);
 	switch (resolved.julType) {
@@ -8636,16 +8715,16 @@ export function classifyTypeness(type: CompileTimeType | undefined, depth = 0): 
 			return 'value';
 		case 'list':
 		case 'dictionary':
-			return classifyTypeness(resolved.ElementType, depth + 1);
+			return classifyTypenessOnPath(resolved.ElementType, depth + 1, aliasesOnPath);
 		case 'tuple':
-			return combineTypeness(resolved.ElementTypes.map(elementType => classifyTypeness(elementType, depth + 1)));
+			return combineTypeness(resolved.ElementTypes.map(elementType => classifyTypenessOnPath(elementType, depth + 1, aliasesOnPath)));
 		case 'dictionaryLiteral':
-			return combineTypeness(Object.values(resolved.Fields).map(fieldType => classifyTypeness(fieldType, depth + 1)));
+			return combineTypeness(Object.values(resolved.Fields).map(fieldType => classifyTypenessOnPath(fieldType, depth + 1, aliasesOnPath)));
 		case 'or':
-			return combineTypeness(resolved.ChoiceTypes.map(choiceType => classifyTypeness(choiceType, depth + 1)));
+			return combineTypeness(resolved.ChoiceTypes.map(choiceType => classifyTypenessOnPath(choiceType, depth + 1, aliasesOnPath)));
 		case 'and': {
 			// Der Schnitt ist Teilmenge jedes Operanden: ein eindeutiger Operand genügt.
-			const choices = resolved.ChoiceTypes.map(choiceType => classifyTypeness(choiceType, depth + 1));
+			const choices = resolved.ChoiceTypes.map(choiceType => classifyTypenessOnPath(choiceType, depth + 1, aliasesOnPath));
 			const isType = choices.includes('type');
 			const isValue = choices.includes('value');
 			return isType === isValue
@@ -8655,15 +8734,15 @@ export function classifyTypeness(type: CompileTimeType | undefined, depth = 0): 
 		// Wie jede Funktion nach ihrem Rückgabetyp: ein Prädikat liefert einen Boolean und wird
 		// klein geschrieben wie or und equal, auch wenn es in Typ-Position stehen kann.
 		case 'function':
-			return classifyTypeness(resolved.ReturnType, depth + 1);
+			return classifyTypenessOnPath(resolved.ReturnType, depth + 1, aliasesOnPath);
 		// Ein Wert, der das Prädikat erfüllt, ist einer aus der Obermenge.
 		case 'predicate':
-			return classifyTypeness(resolved.UpperBound, depth + 1);
+			return classifyTypenessOnPath(resolved.UpperBound, depth + 1, aliasesOnPath);
 		case 'parameterReference': {
 			// Die Referenz steht für das Argument selbst (`(T: Type) => T`) oder für die Werte, die
 			// es beschreibt (`(T: Type v: T) => v`). Bei einem Wert als Argument ist beides dasselbe
 			// Singleton, bei einem Typ nicht - dann bleibt es offen.
-			const declared = classifyTypeness(dereferenceParameterTypeFromFunctionRef(resolved), depth + 1);
+			const declared = classifyTypenessOnPath(dereferenceParameterTypeFromFunctionRef(resolved), depth + 1, aliasesOnPath);
 			return declared === 'value' ? 'value' : 'unknown';
 		}
 		case 'any':
@@ -8686,10 +8765,12 @@ export function classifyTypeness(type: CompileTimeType | undefined, depth = 0): 
 /**
  * Eindeutig nur, wenn alle Teile dasselbe sagen.
  */
-function combineTypeness(parts: Typeness[]): Typeness {
+function combineTypeness(rawParts: (Typeness | undefined)[]): Typeness | undefined {
+	// Ein Alias, der schon auf dem Pfad liegt, trägt nichts bei (siehe classifyTypenessOnPath).
+	const parts = rawParts.filter(isDefined);
 	const first = parts[0];
 	if (!first) {
-		return 'unknown';
+		return rawParts.length ? undefined : 'unknown';
 	}
 	return parts.every(part => part === first)
 		? first

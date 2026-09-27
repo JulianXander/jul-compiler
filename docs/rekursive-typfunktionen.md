@@ -11,9 +11,7 @@ Tree = (T: Type) => [value: T children: Or([] List(Tree(T)))]
 endlos auszuwerten, und beides muss zur Laufzeit ladbar sein, obwohl Typen dort sofort gebaute
 Werte sind. Dieses Dokument hält fest, wie das gelöst ist.
 
-**Stand:** Umgesetzt, im Checker wie zur Laufzeit. Offen ist eine Lücke, die schon vorher bestand:
-steht die Selbstreferenz direkt in einem `Or` (`left: Or([] Node)`), wird sie beim Normalisieren der
-Union zu `Any`, weil ein Alias, dessen Symbol noch geprüft wird, als `Any` aufgelöst wird.
+**Stand:** Umgesetzt, im Checker wie zur Laufzeit.
 
 ## Das Problem
 
@@ -73,14 +71,29 @@ Paare aber an ihrer Identität und griffe nie. Deshalb:
 
 - Gleiches Symbol und gleiche `args` gelten ohne Auflösen als zuweisbar bzw. gleich. Das ist
   genau und deckt den häufigsten Fall ab.
-- Der Stapel erkennt ein laufendes Paar auch an gleichem Symbol und gleichen `args` wieder, nicht
-  nur an der Identität. Ohne das reichte die Fehlermeldung für `Tree(Text)` gegen `Tree(Integer)`
-  bis zur Tiefenbremse hinunter, statt nach einer Ebene zu enden.
+- Ist eine Anwendung am Vergleich beteiligt, erkennt der Stapel ein laufendes Paar strukturell
+  wieder (`typeEquals`), nicht nur an der Identität: auch die Union oder das Dictionary neben der
+  Anwendung ist bei jeder Auflösung ein neues Objekt. Ohne das reichte die Fehlermeldung für
+  `Tree(Text)` gegen `Tree(Integer)` bis zur Tiefenbremse hinunter, und `Bin(Integer)` gegen
+  `Bin(Or(Integer Text))` meldete dort sogar einen falschen Fehler. Gewöhnliche Alias-Vergleiche
+  bleiben beim billigen Identitätsvergleich.
 - Für alles andere zählt ein Budget die Auflösungen von Anwendungsknoten je Vergleich. Ist es
   erschöpft, gilt das Paar als zuweisbar. Das garantiert das Ende an jeder Vergleichsstelle, auch
   an einer übersehenen; im Language Server hieße das sonst Hängen. Übersehen werden dabei nur
   Unterschiede unterhalb der Grenze, dieselbe Richtung wie beim bestehenden Stapel (im Zweifel
   zuweisbar). TypeScript beendet solche Vergleiche mit einer ähnlichen Tiefenheuristik.
+
+**Nicht auflösen, wo nichts gefragt ist.** Zwei Stellen durchlaufen Typen, ohne dass ein Zugriff
+sie treibt, und dürfen Aliase deshalb nicht blind auflösen:
+
+- Das Normalisieren einer Union (`createNormalizedUnionType`). Ein Alias, dessen Definition noch
+  geprüft wird, löst zu `Any` auf und machte `Or([] Node)` zu `Any`. Eine Anwendung wie `Bin(T)`
+  direkt in einem `Or` enthielte aufgelöst wieder ein solches `Or`, das Normalisieren liefe endlos.
+  Beide sind dort undurchsichtig: sie verwerfen nichts, werden nicht verworfen und gelten nur bei
+  gleichem Symbol und gleichen `args` als Duplikat.
+- Die Einteilung nach Typ oder Wert für die Schreibweise (`classifyTypeness`). Sie merkt sich die
+  Aliase auf dem Pfad, eine Wiederholung trägt nichts bei. Ohne das liefe sie bei zwei rekursiven
+  Feldern exponentiell bis zu ihrer Tiefenbremse.
 
 **Unproduktive Zyklen.** `Loop = (T: Type) => Loop(T)` hat keine Datenebene und bekommt JUL5170,
 wie `A = Or([] A)`. An dieser Zusage hängt auch die Laufzeit: die Typprüfung dort endet nur, weil
