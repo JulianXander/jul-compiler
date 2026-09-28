@@ -16,7 +16,7 @@ import {
 	Purity,
 	TypePurity,
 } from '../syntax-tree.js';
-import { CompilerError, ErrorCode } from '../compiler-errors.js';
+import { CompilerError, ErrorCode, errorInfos } from '../compiler-errors.js';
 import { reportAtCaller } from '../test-util.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
@@ -30,8 +30,9 @@ const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: 
 	const parserResult = parseCode(code, filePath ?? 'dummy.jul');
 	// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
 	// unvollständigen Baum schlicht nichts zu melden hat. Vor dem Check, weil ohne Klon
-	// danach auch die Checker-Fehler in unchecked stehen.
-	expect(parserResult.unchecked.errors).to.deep.equal([]);
+	// danach auch die Checker-Fehler in unchecked stehen. Warnungen des Parsers stehen danach in
+	// checked.errors und werden dort mitgeprüft.
+	expect(parserResult.unchecked.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
 	checkTypes(parserResult, {}, { cloneUnchecked: false });
 	expect(parserResult.checked?.errors).to.deep.equal(errors ?? []);
 	if (result) {
@@ -2034,7 +2035,7 @@ text$ = seconds$.map$((value) => 1)`, {
 	text$.takeUntil$(until$).subscribe((value) => [])`);
 	});
 	//#endregion Lebensdauer von Streams
-	//#region jul-ignore
+	//#region #ignore
 	const ignoreCommentWarning = (code: ErrorCode, message: string, rowIndex: number, endColumnIndex: number): CompilerError => ({
 		code: code,
 		message: message,
@@ -2044,71 +2045,71 @@ text$ = seconds$.map$((value) => 1)`, {
 		endColumnIndex: endColumnIndex,
 	});
 	it('ignore-comment-suppresses-warning-in-next-line', () => {
-		expectCheck(`#jul-ignore JUL2800 lebt mit der App
+		expectCheck(`#ignore JUL2800 lebt mit der App
 seconds$ = timer$(1f)`);
 	});
 	// Wie bei #region: # direkt gefolgt vom Wort ist eine Anweisung, mit Leerzeichen ist es Text.
 	it('comment-with-space-is-no-ignore-comment', () => {
-		expectCheck(`# jul-ignore JUL2800
+		expectCheck(`# ignore JUL2800
 seconds$ = timer$(1f)`, {
 			errors: [streamNeverCompleted('seconds$', 1, 11, 21)],
 		});
 	});
 	// Maßgeblich ist, wo die Warnung beginnt, nicht wie weit der Ausdruck reicht.
 	it('ignore-comment-covers-multiline-expression', () => {
-		expectCheck(`#jul-ignore JUL2800
+		expectCheck(`#ignore JUL2800
 seconds$ = timer$(
 	1f
 )`);
 	});
 	it('ignore-comment-skips-comments-and-empty-lines', () => {
-		expectCheck(`#jul-ignore JUL2800
+		expectCheck(`#ignore JUL2800
 
 # Sekunden seit dem Start
 seconds$ = timer$(1f)`);
 	});
 	it('ignore-comment-in-function-body', () => {
 		expectCheck(`f = () =>
-	#jul-ignore JUL2800
+	#ignore JUL2800
 	seconds$ = timer$(1f)
 	seconds$.subscribe((value) => [])`);
 	});
 	// Nur die nächste Zeile: eine Warnung weiter unten bleibt stehen.
 	it('ignore-comment-does-not-reach-further-lines', () => {
-		expectCheck(`#jul-ignore JUL2800
+		expectCheck(`#ignore JUL2800
 first$ = timer$(1f)
 second$ = timer$(1f)`, {
 			errors: [streamNeverCompleted('second$', 2, 10, 20)],
 		});
 	});
 	it('ignore-comment-with-other-code-suppresses-nothing', () => {
-		expectCheck(`#jul-ignore JUL2600
+		expectCheck(`#ignore JUL2600
 seconds$ = timer$(1f)`, {
 			errors: [
 				streamNeverCompleted('seconds$', 1, 11, 21),
-				ignoreCommentWarning(ErrorCode.unusedIgnoreComment, 'This jul-ignore comment suppresses nothing: the next line has no warning JUL2600.', 0, 19),
+				ignoreCommentWarning(ErrorCode.unusedIgnoreComment, 'This #ignore comment suppresses nothing: the next line has no warning JUL2600.', 0, 15),
 			],
 		});
 	});
 	it('unused-ignore-comment-warns', () => {
-		expectCheck(`#jul-ignore JUL2800
+		expectCheck(`#ignore JUL2800
 x = 1`, {
 			errors: [
-				ignoreCommentWarning(ErrorCode.unusedIgnoreComment, 'This jul-ignore comment suppresses nothing: the next line has no warning JUL2800.', 0, 19),
+				ignoreCommentWarning(ErrorCode.unusedIgnoreComment, 'This #ignore comment suppresses nothing: the next line has no warning JUL2800.', 0, 15),
 			],
 		});
 	});
 	it('ignore-comment-without-code-warns', () => {
-		expectCheck(`#jul-ignore
+		expectCheck(`#ignore
 x = 1`, {
 			errors: [
-				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'jul-ignore needs the code of a warning, e.g. #jul-ignore JUL2800.', 0, 11),
+				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, '#ignore needs the code of a warning, e.g. #ignore JUL2800.', 0, 7),
 			],
 		});
 	});
 	// Fehler lassen sich nicht unterdrücken, sonst würde kaputter Code gebaut.
 	it('ignore-comment-can-not-suppress-error', () => {
-		expectCheck(`#jul-ignore JUL4001
+		expectCheck(`#ignore JUL4001
 a`, {
 			errors: [
 				{
@@ -2119,26 +2120,55 @@ a`, {
 					endRowIndex: 1,
 					endColumnIndex: 1,
 				},
-				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'JUL4001 is not a warning and can not be suppressed.', 0, 19),
+				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'JUL4001 is not a warning and can not be suppressed.', 0, 15),
 			],
 		});
 	});
 	it('ignore-comment-with-unknown-code-warns', () => {
-		expectCheck(`#jul-ignore JUL9999
+		expectCheck(`#ignore JUL9999
 x = 1`, {
 			errors: [
-				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'JUL9999 is not a known code.', 0, 19),
+				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'JUL9999 is not a known code.', 0, 15),
 			],
 		});
+	});
+	const unknownDirective = (directive: string, rowIndex: number, startColumnIndex: number, endColumnIndex: number): CompilerError => ({
+		code: ErrorCode.unknownDirective,
+		message: `Unknown directive '#${directive}'. Known directives are #region, #endregion and #ignore. For a comment, write a space after #.`,
+		startRowIndex: rowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: endColumnIndex,
+	});
+	// Ein Tippfehler in einer Anweisung soll nicht still als Kommentar durchgehen.
+	it('unknown-directive-warns', () => {
+		expectCheck(`#ignroe JUL2800
+x = 1`, {
+			errors: [unknownDirective('ignroe', 0, 0, 15)],
+		});
+	});
+	it('unknown-directive-in-function-body-warns', () => {
+		expectCheck(`f = () =>
+	#todo
+	1`, {
+			errors: [unknownDirective('todo', 1, 1, 6)],
+		});
+	});
+	it('known-directives-and-comments-do-not-warn', () => {
+		expectCheck(`#region Werte
+# gewöhnlicher Kommentar
+#
+x = 1
+#endregion Werte`);
 	});
 	// Der Kommentar ist eine Anweisung an den Checker, keine Beschreibung der Definition.
 	it('ignore-comment-is-not-a-description', () => {
 		const parsed = parseCode(`# Zustand der Seite
-#jul-ignore JUL2800
+#ignore JUL2800
 page$ = create$(Integer 1)`, 'dummy.jul');
 		expect(parsed.unchecked.symbols['page$']?.description).to.equal(' Zustand der Seite');
 	});
-	//#endregion jul-ignore
+	//#endregion #ignore
 	//#region dereference
 	// Ein Feld, das der Dictionary-Typ nicht hat, ist ein Fehler und nicht Any.
 	// Der stille Rückfall auf Any schaltet in getTypeError alle Folgeprüfungen ab,

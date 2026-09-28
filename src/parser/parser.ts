@@ -64,7 +64,7 @@ import {
 	readTextFile,
 } from '../util.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
-import { isIgnoreCommentText, parseIgnoreComments } from '../ignore-comments.js';
+import { getUnknownDirectiveError, isIgnoreCommentText, parseIgnoreComments } from './comment-directives.js';
 import { parseTsCode } from './typescript-parser.js';
 import {
 	createParseFunctionLiteral,
@@ -595,6 +595,10 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 			if (row[columnIndex] === '#') {
 				// Kommentarzeile
 				const comment = row.substring(columnIndex + 1);
+				const directiveError = getUnknownDirectiveError(comment, rowIndex, columnIndex, row.length);
+				if (directiveError) {
+					errors.push(directiveError);
+				}
 				parsed.push(comment);
 				continue;
 			}

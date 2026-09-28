@@ -1,18 +1,46 @@
-import { CompilerError, ErrorCode, errorInfos } from './compiler-errors.js';
-import { IgnoreComment, ParsedExpressions } from './syntax-tree.js';
+import { CompilerError, ErrorCode, errorInfos } from '../compiler-errors.js';
+import { IgnoreComment, ParsedExpressions } from '../syntax-tree.js';
 
 /**
- * `#jul-ignore JUL<nr> erklärung` unterdrückt Warnungen mit diesem Code, deren Startposition in
+ * Anweisungen in Kommentaren: `#` direkt gefolgt von einem Wort, ohne Leerzeichen. Mit
+ * Leerzeichen ist ein Kommentar gewöhnlicher Text.
+ *
+ * `#ignore JUL<nr> erklärung` unterdrückt Warnungen mit diesem Code, deren Startposition in
  * der nächsten Zeile liegt, die weder leer noch ein Kommentar ist. Wie @ts-expect-error: Ein
  * Kommentar, der nichts unterdrückt, ist selbst eine Warnung. Fehler lassen sich nicht
  * unterdrücken, sonst würde kaputter Code gebaut.
  */
 
-const ignoreCommentRegex = /^(\t*)#jul-ignore\b(.*)$/;
+const knownDirectives = ['region', 'endregion', 'ignore'];
+const ignoreCommentRegex = /^(\t*)#ignore\b(.*)$/;
 const commentRegex = /^\t*#/;
 
 export function isIgnoreCommentText(commentText: string): boolean {
-	return /^jul-ignore\b/.test(commentText);
+	return /^ignore\b/.test(commentText);
+}
+
+/**
+ * commentText ist der Kommentar ohne das #. Ein unbekanntes Wort direkt nach # ist vermutlich ein
+ * Tippfehler in einer Anweisung, etwa #ignroe.
+ */
+export function getUnknownDirectiveError(
+	commentText: string,
+	rowIndex: number,
+	startColumnIndex: number,
+	endColumnIndex: number,
+): CompilerError | undefined {
+	const directive = /^[A-Za-z][\w-]*/.exec(commentText)?.[0];
+	if (!directive || knownDirectives.includes(directive)) {
+		return undefined;
+	}
+	return {
+		code: ErrorCode.unknownDirective,
+		message: `Unknown directive '#${directive}'. Known directives are #region, #endregion and #ignore. For a comment, write a space after #.`,
+		startRowIndex: rowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: endColumnIndex,
+	};
 }
 
 //#region lesen
@@ -72,7 +100,7 @@ export function applyIgnoreComments(file: ParsedExpressions): void {
 			reported.push(commentWarning(
 				comment,
 				ErrorCode.unusedIgnoreComment,
-				`This jul-ignore comment suppresses nothing: the next line has no warning JUL${comment.code}.`,
+				`This #ignore comment suppresses nothing: the next line has no warning JUL${comment.code}.`,
 			));
 		}
 		remaining = kept;
@@ -83,7 +111,7 @@ export function applyIgnoreComments(file: ParsedExpressions): void {
 
 function getInvalidMessage(code: number | undefined): string | undefined {
 	if (code === undefined) {
-		return 'jul-ignore needs the code of a warning, e.g. #jul-ignore JUL2800.';
+		return '#ignore needs the code of a warning, e.g. #ignore JUL2800.';
 	}
 	const info = errorInfos[code as ErrorCode];
 	if (!info) {
