@@ -158,7 +158,7 @@ FiniteStream = nativeFunction(
 )
 #region sequence arithmetic
 # Der Typ an Position Index.
-# Index ist eine Position oder ein Bereich (Range), dann ist das Ergebnis die Teilfolge.
+# Index ist eine Position oder ein Bereich (IndexRange), dann ist das Ergebnis die Teilfolge.
 # Empty, wenn die Position nachweislich nicht existiert; die Vereinigung aller Positionen,
 # wenn der Index nicht feststeht.
 ElementAt = nativeFunction(
@@ -197,14 +197,14 @@ WithElementAt = nativeFunction(
 # Die Positionen start bis end, beide inklusive.
 # end Empty heißt bis zum Ende.
 # Als Index eines Zugriffs liefert das die Teilfolge.
-Range = nativeFunction(
+IndexRange = nativeFunction(
 	(
 		# 1 basiert
 		start: Integer
 		end: Or([] Integer)
 	) -> Type
 	§js
-		(start, end) => Range(start, end)
+		(start, end) => IndexRange(start, end)
 	§
 )
 # Source, jede Position abgebildet durch Callback.
@@ -778,7 +778,7 @@ slice = nativeFunction(
 		values: Or([] List(Any))
 		start: Integer
 		end: Or([] Integer)
-	) -> ElementAt(TypeOf(values) Range(start end))
+	) -> ElementAt(TypeOf(values) IndexRange(start end))
 	§js
 		(values, start, end) => {
 			if (!values) {

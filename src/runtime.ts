@@ -1459,10 +1459,10 @@ export const WithElementAt = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-export const Range = /*#__PURE__*/ _createFunction(
-	function Range(start: bigint, end: bigint | undefined): RuntimeType {
+export const IndexRange = /*#__PURE__*/ _createFunction(
+	function IndexRange(start: bigint, end: bigint | undefined): RuntimeType {
 		return {
-			[_julTypeSymbol]: 'range',
+			[_julTypeSymbol]: 'indexRange',
 			Start: start,
 			End: end,
 		} as any;

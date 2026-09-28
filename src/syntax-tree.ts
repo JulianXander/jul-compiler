@@ -690,7 +690,7 @@ export type CompileTimeType =
 	| CompileTimeLengthOfType
 	| CompileTimeWithElementAtType
 	| CompileTimeConditionalType
-	| CompileTimeRangeType
+	| CompileTimeIndexRangeType
 	| CompileTimeMapElementsType
 	| CompileTimeConcatType
 	| CompileTimeAddType
@@ -954,18 +954,18 @@ export function createCompileTimeConditionalType(
  * Die Positionen Start bis End, beide inklusive, 1-basiert. End Empty heißt "bis zum Ende".
  * Nur als Schlüssel eines Zugriffs sinnvoll: dort wird daraus die Teilfolge der Quelle.
  */
-export interface CompileTimeRangeType extends CompileTimeTypeBase {
-	readonly julType: 'range';
+export interface CompileTimeIndexRangeType extends CompileTimeTypeBase {
+	readonly julType: 'indexRange';
 	Start: CompileTimeType;
 	End: CompileTimeType;
 }
 
-export function createCompileTimeRangeType(
+export function createCompileTimeIndexRangeType(
 	Start: CompileTimeType,
 	End: CompileTimeType,
-): CompileTimeRangeType {
+): CompileTimeIndexRangeType {
 	return {
-		julType: 'range',
+		julType: 'indexRange',
 		Start: Start,
 		End: End,
 		isUnresolvedPlaceholder: Start.isUnresolvedPlaceholder || End.isUnresolvedPlaceholder,
@@ -1440,7 +1440,7 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 			callback(type.UpperBound);
 			callback(type.LowerBound);
 			return;
-		case 'range':
+		case 'indexRange':
 			callback(type.Start);
 			callback(type.End);
 			return;

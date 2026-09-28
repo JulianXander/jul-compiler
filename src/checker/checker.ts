@@ -11,7 +11,7 @@ import {
 	CompileTimeFunctionType,
 	CompileTimeGreaterType,
 	CompileTimeListType,
-	CompileTimeRangeType,
+	CompileTimeIndexRangeType,
 	CompileTimeStreamType,
 	CompileTimeTupleType,
 	CompileTimeType,
@@ -28,7 +28,7 @@ import {
 	createCompileTimeGreaterType,
 	createCompileTimeLengthOfType,
 	createCompileTimeListType,
-	createCompileTimeRangeType,
+	createCompileTimeIndexRangeType,
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
 	createCompileTimeMapElementsType,
@@ -805,8 +805,8 @@ function dereferenceNestedKeyFromObject(
 			}
 			return dereferenceUnknownKeyFromObject(nestedKey, source);
 		}
-		case 'range':
-			return dereferenceRangeFromObject(nestedKey, source);
+		case 'indexRange':
+			return dereferenceIndexRangeFromObject(nestedKey, source);
 		default:
 			// Ein Platzhalter kann sich noch zu einem Literal auflösen, der Knoten bleibt also
 			// stehen. Nur ein aufgelöster, aber unbestimmter Schlüssel (PositiveInteger, Any)
@@ -879,7 +879,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'never':
 		case 'not':
 		case 'parameters':
-		case 'range':
+		case 'indexRange':
 		case 'stream':
 		case 'text':
 		case 'textLiteral':
@@ -1101,7 +1101,7 @@ export function dereferenceNameFromObject(
 		case 'lengthOf':
 		case 'never':
 		case 'not':
-		case 'range':
+		case 'indexRange':
 		case 'text':
 		case 'textLiteral':
 		case 'mapElements':
@@ -1182,7 +1182,7 @@ function dereferenceNameFromObjectType(
 		case 'lengthOf':
 		case 'never':
 		case 'not':
-		case 'range':
+		case 'indexRange':
 		case 'text':
 		case 'textLiteral':
 		case 'mapElements':
@@ -1286,7 +1286,7 @@ export function dereferenceIndexFromObject(
 		case 'never':
 		case 'not':
 		case 'parameters':
-		case 'range':
+		case 'indexRange':
 		case 'stream':
 		case 'text':
 		case 'textLiteral':
@@ -1991,7 +1991,7 @@ function traversePlaceholders(
 			// Neu auswerten statt neu einpacken.
 			return createConditionalType(dereferencedOperands, dereferencedBranches);
 		}
-		case 'range': {
+		case 'indexRange': {
 			const rawStart = rawType.Start;
 			const rawEnd = rawType.End;
 			const dereferencedStart = traversePlaceholders(rawStart, argumentContext);
@@ -2000,7 +2000,7 @@ function traversePlaceholders(
 				&& dereferencedEnd === rawEnd) {
 				return rawType;
 			}
-			return createCompileTimeRangeType(dereferencedStart, dereferencedEnd);
+			return createCompileTimeIndexRangeType(dereferencedStart, dereferencedEnd);
 		}
 		case 'mapElements': {
 			const rawSource = rawType.Source;
@@ -4839,7 +4839,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(
 					withElementAtFromTypes(valueOf(sourceType), valueOf(indexType), valueOf(valueType)));
 			}
-			case 'Range': {
+			case 'IndexRange': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				const startType = argTypes?.[0];
 				if (!startType) {
@@ -4847,7 +4847,7 @@ function getReturnTypeFromFunctionCall(
 				}
 				const endType = argTypes?.[1] ?? builtinEmpty as CompileTimeType;
 				return createCompileTimeTypeOfType(
-					createCompileTimeRangeType(valueOf(startType), valueOf(endType)));
+					createCompileTimeIndexRangeType(valueOf(startType), valueOf(endType)));
 			}
 			case 'MapElements': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
@@ -4972,8 +4972,8 @@ function getSpreadElementTypes(
  * Grenzen ein Tuple der getroffenen Positionen, sonst eine List - mit Empty, solange nicht
  * feststeht, dass der Bereich mindestens eine Position trifft.
  */
-function dereferenceRangeFromObject(
-	range: CompileTimeRangeType,
+function dereferenceIndexRangeFromObject(
+	range: CompileTimeIndexRangeType,
 	rawSource: CompileTimeType,
 ): CompileTimeType | undefined {
 	const source = resolveAlias(rawSource);
@@ -4990,7 +4990,7 @@ function dereferenceRangeFromObject(
 			return builtinEmpty;
 		case 'or': {
 			const choices = source.ChoiceTypes
-				.map(choice => dereferenceRangeFromObject(range, choice))
+				.map(choice => dereferenceIndexRangeFromObject(range, choice))
 				.filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(choices);
 		}
@@ -5800,7 +5800,7 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'lengthOf':
 		case 'list':
 		case 'never':
-		case 'range':
+		case 'indexRange':
 		case 'stream':
 		case 'text':
 		case 'textLiteral':
@@ -6640,8 +6640,8 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 				&& typeEquals(first.Source, second.Source)
 				&& typeEquals(first.Index, second.Index)
 				&& typeEquals(first.Value, second.Value);
-		case 'range':
-			return second.julType === 'range'
+		case 'indexRange':
+			return second.julType === 'indexRange'
 				&& typeEquals(first.Start, second.Start)
 				&& typeEquals(first.End, second.End);
 		case 'mapElements':
@@ -7413,7 +7413,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'lengthOf':
 		case 'never':
 		case 'not':
-		case 'range':
+		case 'indexRange':
 		case 'text':
 		case 'textLiteral':
 		case 'type':
@@ -8062,7 +8062,7 @@ function getTypeErrorAtDepth(
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference, sonst
 			// entstünden Fehler an einem Typ, der noch gar nicht feststeht.
 			return undefined;
-		case 'range':
+		case 'indexRange':
 			// Nur als Schlüssel sinnvoll, nie als Zieltyp einer Zuweisung.
 			return undefined;
 		case 'mapElements':
@@ -8698,8 +8698,8 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		}
 		case 'withElementAt':
 			return `WithElementAt(${typeToString(type.Source, indent, depth + 1, suppressAlias)} ${typeToString(type.Index, indent, depth + 1, suppressAlias)} ${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
-		case 'range':
-			return `Range(${typeToString(type.Start, indent, depth + 1, suppressAlias)} ${typeToString(type.End, indent, depth + 1, suppressAlias)})`;
+		case 'indexRange':
+			return `IndexRange(${typeToString(type.Start, indent, depth + 1, suppressAlias)} ${typeToString(type.End, indent, depth + 1, suppressAlias)})`;
 		case 'mapElements':
 			return `MapElements(${typeToString(type.Source, indent, depth + 1, suppressAlias)} ${typeToString(type.Callback, indent, depth + 1, suppressAlias)})`;
 		case 'concat':
@@ -8938,7 +8938,7 @@ function classifyTypenessOnPath(
 		case 'greater':
 		case 'add':
 		case 'lengthOf':
-		case 'range':
+		case 'indexRange':
 			return 'value';
 		case 'list':
 		case 'dictionary':
