@@ -166,3 +166,4 @@
 2026-09-27 18:03:05	a7a4322+	-	ADV-DEV-56627	yugioh	parse+check	5	1595.56	1888.05	1888.05	Rest-Parameter mit deklariertem Typ im Rumpf
 2026-09-28 07:44:47	5e8794e+	-	ADV-DEV-56627	yugioh	parse+check	5	1850.17	2080.84	2080.84	vor FiniteStream
 2026-09-28 07:55:13	5e8794e+	-	ADV-DEV-56627	yugioh	parse+check	5	1635.78	2110.91	2110.91	FiniteStream als Merkmal am Stream-Typ, bedingte Rückgabetypen in core-lib
+2026-09-28 08:53:12	2a6346f+	-	ADV-DEV-56627	yugioh	parse+check	5	1577.81	1931.77	1931.77	Lebensdauer: complete im Rumpf, FiniteStream-Aufwertung, Warnung JUL2800

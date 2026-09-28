@@ -100,6 +100,7 @@ import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, is
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName, getExportedSymbols, getTestCallArguments, getTestName } from '../parser/parser-utils.js';
 import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex, ReferenceLocation, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
+import { collectCompletedNames, reportStreamsWithoutEnd } from './stream-lifetime.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -589,6 +590,13 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		'impure',
 	),
 };
+
+/**
+ * Je Rumpf die Namen, auf die dort irgendwo complete aufgerufen wird. Vor dem Rumpf gesammelt,
+ * damit ein so beendeter Stream schon an seiner Definition ein FiniteStream ist. Muss vor dem
+ * Check der core-lib stehen, der beim Modul-Load läuft.
+ */
+const completedNamesByScope = new WeakMap<SymbolTable, Set<string>>();
 
 // Einziger Dateizugriff des Checkers, bewusst am ProjectHost vorbei: die core-lib gehört zum
 // Compiler, nicht zum Projekt, ändert sich während eines Laufs nicht und wird deshalb einmal je
@@ -2205,6 +2213,7 @@ export function checkTypes(
 	if (extname(document.filePath) === Extension.jul
 		&& !isCoreLibPath(document.filePath)) {
 		reportUnusedDefinitions(checked);
+		reportStreamsWithoutEnd(checked.expressions, checked.errors);
 	}
 	if (isTestFilePath(document.filePath)) {
 		reportDuplicateTestNames(checked);
@@ -2287,9 +2296,34 @@ function inferFileTypes(
 		...scopes,
 		file.symbols,
 	] as any as NonEmptyArray<SymbolTable>;
+	registerCompletedNames(file.symbols, file.expressions ?? []);
 	file.expressions?.forEach(expression => {
 		setInferredType(expression, { scopes: fileScopes, narrowedTypes: undefined }, undefined, checkContext);
 	});
+}
+
+function registerCompletedNames(scope: SymbolTable, body: readonly PositionedExpression[]): void {
+	if (!completedNamesByScope.has(scope)) {
+		completedNamesByScope.set(scope, collectCompletedNames(body));
+	}
+}
+
+/**
+ * Ein Stream, auf den im Rumpf seiner Definition complete steht, endet: nach außen wie im Rumpf
+ * ein FiniteStream. Andere Typen bleiben unverändert.
+ */
+function withCompletedStream(typeInfo: TypeInfo, scope: SymbolTable, name: string): TypeInfo {
+	if (!completedNamesByScope.get(scope)?.has(name)) {
+		return typeInfo;
+	}
+	const resolved = resolvePlaceholders(typeInfo.type);
+	if (resolved.julType !== 'stream' || resolved.finite) {
+		return typeInfo;
+	}
+	return {
+		...typeInfo,
+		type: createCompileTimeStreamType(resolved.ValueType, true),
+	};
 }
 
 /**
@@ -3526,6 +3560,7 @@ function inferType(
 			if (!symbol) {
 				throw new Error(`Definition Symbol ${name} not found`);
 			}
+			typeInfo = withCompletedStream(typeInfo, currentScope, name);
 			symbol.typeInfo = typeInfo;
 			// Ein hingeschriebener TypeGuard ist die erklärte Absicht und geht dem inferierten Typ vor.
 			checkNamingCase(
@@ -4017,6 +4052,7 @@ function inferType(
 		}
 		case 'functionLiteral': {
 			const ownSymbols = expression.symbols;
+			registerCompletedNames(ownSymbols, expression.body);
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, ownSymbols];
 			const params = expression.params;
 			const functionType = createCompileTimeFunctionType(

@@ -127,6 +127,11 @@ export enum ErrorCode {
 	 * Emitter setzte keine Stelle ein.
 	 */
 	testNotCalled = 2704,
+	/**
+	 * Ein Stream aus einer Quelle, die nicht von selbst endet, wird nirgends beendet und auch nicht
+	 * zurückgegeben. Er läuft für immer, siehe docs/stream-lifetimes.md.
+	 */
+	streamNeverCompleted = 2800,
 	//#endregion 2000 semantic: Sprachregeln
 
 	//#region 3000 semantic: Import und Modulauflösung
@@ -269,6 +274,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.testNotTopLevel]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.duplicateTestName]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testNotCalled]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.streamNeverCompleted]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },

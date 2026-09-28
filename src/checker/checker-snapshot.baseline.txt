@@ -31,10 +31,10 @@ myVal: 6
 === cli/cli.jul ===
 cliArguments: Any
 === console-progress/console-progress.jul ===
-progress$: Stream(Float)
-timer1$: Stream(Float)
+progress$: FiniteStream(Float)
+timer1$: FiniteStream(Float)
 === counter/counter.jul ===
-counter$: Stream(Float)
+counter$: FiniteStream(Float)
 === fibonacci/fibonacci.jul ===
 fibonacci: (x: Integer) -> Any
 fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) -> Any
@@ -98,10 +98,10 @@ myList4: [   1   2   1   2   3   4 ]
 myListValue: 1
 myListValue2: 21
 === stream.jul ===
-combined$: Stream([Float Integer Integer])
-mapped1$: Stream(Integer)
-mapped2$: Stream(Integer)
-source$: Stream(Float)
+combined$: FiniteStream([Float Integer Integer])
+mapped1$: FiniteStream(Integer)
+mapped2$: FiniteStream(Integer)
+source$: FiniteStream(Float)
   error 5050 at 1:18 Argument type mismatch. | Invalid value for parameter 'delayMs' |   Can not assign 2000 to Float.
   error 4001 at 4:3 'console' is not defined.
   error 5050 at 3:2 Argument type mismatch. | Invalid value for parameter 'listener' |   Parameter name mismatch. Got 'x' but expected 'value'
@@ -307,7 +307,7 @@ myVarIsText: Any
 === ui/dialog/dialog.jul ===
 appendHtml: (html: Text) ~> Any
 bindText: (   element: Any   text: Or(Text Stream(Text))   until$: Stream(Any) ) ~> Any
-confirm$: (   title: Or(Text Stream(Text))   question: Or(Text Stream(Text)) ) ~> Stream(Or(Empty §ok§ §cancel§))
+confirm$: (   title: Or(Text Stream(Text))   question: Or(Text Stream(Text)) ) ~> FiniteStream(Or(Empty §ok§ §cancel§))
 elementById: (id: Text) ~> Any
 findElement: (   parent: Any   selector: Text ) ~> Any
 onClick: (   element: Any   listener: () :> Any ) ~> Any
@@ -330,6 +330,9 @@ output: Any
 setHidden: (   element: Any   hidden: Boolean ) ~> Empty
 setText: (   element: Any   text: Text ) ~> Empty
 textValue: (input: Any) ~> Text
+  warning 2800 at 23:9 Stream 'name$' is never completed. Call complete on it or return it.
+  warning 2800 at 24:8 Stream 'age$' is never completed. Call complete on it or return it.
+  warning 2800 at 25:15 Stream 'ageVisible$' is never completed. Call complete on it or return it.
 === ui/dynamic-form/dynamic-form2.jul ===
 ageInput: Any
 body: Any
@@ -348,8 +351,10 @@ visibleInput: Any
   error 4001 at 29:3 'button' is not defined.
   error 5160 at 32:15 Failed to dereference field 'value' in type Stream(Or(Empty List(Any)))
   hint 4004 at 1:66 'inputValue$' is defined but never used.
+  warning 2800 at 6:9 Stream 'data$' is never completed. Call complete on it or return it.
 === ui/preserve-dom/main.jul ===
 addMessage: (message: Text) ~> Any
+  warning 2800 at 3:1 Stream is never completed. Assign it to a name and call complete on it, or return it.
 === ui/todo-list/todo-list.jul ===
 addHtml: (html: Text) ~> Any
 removeElement: (element: Any) ~> Any

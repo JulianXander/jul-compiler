@@ -344,7 +344,8 @@ f(1 0)`, {
 	// wird mit dem Argument für diesen Parameter aufgelöst und dann geprüft wie ein fester Typ.
 	it('argument-type-mismatch-parameter-type-from-previous-parameter', () => {
 		expectCheck(`i$ = create$(Integer 1)
-push(i$ §text§)`, {
+push(i$ §text§)
+complete(i$)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -1650,7 +1651,8 @@ x: Integer = typeOfValue(Integer)`, {
 	it('deferred-type-property-is-type-value', () => {
 		expectCheck(`f = (s$: Stream(Any)) => TypeOf(s$)/ValueType
 a$ = create$(Integer 1)
-x: Integer = f(a$)`, {
+x: Integer = f(a$)
+complete(a$)`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -1834,21 +1836,24 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	});
 	//#endregion generische Rückgabetypen
 	//#region FiniteStream
-	// Die Definition in der ersten Zeile passt nicht zu ihrem Typ, gemeldet über die ganze Zeile.
+	// Die Definition in der zweiten Zeile, im Rumpf von f, passt nicht zu ihrem Typ.
 	const streamDefinitionMismatch = (code: string, valueType: string, targetType: string): CompilerError => ({
 		code: ErrorCode.definitionTypeMismatch,
 		message: `Definition type mismatch.\nCan not assign ${valueType} to ${targetType}.`,
-		startRowIndex: 0,
-		startColumnIndex: 0,
-		endRowIndex: 0,
-		endColumnIndex: code.length,
+		startRowIndex: 1,
+		startColumnIndex: 1,
+		endRowIndex: 1,
+		endColumnIndex: code.split('\n')[1]!.length,
 	});
 	// FiniteStream fordert mehr als Stream und ist deshalb überall einsetzbar, wo Stream verlangt wird.
 	it('finite-stream-is-assignable-to-stream', () => {
 		expectCheck('s: Stream(Integer) = completed$(1)');
 	});
+	// Nicht endende Streams kommen als Parameter herein: geliehen, also ohne Pflicht, sie zu beenden.
 	it('stream-is-not-assignable-to-finite-stream', () => {
-		const code = 's: FiniteStream(Integer) = create$(Integer 1)';
+		const code = `f = (source$: Stream(Integer)) =>
+	s: FiniteStream(Integer) = source$
+	s`;
 		expectCheck(code, {
 			errors: [streamDefinitionMismatch(code, 'Stream(Integer)', 'FiniteStream(Integer)')],
 		});
@@ -1861,7 +1866,9 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 		expectCheck('s: FiniteStream(Or([] Text Error)) = httpTextRequest$(§u§ §get§ 1f)');
 	});
 	it('timer-is-not-finite', () => {
-		const code = 's: FiniteStream(Float) = timer$(1f)';
+		const code = `f = () =>
+	s: FiniteStream(Float) = timer$(1f)
+	s`;
 		expectCheck(code, {
 			errors: [streamDefinitionMismatch(code, 'Stream(Float)', 'FiniteStream(Float)')],
 		});
@@ -1870,23 +1877,31 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 		expectCheck('s: FiniteStream(Integer) = completed$(1).map$((value) => 2)');
 	});
 	it('map-of-stream-is-not-finite', () => {
-		const code = 's: FiniteStream(Integer) = timer$(1f).map$((value) => 2)';
+		const code = `f = (source$: Stream(Float)) =>
+	s: FiniteStream(Integer) = source$.map$((value) => 2)
+	s`;
 		expectCheck(code, {
 			errors: [streamDefinitionMismatch(code, 'Stream(2)', 'FiniteStream(Integer)')],
 		});
 	});
 	// take$ und takeUntil$ enden, auch wenn ihre Quelle weiterläuft.
 	it('take-is-finite', () => {
-		expectCheck('s: FiniteStream(Float) = timer$(1f).take$(1)');
+		expectCheck(`f = (source$: Stream(Float)) =>
+	s: FiniteStream(Float) = source$.take$(1)
+	s`);
 	});
 	it('take-until-is-finite', () => {
-		expectCheck('s: FiniteStream(Float) = timer$(1f).takeUntil$(timer$(2f))');
+		expectCheck(`f = (source$: Stream(Float) notifier$: Stream(Any)) =>
+	s: FiniteStream(Float) = source$.takeUntil$(notifier$)
+	s`);
 	});
 	it('combine-of-finite-streams-is-finite', () => {
 		expectCheck('s: FiniteStream([Integer Text]) = combine$(completed$(1) completed$(§a§))');
 	});
 	it('combine-with-a-stream-is-not-finite', () => {
-		const code = 's: FiniteStream([Integer Float]) = combine$(completed$(1) timer$(1f))';
+		const code = `f = (source$: Stream(Float)) =>
+	s: FiniteStream([Integer Float]) = combine$(completed$(1) source$)
+	s`;
 		expectCheck(code, {
 			errors: [streamDefinitionMismatch(code, 'Stream([1 Float])', 'FiniteStream([Integer Float])')],
 		});
@@ -1895,13 +1910,17 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 		expectCheck('s: FiniteStream(Integer) = completed$(1).flatMergeMap$((value) => completed$(2))');
 	});
 	it('flat-map-with-stream-inner-is-not-finite', () => {
-		const code = 's: FiniteStream(Float) = completed$(1).flatMergeMap$((value) => timer$(1f))';
+		const code = `f = () =>
+	s: FiniteStream(Float) = completed$(1).flatMergeMap$((value) => timer$(1f))
+	s`;
 		expectCheck(code, {
 			errors: [streamDefinitionMismatch(code, 'Stream(Float)', 'FiniteStream(Float)')],
 		});
 	});
 	it('flat-switch-map-of-stream-source-is-not-finite', () => {
-		const code = 's: FiniteStream(Integer) = timer$(1f).flatSwitchMap$((value) => completed$(2))';
+		const code = `f = (source$: Stream(Float)) =>
+	s: FiniteStream(Integer) = source$.flatSwitchMap$((value) => completed$(2))
+	s`;
 		expectCheck(code, {
 			errors: [streamDefinitionMismatch(code, 'Stream(2)', 'FiniteStream(Integer)')],
 		});
@@ -1923,6 +1942,94 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 		});
 	});
 	//#endregion FiniteStream
+	//#region Lebensdauer von Streams
+	const streamNeverCompleted = (
+		name: string | undefined,
+		rowIndex: number,
+		startColumnIndex: number,
+		endColumnIndex: number,
+	): CompilerError => ({
+		code: ErrorCode.streamNeverCompleted,
+		message: name
+			? `Stream '${name}' is never completed. Call complete on it or return it.`
+			: 'Stream is never completed. Assign it to a name and call complete on it, or return it.',
+		startRowIndex: rowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: endColumnIndex,
+	});
+	// Auch auf oberster Ebene: Ob ein ewiger Stream gewollt ist, sagt nur der Autor.
+	it('stream-without-complete-warns', () => {
+		expectCheck('seconds$ = timer$(1f)', {
+			errors: [streamNeverCompleted('seconds$', 0, 11, 21)],
+		});
+	});
+	it('complete-ends-stream', () => {
+		expectCheck(`seconds$ = timer$(1f)
+complete(seconds$)`);
+	});
+	it('complete-as-method-ends-stream', () => {
+		expectCheck(`seconds$ = timer$(1f)
+seconds$.complete()`);
+	});
+	// Ob der Callback je läuft, ist nicht beweisbar. Gesucht wird fehlende Absicht.
+	it('complete-in-callback-ends-stream', () => {
+		expectCheck(`seconds$ = timer$(1f)
+stop = () => seconds$.complete()`);
+	});
+	// Das Ende gilt für den ganzen Stream, schon an der Definition.
+	it('completed-stream-is-finite', () => {
+		expectCheck(`result$ = create$(Integer 1)
+result$.complete()
+r: FiniteStream(Integer) = result$`);
+	});
+	// Mit der Rückgabe geht die Pflicht an den Aufrufer.
+	it('returned-stream-does-not-warn', () => {
+		expectCheck('clock$ = (ms: Float) => timer$(ms)');
+	});
+	it('stream-returned-by-name-does-not-warn', () => {
+		expectCheck(`f = () =>
+	seconds$ = timer$(1f)
+	seconds$`);
+	});
+	it('stream-passed-on-in-dictionary-does-not-warn', () => {
+		expectCheck(`f = () =>
+	seconds$ = timer$(1f)
+	[source$ = seconds$]`);
+	});
+	// Ein Argument ist nur geliehen, die Pflicht bleibt beim Erzeuger.
+	it('stream-passed-as-argument-warns', () => {
+		expectCheck(`g = (s$: Stream(Float)) => []
+f = () =>
+	seconds$ = timer$(1f)
+	g(seconds$)`, {
+			errors: [streamNeverCompleted('seconds$', 2, 12, 22)],
+		});
+	});
+	it('stream-without-name-warns', () => {
+		expectCheck('timer$(1f).subscribe((value) => [])', {
+			errors: [streamNeverCompleted(undefined, 0, 0, 10)],
+		});
+	});
+	// take$ endet, meldet sich aber nur ab: die Quelle läuft weiter.
+	it('take-does-not-end-its-source', () => {
+		expectCheck('f = () => timer$(1f).take$(1)', {
+			errors: [streamNeverCompleted(undefined, 0, 10, 20)],
+		});
+	});
+	// Ableitungen deckt die Warnung an der Quelle mit ab.
+	it('derived-stream-does-not-warn-again', () => {
+		expectCheck(`seconds$ = timer$(1f)
+text$ = seconds$.map$((value) => 1)`, {
+			errors: [streamNeverCompleted('seconds$', 0, 11, 21)],
+		});
+	});
+	// Die Abmeldung über takeUntil$ geht auf einen geliehenen Stream und erzeugt keine Pflicht.
+	it('borrowed-stream-does-not-warn', () => {
+		expectCheck(`f = (text$: Stream(Text) until$: Stream(Any)) =>
+	text$.takeUntil$(until$).subscribe((value) => [])`);
+	});
+	//#endregion Lebensdauer von Streams
 	//#region dereference
 	// Ein Feld, das der Dictionary-Typ nicht hat, ist ein Fehler und nicht Any.
 	// Der stille Rückfall auf Any schaltet in getTypeError alle Folgeprüfungen ab,

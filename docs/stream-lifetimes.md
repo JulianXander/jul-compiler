@@ -9,7 +9,9 @@ Analyse fehlende Enden meldet.
 
 **Stand:** Das Laufzeitmodell ist das bestehende. `takeUntil$` und der Pflicht-Timeout für
 HTTP-Requests sind umgesetzt, ebenso `FiniteStream` als Typ mit den Rückgabetypen der core-lib
-(Umsetzung, Schritt 1). Die Analyse ist es nicht.
+und die Analyse innerhalb eines Rumpfs mit der Warnung JUL2800 (Umsetzung, Schritte 1 und 2,
+[stream-lifetime.ts](../src/checker/stream-lifetime.ts)). Offen sind das Abschalten per
+Kommentar und die Zusammenfassungen je Funktion.
 
 ## Zwei Arten von Leak
 
@@ -337,6 +339,14 @@ elementById(§x§).onClick(
 - TS/JS-Importe liefern `Any`. Übergaben dorthin gelten als geliehen, von dort gelieferte Streams
   erzeugen keine Pflicht.
 - Rekursion braucht einen Fixpunkt über die Zusammenfassungen oder bricht konservativ ab.
+- Als Quelle gilt ein Aufruf, der einen Stream ohne Zusage liefert und selbst keinen Stream als
+  Argument bekommt, auch keine Kollektion von Streams. Eine Funktion, die einen Stream annimmt und
+  einen eigenen, neuen zurückgibt, wird deshalb an der Aufrufstelle nicht gemeldet, bis die
+  Zusammenfassungen je Funktion kommen.
+- Das `complete` wird syntaktisch nach Namen gesucht, vor dem Ableiten der Typen: `complete(x)`
+  und `x.complete()`. Nicht erkannt werden die benannte Form `complete(stream$ = x)` und ein
+  `complete` über ein zweites Symbol. Bindet ein verschachtelter Rumpf denselben Namen neu, zählt
+  sein `complete` trotzdem für den äußeren.
 
 ## Umsetzung
 
