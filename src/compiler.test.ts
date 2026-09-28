@@ -4,8 +4,9 @@ import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { SourceMapConsumer } from 'source-map';
 
-import { createSourceMap, createTestReport, formatErrors, formatTestResult, LiveRenderer, toReportResult } from './compiler.js';
+import { createSourceMap, createTestReport, formatErrors, formatTestResult, formatTodoList, LiveRenderer, toReportResult } from './compiler.js';
 import { CompilerError, ErrorCode } from './compiler-errors.js';
+import { parseTodoComments } from './parser/comment-directives.js';
 import { createInMemoryHost } from './project-loader.js';
 
 // eslint-disable-next-line no-control-regex
@@ -229,6 +230,41 @@ describe('formatErrors', () => {
 		finally {
 			(process.stdout as any).isTTY = originalIsTty;
 		}
+	});
+});
+
+describe('formatTodoList', () => {
+	it('lists each todo with its position and ends with a summary', () => {
+		const output = stripAnsi(formatTodoList([
+			{ filePath: 'src/main.jul', todo: { rowIndex: 2, columnIndex: 0, text: 'Fehlerbehandlung' } },
+			{ filePath: 'src/main.jul', todo: { rowIndex: 9, columnIndex: 1, text: '' } },
+			{ filePath: 'src/ui.jul', todo: { rowIndex: 0, columnIndex: 0, text: '? zusammenfassen' } },
+		]));
+		expect(output).to.equal([
+			'src/main.jul:3:1  Fehlerbehandlung',
+			'src/main.jul:10:2',
+			'src/ui.jul:1:1  ? zusammenfassen',
+			'3 TODOs in 2 files',
+		].join('\n'));
+	});
+	it('says so when there are no todos', () => {
+		expect(formatTodoList([])).to.equal('no #TODO comments found');
+	});
+});
+
+describe('parseTodoComments', () => {
+	// Nur #TODO am Zeilenanfang, auch eingerückt. Andere Schreibweisen meldet der Parser als Warnung.
+	it('finds #TODO at the start of a row', () => {
+		expect(parseTodoComments([
+			'#TODO Fehlerbehandlung',
+			'x = 1',
+			'\t#TODO',
+			'# TODO nicht diese',
+			'# hier steht ein #TODO mitten im Kommentar',
+		])).to.deep.equal([
+			{ rowIndex: 0, columnIndex: 0, text: 'Fehlerbehandlung' },
+			{ rowIndex: 2, columnIndex: 1, text: '' },
+		]);
 	});
 });
 

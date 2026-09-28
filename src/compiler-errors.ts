@@ -21,7 +21,7 @@ export type CompilerErrorType =
  * Wie schwer der Fehler wiegt. Eigene Werte statt der LSP-Zahlen,
  * damit der Compiler nicht von vscode-languageserver abhängt - er läuft auch als CLI.
  */
-export type CompilerErrorSeverity = 'error' | 'warning' | 'information' | 'hint';
+export type CompilerErrorSeverity = 'error' | 'warning' | 'hint';
 
 /**
  * Nummern werden nie wiederverwendet, auch nicht nach dem Entfernen eines Fehlers -
@@ -148,15 +148,10 @@ export enum ErrorCode {
 	 */
 	unknownDirective = 2902,
 	/**
-	 * `#TODO text`: ein offener Punkt, im Editor in der Liste der Probleme sichtbar, nicht in der
-	 * Ausgabe der CLI.
-	 */
-	todoComment = 2903,
-	/**
 	 * Ein TODO-Kommentar in anderer Schreibweise als `#TODO`, etwa `# TODO` oder `#todo`. Eine
 	 * Schreibweise, damit sich alle offenen Punkte finden lassen.
 	 */
-	todoSpelling = 2904,
+	todoSpelling = 2903,
 	//#endregion 2000 semantic: Sprachregeln
 
 	//#region 3000 semantic: Import und Modulauflösung
@@ -303,7 +298,6 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.unusedIgnoreComment]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.invalidIgnoreComment]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.unknownDirective]: { type: 'semantic', severity: 'warning' },
-	[ErrorCode.todoComment]: { type: 'semantic', severity: 'information' },
 	[ErrorCode.todoSpelling]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },

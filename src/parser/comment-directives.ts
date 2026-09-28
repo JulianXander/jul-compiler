@@ -10,8 +10,8 @@ import { IgnoreComment, ParsedExpressions } from '../syntax-tree.js';
  * Kommentar, der nichts unterdrückt, ist selbst eine Warnung. Fehler lassen sich nicht
  * unterdrücken, sonst würde kaputter Code gebaut.
  *
- * `#TODO text` erscheint im Editor als Information in der Liste der Probleme. Andere Schreibweisen wie `# TODO` oder `#todo`
- * sind eine Warnung, damit es genau eine gibt.
+ * `#TODO text` markiert einen offenen Punkt, gefärbt über die Grammatik, ohne Diagnose. Andere
+ * Schreibweisen wie `# TODO` oder `#todo` sind eine Warnung, damit es genau eine gibt.
  */
 
 const knownDirectives = ['region', 'endregion', 'ignore', 'TODO'];
@@ -41,11 +41,7 @@ export function getCommentDirectiveError(
 		endColumnIndex: endColumnIndex,
 	};
 	if (/^TODO\b/.test(commentText)) {
-		return {
-			code: ErrorCode.todoComment,
-			message: commentText.trimEnd(),
-			...position,
-		};
+		return undefined;
 	}
 	if (/^\s*todo\b/i.test(commentText)) {
 		return {
@@ -83,6 +79,34 @@ export function parseIgnoreComments(rows: readonly string[]): IgnoreComment[] {
 			startColumnIndex: match[1]!.length,
 			endRowIndex: rowIndex,
 			endColumnIndex: row.length,
+		});
+	});
+	return comments;
+}
+
+export interface TodoComment {
+	rowIndex: number;
+	columnIndex: number;
+	/**
+	 * Der Text nach #TODO, ohne führende und abschließende Leerzeichen.
+	 */
+	text: string;
+}
+
+/**
+ * Die #TODO-Kommentare einer Datei, für jul todo.
+ */
+export function parseTodoComments(rows: readonly string[]): TodoComment[] {
+	const comments: TodoComment[] = [];
+	rows.forEach((row, rowIndex) => {
+		const match = /^(\t*)#TODO\b(.*)$/.exec(row);
+		if (!match) {
+			return;
+		}
+		comments.push({
+			rowIndex: rowIndex,
+			columnIndex: match[1]!.length,
+			text: match[2]!.trim(),
 		});
 	});
 	return comments;

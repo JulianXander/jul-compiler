@@ -11,19 +11,27 @@ response$ = httpTextRequest$(url §get§ 5000f)
 ```
 
 **Umgesetzt:** `#TODO` ist eine Anweisung (siehe
-[comment-directives.ts](../../src/parser/comment-directives.ts)) und erscheint als Information
-JUL2903 mit dem Text des Kommentars, im Editor also in der Liste der Probleme, in der Ausgabe der
-CLI nicht. Jede andere Schreibweise am Anfang eines Kommentars (`# TODO`, `#todo`) ist die Warnung
-JUL2904, umstellen lässt sich eine Codebasis mit
+[comment-directives.ts](../../src/parser/comment-directives.ts)), hervorgehoben über die Grammatik,
+ohne eigene Diagnose. Jede andere Schreibweise am Anfang eines Kommentars (`# TODO`, `#todo`) ist
+die Warnung JUL2903, umstellen lässt sich eine Codebasis mit
 [migrate-todo.mjs](../../scripts/migrate-todo.mjs). Ein `#TODO` wird nicht zur Beschreibung der
 folgenden Definition.
 
+Als Diagnose taugt ein TODO nicht: Mit Schweregrad `information` unterstreicht VS Code jede
+Stelle, mit `hint` erscheint es nicht im Problems-Panel und bringt nichts, was die Färbung nicht
+schon zeigt.
+
 Was darüber hinaus möglich wäre:
 
-- `jul check` nennt die Zahl offener TODOs, ein Befehl wie `jul todos` listet sie mit Datei und
-  Zeile.
-- Ein Schalter wie `--no-todo` macht jedes `#todo` zum Fehler, etwa in CI.
-- Optional ein Zuständiger: `#todo(julian) …`.
+- Eine eigene Ansicht „TODOs“ in der Extension, wie der Test Explorer: Der Server meldet die
+  TODOs über eine eigene Nachricht, die Extension zeigt sie als Baum über das ganze Projekt, ohne
+  Unterstreichung. So arbeiten auch Todo Tree und die Task List in Visual Studio.
+- `jul check` nennt die Zahl offener TODOs. Umgesetzt ist schon `jul todo`, das sie mit
+  anklickbarer Position und Text auflistet.
+- Ein Schalter wie `--no-todo` macht jedes `#TODO` zum Fehler, etwa in CI.
+- Optional ein Zuständiger: `#TODO(julian) …`.
+
+Alles das kann die Kommentare direkt auswerten, eine Diagnose braucht es dafür nicht.
 
 Vorbilder:
 

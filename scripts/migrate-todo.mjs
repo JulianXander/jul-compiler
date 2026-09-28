@@ -1,10 +1,10 @@
 // Migriert TODO-Kommentare auf die Anweisung #TODO: "# TODO", "# todo", "#todo" -> "#TODO".
 //
-// Hintergrund: #TODO ist eine Anweisung im Kommentar und erscheint als Hinweis im Editor (JUL2903).
-// Jede andere Schreibweise am Anfang eines Kommentars ist eine Warnung (JUL2904).
+// Hintergrund: #TODO ist eine Anweisung im Kommentar. Jede andere Schreibweise am Anfang eines
+// Kommentars ist eine Warnung (JUL2903).
 //
 // Das Skript arbeitet über den Parser, nicht per Regex über die ganze Datei: Es parst jede Datei
-// mit dem gebauten Compiler aus ../out und ändert genau die Zeilen, für die der Parser JUL2904
+// mit dem gebauten Compiler aus ../out und ändert genau die Zeilen, für die der Parser JUL2903
 // meldet. Eine Zeile in einem mehrzeiligen Text-Literal, die zufällig mit "# todo" beginnt, bleibt
 // deshalb unberührt. Der Rest der Zeile nach "todo" bleibt, wie er ist.
 //

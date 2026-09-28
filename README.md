@@ -68,6 +68,13 @@ jul test --name "die 12. Zahl ist 144"
 jul test --file fibonacci.test.jul --name "die 12. Zahl ist 144" --report report.jsonl
 ```
 
+`todo` listet alle `#TODO`-Kommentare der `*.jul` unterhalb des Config-Ordners, je Zeile
+`pfad:zeile:spalte  text` wie in der Fehlerausgabe, im VS-Code-Terminal also anklickbar.
+
+```bash
+jul todo
+```
+
 ## Test
 `node --run test` (oder `npm test`, startet aber ~0,4 s langsamer)  
 Mocha über `src/**/*.test.ts`, via tsx — kein Build nötig.

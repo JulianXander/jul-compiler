@@ -2,7 +2,7 @@
 import { Ajv } from 'ajv';
 import { load } from 'js-yaml';
 import { dirname, join } from 'path';
-import { compileProject, testProject } from './compiler.js';
+import { compileProject, listTodos, testProject } from './compiler.js';
 import configSchema from './jul-config-schema.json' with { type: 'json' };
 import { executingDirectory, readTextFile } from './util.js';
 
@@ -96,6 +96,10 @@ try {
 			description: 'Check and run all *.test.jul files below the config folder, without writing output.',
 			options: ['--config', '--file', '--name', '--report'],
 		},
+		todo: {
+			description: 'List all #TODO comments in the *.jul files below the config folder, with clickable positions.',
+			options: ['--config'],
+		},
 		help: {
 			description: 'Print this help text.',
 			options: [],
@@ -184,6 +188,11 @@ try {
 				names: optionValues['--name'],
 				reportPath: optionValues['--report']?.[0],
 			});
+			break;
+		}
+		case 'todo': {
+			const { rootFolder, outputFolder } = loadConfig(optionValues['--config']?.[0]);
+			listTodos(rootFolder, outputFolder);
 			break;
 		}
 		case 'help': {

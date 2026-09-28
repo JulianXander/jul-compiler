@@ -2163,18 +2163,15 @@ x = 1`, {
 		endColumnIndex: endColumnIndex,
 	});
 	const todoSpellingMessage = 'Write TODO comments as #TODO, without a space after # and in uppercase.';
-	it('todo-comment-is-a-hint', () => {
+	// #TODO ist eine bekannte Anweisung ohne eigene Meldung, sichtbar über die Färbung.
+	it('todo-comment-reports-nothing', () => {
 		expectCheck(`#TODO Fehlerbehandlung
-x = 1`, {
-			errors: [commentDiagnostic(ErrorCode.todoComment, 'TODO Fehlerbehandlung', 0, 0, 22)],
-		});
+x = 1`);
 	});
-	it('todo-comment-in-function-body-is-a-hint', () => {
+	it('todo-comment-in-function-body-reports-nothing', () => {
 		expectCheck(`f = () =>
 	#TODO? zusammenfassen
-	1`, {
-			errors: [commentDiagnostic(ErrorCode.todoComment, 'TODO? zusammenfassen', 1, 1, 22)],
-		});
+	1`);
 	});
 	// Genau eine Schreibweise, damit sich alle offenen Punkte finden lassen.
 	it('todo-with-space-warns', () => {
@@ -4879,8 +4876,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	it('core-lib checks without errors', () => {
 		const parsed = parseFile(coreLibPath);
 		checkTypes(parsed, {}, { cloneUnchecked: false });
-		// Die offenen Punkte der core-lib erscheinen als #TODO-Hinweise, das ist gewollt.
-		expect(parsed.checked!.errors.filter(error => error.code !== ErrorCode.todoComment)).to.deep.equal([]);
+		expect(parsed.checked!.errors).to.deep.equal([]);
 	});
 	// Hält den Befund fest, der zu den Purity-Pfeilen geführt hat (docs/pure-functions.md,
 	// "Stand"): früher trug jede core-lib-Funktion pure: true, weil functionTypeLiteral das

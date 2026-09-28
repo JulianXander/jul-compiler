@@ -11,6 +11,7 @@ import { _runTests, TestLocation, TestResult } from './test-runtime.js';
 import { ParsedDocuments } from './checker/checker.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from './compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
+import { parseTodoComments, TodoComment } from './parser/comment-directives.js';
 import { ParsedFile } from './syntax-tree.js';
 import { Extension, changeExtension, executingDirectory, tryCreateDirectory } from './util.js';
 import { load } from 'js-yaml';
@@ -184,10 +185,10 @@ function reportErrors(
 	let warningCount = 0;
 	const formattedErrors = notFoundPaths.map(path => `File not found: ${path}`);
 	Object.values(documents).forEach(document => {
-		// Hinweise und Informationen (etwa #TODO) sind für den Editor, der sie an der Stelle zeigt.
-		// In der Ausgabe gingen die Beanstandungen darin unter.
+		// Hinweise sind für den Editor, der sie an der Stelle zeigt. In der Ausgabe gingen die
+		// Beanstandungen darin unter.
 		const errors = (document.checked?.errors ?? document.unchecked.errors)
-			.filter(error => isReportedInOutput(errorInfos[error.code].severity)
+			.filter(error => errorInfos[error.code].severity !== 'hint'
 				&& !ignoredCodes.includes(error.code));
 		if (!errors.length) {
 			return;
@@ -481,6 +482,47 @@ function getCompileErrors(
 
 //#endregion test report
 
+//#region todo
+
+/**
+ * Listet die #TODO-Kommentare aller *.jul unterhalb von rootFolder, ohne node_modules und den
+ * Out-Ordner. Die Positionen stehen im Format der Fehlerausgabe, das Terminals wie das von VS Code
+ * als Link erkennen.
+ */
+export function listTodos(rootFolder: string, outputFolderPath: string): void {
+	const files = globSync('**/*.jul', {
+		cwd: rootFolder,
+		exclude: ['node_modules', relative(rootFolder, outputFolderPath)],
+	})
+		.map(relativePath => join(rootFolder, relativePath))
+		.sort();
+	const todos = files.flatMap(filePath => {
+		const rows = readFileSync(filePath, 'utf8').split('\n');
+		return parseTodoComments(rows).map(todo => ({
+			filePath: relative(process.cwd(), filePath),
+			todo: todo,
+		}));
+	});
+	console.log(formatTodoList(todos));
+}
+
+export function formatTodoList(todos: readonly { filePath: string; todo: TodoComment; }[]): string {
+	if (!todos.length) {
+		return 'no #TODO comments found';
+	}
+	const lines = todos.map(({ filePath, todo }) => {
+		const position = colorize(`${filePath}:${todo.rowIndex + 1}:${todo.columnIndex + 1}`, ConsoleColor.cyan);
+		return todo.text
+			? `${position}  ${todo.text}`
+			: position;
+	});
+	const fileCount = new Set(todos.map(({ filePath }) => filePath)).size;
+	lines.push(`${todos.length} ${todos.length === 1 ? 'TODO' : 'TODOs'} in ${fileCount} ${fileCount === 1 ? 'file' : 'files'}`);
+	return lines.join('\n');
+}
+
+//#endregion todo
+
 /**
  * Relativ zum Arbeitsverzeichnis wie rootFolder selbst, damit die Pfade zu denen passen, die der
  * Loader für Importe bildet (join(sourceFolder, importedPath)). Ausgelassen werden node_modules,
@@ -663,13 +705,8 @@ const errorTypeLabels: { [Type in CompilerErrorType]: string; } = {
 const errorSeverityLabels: { [Severity in CompilerErrorSeverity]: string; } = {
 	error: 'Error',
 	warning: 'Warning',
-	information: 'Information',
 	hint: 'Hint',
 };
-
-function isReportedInOutput(severity: CompilerErrorSeverity): boolean {
-	return severity === 'error' || severity === 'warning';
-}
 
 /**
  * Farbe je Fehler-Schweregrad für die Konsolenausgabe.
@@ -678,7 +715,6 @@ function isReportedInOutput(severity: CompilerErrorSeverity): boolean {
 const errorSeverityColors: { [Severity in CompilerErrorSeverity]: ConsoleColor; } = {
 	error: ConsoleColor.lightRed,
 	warning: ConsoleColor.yellow,
-	information: ConsoleColor.cyan,
 	hint: ConsoleColor.green,
 };
 

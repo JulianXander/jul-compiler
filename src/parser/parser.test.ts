@@ -767,8 +767,7 @@ describe('Parser', () => {
 	// realistischer JUL-Code mit Parameterlisten, FunctionTypeLiterals, DictionaryTypes,
 	// Spread/Rest, Multiline und Interpolation. Fehler dort werden sonst still ignoriert.
 	it('core-lib parses without errors', () => {
-		// Die offenen Punkte der core-lib erscheinen als #TODO-Hinweise, das ist gewollt.
-		expect(parseFile(coreLibPath).unchecked.errors.filter(error => error.code !== ErrorCode.todoComment)).to.deep.equal([]);
+		expect(parseFile(coreLibPath).unchecked.errors).to.deep.equal([]);
 	});
 	// Die Erkennung darf nicht an coreLibPath hängen: der Sprachserver läuft aus dem out
 	// Verzeichnis der installierten Extension, geöffnet wird aber die Quelldatei im Repo.
