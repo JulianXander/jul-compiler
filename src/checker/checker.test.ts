@@ -2047,6 +2047,13 @@ text$ = seconds$.map$((value) => 1)`, {
 		expectCheck(`#jul-ignore JUL2800 lebt mit der App
 seconds$ = timer$(1f)`);
 	});
+	// Wie bei #region: # direkt gefolgt vom Wort ist eine Anweisung, mit Leerzeichen ist es Text.
+	it('comment-with-space-is-no-ignore-comment', () => {
+		expectCheck(`# jul-ignore JUL2800
+seconds$ = timer$(1f)`, {
+			errors: [streamNeverCompleted('seconds$', 1, 11, 21)],
+		});
+	});
 	// Maßgeblich ist, wo die Warnung beginnt, nicht wie weit der Ausdruck reicht.
 	it('ignore-comment-covers-multiline-expression', () => {
 		expectCheck(`#jul-ignore JUL2800
