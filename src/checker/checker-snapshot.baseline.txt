@@ -62,6 +62,8 @@ primitiveTypeFunction: Integer ~> Empty
 restFunction: (...restParameter: Any) ~> Empty
 restFunction2: (...restParameter: MyType) ~> Empty
 typeFunction: MyType ~> Empty
+  information 2903 at 69:1 TODO mit Parameternamen nicht erlaubt?
+  information 2903 at 76:1 TODO rest type nur List oder auch Dictionary? bei rest Dictionary Parameternamen spreaden?
   error 5050 at 48:1 Argument type mismatch. | Can not assign [[ |   a: 1 |   b: 2 | ]] to [ |   a: 1 |   b: 2 | ].
   error 5003 at 53:25 Expected the params type to describe an argument collection. Did you mean [Integer]?
   error 5050 at 54:1 Argument type mismatch. | Can not assign [1] to Integer.
@@ -226,6 +228,7 @@ typeFnShort: BlubType -> Empty
   error 2100 at 7:1 assignedValue missing for definition
   error 1102 at 7:14 multilineParser should parse until end of row
   error 2400 at 19:9 nestedReference is not a valid expression for parameter source.
+  information 2903 at 23:1 TODO fn parameters mit alias
   error 1102 at 30:14 multilineParser should parse until end of row
   error 1050 at 31:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 1050 at 32:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
@@ -252,9 +255,11 @@ ParserResult: (TypeParam: Text) -> Any :> Boolean
 addNums: (T: Boolean) -> (   num1: Boolean   num2: Boolean ) -> [Boolean Boolean]
 myVar: 3
 myVarIsText: Any
+  information 2903 at 3:1 TODO TypParameter auch?
   error 1102 at 15:26 multilineParser should parse until end of row
   error 1102 at 24:8 multilineParser should parse until end of row
   error 1102 at 30:13 multilineParser should parse until end of row
+  information 2903 at 33:1 TODO syntax überdenken
   error 1102 at 34:33 multilineParser should parse until end of row
   error 1050 at 35:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser
   error 1050 at 36:1 Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser

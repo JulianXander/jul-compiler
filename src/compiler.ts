@@ -184,10 +184,10 @@ function reportErrors(
 	let warningCount = 0;
 	const formattedErrors = notFoundPaths.map(path => `File not found: ${path}`);
 	Object.values(documents).forEach(document => {
-		// Hinweise sind für den Editor, der sie an der Stelle zeigt. In der Ausgabe gingen die
-		// Beanstandungen darin unter.
+		// Hinweise und Informationen (etwa #TODO) sind für den Editor, der sie an der Stelle zeigt.
+		// In der Ausgabe gingen die Beanstandungen darin unter.
 		const errors = (document.checked?.errors ?? document.unchecked.errors)
-			.filter(error => errorInfos[error.code].severity !== 'hint'
+			.filter(error => isReportedInOutput(errorInfos[error.code].severity)
 				&& !ignoredCodes.includes(error.code));
 		if (!errors.length) {
 			return;
@@ -663,8 +663,13 @@ const errorTypeLabels: { [Type in CompilerErrorType]: string; } = {
 const errorSeverityLabels: { [Severity in CompilerErrorSeverity]: string; } = {
 	error: 'Error',
 	warning: 'Warning',
+	information: 'Information',
 	hint: 'Hint',
 };
+
+function isReportedInOutput(severity: CompilerErrorSeverity): boolean {
+	return severity === 'error' || severity === 'warning';
+}
 
 /**
  * Farbe je Fehler-Schweregrad für die Konsolenausgabe.
@@ -673,6 +678,7 @@ const errorSeverityLabels: { [Severity in CompilerErrorSeverity]: string; } = {
 const errorSeverityColors: { [Severity in CompilerErrorSeverity]: ConsoleColor; } = {
 	error: ConsoleColor.lightRed,
 	warning: ConsoleColor.yellow,
+	information: ConsoleColor.cyan,
 	hint: ConsoleColor.green,
 };
 

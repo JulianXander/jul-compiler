@@ -2134,7 +2134,7 @@ x = 1`, {
 	});
 	const unknownDirective = (directive: string, rowIndex: number, startColumnIndex: number, endColumnIndex: number): CompilerError => ({
 		code: ErrorCode.unknownDirective,
-		message: `Unknown directive '#${directive}'. Known directives are #region, #endregion and #ignore. For a comment, write a space after #.`,
+		message: `Unknown directive '#${directive}'. Known directives are #region, #endregion, #ignore and #TODO. For a comment, write a space after #.`,
 		startRowIndex: rowIndex,
 		startColumnIndex: startColumnIndex,
 		endRowIndex: rowIndex,
@@ -2149,10 +2149,55 @@ x = 1`, {
 	});
 	it('unknown-directive-in-function-body-warns', () => {
 		expectCheck(`f = () =>
-	#todo
+	#note
 	1`, {
-			errors: [unknownDirective('todo', 1, 1, 6)],
+			errors: [unknownDirective('note', 1, 1, 6)],
 		});
+	});
+	const commentDiagnostic = (code: ErrorCode, message: string, rowIndex: number, startColumnIndex: number, endColumnIndex: number): CompilerError => ({
+		code: code,
+		message: message,
+		startRowIndex: rowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: endColumnIndex,
+	});
+	const todoSpellingMessage = 'Write TODO comments as #TODO, without a space after # and in uppercase.';
+	it('todo-comment-is-a-hint', () => {
+		expectCheck(`#TODO Fehlerbehandlung
+x = 1`, {
+			errors: [commentDiagnostic(ErrorCode.todoComment, 'TODO Fehlerbehandlung', 0, 0, 22)],
+		});
+	});
+	it('todo-comment-in-function-body-is-a-hint', () => {
+		expectCheck(`f = () =>
+	#TODO? zusammenfassen
+	1`, {
+			errors: [commentDiagnostic(ErrorCode.todoComment, 'TODO? zusammenfassen', 1, 1, 22)],
+		});
+	});
+	// Genau eine Schreibweise, damit sich alle offenen Punkte finden lassen.
+	it('todo-with-space-warns', () => {
+		expectCheck(`# TODO Fehlerbehandlung
+x = 1`, {
+			errors: [commentDiagnostic(ErrorCode.todoSpelling, todoSpellingMessage, 0, 0, 23)],
+		});
+	});
+	it('todo-in-lowercase-warns', () => {
+		expectCheck(`#todo Fehlerbehandlung
+x = 1`, {
+			errors: [commentDiagnostic(ErrorCode.todoSpelling, todoSpellingMessage, 0, 0, 22)],
+		});
+	});
+	it('todo-in-the-middle-of-a-comment-does-not-warn', () => {
+		expectCheck(`# hier fehlt ein TODO
+x = 1`);
+	});
+	// Ein TODO sagt nichts über die folgende Definition aus.
+	it('todo-comment-is-not-a-description', () => {
+		const parsed = parseCode(`#TODO später
+x = 1`, 'dummy.jul');
+		expect(parsed.unchecked.symbols['x']?.description).to.equal(undefined);
 	});
 	it('known-directives-and-comments-do-not-warn', () => {
 		expectCheck(`#region Werte
@@ -3690,8 +3735,8 @@ g: Text = f(3)`, {
 		expect(parsed.unchecked.errors.map(error => error.code)).to.deep.equal([ErrorCode.expectedExpression]);
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 	});
-	it('function-with-empty-body-does-not-throw: "f = () =>\\n\\t# TODO"', () => {
-		expectEmptyBodyDoesNotThrow('f = () =>\n\t# TODO');
+	it('function-with-empty-body-does-not-throw: "f = () =>\\n\\t# Kommentar"', () => {
+		expectEmptyBodyDoesNotThrow('f = () =>\n\t# Kommentar');
 	});
 	it('function-with-empty-body-does-not-throw: "f = () =>"', () => {
 		expectEmptyBodyDoesNotThrow('f = () =>');
@@ -4834,7 +4879,8 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	it('core-lib checks without errors', () => {
 		const parsed = parseFile(coreLibPath);
 		checkTypes(parsed, {}, { cloneUnchecked: false });
-		expect(parsed.checked!.errors).to.deep.equal([]);
+		// Die offenen Punkte der core-lib erscheinen als #TODO-Hinweise, das ist gewollt.
+		expect(parsed.checked!.errors.filter(error => error.code !== ErrorCode.todoComment)).to.deep.equal([]);
 	});
 	// Hält den Befund fest, der zu den Purity-Pfeilen geführt hat (docs/pure-functions.md,
 	// "Stand"): früher trug jede core-lib-Funktion pure: true, weil functionTypeLiteral das

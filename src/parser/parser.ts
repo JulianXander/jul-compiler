@@ -64,7 +64,7 @@ import {
 	readTextFile,
 } from '../util.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
-import { getUnknownDirectiveError, isIgnoreCommentText, parseIgnoreComments } from './comment-directives.js';
+import { getCommentDirectiveError, isDirectiveCommentText, parseIgnoreComments } from './comment-directives.js';
 import { parseTsCode } from './typescript-parser.js';
 import {
 	createParseFunctionLiteral,
@@ -595,7 +595,7 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 			if (row[columnIndex] === '#') {
 				// Kommentarzeile
 				const comment = row.substring(columnIndex + 1);
-				const directiveError = getUnknownDirectiveError(comment, rowIndex, columnIndex, row.length);
+				const directiveError = getCommentDirectiveError(comment, rowIndex, columnIndex, row.length);
 				if (directiveError) {
 					errors.push(directiveError);
 				}
@@ -2599,8 +2599,8 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 					// region comments verwerfen
 					return;
 				}
-				if (isIgnoreCommentText(expressionOrComment)) {
-					// Anweisung an den Checker, keine Beschreibung. Eine Beschreibung darüber bleibt stehen.
+				if (isDirectiveCommentText(expressionOrComment)) {
+					// Anweisung, keine Beschreibung. Eine Beschreibung darüber bleibt stehen.
 					return;
 				}
 				descriptionComment = descriptionComment === undefined

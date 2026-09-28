@@ -3,20 +3,23 @@
 Idee, keine Entscheidung. Zwei Richtungen, die sich nicht ausschließen: eine Anweisung im
 Kommentar, die Werkzeuge auswerten, und ein Ausdruck, der unfertigen Code übersetzbar macht.
 
-## `#todo` als Anweisung im Kommentar
+## `#TODO` als Anweisung im Kommentar
 
 ```jul
-#todo Fehlerbehandlung für leere Antworten
+#TODO Fehlerbehandlung für leere Antworten
 response$ = httpTextRequest$(url §get§ 5000f)
 ```
 
-`#` direkt gefolgt von einem Wort ist eine Anweisung (siehe
-[comment-directives.ts](../../src/parser/comment-directives.ts)), `#todo` meldet heute JUL2902.
+**Umgesetzt:** `#TODO` ist eine Anweisung (siehe
+[comment-directives.ts](../../src/parser/comment-directives.ts)) und erscheint als Information
+JUL2903 mit dem Text des Kommentars, im Editor also in der Liste der Probleme, in der Ausgabe der
+CLI nicht. Jede andere Schreibweise am Anfang eines Kommentars (`# TODO`, `#todo`) ist die Warnung
+JUL2904, umstellen lässt sich eine Codebasis mit
+[migrate-todo.mjs](../../scripts/migrate-todo.mjs). Ein `#TODO` wird nicht zur Beschreibung der
+folgenden Definition.
 
-Was es tun könnte:
+Was darüber hinaus möglich wäre:
 
-- Jede Stelle wird eine Diagnose mit Schweregrad `hint`: sichtbar im Problems-Panel, durchsuchbar,
-  springbar.
 - `jul check` nennt die Zahl offener TODOs, ein Befehl wie `jul todos` listet sie mit Datei und
   Zeile.
 - Ein Schalter wie `--no-todo` macht jedes `#todo` zum Fehler, etwa in CI.
@@ -36,9 +39,6 @@ Abwägung:
 
 - ➕ Vom Compiler gekannt, verhält es sich in jedem Editor und in der CLI gleich, lässt sich
   zählen und in CI verweigern.
-- ➖ Zwei Schreibweisen für dasselbe: `# TODO` steht heute schon in core-lib und TODO-Liste. Nach
-  [Einheitlichkeit](../design-principles.md#4-einheitlichkeit) wäre eine zu wählen und der Bestand
-  umzustellen.
 - ➖ Vieles davon kann schon der Editor. Den Unterschied macht nur, was die CLI damit tut.
 
 ## `todo(…)` als Ausdruck vom Typ `Never`
@@ -79,5 +79,5 @@ Abwägung:
 
 Einen Mehrwert, den nur der Compiler bieten kann, hat vor allem `todo(…)`: Typ `Never`, eine
 Meldung mit dem erwarteten Typ, später vielleicht ein Fehler beim Build für die Auslieferung.
-`#todo` lohnt sich erst, wenn die CLI damit etwas tut, sonst ist es nur eine zweite Schreibweise
-für `# TODO`.
+Bei `#TODO` bringt der nächste Schritt erst etwas, wenn die CLI damit arbeitet: zählen, auflisten,
+in CI verweigern.

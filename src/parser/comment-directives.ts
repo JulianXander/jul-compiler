@@ -9,37 +9,60 @@ import { IgnoreComment, ParsedExpressions } from '../syntax-tree.js';
  * der nächsten Zeile liegt, die weder leer noch ein Kommentar ist. Wie @ts-expect-error: Ein
  * Kommentar, der nichts unterdrückt, ist selbst eine Warnung. Fehler lassen sich nicht
  * unterdrücken, sonst würde kaputter Code gebaut.
+ *
+ * `#TODO text` erscheint im Editor als Information in der Liste der Probleme. Andere Schreibweisen wie `# TODO` oder `#todo`
+ * sind eine Warnung, damit es genau eine gibt.
  */
 
-const knownDirectives = ['region', 'endregion', 'ignore'];
+const knownDirectives = ['region', 'endregion', 'ignore', 'TODO'];
 const ignoreCommentRegex = /^(\t*)#ignore\b(.*)$/;
 const commentRegex = /^\t*#/;
 
-export function isIgnoreCommentText(commentText: string): boolean {
-	return /^ignore\b/.test(commentText);
+/**
+ * Eine Anweisung ist keine Beschreibung der folgenden Definition.
+ */
+export function isDirectiveCommentText(commentText: string): boolean {
+	return /^[A-Za-z]/.test(commentText);
 }
 
 /**
- * commentText ist der Kommentar ohne das #. Ein unbekanntes Wort direkt nach # ist vermutlich ein
- * Tippfehler in einer Anweisung, etwa #ignroe.
+ * Die Meldungen zu einer Kommentarzeile. commentText ist der Kommentar ohne das #.
  */
-export function getUnknownDirectiveError(
+export function getCommentDirectiveError(
 	commentText: string,
 	rowIndex: number,
 	startColumnIndex: number,
 	endColumnIndex: number,
 ): CompilerError | undefined {
+	const position = {
+		startRowIndex: rowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: endColumnIndex,
+	};
+	if (/^TODO\b/.test(commentText)) {
+		return {
+			code: ErrorCode.todoComment,
+			message: commentText.trimEnd(),
+			...position,
+		};
+	}
+	if (/^\s*todo\b/i.test(commentText)) {
+		return {
+			code: ErrorCode.todoSpelling,
+			message: 'Write TODO comments as #TODO, without a space after # and in uppercase.',
+			...position,
+		};
+	}
+	// Ein unbekanntes Wort direkt nach # ist vermutlich ein Tippfehler in einer Anweisung.
 	const directive = /^[A-Za-z][\w-]*/.exec(commentText)?.[0];
 	if (!directive || knownDirectives.includes(directive)) {
 		return undefined;
 	}
 	return {
 		code: ErrorCode.unknownDirective,
-		message: `Unknown directive '#${directive}'. Known directives are #region, #endregion and #ignore. For a comment, write a space after #.`,
-		startRowIndex: rowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: rowIndex,
-		endColumnIndex: endColumnIndex,
+		message: `Unknown directive '#${directive}'. Known directives are #region, #endregion, #ignore and #TODO. For a comment, write a space after #.`,
+		...position,
 	};
 }
 
