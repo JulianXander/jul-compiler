@@ -48,7 +48,7 @@
 -httpRequest$: complete auf einen laufenden request bricht fetch ab, der catch-zweig pusht dann den
 	AbortError auf den schon beendeten stream, push wirft "Can not push to completed stream." als
 	unbehandelte rejection. erst roter test
--yugioh (eigenes repo), game-logic.jul: timer$(2000f).take$(1).map$(…) startet bei jeder
+-yugioh (eigenes repo), game-logic.jul: interval$(2000f).take$(1).map$(…) startet bei jeder
 	aufgelösten kette einen timer, der nach dem ersten wert ohne listener für immer weitertickt.
 	take$ meldet sich nur ab, beendet die quelle nicht
 -jul-homepage/docs nachziehen: timeout bei httpTextRequest$/httpBlobRequest$, takeUntil$,

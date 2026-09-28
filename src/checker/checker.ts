@@ -1663,9 +1663,9 @@ function dereferenceParameterFromArgumentType(
 		case 'dictionaryLiteral': {
 			const referenceName = parameterReference.name;
 			const argType = argsType.Fields[referenceName];
-			// TODO error bei unbound ref?
+			// Ohne Argument kommt der Parameter zur Laufzeit als Empty an.
 			if (!argType) {
-				return parameterReference;
+				return builtinEmpty;
 			}
 			const dereferenced = dereferenceNameFromObject(referenceName, argType);
 			if (!dereferenced) {
@@ -1680,9 +1680,9 @@ function dereferenceParameterFromArgumentType(
 				? paramIndex - 1
 				: paramIndex;
 			const argType = argsType.ElementTypes[argIndex];
+			// Ohne Argument kommt der Parameter zur Laufzeit als Empty an.
 			if (!argType) {
-				// TODO error bei unbound ref?
-				return parameterReference;
+				return builtinEmpty;
 			}
 			return argType;
 		}

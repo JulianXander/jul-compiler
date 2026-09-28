@@ -1,6 +1,6 @@
 # Lebensdauer von Streams
 
-Ein Stream aus einer unendlichen Quelle (`timer$`, `create$`) läuft, bis jemand `complete` aufruft.
+Ein Stream aus einer unendlichen Quelle (`interval$`, `create$`) läuft, bis jemand `complete` aufruft.
 Vergisst man das, hält die Quelle ihre Listener und alles, was daran hängt, für immer. Der Checker
 meldet das bisher nicht, Leaks bleiben still.
 
@@ -21,7 +21,7 @@ sind die Zusammenfassungen je Funktion.
 ```jul
 elementById(§x§).onClick(
 	() =>
-		seconds$ = timer$(1000f)
+		seconds$ = interval$(1000f)
 		seconds$.map$((s) => log(s))
 		# kein complete: der Timer tickt für immer
 )
@@ -150,7 +150,7 @@ Rückgabetypen (`:?`) aus ihren Argumenten ab:
 | Ausdruck | Typ |
 |---|---|
 | `completed$`, `httpTextRequest$`, `httpBlobRequest$` | `FiniteStream` |
-| `create$`, `timer$` | `Stream` |
+| `create$`, `interval$` | `Stream` |
 | `map$(s)` | `FiniteStream`, wenn `s` einer ist |
 | `flatMergeMap$(s f)`, `flatSwitchMap$(s f)` | `FiniteStream`, wenn `s` einer ist und `f` einen liefert |
 | `combine$(a b …)` | `FiniteStream`, wenn alle einer sind |
@@ -231,7 +231,7 @@ stehen aber Zusagen verschiedener Stärke:
 |---|---|
 | `completed$`, HTTP-Requests | garantiert durch die Runtime |
 | `take$`, `takeUntil$` | abhängig davon, dass künftige Werte kommen |
-| `create$`, `timer$` mit `complete` im Rumpf | abhängig davon, dass der Codepfad mit `complete` läuft |
+| `create$`, `interval$` mit `complete` im Rumpf | abhängig davon, dass der Codepfad mit `complete` läuft |
 | selbst geschriebenes `~> FiniteStream(…)` | geglaubt |
 
 Für die Analyse reicht das, sie sucht fehlende Absicht. Braucht einmal eine Funktion ein
@@ -250,11 +250,11 @@ gewarnt: Das ist Leak B, jeder Aufruf hängt einen weiteren Listener an die Quel
 `takeUntil$` vor dem `subscribe`.
 
 Die Pflicht hängt an der Quelle, nicht an der Sicht darauf. In
-`timer$(1000f).takeUntil$(response$)` endet die Sicht mit der Antwort, der Timer läuft aber weiter
+`interval$(1000f).takeUntil$(response$)` endet die Sicht mit der Antwort, der Timer läuft aber weiter
 und wird deshalb gewarnt. Dasselbe gilt für `take$`: In Yugioh startet
-`timer$(2000f).take$(1).map$(…)` in `game-logic.jul` bei jeder aufgelösten Kette einen Timer, der
+`interval$(2000f).take$(1).map$(…)` in `game-logic.jul` bei jeder aufgelösten Kette einen Timer, der
 nach dem ersten Wert ohne Listener für immer weitertickt. Ebenso stoppt `flatSwitchMap$` beim
-Umschalten nur das Abonnement auf den vorigen inneren Stream: Liefert `f` einen `timer$`, wird er
+Umschalten nur das Abonnement auf den vorigen inneren Stream: Liefert `f` einen `interval$`, wird er
 gewarnt, liefert `f` einen HTTP-Request, endet dieser von selbst.
 
 #### Verworfene Alternativen
@@ -271,7 +271,7 @@ gewarnt, liefert `f` einen HTTP-Request, endet dieser von selbst.
   `FiniteStream(Text)` an der Stelle, an der es steht, ohne Wissen über den Parameter lesbar ist.
 - **Bedingtes Merkmal wie `pureIfArgsPure`**, also endlich, wenn alle Stream-Argumente endlich
   sind und alle Funktionsargumente endliche Streams liefern: Es braucht eine eigene Schreibweise,
-  weil es nicht von selbst gelten darf. `timer$` hat kein Stream-Argument und wäre sonst endlich.
+  weil es nicht von selbst gelten darf. `interval$` hat kein Stream-Argument und wäre sonst endlich.
   Bei `map$` mit einer Transformation, die Streams liefert, wäre es zu streng. `:?` leistet
   dasselbe ohne neuen Mechanismus und genauer.
 
@@ -287,12 +287,12 @@ Für JUL-Funktionen wird abgeleitet, was sie mit Streams tun, ohne Annotationen:
 
 Eine Pflicht wandert über Rückgaben nach oben bis zu der Stelle, an der der Stream landet, ohne
 beendet oder weitergegeben zu werden. Dort wird gewarnt: am erzeugenden Ausdruck, bzw. am Aufruf,
-wenn die Pflicht aus einer Funktion kommt. Eine Fabrik wie `clock$ = (ms: Float) => timer$(ms)`
+wenn die Pflicht aus einer Funktion kommt. Eine Fabrik wie `clock$ = (ms: Float) => interval$(ms)`
 wird also nicht selbst gewarnt, sondern jede Stelle, die `clock$(…)` aufruft und das Ergebnis
 nicht beendet.
 
 **Unkündbare Pflicht:** Gibt eine Funktion nur eine Ableitung ihrer eigenen Quelle zurück, etwa
-`() => timer$(1000f).map$(…)`, kann der Aufrufer die Quelle nicht beenden. Beendet er die
+`() => interval$(1000f).map$(…)`, kann der Aufrufer die Quelle nicht beenden. Beendet er die
 Ableitung, läuft der Timer weiter, weil ein Ende nur abwärts fließt. Der Fehler liegt in der
 Funktion, unabhängig davon, wer sie aufruft, deshalb steht die Warnung an der Quelle in der
 Funktion und nicht beim Aufrufer. Abhilfen:
@@ -301,7 +301,7 @@ Funktion und nicht beim Aufrufer. Abhilfen:
 
   ```jul
   secondsText = () =>
-  	seconds$ = timer$(1000f)
+  	seconds$ = interval$(1000f)
   	[
   		source$ = seconds$
   		text$ = seconds$.map$((s) => §§(s) s§)
@@ -323,7 +323,7 @@ Beendet die Funktion ihre Quelle selbst, gleich wodurch ausgelöst, ist die Quel
 ```jul
 elementById(§delete§).onClick(
 	() =>
-		seconds$ = timer$(1000f)        # Warnung: endet nie
+		seconds$ = interval$(1000f)        # Warnung: endet nie
 		…
 )
 

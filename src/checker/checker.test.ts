@@ -1870,13 +1870,20 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	it('delay-is-finite', () => {
 		expectCheck('s: FiniteStream(Or([] Integer)) = delay$(1f 5)');
 	});
-	it('timer-is-not-finite', () => {
+	it('interval-is-not-finite', () => {
 		const code = `f = () =>
-	s: FiniteStream(Float) = timer$(1f)
+	s: FiniteStream(Integer) = interval$(1f)
 	s`;
 		expectCheck(code, {
-			errors: [streamDefinitionMismatch(code, 'Stream(Float)', 'FiniteStream(Float)')],
+			errors: [streamDefinitionMismatch(code, 'Stream(Integer)', 'FiniteStream(Integer)')],
 		});
+	});
+	it('interval-with-count-is-finite', () => {
+		expectCheck('s: FiniteStream(Integer) = interval$(1f 3)');
+	});
+	// Mit 0 endet der Stream sofort.
+	it('interval-with-count-0-is-finite', () => {
+		expectCheck('s: FiniteStream(Integer) = interval$(1f 0)');
 	});
 	it('map-of-finite-stream-is-finite', () => {
 		expectCheck('s: FiniteStream(Integer) = completed$(1).map$((value) => 2)');
@@ -1916,10 +1923,10 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	});
 	it('flat-map-with-stream-inner-is-not-finite', () => {
 		const code = `f = () =>
-	s: FiniteStream(Float) = completed$(1).flatMergeMap$((value) => timer$(1f))
+	s: FiniteStream(Integer) = completed$(1).flatMergeMap$((value) => interval$(1f))
 	s`;
 		expectCheck(code, {
-			errors: [streamDefinitionMismatch(code, 'Stream(Float)', 'FiniteStream(Float)')],
+			errors: [streamDefinitionMismatch(code, 'Stream(Integer)', 'FiniteStream(Integer)')],
 		});
 	});
 	it('flat-switch-map-of-stream-source-is-not-finite', () => {
@@ -1965,21 +1972,21 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	});
 	// Auch auf oberster Ebene: Ob ein ewiger Stream gewollt ist, sagt nur der Autor.
 	it('stream-without-complete-warns', () => {
-		expectCheck('seconds$ = timer$(1f)', {
-			errors: [streamNeverCompleted('seconds$', 0, 11, 21)],
+		expectCheck('seconds$ = interval$(1f)', {
+			errors: [streamNeverCompleted('seconds$', 0, 11, 24)],
 		});
 	});
 	it('complete-ends-stream', () => {
-		expectCheck(`seconds$ = timer$(1f)
+		expectCheck(`seconds$ = interval$(1f)
 complete(seconds$)`);
 	});
 	it('complete-as-method-ends-stream', () => {
-		expectCheck(`seconds$ = timer$(1f)
+		expectCheck(`seconds$ = interval$(1f)
 seconds$.complete()`);
 	});
 	// Ob der Callback je läuft, ist nicht beweisbar. Gesucht wird fehlende Absicht.
 	it('complete-in-callback-ends-stream', () => {
-		expectCheck(`seconds$ = timer$(1f)
+		expectCheck(`seconds$ = interval$(1f)
 stop = () => seconds$.complete()`);
 	});
 	// Das Ende gilt für den ganzen Stream, schon an der Definition.
@@ -1990,43 +1997,43 @@ r: FiniteStream(Integer) = result$`);
 	});
 	// Mit der Rückgabe geht die Pflicht an den Aufrufer.
 	it('returned-stream-does-not-warn', () => {
-		expectCheck('clock$ = (ms: Float) => timer$(ms)');
+		expectCheck('clock$ = (ms: Float) => interval$(ms)');
 	});
 	it('stream-returned-by-name-does-not-warn', () => {
 		expectCheck(`f = () =>
-	seconds$ = timer$(1f)
+	seconds$ = interval$(1f)
 	seconds$`);
 	});
 	it('stream-passed-on-in-dictionary-does-not-warn', () => {
 		expectCheck(`f = () =>
-	seconds$ = timer$(1f)
+	seconds$ = interval$(1f)
 	[source$ = seconds$]`);
 	});
 	// Ein Argument ist nur geliehen, die Pflicht bleibt beim Erzeuger.
 	it('stream-passed-as-argument-warns', () => {
-		expectCheck(`g = (s$: Stream(Float)) => []
+		expectCheck(`g = (s$: Stream(Integer)) => []
 f = () =>
-	seconds$ = timer$(1f)
+	seconds$ = interval$(1f)
 	g(seconds$)`, {
-			errors: [streamNeverCompleted('seconds$', 2, 12, 22)],
+			errors: [streamNeverCompleted('seconds$', 2, 12, 25)],
 		});
 	});
 	it('stream-without-name-warns', () => {
-		expectCheck('timer$(1f).subscribe((value) => [])', {
-			errors: [streamNeverCompleted(undefined, 0, 0, 10)],
+		expectCheck('interval$(1f).subscribe((value) => [])', {
+			errors: [streamNeverCompleted(undefined, 0, 0, 13)],
 		});
 	});
 	// take$ endet, meldet sich aber nur ab: die Quelle läuft weiter.
 	it('take-does-not-end-its-source', () => {
-		expectCheck('f = () => timer$(1f).take$(1)', {
-			errors: [streamNeverCompleted(undefined, 0, 10, 20)],
+		expectCheck('f = () => interval$(1f).take$(1)', {
+			errors: [streamNeverCompleted(undefined, 0, 10, 23)],
 		});
 	});
 	// Ableitungen deckt die Warnung an der Quelle mit ab.
 	it('derived-stream-does-not-warn-again', () => {
-		expectCheck(`seconds$ = timer$(1f)
+		expectCheck(`seconds$ = interval$(1f)
 text$ = seconds$.map$((value) => 1)`, {
-			errors: [streamNeverCompleted('seconds$', 0, 11, 21)],
+			errors: [streamNeverCompleted('seconds$', 0, 11, 24)],
 		});
 	});
 	// Die Abmeldung über takeUntil$ geht auf einen geliehenen Stream und erzeugt keine Pflicht.
@@ -2046,19 +2053,19 @@ text$ = seconds$.map$((value) => 1)`, {
 	});
 	it('ignore-comment-suppresses-warning-in-next-line', () => {
 		expectCheck(`#ignore JUL2800 lebt mit der App
-seconds$ = timer$(1f)`);
+seconds$ = interval$(1f)`);
 	});
 	// Wie bei #region: # direkt gefolgt vom Wort ist eine Anweisung, mit Leerzeichen ist es Text.
 	it('comment-with-space-is-no-ignore-comment', () => {
 		expectCheck(`# ignore JUL2800
-seconds$ = timer$(1f)`, {
-			errors: [streamNeverCompleted('seconds$', 1, 11, 21)],
+seconds$ = interval$(1f)`, {
+			errors: [streamNeverCompleted('seconds$', 1, 11, 24)],
 		});
 	});
 	// Maßgeblich ist, wo die Warnung beginnt, nicht wie weit der Ausdruck reicht.
 	it('ignore-comment-covers-multiline-expression', () => {
 		expectCheck(`#ignore JUL2800
-seconds$ = timer$(
+seconds$ = interval$(
 	1f
 )`);
 	});
@@ -2066,27 +2073,27 @@ seconds$ = timer$(
 		expectCheck(`#ignore JUL2800
 
 # Sekunden seit dem Start
-seconds$ = timer$(1f)`);
+seconds$ = interval$(1f)`);
 	});
 	it('ignore-comment-in-function-body', () => {
 		expectCheck(`f = () =>
 	#ignore JUL2800
-	seconds$ = timer$(1f)
+	seconds$ = interval$(1f)
 	seconds$.subscribe((value) => [])`);
 	});
 	// Nur die nächste Zeile: eine Warnung weiter unten bleibt stehen.
 	it('ignore-comment-does-not-reach-further-lines', () => {
 		expectCheck(`#ignore JUL2800
-first$ = timer$(1f)
-second$ = timer$(1f)`, {
-			errors: [streamNeverCompleted('second$', 2, 10, 20)],
+first$ = interval$(1f)
+second$ = interval$(1f)`, {
+			errors: [streamNeverCompleted('second$', 2, 10, 23)],
 		});
 	});
 	it('ignore-comment-with-other-code-suppresses-nothing', () => {
 		expectCheck(`#ignore JUL2600
-seconds$ = timer$(1f)`, {
+seconds$ = interval$(1f)`, {
 			errors: [
-				streamNeverCompleted('seconds$', 1, 11, 21),
+				streamNeverCompleted('seconds$', 1, 11, 24),
 				ignoreCommentWarning(ErrorCode.unusedIgnoreComment, 'This #ignore comment suppresses nothing: the next line has no warning JUL2600.', 0, 15),
 			],
 		});

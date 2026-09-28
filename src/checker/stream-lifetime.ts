@@ -12,7 +12,7 @@ import { resolvePlaceholders } from './checker.js';
 
 /**
  * Lebensdauer von Streams, siehe docs/stream-lifetimes.md: Ein Stream aus einer Quelle, die nicht
- * von selbst endet (create$, timer$), braucht ein complete im Rumpf, in dem er entsteht, oder er
+ * von selbst endet (create$, interval$), braucht ein complete im Rumpf, in dem er entsteht, oder er
  * wird zurückgegeben. Sonst läuft er für immer.
  */
 

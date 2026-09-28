@@ -152,3 +152,12 @@
 2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/small	15	3751.23	3907.73	3907.73	delay$ neu, timer$ löscht seinen Timeout bei complete
 2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/large	15	3711256.00	3865984.00	3865984.00	delay$ neu, timer$ löscht seinen Timeout bei complete
 2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/texts	15	444430.00	464357.00	464357.00	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.43	16.84	16.84	vor interval$ statt timer$
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.47	11.90	11.90	vor interval$ statt timer$
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	8.24	9.23	9.23	vor interval$ statt timer$
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.92	7.92	7.92	vor interval$ statt timer$
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	7.00	7.42	7.42	vor interval$ statt timer$
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	7.14	9.02	9.02	vor interval$ statt timer$
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	json/small	15	3960.22	4323.94	4323.94	vor interval$ statt timer$
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	json/large	15	3811382.00	3968514.00	3968514.00	vor interval$ statt timer$
+2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	json/texts	15	477905.00	506412.50	506412.50	vor interval$ statt timer$

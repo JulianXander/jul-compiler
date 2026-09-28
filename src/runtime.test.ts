@@ -3,7 +3,7 @@ import { reportAtCaller } from './test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
 	completed$, create$, deepEqual, delay$, findLastIndex, getElement, httpTextRequest$, Integer, multiply, or, parseJson, push, rationalToFloat,
-	regex, setElement, subscribe, subtract, take$, takeUntil$, timer$, toJson,
+	regex, setElement, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
 
 //#region _branch
@@ -487,51 +487,71 @@ describe('takeUntil$', () => {
 	});
 });
 
-describe('timer$', () => {
-	const originalSetTimeout = globalThis.setTimeout;
-	const originalClearTimeout = globalThis.clearTimeout;
+describe('interval$', () => {
+	const originalSetInterval = globalThis.setInterval;
+	const originalClearInterval = globalThis.clearInterval;
+	// Die laufenden Intervalle, ein Tick wird von Hand ausgelöst.
+	let activeIntervals: Map<number, () => void>;
+	beforeEach(() => {
+		activeIntervals = new Map();
+		let nextIntervalId = 1;
+		globalThis.setInterval = ((callback: () => void) => {
+			const intervalId = nextIntervalId++;
+			activeIntervals.set(intervalId, callback);
+			return intervalId;
+		}) as any;
+		globalThis.clearInterval = ((intervalId: number) => {
+			activeIntervals.delete(intervalId);
+		}) as any;
+	});
 	afterEach(() => {
-		globalThis.setTimeout = originalSetTimeout;
-		globalThis.clearTimeout = originalClearTimeout;
+		globalThis.setInterval = originalSetInterval;
+		globalThis.clearInterval = originalClearInterval;
 	});
-	// Beendet löscht der Timer seinen geplanten Timeout, statt ihn noch einmal leer laufen zu lassen.
-	it('clears its pending timeout when completed', () => {
-		const pendingTimeouts = new Set<number>();
-		let nextTimeoutId = 1;
-		globalThis.setTimeout = (() => {
-			const timeoutId = nextTimeoutId++;
-			pendingTimeouts.add(timeoutId);
-			return timeoutId;
-		}) as any;
-		globalThis.clearTimeout = ((timeoutId: number) => {
-			pendingTimeouts.delete(timeoutId);
-		}) as any;
-		const ticks$ = timer$(1000);
+	const tick = () => {
+		[...activeIntervals.values()][0]!();
+	};
+	it('starts at 0 and counts the elapsed intervals', () => {
+		const ticks$ = interval$(1000);
+		const values: bigint[] = [];
+		subscribe(ticks$, (value: bigint) => values.push(value));
+		tick();
+		tick();
+		expect(values).to.deep.equal([0n, 1n, 2n]);
 		complete(ticks$);
-		expect([...pendingTimeouts]).to.deep.equal([]);
 	});
-	// Beendet ein Listener den Timer beim Tick, wird kein weiterer Timeout geplant.
-	it('schedules no further timeout when a listener completes it on a tick', () => {
-		const pendingTimeouts = new Map<number, () => void>();
-		let nextTimeoutId = 1;
-		globalThis.setTimeout = ((callback: () => void) => {
-			const timeoutId = nextTimeoutId++;
-			pendingTimeouts.set(timeoutId, callback);
-			return timeoutId;
-		}) as any;
-		globalThis.clearTimeout = ((timeoutId: number) => {
-			pendingTimeouts.delete(timeoutId);
-		}) as any;
-		const ticks$ = timer$(1000);
-		subscribe(ticks$, (value: number) => {
-			if (value === 2) {
+	it('completes after count intervals', () => {
+		const ticks$ = interval$(1000, 2n);
+		const values: bigint[] = [];
+		subscribe(ticks$, (value: bigint) => values.push(value));
+		tick();
+		tick();
+		expect(values).to.deep.equal([0n, 1n, 2n]);
+		expect((ticks$ as any).completed).to.equal(true);
+		expect([...activeIntervals.keys()]).to.deep.equal([]);
+	});
+	// Mit count 0 ist nichts abzuwarten: Startwert 0, sofort beendet, kein Intervall.
+	it('completes immediately with count 0', () => {
+		const ticks$ = interval$(1000, 0n);
+		expect((ticks$ as any).lastValue).to.equal(0n);
+		expect((ticks$ as any).completed).to.equal(true);
+		expect([...activeIntervals.keys()]).to.deep.equal([]);
+	});
+	it('clears its interval when completed', () => {
+		const ticks$ = interval$(1000);
+		complete(ticks$);
+		expect([...activeIntervals.keys()]).to.deep.equal([]);
+	});
+	// Beendet ein Listener den Stream beim Tick, läuft das Intervall nicht weiter.
+	it('clears its interval when a listener completes it on a tick', () => {
+		const ticks$ = interval$(1000);
+		subscribe(ticks$, (value: bigint) => {
+			if (value === 1n) {
 				complete(ticks$);
 			}
 		});
-		const [timeoutId, tick] = [...pendingTimeouts][0]!;
-		pendingTimeouts.delete(timeoutId);
 		tick();
-		expect([...pendingTimeouts.keys()]).to.deep.equal([]);
+		expect([...activeIntervals.keys()]).to.deep.equal([]);
 	});
 });
 

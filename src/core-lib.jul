@@ -1119,25 +1119,21 @@ delay$ = nativeFunction(
 		(delayMs, value) => _delay$(delayMs, value)
 	§
 )
-# gibt alle delayMs die nächste Zahl aus, beginnend mit 1
-timer$ = nativeFunction(
-	(delayMs: Float) ~> Stream(Float)
+# Startwert: 0
+# Liefert nach jedem Intervall von delayMs die Anzahl der vergangenen Intervalle.
+# Mit count endet der Stream nach count Intervallen, bei 0 sofort.
+# Ohne count läuft er, bis er beendet wird.
+interval$ = nativeFunction(
+	(
+		delayMs: Float
+		count: Or([] 0 PositiveInteger)
+	)
+		~>
+			:?(TypeOf(count))
+				[Integer] => FiniteStream(Integer)
+				() => Stream(Integer)
 	§js
-		(delayMs) => {
-			const stream$ = createSource$(1);
-			const cycle = () => {
-				setTimeout(() => {
-					if (stream$.completed) {
-						return;
-					}
-					processId++;
-					stream$.push(stream$.lastValue! + 1, processId);
-					cycle();
-				}, delayMs);
-			};
-			cycle();
-			return stream$;
-		}
+		(delayMs, count) => _interval$(delayMs, count)
 	§
 )
 #endregion create

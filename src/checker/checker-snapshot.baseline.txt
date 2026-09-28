@@ -31,10 +31,8 @@ myVal: 6
 === cli/cli.jul ===
 cliArguments: Any
 === console-progress/console-progress.jul ===
-progress$: FiniteStream(Float)
-timer1$: FiniteStream(Float)
-=== counter/counter.jul ===
-counter$: FiniteStream(Float)
+progress$: FiniteStream(Integer)
+timer1$: FiniteStream(Integer)
 === fibonacci/fibonacci.jul ===
 fibonacci: (x: Integer) -> Any
 fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) -> Any
@@ -98,18 +96,16 @@ myList4: [   1   2   1   2   3   4 ]
 myListValue: 1
 myListValue2: 21
 === stream.jul ===
-combined$: FiniteStream([Float Integer Integer])
+combined$: FiniteStream([Integer Integer Integer])
 mapped1$: FiniteStream(Integer)
 mapped2$: FiniteStream(Integer)
-source$: FiniteStream(Float)
-  error 5050 at 1:18 Argument type mismatch. | Invalid value for parameter 'delayMs' |   Can not assign 2000 to Float.
+source$: FiniteStream(Integer)
+  error 5050 at 1:21 Argument type mismatch. | Invalid value for parameter 'delayMs' |   Can not assign 2000 to Float.
   error 4001 at 4:3 'console' is not defined.
   error 5050 at 3:2 Argument type mismatch. | Invalid value for parameter 'listener' |   Parameter name mismatch. Got 'x' but expected 'value'
-  error 5050 at 7:36 Argument type mismatch. | Invalid value for parameter 'dividend' |   Can not assign Float to Integer.
   error 5050 at 7:25 Argument type mismatch. | Invalid value for parameter 'transform$' |   Parameter name mismatch. Got 'count' but expected 'value'
   error 4001 at 8:27 'console' is not defined.
   error 5050 at 8:20 Argument type mismatch. | Invalid value for parameter 'listener' |   Parameter name mismatch. Got 'x' but expected 'value'
-  error 5050 at 10:36 Argument type mismatch. | Invalid value for parameter 'dividend' |   Can not assign Float to Integer.
   error 5050 at 10:25 Argument type mismatch. | Invalid value for parameter 'transform$' |   Parameter name mismatch. Got 'count' but expected 'value'
   error 4001 at 11:27 'console' is not defined.
   error 5050 at 11:20 Argument type mismatch. | Invalid value for parameter 'listener' |   Parameter name mismatch. Got 'x' but expected 'value'
@@ -304,6 +300,8 @@ myVarIsText: Any
   error 4001 at 59:36 'x' is not defined.
   warning 2600 at 57:1 'ParserResult' is not a type and should start with a lowercase letter.
   warning 2600 at 62:1 'Even' is not a type and should start with a lowercase letter.
+=== ui/counter/counter.jul ===
+counter$: FiniteStream(Integer)
 === ui/dialog/dialog.jul ===
 appendHtml: (html: Text) ~> Any
 bindText: (   element: Any   text: Or(Text Stream(Text))   until$: Stream(Any) ) ~> Any
@@ -330,9 +328,6 @@ output: Any
 setHidden: (   element: Any   hidden: Boolean ) ~> Empty
 setText: (   element: Any   text: Text ) ~> Empty
 textValue: (input: Any) ~> Text
-  warning 2800 at 23:9 Stream 'name$' is never completed. Call complete on it or return it.
-  warning 2800 at 24:8 Stream 'age$' is never completed. Call complete on it or return it.
-  warning 2800 at 25:15 Stream 'ageVisible$' is never completed. Call complete on it or return it.
 === ui/dynamic-form/dynamic-form2.jul ===
 ageInput: Any
 body: Any

@@ -185,7 +185,7 @@ Nicht Teil dieses Plans. Hier festgehalten, damit die Umsetzung sie nicht verbau
 Streams sind push-basiert und synchron, eine Quelle, die aus einer Liste pusht, und ein Sammler, der
 die Emissionen als Liste liefert, reichen für deterministische Tests (Marble Testing wie beim
 `TestScheduler` von RxJS). Glitch-Freiheit lässt sich so direkt prüfen: `combine$` über zwei `map$`
-derselben Quelle emittiert pro Push einmal. Für `timer$` braucht es zusätzlich virtuelle Zeit (steht
+derselben Quelle emittiert pro Push einmal. Für `interval$` braucht es zusätzlich virtuelle Zeit (steht
 schon im TODO unter „tests“).
 
 Darauf aufbauend ein Stream-Inspektor: Ein Aufzeichnungsmodus in `StreamClass.push`

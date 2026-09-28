@@ -168,3 +168,5 @@
 2026-09-28 07:55:13	5e8794e+	-	ADV-DEV-56627	yugioh	parse+check	5	1635.78	2110.91	2110.91	FiniteStream als Merkmal am Stream-Typ, bedingte Rückgabetypen in core-lib
 2026-09-28 08:53:12	2a6346f+	-	ADV-DEV-56627	yugioh	parse+check	5	1577.81	1931.77	1931.77	Lebensdauer: complete im Rumpf, FiniteStream-Aufwertung, Warnung JUL2800
 2026-09-28 09:01:18	275c6a5+	-	ADV-DEV-56627	yugioh	parse+check	5	1630.24	2367.29	2367.29	jul-ignore: Kommentare im Parser lesen, am Ende von checkTypes anwenden
+2026-09-28 12:04:20	8a53e5e+	-	ADV-DEV-56627	yugioh	parse+check	5	1893.57	2191.67	2191.67	vor: fehlendes Argument als Empty im bedingten Rückgabetyp
+2026-09-28 12:07:35	8a53e5e+	-	ADV-DEV-56627	yugioh	parse+check	5	1573.37	1990.51	1990.51	nach: fehlendes Argument als Empty im bedingten Rückgabetyp, interval$ statt timer$

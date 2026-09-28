@@ -9,12 +9,12 @@ JUL-Code kann nicht darauf reagieren, dass ein Stream endet. `subscribe` meldet 
 ist im Checker nicht zugänglich.
 
 Eine Quelle, die in JUL geschrieben ist, kann deshalb beim vorzeitigen Beenden nicht aufräumen. Am
-Beispiel einer einmaligen Verzögerung auf Basis von `timer$`:
+Beispiel einer einmaligen Verzögerung auf Basis von `interval$`:
 
 ```jul
 delay$ = (delayMs: Float value: Any) =>
 	result$ = create$(Or([] TypeOf(value)) [])
-	tick$ = timer$(delayMs)
+	tick$ = interval$(delayMs)
 	tick$.subscribe(
 		(tick = value) =>
 			?(tick)

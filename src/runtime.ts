@@ -2602,7 +2602,7 @@ class StreamClass<T> {
 	}
 
 	/**
-	 * Bei Quell-Streams (z.B. mit timer$ oder create$) wird immer sofort ein Startwert mit push eingetragen.
+	 * Bei Quell-Streams (z.B. mit interval$ oder create$) wird immer sofort ein Startwert mit push eingetragen.
 	 * 
 	 * Falls abgeleiteter Stream (createDerived$, map$, combine$, etc):
 	 * lastValue wird lazy gesetzt.
@@ -2775,6 +2775,30 @@ function _delay$<T>(delayMs: number, value: T): StreamClass<T | undefined> {
 		clearTimeout(timeoutId);
 	});
 	return delayed$;
+}
+
+/**
+ * Startwert 0, nach jedem Intervall von delayMs die Anzahl der vergangenen Intervalle. Mit count
+ * nach count Intervallen beendet, bei 0 sofort. Beendet wird das Intervall gelöscht.
+ */
+function _interval$(delayMs: number, count?: bigint): StreamClass<bigint> {
+	const interval$ = _create$(0n);
+	if (count === 0n) {
+		interval$.complete();
+		return interval$;
+	}
+	const intervalId = setInterval(() => {
+		processId++;
+		const elapsed = interval$.lastValue! + 1n;
+		interval$.push(elapsed, processId);
+		if (elapsed === count) {
+			interval$.complete();
+		}
+	}, delayMs);
+	interval$.onCompleted(() => {
+		clearInterval(intervalId);
+	});
+	return interval$;
 }
 
 //#endregion create
@@ -3178,31 +3202,19 @@ export const httpBlobRequest$ = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-export const timer$ = /*#__PURE__*/ _createFunction(
-	function timer$(delayMs: number): StreamClass<number> {
-		const stream$ = _create$(1);
-		let timeoutId: ReturnType<typeof setTimeout>;
-		const cycle = () => {
-			timeoutId = setTimeout(() => {
-				processId++;
-				stream$.push(stream$.lastValue! + 1, processId);
-				// Ein Listener kann den Timer beim push beendet haben.
-				if (!stream$.completed) {
-					cycle();
-				}
-			}, delayMs);
-		};
-		cycle();
-		stream$.onCompleted(() => {
-			clearTimeout(timeoutId);
-		});
-		return stream$;
-	},
+export const interval$ = /*#__PURE__*/ _createFunction(
+	_interval$,
 	{
-		singleNames: [{
-			name: 'delayMs',
-			type: Float
-		}]
+		singleNames: [
+			{
+				name: 'delayMs',
+				type: Float
+			},
+			{
+				name: 'count',
+				type: /*#__PURE__*/ optionalType(Integer)
+			},
+		]
 	}
 );
 export const delay$ = /*#__PURE__*/ _createFunction(
