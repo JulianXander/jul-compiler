@@ -130,7 +130,7 @@ oder von oberster Ebene stammt. Das ist Leak B.
 
 ### Wann ein Stream endet: `FiniteStream`
 
-Ob ein Stream sicher endet, steht in seinem Typ. `FiniteStream(T)` ist eine Teilmenge von
+Ob ein Stream endet, steht in seinem Typ. `FiniteStream(T)` ist eine Teilmenge von
 `Stream(T)`: Es fordert zusätzlich, dass der Stream endet, und ist deshalb überall einsetzbar, wo
 `Stream(T)` verlangt wird. `Stream(T)` sagt über das Ende nichts zu, „endet nie“ ist kein
 eigener Typ, denn das kann niemand zusichern.
@@ -217,10 +217,27 @@ Funktion aufgerufen wird.
 `take$` und `takeUntil$` gelten als endlich, auch wenn ihr Ende von künftigen Werten abhängt.
 `takeUntil$(s clicks$)` endet beim nächsten Klick, das ist Absicht.
 
-Zur Laufzeit ist `FiniteStream` wie `ValueType` nicht prüfbar. In einem Branch-Muster passt es
-deshalb zur Laufzeit auf jeden Stream, während der Checker auf „endlich“ verengt. Das ist keine
-Eigenheit von `FiniteStream`, sondern eine allgemeine Lücke bei Typen, die die Runtime gröber
-prüft als der Checker, und wird dort für alle gemeinsam entschieden.
+`FiniteStream` heißt deshalb „keine Pflicht für den Empfänger“, nicht „das Ende ist garantiert“.
+Ob die Runtime den Stream beendet oder der Besitzer, macht für den Empfänger keinen Unterschied,
+selbst terminierende und manuell beendete Streams werden nicht unterschieden. Hinter demselben Typ
+stehen aber Zusagen verschiedener Stärke:
+
+| Herkunft | Ende |
+|---|---|
+| `completed$`, HTTP-Requests | garantiert durch die Runtime |
+| `take$`, `takeUntil$` | abhängig davon, dass künftige Werte kommen |
+| `create$`, `timer$` mit `complete` im Rumpf | abhängig davon, dass der Codepfad mit `complete` läuft |
+| selbst geschriebenes `~> FiniteStream(…)` | geglaubt |
+
+Für die Analyse reicht das, sie sucht fehlende Absicht. Braucht einmal eine Funktion ein
+garantiertes Ende, etwa um darauf zu warten, ist zwischen „garantiert“ und „beabsichtigt“ zu
+unterscheiden, nicht zwischen selbst terminierend und manuell beendet.
+
+Zur Laufzeit ist `FiniteStream` wie `ValueType` nicht prüfbar. In einem Branch-Muster ist es
+deshalb nur erlaubt, wenn der Eingang schon endlich ist, sonst ist es ein Fehler: Zur Laufzeit
+passte der Zweig auf jeden Stream. Über Eigenschaften eines Streams zu verzweigen ergibt keinen
+Sinn, nur über die Frage, ob etwas ein Stream ist. Die Regel gilt allgemein für Typen, die die
+Runtime gröber prüft als der Checker, und steht im [TODO](../TODO).
 
 Ein Abonnement endet mit seinem Stream. `subscribe` auf einen `FiniteStream` ist deshalb
 unbedenklich. `subscribe` auf einen geliehenen `Stream`, der kein `FiniteStream` ist, wird
@@ -271,10 +288,32 @@ nicht beendet.
 
 **Unkündbare Pflicht:** Gibt eine Funktion nur eine Ableitung ihrer eigenen Quelle zurück, etwa
 `() => timer$(1000f).map$(…)`, kann der Aufrufer die Quelle nicht beenden. Beendet er die
-Ableitung, läuft der Timer weiter, weil ein Ende nur abwärts fließt. Die Warnung landet trotzdem
-beim Aufrufer, sagt aber, dass der Fehler in der Funktion liegt, und verweist auf die Quelle dort
-(im Language Server über `relatedInformation`). Abhilfe in der Funktion: die Quelle mit
-zurückgeben oder sie als Parameter annehmen, statt sie selbst zu erzeugen.
+Ableitung, läuft der Timer weiter, weil ein Ende nur abwärts fließt. Der Fehler liegt in der
+Funktion, unabhängig davon, wer sie aufruft, deshalb steht die Warnung an der Quelle in der
+Funktion und nicht beim Aufrufer. Abhilfen:
+
+- **Die Quelle mit zurückgeben**, der Aufrufer beendet sie:
+
+  ```jul
+  secondsText = () =>
+  	seconds$ = timer$(1000f)
+  	[
+  		source$ = seconds$
+  		text$ = seconds$.map$((s) => §§(s) s§)
+  	]
+  ```
+
+- **Die Quelle als Parameter annehmen**, statt sie selbst zu erzeugen. Der Aufrufer besitzt sie
+  von vornherein, so wie `seconds$` im Dialog-Beispiel:
+
+  ```jul
+  secondsText$ = (seconds$: Stream(Float)) =>
+  	seconds$.map$((s) => §§(s) s§)
+  ```
+
+Beendet die Funktion ihre Quelle selbst, gleich wodurch ausgelöst, ist die Quelle ein
+`FiniteStream` und es gibt keine unkündbare Pflicht. Das folgt aus der allgemeinen Regel
+„`complete` im Rumpf“ und braucht keine eigene Form.
 
 ```jul
 elementById(§delete§).onClick(
@@ -304,7 +343,9 @@ elementById(§x§).onClick(
    messen.
 2. Innerhalb einer Funktion: `complete` im selben Rumpf samt Closures suchen, `create$`-Streams
    danach als `FiniteStream` führen, Streams ohne Ende warnen. Das deckt Leak A ab.
-3. Zusammenfassungen je Funktion für Rückgabe und Parameter. Damit werden Leak B und die
-   Weitergabe über Funktionsgrenzen erkannt.
-4. Tests über `expectCheck(code, { errors })`: je eine Zeile der Tabelle, dazu das Dialog-Beispiel
+3. Warnungen per Kommentar abschalten (`# jul-ignore`, siehe [TODO](../TODO)). Ohne das ließen
+   sich die gewollt ewigen Zustands-Streams, etwa in Yugioh, nicht still stellen.
+4. Zusammenfassungen je Funktion für Rückgabe und Parameter. Damit werden Leak B, die
+   Weitergabe über Funktionsgrenzen und die unkündbare Pflicht erkannt.
+5. Tests über `expectCheck(code, { errors })`: je eine Zeile der Tabelle, dazu das Dialog-Beispiel
    mit und ohne `seconds$.complete()`.

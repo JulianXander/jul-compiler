@@ -42,6 +42,8 @@
 ?wertebereich von timeoutMs bei httpTextRequest$/httpBlobRequest$: heute Float, 0 und negative
 	werte lösen den abbruch sofort aus (setTimeout in httpRequest$, runtime.ts). ausschließen, etwa
 	mit einem positiven Float-typ, oder so lassen?
+	-der timeout liefert vorerst einen gewöhnlichen Error mit meldung, unterscheidbar von anderen
+	 fehlern erst, wenn die fehlerbehandlung von httpRequest$ ohnehin überarbeitet wird (TODO dort)
 -warnungen per kommentar abschalten, allgemein für jeden warnungscode (JUL2500, künftig die
 	lebensdauer-warnung aus docs/stream-lifetimes.md)
 	-heute verwirft der parser alle kommentare außer der description über definitionen und feldern
@@ -51,15 +53,42 @@
 	-nur mit code, kein pauschales abschalten
 	-wie @ts-expect-error: unterdrückt der kommentar nichts, ist er selbst eine warnung, sonst
 	 verdeckt ein veralteter kommentar still eine spätere echte warnung
-	-offen: schreibweise und reichweite (nächste zeile, ganzer ausdruck, ganze definition?)
+	-schreibweise: # jul-ignore JUL2xxx, danach optional freie erklärung
+	 (# jul-ignore JUL2xxx lebt mit der App)
+	-reichweite wie @ts-expect-error und eslint-disable-next-line: unterdrückt werden warnungen mit
+	 diesem code, deren startposition in der nächsten zeile liegt, die kein kommentar ist. ein
+	 mehrzeiliger ausdruck ist abgedeckt, wenn die warnung in seiner ersten zeile beginnt; beginnt
+	 sie weiter unten (etwa in einem lambda im dritten argument), gehört der kommentar direkt über
+	 diese zeile. nicht für den ganzen ausdruck oder die ganze definition: über einer funktion
+	 würde das den ganzen rumpf abschalten
+	-prüfen, dass kommentarzeilen innerhalb eingerückter argumentlisten und rümpfe erlaubt sind
+	-description: ein # jul-ignore direkt über einer definition darf nicht zu deren description
+	 werden und eine beschreibung darüber nicht verdrängen, wie die region-kommentare aussortieren
 	-language server: quick fix "warnung hier abschalten"
-?branch verengung auf typen, die die runtime gröber prüft als der checker: _branch prüft bei
-	Stream nur instanceof StreamClass, bei Funktionen nur typeof function (runtime.ts, case 'stream'
-	und 'function' im getTypeError). ?(s) (x: Stream(Text)) => … (y: Stream(Integer)) => … nimmt zur
+-branch-muster dürfen nur verlangen, was die runtime prüft: _branch prüft bei Stream nur
+	instanceof StreamClass, bei Funktionen nur typeof function (runtime.ts, case 'stream' und
+	'function' im getTypeError). ?(s) (x: Stream(Text)) => … (y: Stream(Integer)) => … nimmt zur
 	laufzeit für jeden stream den ersten zweig, der checker verengt aber auf Stream(Text) und hält
-	den zweiten für erreichbar. betrifft ValueType, funktionssignaturen und künftig FiniteStream
-	(docs/stream-lifetimes.md). eine regel für alle solchen typen, keine ausnahme je typ: fehler,
-	warnung oder nur auf das zur laufzeit prüfbare verengen?
+	den zweiten für erreichbar. funktionen genauso: der emitter schreibt für jeden funktionstyp nur
+	_Function, die runtime kennt den rückgabetyp nie und bei nativen funktionen auch die parameter
+	nicht
+	-regel: ein muster ist erlaubt, wenn laufzeitprojektion des musters geschnitten mit dem
+	 eingangstyp im mustertyp enthalten ist, sonst fehler. laufzeitprojektion: jeder stream wird
+	 zu "irgendein stream" (ohne ValueType und FiniteStream), jede funktion zu "irgendeine
+	 funktion", rekursiv durch dictionary-felder, tupel, listen und Or
+	-erlaubt: ?(text) (fixedText: Text) … (textStream: Stream(Text)) bei Or(Text Stream(Text)),
+	 ein alias wie PlayerInputSource (yugioh, feld mit funktionstyp) bei einem eingang, der ihn
+	 schon garantiert, FiniteStream bei einem schon endlichen eingang
+	-fehler: Stream(Text) neben Stream(Integer), zwei dictionary-muster, die sich nur in der
+	 signatur eines funktionsfelds unterscheiden, FiniteStream bei einem eingang, der nicht
+	 endlich ist (docs/stream-lifetimes.md)
+	-auch bei eingang Any ein fehler: der checker weiß sicher, dass die runtime die signatur nicht
+	 prüft, das muster sagt nachweislich etwas anderes als der code tut
+	-für muster, deren eingang nichts garantiert, braucht es "irgendeine funktion" als
+	 schreibweise, etwa Function = nativeValue(§_Function§). (...args: Any) :> Any taugt nicht,
+	 das heißt wegen der kontravarianz "nimmt alles an". für streams reicht Stream(Any)
+	-kosten je zweig: projektion, schnitt, getTypeError. vorher und nachher messen, branching ist
+	 in yugioh häufig
 -branch verengung auch für benannte argumente
 	-getWrittenArguments liefert nur bei args.type === 'list', bei ?(a = someVar) ist es
 	 'dictionary' und es wird gar nicht verengt
