@@ -143,6 +143,19 @@ Stream = nativeFunction(
 		}
 	§
 )
+# Ein Stream, der endet: Wer ihn bekommt, muss ihn nicht beenden. Überall einsetzbar, wo
+# Stream(ValueType) verlangt wird.
+# Zur Laufzeit nicht von Stream unterscheidbar, geprüft wird nur, ob es ein Stream ist.
+FiniteStream = nativeFunction(
+	(ValueType: Type) -> Type
+	§js
+		(ValueType) => {
+			return {
+				[_julTypeSymbol]: 'stream',
+			};
+		}
+	§
+)
 #region sequence arithmetic
 # Der Typ an Position Index.
 # Index ist eine Position oder ein Bereich (Range), dann ist das Ergebnis die Teilfolge.
@@ -1052,7 +1065,7 @@ create$ = nativeFunction(
 completed$ = nativeFunction(
 	(
 		intitialValue: Any
-	) ~> Stream(TypeOf(intitialValue))
+	) ~> FiniteStream(TypeOf(intitialValue))
 	§js
 		(initialValue) => {
 			const stream$ = new StreamClass(() => stream$.lastValue);
@@ -1073,7 +1086,7 @@ httpTextRequest$ = nativeFunction(
 		timeoutMs: Float
 		headers: Or([] Dictionary(Text))
 		body: Any
-	) ~> Stream(Or([] Text Error))
+	) ~> FiniteStream(Or([] Text Error))
 	§js
 		(url, method, timeoutMs, headers, body) => httpRequest$(url, method, timeoutMs, headers, body, 'text')
 	§
@@ -1089,7 +1102,7 @@ httpBlobRequest$ = nativeFunction(
 		timeoutMs: Float
 		headers: Or([] Dictionary(Text))
 		body: Any
-	) ~> Stream(Or([] Blob Error))
+	) ~> FiniteStream(Or([] Blob Error))
 	§js
 		(url, method, timeoutMs, headers, body) => httpRequest$(url, method, timeoutMs, headers, body, 'blob')
 	§
@@ -1117,6 +1130,7 @@ timer$ = nativeFunction(
 )
 #endregion create
 #region transform
+# Endet mit source$, auch wenn transform$ selbst Streams liefert.
 map$ = nativeFunction(
 	(
 		source$: Stream(Any)
@@ -1125,11 +1139,16 @@ map$ = nativeFunction(
 			# TODO
 			# index: PositiveInteger
 		) :> Any
-	) ~> Stream(TypeOf(transform$)/ReturnType)
+	)
+		~>
+			:?(TypeOf(source$))
+				[FiniteStream(Any)] => FiniteStream(TypeOf(transform$)/ReturnType)
+				() => Stream(TypeOf(transform$)/ReturnType)
 	§js
 		(source$, transform$) => _map$(source$, transform$)
 	§
 )
+# Endet, wenn source$ und alle Streams aus transform$ enden.
 flatMergeMap$ = nativeFunction(
 	(
 		source$: Stream(Any)
@@ -1138,11 +1157,16 @@ flatMergeMap$ = nativeFunction(
 			# TODO
 			# index: PositiveInteger
 		) :> Stream(Any)
-	) ~> Stream(TypeOf(transform$)/ReturnType/ValueType)
+	)
+		~>
+			:?(TypeOf(source$) TypeOf(transform$)/ReturnType)
+				[FiniteStream(Any) FiniteStream(Any)] => FiniteStream(TypeOf(transform$)/ReturnType/ValueType)
+				() => Stream(TypeOf(transform$)/ReturnType/ValueType)
 	§js
 		(source$, transform$) => flatMap$(source$, transform$, true)
 	§
 )
+# Endet, wenn source$ und der zuletzt aus transform$ gelieferte Stream enden.
 flatSwitchMap$ = nativeFunction(
 	(
 		source$: Stream(Any)
@@ -1151,7 +1175,11 @@ flatSwitchMap$ = nativeFunction(
 			# TODO
 			# index: PositiveInteger
 		) :> Stream(Any)
-	) ~> Stream(TypeOf(transform$)/ReturnType/ValueType)
+	)
+		~>
+			:?(TypeOf(source$) TypeOf(transform$)/ReturnType)
+				[FiniteStream(Any) FiniteStream(Any)] => FiniteStream(TypeOf(transform$)/ReturnType/ValueType)
+				() => Stream(TypeOf(transform$)/ReturnType/ValueType)
 	§js
 		(source$, transform$) => flatMap$(source$, transform$, false)
 	§
@@ -1159,10 +1187,15 @@ flatSwitchMap$ = nativeFunction(
 # Wie RxJS combineLatest
 # Liefert die Werte der sources in ihrer Reihenfolge, jede Position mit dem Werttyp ihrer Quelle.
 # Wenn keine sources übergeben, dann wird Empty vom Rückgabestream emittiert.
+# Endet, wenn alle sources enden.
 combine$ = nativeFunction(
 	(
 		...sources: Or([] List(Stream(Any)))
-	) ~> Stream(sources.map((value) => TypeOf(value)/ValueType))
+	)
+		~>
+			:?(TypeOf(sources))
+				[List(FiniteStream(Any))] => FiniteStream(sources.map((value) => TypeOf(value)/ValueType))
+				() => Stream(sources.map((value) => TypeOf(value)/ValueType))
 	§js
 		(...sources) => _combine$(...sources)
 	§
@@ -1173,7 +1206,7 @@ take$ = nativeFunction(
 	(
 		source$: Stream(Any)
 		count: NonZeroInteger
-	) ~> Stream(TypeOf(source$)/ValueType)
+	) ~> FiniteStream(TypeOf(source$)/ValueType)
 	§js
 		(source$, count) => _take$(source$, count)
 	§
@@ -1185,7 +1218,7 @@ takeUntil$ = nativeFunction(
 	(
 		source$: Stream(Any)
 		notifier$: Stream(Any)
-	) ~> Stream(TypeOf(source$)/ValueType)
+	) ~> FiniteStream(TypeOf(source$)/ValueType)
 	§js
 		(source$, notifier$) => _takeUntil$(source$, notifier$)
 	§

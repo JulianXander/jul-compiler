@@ -44,6 +44,15 @@
 	mit einem positiven Float-typ, oder so lassen?
 	-der timeout liefert vorerst einen gewöhnlichen Error mit meldung, unterscheidbar von anderen
 	 fehlern erst, wenn die fehlerbehandlung von httpRequest$ ohnehin überarbeitet wird (TODO dort)
+-lebensdauer-analyse für streams umsetzen, schritte in docs/stream-lifetimes.md (Umsetzung)
+-httpRequest$: complete auf einen laufenden request bricht fetch ab, der catch-zweig pusht dann den
+	AbortError auf den schon beendeten stream, push wirft "Can not push to completed stream." als
+	unbehandelte rejection. erst roter test
+-yugioh (eigenes repo), game-logic.jul: timer$(2000f).take$(1).map$(…) startet bei jeder
+	aufgelösten kette einen timer, der nach dem ersten wert ohne listener für immer weitertickt.
+	take$ meldet sich nur ab, beendet die quelle nicht
+-jul-homepage/docs nachziehen, sobald gebaut: timeout bei httpTextRequest$/httpBlobRequest$,
+	takeUntil$, FiniteStream, lebensdauer-warnung, # jul-ignore
 -warnungen per kommentar abschalten, allgemein für jeden warnungscode (JUL2500, künftig die
 	lebensdauer-warnung aus docs/stream-lifetimes.md)
 	-heute verwirft der parser alle kommentare außer der description über definitionen und feldern

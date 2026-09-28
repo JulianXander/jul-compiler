@@ -1157,12 +1157,18 @@ export function createCompileTimeListType(ElementType: CompileTimeType): Compile
 export interface CompileTimeStreamType extends CompileTimeTypeBase {
 	readonly julType: 'stream';
 	ValueType: CompileTimeType;
+	/**
+	 * Geschrieben als FiniteStream(ValueType): Der Stream endet, der Empfänger muss ihn nicht
+	 * beenden. Ohne das Merkmal sagt der Typ über das Ende nichts zu. Zur Laufzeit nicht prüfbar.
+	 */
+	finite: boolean;
 }
 
-export function createCompileTimeStreamType(ValueType: CompileTimeType): CompileTimeStreamType {
+export function createCompileTimeStreamType(ValueType: CompileTimeType, finite: boolean): CompileTimeStreamType {
 	return {
 		julType: 'stream',
 		ValueType: ValueType,
+		finite: finite,
 		isUnresolvedPlaceholder: ValueType.isUnresolvedPlaceholder,
 	};
 }

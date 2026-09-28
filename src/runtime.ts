@@ -1565,6 +1565,23 @@ export const Stream = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+/**
+ * Ob ein Stream endet, ist zur Laufzeit nicht prüfbar: geprüft wird wie bei Stream nur, ob es ein
+ * Stream ist.
+ */
+export const FiniteStream = /*#__PURE__*/ _createFunction(
+	function FiniteStream(ValueType: RuntimeType) {
+		return _StreamType;
+	},
+	{
+		singleNames: [
+			{
+				name: 'ValueType',
+				type: Type,
+			},
+		]
+	}
+);
 //#endregion Types
 //#region Functions
 //#region Any
@@ -2822,6 +2839,12 @@ function _combine$<T>(
 			unsubscribe();
 		});
 	});
+	if (!source$s.length) {
+		// Ohne Sources sind alle Sources von Anfang an complete. Vorher den Wert berechnen, ein
+		// completed Stream liefert nur noch seinen letzten Wert.
+		combined$.getValue();
+		combined$.complete();
+	}
 	return combined$;
 }
 

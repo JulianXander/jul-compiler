@@ -366,8 +366,8 @@ const valueFieldAccess: NamedAccessTable = {
 					return undefined;
 			}
 		},
-		set: (_type, name, value) => name === 'ValueType'
-			? createCompileTimeStreamType(value)
+		set: (type, name, value) => name === 'ValueType'
+			? createCompileTimeStreamType(value, type.finite)
 			: undefined,
 	},
 };
@@ -494,6 +494,25 @@ const CompileTimePositiveInteger = createNormalizedIntersectionType([
 	createCompileTimeGreaterType(createIntegerLiteral(0n)),
 ]);
 
+/**
+ * Stream(ValueType) und FiniteStream(ValueType): dieselbe Typfunktion, nur das Merkmal finite
+ * unterscheidet sie.
+ */
+function createStreamTypeFunction(finite: boolean): CompileTimeFunctionType {
+	const parameterReference = createParameterReference('ValueType', 0);
+	parameterReference.deferValueOf = true;
+	const functionType = createCompileTimeFunctionType(
+		createParametersType([{
+			name: 'ValueType',
+			type: builtinType,
+		}]),
+		createCompileTimeTypeOfType(createCompileTimeStreamType(parameterReference, finite)),
+		'pure',
+	);
+	parameterReference.functionRef = functionType;
+	return functionType;
+}
+
 const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	true: createBooleanLiteral(true),
 	false: createBooleanLiteral(false),
@@ -536,20 +555,8 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		parameterReference.functionRef = functionType;
 		return functionType;
 	})(),
-	Stream: (() => {
-		const parameterReference = createParameterReference('ValueType', 0);
-		parameterReference.deferValueOf = true;
-		const functionType = createCompileTimeFunctionType(
-			createParametersType([{
-				name: 'ValueType',
-				type: builtinType,
-			}]),
-			createCompileTimeTypeOfType(createCompileTimeStreamType(parameterReference)),
-			'pure',
-		);
-		parameterReference.functionRef = functionType;
-		return functionType;
-	})(),
+	Stream: createStreamTypeFunction(false),
+	FiniteStream: createStreamTypeFunction(true),
 	nativeFunction: (() => {
 		const parameterReference = createParameterReference('FunctionType', 0);
 		parameterReference.deferValueOf = true;
@@ -1918,7 +1925,7 @@ function traversePlaceholders(
 			if (dereferencedValue === rawValue) {
 				return rawType;
 			}
-			return createCompileTimeStreamType(dereferencedValue);
+			return createCompileTimeStreamType(dereferencedValue, rawType.finite);
 		}
 		case 'tuple': {
 			// Auch mit argumentContext: ein Typparameter in einem Tupel (`[T T]`) wird erst am
@@ -5526,7 +5533,8 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 		const streamValueChoices = streamChoices.map(stream => stream.ValueType);
 		const collapsedValueType = createNormalizedUnionType(streamValueChoices);
 		collapsedStreamChoices.push(
-			createCompileTimeStreamType(collapsedValueType),
+			// Endlich nur, wenn jeder Choice endlich ist, sonst verspräche die Union mehr als ihre Teile.
+			createCompileTimeStreamType(collapsedValueType, streamChoices.every(stream => stream.finite)),
 			...reducedChoices.filter(choiceType =>
 				!isStreamType(choiceType)),
 		);
@@ -6570,6 +6578,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 				&& typeEquals(first.SourceType, second.SourceType);
 		case 'stream':
 			return second.julType === 'stream'
+				&& first.finite === second.finite
 				&& typeEquals(first.ValueType, second.ValueType);
 		case 'typeOf':
 			return second.julType === 'typeOf'
@@ -7928,6 +7937,10 @@ function getTypeErrorAtDepth(
 			if (!isStreamType(argumentsType)) {
 				break;
 			}
+			// FiniteStream fordert mehr als Stream: ein Stream ohne Zusage passt nicht.
+			if (targetType.finite && !argumentsType.finite) {
+				break;
+			}
 			return getTypeError(prefixArgumentType, argumentsType.ValueType, targetType.ValueType);
 		}
 		case 'text':
@@ -8631,7 +8644,7 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'parameterReference':
 			return type.name;
 		case 'stream':
-			return `Stream(${typeToString(type.ValueType, indent, depth + 1, suppressAlias)})`;
+			return `${type.finite ? 'FiniteStream' : 'Stream'}(${typeToString(type.ValueType, indent, depth + 1, suppressAlias)})`;
 		case 'text':
 			return 'Text';
 		case 'textLiteral':

@@ -524,6 +524,23 @@ describe('combine$', () => {
 		push(first$, 2n);
 		expect(values).to.deep.equal([[1n, 'a'], [2n, 'a']]);
 	});
+	it('completes when all sources complete', () => {
+		const first$ = create$(undefined, 1n);
+		const second$ = create$(undefined, 'a');
+		const combined$ = combine$(first$, second$);
+		complete(first$);
+		expect((combined$ as any).completed).to.equal(false);
+		complete(second$);
+		expect((combined$ as any).completed).to.equal(true);
+	});
+	// Ohne Quellen enden alle Quellen von Anfang an, der Stream liefert seinen Wert und ist beendet.
+	it('delivers its value and completes without sources', () => {
+		const combined$ = combine$();
+		const values: any[] = [];
+		subscribe(combined$, (value: any) => values.push(value));
+		expect(values).to.deep.equal([[]]);
+		expect((combined$ as any).completed).to.equal(true);
+	});
 });
 
 //#endregion Stream

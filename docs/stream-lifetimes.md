@@ -8,7 +8,8 @@ Dieses Dokument hält fest, welches Laufzeitmodell gilt, womit ein Stream endet 
 Analyse fehlende Enden meldet.
 
 **Stand:** Das Laufzeitmodell ist das bestehende. `takeUntil$` und der Pflicht-Timeout für
-HTTP-Requests sind umgesetzt. `FiniteStream` und die Analyse sind es nicht.
+HTTP-Requests sind umgesetzt, ebenso `FiniteStream` als Typ mit den Rückgabetypen der core-lib
+(Umsetzung, Schritt 1). Die Analyse ist es nicht.
 
 ## Zwei Arten von Leak
 
@@ -189,8 +190,9 @@ Quelle und alle inneren Streams enden, `flatSwitch$`, wenn die Quelle und der ak
 Stream enden. `map$` schaut nur auf `source$`: Liefert `transform$` selbst Streams, endet das
 Ergebnis trotzdem mit `source$`.
 
-Noch nicht geprüft ist, ob `[List(FiniteStream(Any))]` bei `combine$` gemischte Argumente, also
-endliche und nicht endliche Streams zusammen, richtig dem catchAll zuordnet.
+Bei gemischten Argumenten, also endlichen und nicht endlichen Streams zusammen, greift bei
+`combine$` der catchAll. Ohne Argumente greift `[List(FiniteStream(Any))]`: Alle Quellen enden
+dann von Anfang an. Die Runtime liefert in dem Fall ihren Wert und beendet den Stream sofort.
 
 HTTP-Requests enden sicher, weil der Timeout Pflicht ist: Kommt die Antwort nicht rechtzeitig
 vollständig an, wird abgebrochen und der Stream liefert einen Error.

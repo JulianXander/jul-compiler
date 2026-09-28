@@ -1797,9 +1797,10 @@ x: Integer = f(a$)`, {
 			errors: [integerReturnTypeMismatch('Stream(List(Integer))', 45, 59, 34)],
 		});
 	});
-	it('combine-without-sources-is-stream-of-empty', () => {
+	// Ohne Quellen enden alle Quellen von Anfang an, der Stream ist also endlich.
+	it('combine-without-sources-is-finite-stream-of-empty', () => {
 		expectCheck('f = () :> Integer => combine$()', {
-			errors: [integerReturnTypeMismatch('Stream(Empty)', 21, 31, 10)],
+			errors: [integerReturnTypeMismatch('FiniteStream(Empty)', 21, 31, 10)],
 		});
 	});
 	// Der Rumpf wird einmal gegen die Union der Elemente geprüft, nicht je Position: ein Fehler
@@ -1832,6 +1833,96 @@ b: (x: Integer) :> Integer = typeOfValue(f)
 s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	});
 	//#endregion generische Rückgabetypen
+	//#region FiniteStream
+	// Die Definition in der ersten Zeile passt nicht zu ihrem Typ, gemeldet über die ganze Zeile.
+	const streamDefinitionMismatch = (code: string, valueType: string, targetType: string): CompilerError => ({
+		code: ErrorCode.definitionTypeMismatch,
+		message: `Definition type mismatch.\nCan not assign ${valueType} to ${targetType}.`,
+		startRowIndex: 0,
+		startColumnIndex: 0,
+		endRowIndex: 0,
+		endColumnIndex: code.length,
+	});
+	// FiniteStream fordert mehr als Stream und ist deshalb überall einsetzbar, wo Stream verlangt wird.
+	it('finite-stream-is-assignable-to-stream', () => {
+		expectCheck('s: Stream(Integer) = completed$(1)');
+	});
+	it('stream-is-not-assignable-to-finite-stream', () => {
+		const code = 's: FiniteStream(Integer) = create$(Integer 1)';
+		expectCheck(code, {
+			errors: [streamDefinitionMismatch(code, 'Stream(Integer)', 'FiniteStream(Integer)')],
+		});
+	});
+	it('completed-is-finite', () => {
+		expectCheck('s: FiniteStream(Integer) = completed$(1)');
+	});
+	// Der Timeout ist Pflicht, deshalb endet ein Request in jedem Fall.
+	it('http-request-is-finite', () => {
+		expectCheck('s: FiniteStream(Or([] Text Error)) = httpTextRequest$(§u§ §get§ 1f)');
+	});
+	it('timer-is-not-finite', () => {
+		const code = 's: FiniteStream(Float) = timer$(1f)';
+		expectCheck(code, {
+			errors: [streamDefinitionMismatch(code, 'Stream(Float)', 'FiniteStream(Float)')],
+		});
+	});
+	it('map-of-finite-stream-is-finite', () => {
+		expectCheck('s: FiniteStream(Integer) = completed$(1).map$((value) => 2)');
+	});
+	it('map-of-stream-is-not-finite', () => {
+		const code = 's: FiniteStream(Integer) = timer$(1f).map$((value) => 2)';
+		expectCheck(code, {
+			errors: [streamDefinitionMismatch(code, 'Stream(2)', 'FiniteStream(Integer)')],
+		});
+	});
+	// take$ und takeUntil$ enden, auch wenn ihre Quelle weiterläuft.
+	it('take-is-finite', () => {
+		expectCheck('s: FiniteStream(Float) = timer$(1f).take$(1)');
+	});
+	it('take-until-is-finite', () => {
+		expectCheck('s: FiniteStream(Float) = timer$(1f).takeUntil$(timer$(2f))');
+	});
+	it('combine-of-finite-streams-is-finite', () => {
+		expectCheck('s: FiniteStream([Integer Text]) = combine$(completed$(1) completed$(§a§))');
+	});
+	it('combine-with-a-stream-is-not-finite', () => {
+		const code = 's: FiniteStream([Integer Float]) = combine$(completed$(1) timer$(1f))';
+		expectCheck(code, {
+			errors: [streamDefinitionMismatch(code, 'Stream([1 Float])', 'FiniteStream([Integer Float])')],
+		});
+	});
+	it('flat-map-of-finite-source-and-finite-inner-is-finite', () => {
+		expectCheck('s: FiniteStream(Integer) = completed$(1).flatMergeMap$((value) => completed$(2))');
+	});
+	it('flat-map-with-stream-inner-is-not-finite', () => {
+		const code = 's: FiniteStream(Float) = completed$(1).flatMergeMap$((value) => timer$(1f))';
+		expectCheck(code, {
+			errors: [streamDefinitionMismatch(code, 'Stream(Float)', 'FiniteStream(Float)')],
+		});
+	});
+	it('flat-switch-map-of-stream-source-is-not-finite', () => {
+		const code = 's: FiniteStream(Integer) = timer$(1f).flatSwitchMap$((value) => completed$(2))';
+		expectCheck(code, {
+			errors: [streamDefinitionMismatch(code, 'Stream(2)', 'FiniteStream(Integer)')],
+		});
+	});
+	// Eine Union aus Streams wird zu einem Stream zusammengefasst, endlich nur, wenn jeder Choice
+	// endlich ist.
+	it('union-of-finite-stream-and-stream-is-not-finite', () => {
+		expectCheck(`f = (s: Or(FiniteStream(Integer) Stream(Text))) =>
+	t: FiniteStream(Any) = s
+	t`, {
+			errors: [{
+				code: ErrorCode.definitionTypeMismatch,
+				message: 'Definition type mismatch.\nCan not assign Stream(Or(Integer Text)) to FiniteStream(Any).',
+				startRowIndex: 1,
+				startColumnIndex: 1,
+				endRowIndex: 1,
+				endColumnIndex: 25,
+			}],
+		});
+	});
+	//#endregion FiniteStream
 	//#region dereference
 	// Ein Feld, das der Dictionary-Typ nicht hat, ist ein Fehler und nicht Any.
 	// Der stille Rückfall auf Any schaltet in getTypeError alle Folgeprüfungen ab,
