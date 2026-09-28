@@ -1865,6 +1865,10 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	it('http-request-is-finite', () => {
 		expectCheck('s: FiniteStream(Or([] Text Error)) = httpTextRequest$(§u§ §get§ 1f)');
 	});
+	// Liefert einmal und endet: kein Leak, also auch keine Warnung.
+	it('delay-is-finite', () => {
+		expectCheck('s: FiniteStream(Or([] Integer)) = delay$(1f 5)');
+	});
 	it('timer-is-not-finite', () => {
 		const code = `f = () =>
 	s: FiniteStream(Float) = timer$(1f)

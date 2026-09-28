@@ -134,3 +134,21 @@
 2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	json/small	15	3840.58	4068.64	4068.64	rekursive Typfunktionen: _lazyType merkt sich getType
 2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	json/large	15	3693146.00	3872192.00	3872192.00	rekursive Typfunktionen: _lazyType merkt sich getType
 2026-09-27 13:35:28	68321d7+	-	ADV-DEV-56627	bench-runtime	json/texts	15	443074.50	467284.50	467284.50	rekursive Typfunktionen: _lazyType merkt sich getType
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.03	18.14	18.14	vor delay$ und timer$-clearTimeout
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	6.82	11.27	11.27	vor delay$ und timer$-clearTimeout
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.75	8.10	8.10	vor delay$ und timer$-clearTimeout
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.99	8.93	8.93	vor delay$ und timer$-clearTimeout
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.60	7.86	7.86	vor delay$ und timer$-clearTimeout
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.74	7.21	7.21	vor delay$ und timer$-clearTimeout
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/small	15	4030.71	4266.98	4266.98	vor delay$ und timer$-clearTimeout
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/large	15	3772944.00	4045876.00	4045876.00	vor delay$ und timer$-clearTimeout
+2026-09-28 10:06:11	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/texts	15	449361.00	474955.50	474955.50	vor delay$ und timer$-clearTimeout
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.27	19.99	19.99	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.35	11.57	11.57	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.40	12.21	12.21	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	6.65	7.75	7.75	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.66	8.37	8.37	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	6.51	7.53	7.53	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/small	15	3751.23	3907.73	3907.73	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/large	15	3711256.00	3865984.00	3865984.00	delay$ neu, timer$ löscht seinen Timeout bei complete
+2026-09-28 10:15:55	9bf4348+	-	ADV-DEV-56627	bench-runtime	json/texts	15	444430.00	464357.00	464357.00	delay$ neu, timer$ löscht seinen Timeout bei complete

@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import { reportAtCaller } from './test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
-	completed$, create$, deepEqual, findLastIndex, getElement, httpTextRequest$, Integer, multiply, or, parseJson, push, rationalToFloat,
-	regex, setElement, subscribe, subtract, take$, takeUntil$, toJson,
+	completed$, create$, deepEqual, delay$, findLastIndex, getElement, httpTextRequest$, Integer, multiply, or, parseJson, push, rationalToFloat,
+	regex, setElement, subscribe, subtract, take$, takeUntil$, timer$, toJson,
 } from './runtime.js';
 
 //#region _branch
@@ -484,6 +484,74 @@ describe('takeUntil$', () => {
 		subscribe(signal$, (value: string) => values.push(value));
 		push(signal$, 'stop');
 		expect(values).to.deep.equal(['start', 'stop']);
+	});
+});
+
+describe('timer$', () => {
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+	afterEach(() => {
+		globalThis.setTimeout = originalSetTimeout;
+		globalThis.clearTimeout = originalClearTimeout;
+	});
+	// Beendet löscht der Timer seinen geplanten Timeout, statt ihn noch einmal leer laufen zu lassen.
+	it('clears its pending timeout when completed', () => {
+		const pendingTimeouts = new Set<number>();
+		let nextTimeoutId = 1;
+		globalThis.setTimeout = (() => {
+			const timeoutId = nextTimeoutId++;
+			pendingTimeouts.add(timeoutId);
+			return timeoutId;
+		}) as any;
+		globalThis.clearTimeout = ((timeoutId: number) => {
+			pendingTimeouts.delete(timeoutId);
+		}) as any;
+		const ticks$ = timer$(1000);
+		complete(ticks$);
+		expect([...pendingTimeouts]).to.deep.equal([]);
+	});
+	// Beendet ein Listener den Timer beim Tick, wird kein weiterer Timeout geplant.
+	it('schedules no further timeout when a listener completes it on a tick', () => {
+		const pendingTimeouts = new Map<number, () => void>();
+		let nextTimeoutId = 1;
+		globalThis.setTimeout = ((callback: () => void) => {
+			const timeoutId = nextTimeoutId++;
+			pendingTimeouts.set(timeoutId, callback);
+			return timeoutId;
+		}) as any;
+		globalThis.clearTimeout = ((timeoutId: number) => {
+			pendingTimeouts.delete(timeoutId);
+		}) as any;
+		const ticks$ = timer$(1000);
+		subscribe(ticks$, (value: number) => {
+			if (value === 2) {
+				complete(ticks$);
+			}
+		});
+		const [timeoutId, tick] = [...pendingTimeouts][0]!;
+		pendingTimeouts.delete(timeoutId);
+		tick();
+		expect([...pendingTimeouts.keys()]).to.deep.equal([]);
+	});
+});
+
+describe('delay$', () => {
+	it('starts empty, delivers the value after the delay and completes', async () => {
+		const delayed$ = delay$(1, 'value');
+		const values: unknown[] = [];
+		subscribe(delayed$, (value: unknown) => values.push(value));
+		expect(values).to.deep.equal([undefined]);
+		await new Promise(resolve => (delayed$ as any).onCompleted(resolve));
+		expect(values).to.deep.equal([undefined, 'value']);
+	});
+	// Früh beendet: kein push auf den beendeten Stream, der Timeout ist gelöscht.
+	it('clears the timeout and delivers nothing when completed early', async () => {
+		const delayed$ = delay$(1, 'value');
+		const values: unknown[] = [];
+		subscribe(delayed$, (value: unknown) => values.push(value));
+		complete(delayed$);
+		await new Promise(resolve => setTimeout(resolve, 5));
+		expect(values).to.deep.equal([undefined]);
 	});
 });
 

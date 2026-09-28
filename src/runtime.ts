@@ -2760,6 +2760,23 @@ function httpRequest$(
 	return response$;
 }
 
+/**
+ * Startwert undefined (Empty), nach delayMs einmal value, dann beendet. Wird der Stream vorher
+ * beendet, wird der Timeout gelöscht und nichts mehr gepusht.
+ */
+function _delay$<T>(delayMs: number, value: T): StreamClass<T | undefined> {
+	const delayed$ = _create$<T | undefined>(undefined);
+	const timeoutId = setTimeout(() => {
+		processId++;
+		delayed$.push(value, processId);
+		delayed$.complete();
+	}, delayMs);
+	delayed$.onCompleted(() => {
+		clearTimeout(timeoutId);
+	});
+	return delayed$;
+}
+
 //#endregion create
 
 //#region transform
@@ -3164,17 +3181,21 @@ export const httpBlobRequest$ = /*#__PURE__*/ _createFunction(
 export const timer$ = /*#__PURE__*/ _createFunction(
 	function timer$(delayMs: number): StreamClass<number> {
 		const stream$ = _create$(1);
+		let timeoutId: ReturnType<typeof setTimeout>;
 		const cycle = () => {
-			setTimeout(() => {
-				if (stream$.completed) {
-					return;
-				}
+			timeoutId = setTimeout(() => {
 				processId++;
 				stream$.push(stream$.lastValue! + 1, processId);
-				cycle();
+				// Ein Listener kann den Timer beim push beendet haben.
+				if (!stream$.completed) {
+					cycle();
+				}
 			}, delayMs);
 		};
 		cycle();
+		stream$.onCompleted(() => {
+			clearTimeout(timeoutId);
+		});
 		return stream$;
 	},
 	{
@@ -3182,6 +3203,20 @@ export const timer$ = /*#__PURE__*/ _createFunction(
 			name: 'delayMs',
 			type: Float
 		}]
+	}
+);
+export const delay$ = /*#__PURE__*/ _createFunction(
+	_delay$,
+	{
+		singleNames: [
+			{
+				name: 'delayMs',
+				type: Float
+			},
+			{
+				name: 'value',
+			},
+		]
 	}
 );
 //#endregion create

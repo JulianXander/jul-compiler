@@ -1107,6 +1107,18 @@ httpBlobRequest$ = nativeFunction(
 		(url, method, timeoutMs, headers, body) => httpRequest$(url, method, timeoutMs, headers, body, 'blob')
 	§
 )
+# Startwert: ()
+# Liefert nach delayMs einmal value und ist dann beendet.
+# Wird der Stream vorher beendet, kommt value nicht mehr.
+delay$ = nativeFunction(
+	(
+		delayMs: Float
+		value: Any
+	) ~> FiniteStream(Or([] TypeOf(value)))
+	§js
+		(delayMs, value) => _delay$(delayMs, value)
+	§
+)
 # gibt alle delayMs die nächste Zahl aus, beginnend mit 1
 timer$ = nativeFunction(
 	(delayMs: Float) ~> Stream(Float)
