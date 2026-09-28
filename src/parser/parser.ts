@@ -64,6 +64,7 @@ import {
 	readTextFile,
 } from '../util.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
+import { isIgnoreCommentText, parseIgnoreComments } from '../ignore-comments.js';
 import { parseTsCode } from './typescript-parser.js';
 import {
 	createParseFunctionLiteral,
@@ -163,7 +164,7 @@ export function parseCode(
 			throw new Error(`Unexpected extension: ${assertNever}`);
 		}
 	}
-	const { errors, expressions } = parsedExpressions;
+	const { errors, expressions, ignoreComments } = parsedExpressions;
 	// Erst hier, nicht beim Bauen der Knoten: siehe setParentsRecursive.
 	expressions?.forEach(setParentsRecursive);
 	const symbols: SymbolTable = {};
@@ -176,6 +177,7 @@ export function parseCode(
 			errors: errors,
 			expressions: expressions,
 			symbols: symbols,
+			ignoreComments: ignoreComments,
 		},
 		dependencies: dependencies,
 	};
@@ -214,6 +216,7 @@ function parseJulCode(code: string): ParsedExpressions {
 	return {
 		errors: errors,
 		expressions: expressions,
+		ignoreComments: parseIgnoreComments(rows),
 	};
 }
 
@@ -2590,6 +2593,10 @@ function assignDescriptions<T extends ParseExpression>(expressionsOrComments: (s
 				// Kommentar
 				if (expressionOrComment.startsWith('region') || expressionOrComment.startsWith('endregion')) {
 					// region comments verwerfen
+					return;
+				}
+				if (isIgnoreCommentText(expressionOrComment)) {
+					// Anweisung an den Checker, keine Beschreibung. Eine Beschreibung darüber bleibt stehen.
 					return;
 				}
 				descriptionComment = descriptionComment === undefined

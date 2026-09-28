@@ -2030,6 +2030,104 @@ text$ = seconds$.map$((value) => 1)`, {
 	text$.takeUntil$(until$).subscribe((value) => [])`);
 	});
 	//#endregion Lebensdauer von Streams
+	//#region jul-ignore
+	const ignoreCommentWarning = (code: ErrorCode, message: string, rowIndex: number, endColumnIndex: number): CompilerError => ({
+		code: code,
+		message: message,
+		startRowIndex: rowIndex,
+		startColumnIndex: 0,
+		endRowIndex: rowIndex,
+		endColumnIndex: endColumnIndex,
+	});
+	it('ignore-comment-suppresses-warning-in-next-line', () => {
+		expectCheck(`# jul-ignore JUL2800 lebt mit der App
+seconds$ = timer$(1f)`);
+	});
+	// Maßgeblich ist, wo die Warnung beginnt, nicht wie weit der Ausdruck reicht.
+	it('ignore-comment-covers-multiline-expression', () => {
+		expectCheck(`# jul-ignore JUL2800
+seconds$ = timer$(
+	1f
+)`);
+	});
+	it('ignore-comment-skips-comments-and-empty-lines', () => {
+		expectCheck(`# jul-ignore JUL2800
+
+# Sekunden seit dem Start
+seconds$ = timer$(1f)`);
+	});
+	it('ignore-comment-in-function-body', () => {
+		expectCheck(`f = () =>
+	# jul-ignore JUL2800
+	seconds$ = timer$(1f)
+	seconds$.subscribe((value) => [])`);
+	});
+	// Nur die nächste Zeile: eine Warnung weiter unten bleibt stehen.
+	it('ignore-comment-does-not-reach-further-lines', () => {
+		expectCheck(`# jul-ignore JUL2800
+first$ = timer$(1f)
+second$ = timer$(1f)`, {
+			errors: [streamNeverCompleted('second$', 2, 10, 20)],
+		});
+	});
+	it('ignore-comment-with-other-code-suppresses-nothing', () => {
+		expectCheck(`# jul-ignore JUL2600
+seconds$ = timer$(1f)`, {
+			errors: [
+				streamNeverCompleted('seconds$', 1, 11, 21),
+				ignoreCommentWarning(ErrorCode.unusedIgnoreComment, 'This jul-ignore comment suppresses nothing: the next line has no warning JUL2600.', 0, 20),
+			],
+		});
+	});
+	it('unused-ignore-comment-warns', () => {
+		expectCheck(`# jul-ignore JUL2800
+x = 1`, {
+			errors: [
+				ignoreCommentWarning(ErrorCode.unusedIgnoreComment, 'This jul-ignore comment suppresses nothing: the next line has no warning JUL2800.', 0, 20),
+			],
+		});
+	});
+	it('ignore-comment-without-code-warns', () => {
+		expectCheck(`# jul-ignore
+x = 1`, {
+			errors: [
+				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'jul-ignore needs the code of a warning, e.g. # jul-ignore JUL2800.', 0, 12),
+			],
+		});
+	});
+	// Fehler lassen sich nicht unterdrücken, sonst würde kaputter Code gebaut.
+	it('ignore-comment-can-not-suppress-error', () => {
+		expectCheck(`# jul-ignore JUL4001
+a`, {
+			errors: [
+				{
+					code: ErrorCode.notDefined,
+					message: "'a' is not defined.",
+					startRowIndex: 1,
+					startColumnIndex: 0,
+					endRowIndex: 1,
+					endColumnIndex: 1,
+				},
+				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'JUL4001 is not a warning and can not be suppressed.', 0, 20),
+			],
+		});
+	});
+	it('ignore-comment-with-unknown-code-warns', () => {
+		expectCheck(`# jul-ignore JUL9999
+x = 1`, {
+			errors: [
+				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'JUL9999 is not a known code.', 0, 20),
+			],
+		});
+	});
+	// Der Kommentar ist eine Anweisung an den Checker, keine Beschreibung der Definition.
+	it('ignore-comment-is-not-a-description', () => {
+		const parsed = parseCode(`# Zustand der Seite
+# jul-ignore JUL2800
+page$ = create$(Integer 1)`, 'dummy.jul');
+		expect(parsed.unchecked.symbols['page$']?.description).to.equal(' Zustand der Seite');
+	});
+	//#endregion jul-ignore
 	//#region dereference
 	// Ein Feld, das der Dictionary-Typ nicht hat, ist ein Fehler und nicht Any.
 	// Der stille Rückfall auf Any schaltet in getTypeError alle Folgeprüfungen ab,

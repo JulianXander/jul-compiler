@@ -51,29 +51,8 @@
 -yugioh (eigenes repo), game-logic.jul: timer$(2000f).take$(1).map$(…) startet bei jeder
 	aufgelösten kette einen timer, der nach dem ersten wert ohne listener für immer weitertickt.
 	take$ meldet sich nur ab, beendet die quelle nicht
--jul-homepage/docs nachziehen, sobald gebaut: timeout bei httpTextRequest$/httpBlobRequest$,
-	takeUntil$, FiniteStream, lebensdauer-warnung, # jul-ignore
--warnungen per kommentar abschalten, allgemein für jeden warnungscode (JUL2500, künftig die
-	lebensdauer-warnung aus docs/stream-lifetimes.md)
-	-heute verwirft der parser alle kommentare außer der description über definitionen und feldern
-	 (assignDescriptions in parser.ts), er muss sie samt position aufbewahren
-	-nur warnungen, keine fehler: ein fehler verhindert das emittieren, abschalten hieße
-	 kaputten code bauen
-	-nur mit code, kein pauschales abschalten
-	-wie @ts-expect-error: unterdrückt der kommentar nichts, ist er selbst eine warnung, sonst
-	 verdeckt ein veralteter kommentar still eine spätere echte warnung
-	-schreibweise: # jul-ignore JUL2xxx, danach optional freie erklärung
-	 (# jul-ignore JUL2xxx lebt mit der App)
-	-reichweite wie @ts-expect-error und eslint-disable-next-line: unterdrückt werden warnungen mit
-	 diesem code, deren startposition in der nächsten zeile liegt, die kein kommentar ist. ein
-	 mehrzeiliger ausdruck ist abgedeckt, wenn die warnung in seiner ersten zeile beginnt; beginnt
-	 sie weiter unten (etwa in einem lambda im dritten argument), gehört der kommentar direkt über
-	 diese zeile. nicht für den ganzen ausdruck oder die ganze definition: über einer funktion
-	 würde das den ganzen rumpf abschalten
-	-prüfen, dass kommentarzeilen innerhalb eingerückter argumentlisten und rümpfe erlaubt sind
-	-description: ein # jul-ignore direkt über einer definition darf nicht zu deren description
-	 werden und eine beschreibung darüber nicht verdrängen, wie die region-kommentare aussortieren
-	-language server: quick fix "warnung hier abschalten"
+-jul-homepage/docs nachziehen: timeout bei httpTextRequest$/httpBlobRequest$, takeUntil$,
+	FiniteStream. JUL2800, JUL2900, JUL2901 und # jul-ignore stehen schon in error-codes.md
 -branch-muster dürfen nur verlangen, was die runtime prüft: _branch prüft bei Stream nur
 	instanceof StreamClass, bei Funktionen nur typeof function (runtime.ts, case 'stream' und
 	'function' im getTypeError). ?(s) (x: Stream(Text)) => … (y: Stream(Integer)) => … nimmt zur

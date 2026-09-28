@@ -101,6 +101,7 @@ import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName, getExportedSymbols, getTestCallArguments, getTestName } from '../parser/parser-utils.js';
 import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex, ReferenceLocation, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
 import { collectCompletedNames, reportStreamsWithoutEnd } from './stream-lifetime.js';
+import { applyIgnoreComments } from '../ignore-comments.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
 
@@ -2218,6 +2219,8 @@ export function checkTypes(
 	if (isTestFilePath(document.filePath)) {
 		reportDuplicateTestNames(checked);
 	}
+	// Zuletzt, erst dann stehen alle Warnungen der Datei fest.
+	applyIgnoreComments(checked);
 }
 
 //#region ungenutzte Definitionen

@@ -132,6 +132,16 @@ export enum ErrorCode {
 	 * zurückgegeben. Er läuft für immer, siehe docs/stream-lifetimes.md.
 	 */
 	streamNeverCompleted = 2800,
+	/**
+	 * Ein `# jul-ignore JUL<nr>` unterdrückt nichts. Sonst verdeckte ein veralteter Kommentar still
+	 * eine spätere, echte Warnung an derselben Stelle.
+	 */
+	unusedIgnoreComment = 2900,
+	/**
+	 * Ein `# jul-ignore` ohne Code, mit unbekanntem Code oder mit dem Code eines Fehlers. Fehler
+	 * lassen sich nicht unterdrücken, sonst würde kaputter Code gebaut.
+	 */
+	invalidIgnoreComment = 2901,
 	//#endregion 2000 semantic: Sprachregeln
 
 	//#region 3000 semantic: Import und Modulauflösung
@@ -275,6 +285,8 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.duplicateTestName]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testNotCalled]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.streamNeverCompleted]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.unusedIgnoreComment]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.invalidIgnoreComment]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },

@@ -10,8 +10,9 @@ Analyse fehlende Enden meldet.
 **Stand:** Das Laufzeitmodell ist das bestehende. `takeUntil$` und der Pflicht-Timeout für
 HTTP-Requests sind umgesetzt, ebenso `FiniteStream` als Typ mit den Rückgabetypen der core-lib
 und die Analyse innerhalb eines Rumpfs mit der Warnung JUL2800 (Umsetzung, Schritte 1 und 2,
-[stream-lifetime.ts](../src/checker/stream-lifetime.ts)). Offen sind das Abschalten per
-Kommentar und die Zusammenfassungen je Funktion.
+[stream-lifetime.ts](../src/checker/stream-lifetime.ts)) und das Abschalten per `# jul-ignore`
+(Schritt 3, [ignore-comments.ts](../src/ignore-comments.ts), Quick Fix im Language Server). Offen
+sind die Zusammenfassungen je Funktion.
 
 ## Zwei Arten von Leak
 

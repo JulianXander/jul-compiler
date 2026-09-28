@@ -31,6 +31,25 @@ export interface ParsedExpressions2 extends ParsedExpressions {
 export interface ParsedExpressions {
 	errors: CompilerError[];
 	expressions?: ParseExpression[];
+	/**
+	 * Nur bei .jul: die Kommentare `# jul-ignore JUL<nr>`, angewendet am Ende von checkTypes.
+	 */
+	ignoreComments?: IgnoreComment[];
+}
+
+/**
+ * `# jul-ignore JUL<nr> erklärung`: unterdrückt Warnungen mit diesem Code, die in der nächsten
+ * Zeile beginnen, die weder leer noch ein Kommentar ist.
+ */
+export interface IgnoreComment extends Positioned {
+	/**
+	 * undefined, wenn kein Code der Form JUL<nr> dasteht.
+	 */
+	code: number | undefined;
+	/**
+	 * undefined, wenn nach dem Kommentar keine Zeile mit Code mehr kommt.
+	 */
+	targetRowIndex: number | undefined;
 }
 
 export interface SymbolTable {
