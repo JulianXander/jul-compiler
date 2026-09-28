@@ -4586,17 +4586,19 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		[0] => 0
 		() => subtract(a 1)`, 'f')).to.equal('pure');
 	});
-	// Der Dummy-Rumpf (nativeValue) importierter TS-Funktionen darf nicht als beweisbar unrein
-	// gewertet werden - für sie greift die Inferenz nicht, ihr Typ bleibt unknown.
-	it('aus TypeScript importierte Funktion bleibt unknown', () => {
+	// Der Dummy-Rumpf (nativeValue) importierter TS-Funktionen ist keine Aussage über das JS
+	// dahinter - die Inferenz greift nicht, auch nicht mit @pure, das der Rumpf sonst bestätigen
+	// oder widerlegen müsste.
+	it('aus TypeScript importierte Funktion mit @pure wird nicht inferiert', () => {
 		const tsPath = 'imported.ts';
-		const parsed = parseCode('export function imported(x: number): number { return x; }\n', tsPath);
+		const parsed = parseCode('/** @pure */\nexport function imported(x: number): number { return x; }\n', tsPath);
 		checkTypes(parsed, { [tsPath]: parsed }, { cloneUnchecked: false });
 		const type = parsed.checked?.expressions
 			?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'imported')
 			?.value?.typeInfo?.type;
-		expect(type && isFunctionType(type) ? type.purity : undefined).to.equal('unknown');
+		expect(type && isFunctionType(type) ? type.purity : undefined).to.equal('pure');
+		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
 	// Schritt 4 (docs/pure-inference-umsetzung.md): JUL5101, gemeldet nur gegen einen echten
 	// Widerspruch, nicht gegen einen bloß unentscheidbaren Rumpf.

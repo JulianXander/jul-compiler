@@ -1,9 +1,9 @@
-import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, SymbolTable } from '../syntax-tree.js';
+import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, Purity, SymbolTable } from '../syntax-tree.js';
 import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, Positioned } from '../compiler-errors.js';
 import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode } from 'typescript';
 import { createParseFunctionLiteral, createParseFunctionTypeLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
-const { createSourceFile, getJSDocCommentsAndTags, ScriptTarget, SyntaxKind } = typescript;
+const { createSourceFile, getJSDocCommentsAndTags, getJSDocTags, ScriptTarget, SyntaxKind } = typescript;
 
 export function parseTsCode(code: string): ParsedExpressions {
 	// TODO pass file name?
@@ -48,7 +48,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 			};
 		case SyntaxKind.ArrowFunction: {
 			const arrowFunction = tsNode as ArrowFunction;
-			return tsFunctionToJulAst(position, arrowFunction.parameters, arrowFunction.type, sourceFile, errors);
+			return tsFunctionToJulAst(position, arrowFunction, arrowFunction.parameters, arrowFunction.type, sourceFile, errors);
 		}
 		case SyntaxKind.EmptyStatement:
 			return undefined;
@@ -88,7 +88,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 				type: 'definition',
 				description: getJsDocDescription(functionDeclaration, sourceFile),
 				name: julName,
-				value: tsFunctionToJulAst(position, functionDeclaration.parameters, functionDeclaration.type, sourceFile, errors),
+				value: tsFunctionToJulAst(position, functionDeclaration, functionDeclaration.parameters, functionDeclaration.type, sourceFile, errors),
 				...position,
 			};
 		}
@@ -115,6 +115,8 @@ function getJsDocDescription(tsNode: Node, sourceFile: SourceFile): string | und
 		.slice(3, -2)
 		.split(/\r?\n/)
 		.map(row => row.replace(/^\s*\* ?/, ''))
+		// @pure ist eine Aussage für den Checker, keine Beschreibung
+		.filter(row => row.trim() !== '@pure')
 		.join('\n')
 		.trim();
 	return description || undefined;
@@ -122,6 +124,7 @@ function getJsDocDescription(tsNode: Node, sourceFile: SourceFile): string | und
 
 function tsFunctionToJulAst(
 	position: Positioned,
+	tsFunction: Node,
 	parameters: NodeArray<ParameterDeclaration>,
 	returnType: TypeNode | undefined,
 	sourceFile: SourceFile,
@@ -167,7 +170,19 @@ function tsFunctionToJulAst(
 		],
 		position,
 		errors,
+		getTsFunctionPurity(tsFunction),
 	);
+}
+
+/**
+ * Eine TS-Funktion gilt als unrein, außer ihr JSDoc trägt @pure. Die Zusicherung wird nicht
+ * geprüft, den Rumpf sieht der Checker nicht. Kann ein Parameter eine Funktion aufnehmen, macht
+ * der Checker aus @pure ein pureIfArgsPure.
+ */
+function getTsFunctionPurity(tsFunction: Node): Purity {
+	return getJSDocTags(tsFunction).some(tag => tag.tagName.text === 'pure')
+		? 'pure'
+		: 'impure';
 }
 
 function tsParametersToJulParameters(

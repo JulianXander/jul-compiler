@@ -4086,9 +4086,16 @@ function inferType(
 				setInferredType(bodyExpression, branchTypeContext, expectedBodyType, checkContext);
 			});
 			//#region Purity-Inferenz (docs/pure-inference-umsetzung.md Schritt 3)
-			// E6: der Dummy-Rumpf importierter TS-Funktionen würde sie fälschlich als beweisbar
-			// unrein ausweisen - für sie bleibt es bei der Auskunft aus dem geschriebenen Pfeil.
-			if (!isTypeScriptFile(filePath)) {
+			// E6: der Dummy-Rumpf importierter TS-Funktionen ist keine Aussage über das JS dahinter -
+			// für sie gilt der Pfeil, den der typescript-parser aus dem JSDoc ableitet. @pure heißt
+			// dort nur "ruft nichts Unreines außer den übergebenen Funktionen auf".
+			if (isTypeScriptFile(filePath)) {
+				if (expression.arrow === 'pure'
+					&& !canNotHoldFunction(paramsTypeValue)) {
+					functionType.purity = 'pureIfArgsPure';
+				}
+			}
+			else {
 				const bodyPurity = inferBodyPurity(expression.body, functionType);
 				// Ein Rumpf, der nur deshalb unentscheidbar ist, weil er eigene funktionswertige
 				// Parameter aufruft, ist nicht grundsätzlich unentscheidbar, sondern bedingt rein.
@@ -6147,12 +6154,29 @@ export function getCallPurity(
 
 /**
  * E6: der Dummy-Rumpf (`nativeValue`) importierter TS-Funktionen ist ein Artefakt des
- * typescript-parsers, keine Aussage über das JS dahinter - eine Inferenz darüber würde jede
- * importierte Funktion fälschlich als beweisbar unrein ausweisen.
+ * typescript-parsers, keine Aussage über das JS dahinter - ihre Purity kommt aus dem JSDoc,
+ * nicht aus der Inferenz.
  */
 function isTypeScriptFile(filePath: string): boolean {
 	const extension = extname(filePath);
 	return extension === Extension.ts || extension === Extension.js;
+}
+
+/**
+ * Nimmt kein Parameter eine Funktion auf? Nach derselben Regel wie ein übergebener Wert
+ * (getArgumentPurity): was sich nicht als funktionsfrei erweisen lässt, etwa Any oder eine
+ * Liste, zählt als möglicher Callback.
+ */
+function canNotHoldFunction(paramsType: CompileTimeType): boolean {
+	if (paramsType.julType !== 'parameters') {
+		return false;
+	}
+	const parameters = paramsType.rest
+		? [...paramsType.singleNames, paramsType.rest]
+		: paramsType.singleNames;
+	return parameters.every(parameter =>
+		parameter.type !== undefined
+		&& getArgumentPurity(parameter.type, undefined) === 'pure');
 }
 
 export interface BodyPurity {

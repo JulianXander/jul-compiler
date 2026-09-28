@@ -20,6 +20,16 @@ die Inferenz nicht: gegenseitige Rekursion gibt es außerhalb der core-lib nicht
 sind `JUL4002`), und für direkte Selbstrekursion genügt eine optimistische Annahme in einem
 Durchlauf.
 
+Funktionen aus `.ts`/`.js` gelten als `impure`. Ihr Rumpf ist ein Dummy, eine Inferenz ist also
+nicht möglich. Der Default entspricht deshalb einem geschriebenen `~>`: TS-Code in diesem Projekt
+ist überwiegend DOM- oder IO-Anbindung. Mit `@pure` im JSDoc wird eine TS-Funktion `pure`, ohne
+Prüfung. Kann ein Parameter eine Funktion aufnehmen, wird sie stattdessen `pureIfArgsPure`. Das
+entscheidet dieselbe Regel wie beim übergebenen Argument (`getArgumentPurity`), Any und Listen
+zählen dabei als möglicher Callback. Callback-Typen in der Signatur bleiben `unknown`. Die Folge:
+Ein `->` über einem TS-Aufruf ohne `@pure` meldet `JUL5101`, statt die Zusicherung still zu glauben.
+Und eine TS-Funktion ohne `@pure` wird als Prädikat in Typ-Position abgelehnt. Gefaltet wird
+TS-Code auch mit `@pure` nicht.
+
 Darauf aufbauend ist Constant Folding umgesetzt und verdrahtet: `tryFoldCall` im
 [Checker](../src/checker/checker.ts) und die Übersetzung zwischen Typ und Wert in
 [constant-folding.ts](../src/checker/constant-folding.ts), getestet in `constant-folding.test.ts`

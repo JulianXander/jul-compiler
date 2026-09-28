@@ -76,11 +76,11 @@ someText: §test token 1§
 MyType: TypeOf([hallo: Integer])
 alias: (value: Text) ~> Empty
 file2: [   someText: §test token 1§   logText: (value: Text) ~> Empty   MyType: TypeOf(MyType) ]
-javascriptImport: [   testfn1: (par1: Any) :> Any   testfn2: (par1: Any) :> Any   greeting: §hello js§   test2: 4f ]
+javascriptImport: [   testfn1: (par1: Any) ~> Any   testfn2: (par1: Any) ~> Any   greeting: §hello js§   test2: 4f ]
 jsonImport: §hello json§
 someText: §test token 1§
 test1: [hallo: 1]
-typescriptImport: [   greeting: §hello ts§   test2: 4f   testfn1: (par1: Text) :> Any   testfn2: (par1: Text) :> Any ]
+typescriptImport: [   greeting: §hello ts§   test2: 4f   testfn1: (par1: Text) ~> Any   testfn2: (par1: Text) ~> Any ]
 valueImport: 15
 yamlImport: §hello yaml§
   error 1151 at 20:3 Expected a nested key
@@ -305,31 +305,31 @@ myVarIsText: Any
   warning 2600 at 57:1 'ParserResult' is not a type and should start with a lowercase letter.
   warning 2600 at 62:1 'Even' is not a type and should start with a lowercase letter.
 === ui/dialog/dialog.jul ===
-appendHtml: (html: Text) :> Any
+appendHtml: (html: Text) ~> Any
 bindText: (   element: Any   text: Or(Text Stream(Text))   until$: Stream(Any) ) ~> Any
 confirm$: (   title: Or(Text Stream(Text))   question: Or(Text Stream(Text)) ) ~> Stream(Or(Empty §ok§ §cancel§))
-elementById: (id: Text) :> Any
-findElement: (   parent: Any   selector: Text ) :> Any
-onClick: (   element: Any   listener: () :> Any ) :> Any
-onDialogClose: (   dialog: Any   listener: (returnValue: Text) :> Any ) :> Any
-removeElement: (element: Any) :> Any
-setText: (   element: Any   text: Text ) :> Any
-showModal: (dialog: Any) :> Any
+elementById: (id: Text) ~> Any
+findElement: (   parent: Any   selector: Text ) ~> Any
+onClick: (   element: Any   listener: () :> Any ) ~> Any
+onDialogClose: (   dialog: Any   listener: (returnValue: Text) :> Any ) ~> Any
+removeElement: (element: Any) ~> Any
+setText: (   element: Any   text: Text ) ~> Any
+showModal: (dialog: Any) ~> Any
 === ui/dynamic-form/dynamic-form.jul ===
 age$: Stream(Or(Empty Integer))
 ageField: Any
 ageVisible$: Stream(Boolean)
 data$: Stream([   name: Text   age: Or(Empty Integer) ])
-elementById: (id: Text) :> Any
+elementById: (id: Text) ~> Any
 inputValue$: (   element: Any   read: (input: Any) :> Any ) ~> Stream(Any)
-integerValue: (input: Any) :> Or(Empty Integer)
-isChecked: (input: Any) :> Boolean
+integerValue: (input: Any) ~> Or(Empty Integer)
+isChecked: (input: Any) ~> Boolean
 name$: Stream(Text)
-onInput: (   input: Any   listener: () :> Any ) :> Empty
+onInput: (   input: Any   listener: () :> Any ) ~> Empty
 output: Any
-setHidden: (   element: Any   hidden: Boolean ) :> Empty
-setText: (   element: Any   text: Text ) :> Empty
-textValue: (input: Any) :> Text
+setHidden: (   element: Any   hidden: Boolean ) ~> Empty
+setText: (   element: Any   text: Text ) ~> Empty
+textValue: (input: Any) ~> Text
 === ui/dynamic-form/dynamic-form2.jul ===
 ageInput: Any
 body: Any
@@ -349,9 +349,9 @@ visibleInput: Any
   error 5160 at 32:15 Failed to dereference field 'value' in type Stream(Or(Empty List(Any)))
   hint 4004 at 1:66 'inputValue$' is defined but never used.
 === ui/preserve-dom/main.jul ===
-addMessage: (message: Text) :> Any
+addMessage: (message: Text) ~> Any
 === ui/todo-list/todo-list.jul ===
-addHtml: (html: Text) :> Any
-removeElement: (element: Any) :> Any
-subscribeEvent: (listener: Any) :> Any
+addHtml: (html: Text) ~> Any
+removeElement: (element: Any) ~> Any
+subscribeEvent: (listener: Any) ~> Any
 todoItemHtml: §<div>  	<input type="checkbox">  	<input>  	<button onclick="emit(this, 'delete')">x</button>  </div> §
