@@ -161,3 +161,12 @@
 2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	json/small	15	3960.22	4323.94	4323.94	vor interval$ statt timer$
 2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	json/large	15	3811382.00	3968514.00	3968514.00	vor interval$ statt timer$
 2026-09-28 11:57:07	8a53e5e	-	ADV-DEV-56627	bench-runtime	json/texts	15	477905.00	506412.50	506412.50	vor interval$ statt timer$
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.24	18.41	18.41	interval$ statt timer$, mit setInterval
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	8.42	14.85	14.85	interval$ statt timer$, mit setInterval
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.94	15.18	15.18	interval$ statt timer$, mit setInterval
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	7.00	8.27	8.27	interval$ statt timer$, mit setInterval
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	7.25	8.90	8.90	interval$ statt timer$, mit setInterval
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	7.24	8.57	8.57	interval$ statt timer$, mit setInterval
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	json/small	15	3952.26	4456.54	4456.54	interval$ statt timer$, mit setInterval
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	json/large	15	4061506.00	4628826.00	4628826.00	interval$ statt timer$, mit setInterval
+2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	json/texts	15	464027.00	504744.50	504744.50	interval$ statt timer$, mit setInterval
