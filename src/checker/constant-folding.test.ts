@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { constantValueToType, typeToConstantValue } from './constant-folding.js';
+import { constantValueToType, maxFoldedTupleLength, typeToConstantValue } from './constant-folding.js';
 import {
 	builtinEmpty,
 	builtinError,
@@ -83,6 +83,13 @@ describe('constantValueToType', () => {
 	it('übersetzt ein Array zu einem Tuple', () => {
 		expect(constantValueToType([1n, 2n])).to.deep.equal(
 			createCompileTimeTupleType([createIntegerLiteral(1n), createIntegerLiteral(2n)]));
+	});
+	it('übersetzt ein Array mit der maximalen Länge noch zu einem Tuple', () => {
+		const type = constantValueToType(new Array(maxFoldedTupleLength).fill(1n));
+		expect(type?.julType).to.equal('tuple');
+	});
+	it('faltet ein Array über der maximalen Länge nicht', () => {
+		expect(constantValueToType(new Array(maxFoldedTupleLength + 1).fill(1n))).to.equal(undefined);
 	});
 	it('übersetzt ein Objekt zu einem vollständigen Dictionary-Literal (Bruch)', () => {
 		expect(constantValueToType({ numerator: 1n, denominator: 2n })).to.deep.equal(

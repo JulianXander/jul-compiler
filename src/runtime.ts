@@ -2293,7 +2293,31 @@ export const slice = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-export const findFirst = /*#__PURE__*/ _createFunction(
+export const range = /*#__PURE__*/ _createFunction(
+	function range(start: bigint, end: bigint): bigint[] | undefined {
+		if (start > end) {
+			return;
+		}
+		const values: bigint[] = [];
+		for (let value = start; value <= end; value++) {
+			values.push(value);
+		}
+		return values;
+	},
+	{
+		singleNames: [
+			{
+				name: 'start',
+				type: Integer
+			},
+			{
+				name: 'end',
+				type: Integer
+			},
+		]
+	}
+);
+export const findFirst =/*#__PURE__*/ _createFunction(
 	function findFirst<T>(
 		values: T[] | undefined,
 		predicate: (value: T, index: bigint) => boolean,

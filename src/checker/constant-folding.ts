@@ -89,6 +89,13 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown; } 
 }
 
 /**
+ * Ein längeres Array bleibt ungefaltet, es gilt der deklarierte Rückgabetyp. Anders als ein
+ * Literal im Quelltext ist ein gefaltetes Ergebnis nicht durch die Länge des Codes begrenzt
+ * (range(1 1000000)), und jeder weitere Vergleich liefe über alle Positionen des Tuples.
+ */
+export const maxFoldedTupleLength = 1_000;
+
+/**
  * JS-Wert → Typ, für das Ergebnis eines gefalteten Aufrufs. Umgekehrt zu typeToConstantValue,
  * plus zwei Fälle, die dort nicht vorkommen: ein zurückgegebener (nicht geworfener) Error ist
  * ein normaler JUL-Wert, und `undefined` wird zu Empty - beides liefert die Runtime bereits
@@ -113,6 +120,9 @@ export function constantValueToType(value: unknown): CompileTimeType | undefined
 			return createBooleanLiteral(value);
 	}
 	if (Array.isArray(value)) {
+		if (value.length > maxFoldedTupleLength) {
+			return undefined;
+		}
 		const elementTypes: CompileTimeType[] = [];
 		for (const element of value) {
 			const elementType = constantValueToType(element);

@@ -1156,6 +1156,84 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 	it('slice-keeps-tuple-arity-for-literal-bounds', () => {
 		expectCheck('x: [Integer Integer] = [1 2 3].slice(2 3)');
 	});
+	// Mit einer unbekannten Grenze wird range nicht gefaltet. Die Elemente liegen dann trotzdem
+	// zwischen start und end: ab 1 ist jedes Element eine PositiveInteger.
+	it('range-elements-are-at-least-start', () => {
+		expectCheck(`f = (n: PositiveInteger) :> Or([] List(PositiveInteger)) =>
+	range(1 n)`);
+	});
+	it('range-elements-are-at-most-end', () => {
+		expectCheck(`f = (start: Integer) :> Or([] List(Not(Greater(0)))) =>
+	range(start 0)`);
+	});
+	// Eine unbekannte obere Grenze darf die Elemente nicht auf ihren kleinsten möglichen Wert begrenzen.
+	it('range-unknown-end-is-no-upper-bound', () => {
+		expectCheck(`f = (n: PositiveInteger) :> Or([] List(Not(Greater(1)))) =>
+	range(1 n)`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					endColumnIndex: 11,
+					endRowIndex: 1,
+					message: 'Return type mismatch.\nCan not assign List(And(Integer Or(1 Greater(1)) Not(Greater(PositiveInteger)))) to Or(Empty List(Not(Greater(1)))).\n  Can not assign List(And(Integer Or(1 Greater(1)) Not(Greater(PositiveInteger)))) to List(Not(Greater(1))).\n    Can not assign And(Integer Or(1 Greater(1)) Not(Greater(PositiveInteger))) to Not(Greater(1)).',
+					relatedInformation: {
+						endColumnIndex: 56,
+						endRowIndex: 0,
+						message: 'Declared as Or(Empty List(Not(Greater(1)))) here.',
+						startColumnIndex: 28,
+						startRowIndex: 0,
+					},
+					startColumnIndex: 1,
+					startRowIndex: 1,
+				},
+			],
+		});
+	});
+	// Ebenso darf eine unbekannte untere Grenze die Elemente nicht über ihren kleinsten möglichen Wert heben.
+	it('range-unknown-start-is-no-strict-lower-bound', () => {
+		expectCheck(`f = (start: PositiveInteger) :> Or([] List(Greater(1))) =>
+	range(start 5)`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					endColumnIndex: 15,
+					endRowIndex: 1,
+					message: 'Return type mismatch.\nCan not assign List(And(Integer Or(PositiveInteger Greater(PositiveInteger)) Not(Greater(5)))) to Or(Empty List(Greater(1))).\n  Can not assign List(And(Integer Or(PositiveInteger Greater(PositiveInteger)) Not(Greater(5)))) to List(Greater(1)).\n    Can not assign And(Integer Or(PositiveInteger Greater(PositiveInteger)) Not(Greater(5))) to Greater(1).',
+					relatedInformation: {
+						endColumnIndex: 55,
+						endRowIndex: 0,
+						message: 'Declared as Or(Empty List(Greater(1))) here.',
+						startColumnIndex: 32,
+						startRowIndex: 0,
+					},
+					startColumnIndex: 1,
+					startRowIndex: 1,
+				},
+			],
+		});
+	});
+	it('range-from-zero-is-not-positive', () => {
+		expectCheck(`f = (n: PositiveInteger) :> Or([] List(PositiveInteger)) =>
+	range(0 n)`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					endColumnIndex: 11,
+					endRowIndex: 1,
+					message: 'Return type mismatch.\nCan not assign List(And(Integer Or(0 Greater(0)) Not(Greater(PositiveInteger)))) to Or(Empty List(PositiveInteger)).\n  Can not assign List(And(Integer Or(0 Greater(0)) Not(Greater(PositiveInteger)))) to List(PositiveInteger).\n    Can not assign And(Integer Or(0 Greater(0)) Not(Greater(PositiveInteger))) to Greater(0).',
+					relatedInformation: {
+						endColumnIndex: 56,
+						endRowIndex: 0,
+						message: 'Declared as Or(Empty List(PositiveInteger)) here.',
+						startColumnIndex: 28,
+						startRowIndex: 0,
+					},
+					startColumnIndex: 1,
+					startRowIndex: 1,
+				},
+			],
+		});
+	});
 	// flatten löst eine Ebene Verschachtelung auf und erhält dabei den Elementtyp
 	// (analog zu slice-keeps-element-type): aus List(List(Integer)) wird
 	// Or([] List(Integer)), nicht Or([] List(Any)).
@@ -5288,6 +5366,18 @@ describe('constant folding', () => {
 	});
 	it('slice außerhalb des Bereichs faltet zu Empty', () => {
 		expect(typeOfLastDefinition('r = [1 2 3].slice(9)')).to.equal('Empty');
+	});
+	it('range faltet zu einem Tuple', () => {
+		expect(typeOfLastDefinition('r = range(-1 2)')).to.equal('[-1 0 1 2]');
+	});
+	it('range mit gleichen Grenzen faltet zu einem Element', () => {
+		expect(typeOfLastDefinition('r = range(3 3)')).to.equal('[3]');
+	});
+	it('range mit start größer als end faltet zu Empty', () => {
+		expect(typeOfLastDefinition('r = range(3 1)')).to.equal('Empty');
+	});
+	it('range über die Tuple-Grenze bleibt beim deklarierten Typ', () => {
+		expect(typeOfLastDefinition('r = range(1 1001)')).to.equal('Or(Empty List(And(Integer Or(1 Greater(1)) Not(Greater(1001)))))');
 	});
 	it('filter faltet mit predicate', () => {
 		expect(typeOfLastDefinition(`x = [1 2 3 [] §asdf§].filter(

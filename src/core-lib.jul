@@ -794,6 +794,32 @@ slice = nativeFunction(
 		}
 	§
 )
+# Die ganzen Zahlen von start bis end, beide inklusive, aufsteigend.
+# Empty, wenn start größer als end ist.
+range = nativeFunction(
+	(
+		start: Integer
+		end: Integer
+	) -> Or([] List(And(
+		Integer
+		# >= start
+		Or(start Greater(start))
+		# <= end
+		Not(Greater(end))
+	)))
+	§js
+		(start, end) => {
+			if (start > end) {
+				return;
+			}
+			const values = [];
+			for (let value = start; value <= end; value++) {
+				values.push(value);
+			}
+			return values;
+		}
+	§
+)
 # Liefert das erste Element, für das predicate true liefert.
 findFirst = nativeFunction(
 	(
