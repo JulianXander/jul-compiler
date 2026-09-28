@@ -25,7 +25,7 @@ Genau das, was die statische Analyse bewusst nicht sieht:
 - Streams, die in Listen oder Dictionaries abgelegt werden,
 - Streams, die über TS/JS-Importe hereinkommen,
 - ein geglaubtes `~> FiniteStream(…)`, das nicht stimmt,
-- ein `# jul-ignore`, das sich als falsch herausstellt.
+- ein `#jul-ignore`, das sich als falsch herausstellt.
 
 ## Was es kostet
 

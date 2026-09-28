@@ -10,7 +10,7 @@ Analyse fehlende Enden meldet.
 **Stand:** Das Laufzeitmodell ist das bestehende. `takeUntil$` und der Pflicht-Timeout für
 HTTP-Requests sind umgesetzt, ebenso `FiniteStream` als Typ mit den Rückgabetypen der core-lib
 und die Analyse innerhalb eines Rumpfs mit der Warnung JUL2800 (Umsetzung, Schritte 1 und 2,
-[stream-lifetime.ts](../src/checker/stream-lifetime.ts)) und das Abschalten per `# jul-ignore`
+[stream-lifetime.ts](../src/checker/stream-lifetime.ts)) und das Abschalten per `#jul-ignore`
 (Schritt 3, [ignore-comments.ts](../src/ignore-comments.ts), Quick Fix im Language Server). Offen
 sind die Zusammenfassungen je Funktion.
 
@@ -356,7 +356,7 @@ elementById(§x§).onClick(
    messen.
 2. Innerhalb einer Funktion: `complete` im selben Rumpf samt Closures suchen, `create$`-Streams
    danach als `FiniteStream` führen, Streams ohne Ende warnen. Das deckt Leak A ab.
-3. Warnungen per Kommentar abschalten (`# jul-ignore`, siehe [TODO](../TODO)). Ohne das ließen
+3. Warnungen per Kommentar abschalten (`#jul-ignore`, siehe [TODO](../TODO)). Ohne das ließen
    sich die gewollt ewigen Zustands-Streams, etwa in Yugioh, nicht still stellen.
 4. Zusammenfassungen je Funktion für Rückgabe und Parameter. Damit werden Leak B, die
    Weitergabe über Funktionsgrenzen und die unkündbare Pflicht erkannt.

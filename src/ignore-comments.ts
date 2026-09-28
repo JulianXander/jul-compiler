@@ -2,17 +2,17 @@ import { CompilerError, ErrorCode, errorInfos } from './compiler-errors.js';
 import { IgnoreComment, ParsedExpressions } from './syntax-tree.js';
 
 /**
- * `# jul-ignore JUL<nr> erklärung` unterdrückt Warnungen mit diesem Code, deren Startposition in
+ * `#jul-ignore JUL<nr> erklärung` unterdrückt Warnungen mit diesem Code, deren Startposition in
  * der nächsten Zeile liegt, die weder leer noch ein Kommentar ist. Wie @ts-expect-error: Ein
  * Kommentar, der nichts unterdrückt, ist selbst eine Warnung. Fehler lassen sich nicht
  * unterdrücken, sonst würde kaputter Code gebaut.
  */
 
-const ignoreCommentRegex = /^(\t*)# jul-ignore\b(.*)$/;
+const ignoreCommentRegex = /^(\t*)#jul-ignore\b(.*)$/;
 const commentRegex = /^\t*#/;
 
 export function isIgnoreCommentText(commentText: string): boolean {
-	return /^ jul-ignore\b/.test(commentText);
+	return /^jul-ignore\b/.test(commentText);
 }
 
 //#region lesen
@@ -83,7 +83,7 @@ export function applyIgnoreComments(file: ParsedExpressions): void {
 
 function getInvalidMessage(code: number | undefined): string | undefined {
 	if (code === undefined) {
-		return 'jul-ignore needs the code of a warning, e.g. # jul-ignore JUL2800.';
+		return 'jul-ignore needs the code of a warning, e.g. #jul-ignore JUL2800.';
 	}
 	const info = errorInfos[code as ErrorCode];
 	if (!info) {

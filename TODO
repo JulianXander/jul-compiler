@@ -52,7 +52,7 @@
 	aufgelösten kette einen timer, der nach dem ersten wert ohne listener für immer weitertickt.
 	take$ meldet sich nur ab, beendet die quelle nicht
 -jul-homepage/docs nachziehen: timeout bei httpTextRequest$/httpBlobRequest$, takeUntil$,
-	FiniteStream, delay$. JUL2800, JUL2900, JUL2901 und # jul-ignore stehen schon in error-codes.md
+	FiniteStream, delay$. JUL2800, JUL2900, JUL2901 und #jul-ignore stehen schon in error-codes.md
 -branch-muster dürfen nur verlangen, was die runtime prüft: _branch prüft bei Stream nur
 	instanceof StreamClass, bei Funktionen nur typeof function (runtime.ts, case 'stream' und
 	'function' im getTypeError). ?(s) (x: Stream(Text)) => … (y: Stream(Integer)) => … nimmt zur

@@ -133,12 +133,12 @@ export enum ErrorCode {
 	 */
 	streamNeverCompleted = 2800,
 	/**
-	 * Ein `# jul-ignore JUL<nr>` unterdrückt nichts. Sonst verdeckte ein veralteter Kommentar still
+	 * Ein `#jul-ignore JUL<nr>` unterdrückt nichts. Sonst verdeckte ein veralteter Kommentar still
 	 * eine spätere, echte Warnung an derselben Stelle.
 	 */
 	unusedIgnoreComment = 2900,
 	/**
-	 * Ein `# jul-ignore` ohne Code, mit unbekanntem Code oder mit dem Code eines Fehlers. Fehler
+	 * Ein `#jul-ignore` ohne Code, mit unbekanntem Code oder mit dem Code eines Fehlers. Fehler
 	 * lassen sich nicht unterdrücken, sonst würde kaputter Code gebaut.
 	 */
 	invalidIgnoreComment = 2901,
