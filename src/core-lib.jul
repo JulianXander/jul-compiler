@@ -1077,7 +1077,7 @@ subscribe = nativeFunction(
 create$ = nativeFunction(
 	(
 		ValueType: Type
-		intitialValue: ValueType
+		initialValue: ValueType
 	) ~> Stream(ValueType)
 	§js
 		(ValueType, initialValue) => {
@@ -1090,8 +1090,8 @@ create$ = nativeFunction(
 # Erzeugt einen vollendeten Stream, der nur den Startwert liefert.
 completed$ = nativeFunction(
 	(
-		intitialValue: Any
-	) ~> FiniteStream(TypeOf(intitialValue))
+		initialValue: Any
+	) ~> FiniteStream(TypeOf(initialValue))
 	§js
 		(initialValue) => {
 			const stream$ = new StreamClass(() => stream$.lastValue);
