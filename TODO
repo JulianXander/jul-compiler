@@ -1,4 +1,5 @@
 ?warum getValue als Feld von Stream Instanz? alle anderen Funktionen werden mit . aufgerufen, nur getValue mit / das ist unintuitiv
+-completion in param liste von ts import funktioniert nicht richtig, vgl tic-tac-toe subscribeEvent()
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 -warnings bei unchecked Any zugriffen
 -language features für embedded languages: regex, ts, js
