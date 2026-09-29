@@ -1,4 +1,6 @@
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
+-warnings bei unchecked Any zugriffen
+-language featers für embedded languages: regex, ts, js
 -grenzen in der arithmetik (docs/typberechnung-im-rueckgabetyp.md): Add für add umgesetzt, offen
 	-literal-unions genau statt über die untere grenze: Or(1 2).add(1) = Or(2 3)
 	-Multiply (vorzeichenregeln), Subtract (braucht obere grenzen)
