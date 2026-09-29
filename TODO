@@ -1,4 +1,5 @@
 -branching ohne branches wird nicht als fehler gemeldet
+-repeat index type sollte <= count sein, wird nur als PositiveInteger getypt, ebenso forEach index sollte <= List.length
 ?warum getValue als Feld von Stream Instanz? alle anderen Funktionen werden mit . aufgerufen, nur getValue mit / das ist unintuitiv
 -function literal syntax überdenken, folgende form evtl erlauben, oder auto umformatieren:
 	myList.filter((x) =>
