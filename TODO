@@ -1,3 +1,4 @@
+-branching ohne branches wird nicht als fehler gemeldet
 ?warum getValue als Feld von Stream Instanz? alle anderen Funktionen werden mit . aufgerufen, nur getValue mit / das ist unintuitiv
 -function literal syntax überdenken, folgende form evtl erlauben, oder auto umformatieren:
 	myList.filter((x) =>
