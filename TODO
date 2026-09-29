@@ -2,6 +2,7 @@
 -warnings bei unchecked Any zugriffen
 -language features für embedded languages: regex, ts, js
 -userland pure nativefunctions falten
+-debug mode: throw bei violated assume und type guards
 -grenzen in der arithmetik (docs/typberechnung-im-rueckgabetyp.md): Add für add umgesetzt, offen
 	-literal-unions genau statt über die untere grenze: Or(1 2).add(1) = Or(2 3)
 	-Multiply (vorzeichenregeln), Subtract (braucht obere grenzen)
