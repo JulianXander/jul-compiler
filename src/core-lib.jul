@@ -1156,8 +1156,8 @@ interval$ = nativeFunction(
 	)
 		~>
 			:?(TypeOf(count))
-				[Integer] => FiniteStream(Integer)
-				() => Stream(Integer)
+				[Integer] => FiniteStream(Or(0 PositiveInteger))
+				() => Stream(Or(0 PositiveInteger))
 	§js
 		(delayMs, count) => _interval$(delayMs, count)
 	§
