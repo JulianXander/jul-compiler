@@ -1336,6 +1336,23 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 	it('repeat-index-fits-listed-values', () => {
 		expectCheck('repeat(3 (index: Or(1 2 3)) => [])');
 	});
+	// Ein Index, der sicher zwischen 1 und der Länge liegt, trifft immer ein Element: kein Empty.
+	it('element-at-index-within-range-is-not-empty', () => {
+		expectCheck(`f = (
+	board: [[Integer Integer Integer] [Text Text Text] [Integer Integer Integer]]
+	rowIndex: And(PositiveInteger Not(GreaterInteger(3)))
+) :> Or([Integer Integer Integer] [Text Text Text]) =>
+	board.getElement(rowIndex)`);
+	});
+	// Wie in tic-tac-toe: der Index von repeat(3 …) liegt zwischen 1 und 3.
+	it('element-at-repeat-index-is-not-empty', () => {
+		expectCheck(`f = (board: [[Integer Integer Integer] [Text Text Text] [Integer Integer Integer]]) =>
+	repeat(
+		3
+		(rowIndex = index) =>
+			row: Or([Integer Integer Integer] [Text Text Text]) = board.getElement(rowIndex)
+	)`);
+	});
 	it('empty-range-is-never', () => {
 		expectCheck('x: And(GreaterInteger(2) LessInteger(2)) = 2', {
 			errors: [

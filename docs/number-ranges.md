@@ -204,7 +204,11 @@ Tests, jeweils in beide Richtungen, wo es passt:
 
 Damit sind die vier Punkte der TODO unter „teilmengen mit integer-grenzen" erledigt.
 
-### Phase 3: Floats
+### Phase 3: Floats (zurückgestellt)
+
+Zurückgestellt, bis ein Programm Float-Grenzen braucht. Heute kommen nur Integer-Grenzen vor, in
+der core-lib wie in yugioh und jul-examples. Der Knoten `bound` trägt die Familie schon, die
+Phase bleibt damit lokal.
 
 - `GreaterFloat`, `LessFloat` wie in Phase 1.
 - `getNumberRange` für `family: 'float'`, Grenzen mit `inclusive`-Flag, denn hier gibt es keine

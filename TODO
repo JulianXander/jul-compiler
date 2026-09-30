@@ -6,6 +6,8 @@
 	 wie PositiveInteger. core-lib schreibt obere grenzen deshalb als Not(GreaterInteger(…))
 	-anzeige: range(1 n) zeigt Or(And(1 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(1) …)),
 	 And(1 Not(…)) wird nicht zu 1
+-float-grenzen (GreaterFloat, LessFloat): zurückgestellt bis zum ersten realen bedarf, plan in
+	docs/number-ranges.md phase 3
 -Never ist keinem Typ zuweisbar: f = (a: And(GreaterInteger(2) LessInteger(2))) :> Text => a meldet
 	"Can not assign Never to Text", obwohl die leere menge in jedem typ liegt. absicht?
 -NaN aus Float ausschließen: der typ Float enthält kein NaN (entschieden in docs/number-ranges.md), zur laufzeit

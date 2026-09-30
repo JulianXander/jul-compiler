@@ -804,13 +804,67 @@ function dereferenceNestedKeyFromObject(
 		}
 		case 'indexRange':
 			return dereferenceIndexRangeFromObject(nestedKey, source);
-		default:
+		default: {
 			// Ein Platzhalter kann sich noch zu einem Literal auflösen, der Knoten bleibt also
 			// stehen. Nur ein aufgelöster, aber unbestimmter Schlüssel (PositiveInteger, Any)
 			// heißt wirklich "die Position steht nicht fest".
-			return isUnresolvedPlaceholderType(nestedKey)
-				? createNestedReference(source, nestedKey)
+			if (isUnresolvedPlaceholderType(nestedKey)) {
+				return createNestedReference(source, nestedKey);
+			}
+			// Liegt er zwischen zwei Grenzen, stehen zumindest die möglichen Positionen fest.
+			const range = getIntegerRange(nestedKey);
+			return range?.isInteger
+				? dereferenceIntegerRangeFromObject(range, nestedKey, source)
 				: dereferenceUnknownKeyFromObject(nestedKey, source);
+		}
+	}
+}
+
+/**
+ * Der Index liegt irgendwo in range: dann sind genau die Positionen darin möglich, und Empty nur,
+ * wenn range über die Länge hinausreicht. Die Positionen werden direkt gewählt statt als
+ * Or(1 2 … n) aufgezählt, damit ein großer Bereich keine große Union erzeugt.
+ */
+function dereferenceIntegerRangeFromObject(
+	range: IntegerRange,
+	nestedKey: CompileTimeType,
+	rawSource: CompileTimeType,
+): CompileTimeType | undefined {
+	const source = resolveAlias(rawSource);
+	switch (source.julType) {
+		case 'tuple': {
+			const length = BigInt(source.ElementTypes.length);
+			const first = range.min === undefined || range.min < 1n ? 1n : range.min;
+			const last = range.max === undefined || range.max > length ? length : range.max;
+			const choices: CompileTimeType[] = [];
+			for (let position = first; position <= last; position++) {
+				choices.push(source.ElementTypes[Number(position) - 1]!);
+			}
+			const reachesOutside = range.min === undefined
+				|| range.min < 1n
+				|| range.max === undefined
+				|| range.max > length;
+			if (reachesOutside) {
+				choices.push(builtinEmpty);
+			}
+			return createNormalizedUnionType(choices);
+		}
+		// Wie bei einem Literal: nur die erste Position ist beweisbar belegt.
+		case 'list':
+			return range.min !== undefined
+				&& range.min >= 1n
+				&& range.max !== undefined
+				&& range.max <= 1n
+				? source.ElementType
+				: createNormalizedUnionType([builtinEmpty, source.ElementType]);
+		case 'or': {
+			const choices = source.ChoiceTypes
+				.map(choiceType => dereferenceIntegerRangeFromObject(range, nestedKey, choiceType))
+				.filter((type): type is CompileTimeType => !!type);
+			return createNormalizedUnionType(choices);
+		}
+		default:
+			return dereferenceUnknownKeyFromObject(nestedKey, source);
 	}
 }
 
