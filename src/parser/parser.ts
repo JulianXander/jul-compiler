@@ -72,7 +72,6 @@ import {
 	createParseParameters,
 	fillSymbolTableWithFields,
 	fillSymbolTableWithExpressions,
-	fillSymbolTableWithParams,
 	setParentsRecursive,
 } from './parser-utils.js';
 import { basename, dirname, extname, join } from 'path';

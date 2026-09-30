@@ -145,7 +145,7 @@ export function isExportedSymbol(fileSymbol: SymbolDefinition): boolean {
 	return fileSymbol.definition?.type === 'definition';
 }
 
-export function fillSymbolTableWithParams(
+function fillSymbolTableWithParams(
 	symbolTable: SymbolTable,
 	errors: CompilerError[],
 	params: ParseBindingExpression | ParseParameterFields,
