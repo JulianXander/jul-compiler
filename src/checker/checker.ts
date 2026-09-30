@@ -628,11 +628,11 @@ function isTypeName(name: string): boolean {
 /**
  * Steht die Referenz innerhalb der Definition dieses Namens?
  * Ein leeres typeInfo heißt nur "Symbol noch nicht gecheckt" und trifft auch auf eine
- * Vorwärtsreferenz zu - die ist aber bereits als JUL4002 gemeldet und darf keinen Folgefehler
+ * Vorwärtsreferenz zu - die ist aber bereits als JUL3202 gemeldet und darf keinen Folgefehler
  * bekommen. Nur die Selbstreferenz beschreibt einen rekursiven Typ.
  * Verglichen wird der Name, nicht die Objektidentität: die parent-Kette endet an einem anderen
  * Definition-Objekt als dem in der Symboltabelle (siehe TODO, Parser-Backtracking). Eine
- * Namensüberdeckung wäre ohnehin bereits JUL4003.
+ * Namensüberdeckung wäre ohnehin bereits JUL3203.
  */
 /**
  * Ruft sich eine Typfunktion im eigenen Rumpf auf (`Tree(T)` in `Tree = (T: Type) => ...`)? Ihr
@@ -3996,7 +3996,7 @@ function inferType(
 				});
 			}
 			checkDiscardedArguments(args, paramsType, prefixArgumentType, errors);
-			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL4003.
+			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'test') {
 				checkTestCall(expression, !!assignArgsError, checkContext.filePath, errors);
@@ -4578,7 +4578,7 @@ function inferType(
 				isBuiltIn,
 			} = dereferenceType(expression, scopes);
 			const name = expression.name.name;
-			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL4003.
+			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (name === 'test'
 				&& isBuiltIn
 				&& !isCalledFunction(expression)) {
@@ -6393,7 +6393,7 @@ function tryFoldCall(
 	// Trägt der Typ ein literal, ist es eine Nutzerfunktion (case 'functionLiteral' setzt es) -
 	// dafür der Auswerter (tryBuildCallable). Sonst ein Runtime-Export mit params unter diesem
 	// Namen; params hängt nur an Builtins, die runtime.ts selbst per _createFunction(...)
-	// registriert, ihre Namen sind über JUL4003 überdeckungsgeschützt. Eine per nativeFunction
+	// registriert, ihre Namen sind über JUL3203 überdeckungsgeschützt. Eine per nativeFunction
 	// definierte Funktion (z.B. myFn = nativeFunction(...)) trägt weder literal (sie entsteht aus
 	// einer Signatur, nicht aus einem geprüften Rumpf) noch params (das hängt nur an runtime.ts-
 	// Exporten) und faltet hier deshalb nicht - ihre `->`-Signatur ist eine ungeprüfte Zusicherung.

@@ -682,6 +682,21 @@ useType(isLegal)`);
 	//#endregion branching: Verengung
 
 	//#region branching: Erreichbarkeit
+	it('branching-without-branches-is-error', () => {
+		expectCheck(`f = (value: Integer) =>
+	?(value)`, {
+			errors: [
+				{
+					code: ErrorCode.branchingHasNoBranches,
+					message: 'Branching has no branches.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 9,
+				},
+			],
+		});
+	});
 	it('unreachable-branch-is-detected', () => {
 		expectCheck(`f = (value: Integer) =>
 	?(value)
@@ -2194,7 +2209,7 @@ x = 1`, {
 	});
 	// Fehler lassen sich nicht unterdrücken, sonst würde kaputter Code gebaut.
 	it('ignore-comment-can-not-suppress-error', () => {
-		expectCheck(`#ignore JUL4001
+		expectCheck(`#ignore JUL3201
 a`, {
 			errors: [
 				{
@@ -2205,7 +2220,7 @@ a`, {
 					endRowIndex: 1,
 					endColumnIndex: 1,
 				},
-				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'JUL4001 is not a warning and can not be suppressed.', 0, 15),
+				ignoreCommentWarning(ErrorCode.invalidIgnoreComment, 'JUL3201 is not a warning and can not be suppressed.', 0, 15),
 			],
 		});
 	});
@@ -5515,10 +5530,10 @@ r = spin(0)`)).to.equal('Any');
 
 	// Ein Parameter mit gleichem Namen wie eine äußere Definition ('factor = 99\nf = (factor:
 	// Integer) => ...') ist in JUL nicht schreibbar - jede Überdeckung eines Namens aus einem
-	// oberen Scope ist JUL4003, ganz unabhängig davon, ob es sich um einen Parameter oder eine
+	// oberen Scope ist JUL3203, ganz unabhängig davon, ob es sich um einen Parameter oder eine
 	// Definition handelt. Der Sammler kann eine solche Kollision also nie beobachten; die
 	// Namensgleichheit selbst ist bereits durch den Checker ausgeschlossen.
-	it('ein Parameter mit gleichem Namen wie eine äußere Definition ist JUL4003', () => {
+	it('ein Parameter mit gleichem Namen wie eine äußere Definition ist JUL3203', () => {
 		const parsed = parseCode('factor = 99\nf = (factor: Integer) => factor.multiply(2)\nr = f(4)', 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
 		checkTypes(parsed, {}, { cloneUnchecked: false });

@@ -287,7 +287,7 @@ function buildEnvironment(
 		// Ein Runtime-Export unter diesem Namen wird ohnehin über die volle Runtime-Bindung in
 		// tryBuildCallable erreichbar sein (wie der normale Modul-Import) - hier reicht die
 		// Auskunft, dass er existiert, eine eigene Bindung braucht es nicht. Der Namensgriff ist
-		// eindeutig, weil Überdeckung (JUL4003) gegen alle oberen Scopes ist, Builtins
+		// eindeutig, weil Überdeckung (JUL3203) gegen alle oberen Scopes ist, Builtins
 		// eingeschlossen.
 		if (runtimeKeys.includes(escapeReservedJsVariableName(name))) {
 			continue;

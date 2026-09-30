@@ -24,8 +24,9 @@ export type CompilerErrorType =
 export type CompilerErrorSeverity = 'error' | 'warning' | 'hint';
 
 /**
- * Nummern werden nie wiederverwendet, auch nicht nach dem Entfernen eines Fehlers -
+ * sobald die Sprache fertig ist: Nummern werden nie wiederverwendet, auch nicht nach dem Entfernen eines Fehlers -
  * sonst brechen Unterdrückungskommentare und Links in die Dokumentation.
+ * aktuell dürfen noch nummern gelöscht oder geändert werden, muss dann allerdings in doku auch angepasst werden.
  *
  * Ein neuer Code braucht drei Einträge, sonst ist er unvollständig:
  * 1. hier im Enum,
@@ -65,7 +66,7 @@ export enum ErrorCode {
 	invalidJson = 1200,
 	//#endregion 1000 syntax
 
-	//#region 2000 semantic: Sprachregeln
+	//#region 2000 semantic
 	// Destructuring
 	spreadNotAllowedForDestructuring = 2000,
 	typeGuardNotAllowedForDestructuring = 2001,
@@ -132,6 +133,7 @@ export enum ErrorCode {
 	 * zurückgegeben. Er läuft für immer, siehe docs/stream-lifetimes.md.
 	 */
 	streamNeverCompleted = 2800,
+	//#region 2900 Kommentare
 	/**
 	 * Ein `#ignore JUL<nr>` unterdrückt nichts. Sonst verdeckte ein veralteter Kommentar still
 	 * eine spätere, echte Warnung an derselben Stelle.
@@ -152,39 +154,46 @@ export enum ErrorCode {
 	 * Schreibweise, damit sich alle offenen Punkte finden lassen.
 	 */
 	todoSpelling = 2903,
-	//#endregion 2000 semantic: Sprachregeln
+	//#endregion 2900 Kommentare
 
-	//#region 3000 semantic: Import und Modulauflösung
-	importArgumentsMissing = 3000,
-	invalidImportExtension = 3010,
-	fileNotFound = 3020,
-	dynamicImportNotAllowed = 3030,
+	/**
+	 * `?(...)` ohne einen einzigen eingerückten Branch darunter. Kann bei jedem Argument nie einen
+	 * Wert liefern - fast immer eine fehlende Einrückung oder unfertiger Code.
+	 */
+	branchingHasNoBranches = 3000,
+
+	//#region 3100 Import und Modulauflösung
+	importArgumentsMissing = 3100,
+	invalidImportExtension = 3110,
+	fileNotFound = 3120,
+	dynamicImportNotAllowed = 3130,
 	/**
 	 * import(...) wird nur als direkter Wert einer Top-Level-Definition/Destructuring aufgelöst
 	 * (getImportedPaths sammelt nur von dort die Abhängigkeit). Überall sonst - verschachtelt,
 	 * als bloßer Aufruf ohne Zuweisung, weitergereicht - bleibt die Zieldatei ungeladen und der
 	 * Aufruf fällt sonst stillschweigend auf den Typ Any zurück.
 	 */
-	unsupportedImportPosition = 3040,
+	unsupportedImportPosition = 3140,
 	/**
 	 * Eine *.test.jul-Datei wird aus einer Datei importiert, die selbst kein Test ist. Sonst
 	 * gelangten Tests in den normalen Build.
 	 */
-	testFileImportedOutsideTests = 3050,
-	//#endregion 3000 semantic: Import und Modulauflösung
+	testFileImportedOutsideTests = 3150,
+	//#endregion 3100 Import und Modulauflösung
 
-	//#region 4000 semantic: Namensauflösung und Scopes
-	alreadyDefined = 4000,
-	notDefined = 4001,
-	usedBeforeDefined = 4002,
-	alreadyDefinedInUpperScope = 4003,
+	//#region 3200 Namensauflösung und Scopes
+	alreadyDefined = 3200,
+	notDefined = 3201,
+	usedBeforeDefined = 3202,
+	alreadyDefinedInUpperScope = 3203,
 	/**
 	 * Eine lokale Bindung wird nirgends referenziert. Ausgenommen ist, was außerhalb des Scopes
 	 * noch ankommt: Top-Level-Definitionen (exportiert), die letzte Definition eines
 	 * Funktionsrumpfs (Rückgabewert) und Parameter.
 	 */
-	unusedDefinition = 4004,
-	//#endregion 4000 semantic: Namensauflösung und Scopes
+	unusedDefinition = 3204,
+	//#endregion 3200 Namensauflösung und Scopes
+	//#endregion 2000 semantic
 
 	//#region 5000 type: Typprüfung
 	definitionTypeMismatch = 5000,
@@ -299,6 +308,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.invalidIgnoreComment]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.unknownDirective]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.todoSpelling]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.branchingHasNoBranches]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },

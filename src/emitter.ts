@@ -126,7 +126,7 @@ const identifierRegex = /(?<![\w$])(?<!(?:^|[^.])\.)[A-Za-z_$][\w$]*/g;
  * Der Scan über den fertigen Text statt einer Sammlung beim Emittieren sieht auch die Hilfsaufrufe
  * (_branch, _callFunction, ...), die der Emitter an vielen Stellen als festen Text schreibt. Er
  * schätzt nach oben ab: Ein Builtin-Name in einem Textliteral wird mit importiert, das ist harmlos.
- * Überdeckung eines Builtins durch einen lokalen Namen gibt es nicht (JUL4003).
+ * Überdeckung eines Builtins durch einen lokalen Namen gibt es nicht (JUL3203).
  */
 export function getUsedRuntimeNames(js: string, keys: string[]): string[] {
 	const identifiers = new Set(js.match(identifierRegex));

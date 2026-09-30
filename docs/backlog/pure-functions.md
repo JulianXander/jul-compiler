@@ -17,7 +17,7 @@ Ein Rumpf, der nur deshalb unentscheidbar ist, weil er einen eigenen funktionswe
 aufruft, wird nicht als `unknown` eingestuft, sondern als `pureIfArgsPure` — Nutzer-HOFs können
 damit rein werden, sofern sie tatsächlich nur eigene Parameter aufrufen. Fixpunkt-Iteration braucht
 die Inferenz nicht: gegenseitige Rekursion gibt es außerhalb der core-lib nicht (Vorwärtsreferenzen
-sind `JUL4002`), und für direkte Selbstrekursion genügt eine optimistische Annahme in einem
+sind `JUL3202`), und für direkte Selbstrekursion genügt eine optimistische Annahme in einem
 Durchlauf.
 
 Funktionen aus `.ts`/`.js` gelten als `impure`. Ihr Rumpf ist ein Dummy, eine Inferenz ist also
