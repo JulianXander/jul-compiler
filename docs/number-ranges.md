@@ -77,7 +77,7 @@ Or(end LessInteger(end))
 
 Das bleibt ein Zahlentyp, anders als `Not(GreaterInteger(end))`.
 
-**Ausnahme, offen (siehe `TODO`):** Hängt die Grenze an einem Aufruf, der erst am Aufrufort feststeht, geht
+**Ausnahme, offen (siehe [three-valued-assignability.md](three-valued-assignability.md)):** Hängt die Grenze an einem Aufruf, der erst am Aufrufort feststeht, geht
 die `Or`-Form heute verloren. `And(PositiveInteger Or(length(values) LessInteger(length(values))))`
 im Parametertyp von `forEach` wird schon bei der Deklaration zu `PositiveInteger`: Das `And`
 wird über das `Or` verteilt, und die Normalisierung der Union behandelt den offenen Wert

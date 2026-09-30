@@ -3,7 +3,8 @@
 -teilmengen mit integer-grenzen (getIntegerRange im checker), plan in docs/number-ranges.md: offen
 	-Or(length(values) LessInteger(length(values))) im parametertyp von forEach wird schon bei der
 	 deklaration zu PositiveInteger: die union-normalisierung behandelt den offenen wert length(values)
-	 wie PositiveInteger. core-lib schreibt obere grenzen deshalb als Not(GreaterInteger(…))
+	 wie PositiveInteger. core-lib schreibt obere grenzen deshalb als Not(GreaterInteger(…)).
+	 ursache und plan in docs/three-valued-assignability.md
 	-anzeige: range(1 n) zeigt Or(And(1 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(1) …)),
 	 And(1 Not(…)) wird nicht zu 1
 -float-grenzen (GreaterFloat, LessFloat): zurückgestellt bis zum ersten realen bedarf, plan in
