@@ -77,7 +77,7 @@ Or(end LessInteger(end))
 
 Das bleibt ein Zahlentyp, anders als `Not(GreaterInteger(end))`.
 
-**Ausnahme bis Phase 2:** Hängt die Grenze an einem Aufruf, der erst am Aufrufort feststeht, geht
+**Ausnahme, offen (siehe `TODO`):** Hängt die Grenze an einem Aufruf, der erst am Aufrufort feststeht, geht
 die `Or`-Form heute verloren. `And(PositiveInteger Or(length(values) LessInteger(length(values))))`
 im Parametertyp von `forEach` wird schon bei der Deklaration zu `PositiveInteger`: Das `And`
 wird über das `Or` verteilt, und die Normalisierung der Union behandelt den offenen Wert
@@ -183,9 +183,15 @@ Notiz, und die Snapshot-Diffs ansehen.
   nichts mehr ändert. Ein `Not(n)` im Inneren macht den Typ unlesbar (`undefined`), denn der
   Bereich hätte ein Loch.
 - In `Or`: Vereinigung, wenn angrenzend oder überlappend.
-- `getIntegerRange` und `getIntegerMinimum` fallen weg, ihre Aufrufer (`integerRangeFits`,
-  `typesOverlap`, der Rückgabetyp von `add`) nutzen die neue Funktion.
-- In `createNormalizedIntersectionType`: ein leerer Bereich wird `Never`.
+- In `createNormalizedIntersectionType`: ein leerer Bereich wird `Never`, auch über mehr als zwei
+  Choices.
+
+**Umgesetzt**, mit zwei Abweichungen:
+- Die Funktion heißt weiter `getIntegerRange`, denn sie liest nur Integer. Der Name
+  `getNumberRange` kommt mit Phase 3.
+- `getIntegerMinimum` bleibt. Es beantwortet eine andere Frage: die kleinste mögliche Zahl, auch
+  für `Or(1 3)` mit Lücke und für eine noch offene Länge (`lengthOf`, mindestens 1). Beides ist
+  kein Bereich, als Bereich gelesen würde `Or(1 3)` die 2 enthalten.
 
 Tests, jeweils in beide Richtungen, wo es passt:
 - `And(Integer Not(GreaterInteger(3)) Not(3))` passt zu `Not(GreaterInteger(2))`

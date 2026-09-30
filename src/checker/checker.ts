@@ -5748,7 +5748,15 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		}
 	}
 
-	return createCompileTimeIntersectionType(ChoiceTypes);
+	const intersectionType = createCompileTimeIntersectionType(ChoiceTypes);
+	// Grenzen ohne gemeinsame ganze Zahl, auch über mehr als zwei Choices:
+	// And(Integer GreaterInteger(2) LessInteger(2)) => Never
+	const range = getIntegerRange(intersectionType);
+	if (range?.isInteger
+		&& isEmptyIntegerRange(range)) {
+		return builtinNever;
+	}
+	return intersectionType;
 }
 
 /**
@@ -6016,13 +6024,22 @@ function sequencesOverlap(first: ResolvedType, second: ResolvedType): boolean | 
 }
 
 /**
- * Die ganzen Zahlen, die der Typ höchstens enthält, als Grenzen min und max (beide inklusive,
- * undefined = offen). isInteger, wenn der Typ nur ganze Zahlen enthält. Sonst beschreiben die
- * Grenzen nur seine ganzzahligen Werte, etwa Not(GreaterInteger(2)) bis 2.
- * undefined, wenn der Typ nicht allein aus Integer, Integer-Literalen, GreaterInteger, LessInteger
- * und deren Not mit Integer-Literal besteht.
+ * Die ganzen Zahlen eines Typs als lückenloser Bereich von min bis max (beide inklusive,
+ * undefined = offen, min > max = leer). isInteger, wenn der Typ nur ganze Zahlen enthält. Sonst
+ * beschreiben die Grenzen nur seine ganzzahligen Werte, etwa Not(GreaterInteger(2)) bis 2.
  */
-function getIntegerRange(rawType: CompileTimeType): { isInteger: boolean; min?: bigint; max?: bigint; } | undefined {
+interface IntegerRange {
+	isInteger: boolean;
+	min?: bigint;
+	max?: bigint;
+}
+
+/**
+ * Der Typ als IntegerRange. undefined, wenn er nicht allein aus Integer, Integer-Literalen,
+ * GreaterInteger, LessInteger, deren Not mit Integer-Literal, And und Or besteht, oder wenn seine
+ * ganzen Zahlen eine Lücke haben: Or(1 3) und And(Integer Not(3)) sind kein Bereich.
+ */
+function getIntegerRange(rawType: CompileTimeType): IntegerRange | undefined {
 	const type = resolveAlias(rawType);
 	switch (type.julType) {
 		case 'integer':
@@ -6055,9 +6072,20 @@ function getIntegerRange(rawType: CompileTimeType): { isInteger: boolean; min?: 
 				: { isInteger: false, min: value.value };
 		}
 		case 'and': {
-			let range: { isInteger: boolean; min?: bigint; max?: bigint; } = { isInteger: false };
+			let range: IntegerRange = { isInteger: false };
+			// Ein Not(n) nimmt eine einzelne Zahl heraus. Das ist nur dann wieder ein Bereich, wenn
+			// sie am Rand liegt: ≤ 3 ohne 3 ist ≤ 2.
+			const excluded: bigint[] = [];
 			for (const choiceType of type.ChoiceTypes) {
-				const choiceRange = getIntegerRange(choiceType);
+				const choice = resolveAlias(choiceType);
+				if (choice.julType === 'not') {
+					const source = resolveAlias(choice.SourceType);
+					if (source.julType === 'integerLiteral') {
+						excluded.push(source.value);
+						continue;
+					}
+				}
+				const choiceRange = getIntegerRange(choice);
 				if (!choiceRange) {
 					return undefined;
 				}
@@ -6067,11 +6095,103 @@ function getIntegerRange(rawType: CompileTimeType): { isInteger: boolean; min?: 
 					max: minBound(range.max, choiceRange.max),
 				};
 			}
-			return range;
+			return excludeFromIntegerRange(range, excluded);
+		}
+		case 'or': {
+			const ranges: IntegerRange[] = [];
+			for (const choiceType of type.ChoiceTypes) {
+				const choiceRange = getIntegerRange(choiceType);
+				if (!choiceRange) {
+					return undefined;
+				}
+				if (!isEmptyIntegerRange(choiceRange)) {
+					ranges.push(choiceRange);
+				}
+			}
+			return unionOfIntegerRanges(ranges);
 		}
 		default:
 			return undefined;
 	}
+}
+
+function isEmptyIntegerRange(range: IntegerRange): boolean {
+	return range.min !== undefined
+		&& range.max !== undefined
+		&& range.min > range.max;
+}
+
+/**
+ * Nimmt einzelne Zahlen aus dem Bereich heraus. Am Rand verschiebt das die Grenze, so lange, bis
+ * der Rand nicht mehr ausgenommen ist. Liegt eine Zahl im Inneren, hat der Bereich eine Lücke.
+ */
+function excludeFromIntegerRange(range: IntegerRange, excluded: bigint[]): IntegerRange | undefined {
+	let { min, max } = range;
+	let remaining = excluded;
+	let changed = true;
+	while (changed) {
+		changed = false;
+		remaining = remaining.filter(value => {
+			if (value === min) {
+				min = value + 1n;
+				changed = true;
+				return false;
+			}
+			if (value === max) {
+				max = value - 1n;
+				changed = true;
+				return false;
+			}
+			return true;
+		});
+	}
+	const result = { isInteger: range.isInteger, min, max };
+	if (isEmptyIntegerRange(result)) {
+		return result;
+	}
+	const hasHole = remaining.some(value =>
+		(min === undefined || value > min)
+		&& (max === undefined || value < max));
+	return hasHole ? undefined : result;
+}
+
+/**
+ * Die Vereinigung, falls sie wieder lückenlos ist: überlappend oder angrenzend, bei ganzen Zahlen
+ * also auch 3 und 4. Leer, wenn es keinen Bereich gibt.
+ */
+function unionOfIntegerRanges(ranges: IntegerRange[]): IntegerRange | undefined {
+	const isInteger = ranges.every(range => range.isInteger);
+	if (!ranges.length) {
+		return { isInteger: true, min: 1n, max: 0n };
+	}
+	// Nach unterer Grenze sortiert, offen nach unten zuerst.
+	const sorted = [...ranges].sort((first, second) => {
+		if (first.min === second.min) {
+			return 0;
+		}
+		if (first.min === undefined) {
+			return -1;
+		}
+		if (second.min === undefined) {
+			return 1;
+		}
+		return first.min < second.min ? -1 : 1;
+	});
+	const min = sorted[0]!.min;
+	let max = sorted[0]!.max;
+	for (const range of sorted.slice(1)) {
+		if (max === undefined) {
+			// Schon nach oben offen, alles Weitere liegt darin.
+			break;
+		}
+		if (range.min! > max + 1n) {
+			return undefined;
+		}
+		max = range.max === undefined || range.max > max
+			? range.max
+			: max;
+	}
+	return { isInteger, min, max };
 }
 
 /** Die größere zweier unteren Grenzen, undefined = offen. */

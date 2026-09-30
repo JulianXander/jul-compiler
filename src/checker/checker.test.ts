@@ -1266,6 +1266,104 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 			],
 		});
 	});
+	// Über ganze Zahlen ist ≤ 3 ohne die 3 dasselbe wie ≤ 2.
+	it('excluded-bound-moves-the-bound', () => {
+		expectCheck(`f = (a: And(Integer Not(GreaterInteger(3)) Not(3))) :> Not(GreaterInteger(2)) =>
+	a`);
+	});
+	// Eine ausgenommene Zahl im Inneren ist eine Lücke, kein kleinerer Bereich: die 5 bleibt drin.
+	it('excluded-inner-value-does-not-move-the-bound', () => {
+		expectCheck(`f = (a: And(Integer Not(GreaterInteger(5)) Not(3))) :> Not(GreaterInteger(4)) =>
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign And(Integer Not(GreaterInteger(5)) Not(3)) to Not(GreaterInteger(4)).',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as Not(GreaterInteger(4)) here.',
+						startRowIndex: 0,
+						startColumnIndex: 55,
+						endRowIndex: 0,
+						endColumnIndex: 77,
+					},
+				},
+			],
+		});
+	});
+	// Über ganze Zahlen ist > -1 dasselbe wie ≥ 0.
+	it('strict-bound-fits-inclusive-bound', () => {
+		expectCheck(`f = (a: GreaterInteger(-1)) :> Or(0 GreaterInteger(0)) =>
+	a`);
+	});
+	it('inclusive-bound-fits-strict-bound', () => {
+		expectCheck(`f = (a: Or(0 GreaterInteger(0))) :> GreaterInteger(-1) =>
+	a`);
+	});
+	it('range-fits-listed-values', () => {
+		expectCheck(`f = (a: And(GreaterInteger(0) LessInteger(4))) :> Or(1 2 3) =>
+	a`);
+	});
+	it('listed-values-fit-range', () => {
+		expectCheck(`f = (a: Or(1 2 3)) :> And(GreaterInteger(0) LessInteger(4)) =>
+	a`);
+	});
+	it('range-does-not-fit-listed-values-with-gap', () => {
+		expectCheck(`f = (a: And(GreaterInteger(0) LessInteger(4))) :> Or(1 3) =>
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign GreaterInteger(0) to 1.\nCan not assign LessInteger(4) to 1.\nCan not assign GreaterInteger(0) to 3.\nCan not assign LessInteger(4) to 3.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as Or(1 3) here.',
+						startRowIndex: 0,
+						startColumnIndex: 50,
+						endRowIndex: 0,
+						endColumnIndex: 57,
+					},
+				},
+			],
+		});
+	});
+	it('repeat-index-fits-listed-values', () => {
+		expectCheck('repeat(3 (index: Or(1 2 3)) => [])');
+	});
+	it('empty-range-is-never', () => {
+		expectCheck('x: And(GreaterInteger(2) LessInteger(2)) = 2', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 2 to Never.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 44,
+				},
+			],
+		});
+	});
+	it('empty-range-of-three-choices-is-never', () => {
+		expectCheck('x: And(Integer GreaterInteger(2) LessInteger(2)) = 2', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 2 to Never.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 52,
+				},
+			],
+		});
+	});
 	//#endregion Grenzen
 	//#region generische Rückgabetypen
 	// slice liefert eine Teilliste, der Elementtyp bleibt also erhalten: aus
