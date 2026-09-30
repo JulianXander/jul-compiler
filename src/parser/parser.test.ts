@@ -446,8 +446,8 @@ describe('Parser', () => {
 					message: 'Branching has no branches.',
 					startRowIndex: 1,
 					startColumnIndex: 1,
-					endRowIndex: 1,
-					endColumnIndex: 9,
+					endRowIndex: 2,
+					endColumnIndex: 0,
 				},
 			],
 		});

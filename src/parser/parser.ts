@@ -1651,9 +1651,21 @@ function branchingParser(
 		endRowIndex: result.endRowIndex,
 		endColumnIndex: result.endColumnIndex,
 	};
+	const errors = result.errors ?? [];
+	if (!branches.length) {
+		errors.push({
+			code: ErrorCode.branchingHasNoBranches,
+			message: 'Branching has no branches.',
+			startRowIndex: branching.startRowIndex,
+			startColumnIndex: branching.startColumnIndex,
+			endRowIndex: branching.endRowIndex,
+			endColumnIndex: branching.endColumnIndex,
+		});
+	}
 	return {
 		...result,
 		parsed: branching,
+		errors: errors,
 	};
 }
 
