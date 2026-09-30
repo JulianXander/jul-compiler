@@ -438,6 +438,20 @@ describe('Parser', () => {
 			],
 		});
 	});
+	it('branching-without-branches-is-error', () => {
+		expectParse('f = (value: Integer) =>\n\t?(value)', {
+			errors: [
+				{
+					code: ErrorCode.branchingHasNoBranches,
+					message: 'Branching has no branches.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 9,
+				},
+			],
+		});
+	});
 	it('function-literal-return-type', () => {
 		expectParse('() :> [] => []', {
 			result: (() => {

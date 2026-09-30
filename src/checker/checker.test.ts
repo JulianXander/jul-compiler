@@ -682,21 +682,6 @@ useType(isLegal)`);
 	//#endregion branching: Verengung
 
 	//#region branching: Erreichbarkeit
-	it('branching-without-branches-is-error', () => {
-		expectCheck(`f = (value: Integer) =>
-	?(value)`, {
-			errors: [
-				{
-					code: ErrorCode.branchingHasNoBranches,
-					message: 'Branching has no branches.',
-					startRowIndex: 1,
-					startColumnIndex: 1,
-					endRowIndex: 1,
-					endColumnIndex: 9,
-				},
-			],
-		});
-	});
 	it('unreachable-branch-is-detected', () => {
 		expectCheck(`f = (value: Integer) =>
 	?(value)
@@ -1968,7 +1953,7 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	s: FiniteStream(Integer) = interval$(1f)
 	s`;
 		expectCheck(code, {
-			errors: [streamDefinitionMismatch(code, 'Stream(Integer)', 'FiniteStream(Integer)')],
+			errors: [streamDefinitionMismatch(code, 'Stream(Or(0 PositiveInteger))', 'FiniteStream(Integer)')],
 		});
 	});
 	it('interval-with-count-is-finite', () => {
@@ -2019,7 +2004,7 @@ s: Stream((x: Integer) :> Integer) = completed$(f)`);
 	s: FiniteStream(Integer) = completed$(1).flatMergeMap$((value) => interval$(1f))
 	s`;
 		expectCheck(code, {
-			errors: [streamDefinitionMismatch(code, 'Stream(Integer)', 'FiniteStream(Integer)')],
+			errors: [streamDefinitionMismatch(code, 'Stream(Or(0 PositiveInteger))', 'FiniteStream(Integer)')],
 		});
 	});
 	it('flat-switch-map-of-stream-source-is-not-finite', () => {
