@@ -5679,9 +5679,9 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 			return builtinNever;
 		}
 		// And(A Not(B))
-		// Wenn B keine Schnittmenge mit A hat: nur A liefern
-		const secondAssignToFirstError = areArgsAssignableTo(undefined, second, first);
-		if (secondAssignToFirstError) {
+		// Wenn B keine Schnittmenge mit A hat: nur A liefern. Dass B keine Teilmenge von A ist,
+		// reicht nicht: Greater(2) liegt nicht in Integer, schließt aber die 3 aus.
+		if (typesOverlap(first, second) === false) {
 			// Der geschriebene Typ statt des aufgelösten, damit ein Alias wie PositiveInteger in
 			// der Anzeige erhalten bleibt.
 			return ChoiceTypes[0]!;
@@ -5903,6 +5903,19 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 	if (isUnionType(second)) {
 		return someTypeOverlaps(second.ChoiceTypes, first);
 	}
+	// Aus den Teilen eines And lässt sich keine Überlappung bestätigen, aus Grenzen um ganze
+	// Zahlen schon: And(Integer Not(Greater(3))) und Greater(2) teilen sich die 3.
+	const firstRange = getIntegerRange(first);
+	const secondRange = getIntegerRange(second);
+	if (firstRange
+		&& secondRange
+		&& (firstRange.isInteger || secondRange.isInteger)) {
+		const min = maxBound(firstRange.min, secondRange.min);
+		const max = minBound(firstRange.max, secondRange.max);
+		return min === undefined
+			|| max === undefined
+			|| min <= max;
+	}
 	// And ist disjunkt, sobald ein Choice disjunkt ist.
 	// Überlappung lässt sich aus den Teilen dagegen nicht bestätigen.
 	if (first.julType === 'and') {
@@ -6028,6 +6041,78 @@ function greaterOverlapsWith(greater: CompileTimeGreaterType, other: ResolvedTyp
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * Die ganzen Zahlen, die der Typ höchstens enthält, als Grenzen min und max (beide inklusive,
+ * undefined = offen). isInteger, wenn der Typ nur ganze Zahlen enthält. Sonst beschreiben die
+ * Grenzen nur seine ganzzahligen Werte, etwa Greater(2) ab 3.
+ * undefined, wenn der Typ nicht allein aus Integer, Integer-Literalen, Greater und
+ * Not(Greater) mit Integer-Literal besteht.
+ */
+function getIntegerRange(rawType: CompileTimeType): { isInteger: boolean; min?: bigint; max?: bigint; } | undefined {
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'integer':
+			return { isInteger: true };
+		case 'integerLiteral':
+			return { isInteger: true, min: type.value, max: type.value };
+		case 'greater': {
+			const value = resolveAlias(type.Value);
+			return value.julType === 'integerLiteral'
+				? { isInteger: false, min: value.value + 1n }
+				: undefined;
+		}
+		case 'not': {
+			const source = resolveAlias(type.SourceType);
+			if (source.julType !== 'greater') {
+				return undefined;
+			}
+			const value = resolveAlias(source.Value);
+			return value.julType === 'integerLiteral'
+				? { isInteger: false, max: value.value }
+				: undefined;
+		}
+		case 'and': {
+			let range: { isInteger: boolean; min?: bigint; max?: bigint; } = { isInteger: false };
+			for (const choiceType of type.ChoiceTypes) {
+				const choiceRange = getIntegerRange(choiceType);
+				if (!choiceRange) {
+					return undefined;
+				}
+				range = {
+					isInteger: range.isInteger || choiceRange.isInteger,
+					min: maxBound(range.min, choiceRange.min),
+					max: minBound(range.max, choiceRange.max),
+				};
+			}
+			return range;
+		}
+		default:
+			return undefined;
+	}
+}
+
+/** Die größere zweier unteren Grenzen, undefined = offen. */
+function maxBound(first: bigint | undefined, second: bigint | undefined): bigint | undefined {
+	if (first === undefined) {
+		return second;
+	}
+	if (second === undefined) {
+		return first;
+	}
+	return first > second ? first : second;
+}
+
+/** Die kleinere zweier oberen Grenzen, undefined = offen. */
+function minBound(first: bigint | undefined, second: bigint | undefined): bigint | undefined {
+	if (first === undefined) {
+		return second;
+	}
+	if (second === undefined) {
+		return first;
+	}
+	return first < second ? first : second;
 }
 
 function someTypeOverlaps(choiceTypes: CompileTimeType[], other: CompileTimeType): boolean | undefined {
@@ -7519,6 +7604,52 @@ function getTypeErrorAtDepth(
 			aliasComparisonsInProgress.pop();
 		}
 	}
+	// Ganze Zahlen zwischen zwei Grenzen passen genau dann, wenn beide Grenzen im target liegen.
+	// Die Zerlegung unten geht über Or(T B) und verlangt dort einen einzelnen passenden Choice, das
+	// scheitert schon an And(Integer Not(Greater(2))) gegen Not(Greater(3)).
+	// Passt es nicht, liefert die Zerlegung die genauere Meldung, etwa gegen welchen Teil des targets.
+	const fitsRange = integerRangeFits(argumentsType, targetType);
+	if (fitsRange === true) {
+		return undefined;
+	}
+	if (fitsRange === false) {
+		return getTypeErrorByStructure(prefixArgumentType, argumentsType, targetType)
+			?? {
+				message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+			};
+	}
+	return getTypeErrorByStructure(prefixArgumentType, argumentsType, targetType);
+}
+
+/**
+ * Liegen die ganzen Zahlen des Werts sicher im target (true) oder sicher nicht (false)?
+ * undefined, wenn einer der beiden Typen sich nicht als Integer-Bereich lesen lässt.
+ */
+function integerRangeFits(argumentsType: CompileTimeType, targetType: CompileTimeType): boolean | undefined {
+	const argumentsRange = getIntegerRange(argumentsType);
+	if (!argumentsRange?.isInteger) {
+		return undefined;
+	}
+	const targetRange = getIntegerRange(targetType);
+	if (!targetRange) {
+		return undefined;
+	}
+	const { min, max } = argumentsRange;
+	const isEmpty = min !== undefined
+		&& max !== undefined
+		&& min > max;
+	const fitsMin = targetRange.min === undefined
+		|| (min !== undefined && min >= targetRange.min);
+	const fitsMax = targetRange.max === undefined
+		|| (max !== undefined && max <= targetRange.max);
+	return isEmpty || (fitsMin && fitsMax);
+}
+
+function getTypeErrorByStructure(
+	prefixArgumentType: CompileTimeType | undefined,
+	argumentsType: Exclude<ResolvedType, { julType: 'any'; }>,
+	targetType: Exclude<ResolvedType, { julType: 'any'; }>,
+): TypeError | undefined {
 	switch (argumentsType.julType) {
 		case 'and': {
 			if (targetType.julType === 'and') {
@@ -7620,6 +7751,14 @@ function getTypeErrorAtDepth(
 			// ausgeschlossen wäre. Sonst permissiv, wie bei Any: wir wissen nichts Genaueres.
 			// isNotAssignableTo trägt den hasReliableTypeError-Guard schon (undefined bei
 			// unaufgelösten/generischen Zielen), das wird hier mitgenutzt statt dupliziert.
+			// Gegen ein Not als target geht es exakt: Not(A) liegt genau dann in Not(B), wenn B in A
+			// liegt. Not(Greater(3)) passt also nicht zu Not(Greater(2)), denn 3 wäre ausgeschlossen.
+			if (targetType.julType === 'not'
+				&& isNotAssignableTo(targetType.SourceType, argumentsType.SourceType) === true) {
+				return {
+					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+				};
+			}
 			if (isNotAssignableTo(targetType, argumentsType.SourceType) === false) {
 				return {
 					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,

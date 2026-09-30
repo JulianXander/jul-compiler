@@ -1136,6 +1136,62 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 			],
 		});
 	});
+	// Eine obere Grenze darf nur gegen eine gleich große oder größere obere Grenze passen:
+	// Not(A) liegt genau dann in Not(B), wenn B in A liegt.
+	it('upper-bound-fits-larger-upper-bound', () => {
+		expectCheck(`f = (a: Not(Greater(2))) :> Not(Greater(3)) =>
+	a`);
+	});
+	it('upper-bound-does-not-fit-smaller-upper-bound', () => {
+		expectCheck(`f = (a: Not(Greater(3))) :> Not(Greater(2)) =>
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Not(Greater(3)) to Not(Greater(2)).',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as Not(Greater(2)) here.',
+						startRowIndex: 0,
+						startColumnIndex: 28,
+						endRowIndex: 0,
+						endColumnIndex: 43,
+					},
+				},
+			],
+		});
+	});
+	it('integer-upper-bound-fits-larger-integer-upper-bound', () => {
+		expectCheck(`f = (a: And(Integer Not(Greater(2)))) :> And(Integer Not(Greater(3))) =>
+	a`);
+	});
+	// Das Ziel-And wird zerlegt, für Not(Greater(2)) muss dann die Überlappung von
+	// "höchstens 3" mit "größer als 2" erkannt werden: 3 liegt in beiden.
+	it('integer-upper-bound-does-not-fit-smaller-integer-upper-bound', () => {
+		expectCheck(`f = (a: And(Integer Not(Greater(3)))) :> And(Integer Not(Greater(2))) =>
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign And(Integer Not(Greater(3))) to Not(Greater(2)).',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as And(Integer Not(Greater(2))) here.',
+						startRowIndex: 0,
+						startColumnIndex: 41,
+						endRowIndex: 0,
+						endColumnIndex: 69,
+					},
+				},
+			],
+		});
+	});
 	//#endregion Not
 	//#region generische Rückgabetypen
 	// slice liefert eine Teilliste, der Elementtyp bleibt also erhalten: aus
