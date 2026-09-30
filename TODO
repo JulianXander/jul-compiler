@@ -1,6 +1,18 @@
 -field completion funktioniert nicht beim 2. feld vgl tic-tac-toe GameState currentPlayer
 	-konnte nicht reproduziert werden
--repeat index type sollte <= count sein, wird nur als PositiveInteger getypt, ebenso forEach index sollte <= List.length
+-teilmengen mit integer-grenzen (getIntegerRange im checker), plan in docs/number-ranges.md: offen
+	-Not(n) an der grenze verrechnen: And(Integer Not(GreaterInteger(3)) Not(3)) passt nicht zu Not(GreaterInteger(2))
+	-Or(n GreaterInteger(n)) als untere grenze lesen: GreaterInteger(-1) passt nicht zu Or(0 GreaterInteger(0))
+	-endlichen bereich aufzählen: repeat(3 (index: Or(1 2 3)) => []) wird abgelehnt
+	-leerer bereich And(GreaterInteger(2) LessInteger(2)) wird nicht zu Never
+	-Or(length(values) LessInteger(length(values))) im parametertyp von forEach wird schon bei der
+	 deklaration zu PositiveInteger: die union-normalisierung behandelt den offenen wert length(values)
+	 wie PositiveInteger. core-lib schreibt obere grenzen deshalb als Not(GreaterInteger(…))
+	-anzeige: range(1 n) zeigt Or(And(1 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(1) …)),
+	 And(1 Not(…)) wird nicht zu 1
+-NaN aus Float ausschließen: der typ Float enthält kein NaN (entschieden in docs/number-ranges.md), zur laufzeit
+	entsteht es trotzdem über addFloat/subtractFloat (Infinity - Infinity) und importe aus .ts/.js. dort Error
+	liefern wie parseFloat bei ungültigem text?
 ?warum getValue als Feld von Stream Instanz? alle anderen Funktionen werden mit . aufgerufen, nur getValue mit / das ist unintuitiv
 -function literal syntax überdenken, folgende form evtl erlauben, oder auto umformatieren:
 	myList.filter((x) =>

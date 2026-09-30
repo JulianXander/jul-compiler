@@ -126,8 +126,8 @@ function typeToString(type: RuntimeType, indent: number): string {
 						return 'Float';
 					case 'function':
 						return 'Function';
-					case 'greater':
-						return `Greater(${typeToString(type.Value, indent)})`;
+					case 'bound':
+						return `${type.Relation === 'greater' ? 'Greater' : 'Less'}${type.Family === 'integer' ? 'Integer' : 'Float'}(${typeToString(type.Value, indent)})`;
 					case 'integer':
 						return 'Integer';
 					case 'list':
@@ -292,8 +292,9 @@ function getTypeError(value: any, type: RuntimeType): string | undefined {
 							return undefined;
 						}
 						break;
-					case 'greater':
-						if (value > type.Value) {
+					case 'bound':
+						if (typeof value === (type.Family === 'integer' ? 'bigint' : 'number')
+							&& (type.Relation === 'greater' ? value > type.Value : value < type.Value)) {
 							return undefined;
 						}
 						break;
@@ -748,7 +749,7 @@ type BuiltInType =
 	| BooleanType
 	| IntegerType
 	| FloatType
-	| GreaterType
+	| BoundType
 	| TextType
 	| DateType
 	| BlobType
@@ -793,8 +794,10 @@ interface FloatType {
 	readonly [_julTypeSymbol]: 'float';
 }
 
-interface GreaterType {
-	readonly [_julTypeSymbol]: 'greater';
+interface BoundType {
+	readonly [_julTypeSymbol]: 'bound';
+	readonly Relation: 'greater' | 'less';
+	readonly Family: 'integer' | 'float';
 	readonly Value: bigint | number;
 }
 
@@ -1345,10 +1348,12 @@ export const Float: FloatType = { [_julTypeSymbol]: 'float' };
 export const NonZeroFloat = /*#__PURE__*/ And(Float, /*#__PURE__*/ Not(0));
 export const Integer: IntegerType = { [_julTypeSymbol]: 'integer' };
 export const NonZeroInteger = /*#__PURE__*/ And(Integer, /*#__PURE__*/ Not(0n));
-export const Greater = /*#__PURE__*/ _createFunction(
-	function Greater(Value: bigint | number): GreaterType {
+export const GreaterInteger = /*#__PURE__*/ _createFunction(
+	function GreaterInteger(Value: bigint): BoundType {
 		return {
-			[_julTypeSymbol]: 'greater',
+			[_julTypeSymbol]: 'bound',
+			Relation: 'greater',
+			Family: 'integer',
 			Value: Value,
 		};
 	},
@@ -1356,12 +1361,30 @@ export const Greater = /*#__PURE__*/ _createFunction(
 		singleNames: [
 			{
 				name: 'value',
-				type: /*#__PURE__*/ Or(Integer, Float),
+				type: Integer,
 			},
 		]
 	}
 );
-export const PositiveInteger = /*#__PURE__*/ And(Integer, /*#__PURE__*/ Greater(0n));
+export const LessInteger = /*#__PURE__*/ _createFunction(
+	function LessInteger(Value: bigint): BoundType {
+		return {
+			[_julTypeSymbol]: 'bound',
+			Relation: 'less',
+			Family: 'integer',
+			Value: Value,
+		};
+	},
+	{
+		singleNames: [
+			{
+				name: 'value',
+				type: Integer,
+			},
+		]
+	}
+);
+export const PositiveInteger = /*#__PURE__*/ GreaterInteger(0n);
 export const ElementAt = /*#__PURE__*/ _createFunction(
 	function ElementAt(Source: any, index: bigint): RuntimeType {
 		const position = Number(index);

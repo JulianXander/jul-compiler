@@ -9,7 +9,7 @@ import {
 	CompileTimeDictionaryLiteralType,
 	CompileTimeDictionaryType,
 	CompileTimeFunctionType,
-	CompileTimeGreaterType,
+	CompileTimeBoundType,
 	CompileTimeListType,
 	CompileTimeIndexRangeType,
 	CompileTimeStreamType,
@@ -25,7 +25,7 @@ import {
 	createCompileTimeDictionaryLiteralType,
 	createCompileTimeDictionaryType,
 	createCompileTimeFunctionType,
-	createCompileTimeGreaterType,
+	createCompileTimeBoundType,
 	createCompileTimeLengthOfType,
 	createCompileTimeListType,
 	createCompileTimeIndexRangeType,
@@ -491,10 +491,7 @@ const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
 /**
  * Die Länge einer Kollektion, die nicht Empty ist: mindestens 1.
  */
-const CompileTimePositiveInteger = createNormalizedIntersectionType([
-	builtinInteger,
-	createCompileTimeGreaterType(createIntegerLiteral(0n)),
-]);
+const CompileTimePositiveInteger = createCompileTimeBoundType('greater', 'integer', createIntegerLiteral(0n));
 
 /**
  * Stream(ValueType) und FiniteStream(ValueType): dieselbe Typfunktion, nur das Merkmal finite
@@ -871,7 +868,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'float':
 		case 'floatLiteral':
 		case 'function':
-		case 'greater':
+		case 'bound':
 		case 'integer':
 		case 'integerLiteral':
 		case 'add':
@@ -1094,7 +1091,7 @@ export function dereferenceNameFromObject(
 		case 'error':
 		case 'float':
 		case 'floatLiteral':
-		case 'greater':
+		case 'bound':
 		case 'integer':
 		case 'integerLiteral':
 		case 'add':
@@ -1175,7 +1172,7 @@ function dereferenceNameFromObjectType(
 		case 'error':
 		case 'float':
 		case 'floatLiteral':
-		case 'greater':
+		case 'bound':
 		case 'integer':
 		case 'integerLiteral':
 		case 'add':
@@ -1278,7 +1275,7 @@ export function dereferenceIndexFromObject(
 		case 'float':
 		case 'floatLiteral':
 		case 'function':
-		case 'greater':
+		case 'bound':
 		case 'integer':
 		case 'integerLiteral':
 		case 'add':
@@ -1831,13 +1828,13 @@ function traversePlaceholders(
 			dereferencedType.boundArguments = rawType.boundArguments;
 			return dereferencedType;
 		}
-		case 'greater': {
+		case 'bound': {
 			const rawValue = rawType.Value;
 			const dereferencedValue = traversePlaceholders(rawValue, argumentContext);
 			if (dereferencedValue === rawValue) {
 				return rawType;
 			}
-			return createCompileTimeGreaterType(dereferencedValue);
+			return createCompileTimeBoundType(rawType.Relation, rawType.Family, dereferencedValue);
 		}
 		case 'list': {
 			const rawElement = rawType.ElementType;
@@ -4910,7 +4907,8 @@ function getReturnTypeFromFunctionCall(
 				}
 				return createCompileTimeTypeOfType(argTypes[0]);
 			}
-			case 'Greater': {
+			case 'GreaterInteger':
+			case 'LessInteger': {
 				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
 				if (!argTypes) {
 					// TODO unknown?
@@ -4920,7 +4918,10 @@ function getReturnTypeFromFunctionCall(
 					// TODO unknown?
 					return builtinAny;
 				}
-				return createCompileTimeTypeOfType(createCompileTimeGreaterType(valueOf(argTypes[0])));
+				return createCompileTimeTypeOfType(createCompileTimeBoundType(
+					functionName === 'GreaterInteger' ? 'greater' : 'less',
+					'integer',
+					valueOf(argTypes[0])));
 			}
 			default:
 				break;
@@ -5197,7 +5198,7 @@ function addFromTypes(rawArgsType: CompileTimeType): CompileTimeType {
 	}
 	let sum = 0n;
 	for (const elementType of elementTypes) {
-		// Greater(a) heißt nur für einen Integer x ≥ a + 1.
+		// Nur für ganze Zahlen heißt > a dasselbe wie ≥ a + 1.
 		if (getTypeError(undefined, elementType, builtinInteger)) {
 			return builtinInteger;
 		}
@@ -5208,10 +5209,7 @@ function addFromTypes(rawArgsType: CompileTimeType): CompileTimeType {
 		}
 		sum += minimum;
 	}
-	return createNormalizedIntersectionType([
-		builtinInteger,
-		createCompileTimeGreaterType(createIntegerLiteral(sum - 1n)),
-	]);
+	return createCompileTimeBoundType('greater', 'integer', createIntegerLiteral(sum - 1n));
 }
 
 /**
@@ -5223,9 +5221,11 @@ function getIntegerMinimum(rawType: CompileTimeType): bigint | undefined {
 	switch (type.julType) {
 		case 'integerLiteral':
 			return type.value;
-		case 'greater': {
+		case 'bound': {
 			const value = type.Value;
-			return value.julType === 'integerLiteral'
+			return type.Relation === 'greater'
+				&& type.Family === 'integer'
+				&& value.julType === 'integerLiteral'
 				? value.value + 1n
 				: undefined;
 		}
@@ -5680,7 +5680,7 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		}
 		// And(A Not(B))
 		// Wenn B keine Schnittmenge mit A hat: nur A liefern. Dass B keine Teilmenge von A ist,
-		// reicht nicht: Greater(2) liegt nicht in Integer, schließt aber die 3 aus.
+		// reicht nicht: Or(0 §a§) liegt nicht in Integer, schließt aber die 0 aus.
 		if (typesOverlap(first, second) === false) {
 			// Der geschriebene Typ statt des aufgelösten, damit ein Alias wie PositiveInteger in
 			// der Anzeige erhalten bleibt.
@@ -5794,7 +5794,7 @@ function hasReliableTypeError(type: CompileTimeType): boolean {
 		case 'float':
 		case 'floatLiteral':
 		case 'function':
-		case 'greater':
+		case 'bound':
 		case 'integer':
 		case 'integerLiteral':
 		case 'lengthOf':
@@ -5846,6 +5846,8 @@ function getTypeFamily(type: ResolvedType): string | undefined {
 		case 'integer':
 		case 'integerLiteral':
 			return 'integer';
+		case 'bound':
+			return type.Family;
 		case 'list':
 		case 'tuple':
 			return 'list';
@@ -5854,7 +5856,6 @@ function getTypeFamily(type: ResolvedType): string | undefined {
 		case 'text':
 		case 'textLiteral':
 			return 'text';
-		// greater kann Integer oder Float sein, daher keine Aussage
 		default:
 			return undefined;
 	}
@@ -5904,7 +5905,7 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 		return someTypeOverlaps(second.ChoiceTypes, first);
 	}
 	// Aus den Teilen eines And lässt sich keine Überlappung bestätigen, aus Grenzen um ganze
-	// Zahlen schon: And(Integer Not(Greater(3))) und Greater(2) teilen sich die 3.
+	// Zahlen schon: And(Integer Not(GreaterInteger(3))) und GreaterInteger(2) teilen sich die 3.
 	const firstRange = getIntegerRange(first);
 	const secondRange = getIntegerRange(second);
 	if (firstRange
@@ -5938,14 +5939,6 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 	if (second.julType === 'predicate') {
 		return predicateOverlapsWith(second, first);
 	}
-	// getTypeFamily ordnet 'greater' keiner Familie zu (Integer oder Float möglich) - daher
-	// hier vorab behandeln, bevor die Familienprüfung mit undefined aufgibt.
-	if (first.julType === 'greater') {
-		return greaterOverlapsWith(first, second);
-	}
-	if (second.julType === 'greater') {
-		return greaterOverlapsWith(second, first);
-	}
 	const firstFamily = getTypeFamily(first);
 	const secondFamily = getTypeFamily(second);
 	if (!firstFamily
@@ -5956,6 +5949,12 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 		return false;
 	}
 	//#region gleiche Familie
+	// Innerhalb der Familie beantwortet eine Grenze nur die Bereichssicht oben. Konnte sie es nicht
+	// (Float, unbekannter Wert), ist die Überlappung unbekannt, nicht wie beim Basistyp gegeben.
+	if (first.julType === 'bound'
+		|| second.julType === 'bound') {
+		return undefined;
+	}
 	const firstIsLiteral = isLiteralType(first);
 	const secondIsLiteral = isLiteralType(second);
 	if (firstIsLiteral
@@ -6017,38 +6016,11 @@ function sequencesOverlap(first: ResolvedType, second: ResolvedType): boolean | 
 }
 
 /**
- * Greater(Value) ist nach oben unbeschränkt - Überlappung ist daher nur bei gleichem
- * Literaltyp (Integer/Integer oder Float/Float) entscheidbar, sonst undefined.
- */
-function greaterOverlapsWith(greater: CompileTimeGreaterType, other: ResolvedType): boolean | undefined {
-	switch (other.julType) {
-		case 'greater':
-			// Beide nach oben unbeschränkt - es gibt immer einen gemeinsamen größeren Wert.
-			return true;
-		case 'integerLiteral':
-		case 'floatLiteral':
-			return greater.Value.julType === other.julType
-				? other.value > greater.Value.value
-				: undefined;
-		case 'integer':
-			return greater.Value.julType === 'integerLiteral'
-				? true
-				: undefined;
-		case 'float':
-			return greater.Value.julType === 'floatLiteral'
-				? true
-				: undefined;
-		default:
-			return undefined;
-	}
-}
-
-/**
  * Die ganzen Zahlen, die der Typ höchstens enthält, als Grenzen min und max (beide inklusive,
  * undefined = offen). isInteger, wenn der Typ nur ganze Zahlen enthält. Sonst beschreiben die
- * Grenzen nur seine ganzzahligen Werte, etwa Greater(2) ab 3.
- * undefined, wenn der Typ nicht allein aus Integer, Integer-Literalen, Greater und
- * Not(Greater) mit Integer-Literal besteht.
+ * Grenzen nur seine ganzzahligen Werte, etwa Not(GreaterInteger(2)) bis 2.
+ * undefined, wenn der Typ nicht allein aus Integer, Integer-Literalen, GreaterInteger, LessInteger
+ * und deren Not mit Integer-Literal besteht.
  */
 function getIntegerRange(rawType: CompileTimeType): { isInteger: boolean; min?: bigint; max?: bigint; } | undefined {
 	const type = resolveAlias(rawType);
@@ -6057,21 +6029,30 @@ function getIntegerRange(rawType: CompileTimeType): { isInteger: boolean; min?: 
 			return { isInteger: true };
 		case 'integerLiteral':
 			return { isInteger: true, min: type.value, max: type.value };
-		case 'greater': {
+		case 'bound': {
 			const value = resolveAlias(type.Value);
-			return value.julType === 'integerLiteral'
-				? { isInteger: false, min: value.value + 1n }
-				: undefined;
+			if (type.Family !== 'integer'
+				|| value.julType !== 'integerLiteral') {
+				return undefined;
+			}
+			return type.Relation === 'greater'
+				? { isInteger: true, min: value.value + 1n }
+				: { isInteger: true, max: value.value - 1n };
 		}
+		// Not(GreaterInteger(3)) enthält außer den ganzen Zahlen bis 3 auch alles andere, etwa Text.
 		case 'not': {
 			const source = resolveAlias(type.SourceType);
-			if (source.julType !== 'greater') {
+			if (source.julType !== 'bound'
+				|| source.Family !== 'integer') {
 				return undefined;
 			}
 			const value = resolveAlias(source.Value);
-			return value.julType === 'integerLiteral'
+			if (value.julType !== 'integerLiteral') {
+				return undefined;
+			}
+			return source.Relation === 'greater'
 				? { isInteger: false, max: value.value }
-				: undefined;
+				: { isInteger: false, min: value.value };
 		}
 		case 'and': {
 			let range: { isInteger: boolean; min?: bigint; max?: bigint; } = { isInteger: false };
@@ -6688,8 +6669,10 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 		case 'dictionary':
 			return second.julType === 'dictionary'
 				&& typeEquals(first.ElementType, second.ElementType);
-		case 'greater':
-			return second.julType === 'greater'
+		case 'bound':
+			return second.julType === 'bound'
+				&& first.Relation === second.Relation
+				&& first.Family === second.Family
 				&& typeEquals(first.Value, second.Value);
 		case 'lengthOf':
 			return second.julType === 'lengthOf'
@@ -7254,7 +7237,7 @@ function isDefinitelyNotCollectionType(rawType: CompileTimeType): boolean {
 		case 'float':
 		case 'floatLiteral':
 		case 'function':
-		case 'greater':
+		case 'bound':
 		case 'integer':
 		case 'integerLiteral':
 		case 'text':
@@ -7492,7 +7475,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'error':
 		case 'float':
 		case 'floatLiteral':
-		case 'greater':
+		case 'bound':
 		case 'integer':
 		case 'integerLiteral':
 		case 'lengthOf':
@@ -7606,7 +7589,7 @@ function getTypeErrorAtDepth(
 	}
 	// Ganze Zahlen zwischen zwei Grenzen passen genau dann, wenn beide Grenzen im target liegen.
 	// Die Zerlegung unten geht über Or(T B) und verlangt dort einen einzelnen passenden Choice, das
-	// scheitert schon an And(Integer Not(Greater(2))) gegen Not(Greater(3)).
+	// scheitert schon an And(Integer Not(GreaterInteger(2))) gegen Not(GreaterInteger(3)).
 	// Passt es nicht, liefert die Zerlegung die genauere Meldung, etwa gegen welchen Teil des targets.
 	const fitsRange = integerRangeFits(argumentsType, targetType);
 	if (fitsRange === true) {
@@ -7655,7 +7638,7 @@ function getTypeErrorByStructure(
 			if (targetType.julType === 'and') {
 				// Erst das target zerlegen, das ist exakt: der Wert muss zu jedem target Choice
 				// passen. Sonst müsste ein einzelner args Choice für das ganze target reichen,
-				// was z.B. And(Integer Greater(0)) gegen And(Integer Not(0)) fälschlich ablehnt.
+				// was z.B. And(Integer Or(1 §a§)) gegen And(Integer Not(0)) fälschlich ablehnt.
 				break;
 			}
 			// Ein Not-Choice sagt als Quelle nichts Verlässliches (siehe case 'not'), passt also
@@ -7694,8 +7677,8 @@ function getTypeErrorByStructure(
 					return getTypeError(prefixArgumentType, dereferencedArgumentsType, targetType);
 				}
 				// Bleibt auch nach dem Auflösen nichts übrig: das target selbst kann sich noch
-				// zerlegen lassen (z.B. Or): PositiveInteger passt als GANZES zu
-				// Or([] PositiveInteger), obwohl weder Integer noch Greater(0) allein passt.
+				// zerlegen lassen (z.B. Or): And(Integer Not(0)) passt als GANZES zu
+				// Or([] And(Integer Not(0))), obwohl weder Integer noch Not(0) allein passt.
 				if (targetType.julType === 'or') {
 					break;
 				}
@@ -7752,7 +7735,7 @@ function getTypeErrorByStructure(
 			// isNotAssignableTo trägt den hasReliableTypeError-Guard schon (undefined bei
 			// unaufgelösten/generischen Zielen), das wird hier mitgenutzt statt dupliziert.
 			// Gegen ein Not als target geht es exakt: Not(A) liegt genau dann in Not(B), wenn B in A
-			// liegt. Not(Greater(3)) passt also nicht zu Not(Greater(2)), denn 3 wäre ausgeschlossen.
+			// liegt. Not(GreaterInteger(3)) passt also nicht zu Not(GreaterInteger(2)), denn 3 wäre ausgeschlossen.
 			if (targetType.julType === 'not'
 				&& isNotAssignableTo(targetType.SourceType, argumentsType.SourceType) === true) {
 				return {
@@ -7937,6 +7920,11 @@ function getTypeErrorByStructure(
 					return undefined;
 				case 'floatLiteral':
 					return undefined;
+				case 'bound':
+					if (argumentsType.Family === 'float') {
+						return undefined;
+					}
+					break;
 				default:
 					break;
 			}
@@ -7973,23 +7961,28 @@ function getTypeErrorByStructure(
 			}
 			return undefined;
 		}
-		case 'greater': {
-			const greaterValue = targetType.Value;
-			if (((greaterValue.julType === 'integerLiteral'
-				&& argumentsType.julType === 'integerLiteral')
-				|| (greaterValue.julType === 'floatLiteral'
-					&& argumentsType.julType === 'floatLiteral'))
-				&& argumentsType.value > greaterValue.value) {
+		// Ganzzahlige Grenzen hat integerRangeFits schon entschieden, hier bleiben die übrigen Familien.
+		case 'bound': {
+			const boundValue = targetType.Value;
+			const literalFamily = targetType.Family === 'integer' ? 'integerLiteral' : 'floatLiteral';
+			if (boundValue.julType !== literalFamily) {
+				break;
+			}
+			if (argumentsType.julType === literalFamily
+				&& (targetType.Relation === 'greater'
+					? argumentsType.value > boundValue.value
+					: argumentsType.value < boundValue.value)) {
 				return undefined;
 			}
-			// Greater(a) liegt in Greater(b), wenn a >= b.
-			if (argumentsType.julType === 'greater') {
+			// GreaterFloat(a) liegt in GreaterFloat(b), wenn a >= b, LessFloat umgekehrt.
+			if (argumentsType.julType === 'bound'
+				&& argumentsType.Relation === targetType.Relation
+				&& argumentsType.Family === targetType.Family) {
 				const argumentValue = argumentsType.Value;
-				if (((argumentValue.julType === 'integerLiteral'
-					&& greaterValue.julType === 'integerLiteral')
-					|| (argumentValue.julType === 'floatLiteral'
-						&& greaterValue.julType === 'floatLiteral'))
-					&& argumentValue.value >= greaterValue.value) {
+				if (argumentValue.julType === literalFamily
+					&& (targetType.Relation === 'greater'
+						? argumentValue.value >= boundValue.value
+						: argumentValue.value <= boundValue.value)) {
 					return undefined;
 				}
 			}
@@ -8001,6 +7994,11 @@ function getTypeErrorByStructure(
 					return undefined;
 				case 'integerLiteral':
 					return undefined;
+				case 'bound':
+					if (argumentsType.Family === 'integer') {
+						return undefined;
+					}
+					break;
 				default:
 					break;
 			}
@@ -8149,6 +8147,7 @@ function getTypeErrorByStructure(
 			switch (argumentsType.julType) {
 				case 'boolean':
 				case 'booleanLiteral':
+				case 'bound':
 				case 'empty':
 				case 'float':
 				case 'floatLiteral':
@@ -8745,6 +8744,13 @@ function aliasNameToString(alias: CompileTimeAliasType, indent: number): string 
 	return `${alias.name}(${argsString})`;
 }
 
+/** Der Name, unter dem die Grenze geschrieben wird, etwa GreaterInteger. */
+function boundName(type: CompileTimeBoundType): string {
+	const relation = type.Relation === 'greater' ? 'Greater' : 'Less';
+	const family = type.Family === 'integer' ? 'Integer' : 'Float';
+	return relation + family;
+}
+
 export function typeToString(type: CompileTimeType, indent: number, depth: number, suppressAlias = false): string {
 	if (depth && type.aliasName && !suppressAlias) {
 		return type.aliasName;
@@ -8785,8 +8791,8 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 					: ':>';
 			return `${paramsString} ${arrow} ${returnString}`;
 		}
-		case 'greater':
-			return `Greater(${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
+		case 'bound':
+			return `${boundName(type)}(${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
 		case 'integer':
 			return 'Integer';
 		case 'lengthOf':
@@ -9074,7 +9080,7 @@ function classifyTypenessOnPath(
 		case 'error':
 		case 'empty':
 		case 'stream':
-		case 'greater':
+		case 'bound':
 		case 'add':
 		case 'lengthOf':
 		case 'indexRange':

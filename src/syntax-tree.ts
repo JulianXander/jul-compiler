@@ -686,7 +686,7 @@ export type CompileTimeType =
 	| BlobType
 	| ErrorType
 	| TypeType
-	| CompileTimeGreaterType
+	| CompileTimeBoundType
 	| CompileTimeLengthOfType
 	| CompileTimeWithElementAtType
 	| CompileTimeConditionalType
@@ -857,18 +857,29 @@ export function createCompileTimePredicateType(
 }
 
 /**
- * Menge aller Werte, die größer als Value sind
- * (nur in Kombination mit einem anderen Typ sinnvoll,
- * z.B. And(Integer Greater(0)) für PositiveInteger).
+ * Menge aller Zahlen einer Familie, die größer bzw. kleiner als Value sind, beide strikt.
+ * Entsteht aus GreaterInteger, LessInteger usw. Family steht im Namen und wird nicht aus Value
+ * abgeleitet: bei GreaterInteger(count) ist count ein beliebiger Integer.
+ * Was Relation und Family bedeuten, werten nur die Bereichssicht (getIntegerRange) und getTypeFamily
+ * aus, Vergleich und Ausgabe reichen sie nur durch. Sonst behandelt eine vergessene Unterscheidung
+ * LessInteger still wie GreaterInteger.
  */
-export interface CompileTimeGreaterType extends CompileTimeTypeBase {
-	readonly julType: 'greater';
+export interface CompileTimeBoundType extends CompileTimeTypeBase {
+	readonly julType: 'bound';
+	Relation: 'greater' | 'less';
+	Family: 'integer' | 'float';
 	Value: CompileTimeType;
 }
 
-export function createCompileTimeGreaterType(Value: CompileTimeType): CompileTimeGreaterType {
+export function createCompileTimeBoundType(
+	Relation: CompileTimeBoundType['Relation'],
+	Family: CompileTimeBoundType['Family'],
+	Value: CompileTimeType,
+): CompileTimeBoundType {
 	return {
-		julType: 'greater',
+		julType: 'bound',
+		Relation: Relation,
+		Family: Family,
 		Value: Value,
 		isUnresolvedPlaceholder: Value.isUnresolvedPlaceholder,
 	};
@@ -1411,7 +1422,7 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 			callback(type.ParamsType);
 			callback(type.ReturnType);
 			return;
-		case 'greater':
+		case 'bound':
 			callback(type.Value);
 			return;
 		case 'lengthOf':

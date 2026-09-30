@@ -84,23 +84,21 @@ NonZeroFloat = Float.Without(0f)
 # Ganzzahl beliebiger Größe
 Integer = nativeValue(§Integer§)
 NonZeroInteger = Integer.Without(0)
-# x is part of Greater(y) <=> x > y
-#TODO Greater Rational vs GreaterInteger, GreaterFloat
-Greater = nativeFunction(
-	(value: Or(Integer Float)) -> Type
+# Die ganzen Zahlen größer als value.
+GreaterInteger = nativeFunction(
+	(value: Integer) -> Type
 	§js
-		(value) => {
-			return {
-				[_julTypeSymbol]: 'greater',
-				Value: value,
-			};
-		}
+		GreaterInteger
 	§
 )
-PositiveInteger = And(
-	Integer
-	Greater(0)
+# Die ganzen Zahlen kleiner als value.
+LessInteger = nativeFunction(
+	(value: Integer) -> Type
+	§js
+		LessInteger
+	§
 )
+PositiveInteger = GreaterInteger(0)
 Fraction = [
 	numerator: Integer
 	denominator: Integer
@@ -442,7 +440,7 @@ multiplyFloat = nativeFunction(
 			args.reduce(
 				(accumulator, current) =>
 					accumulator * current,
-				0)
+				1)
 	§
 )
 # dividend / divisor
@@ -801,11 +799,10 @@ range = nativeFunction(
 		start: Integer
 		end: Integer
 	) -> Or([] List(And(
-		Integer
 		# >= start
-		Or(start Greater(start))
+		Or(start GreaterInteger(start))
 		# <= end
-		Not(Greater(end))
+		Not(GreaterInteger(end))
 	)))
 	§js
 		(start, end) => {
@@ -888,7 +885,10 @@ forEach = nativeFunction(
 		values: Or([] List(Any))
 		callback: (
 			value: TypeOf(values)/ElementType
-			index: PositiveInteger
+			index: And(
+				PositiveInteger
+				Not(GreaterInteger(length(values)))
+			)
 		) ~> Any
 	) ~> []
 	§js
@@ -1293,7 +1293,10 @@ test = nativeFunction(
 repeat = nativeFunction(
 	(
 		count: Integer
-		iteratee: (index: PositiveInteger) ~> Any
+		iteratee: (index: And(
+			PositiveInteger
+			Not(GreaterInteger(count))
+		)) ~> Any
 	) ~> []
 	§js
 		repeat

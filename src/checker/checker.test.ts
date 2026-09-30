@@ -327,14 +327,14 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 	// Fund an einem echten Aufruf mit mehreren Kandidaten-Fehlern ohne Zuordnung
 	// (game-logic.jul: 3 "Can not assign"-Zeilen, keine sagt welches Argument gemeint ist).
 	it('argument-type-mismatch-names-the-parameter', () => {
-		expectCheck(`f = (a: Integer b: Greater(0)) => a
+		expectCheck(`f = (a: Integer b: GreaterInteger(0)) => a
 f(1 0)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 5,
 					"endRowIndex": 1,
-					"message": "Argument type mismatch.\nInvalid value for parameter 'b'\n  Can not assign 0 to Greater(0).",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'b'\n  Can not assign 0 to GreaterInteger(0).",
 					"startColumnIndex": 4,
 					"startRowIndex": 1,
 				},
@@ -1051,15 +1051,15 @@ f = (a: Integer) =>
 			],
 		});
 	});
-	// PositiveInteger ist And(Integer Greater(0)) und damit nie 0, passt also zu
+	// PositiveInteger ist And(Integer GreaterInteger(0)) und damit nie 0, passt also zu
 	// NonZeroInteger. Kein einzelner der beiden Choices reicht dafür aus: Integer
-	// scheitert an Not(0), Greater(0) an Integer. Erst das Zerlegen des targets zeigt es.
+	// scheitert an Not(0), GreaterInteger(0) an Integer. Erst das Zerlegen des targets zeigt es.
 	it('not-type-accepts-intersection-without-single-matching-choice', () => {
 		expectCheck('f = (x: PositiveInteger) => modulo(1 x)');
 	});
 	// Bug: getTypeError zerlegt bei args='and'/target='or' nur die args Choices
-	// (Integer, Greater(0)) und prüft jeden einzeln gegen das GANZE target - keiner
-	// reicht dafür, weil weder Integer noch Greater(0) allein Empty oder PositiveInteger
+	// (Integer, GreaterInteger(0)) und prüft jeden einzeln gegen das GANZE target - keiner
+	// reicht dafür, weil weder Integer noch GreaterInteger(0) allein Empty oder PositiveInteger
 	// erfüllt. Das target selbst wird dabei nie zerlegt (anders als beim symmetrischen
 	// Fall target='and', siehe not-type-accepts-intersection-without-single-matching-
 	// choice), obwohl PositiveInteger als zweiter Choice von Or([] PositiveInteger)
@@ -1067,25 +1067,22 @@ f = (a: Integer) =>
 	it('and-type-accepts-or-target-containing-same-intersection', () => {
 		expectCheck('f = (x: PositiveInteger) :> Or([] PositiveInteger) => x');
 	});
-	// getTypeFamily ordnet 'greater' bewusst keiner Familie zu (Integer oder Float
-	// möglich, daher keine Aussage) - dadurch liefert typesOverlap(Greater(0) 5)
-	// undefined, und Not(5) prüft das fälschlich nicht: 5 erfüllt Greater(0), Not(5)
-	// müsste es also ausschließen.
+	// 5 liegt in GreaterInteger(0), Not(5) muss die Grenze also ablehnen.
 	it('not-type-is-not-checked-against-greater', () => {
-		expectCheck('f = (positive: Greater(0)) :> Not(5) => positive', {
+		expectCheck('f = (positive: GreaterInteger(0)) :> Not(5) => positive', {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
-					message: 'Return type mismatch.\nCan not assign Greater(0) to Not(5).',
-					startColumnIndex: 40,
+					message: 'Return type mismatch.\nCan not assign GreaterInteger(0) to Not(5).',
+					startColumnIndex: 47,
 					startRowIndex: 0,
-					endColumnIndex: 48,
+					endColumnIndex: 55,
 					endRowIndex: 0,
 					relatedInformation: {
 						message: 'Declared as Not(5) here.',
-						startColumnIndex: 30,
+						startColumnIndex: 37,
 						startRowIndex: 0,
-						endColumnIndex: 36,
+						endColumnIndex: 43,
 						endRowIndex: 0,
 					},
 				},
@@ -1139,60 +1136,137 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 	// Eine obere Grenze darf nur gegen eine gleich große oder größere obere Grenze passen:
 	// Not(A) liegt genau dann in Not(B), wenn B in A liegt.
 	it('upper-bound-fits-larger-upper-bound', () => {
-		expectCheck(`f = (a: Not(Greater(2))) :> Not(Greater(3)) =>
+		expectCheck(`f = (a: Not(GreaterInteger(2))) :> Not(GreaterInteger(3)) =>
 	a`);
 	});
 	it('upper-bound-does-not-fit-smaller-upper-bound', () => {
-		expectCheck(`f = (a: Not(Greater(3))) :> Not(Greater(2)) =>
+		expectCheck(`f = (a: Not(GreaterInteger(3))) :> Not(GreaterInteger(2)) =>
 	a`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
-					message: 'Return type mismatch.\nCan not assign Not(Greater(3)) to Not(Greater(2)).',
+					message: 'Return type mismatch.\nCan not assign Not(GreaterInteger(3)) to Not(GreaterInteger(2)).',
 					startRowIndex: 1,
 					startColumnIndex: 1,
 					endRowIndex: 1,
 					endColumnIndex: 2,
 					relatedInformation: {
-						message: 'Declared as Not(Greater(2)) here.',
+						message: 'Declared as Not(GreaterInteger(2)) here.',
 						startRowIndex: 0,
-						startColumnIndex: 28,
+						startColumnIndex: 35,
 						endRowIndex: 0,
-						endColumnIndex: 43,
+						endColumnIndex: 57,
 					},
 				},
 			],
 		});
 	});
 	it('integer-upper-bound-fits-larger-integer-upper-bound', () => {
-		expectCheck(`f = (a: And(Integer Not(Greater(2)))) :> And(Integer Not(Greater(3))) =>
+		expectCheck(`f = (a: And(Integer Not(GreaterInteger(2)))) :> And(Integer Not(GreaterInteger(3))) =>
 	a`);
 	});
-	// Das Ziel-And wird zerlegt, für Not(Greater(2)) muss dann die Überlappung von
+	// Das Ziel-And wird zerlegt, für Not(GreaterInteger(2)) muss dann die Überlappung von
 	// "höchstens 3" mit "größer als 2" erkannt werden: 3 liegt in beiden.
 	it('integer-upper-bound-does-not-fit-smaller-integer-upper-bound', () => {
-		expectCheck(`f = (a: And(Integer Not(Greater(3)))) :> And(Integer Not(Greater(2))) =>
+		expectCheck(`f = (a: And(Integer Not(GreaterInteger(3)))) :> And(Integer Not(GreaterInteger(2))) =>
 	a`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
-					message: 'Return type mismatch.\nCan not assign And(Integer Not(Greater(3))) to Not(Greater(2)).',
+					message: 'Return type mismatch.\nCan not assign And(Integer Not(GreaterInteger(3))) to Not(GreaterInteger(2)).',
 					startRowIndex: 1,
 					startColumnIndex: 1,
 					endRowIndex: 1,
 					endColumnIndex: 2,
 					relatedInformation: {
-						message: 'Declared as And(Integer Not(Greater(2))) here.',
+						message: 'Declared as And(Integer Not(GreaterInteger(2))) here.',
 						startRowIndex: 0,
-						startColumnIndex: 41,
+						startColumnIndex: 48,
 						endRowIndex: 0,
-						endColumnIndex: 69,
+						endColumnIndex: 83,
 					},
 				},
 			],
 		});
 	});
 	//#endregion Not
+	//#region Grenzen
+	it('greater-integer-accepts-larger-integer', () => {
+		expectCheck('x: GreaterInteger(0) = 1');
+	});
+	it('greater-integer-is-strict', () => {
+		expectCheck('x: GreaterInteger(0) = 0', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 0 to GreaterInteger(0).',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 24,
+				},
+			],
+		});
+	});
+	// Die Familie steht im Namen: 1f ist größer als 0, aber keine ganze Zahl.
+	it('greater-integer-rejects-float', () => {
+		expectCheck('x: GreaterInteger(0) = 1f', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 1f to GreaterInteger(0).',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 25,
+				},
+			],
+		});
+	});
+	it('less-integer-accepts-smaller-integer', () => {
+		expectCheck('x: LessInteger(3) = 2');
+	});
+	it('less-integer-is-strict', () => {
+		expectCheck('x: LessInteger(3) = 3', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 3 to LessInteger(3).',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 21,
+				},
+			],
+		});
+	});
+	it('literals-below-bound-fit-less-integer', () => {
+		expectCheck(`f = (a: Or(1 2)) :> LessInteger(3) =>
+	a`);
+	});
+	it('less-integer-does-not-fit-greater-integer', () => {
+		expectCheck(`f = (a: LessInteger(3)) :> GreaterInteger(0) =>
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign LessInteger(3) to GreaterInteger(0).',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as GreaterInteger(0) here.',
+						startRowIndex: 0,
+						startColumnIndex: 27,
+						endRowIndex: 0,
+						endColumnIndex: 44,
+					},
+				},
+			],
+		});
+	});
+	//#endregion Grenzen
 	//#region generische Rückgabetypen
 	// slice liefert eine Teilliste, der Elementtyp bleibt also erhalten: aus
 	// List(Integer) wird Or([] List(Integer)), nicht Or([] List(Any)).
@@ -1219,23 +1293,23 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 	range(1 n)`);
 	});
 	it('range-elements-are-at-most-end', () => {
-		expectCheck(`f = (start: Integer) :> Or([] List(Not(Greater(0)))) =>
+		expectCheck(`f = (start: Integer) :> Or([] List(Not(GreaterInteger(0)))) =>
 	range(start 0)`);
 	});
 	// Eine unbekannte obere Grenze darf die Elemente nicht auf ihren kleinsten möglichen Wert begrenzen.
 	it('range-unknown-end-is-no-upper-bound', () => {
-		expectCheck(`f = (n: PositiveInteger) :> Or([] List(Not(Greater(1)))) =>
+		expectCheck(`f = (n: PositiveInteger) :> Or([] List(Not(GreaterInteger(1)))) =>
 	range(1 n)`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
 					endColumnIndex: 11,
 					endRowIndex: 1,
-					message: 'Return type mismatch.\nCan not assign List(And(Integer Or(1 Greater(1)) Not(Greater(PositiveInteger)))) to Or(Empty List(Not(Greater(1)))).\n  Can not assign List(And(Integer Or(1 Greater(1)) Not(Greater(PositiveInteger)))) to List(Not(Greater(1))).\n    Can not assign And(Integer Or(1 Greater(1)) Not(Greater(PositiveInteger))) to Not(Greater(1)).',
+					message: 'Return type mismatch.\nCan not assign List(Or(And(1 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(1) Not(GreaterInteger(PositiveInteger))))) to Or(Empty List(Not(GreaterInteger(1)))).\n  Can not assign List(Or(And(1 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(1) Not(GreaterInteger(PositiveInteger))))) to List(Not(GreaterInteger(1))).\n    Can not assign And(GreaterInteger(1) Not(GreaterInteger(PositiveInteger))) to Not(GreaterInteger(1)).',
 					relatedInformation: {
-						endColumnIndex: 56,
+						endColumnIndex: 63,
 						endRowIndex: 0,
-						message: 'Declared as Or(Empty List(Not(Greater(1)))) here.',
+						message: 'Declared as Or(Empty List(Not(GreaterInteger(1)))) here.',
 						startColumnIndex: 28,
 						startRowIndex: 0,
 					},
@@ -1247,18 +1321,18 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 	});
 	// Ebenso darf eine unbekannte untere Grenze die Elemente nicht über ihren kleinsten möglichen Wert heben.
 	it('range-unknown-start-is-no-strict-lower-bound', () => {
-		expectCheck(`f = (start: PositiveInteger) :> Or([] List(Greater(1))) =>
+		expectCheck(`f = (start: PositiveInteger) :> Or([] List(GreaterInteger(1))) =>
 	range(start 5)`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
 					endColumnIndex: 15,
 					endRowIndex: 1,
-					message: 'Return type mismatch.\nCan not assign List(And(Integer Or(PositiveInteger Greater(PositiveInteger)) Not(Greater(5)))) to Or(Empty List(Greater(1))).\n  Can not assign List(And(Integer Or(PositiveInteger Greater(PositiveInteger)) Not(Greater(5)))) to List(Greater(1)).\n    Can not assign And(Integer Or(PositiveInteger Greater(PositiveInteger)) Not(Greater(5))) to Greater(1).',
+					message: 'Return type mismatch.\nCan not assign List(Or(And(PositiveInteger Not(GreaterInteger(5))) And(GreaterInteger(PositiveInteger) Not(GreaterInteger(5))))) to Or(Empty List(GreaterInteger(1))).\n  Can not assign List(Or(And(PositiveInteger Not(GreaterInteger(5))) And(GreaterInteger(PositiveInteger) Not(GreaterInteger(5))))) to List(GreaterInteger(1)).\n    Can not assign And(PositiveInteger Not(GreaterInteger(5))) to GreaterInteger(1).\n    Can not assign And(GreaterInteger(PositiveInteger) Not(GreaterInteger(5))) to GreaterInteger(1).',
 					relatedInformation: {
-						endColumnIndex: 55,
+						endColumnIndex: 62,
 						endRowIndex: 0,
-						message: 'Declared as Or(Empty List(Greater(1))) here.',
+						message: 'Declared as Or(Empty List(GreaterInteger(1))) here.',
 						startColumnIndex: 32,
 						startRowIndex: 0,
 					},
@@ -1276,7 +1350,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 					code: ErrorCode.returnTypeMismatch,
 					endColumnIndex: 11,
 					endRowIndex: 1,
-					message: 'Return type mismatch.\nCan not assign List(And(Integer Or(0 Greater(0)) Not(Greater(PositiveInteger)))) to Or(Empty List(PositiveInteger)).\n  Can not assign List(And(Integer Or(0 Greater(0)) Not(Greater(PositiveInteger)))) to List(PositiveInteger).\n    Can not assign And(Integer Or(0 Greater(0)) Not(Greater(PositiveInteger))) to Greater(0).',
+					message: 'Return type mismatch.\nCan not assign List(Or(And(0 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(0) Not(GreaterInteger(PositiveInteger))))) to Or(Empty List(PositiveInteger)).\n  Can not assign List(Or(And(0 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(0) Not(GreaterInteger(PositiveInteger))))) to List(PositiveInteger).\n    Can not assign And(0 Not(GreaterInteger(PositiveInteger))) to GreaterInteger(0).',
 					relatedInformation: {
 						endColumnIndex: 56,
 						endRowIndex: 0,
@@ -1289,6 +1363,49 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 				},
 			],
 		});
+	});
+	// Der Index von repeat läuft von 1 bis count, der von forEach von 1 bis zur Länge.
+	it('repeat-index-is-at-most-count', () => {
+		expectCheck('repeat(3 (index: Not(GreaterInteger(3))) => [])');
+	});
+	it('repeat-index-can-reach-count', () => {
+		expectCheck('repeat(3 (index: Not(GreaterInteger(2))) => [])', {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'iteratee\'\n  Invalid type for parameter \'index\'\n    Can not assign And(PositiveInteger Not(GreaterInteger(3))) to Not(GreaterInteger(2)).',
+					startRowIndex: 0,
+					startColumnIndex: 9,
+					endRowIndex: 0,
+					endColumnIndex: 46,
+				},
+			],
+		});
+	});
+	it('repeat-index-with-unknown-count-is-positive', () => {
+		expectCheck(`f = (n: PositiveInteger) =>
+	repeat(n (index: PositiveInteger) => [])`);
+	});
+	it('for-each-index-is-at-most-length', () => {
+		expectCheck('[1 2 3].forEach((value index: Not(GreaterInteger(3))) => [])');
+	});
+	it('for-each-index-can-reach-length', () => {
+		expectCheck('[1 2 3].forEach((value index: Not(GreaterInteger(2))) => [])', {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'callback\'\n  Invalid type for parameter \'index\'\n    Can not assign And(PositiveInteger Not(GreaterInteger(3))) to Not(GreaterInteger(2)).',
+					startRowIndex: 0,
+					startColumnIndex: 16,
+					endRowIndex: 0,
+					endColumnIndex: 59,
+				},
+			],
+		});
+	});
+	it('for-each-index-with-unknown-length-is-positive', () => {
+		expectCheck(`f = (values: Or([] List(Integer))) =>
+	values.forEach((value index: PositiveInteger) => [])`);
 	});
 	// flatten löst eine Ebene Verschachtelung auf und erhält dabei den Elementtyp
 	// (analog zu slice-keeps-element-type): aus List(List(Integer)) wird
@@ -2799,7 +2916,7 @@ f((value: PositiveInteger) => value)`, {
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 35,
 					"endRowIndex": 1,
-					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid type for parameter 'value'\n    Can not assign Integer to Greater(0).",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid type for parameter 'value'\n    Can not assign Integer to GreaterInteger(0).",
 					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
@@ -2843,7 +2960,7 @@ f((value: Integer) => 0)`, {
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 46,
 					"endRowIndex": 3,
-					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid type for parameter 'value'\n    Can not assign 0 to Greater(0).",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid type for parameter 'value'\n    Can not assign 0 to GreaterInteger(0).",
 					"startColumnIndex": 1,
 					"startRowIndex": 3,
 				},
@@ -4060,7 +4177,7 @@ f = (x: Fraction y: Integer) :> Fraction =>
 		expect(parsed.checked?.errors).to.deep.equal([
 			{
 				code: ErrorCode.argumentTypeMismatch,
-				message: 'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign 0 to Greater(0).',
+				message: 'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign 0 to GreaterInteger(0).',
 				startRowIndex: 1,
 				startColumnIndex: 19,
 				endRowIndex: 1,
@@ -4600,14 +4717,14 @@ x: Inner = [a = []]`;
 	// Dieselbe Elaboration am Aufruf: ein falsches Argument markiert nur dieses Argument,
 	// nicht den ganzen Aufruf samt Argumentliste.
 	it('argument-error-points-at-the-argument-not-the-whole-call', () => {
-		const code = `f = (a: Integer b: Greater(0)) => a
+		const code = `f = (a: Integer b: GreaterInteger(0)) => a
 f(1 0)`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([
 			{
 				code: ErrorCode.argumentTypeMismatch,
-				message: 'Argument type mismatch.\nInvalid value for parameter \'b\'\n  Can not assign 0 to Greater(0).',
+				message: 'Argument type mismatch.\nInvalid value for parameter \'b\'\n  Can not assign 0 to GreaterInteger(0).',
 				startRowIndex: 1,
 				startColumnIndex: 4,
 				endRowIndex: 1,
@@ -5008,7 +5125,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors[0]?.message).to.equal(
-			'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign Integer to Greater(0).');
+			'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign Integer to GreaterInteger(0).');
 	});
 	// Gegenstück zu 'core-lib parses without errors' für die Checker Stufe.
 	// Regression: Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen
@@ -5433,7 +5550,7 @@ describe('constant folding', () => {
 		expect(typeOfLastDefinition('r = range(3 1)')).to.equal('Empty');
 	});
 	it('range über die Tuple-Grenze bleibt beim deklarierten Typ', () => {
-		expect(typeOfLastDefinition('r = range(1 1001)')).to.equal('Or(Empty List(And(Integer Or(1 Greater(1)) Not(Greater(1001)))))');
+		expect(typeOfLastDefinition('r = range(1 1001)')).to.equal('Or(Empty List(Or(1 And(GreaterInteger(1) Not(GreaterInteger(1001))))))');
 	});
 	it('filter faltet mit predicate', () => {
 		expect(typeOfLastDefinition(`x = [1 2 3 [] §asdf§].filter(
@@ -5799,18 +5916,18 @@ describe('bedingte Typen', () => {
 	it('K20 multiply Präfix', () => expectConditional('h = (x: Integer) => x.multiply(2)', { returnType: 'Integer' }));
 	it('K21 Faltung multiply', () => expectConditional('r = multiply(2 3)', { type: '6' }));
 	it('K21 Faltung multiply normalisiert', () => expectConditional('r = multiply(0.5 2)', { type: '1' }));
-	// Die Summe positiver Integer ist positiv, add darf Greater(0) nicht verlieren.
+	// Die Summe positiver Integer ist positiv, add darf GreaterInteger(0) nicht verlieren.
 	it('K22 add erhält die Untergrenze', () => expectConditional('h = (x: PositiveInteger) -> PositiveInteger => x.add(1)'));
 	// Gerechnet wird mit x ≥ m: PositiveInteger ist ≥ 1, das Literal ≥ 1, die Summe also ≥ 2.
-	it('K23 add rechnet die Grenze für Integer genau', () => expectConditional('h = (x: PositiveInteger) => x.add(1)', { returnType: 'And(Integer Greater(1))' }));
-	it('K24 add mit zwei Grenzen', () => expectConditional('h = (x: PositiveInteger y: PositiveInteger) => add(x y)', { returnType: 'And(Integer Greater(1))' }));
-	it('K25 add mit Greater ungleich 0', () => expectConditional('h = (x: And(Integer Greater(5))) => x.add(1)', { returnType: 'And(Integer Greater(6))' }));
-	it('K26 add mit negativem Literal', () => expectConditional('h = (x: PositiveInteger) => x.add(-5)', { returnType: 'And(Integer Greater(-5))' }));
+	it('K23 add rechnet die Grenze für Integer genau', () => expectConditional('h = (x: PositiveInteger) => x.add(1)', { returnType: 'GreaterInteger(1)' }));
+	it('K24 add mit zwei Grenzen', () => expectConditional('h = (x: PositiveInteger y: PositiveInteger) => add(x y)', { returnType: 'GreaterInteger(1)' }));
+	it('K25 add mit GreaterInteger ungleich 0', () => expectConditional('h = (x: And(Integer GreaterInteger(5))) => x.add(1)', { returnType: 'GreaterInteger(6)' }));
+	it('K26 add mit negativem Literal', () => expectConditional('h = (x: PositiveInteger) => x.add(-5)', { returnType: 'GreaterInteger(-5)' }));
 	it('K27 add ohne Grenze eines Arguments', () => expectConditional('h = (x: PositiveInteger y: Integer) => add(x y)', { returnType: 'Integer' }));
 	// Eine List ist nie leer, und jedes weitere Element ≥ 1 erhöht die Summe.
-	it('K28 add über Spread einer List', () => expectConditional('h = (xs: List(PositiveInteger)) => add(...xs)', { returnType: 'And(Integer Greater(0))' }));
+	it('K28 add über Spread einer List', () => expectConditional('h = (xs: List(PositiveInteger)) => add(...xs)', { returnType: 'GreaterInteger(0)' }));
 	// Bei m < 0 senkt jedes weitere Element die Summe, sie ist nach unten offen.
-	it('K29 add über Spread einer List mit negativer Grenze', () => expectConditional('h = (xs: List(And(Integer Greater(-3)))) => add(...xs)', { returnType: 'Integer' }));
+	it('K29 add über Spread einer List mit negativer Grenze', () => expectConditional('h = (xs: List(And(Integer GreaterInteger(-3)))) => add(...xs)', { returnType: 'Integer' }));
 	it('K11 ohne Argumente', () => {
 		expectConditional('r = add()', {
 			errors: [{ code: ErrorCode.argumentTypeMismatch, startRowIndex: 0, startColumnIndex: 4 }],

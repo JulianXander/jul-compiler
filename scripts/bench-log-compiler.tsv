@@ -172,3 +172,6 @@
 2026-09-28 12:07:35	8a53e5e+	-	ADV-DEV-56627	yugioh	parse+check	5	1573.37	1990.51	1990.51	nach: fehlendes Argument als Empty im bedingten Rückgabetyp, interval$ statt timer$
 2026-09-30 08:23:08	5eaac45	-	ADV-DEV-56627	yugioh	parse+check	5	2389.46	2555.48	2555.48	vor: obere Grenzen in Not/Not, typesOverlap und And(A Not(B))
 2026-09-30 08:23:22	5eaac45+	-	ADV-DEV-56627	yugioh	parse+check	5	2382.98	3011.38	3011.38	nach: obere Grenzen in Not/Not, typesOverlap und And(A Not(B))
+2026-09-30 09:07:25	613c1d9+	-	ADV-DEV-56627	yugioh	parse+check	5	1635.80	1971.31	1971.31	vor: GreaterInteger/LessInteger statt Greater
+2026-09-30 09:18:31	613c1d9+	-	ADV-DEV-56627	yugioh	parse+check	5	3732.47	3911.33	3911.33	nach: GreaterInteger/LessInteger statt Greater
+2026-09-30 09:20:33	613c1d9+	-	ADV-DEV-56627	yugioh	parse+check	5	1727.19	2892.13	2892.13	nach, wiederholt: GreaterInteger/LessInteger statt Greater (vorige Messung durch Last verfaelscht, im Wechsel gemessen alt 1666/1695 ms, neu 1632/1604 ms)

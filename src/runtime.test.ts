@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { reportAtCaller } from './test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
-	completed$, create$, deepEqual, delay$, findLastIndex, getElement, httpTextRequest$, Integer, multiply, or, parseJson, push, rationalToFloat,
+	completed$, create$, deepEqual, delay$, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat,
 	regex, setElement, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
 
@@ -48,6 +48,27 @@ describe('Prädikat als Typ', () => {
 		const predicate = (value: unknown) => value === 1n;
 		expect(_branch([1n], branchWithType(predicate), fallback)).to.equal('matched');
 		expect(_branch([2n], branchWithType(predicate), fallback)).to.equal('fallback');
+	});
+});
+
+describe('Grenze als Typ', () => {
+	const fallback = _createFunction(() => 'fallback', {});
+	const branchWithType = (type: unknown) => _createFunction(
+		() => 'matched',
+		{ singleNames: [{ name: 'x', type: type as any }] },
+	);
+	it('matches an integer below the bound', () => {
+		expect(_branch([-1n], branchWithType(LessInteger(0n)), fallback)).to.equal('matched');
+	});
+	it('does not match the bound itself', () => {
+		expect(_branch([0n], branchWithType(LessInteger(0n)), fallback)).to.equal('fallback');
+	});
+	// -1f ist kleiner als 0, gehört aber nicht zur Familie Integer.
+	it('does not match a float', () => {
+		expect(_branch([-1], branchWithType(LessInteger(0n)), fallback)).to.equal('fallback');
+	});
+	it('matches an integer above the bound', () => {
+		expect(_branch([1n], branchWithType(GreaterInteger(0n)), fallback)).to.equal('matched');
 	});
 });
 
