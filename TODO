@@ -1,3 +1,5 @@
+-vgl tictactoe extra args warnen
+-vgl tictactore types in import destructuring färben
 -vgl tictactoe: GameBoard wird nicht als typ gefärbt
 -tictactoe: checkWinner wird nicht gefaltet
 -field completion funktioniert nicht beim 2. feld vgl tic-tac-toe GameState currentPlayer
