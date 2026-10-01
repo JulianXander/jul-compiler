@@ -18,6 +18,7 @@
 	entsteht es trotzdem über addFloat/subtractFloat (Infinity - Infinity) und importe aus .ts/.js. dort Error
 	liefern wie parseFloat bei ungültigem text?
 ?warum getValue als Feld von Stream Instanz? alle anderen Funktionen werden mit . aufgerufen, nur getValue mit / das ist unintuitiv
+?impure variables kursiv?
 -function literal syntax überdenken, folgende form evtl erlauben, oder auto umformatieren:
 	myList.filter((x) =>
 		x.equal(true))
