@@ -11,8 +11,9 @@
 	 And(1 Not(…)) wird nicht zu 1
 -float-grenzen (GreaterFloat, LessFloat): zurückgestellt bis zum ersten realen bedarf, plan in
 	docs/number-ranges.md phase 3
--Never ist keinem Typ zuweisbar: f = (a: And(GreaterInteger(2) LessInteger(2))) :> Text => a meldet
-	"Can not assign Never to Text", obwohl die leere menge in jedem typ liegt. absicht?
+-unmögliche typen an der ursache melden (plan in docs/three-valued-assignability.md, abschnitt Never):
+	-warnung an einem parameter vom typ Never: nie aufrufbar
+	-:? ohne passenden zweig am aufrufort: gibt es dafür schon eine meldung?
 -NaN aus Float ausschließen: der typ Float enthält kein NaN (entschieden in docs/number-ranges.md), zur laufzeit
 	entsteht es trotzdem über addFloat/subtractFloat (Infinity - Infinity) und importe aus .ts/.js. dort Error
 	liefern wie parseFloat bei ungültigem text?
@@ -21,7 +22,9 @@
 	myList.filter((x) =>
 		x.equal(true))
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
--warnings bei unchecked Any zugriffen
+-warnings bei unchecked Any zugriffen: gewarnt wird, wo ein Any-Wert an ein engeres ziel geht (definition mit
+	typ, argument, rückgabewert, feldzugriff x/name wie getField). setzt auf docs/three-valued-assignability.md
+	auf (unknown mit grund any), dort auch beispiele
 -language features für embedded languages: regex, ts, js
 -userland pure nativefunctions falten
 -debug mode: throw bei violated assume und type guards

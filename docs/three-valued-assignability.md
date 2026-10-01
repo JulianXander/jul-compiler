@@ -50,13 +50,21 @@ Stand der Analyse, Zeilen in `checker.ts` bzw. `branch-dispatch.ts`:
 
 ## Modell
 
+Gefragt ist: Liegt jeder Wert der Quelle im Ziel?
+
+- **yes:** bewiesen, jeder Wert liegt darin.
+- **no:** bewiesen, mindestens ein Wert liegt nicht darin.
+- **unknown:** nicht entscheidbar.
+
+Gemeldet wird nur no, gefolgert nur aus yes.
+
 Ein Kern liefert drei Werte, die bisherigen Funktionen werden zu dünnen Hüllen darum:
 
 ```ts
 type Assignability =
 	| { result: 'yes'; }
 	| { result: 'no'; error: TypeError; }
-	| { result: 'unknown'; };
+	| { result: 'unknown'; fromAny: boolean; };
 
 function getAssignability(prefixArgumentType, argumentsType, targetType): Assignability;
 
@@ -67,7 +75,13 @@ isSubtypeOf = (…) => assignability.result === 'yes';
 isNotSubtypeOf = (…) => assignability.result === 'no';
 ```
 
-`'yes'` und `'unknown'` sind Konstanten, nur `'no'` erzeugt ein Objekt. Die Meldungen bleiben
+`'yes'` und die beiden `'unknown'` sind Konstanten, nur `'no'` erzeugt ein Objekt.
+
+`fromAny` sagt, ob ein `Any` als Quelle beteiligt ist. Die geplante Warnung (siehe unten) braucht
+das, denn Typen, die erst am Aufrufort feststehen, dürfen nicht warnen, und `Any` kann
+verschachtelt sein (`[a = Any]` → `[a: Text]`), sodass nur die Prüfung selbst es weiß. Beim
+Verknüpfen gewinnt `Any`: Ein zusammengesetztes unknown ist `fromAny`, sobald ein beteiligtes
+es ist. Die Meldungen bleiben
 unverändert, sie hängen weiter am `TypeError` des Nein.
 
 ### Verknüpfung
@@ -87,10 +101,17 @@ Das sind rund 63, davon 13 ausdrücklich als nachsichtig kommentiert.
 - **yes:** Ziel `Any`, gleiche Referenz (`argumentsType === targetType`), alle heutigen
   Strukturregeln, die eine Teilmenge tatsächlich zeigen (Literal in Basistyp, Bereich in Bereich,
   Tuple elementweise usw.)
-- **unknown:** Quelle `Any`; `parameterReference`, `nestedReference`, `parameters`, `concat`,
-  `add`, `mapElements`, `conditional`, `withElementAt` auf beiden Seiten; `Not` als Quelle außerhalb
-  der exakten Regeln; Prädikat als Ziel (liegt nur in der Obermenge); der Stapel für rekursive
-  Aliase (wie TypeScripts `Maybe`) und die Tiefengrenze der Alias-Expansion
+- **unknown:** Quelle `Any`, denn sie kommt aus Ungetyptem (übersprungene Datei, `runJs`, Import
+  ohne Typen) und hat einen bestimmten, nur unbekannten Typ. Als no wäre jeder ungetypte Wert ein
+  Fehler, als yes dürfte das Normalisieren `Or(Any Integer)` zu `Integer` machen. Das entspricht
+  dem heutigen Verhalten. `parameterReference`, `nestedReference`, `parameters`, `concat`,
+  `add`, `mapElements`, `conditional`, `withElementAt` auf beiden Seiten; Prädikat als Ziel,
+  wenn der Wert nur in der Obermenge liegt (gewollt: ein Prädikat ist ein Vertrag, den die
+  Laufzeit prüft); der Stapel für rekursive Aliase (wie TypeScripts `Maybe`) und die Tiefengrenze
+  der Alias-Expansion
+- **`Not` als Quelle** wird genau (Schritt in Phase 2): no, außer das Ziel deckt alles außer der
+  Quelle des `Not` ab (`Any`, `Not(B)` mit `B ⊆ A`, `Or(A …)`), dann yes. Heute lässt die
+  nachsichtige Regel `(a: Not(0)) => a.add(1)` ohne Fehler durch, obwohl `a` Text sein kann.
 - **`lengthOf` als Ziel**, ein offener Einzelwert wie ein abstrakter Typ mit oberer Schranke:
   yes bei derselben Länge (`typeEquals`) und bei `Never`, no bei einer Quelle ohne Überschneidung
   mit `PositiveInteger` (`0`, Text), sonst unknown. Als Quelle bleibt es `PositiveInteger`.
@@ -128,6 +149,13 @@ Vereinfachung von `And(A Not(B))`, die Grenzen-Tests.
   Teilmenge zeigen, und auf yes umstellen. Die Verknüpfung für `And`/`Or` gemäß Tabelle.
 - Nach jedem Switch die Suite. Solange die Folgernden noch über `hasReliableTypeError` gehen,
   ändert sich das Verhalten nicht.
+- `Never` als Quelle wird yes (siehe Abschnitt `Never`).
+- **Eigener Schritt: `Not` als Quelle genau machen.** `Not(A)` liegt genau dann in `T`, wenn `T`
+  alles außer `A` abdeckt: yes bei `Any`, bei `Not(B)` mit `B ⊆ A` (gibt es schon) und bei einem
+  `Or`, das `A` und den Rest enthält; sonst no. Die exakten Regeln für `And(A Not(B))` bleiben.
+  Das ändert Verhalten: Bisher fehlerfreier Code wie `(a: Not(0)) => a.add(1)` meldet jetzt einen
+  Fehler. Bricht dabei Code, in dem die Inferenz ein `Not` ohne seinen Grundtyp liefert, ist die
+  Inferenz zu korrigieren, nicht die Regel. Abnahme: Suite, Snapshot, yugioh, jul-examples.
 
 ### Phase 3: Folgernde umstellen
 
@@ -146,12 +174,53 @@ Vereinfachung von `And(A Not(B))`, die Grenzen-Tests.
 - `forEach`, `repeat` und `range` schreiben die obere Grenze als `Or(end LessInteger(end))`.
   Der Abschnitt „Ausnahme" in [number-ranges.md](number-ranges.md) und der TODO-Eintrag entfallen.
 
-## Entscheidungspunkte
+## Anschluss: Warnung bei unsicheren Zugriffen auf `Any`
 
-- **`Never` als Quelle:** heute ist es keinem Typ zuweisbar (`Can not assign Never to Text`, siehe
-  `TODO`). Als leere Menge wäre es überall yes. Vor Phase 2 entscheiden, ob das Absicht ist.
-- **`Any` als Quelle:** unknown (so vorgeschlagen) oder yes? Für das Melden gleich, für das
-  Normalisieren nicht: yes würde `Or(Any Integer)` zu `Integer` machen können.
+Nicht Teil dieses Plans, setzt aber auf ihm auf. Gewarnt wird, wo ein `Any`-Wert an ein engeres
+Ziel geht: Definition mit Typ, Argument, Rückgabewert und Feldzugriff, denn `x/name` ist wie der
+Aufruf von `getField`. Der Wert selbst und seine Weitergabe an ein Ziel, das `Any` erlaubt,
+warnen nicht.
+
+```jul
+x = runJs(§…§)        # Any, keine Warnung
+name = x/name         # Warnung: Any an den Feldzugriff, name ist Any
+log(name)             # log erlaubt Any, keine Warnung
+w: Text = name        # Warnung
+```
+
+Die meldenden Stellen geben dann zu no einen Fehler aus, zu unknown mit `fromAny` eine Warnung und
+sonst nichts: Typen, die erst am Aufrufort feststehen, und Prädikate als Ziel bleiben stumm wie
+heute. `Not` als Quelle ist nach Phase 2 genau und liefert no statt unknown. Weitere Fälle werden
+ebenso über genaue Regeln gelöst, nicht über weitere Gründe.
+
+Ein eigener Typ `Unknown` (strenger oberster Typ wie in TypeScript) ist damit nicht nötig: `Any`
+mit dieser Warnung verhält sich wie `unknown`, nur mit Warnung statt Fehler.
+
+## `Never`
+
+**Entschieden:** `Never` als Quelle ist überall yes, als leere Menge liegt es in jedem Typ. So
+halten es auch TypeScript (`never`), Kotlin und Scala (`Nothing`) und Rust (`!`). Heute ist es
+keinem Typ zuweisbar. Das wird in Phase 2 mit umgestellt, das Normalisieren braucht dann keinen
+Sonderfall mehr für `Or(Never X)`. Als Ziel bleibt `Never` streng: Ein Wert passt nie hinein,
+`f(5)` an `(a: Never)` bleibt ein Fehler.
+
+Damit ein unmöglicher Typ trotzdem auffällt, wird er dort gemeldet, wo er entsteht, nicht wo er
+benutzt wird. Eigener Schritt nach Phase 2:
+- Warnung an einem Parameter, dessen Typ `Never` ist: Er kann keinen Wert annehmen, die Funktion
+  ist nie aufrufbar.
+- `:?` ohne passenden Zweig am Aufrufort: prüfen, ob es dafür schon eine Meldung gibt, sonst eine
+  einführen.
+
+Heute meldet stattdessen jede Verwendung (`Can not assign Never to Integer`), und gar nichts,
+wenn der Parameter nur an `Any` geht:
+
+```jul
+# gemeint: 1 bis 9
+inRange = (index: And(GreaterInteger(10) LessInteger(0))) =>
+	log(index)        # heute nichts, danach nichts
+	index.add(1)      # heute Fehler mit Never, danach nichts
+# danach: eine Warnung an index
+```
 
 ## Nicht Teil dieses Plans
 
