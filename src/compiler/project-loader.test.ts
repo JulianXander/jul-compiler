@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import { join, resolve } from 'path';
-import { ParsedDocuments } from './checker/checker.js';
-import { ErrorCode } from './compiler-errors.js';
+import { ParsedDocuments } from '../checker/checker.js';
+import { ErrorCode } from '../compiler-errors.js';
 import { createInMemoryHost, loadFile, ProjectHost } from './project-loader.js';
-import { ParsedFile } from './syntax-tree.js';
-import { reportAtCaller } from './test-util.js';
+import { ParsedFile } from '../syntax-tree.js';
+import { reportAtCaller } from '../test-util.js';
 
 // Ein ausgedachter Ordner - die Dateien gibt es nur im Speicher.
 const root = resolve('/project-loader-test');

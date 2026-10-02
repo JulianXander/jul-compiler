@@ -5,7 +5,7 @@ import { basename, join, relative, resolve } from 'path';
 
 import { resolvePlaceholders, checkerStats, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
 import { errorInfos } from '../compiler-errors.js';
-import { createFileSystemHost, loadFile } from '../project-loader.js';
+import { createFileSystemHost, loadFile } from '../compiler/project-loader.js';
 import { ParsedFile } from '../syntax-tree.js';
 
 /**

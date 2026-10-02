@@ -3,7 +3,7 @@ import { join, resolve } from 'path';
 import { pathToFileURL } from 'url';
 import { deepEqual, equal } from './runtime.js';
 import { _runTests, _testCall, test, TestLocation, TestResult } from './test-runtime.js';
-import { reportAtCaller } from './test-util.js';
+import { reportAtCaller } from '../test-util.js';
 
 /**
  * Registriert über register und prüft die gemeldeten Ergebnisse von _runTests samt Zählung.

@@ -6,9 +6,9 @@
 // erzeugte einen Zyklus. Bewusst ohne Abhängigkeit von checker.ts (siehe buildEnvironment): die
 // Zusage "ohne laufenden Checker testbar" gilt weiter für die reine Typübersetzung, nicht mehr für
 // die Ausführung - die braucht zwangsläufig einen bereits geprüften Baum.
-import * as runtime from '../runtime.js';
-import { _julTypeSymbol } from '../runtime.js';
-import { functionLiteralToEvaluableJs } from '../emitter.js';
+import * as runtime from '../runtime/runtime.js';
+import { _julTypeSymbol } from '../runtime/runtime.js';
+import { functionLiteralToEvaluableJs } from '../compiler/emitter.js';
 import { escapeReservedJsVariableName } from '../util.js';
 import {
 	builtinEmpty,

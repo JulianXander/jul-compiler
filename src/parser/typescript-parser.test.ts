@@ -4,7 +4,7 @@ import { parseTsCode } from './typescript-parser.js';
 import { parseCode } from './parser.js';
 import { checkTypes, isFunctionType, ParsedDocuments, typeToString } from '../checker/checker.js';
 import { ErrorCode } from '../compiler-errors.js';
-import { createInMemoryHost, loadFile } from '../project-loader.js';
+import { createInMemoryHost, loadFile } from '../compiler/project-loader.js';
 import { ParsedFile, ParseSingleDefinition, TypePurity } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
 

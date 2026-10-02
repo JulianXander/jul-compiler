@@ -1,5 +1,5 @@
 import { extname, join } from 'path';
-import * as runtime from '../runtime.js';
+import * as runtime from '../runtime/runtime.js';
 import { constantValueToType, resetFoldBudget, typeToConstantValue, tryBuildCallable } from './constant-folding.js';
 import {
 	BracketedExpression,
@@ -3379,17 +3379,17 @@ function inferType(
 					// von vorherigen Branches abgedeckt wird. Sonderfall: () ist orthogonal zu
 					// konkreten Typ-Köpfen, kann aber gegen einen anderen () unreachable sein.
 					const currentParamsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
-					
+
 					// Any ist ein Typ-Kopf catchAll und kann nicht unreachable sein
 					if (currentParamsType.julType === 'any') {
 						return;
 					}
-					
+
 					const previousTypes = branches.slice(0, index).map(previousBranch => {
 						const ty = previousBranch.typeInfo && resolvePlaceholders(previousBranch.typeInfo.type);
 						return getParamsType(ty);
 					});
-					
+
 					// Spezialfall: () vs () ist unreachable
 					if (currentParamsType.julType === 'empty') {
 						const previousHasEmpty = previousTypes.some(t => t.julType === 'empty');
@@ -3405,7 +3405,7 @@ function inferType(
 						}
 						return;
 					}
-					
+
 					// Extrahiere Argument-Typen aller vorherigen Branches (Typ-Kopf-Elementen)
 					// und kombiniere sie zu einer Union. () hat keinen Argument-Typ (undefined).
 					// Spezialfall: Any und untypisierte Parameter sind catchAll — sie sind nie unreachable
@@ -3426,12 +3426,12 @@ function inferType(
 							previousArgumentTypes.push(argType);
 						}
 					}
-					
+
 					if (previousArgumentTypes.length === 0) {
 						// Keine konkreten vorherigen Branches
 						return;
 					}
-					
+
 					// Argument-Typ des aktuellen Branches
 					const currentArgumentType = getBranchArgumentType(currentParamsType, 0);
 					if (!currentArgumentType) {
@@ -3440,15 +3440,15 @@ function inferType(
 						// TODO: Prädikat-Fakten checken falls nötig
 						return;
 					}
-					
+
 					// Any ist auch bei Parameter-Elementen ein catchAll
 					if (currentArgumentType.julType === 'any') {
 						return;
 					}
-					
+
 					// Kombiniere vorherige Argument-Typen zu Union
 					const combinedPreviousArgumentType = createNormalizedUnionType(previousArgumentTypes);
-					
+
 					// Prüfe ob currentArgumentType Teilmenge von combinedPreviousArgumentType ist.
 					// areArgsAssignableTo gibt einen Error zurück wenn NICHT assignierbar (nicht ⊆),
 					// undefined wenn OK (d.h. assignierbar).
@@ -3633,13 +3633,13 @@ function inferType(
 					// einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle).
 					const innerPosition = dereferencedTargetType && findInnermostErrorPosition(value);
 					const position = innerPosition ?? expression;
-					
+
 					// Ob die umhüllende "Can not assign X to Y."-Zeile fehlt, entscheidet
 					// getTypeError bereits an der Quelle (case 'dictionaryLiteral': in
 					// getTypeError, hasMultipleFields) - hier nur noch die fertige Meldung
 					// übernehmen, kein nachträgliches Textschneiden mehr.
 					const message = `Definition type mismatch.\n${assignmentError}`;
-					
+
 					errors.push({
 						code: ErrorCode.definitionTypeMismatch,
 						message,
@@ -3713,7 +3713,7 @@ function inferType(
 				const fieldType = readsByPosition
 					? dereferenceIndexFromObject(index + 1, valueType)
 					: dereferenceNameFromObject(referenceName, valueType)
-						?? dereferenceIndexFromObject(index + 1, valueType);
+					?? dereferenceIndexFromObject(index + 1, valueType);
 				if (!fieldType) {
 					allFieldsResolved = false;
 					errors.push({
@@ -6945,9 +6945,9 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 				})
 				&& (first.rest === undefined && second.rest === undefined
 					|| first.rest !== undefined && second.rest !== undefined
-						&& first.rest.name === second.rest.name
-						&& (first.rest.type === undefined && second.rest.type === undefined
-							|| first.rest.type !== undefined && second.rest.type !== undefined && typeEquals(first.rest.type, second.rest.type)));
+					&& first.rest.name === second.rest.name
+					&& (first.rest.type === undefined && second.rest.type === undefined
+						|| first.rest.type !== undefined && second.rest.type !== undefined && typeEquals(first.rest.type, second.rest.type)));
 		case 'predicate':
 			return second.julType === 'predicate'
 				&& isSamePredicate(first, second);
@@ -7772,8 +7772,8 @@ function getTypeErrorAtDepth(
 	if (fitsRange === false) {
 		return getTypeErrorByStructure(prefixArgumentType, argumentsType, targetType)
 			?? {
-				message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
-			};
+			message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+		};
 	}
 	return getTypeErrorByStructure(prefixArgumentType, argumentsType, targetType);
 }
@@ -9099,7 +9099,7 @@ function dictionaryTypeToString(
 		(element, key) => {
 			return `${key}${nameSeparator}${typeToString(element, newIndent, depth, suppressAlias)}`;
 		});
-	
+
 	// Begrenzen bei zu vielen Feldern: zeige maxFieldsInTypeDump Felder, dann "and N more"
 	let displayFields = allFields;
 	if (allFields.length > maxFieldsInTypeDump) {
@@ -9108,7 +9108,7 @@ function dictionaryTypeToString(
 			`(and ${allFields.length - maxFieldsInTypeDump} more field${allFields.length - maxFieldsInTypeDump === 1 ? '' : 's'})`,
 		];
 	}
-	
+
 	return bracketedExpressionToString(
 		displayFields,
 		multiline,

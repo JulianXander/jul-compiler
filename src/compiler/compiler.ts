@@ -6,14 +6,14 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { format } from 'util';
 import webpack from 'webpack';
 import { SourceMapping, syntaxTreeToJsWithMappings } from './emitter.js';
-import { shakeRuntime } from './runtime-shaking.js';
-import { _runTests, TestLocation, TestResult } from './test-runtime.js';
-import { ParsedDocuments } from './checker/checker.js';
-import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from './compiler-errors.js';
+import { shakeRuntime } from '../runtime/runtime-shaking.js';
+import { _runTests, TestLocation, TestResult } from '../runtime/test-runtime.js';
+import { ParsedDocuments } from '../checker/checker.js';
+import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from '../compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
-import { parseTodoComments, TodoComment } from './parser/comment-directives.js';
-import { ParsedFile } from './syntax-tree.js';
-import { Extension, changeExtension, executingDirectory, tryCreateDirectory } from './util.js';
+import { parseTodoComments, TodoComment } from '../parser/comment-directives.js';
+import { ParsedFile } from '../syntax-tree.js';
+import { Extension, changeExtension, executingDirectory, tryCreateDirectory } from '../util.js';
 import { load } from 'js-yaml';
 import typescript from 'typescript';
 const { ModuleKind, transpileModule } = typescript;
@@ -755,7 +755,7 @@ export function formatErrors(
 		].join('\n');
 		const related = error.relatedInformation;
 		const relatedFilePath = related?.filePath ?? filePath;
-		const spans: { positioned: Positioned; label: string | undefined; filePath: string }[] = [
+		const spans: { positioned: Positioned; label: string | undefined; filePath: string; }[] = [
 			{ positioned: error, label: undefined, filePath },
 		];
 		if (related) {

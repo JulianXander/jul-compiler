@@ -1,9 +1,9 @@
 import { existsSync } from 'fs';
-import { CheckOptions, checkTypes, ParsedDocuments } from './checker/checker.js';
-import { ErrorCode } from './compiler-errors.js';
-import { parseCode } from './parser/parser.js';
-import { ParsedFile } from './syntax-tree.js';
-import { readTextFile } from './util.js';
+import { CheckOptions, checkTypes, ParsedDocuments } from '../checker/checker.js';
+import { ErrorCode } from '../compiler-errors.js';
+import { parseCode } from '../parser/parser.js';
+import { ParsedFile } from '../syntax-tree.js';
+import { readTextFile } from '../util.js';
 
 /**
  * Der einzige Weg von einer Datei zum geprüften Baum samt Abhängigkeiten - für CLI, Language

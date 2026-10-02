@@ -12,16 +12,16 @@ import {
 	ParseReference,
 	PositionedExpression,
 	SimpleExpression,
-} from './syntax-tree.js';
-import { Positioned } from './compiler-errors.js';
-import * as runtime from './runtime.js';
-import * as testRuntime from './test-runtime.js';
-import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from './util.js';
+} from '../syntax-tree.js';
+import { Positioned } from '../compiler-errors.js';
+import * as runtime from '../runtime/runtime.js';
+import * as testRuntime from '../runtime/test-runtime.js';
+import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from '../util.js';
 import { dirname, extname, isAbsolute, join } from 'path';
-import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from './parser/parser.js';
-import { getCheckedEscapableName, getTestCallArguments } from './parser/parser-utils.js';
-import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from './checker/branch-dispatch.js';
-import { isFunctionType, resolveAlias, resolvePlaceholders } from './checker/checker.js';
+import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
+import { getCheckedEscapableName, getTestCallArguments } from '../parser/parser-utils.js';
+import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
+import { isFunctionType, resolveAlias, resolvePlaceholders } from '../checker/checker.js';
 
 const runtimeKeys = Object.keys(runtime);
 const testRuntimeKeys = Object.keys(testRuntime);

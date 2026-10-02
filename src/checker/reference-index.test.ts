@@ -3,7 +3,7 @@ import { join, resolve } from 'path';
 
 import { checkTypes, ParsedDocuments } from './checker.js';
 import { errorInfos } from '../compiler-errors.js';
-import { createInMemoryHost, loadFile, ProjectHost } from '../project-loader.js';
+import { createInMemoryHost, loadFile, ProjectHost } from '../compiler/project-loader.js';
 import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
 import { ReferenceIndex } from './reference-index.js';
 

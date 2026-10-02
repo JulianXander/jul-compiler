@@ -33,7 +33,6 @@ import {
 	ParseExpression,
 	ParseFieldBase,
 	ParseFunctionCall,
-	ParseFunctionTypeLiteral,
 	ParseListLiteral,
 	ParseListValue,
 	ParseNestedReference,
@@ -75,12 +74,12 @@ import {
 	setParentsRecursive,
 } from './parser-utils.js';
 import { basename, dirname, extname, join } from 'path';
-import { _parseJson, normalizeRational } from '../runtime.js';
+import { _parseJson, normalizeRational } from '../runtime/runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
 
 const coreLibFileName = 'core-lib.jul';
-export const coreLibPath = join(executingDirectory, coreLibFileName);
+export const coreLibPath = join(executingDirectory, 'runtime', coreLibFileName);
 
 /**
  * Ist die Datei die core-lib?
@@ -2516,64 +2515,64 @@ interface ParseMissingField {
 function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase | undefined)[]> {
 	const { opening, closing } = brackets[kind];
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-	const result = sequenceParser(
-		opening,
-		fieldParser,
-		multiplicationParser(
-			0,
-			undefined,
-			sequenceParser(
-				spaceParser,
-				discriminatedChoiceParser(
-					// missing field
-					{
-						predicate: choiceParser(spaceParser, closing),
-						parser: mapParser(
-							emptyParser,
-							(emptyResult) => {
-								const missingField: ParseMissingField = {
-									type: 'missingField',
-									rowIndex: emptyResult.endRowIndex,
-									columnIndex: emptyResult.endColumnIndex,
-								};
-								return missingField;
-							}),
-					},
-					{
-						predicate: emptyParser,
-						parser: fieldParser,
-					},
+		const result = sequenceParser(
+			opening,
+			fieldParser,
+			multiplicationParser(
+				0,
+				undefined,
+				sequenceParser(
+					spaceParser,
+					discriminatedChoiceParser(
+						// missing field
+						{
+							predicate: choiceParser(spaceParser, closing),
+							parser: mapParser(
+								emptyParser,
+								(emptyResult) => {
+									const missingField: ParseMissingField = {
+										type: 'missingField',
+										rowIndex: emptyResult.endRowIndex,
+										columnIndex: emptyResult.endColumnIndex,
+									};
+									return missingField;
+								}),
+						},
+						{
+							predicate: emptyParser,
+							parser: fieldParser,
+						},
+					),
 				),
 			),
-		),
-		closing,
-	)(rows, startRowIndex, startColumnIndex, indent);
-	const errors = result.errors ?? [];
-	const parsed = result.parsed && [
-		result.parsed[1],
-		...result.parsed[2].map(sequence => {
-			const field = sequence[1];
-			if (field.type === 'missingField') {
-				errors.push({
-					// TODO error message abhängig von der Art der erwarteten expression? (field vs value)
-					code: ErrorCode.expectedExpression,
-					message: 'expression expected',
-					// TODO get position from empty
-					startRowIndex: field.rowIndex,
-					startColumnIndex: field.columnIndex,
-					endRowIndex: field.rowIndex,
-					endColumnIndex: field.columnIndex,
-				});
-				return undefined;
-			}
-			return field;
-		}),
-	];
-	return {
-		...result,
-		parsed: parsed,
-		errors: errors,
-	};
+			closing,
+		)(rows, startRowIndex, startColumnIndex, indent);
+		const errors = result.errors ?? [];
+		const parsed = result.parsed && [
+			result.parsed[1],
+			...result.parsed[2].map(sequence => {
+				const field = sequence[1];
+				if (field.type === 'missingField') {
+					errors.push({
+						// TODO error message abhängig von der Art der erwarteten expression? (field vs value)
+						code: ErrorCode.expectedExpression,
+						message: 'expression expected',
+						// TODO get position from empty
+						startRowIndex: field.rowIndex,
+						startColumnIndex: field.columnIndex,
+						endRowIndex: field.rowIndex,
+						endColumnIndex: field.columnIndex,
+					});
+					return undefined;
+				}
+				return field;
+			}),
+		];
+		return {
+			...result,
+			parsed: parsed,
+			errors: errors,
+		};
 	};
 }
 

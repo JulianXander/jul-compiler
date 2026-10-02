@@ -5,8 +5,8 @@ import { join, resolve } from 'path';
 import { SourceMapConsumer } from 'source-map';
 
 import { createSourceMap, createTestReport, formatErrors, formatTestResult, formatTodoList, LiveRenderer, toReportResult } from './compiler.js';
-import { CompilerError, ErrorCode } from './compiler-errors.js';
-import { parseTodoComments } from './parser/comment-directives.js';
+import { CompilerError, ErrorCode } from '../compiler-errors.js';
+import { parseTodoComments } from '../parser/comment-directives.js';
 import { createInMemoryHost } from './project-loader.js';
 
 // eslint-disable-next-line no-control-regex

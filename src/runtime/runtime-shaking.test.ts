@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { shakeRuntime } from './runtime-shaking.js';
-import { reportAtCaller } from './test-util.js';
+import { reportAtCaller } from '../test-util.js';
 
 /**
  * Vergleicht zeilenweise ohne Leerzeilen am Rand. Dass die Zeilennummern gleich bleiben, prüft ein

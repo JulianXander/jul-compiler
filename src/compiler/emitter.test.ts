@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import { parseCode } from './parser/parser.js';
-import { checkTypes } from './checker/checker.js';
-import { errorInfos } from './compiler-errors.js';
+import { parseCode } from '../parser/parser.js';
+import { checkTypes } from '../checker/checker.js';
+import { errorInfos } from '../compiler-errors.js';
 import { functionLiteralToEvaluableJs, getUsedRuntimeNames, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
-import { ParseFunctionLiteral, ParseSingleDefinition } from './syntax-tree.js';
-import { reportAtCaller } from './test-util.js';
-import * as runtime from './runtime.js';
+import { ParseFunctionLiteral, ParseSingleDefinition } from '../syntax-tree.js';
+import { reportAtCaller } from '../test-util.js';
+import * as runtime from '../runtime/runtime.js';
 
 /**
  * Die Import-Zeilen am Anfang, welche Namen sie enthalten, prüft der Abschnitt Runtime-Import.
