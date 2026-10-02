@@ -1,6 +1,7 @@
 -vgl tictactoe extra args warnen
 -vgl tictactore types in import destructuring färben
 -vgl tictactoe: GameBoard wird nicht als typ gefärbt
+-lsp output: [error] SyntaxKind for Name not implemented yet: ObjectBindingPattern
 -tictactoe: checkWinner wird nicht gefaltet
 -field completion funktioniert nicht beim 2. feld vgl tic-tac-toe GameState currentPlayer
 	-konnte nicht reproduziert werden
