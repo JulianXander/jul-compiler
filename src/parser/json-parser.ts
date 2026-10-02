@@ -1,7 +1,7 @@
-import { JsonValue } from "../runtime.js";
-import { Name, ParseDictionaryLiteral, ParseExpression, ParseSingleDictionaryField, ParsedExpressions, SymbolDefinition } from "../syntax-tree.js";
-import { mapDictionary } from "../util.js";
-import { Positioned } from "../compiler-errors.js";
+import { JsonValue } from '../runtime/runtime.js';
+import { Name, ParseDictionaryLiteral, ParseExpression, ParseSingleDictionaryField, ParsedExpressions, SymbolDefinition } from '../syntax-tree.js';
+import { mapDictionary } from '../util.js';
+import { Positioned } from '../compiler-errors.js';
 
 export function jsonValueToParsedExpressions(jsonValue: JsonValue): ParsedExpressions {
 	const ast = jsonValueToJulAst(jsonValue);

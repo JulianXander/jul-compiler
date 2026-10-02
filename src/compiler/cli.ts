@@ -4,7 +4,7 @@ import { load } from 'js-yaml';
 import { dirname, join } from 'path';
 import { compileProject, listTodos, testProject } from './compiler.js';
 import configSchema from './jul-config-schema.json' with { type: 'json' };
-import { executingDirectory, readTextFile } from './util.js';
+import { executingDirectory, readTextFile } from '../util.js';
 
 interface JulCompilerConfiguration {
 	entryFilePath: string;
