@@ -978,7 +978,12 @@ aggregate = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> TypeOf(callback)/ReturnType
+	)
+		:>
+			:?(TypeOf(values))
+				[Empty] => TypeOf(initialValue)
+				[List(Any)] => TypeOf(callback)/ReturnType
+				() => Or(TypeOf(initialValue) TypeOf(callback)/ReturnType)
 	§js
 		(values, initialValue, callback) => {
 			if (!values) {
