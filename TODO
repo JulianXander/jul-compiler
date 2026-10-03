@@ -7,6 +7,10 @@
 	-konnte nicht reproduziert werden
 -float-grenzen (GreaterFloat, LessFloat): zurückgestellt bis zum ersten realen bedarf, plan in
 	docs/number-ranges.md phase 3
+?aggregate: wie wird der akkumulator getypt? heute Any (12 unknown in yugioh). TypeOf(initialValue)
+	macht ein literal (aggregate(0 …)) zum typ, nach der ersten runde stimmt das nicht mehr. wie
+	TypeScript (reduce<U>, callback liefert U) braucht literal-erweiterung, die JUL nicht hat.
+	Or(TypeOf(initialValue) TypeOf(callback)/ReturnType) ist zirkulär. siehe docs/three-valued-assignability.md
 -unmögliche typen an der ursache melden (plan in docs/three-valued-assignability.md, abschnitt Never):
 	-warnung an einem parameter vom typ Never: nie aufrufbar
 	-:? ohne passenden zweig am aufrufort: gibt es dafür schon eine meldung?
@@ -71,6 +75,9 @@
 	mit einem positiven Float-typ, oder so lassen?
 	-der timeout liefert vorerst einen gewöhnlichen Error mit meldung, unterscheidbar von anderen
 	 fehlern erst, wenn die fehlerbehandlung von httpRequest$ ohnehin überarbeitet wird (TODO dort)
+?httpRequest$ als primitiv ohne verlorene information: status, header, fehler-body, download-
+	fortschritt als zwischenwerte im stream, leerlauf-timeout. text/blob-varianten nur noch
+	abkürzungen. reine idee, siehe docs/backlog/http-request.md
 -lebensdauer-analyse für streams umsetzen, schritte in docs/stream-lifetimes.md (Umsetzung)
 -httpRequest$: complete auf einen laufenden request bricht fetch ab, der catch-zweig pusht dann den
 	AbortError auf den schon beendeten stream, push wirft "Can not push to completed stream." als

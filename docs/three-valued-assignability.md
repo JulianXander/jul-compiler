@@ -277,9 +277,10 @@ Die meisten melden kein Risiko im Programm, sondern Schwächen von Checker und c
 
 Deshalb vor der Warnung, jeweils mit neuer Zählung danach:
 
-- **a. core-lib:** `aggregate` mit generischem Akkumulator, die Funktion finden, die
-  `Dictionary(Any)` erzeugt, `Any` als Typwert als Typ behandeln, die unaufgelösten
-  Parameterverweise in den eigenen Signaturen.
+- **a. core-lib:** `setField`, `toList` und `toDictionary` behalten den Elementtyp (umgesetzt,
+  yugioh 215 → 182). `Blob` fehlte in `coreBuiltInSymbolTypes` und war damit `Any` (roter Test
+  `blob-rejects-integer`). Zurückgestellt: der Akkumulator von `aggregate` (12 Fälle in yugioh),
+  siehe `TODO`. Die unaufgelösten Parameterverweise in den Signaturen der core-lib gehören zu b.
 - **b. Checker:** Parameter von Callbacks, deren Typ aus dem erwarteten Typ kommt
   (`TypeOf(x)/ElementType`), am Aufruf auflösen.
 - **c.** Neu zählen. Erst wenn fast nur noch echte Fälle übrig sind (DOM, `runJs`), die Warnung
