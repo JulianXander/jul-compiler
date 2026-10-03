@@ -184,3 +184,5 @@
 2026-10-03 11:01:54	3ea25f6+	-	ADV-DEV-56627	yugioh	parse+check	5	1567.88	1978.63	1978.63	nach: Phase 3 komplett (Korrekturen isBranchingExhaustive, Spread unvollstaendiger Dictionaries)
 2026-10-03 11:06:06	1060dc0+	-	ADV-DEV-56627	yugioh	parse+check	5	1872.49	2002.41	2002.41	nach: dreiwertige Zuweisbarkeit Phase 4 (lengthOf als Ziel, Or-Form der oberen Grenzen)
 2026-10-03 11:18:22	9e1f78e+	-	ADV-DEV-56627	yugioh	parse+check	5	1677.05	2122.39	2122.39	nach: Empfaenger als erstes Argument (Concat), isTypeAssignable ohne prefixArgumentType
+2026-10-03 11:32:39	9199117+	-	ADV-DEV-56627	yugioh	parse+check	5	1596.35	1958.59	1958.59	nach: Empfaenger in der Argumentkollektion (bindReceiver/splitReceiver)
+2026-10-03 11:34:31	9199117+	-	ADV-DEV-56627	yugioh	parse+check	5	1622.13	1960.89	1960.89	nach: benannte Argumente im Parameterverweis (dereferenceParameterFromArgumentType)

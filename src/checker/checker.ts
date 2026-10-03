@@ -1404,13 +1404,11 @@ function findParameterSymbol(
 
 function dereferenceArgumentTypesNested(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 	typeToDereference: CompileTimeType,
 ): CompileTimeType {
 	return traversePlaceholders(typeToDereference, {
 		calledFunction: calledFunction,
-		prefixArgumentType: prefixArgumentType,
 		argsType: argsType,
 	});
 }
@@ -1426,7 +1424,6 @@ function dereferenceArgumentTypesNested(
  */
 function dereferenceCallbackParams(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 	paramsType: CompileTimeType,
 ): CompileTimeType {
@@ -1442,7 +1439,7 @@ function dereferenceCallbackParams(
 		if (!isFunctionType(parameterType)) {
 			// Ein Parametertyp wie `TypeOf(stream$)/ValueType` verweist auf ein anderes Argument und
 			// wird erst mit dessen Typ prüfbar.
-			const dereferenced = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, parameterType);
+			const dereferenced = dereferenceArgumentTypesNested(calledFunction, argsType, parameterType);
 			if (dereferenced === parameterType) {
 				return parameter;
 			}
@@ -1459,7 +1456,7 @@ function dereferenceCallbackParams(
 			if (!callbackParameterType) {
 				return callbackParameter;
 			}
-			const dereferenced = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, callbackParameterType);
+			const dereferenced = dereferenceArgumentTypesNested(calledFunction, argsType, callbackParameterType);
 			if (dereferenced === callbackParameterType) {
 				return callbackParameter;
 			}
@@ -1563,7 +1560,6 @@ function getParameterProjection(
 function substituteParameterProjections(
 	resolvedFunctionType: CompileTimeFunctionType,
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 	paramsType: CompileTimeType,
 ): CompileTimeType {
@@ -1585,7 +1581,7 @@ function substituteParameterProjections(
 				if (projection.index !== index) {
 					return currentType;
 				}
-				const projected = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, projection.reference);
+				const projected = dereferenceArgumentTypesNested(calledFunction, argsType, projection.reference);
 				// Empty und Never sagen nichts über die Form: aus einem leeren Argument würde sonst
 				// List(Empty).
 				if (projected.isUnresolvedPlaceholder
@@ -1650,12 +1646,59 @@ function substituteProjection(
 //#endregion Signatur am Aufruf
 
 /**
- * combine prefixArgumentType and argsType
+ * Bindet den Empfänger von a.f(b) als erstes Argument in die Argumentkollektion, danach ist er nur
+ * noch ein Argument. Tuple und leere Argumente werden zu einem Tuple mit dem Empfänger vorn, so
+ * hängt ihn auch die Laufzeit an. Sonst Concat([Empfänger] args): bei benannten Argumenten ist der
+ * Schlüssel des ersten Parameters in Checker und Laufzeit verschieden (name gegen source ?? name),
+ * und vor einer List ginge beim Falten verloren, dass der Empfänger an erster Stelle steht.
+ */
+export function bindReceiver(
+	receiverType: CompileTimeType | undefined,
+	rawArgsType: CompileTimeType,
+): CompileTimeType {
+	if (!receiverType) {
+		return rawArgsType;
+	}
+	const argsType = resolveAlias(rawArgsType);
+	switch (argsType.julType) {
+		case 'empty':
+			return createCompileTimeTupleType([receiverType]);
+		case 'tuple':
+			return createCompileTimeTupleType([receiverType, ...argsType.ElementTypes]);
+		default:
+			return createCompileTimeConcatType([createCompileTimeTupleType([receiverType]), rawArgsType]);
+	}
+}
+
+/**
+ * Gegenstück zu bindReceiver für die Stellen, die nach Position binden: der Empfänger, falls die
+ * Argumente die Form Concat([Empfänger] Rest) haben, und der Rest. Ein Tuple mit dem Empfänger vorn
+ * bindet ohne Empfänger genauso und bleibt ungeteilt.
+ */
+function splitReceiver(rawArgsType: CompileTimeType): {
+	receiverType: CompileTimeType | undefined;
+	argsType: CompileTimeType;
+} {
+	const argsType = resolveAlias(rawArgsType);
+	if (argsType.julType === 'concat'
+		&& argsType.Sources.length === 2) {
+		const leading = resolveAlias(argsType.Sources[0]!);
+		if (leading.julType === 'tuple'
+			&& leading.ElementTypes.length === 1) {
+			return { receiverType: leading.ElementTypes[0]!, argsType: argsType.Sources[1]! };
+		}
+	}
+	return { receiverType: undefined, argsType: rawArgsType };
+}
+
+/**
+ * Die Argumenttypen in Reihenfolge, der Empfänger zuerst. undefined, wenn die Argumente keine
+ * Positionen haben (benannt, Spread).
  */
 function getAllArgTypes(
-	prefixArgumentType: CompileTimeType | undefined,
-	rawArgsType: CompileTimeType,
+	rawBoundArgsType: CompileTimeType,
 ): CompileTimeType[] | undefined {
+	const { receiverType: prefixArgumentType, argsType: rawArgsType } = splitReceiver(rawBoundArgsType);
 	const argsType = resolveAlias(rawArgsType);
 	const prefixArgTypes = prefixArgumentType
 		? [prefixArgumentType]
@@ -1676,10 +1719,10 @@ function getAllArgTypes(
 
 function dereferenceParameterFromArgumentType(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
-	rawArgsType: CompileTimeType,
+	rawBoundArgsType: CompileTimeType,
 	parameterReference: ParameterReference,
 ): CompileTimeType {
+	const { receiverType: prefixArgumentType, argsType: rawArgsType } = splitReceiver(rawBoundArgsType);
 	const argsType = resolveAlias(rawArgsType);
 	if (!calledFunction || parameterReference.functionRef !== calledFunction) {
 		return parameterReference;
@@ -1692,7 +1735,7 @@ function dereferenceParameterFromArgumentType(
 		// TODO?
 		: false;
 	if (isRest) {
-		const allArgTypes = getAllArgTypes(prefixArgumentType, argsType);
+		const allArgTypes = getAllArgTypes(rawBoundArgsType);
 		if (allArgTypes === undefined) {
 			// Ist der Rest der einzige Parameter, sammelt er die ganze Argumentkollektion, auch
 			// wenn sie keine Tuple ist (f(...ys) mit ys: List(Integer)).
@@ -1714,15 +1757,9 @@ function dereferenceParameterFromArgumentType(
 		case 'dictionaryLiteral': {
 			const referenceName = parameterReference.name;
 			const argType = argsType.Fields[referenceName];
-			// Ohne Argument kommt der Parameter zur Laufzeit als Empty an.
-			if (!argType) {
-				return builtinEmpty;
-			}
-			const dereferenced = dereferenceNameFromObject(referenceName, argType);
-			if (!dereferenced) {
-				return parameterReference;
-			}
-			return dereferenced;
+			// Ohne Argument kommt der Parameter zur Laufzeit als Empty an. Sonst ist das Argument
+			// selbst der Wert des Parameters, wie beim Tuple.
+			return argType ?? builtinEmpty;
 		}
 		case 'tuple': {
 			// TODO dereference nested path
@@ -1796,7 +1833,7 @@ function containsArgumentPlaceholder(type: CompileTimeType): boolean {
 /** Die Argumente eines Aufrufs, über die ein parameterReference aufgelöst wird. */
 interface ArgumentContext {
 	calledFunction: CompileTimeType;
-	prefixArgumentType: CompileTimeType | undefined;
+	/** Mit dem Empfänger, siehe bindReceiver. */
 	argsType: CompileTimeType;
 }
 
@@ -1944,7 +1981,6 @@ function traversePlaceholders(
 			if (argumentContext) {
 				const dereferencedParameter = dereferenceParameterFromArgumentType(
 					argumentContext.calledFunction,
-					argumentContext.prefixArgumentType,
 					argumentContext.argsType,
 					rawType);
 				const dereferencedNested = dereferencedParameter === rawType
@@ -3112,15 +3148,14 @@ function narrowExpectedTypeByFields(
  */
 function instantiateExpectedArgument(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 	expectedType: CompileTimeType | undefined,
 	argument: ParseValueExpression,
 ): CompileTimeType | undefined {
 	if (argument.type === 'functionLiteral') {
-		return instantiateExpectedCallback(calledFunction, prefixArgumentType, argsType, expectedType);
+		return instantiateExpectedCallback(calledFunction, argsType, expectedType);
 	}
-	return expectedType && dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, expectedType);
+	return expectedType && dereferenceArgumentTypesNested(calledFunction, argsType, expectedType);
 }
 
 /**
@@ -3130,7 +3165,6 @@ function instantiateExpectedArgument(
  */
 function instantiateExpectedCallback(
 	calledFunction: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 	expectedType: CompileTimeType | undefined,
 ): CompileTimeType | undefined {
@@ -3147,7 +3181,7 @@ function instantiateExpectedCallback(
 		if (!parameter.type) {
 			return parameter;
 		}
-		const instantiatedType = dereferenceArgumentTypesNested(calledFunction, prefixArgumentType, argsType, parameter.type);
+		const instantiatedType = dereferenceArgumentTypesNested(calledFunction, argsType, parameter.type);
 		if (instantiatedType === parameter.type) {
 			return parameter;
 		}
@@ -3961,7 +3995,7 @@ function inferType(
 							const provisionalArgsType = createCompileTimeTupleType(args.values.map(otherValue =>
 								(otherValue as ParseExpressionBase).typeInfo?.type ?? builtinAny));
 							expectedArgumentType = instantiateExpectedArgument(
-								functionType, rawPrefixArgumentTypeForArgs, provisionalArgsType, expectedArgumentType, value);
+								functionType, bindReceiver(rawPrefixArgumentTypeForArgs, provisionalArgsType), expectedArgumentType, value);
 						}
 						setInferredType(value, typeContext, expectedArgumentType, checkContext);
 					});
@@ -3983,8 +4017,9 @@ function inferType(
 						if (value.type === 'functionLiteral' || expectedArgumentType?.isUnresolvedPlaceholder) {
 							expectedArgumentType = instantiateExpectedArgument(
 								functionType,
-								rawPrefixArgumentTypeForArgs,
-								createCompileTimeDictionaryLiteralType(provisionalFieldTypes, true),
+								bindReceiver(
+									rawPrefixArgumentTypeForArgs,
+									createCompileTimeDictionaryLiteralType(provisionalFieldTypes, true)),
 								expectedArgumentType,
 								value);
 						}
@@ -4024,13 +4059,10 @@ function inferType(
 			// Nur diese eine Ebene, nicht der ganze Baum: traversePlaceholders steigt mit
 			// argumentContext bewusst nicht in Funktions- und Parameterknoten ab, weil das die
 			// Auflösung des Rückgabetyps (TypeOf(callback)/ReturnType) zerstört.
-			const dereferencedParamsType = dereferenceCallbackParams(functionType, prefixArgumentType, argsType, paramsType);
-			// Der Empfänger ist das erste Argument (wie bei Uniform Function Call Syntax).
-			const argsAssignability = isTypeAssignable(
-				prefixArgumentType
-					? createCompileTimeConcatType([createCompileTimeTupleType([prefixArgumentType]), argsType])
-					: argsType,
-				dereferencedParamsType);
+			// Ab hier ist der Empfänger das erste Argument (wie bei Uniform Function Call Syntax).
+			const boundArgsType = bindReceiver(prefixArgumentType, argsType);
+			const dereferencedParamsType = dereferenceCallbackParams(functionType, boundArgsType, paramsType);
+			const argsAssignability = isTypeAssignable(boundArgsType, dereferencedParamsType);
 			const hasArgsError = argsAssignability.assignable === false;
 			if (argsAssignability.assignable === false) {
 				const position = (prefixArgument && findErrorPositionInChild(prefixArgument))
@@ -4045,7 +4077,7 @@ function inferType(
 					endColumnIndex: position.endColumnIndex,
 				});
 			}
-			checkDiscardedArguments(args, paramsType, prefixArgumentType, errors);
+			checkDiscardedArguments(args, paramsType, !!prefixArgument, errors);
 			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'test') {
@@ -4060,14 +4092,14 @@ function inferType(
 				? rawPrefixArgumentType
 				: prefixArgumentType;
 			// evaluate generic ReturnType
-			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, returnPrefixArgumentType, argsType, returnType);
+			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, bindReceiver(returnPrefixArgumentType, argsType), returnType);
 			// Für Hover und Co.: die Signatur, gegen die dieser Aufruf geprüft wurde. Eine Kopie,
 			// denn die Platzhalter in Parameter- und Rückgabetyp zeigen auf das Original.
 			// Der Aliasname entfällt, er stünde sonst in der Anzeige statt der verengten Typen.
 			const resolvedFunctionType = resolveAlias(functionType);
 			if (isFunctionType(resolvedFunctionType)) {
 				const callSiteParamsType = substituteParameterProjections(
-					resolvedFunctionType, functionType, prefixArgumentType, argsType, dereferencedParamsType);
+					resolvedFunctionType, functionType, boundArgsType, dereferencedParamsType);
 				expression.calledFunctionType = {
 					...resolvedFunctionType,
 					ParamsType: callSiteParamsType,
@@ -4097,9 +4129,9 @@ function inferType(
 				}
 			}
 			const foldedType = tryFoldCall(
-				functionExpression, functionType, prefixArgumentType, argsType, hasArgsError);
+				functionExpression, functionType, boundArgsType, hasArgsError);
 			const boundReturnType = !foldedType && !hasArgsError
-				? bindClosureArguments(functionExpression, functionType, prefixArgumentType, argsType, dereferencedReturnType)
+				? bindClosureArguments(functionExpression, functionType, boundArgsType, dereferencedReturnType)
 				: undefined;
 			return { type: foldedType ?? boundReturnType ?? dereferencedReturnType };
 		}
@@ -4799,9 +4831,8 @@ function getReturnTypeFromFunctionCall(
 ): CompileTimeType {
 	const { documents: parsedDocuments, folder } = checkContext;
 	const errors = checkContext.file.errors;
-	const prefixArgument = functionCall.prefixArgument;
-	const prefixArgumentType = prefixArgument?.typeInfo?.type;
 	const argsType = functionCall.arguments?.typeInfo?.type ?? builtinAny;
+	const boundArgsType = bindReceiver(functionCall.prefixArgument?.typeInfo?.type, argsType);
 	// TODO statt functionname functionref value/inferred type prüfen?
 	if (functionExpression.type === 'reference') {
 		const functionName = functionExpression.name.name;
@@ -4850,7 +4881,7 @@ function getReturnTypeFromFunctionCall(
 					: builtinAny;
 			}
 			case 'And': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return builtinAny;
@@ -4858,7 +4889,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(createNormalizedIntersectionType(argTypes.map(valueOf)));
 			}
 			case 'ElementAt': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				const sourceType = argTypes?.[0];
 				const indexType = argTypes?.[1];
 				if (!sourceType
@@ -4869,7 +4900,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(elementType ?? builtinAny);
 			}
 			case 'LengthOf': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				const sourceType = argTypes?.[0];
 				if (!sourceType) {
 					return builtinAny;
@@ -4877,7 +4908,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(getLengthFromType(valueOf(sourceType)));
 			}
 			case 'WithElementAt': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				const sourceType = argTypes?.[0];
 				const indexType = argTypes?.[1];
 				const valueType = argTypes?.[2];
@@ -4890,7 +4921,7 @@ function getReturnTypeFromFunctionCall(
 					withElementAtFromTypes(valueOf(sourceType), valueOf(indexType), valueOf(valueType)));
 			}
 			case 'IndexRange': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				const startType = argTypes?.[0];
 				if (!startType) {
 					return builtinAny;
@@ -4900,7 +4931,7 @@ function getReturnTypeFromFunctionCall(
 					createCompileTimeIndexRangeType(valueOf(startType), valueOf(endType)));
 			}
 			case 'MapElements': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				const sourceType = argTypes?.[0];
 				const callbackType = argTypes?.[1];
 				if (!sourceType
@@ -4911,7 +4942,7 @@ function getReturnTypeFromFunctionCall(
 					mapElementsFromTypes(valueOf(sourceType), valueOf(callbackType)));
 			}
 			case 'Concat': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
 					return builtinAny;
 				}
@@ -4919,7 +4950,7 @@ function getReturnTypeFromFunctionCall(
 					concatFromTypes(argTypes.map(valueOf)));
 			}
 			case 'Add': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				const argType = argTypes?.[0];
 				if (!argType) {
 					return builtinAny;
@@ -4927,7 +4958,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(addFromTypes(valueOf(argType)));
 			}
 			case 'Not': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return builtinAny;
@@ -4939,7 +4970,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(createCompileTimeComplementType(valueOf(argTypes[0])));
 			}
 			case 'Or': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return builtinAny;
@@ -4949,7 +4980,7 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(unionType);
 			}
 			case 'TypeOf': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return builtinAny;
@@ -4962,7 +4993,7 @@ function getReturnTypeFromFunctionCall(
 			}
 			case 'GreaterInteger':
 			case 'LessInteger': {
-				const argTypes = getAllArgTypes(prefixArgumentType, argsType);
+				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
 					// TODO unknown?
 					return builtinAny;
@@ -5169,7 +5200,7 @@ function mapElementType(
 	const argsType = createCompileTimeTupleType(indexType
 		? [elementType, indexType]
 		: [elementType]);
-	return dereferenceArgumentTypesNested(callbackType, undefined, argsType, callbackType.ReturnType);
+	return dereferenceArgumentTypesNested(callbackType, argsType, callbackType.ReturnType);
 }
 
 /**
@@ -6315,10 +6346,10 @@ function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: Compile
  */
 export function getCallPurityInfo(
 	functionType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
-	argsType: CompileTimeType,
+	boundArgsType: CompileTimeType,
 	ownFunctionType?: CompileTimeFunctionType,
 ): Purity {
+	const { receiverType: prefixArgumentType, argsType } = splitReceiver(boundArgsType);
 	const resolvedFunctionType = resolveAlias(functionType);
 	if (!isFunctionType(resolvedFunctionType)) {
 		return 'unknown';
@@ -6336,10 +6367,9 @@ export function getCallPurityInfo(
 /** Zweiwertige Auskunft für die Faltung: nur ein Beweis genügt. */
 export function getCallPurity(
 	functionType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
 ): Purity {
-	return getCallPurityInfo(functionType, prefixArgumentType, argsType) === 'pure' ? 'pure' : 'impure';
+	return getCallPurityInfo(functionType, argsType) === 'pure' ? 'pure' : 'impure';
 }
 
 /**
@@ -6431,12 +6461,12 @@ export function inferBodyPurity(
 						contribute('unknown', expression, isOwnParameter);
 					}
 					else {
-						const prefixArgumentType = expression.prefixArgument?.typeInfo?.type;
-						const argsType = expression.arguments?.typeInfo?.type ?? builtinEmpty;
+						const argsType = bindReceiver(
+							expression.prefixArgument?.typeInfo?.type,
+							expression.arguments?.typeInfo?.type ?? builtinEmpty);
 						contribute(
 							getCallPurityInfo(
 								functionExpression?.typeInfo?.type ?? builtinAny,
-								prefixArgumentType,
 								argsType,
 								ownFunctionType),
 							expression);
@@ -6519,10 +6549,11 @@ function containsNativeLiteral(expression: PositionedExpression): boolean {
 function tryFoldCall(
 	functionExpression: SimpleExpression,
 	functionType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
-	argsType: CompileTimeType,
+	boundArgsType: CompileTimeType,
 	hasArgsError: boolean,
 ): CompileTimeType | undefined {
+	// Die Laufzeit bekommt den Empfänger wieder getrennt, das ist ihre Aufrufkonvention.
+	const { receiverType: prefixArgumentType, argsType } = splitReceiver(boundArgsType);
 	if (hasArgsError) {
 		return undefined;
 	}
@@ -6530,7 +6561,7 @@ function tryFoldCall(
 		return undefined;
 	}
 	const resolvedFunctionType = resolveAlias(functionType);
-	if (!isFunctionType(resolvedFunctionType) || getCallPurity(resolvedFunctionType, prefixArgumentType, argsType) !== 'pure') {
+	if (!isFunctionType(resolvedFunctionType) || getCallPurity(resolvedFunctionType, boundArgsType) !== 'pure') {
 		return undefined;
 	}
 	// Trägt der Typ ein literal, ist es eine Nutzerfunktion (case 'functionLiteral' setzt es) -
@@ -6583,10 +6614,10 @@ function tryFoldCall(
 function bindClosureArguments(
 	functionExpression: SimpleExpression,
 	functionType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
-	argsType: CompileTimeType,
+	boundArgsType: CompileTimeType,
 	returnType: CompileTimeType,
 ): CompileTimeFunctionType | undefined {
+	const { receiverType: prefixArgumentType, argsType } = splitReceiver(boundArgsType);
 	if (functionExpression.type !== 'reference') {
 		return undefined;
 	}
@@ -6633,7 +6664,7 @@ function bindClosureArguments(
 	parameterNames.forEach((parameterName, index) => {
 		values[parameterName] = positionalValues[index];
 	});
-	const argumentsDisplay = getAllArgTypes(prefixArgumentType, argsType)
+	const argumentsDisplay = getAllArgTypes(boundArgsType)
 		?.map(argType => typeToString(argType, 0, 1))
 		.join(' ') ?? '';
 	const boundType = createCompileTimeFunctionType(result.ParamsType, result.ReturnType, result.purity, result.aliasName);
@@ -7044,7 +7075,7 @@ function getFoldedCallText(call: ParseFunctionCall): string | undefined {
 		|| !argsType) {
 		return undefined;
 	}
-	const argTypes = getAllArgTypes(call.prefixArgument?.typeInfo?.type, argsType);
+	const argTypes = getAllArgTypes(bindReceiver(call.prefixArgument?.typeInfo?.type, argsType));
 	if (!argTypes) {
 		return undefined;
 	}
@@ -7069,10 +7100,10 @@ function getFoldedCallText(call: ParseFunctionCall): string | undefined {
 function checkDiscardedArguments(
 	writtenArgs: BracketedExpression,
 	paramsType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
+	hasReceiver: boolean,
 	errors: CompilerError[],
 ): void {
-	const prefixArgumentCount = prefixArgumentType ? 1 : 0;
+	const prefixArgumentCount = hasReceiver ? 1 : 0;
 	// Die Parameter-Namen, die bereits vom Prefix gebunden sind
 	const prefixParameterNames = prefixArgumentCount > 0
 		? getKnownFieldNames(paramsType)?.slice(0, prefixArgumentCount)
@@ -7418,7 +7449,7 @@ function dereferenceAliasApplication(
 	if (!isFunctionType(functionType)) {
 		return builtinAny;
 	}
-	const returnType = dereferenceArgumentTypesNested(symbolType, undefined, args, functionType.ReturnType);
+	const returnType = dereferenceArgumentTypesNested(symbolType, args, functionType.ReturnType);
 	// Wie bei einer Typdefinition steht der Typ als TypeOf, der Alias steht für den Typ selbst.
 	const dereferenced = returnType.julType === 'typeOf'
 		? returnType.value
@@ -8665,32 +8696,23 @@ function hasExpectedTypeError(expression: ParseValueExpression): boolean {
 
 
 /**
- * Die Argumentkollektion eines Aufrufs gegen die Parameterliste. Ein Empfänger (a in a.f(b)) steht
- * als erstes Argument davor: Concat([a] args). Concat wird hier nicht über concatFromTypes
- * gefaltet, das machte aus [a] vor einer List List(Or(a X)) und verlöre, dass a an erster Stelle
- * steht. Gelesen wird ein führendes Element vor dem Rest.
+ * Die Argumentkollektion eines Aufrufs gegen die Parameterliste. Ein Empfänger (a in a.f(b)) steckt
+ * darin, siehe bindReceiver.
  */
 function isTypeAssignableForParameters(
 	rawArgumentsType: CompileTimeType,
 	targetType: ParametersType,
 ): TypeAssignability {
-	const argumentsType = resolveAlias(rawArgumentsType);
-	if (argumentsType.julType !== 'concat') {
-		return isTypeAssignableForParametersWithLeading(undefined, argumentsType, targetType);
-	}
-	const [leadingSource, ...restSources] = argumentsType.Sources;
-	const leading = leadingSource && resolveAlias(leadingSource);
-	if (leading?.julType !== 'tuple'
-		|| leading.ElementTypes.length !== 1
-		|| restSources.length !== 1) {
-		// Nur die Form [Empfänger] Rest entsteht am Aufruf. Andere Aneinanderreihungen: erst
-		// auflösen, sonst unbekannt.
-		const resolved = resolvePlaceholders(argumentsType);
-		return resolved === argumentsType
+	const { receiverType, argsType } = splitReceiver(rawArgumentsType);
+	if (!receiverType
+		&& resolveAlias(argsType).julType === 'concat') {
+		// Eine andere Aneinanderreihung als [Empfänger] Rest: erst auflösen, sonst unbekannt.
+		const resolved = resolvePlaceholders(argsType);
+		return resolved === argsType
 			? { assignable: undefined }
 			: isTypeAssignableForParameters(resolved, targetType);
 	}
-	return isTypeAssignableForParametersWithLeading(leading.ElementTypes[0]!, restSources[0]!, targetType);
+	return isTypeAssignableForParametersWithLeading(receiverType, argsType, targetType);
 }
 
 /**

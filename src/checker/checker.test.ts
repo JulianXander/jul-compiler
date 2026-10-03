@@ -20,7 +20,7 @@ import { CompilerError, ErrorCode, errorInfos } from '../compiler-errors.js';
 import { reportAtCaller } from '../test-util.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
-import { builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
+import { bindReceiver, builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
 
 const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: {
 	result?: ParseExpression[];
@@ -5479,7 +5479,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		if (!functionType || !isFunctionType(functionType) || !argsType) {
 			return undefined;
 		}
-		return getCallPurity(functionType, prefixArgumentType, argsType);
+		return getCallPurity(functionType, bindReceiver(prefixArgumentType, argsType));
 	}
 
 	it('map(add ...) ist pure', () => {
@@ -5521,7 +5521,7 @@ imp.apply()`)).to.equal('impure');
 		const impureFieldType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'impure');
 		const dictionaryArgType = createCompileTimeDictionaryLiteralType({ cb: impureFieldType }, true);
 		const argsType = createCompileTimeTupleType([dictionaryArgType]);
-		expect(getCallPurityInfo(conditionallyPureFunctionType, undefined, argsType)).to.equal('impure');
+		expect(getCallPurityInfo(conditionallyPureFunctionType, argsType)).to.equal('impure');
 	});
 	// Eine Spread-Argumentliste wird zu List(Type), nicht zu einem Tuple mit einem Element je
 	// Position - getArgumentPurity kann dann nicht mehr in die einzelnen Argumente absteigen und
@@ -5531,26 +5531,26 @@ imp.apply()`)).to.equal('impure');
 		const conditionallyPureFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const pureFieldType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pure');
 		const listArgsType = createCompileTimeListType(pureFieldType);
-		expect(getCallPurity(conditionallyPureFunctionType, undefined, listArgsType)).to.equal('impure');
+		expect(getCallPurity(conditionallyPureFunctionType, listArgsType)).to.equal('impure');
 	});
 	it('getCallPurityInfo: Spread-Argumentliste ist unknown, nicht impure', () => {
 		const conditionallyPureFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const listArgsType = createCompileTimeListType(builtinEmpty);
-		expect(getCallPurityInfo(conditionallyPureFunctionType, undefined, listArgsType)).to.equal('unknown');
+		expect(getCallPurityInfo(conditionallyPureFunctionType, listArgsType)).to.equal('unknown');
 	});
 	it('getCallPurityInfo: Weitergabe des eigenen Parameters ist pure', () => {
 		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const ownParameter = createParameterReference('cb', 0);
 		ownParameter.functionRef = ownFunctionType;
 		const argsType = createCompileTimeTupleType([ownParameter]);
-		expect(getCallPurityInfo(ownFunctionType, undefined, argsType, ownFunctionType)).to.equal('pure');
+		expect(getCallPurityInfo(ownFunctionType, argsType, ownFunctionType)).to.equal('pure');
 	});
 	it('getCallPurityInfo: Weitergabe eines Parameters ohne Eigentümer-Kontext ist unknown', () => {
 		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const someParameter = createParameterReference('cb', 0);
 		someParameter.functionRef = ownFunctionType;
 		const argsType = createCompileTimeTupleType([someParameter]);
-		expect(getCallPurityInfo(ownFunctionType, undefined, argsType)).to.equal('unknown');
+		expect(getCallPurityInfo(ownFunctionType, argsType)).to.equal('unknown');
 	});
 	it('getCallPurityInfo: Weitergabe eines fremden Parameters ist unknown', () => {
 		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
@@ -5558,7 +5558,7 @@ imp.apply()`)).to.equal('impure');
 		const foreignParameter = createParameterReference('cb', 0);
 		foreignParameter.functionRef = otherFunctionType;
 		const argsType = createCompileTimeTupleType([foreignParameter]);
-		expect(getCallPurityInfo(ownFunctionType, undefined, argsType, ownFunctionType)).to.equal('unknown');
+		expect(getCallPurityInfo(ownFunctionType, argsType, ownFunctionType)).to.equal('unknown');
 	});
 
 	// Vierter Purity-Zustand pureIfArgsPure: rein, sofern die übergebenen Funktionsargumente
@@ -6123,6 +6123,9 @@ describe('bedingte Typen', () => {
 	it('K28 add über Spread einer List', () => expectConditional('h = (xs: List(PositiveInteger)) => add(...xs)', { returnType: 'GreaterInteger(0)' }));
 	// Bei m < 0 senkt jedes weitere Element die Summe, sie ist nach unten offen.
 	it('K29 add über Spread einer List mit negativer Grenze', () => expectConditional('h = (xs: List(And(Integer GreaterInteger(-3)))) => add(...xs)', { returnType: 'Integer' }));
+	// Benannte Argumente stehen für dieselben Operanden wie positionale.
+	it('K30 benannte Argumente', () => expectConditional('h = (x: Integer y: Integer) => subtract(minuend = x subtrahend = y)', { returnType: 'Integer' }));
+	it('K31 Empfänger und benanntes Argument', () => expectConditional('h = (x: Integer y: Integer) => x.subtract(subtrahend = y)', { returnType: 'Integer' }));
 	it('K11 ohne Argumente', () => {
 		expectConditional('r = add()', {
 			errors: [{ code: ErrorCode.argumentTypeMismatch, startRowIndex: 0, startColumnIndex: 4 }],
