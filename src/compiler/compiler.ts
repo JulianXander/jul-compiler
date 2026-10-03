@@ -19,6 +19,10 @@ import typescript from 'typescript';
 const { ModuleKind, transpileModule } = typescript;
 
 const runtimeFileName = 'runtime.js';
+const testRuntimeFileName = 'test-runtime.js';
+// Die Runtime des Compilers. Der Testlauf importiert sie direkt, der Build kopiert sie in den Out-Ordner.
+const runtimeSourcePath = join(executingDirectory, 'runtime', runtimeFileName);
+const testRuntimeSourcePath = join(executingDirectory, 'runtime', testRuntimeFileName);
 
 export function compileProject(
 	entryFilePath: string,
@@ -73,12 +77,13 @@ export function compileProject(
 
 	//#region 4. emit
 	renderer.startStep('emitting');
-	const runtimePath = resolve(join(outputFolderPath, runtimeFileName));
+	const runtimeImportPath = resolve(join(outputFolderPath, runtimeFileName));
+	const testRuntimeImportPath = resolve(join(outputFolderPath, testRuntimeFileName));
 	let outFilePath: string | undefined;
 	const usedRuntimeNames = new Set<string>();
 	Object.values(documents).forEach(document => {
 		const isEntry = document.filePath === entryFilePath;
-		const emitted = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimePath);
+		const emitted = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimeImportPath, testRuntimeImportPath);
 		emitted.runtimeNames.forEach(name => usedRuntimeNames.add(name));
 		if (isEntry) {
 			outFilePath = emitted.outFilePath;
@@ -91,8 +96,7 @@ export function compileProject(
 	// Nur was die emittierten Dateien erreichen. Damit fällt der Rest auch im Bundle weg, ohne dass
 	// webpack minimieren muss: Ein Minimizer arbeitete das ganze Bundle durch, samt großer
 	// JSON-Importe.
-	const runtimeSourcePath = join(executingDirectory, runtimeFileName);
-	writeFileSync(runtimePath, shakeRuntime(readFileSync(runtimeSourcePath, 'utf8'), usedRuntimeNames));
+	writeFileSync(runtimeImportPath, shakeRuntime(readFileSync(runtimeSourcePath, 'utf8'), usedRuntimeNames));
 	//#endregion 5. copy runtime
 
 	//#region 6. bundle
@@ -297,10 +301,9 @@ export async function testProject(
 	//#region emit
 	// Ausgabepfade neben der Quelldatei statt im Out-Ordner: Relative Importe untereinander lösen
 	// dann wie gewohnt auf, und eingebundene .js/.ts-Dateien finden ihre Pakete in node_modules.
-	const runtimePath = join(executingDirectory, runtimeFileName);
 	const sources = new Map<string, { source: string; format: 'module' | 'json'; }>();
 	Object.values(documents).forEach(document => {
-		const { outFilePath, compiled, sourceMap } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimePath);
+		const { outFilePath, compiled, sourceMap } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimeSourcePath, testRuntimeSourcePath);
 		sources.set(pathToFileURL(resolve(outFilePath)).href, {
 			// Inline, der Testlauf schreibt nichts auf die Platte.
 			source: sourceMap
@@ -546,9 +549,10 @@ function emitFile(
 	parsed: ParsedFile,
 	sourceCode: string,
 	outputFolderPath: string,
-	runtimePath: string,
+	runtimeImportPath: string,
+	testRuntimeImportPath: string,
 ): { outFilePath: string; runtimeNames: string[]; } {
-	const { outFilePath, compiled, sourceMap, runtimeNames } = emitToJs(parsed, sourceCode, outputFolderPath, runtimePath);
+	const { outFilePath, compiled, sourceMap, runtimeNames } = emitToJs(parsed, sourceCode, outputFolderPath, runtimeImportPath, testRuntimeImportPath);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
 	let js = compiled;
@@ -606,7 +610,8 @@ function emitToJs(
 	parsed: ParsedFile,
 	sourceCode: string,
 	outputFolderPath: string,
-	runtimePath: string,
+	runtimeImportPath: string,
+	testRuntimeImportPath: string,
 ): { outFilePath: string; compiled: string; sourceMap?: RawSourceMap; runtimeNames: string[]; } {
 	const sourceFilePath = parsed.filePath;
 	let compiled: string;
@@ -627,7 +632,7 @@ function emitToJs(
 		case Extension.jul: {
 			// checked trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht
 			const expressions = (parsed.checked ?? parsed.unchecked).expressions ?? [];
-			const emitted = syntaxTreeToJsWithMappings(expressions, runtimePath, sourceFilePath);
+			const emitted = syntaxTreeToJsWithMappings(expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath);
 			compiled = emitted.js;
 			runtimeNames = emitted.runtimeNames;
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);

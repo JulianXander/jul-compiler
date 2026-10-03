@@ -617,7 +617,7 @@ const expectRuntimeImport = reportAtCaller((code: string, names: string[] | unde
 
 const expectTestRuntimeImport = reportAtCaller((code: string, names: string[] | undefined) => {
 	const parsed = parseCode(code, 'dummy.test.jul');
-	const compiled = syntaxTreeToJs(parsed.unchecked.expressions!, '', 'dummy.test.jul');
+	const compiled = syntaxTreeToJs(parsed.unchecked.expressions!, '', 'dummy.test.jul', 'test-runtime.js');
 	expect(getImportedNames(compiled, 'test-runtime.js')).to.deep.equal(names);
 });
 

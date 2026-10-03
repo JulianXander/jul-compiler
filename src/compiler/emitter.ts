@@ -25,7 +25,6 @@ import { isFunctionType, resolveAlias, resolvePlaceholders } from '../checker/ty
 
 const runtimeKeys = Object.keys(runtime);
 const testRuntimeKeys = Object.keys(testRuntime);
-const testRuntimeFileName = 'test-runtime.js';
 /**
  * Nur beim Emittieren einer ganzen Datei nach dem Check: dann liegt die typeInfo vollständig am
  * Baum. functionLiteralToEvaluableJs läuft dagegen mitten im Checklauf (constant folding) und
@@ -133,35 +132,38 @@ export function getUsedRuntimeNames(js: string, keys: string[]): string[] {
 	return keys.filter(key => identifiers.has(key));
 }
 
-export function getRuntimeImportJs(runtimePath: string, names: string[]): string {
+export function getRuntimeImportJs(runtimeImportPath: string, names: string[]): string {
 	if (!names.length) {
 		return '';
 	}
-	return getImportJs(`{ ${names.join(', ')} }`, runtimePath);
+	return getImportJs(`{ ${names.join(', ')} }`, runtimeImportPath);
 }
 
 /**
- * Nur *.test.jul-Dateien importieren die Test-Runtime. Sie liegt neben der Runtime, so wie beide
- * im Compiler nebeneinander liegen.
+ * Nur *.test.jul-Dateien importieren die Test-Runtime.
  */
-export function getTestRuntimeImportJs(runtimePath: string, names: string[]): string {
+export function getTestRuntimeImportJs(testRuntimeImportPath: string, names: string[]): string {
 	if (!names.length) {
 		return '';
 	}
-	return getImportJs(`{ ${names.join(', ')} }`, join(dirname(runtimePath), testRuntimeFileName));
+	return getImportJs(`{ ${names.join(', ')} }`, testRuntimeImportPath);
 }
 
 //#endregion runtime import
 
 export function syntaxTreeToJs(
 	expressions: ParseExpression[],
-	runtimePath: string,
+	runtimeImportPath: string,
 	/**
 	 * Wie er in Meldungen erscheinen soll. Nur für test-Aufrufe gebraucht.
 	 */
 	filePath: string = '',
+	/**
+	 * Nur für *.test.jul-Dateien gebraucht.
+	 */
+	testRuntimeImportPath: string = '',
 ): string {
-	return syntaxTreeToJsWithMappings(expressions, runtimePath, filePath).js;
+	return syntaxTreeToJsWithMappings(expressions, runtimeImportPath, filePath, testRuntimeImportPath).js;
 }
 
 /**
@@ -171,8 +173,9 @@ export function syntaxTreeToJs(
  */
 export function syntaxTreeToJsWithMappings(
 	expressions: ParseExpression[],
-	runtimePath: string,
+	runtimeImportPath: string,
 	filePath: string = '',
+	testRuntimeImportPath: string = '',
 ): { js: string; mappings: SourceMapping[]; runtimeNames: string[]; } {
 	let hasDefinition = false;
 	useTypeInfo = true;
@@ -195,9 +198,9 @@ export function syntaxTreeToJsWithMappings(
 		// Die Marker stehen erst nach dem Import im Text, extractSourceMappings zählt die Zeilen des
 		// Imports also mit.
 		const runtimeNames = getUsedRuntimeNames(bodyJs, runtimeKeys);
-		const runtimeImportJs = getRuntimeImportJs(runtimePath, runtimeNames);
+		const runtimeImportJs = getRuntimeImportJs(runtimeImportPath, runtimeNames);
 		const testRuntimeImportJs = isTestFilePath(filePath)
-			? getTestRuntimeImportJs(runtimePath, getUsedRuntimeNames(bodyJs, testRuntimeKeys))
+			? getTestRuntimeImportJs(testRuntimeImportPath, getUsedRuntimeNames(bodyJs, testRuntimeKeys))
 			: '';
 		return { ...extractSourceMappings(runtimeImportJs + testRuntimeImportJs + bodyJs), runtimeNames: runtimeNames };
 	}
