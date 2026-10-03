@@ -4690,7 +4690,8 @@ function dictionaryTypeToString(
 	if (allFields.length > maxFieldsInTypeDump) {
 		displayFields = [
 			...allFields.slice(0, maxFieldsInTypeDump),
-			`(and ${allFields.length - maxFieldsInTypeDump} more field${allFields.length - maxFieldsInTypeDump === 1 ? '' : 's'})`,
+			// Als JUL-Kommentar, damit das Syntax-Highlighting es nicht als Code darstellt
+			`# and ${allFields.length - maxFieldsInTypeDump} more field${allFields.length - maxFieldsInTypeDump === 1 ? '' : 's'}`,
 		];
 	}
 

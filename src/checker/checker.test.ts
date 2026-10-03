@@ -4865,7 +4865,7 @@ c = 1.0`;
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		const error = parsed.checked?.errors?.[0];
 
-		expect(error?.message).to.include('(and 15 more fields)',
+		expect(error?.message).to.include('# and 15 more fields',
 			`Zieltyp sollte nach maxFieldsInTypeDump gekuerzt sein:\n${error?.message}`);
 	});
 
