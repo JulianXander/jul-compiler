@@ -8255,7 +8255,7 @@ function isTypeAssignableByStructure(
 				case 'tuple': {
 					const elementAssignabilities = argumentsType.ElementTypes.map(valueElement =>
 						isTypeAssignable(prefixArgumentType, valueElement, targetElementType));
-					return joinTypeAssignabilites(elementAssignabilities);
+					return joinTypeAssignabilities(elementAssignabilities);
 				}
 				default:
 					break;
@@ -8565,7 +8565,7 @@ function isTypeAssignableForTuple2(
 		const valueElement = argumentElementTypes[index] ?? builtinEmpty;
 		return isTypeAssignable(prefixArgumentType, valueElement, targetElementType);
 	});
-	return joinTypeAssignabilites(elementAssignabilities);
+	return joinTypeAssignabilities(elementAssignabilities);
 }
 
 /**
@@ -8574,7 +8574,7 @@ function isTypeAssignableForTuple2(
  * undefined, wenn kein false und mindestens 1 undefined
  * true, wenn alle true
  */
-function joinTypeAssignabilites(typeAssignabilities: TypeAssignability[]): TypeAssignability {
+function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[]): TypeAssignability {
 	const errors = typeAssignabilities.map(elementAssignability => elementAssignability.error).filter(isDefined);
 	if (errors.length) {
 		const uniqueMessages = [...new Set(errors.map(typeErrorToString))];
