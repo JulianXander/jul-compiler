@@ -89,6 +89,9 @@ daran ist anzusehen, nicht blind zu übernehmen.
 
 Zum Bench (`npm run bench`) siehe [../CLAUDE.md](../CLAUDE.md).
 
+### Test Debuggen
+F1 + `extension.js-debug.createDebuggerTerminal`
+
 ## Publish
 `npm run build`  
 `npm version patch` (oder minor/major)  
