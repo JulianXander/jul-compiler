@@ -3465,6 +3465,22 @@ f(1 2)`, {
 			],
 		});
 	});
+	// Ein Parameter mit Funktionstyp (Callback) verwirft überzählige Argumente genauso wie
+	// eine direkt definierte Funktion.
+	it('call-surplus-argument-of-function-typed-parameter-is-discarded', () => {
+		expectCheck(`g = (callback: (a: Integer) ~> Integer) => callback(1 2)`, {
+			errors: [
+				{
+					"code": ErrorCode.discardedValue,
+					"endColumnIndex": 55,
+					"endRowIndex": 0,
+					"message": "This value is discarded. Expected 1 argument, got 2.",
+					"startColumnIndex": 54,
+					"startRowIndex": 0,
+				},
+			],
+		});
+	});
 	// Jeder überzählige Ausdruck ist einzeln löschbar und wird einzeln gemeldet.
 	it('every-surplus-argument-is-reported', () => {
 		expectCheck(`f = (a: Integer) => a

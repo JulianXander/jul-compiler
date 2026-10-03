@@ -2651,7 +2651,12 @@ function inferType(
 					endColumnIndex: position.endColumnIndex,
 				});
 			}
-			checkDiscardedArguments(args, paramsType, !!prefixArgument, errors);
+			// Ein Parameter mit Funktionstyp ist eine Referenz, deren Stelligkeit erst aufgelöst
+			// bekannt ist. Aufgelöst wird nur dann, weil es sonst jeden Aufruf verteuert.
+			const discardCheckParamsType = paramsType.julType === 'any' && isFunction
+				? getParamsType(resolvePlaceholders(functionType))
+				: paramsType;
+			checkDiscardedArguments(args, discardCheckParamsType, !!prefixArgument, errors);
 			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'test') {
