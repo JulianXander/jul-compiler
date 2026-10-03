@@ -187,3 +187,4 @@
 2026-10-03 11:32:39	9199117+	-	ADV-DEV-56627	yugioh	parse+check	5	1596.35	1958.59	1958.59	nach: Empfaenger in der Argumentkollektion (bindReceiver/splitReceiver)
 2026-10-03 11:34:31	9199117+	-	ADV-DEV-56627	yugioh	parse+check	5	1622.13	1960.89	1960.89	nach: benannte Argumente im Parameterverweis (dereferenceParameterFromArgumentType)
 2026-10-03 11:57:47	472ac9c+	-	ADV-DEV-56627	yugioh	parse+check	5	1778.85	2207.74	2207.74	nach: core-lib setField/toList/toDictionary mit Elementtyp, Blob als Basistyp
+2026-10-03 12:12:20	4b0c129+	-	ADV-DEV-56627	yugioh	parse+check	5	1725.73	2140.59	2140.59	nach: Argumentpruefung beweist mit aufgeloesten Platzhaltern (unknown abbauen b)

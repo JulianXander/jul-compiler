@@ -282,7 +282,14 @@ Deshalb vor der Warnung, jeweils mit neuer Zählung danach:
   `blob-rejects-integer`). Zurückgestellt: der Akkumulator von `aggregate` (12 Fälle in yugioh),
   siehe `TODO`. Die unaufgelösten Parameterverweise in den Signaturen der core-lib gehören zu b.
 - **b. Checker:** Parameter von Callbacks, deren Typ aus dem erwarteten Typ kommt
-  (`TypeOf(x)/ElementType`), am Aufruf auflösen.
+  (`TypeOf(x)/ElementType`), am Aufruf auflösen. Umgesetzt als `getArgumentsAssignability`: Bleibt
+  die Argumentprüfung unknown, wird sie mit aufgelösten Platzhaltern beider Seiten wiederholt, wie
+  es die Prüfung des Rückgabewerts tut. Die Wiederholung darf nur beweisen (yes), nie ablehnen:
+  Aufgelöst verliert ein Platzhalter seine Bedeutung als Typwert, aus dem Prädikat `p` in
+  `(a: p)` würde ein gewöhnlicher Funktionstyp (Test `predicate-with-unknown-purity-is-accepted`).
+  Zählung danach: yugioh 182 → 119, jul-examples und core-lib 30 → 18. In yugioh übrig: 28 direkt
+  aus `Any`, 11 `aggregate`, 4 Platzhalter, 76 Vergleiche ganzer Literale mit einem tief
+  liegenden unknown (`boards: [Any Any]`, `cards: Any`), noch einzeln anzusehen.
 - **c.** Neu zählen. Erst wenn fast nur noch echte Fälle übrig sind (DOM, `runJs`), die Warnung
   mit `warning` als Pflichtfeld einbauen.
 

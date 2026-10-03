@@ -4064,7 +4064,7 @@ function inferType(
 			// Ab hier ist der Empfänger das erste Argument (wie bei Uniform Function Call Syntax).
 			const boundArgsType = bindReceiver(prefixArgumentType, argsType);
 			const dereferencedParamsType = dereferenceCallbackParams(functionType, boundArgsType, paramsType);
-			const argsAssignability = isTypeAssignable(boundArgsType, dereferencedParamsType);
+			const argsAssignability = getArgumentsAssignability(boundArgsType, dereferencedParamsType);
 			const hasArgsError = argsAssignability.assignable === false;
 			if (argsAssignability.assignable === false) {
 				const position = (prefixArgument && findErrorPositionInChild(prefixArgument))
@@ -7606,6 +7606,26 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 }
 
 //#region TypeAssignability
+
+/**
+ * Die Argumente eines Aufrufs gegen seine Parameter. Geprüft wird zuerst ungelöst, denn die
+ * Argumente können generische Typwerte enthalten (etwa die Signatur eines nativeFunction-Aufrufs).
+ * Bleibt das unbekannt, wird mit aufgelösten Platzhaltern beider Seiten wiederholt, so wie es die
+ * Prüfung des Rückgabewerts tut: Ein Lambda behält für seinen Parameter etwa TypeOf(row)/ElementType,
+ * während der Callback-Parameter des Ziels schon zu Cell aufgelöst ist. Beide meinen dasselbe.
+ * Die Wiederholung darf nur beweisen, nie ablehnen: Aufgelöst verliert ein Platzhalter seine
+ * Bedeutung als Typwert, aus dem Prädikat p in (a: p) würde ein gewöhnlicher Funktionstyp.
+ */
+function getArgumentsAssignability(argsType: CompileTimeType, paramsType: CompileTimeType): TypeAssignability {
+	const assignability = isTypeAssignable(argsType, paramsType);
+	if (assignability.assignable !== undefined) {
+		return assignability;
+	}
+	const resolvedAssignability = isTypeAssignable(resolvePlaceholders(argsType), resolvePlaceholders(paramsType));
+	return resolvedAssignability.assignable === true
+		? resolvedAssignability
+		: assignability;
+}
 
 /**
  * Liegt jeder Wert von type in superType? true bewiesen ja, false bewiesen nein, undefined unbekannt.
