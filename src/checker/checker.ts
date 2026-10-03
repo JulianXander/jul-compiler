@@ -8252,31 +8252,11 @@ function isTypeAssignableByStructure(
 						}
 					};
 				}
-				case 'tuple':
+				case 'tuple': {
 					const elementAssignabilities = argumentsType.ElementTypes.map(valueElement =>
 						isTypeAssignable(prefixArgumentType, valueElement, targetElementType));
-					const elementAssignabilityErrors = elementAssignabilities.map(elementAssignability => elementAssignability.error)
-						.filter(isDefined);
-					if (elementAssignabilityErrors.length) {
-						// Mehrere Tupel-Elemente mit demselben Zieltyp erzeugen sonst dieselbe
-						// Meldung mehrfach hintereinander - dedup wie in getTupleTypeError2.
-						const uniqueMessages = [...new Set(elementAssignabilityErrors.map(typeErrorToString))];
-						return {
-							assignable: false,
-							error: {
-								// TODO error struktur überdenken
-								message: uniqueMessages.join('\n'),
-								// innerError
-							}
-						};
-					}
-					const hasUnkownElementAssignability = elementAssignabilities.some(elementAssignability => elementAssignability.assignable === undefined);
-					if (hasUnkownElementAssignability) {
-						return { assignable: undefined };
-					}
-					else {
-						return { assignable: true };
-					}
+					return joinTypeAssignibilites(elementAssignabilities);
+				}
 				default:
 					break;
 			}
@@ -8354,7 +8334,7 @@ function isTypeAssignableByStructure(
 		}
 		case 'parameters':
 			// TODO getTypeErrorForParameters stattdessen mit 3wertiger assignability
-			return getTypeAssignabilityForParameters(prefixArgumentType, argumentsType, targetType);
+			return isTypeAssignableForParameters(prefixArgumentType, argumentsType, targetType);
 		case 'parameterReference': {
 			// TODO
 			// const dereferenced = dereferenceArgumentType(null as any, targetType);
@@ -8387,15 +8367,8 @@ function isTypeAssignableByStructure(
 			}
 			break;
 		}
-		case 'tuple': {
-			// TODO getTupleTypeError stattdessen mit 3wertiger assignability
-			const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType.ElementTypes);
-			if (error === true) {
-				// Standardfehler
-				break;
-			}
-			return error;
-		}
+		case 'tuple':
+			return isTypeAssignableForTuple(prefixArgumentType, argumentsType, targetType);
 		case 'type':
 			switch (argumentsType.julType) {
 				case 'boolean':
@@ -8424,9 +8397,12 @@ function isTypeAssignableByStructure(
 						getTypeError(undefined, elementType, targetType)).filter(isDefined);
 					if (subErrors.length) {
 						return {
-							// TODO error struktur überdenken
-							message: subErrors.map(typeErrorToString).join('\n'),
-							// innerError
+							assignable: false,
+							error: {
+								// TODO error struktur überdenken
+								message: subErrors.map(typeErrorToString).join('\n'),
+								// innerError
+							}
 						};
 					}
 					return undefined;
@@ -8490,10 +8466,14 @@ function isTypeAssignableByStructure(
 			throw new Error(`Unexpected targetType.type: ${(assertNever as CompileTimeType).julType}`);
 		}
 	}
+	return getDefaultTypeError(argumentsType, targetType);
+}
+
+function getDefaultTypeError(argumentsType: CompileTimeType, targetType: CompileTimeType) {
 	return {
 		assignable: false,
 		error: { message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.` },
-	};
+	}
 }
 
 /**
@@ -8538,24 +8518,25 @@ function tryFoldPredicate(predicate: CompileTimePredicateType, argumentsType: Co
 	}
 }
 
-/**
- * Liefert true bei Standardfehler, undefined bei keinem Fehler.
- */
-function getTupleTypeError(
+function isTypeAssignableForTuple(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
-	targetElementTypes: CompileTimeType[],
-): TypeError | true | undefined {
+	targetType: CompileTimeTupleType,
+): TypeAssignability {
+	const targetElementTypes = targetType.ElementTypes;
 	switch (argumentsType.julType) {
 		case 'list':
 			if (targetElementTypes.length > 1) {
 				return {
-					message: `Expected ${targetElementTypes.length} elements, but List may contain less.`,
+					assignable: false,
+					error: {
+						message: `Expected ${targetElementTypes.length} elements, but List may contain less.`,
+					}
 				};
 			}
-			return getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementTypes[0]!);
+			return isTypeAssignable(prefixArgumentType, argumentsType.ElementType, targetElementTypes[0]!);
 		case 'tuple':
-			return getTupleTypeError2(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
+			return isTypeAssignableForTuple2(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
 		case 'parameters':
 			// Gegenstück zu getTypeErrorForParameters' case 'tuple': dort darf ein unbenanntes
 			// Tuple-Pattern (`[Integer] => ...`) als Argument gegen einen benannten Parametertyp
@@ -8564,38 +8545,55 @@ function getTupleTypeError(
 			// unbenanntes Tuple-Ziel an (z.B. ein als Prädikat übergebenes `[Integer] => true`).
 			// TODO argumentsType.rest berücksichtigen - kein aktueller Fall deklariert einen
 			// Rest-Parameter an dieser Stelle.
-			return getTupleTypeError2(
+			return isTypeAssignableForTuple2(
 				prefixArgumentType,
 				argumentsType.singleNames.map(param => param.type ?? builtinAny),
 				targetElementTypes,
 			);
 		default:
-			return true;
+			return getDefaultTypeError(argumentsType, targetType);
 	}
 }
 
-function getTupleTypeError2(
+function isTypeAssignableForTuple2(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentElementTypes: CompileTimeType[],
 	targetElementTypes: CompileTimeType[],
-): TypeError | undefined {
+): TypeAssignability {
 	// TODO fehler wenn argument mehr elemente entfält als target?
-	const subErrors = targetElementTypes.map((targetElementType, index) => {
+	const elementAssignabilities = targetElementTypes.map((targetElementType, index) => {
 		const valueElement = argumentElementTypes[index] ?? builtinEmpty;
-		return getTypeError(prefixArgumentType, valueElement, targetElementType);
-	}).filter(isDefined);
-	if (subErrors.length) {
-		// Fehlende Elemente werden alle zu Empty (s.o.) - bei mehreren fehlenden Elementen mit
-		// demselben Zieltyp entstünde sonst dieselbe Meldung mehrfach hintereinander, ohne neue
-		// Information je Wiederholung. Dedup wie beim 'and'-Fall oben (new Set über den Text).
-		const uniqueMessages = [...new Set(subErrors.map(typeErrorToString))];
+		return isTypeAssignable(prefixArgumentType, valueElement, targetElementType);
+	});
+	return joinTypeAssignibilites(elementAssignabilities);
+}
+
+/**
+ * joined assignable :=
+ * false, wenn mindestens 1 false
+ * undefined, wenn kein false und mindestens 1 undefined
+ * true, wenn alle true
+ */
+function joinTypeAssignibilites(typeAssignabilities: TypeAssignability[]): TypeAssignability {
+	const errors = typeAssignabilities.map(elementAssignability => elementAssignability.error).filter(isDefined);
+	if (errors.length) {
+		const uniqueMessages = [...new Set(errors.map(typeErrorToString))];
 		return {
-			// TODO error struktur überdenken
-			message: uniqueMessages.join('\n'),
-			// innerError
+			assignable: false,
+			error: {
+				// TODO error struktur überdenken
+				message: uniqueMessages.join('\n'),
+				// innerError
+			}
 		};
 	}
-	return undefined;
+	const hasUnkownAssignability = typeAssignabilities.some(typeAssignability => typeAssignability.assignable === undefined);
+	if (hasUnkownAssignability) {
+		return { assignable: undefined };
+	}
+	else {
+		return { assignable: true };
+	}
 }
 
 /**
@@ -8769,7 +8767,7 @@ function hasExpectedTypeError(expression: ParseValueExpression): boolean {
 }
 
 
-function getTypeAssignabilityForParameters(
+function isTypeAssignableForParameters(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: ParametersType,
