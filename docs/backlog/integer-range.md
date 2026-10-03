@@ -9,7 +9,7 @@ zurückgestellt.
 ## Ausgangspunkt
 
 `range` schreibt seinen Elementtyp heute aus
-([core-lib.jul](../../src/core-lib.jul)):
+([core-lib.jul](../../src/runtime/core-lib.jul)):
 
 ```jul
 ) -> Or([] List(And(

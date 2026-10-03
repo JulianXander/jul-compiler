@@ -34,7 +34,8 @@ Der dritte Fall ist offen. Die core-lib umgeht ihn, indem sie obere Grenzen als
 Stand der Analyse, Zeilen in `checker.ts` bzw. `branch-dispatch.ts`:
 
 **Meldet Fehler**, braucht nur „passt nicht": Zuweisung (3628), Typ-Guard (3737), Argumente
-(4035), Rückgabetyp (4267), Typ-Guard gegen `Type` (9396), Funktion erwartet (9424).
+(4035), Rückgabetyp (4267), Typ-Guard gegen `Type` (9496), Funktion erwartet (9524). Alle gehen
+über `areArgsAssignableTo`, das noch einen String liefert.
 
 **Folgert aus „kein Fehler"**, braucht „passt" und darf „unbekannt" nicht so lesen:
 - `removeSubtypes` beim Normalisieren einer Union, geschützt über `hasReliableTypeError` und
@@ -58,26 +59,31 @@ Gefragt ist: Liegt jeder Wert der Quelle im Ziel?
 
 Gemeldet wird nur no, gefolgert nur aus yes.
 
-Ein Kern liefert drei Werte, die bisherigen Funktionen werden zu dünnen Hüllen darum:
+Der Kern ist `isTypeAssignable` (umgesetzt, siehe Stand), `getTypeError` ist eine Hülle darum:
 
 ```ts
-type Assignability =
-	| { result: 'yes'; }
-	| { result: 'no'; error: TypeError; }
-	| { result: 'unknown'; fromAny: boolean; };
+type TypeAssignability =
+	| { assignable: false; error: TypeError; }   // no
+	| { assignable: true | undefined; };        // yes bzw. unknown
 
-function getAssignability(prefixArgumentType, argumentsType, targetType): Assignability;
+function isTypeAssignable(prefixArgumentType, argumentsType, targetType): TypeAssignability;
 
 // Melden (Prinzip Freiheit): nur ein sicheres Nein ist ein Fehler.
-getTypeError = (…) => assignability.result === 'no' ? assignability.error : undefined;
-// Folgern: nur ein sicheres Ja ist eine Teilmenge, nur ein sicheres Nein keine.
-isSubtypeOf = (…) => assignability.result === 'yes';
-isNotSubtypeOf = (…) => assignability.result === 'no';
+getTypeError = (…) => assignability.assignable === false ? assignability.error : undefined;
+// Folgern, noch anzulegen: nur ein sicheres Ja ist eine Teilmenge, nur ein sicheres Nein keine.
+isSubtypeOf = (…) => assignability.assignable === true;
+isNotSubtypeOf = (…) => assignability.assignable === false;
 ```
 
-`'yes'` und die beiden `'unknown'` sind Konstanten, nur `'no'` erzeugt ein Objekt.
+Mehrere Ergebnisse verknüpft `joinTypeAssignabilities`: no, sobald eines no ist, sonst unknown,
+sobald eines unknown ist, sonst yes. Das passt für Ziel `And`, Quelle `Or`, Tuple-Positionen und
+Felder.
 
-`fromAny` sagt, ob ein `Any` als Quelle beteiligt ist. Die geplante Warnung (siehe unten) braucht
+Yes und unknown werden heute bei jedem Aufruf als neues Objekt erzeugt. Als Konstanten
+(`assignableYes`, `assignableUnknown`) entfiele das. Mit dem Bench prüfen, ob es sich lohnt.
+
+Noch nicht umgesetzt ist `fromAny`. Es kommt als Feld an das unknown:
+`{ assignable: undefined; fromAny?: true }`. Es sagt, ob ein `Any` als Quelle beteiligt ist. Die geplante Warnung (siehe unten) braucht
 das, denn Typen, die erst am Aufrufort feststehen, dürfen nicht warnen, und `Any` kann
 verschachtelt sein (`[a = Any]` → `[a: Text]`), sodass nur die Prüfung selbst es weiß. Beim
 Verknüpfen gewinnt `Any`: Ein zusammengesetztes unknown ist `fromAny`, sobald ein beteiligtes
@@ -95,7 +101,7 @@ unverändert, sie hängen weiter am `TypeError` des Nein.
 
 ### Einordnung der heutigen Fälle
 
-Jedes heutige `return undefined` in `getTypeError` wird einzeln als yes oder unknown eingeordnet.
+Jedes `{ assignable: undefined }` in `isTypeAssignable` wird einzeln als yes oder unknown eingeordnet.
 Das sind rund 63, davon 13 ausdrücklich als nachsichtig kommentiert.
 
 - **yes:** Ziel `Any`, gleiche Referenz (`argumentsType === targetType`), alle heutigen
@@ -125,6 +131,32 @@ umgekehrt. `typesOverlap` arbeitet im Checker schon so (`true`/`false`/`undefine
 Jede Phase für sich abnehmbar. Vor und nach jeder Phase `npm run bench -- --save` mit Notiz; der
 Checker-Snapshot soll unverändert bleiben, jede Abweichung wird einzeln begründet.
 
+## Stand
+
+Umgesetzt (bis Commit `aad0b93`): `isTypeAssignable` mit `TypeAssignability`, `getTypeError` als
+Hülle, `joinTypeAssignabilities`, und die Teilprüfungen für Tuple, Parameter, Funktion, Liste,
+Stream und Typ liefern `TypeAssignability`. Yes ist schon gesetzt für: Ziel `Any`, gleiche
+Referenz, gleiche Alias-Anwendung, Bereich in Bereich, Basistyp zu Basistyp (Boolean, Integer,
+Float, Text, Empty), gleiche Literale (Integer, Float, Text), Grenzen, Funktionen mit yes für
+Parameter und Rückgabe, Ziel `Type`, gleiches oder gefaltet wahres Prädikat.
+
+**Der Stand ist nicht grün.** 6 Tests sind rot, davon 4 durch drei Fehler beim Umbau, alle von
+derselben Art: Ein Ergebnis, das früher `undefined` oder ein `TypeError` war, ist jetzt immer ein
+Objekt und damit immer wahr.
+
+| Stelle | Folge | Roter Test |
+|---|---|---|
+| Ziel Prädikat: `if (isTypeAssignable(…, targetType.UpperBound))` | Jedes nicht faltbare Prädikat wird abgelehnt, auch ein Wert in der Obermenge | `predicate-accepts-unknown-value-inside-parameter-type`, `branch-narrowing-predicate-head-false-branch` |
+| Bereich passt nicht: `isTypeAssignableByStructure(…) ?? { assignable: false … }` | Das `??` greift nie: Sagt die Zerlegung unknown, kommt unknown statt no heraus | `for-each-index-can-reach-length` |
+| `isTypeAssignableForParameters` (`list`, `parameters`) und `…WithCollectionArgs` (`rest`): `const error = isTypeAssignableForParameter(…); if (error) return error;`, sechsmal | Kehrt beim ersten Parameter zurück, auch wenn er passt, die weiteren werden nie geprüft | `callback-parameter-type-narrower-than-passed-element` |
+
+Die übrigen zwei roten Tests sind die Baselines (Snapshot, Zähler). Ob deren Abweichung nur aus
+diesen Fehlern folgt, zeigt sich nach der Korrektur.
+
+Außerdem schlägt `npm run typecheck` fehl, unabhängig von diesem Plan: `scripts/bench.ts` und
+`scripts/bench-runtime.ts` importieren noch `../src/emitter.js` und `../src/project-loader.js`,
+die mit der Umstrukturierung nach `src/compiler/` gewandert sind.
+
 ### Phase 0: Abnahmefälle
 
 Rote Tests, die heute scheitern:
@@ -136,17 +168,25 @@ Rote Tests, die heute scheitern:
 Gegenproben, die heute grün sind und es bleiben müssen: die `upper-bound`-Tests, der Test zur
 Vereinfachung von `And(A Not(B))`, die Grenzen-Tests.
 
-### Phase 1: Kern einführen, ohne Verhaltensänderung
+### Phase 1: Kern einführen, ohne Verhaltensänderung (umgesetzt, Korrektur offen)
 
-- `Assignability` und `getAssignability` anlegen, `getTypeError` wird zur Hülle.
-- Zunächst wird jedes `undefined` des alten Codes als unknown übernommen und jedes Fehlerobjekt
-  als no. Da `getTypeError` beides wieder auf das Alte abbildet, ändert sich nichts.
-- Messen: Die Hülle kostet einen Aufruf und einen Vergleich pro Prüfung.
+- Umgesetzt als `isTypeAssignable`, siehe Stand.
+- **Offen:** die drei Fehler aus dem Stand korrigieren, bis die Suite ohne Baseline-Änderung grün
+  ist. Erst danach messen und weiter mit Phase 2.
+- Messen: Die Hülle kostet einen Aufruf und einen Vergleich pro Prüfung, dazu ein Objekt je
+  Ergebnis (siehe Konstanten im Modell).
 
-### Phase 2: yes einordnen
+### Phase 2: yes einordnen (begonnen)
 
-- Switch für Switch (Quelle, Ziel, Alias, Bereich) die `return undefined` durchgehen, die eine
-  Teilmenge zeigen, und auf yes umstellen. Die Verknüpfung für `And`/`Or` gemäß Tabelle.
+Was schon yes liefert, steht im Stand. Offen, jeweils heute unknown, obwohl sich yes zeigen ließe:
+
+- **Verknüpfungen, die noch zweiwertig über `getTypeError` laufen:** Quelle `And` (ein Choice yes),
+  Quelle `Or`, Ziel `And`, Ziel `Or` (Best-Match-Meldung beibehalten), die exakte Regel
+  `And(A Not(B))` (liefert bei Erfolg unknown, ist aber exakt, also yes), Dictionary-Felder
+  (`getDictionaryFieldError`, `getDictionaryLiteralTypeError`), Dictionary gegen Dictionary.
+- **Einzelfälle:** Ziel `booleanLiteral` bei gleichem Literal liefert unknown, die anderen
+  Literale yes; die Parameterprüfungen enden immer mit unknown, auch wenn jeder Parameter yes war;
+  ein Prädikat als Typ (Ziel `Type`) liefert unknown.
 - Nach jedem Switch die Suite. Solange die Folgernden noch über `hasReliableTypeError` gehen,
   ändert sich das Verhalten nicht.
 - `Never` als Quelle wird yes (siehe Abschnitt `Never`).

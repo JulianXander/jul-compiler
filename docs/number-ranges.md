@@ -34,7 +34,7 @@ sind dieselbe Menge und müssen in beide Richtungen zueinander passen.
 - **Offene Lücken** (siehe `TODO`): `Not(n)` an der Grenze wird nicht verrechnet,
   `Or(n Greater(n))` nicht als untere Grenze gelesen, `Or(1 2 3)` nicht als Bereich erkannt, ein
   leerer Bereich nicht zu `Never`. Für Floats erkennt der Checker kaum etwas.
-- **Laufzeit:** [runtime.ts](../src/runtime.ts) kennt `greater` in `getTypeError` und
+- **Laufzeit:** [runtime.ts](../src/runtime/runtime.ts) kennt `greater` in `getTypeError` und
   `typeToString`.
 - **Verwendung:** `Greater` steht nur in der core-lib (fünf Stellen, alle mit Integer-Grenze),
   nicht in yugioh, jul-examples oder der Homepage-Doku.
