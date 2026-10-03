@@ -3748,9 +3748,9 @@ function inferType(
 		}
 		case 'dictionary': {
 			const aliasName = getNameFromValue(expression);
-			const createDictionary = (fieldTypes: CompileTimeDictionary) => createCompileTimeDictionaryLiteralType(
+			const createDictionary = (fieldTypes: CompileTimeDictionary, complete = true) => createCompileTimeDictionaryLiteralType(
 				fieldTypes,
-				true,
+				complete,
 				{ expression: expression, filePath: filePath },
 				aliasName);
 			// Das Literal entsteht von links nach rechts: jeder Spread wird auf das bisherige Ergebnis
@@ -5612,7 +5612,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 function spreadDictionaryTypes(
 	rawLeft: CompileTimeType,
 	rawRight: CompileTimeType,
-	createDictionary: (fieldTypes: CompileTimeDictionary) => CompileTimeType,
+	createDictionary: (fieldTypes: CompileTimeDictionary, complete: boolean) => CompileTimeType,
 ): CompileTimeType | undefined {
 	const left = resolveAlias(rawLeft);
 	const right = resolveAlias(rawRight);
@@ -5634,10 +5634,13 @@ function spreadDictionaryTypes(
 	}
 	if (isDictionaryLiteralType(left)
 		&& isDictionaryLiteralType(right)) {
-		return createDictionary({
-			...left.Fields,
-			...right.Fields,
-		});
+		// Ist eine Seite unvollständig, kann der Wert weitere Felder haben, und das Ergebnis ebenso.
+		return createDictionary(
+			{
+				...left.Fields,
+				...right.Fields,
+			},
+			left.complete && right.complete);
 	}
 	return undefined;
 }

@@ -38,8 +38,8 @@ in `checker.ts` (Zeilen zur Orientierung):
 | Frage | Ersatz | Stellen |
 |---|---|---|
 | **Melden:** welcher Fehler, später welche Warnung | `isTypeAssignable` direkt | `inferType`: Zuweisung (3628), Typ-Guard (3737), Argumente (4035), Rückgabetyp (4267); `checkTypeGuardIsType` (9508); `checkIsFunction` (9536); `isTypeAssignableForPredicateFunction`: kann true liefern (8488) |
-| **Folgern:** bewiesen eine Teilmenge? | `isSubtypeOf` | `isBranchingExhaustive` (2763); `inferType`: Erreichbarkeit von Branches (3469); `getPredicateFacts`: Rückgabetyp ist Boolean (3251); `addFromTypes`: Grenze nur für bewiesene Integer (5256); `createConditionalType`: Zweig greift ganz (5439); `removeSubtypes` (5517/5521); `createNormalizedIntersectionType`: Vereinfachung für Teilmengen (5794/5797) |
-| **Ausschließen:** bewiesen keine Teilmenge? | `isNotSubtypeOf` | `narrowExpectedTypeByFields`: Choice fällt wegen Feld weg (3080/3087); `isNotAssignableTo` (6305); `isFieldOptional` (8716); `hasExpectedTypeError`: Suche der Fehlerposition (8773); Completion im Language Server (`completion.ts`, Filter der Methoden) |
+| **Folgern:** bewiesen eine Teilmenge? | `isSubtypeOf` | ``inferType`: Erreichbarkeit von Branches (3469); `getPredicateFacts`: Rückgabetyp ist Boolean (3251); `addFromTypes`: Grenze nur für bewiesene Integer (5256); `createConditionalType`: Zweig greift ganz (5439); `removeSubtypes` (5517/5521); `createNormalizedIntersectionType`: Vereinfachung für Teilmengen (5794/5797) |
+| **Ausschließen:** bewiesen keine Teilmenge? | `isSubtypeOf(…) === false` | `narrowExpectedTypeByFields`: Choice fällt wegen Feld weg (3080/3087); `isNotAssignableTo` (6305); `isFieldOptional` (8716); `hasExpectedTypeError`: Suche der Fehlerposition (8773); Completion im Language Server (`completion.ts`, Filter der Methoden) |
 
 Die Zeile **Folgern** ist die gefährliche: Dort wertet `!getTypeError(…)` heute unknown als
 bewiesen. Geschützt sind nur die Stellen mit `hasReliableTypeError` oder `containsAny` daneben,
@@ -61,7 +61,7 @@ Gefragt ist: Liegt jeder Wert der Quelle im Ziel?
 Gefolgert wird nur aus yes. Gemeldet wird no als Fehler und unknown als Warnung (siehe Abschnitt
 „Warnung bei unknown"): Was der Checker nicht beweisen kann, kann zur Laufzeit schiefgehen.
 
-Der Kern ist `isTypeAssignable` (umgesetzt, siehe Stand). `getTypeError` ist bis Phase 3 eine Hülle darum:
+Der Kern ist `isTypeAssignable` (umgesetzt, siehe Stand):
 
 ```ts
 type TypeAssignability =
@@ -71,12 +71,9 @@ type TypeAssignability =
 
 function isTypeAssignable(prefixArgumentType, argumentsType, targetType): TypeAssignability;
 
-// Übergang, entfällt mit Phase 3: nur ein sicheres Nein ist ein Fehler.
-getTypeError = (…) => assignability.assignable === false ? assignability.error : undefined;
-// Folgern: nur ein sicheres Ja ist eine Teilmenge (isSubtypeOf, angelegt), nur ein sicheres Nein
-// keine (isNotSubtypeOf, noch anzulegen).
-isSubtypeOf = (…) => assignability.assignable === true;
-isNotSubtypeOf = (…) => assignability.assignable === false;
+// Melden: das volle Ergebnis, bei no der Fehler.
+// Folgern und Ausschließen: dreiwertig wie typesOverlap, immer mit === true / === false vergleichen.
+function isSubtypeOf(type, superType): boolean | undefined;
 ```
 
 Mehrere Ergebnisse verknüpft `joinTypeAssignabilities`: no, sobald eines no ist, sonst unknown,
@@ -212,29 +209,36 @@ Vereinfachung von `And(A Not(B))`, die Grenzen-Tests.
 - Ergebnis: Checker-Snapshot unverändert, Suite grün bis auf den Abnahmefall für Phase 3/4,
   yugioh und jul-examples fehlerfrei.
 
-### Phase 3: `getTypeError` ersetzen
+### Phase 3: `getTypeError` ersetzen (umgesetzt)
 
-Ziel: `getTypeError` und `areArgsAssignableTo` verschwinden. Jede Stelle aus der Tabelle unter
-„Wer die Prüfung benutzt" stellt ausdrücklich ihre Frage:
+`getTypeError`, `areArgsAssignableTo`, `hasReliableTypeError`, `containsAny` und `isNotAssignableTo`
+sind entfernt. Jede Stelle aus der Tabelle unter „Wer die Prüfung benutzt" stellt ihre Frage
+ausdrücklich:
 
-- **Melden:** ruft `isTypeAssignable` und meldet bei no den Fehler. Damit liegt an diesen Stellen
-  schon das volle Ergebnis vor, an das die Warnung bei unknown anschließt.
-- **Folgern:** `isSubtypeOf`. Die Schutzabfragen `hasReliableTypeError` und `containsAny`
-  entfallen, ebenso `isUnresolvedPlaceholderType`, wo es nur deshalb danebensteht.
-  `hasReliableTypeError` fällt ganz weg.
-- **Ausschließen:** `isNotSubtypeOf`, neu anzulegen und zu exportieren. Der Language Server
-  stellt seinen Filter in `completion.ts` darauf um, im selben Zug wie der Compiler.
+- **Melden:** `isTypeAssignable` direkt, bei no der Fehler. `tryFoldCall` bekommt `hasArgsError`.
+- **Folgern und Ausschließen:** `isSubtypeOf`, dreiwertig (`true` / `false` / `undefined`) wie
+  `typesOverlap`, immer mit `=== true` bzw. `=== false` verglichen. Ein eigenes `isNotSubtypeOf`
+  gibt es deshalb nicht. Der Language Server filtert die Completion mit `!== false`.
+- Der Zähler `checkerStats.getTypeError` heißt weiter so, sein Name steht im Bench-Protokoll.
 
-Hier ändert sich Verhalten, an zwei Stellen:
-- Die bisher ungeschützten Folgernden (`isBranchingExhaustive`, `getPredicateFacts`,
-  `addFromTypes`) folgern bei unknown nichts mehr. Das ist die Korrektur, kann aber Typen
-  verbreitern oder ein branching als nicht erschöpfend melden.
-- Wo Phase 2 eine echte Teilmenge noch nicht als yes einordnet, normalisiert der Checker
-  schwächer. So zeigte es sich schon bei `branch-dispatch.ts` (Dictionaries). Das zeigt sich im
-  Snapshot als längere Typen und wird dann in Phase 2 nachgetragen, nicht über Ausnahmen.
+Dabei kam heraus und ist korrigiert:
+- **Ziel `Not`** lieferte bei bewiesen fehlender Überlappung unknown statt yes.
+- **Vereinfachung für Teilmengen** kürzte `And(Any Not(Integer))` zu `Not(Integer)`, weil
+  `Not(Integer)` in `Any` liegt. Sie überspringt jetzt `Any`, das hat die Regel für das neutrale
+  Element schon entschieden.
+- **Faltbudget:** `removeSubtypes` vergleicht jetzt auch Prädikate, das verdoppelte die Faltungen,
+  und fizz-buzz mit 100 Elementen wurde nicht mehr gefaltet. `tryFoldPredicate` speichert sein
+  Ergebnis je Funktionstyp und Wert (`predicateFoldCache`).
+- **`isBranchingExhaustive`** gehört nicht zu den Folgernden: Nicht erschöpfend fügt `Error` in den
+  Rückgabetyp ein, das wird an der Verwendung zum Fehler. Es darf also nur bei no gelten, unknown
+  gilt als erschöpfend (Prinzip Freiheit). Sonst meldete yugioh zwei falsche Fehler.
+- **Spread eines unvollständigen Dictionaries** ergab ein vollständiges, ein fehlendes Feld galt
+  dann als bewiesen fehlend. Der Fehler bestand schon vorher, verdeckt durch `removeSubtypes`,
+  das das unvollständige Dictionary über `!getTypeError` aus der Union warf. Test
+  `dictionary-spread-of-incomplete-dictionary-stays-incomplete`.
 
-Abnahme: Suite, Snapshot (jede Abweichung einzeln ansehen), yugioh, jul-examples, die Tests des
-Language Servers.
+Ergebnis: Checker-Snapshot unverändert, Suite grün bis auf den Abnahmefall für Phase 4, yugioh und
+jul-examples fehlerfrei, Language Server grün.
 
 ### Phase 4: `lengthOf` und die core-lib
 
