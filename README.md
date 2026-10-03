@@ -74,7 +74,6 @@ jul todo
 
 ## Test
 `node --run test` (oder `npm test`, startet aber ~0,4 s langsamer)  
-Mocha über `src/**/*.test.ts`, via tsx — kein Build nötig.
 
 Einzelne Testdatei bzw. einzelnen Test (`-g` sucht im `it(...)`-Text):
 
