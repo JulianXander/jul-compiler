@@ -7,10 +7,6 @@
 	-konnte nicht reproduziert werden
 -float-grenzen (GreaterFloat, LessFloat): zurückgestellt bis zum ersten realen bedarf, plan in
 	docs/number-ranges.md phase 3
-?aggregate: wie wird der akkumulator getypt? heute Any (12 unknown in yugioh). TypeOf(initialValue)
-	macht ein literal (aggregate(0 …)) zum typ, nach der ersten runde stimmt das nicht mehr. wie
-	TypeScript (reduce<U>, callback liefert U) braucht literal-erweiterung, die JUL nicht hat.
-	Or(TypeOf(initialValue) TypeOf(callback)/ReturnType) ist zirkulär. siehe docs/three-valued-assignability.md
 -unmögliche typen an der ursache melden (plan in docs/three-valued-assignability.md, abschnitt Never):
 	-warnung an einem parameter vom typ Never: nie aufrufbar
 	-:? ohne passenden zweig am aufrufort: gibt es dafür schon eine meldung?

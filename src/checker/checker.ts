@@ -3703,6 +3703,10 @@ function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: Compile
 		case 'blob':
 		case 'error':
 			return 'pure';
+		// Ein Typ als Wert (Integer in aggregate(values Integer ...)) ist ein Beschreibungsobjekt und
+		// nicht aufrufbar, die Weitergabe kann nichts Unreines auslösen.
+		case 'typeOf':
+			return 'pure';
 		default:
 			return 'unknown';
 	}
@@ -3945,6 +3949,13 @@ function tryFoldCall(
 	}
 	const resolvedFunctionType = resolveAlias(functionType);
 	if (!isFunctionType(resolvedFunctionType) || getCallPurity(resolvedFunctionType, boundArgsType) !== 'pure') {
+		return undefined;
+	}
+	// Ein Typkonstruktor (List, Or, ...) liefert ein Typobjekt, das sich nicht in einen Typ
+	// zurückübersetzen lässt (constantValueToType): der Aufruf liefe umsonst.
+	const declaredReturnJulType = resolveAlias(resolvedFunctionType.ReturnType).julType;
+	if (declaredReturnJulType === 'type'
+		|| declaredReturnJulType === 'typeOf') {
 		return undefined;
 	}
 	// Trägt der Typ ein literal, ist es eine Nutzerfunktion (case 'functionLiteral' setzt es) -

@@ -2538,6 +2538,7 @@ export const toDictionary = /*#__PURE__*/ _createFunction(
 export const aggregate = /*#__PURE__*/ _createFunction(
 	function aggregate<T, U>(
 		values: T[] | undefined,
+		_accumulatorType: unknown,
 		initialValue: U,
 		callback: (accumulator: U, value: T, index: bigint) => U,
 	): U {
@@ -2555,6 +2556,9 @@ export const aggregate = /*#__PURE__*/ _createFunction(
 			{
 				name: 'values',
 				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
+			},
+			{
+				name: 'AccumulatorType',
 			},
 			{
 				name: 'initialValue',

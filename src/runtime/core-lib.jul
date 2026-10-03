@@ -969,23 +969,24 @@ toDictionary = nativeFunction(
 		}
 	§
 )
+# Faltet values von links nach rechts zu einem Wert.
+# AccumulatorType ist der Typ des Akkumulators: initialValue und jeder Rückgabewert des
+# callbacks müssen ihn erfüllen, der callback bekommt ihn als Typ seines accumulator.
+# Der Typ lässt sich nicht aus initialValue ableiten: ein Literal (0) wäre zu eng und ein
+# leerer Startwert ([]) hat keinen Elementtyp.
 aggregate = nativeFunction(
 	(
 		values: Or([] List(Any))
-		initialValue: Any
+		AccumulatorType: Type
+		initialValue: AccumulatorType
 		callback: (
-			accumulator: Any
+			accumulator: AccumulatorType
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
-		) :> Any
-	)
-		:>
-			:?(TypeOf(values))
-				[Empty] => TypeOf(initialValue)
-				[List(Any)] => TypeOf(callback)/ReturnType
-				() => Or(TypeOf(initialValue) TypeOf(callback)/ReturnType)
+		) :> AccumulatorType
+	) :> AccumulatorType
 	§js
-		(values, initialValue, callback) => {
+		(values, accumulatorType, initialValue, callback) => {
 			if (!values) {
 				return initialValue;
 			}

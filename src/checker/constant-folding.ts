@@ -68,6 +68,16 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown; } 
 			}
 			return { value: fields };
 		}
+		case 'typeOf': {
+			// Ein Typ als Argument (Integer in aggregate(values Integer ...)) hat den Typ
+			// TypeOf(Integer), sein Wert ist das Laufzeitobjekt des Typs. Nur die einfachen
+			// eingebauten Typen haben eins, das hier ohne Rückgriff auf einen Konstruktor
+			// bekannt ist; alles andere (List(Integer), Or(...)) bleibt unfaltbar.
+			const runtimeType = getBuiltinRuntimeType(type.value);
+			return runtimeType === undefined
+				? undefined
+				: { value: runtimeType };
+		}
 		case 'function': {
 			// Nutzerfunktion (trägt literal, siehe checker.ts case 'functionLiteral'): ein echtes
 			// JS-Callable aus dem Auswerter, damit sie z.B. als Callback an eine HOF wie map
@@ -83,6 +93,29 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown; } 
 			const callable = tryBuildCallable(type);
 			return callable && { value: callable };
 		}
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Das Laufzeitobjekt der einfachen eingebauten Typen. Es sind dieselben Singletons, die auch
+ * der emittierte Code verwendet, nicht gleich aussehende neue Objekte.
+ */
+function getBuiltinRuntimeType(type: CompileTimeType): unknown | undefined {
+	switch (type.julType) {
+		case 'any':
+			return runtime.Any;
+		case 'empty':
+			return runtime.Empty;
+		case 'boolean':
+			return runtime._Boolean;
+		case 'integer':
+			return runtime.Integer;
+		case 'float':
+			return runtime.Float;
+		case 'text':
+			return runtime._Text;
 		default:
 			return undefined;
 	}

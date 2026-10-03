@@ -591,8 +591,7 @@ card = getCard()
 	});
 	// Branch-Narrowing auf einem Any-Ursprung ergibt And(Any Not(Integer)): ein unbekannter Wert,
 	// der nur kein Integer ist. Er bleibt so unwissend wie das Any davor. Not(Integer) allein hieße
-	// "alles außer Integer" und wäre keinem engeren Typ zuweisbar. aggregate (core-lib.jul,
-	// Akkumulator: Any) erzeugt seinen Rückgabetyp ebenfalls über Any.
+	// "alles außer Integer" und wäre keinem engeren Typ zuweisbar.
 	it('narrowed-not-type-from-any-source-is-not-checked', () => {
 		expectCheck(`combined = assume([] Any)
 ?(combined/index)
@@ -3096,6 +3095,7 @@ f(Integer (accumulator) => 1)`);
 	it('callback-parameter-type-narrower-than-passed-element', () => {
 		expectCheck(`aggregate(
 	[0 1 2]
+	Integer
 	0
 	(accumulator value: PositiveInteger) => value
 )`, {
@@ -3103,10 +3103,10 @@ f(Integer (accumulator) => 1)`);
 				{
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 46,
-					"endRowIndex": 3,
+					"endRowIndex": 4,
 					"message": "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid type for parameter 'value'\n    Can not assign 0 to GreaterInteger(0).",
 					"startColumnIndex": 1,
-					"startRowIndex": 3,
+					"startRowIndex": 4,
 				},
 			],
 		});
@@ -3115,10 +3115,53 @@ f(Integer (accumulator) => 1)`);
 	it('callback-parameter-type-wide-enough', () => {
 		expectCheck(`aggregate(
 	[0 1 2]
+	Integer
 	0
 	(accumulator value: Integer) => value
 )`);
 	});
+	//#region aggregate: Typ des Akkumulators
+	// Der Akkumulatortyp ist ein Parameter von aggregate. Startwert und Rückgabewert des
+	// Callbacks müssen ihn erfüllen, der Callback bekommt ihn als Typ seines Akkumulators.
+	it('aggregate-accumulator-type-checks-callback-return', () => {
+		expectCheck(`aggregate([1 2 3] Integer 0 (accumulator value) => §text§)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid return value\n    Can not assign §text§ to Integer.",
+					startColumnIndex: 28,
+					startRowIndex: 0,
+					endColumnIndex: 57,
+					endRowIndex: 0,
+				},
+			],
+		});
+	});
+	it('aggregate-accumulator-type-checks-initial-value', () => {
+		expectCheck(`aggregate([1 2 3] Integer §x§ (accumulator value) => accumulator)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: "Argument type mismatch.\nInvalid value for parameter 'initialValue'\n  Can not assign §x§ to Integer.",
+					startColumnIndex: 26,
+					startRowIndex: 0,
+					endColumnIndex: 29,
+					endRowIndex: 0,
+				},
+			],
+		});
+	});
+	// Gegenprobe: passt alles zum Akkumulatortyp, gibt es keinen Fehler.
+	it('aggregate-accumulator-type-accepts-matching-callback', () => {
+		expectCheck(`aggregate([1 2 3] Integer 0 (accumulator value) => accumulator.add(value))`);
+	});
+	// Das Ergebnis hat den Akkumulatortyp, auch wenn values leer sein kann.
+	it('aggregate-result-has-accumulator-type', () => {
+		expectCheck(`f = (values: Or([] List(Integer))) =>
+	result: Integer = aggregate(values Integer 0 (accumulator value) => accumulator.add(value))
+	result`);
+	});
+	//#endregion aggregate: Typ des Akkumulators
 	//#endregion Callback-Parametertypen
 	//#region erwarteter Typ
 	// Ein Funktionsliteral bekommt die Typen seiner untypisierten Parameter aus dem erwarteten
@@ -5685,6 +5728,13 @@ describe('constant folding', () => {
 	});
 	it('slice außerhalb des Bereichs faltet zu Empty', () => {
 		expect(typeOfLastDefinition('r = [1 2 3].slice(9)')).to.equal('Empty');
+	});
+	// Das Typargument (Integer) ist ein Wert vom Typ TypeOf(Integer) und für die Faltung konstant.
+	it('aggregate faltet mit einem Typargument', () => {
+		expect(typeOfLastDefinition('r = [1 2 3].aggregate(Integer 0 (accumulator value) => accumulator.add(value))')).to.equal('6');
+	});
+	it('aggregate mit leerer Liste faltet zum Startwert', () => {
+		expect(typeOfLastDefinition('r = [].aggregate(Integer 7 (accumulator value) => accumulator)')).to.equal('7');
 	});
 	it('range faltet zu einem Tuple', () => {
 		expect(typeOfLastDefinition('r = range(-1 2)')).to.equal('[-1 0 1 2]');

@@ -279,8 +279,9 @@ Deshalb vor der Warnung, jeweils mit neuer Zählung danach:
 
 - **a. core-lib:** `setField`, `toList` und `toDictionary` behalten den Elementtyp (umgesetzt,
   yugioh 215 → 182). `Blob` fehlte in `coreBuiltInSymbolTypes` und war damit `Any`, behoben (Test
-  `blob-rejects-integer`). Zurückgestellt: der Akkumulator von `aggregate` (12 Fälle in yugioh),
-  siehe `TODO`. Die unaufgelösten Parameterverweise in den Signaturen der core-lib gehören zu b.
+  `blob-rejects-integer`). `aggregate` bekommt den Typ des Akkumulators als Parameter
+  (`AccumulatorType`), statt ihn als `Any` zu deklarieren oder aus dem Startwert abzuleiten: Ein
+  Literal (`0`) wäre zu eng, und `[]` hat keinen Elementtyp. Die unaufgelösten Parameterverweise in den Signaturen der core-lib gehören zu b.
 - **b. Checker:** Parameter von Callbacks, deren Typ aus dem erwarteten Typ kommt
   (`TypeOf(x)/ElementType`), am Aufruf auflösen. Umgesetzt als `getArgumentsAssignability`: Bleibt
   die Argumentprüfung unknown, wird sie mit aufgelösten Platzhaltern beider Seiten wiederholt, wie

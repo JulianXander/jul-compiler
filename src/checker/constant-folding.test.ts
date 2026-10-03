@@ -1,9 +1,12 @@
 import { expect } from 'chai';
 import { constantValueToType, maxFoldedTupleLength, typeToConstantValue } from './constant-folding.js';
+import { _julTypeSymbol } from '../runtime/runtime.js';
 import {
 	builtinEmpty,
 	builtinError,
 	builtinInteger,
+	builtinText,
+	createCompileTimeTypeOfType,
 	createBooleanLiteral,
 	createCompileTimeDictionaryLiteralType,
 	createCompileTimeTupleType,
@@ -38,6 +41,18 @@ describe('typeToConstantValue', () => {
 			denominator: createIntegerLiteral(2n),
 		}, true);
 		expect(typeToConstantValue(fraction)).to.deep.equal({ value: { numerator: 1n, denominator: 2n } });
+	});
+	// Ein Typ als Argument (Integer in aggregate(values Integer ...)) hat den Typ TypeOf(Integer);
+	// sein Wert ist das Laufzeitobjekt des Typs.
+	it('liest TypeOf(Integer) als Laufzeittyp integer', () => {
+		expect(typeToConstantValue(createCompileTimeTypeOfType(builtinInteger))).to.deep.equal({
+			value: { [_julTypeSymbol]: 'integer' },
+		});
+	});
+	it('liest TypeOf(Text) als Laufzeittyp text', () => {
+		expect(typeToConstantValue(createCompileTimeTypeOfType(builtinText))).to.deep.equal({
+			value: { [_julTypeSymbol]: 'text' },
+		});
 	});
 	it('ist nicht faltbar für einen nicht-literalen Typ', () => {
 		expect(typeToConstantValue(builtinInteger)).to.equal(undefined);
