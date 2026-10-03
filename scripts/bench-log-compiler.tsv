@@ -182,3 +182,4 @@
 2026-10-03 10:36:34	e295194+	-	ADV-DEV-56627	yugioh	parse+check	5	1525.03	1919.42	1919.42	nach: dreiwertige Zuweisbarkeit Phase 2 (yes eingeordnet, Never yes, Not als Quelle genau)
 2026-10-03 10:54:40	297a9f1+	-	ADV-DEV-56627	yugioh	parse+check	5	1638.41	2098.81	2098.81	nach: dreiwertige Zuweisbarkeit Phase 3 (getTypeError ersetzt, Cache fuer Praedikatfaltung)
 2026-10-03 11:01:54	3ea25f6+	-	ADV-DEV-56627	yugioh	parse+check	5	1567.88	1978.63	1978.63	nach: Phase 3 komplett (Korrekturen isBranchingExhaustive, Spread unvollstaendiger Dictionaries)
+2026-10-03 11:06:06	1060dc0+	-	ADV-DEV-56627	yugioh	parse+check	5	1872.49	2002.41	2002.41	nach: dreiwertige Zuweisbarkeit Phase 4 (lengthOf als Ziel, Or-Form der oberen Grenzen)

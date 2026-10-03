@@ -1444,7 +1444,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 					code: ErrorCode.returnTypeMismatch,
 					endColumnIndex: 11,
 					endRowIndex: 1,
-					message: 'Return type mismatch.\nCan not assign List(Or(And(1 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(1) Not(GreaterInteger(PositiveInteger))))) to Or(Empty List(Not(GreaterInteger(1)))).\n  Can not assign List(Or(And(1 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(1) Not(GreaterInteger(PositiveInteger))))) to List(Not(GreaterInteger(1))).\n    Can not assign And(GreaterInteger(1) Not(GreaterInteger(PositiveInteger))) to Not(GreaterInteger(1)).',
+					message: 'Return type mismatch.\nCan not assign List(Or(1 GreaterInteger(1))) to Or(Empty List(Not(GreaterInteger(1)))).\n  Can not assign List(Or(1 GreaterInteger(1))) to List(Not(GreaterInteger(1))).\n    Can not assign GreaterInteger(1) to Not(GreaterInteger(1)).',
 					relatedInformation: {
 						endColumnIndex: 63,
 						endRowIndex: 0,
@@ -1467,7 +1467,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 					code: ErrorCode.returnTypeMismatch,
 					endColumnIndex: 15,
 					endRowIndex: 1,
-					message: 'Return type mismatch.\nCan not assign List(Or(And(PositiveInteger Not(GreaterInteger(5))) And(GreaterInteger(PositiveInteger) Not(GreaterInteger(5))))) to Or(Empty List(GreaterInteger(1))).\n  Can not assign List(Or(And(PositiveInteger Not(GreaterInteger(5))) And(GreaterInteger(PositiveInteger) Not(GreaterInteger(5))))) to List(GreaterInteger(1)).\n    Can not assign And(PositiveInteger Not(GreaterInteger(5))) to GreaterInteger(1).\n    Can not assign And(GreaterInteger(PositiveInteger) Not(GreaterInteger(5))) to GreaterInteger(1).',
+					message: 'Return type mismatch.\nCan not assign List(Or(5 And(LessInteger(5) PositiveInteger) And(LessInteger(5) GreaterInteger(PositiveInteger)))) to Or(Empty List(GreaterInteger(1))).\n  Can not assign List(Or(5 And(LessInteger(5) PositiveInteger) And(LessInteger(5) GreaterInteger(PositiveInteger)))) to List(GreaterInteger(1)).\n    Can not assign LessInteger(5) to GreaterInteger(1).\n    Can not assign GreaterInteger(0) to GreaterInteger(1).\n    Can not assign LessInteger(5) to GreaterInteger(1).\n    Can not assign GreaterInteger(PositiveInteger) to GreaterInteger(1).',
 					relatedInformation: {
 						endColumnIndex: 62,
 						endRowIndex: 0,
@@ -1489,7 +1489,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 					code: ErrorCode.returnTypeMismatch,
 					endColumnIndex: 11,
 					endRowIndex: 1,
-					message: 'Return type mismatch.\nCan not assign List(Or(And(0 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(0) Not(GreaterInteger(PositiveInteger))))) to Or(Empty List(PositiveInteger)).\n  Can not assign List(Or(And(0 Not(GreaterInteger(PositiveInteger))) And(GreaterInteger(0) Not(GreaterInteger(PositiveInteger))))) to List(PositiveInteger).\n    Can not assign And(0 Not(GreaterInteger(PositiveInteger))) to GreaterInteger(0).',
+					message: 'Return type mismatch.\nCan not assign List(Or(And(LessInteger(PositiveInteger) 0) PositiveInteger)) to Or(Empty List(PositiveInteger)).\n  Can not assign List(Or(And(LessInteger(PositiveInteger) 0) PositiveInteger)) to List(PositiveInteger).\n    Can not assign LessInteger(PositiveInteger) to GreaterInteger(0).\n    Can not assign 0 to GreaterInteger(0).',
 					relatedInformation: {
 						endColumnIndex: 56,
 						endRowIndex: 0,
@@ -1512,7 +1512,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nInvalid value for parameter \'iteratee\'\n  Invalid type for parameter \'index\'\n    Can not assign And(PositiveInteger Not(GreaterInteger(3))) to Not(GreaterInteger(2)).',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'iteratee\'\n  Invalid type for parameter \'index\'\n    Can not assign 3 to Not(GreaterInteger(2)).',
 					startRowIndex: 0,
 					startColumnIndex: 9,
 					endRowIndex: 0,
@@ -1533,7 +1533,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nInvalid value for parameter \'callback\'\n  Invalid type for parameter \'index\'\n    Can not assign And(PositiveInteger Not(GreaterInteger(3))) to Not(GreaterInteger(2)).',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'callback\'\n  Invalid type for parameter \'index\'\n    Can not assign 3 to Not(GreaterInteger(2)).',
 					startRowIndex: 0,
 					startColumnIndex: 16,
 					endRowIndex: 0,
@@ -5710,7 +5710,7 @@ describe('constant folding', () => {
 		expect(typeOfLastDefinition('r = range(3 1)')).to.equal('Empty');
 	});
 	it('range über die Tuple-Grenze bleibt beim deklarierten Typ', () => {
-		expect(typeOfLastDefinition('r = range(1 1001)')).to.equal('Or(Empty List(Or(1 And(GreaterInteger(1) Not(GreaterInteger(1001))))))');
+		expect(typeOfLastDefinition('r = range(1 1001)')).to.equal('Or(Empty List(Or(1 1001 And(LessInteger(1001) GreaterInteger(1)))))');
 	});
 	it('filter faltet mit predicate', () => {
 		expect(typeOfLastDefinition(`x = [1 2 3 [] §asdf§].filter(

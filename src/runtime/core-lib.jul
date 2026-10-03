@@ -802,7 +802,7 @@ range = nativeFunction(
 		# >= start
 		Or(start GreaterInteger(start))
 		# <= end
-		Not(GreaterInteger(end))
+		Or(end LessInteger(end))
 	)))
 	§js
 		(start, end) => {
@@ -887,7 +887,7 @@ forEach = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Not(GreaterInteger(length(values)))
+				Or(length(values) LessInteger(length(values)))
 			)
 		) ~> Any
 	) ~> []
@@ -1295,7 +1295,7 @@ repeat = nativeFunction(
 		count: Integer
 		iteratee: (index: And(
 			PositiveInteger
-			Not(GreaterInteger(count))
+			Or(count LessInteger(count))
 		)) ~> Any
 	) ~> []
 	§js

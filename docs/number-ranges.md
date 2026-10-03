@@ -77,13 +77,10 @@ Or(end LessInteger(end))
 
 Das bleibt ein Zahlentyp, anders als `Not(GreaterInteger(end))`.
 
-**Ausnahme, offen (siehe [three-valued-assignability.md](three-valued-assignability.md)):** Hängt die Grenze an einem Aufruf, der erst am Aufrufort feststeht, geht
-die `Or`-Form heute verloren. `And(PositiveInteger Or(length(values) LessInteger(length(values))))`
-im Parametertyp von `forEach` wird schon bei der Deklaration zu `PositiveInteger`: Das `And`
-wird über das `Or` verteilt, und die Normalisierung der Union behandelt den offenen Wert
-`length(values)` wie `PositiveInteger`, das den Rest verschluckt. Die oberen Grenzen in der
-core-lib stehen deshalb vorerst als `Not(GreaterInteger(…))`. Im `And` mit `PositiveInteger`
-schadet das nicht, das `And` schneidet die Nicht-Zahlen ab.
+Eine Zeit lang standen die oberen Grenzen in der core-lib als `Not(GreaterInteger(…))`, weil die
+`Or`-Form bei `length(values)` schon bei der Deklaration zu `PositiveInteger` zusammenfiel. Die
+Ursache, eine offene Länge als Ziel galt als ganz `PositiveInteger`, ist mit
+[three-valued-assignability.md](three-valued-assignability.md) (Phase 4) behoben.
 
 Inklusive Grenzen kommen heute an vier Stellen vor, alle in der core-lib. Kurzformen (`AtLeast`/`AtMost` oder `IntegerRange(start end)`) kommen
 erst, wenn Nutzercode sie braucht. Der Checker braucht für sie keine eigene Regel, denn er liest
@@ -164,7 +161,8 @@ Notiz, und die Snapshot-Diffs ansehen.
   (`§js GreaterInteger §`, wie `repeat`), statt eine zweite Implementierung als Text mitzuführen.
 - `core-lib.jul`: Deklarationen, `Greater` entfernen, `PositiveInteger = GreaterInteger(0)`, die
   Grenzen von `range`, `repeat` und `forEach` umstellen: untere als `Or(… GreaterInteger(…))`,
-  obere vorerst als `Not(GreaterInteger(…))` (siehe Ausnahme oben), das `Integer` im `And`
+  obere zunächst als `Not(GreaterInteger(…))`, seit der dreiwertigen Zuweisbarkeit als
+  `Or(… LessInteger(…))`, das `Integer` im `And`
   fällt weg. Das `#TODO Greater Rational vs GreaterInteger, GreaterFloat` ist damit erledigt.
   **Umgesetzt.**
 - `getIntegerRange` liest die neuen Knoten, damit die bestehenden Tests gleich bleiben.

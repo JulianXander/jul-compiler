@@ -7803,6 +7803,11 @@ function isTypeAssignableByStructure(
 			return { assignable: undefined };
 		}
 		case 'lengthOf': {
+			// Dieselbe Länge liegt in sich selbst, als PositiveInteger gelesen wäre das nur unbekannt.
+			if (targetType.julType === 'lengthOf'
+				&& typeEquals(argumentsType, targetType)) {
+				return { assignable: true };
+			}
 			// Source ist nur dann garantiert schon der reine list-Zweig (nie Empty), wenn
 			// getLengthFromType sie bereits aufgesplittet hat. Bei einer hier noch unaufgelösten
 			// Source (z.B. parameterReference, weil argsType bewusst ungeprüft bleibt, siehe
@@ -8272,9 +8277,16 @@ function isTypeAssignableByStructure(
 		// TODO
 		case 'typeOf':
 			break;
-		case 'lengthOf':
-			// In der Oberfläche nicht konstruierbar, nur zur Vollständigkeit des Switches.
-			return isTypeAssignable(prefixArgumentType, argumentsType, CompileTimePositiveInteger);
+		case 'lengthOf': {
+			// Eine noch offene Länge ist eine bestimmte, nur unbekannte Zahl, nicht jede positive ganze
+			// Zahl, wie ein abstrakter Typ mit oberer Schranke PositiveInteger. Hinein passt sicher nur
+			// dieselbe Länge (oben bei der Quelle), sicher nicht, was keine positive ganze Zahl sein kann.
+			// Entsteht etwa aus length(values) in einem Parametertyp.
+			const overlaps = typesOverlap(argumentsType, CompileTimePositiveInteger);
+			return overlaps === false
+				? getDefaultTypeError(argumentsType, targetType)
+				: { assignable: undefined };
+		}
 		case 'conditional':
 			// Wartet noch auf seine Operanden: permissiv wie withElementAt.
 			return { assignable: undefined };

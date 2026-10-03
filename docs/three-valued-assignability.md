@@ -240,11 +240,18 @@ Dabei kam heraus und ist korrigiert:
 Ergebnis: Checker-Snapshot unverändert, Suite grün bis auf den Abnahmefall für Phase 4, yugioh und
 jul-examples fehlerfrei, Language Server grün.
 
-### Phase 4: `lengthOf` und die core-lib
+### Phase 4: `lengthOf` und die core-lib (umgesetzt)
 
-- Zielregel für `lengthOf` wie oben.
-- `forEach`, `repeat` und `range` schreiben die obere Grenze als `Or(end LessInteger(end))`.
-  Der Abschnitt „Ausnahme" in [number-ranges.md](number-ranges.md) und der TODO-Eintrag entfallen.
+- Zielregel für `lengthOf`: dieselbe Länge ist yes (im Fall für die Quelle, der zuerst läuft und
+  eine Länge sonst als `PositiveInteger` liest), eine Quelle ohne Überschneidung mit
+  `PositiveInteger` no, sonst unknown. Der Abnahmefall `upper-bound-from-open-length-survives-and`
+  ist grün.
+- `range`, `repeat` und `forEach` schreiben die obere Grenze als `Or(end LessInteger(end))`.
+  Meldungen und Anzeigen ändern sich dadurch, alle genauer oder gleichwertig: `repeat(3 …)` gegen
+  `Not(GreaterInteger(2))` meldet jetzt `Can not assign 3 to …` statt des ganzen `And`, und
+  `range(1 n)` mit unbekanntem `n` zeigt `Or(1 GreaterInteger(1))` statt einer Kette von `And`.
+- Checker-Snapshot unverändert, yugioh, jul-examples und Language Server fehlerfrei, Bench im
+  Wechsel gemessen gleich.
 
 ## Anschluss: Warnung bei unknown
 
