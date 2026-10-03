@@ -8354,7 +8354,7 @@ function isTypeAssignableByStructure(
 		}
 		case 'parameters':
 			// TODO getTypeErrorForParameters stattdessen mit 3wertiger assignability
-			return getTypeErrorForParameters(prefixArgumentType, argumentsType, targetType);
+			return getTypeAssignabilityForParameters(prefixArgumentType, argumentsType, targetType);
 		case 'parameterReference': {
 			// TODO
 			// const dereferenced = dereferenceArgumentType(null as any, targetType);
@@ -8769,11 +8769,11 @@ function hasExpectedTypeError(expression: ParseValueExpression): boolean {
 }
 
 
-function getTypeErrorForParameters(
+function getTypeAssignabilityForParameters(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: ParametersType,
-): TypeError | undefined {
+): TypeAssignability {
 	// TODO other cases
 	switch (argumentsType.julType) {
 		case 'dictionaryLiteral':
@@ -8855,7 +8855,10 @@ function getTypeErrorForParameters(
 				const valueParameter = valueSingleNames[index];
 				if (valueParameter && valueParameter.name !== targetParameterName) {
 					return {
-						message: `Parameter name mismatch. Got '${targetParameterName}' but expected '${valueParameter.name}'`,
+						assignable: false,
+						error: {
+							message: `Parameter name mismatch. Got '${targetParameterName}' but expected '${valueParameter.name}'`,
+						}
 					};
 				}
 				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? builtinAny;
@@ -8889,7 +8892,10 @@ function getTypeErrorForParameters(
 			return undefined;
 		}
 		default:
-			return { message: 'getTypeErrorForParameters not implemented yet for ' + argumentsType.julType };
+			return {
+				assignable: false,
+				error: { message: 'getTypeErrorForParameters not implemented yet for ' + argumentsType.julType }
+			};
 	}
 }
 
