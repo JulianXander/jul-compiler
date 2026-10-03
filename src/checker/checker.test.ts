@@ -588,13 +588,10 @@ card = getCard()
 			errors: [],
 		});
 	});
-	// Not(X), das durch Branch-Narrowing auf einem Any-Ursprung entsteht, ist genauso
-	// unwissend wie das Any davor - Any ist überall sonst permissiv als Quelle
-	// (getTypeError gibt bei julType 'any' sofort undefined zurück). Hier wird aus dem
-	// Nichtwissen "könnte alles außer Integer sein" fälschlich eine harte Ablehnung,
-	// weil Not(Integer) einzeln gegen Empty und gegen Integer geprüft wird statt die
-	// Any-Herkunft weiterzutragen. aggregate (core-lib.jul, Akkumulator: Any) zeigt
-	// denselben Fehler, weil sein Rückgabetyp ebenfalls durch Any erzeugt wird.
+	// Branch-Narrowing auf einem Any-Ursprung ergibt And(Any Not(Integer)): ein unbekannter Wert,
+	// der nur kein Integer ist. Er bleibt so unwissend wie das Any davor. Not(Integer) allein hieße
+	// "alles außer Integer" und wäre keinem engeren Typ zuweisbar. aggregate (core-lib.jul,
+	// Akkumulator: Any) erzeugt seinen Rückgabetyp ebenfalls über Any.
 	it('narrowed-not-type-from-any-source-is-not-checked', () => {
 		expectCheck(`combined = assume([] Any)
 ?(combined/index)
@@ -605,9 +602,8 @@ card = getCard()
 			errors: [],
 		});
 	});
-	// Gegenprobe zu narrowed-not-type-from-any-source-is-not-checked: Not(X) darf nur
-	// dann permissiv sein, wenn das Ziel mehr als X zulässt. Ziel = Integer ist eine
-	// Teilmenge von X = Integer, der Wert wäre also garantiert ausgeschlossen.
+	// Gegenprobe zu narrowed-not-type-from-any-source-is-not-checked: Liegt das Ziel ganz im
+	// Ausgeschlossenen, passt kein Wert hinein, auch wenn der Rest unbekannt ist.
 	it('narrowed-not-type-still-errors-when-target-is-subset-of-excluded', () => {
 		expectCheck(`combined = assume([] Any)
 ?(combined/index)
@@ -618,7 +614,7 @@ card = getCard()
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign Not(Integer) to Integer.',
+					message: 'Definition type mismatch.\nCan not assign And(Any Not(Integer)) to Integer.',
 					startRowIndex: 4,
 					startColumnIndex: 2,
 					endRowIndex: 4,
@@ -1133,6 +1129,29 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 			],
 		});
 	});
+	// Not(0) enthält auch Text, ist also kein Integer.
+	it('complement-does-not-fit-base-type', () => {
+		expectCheck(`f = (a: Not(0)) :> Integer =>
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Not(0) to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 19,
+						endRowIndex: 0,
+						endColumnIndex: 26,
+					},
+				},
+			],
+		});
+	});
 	// Eine obere Grenze darf nur gegen eine gleich große oder größere obere Grenze passen:
 	// Not(A) liegt genau dann in Not(B), wenn B in A liegt.
 	it('upper-bound-fits-larger-upper-bound', () => {
@@ -1366,6 +1385,11 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 				},
 			],
 		});
+	});
+	// Die leere Menge liegt in jedem Typ.
+	it('never-fits-every-type', () => {
+		expectCheck(`f = (a: And(GreaterInteger(2) LessInteger(2))) :> Text =>
+	a`);
 	});
 	it('empty-range-of-three-choices-is-never', () => {
 		expectCheck('x: And(Integer GreaterInteger(2) LessInteger(2)) = 2', {

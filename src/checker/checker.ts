@@ -5696,10 +5696,15 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 
 		// Any ist das neutrale Element:
 		// And(A Any) => A
-		if (first.julType === 'any') {
+		// Außer neben einem Not: And(Any Not(Integer)) ist ein unbekannter Wert, der nur kein Integer
+		// ist, etwa nach dem Verengen eines Any. Not(Integer) allein hieße "alles außer Integer" und
+		// wäre damit keinem engeren Typ zuweisbar, das Unwissen ginge verloren.
+		if (first.julType === 'any'
+			&& !isComplementType(second)) {
 			return ChoiceTypes[1]!;
 		}
-		if (second.julType === 'any') {
+		if (second.julType === 'any'
+			&& !isComplementType(first)) {
 			return ChoiceTypes[0]!;
 		}
 	}
@@ -7754,6 +7759,11 @@ function isTypeAssignableAtDepth(
 	if (argumentsType === targetType) {
 		return { assignable: true };
 	}
+	// Die leere Menge liegt in jedem Typ. Ein unmöglicher Typ soll dort gemeldet werden, wo er
+	// entsteht, nicht an jeder Verwendung.
+	if (argumentsType.julType === 'never') {
+		return { assignable: true };
+	}
 	// Der Alias ist reine Beschriftung: zugewiesen wird gegen den Typ dahinter, in beide Richtungen.
 	// Liegt das Paar bereits auf dem Stack, gilt es als zuweisbar - bei rekursiven Typen ist das
 	// die einzige Annahme, unter der der Vergleich überhaupt endet (TypeScripts "maybe stack").
@@ -7767,7 +7777,10 @@ function isTypeAssignableAtDepth(
 			involvesApplication
 				? typeEquals(pair.args, argumentsType) && typeEquals(pair.target, targetType)
 				: pair.args === argumentsType && pair.target === targetType)) {
-			return { assignable: undefined };
+			// Koinduktiv: Findet der Vergleich sonst nirgends ein Nein, ist es eine Teilmenge. Das gilt,
+			// weil ein Typ sich nur über ein Feld, eine Liste, ein Tuple, einen Stream oder eine
+			// Funktion selbst enthalten darf (Circular type definition), nie direkt über Or oder And.
+			return { assignable: true };
 		}
 		if (isSameAliasApplication(argumentsType, targetType)) {
 			return { assignable: true };
@@ -7864,19 +7877,29 @@ function isTypeAssignableByStructure(
 				const remainingType = otherChoices.length === 1
 					? otherChoices[0]!
 					: createCompileTimeIntersectionType(otherChoices);
-				if (getTypeError(prefixArgumentType, remainingType, widenedTarget)) {
-					return {
-						assignable: false,
-						error: {
-							message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
-						}
-					};
+				const remainingAssignability = isTypeAssignable(prefixArgumentType, remainingType, widenedTarget);
+				if (remainingAssignability.assignable === false) {
+					return getDefaultTypeError(argumentsType, targetType);
 				}
-				return { assignable: undefined };
+				// Liegt das target ganz im Ausgeschlossenen, passt kein Wert hinein, auch wenn A
+				// unbekannt ist: And(Any Not(Integer)) gegen Integer.
+				if (remainingAssignability.assignable === undefined) {
+					const excludedType = createNormalizedUnionType(complementChoices.map(choiceType =>
+						(resolveAlias(choiceType) as CompileTimeComplementType).SourceType));
+					if (isSubtypeOf(targetType, excludedType)) {
+						return getDefaultTypeError(argumentsType, targetType);
+					}
+				}
+				return remainingAssignability;
 			}
 			// Es genügt, wenn ein args Choice zum target passt, denn der Wert erfüllt alle.
-			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
-				getTypeError(prefixArgumentType, choiceType, targetType));
+			const choiceAssignabilities = argumentsType.ChoiceTypes.map(choiceType =>
+				isTypeAssignable(prefixArgumentType, choiceType, targetType));
+			if (choiceAssignabilities.some(choiceAssignability => choiceAssignability.assignable === true)) {
+				return { assignable: true };
+			}
+			const subErrors = choiceAssignabilities.map(choiceAssignability =>
+				choiceAssignability.assignable === false ? choiceAssignability.error : undefined);
 			if (subErrors.every(isDefined)) {
 				// Kein einzelner choice reicht. Die Schnittmenge kann trotzdem passen, sichtbar
 				// wird das aber erst nach dem Auflösen: And(value Not(Empty)) mit
@@ -7941,47 +7964,35 @@ function isTypeAssignableByStructure(
 			return { assignable: undefined };
 		}
 		case 'not': {
-			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
-			// ausschließlich X-Werte zulässt (target Teilmenge von X), der Wert also garantiert
-			// ausgeschlossen wäre. Sonst permissiv, wie bei Any: wir wissen nichts Genaueres.
-			// isNotAssignableTo trägt den hasReliableTypeError-Guard schon (undefined bei
-			// unaufgelösten/generischen Zielen), das wird hier mitgenutzt statt dupliziert.
-			// Gegen ein Not als target geht es exakt: Not(A) liegt genau dann in Not(B), wenn B in A
-			// liegt. Not(GreaterInteger(3)) passt also nicht zu Not(GreaterInteger(2)), denn 3 wäre ausgeschlossen.
-			if (targetType.julType === 'not'
-				&& isNotAssignableTo(targetType.SourceType, argumentsType.SourceType) === true) {
-				return {
-					assignable: false,
-					error: {
-						message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
-					}
-				};
+			// Not(A) heißt "alles außer A" und liegt genau dann in T, wenn T alles außer A abdeckt.
+			// Gegen ein Not als target: Not(A) liegt in Not(B), wenn B in A liegt. Not(GreaterInteger(3))
+			// passt also nicht zu Not(GreaterInteger(2)), denn 3 wäre ausgeschlossen.
+			switch (targetType.julType) {
+				case 'not': {
+					const sourceAssignability = isTypeAssignable(prefixArgumentType, targetType.SourceType, argumentsType.SourceType);
+					return sourceAssignability.assignable === false
+						? getDefaultTypeError(argumentsType, targetType)
+						: sourceAssignability;
+				}
+				// Zerlegen: ein Choice wie Not(B) mit B in A kann das Ganze abdecken.
+				case 'and':
+				case 'or':
+				case 'predicate':
+					break;
+				default:
+					// Steht das target noch nicht fest, ist nichts entschieden. Jedes andere target
+					// lässt Werte außerhalb von A aus, etwa Text bei Not(0) gegen Integer.
+					return isUnresolvedPlaceholderType(targetType)
+						? { assignable: undefined }
+						: getDefaultTypeError(argumentsType, targetType);
 			}
-			if (isNotAssignableTo(targetType, argumentsType.SourceType) === false) {
-				return {
-					assignable: false,
-					error: {
-						message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
-					}
-				};
-			}
-			return { assignable: undefined };
+			break;
 		}
 		case 'or': {
 			// alle args Choices müssen zum target passen
-			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
-				getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
-			if (subErrors.length) {
-				return {
-					assignable: false,
-					error: {
-						// TODO error struktur überdenken
-						message: subErrors.map(typeErrorToString).join('\n'),
-						// innerError
-					}
-				};
-			}
-			return { assignable: undefined };
+			const choiceAssignabilities = argumentsType.ChoiceTypes.map(choiceType =>
+				isTypeAssignable(prefixArgumentType, choiceType, targetType));
+			return joinTypeAssignabilities(choiceAssignabilities, true);
 		}
 		case 'parameterReference': {
 			const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(argumentsType);
@@ -8040,19 +8051,9 @@ function isTypeAssignableByStructure(
 	switch (targetType.julType) {
 		case 'and': {
 			// das arg muss zu allen target Choices passen
-			const subErrors = targetType.ChoiceTypes.map(choiceType =>
-				getTypeError(prefixArgumentType, argumentsType, choiceType)).filter(isDefined);
-			if (subErrors.length) {
-				return {
-					assignable: false,
-					error: {
-						// TODO error struktur überdenken
-						message: subErrors.map(typeErrorToString).join('\n'),
-						// innerError
-					}
-				};
-			}
-			return { assignable: undefined };
+			const choiceAssignabilities = targetType.ChoiceTypes.map(choiceType =>
+				isTypeAssignable(prefixArgumentType, argumentsType, choiceType));
+			return joinTypeAssignabilities(choiceAssignabilities, true);
 		}
 		case 'blob':
 			break;
@@ -8068,7 +8069,7 @@ function isTypeAssignableByStructure(
 			break;
 		case 'booleanLiteral':
 			if (typeEquals(argumentsType, targetType)) {
-				return { assignable: undefined };
+				return { assignable: true };
 			}
 			break;
 		case 'date':
@@ -8086,7 +8087,7 @@ function isTypeAssignableByStructure(
 						argumentsType.Fields,
 						(fieldType, fieldName) => isTypeAssignableForField(fieldName, elementType, prefixArgumentType, fieldType),
 					);
-					return joinFieldAssignabilities(fieldAssignabilities);
+					return joinTypeAssignabilities(fieldAssignabilities, true);
 				}
 				default:
 					// TODO type specific error?
@@ -8286,10 +8287,14 @@ function isTypeAssignableByStructure(
 			return { assignable: undefined };
 		}
 		case 'or': {
-			// TODO subErrors stattdessen mit 3wertiger Assignability
 			// das arg muss zu mindestens einem target Choice passen
-			const subErrors = targetType.ChoiceTypes.map(choiceType =>
-				getTypeError(prefixArgumentType, argumentsType, choiceType));
+			const choiceAssignabilities = targetType.ChoiceTypes.map(choiceType =>
+				isTypeAssignable(prefixArgumentType, argumentsType, choiceType));
+			if (choiceAssignabilities.some(choiceAssignability => choiceAssignability.assignable === true)) {
+				return { assignable: true };
+			}
+			const subErrors = choiceAssignabilities.map(choiceAssignability =>
+				choiceAssignability.assignable === false ? choiceAssignability.error : undefined);
 			if (subErrors.every(isDefined)) {
 				if (argumentsType.julType === 'boolean') {
 					// Boolean passt zu keinem einzelnen Choice, kann aber trotzdem vollständig
@@ -8486,7 +8491,7 @@ function isTypeAssignableForPredicateFunction(functionType: CompileTimeFunctionT
 			error: { message: 'A predicate used as a type must be able to return true.' }
 		};
 	}
-	return { assignable: undefined };
+	return { assignable: true };
 }
 
 /**
@@ -8571,11 +8576,14 @@ function isTypeAssignableForTupleArgAndTupleTarget(
  * false, wenn mindestens 1 false
  * undefined, wenn kein false und mindestens 1 undefined
  * true, wenn alle true
+ * keepDuplicateMessages: jede Meldung bleibt stehen, auch wenn zwei dieselbe liefern, etwa bei
+ * Feldern, deren Name in der Meldung steht.
  */
-function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[]): TypeAssignability {
+function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[], keepDuplicateMessages = false): TypeAssignability {
 	const errors = typeAssignabilities.filter(elementAssignability => elementAssignability.assignable === false);
 	if (errors.length) {
-		const uniqueMessages = [...new Set(errors.map(error => typeErrorToString(error.error)))];
+		const messages = errors.map(error => typeErrorToString(error.error));
+		const uniqueMessages = keepDuplicateMessages ? messages : [...new Set(messages)];
 		return {
 			assignable: false,
 			error: {
@@ -8642,33 +8650,12 @@ function isTypeAssignableForDictionaryLiteral(
 					},
 				});
 			}
-			return joinFieldAssignabilities(fieldAssignabilities);
+			return joinTypeAssignabilities(fieldAssignabilities, true);
 		}
 		default:
 			// TODO type specific error?
 			return undefined;
 	}
-}
-
-/**
- * Wie joinTypeAssignabilities, aber jede Feldmeldung bleibt stehen, auch wenn zwei Felder dieselbe
- * liefern: der Feldname steht in der Meldung und unterscheidet sie.
- */
-function joinFieldAssignabilities(fieldAssignabilities: TypeAssignability[]): TypeAssignability {
-	const errors = fieldAssignabilities.filter(fieldAssignability => fieldAssignability.assignable === false);
-	if (errors.length) {
-		return {
-			assignable: false,
-			error: {
-				// TODO error struktur überdenken
-				message: errors.map(error => typeErrorToString(error.error)).join('\n'),
-				// innerError
-			},
-		};
-	}
-	return fieldAssignabilities.some(fieldAssignability => fieldAssignability.assignable === undefined)
-		? { assignable: undefined }
-		: { assignable: true };
 }
 
 function isTypeAssignableForField(
@@ -8813,6 +8800,8 @@ function isTypeAssignableForParameters(
 			// Ein Prefix-Argument belegt die erste Parameterposition selbst; die Liste beginnt erst
 			// dahinter, die garantierte Position rückt also mit.
 			const guaranteedIndex = prefixArgumentType ? 1 : 0;
+			// Bewiesen nur, wenn jeder Parameter yes liefert.
+			let isProven = true;
 			for (let index = 0; index < singleNames.length; index++) {
 				const parameter = singleNames[index]!;
 				const parameterType = parameter.type;
@@ -8829,6 +8818,7 @@ function isTypeAssignableForParameters(
 					// TODO collect inner errors
 					return assignability;
 				}
+				isProven &&= assignability.assignable === true;
 			}
 			const rest = targetType.rest;
 			const restType = rest?.type;
@@ -8848,8 +8838,9 @@ function isTypeAssignableForParameters(
 					// TODO collect inner errors
 					return assignability;
 				}
+				isProven &&= assignability.assignable === true;
 			}
-			return { assignable: undefined };
+			return { assignable: isProven || undefined };
 		}
 		case 'parameters': {
 			// Parameter gegen Parameter tritt nur beim Vergleich zweier Funktionstypen auf, und
@@ -8858,6 +8849,8 @@ function isTypeAssignableForParameters(
 			// "Got" und argumentsType das "expected".
 			// TODO prefixArgumentType berücksichtigen?
 			let index = 0;
+			// Bewiesen nur, wenn jeder Parameter yes liefert.
+			let isProven = true;
 			const targetSingleNames = targetType.singleNames;
 			const valueSingleNames = argumentsType.singleNames;
 			const valueRest = argumentsType.rest;
@@ -8888,6 +8881,7 @@ function isTypeAssignableForParameters(
 					// TODO collect inner errors
 					return assignability;
 				}
+				isProven &&= !assignability || assignability.assignable === true;
 			}
 			const targetRest = targetType.rest;
 			const targetRestType = targetRest?.type;
@@ -8906,9 +8900,10 @@ function isTypeAssignableForParameters(
 						// TODO collect inner errors
 						return assignability;
 					}
+					isProven &&= assignability.assignable === true;
 				}
 			}
-			return { assignable: undefined };
+			return { assignable: isProven || undefined };
 		}
 		default:
 			return {
@@ -8927,6 +8922,8 @@ function isTypeAssignableForParametersWithCollectionArgs(
 	const isArray = Array.isArray(argumentsType);
 	let paramIndex = 0;
 	let argumentIndex = 0;
+	// Bewiesen nur, wenn jeder Parameter yes liefert.
+	let isProven = true;
 	const { singleNames, rest } = targetType;
 	for (; paramIndex < singleNames.length; paramIndex++) {
 		const param = singleNames[paramIndex]!;
@@ -8948,6 +8945,7 @@ function isTypeAssignableForParametersWithCollectionArgs(
 			// TODO collect inner errors
 			return assignability;
 		}
+		isProven &&= !assignability || assignability.assignable === true;
 	}
 	if (rest) {
 		const restType = rest.type;
@@ -8961,7 +8959,8 @@ function isTypeAssignableForParametersWithCollectionArgs(
 			if (assignability?.assignable === false) {
 				return assignability;
 			}
-			return { assignable: true };
+			isProven &&= !assignability || assignability.assignable === true;
+			return { assignable: isProven || undefined };
 		}
 		if (isArray) {
 			const remainingArgs = argumentsType.slice(argumentIndex);
@@ -8975,6 +8974,7 @@ function isTypeAssignableForParametersWithCollectionArgs(
 				// TODO collect inner errors
 				return assignability;
 			}
+			isProven &&= !assignability || assignability.assignable === true;
 		}
 		else {
 			// TODO rest dictionary??
@@ -8984,7 +8984,7 @@ function isTypeAssignableForParametersWithCollectionArgs(
 			};
 		}
 	}
-	return { assignable: undefined };
+	return { assignable: isProven || undefined };
 }
 
 interface TypeError {

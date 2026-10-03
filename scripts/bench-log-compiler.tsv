@@ -179,3 +179,4 @@
 2026-09-30 09:44:12	b9ffa16+	-	ADV-DEV-56627	yugioh	parse+check	5	1662.10	1924.40	1924.40	nach: Index mit Grenzen liest nur die Positionen im Bereich
 2026-10-03 10:09:49	021a522+	-	ADV-DEV-56627	yugioh	parse+check	5	1548.38	1939.28	1939.28	nach: dreiwertige Zuweisbarkeit Phase 1 (isTypeAssignable), Korrektur der drei Umbaufehler
 2026-10-03 10:19:42	fafba6d+	-	ADV-DEV-56627	yugioh	parse+check	5	1715.48	2057.25	2057.25	nach: isSubtypeOf fuer branch-dispatch, Dictionary-Felder dreiwertig
+2026-10-03 10:36:34	e295194+	-	ADV-DEV-56627	yugioh	parse+check	5	1525.03	1919.42	1919.42	nach: dreiwertige Zuweisbarkeit Phase 2 (yes eingeordnet, Never yes, Not als Quelle genau)

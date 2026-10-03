@@ -186,30 +186,32 @@ Vereinfachung von `And(A Not(B))`, die Grenzen-Tests.
 - Messen: Die Hülle kostet einen Aufruf und einen Vergleich pro Prüfung, dazu ein Objekt je
   Ergebnis (siehe Konstanten im Modell).
 
-### Phase 2: yes einordnen (begonnen)
+### Phase 2: yes einordnen (umgesetzt)
 
-Was schon yes liefert, steht im Stand. Offen, jeweils heute unknown, obwohl sich yes zeigen ließe:
-
-- **Verknüpfungen, die noch zweiwertig über `getTypeError` laufen:** Quelle `And` (ein Choice yes),
-  Quelle `Or`, Ziel `And`, Ziel `Or` (Best-Match-Meldung beibehalten), die exakte Regel
-  `And(A Not(B))` (liefert bei Erfolg unknown, ist aber exakt, also yes). Die Dictionary-Felder
-  sind umgestellt (`isTypeAssignableForDictionaryLiteral`, `isTypeAssignableForField`,
-  `joinFieldAssignabilities`): ein fehlendes Feld in einem unvollständigen Dictionary ist
-  unknown, ein fehlendes optionales Feld yes.
-- **Einzelfälle:** Ziel `booleanLiteral` bei gleichem Literal liefert unknown, die anderen
-  Literale yes; die Parameterprüfungen enden immer mit unknown, auch wenn jeder Parameter yes war;
-  ein Prädikat als Typ (Ziel `Type`) liefert unknown.
-- **Rekursive Aliase:** Das Paar auf dem Stapel (`aliasComparisonsInProgress`) liefert yes statt
-  unknown, siehe Einordnung.
-- Nach jedem Switch die Suite. Solange die Folgernden noch über `hasReliableTypeError` gehen,
-  ändert sich das Verhalten nicht.
-- `Never` als Quelle wird yes (siehe Abschnitt `Never`).
-- **Eigener Schritt: `Not` als Quelle genau machen.** `Not(A)` liegt genau dann in `T`, wenn `T`
-  alles außer `A` abdeckt: yes bei `Any`, bei `Not(B)` mit `B ⊆ A` (gibt es schon) und bei einem
-  `Or`, das `A` und den Rest enthält; sonst no. Die exakten Regeln für `And(A Not(B))` bleiben.
-  Das ändert Verhalten: Bisher fehlerfreier Code wie `(a: Not(0)) => a.add(1)` meldet jetzt einen
-  Fehler. Bricht dabei Code, in dem die Inferenz ein `Not` ohne seinen Grundtyp liefert, ist die
-  Inferenz zu korrigieren, nicht die Regel. Abnahme: Suite, Snapshot, yugioh, jul-examples.
+- **Verknüpfungen:** Quelle `And` (ein Choice yes reicht), Quelle `Or` und Ziel `And` (über
+  `joinTypeAssignabilities`, Meldungen unverändert, ohne Entfernen doppelter Zeilen), Ziel `Or`
+  (ein Choice yes reicht, Best-Match-Meldung beibehalten), die exakte Regel `And(A Not(B))` gibt
+  das Ergebnis des Rests weiter statt unknown. Die Dictionary-Felder sind umgestellt
+  (`isTypeAssignableForDictionaryLiteral`, `isTypeAssignableForField`): ein fehlendes Feld in
+  einem unvollständigen Dictionary ist unknown, ein fehlendes optionales Feld yes.
+- **Einzelfälle:** Ziel `booleanLiteral` bei gleichem Literal ist yes, die Parameterprüfungen
+  liefern yes, wenn jeder Parameter yes ist, ein Prädikat als Typ (Ziel `Type`) ist yes.
+- **Rekursive Aliase:** Das Paar auf dem Stapel liefert yes (koinduktiv, siehe Einordnung).
+- **`Never` als Quelle** ist yes (Test `never-fits-every-type`).
+- **`Not` als Quelle ist genau:** gegen `Not(B)` das Ergebnis von `B` gegen `A`, gegen `And`,
+  `Or` und Prädikat wird das Ziel zerlegt, gegen ein Ziel, das noch nicht feststeht, unknown, sonst
+  no (Test `complement-does-not-fit-base-type`). Dabei kam der erwartete Fall heraus, in dem die
+  Inferenz ein `Not` ohne Grundtyp liefert: Verengen eines `Any` ergab `Not(Integer)`, weil
+  `And(Any Not(Integer))` das `Any` als neutrales Element strich. Korrigiert in
+  `createNormalizedIntersectionType`: Neben einem `Not` bleibt `Any` stehen. Damit die Gegenprobe
+  (`And(Any Not(Integer))` gegen `Integer` bleibt ein Fehler) hält, liefert die Regel
+  `And(A Not(B))` no, wenn das Ziel ganz im Ausgeschlossenen liegt, auch wenn `A` unbekannt ist.
+- **Noch nicht:** Die Tiefengrenze `maxTypeComparisonDepth` liefert weiter no mit der Meldung
+  „excessively deep". Als unknown wäre sie bis zur Warnung still, und ein Test verlangt die Meldung
+  (sie schützt den Language Server vor einem Stack Overflow). Sie wird zusammen mit der Warnung
+  unknown.
+- Ergebnis: Checker-Snapshot unverändert, Suite grün bis auf den Abnahmefall für Phase 3/4,
+  yugioh und jul-examples fehlerfrei.
 
 ### Phase 3: Folgernde umstellen
 
