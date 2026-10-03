@@ -8542,7 +8542,7 @@ function isTypeAssignableForTuple(
 			}
 			return isTypeAssignable(prefixArgumentType, argumentsType.ElementType, targetElementTypes[0]!);
 		case 'tuple':
-			return isTypeAssignableForTuple2(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
+			return isTypeAssignableForTupleArgAndTupleTarget(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
 		case 'parameters':
 			// Gegenstück zu getTypeErrorForParameters' case 'tuple': dort darf ein unbenanntes
 			// Tuple-Pattern (`[Integer] => ...`) als Argument gegen einen benannten Parametertyp
@@ -8551,7 +8551,7 @@ function isTypeAssignableForTuple(
 			// unbenanntes Tuple-Ziel an (z.B. ein als Prädikat übergebenes `[Integer] => true`).
 			// TODO argumentsType.rest berücksichtigen - kein aktueller Fall deklariert einen
 			// Rest-Parameter an dieser Stelle.
-			return isTypeAssignableForTuple2(
+			return isTypeAssignableForTupleArgAndTupleTarget(
 				prefixArgumentType,
 				argumentsType.singleNames.map(param => param.type ?? builtinAny),
 				targetElementTypes,
@@ -8561,7 +8561,7 @@ function isTypeAssignableForTuple(
 	}
 }
 
-function isTypeAssignableForTuple2(
+function isTypeAssignableForTupleArgAndTupleTarget(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentElementTypes: CompileTimeType[],
 	targetElementTypes: CompileTimeType[],
