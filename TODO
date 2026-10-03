@@ -1,4 +1,10 @@
 -lsp output: [error] SyntaxKind for Name not implemented yet: ObjectBindingPattern
+	-herkunft: parser/typescript-parser.ts (Name-Umwandlung, // TODO case BindingPattern): der TS/JS-Parser kann nur
+		Identifier als Namen. Destructuring (const { a, b } = foo, function f({ x }) {}, [a, b]) ist ein
+		Object-/ArrayBindingPattern, dann console.error (landet im LSP als [error]) und return undefined
+	-folge: das Symbol fehlt in der Symboltabelle, der Import bekommt dafür keinen Typ
+	-meldung um Dateipfad/Position ergänzen, damit die auslösende Datei auffindbar ist
+	-BindingPattern implementieren
 -field completion funktioniert nicht beim 2. feld vgl tic-tac-toe GameState currentPlayer
 	-konnte nicht reproduziert werden
 -float-grenzen (GreaterFloat, LessFloat): zurückgestellt bis zum ersten realen bedarf, plan in
