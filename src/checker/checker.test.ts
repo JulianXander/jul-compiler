@@ -5502,6 +5502,12 @@ f(imp)`)).to.equal('pure');
 	it('Nutzer-HOF, die den eigenen Parameter aufruft, wird bedingt rein', () => {
 		expect(purityOfDefinition('apply = (cb: () :> Any) -> Any => cb()', 'apply')).to.equal('pureIfArgsPure');
 	});
+	it('Parameteraufruf in einem Branch-Zweig macht die Funktion bedingt rein', () => {
+		expect(purityOfDefinition(`apply = (cb: () :> Any n: Integer) -> Any =>
+	?(n)
+		[0] => 1
+		() => cb()`, 'apply')).to.equal('pureIfArgsPure');
+	});
 	it('bedingt reine Nutzer-HOF mit unreinem Argument ist impure', () => {
 		expect(callPurityOf(`imp = () ~> Any => 1
 apply = (cb: () :> Any) -> Any => cb()

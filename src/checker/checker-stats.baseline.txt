@@ -1,4 +1,4 @@
 inferType: 3894
 resolvePlaceholders: 11871
 getTypeError: 17310
-foldableCall: 375
+foldableCall: 379

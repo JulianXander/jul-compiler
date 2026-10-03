@@ -3844,6 +3844,18 @@ export function inferBodyPurity(
 					if (!branchType || !isFunctionType(branchType)) {
 						return joinPurity(accumulated, 'unknown');
 					}
+					// Ein Zweig-Literal, das nur deshalb unentscheidbar ist, weil es Parameter der
+					// umgebenden Funktion aufruft (an seinem eigenen Typ fremd, E2), ist für die
+					// umgebende Funktion bedingt rein: sein Rumpf wird aus ihrer Sicht noch einmal
+					// untersucht, dort sind diese Parameter die eigenen.
+					if (branch.type === 'functionLiteral' && branchType.purity === 'unknown') {
+						const branchBodyPurity = inferBodyPurity(branch.body, ownFunctionType);
+						contribute(
+							branchBodyPurity.purity,
+							branchBodyPurity.impureExpression ?? branch,
+							branchBodyPurity.unknownOnlyFromOwnParameterCalls);
+						return accumulated;
+					}
 					// Mit welchen Argumenten der getroffene Zweig gerufen wird, ist hier nicht
 					// bekannt - eine bedingt reine Funktion zählt wie bei getArgumentPurity als 'unknown'.
 					return joinPurity(accumulated, branchType.purity === 'pureIfArgsPure' ? 'unknown' : branchType.purity);

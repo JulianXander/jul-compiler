@@ -15,7 +15,9 @@ abgeleiteten Pfeil.
 
 Ein Rumpf, der nur deshalb unentscheidbar ist, weil er einen eigenen funktionswertigen Parameter
 aufruft, wird nicht als `unknown` eingestuft, sondern als `pureIfArgsPure` — Nutzer-HOFs können
-damit rein werden, sofern sie tatsächlich nur eigene Parameter aufrufen. Fixpunkt-Iteration braucht
+damit rein werden, sofern sie tatsächlich nur eigene Parameter aufrufen. Das gilt auch, wenn der
+Aufruf in einem Zweig des Branchings steht: Der Rumpf des Zweig-Literals wird dann aus Sicht der
+umgebenden Funktion untersucht, in der die Parameter die eigenen sind. Fixpunkt-Iteration braucht
 die Inferenz nicht: gegenseitige Rekursion gibt es außerhalb der core-lib nicht (Vorwärtsreferenzen
 sind `JUL3202`), und für direkte Selbstrekursion genügt eine optimistische Annahme in einem
 Durchlauf.
@@ -53,37 +55,17 @@ aber ohne Datums-Literal unerreichbar).
 Nicht durchgesehen: alles andere Datums- und Zahlformatierende (`toIsoDateText` u. Ä.), das an
 Zeitzone, ICU-Daten oder Node-Version der Build-Maschine hängen könnte.
 
-### Eigener Parameter in verschachteltem Literal und Branching
+### Eigener Parameter in verschachteltem Literal
 
-Idee, keine Entscheidung. Eine HOF, die ihren funktionswertigen Parameter nicht direkt, sondern in
-einem Branching-Zweig aufruft, wird `unknown` statt `pureIfArgsPure` und deshalb nie gefaltet, auch
-nicht mit reinem Callback:
+Ein Zweig im Branching, der nur deshalb `unknown` ist, weil er Parameter der umschließenden
+Funktion aufruft, macht diese `pureIfArgsPure`. Beispiel: `jul-examples/core-lib/aggregate`, dort
+faltet `sumRecursive` damit. Zwei Lücken bleiben:
 
-```jul
-aggregateRecursive = (values: List(Any) init fn: (acc val i) :> Any index curr) =>
-	?(index)
-		[values.length().add(1)] => curr
-		() =>
-			prev = aggregateRecursive(values init fn index.add(1) curr)
-			fn(prev values.getElement(index) index)
-```
-
-Zwei Stellen in `inferBodyPurity` verlieren die Information, dass `fn` ein eigener Parameter der
-äußeren Funktion ist:
-
-- Der Zweig `() => …` ist ein eigenes Literal. Für es ist `fn` ein fremder Parameter (E2), seine
-  Purity ist `unknown`. Das Branching trägt sie mit `fromOwnParameterCall = false` bei, also bleibt
-  `unknownOnlyFromOwnParameterCalls` nicht erhalten.
-- Ein Zweig mit `pureIfArgsPure` zählt im Branching als `unknown`, weil unbekannt ist, mit welchen
-  Argumenten der getroffene Zweig gerufen wird.
-
-Denkbar: Aufrufe fremder Parameter eines *unmittelbar* umschließenden Literals beim Aufstieg als
-Aufrufe eigener Parameter der äußeren Funktion werten. Zu klären ist, ob E2 absichtlich so streng
-ist und was ein Callback bedeutet, der erst in einer weiteren Verschachtelung gerufen wird.
-
-Roter Test dazu: Funktion mit Parameter `fn`, Branching-Zweig ruft `fn`, Aufruf mit reinem `fn`
-und konstanten Argumenten soll einen gefalteten Typ liefern. Beispiel:
-`jul-examples/core-lib/aggregate`.
+- Ein Zweig, der selbst `pureIfArgsPure` ist, zählt im Branching weiter als `unknown`, weil
+  unbekannt ist, mit welchen Argumenten der getroffene Zweig gerufen wird.
+- Der Aufstieg gilt nur für Zweig-Literale unmittelbar im Branching. Ein Callback, der erst in
+  einem weiter verschachtelten Literal gerufen wird, bleibt für die äußere Funktion `unknown`.
+  Zu klären ist, ob E2 dort absichtlich so streng ist.
 
 ## Ausblick: gefaltetes Ergebnis auch emittieren
 
