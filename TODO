@@ -27,9 +27,10 @@
 	myList.filter((x) =>
 		x.equal(true))
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
--warnings bei unchecked Any zugriffen: gewarnt wird, wo ein Any-Wert an ein engeres ziel geht (definition mit
-	typ, argument, rückgabewert, feldzugriff x/name wie getField). setzt auf docs/three-valued-assignability.md
-	auf (unknown mit grund any), dort auch beispiele
+-warnungen bei unknown: jedes unknown an einer meldenden stelle (definition mit typ, argument, rückgabewert,
+	feldzugriff x/name wie getField) ist eine warnung, mit meldung aus isTypeAssignable. betrifft Any, typen,
+	die vom parameter abhängen (im rumpf), prädikate. setzt auf docs/three-valued-assignability.md auf
+	(abschnitt "Anschluss: Warnung bei unknown"), voraussetzung ist dort phase 2
 -language features für embedded languages: regex, ts, js
 -userland pure nativefunctions falten
 -debug mode: throw bei violated assume und type guards

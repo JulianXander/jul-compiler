@@ -59,14 +59,16 @@ Gefragt ist: Liegt jeder Wert der Quelle im Ziel?
 - **no:** bewiesen, mindestens ein Wert liegt nicht darin.
 - **unknown:** nicht entscheidbar.
 
-Gemeldet wird nur no, gefolgert nur aus yes.
+Gefolgert wird nur aus yes. Gemeldet wird no als Fehler und unknown als Warnung (siehe Abschnitt
+„Warnung bei unknown"): Was der Checker nicht beweisen kann, kann zur Laufzeit schiefgehen.
 
 Der Kern ist `isTypeAssignable` (umgesetzt, siehe Stand), `getTypeError` ist eine Hülle darum:
 
 ```ts
 type TypeAssignability =
-	| { assignable: false; error: TypeError; }   // no
-	| { assignable: true | undefined; };        // yes bzw. unknown
+	| { assignable: false; error: TypeError; }                // no
+	| { assignable: true; }                                   // yes
+	| { assignable: undefined; warning: TypeError; };         // unknown, warning noch anzulegen
 
 function isTypeAssignable(prefixArgumentType, argumentsType, targetType): TypeAssignability;
 
@@ -80,18 +82,24 @@ isNotSubtypeOf = (…) => assignability.assignable === false;
 
 Mehrere Ergebnisse verknüpft `joinTypeAssignabilities`: no, sobald eines no ist, sonst unknown,
 sobald eines unknown ist, sonst yes. Das passt für Ziel `And`, Quelle `Or`, Tuple-Positionen und
-Felder.
+Felder. Warnungen sammelt es wie Fehler.
 
-Yes und unknown werden heute bei jedem Aufruf als neues Objekt erzeugt. Als Konstanten
-(`assignableYes`, `assignableUnknown`) entfiele das. Mit dem Bench prüfen, ob es sich lohnt.
+Yes wird heute bei jedem Aufruf als neues Objekt erzeugt. Als Konstante (`assignableYes`) entfiele
+das. Mit dem Bench prüfen, ob es sich lohnt.
 
-Noch nicht umgesetzt ist `fromAny`. Es kommt als Feld an das unknown:
-`{ assignable: undefined; fromAny?: true }`. Es sagt, ob ein `Any` als Quelle beteiligt ist. Die geplante Warnung (siehe unten) braucht
-das, denn Typen, die erst am Aufrufort feststehen, dürfen nicht warnen, und `Any` kann
-verschachtelt sein (`[a = Any]` → `[a: Text]`), sodass nur die Prüfung selbst es weiß. Beim
-Verknüpfen gewinnt `Any`: Ein zusammengesetztes unknown ist `fromAny`, sobald ein beteiligtes
-es ist. Die Meldungen bleiben
-unverändert, sie hängen weiter am `TypeError` des Nein.
+Noch nicht umgesetzt ist `warning`. Das unknown trägt eine Meldung wie das no einen Fehler, und
+zwar immer: Es gibt kein unknown ohne Grund, also auch kein stilles. Als Pflichtfeld meldet
+TypeScript jede Stelle, die heute `{ assignable: undefined }` ohne Grund liefert, und das ist
+zugleich die Liste für Phase 2. Die Meldung entsteht dort, wo die Unsicherheit entsteht, und nennt den Grund („Any an Integer", „hängt am
+Parameter values", „Prädikat isEven wird erst zur Laufzeit geprüft"). Die Hüllen für Feld,
+Parameter und Rückgabewert stellen ihr den Kontext voran wie beim Fehler. Nur die Prüfung selbst
+kann das leisten, denn die Ursache kann verschachtelt sein (`[a = Any]` → `[a: Text]`). Die
+Fehlermeldungen bleiben unverändert.
+
+Kosten: Fehler entstehen nur bei no, also selten. Unknown ist häufiger, etwa bei Platzhaltern
+während des Normalisierens, und dort fragt nur `isSubtypeOf`, das die Meldung nie liest. Falls der
+Bench es zeigt, hält `warning` deshalb nur die Bestandteile (Grund, Quelle, Ziel), und der Text
+entsteht erst an der meldenden Stelle.
 
 ### Verknüpfung
 
@@ -115,9 +123,11 @@ Das sind rund 63, davon 13 ausdrücklich als nachsichtig kommentiert.
   Fehler, als yes dürfte das Normalisieren `Or(Any Integer)` zu `Integer` machen. Das entspricht
   dem heutigen Verhalten. `parameterReference`, `nestedReference`, `parameters`, `concat`,
   `add`, `mapElements`, `conditional`, `withElementAt` auf beiden Seiten; Prädikat als Ziel,
-  wenn der Wert nur in der Obermenge liegt (gewollt: ein Prädikat ist ein Vertrag, den die
-  Laufzeit prüft); der Stapel für rekursive Aliase (wie TypeScripts `Maybe`) und die Tiefengrenze
-  der Alias-Expansion
+  wenn der Wert nur in der Obermenge liegt (ein Prädikat ist ein Vertrag, den die Laufzeit
+  prüft); das erschöpfte Budget (`maxTypeComparisonDepth`, `maxAliasApplicationExpansions`)
+- **Rekursive Aliase:** Liegt das Paar schon auf dem Stapel (`aliasComparisonsInProgress`), ist
+  das die übliche koinduktive Annahme und damit yes, nicht unknown. Sonst würde jeder rekursive
+  Typ warnen. Heute liefert die Stelle unknown.
 - **`Not` als Quelle** wird genau (Schritt in Phase 2): no, außer das Ziel deckt alles außer der
   Quelle des `Not` ab (`Any`, `Not(B)` mit `B ⊆ A`, `Or(A …)`), dann yes. Heute lässt die
   nachsichtige Regel `(a: Not(0)) => a.add(1)` ohne Fehler durch, obwohl `a` Text sein kann.
@@ -189,6 +199,8 @@ Was schon yes liefert, steht im Stand. Offen, jeweils heute unknown, obwohl sich
 - **Einzelfälle:** Ziel `booleanLiteral` bei gleichem Literal liefert unknown, die anderen
   Literale yes; die Parameterprüfungen enden immer mit unknown, auch wenn jeder Parameter yes war;
   ein Prädikat als Typ (Ziel `Type`) liefert unknown.
+- **Rekursive Aliase:** Das Paar auf dem Stapel (`aliasComparisonsInProgress`) liefert yes statt
+  unknown, siehe Einordnung.
 - Nach jedem Switch die Suite. Solange die Folgernden noch über `hasReliableTypeError` gehen,
   ändert sich das Verhalten nicht.
 - `Never` als Quelle wird yes (siehe Abschnitt `Never`).
@@ -219,24 +231,42 @@ Was schon yes liefert, steht im Stand. Offen, jeweils heute unknown, obwohl sich
 - `forEach`, `repeat` und `range` schreiben die obere Grenze als `Or(end LessInteger(end))`.
   Der Abschnitt „Ausnahme" in [number-ranges.md](number-ranges.md) und der TODO-Eintrag entfallen.
 
-## Anschluss: Warnung bei unsicheren Zugriffen auf `Any`
+## Anschluss: Warnung bei unknown
 
-Nicht Teil dieses Plans, setzt aber auf ihm auf. Gewarnt wird, wo ein `Any`-Wert an ein engeres
-Ziel geht: Definition mit Typ, Argument, Rückgabewert und Feldzugriff, denn `x/name` ist wie der
-Aufruf von `getField`. Der Wert selbst und seine Weitergabe an ein Ziel, das `Any` erlaubt,
-warnen nicht.
+Nicht Teil dieses Plans, setzt aber auf ihm auf. **Jedes unknown an einer meldenden Stelle ist eine
+Warnung**, mit der Meldung aus `isTypeAssignable`. Grundsatz: Was zur Laufzeit schiefgehen kann,
+wird gemeldet. Meldende Stellen sind Definition mit Typ, Argument, Rückgabewert und Feldzugriff,
+denn `x/name` ist wie der Aufruf von `getField`.
 
 ```jul
 x = runJs(§…§)        # Any, keine Warnung
 name = x/name         # Warnung: Any an den Feldzugriff, name ist Any
 log(name)             # log erlaubt Any, keine Warnung
 w: Text = name        # Warnung
+
+# Typ, der vom Parameter abhängt: der Rumpf wird an keinem Aufrufort erneut geprüft
+f = (values: List(Any) callback: (value: TypeOf(values)/ElementType) :> Any) =>
+	callback(5)       # Warnung, heute still
+r = f([§a§] (value: Text) => value)   # zur Laufzeit bekommt der Callback eine 5
+
+# Prädikat: erst die Laufzeit prüft
+isEven = (n: Integer) => n.modulo(2).equal(0)
+g = (n: isEven) => n
+h = (y: Integer) => g(y)                 # Warnung
+k = (y: Integer) => ?(y) (e: isEven) => g(e)   # keine Warnung, verengt
 ```
 
-Die meldenden Stellen geben dann zu no einen Fehler aus, zu unknown mit `fromAny` eine Warnung und
-sonst nichts: Typen, die erst am Aufrufort feststehen, und Prädikate als Ziel bleiben stumm wie
-heute. `Not` als Quelle ist nach Phase 2 genau und liefert no statt unknown. Weitere Fälle werden
-ebenso über genaue Regeln gelöst, nicht über weitere Gründe.
+Dass Typen, die erst am Aufrufort feststehen, still bleiben dürften, stimmt nur für die Argumente
+eines Aufrufs: Dort sind die Platzhalter vor der Prüfung ersetzt, ein unknown aus ihnen entsteht
+gar nicht. Ein Rumpf wird dagegen nur einmal geprüft. TypeScript meldet im Fall `callback(5)`
+sogar einen Fehler (`number is not assignable to T`).
+
+**Voraussetzung: Phase 2 ist abgeschlossen.** Solange echte Teilmengen noch unknown liefern
+(Quelle `Or`, Ziel `And`, Parameterprüfungen, die immer mit unknown enden), würden auch korrekte
+Programme warnen. Danach gegen core-lib, jul-examples, yugioh und den Snapshot laufen lassen und
+jede Warnung einzeln ansehen. `Not` als Quelle ist nach Phase 2 genau und liefert no statt
+unknown. Unknowns, die sich als Schwäche des Checkers herausstellen, werden über genaue Regeln zu
+yes oder no, nicht über Ausnahmen bei der Warnung.
 
 Ein eigener Typ `Unknown` (strenger oberster Typ wie in TypeScript) ist damit nicht nötig: `Any`
 mit dieser Warnung verhält sich wie `unknown`, nur mit Warnung statt Fehler.
