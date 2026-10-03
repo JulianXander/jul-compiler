@@ -4645,8 +4645,11 @@ function classifyTypenessOnPath(
 			return classifyTypenessOnPath(resolved.ElementType, depth + 1, aliasesOnPath);
 		case 'tuple':
 			return combineTypeness(resolved.ElementTypes.map(elementType => classifyTypenessOnPath(elementType, depth + 1, aliasesOnPath)));
+		// Ein Dictionary mit = ist ein Wert, auch wenn alle Felder Typen sind. Der Dictionary-Typ
+		// [x: Integer] hat den Typ TypeOf(...) und wird oben als Typ erkannt. Anders als beim Tupel
+		// gibt es hier keine gemeinsame Schreibweise für Wert und Typ.
 		case 'dictionaryLiteral':
-			return combineTypeness(Object.values(resolved.Fields).map(fieldType => classifyTypenessOnPath(fieldType, depth + 1, aliasesOnPath)));
+			return 'value';
 		case 'or':
 			return combineTypeness(resolved.ChoiceTypes.map(choiceType => classifyTypenessOnPath(choiceType, depth + 1, aliasesOnPath)));
 		case 'and': {

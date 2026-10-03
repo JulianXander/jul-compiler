@@ -3866,6 +3866,15 @@ f = (value: Integer) => value`);
 			errors: [namingCaseWarning('point', true, 0, 0)],
 		});
 	});
+	// Ein Dictionary mit = ist ein Wert, auch wenn alle Felder Typen sind. Der Typ heißt [x: Integer].
+	it('naming-case-dictionary-of-types-uppercase', () => {
+		expectCheck('Bad = [a = Integer b = Or(1 2)]', {
+			errors: [namingCaseWarning('Bad', false, 0, 0)],
+		});
+	});
+	it('naming-case-dictionary-of-types-lowercase', () => {
+		expectCheck('types = [a = Integer b = Or(1 2)]');
+	});
 	it('naming-case-alias-lowercase', () => {
 		expectCheck('number = Integer', {
 			errors: [namingCaseWarning('number', true, 0, 0)],
