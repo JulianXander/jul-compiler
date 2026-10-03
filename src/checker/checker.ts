@@ -7382,11 +7382,12 @@ function checkTypeHeadPredicates(
 		if (!isFunctionType(valueType)) {
 			return;
 		}
-		const error = isTypeAssignableForPredicateFunction(valueType);
-		if (error) {
+		const assignability = isTypeAssignableForPredicateFunction(valueType);
+		// TODO warnen bei unbekannter assignability?
+		if (assignability.error) {
 			errors.push({
 				code: ErrorCode.typeGuardIsNotType,
-				message: error.message,
+				message: assignability.error.message,
 				startRowIndex: value.startRowIndex,
 				startColumnIndex: value.startColumnIndex,
 				endRowIndex: value.endRowIndex,
@@ -8770,11 +8771,11 @@ function isTypeAssignableForParameters(
 	// TODO other cases
 	switch (argumentsType.julType) {
 		case 'dictionaryLiteral':
-			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.Fields, targetType);
+			return isTypeAssignableForParametersWithCollectionArgs(prefixArgumentType, argumentsType.Fields, targetType);
 		case 'empty':
-			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, undefined, targetType);
+			return isTypeAssignableForParametersWithCollectionArgs(prefixArgumentType, undefined, targetType);
 		case 'tuple':
-			return getTypeErrorForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
+			return isTypeAssignableForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
 		case 'list': {
 			// Eine Liste als Argumentliste hat unbekannte Länge (entsteht durch einen Spread, dessen
 			// Quelle erst zur Laufzeit feststeht). Welche Position welchen Parameter trifft, steht
@@ -8892,11 +8893,11 @@ function isTypeAssignableForParameters(
 	}
 }
 
-function getTypeErrorForParametersWithCollectionArgs(
+function isTypeAssignableForParametersWithCollectionArgs(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeCollection | undefined,
 	targetType: ParametersType,
-): TypeError | undefined {
+): TypeAssignability {
 	const hasPrefixArg = !!prefixArgumentType;
 	const isArray = Array.isArray(argumentsType);
 	let paramIndex = 0;
@@ -8935,7 +8936,7 @@ function getTypeErrorForParametersWithCollectionArgs(
 			if (error) {
 				return error;
 			}
-			return undefined;
+			return { assignable: true };
 		}
 		if (isArray) {
 			const remainingArgs = argumentsType.slice(argumentIndex);
@@ -8952,7 +8953,10 @@ function getTypeErrorForParametersWithCollectionArgs(
 		}
 		else {
 			// TODO rest dictionary??
-			return { message: 'Can not assign dictionary to rest parameter' };
+			return {
+				assignable: false,
+				error: { message: 'Can not assign dictionary to rest parameter' },
+			};
 		}
 	}
 }
