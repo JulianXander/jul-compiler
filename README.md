@@ -11,8 +11,6 @@ Admin PowerShell öffnen
 `Set-ExecutionPolicy -ExecutionPolicy Unrestricted`
 
 ## Build
-Maßgeblich sind die Skripte in der `package.json` — die folgende Beschreibung erklärt nur,
-was sie tun.
 
 `npm run build`  
 Baut nur den Compiler: `out` leeren, `tsc -p tsconfig.build.json`, `core-lib.jul` nach `out` kopieren.
