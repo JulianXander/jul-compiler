@@ -2176,13 +2176,13 @@ export const setElement = /*#__PURE__*/ _createFunction(
 export const map = /*#__PURE__*/ _createFunction(
 	function map<T, U>(
 		values: T[] | undefined,
-		callback: (value: T, index: bigint) => U,
+		transform: (value: T, index: bigint) => U,
 	): U[] | undefined {
 		if (!values) {
 			return;
 		}
 		const mappedValues = values.map((value, index) => {
-			return callback(value, BigInt(index + 1));
+			return transform(value, BigInt(index + 1));
 		});
 		return mappedValues.length
 			? mappedValues
@@ -2195,7 +2195,7 @@ export const map = /*#__PURE__*/ _createFunction(
 				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
-				name: 'callback',
+				name: 'transform',
 				type: _Function
 			},
 		]
@@ -2232,14 +2232,14 @@ export const filter = /*#__PURE__*/ _createFunction(
 export const filterMap = /*#__PURE__*/ _createFunction(
 	function filterMap<T, U>(
 		values: T[] | undefined,
-		callback: (value: T, index: bigint) => U | undefined,
+		transform: (value: T, index: bigint) => U | undefined,
 	): U[] | undefined {
 		if (!values) {
 			return;
 		}
 		const mappedValues: U[] = [];
 		values.forEach((value, index) => {
-			const mapped = callback(value, BigInt(index + 1));
+			const mapped = transform(value, BigInt(index + 1));
 			if (mapped !== undefined) {
 				mappedValues.push(mapped);
 			}
@@ -2255,7 +2255,7 @@ export const filterMap = /*#__PURE__*/ _createFunction(
 				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
 			},
 			{
-				name: 'callback',
+				name: 'transform',
 				type: _Function
 			},
 		]
@@ -2636,14 +2636,14 @@ export const toList = /*#__PURE__*/ _createFunction(
 export const mapDictionary = /*#__PURE__*/ _createFunction(
 	function mapDictionary<T, U>(
 		dictionary: { [key: string]: T; } | undefined,
-		callback: (value: T, key: string) => U,
+		transform: (value: T, key: string) => U,
 	): { [key: string]: U; } | undefined {
 		if (!dictionary) {
 			return;
 		}
 		const mappedDictionary: { [key: string]: U; } = {};
 		for (const key in dictionary) {
-			mappedDictionary[key] = callback(dictionary[key]!, key);
+			mappedDictionary[key] = transform(dictionary[key]!, key);
 		}
 		return mappedDictionary;
 	},
@@ -2654,7 +2654,7 @@ export const mapDictionary = /*#__PURE__*/ _createFunction(
 				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
 			},
 			{
-				name: 'callback',
+				name: 'transform',
 				type: _Function
 			},
 		]

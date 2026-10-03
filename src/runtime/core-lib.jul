@@ -680,23 +680,23 @@ setElement = nativeFunction(
 		}
 	§
 )
-# Bildet jedes Element mit callback ab.
+# Bildet jedes Element mit transform ab.
 # Die Länge bleibt gleich, empty liefert map also nur bei empty Eingabe.
 map = nativeFunction(
 	(
 		values: Or([] List(Any))
-		callback: (
+		transform: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> MapElements(TypeOf(values) TypeOf(callback))
+	) :> MapElements(TypeOf(values) TypeOf(transform))
 	§js
-		(values, callback) => {
+		(values, transform) => {
 			if (!values) {
 				return;
 			}
 			const mappedValues = values.map((value, index) => {
-				return callback(value, BigInt(index + 1));
+				return transform(value, BigInt(index + 1));
 			});
 			return mappedValues.length
 				? mappedValues
@@ -731,19 +731,19 @@ filter = nativeFunction(
 filterMap = nativeFunction(
 	(
 		values: Or([] List(Any))
-		callback: (
+		transform: (
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or([] List(Without(TypeOf(callback)/ReturnType [])))
+	) :> Or([] List(Without(TypeOf(transform)/ReturnType [])))
 	§js
-		(values, callback) => {
+		(values, transform) => {
 			if (!values) {
 				return;
 			}
 			const mappedValues = [];
 			values.forEach((value, index) => {
-				const mapped = callback(value, BigInt(index + 1));
+				const mapped = transform(value, BigInt(index + 1));
 				if (mapped !== undefined) {
 					mappedValues.push(mapped);
 				}
@@ -1036,23 +1036,23 @@ toList = nativeFunction(
 		}
 	§
 )
-# Creates a new Dictionary with the same keys, each value mapped by callback
+# Creates a new Dictionary with the same keys, each value mapped by transform
 mapDictionary = nativeFunction(
 	(
 		dictionary: Or([] Dictionary(Any))
-		callback: (
+		transform: (
 			value: TypeOf(dictionary)/ElementType
 			key: Text
 		) :> Any
-	) :> MapElements(And(TypeOf(dictionary) Or([] Dictionary(Any))) TypeOf(callback))
+	) :> MapElements(And(TypeOf(dictionary) Or([] Dictionary(Any))) TypeOf(transform))
 	§js
-		(dictionary, callback) => {
+		(dictionary, transform) => {
 			if (!dictionary) {
 				return;
 			}
 			const mappedDictionary = {};
 			for (const key in dictionary) {
-				mappedDictionary[key] = callback(dictionary[key], key);
+				mappedDictionary[key] = transform(dictionary[key], key);
 			}
 			return mappedDictionary;
 		}

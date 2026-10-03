@@ -4210,7 +4210,7 @@ g: Text = f(3)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Parameter name mismatch. Got 'i' but expected 'value'",
+					message: "Argument type mismatch.\nInvalid value for parameter 'transform'\n  Parameter name mismatch. Got 'i' but expected 'value'",
 					startRowIndex: 0,
 					startColumnIndex: 14,
 					endRowIndex: 0,
