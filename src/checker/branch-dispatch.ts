@@ -4,9 +4,9 @@ import {
 	ParseValueExpression,
 } from '../syntax-tree.js';
 import {
-	getTypeError,
 	isFunctionType,
 	isParametersType,
+	isSubtypeOf,
 	resolveAlias,
 	resolvePlaceholders,
 } from './checker.js';
@@ -191,7 +191,7 @@ function getBranchStep(
 		// Integer ohne 1): ein Test, der auf der Obermenge exakt ist, ist es auch auf dem Rest.
 		return {
 			test: { kind: 'literal', value: literal },
-			remaining: remaining.filter(member => !isSubtype(member, required)),
+			remaining: remaining.filter(member => !isSubtypeOf(member, required)),
 		};
 	}
 	const requiredKinds = getJsKinds(required);
@@ -209,7 +209,7 @@ function getBranchStep(
 		if (!requiredKinds.has(memberKind)) {
 			missed.push(member);
 		}
-		else if (isSubtype(member, required)) {
+		else if (isSubtypeOf(member, required)) {
 			caught.push(member);
 		}
 		else {
@@ -242,7 +242,7 @@ function getBranchStep(
 	const fieldTest = getFieldTest(remaining, required);
 	return fieldTest && {
 		test: fieldTest,
-		remaining: remaining.filter(member => !isSubtype(member, required)),
+		remaining: remaining.filter(member => !isSubtypeOf(member, required)),
 	};
 }
 
@@ -327,7 +327,7 @@ function getFieldTest(remaining: CompileTimeType[], required: CompileTimeType): 
 				return false;
 			}
 			return memberValue !== requiredValue
-				|| isSubtype(member, required);
+				|| isSubtypeOf(member, required);
 		});
 		if (decides) {
 			return { kind: 'field', name: name, value: requiredValue };
@@ -482,8 +482,5 @@ function getLiteralValue(type: CompileTimeType): LiteralValue | undefined {
 	}
 }
 
-function isSubtype(type: CompileTimeType, superType: CompileTimeType): boolean {
-	return !getTypeError(undefined, type, superType);
-}
 
 //#endregion Typ-Helfer

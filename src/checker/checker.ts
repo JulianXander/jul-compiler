@@ -7702,6 +7702,14 @@ export function getTypeError(
 	}
 }
 
+/**
+ * Liegt jeder Wert von type sicher in superType? Ein unbekanntes Ergebnis ist kein Ja: wer daraus
+ * etwas folgert, etwa einen Laufzeittest weglässt, darf es nur bei einem Beweis.
+ */
+export function isSubtypeOf(type: CompileTimeType, superType: CompileTimeType): boolean {
+	return isTypeAssignable(undefined, type, superType).assignable === true;
+}
+
 function isTypeAssignable(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
@@ -8073,25 +8081,12 @@ function isTypeAssignableByStructure(
 					return subError;
 				}
 				case 'dictionaryLiteral': {
-					// TODO getDictionaryFieldError mit TypeAssignabilty
-					const subErrors = map(
+					// TODO the field x is missing error?
+					const fieldAssignabilities = map(
 						argumentsType.Fields,
-						(fieldType, fieldName) => {
-							// TODO the field x is missing error?
-							return getDictionaryFieldError(fieldName, elementType, prefixArgumentType, fieldType);
-						},
-					).filter(isDefined);
-					if (!subErrors.length) {
-						return { assignable: undefined };
-					}
-					return {
-						assignable: false,
-						error: {
-							// TODO error struktur überdenken
-							message: subErrors.map(typeErrorToString).join('\n'),
-							// innerError
-						}
-					};
+						(fieldType, fieldName) => isTypeAssignableForField(fieldName, elementType, prefixArgumentType, fieldType),
+					);
+					return joinFieldAssignabilities(fieldAssignabilities);
 				}
 				default:
 					// TODO type specific error?
@@ -8100,15 +8095,15 @@ function isTypeAssignableByStructure(
 			break;
 		}
 		case 'dictionaryLiteral': {
-			// TODO getDictionaryFieldError mit TypeAssignabilty
-			const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType.Fields);
-			if (error === true) {
+			const fieldsAssignability = isTypeAssignableForDictionaryLiteral(prefixArgumentType, argumentsType, targetType.Fields);
+			if (!fieldsAssignability) {
 				// Standardfehler
 				break;
 			}
-			if (!error) {
-				return { assignable: undefined };
+			if (fieldsAssignability.assignable !== false) {
+				return fieldsAssignability;
 			}
+			const error = fieldsAssignability.error;
 			// targetType mit depth=1, damit z.B. GameBoard als kurzer Alias erscheint statt
 			// voll ausgeschrieben (typeToString zeigt Aliase nur ab depth>0). argumentsType
 			// dagegen mit suppressAlias=true: sein aliasName ist der Name der Definition, die
@@ -8600,13 +8595,14 @@ function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[]): Type
 }
 
 /**
- * Liefert true bei Standardfehler, undefined bei keinem Fehler.
+ * Die Felder des Werts gegen die Felder des Ziels. undefined, wenn der Wert kein Dictionary-Literal
+ * ist: dann gilt der Standardfehler.
  */
-function getDictionaryLiteralTypeError(
+function isTypeAssignableForDictionaryLiteral(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetFieldTypes: CompileTimeDictionary,
-): TypeError | true | undefined {
+): TypeAssignability | undefined {
 	switch (argumentsType.julType) {
 		case 'dictionaryLiteral': {
 			// Für ein fehlendes Feld gibt es keinen Wert zum Vergleichen - der erwartete Typ
@@ -8615,71 +8611,90 @@ function getDictionaryLiteralTypeError(
 			// Feldnamen werden deshalb gesammelt und zu einer Zeile zusammengefasst, statt je
 			// Feld eine eigene "Missing field X, expected Y."-Zeile zu erzeugen.
 			const missingFieldNames: string[] = [];
-			const fieldValueErrors = map(
+			const fieldAssignabilities = map(
 				targetFieldTypes,
-				(fieldType, fieldName) => {
+				(fieldType, fieldName): TypeAssignability => {
 					const knownField = argumentsType.Fields[fieldName];
 					if (knownField === undefined) {
 						if (!argumentsType.complete) {
 							// Unwissen ist keine Ablehnung: taucht das Feld in einem
 							// unvollständigen Dictionary nicht auf, ist das kein Beweis, dass
 							// es fehlt.
-							return undefined;
+							return { assignable: undefined };
 						}
 						if (isFieldOptional(fieldType, prefixArgumentType)) {
 							// Or([] X) ist das Idiom für optionale Felder - Weglassen bleibt erlaubt.
-							return undefined;
+							return { assignable: true };
 						}
 						missingFieldNames.push(fieldName);
-						return undefined;
+						return { assignable: true };
 					}
-					return getDictionaryFieldError(fieldName, fieldType, prefixArgumentType, knownField);
+					return isTypeAssignableForField(fieldName, fieldType, prefixArgumentType, knownField);
 				},
-			).filter(isDefined);
-			const missingFieldsError: TypeError | undefined = missingFieldNames.length
-				? {
-					message: missingFieldNames.length === 1
-						? `Missing field '${missingFieldNames[0]}'.`
-						: `Missing fields: ${missingFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`,
-				}
-				: undefined;
-			const subErrors = missingFieldsError ? [missingFieldsError, ...fieldValueErrors] : fieldValueErrors;
-			if (subErrors.length) {
-				return {
-					// TODO error struktur überdenken
-					message: subErrors.map(typeErrorToString).join('\n'),
-					// innerError
-				};
+			);
+			if (missingFieldNames.length) {
+				fieldAssignabilities.unshift({
+					assignable: false,
+					error: {
+						message: missingFieldNames.length === 1
+							? `Missing field '${missingFieldNames[0]}'.`
+							: `Missing fields: ${missingFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`,
+					},
+				});
 			}
-			return undefined;
+			return joinFieldAssignabilities(fieldAssignabilities);
 		}
 		default:
 			// TODO type specific error?
-			return true;
+			return undefined;
 	}
 }
 
-function getDictionaryFieldError(
+/**
+ * Wie joinTypeAssignabilities, aber jede Feldmeldung bleibt stehen, auch wenn zwei Felder dieselbe
+ * liefern: der Feldname steht in der Meldung und unterscheidet sie.
+ */
+function joinFieldAssignabilities(fieldAssignabilities: TypeAssignability[]): TypeAssignability {
+	const errors = fieldAssignabilities.filter(fieldAssignability => fieldAssignability.assignable === false);
+	if (errors.length) {
+		return {
+			assignable: false,
+			error: {
+				// TODO error struktur überdenken
+				message: errors.map(error => typeErrorToString(error.error)).join('\n'),
+				// innerError
+			},
+		};
+	}
+	return fieldAssignabilities.some(fieldAssignability => fieldAssignability.assignable === undefined)
+		? { assignable: undefined }
+		: { assignable: true };
+}
+
+function isTypeAssignableForField(
 	fieldName: string,
 	fieldTargetType: CompileTimeType,
 	prefixArgumentType: CompileTimeType | undefined,
 	fieldValueType: CompileTimeType,
-): TypeError | undefined {
-	const subError = getTypeError(prefixArgumentType, fieldValueType, fieldTargetType);
-	if (subError) {
+): TypeAssignability {
+	const subAssignability = isTypeAssignable(prefixArgumentType, fieldValueType, fieldTargetType);
+	if (subAssignability.assignable === false) {
 		// Feldname steht VOR der Erklärung, die er einleitet (TypeScript-Vorbild), nicht danach -
 		// sonst müsste man beim Lesen den Feldnamen im Kopf der richtigen Ebene der Typ-Kette
 		// zuordnen statt ihn direkt an der Stelle zu lesen, wo er hingehört. Eine Ebene tiefer
 		// eingerückt, damit die Verschachtelungstiefe auch bei 3+ Ebenen sichtbar bleibt.
 		return {
-			message: `Invalid value for field '${fieldName}'\n${indentLines(typeErrorToString(subError))}`,
+			assignable: false,
+			error: {
+				message: `Invalid value for field '${fieldName}'\n${indentLines(typeErrorToString(subAssignability.error))}`,
+			},
 		};
 	}
-	return subError;
+	return subAssignability;
 }
 
 /**
- * Pendant zu getDictionaryFieldError für positionale Funktionsargumente: ohne den Parameternamen
+ * Pendant zu isTypeAssignableForField für positionale Funktionsargumente: ohne den Parameternamen
  * ist bei mehreren Argumenten/Überladungen nicht erkennbar, welches Argument betroffen ist
  * (Fund: JUL5050 nannte nur den Typkonflikt, nie die Parameterposition).
  */

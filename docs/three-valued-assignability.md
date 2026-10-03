@@ -46,8 +46,10 @@ Stand der Analyse, Zeilen in `checker.ts` bzw. `branch-dispatch.ts`:
   `hasReliableTypeError`
 - die Erreichbarkeit von Branches (3467), geschützt über `hasReliableTypeError`
 - `containsAny` (5473), liest `hasReliableTypeError` direkt
-- `isSubtype` in [branch-dispatch.ts](../src/checker/branch-dispatch.ts) (486): **ungeschützt**,
-  wertet `!getTypeError(…)` als Teilmenge
+- `isSubtype` in [branch-dispatch.ts](../src/checker/branch-dispatch.ts): war ungeschützt und wertete
+  `!getTypeError(…)` als Teilmenge. Das ließ einen Laufzeittest weg, der nötig war:
+  `?(x) [List(isEven)] => …` mit `x: Or(Text List(Integer))` wurde zu `typeof x !== 'string'`, und
+  `[1 3]` lief in den ersten Branch. **Umgestellt** auf `isSubtypeOf`.
 
 ## Modell
 
@@ -70,7 +72,8 @@ function isTypeAssignable(prefixArgumentType, argumentsType, targetType): TypeAs
 
 // Melden (Prinzip Freiheit): nur ein sicheres Nein ist ein Fehler.
 getTypeError = (…) => assignability.assignable === false ? assignability.error : undefined;
-// Folgern, noch anzulegen: nur ein sicheres Ja ist eine Teilmenge, nur ein sicheres Nein keine.
+// Folgern: nur ein sicheres Ja ist eine Teilmenge (isSubtypeOf, angelegt), nur ein sicheres Nein
+// keine (isNotSubtypeOf, noch anzulegen).
 isSubtypeOf = (…) => assignability.assignable === true;
 isNotSubtypeOf = (…) => assignability.assignable === false;
 ```
@@ -151,13 +154,16 @@ Außerdem schlägt `npm run typecheck` fehl, unabhängig von diesem Plan: `scrip
 `scripts/bench-runtime.ts` importieren noch `../src/emitter.js` und `../src/project-loader.js`,
 die mit der Umstrukturierung nach `src/compiler/` gewandert sind.
 
-### Phase 0: Abnahmefälle
+### Phase 0: Abnahmefälle (umgesetzt)
 
-Rote Tests, die heute scheitern:
-- `And(PositiveInteger Or(length(values) LessInteger(length(values))))` im Parametertyp behält die
-  obere Grenze
-- `isSubtype` in `branch-dispatch.ts` hält ein unbekanntes Paar nicht für eine Teilmenge (Fall aus
-  dem Code dort zu suchen: ein Branch mit Platzhalter- oder `Not`-Typ)
+- `upper-bound-from-open-length-survives-and` (checker.test.ts):
+  `And(PositiveInteger Or(length(values) LessInteger(length(values))))` im Parametertyp behält die
+  obere Grenze. **Rot**, wird mit Phase 3 und 4 grün.
+- `Rückfall: Prädikat im Elementtyp, die Teilmenge ist unbekannt` (emitter.test.ts): ein Branch
+  `[List(isEven)]` fällt auf `_branch` zurück. **Grün**, seit `branch-dispatch.ts`
+  `isSubtypeOf` nutzt. Dabei war die Zielregel für Dictionary-Literale auf drei Werte umzustellen,
+  denn zwei Dispatch-Tests verzweigen über Dictionaries, und deren Teilmenge zeigte bisher nur das
+  ausbleibende Fehlerobjekt.
 
 Gegenproben, die heute grün sind und es bleiben müssen: die `upper-bound`-Tests, der Test zur
 Vereinfachung von `And(A Not(B))`, die Grenzen-Tests.
@@ -176,8 +182,10 @@ Was schon yes liefert, steht im Stand. Offen, jeweils heute unknown, obwohl sich
 
 - **Verknüpfungen, die noch zweiwertig über `getTypeError` laufen:** Quelle `And` (ein Choice yes),
   Quelle `Or`, Ziel `And`, Ziel `Or` (Best-Match-Meldung beibehalten), die exakte Regel
-  `And(A Not(B))` (liefert bei Erfolg unknown, ist aber exakt, also yes), Dictionary-Felder
-  (`getDictionaryFieldError`, `getDictionaryLiteralTypeError`), Dictionary gegen Dictionary.
+  `And(A Not(B))` (liefert bei Erfolg unknown, ist aber exakt, also yes). Die Dictionary-Felder
+  sind umgestellt (`isTypeAssignableForDictionaryLiteral`, `isTypeAssignableForField`,
+  `joinFieldAssignabilities`): ein fehlendes Feld in einem unvollständigen Dictionary ist
+  unknown, ein fehlendes optionales Feld yes.
 - **Einzelfälle:** Ziel `booleanLiteral` bei gleichem Literal liefert unknown, die anderen
   Literale yes; die Parameterprüfungen enden immer mit unknown, auch wenn jeder Parameter yes war;
   ein Prädikat als Typ (Ziel `Type`) liefert unknown.
@@ -194,8 +202,11 @@ Was schon yes liefert, steht im Stand. Offen, jeweils heute unknown, obwohl sich
 ### Phase 3: Folgernde umstellen
 
 - `removeSubtypes`, Vereinfachung für Teilmengen, `isNotAssignableTo`, Erreichbarkeit der
-  Branches, `containsAny` und `isSubtype` in `branch-dispatch.ts` fragen `isSubtypeOf` bzw.
-  `isNotSubtypeOf` statt `!getTypeError(…)` plus `hasReliableTypeError`.
+  Branches und `containsAny` fragen `isSubtypeOf` bzw. `isNotSubtypeOf` statt `!getTypeError(…)`
+  plus `hasReliableTypeError`. `branch-dispatch.ts` ist schon umgestellt.
+- Vorsicht: Wo Phase 2 eine Teilmenge noch nicht als yes einordnet, normalisiert der Checker nach
+  der Umstellung schwächer. So hat sich das schon bei `branch-dispatch.ts` gezeigt (Dictionaries).
+  Deshalb Phase 2 möglichst vorher abschließen.
 - `hasReliableTypeError` entfällt. Wo `isUnresolvedPlaceholderType` nur deshalb danebensteht,
   entfällt es ebenfalls.
 - Hier ändert sich Verhalten: Wo ein Fall fälschlich als unknown eingeordnet blieb, normalisiert
