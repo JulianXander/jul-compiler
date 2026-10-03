@@ -4469,8 +4469,6 @@ function setFunctionRefForParams(
 	}
 }
 
-//#region TypeAssignability
-
 /**
  * Findet die innerste Position im Quelltext, an der der Zuweisungsfehler tatsächlich sitzt:
  * steigt durch verschachtelte Listen- und Dictionary-Literale sowie durch die Argumentliste
@@ -4528,8 +4526,6 @@ function hasExpectedTypeError(expression: ParseValueExpression): boolean {
 	return isSubtypeOf(ownType, expectedType) === false
 		|| isSubtypeOf(resolvePlaceholders(ownType), resolvePlaceholders(expectedType)) === false;
 }
-
-//#endregion TypeAssignability
 
 function getParamsType(possibleFunctionType: CompileTimeType | undefined): CompileTimeType {
 	const functionType = possibleFunctionType && resolveAlias(possibleFunctionType);
