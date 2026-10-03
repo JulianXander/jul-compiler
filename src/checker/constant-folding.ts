@@ -70,10 +70,10 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown; } 
 		}
 		case 'typeOf': {
 			// Ein Typ als Argument (Integer in aggregate(values Integer ...)) hat den Typ
-			// TypeOf(Integer), sein Wert ist das Laufzeitobjekt des Typs. Nur die einfachen
-			// eingebauten Typen haben eins, das hier ohne Rückgriff auf einen Konstruktor
-			// bekannt ist; alles andere (List(Integer), Or(...)) bleibt unfaltbar.
-			const runtimeType = getBuiltinRuntimeType(type.value);
+			// TypeOf(Integer), sein Wert ist das Laufzeitobjekt des Typs. Dasselbe gilt für
+			// einen Typalias in der Parameterliste einer Funktion (GameBoard), den der
+			// Emitter in den _createFunction-Aufruf schreibt.
+			const runtimeType = typeToRuntimeType(type.value);
 			return runtimeType === undefined
 				? undefined
 				: { value: runtimeType };
@@ -92,6 +92,98 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown; } 
 			}
 			const callable = tryBuildCallable(type);
 			return callable && { value: callable };
+		}
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Der Typ hinter einem Alias ohne Argumente (`GameBoard`), auch mehrfach geschachtelt. Kein
+ * resolveAlias aus type-algebra.ts: das importiert diese Datei, ein Rückimport wäre ein Zyklus.
+ * Deshalb bleibt ein Alias mit Argumenten und einer, dessen Definition noch geprüft wird,
+ * `undefined` und damit ungefaltet. Eine Typfunktion wie `Pair(Integer)` braucht das nicht: sie
+ * wird selbst gefaltet und ergibt direkt den Typ.
+ */
+function dereferencePlainAlias(type: CompileTimeType): CompileTimeType | undefined {
+	let current = type;
+	for (let depth = 0; current.julType === 'alias'; depth++) {
+		if (depth >= maxAliasDepth || current.args) {
+			return undefined;
+		}
+		const symbolType = current.symbol.typeInfo?.type;
+		if (!symbolType) {
+			return undefined;
+		}
+		current = symbolType.julType === 'typeOf'
+			? symbolType.value
+			: symbolType;
+	}
+	return current;
+}
+
+/** Notbremse gegen zyklische Aliase, wie maxAliasDepth in type-algebra.ts. */
+const maxAliasDepth = 100;
+
+/**
+ * Das Laufzeitobjekt eines Typs, das der emittierte Code für ihn verwenden würde. `undefined`
+ * heißt "nicht übersetzbar" (offener Platzhalter, Prädikat, Funktionstyp, ...). Zusammengesetzte
+ * Typen entstehen über dieselben Runtime-Exporte wie im emittierten Code (Or, List, ...), damit
+ * die Darstellung nicht von der Runtime abweichen kann.
+ */
+function typeToRuntimeType(rawType: CompileTimeType): unknown | undefined {
+	const type = dereferencePlainAlias(rawType);
+	if (!type || type.isUnresolvedPlaceholder) {
+		return undefined;
+	}
+	const builtin = getBuiltinRuntimeType(type);
+	if (builtin !== undefined) {
+		return builtin;
+	}
+	const translateAll = (types: CompileTimeType[]): unknown[] | undefined => {
+		const translated: unknown[] = [];
+		for (const element of types) {
+			const runtimeType = typeToRuntimeType(element);
+			if (runtimeType === undefined) {
+				return undefined;
+			}
+			translated.push(runtimeType);
+		}
+		return translated;
+	};
+	switch (type.julType) {
+		case 'integerLiteral':
+		case 'floatLiteral':
+		case 'textLiteral':
+		case 'booleanLiteral':
+			return type.value;
+		case 'tuple':
+			return translateAll(type.ElementTypes);
+		case 'or': {
+			const choices = translateAll(type.ChoiceTypes);
+			return choices && (runtime.Or as (...types: unknown[]) => unknown)(...choices);
+		}
+		case 'and': {
+			const choices = translateAll(type.ChoiceTypes);
+			return choices && (runtime.And as (...types: unknown[]) => unknown)(...choices);
+		}
+		case 'not': {
+			const sourceType = typeToRuntimeType(type.SourceType);
+			return sourceType === undefined
+				? undefined
+				: (runtime.Not as (type: unknown) => unknown)(sourceType);
+		}
+		case 'list': {
+			const elementType = typeToRuntimeType(type.ElementType);
+			return elementType === undefined
+				? undefined
+				: (runtime.List as (type: unknown) => unknown)(elementType);
+		}
+		case 'dictionary': {
+			const elementType = typeToRuntimeType(type.ElementType);
+			return elementType === undefined
+				? undefined
+				: (runtime.Dictionary as (type: unknown) => unknown)(elementType);
 		}
 		default:
 			return undefined;

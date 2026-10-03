@@ -5756,6 +5756,21 @@ describe('constant folding', () => {
 			() => false
 )`)).to.equal('[1 2 3]');
 	});
+	// Ein Typalias als Parametertyp ist eine freie Referenz der Parameterliste und muss sich in
+	// ein Laufzeitobjekt übersetzen lassen, sonst bleibt die ganze Funktion ungefaltet.
+	it('Parametertyp Or-Alias faltet', () => {
+		expect(typeOfLastDefinition('Player = Or(§x§ §o§)\nf = (p: Player) -> Boolean => p.equal(§x§)\nr = f(§x§)')).to.equal('true');
+	});
+	it('Parametertyp Tupel-Alias mit Or-Elementen faltet', () => {
+		expect(typeOfLastDefinition('Cell = Or(§§ §x§)\nBoard = [[Cell Cell] [Cell Cell]]\nf = (b: Board) -> Boolean => b.all((row = value) => row.all((cell = value) => not(cell.equal(§§))))\nr = f([[§x§ §x§] [§x§ §x§]])')).to.equal('true');
+	});
+	it('Parametertyp List-Alias faltet', () => {
+		expect(typeOfLastDefinition('Numbers = List(Integer)\nf = (n: Numbers) -> Integer => n.length()\nr = f([1 2 3])')).to.equal('3');
+	});
+	// Eine Typfunktion wird selbst gefaltet: Pair(Integer) ist dann das Tupel, kein Alias mit Argumenten.
+	it('Parametertyp aus einer Typfunktion faltet', () => {
+		expect(typeOfLastDefinition('Pair = (T: Type) => [T T]\nIntPair = Pair(Integer)\nf = (p: IntPair) -> Boolean => true\nr = f([1 2])')).to.equal('true');
+	});
 	//#endregion 5a Faltung greift
 
 	//#region 5b Faltung unterbleibt
