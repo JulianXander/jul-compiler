@@ -7382,7 +7382,7 @@ function checkTypeHeadPredicates(
 		if (!isFunctionType(valueType)) {
 			return;
 		}
-		const error = getPredicateFunctionError(valueType);
+		const error = isTypeAssignableForPredicateFunction(valueType);
 		if (error) {
 			errors.push({
 				code: ErrorCode.typeGuardIsNotType,
@@ -8385,8 +8385,7 @@ function isTypeAssignableByStructure(
 				case 'typeOf':
 					return { assignable: true };
 				case 'function':
-					// TODO getPredicateFunctionError stattdessen mit 3wertiger assignability
-					return getPredicateFunctionError(argumentsType);
+					return isTypeAssignableForPredicateFunction(argumentsType);
 				// Ein Wert, der das Prädikat erfüllt, ist ein Typ, wenn seine Obermenge aus
 				// Typen besteht.
 				case 'predicate':
@@ -8481,14 +8480,20 @@ function getDefaultTypeError(argumentsType: CompileTimeType, targetType: Compile
  * setzen voraus, dass sie für denselben Wert immer dasselbe liefert. Unbekannte Reinheit ist
  * keine Ablehnung, gefaltet wird dann nur nicht.
  */
-function getPredicateFunctionError(functionType: CompileTimeFunctionType): TypeError | undefined {
+function isTypeAssignableForPredicateFunction(functionType: CompileTimeFunctionType): TypeAssignability {
 	if (functionType.purity === 'impure') {
-		return { message: 'A predicate used as a type must be pure.' };
+		return {
+			assignable: false,
+			error: { message: 'A predicate used as a type must be pure.' },
+		};
 	}
 	if (getTypeError(undefined, createBooleanLiteral(true), resolvePlaceholders(functionType.ReturnType))) {
-		return { message: 'A predicate used as a type must be able to return true.' };
+		return {
+			assignable: false,
+			error: { message: 'A predicate used as a type must be able to return true.' }
+		};
 	}
-	return undefined;
+	return { assignable: undefined };
 }
 
 /**
