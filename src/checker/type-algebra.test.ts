@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 
 import {
+	builtinAny,
+	builtinBlob,
 	builtinBoolean,
 	builtinEmpty,
 	builtinInteger,
@@ -11,7 +13,10 @@ import {
 	createCompileTimeBoundType,
 	createCompileTimeComplementType,
 	createCompileTimeListType,
+	createCompileTimeStreamType,
 	createCompileTimeTupleType,
+	createCompileTimeTypeOfType,
+	createFloatLiteral,
 	createIntegerLiteral,
 } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
@@ -21,6 +26,7 @@ import {
 	dereferenceIndexFromObject,
 	isTypeAssignable,
 	typeToString,
+	valueOf,
 } from './type-algebra.js';
 
 const integerLiteral = (value: number) => createIntegerLiteral(BigInt(value));
@@ -95,6 +101,116 @@ describe('Typalgebra', () => {
 		expectNotAssignable(type, not(greaterInteger(4)));
 	});
 	//#endregion Not
+
+	//#region Not: obere Grenzen
+	// Eine obere Grenze darf nur gegen eine gleich große oder größere obere Grenze passen:
+	// Not(A) liegt genau dann in Not(B), wenn B in A liegt.
+	it('upper-bound-fits-larger-upper-bound', () => {
+		expectAssignable(not(greaterInteger(2)), not(greaterInteger(3)));
+	});
+	it('upper-bound-does-not-fit-smaller-upper-bound', () => {
+		expectNotAssignable(not(greaterInteger(3)), not(greaterInteger(2)));
+	});
+	it('integer-upper-bound-fits-larger-integer-upper-bound', () => {
+		expectAssignable(
+			and([builtinInteger, not(greaterInteger(2))]),
+			and([builtinInteger, not(greaterInteger(3))]),
+		);
+	});
+	// Das Ziel-And wird zerlegt, für Not(GreaterInteger(2)) muss dann die Überlappung von
+	// "höchstens 3" mit "größer als 2" erkannt werden: 3 liegt in beiden.
+	it('integer-upper-bound-does-not-fit-smaller-integer-upper-bound', () => {
+		expectNotAssignable(
+			and([builtinInteger, not(greaterInteger(3))]),
+			and([builtinInteger, not(greaterInteger(2))]),
+		);
+	});
+	// Der Teilmengen-Shortcut And(A B) => A darf hier nicht greifen, sonst geht Integer verloren
+	// und ein Text wäre zuweisbar.
+	it('and-with-complement-keeps-both-choices', () => {
+		expectNotAssignable(builtinText, and([not(integerLiteral(0)), builtinInteger]));
+	});
+	//#endregion Not: obere Grenzen
+
+	//#region Grenzen
+	// Blob ist ein Basistyp wie Date, kein Any.
+	it('blob-rejects-integer', () => {
+		expectNotAssignable(integerLiteral(5), builtinBlob);
+	});
+	it('greater-integer-accepts-larger-integer', () => {
+		expectAssignable(integerLiteral(1), greaterInteger(0));
+	});
+	it('greater-integer-is-strict', () => {
+		expectNotAssignable(integerLiteral(0), greaterInteger(0));
+	});
+	// Die Familie steht im Namen: 1f ist größer als 0, aber keine ganze Zahl.
+	it('greater-integer-rejects-float', () => {
+		expectNotAssignable(createFloatLiteral(1), greaterInteger(0));
+	});
+	it('less-integer-accepts-smaller-integer', () => {
+		expectAssignable(integerLiteral(2), lessInteger(3));
+	});
+	it('less-integer-is-strict', () => {
+		expectNotAssignable(integerLiteral(3), lessInteger(3));
+	});
+	it('literals-below-bound-fit-less-integer', () => {
+		expectAssignable(or([integerLiteral(1), integerLiteral(2)]), lessInteger(3));
+	});
+	it('less-integer-does-not-fit-greater-integer', () => {
+		expectNotAssignable(lessInteger(3), greaterInteger(0));
+	});
+	// Über ganze Zahlen ist > -1 dasselbe wie ≥ 0.
+	it('strict-bound-fits-inclusive-bound', () => {
+		expectAssignable(greaterInteger(-1), or([integerLiteral(0), greaterInteger(0)]));
+	});
+	it('inclusive-bound-fits-strict-bound', () => {
+		expectAssignable(or([integerLiteral(0), greaterInteger(0)]), greaterInteger(-1));
+	});
+	it('range-fits-listed-values', () => {
+		const range = and([greaterInteger(0), lessInteger(4)]);
+		expectAssignable(range, or([integerLiteral(1), integerLiteral(2), integerLiteral(3)]));
+	});
+	it('listed-values-fit-range', () => {
+		const range = and([greaterInteger(0), lessInteger(4)]);
+		expectAssignable(or([integerLiteral(1), integerLiteral(2), integerLiteral(3)]), range);
+	});
+	it('range-does-not-fit-listed-values-with-gap', () => {
+		const range = and([greaterInteger(0), lessInteger(4)]);
+		expectNotAssignable(range, or([integerLiteral(1), integerLiteral(3)]));
+	});
+	//#endregion Grenzen
+
+	//#region Stream, Liste, Typwert
+	// FiniteStream fordert mehr als Stream und ist deshalb überall einsetzbar, wo Stream verlangt wird.
+	it('finite-stream-is-assignable-to-stream', () => {
+		expectAssignable(createCompileTimeStreamType(builtinInteger, true), createCompileTimeStreamType(builtinInteger, false));
+	});
+	it('stream-is-not-assignable-to-finite-stream', () => {
+		expectNotAssignable(createCompileTimeStreamType(builtinInteger, false), createCompileTimeStreamType(builtinInteger, true));
+	});
+	// Eine Union aus Streams wird zu einem Stream zusammengefasst, endlich nur, wenn jeder Choice
+	// endlich ist.
+	it('union-of-finite-stream-and-stream-is-not-finite', () => {
+		const union = or([
+			createCompileTimeStreamType(builtinInteger, true),
+			createCompileTimeStreamType(builtinText, false),
+		]);
+		expectNotAssignable(union, createCompileTimeStreamType(builtinAny, true));
+		expect(typeToString(union, 0, 5)).to.equal('Stream(Or(Integer Text))');
+	});
+	// Gegenprobe: ohne Prädikat wird List(Or(Integer Text)) zurecht nicht als Or([] List(Integer)) akzeptiert.
+	it('list-or-text-not-assignable-to-list-or-integer', () => {
+		expectNotAssignable(
+			createCompileTimeListType(or([builtinInteger, builtinText])),
+			or([builtinEmpty, createCompileTimeListType(builtinInteger)]),
+		);
+	});
+	// Ein Or aus zwei Typwerten, gelesen als Annotation, verteilt sich: 5 passt zum ersten Choice.
+	it('value-of-union-of-type-values', () => {
+		const typeValues = or([createCompileTimeTypeOfType(builtinInteger), createCompileTimeTypeOfType(builtinText)]);
+		expectAssignable(integerLiteral(5), valueOf(typeValues));
+	});
+	//#endregion Stream, Liste, Typwert
 
 	//#region Never
 	it('empty-range-is-never', () => {
