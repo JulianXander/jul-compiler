@@ -53,6 +53,38 @@ aber ohne Datums-Literal unerreichbar).
 Nicht durchgesehen: alles andere Datums- und Zahlformatierende (`toIsoDateText` u. Ä.), das an
 Zeitzone, ICU-Daten oder Node-Version der Build-Maschine hängen könnte.
 
+### Eigener Parameter in verschachteltem Literal und Branching
+
+Idee, keine Entscheidung. Eine HOF, die ihren funktionswertigen Parameter nicht direkt, sondern in
+einem Branching-Zweig aufruft, wird `unknown` statt `pureIfArgsPure` und deshalb nie gefaltet, auch
+nicht mit reinem Callback:
+
+```jul
+aggregateRecursive = (values: List(Any) init fn: (acc val i) :> Any index curr) =>
+	?(index)
+		[values.length().add(1)] => curr
+		() =>
+			prev = aggregateRecursive(values init fn index.add(1) curr)
+			fn(prev values.getElement(index) index)
+```
+
+Zwei Stellen in `inferBodyPurity` verlieren die Information, dass `fn` ein eigener Parameter der
+äußeren Funktion ist:
+
+- Der Zweig `() => …` ist ein eigenes Literal. Für es ist `fn` ein fremder Parameter (E2), seine
+  Purity ist `unknown`. Das Branching trägt sie mit `fromOwnParameterCall = false` bei, also bleibt
+  `unknownOnlyFromOwnParameterCalls` nicht erhalten.
+- Ein Zweig mit `pureIfArgsPure` zählt im Branching als `unknown`, weil unbekannt ist, mit welchen
+  Argumenten der getroffene Zweig gerufen wird.
+
+Denkbar: Aufrufe fremder Parameter eines *unmittelbar* umschließenden Literals beim Aufstieg als
+Aufrufe eigener Parameter der äußeren Funktion werten. Zu klären ist, ob E2 absichtlich so streng
+ist und was ein Callback bedeutet, der erst in einer weiteren Verschachtelung gerufen wird.
+
+Roter Test dazu: Funktion mit Parameter `fn`, Branching-Zweig ruft `fn`, Aufruf mit reinem `fn`
+und konstanten Argumenten soll einen gefalteten Typ liefern. Beispiel:
+`jul-examples/core-lib/aggregate`.
+
 ## Ausblick: gefaltetes Ergebnis auch emittieren
 
 Vorgemerkt: statt den Aufruf zu emittieren, die gefaltete Konstante einsetzen — `addInteger(2 3)`
