@@ -1210,6 +1210,21 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 	});
 	//#endregion Not
 	//#region Grenzen
+	// Blob ist ein Basistyp wie Date, kein Any.
+	it('blob-rejects-integer', () => {
+		expectCheck('x: Blob = 5', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 5 to Blob.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 11,
+				},
+			],
+		});
+	});
 	it('greater-integer-accepts-larger-integer', () => {
 		expectCheck('x: GreaterInteger(0) = 1');
 	});

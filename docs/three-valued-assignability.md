@@ -253,6 +253,38 @@ jul-examples fehlerfrei, Language Server grün.
 - Checker-Snapshot unverändert, yugioh, jul-examples und Language Server fehlerfrei, Bench im
   Wechsel gemessen gleich.
 
+## Vorarbeit: unknown abbauen
+
+Bevor jedes unknown an einer meldenden Stelle warnt, wurde gezählt, wie viele Warnungen das wären
+(Zählung von Hand an Definition, Argument und Rückgabewert, Stand nach Phase 4):
+
+| Projekt | Warnungen |
+|---|---|
+| yugioh | 215 (132 Argumente, 46 Definitionen, 37 Rückgabewerte) |
+| jul-examples und core-lib | 30, davon 5 in der core-lib |
+
+Die meisten melden kein Risiko im Programm, sondern Schwächen von Checker und core-lib:
+
+- **Selbst erzeugtes Any.** In yugioh tragen 27 Fälle `cards: Dictionary(Any)` statt
+  `Dictionary(GameCard)`, eine Funktion der core-lib verliert den Elementtyp. 13 stammen aus dem
+  Akkumulator von `aggregate`, der als `Any` deklariert ist. Berechtigt sind die Rückgabewerte aus
+  `dom.ts` und ähnliche Grenzen nach außen.
+- **Platzhalter in Callbacks** (etwa 59): Ein Lambda ohne Typangabe bekommt für seinen Parameter
+  `TypeOf(x)/ElementType`, der am Aufruf nicht aufgelöst wird.
+- **Sonstiges:** Parameterverweise in Signaturen der core-lib, die nicht aufgelöst werden
+  (`[count] → (value: Integer)` in `repeat`), `And(value Not(Empty))` als Callback-Parameter, und
+  `Any` als Typwert, etwa `Or([] Any Error)` gegen `List(Type)`.
+
+Deshalb vor der Warnung, jeweils mit neuer Zählung danach:
+
+- **a. core-lib:** `aggregate` mit generischem Akkumulator, die Funktion finden, die
+  `Dictionary(Any)` erzeugt, `Any` als Typwert als Typ behandeln, die unaufgelösten
+  Parameterverweise in den eigenen Signaturen.
+- **b. Checker:** Parameter von Callbacks, deren Typ aus dem erwarteten Typ kommt
+  (`TypeOf(x)/ElementType`), am Aufruf auflösen.
+- **c.** Neu zählen. Erst wenn fast nur noch echte Fälle übrig sind (DOM, `runJs`), die Warnung
+  mit `warning` als Pflichtfeld einbauen.
+
 ## Anschluss: Warnung bei unknown
 
 Nicht Teil dieses Plans, setzt aber auf ihm auf. **Jedes unknown an einer meldenden Stelle ist eine

@@ -950,7 +950,7 @@ toDictionary = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Any
-	) :> Or([] Dictionary(Any))
+	) :> Or([] Dictionary(TypeOf(getValue)/ReturnType))
 	§js
 		(values, getKey, getValue) => {
 			if (!values) {
@@ -1010,7 +1010,10 @@ setField = nativeFunction(
 		dictionary: Or([] Dictionary(Any))
 		key: Text
 		value: Any
-	) -> Dictionary(Any)
+	) -> Dictionary(Or(
+		Without(TypeOf(dictionary)/ElementType [])
+		TypeOf(value)
+	))
 	§js
 		(dictionary, key, value) => {
 			return {
@@ -1023,7 +1026,7 @@ setField = nativeFunction(
 toList = nativeFunction(
 	(
 		dictionary: Or([] Dictionary(Any))
-	) -> Or([] List(Any))
+	) -> Or([] List(TypeOf(dictionary)/ElementType))
 	§js
 		dictionary => {
 			if (!dictionary) {
