@@ -7384,7 +7384,7 @@ function checkTypeHeadPredicates(
 		}
 		const assignability = isTypeAssignableForPredicateFunction(valueType);
 		// TODO warnen bei unbekannter assignability?
-		if (assignability.error) {
+		if (assignability.assignable === false) {
 			errors.push({
 				code: ErrorCode.typeGuardIsNotType,
 				message: assignability.error.message,
@@ -7693,7 +7693,13 @@ export function getTypeError(
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
 ): TypeError | undefined {
-	return isTypeAssignable(prefixArgumentType, argumentsType, targetType).error;
+	const assignability = isTypeAssignable(prefixArgumentType, argumentsType, targetType);
+	if (assignability.assignable === false) {
+		return assignability.error;
+	}
+	else {
+		return undefined;
+	}
 }
 
 function isTypeAssignable(
@@ -7713,10 +7719,14 @@ function isTypeAssignable(
 	}
 }
 
-interface TypeAssignability {
-	assignable: boolean | undefined;
-	error?: TypeError;
-}
+type TypeAssignability =
+	| {
+		assignable: false;
+		error: TypeError;
+	}
+	| {
+		assignable: true | undefined;
+	}
 
 function isTypeAssignableAtDepth(
 	prefixArgumentType: CompileTimeType | undefined,
@@ -8172,7 +8182,7 @@ function isTypeAssignableByStructure(
 				return paramsAssignability;
 			}
 			const returnAssignability = isTypeAssignable(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
-			if (returnAssignability.error) {
+			if (returnAssignability.assignable === false) {
 				// Ohne Beschriftung liesse sich nicht erkennen, dass die Meldung den Rückgabewert
 				// betrifft, statt z.B. einen weiteren Parameter (siehe getParameterError).
 				return {
@@ -8240,18 +8250,18 @@ function isTypeAssignableByStructure(
 			switch (argumentsType.julType) {
 				case 'list': {
 					const elementAssignability = isTypeAssignable(prefixArgumentType, argumentsType.ElementType, targetElementType);
-					if (!elementAssignability.error) {
-						return elementAssignability;
+					if (elementAssignability.assignable === false) {
+						// Ohne Hülle stand der Element-Fehler roh neben anderen Or-Choice-Fehlern,
+						// ohne erkennbaren Bezug zur umschliessenden Liste (Fund im echten
+						// yugioh-Fehlerbild, Session 2026-09-10) - analog zum dictionaryLiteral-Fall.
+						return {
+							assignable: false,
+							error: {
+								message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(elementAssignability.error.message)}`,
+							}
+						};
 					}
-					// Ohne Hülle stand der Element-Fehler roh neben anderen Or-Choice-Fehlern,
-					// ohne erkennbaren Bezug zur umschliessenden Liste (Fund im echten
-					// yugioh-Fehlerbild, Session 2026-09-10) - analog zum dictionaryLiteral-Fall.
-					return {
-						assignable: false,
-						error: {
-							message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(elementAssignability.error.message)}`,
-						}
-					};
+					return elementAssignability;
 				}
 				case 'tuple': {
 					const elementAssignabilities = argumentsType.ElementTypes.map(valueElement =>
@@ -8571,9 +8581,9 @@ function isTypeAssignableForTuple2(
  * true, wenn alle true
  */
 function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[]): TypeAssignability {
-	const errors = typeAssignabilities.map(elementAssignability => elementAssignability.error).filter(isDefined);
+	const errors = typeAssignabilities.filter(elementAssignability => elementAssignability.assignable === false);
 	if (errors.length) {
-		const uniqueMessages = [...new Set(errors.map(typeErrorToString))];
+		const uniqueMessages = [...new Set(errors.map(error => typeErrorToString(error.error)))];
 		return {
 			assignable: false,
 			error: {
@@ -8676,7 +8686,7 @@ function getDictionaryFieldError(
  * ist bei mehreren Argumenten/Überladungen nicht erkennbar, welches Argument betroffen ist
  * (Fund: JUL5050 nannte nur den Typkonflikt, nie die Parameterposition).
  */
-function getParameterError(
+function isTypeAssignableForParameter(
 	parameterName: string,
 	parameterTargetType: CompileTimeType,
 	argumentType: CompileTimeType,
@@ -8685,14 +8695,17 @@ function getParameterError(
 	 * Signatur zur Prüfung, kein Wert, der an den Parameter übergeben wird.
 	 */
 	subject: 'value' | 'type' = 'value',
-): TypeError | undefined {
-	const subError = getTypeError(undefined, argumentType, parameterTargetType);
-	if (subError) {
+): TypeAssignability {
+	const subAssignability = isTypeAssignable(undefined, argumentType, parameterTargetType);
+	if (subAssignability.assignable === false) {
 		return {
-			message: `Invalid ${subject} for parameter '${parameterName}'\n${indentLines(typeErrorToString(subError))}`,
+			assignable: false,
+			error: {
+				message: `Invalid ${subject} for parameter '${parameterName}'\n${indentLines(typeErrorToString(subAssignability.error))}`,
+			}
 		};
 	}
-	return subError;
+	return subAssignability;
 }
 
 /**
@@ -8799,7 +8812,7 @@ function isTypeAssignableForParameters(
 					: index === guaranteedIndex
 						? elementType
 						: optionalElementType;
-				const error = getParameterError(parameter.name, parameterType, argumentType);
+				const error = isTypeAssignableForParameter(parameter.name, parameterType, argumentType);
 				if (error) {
 					// TODO collect inner errors
 					return error;
@@ -8818,13 +8831,13 @@ function isTypeAssignableForParameters(
 				const remainingType = singleNames.length
 					? createNormalizedUnionType([builtinEmpty, createCompileTimeListType(restElementType)])
 					: createCompileTimeListType(restElementType);
-				const error = getParameterError(rest!.name, restType, remainingType);
+				const error = isTypeAssignableForParameter(rest!.name, restType, remainingType);
 				if (error) {
 					// TODO collect inner errors
 					return error;
 				}
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'parameters': {
 			// Parameter gegen Parameter tritt nur beim Vergleich zweier Funktionstypen auf, und
@@ -8857,7 +8870,7 @@ function isTypeAssignableForParameters(
 				}
 				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? builtinAny;
 				const error = targetParameterType
-					? getParameterError(targetParameterName, targetParameterType, valueParameterType, 'type')
+					? isTypeAssignableForParameter(targetParameterName, targetParameterType, valueParameterType, 'type')
 					: undefined;
 				if (error) {
 					// TODO collect inner errors
@@ -8876,14 +8889,14 @@ function isTypeAssignableForParameters(
 				const remainingValueParameters = valueSingleNames.slice(index);
 				for (const valueParameter of remainingValueParameters) {
 					const valueParameterType = valueParameter.type ?? valueRestItemType ?? builtinAny;
-					const error = getParameterError(targetRest!.name, targetRestItemType, valueParameterType, 'type');
+					const error = isTypeAssignableForParameter(targetRest!.name, targetRestItemType, valueParameterType, 'type');
 					if (error) {
 						// TODO collect inner errors
 						return error;
 					}
 				}
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		default:
 			return {
@@ -8916,12 +8929,12 @@ function isTypeAssignableForParametersWithCollectionArgs(
 				: argumentsType[name])) ?? builtinEmpty;
 			argumentIndex++;
 		}
-		const error = type
-			? getParameterError(name, type, argument)
+		const assignability = type
+			? isTypeAssignableForParameter(name, type, argument)
 			: undefined;
-		if (error) {
+		if (assignability?.assignable === false) {
 			// TODO collect inner errors
-			return error;
+			return assignability;
 		}
 	}
 	if (rest) {
@@ -8931,7 +8944,7 @@ function isTypeAssignableForParametersWithCollectionArgs(
 				? createCompileTimeTupleType([prefixArgumentType])
 				: builtinEmpty;
 			const error = restType
-				? getParameterError(rest.name, restType, remainingArgs)
+				? isTypeAssignableForParameter(rest.name, restType, remainingArgs)
 				: undefined;
 			if (error) {
 				return error;
@@ -8944,7 +8957,7 @@ function isTypeAssignableForParametersWithCollectionArgs(
 				remainingArgs.unshift(prefixArgumentType);
 			}
 			const error = restType
-				? getParameterError(rest.name, restType, createCompileTimeTupleType(remainingArgs))
+				? isTypeAssignableForParameter(rest.name, restType, createCompileTimeTupleType(remainingArgs))
 				: undefined;
 			if (error) {
 				// TODO collect inner errors
@@ -8959,6 +8972,7 @@ function isTypeAssignableForParametersWithCollectionArgs(
 			};
 		}
 	}
+	return { assignable: undefined };
 }
 
 interface TypeError {
