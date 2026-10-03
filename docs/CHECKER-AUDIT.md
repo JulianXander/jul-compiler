@@ -103,7 +103,7 @@ Beispiele bauen — sie laufen in keinem automatisierten Test. Referenzstand: al
 cd jul-examples
 for cfg in $(find . -name jul-config.yaml | sort); do
 	d=$(dirname "$cfg")
-	out=$(cd "$d" && node "../../jul-compiler/out/cli.js" 2>&1)
+	out=$(cd "$d" && node "../../jul-compiler/out/compiler/cli.js" 2>&1)
 	echo "$(echo "$out" | grep -q successfully && echo OK || echo FAIL)  $d"
 done
 ```

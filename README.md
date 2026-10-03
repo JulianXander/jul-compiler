@@ -38,7 +38,7 @@ Config gibt `--config pfad` (oder `--config=pfad`) an — nie die Quelldatei:
 ```bash
 cd ../jul-examples/fizz-buzz
 jul                                        # nach install-cli
-node ../../jul-compiler/out/cli.js
+node ../../jul-compiler/out/compiler/cli.js
 jul --config ../fibonacci/jul-config.yaml  # andere Config
 node out/bundle.js                         # Ergebnis ausführen
 ```

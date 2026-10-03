@@ -2,10 +2,10 @@
 	"name": "jul-compiler",
 	"version": "0.0.11",
 	"description": "Compiler cli for JUL",
-	"main": "out/cli.js",
+	"main": "out/compiler/cli.js",
 	"type": "module",
 	"bin": {
-		"jul": "out/cli.js"
+		"jul": "out/compiler/cli.js"
 	},
 	"author": {
 		"name": "Julian Xander"
