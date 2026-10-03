@@ -278,7 +278,7 @@ Die meisten melden kein Risiko im Programm, sondern Schwächen von Checker und c
 Deshalb vor der Warnung, jeweils mit neuer Zählung danach:
 
 - **a. core-lib:** `setField`, `toList` und `toDictionary` behalten den Elementtyp (umgesetzt,
-  yugioh 215 → 182). `Blob` fehlte in `coreBuiltInSymbolTypes` und war damit `Any` (roter Test
+  yugioh 215 → 182). `Blob` fehlte in `coreBuiltInSymbolTypes` und war damit `Any`, behoben (Test
   `blob-rejects-integer`). Zurückgestellt: der Akkumulator von `aggregate` (12 Fälle in yugioh),
   siehe `TODO`. Die unaufgelösten Parameterverweise in den Signaturen der core-lib gehören zu b.
 - **b. Checker:** Parameter von Callbacks, deren Typ aus dem erwarteten Typ kommt

@@ -186,3 +186,4 @@
 2026-10-03 11:18:22	9e1f78e+	-	ADV-DEV-56627	yugioh	parse+check	5	1677.05	2122.39	2122.39	nach: Empfaenger als erstes Argument (Concat), isTypeAssignable ohne prefixArgumentType
 2026-10-03 11:32:39	9199117+	-	ADV-DEV-56627	yugioh	parse+check	5	1596.35	1958.59	1958.59	nach: Empfaenger in der Argumentkollektion (bindReceiver/splitReceiver)
 2026-10-03 11:34:31	9199117+	-	ADV-DEV-56627	yugioh	parse+check	5	1622.13	1960.89	1960.89	nach: benannte Argumente im Parameterverweis (dereferenceParameterFromArgumentType)
+2026-10-03 11:57:47	472ac9c+	-	ADV-DEV-56627	yugioh	parse+check	5	1778.85	2207.74	2207.74	nach: core-lib setField/toList/toDictionary mit Elementtyp, Blob als Basistyp

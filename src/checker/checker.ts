@@ -78,6 +78,7 @@ import {
 	forEachChildType,
 	NestedReferenceType,
 	builtinAny,
+	builtinBlob,
 	builtinEmpty,
 	builtinNever,
 	builtinBoolean,
@@ -523,6 +524,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 	Float: createCompileTimeTypeOfType(builtinFloat),
 	Text: createCompileTimeTypeOfType(builtinText),
 	Date: createCompileTimeTypeOfType(builtinDate),
+	Blob: createCompileTimeTypeOfType(builtinBlob),
 	Error: createCompileTimeTypeOfType(builtinError),
 	List: (() => {
 		const parameterReference = createParameterReference('ElementType', 0);
