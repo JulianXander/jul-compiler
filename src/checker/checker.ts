@@ -7668,7 +7668,7 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 	}
 }
 
-//#region TypeError
+//#region TypeAssignability
 
 // TODO return true/false = always/never, sometimes/maybe?
 function areArgsAssignableTo(
@@ -7692,35 +7692,48 @@ export function getTypeError(
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
 ): TypeError | undefined {
+	return isTypeAssignable(prefixArgumentType, argumentsType, targetType).error;
+}
+
+function isTypeAssignable(
+	prefixArgumentType: CompileTimeType | undefined,
+	argumentsType: CompileTimeType,
+	targetType: CompileTimeType,
+): TypeAssignability {
 	if (typeComparisonDepth >= maxTypeComparisonDepth) {
-		return { message: 'Type comparison is excessively deep and possibly infinite.' };
+		return { assignable: false, error: { message: 'Type comparison is excessively deep and possibly infinite.' } };
 	}
 	typeComparisonDepth++;
 	try {
-		return getTypeErrorAtDepth(prefixArgumentType, argumentsType, targetType);
+		return isTypeAssignableAtDepth(prefixArgumentType, argumentsType, targetType);
 	}
 	finally {
 		typeComparisonDepth--;
 	}
 }
 
-function getTypeErrorAtDepth(
+interface TypeAssignability {
+	assignable: boolean | undefined;
+	error?: TypeError;
+}
+
+function isTypeAssignableAtDepth(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
-): TypeError | undefined {
+): TypeAssignability {
 	checkerStats.getTypeError++;
 	if (targetType.julType === 'any') {
-		return undefined;
+		return { assignable: true };
 	}
 	if (argumentsType.julType === 'any') {
 		// TODO error/warning bei any?
 		// error type bei assignment/function call?
 		// maybe return value?
-		return undefined;
+		return { assignable: undefined };
 	}
 	if (argumentsType === targetType) {
-		return undefined;
+		return { assignable: true };
 	}
 	// Der Alias ist reine Beschriftung: zugewiesen wird gegen den Typ dahinter, in beide Richtungen.
 	// Liegt das Paar bereits auf dem Stack, gilt es als zuweisbar - bei rekursiven Typen ist das
@@ -7735,10 +7748,10 @@ function getTypeErrorAtDepth(
 			involvesApplication
 				? typeEquals(pair.args, argumentsType) && typeEquals(pair.target, targetType)
 				: pair.args === argumentsType && pair.target === targetType)) {
-			return undefined;
+			return { assignable: undefined };
 		}
 		if (isSameAliasApplication(argumentsType, targetType)) {
-			return undefined;
+			return { assignable: true };
 		}
 		if (!aliasComparisonsInProgress.length) {
 			aliasApplicationExpansionsRemaining = maxAliasApplicationExpansions;
@@ -7746,13 +7759,13 @@ function getTypeErrorAtDepth(
 		if (isAliasApplication(argumentsType) || isAliasApplication(targetType)) {
 			// Siehe maxAliasApplicationExpansions: im Zweifel zuweisbar, wie beim Stapel.
 			if (aliasApplicationExpansionsRemaining <= 0) {
-				return undefined;
+				return { assignable: undefined };
 			}
 			aliasApplicationExpansionsRemaining--;
 		}
 		aliasComparisonsInProgress.push({ args: argumentsType, target: targetType });
 		try {
-			return getTypeError(
+			return isTypeAssignable(
 				prefixArgumentType,
 				argumentsType.julType === 'alias' ? dereferenceAlias(argumentsType) : argumentsType,
 				targetType.julType === 'alias' ? dereferenceAlias(targetType) : targetType);
@@ -7767,15 +7780,18 @@ function getTypeErrorAtDepth(
 	// Passt es nicht, liefert die Zerlegung die genauere Meldung, etwa gegen welchen Teil des targets.
 	const fitsRange = integerRangeFits(argumentsType, targetType);
 	if (fitsRange === true) {
-		return undefined;
+		return { assignable: true };
 	}
 	if (fitsRange === false) {
-		return getTypeErrorByStructure(prefixArgumentType, argumentsType, targetType)
+		return isTypeAssignableByStructure(prefixArgumentType, argumentsType, targetType)
 			?? {
-			message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+			assignable: false,
+			error: {
+				message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+			},
 		};
 	}
-	return getTypeErrorByStructure(prefixArgumentType, argumentsType, targetType);
+	return isTypeAssignableByStructure(prefixArgumentType, argumentsType, targetType);
 }
 
 /**
@@ -7802,11 +7818,11 @@ function integerRangeFits(argumentsType: CompileTimeType, targetType: CompileTim
 	return isEmpty || (fitsMin && fitsMax);
 }
 
-function getTypeErrorByStructure(
+function isTypeAssignableByStructure(
 	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: Exclude<ResolvedType, { julType: 'any'; }>,
 	targetType: Exclude<ResolvedType, { julType: 'any'; }>,
-): TypeError | undefined {
+): TypeAssignability {
 	switch (argumentsType.julType) {
 		case 'and': {
 			if (targetType.julType === 'and') {
@@ -7834,10 +7850,13 @@ function getTypeErrorByStructure(
 					: createCompileTimeIntersectionType(otherChoices);
 				if (getTypeError(prefixArgumentType, remainingType, widenedTarget)) {
 					return {
-						message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+						assignable: false,
+						error: {
+							message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+						}
 					};
 				}
-				return undefined;
+				return { assignable: undefined };
 			}
 			// Es genügt, wenn ein args Choice zum target passt, denn der Wert erfüllt alle.
 			const subErrors = argumentsType.ChoiceTypes.map(choiceType =>
@@ -7848,7 +7867,7 @@ function getTypeErrorByStructure(
 				// value: Or([] Integer) ist Integer, kein einzelner choice sagt das.
 				const dereferencedArgumentsType = resolvePlaceholders(argumentsType);
 				if (dereferencedArgumentsType !== argumentsType) {
-					return getTypeError(prefixArgumentType, dereferencedArgumentsType, targetType);
+					return isTypeAssignable(prefixArgumentType, dereferencedArgumentsType, targetType);
 				}
 				// Bleibt auch nach dem Auflösen nichts übrig: das target selbst kann sich noch
 				// zerlegen lassen (z.B. Or): And(Integer Not(0)) passt als GANZES zu
@@ -7859,12 +7878,15 @@ function getTypeErrorByStructure(
 				// Choices, die sich zum selben Typ auflösen, liefern dieselbe Meldung
 				const uniqueMessages = [...new Set(subErrors.map(typeErrorToString))];
 				return {
-					// TODO error struktur überdenken
-					message: uniqueMessages.join('\n'),
-					// innerError
+					assignable: false,
+					error: {
+						// TODO error struktur überdenken
+						message: uniqueMessages.join('\n'),
+						// innerError
+					}
 				};
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'add':
 		case 'concat': {
@@ -7875,9 +7897,9 @@ function getTypeErrorByStructure(
 			// schon permissiv (siehe unten), als Argumenttyp fehlte das.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return getTypeError(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(prefixArgumentType, resolved, targetType);
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'lengthOf': {
 			// Source ist nur dann garantiert schon der reine list-Zweig (nie Empty), wenn
@@ -7889,18 +7911,18 @@ function getTypeErrorByStructure(
 			if (dereferencedSource !== argumentsType.Source) {
 				const dereferencedLength = getLengthFromType(dereferencedSource);
 				if (!typeEquals(dereferencedLength, argumentsType)) {
-					return getTypeError(prefixArgumentType, dereferencedLength, targetType);
+					return isTypeAssignable(prefixArgumentType, dereferencedLength, targetType);
 				}
 			}
-			return getTypeError(prefixArgumentType, CompileTimePositiveInteger, targetType);
+			return isTypeAssignable(prefixArgumentType, CompileTimePositiveInteger, targetType);
 		}
 		case 'nestedReference': {
 			// Wie concat/withElementAt: erst auflösen versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return getTypeError(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(prefixArgumentType, resolved, targetType);
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'not': {
 			// Not(X) heißt "alles außer X" - das ist nur dann unzulässig, wenn das target
@@ -7913,15 +7935,21 @@ function getTypeErrorByStructure(
 			if (targetType.julType === 'not'
 				&& isNotAssignableTo(targetType.SourceType, argumentsType.SourceType) === true) {
 				return {
-					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+					assignable: false,
+					error: {
+						message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+					}
 				};
 			}
 			if (isNotAssignableTo(targetType, argumentsType.SourceType) === false) {
 				return {
-					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+					assignable: false,
+					error: {
+						message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+					}
 				};
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'or': {
 			// alle args Choices müssen zum target passen
@@ -7929,19 +7957,22 @@ function getTypeErrorByStructure(
 				getTypeError(prefixArgumentType, choiceType, targetType)).filter(isDefined);
 			if (subErrors.length) {
 				return {
-					// TODO error struktur überdenken
-					message: subErrors.map(typeErrorToString).join('\n'),
-					// innerError
+					assignable: false,
+					error: {
+						// TODO error struktur überdenken
+						message: subErrors.map(typeErrorToString).join('\n'),
+						// innerError
+					}
 				};
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'parameterReference': {
 			const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(argumentsType);
 			if (!dereferencedParameterType) {
-				return undefined;
+				return { assignable: undefined };
 			}
-			return getTypeError(prefixArgumentType, dereferencedParameterType, targetType);
+			return isTypeAssignable(prefixArgumentType, dereferencedParameterType, targetType);
 		}
 		case 'predicate':
 			switch (targetType.julType) {
@@ -7953,7 +7984,7 @@ function getTypeErrorByStructure(
 					break;
 				// Ein Wert, der das Prädikat erfüllt, liegt in der Obermenge.
 				default:
-					return getTypeError(prefixArgumentType, argumentsType.UpperBound, targetType);
+					return isTypeAssignable(prefixArgumentType, argumentsType.UpperBound, targetType);
 			}
 			break;
 		case 'mapElements': {
@@ -7961,17 +7992,17 @@ function getTypeErrorByStructure(
 			// stehen - erst neu falten versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return getTypeError(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(prefixArgumentType, resolved, targetType);
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'conditional': {
 			// Wie withElementAt: erst auswerten versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return getTypeError(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(prefixArgumentType, resolved, targetType);
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'withElementAt': {
 			// Steht die Position (noch) nicht fest, bleibt setElement als WithElementAt(...)
@@ -7982,9 +8013,9 @@ function getTypeErrorByStructure(
 			// Zieltyp ist withElementAt schon permissiv (siehe unten), als Argumenttyp fehlte das.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return getTypeError(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(prefixArgumentType, resolved, targetType);
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		default:
 			break;
@@ -7997,28 +8028,31 @@ function getTypeErrorByStructure(
 				getTypeError(prefixArgumentType, argumentsType, choiceType)).filter(isDefined);
 			if (subErrors.length) {
 				return {
-					// TODO error struktur überdenken
-					message: subErrors.map(typeErrorToString).join('\n'),
-					// innerError
+					assignable: false,
+					error: {
+						// TODO error struktur überdenken
+						message: subErrors.map(typeErrorToString).join('\n'),
+						// innerError
+					}
 				};
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'blob':
 			break;
 		case 'boolean':
 			switch (argumentsType.julType) {
 				case 'boolean':
-					return undefined;
+					return { assignable: true };
 				case 'booleanLiteral':
-					return undefined;
+					return { assignable: true };
 				default:
 					break;
 			}
 			break;
 		case 'booleanLiteral':
 			if (typeEquals(argumentsType, targetType)) {
-				return undefined;
+				return { assignable: undefined };
 			}
 			break;
 		case 'date':
@@ -8027,10 +8061,11 @@ function getTypeErrorByStructure(
 			const elementType = targetType.ElementType;
 			switch (argumentsType.julType) {
 				case 'dictionary': {
-					const subError = getTypeError(prefixArgumentType, argumentsType.ElementType, elementType);
+					const subError = isTypeAssignable(prefixArgumentType, argumentsType.ElementType, elementType);
 					return subError;
 				}
 				case 'dictionaryLiteral': {
+					// TODO getDictionaryFieldError mit TypeAssignabilty
 					const subErrors = map(
 						argumentsType.Fields,
 						(fieldType, fieldName) => {
@@ -8039,12 +8074,15 @@ function getTypeErrorByStructure(
 						},
 					).filter(isDefined);
 					if (!subErrors.length) {
-						return undefined;
+						return { assignable: undefined };
 					}
 					return {
-						// TODO error struktur überdenken
-						message: subErrors.map(typeErrorToString).join('\n'),
-						// innerError
+						assignable: false,
+						error: {
+							// TODO error struktur überdenken
+							message: subErrors.map(typeErrorToString).join('\n'),
+							// innerError
+						}
 					};
 				}
 				default:
@@ -8054,13 +8092,14 @@ function getTypeErrorByStructure(
 			break;
 		}
 		case 'dictionaryLiteral': {
+			// TODO getDictionaryFieldError mit TypeAssignabilty
 			const error = getDictionaryLiteralTypeError(prefixArgumentType, argumentsType, targetType.Fields);
 			if (error === true) {
 				// Standardfehler
 				break;
 			}
 			if (!error) {
-				return undefined;
+				return { assignable: undefined };
 			}
 			// targetType mit depth=1, damit z.B. GameBoard als kurzer Alias erscheint statt
 			// voll ausgeschrieben (typeToString zeigt Aliase nur ab depth>0). argumentsType
@@ -8075,15 +8114,21 @@ function getTypeErrorByStructure(
 			// verklebt wird, statt den fertigen String später wieder aufzutrennen.
 			const header = `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.`;
 			if (header.includes('\n')) {
-				return error;
+				return {
+					assignable: false,
+					error: error,
+				};
 			}
 			return {
-				message: `${header}\n${indentLines(error.message)}`,
+				assignable: false,
+				error: {
+					message: `${header}\n${indentLines(error.message)}`,
+				}
 			};
 		}
 		case 'empty':
 			if (argumentsType.julType === 'empty') {
-				return undefined;
+				return { assignable: true };
 			}
 			break;
 		case 'error':
@@ -8091,12 +8136,12 @@ function getTypeErrorByStructure(
 		case 'float':
 			switch (argumentsType.julType) {
 				case 'float':
-					return undefined;
+					return { assignable: true };
 				case 'floatLiteral':
-					return undefined;
+					return { assignable: true };
 				case 'bound':
 					if (argumentsType.Family === 'float') {
-						return undefined;
+						return { assignable: true };
 					}
 					break;
 				default:
@@ -8105,7 +8150,7 @@ function getTypeErrorByStructure(
 			break;
 		case 'floatLiteral':
 			if (typeEquals(argumentsType, targetType)) {
-				return undefined;
+				return { assignable: true };
 			}
 			break;
 		case 'function': {
@@ -8121,19 +8166,26 @@ function getTypeErrorByStructure(
 			// - Return-Type: Normale Richtung (Kovarianz).
 			//   argumentsType.ReturnType muss Teilmenge von targetType.ReturnType sein,
 			//   weil der Rückgabewert das erfüllen muss, was die Zielposition erwartet.
-			const paramsError = getTypeError(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
-			if (paramsError) {
-				return paramsError;
+			const paramsAssignability = isTypeAssignable(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
+			if (paramsAssignability.assignable === false) {
+				return paramsAssignability;
 			}
-			const returnError = getTypeError(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
-			if (returnError) {
+			const returnAssignability = isTypeAssignable(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
+			if (returnAssignability.error) {
 				// Ohne Beschriftung liesse sich nicht erkennen, dass die Meldung den Rückgabewert
 				// betrifft, statt z.B. einen weiteren Parameter (siehe getParameterError).
 				return {
-					message: `Invalid return value\n${indentLines(typeErrorToString(returnError))}`,
+					assignable: false,
+					error: {
+						message: `Invalid return value\n${indentLines(typeErrorToString(returnAssignability.error))}`,
+					}
 				};
 			}
-			return undefined;
+			if (paramsAssignability.assignable === undefined
+				|| returnAssignability.assignable === undefined) {
+				return { assignable: undefined };
+			}
+			return { assignable: true };
 		}
 		// Ganzzahlige Grenzen hat integerRangeFits schon entschieden, hier bleiben die übrigen Familien.
 		case 'bound': {
@@ -8146,7 +8198,7 @@ function getTypeErrorByStructure(
 				&& (targetType.Relation === 'greater'
 					? argumentsType.value > boundValue.value
 					: argumentsType.value < boundValue.value)) {
-				return undefined;
+				return { assignable: true };
 			}
 			// GreaterFloat(a) liegt in GreaterFloat(b), wenn a >= b, LessFloat umgekehrt.
 			if (argumentsType.julType === 'bound'
@@ -8157,7 +8209,7 @@ function getTypeErrorByStructure(
 					&& (targetType.Relation === 'greater'
 						? argumentValue.value >= boundValue.value
 						: argumentValue.value <= boundValue.value)) {
-					return undefined;
+					return { assignable: true };
 				}
 			}
 			break;
@@ -8165,12 +8217,12 @@ function getTypeErrorByStructure(
 		case 'integer':
 			switch (argumentsType.julType) {
 				case 'integer':
-					return undefined;
+					return { assignable: true };
 				case 'integerLiteral':
-					return undefined;
+					return { assignable: true };
 				case 'bound':
 					if (argumentsType.Family === 'integer') {
-						return undefined;
+						return { assignable: true };
 					}
 					break;
 				default:
@@ -8179,22 +8231,25 @@ function getTypeErrorByStructure(
 			break;
 		case 'integerLiteral':
 			if (typeEquals(argumentsType, targetType)) {
-				return undefined;
+				return { assignable: true };
 			}
 			break;
 		case 'list': {
 			const targetElementType = targetType.ElementType;
 			switch (argumentsType.julType) {
 				case 'list': {
-					const elementError = getTypeError(prefixArgumentType, argumentsType.ElementType, targetElementType);
-					if (!elementError) {
-						return undefined;
+					const elementAssignability = isTypeAssignable(prefixArgumentType, argumentsType.ElementType, targetElementType);
+					if (!elementAssignability.error) {
+						return elementAssignability;
 					}
 					// Ohne Hülle stand der Element-Fehler roh neben anderen Or-Choice-Fehlern,
 					// ohne erkennbaren Bezug zur umschliessenden Liste (Fund im echten
 					// yugioh-Fehlerbild, Session 2026-09-10) - analog zum dictionaryLiteral-Fall.
 					return {
-						message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(elementError.message)}`,
+						assignable: false,
+						error: {
+							message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(elementAssignability.error.message)}`,
+						}
 					};
 				}
 				case 'tuple':
@@ -8218,21 +8273,26 @@ function getTypeErrorByStructure(
 		}
 		case 'nestedReference':
 			// TODO?
-			return undefined;
+			return { assignable: undefined };
 		case 'never':
 			break;
 		case 'not': {
+			// TODO types overlap dreiwertig mit unbekannt wert
 			// Der Wert darf den SourceType nicht überlappen. Zuweisbarkeit genügt hier nicht:
 			// Integer ist keine Teilmenge von 0, enthält 0 aber und ist damit unzulässig.
 			// Bei unbekannter Überlappung wird nichts gemeldet.
 			if (typesOverlap(argumentsType, targetType.SourceType)) {
 				return {
-					message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+					assignable: false,
+					error: {
+						message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
+					}
 				};
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'or': {
+			// TODO subErrors stattdessen mit 3wertiger Assignability
 			// das arg muss zu mindestens einem target Choice passen
 			const subErrors = targetType.ChoiceTypes.map(choiceType =>
 				getTypeError(prefixArgumentType, argumentsType, choiceType));
@@ -8248,7 +8308,7 @@ function getTypeErrorByStructure(
 						createBooleanLiteral(true),
 						createBooleanLiteral(false),
 					]);
-					return getTypeError(prefixArgumentType, asLiteralUnion, targetType);
+					return isTypeAssignable(prefixArgumentType, asLiteralUnion, targetType);
 				}
 				// Best-Match statt Alle-Choices-Dump (TS/Flow-Vorbild, Fund im echten
 				// yugioh-Fehlerbild, Session 2026-09-10): nur den strukturell nächsten Choice
@@ -8264,24 +8324,31 @@ function getTypeErrorByStructure(
 				if (closestIndexes.length === 1) {
 					const closestError = subErrors[closestIndexes[0]!]!;
 					return {
-						message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(typeErrorToString(closestError))}`,
+						assignable: false,
+						error: {
+							message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(typeErrorToString(closestError))}`,
+						}
 					};
 				}
 				return {
-					// TODO error struktur überdenken
-					message: subErrors.map(typeErrorToString).join('\n'),
-					// innerError
+					assignable: false,
+					error: {
+						// TODO error struktur überdenken
+						message: subErrors.map(typeErrorToString).join('\n'),
+						// innerError
+					}
 				};
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'parameters':
+			// TODO getTypeErrorForParameters stattdessen mit 3wertiger assignability
 			return getTypeErrorForParameters(prefixArgumentType, argumentsType, targetType);
 		case 'parameterReference': {
 			// TODO
 			// const dereferenced = dereferenceArgumentType(null as any, targetType);
 			// return getTypeError(valueType, dereferenced ?? builtinAny);
-			return undefined;
+			return { assignable: undefined };
 		}
 		case 'stream': {
 			if (!isStreamType(argumentsType)) {
@@ -8291,25 +8358,26 @@ function getTypeErrorByStructure(
 			if (targetType.finite && !argumentsType.finite) {
 				break;
 			}
-			return getTypeError(prefixArgumentType, argumentsType.ValueType, targetType.ValueType);
+			return isTypeAssignable(prefixArgumentType, argumentsType.ValueType, targetType.ValueType);
 		}
 		case 'text':
 			switch (argumentsType.julType) {
 				case 'text':
-					return undefined;
+					return { assignable: true };
 				case 'textLiteral':
-					return undefined;
+					return { assignable: true };
 				default:
 					break;
 			}
 			break;
 		case 'textLiteral': {
 			if (typeEquals(argumentsType, targetType)) {
-				return undefined;
+				return { assignable: true };
 			}
 			break;
 		}
 		case 'tuple': {
+			// TODO getTupleTypeError stattdessen mit 3wertiger assignability
 			const error = getTupleTypeError(prefixArgumentType, argumentsType, targetType.ElementTypes);
 			if (error === true) {
 				// Standardfehler
@@ -8331,13 +8399,14 @@ function getTypeErrorByStructure(
 				case 'textLiteral':
 				case 'type':
 				case 'typeOf':
-					return undefined;
+					return { assignable: true };
 				case 'function':
+					// TODO getPredicateFunctionError stattdessen mit 3wertiger assignability
 					return getPredicateFunctionError(argumentsType);
 				// Ein Wert, der das Prädikat erfüllt, ist ein Typ, wenn seine Obermenge aus
 				// Typen besteht.
 				case 'predicate':
-					return getTypeError(prefixArgumentType, argumentsType.UpperBound, targetType);
+					return isTypeAssignable(prefixArgumentType, argumentsType.UpperBound, targetType);
 				case 'tuple': {
 					// alle ElementTypes müssen Typen sein
 					const subErrors = argumentsType.ElementTypes.map(elementType =>
@@ -8366,51 +8435,54 @@ function getTypeErrorByStructure(
 			break;
 		case 'lengthOf':
 			// In der Oberfläche nicht konstruierbar, nur zur Vollständigkeit des Switches.
-			return getTypeError(prefixArgumentType, argumentsType, CompileTimePositiveInteger);
+			return isTypeAssignable(prefixArgumentType, argumentsType, CompileTimePositiveInteger);
 		case 'conditional':
 			// Wartet noch auf seine Operanden: permissiv wie withElementAt.
-			return undefined;
+			return { assignable: undefined };
 		case 'withElementAt':
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference, sonst
 			// entstünden Fehler an einem Typ, der noch gar nicht feststeht.
-			return undefined;
+			return { assignable: undefined };
 		case 'indexRange':
 			// Nur als Schlüssel sinnvoll, nie als Zieltyp einer Zuweisung.
-			return undefined;
+			return { assignable: undefined };
 		case 'mapElements':
 			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference.
-			return undefined;
+			return { assignable: undefined };
 		case 'concat':
 			// Ungefaltete Konkatenation: permissiv wie nestedReference.
-			return undefined;
+			return { assignable: undefined };
 		case 'add':
 			// Ungefaltete Summe: permissiv wie concat.
-			return undefined;
+			return { assignable: undefined };
 		case 'predicate': {
 			if (argumentsType.julType === 'predicate'
 				&& isSamePredicate(argumentsType, targetType)) {
-				return undefined;
+				return { assignable: true };
 			}
 			const folded = tryFoldPredicate(targetType, argumentsType);
 			if (folded !== undefined) {
 				if (folded) {
-					return undefined;
+					return { assignable: true };
 				}
 				break;
 			}
 			// Was das Prädikat für einen Wert in der Obermenge liefert, weiß der Checker nicht.
 			// Das prüft die Laufzeit.
-			if (getTypeError(prefixArgumentType, argumentsType, targetType.UpperBound)) {
+			if (isTypeAssignable(prefixArgumentType, argumentsType, targetType.UpperBound)) {
 				break;
 			}
-			return undefined;
+			return { assignable: undefined };
 		}
 		default: {
 			const assertNever: never = targetType;
 			throw new Error(`Unexpected targetType.type: ${(assertNever as CompileTimeType).julType}`);
 		}
 	}
-	return { message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.` };
+	return {
+		assignable: false,
+		error: { message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.` },
+	};
 }
 
 /**
@@ -8896,7 +8968,7 @@ function indentLines(text: string): string {
 	return text.split('\n').map(line => `${indentUnit}${line}`).join('\n');
 }
 
-//#endregion TypeError
+//#endregion TypeAssignability
 
 //#region ToString
 
