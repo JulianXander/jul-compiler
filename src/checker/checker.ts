@@ -614,29 +614,36 @@ function dereferenceCallbackParams(
 			return { name: parameter.name, type: dereferenced };
 		}
 		const callbackParamsType = parameterType.ParamsType;
-		if (!isParametersType(callbackParamsType)) {
-			return parameter;
-		}
 		let callbackChanged = false;
-		const dereferencedCallbackParams = callbackParamsType.singleNames.map(callbackParameter => {
-			const callbackParameterType = callbackParameter.type;
-			if (!callbackParameterType) {
-				return callbackParameter;
-			}
-			const dereferenced = dereferenceArgumentTypesNested(calledFunction, argsType, callbackParameterType);
-			if (dereferenced === callbackParameterType) {
-				return callbackParameter;
-			}
+		const dereferencedCallbackParamsType = isParametersType(callbackParamsType)
+			? createParametersType(
+				callbackParamsType.singleNames.map(callbackParameter => {
+					const callbackParameterType = callbackParameter.type;
+					if (!callbackParameterType) {
+						return callbackParameter;
+					}
+					const dereferenced = dereferenceArgumentTypesNested(calledFunction, argsType, callbackParameterType);
+					if (dereferenced === callbackParameterType) {
+						return callbackParameter;
+					}
+					callbackChanged = true;
+					return { name: callbackParameter.name, type: dereferenced };
+				}),
+				callbackParamsType.rest)
+			: callbackParamsType;
+		// Auch der Rückgabetyp kann einen Typparameter der aufgerufenen Funktion nennen (`:> T`).
+		// Roh bliebe er ein Platzhalter, und der Rückgabewert des Callbacks würde nicht verglichen.
+		const dereferencedCallbackReturnType = dereferenceArgumentTypesNested(calledFunction, argsType, parameterType.ReturnType);
+		if (dereferencedCallbackReturnType !== parameterType.ReturnType) {
 			callbackChanged = true;
-			return { name: callbackParameter.name, type: dereferenced };
-		});
+		}
 		if (!callbackChanged) {
 			return parameter;
 		}
 		changed = true;
 		const dereferencedCallbackType = createCompileTimeFunctionType(
-			createParametersType(dereferencedCallbackParams, callbackParamsType.rest),
-			parameterType.ReturnType,
+			dereferencedCallbackParamsType,
+			dereferencedCallbackReturnType,
 			parameterType.purity,
 			parameterType.aliasName,
 		);
@@ -1750,12 +1757,17 @@ function instantiateExpectedCallback(
 		changed = true;
 		return { name: parameter.name, type: instantiatedType };
 	});
+	// Wie bei dereferenceCallbackParams: auch `:> T` am Callback wird mit dem Aufruf konkret.
+	const instantiatedReturnType = dereferenceArgumentTypesNested(calledFunction, argsType, expectedFunctionType.ReturnType);
+	if (instantiatedReturnType !== expectedFunctionType.ReturnType) {
+		changed = true;
+	}
 	if (!changed) {
 		return expectedFunctionType;
 	}
 	const instantiatedFunctionType = createCompileTimeFunctionType(
 		createParametersType(instantiatedSingleNames, paramsType.rest),
-		expectedFunctionType.ReturnType,
+		instantiatedReturnType,
 		expectedFunctionType.purity,
 		expectedFunctionType.aliasName,
 	);

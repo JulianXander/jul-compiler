@@ -3068,6 +3068,29 @@ f((value: Integer) => 0)`, {
 			],
 		});
 	});
+	// Bug: Nennt der Callback-Rückgabetyp einen Typparameter der Funktion (`:> T`), bleibt er am
+	// Aufruf ungeprüft. Mit festem Rückgabetyp (`:> Integer`) meldet der Checker den Text, hier
+	// wird der Verweis auf T nicht aufgelöst und der Rückgabewert nirgends verglichen.
+	it('callback-return-type-from-type-parameter-is-checked', () => {
+		expectCheck(`f = (T: Type callback: (accumulator: T) :> T) :> T => 0
+f(Integer (accumulator) => §text§)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid return value\n    Can not assign §text§ to Integer.",
+					startColumnIndex: 10,
+					startRowIndex: 1,
+					endColumnIndex: 33,
+					endRowIndex: 1,
+				},
+			],
+		});
+	});
+	// Gegenprobe: liefert der Callback den Typ aus dem Typparameter, passt er.
+	it('callback-return-type-from-type-parameter-accepts-matching-value', () => {
+		expectCheck(`f = (T: Type callback: (accumulator: T) :> T) :> T => 0
+f(Integer (accumulator) => 1)`);
+	});
 	// Derselbe Fall über einen generischen Elementtyp: aggregate reicht die Elemente von
 	// [0 1 2] durch, der Callback fordert aber PositiveInteger - die 0 passt nicht.
 	it('callback-parameter-type-narrower-than-passed-element', () => {
