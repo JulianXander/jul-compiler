@@ -72,7 +72,7 @@ TypeOf = nativeFunction(
 		}
 	§
 )
-# The type that only contains the empty literal ().
+# The type that only contains the empty literal [].
 Empty = nativeValue(§Empty§)
 # true or false
 Boolean = nativeValue(§_Boolean§)
