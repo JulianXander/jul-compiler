@@ -256,7 +256,7 @@ const aliasApplicationCache = new WeakMap<CompileTimeAliasType, CompileTimeType>
  * Wie viele Anwendungsknoten ein Vergleich höchstens auflöst, bevor er das Paar als zuweisbar
  * annimmt. Der Stapel laufender Alias-Vergleiche erkennt Anwendungen mit gleichen Argumenten
  * wieder (isSameOrSameAliasApplication), aber nicht jede Rekursion wiederholt ihre Argumente -
- * erst das Budget garantiert, dass der Vergleich endet. Gilt für getTypeError und typeEquals je
+ * erst das Budget garantiert, dass der Vergleich endet. Gilt für isTypeAssignable und typeEquals je
  * eigenen Stapel.
  */
 const maxAliasApplicationExpansions = 100;
@@ -433,7 +433,7 @@ const maxTypenessDepth = 50;
  * Alias-Paare, deren Vergleich gerade läuft.
  * Ein Zyklus im Typgraph führt zwingend über einen Alias - nur er kann zurückverweisen -,
  * deshalb genügt die Besuchsmenge dort. Modul-Slot statt CheckContext-Feld, weil die
- * Typvergleiche (getTypeError, typeEquals) keinen CheckContext bekommen; sie sind synchron und
+ * Typvergleiche (isTypeAssignable, typeEquals) keinen CheckContext bekommen; sie sind synchron und
  * nicht reentrant. Muss hier oben stehen, weil die core-lib schon beim Modul-Load gecheckt wird.
  */
 const aliasComparisonsInProgress: { args: CompileTimeType; target: CompileTimeType; }[] = [];
@@ -467,7 +467,7 @@ const indentUnit = '  ';
 
 /**
  * Ab wie vielen Choices die Teilmengen-Elimination in createNormalizedUnionType übersprungen
- * wird, um O(n²) getTypeError-Aufrufe bei großen Unions zu vermeiden (wie TypeScript es bei
+ * wird, um O(n²) isTypeAssignable-Aufrufe bei großen Unions zu vermeiden (wie TypeScript es bei
  * getUnionType(..., UnionReduction.Subtype) macht). Wert durch Messung belegt, nicht geschätzt.
  * Muss vor CompileTimePositiveInteger stehen, weil das schon beim Modul-Load
  * createNormalizedUnionType aufruft.
@@ -1418,7 +1418,7 @@ function dereferenceArgumentTypesNested(
 /**
  * Instanziiert die Signaturen der Callback-Parameter gegen die konkreten Argumente des Aufrufs.
  * Ein Parametertyp wie `TypeOf(values)/ElementType` in einer Callback-Signatur wird erst hier
- * konkret; ohne das bliebe er ein Platzhalter, den getTypeError permissiv durchwinkt.
+ * konkret; ohne das bliebe er ein Platzhalter, den isTypeAssignable permissiv durchwinkt.
  *
  * Bewusst nur diese eine Verschachtelungsebene statt einer Erweiterung von traversePlaceholders:
  * dort steigt der argumentContext-Zweig nicht in Funktions- und Parameterknoten ab, und das
@@ -1928,7 +1928,7 @@ function traversePlaceholders(
 			// Nicht nur die aufgelöste Source in lengthOf einpacken: getLengthFromType splittet
 			// z.B. Or([] List(T)) in Or(0 lengthOf(List(T))) auf. Würde hier stattdessen direkt
 			// lengthOf(Or([] List(T))) entstehen, gölte die Source-nie-Empty-Invariante
-			// (getTypeError, case 'lengthOf') nicht mehr, obwohl der Aufrufer sich genau darauf
+			// (isTypeAssignable, case 'lengthOf') nicht mehr, obwohl der Aufrufer sich genau darauf
 			// verlässt.
 			return getLengthFromType(dereferencedSource);
 		}
@@ -2760,7 +2760,9 @@ function isBranchingExhaustive(
 	// Kopf den isEven-Anteil des Arguments abdeckt. Abgezogen wird Kopf für Kopf: die ganze
 	// Union auf einmal würde über das Or des Arguments verteilt und nie mit dem gleichen Kopf
 	// verglichen.
-	if (!getTypeError(undefined, argValueType, getLowerBoundType(combinedType))) {
+	// Nicht erschöpfend heißt: Error kommt in den Rückgabetyp, und das wird an der Verwendung zum
+	// Fehler. Das darf nur ein Beweis auslösen (Prinzip Freiheit), unbekannt gilt als erschöpfend.
+	if (isSubtypeOf(argValueType, getLowerBoundType(combinedType)) !== false) {
 		return true;
 	}
 	const remainingType = (branchValueTypes as CompileTimeType[]).reduce<CompileTimeType>(
@@ -3077,14 +3079,14 @@ function narrowExpectedTypeByFields(
 		for (const fieldName in fieldTypes) {
 			const choiceFieldType = resolvedChoiceType.Fields[fieldName];
 			if (choiceFieldType
-				&& getTypeError(undefined, resolvePlaceholders(fieldTypes[fieldName]!), resolvePlaceholders(choiceFieldType))) {
+				&& isSubtypeOf(resolvePlaceholders(fieldTypes[fieldName]!), resolvePlaceholders(choiceFieldType)) === false) {
 				return false;
 			}
 		}
 		if (writtenFieldNames) {
 			for (const fieldName in resolvedChoiceType.Fields) {
 				if (!writtenFieldNames.has(fieldName)
-					&& getTypeError(undefined, builtinEmpty, resolvePlaceholders(resolvedChoiceType.Fields[fieldName]!))) {
+					&& isSubtypeOf(builtinEmpty, resolvePlaceholders(resolvedChoiceType.Fields[fieldName]!)) === false) {
 					return false;
 				}
 			}
@@ -3248,7 +3250,7 @@ function getPredicateFacts(
 	// auch der Error eines nicht erschöpfenden branchings matchen, für einen Wert, den kein
 	// branch nennt - ifTrue wäre dann zu klein. Steht hinter den Formprüfungen, weil es die
 	// einzige teure Bedingung ist.
-	if (getTypeError(undefined, resolvePlaceholders(returnType), builtinBoolean)) {
+	if (isSubtypeOf(resolvePlaceholders(returnType), builtinBoolean) !== true) {
 		return undefined;
 	}
 	const ifTrueTypes: CompileTimeType[] = [];
@@ -3450,28 +3452,18 @@ function inferType(
 					const combinedPreviousArgumentType = createNormalizedUnionType(previousArgumentTypes);
 
 					// Prüfe ob currentArgumentType Teilmenge von combinedPreviousArgumentType ist.
-					// areArgsAssignableTo gibt einen Error zurück wenn NICHT assignierbar (nicht ⊆),
-					// undefined wenn OK (d.h. assignierbar).
 					// Sicher abgefangen haben die vorherigen Köpfe nur ihre Untermenge, und der
 					// aktuelle kann alles aus seiner Obermenge treffen - das zählt bei Prädikaten.
 					// Derselbe Kopf ist dagegen über die Identität abgefangen.
-					// Kann der aktuelle alles treffen, ist er erreichbar - Any als Quelle wäre in
-					// areArgsAssignableTo permissiv und hieße sonst "abgedeckt".
+					// Unerreichbar ist er nur bewiesen: kann der aktuelle Kopf etwas treffen, das die
+					// vorherigen nicht sicher abfangen, oder ist das unbekannt (Any), ist er erreichbar.
 					const isSameAsPrevious = previousArgumentTypes.some(previousArgumentType =>
 						typeEquals(previousArgumentType, currentArgumentType));
-					// Ebenso, wenn "kein Fehler" für ihn nicht "Teilmenge" heißt, etwa bei Not(1).
-					const currentUpperBound = getUpperBoundType(currentArgumentType);
-					const error = isSameAsPrevious
-						? undefined
-						: currentUpperBound.julType === 'any'
-							|| !hasReliableTypeError(currentUpperBound)
-							? 'reachable'
-							: areArgsAssignableTo(
-								undefined,
-								currentUpperBound,
-								getLowerBoundType(combinedPreviousArgumentType));
-					if (!error) {
-						// Kein Error = currentArgumentType ist Teilmenge = unreachable
+					const isUnreachable = isSameAsPrevious
+						|| isSubtypeOf(
+							getUpperBoundType(currentArgumentType),
+							getLowerBoundType(combinedPreviousArgumentType)) === true;
+					if (isUnreachable) {
 						errors.push({
 							code: ErrorCode.unreachableBranch,
 							message: 'Unreachable branch detected.',
@@ -3625,8 +3617,9 @@ function inferType(
 			if (typeGuard) {
 				const typeGuardType = typeGuard.typeInfo;
 				const dereferencedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
-				const assignmentError = dereferencedTargetType && areArgsAssignableTo(undefined, resolvePlaceholders(typeInfo.type), dereferencedTargetType);
-				if (assignmentError) {
+				const assignability = dereferencedTargetType && isTypeAssignable(undefined, resolvePlaceholders(typeInfo.type), dereferencedTargetType);
+				if (assignability && assignability.assignable === false) {
+					const assignmentError = typeErrorToString(assignability.error);
 					// Position wandert beim Abstieg durch verschachtelte Dictionary-Literale auf
 					// die innerste noch vorhandene, tatsächlich falsche Stelle (TypeScript/
 					// Rust/Elm-Vorbild: eine Diagnose, eine möglichst genaue Position, statt
@@ -3635,9 +3628,8 @@ function inferType(
 					const position = innerPosition ?? expression;
 
 					// Ob die umhüllende "Can not assign X to Y."-Zeile fehlt, entscheidet
-					// getTypeError bereits an der Quelle (case 'dictionaryLiteral': in
-					// getTypeError, hasMultipleFields) - hier nur noch die fertige Meldung
-					// übernehmen, kein nachträgliches Textschneiden mehr.
+					// isTypeAssignable bereits an der Quelle (case 'dictionaryLiteral') - hier nur
+					// noch die fertige Meldung übernehmen, kein nachträgliches Textschneiden mehr.
 					const message = `Definition type mismatch.\n${assignmentError}`;
 
 					errors.push({
@@ -3734,11 +3726,11 @@ function inferType(
 					setInferredType(typeGuard, typeContext, undefined, checkContext);
 					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
-					const error = typeGuard.typeInfo && areArgsAssignableTo(undefined, fieldType, valueOf(resolvePlaceholders(typeGuard.typeInfo.type)));
-					if (error) {
+					const assignability = typeGuard.typeInfo && isTypeAssignable(undefined, fieldType, valueOf(resolvePlaceholders(typeGuard.typeInfo.type)));
+					if (assignability && assignability.assignable === false) {
 						errors.push({
 							code: ErrorCode.destructuringFieldTypeMismatch,
-							message: error,
+							message: typeErrorToString(assignability.error),
 							startRowIndex: field.startRowIndex,
 							startColumnIndex: field.startColumnIndex,
 							endRowIndex: field.endRowIndex,
@@ -3787,7 +3779,7 @@ function inferType(
 						: undefined;
 					let expectedFieldType: CompileTimeType | undefined;
 					if (fieldName !== undefined) {
-						// Aussortieren braucht getTypeError, deshalb nur, wo ein Kind einen eindeutigen
+						// Aussortieren braucht isTypeAssignable, deshalb nur, wo ein Kind einen eindeutigen
 						// Zweig verlangen kann.
 						const needsUniqueChoice = value.type === 'functionLiteral'
 							|| value.type === 'dictionary'
@@ -4016,8 +4008,9 @@ function inferType(
 			// Präfix-Argument (z.B. `values` in `values.slice(1)`) referenziert einen eigenen
 			// Parameter und bleibt sonst eine abstrakte parameterReference statt des konkreten
 			// deklarierten Typs - unaufgelöst in generischen Rückgabetypen der aufgerufenen
-			// Funktion (TypeOf(values)/ElementType), lautlos verschluckt von getTypeErrors
-			// nestedReference-Rückfallregel. resolvePlaceholders löst über functionRef+Index auf.
+			// Funktion (TypeOf(values)/ElementType), als unknown verschluckt von der
+			// nestedReference-Rückfallregel in isTypeAssignable. resolvePlaceholders löst über
+			// functionRef+Index auf.
 			// Nur das Präfix, nicht argsType: args kann selbst generische Typwerte enthalten
 			// (z.B. die Signatur eines nativeFunction-Aufrufs) - die dürfen nicht vorschnell
 			// über den eigenen (noch generischen) Deklarationskontext aufgelöst werden.
@@ -4026,20 +4019,21 @@ function inferType(
 			const prefixArgumentType = rawPrefixArgumentType && resolvePlaceholders(rawPrefixArgumentType);
 			// Die Signaturen der Callback-Parameter werden gegen die konkreten Argumente
 			// instanziiert, bevor geprüft wird: ein generischer Parametertyp darin
-			// (TypeOf(values)/ElementType) bliebe sonst ein Platzhalter, den getTypeError
-			// permissiv durchwinkt - die Kontravarianzprüfung des Callbacks liefe ins Leere.
+			// (TypeOf(values)/ElementType) bliebe sonst ein Platzhalter, und die Prüfung liefe als
+			// unknown durch - die Kontravarianzprüfung des Callbacks liefe ins Leere.
 			// Nur diese eine Ebene, nicht der ganze Baum: traversePlaceholders steigt mit
 			// argumentContext bewusst nicht in Funktions- und Parameterknoten ab, weil das die
 			// Auflösung des Rückgabetyps (TypeOf(callback)/ReturnType) zerstört.
 			const dereferencedParamsType = dereferenceCallbackParams(functionType, prefixArgumentType, argsType, paramsType);
-			const assignArgsError = areArgsAssignableTo(prefixArgumentType, argsType, dereferencedParamsType);
-			if (assignArgsError) {
+			const argsAssignability = isTypeAssignable(prefixArgumentType, argsType, dereferencedParamsType);
+			const hasArgsError = argsAssignability.assignable === false;
+			if (argsAssignability.assignable === false) {
 				const position = (prefixArgument && findErrorPositionInChild(prefixArgument))
 					?? findInnermostErrorPosition(args)
 					?? expression;
 				errors.push({
 					code: ErrorCode.argumentTypeMismatch,
-					message: `Argument type mismatch.\n${assignArgsError}`,
+					message: `Argument type mismatch.\n${typeErrorToString(argsAssignability.error)}`,
 					startRowIndex: position.startRowIndex,
 					startColumnIndex: position.startColumnIndex,
 					endRowIndex: position.endRowIndex,
@@ -4050,7 +4044,7 @@ function inferType(
 			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'test') {
-				checkTestCall(expression, !!assignArgsError, checkContext.filePath, errors);
+				checkTestCall(expression, hasArgsError, checkContext.filePath, errors);
 			}
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, checkContext);
 			// Für den Rückgabetyp bleibt ein Platzhalter stehen, statt hier schon auf den
@@ -4098,8 +4092,8 @@ function inferType(
 				}
 			}
 			const foldedType = tryFoldCall(
-				functionExpression, functionType, prefixArgumentType, argsType, assignArgsError);
-			const boundReturnType = !foldedType && !assignArgsError
+				functionExpression, functionType, prefixArgumentType, argsType, hasArgsError);
+			const boundReturnType = !foldedType && !hasArgsError
 				? bindClosureArguments(functionExpression, functionType, prefixArgumentType, argsType, dereferencedReturnType)
 				: undefined;
 			return { type: foldedType ?? boundReturnType ?? dereferencedReturnType };
@@ -4264,15 +4258,15 @@ function inferType(
 				// hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet werden.
 				const rawDeclaredReturnType = valueOf(declaredReturnType.typeInfo!.type);
 				const dereferencedDeclaredReturnType = resolvePlaceholders(rawDeclaredReturnType);
-				const error = areArgsAssignableTo(undefined, resolvePlaceholders(inferredReturnType), dereferencedDeclaredReturnType);
-				if (error) {
+				const returnAssignability = isTypeAssignable(undefined, resolvePlaceholders(inferredReturnType), dereferencedDeclaredReturnType);
+				if (returnAssignability.assignable === false) {
 					// Markiert wird nur der zurückgegebene Ausdruck (last(body)), nicht die
 					// ganze Funktion - sonst ummantelt die mehrzeilige Klammerung (formatErrors)
 					// den kompletten Funktionsrumpf statt der tatsächlich betroffenen Stelle.
 					const returnedExpression = last(expression.body) ?? expression;
 					errors.push({
 						code: ErrorCode.returnTypeMismatch,
-						message: `Return type mismatch.\n${error}`,
+						message: `Return type mismatch.\n${typeErrorToString(returnAssignability.error)}`,
 						startRowIndex: returnedExpression.startRowIndex,
 						startColumnIndex: returnedExpression.startColumnIndex,
 						endRowIndex: returnedExpression.endRowIndex,
@@ -5253,7 +5247,7 @@ function addFromTypes(rawArgsType: CompileTimeType): CompileTimeType {
 	let sum = 0n;
 	for (const elementType of elementTypes) {
 		// Nur für ganze Zahlen heißt > a dasselbe wie ≥ a + 1.
-		if (getTypeError(undefined, elementType, builtinInteger)) {
+		if (isSubtypeOf(elementType, builtinInteger) !== true) {
 			return builtinInteger;
 		}
 		const minimum = getIntegerMinimum(elementType);
@@ -5430,13 +5424,11 @@ function createConditionalType(
 	const collection = operands.length
 		? createCompileTimeTupleType(operands)
 		: builtinEmpty;
-	// Gegen Any meldet getTypeError nie einen Fehler. Ein Operand, in dem Any steckt, ist
-	// deshalb nie Teilmenge eines Kopfs, sondern überlappt ihn höchstens.
-	const isReliable = !containsAny(collection);
+	// Ganz im Kopf liegen die Operanden nur bewiesen. Steckt Any darin, ist das unbekannt, sie
+	// überlappen den Kopf dann höchstens.
 	const results: CompileTimeType[] = [];
 	for (const branch of branches) {
-		if (isReliable
-			&& !getTypeError(undefined, collection, branch.Head)) {
+		if (isSubtypeOf(collection, branch.Head) === true) {
 			results.push(branch.Result);
 			break;
 		}
@@ -5448,32 +5440,6 @@ function createConditionalType(
 	return createNormalizedUnionType(results);
 }
 
-/**
- * Steckt irgendwo in diesem Typ Any (oder ein Typ, gegen den getTypeError ebenso nichts aussagt)?
- * Anders als hasReliableTypeError steigt das auch in Kollektionen ab.
- */
-function containsAny(rawType: CompileTimeType): boolean {
-	const type = resolveAlias(rawType);
-	switch (type.julType) {
-		case 'and':
-		case 'or':
-			return type.ChoiceTypes.some(containsAny);
-		case 'not':
-			return containsAny(type.SourceType);
-		case 'tuple':
-			return type.ElementTypes.some(containsAny);
-		case 'list':
-		case 'dictionary':
-			return containsAny(type.ElementType);
-		case 'dictionaryLiteral':
-			return Object.values(type.Fields).some(containsAny);
-		case 'stream':
-			return containsAny(type.ValueType);
-		default:
-			return !hasReliableTypeError(type);
-	}
-}
-
 //#endregion Bedingte Typen
 
 //#region Typ Arithmetik
@@ -5481,9 +5447,9 @@ function containsAny(rawType: CompileTimeType): boolean {
 /**
  * Wartet dieser Typ noch auf den Aufrufort?
  * Choices, für die das gilt, werden nie verworfen und verwerfen auch nichts, damit die
- * Elimination im Zweifel keine Information wegwirft (Prinzip Freiheit) - getTypeError behandelt
- * parameterReference/nestedReference permissiv (immer "kein Fehler"), das würde sonst eine
- * Elimination vortäuschen, die den Platzhalter-Anteil verwirft, bevor er aufgelöst ist.
+ * Elimination im Zweifel keine Information wegwirft (Prinzip Freiheit) - isTypeAssignable prüft eine
+ * parameterReference gegen ihren deklarierten Typ, ein Ja darüber würde sonst eine Elimination
+ * erlauben, die den Platzhalter-Anteil verwirft, bevor er am Aufrufort genauer aufgelöst ist.
  * Reiner Feldzugriff: das Ergebnis wird beim Konstruieren berechnet (siehe die Konstruktoren in
  * syntax-tree.ts), weil die Frage pro Typ vielfach gestellt wird - unter anderem in einer
  * verschachtelten Schleife in removeSubtypes.
@@ -5499,12 +5465,9 @@ function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
  * ohnehin nicht mehr vorkommen.
  */
 function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
-	// Wo "kein Fehler" nicht "Teilmenge" heißt (Prädikat, Not), wird weder verworfen noch
-	// verworfen lassen - wie bei einem noch ungelösten Platzhalter.
 	const isComparable = (type: CompileTimeType) =>
 		!isUnresolvedPlaceholderType(type)
-		&& !isOpaqueForNormalization(type)
-		&& hasReliableTypeError(type);
+		&& !isOpaqueForNormalization(type);
 	return choices.filter((choice, index) => {
 		if (!isComparable(choice)) {
 			return true;
@@ -5514,11 +5477,10 @@ function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
 				|| !isComparable(otherChoice)) {
 				return false;
 			}
-			const isSubtype = !getTypeError(undefined, choice, otherChoice);
-			if (!isSubtype) {
+			if (isSubtypeOf(choice, otherChoice) !== true) {
 				return false;
 			}
-			const otherIsAlsoSubtype = !getTypeError(undefined, otherChoice, choice);
+			const otherIsAlsoSubtype = isSubtypeOf(otherChoice, choice) === true;
 			return otherIsAlsoSubtype
 				? otherIndex < index
 				: true;
@@ -5531,7 +5493,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	// Or(1 Or(2 3)) => Or(1 2 3)
 	// Ein Alias auf eine Union wird NICHT aufgeflacht: er ist der einzige Träger seines Namens,
 	// und die Dedup- bzw. Teilmengen-Elimination unten löst ihn ohnehin auf (typeEquals und
-	// getTypeError dealiasen beide).
+	// isTypeAssignable dealiasen beide).
 	const flatChoices: CompileTimeType[] = choiceTypes.filter(choiceType =>
 		!isUnionType(choiceType));
 	const unionChoices = choiceTypes.filter(isUnionType);
@@ -5604,7 +5566,7 @@ function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeT
 	//#region remove subtypes
 	// Or(Boolean False) => Boolean: ein Choice, der schon Teilmenge eines anderen ist, trägt
 	// keine zusätzliche Information mehr. Nur bis zu einer
-	// Größenschwelle, sonst O(n²) mit getTypeError - einem der teuersten Checker-Aufrufe (wie
+	// Größenschwelle, sonst O(n²) mit isTypeAssignable - einem der teuersten Checker-Aufrufe (wie
 	// TypeScript es bei getUnionType(..., UnionReduction.Subtype) macht). Choices, die nicht
 	// sicher aufgelöst sind (parameterReference/nestedReference), werden nie verworfen und
 	// verwerfen auch nichts - im Zweifel nicht kollabieren (Prinzip Freiheit).
@@ -5789,12 +5751,14 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 		// Teilmenge liefern:
 		// And(A B) => A, wenn A Teilmenge von B ist
 		// z.B. And(Integer Rational) => Integer, And(Integer Integer) => Integer
-		if (hasReliableTypeError(first)
-			&& hasReliableTypeError(second)) {
-			if (!areArgsAssignableTo(undefined, first, second)) {
+		// Any hat die Regel für das neutrale Element oben schon entschieden. Neben einem Not bleibt es
+		// stehen und darf hier nicht als Obermenge wegfallen.
+		if (first.julType !== 'any'
+			&& second.julType !== 'any') {
+			if (isSubtypeOf(first, second) === true) {
 				return first;
 			}
-			if (!areArgsAssignableTo(undefined, second, first)) {
+			if (isSubtypeOf(second, first) === true) {
 				return second;
 			}
 		}
@@ -5818,71 +5782,6 @@ function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): Compi
 	return intersectionType;
 }
 
-/**
- * Sagt getTypeError für diesen Typ überhaupt etwas aus?
- * Für any, nestedReference, parameterReference und parameters ist die Prüfung bewusst permissiv,
- * "kein Fehler" heißt dort also nicht "ist zuweisbar". Wer aus einem ausbleibenden Fehler etwas
- * folgert, muss diese Typen ausnehmen.
- * Zusammengesetzte Typen erben die Verlässlichkeit ihrer Bestandteile: steckt in einem And, Or
- * oder Not noch eine parameterReference, steht der Typ noch nicht fest und sagt damit genauso
- * wenig aus wie die Referenz selbst.
- */
-function hasReliableTypeError(type: CompileTimeType): boolean {
-	switch (type.julType) {
-		case 'and':
-		case 'or':
-			return type.ChoiceTypes.every(hasReliableTypeError);
-		// Not(X) ist in getTypeError als Quelle wie als Ziel permissiv, auch wenn X verlässlich ist.
-		case 'not':
-			return false;
-		case 'any':
-		case 'nestedReference':
-		case 'parameterReference':
-		case 'parameters':
-		// Ein stehengebliebener bedingter Typ wartet noch auf seine Operanden, eine Summe auf ihre
-		// Argumente.
-		case 'conditional':
-		case 'add':
-		// Gegen ein Prädikat heißt "kein Fehler" nur "liegt in der Obermenge", nicht "erfüllt es".
-		case 'predicate':
-			return false;
-		// alias: getTypeError und typeEquals lösen ihn selbst auf, die Verlässlichkeit des Ziels
-		// wird hier bewusst nicht mitgeprüft.
-		case 'alias':
-		case 'blob':
-		case 'boolean':
-		case 'booleanLiteral':
-		case 'concat':
-		case 'date':
-		case 'dictionary':
-		case 'dictionaryLiteral':
-		case 'empty':
-		case 'error':
-		case 'float':
-		case 'floatLiteral':
-		case 'function':
-		case 'bound':
-		case 'integer':
-		case 'integerLiteral':
-		case 'lengthOf':
-		case 'list':
-		case 'never':
-		case 'indexRange':
-		case 'stream':
-		case 'text':
-		case 'textLiteral':
-		case 'tuple':
-		case 'mapElements':
-		case 'type':
-		case 'typeOf':
-		case 'withElementAt':
-			return true;
-		default: {
-			const assertNever: never = type;
-			throw new Error('Unexpected type.julType: ' + (assertNever as CompileTimeType).julType);
-		}
-	}
-}
 
 /**
  * Die grobe Laufzeit-Familie eines Typs. Werte aus verschiedenen Familien sind disjunkt,
@@ -5930,7 +5829,7 @@ function getTypeFamily(type: ResolvedType): string | undefined {
 
 /**
  * Haben die beiden Typen mindestens einen gemeinsamen Wert?
- * Das ist eine andere Relation als die Zuweisbarkeit (getTypeError), die nur Teilmengen prüft:
+ * Das ist eine andere Relation als die Zuweisbarkeit (isTypeAssignable), die nur Teilmengen prüft:
  * Integer ist keine Teilmenge von 0, überlappt mit 0 aber sehr wohl.
  * undefined = unbekannt. Aufrufer müssen dann permissiv sein, sonst entstehen Falschfehler.
  */
@@ -5993,12 +5892,11 @@ function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): bo
 		return everyTypeOverlaps(second.ChoiceTypes, first);
 	}
 	// A überlappt Not(B) genau dann, wenn A keine Teilmenge von B ist.
-	// Hier fällt die Überlappung auf die vorhandene Zuweisbarkeit zurück.
 	if (isComplementType(first)) {
-		return isNotAssignableTo(second, first.SourceType);
+		return invertKnown(isSubtypeOf(second, first.SourceType));
 	}
 	if (isComplementType(second)) {
-		return isNotAssignableTo(first, second.SourceType);
+		return invertKnown(isSubtypeOf(first, second.SourceType));
 	}
 	if (first.julType === 'predicate') {
 		return predicateOverlapsWith(first, second);
@@ -6292,17 +6190,9 @@ function everyTypeOverlaps(choiceTypes: CompileTimeType[], other: CompileTimeTyp
 		: undefined;
 }
 
-/**
- * Ist der Wert dem Zieltyp sicher nicht zuweisbar?
- * undefined, wenn die Zuweisbarkeitsprüfung für einen der beiden Typen nichts aussagt —
- * "kein Fehler" heißt dort eben nicht "ist zuweisbar".
- */
-function isNotAssignableTo(type: CompileTimeType, targetType: CompileTimeType): boolean | undefined {
-	if (!hasReliableTypeError(type)
-		|| !hasReliableTypeError(targetType)) {
-		return undefined;
-	}
-	return !!areArgsAssignableTo(undefined, type, targetType);
+/** Kehrt ein bekanntes Ergebnis um, unbekannt bleibt unbekannt. */
+function invertKnown(value: boolean | undefined): boolean | undefined {
+	return value === undefined ? undefined : !value;
 }
 
 function isLiteralType(type: ResolvedType): boolean {
@@ -6623,9 +6513,9 @@ function tryFoldCall(
 	functionType: CompileTimeType,
 	prefixArgumentType: CompileTimeType | undefined,
 	argsType: CompileTimeType,
-	assignArgsError: string | undefined,
+	hasArgsError: boolean,
 ): CompileTimeType | undefined {
-	if (assignArgsError) {
+	if (hasArgsError) {
 		return undefined;
 	}
 	if (functionExpression.type !== 'reference') {
@@ -6777,7 +6667,7 @@ function typeEquals(first: CompileTimeType, second: CompileTimeType): boolean {
 	if (first === second) {
 		return true;
 	}
-	// Dieselbe Notbremse wie in getTypeError. Hier fällt sie auf "nicht gleich" zurück: eine
+	// Dieselbe Notbremse wie in isTypeAssignable. Hier fällt sie auf "nicht gleich" zurück: eine
 	// ausgelassene Deduplizierung ist harmlos, eine fälschlich angenommene Gleichheit nicht.
 	if (typeEqualsDepth >= maxTypeComparisonDepth) {
 		return false;
@@ -6795,7 +6685,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 	// Der Alias ist reine Beschriftung: geprüft wird der Typ dahinter. Vor dem switch, weil sonst
 	// jeder Zweig seinen eigenen Alias-Fall auf der Gegenseite bräuchte.
 	// Liegt das Paar bereits auf dem Stack, gilt es als gleich - dieselbe coinduktive Annahme wie
-	// in getTypeError, ohne die der Vergleich rekursiver Typen nicht endet.
+	// in isTypeAssignable, ohne die der Vergleich rekursiver Typen nicht endet.
 	if (first.julType === 'alias'
 		|| second.julType === 'alias') {
 		if (aliasEqualityInProgress.some(pair =>
@@ -7676,43 +7566,12 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 
 //#region TypeAssignability
 
-// TODO return true/false = always/never, sometimes/maybe?
-function areArgsAssignableTo(
-	prefixArgumentType: CompileTimeType | undefined,
-	argumentsType: CompileTimeType,
-	parametersType: CompileTimeType,
-): string | undefined {
-	const typeError = getTypeError(prefixArgumentType, argumentsType, parametersType);
-	if (typeError) {
-		return typeErrorToString(typeError);
-	}
-	return undefined;
-}
-
 /**
- * Liefert den Fehler, der beim Zuweisen eines Wertes vom Typ valueType in eine Variable vom Typ targetType entsteht.
- * valueType muss also Teilmenge von targetType sein.
+ * Liegt jeder Wert von type in superType? true bewiesen ja, false bewiesen nein, undefined unbekannt.
+ * Immer mit === true bzw. === false vergleichen: !isSubtypeOf(…) hieße "nein oder unbekannt".
  */
-export function getTypeError(
-	prefixArgumentType: CompileTimeType | undefined,
-	argumentsType: CompileTimeType,
-	targetType: CompileTimeType,
-): TypeError | undefined {
-	const assignability = isTypeAssignable(prefixArgumentType, argumentsType, targetType);
-	if (assignability.assignable === false) {
-		return assignability.error;
-	}
-	else {
-		return undefined;
-	}
-}
-
-/**
- * Liegt jeder Wert von type sicher in superType? Ein unbekanntes Ergebnis ist kein Ja: wer daraus
- * etwas folgert, etwa einen Laufzeittest weglässt, darf es nur bei einem Beweis.
- */
-export function isSubtypeOf(type: CompileTimeType, superType: CompileTimeType): boolean {
-	return isTypeAssignable(undefined, type, superType).assignable === true;
+export function isSubtypeOf(type: CompileTimeType, superType: CompileTimeType): boolean | undefined {
+	return isTypeAssignable(undefined, type, superType).assignable;
 }
 
 function isTypeAssignable(
@@ -7886,7 +7745,7 @@ function isTypeAssignableByStructure(
 				if (remainingAssignability.assignable === undefined) {
 					const excludedType = createNormalizedUnionType(complementChoices.map(choiceType =>
 						(resolveAlias(choiceType) as CompileTimeComplementType).SourceType));
-					if (isSubtypeOf(targetType, excludedType)) {
+					if (isSubtypeOf(targetType, excludedType) === true) {
 						return getDefaultTypeError(argumentsType, targetType);
 					}
 				}
@@ -8272,19 +8131,13 @@ function isTypeAssignableByStructure(
 		case 'never':
 			break;
 		case 'not': {
-			// TODO types overlap dreiwertig mit unbekannt wert
 			// Der Wert darf den SourceType nicht überlappen. Zuweisbarkeit genügt hier nicht:
 			// Integer ist keine Teilmenge von 0, enthält 0 aber und ist damit unzulässig.
-			// Bei unbekannter Überlappung wird nichts gemeldet.
-			if (typesOverlap(argumentsType, targetType.SourceType)) {
-				return {
-					assignable: false,
-					error: {
-						message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
-					}
-				};
+			const overlaps = typesOverlap(argumentsType, targetType.SourceType);
+			if (overlaps === true) {
+				return getDefaultTypeError(argumentsType, targetType);
 			}
-			return { assignable: undefined };
+			return { assignable: overlaps === false || undefined };
 		}
 		case 'or': {
 			// das arg muss zu mindestens einem target Choice passen
@@ -8341,12 +8194,11 @@ function isTypeAssignableByStructure(
 			return { assignable: undefined };
 		}
 		case 'parameters':
-			// TODO getTypeErrorForParameters stattdessen mit 3wertiger assignability
 			return isTypeAssignableForParameters(prefixArgumentType, argumentsType, targetType);
 		case 'parameterReference': {
 			// TODO
 			// const dereferenced = dereferenceArgumentType(null as any, targetType);
-			// return getTypeError(valueType, dereferenced ?? builtinAny);
+			// return isTypeAssignable(valueType, dereferenced ?? builtinAny);
 			return { assignable: undefined };
 		}
 		case 'stream': {
@@ -8485,7 +8337,7 @@ function isTypeAssignableForPredicateFunction(functionType: CompileTimeFunctionT
 			error: { message: 'A predicate used as a type must be pure.' },
 		};
 	}
-	if (getTypeError(undefined, createBooleanLiteral(true), resolvePlaceholders(functionType.ReturnType))) {
+	if (isSubtypeOf(createBooleanLiteral(true), resolvePlaceholders(functionType.ReturnType)) === false) {
 		return {
 			assignable: false,
 			error: { message: 'A predicate used as a type must be able to return true.' }
@@ -8508,18 +8360,38 @@ function tryFoldPredicate(predicate: CompileTimePredicateType, argumentsType: Co
 	if (!value) {
 		return undefined;
 	}
+	// Dasselbe Prädikat wird beim Normalisieren oft gegen dasselbe Literal geprüft, etwa jedes Glied
+	// einer Union gegen jedes andere. Ohne Zwischenspeicher verbraucht das das Faltbudget, und
+	// spätere Faltungen fallen aus. Unbekannt wird nicht gespeichert: das kann am Budget liegen.
+	const valueKey = typeToString(argumentsType, 0, 0);
+	const cachedResults = predicateFoldCache.get(functionType);
+	const cached = cachedResults?.get(valueKey);
+	if (cached !== undefined) {
+		return cached;
+	}
 	const callable = tryBuildCallable(functionType);
 	if (!callable) {
 		return undefined;
 	}
 	checkerStats.foldableCall++;
+	let result: boolean | undefined;
 	try {
-		return runtime._isOfType(value.value, callable as Parameters<typeof runtime._isOfType>[1]);
+		result = runtime._isOfType(value.value, callable as Parameters<typeof runtime._isOfType>[1]);
 	}
 	catch {
 		return undefined;
 	}
+	if (cachedResults) {
+		cachedResults.set(valueKey, result);
+	}
+	else {
+		predicateFoldCache.set(functionType, new Map([[valueKey, result]]));
+	}
+	return result;
 }
+
+/** Ergebnis von tryFoldPredicate je Funktionstyp des Prädikats und konstantem Wert. */
+const predicateFoldCache = new WeakMap<CompileTimeFunctionType, Map<string, boolean>>();
 
 function isTypeAssignableForTuple(
 	prefixArgumentType: CompileTimeType | undefined,
@@ -8541,7 +8413,7 @@ function isTypeAssignableForTuple(
 		case 'tuple':
 			return isTypeAssignableForTupleArgAndTupleTarget(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
 		case 'parameters':
-			// Gegenstück zu getTypeErrorForParameters' case 'tuple': dort darf ein unbenanntes
+			// Gegenstück zu isTypeAssignableForParameters' case 'tuple': dort darf ein unbenanntes
 			// Tuple-Pattern (`[Integer] => ...`) als Argument gegen einen benannten Parametertyp
 			// bestehen, hier ist es umgekehrt - ein benannter Parametertyp (z.B. filter's
 			// deklarierter predicate-Typ) tritt kontravariant als "argumentsType" gegen ein
@@ -8713,7 +8585,7 @@ function isTypeAssignableForParameter(
  * dastehen muss.
  */
 function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: CompileTimeType | undefined): boolean {
-	return !getTypeError(prefixArgumentType, builtinEmpty, fieldTargetType);
+	return isTypeAssignable(prefixArgumentType, builtinEmpty, fieldTargetType).assignable !== false;
 }
 
 /**
@@ -8768,10 +8640,10 @@ function hasExpectedTypeError(expression: ParseValueExpression): boolean {
 	if (!expectedType || !ownType) {
 		return false;
 	}
-	// Zuerst ungelöst, wie die Prüfung des Aufrufs selbst (areArgsAssignableTo bekommt argsType
+	// Zuerst ungelöst, wie die Prüfung des Aufrufs selbst (isTypeAssignable bekommt argsType
 	// bewusst ungelöst) - sonst findet die Suche den Fehler nicht wieder, den sie erklären soll.
-	return !!getTypeError(undefined, ownType, expectedType)
-		|| !!getTypeError(undefined, resolvePlaceholders(ownType), resolvePlaceholders(expectedType));
+	return isSubtypeOf(ownType, expectedType) === false
+		|| isSubtypeOf(resolvePlaceholders(ownType), resolvePlaceholders(expectedType)) === false;
 }
 
 
@@ -8908,7 +8780,7 @@ function isTypeAssignableForParameters(
 		default:
 			return {
 				assignable: false,
-				error: { message: 'getTypeErrorForParameters not implemented yet for ' + argumentsType.julType }
+				error: { message: 'isTypeAssignableForParameters not implemented yet for ' + argumentsType.julType }
 			};
 	}
 }
@@ -9505,11 +9377,11 @@ function checkTypeGuardIsType(
 	errors: CompilerError[],
 ): void {
 	const typeGuardType = resolvePlaceholders(typeGuard.typeInfo!.type);
-	const typeGuardTypeError = areArgsAssignableTo(undefined, typeGuardType, builtinType);
-	if (typeGuardTypeError) {
+	const typeGuardAssignability = isTypeAssignable(undefined, typeGuardType, builtinType);
+	if (typeGuardAssignability.assignable === false) {
 		errors.push({
 			code: ErrorCode.typeGuardIsNotType,
-			message: typeGuardTypeError,
+			message: typeErrorToString(typeGuardAssignability.error),
 			startRowIndex: typeGuard.startRowIndex,
 			startColumnIndex: typeGuard.startColumnIndex,
 			endRowIndex: typeGuard.endRowIndex,
@@ -9521,8 +9393,8 @@ function checkTypeGuardIsType(
 /**
  * Meldet, wenn der Ausdruck sicher keine Funktion ist. Genutzt für branches und für den
  * aufgerufenen Ausdruck eines functionCalls — beide unterscheiden sich nur in code und message.
- * areArgsAssignableTo ist für any und unaufgelöste Referenzen bewusst permissiv, gemeldet wird
- * also nur, wenn es feststeht.
+ * Für any und unaufgelöste Referenzen ist das Ergebnis unbekannt, gemeldet wird also nur, wenn es
+ * feststeht.
  * Liefert false, wenn gemeldet wurde. Der Aufrufer kann daran erkennen, dass die weitere
  * Auswertung als Funktion sinnlos ist.
  */
@@ -9533,11 +9405,11 @@ function checkIsFunction(
 	errors: CompilerError[],
 ): boolean {
 	const anyFunctionType = createCompileTimeFunctionType(builtinAny, builtinAny, 'unknown');
-	const nonFunctionError = areArgsAssignableTo(undefined, resolvePlaceholders(expression.typeInfo!.type), anyFunctionType);
-	if (nonFunctionError) {
+	const functionAssignability = isTypeAssignable(undefined, resolvePlaceholders(expression.typeInfo!.type), anyFunctionType);
+	if (functionAssignability.assignable === false) {
 		errors.push({
 			code: code,
-			message: `${message}\n${nonFunctionError}`,
+			message: `${message}\n${typeErrorToString(functionAssignability.error)}`,
 			startRowIndex: expression.startRowIndex,
 			startColumnIndex: expression.startColumnIndex,
 			endRowIndex: expression.endRowIndex,

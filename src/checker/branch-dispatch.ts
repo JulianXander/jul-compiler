@@ -191,7 +191,7 @@ function getBranchStep(
 		// Integer ohne 1): ein Test, der auf der Obermenge exakt ist, ist es auch auf dem Rest.
 		return {
 			test: { kind: 'literal', value: literal },
-			remaining: remaining.filter(member => !isSubtypeOf(member, required)),
+			remaining: remaining.filter(member => isSubtypeOf(member, required) !== true),
 		};
 	}
 	const requiredKinds = getJsKinds(required);
@@ -209,7 +209,7 @@ function getBranchStep(
 		if (!requiredKinds.has(memberKind)) {
 			missed.push(member);
 		}
-		else if (isSubtypeOf(member, required)) {
+		else if (isSubtypeOf(member, required) === true) {
 			caught.push(member);
 		}
 		else {
@@ -242,7 +242,7 @@ function getBranchStep(
 	const fieldTest = getFieldTest(remaining, required);
 	return fieldTest && {
 		test: fieldTest,
-		remaining: remaining.filter(member => !isSubtypeOf(member, required)),
+		remaining: remaining.filter(member => isSubtypeOf(member, required) !== true),
 	};
 }
 
@@ -327,7 +327,7 @@ function getFieldTest(remaining: CompileTimeType[], required: CompileTimeType): 
 				return false;
 			}
 			return memberValue !== requiredValue
-				|| isSubtypeOf(member, required);
+				|| isSubtypeOf(member, required) === true;
 		});
 		if (decides) {
 			return { kind: 'field', name: name, value: requiredValue };

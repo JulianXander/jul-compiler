@@ -3533,6 +3533,18 @@ f(...namedArgs)`, {
 			],
 		});
 	});
+	// Nach dem Verengen über ein Feld ist x ein unvollständiges Dictionary: bekannt ist nur b, die
+	// übrigen Felder kann x trotzdem haben. Das Ergebnis des Spreads bleibt unvollständig, ein
+	// fehlendes c ist kein Beweis, dass es fehlt.
+	it('dictionary-spread-of-incomplete-dictionary-stays-incomplete', () => {
+		expectCheck(`T = [a: Integer b: Text c: Text]
+x = assume([] Any)
+r = ?(x/b)
+	[Integer] => 0
+	() =>
+		y: T = [...x a = 1]
+		y`);
+	});
 	// Wechsel des Diskriminators per Spread: kommt der Wert aus einer Choice ohne
 	// attackerId, fehlt das Feld, das die Ziel-Choice zu §attack§ verlangt.
 	it('dictionary-spread-of-union-checks-each-choice', () => {

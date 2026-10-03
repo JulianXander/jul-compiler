@@ -29,27 +29,26 @@ behoben bzw. umgangen:
 Der dritte Fall ist offen. Die core-lib umgeht ihn, indem sie obere Grenzen als
 `Not(GreaterInteger(…))` schreibt (siehe [number-ranges.md](number-ranges.md)).
 
-## Wer aus der Prüfung etwas folgert
+## Wer die Prüfung benutzt
 
-Stand der Analyse, Zeilen in `checker.ts` bzw. `branch-dispatch.ts`:
+`getTypeError` beantwortet „passt nicht sicher?", sein `undefined` heißt yes oder unknown. Jede
+Stelle will aber eine von drei bestimmten Fragen beantwortet haben. Stand der Analyse, Funktionen
+in `checker.ts` (Zeilen zur Orientierung):
 
-**Meldet Fehler**, braucht nur „passt nicht": Zuweisung (3628), Typ-Guard (3737), Argumente
-(4035), Rückgabetyp (4267), Typ-Guard gegen `Type` (9496), Funktion erwartet (9524). Alle gehen
-über `areArgsAssignableTo`, das noch einen String liefert.
+| Frage | Ersatz | Stellen |
+|---|---|---|
+| **Melden:** welcher Fehler, später welche Warnung | `isTypeAssignable` direkt | `inferType`: Zuweisung (3628), Typ-Guard (3737), Argumente (4035), Rückgabetyp (4267); `checkTypeGuardIsType` (9508); `checkIsFunction` (9536); `isTypeAssignableForPredicateFunction`: kann true liefern (8488) |
+| **Folgern:** bewiesen eine Teilmenge? | `isSubtypeOf` | `isBranchingExhaustive` (2763); `inferType`: Erreichbarkeit von Branches (3469); `getPredicateFacts`: Rückgabetyp ist Boolean (3251); `addFromTypes`: Grenze nur für bewiesene Integer (5256); `createConditionalType`: Zweig greift ganz (5439); `removeSubtypes` (5517/5521); `createNormalizedIntersectionType`: Vereinfachung für Teilmengen (5794/5797) |
+| **Ausschließen:** bewiesen keine Teilmenge? | `isNotSubtypeOf` | `narrowExpectedTypeByFields`: Choice fällt wegen Feld weg (3080/3087); `isNotAssignableTo` (6305); `isFieldOptional` (8716); `hasExpectedTypeError`: Suche der Fehlerposition (8773); Completion im Language Server (`completion.ts`, Filter der Methoden) |
 
-**Folgert aus „kein Fehler"**, braucht „passt" und darf „unbekannt" nicht so lesen:
-- `removeSubtypes` beim Normalisieren einer Union, geschützt über `hasReliableTypeError` und
-  `isUnresolvedPlaceholderType`
-- die Vereinfachung für Teilmengen in `createNormalizedIntersectionType`, geschützt über
-  `hasReliableTypeError`
-- `isNotAssignableTo`, genutzt von `typesOverlap` und den `Not`-Regeln, geschützt über
-  `hasReliableTypeError`
-- die Erreichbarkeit von Branches (3467), geschützt über `hasReliableTypeError`
-- `containsAny` (5473), liest `hasReliableTypeError` direkt
-- `isSubtype` in [branch-dispatch.ts](../src/checker/branch-dispatch.ts): war ungeschützt und wertete
-  `!getTypeError(…)` als Teilmenge. Das ließ einen Laufzeittest weg, der nötig war:
-  `?(x) [List(isEven)] => …` mit `x: Or(Text List(Integer))` wurde zu `typeof x !== 'string'`, und
-  `[1 3]` lief in den ersten Branch. **Umgestellt** auf `isSubtypeOf`.
+Die Zeile **Folgern** ist die gefährliche: Dort wertet `!getTypeError(…)` heute unknown als
+bewiesen. Geschützt sind nur die Stellen mit `hasReliableTypeError` oder `containsAny` daneben,
+ungeschützt sind `isBranchingExhaustive`, `getPredicateFacts` und `addFromTypes`.
+
+Schon umgestellt: `isSubtype` in [branch-dispatch.ts](../src/checker/branch-dispatch.ts). Es war
+ungeschützt und ließ einen nötigen Laufzeittest weg: `?(x) [List(isEven)] => …` mit
+`x: Or(Text List(Integer))` wurde zu `typeof x !== 'string'`, und `[1 3]` lief in den ersten
+Branch. Es fragt jetzt `isSubtypeOf`.
 
 ## Modell
 
@@ -62,7 +61,7 @@ Gefragt ist: Liegt jeder Wert der Quelle im Ziel?
 Gefolgert wird nur aus yes. Gemeldet wird no als Fehler und unknown als Warnung (siehe Abschnitt
 „Warnung bei unknown"): Was der Checker nicht beweisen kann, kann zur Laufzeit schiefgehen.
 
-Der Kern ist `isTypeAssignable` (umgesetzt, siehe Stand), `getTypeError` ist eine Hülle darum:
+Der Kern ist `isTypeAssignable` (umgesetzt, siehe Stand). `getTypeError` ist bis Phase 3 eine Hülle darum:
 
 ```ts
 type TypeAssignability =
@@ -72,7 +71,7 @@ type TypeAssignability =
 
 function isTypeAssignable(prefixArgumentType, argumentsType, targetType): TypeAssignability;
 
-// Melden (Prinzip Freiheit): nur ein sicheres Nein ist ein Fehler.
+// Übergang, entfällt mit Phase 3: nur ein sicheres Nein ist ein Fehler.
 getTypeError = (…) => assignability.assignable === false ? assignability.error : undefined;
 // Folgern: nur ein sicheres Ja ist eine Teilmenge (isSubtypeOf, angelegt), nur ein sicheres Nein
 // keine (isNotSubtypeOf, noch anzulegen).
@@ -213,19 +212,29 @@ Vereinfachung von `And(A Not(B))`, die Grenzen-Tests.
 - Ergebnis: Checker-Snapshot unverändert, Suite grün bis auf den Abnahmefall für Phase 3/4,
   yugioh und jul-examples fehlerfrei.
 
-### Phase 3: Folgernde umstellen
+### Phase 3: `getTypeError` ersetzen
 
-- `removeSubtypes`, Vereinfachung für Teilmengen, `isNotAssignableTo`, Erreichbarkeit der
-  Branches und `containsAny` fragen `isSubtypeOf` bzw. `isNotSubtypeOf` statt `!getTypeError(…)`
-  plus `hasReliableTypeError`. `branch-dispatch.ts` ist schon umgestellt.
-- Vorsicht: Wo Phase 2 eine Teilmenge noch nicht als yes einordnet, normalisiert der Checker nach
-  der Umstellung schwächer. So hat sich das schon bei `branch-dispatch.ts` gezeigt (Dictionaries).
-  Deshalb Phase 2 möglichst vorher abschließen.
-- `hasReliableTypeError` entfällt. Wo `isUnresolvedPlaceholderType` nur deshalb danebensteht,
-  entfällt es ebenfalls.
-- Hier ändert sich Verhalten: Wo ein Fall fälschlich als unknown eingeordnet blieb, normalisiert
-  der Checker schwächer. Das zeigt sich im Snapshot als längere Typen und ist dann in Phase 2
-  nachzutragen.
+Ziel: `getTypeError` und `areArgsAssignableTo` verschwinden. Jede Stelle aus der Tabelle unter
+„Wer die Prüfung benutzt" stellt ausdrücklich ihre Frage:
+
+- **Melden:** ruft `isTypeAssignable` und meldet bei no den Fehler. Damit liegt an diesen Stellen
+  schon das volle Ergebnis vor, an das die Warnung bei unknown anschließt.
+- **Folgern:** `isSubtypeOf`. Die Schutzabfragen `hasReliableTypeError` und `containsAny`
+  entfallen, ebenso `isUnresolvedPlaceholderType`, wo es nur deshalb danebensteht.
+  `hasReliableTypeError` fällt ganz weg.
+- **Ausschließen:** `isNotSubtypeOf`, neu anzulegen und zu exportieren. Der Language Server
+  stellt seinen Filter in `completion.ts` darauf um, im selben Zug wie der Compiler.
+
+Hier ändert sich Verhalten, an zwei Stellen:
+- Die bisher ungeschützten Folgernden (`isBranchingExhaustive`, `getPredicateFacts`,
+  `addFromTypes`) folgern bei unknown nichts mehr. Das ist die Korrektur, kann aber Typen
+  verbreitern oder ein branching als nicht erschöpfend melden.
+- Wo Phase 2 eine echte Teilmenge noch nicht als yes einordnet, normalisiert der Checker
+  schwächer. So zeigte es sich schon bei `branch-dispatch.ts` (Dictionaries). Das zeigt sich im
+  Snapshot als längere Typen und wird dann in Phase 2 nachgetragen, nicht über Ausnahmen.
+
+Abnahme: Suite, Snapshot (jede Abweichung einzeln ansehen), yugioh, jul-examples, die Tests des
+Language Servers.
 
 ### Phase 4: `lengthOf` und die core-lib
 
