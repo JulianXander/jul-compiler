@@ -360,6 +360,15 @@ f = (x: Or([] Text)) =>
 		[[a: Integer]] => 1
 		() => 2`);
 	});
+	// Ob ein beliebiger Integer gerade ist, entscheidet erst die Laufzeit. Ein Array-Test allein
+	// würde [1 3] in den ersten branch schicken.
+	it('Rückfall: Prädikat im Elementtyp, die Teilmenge ist unbekannt', () => {
+		expectBranchingFallback(`isEven = (n: Integer) => n.modulo(2).equal(0)
+f = (x: Or(Text List(Integer))) =>
+	?(x)
+		[List(isEven)] => 1
+		() => 2`);
+	});
 	it('Rückfall: untypisiertes Argument', () => {
 		expectBranchingFallback(`f = (x) =>
 	?(x)

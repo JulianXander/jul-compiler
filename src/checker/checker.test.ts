@@ -1522,6 +1522,15 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 		expectCheck(`f = (values: Or([] List(Integer))) =>
 	values.forEach((value index: PositiveInteger) => [])`);
 	});
+	// Die obere Grenze hängt an der Länge, die erst am Aufruf feststeht. Sie darf nicht schon bei
+	// der Deklaration im And mit PositiveInteger verloren gehen.
+	it('upper-bound-from-open-length-survives-and', () => {
+		expectCheck(`f = (
+	values: List(Integer)
+	callback: (index: And(PositiveInteger Or(length(values) LessInteger(length(values))))) ~> Any
+) ~> [] => []
+g = () => f([1 2 3] (index: Not(GreaterInteger(3))) => [])`);
+	});
 	// flatten löst eine Ebene Verschachtelung auf und erhält dabei den Elementtyp
 	// (analog zu slice-keeps-element-type): aus List(List(Integer)) wird
 	// Or([] List(Integer)), nicht Or([] List(Any)).
