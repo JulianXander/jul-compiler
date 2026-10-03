@@ -11,7 +11,6 @@ Admin PowerShell öffnen
 `Set-ExecutionPolicy -ExecutionPolicy Unrestricted`
 
 ## Build
-
 `npm run build`  
 Baut nur den Compiler: `out` leeren, `tsc -p tsconfig.build.json`, `core-lib.jul` nach `out` kopieren.
 
