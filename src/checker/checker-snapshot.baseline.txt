@@ -354,17 +354,33 @@ visibleInput: Any
   warning 2800 at 6:9 Stream 'data$' is never completed. Call complete on it or return it.
 === ui/preserve-dom/main.jul ===
 addMessage: (message: Text) ~> Any
+=== ui/tic-tac-toe/tic-tac-toe-logic.jul ===
+Cell: TypeOf(Or(§§ Player))
+GameBoard: [[TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)]]
+GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player ])
+Player: TypeOf(Or(§x§ §o§))
+allEqual: (   values: List(Any)   expected: Any ) -> Boolean
+checkWinner: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   player: Player   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> Boolean
+isTied: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
+=== ui/tic-tac-toe/tic-tac-toe-logic.test.jul ===
+allEqual: (   values: List(Any)   expected: Any ) -> Boolean
+checkWinner: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   player: Player   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> Boolean
+isTied: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 === ui/tic-tac-toe/tic-tac-toe.jul ===
-Cell: TypeOf(Or(§§ §x§ §o§))
-GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Or(§x§ §o§) ])
+GameBoard: [[TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)]]
+GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player ])
+checkWinner: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   player: Player   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> Boolean
+disableGameBoard: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) ~> Empty
 elementById: (id: Text) ~> Any
 gameState$: Stream(GameState)
 initialGameState: [   gameBoard: [[§§ §§ §§] [§§ §§ §§] [§§ §§ §§]]   currentPlayer: §x§ ]
+isTied: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 resetElement: Any
 setEnabled: (   element: Any   enabled: Boolean ) ~> Empty
 setText: (   element: Any   text: Text ) ~> Empty
+statusElement: Any
 subscribeEvent: (   element: Any   event: Text   listener: () :> Any ) ~> Empty
-test1: () ~> Empty
+walk: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   iteratee: (     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     cellElement: Any   ) ~> Any ) ~> Empty
 === ui/todo-list/todo-list.jul ===
 addHtml: (html: Text) ~> Any
 removeElement: (element: Any) ~> Any

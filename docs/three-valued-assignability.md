@@ -140,18 +140,12 @@ Referenz, gleiche Alias-Anwendung, Bereich in Bereich, Basistyp zu Basistyp (Boo
 Float, Text, Empty), gleiche Literale (Integer, Float, Text), Grenzen, Funktionen mit yes für
 Parameter und Rückgabe, Ziel `Type`, gleiches oder gefaltet wahres Prädikat.
 
-**Der Stand ist nicht grün.** 6 Tests sind rot, davon 4 durch drei Fehler beim Umbau, alle von
-derselben Art: Ein Ergebnis, das früher `undefined` oder ein `TypeError` war, ist jetzt immer ein
-Objekt und damit immer wahr.
-
-| Stelle | Folge | Roter Test |
-|---|---|---|
-| Ziel Prädikat: `if (isTypeAssignable(…, targetType.UpperBound))` | Jedes nicht faltbare Prädikat wird abgelehnt, auch ein Wert in der Obermenge | `predicate-accepts-unknown-value-inside-parameter-type`, `branch-narrowing-predicate-head-false-branch` |
-| Bereich passt nicht: `isTypeAssignableByStructure(…) ?? { assignable: false … }` | Das `??` greift nie: Sagt die Zerlegung unknown, kommt unknown statt no heraus | `for-each-index-can-reach-length` |
-| `isTypeAssignableForParameters` (`list`, `parameters`) und `…WithCollectionArgs` (`rest`): `const error = isTypeAssignableForParameter(…); if (error) return error;`, sechsmal | Kehrt beim ersten Parameter zurück, auch wenn er passt, die weiteren werden nie geprüft | `callback-parameter-type-narrower-than-passed-element` |
-
-Die übrigen zwei roten Tests sind die Baselines (Snapshot, Zähler). Ob deren Abweichung nur aus
-diesen Fehlern folgt, zeigt sich nach der Korrektur.
+Beim Umbau entstanden drei Fehler derselben Art, inzwischen korrigiert: Ein Ergebnis, das früher
+`undefined` oder ein `TypeError` war, ist jetzt immer ein Objekt und damit immer wahr. Betroffen
+waren das Prädikat als Ziel (`if (isTypeAssignable(…))`), der Fall „Bereich passt nicht"
+(`… ?? { assignable: false … }`, das `??` griff nie) und sechs Stellen der Parameterprüfung
+(`if (error) return error`, kehrte beim ersten Parameter zurück). Bei weiteren Umbauten auf
+dieselbe Falle achten: Ein `TypeAssignability` immer über `.assignable` abfragen.
 
 Außerdem schlägt `npm run typecheck` fehl, unabhängig von diesem Plan: `scripts/bench.ts` und
 `scripts/bench-runtime.ts` importieren noch `../src/emitter.js` und `../src/project-loader.js`,
@@ -168,11 +162,11 @@ Rote Tests, die heute scheitern:
 Gegenproben, die heute grün sind und es bleiben müssen: die `upper-bound`-Tests, der Test zur
 Vereinfachung von `And(A Not(B))`, die Grenzen-Tests.
 
-### Phase 1: Kern einführen, ohne Verhaltensänderung (umgesetzt, Korrektur offen)
+### Phase 1: Kern einführen, ohne Verhaltensänderung (umgesetzt)
 
-- Umgesetzt als `isTypeAssignable`, siehe Stand.
-- **Offen:** die drei Fehler aus dem Stand korrigieren, bis die Suite ohne Baseline-Änderung grün
-  ist. Erst danach messen und weiter mit Phase 2.
+- Umgesetzt als `isTypeAssignable`, siehe Stand. Der Checker-Snapshot ist mit und ohne den Umbau
+  gleich, `getTypeError` zählt 23 Aufrufe mehr, weil die Parameterprüfung jetzt jeden Parameter
+  prüft.
 - Messen: Die Hülle kostet einen Aufruf und einen Vergleich pro Prüfung, dazu ein Objekt je
   Ergebnis (siehe Konstanten im Modell).
 

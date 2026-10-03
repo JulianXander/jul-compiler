@@ -1,5 +1,5 @@
 // Prüft, dass runtime.ts und test-runtime.ts beim Laden keine Seiteneffekte haben. Darauf verlässt
-// sich shakeRuntime (src/runtime-shaking.ts): Es lässt jede Deklaration weg, die das Programm nicht
+// sich shakeRuntime (src/runtime/runtime-shaking.ts): Es lässt jede Deklaration weg, die das Programm nicht
 // erreicht. Ein nachgestellter Aufruf wie `_createFunction(x, params)` hätte dort keinen eigenen
 // Namen und bliebe stehen, samt allem, was er referenziert. Ein Aufruf mit Seiteneffekt in einer
 // weggelassenen Deklaration fiele dagegen still mit weg.
@@ -24,7 +24,7 @@ import { fileURLToPath } from 'url';
 import ts from 'typescript';
 
 const compilerDirectory = join(dirname(fileURLToPath(import.meta.url)), '..');
-const files = ['src/runtime.ts', 'src/test-runtime.ts'];
+const files = ['src/runtime/runtime.ts', 'src/runtime/test-runtime.ts'];
 
 /**
  * Bewusste Ausnahmen, Schlüssel ist der Quelltext des Knotens.

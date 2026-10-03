@@ -7794,13 +7794,10 @@ function isTypeAssignableAtDepth(
 		return { assignable: true };
 	}
 	if (fitsRange === false) {
-		return isTypeAssignableByStructure(prefixArgumentType, argumentsType, targetType)
-			?? {
-			assignable: false,
-			error: {
-				message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`,
-			},
-		};
+		const structureAssignability = isTypeAssignableByStructure(prefixArgumentType, argumentsType, targetType);
+		return structureAssignability.assignable === false
+			? structureAssignability
+			: getDefaultTypeError(argumentsType, targetType);
 	}
 	return isTypeAssignableByStructure(prefixArgumentType, argumentsType, targetType);
 }
@@ -8456,7 +8453,7 @@ function isTypeAssignableByStructure(
 			}
 			// Was das Prädikat für einen Wert in der Obermenge liefert, weiß der Checker nicht.
 			// Das prüft die Laufzeit.
-			if (isTypeAssignable(prefixArgumentType, argumentsType, targetType.UpperBound)) {
+			if (isTypeAssignable(prefixArgumentType, argumentsType, targetType.UpperBound).assignable === false) {
 				break;
 			}
 			return { assignable: undefined };
@@ -8469,7 +8466,7 @@ function isTypeAssignableByStructure(
 	return getDefaultTypeError(argumentsType, targetType);
 }
 
-function getDefaultTypeError(argumentsType: CompileTimeType, targetType: CompileTimeType) {
+function getDefaultTypeError(argumentsType: CompileTimeType, targetType: CompileTimeType): TypeAssignability {
 	return {
 		assignable: false,
 		error: { message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.` },
@@ -8812,10 +8809,10 @@ function isTypeAssignableForParameters(
 					: index === guaranteedIndex
 						? elementType
 						: optionalElementType;
-				const error = isTypeAssignableForParameter(parameter.name, parameterType, argumentType);
-				if (error) {
+				const assignability = isTypeAssignableForParameter(parameter.name, parameterType, argumentType);
+				if (assignability.assignable === false) {
 					// TODO collect inner errors
-					return error;
+					return assignability;
 				}
 			}
 			const rest = targetType.rest;
@@ -8831,10 +8828,10 @@ function isTypeAssignableForParameters(
 				const remainingType = singleNames.length
 					? createNormalizedUnionType([builtinEmpty, createCompileTimeListType(restElementType)])
 					: createCompileTimeListType(restElementType);
-				const error = isTypeAssignableForParameter(rest!.name, restType, remainingType);
-				if (error) {
+				const assignability = isTypeAssignableForParameter(rest!.name, restType, remainingType);
+				if (assignability.assignable === false) {
 					// TODO collect inner errors
-					return error;
+					return assignability;
 				}
 			}
 			return { assignable: undefined };
@@ -8869,12 +8866,12 @@ function isTypeAssignableForParameters(
 					};
 				}
 				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? builtinAny;
-				const error = targetParameterType
+				const assignability = targetParameterType
 					? isTypeAssignableForParameter(targetParameterName, targetParameterType, valueParameterType, 'type')
 					: undefined;
-				if (error) {
+				if (assignability?.assignable === false) {
 					// TODO collect inner errors
-					return error;
+					return assignability;
 				}
 			}
 			const targetRest = targetType.rest;
@@ -8889,10 +8886,10 @@ function isTypeAssignableForParameters(
 				const remainingValueParameters = valueSingleNames.slice(index);
 				for (const valueParameter of remainingValueParameters) {
 					const valueParameterType = valueParameter.type ?? valueRestItemType ?? builtinAny;
-					const error = isTypeAssignableForParameter(targetRest!.name, targetRestItemType, valueParameterType, 'type');
-					if (error) {
+					const assignability = isTypeAssignableForParameter(targetRest!.name, targetRestItemType, valueParameterType, 'type');
+					if (assignability.assignable === false) {
 						// TODO collect inner errors
-						return error;
+						return assignability;
 					}
 				}
 			}
@@ -8943,11 +8940,11 @@ function isTypeAssignableForParametersWithCollectionArgs(
 			const remainingArgs: CompileTimeType = hasPrefixArg && !paramIndex
 				? createCompileTimeTupleType([prefixArgumentType])
 				: builtinEmpty;
-			const error = restType
+			const assignability = restType
 				? isTypeAssignableForParameter(rest.name, restType, remainingArgs)
 				: undefined;
-			if (error) {
-				return error;
+			if (assignability?.assignable === false) {
+				return assignability;
 			}
 			return { assignable: true };
 		}
@@ -8956,12 +8953,12 @@ function isTypeAssignableForParametersWithCollectionArgs(
 			if (hasPrefixArg && !paramIndex) {
 				remainingArgs.unshift(prefixArgumentType);
 			}
-			const error = restType
+			const assignability = restType
 				? isTypeAssignableForParameter(rest.name, restType, createCompileTimeTupleType(remainingArgs))
 				: undefined;
-			if (error) {
+			if (assignability?.assignable === false) {
 				// TODO collect inner errors
-				return error;
+				return assignability;
 			}
 		}
 		else {

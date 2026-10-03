@@ -5,8 +5,8 @@ import { basename, join, resolve } from 'path';
 import { pathToFileURL } from 'url';
 
 import { errorInfos } from '../src/compiler-errors.js';
-import { syntaxTreeToJs } from '../src/emitter.js';
-import { createFileSystemHost, loadFile } from '../src/project-loader.js';
+import { syntaxTreeToJs } from '../src/compiler/emitter.js';
+import { createFileSystemHost, loadFile } from '../src/compiler/project-loader.js';
 import { ParsedDocuments } from '../src/checker/checker.js';
 import {
 	appendEntries,
@@ -23,7 +23,7 @@ import {
  * scripts/bench-runtime werden geparst, gecheckt und emittiert, danach ruft der Bench ihre
  * exportierten Funktionen in einer heißen Schleife auf. Kein Test-Gate, nur Beleg für Umbauten
  * am Emitter und an der Runtime.
- * Emittiert wird gegen src/runtime.ts (über tsx), also ohne Build und ohne webpack.
+ * Emittiert wird gegen src/runtime/runtime.ts (über tsx), also ohne Build und ohne webpack.
  * Aufruf: npm run bench-runtime [--save] [--note "grund"]
  * Mit --save wird die Messung an scripts/bench-log-runtime.tsv angehängt, sonst nur verglichen.
  * Protokolliert werden ms je normCalls Aufrufe, unabhängig davon, wie viele ein Durchlauf macht:
@@ -36,7 +36,7 @@ const target = 'bench-runtime';
 const fixtureFolder = resolve(import.meta.dirname, 'bench-runtime');
 const logPath = resolve(import.meta.dirname, 'bench-log-runtime.tsv');
 const chartScript = resolve(import.meta.dirname, 'bench-chart.mjs');
-const runtimeUrl = pathToFileURL(resolve(import.meta.dirname, '../src/runtime.ts')).href;
+const runtimeUrl = pathToFileURL(resolve(import.meta.dirname, '../src/runtime/runtime.ts')).href;
 
 interface BenchCase {
 	file: string;
