@@ -3,7 +3,9 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { existsSync } from 'fs';
 import { basename, join, relative, resolve } from 'path';
 
-import { resolvePlaceholders, checkerStats, ParsedDocuments, resetCheckerStats, typeToString } from './checker.js';
+import { ParsedDocuments } from './checker.js';
+import { checkerStats, resetCheckerStats } from './checker-stats.js';
+import { resolvePlaceholders, typeToString } from './type-algebra.js';
 import { errorInfos } from '../compiler-errors.js';
 import { createFileSystemHost, loadFile } from '../compiler/project-loader.js';
 import { ParsedFile } from '../syntax-tree.js';

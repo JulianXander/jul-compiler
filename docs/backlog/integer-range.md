@@ -43,7 +43,7 @@ Es ist ein Typ ohne Werte, keine leere Kollektion.
 `IndexRange` beschreibt keine Werte, sondern einen Ausschnitt. Als Index von `ElementAt` liefert
 es die Teilfolge. Eine Menge von Zahlen als Index liefert dagegen ein Element, weil jeder Fall
 eines `Or`-Schlüssels einzeln aufgelöst wird
-([checker.ts](../../src/checker/checker.ts), `dereferenceNestedKeyFromObject`):
+([type-algebra.ts](../../src/checker/type-algebra.ts), `dereferenceNestedKeyFromObject`):
 
 ```jul
 T = [§a§ §b§ §c§ §d§ §e§]

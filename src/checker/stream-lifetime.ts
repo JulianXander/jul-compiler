@@ -8,7 +8,7 @@ import {
 	PositionedExpression,
 } from '../syntax-tree.js';
 import { last } from '../util.js';
-import { resolvePlaceholders } from './checker.js';
+import { resolvePlaceholders } from './type-algebra.js';
 
 /**
  * Lebensdauer von Streams, siehe docs/stream-lifetimes.md: Ein Stream aus einer Quelle, die nicht

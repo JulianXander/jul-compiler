@@ -20,7 +20,8 @@ import { CompilerError, ErrorCode, errorInfos } from '../compiler-errors.js';
 import { reportAtCaller } from '../test-util.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
-import { bindReceiver, builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity, isFunctionType, resolvePlaceholders, typeToString } from './checker.js';
+import { bindReceiver, builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity } from './checker.js';
+import { isFunctionType, resolvePlaceholders, typeToString } from './type-algebra.js';
 
 const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: {
 	result?: ParseExpression[];

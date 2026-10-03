@@ -3,13 +3,7 @@ import {
 	ParseBranching,
 	ParseValueExpression,
 } from '../syntax-tree.js';
-import {
-	isFunctionType,
-	isParametersType,
-	isSubtypeOf,
-	resolveAlias,
-	resolvePlaceholders,
-} from './checker.js';
+import { isFunctionType, isParametersType, isSubtypeOf, resolveAlias, resolvePlaceholders } from './type-algebra.js';
 
 /**
  * Welcher Test zur Laufzeit reicht, um die branches eines branchings auseinanderzuhalten.

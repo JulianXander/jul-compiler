@@ -1,4 +1,4 @@
-import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable, TypedExpression } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
@@ -310,3 +310,24 @@ export function getTestName(call: ParseFunctionCall): string | undefined {
 }
 
 //#endregion test
+
+//#region Elternkette
+
+/** Der Name der Definition, deren Wert der Ausdruck ist. */
+export function getNameFromValue(expression: TypedExpression): string | undefined {
+	if (expression.parent?.type === 'definition'
+		&& expression.parent.value === expression) {
+		return expression.parent.name.name;
+	}
+}
+
+export function isInsideFunctionLiteral(expression: TypedExpression): boolean {
+	for (let parent = expression.parent; parent; parent = parent.parent) {
+		if (parent.type === 'functionLiteral') {
+			return true;
+		}
+	}
+	return false;
+}
+
+//#endregion Elternkette

@@ -147,7 +147,7 @@ Notiz, und die Snapshot-Diffs ansehen.
   Name die Familie. **Regel:** Außer `getNumberRange` und `getTypeFamily` liest niemand `Relation`
   oder `Family`, sonst behandelt eine vergessene Unterscheidung `LessInteger` still wie
   `GreaterInteger`.
-- `checker.ts`: Faltung der Aufrufe `GreaterInteger`/`LessInteger` statt des Falls `'Greater'`;
+- `checker.ts` und `type-algebra.ts`: Faltung der Aufrufe `GreaterInteger`/`LessInteger` statt des Falls `'Greater'`;
   `bound` statt `greater` in `traversePlaceholders`, `typeEqualsAtDepth` (vergleicht auch die
   Felder), `typeToString` (setzt den Namen aus `Relation` und `Family` zusammen),
   `hasReliableTypeError`, `valueOf`, `isDefinitelyNotCollectionType`, `classifyTypenessOnPath`

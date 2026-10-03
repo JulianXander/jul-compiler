@@ -21,7 +21,7 @@ import { dirname, extname, isAbsolute, join } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
 import { getCheckedEscapableName, getTestCallArguments } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
-import { isFunctionType, resolveAlias, resolvePlaceholders } from '../checker/checker.js';
+import { isFunctionType, resolveAlias, resolvePlaceholders } from '../checker/type-algebra.js';
 
 const runtimeKeys = Object.keys(runtime);
 const testRuntimeKeys = Object.keys(testRuntime);

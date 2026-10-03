@@ -5,7 +5,7 @@ drittes Ergebnis kennen: „unbekannt".
 
 ## Problem
 
-`getTypeError` ([checker.ts](../src/checker/checker.ts)) kennt zwei Ergebnisse: ein `TypeError`
+`getTypeError` ([type-algebra.ts](../src/checker/type-algebra.ts)) kennt zwei Ergebnisse: ein `TypeError`
 oder `undefined`. `undefined` heißt dabei zweierlei:
 
 - **Teilmenge:** `PositiveInteger` passt zu `Integer`.
@@ -33,7 +33,7 @@ Der dritte Fall ist offen. Die core-lib umgeht ihn, indem sie obere Grenzen als
 
 `getTypeError` beantwortet „passt nicht sicher?", sein `undefined` heißt yes oder unknown. Jede
 Stelle will aber eine von drei bestimmten Fragen beantwortet haben. Stand der Analyse, Funktionen
-in `checker.ts` (Zeilen zur Orientierung):
+in `checker.ts` und `type-algebra.ts` (Zeilen zur Orientierung):
 
 | Frage | Ersatz | Stellen |
 |---|---|---|

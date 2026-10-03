@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { basename, join, resolve } from 'path';
 
-import { checkerStats, resetCheckerStats } from '../src/checker/checker.js';
+import { checkerStats, resetCheckerStats } from '../src/checker/checker-stats.js';
 import { createFileSystemHost, loadFile } from '../src/compiler/project-loader.js';
 import {
 	alarmingDeviation,
