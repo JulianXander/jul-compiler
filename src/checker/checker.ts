@@ -8392,25 +8392,15 @@ function isTypeAssignableByStructure(
 					return isTypeAssignable(prefixArgumentType, argumentsType.UpperBound, targetType);
 				case 'tuple': {
 					// alle ElementTypes müssen Typen sein
-					const subErrors = argumentsType.ElementTypes.map(elementType =>
-						getTypeError(undefined, elementType, targetType)).filter(isDefined);
-					if (subErrors.length) {
-						return {
-							assignable: false,
-							error: {
-								// TODO error struktur überdenken
-								message: subErrors.map(typeErrorToString).join('\n'),
-								// innerError
-							}
-						};
-					}
-					return undefined;
+					const elementAssignabilities = argumentsType.ElementTypes.map(elementType =>
+						isTypeAssignable(undefined, elementType, targetType)).filter(isDefined);
+					return joinTypeAssignabilities(elementAssignabilities);
 				}
 				// TODO check inner types rekursiv
 				case 'dictionary':
 				case 'dictionaryLiteral':
 				case 'list':
-					return undefined;
+					return { assignable: undefined };
 				default:
 					// TODO type specific error?
 					break;
