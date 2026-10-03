@@ -8253,19 +8253,30 @@ function isTypeAssignableByStructure(
 					};
 				}
 				case 'tuple':
-					const subErrors = argumentsType.ElementTypes.map(valueElement =>
-						getTypeError(prefixArgumentType, valueElement, targetElementType)).filter(isDefined);
-					if (subErrors.length) {
+					const elementAssignabilities = argumentsType.ElementTypes.map(valueElement =>
+						isTypeAssignable(prefixArgumentType, valueElement, targetElementType));
+					const elementAssignabilityErrors = elementAssignabilities.map(elementAssignability => elementAssignability.error)
+						.filter(isDefined);
+					if (elementAssignabilityErrors.length) {
 						// Mehrere Tupel-Elemente mit demselben Zieltyp erzeugen sonst dieselbe
 						// Meldung mehrfach hintereinander - dedup wie in getTupleTypeError2.
-						const uniqueMessages = [...new Set(subErrors.map(typeErrorToString))];
+						const uniqueMessages = [...new Set(elementAssignabilityErrors.map(typeErrorToString))];
 						return {
-							// TODO error struktur überdenken
-							message: uniqueMessages.join('\n'),
-							// innerError
+							assignable: false,
+							error: {
+								// TODO error struktur überdenken
+								message: uniqueMessages.join('\n'),
+								// innerError
+							}
 						};
 					}
-					return undefined;
+					const hasUnkownElementAssignability = elementAssignabilities.some(elementAssignability => elementAssignability.assignable === undefined);
+					if (hasUnkownElementAssignability) {
+						return { assignable: undefined };
+					}
+					else {
+						return { assignable: true };
+					}
 				default:
 					break;
 			}
