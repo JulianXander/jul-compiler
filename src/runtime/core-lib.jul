@@ -1036,6 +1036,28 @@ toList = nativeFunction(
 		}
 	§
 )
+# Creates a new Dictionary with the same keys, each value mapped by callback
+mapDictionary = nativeFunction(
+	(
+		dictionary: Or([] Dictionary(Any))
+		callback: (
+			value: TypeOf(dictionary)/ElementType
+			key: Text
+		) :> Any
+	) :> MapElements(And(TypeOf(dictionary) Or([] Dictionary(Any))) TypeOf(callback))
+	§js
+		(dictionary, callback) => {
+			if (!dictionary) {
+				return;
+			}
+			const mappedDictionary = {};
+			for (const key in dictionary) {
+				mappedDictionary[key] = callback(dictionary[key], key);
+			}
+			return mappedDictionary;
+		}
+	§
+)
 #endregion Dictionary
 #region Stream
 #region core

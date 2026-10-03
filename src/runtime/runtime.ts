@@ -2633,6 +2633,33 @@ export const toList = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const mapDictionary = /*#__PURE__*/ _createFunction(
+	function mapDictionary<T, U>(
+		dictionary: { [key: string]: T; } | undefined,
+		callback: (value: T, key: string) => U,
+	): { [key: string]: U; } | undefined {
+		if (!dictionary) {
+			return;
+		}
+		const mappedDictionary: { [key: string]: U; } = {};
+		for (const key in dictionary) {
+			mappedDictionary[key] = callback(dictionary[key]!, key);
+		}
+		return mappedDictionary;
+	},
+	{
+		singleNames: [
+			{
+				name: 'dictionary',
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
+			},
+			{
+				name: 'callback',
+				type: _Function
+			},
+		]
+	}
+);
 //#endregion Dictionary
 //#region Stream
 //#region helper

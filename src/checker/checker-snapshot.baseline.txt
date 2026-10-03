@@ -33,6 +33,32 @@ cliArguments: Any
 === console-progress/console-progress.jul ===
 progress$: FiniteStream(Integer)
 timer1$: FiniteStream(Or(0 PositiveInteger))
+=== core-lib/aggregate/aggregate.jul ===
+aggregateRecursive: (   values: List(Any)   init: Any   fn: (     acc: Any     val: Any     i: Any   ) :> Any   index: Any   curr: Any ) :> Any
+sumBuiltin: 6
+sumRecursive: Any
+testValues: [1 2 3]
+=== core-lib/aggregate/aggregate.test.jul ===
+aggregateRecursive: (   values: List(Any)   init: Any   fn: (     acc: Any     val: Any     i: Any   ) :> Any   index: Any   curr: Any ) :> Any
+testValues: [1 2 3]
+=== core-lib/http-request/http-request.jul ===
+=== core-lib/import/file1.jul ===
+=== core-lib/import/file2.jul ===
+MyType: TypeOf([hallo: Integer])
+logText: (value: Text) ~> Empty
+someText: §test token 1§
+=== core-lib/import/import.jul ===
+MyType: TypeOf([hallo: Integer])
+alias: (value: Text) ~> Empty
+file2: [   someText: §test token 1§   logText: (value: Text) ~> Empty   MyType: TypeOf(MyType) ]
+javascriptImport: [   testfn1: (par1: Any) ~> Any   testfn2: (par1: Any) ~> Any   greeting: §hello js§   test2: 4f ]
+jsonImport: §hello json§
+someText: §test token 1§
+test1: [hallo: 1]
+typescriptImport: [   greeting: §hello ts§   test2: 4f   testfn1: (par1: Text) ~> Any   testfn2: (par1: Text) ~> Any ]
+valueImport: 15
+yamlImport: §hello yaml§
+  error 1151 at 20:3 Expected a nested key
 === fibonacci/fibonacci.jul ===
 fibonacci: (x: Integer) -> Any
 fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) -> Any
@@ -69,24 +95,6 @@ typeFunction: MyType ~> Empty
   error 5003 at 53:25 Expected the params type to describe an argument collection. Did you mean [Integer]?
   error 5050 at 54:1 Argument type mismatch. | Can not assign [1] to Integer.
   error 5050 at 70:1 Argument type mismatch. | Can not assign dictionary to rest parameter
-=== http-request/http-request.jul ===
-=== import/file1.jul ===
-=== import/file2.jul ===
-MyType: TypeOf([hallo: Integer])
-logText: (value: Text) ~> Empty
-someText: §test token 1§
-=== import/import.jul ===
-MyType: TypeOf([hallo: Integer])
-alias: (value: Text) ~> Empty
-file2: [   someText: §test token 1§   logText: (value: Text) ~> Empty   MyType: TypeOf(MyType) ]
-javascriptImport: [   testfn1: (par1: Any) ~> Any   testfn2: (par1: Any) ~> Any   greeting: §hello js§   test2: 4f ]
-jsonImport: §hello json§
-someText: §test token 1§
-test1: [hallo: 1]
-typescriptImport: [   greeting: §hello ts§   test2: 4f   testfn1: (par1: Text) ~> Any   testfn2: (par1: Text) ~> Any ]
-valueImport: 15
-yamlImport: §hello yaml§
-  error 1151 at 20:3 Expected a nested key
 === object-example.jul ===
 myDictValue1: 1
 myDictValue2: 1234
@@ -337,7 +345,7 @@ textValue: (input: Any) ~> Text
 ageInput: Any
 body: Any
 booleanInput: Any
-data$: Stream(Or(Empty List(Any)))
+data$: Stream([   name: Any   age: Any   visible: Any ])
 htmlIf: Any
 inputValue$: Any
 label: Any
@@ -349,7 +357,7 @@ visibleInput: Any
   error 3110 at 1:88 Unexpected extension for import: 
   error 5050 at 6:9 Argument type mismatch. | Can not assign dictionary to rest parameter
   error 3201 at 29:3 'button' is not defined.
-  error 5160 at 32:15 Failed to dereference field 'value' in type Stream(Or(Empty List(Any)))
+  error 5160 at 32:15 Failed to dereference field 'value' in type Stream([ |   name: Any |   age: Any |   visible: Any | ])
   hint 3204 at 1:66 'inputValue$' is defined but never used.
   warning 2800 at 6:9 Stream 'data$' is never completed. Call complete on it or return it.
 === ui/preserve-dom/main.jul ===

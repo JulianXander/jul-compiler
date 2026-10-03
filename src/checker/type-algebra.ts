@@ -1546,6 +1546,8 @@ export function mapElementsFromTypes(
 	}
 	const sourceType = resolveAlias(rawSourceType);
 	switch (sourceType.julType) {
+		case 'never':
+			return builtinNever;
 		case 'empty':
 			return builtinEmpty;
 		case 'tuple': {
@@ -1563,6 +1565,30 @@ export function mapElementsFromTypes(
 		case 'list':
 			// Die Länge steht nicht fest, jedes Element bekommt denselben Typ.
 			return createCompileTimeListType(mapElementType(callbackType, sourceType.ElementType, undefined));
+		case 'dictionaryLiteral': {
+			const fieldNames = Object.keys(sourceType.Fields);
+			if (!fieldNames.length
+				&& sourceType.complete) {
+				return builtinEmpty;
+			}
+			const mappedFields: CompileTimeDictionary = {};
+			if (fieldNames.length > maxMappedPositions) {
+				const mapped = mapElementType(callbackType, createNormalizedUnionType(Object.values(sourceType.Fields)), undefined);
+				fieldNames.forEach(fieldName => {
+					mappedFields[fieldName] = mapped;
+				});
+			}
+			else {
+				fieldNames.forEach(fieldName => {
+					mappedFields[fieldName] = mapElementType(callbackType, sourceType.Fields[fieldName]!, createTextLiteral(fieldName));
+				});
+			}
+			// Weitere, unbekannte Felder werden ebenso abgebildet, bleiben also unbekannt.
+			return createCompileTimeDictionaryLiteralType(mappedFields, sourceType.complete);
+		}
+		case 'dictionary':
+			// Die Schlüssel stehen nicht fest, jeder Wert bekommt denselben Typ.
+			return createCompileTimeDictionaryType(mapElementType(callbackType, sourceType.ElementType, undefined));
 		case 'or':
 			return createNormalizedUnionType(sourceType.ChoiceTypes.map(choiceType =>
 				mapElementsFromTypes(choiceType, rawCallbackType)));

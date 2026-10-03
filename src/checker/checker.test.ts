@@ -2203,6 +2203,46 @@ complete(a$)`, {
 			errors: [integerReturnTypeMismatch('List([Integer])', 37, 62, 26)],
 		});
 	});
+	// Über eine unmögliche Quelle ist auch das Ergebnis unmöglich und passt damit überall.
+	it('map-over-never-is-never', () => {
+		expectCheck('f = (n: And(Integer Text)) :> Integer => n.map((value) => value)');
+	});
+	// Ein nicht leeres Dictionary bleibt nicht leer, jeder Wert bekommt denselben Typ.
+	it('map-dictionary-keeps-dictionary', () => {
+		expectCheck('f = (d: Dictionary(Integer)) :> Integer => d.mapDictionary((value) => [value])', {
+			errors: [integerReturnTypeMismatch('Dictionary([Integer])', 43, 78, 32)],
+		});
+	});
+	it('map-dictionary-result-fits-non-empty-dictionary', () => {
+		expectCheck('f = (d: Dictionary(Integer)) :> Dictionary(Text) => d.mapDictionary((value) => §§(value)§)');
+	});
+	// Bei bekannten Feldern wird jedes Feld einzeln abgebildet, mit seinem Namen als Schlüssel.
+	it('map-dictionary-over-fields-passes-value-and-key-per-field', () => {
+		expectCheck('f = (d: [a: Integer b: Text]) :> Integer => d.mapDictionary((value key) => [value key])', {
+			errors: [integerReturnTypeMismatch('[\n  a: [Integer §a§]\n  b: [Text §b§]\n]', 44, 87, 33)],
+		});
+	});
+	it('map-dictionary-or-empty-may-be-empty', () => {
+		expectCheck('f = (d: Or([] Dictionary(Integer))) :> Integer => d.mapDictionary((value) => [value])', {
+			errors: [
+				{
+					...integerReturnTypeMismatch('', 50, 85, 39),
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.\nCan not assign Dictionary([Integer]) to Integer.',
+				},
+			],
+		});
+	});
+	// Ohne Kenntnis der Quelle ist das Ergebnis trotzdem ein Dictionary, keine List.
+	it('map-dictionary-over-unknown-source-is-dictionary', () => {
+		expectCheck('f = (s: Any) :> Integer => s.mapDictionary((value) => [value])', {
+			errors: [
+				{
+					...integerReturnTypeMismatch('', 27, 62, 16),
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.\nCan not assign Dictionary([Any]) to Integer.',
+				},
+			],
+		});
+	});
 	// combine$ liefert die Werte seiner Quellen in deren Reihenfolge, jede Position mit ihrem Typ.
 	it('combine-keeps-value-type-per-position', () => {
 		expectCheck('f = (a$: Stream(Text) b$: Stream(Or([] Integer)) c$: Stream(Boolean)) :> Integer => combine$(a$ b$ c$)', {

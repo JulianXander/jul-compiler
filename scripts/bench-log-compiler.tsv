@@ -190,3 +190,4 @@
 2026-10-03 12:12:20	4b0c129+	-	ADV-DEV-56627	yugioh	parse+check	5	1725.73	2140.59	2140.59	nach: Argumentpruefung beweist mit aufgeloesten Platzhaltern (unknown abbauen b)
 2026-10-03 15:06:03	a9dfd05+	-	ADV-DEV-56627	yugioh	parse+check	5	1738.85	2170.96	2170.96	vor Auslagerung type-algebra
 2026-10-03 15:08:57	a9dfd05+	-	ADV-DEV-56627	yugioh	parse+check	5	1792.86	2075.98	2075.98	nach Auslagerung type-algebra
+2026-10-03 16:01:35	b59a87f+	-	ADV-DEV-56627	yugioh	parse+check	5	1655.79	2073.12	2073.12	nach: mapDictionary in der core-lib, MapElements fuer Dictionaries und Never

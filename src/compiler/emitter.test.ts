@@ -682,6 +682,20 @@ function runEmitted(code: string, resultName?: string): unknown {
 }
 
 describe('Emitter Ausführung', () => {
+	it('mapDictionary bildet jeden Wert mit seinem Schlüssel ab', () => {
+		const code = [
+			'd = [a = 1 b = 2]',
+			'result = d.mapDictionary((value key) => §§(key)§(value)§)',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.deep.equal({ a: 'a1', b: 'b2' });
+	});
+	it('mapDictionary über Empty liefert Empty', () => {
+		const code = [
+			'f = (d: Or([] Dictionary(Integer))) => d.mapDictionary((value) => value)',
+			'result = f([])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(undefined);
+	});
 	// Die Selbstreferenz steht in einer Kollektion und ist damit produktiv, der Checker lässt sie
 	// durch. Zur Laufzeit darf sie dann nicht vor der fertigen Definition ausgewertet werden.
 	it('ein rekursiver Typ lässt sich laden', () => {
