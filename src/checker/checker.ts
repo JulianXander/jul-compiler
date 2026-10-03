@@ -3617,7 +3617,7 @@ function inferType(
 			if (typeGuard) {
 				const typeGuardType = typeGuard.typeInfo;
 				const dereferencedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
-				const assignability = dereferencedTargetType && isTypeAssignable(undefined, resolvePlaceholders(typeInfo.type), dereferencedTargetType);
+				const assignability = dereferencedTargetType && isTypeAssignable(resolvePlaceholders(typeInfo.type), dereferencedTargetType);
 				if (assignability && assignability.assignable === false) {
 					const assignmentError = typeErrorToString(assignability.error);
 					// Position wandert beim Abstieg durch verschachtelte Dictionary-Literale auf
@@ -3726,7 +3726,7 @@ function inferType(
 					setInferredType(typeGuard, typeContext, undefined, checkContext);
 					checkTypeGuardIsType(typeGuard, errors);
 					// TODO check value?
-					const assignability = typeGuard.typeInfo && isTypeAssignable(undefined, fieldType, valueOf(resolvePlaceholders(typeGuard.typeInfo.type)));
+					const assignability = typeGuard.typeInfo && isTypeAssignable(fieldType, valueOf(resolvePlaceholders(typeGuard.typeInfo.type)));
 					if (assignability && assignability.assignable === false) {
 						errors.push({
 							code: ErrorCode.destructuringFieldTypeMismatch,
@@ -4025,7 +4025,12 @@ function inferType(
 			// argumentContext bewusst nicht in Funktions- und Parameterknoten ab, weil das die
 			// Auflösung des Rückgabetyps (TypeOf(callback)/ReturnType) zerstört.
 			const dereferencedParamsType = dereferenceCallbackParams(functionType, prefixArgumentType, argsType, paramsType);
-			const argsAssignability = isTypeAssignable(prefixArgumentType, argsType, dereferencedParamsType);
+			// Der Empfänger ist das erste Argument (wie bei Uniform Function Call Syntax).
+			const argsAssignability = isTypeAssignable(
+				prefixArgumentType
+					? createCompileTimeConcatType([createCompileTimeTupleType([prefixArgumentType]), argsType])
+					: argsType,
+				dereferencedParamsType);
 			const hasArgsError = argsAssignability.assignable === false;
 			if (argsAssignability.assignable === false) {
 				const position = (prefixArgument && findErrorPositionInChild(prefixArgument))
@@ -4258,7 +4263,7 @@ function inferType(
 				// hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet werden.
 				const rawDeclaredReturnType = valueOf(declaredReturnType.typeInfo!.type);
 				const dereferencedDeclaredReturnType = resolvePlaceholders(rawDeclaredReturnType);
-				const returnAssignability = isTypeAssignable(undefined, resolvePlaceholders(inferredReturnType), dereferencedDeclaredReturnType);
+				const returnAssignability = isTypeAssignable(resolvePlaceholders(inferredReturnType), dereferencedDeclaredReturnType);
 				if (returnAssignability.assignable === false) {
 					// Markiert wird nur der zurückgegebene Ausdruck (last(body)), nicht die
 					// ganze Funktion - sonst ummantelt die mehrzeilige Klammerung (formatErrors)
@@ -7574,11 +7579,10 @@ function valueOf(type: CompileTimeType | undefined): CompileTimeType {
  * Immer mit === true bzw. === false vergleichen: !isSubtypeOf(…) hieße "nein oder unbekannt".
  */
 export function isSubtypeOf(type: CompileTimeType, superType: CompileTimeType): boolean | undefined {
-	return isTypeAssignable(undefined, type, superType).assignable;
+	return isTypeAssignable(type, superType).assignable;
 }
 
 function isTypeAssignable(
-	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
 ): TypeAssignability {
@@ -7587,7 +7591,7 @@ function isTypeAssignable(
 	}
 	typeComparisonDepth++;
 	try {
-		return isTypeAssignableAtDepth(prefixArgumentType, argumentsType, targetType);
+		return isTypeAssignableAtDepth(argumentsType, targetType);
 	}
 	finally {
 		typeComparisonDepth--;
@@ -7604,7 +7608,6 @@ type TypeAssignability =
 	}
 
 function isTypeAssignableAtDepth(
-	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
 ): TypeAssignability {
@@ -7660,7 +7663,6 @@ function isTypeAssignableAtDepth(
 		aliasComparisonsInProgress.push({ args: argumentsType, target: targetType });
 		try {
 			return isTypeAssignable(
-				prefixArgumentType,
 				argumentsType.julType === 'alias' ? dereferenceAlias(argumentsType) : argumentsType,
 				targetType.julType === 'alias' ? dereferenceAlias(targetType) : targetType);
 		}
@@ -7677,12 +7679,12 @@ function isTypeAssignableAtDepth(
 		return { assignable: true };
 	}
 	if (fitsRange === false) {
-		const structureAssignability = isTypeAssignableByStructure(prefixArgumentType, argumentsType, targetType);
+		const structureAssignability = isTypeAssignableByStructure(argumentsType, targetType);
 		return structureAssignability.assignable === false
 			? structureAssignability
 			: getDefaultTypeError(argumentsType, targetType);
 	}
-	return isTypeAssignableByStructure(prefixArgumentType, argumentsType, targetType);
+	return isTypeAssignableByStructure(argumentsType, targetType);
 }
 
 /**
@@ -7710,7 +7712,6 @@ function integerRangeFits(argumentsType: CompileTimeType, targetType: CompileTim
 }
 
 function isTypeAssignableByStructure(
-	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: Exclude<ResolvedType, { julType: 'any'; }>,
 	targetType: Exclude<ResolvedType, { julType: 'any'; }>,
 ): TypeAssignability {
@@ -7739,7 +7740,7 @@ function isTypeAssignableByStructure(
 				const remainingType = otherChoices.length === 1
 					? otherChoices[0]!
 					: createCompileTimeIntersectionType(otherChoices);
-				const remainingAssignability = isTypeAssignable(prefixArgumentType, remainingType, widenedTarget);
+				const remainingAssignability = isTypeAssignable(remainingType, widenedTarget);
 				if (remainingAssignability.assignable === false) {
 					return getDefaultTypeError(argumentsType, targetType);
 				}
@@ -7756,7 +7757,7 @@ function isTypeAssignableByStructure(
 			}
 			// Es genügt, wenn ein args Choice zum target passt, denn der Wert erfüllt alle.
 			const choiceAssignabilities = argumentsType.ChoiceTypes.map(choiceType =>
-				isTypeAssignable(prefixArgumentType, choiceType, targetType));
+				isTypeAssignable(choiceType, targetType));
 			if (choiceAssignabilities.some(choiceAssignability => choiceAssignability.assignable === true)) {
 				return { assignable: true };
 			}
@@ -7768,7 +7769,7 @@ function isTypeAssignableByStructure(
 				// value: Or([] Integer) ist Integer, kein einzelner choice sagt das.
 				const dereferencedArgumentsType = resolvePlaceholders(argumentsType);
 				if (dereferencedArgumentsType !== argumentsType) {
-					return isTypeAssignable(prefixArgumentType, dereferencedArgumentsType, targetType);
+					return isTypeAssignable(dereferencedArgumentsType, targetType);
 				}
 				// Bleibt auch nach dem Auflösen nichts übrig: das target selbst kann sich noch
 				// zerlegen lassen (z.B. Or): And(Integer Not(0)) passt als GANZES zu
@@ -7789,8 +7790,14 @@ function isTypeAssignableByStructure(
 			}
 			return { assignable: undefined };
 		}
-		case 'add':
-		case 'concat': {
+		case 'concat':
+			// Gegen eine Parameterliste ist Concat die Argumentkollektion mit Empfänger, siehe
+			// isTypeAssignableForParameters.
+			if (targetType.julType === 'parameters') {
+				break;
+			}
+		// falls through
+		case 'add': {
 			// Wie withElementAt: eine noch unaufgelöste Source (z.B. der eigene Parameter, bevor
 			// er am Aufruf substituiert wird) hält den Knoten als Concat(...) stehen
 			// (concatFromTypes: isUnresolvedPlaceholderType-Guard). Erst per resolvePlaceholders
@@ -7798,7 +7805,7 @@ function isTypeAssignableByStructure(
 			// schon permissiv (siehe unten), als Argumenttyp fehlte das.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return isTypeAssignable(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(resolved, targetType);
 			}
 			return { assignable: undefined };
 		}
@@ -7817,16 +7824,16 @@ function isTypeAssignableByStructure(
 			if (dereferencedSource !== argumentsType.Source) {
 				const dereferencedLength = getLengthFromType(dereferencedSource);
 				if (!typeEquals(dereferencedLength, argumentsType)) {
-					return isTypeAssignable(prefixArgumentType, dereferencedLength, targetType);
+					return isTypeAssignable(dereferencedLength, targetType);
 				}
 			}
-			return isTypeAssignable(prefixArgumentType, CompileTimePositiveInteger, targetType);
+			return isTypeAssignable(CompileTimePositiveInteger, targetType);
 		}
 		case 'nestedReference': {
 			// Wie concat/withElementAt: erst auflösen versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return isTypeAssignable(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(resolved, targetType);
 			}
 			return { assignable: undefined };
 		}
@@ -7836,7 +7843,7 @@ function isTypeAssignableByStructure(
 			// passt also nicht zu Not(GreaterInteger(2)), denn 3 wäre ausgeschlossen.
 			switch (targetType.julType) {
 				case 'not': {
-					const sourceAssignability = isTypeAssignable(prefixArgumentType, targetType.SourceType, argumentsType.SourceType);
+					const sourceAssignability = isTypeAssignable(targetType.SourceType, argumentsType.SourceType);
 					return sourceAssignability.assignable === false
 						? getDefaultTypeError(argumentsType, targetType)
 						: sourceAssignability;
@@ -7858,7 +7865,7 @@ function isTypeAssignableByStructure(
 		case 'or': {
 			// alle args Choices müssen zum target passen
 			const choiceAssignabilities = argumentsType.ChoiceTypes.map(choiceType =>
-				isTypeAssignable(prefixArgumentType, choiceType, targetType));
+				isTypeAssignable(choiceType, targetType));
 			return joinTypeAssignabilities(choiceAssignabilities, true);
 		}
 		case 'parameterReference': {
@@ -7866,7 +7873,7 @@ function isTypeAssignableByStructure(
 			if (!dereferencedParameterType) {
 				return { assignable: undefined };
 			}
-			return isTypeAssignable(prefixArgumentType, dereferencedParameterType, targetType);
+			return isTypeAssignable(dereferencedParameterType, targetType);
 		}
 		case 'predicate':
 			switch (targetType.julType) {
@@ -7878,7 +7885,7 @@ function isTypeAssignableByStructure(
 					break;
 				// Ein Wert, der das Prädikat erfüllt, liegt in der Obermenge.
 				default:
-					return isTypeAssignable(prefixArgumentType, argumentsType.UpperBound, targetType);
+					return isTypeAssignable(argumentsType.UpperBound, targetType);
 			}
 			break;
 		case 'mapElements': {
@@ -7886,7 +7893,7 @@ function isTypeAssignableByStructure(
 			// stehen - erst neu falten versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return isTypeAssignable(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(resolved, targetType);
 			}
 			return { assignable: undefined };
 		}
@@ -7894,7 +7901,7 @@ function isTypeAssignableByStructure(
 			// Wie withElementAt: erst auswerten versuchen, sonst permissiv.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return isTypeAssignable(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(resolved, targetType);
 			}
 			return { assignable: undefined };
 		}
@@ -7907,7 +7914,7 @@ function isTypeAssignableByStructure(
 			// Zieltyp ist withElementAt schon permissiv (siehe unten), als Argumenttyp fehlte das.
 			const resolved = resolvePlaceholders(argumentsType);
 			if (resolved !== argumentsType) {
-				return isTypeAssignable(prefixArgumentType, resolved, targetType);
+				return isTypeAssignable(resolved, targetType);
 			}
 			return { assignable: undefined };
 		}
@@ -7919,7 +7926,7 @@ function isTypeAssignableByStructure(
 		case 'and': {
 			// das arg muss zu allen target Choices passen
 			const choiceAssignabilities = targetType.ChoiceTypes.map(choiceType =>
-				isTypeAssignable(prefixArgumentType, argumentsType, choiceType));
+				isTypeAssignable(argumentsType, choiceType));
 			return joinTypeAssignabilities(choiceAssignabilities, true);
 		}
 		case 'blob':
@@ -7945,14 +7952,14 @@ function isTypeAssignableByStructure(
 			const elementType = targetType.ElementType;
 			switch (argumentsType.julType) {
 				case 'dictionary': {
-					const subError = isTypeAssignable(prefixArgumentType, argumentsType.ElementType, elementType);
+					const subError = isTypeAssignable(argumentsType.ElementType, elementType);
 					return subError;
 				}
 				case 'dictionaryLiteral': {
 					// TODO the field x is missing error?
 					const fieldAssignabilities = map(
 						argumentsType.Fields,
-						(fieldType, fieldName) => isTypeAssignableForField(fieldName, elementType, prefixArgumentType, fieldType),
+						(fieldType, fieldName) => isTypeAssignableForField(fieldName, elementType, fieldType),
 					);
 					return joinTypeAssignabilities(fieldAssignabilities, true);
 				}
@@ -7963,7 +7970,7 @@ function isTypeAssignableByStructure(
 			break;
 		}
 		case 'dictionaryLiteral': {
-			const fieldsAssignability = isTypeAssignableForDictionaryLiteral(prefixArgumentType, argumentsType, targetType.Fields);
+			const fieldsAssignability = isTypeAssignableForDictionaryLiteral(argumentsType, targetType.Fields);
 			if (!fieldsAssignability) {
 				// Standardfehler
 				break;
@@ -8037,11 +8044,11 @@ function isTypeAssignableByStructure(
 			// - Return-Type: Normale Richtung (Kovarianz).
 			//   argumentsType.ReturnType muss Teilmenge von targetType.ReturnType sein,
 			//   weil der Rückgabewert das erfüllen muss, was die Zielposition erwartet.
-			const paramsAssignability = isTypeAssignable(prefixArgumentType, targetType.ParamsType, argumentsType.ParamsType);
+			const paramsAssignability = isTypeAssignable(targetType.ParamsType, argumentsType.ParamsType);
 			if (paramsAssignability.assignable === false) {
 				return paramsAssignability;
 			}
-			const returnAssignability = isTypeAssignable(prefixArgumentType, argumentsType.ReturnType, targetType.ReturnType);
+			const returnAssignability = isTypeAssignable(argumentsType.ReturnType, targetType.ReturnType);
 			if (returnAssignability.assignable === false) {
 				// Ohne Beschriftung liesse sich nicht erkennen, dass die Meldung den Rückgabewert
 				// betrifft, statt z.B. einen weiteren Parameter (siehe getParameterError).
@@ -8109,7 +8116,7 @@ function isTypeAssignableByStructure(
 			const targetElementType = targetType.ElementType;
 			switch (argumentsType.julType) {
 				case 'list': {
-					const elementAssignability = isTypeAssignable(prefixArgumentType, argumentsType.ElementType, targetElementType);
+					const elementAssignability = isTypeAssignable(argumentsType.ElementType, targetElementType);
 					if (elementAssignability.assignable === false) {
 						// Ohne Hülle stand der Element-Fehler roh neben anderen Or-Choice-Fehlern,
 						// ohne erkennbaren Bezug zur umschliessenden Liste (Fund im echten
@@ -8125,7 +8132,7 @@ function isTypeAssignableByStructure(
 				}
 				case 'tuple': {
 					const elementAssignabilities = argumentsType.ElementTypes.map(valueElement =>
-						isTypeAssignable(prefixArgumentType, valueElement, targetElementType));
+						isTypeAssignable(valueElement, targetElementType));
 					return joinTypeAssignabilities(elementAssignabilities);
 				}
 				default:
@@ -8150,7 +8157,7 @@ function isTypeAssignableByStructure(
 		case 'or': {
 			// das arg muss zu mindestens einem target Choice passen
 			const choiceAssignabilities = targetType.ChoiceTypes.map(choiceType =>
-				isTypeAssignable(prefixArgumentType, argumentsType, choiceType));
+				isTypeAssignable(argumentsType, choiceType));
 			if (choiceAssignabilities.some(choiceAssignability => choiceAssignability.assignable === true)) {
 				return { assignable: true };
 			}
@@ -8168,7 +8175,7 @@ function isTypeAssignableByStructure(
 						createBooleanLiteral(true),
 						createBooleanLiteral(false),
 					]);
-					return isTypeAssignable(prefixArgumentType, asLiteralUnion, targetType);
+					return isTypeAssignable(asLiteralUnion, targetType);
 				}
 				// Best-Match statt Alle-Choices-Dump (TS/Flow-Vorbild, Fund im echten
 				// yugioh-Fehlerbild, Session 2026-09-10): nur den strukturell nächsten Choice
@@ -8202,7 +8209,7 @@ function isTypeAssignableByStructure(
 			return { assignable: undefined };
 		}
 		case 'parameters':
-			return isTypeAssignableForParameters(prefixArgumentType, argumentsType, targetType);
+			return isTypeAssignableForParameters(argumentsType, targetType);
 		case 'parameterReference': {
 			// TODO
 			// const dereferenced = dereferenceArgumentType(null as any, targetType);
@@ -8217,7 +8224,7 @@ function isTypeAssignableByStructure(
 			if (targetType.finite && !argumentsType.finite) {
 				break;
 			}
-			return isTypeAssignable(prefixArgumentType, argumentsType.ValueType, targetType.ValueType);
+			return isTypeAssignable(argumentsType.ValueType, targetType.ValueType);
 		}
 		case 'text':
 			switch (argumentsType.julType) {
@@ -8236,7 +8243,7 @@ function isTypeAssignableByStructure(
 			break;
 		}
 		case 'tuple':
-			return isTypeAssignableForTuple(prefixArgumentType, argumentsType, targetType);
+			return isTypeAssignableForTuple(argumentsType, targetType);
 		case 'type':
 			switch (argumentsType.julType) {
 				case 'boolean':
@@ -8257,11 +8264,11 @@ function isTypeAssignableByStructure(
 				// Ein Wert, der das Prädikat erfüllt, ist ein Typ, wenn seine Obermenge aus
 				// Typen besteht.
 				case 'predicate':
-					return isTypeAssignable(prefixArgumentType, argumentsType.UpperBound, targetType);
+					return isTypeAssignable(argumentsType.UpperBound, targetType);
 				case 'tuple': {
 					// alle ElementTypes müssen Typen sein
 					const elementAssignabilities = argumentsType.ElementTypes.map(elementType =>
-						isTypeAssignable(undefined, elementType, targetType)).filter(isDefined);
+						isTypeAssignable(elementType, targetType)).filter(isDefined);
 					return joinTypeAssignabilities(elementAssignabilities);
 				}
 				// TODO check inner types rekursiv
@@ -8320,7 +8327,7 @@ function isTypeAssignableByStructure(
 			}
 			// Was das Prädikat für einen Wert in der Obermenge liefert, weiß der Checker nicht.
 			// Das prüft die Laufzeit.
-			if (isTypeAssignable(prefixArgumentType, argumentsType, targetType.UpperBound).assignable === false) {
+			if (isTypeAssignable(argumentsType, targetType.UpperBound).assignable === false) {
 				break;
 			}
 			return { assignable: undefined };
@@ -8409,7 +8416,6 @@ function tryFoldPredicate(predicate: CompileTimePredicateType, argumentsType: Co
 const predicateFoldCache = new WeakMap<CompileTimeFunctionType, Map<string, boolean>>();
 
 function isTypeAssignableForTuple(
-	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeTupleType,
 ): TypeAssignability {
@@ -8424,9 +8430,9 @@ function isTypeAssignableForTuple(
 					}
 				};
 			}
-			return isTypeAssignable(prefixArgumentType, argumentsType.ElementType, targetElementTypes[0]!);
+			return isTypeAssignable(argumentsType.ElementType, targetElementTypes[0]!);
 		case 'tuple':
-			return isTypeAssignableForTupleArgAndTupleTarget(prefixArgumentType, argumentsType.ElementTypes, targetElementTypes);
+			return isTypeAssignableForTupleArgAndTupleTarget(argumentsType.ElementTypes, targetElementTypes);
 		case 'parameters':
 			// Gegenstück zu isTypeAssignableForParameters' case 'tuple': dort darf ein unbenanntes
 			// Tuple-Pattern (`[Integer] => ...`) als Argument gegen einen benannten Parametertyp
@@ -8436,7 +8442,6 @@ function isTypeAssignableForTuple(
 			// TODO argumentsType.rest berücksichtigen - kein aktueller Fall deklariert einen
 			// Rest-Parameter an dieser Stelle.
 			return isTypeAssignableForTupleArgAndTupleTarget(
-				prefixArgumentType,
 				argumentsType.singleNames.map(param => param.type ?? builtinAny),
 				targetElementTypes,
 			);
@@ -8446,14 +8451,13 @@ function isTypeAssignableForTuple(
 }
 
 function isTypeAssignableForTupleArgAndTupleTarget(
-	prefixArgumentType: CompileTimeType | undefined,
 	argumentElementTypes: CompileTimeType[],
 	targetElementTypes: CompileTimeType[],
 ): TypeAssignability {
 	// TODO fehler wenn argument mehr elemente entfält als target?
 	const elementAssignabilities = targetElementTypes.map((targetElementType, index) => {
 		const valueElement = argumentElementTypes[index] ?? builtinEmpty;
-		return isTypeAssignable(prefixArgumentType, valueElement, targetElementType);
+		return isTypeAssignable(valueElement, targetElementType);
 	});
 	return joinTypeAssignabilities(elementAssignabilities);
 }
@@ -8494,7 +8498,6 @@ function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[], keepD
  * ist: dann gilt der Standardfehler.
  */
 function isTypeAssignableForDictionaryLiteral(
-	prefixArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeType,
 	targetFieldTypes: CompileTimeDictionary,
 ): TypeAssignability | undefined {
@@ -8517,14 +8520,14 @@ function isTypeAssignableForDictionaryLiteral(
 							// es fehlt.
 							return { assignable: undefined };
 						}
-						if (isFieldOptional(fieldType, prefixArgumentType)) {
+						if (isFieldOptional(fieldType)) {
 							// Or([] X) ist das Idiom für optionale Felder - Weglassen bleibt erlaubt.
 							return { assignable: true };
 						}
 						missingFieldNames.push(fieldName);
 						return { assignable: true };
 					}
-					return isTypeAssignableForField(fieldName, fieldType, prefixArgumentType, knownField);
+					return isTypeAssignableForField(fieldName, fieldType, knownField);
 				},
 			);
 			if (missingFieldNames.length) {
@@ -8548,10 +8551,9 @@ function isTypeAssignableForDictionaryLiteral(
 function isTypeAssignableForField(
 	fieldName: string,
 	fieldTargetType: CompileTimeType,
-	prefixArgumentType: CompileTimeType | undefined,
 	fieldValueType: CompileTimeType,
 ): TypeAssignability {
-	const subAssignability = isTypeAssignable(prefixArgumentType, fieldValueType, fieldTargetType);
+	const subAssignability = isTypeAssignable(fieldValueType, fieldTargetType);
 	if (subAssignability.assignable === false) {
 		// Feldname steht VOR der Erklärung, die er einleitet (TypeScript-Vorbild), nicht danach -
 		// sonst müsste man beim Lesen den Feldnamen im Kopf der richtigen Ebene der Typ-Kette
@@ -8582,7 +8584,7 @@ function isTypeAssignableForParameter(
 	 */
 	subject: 'value' | 'type' = 'value',
 ): TypeAssignability {
-	const subAssignability = isTypeAssignable(undefined, argumentType, parameterTargetType);
+	const subAssignability = isTypeAssignable(argumentType, parameterTargetType);
 	if (subAssignability.assignable === false) {
 		return {
 			assignable: false,
@@ -8599,8 +8601,8 @@ function isTypeAssignableForParameter(
  * (CLAUDE.md) - Empty erfüllt das Ziel dann bereits, ohne dass es explizit als `feld = []`
  * dastehen muss.
  */
-function isFieldOptional(fieldTargetType: CompileTimeType, prefixArgumentType: CompileTimeType | undefined): boolean {
-	return isTypeAssignable(prefixArgumentType, builtinEmpty, fieldTargetType).assignable !== false;
+function isFieldOptional(fieldTargetType: CompileTimeType): boolean {
+	return isTypeAssignable(builtinEmpty, fieldTargetType).assignable !== false;
 }
 
 /**
@@ -8662,19 +8664,57 @@ function hasExpectedTypeError(expression: ParseValueExpression): boolean {
 }
 
 
+/**
+ * Die Argumentkollektion eines Aufrufs gegen die Parameterliste. Ein Empfänger (a in a.f(b)) steht
+ * als erstes Argument davor: Concat([a] args). Concat wird hier nicht über concatFromTypes
+ * gefaltet, das machte aus [a] vor einer List List(Or(a X)) und verlöre, dass a an erster Stelle
+ * steht. Gelesen wird ein führendes Element vor dem Rest.
+ */
 function isTypeAssignableForParameters(
-	prefixArgumentType: CompileTimeType | undefined,
-	argumentsType: CompileTimeType,
+	rawArgumentsType: CompileTimeType,
 	targetType: ParametersType,
 ): TypeAssignability {
-	// TODO other cases
+	const argumentsType = resolveAlias(rawArgumentsType);
+	if (argumentsType.julType !== 'concat') {
+		return isTypeAssignableForParametersWithLeading(undefined, argumentsType, targetType);
+	}
+	const [leadingSource, ...restSources] = argumentsType.Sources;
+	const leading = leadingSource && resolveAlias(leadingSource);
+	if (leading?.julType !== 'tuple'
+		|| leading.ElementTypes.length !== 1
+		|| restSources.length !== 1) {
+		// Nur die Form [Empfänger] Rest entsteht am Aufruf. Andere Aneinanderreihungen: erst
+		// auflösen, sonst unbekannt.
+		const resolved = resolvePlaceholders(argumentsType);
+		return resolved === argumentsType
+			? { assignable: undefined }
+			: isTypeAssignableForParameters(resolved, targetType);
+	}
+	return isTypeAssignableForParametersWithLeading(leading.ElementTypes[0]!, restSources[0]!, targetType);
+}
+
+/**
+ * Wie isTypeAssignableForParameters, das führende Argument bindet den ersten Parameter, die
+ * Kollektion beginnt dahinter.
+ */
+function isTypeAssignableForParametersWithLeading(
+	leadingArgumentType: CompileTimeType | undefined,
+	rawArgumentsType: CompileTimeType,
+	targetType: ParametersType,
+): TypeAssignability {
+	const argumentsType = resolveAlias(rawArgumentsType);
 	switch (argumentsType.julType) {
+		case 'or': {
+			const choiceAssignabilities = argumentsType.ChoiceTypes.map(choiceType =>
+				isTypeAssignableForParametersWithLeading(leadingArgumentType, choiceType, targetType));
+			return joinTypeAssignabilities(choiceAssignabilities, true);
+		}
 		case 'dictionaryLiteral':
-			return isTypeAssignableForParametersWithCollectionArgs(prefixArgumentType, argumentsType.Fields, targetType);
+			return isTypeAssignableForParametersWithCollectionArgs(leadingArgumentType, argumentsType.Fields, targetType);
 		case 'empty':
-			return isTypeAssignableForParametersWithCollectionArgs(prefixArgumentType, undefined, targetType);
+			return isTypeAssignableForParametersWithCollectionArgs(leadingArgumentType, undefined, targetType);
 		case 'tuple':
-			return isTypeAssignableForParametersWithCollectionArgs(prefixArgumentType, argumentsType.ElementTypes, targetType);
+			return isTypeAssignableForParametersWithCollectionArgs(leadingArgumentType, argumentsType.ElementTypes, targetType);
 		case 'list': {
 			// Eine Liste als Argumentliste hat unbekannte Länge (entsteht durch einen Spread, dessen
 			// Quelle erst zur Laufzeit feststeht). Welche Position welchen Parameter trifft, steht
@@ -8684,9 +8724,9 @@ function isTypeAssignableForParameters(
 			const elementType = argumentsType.ElementType;
 			const optionalElementType = createNormalizedUnionType([builtinEmpty, elementType]);
 			const singleNames = targetType.singleNames;
-			// Ein Prefix-Argument belegt die erste Parameterposition selbst; die Liste beginnt erst
+			// Ein führendes Argument belegt die erste Parameterposition selbst; die Liste beginnt erst
 			// dahinter, die garantierte Position rückt also mit.
-			const guaranteedIndex = prefixArgumentType ? 1 : 0;
+			const guaranteedIndex = leadingArgumentType ? 1 : 0;
 			// Bewiesen nur, wenn jeder Parameter yes liefert.
 			let isProven = true;
 			for (let index = 0; index < singleNames.length; index++) {
@@ -8695,8 +8735,8 @@ function isTypeAssignableForParameters(
 				if (!parameterType) {
 					continue;
 				}
-				const argumentType = prefixArgumentType && !index
-					? prefixArgumentType
+				const argumentType = leadingArgumentType && !index
+					? leadingArgumentType
 					: index === guaranteedIndex
 						? elementType
 						: optionalElementType;
@@ -8711,11 +8751,11 @@ function isTypeAssignableForParameters(
 			const restType = rest?.type;
 			if (restType) {
 				// Übrig bleibt wieder eine Liste desselben Elementtyps - aber womöglich keine mehr,
-				// sobald Einzelparameter Positionen verbraucht haben. Ein Prefix-Argument, das kein
+				// sobald Einzelparameter Positionen verbraucht haben. Ein führendes Argument, das kein
 				// Einzelparameter aufgenommen hat, landet ebenfalls im Rest und geht in den
 				// Elementtyp ein.
-				const restElementType = prefixArgumentType && !singleNames.length
-					? createNormalizedUnionType([prefixArgumentType, elementType])
+				const restElementType = leadingArgumentType && !singleNames.length
+					? createNormalizedUnionType([leadingArgumentType, elementType])
 					: elementType;
 				const remainingType = singleNames.length
 					? createNormalizedUnionType([builtinEmpty, createCompileTimeListType(restElementType)])
@@ -8734,7 +8774,6 @@ function isTypeAssignableForParameters(
 			// der ruft kontravariant auf: targetType ist die übergebene Funktion, argumentsType
 			// die Signatur, die die Zielposition zusichert. Deshalb ist hier targetType das
 			// "Got" und argumentsType das "expected".
-			// TODO prefixArgumentType berücksichtigen?
 			let index = 0;
 			// Bewiesen nur, wenn jeder Parameter yes liefert.
 			let isProven = true;
@@ -8792,20 +8831,31 @@ function isTypeAssignableForParameters(
 			}
 			return { assignable: isProven || undefined };
 		}
-		default:
+		default: {
+			// Eine noch offene Kollektion, etwa der Spread eines Parameters (...xs): erst auflösen,
+			// sonst ist nichts entschieden.
+			const resolved = resolvePlaceholders(argumentsType);
+			if (resolved !== argumentsType) {
+				return isTypeAssignableForParametersWithLeading(leadingArgumentType, resolved, targetType);
+			}
+			if (isUnresolvedPlaceholderType(argumentsType)
+				|| argumentsType.julType === 'concat') {
+				return { assignable: undefined };
+			}
 			return {
 				assignable: false,
 				error: { message: 'isTypeAssignableForParameters not implemented yet for ' + argumentsType.julType }
 			};
+		}
 	}
 }
 
 function isTypeAssignableForParametersWithCollectionArgs(
-	prefixArgumentType: CompileTimeType | undefined,
+	leadingArgumentType: CompileTimeType | undefined,
 	argumentsType: CompileTimeCollection | undefined,
 	targetType: ParametersType,
 ): TypeAssignability {
-	const hasPrefixArg = !!prefixArgumentType;
+	const hasLeadingArgument = !!leadingArgumentType;
 	const isArray = Array.isArray(argumentsType);
 	let paramIndex = 0;
 	let argumentIndex = 0;
@@ -8816,8 +8866,8 @@ function isTypeAssignableForParametersWithCollectionArgs(
 		const param = singleNames[paramIndex]!;
 		const { name, type } = param;
 		let argument: CompileTimeType;
-		if (hasPrefixArg && !paramIndex) {
-			argument = prefixArgumentType;
+		if (hasLeadingArgument && !paramIndex) {
+			argument = leadingArgumentType;
 		}
 		else {
 			argument = (argumentsType && (isArray
@@ -8837,8 +8887,8 @@ function isTypeAssignableForParametersWithCollectionArgs(
 	if (rest) {
 		const restType = rest.type;
 		if (!argumentsType) {
-			const remainingArgs: CompileTimeType = hasPrefixArg && !paramIndex
-				? createCompileTimeTupleType([prefixArgumentType])
+			const remainingArgs: CompileTimeType = hasLeadingArgument && !paramIndex
+				? createCompileTimeTupleType([leadingArgumentType])
 				: builtinEmpty;
 			const assignability = restType
 				? isTypeAssignableForParameter(rest.name, restType, remainingArgs)
@@ -8851,8 +8901,8 @@ function isTypeAssignableForParametersWithCollectionArgs(
 		}
 		if (isArray) {
 			const remainingArgs = argumentsType.slice(argumentIndex);
-			if (hasPrefixArg && !paramIndex) {
-				remainingArgs.unshift(prefixArgumentType);
+			if (hasLeadingArgument && !paramIndex) {
+				remainingArgs.unshift(leadingArgumentType);
 			}
 			const assignability = restType
 				? isTypeAssignableForParameter(rest.name, restType, createCompileTimeTupleType(remainingArgs))
@@ -9392,7 +9442,7 @@ function checkTypeGuardIsType(
 	errors: CompilerError[],
 ): void {
 	const typeGuardType = resolvePlaceholders(typeGuard.typeInfo!.type);
-	const typeGuardAssignability = isTypeAssignable(undefined, typeGuardType, builtinType);
+	const typeGuardAssignability = isTypeAssignable(typeGuardType, builtinType);
 	if (typeGuardAssignability.assignable === false) {
 		errors.push({
 			code: ErrorCode.typeGuardIsNotType,
@@ -9420,7 +9470,7 @@ function checkIsFunction(
 	errors: CompilerError[],
 ): boolean {
 	const anyFunctionType = createCompileTimeFunctionType(builtinAny, builtinAny, 'unknown');
-	const functionAssignability = isTypeAssignable(undefined, resolvePlaceholders(expression.typeInfo!.type), anyFunctionType);
+	const functionAssignability = isTypeAssignable(resolvePlaceholders(expression.typeInfo!.type), anyFunctionType);
 	if (functionAssignability.assignable === false) {
 		errors.push({
 			code: code,

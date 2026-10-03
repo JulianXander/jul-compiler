@@ -3533,6 +3533,41 @@ f(...namedArgs)`, {
 			],
 		});
 	});
+	// Der Empfänger ist das erste Argument, der Spread beginnt dahinter.
+	it('receiver-before-spread-of-parameter', () => {
+		expectCheck(`f = (a: Integer b: Text) => a
+g = (xs: List(Text)) => 1.f(...xs)`);
+	});
+	it('receiver-before-spread-checks-spread-elements', () => {
+		expectCheck(`f = (a: Integer b: Text) => a
+g = (xs: List(Integer)) => 1.f(...xs)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'b\'\n  Can not assign Integer to Text.',
+					startRowIndex: 1,
+					startColumnIndex: 27,
+					endRowIndex: 1,
+					endColumnIndex: 37,
+				},
+			],
+		});
+	});
+	it('receiver-before-spread-checks-receiver', () => {
+		expectCheck(`f = (a: Integer b: Text) => a
+g = (xs: List(Text)) => §x§.f(...xs)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'a\'\n  Can not assign §x§ to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 24,
+					endRowIndex: 1,
+					endColumnIndex: 27,
+				},
+			],
+		});
+	});
 	// Nach dem Verengen über ein Feld ist x ein unvollständiges Dictionary: bekannt ist nur b, die
 	// übrigen Felder kann x trotzdem haben. Das Ergebnis des Spreads bleibt unvollständig, ein
 	// fehlendes c ist kein Beweis, dass es fehlt.

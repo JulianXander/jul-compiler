@@ -1,4 +1,3 @@
-?isTypeAssignable prefix Arg vereinfachen, mit ArgType normalisieren
 -vgl tictactoe extra args warnen
 -vgl tictactore types in import destructuring färben
 -vgl tictactoe: GameBoard wird nicht als typ gefärbt
