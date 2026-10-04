@@ -103,6 +103,13 @@ describe('TypeScript Parser', () => {
 		// this ist in TS eine reine Typangabe, kein Argument
 		it('this-Parameter entfällt', () => expectTypeOfF('export function f(this: Window, a: bigint) {}', '(a: Integer) ~> Any'));
 		it('ArrowFunction', () => expectTypeOfF('export const f = (a: bigint): bigint => a;', '(a: Integer) ~> Integer'));
+		// Ein Destructuring-Parameter hat keinen Namen, TS ruft aber positional auf: weglassen würde die Positionen verschieben.
+		it('Objekt-Destructuring behält die Position', () => {
+			expectTypeOfF('export function f({ a }: any, b: string) {}', '(\n  arg1: Any\n  b: Text\n) ~> Any');
+		});
+		it('Array-Destructuring behält die Position', () => {
+			expectTypeOfF('export function f([a]: any, b: string) {}', '(\n  arg1: Any\n  b: Text\n) ~> Any');
+		});
 	});
 
 	it('JUL-Aufruf mit falschem Argumenttyp wird gemeldet', () => {

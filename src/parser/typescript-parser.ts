@@ -3,12 +3,12 @@ import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, Positioned } from '../compiler-errors.js';
 import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode } from 'typescript';
 import { createParseFunctionLiteral, createParseFunctionTypeLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
-const { createSourceFile, getJSDocCommentsAndTags, getJSDocTags, ScriptTarget, SyntaxKind } = typescript;
+const { createSourceFile, getJSDocCommentsAndTags, getJSDocTags, ScriptKind, ScriptTarget, SyntaxKind } = typescript;
 
-export function parseTsCode(code: string): ParsedExpressions {
-	// TODO pass file name?
+export function parseTsCode(code: string, filePath = 'todo.ts'): ParsedExpressions {
 	// Parent-Pointer braucht getJSDocCommentsAndTags
-	const tsAst = createSourceFile('todo.ts', code, ScriptTarget.ESNext, true);
+	// Auch .js wird als TS geparst, der Dateiname dient nur der Anzeige in Meldungen.
+	const tsAst = createSourceFile(filePath, code, ScriptTarget.ESNext, true, ScriptKind.TS);
 	const errors: CompilerError[] = [];
 	const julExpressions = tsAst.statements.map(tsNode =>
 		tsNodeToJulAst(tsNode, tsAst, errors))
@@ -194,7 +194,15 @@ function tsParametersToJulParameters(
 	const singleFields: ParseParameterField[] = [];
 	let rest: ParseParameterField | undefined;
 	tsParameters.forEach(tsParameter => {
-		const julName = tsNameToJulName(tsParameter.name, sourceFile);
+		// Ein Destructuring-Parameter hat keinen Namen, TS ruft aber positional auf: Weglassen würde
+		// die folgenden Parameter verschieben. Er heißt deshalb nach seiner Position (ab 1).
+		const julName = isTsBindingPattern(tsParameter.name)
+			? {
+				type: 'name' as const,
+				name: `arg${singleFields.length + 1}`,
+				...getPositionFromTsNode(tsParameter.name, sourceFile),
+			}
+			: tsNameToJulName(tsParameter.name, sourceFile);
 		// this ist in TS eine reine Typangabe, kein Argument
 		if (!julName
 			|| julName.name === 'this') {
@@ -578,6 +586,11 @@ function createReference(name: string, position: Positioned): ParseReference {
 
 //#endregion Typannotation
 
+function isTsBindingPattern(tsName: BindingName): boolean {
+	return tsName.kind === SyntaxKind.ObjectBindingPattern
+		|| tsName.kind === SyntaxKind.ArrayBindingPattern;
+}
+
 function tsNameToJulName(tsName: BindingName, sourceFile: SourceFile): Name | undefined {
 	// TODO case BindingPattern
 	let name: string;
@@ -587,7 +600,8 @@ function tsNameToJulName(tsName: BindingName, sourceFile: SourceFile): Name | un
 			break;
 		case SyntaxKind.ObjectBindingPattern:
 		case SyntaxKind.ArrayBindingPattern:
-			console.error(`SyntaxKind for Name not implemented yet: ${SyntaxKind[tsName.kind]}`);
+			const position = getPositionFromTsNode(tsName, sourceFile);
+			console.error(`SyntaxKind for Name not implemented yet: ${SyntaxKind[tsName.kind]} in ${sourceFile.fileName}:${position.startRowIndex + 1}:${position.startColumnIndex + 1}`);
 			return undefined;
 		default:
 			const assertNever: never = tsName;

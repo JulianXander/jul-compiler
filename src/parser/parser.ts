@@ -121,7 +121,7 @@ export function parseCode(
 	let dependencies: ImportedDependency[] | undefined;
 	switch (extension) {
 		case Extension.js:
-			parsedExpressions = parseTsCode(code);
+			parsedExpressions = parseTsCode(code, filePath);
 			break;
 		case Extension.json: {
 			const parsedJson = _parseJson(code);
@@ -149,7 +149,7 @@ export function parseCode(
 			dependencies = imported.dependencies;
 			break;
 		case Extension.ts:
-			parsedExpressions = parseTsCode(code);
+			parsedExpressions = parseTsCode(code, filePath);
 			break;
 		case Extension.yaml: {
 			// TODO bigints, Fractions
