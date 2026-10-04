@@ -84,3 +84,11 @@ Zeile hinter der Datei gilt nicht als Positionsfehler, der Parser meldet so regu
 Der erste Lauf (Seed 42, 20 s, ~300 Eingaben/s) fand Positionsfehler (`import()` meldet das Ende
 in Zeile 8 einer Ein-Zeilen-Datei, 3000/5154 enden hinter der Datei) und eine Eingabe, die
 1,8 s braucht (`fizz-buzz-functional.jul` mit `dividend.modulo(=>divisor)`).
+
+### Faltbudget
+
+Der Fuzzer meldet zusätzlich `budget`: mehr Faltungen (`checkerStats.foldableCall`) als
+`initialFoldBudget` je geprüfter Datei erlaubt. Ist das Budget leer, soll nichts mehr gefaltet
+werden; tatsächlich baut jeder weitere Versuch in `tryBuildCallable` ein `new Function`, wirft
+einen `FoldBudgetExhaustedError` und speichert nichts. Dafür gibt es bewusst keinen Test in der
+Suite: Schon das Leerbrennen des Budgets kostet ~40 ms.

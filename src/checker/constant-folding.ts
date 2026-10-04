@@ -291,7 +291,7 @@ export function constantValueToType(value: unknown): CompileTimeType | undefined
  * Solange der Auswerter selbst nicht schneller ist, bleibt das Budget klein genug, um den Language
  * Server nicht spürbar zu blockieren.
  */
-const initialFoldBudget = 1_000;
+export const initialFoldBudget = 1_000;
 let foldBudgetRemaining = initialFoldBudget;
 
 export function resetFoldBudget(): void {
@@ -462,7 +462,9 @@ function buildEnvironment(
  */
 export function tryBuildCallable(functionType: CompileTimeFunctionType): Function | undefined {
 	const literal = functionType.literal;
-	if (!literal || !functionType.foldable) {
+	// Bei leerem Budget wirft jeder Aufruf des Callables. Es gar nicht erst zu bauen spart new Function
+	// und den Fehler samt Stacktrace, die sonst bei jeder weiteren Prüfung erneut anfallen.
+	if (!literal || !functionType.foldable || foldBudgetRemaining <= 0) {
 		return undefined;
 	}
 	const environment = buildEnvironment(literal, functionType.boundArguments?.values);

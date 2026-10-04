@@ -2,6 +2,8 @@ import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'f
 import { join, resolve } from 'path';
 import { isMainThread, parentPort, Worker, workerData } from 'worker_threads';
 
+import { checkerStats, resetCheckerStats } from '../src/checker/checker-stats.js';
+import { initialFoldBudget } from '../src/checker/constant-folding.js';
 import { createInMemoryHost, loadFile } from '../src/compiler/project-loader.js';
 import type { CompilerError } from '../src/compiler-errors.js';
 
@@ -17,7 +19,7 @@ import type { CompilerError } from '../src/compiler-errors.js';
 
 //#region Typen
 
-type FindingKind = 'exception' | 'hang' | 'position';
+type FindingKind = 'exception' | 'hang' | 'position' | 'budget';
 
 interface Finding {
 	kind: FindingKind;
@@ -41,7 +43,9 @@ function checkInput(files: { [path: string]: string; }, request: WorkerRequest):
 	const allFiles = { ...files, [request.path]: request.code };
 	const host = createInMemoryHost(allFiles, { cloneUnchecked: false });
 	try {
-		const parsed = loadFile(request.path, {}, host, request.code);
+		const documents = {};
+		resetCheckerStats();
+		const parsed = loadFile(request.path, documents, host, request.code);
 		const rows = request.code.split('\n');
 		const errors: CompilerError[] = [
 			...parsed.unchecked.errors,
@@ -56,6 +60,18 @@ function checkInput(files: { [path: string]: string; }, request: WorkerRequest):
 					detail: `${problem}: ${JSON.stringify(error)}`,
 				};
 			}
+		}
+		// Das Faltbudget gilt je geprüfter Datei. Ist es leer, darf nichts mehr gefaltet werden: weit
+		// mehr Faltungen heißen, dass ein erschöpftes Budget die Auswertung nicht stoppt (siehe
+		// docs/backlog/fuzz-prototyp.md, Abschnitt "Faltbudget"). Der Faktor 2, weil foldableCall auch
+		// Builtins wie range zählt, die am Budget vorbeilaufen.
+		const foldLimit = 2 * initialFoldBudget * Object.keys(documents).length;
+		if (checkerStats.foldableCall > foldLimit) {
+			return {
+				kind: 'budget',
+				signature: 'budget',
+				detail: `${checkerStats.foldableCall} Faltungen, Grenze ${foldLimit}`,
+			};
 		}
 		return undefined;
 	}
