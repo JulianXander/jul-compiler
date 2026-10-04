@@ -3199,7 +3199,7 @@ export function isTypeAssignable(
 	targetType: CompileTimeType,
 ): TypeAssignability {
 	if (typeComparisonDepth >= maxTypeComparisonDepth) {
-		return { assignable: false, error: { message: 'Type comparison is excessively deep and possibly infinite.' } };
+		return { assignable: false, error: new TypeError('Type comparison is excessively deep and possibly infinite.') };
 	}
 	typeComparisonDepth++;
 	try {
@@ -3390,14 +3390,11 @@ function isTypeAssignableByStructure(
 					break;
 				}
 				// Choices, die sich zum selben Typ auflösen, liefern dieselbe Meldung
-				const uniqueMessages = [...new Set(subErrors.map(typeErrorToString))];
 				return {
 					assignable: false,
-					error: {
-						// TODO error struktur überdenken
-						message: uniqueMessages.join('\n'),
-						// innerError
-					}
+					// TODO error struktur überdenken
+					error: new TypeError(() =>
+						[...new Set(subErrors.map(typeErrorToString))].join('\n')),
 				};
 			}
 			return { assignable: undefined };
@@ -3602,18 +3599,15 @@ function isTypeAssignableByStructure(
 			// (Fund im echten yugioh-Fehlerbild, Session 2026-09-10) - dann fällt sie ganz weg.
 			// Entscheidung anhand des tatsächlich gerenderten Textes, bevor er mit dem Detail
 			// verklebt wird, statt den fertigen String später wieder aufzutrennen.
-			const header = `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.`;
-			if (header.includes('\n')) {
-				return {
-					assignable: false,
-					error: error,
-				};
-			}
 			return {
 				assignable: false,
-				error: {
-					message: `${header}\n${indentLines(error.message)}`,
-				}
+				error: new TypeError(() => {
+					const header = `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.`;
+					if (header.includes('\n')) {
+						return error.getMessage();
+					}
+					return `${header}\n${indentLines(error.getMessage())}`;
+				}),
 			};
 		}
 		case 'empty':
@@ -3666,9 +3660,8 @@ function isTypeAssignableByStructure(
 				// betrifft, statt z.B. einen weiteren Parameter (siehe getParameterError).
 				return {
 					assignable: false,
-					error: {
-						message: `Invalid return value\n${indentLines(typeErrorToString(returnAssignability.error))}`,
-					}
+					error: new TypeError(() =>
+						`Invalid return value\n${indentLines(typeErrorToString(returnAssignability.error))}`),
 				};
 			}
 			if (paramsAssignability.assignable === undefined
@@ -3735,9 +3728,8 @@ function isTypeAssignableByStructure(
 						// yugioh-Fehlerbild, Session 2026-09-10) - analog zum dictionaryLiteral-Fall.
 						return {
 							assignable: false,
-							error: {
-								message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(elementAssignability.error.message)}`,
-							}
+							error: new TypeError(() =>
+								`Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(elementAssignability.error.getMessage())}`),
 						};
 					}
 					return elementAssignability;
@@ -3804,18 +3796,14 @@ function isTypeAssignableByStructure(
 					const closestError = subErrors[closestIndexes[0]!]!;
 					return {
 						assignable: false,
-						error: {
-							message: `Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(typeErrorToString(closestError))}`,
-						}
+						error: new TypeError(() =>
+							`Can not assign ${typeToString(argumentsType, 0, 0, true)} to ${typeToString(targetType, 0, 1)}.\n${indentLines(typeErrorToString(closestError))}`),
 					};
 				}
 				return {
 					assignable: false,
-					error: {
-						// TODO error struktur überdenken
-						message: subErrors.map(typeErrorToString).join('\n'),
-						// innerError
-					}
+					// TODO error struktur überdenken
+					error: new TypeError(() => subErrors.map(typeErrorToString).join('\n')),
 				};
 			}
 			return { assignable: undefined };
@@ -3955,7 +3943,8 @@ function isTypeAssignableByStructure(
 function getDefaultTypeError(argumentsType: CompileTimeType, targetType: CompileTimeType): TypeAssignability {
 	return {
 		assignable: false,
-		error: { message: `Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.` },
+		error: new TypeError(() =>
+			`Can not assign ${typeToString(argumentsType, 0, 0)} to ${typeToString(targetType, 0, 0)}.`),
 	}
 }
 
@@ -3968,13 +3957,13 @@ export function isTypeAssignableForPredicateFunction(functionType: CompileTimeFu
 	if (functionType.purity === 'impure') {
 		return {
 			assignable: false,
-			error: { message: 'A predicate used as a type must be pure.' },
+			error: new TypeError('A predicate used as a type must be pure.'),
 		};
 	}
 	if (isSubtypeOf(createBooleanLiteral(true), resolvePlaceholders(functionType.ReturnType)) === false) {
 		return {
 			assignable: false,
-			error: { message: 'A predicate used as a type must be able to return true.' }
+			error: new TypeError('A predicate used as a type must be able to return true.')
 		};
 	}
 	return { assignable: true };
@@ -4037,9 +4026,7 @@ function isTypeAssignableForTuple(
 			if (targetElementTypes.length > 1) {
 				return {
 					assignable: false,
-					error: {
-						message: `Expected ${targetElementTypes.length} elements, but List may contain less.`,
-					}
+					error: new TypeError(`Expected ${targetElementTypes.length} elements, but List may contain less.`)
 				};
 			}
 			return isTypeAssignable(argumentsType.ElementType, targetElementTypes[0]!);
@@ -4085,15 +4072,14 @@ function isTypeAssignableForTupleArgAndTupleTarget(
 function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[], keepDuplicateMessages = false): TypeAssignability {
 	const errors = typeAssignabilities.filter(elementAssignability => elementAssignability.assignable === false);
 	if (errors.length) {
-		const messages = errors.map(error => typeErrorToString(error.error));
-		const uniqueMessages = keepDuplicateMessages ? messages : [...new Set(messages)];
 		return {
 			assignable: false,
-			error: {
-				// TODO error struktur überdenken
-				message: uniqueMessages.join('\n'),
-				// innerError
-			}
+			// TODO error struktur überdenken
+			error: new TypeError(() => {
+				const messages = errors.map(error => typeErrorToString(error.error));
+				const uniqueMessages = keepDuplicateMessages ? messages : [...new Set(messages)];
+				return uniqueMessages.join('\n');
+			}),
 		};
 	}
 	const hasUnkownAssignability = typeAssignabilities.some(typeAssignability => typeAssignability.assignable === undefined);
@@ -4145,11 +4131,9 @@ function isTypeAssignableForDictionaryLiteral(
 			if (missingFieldNames.length) {
 				fieldAssignabilities.unshift({
 					assignable: false,
-					error: {
-						message: missingFieldNames.length === 1
-							? `Missing field '${missingFieldNames[0]}'.`
-							: `Missing fields: ${missingFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`,
-					},
+					error: new TypeError(missingFieldNames.length === 1
+						? `Missing field '${missingFieldNames[0]}'.`
+						: `Missing fields: ${missingFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`),
 				});
 			}
 			return joinTypeAssignabilities(fieldAssignabilities, true);
@@ -4173,9 +4157,8 @@ function isTypeAssignableForField(
 		// eingerückt, damit die Verschachtelungstiefe auch bei 3+ Ebenen sichtbar bleibt.
 		return {
 			assignable: false,
-			error: {
-				message: `Invalid value for field '${fieldName}'\n${indentLines(typeErrorToString(subAssignability.error))}`,
-			},
+			error: new TypeError(() =>
+				`Invalid value for field '${fieldName}'\n${indentLines(typeErrorToString(subAssignability.error))}`),
 		};
 	}
 	return subAssignability;
@@ -4200,9 +4183,8 @@ function isTypeAssignableForParameter(
 	if (subAssignability.assignable === false) {
 		return {
 			assignable: false,
-			error: {
-				message: `Invalid ${subject} for parameter '${parameterName}'\n${indentLines(typeErrorToString(subAssignability.error))}`,
-			}
+			error: new TypeError(() =>
+				`Invalid ${subject} for parameter '${parameterName}'\n${indentLines(typeErrorToString(subAssignability.error))}`)
 		};
 	}
 	return subAssignability;
@@ -4338,9 +4320,7 @@ function isTypeAssignableForParametersWithLeading(
 				if (valueParameter && valueParameter.name !== targetParameterName) {
 					return {
 						assignable: false,
-						error: {
-							message: `Parameter name mismatch. Got '${targetParameterName}' but expected '${valueParameter.name}'`,
-						}
+						error: new TypeError(`Parameter name mismatch. Got '${targetParameterName}' but expected '${valueParameter.name}'`)
 					};
 				}
 				const valueParameterType: CompileTimeType = valueParameter?.type ?? valueRestItemType ?? builtinAny;
@@ -4388,7 +4368,7 @@ function isTypeAssignableForParametersWithLeading(
 			}
 			return {
 				assignable: false,
-				error: { message: 'isTypeAssignableForParameters not implemented yet for ' + argumentsType.julType }
+				error: new TypeError('isTypeAssignableForParameters not implemented yet for ' + argumentsType.julType)
 			};
 		}
 	}
@@ -4461,23 +4441,45 @@ function isTypeAssignableForParametersWithCollectionArgs(
 			// TODO rest dictionary??
 			return {
 				assignable: false,
-				error: { message: 'Can not assign dictionary to rest parameter' },
+				error: new TypeError('Can not assign dictionary to rest parameter'),
 			};
 		}
 	}
 	return { assignable: isProven || undefined };
 }
 
-interface TypeError {
-	message: string;
-	innerError?: TypeError;
+/**
+ * Die Meldung entsteht erst bei getMessage und wird dann gemerkt. isSubtypeOf und die Normalisierung
+ * von Typen verwerfen die meisten Fehler und brauchen nur das Boolean - die Meldung vorab zu bauen
+ * (typeToString) war dort der größte Posten im Check. Wer eine Meldung aus einer anderen
+ * zusammensetzt, muss das ebenfalls im createMessage-Callback tun, sonst wird die innere sofort
+ * gelesen. Klasse statt Objektliteral mit Getter: Es entstehen Millionen davon, ein Literal mit
+ * Accessor ist in V8 deutlich teurer.
+ */
+class TypeError {
+	private createMessage: (() => string) | undefined;
+	private cachedMessage: string | undefined;
+
+	constructor(message: string | (() => string)) {
+		if (typeof message === 'string') {
+			this.cachedMessage = message;
+		}
+		else {
+			this.createMessage = message;
+		}
+	}
+
+	getMessage(): string {
+		if (this.createMessage) {
+			this.cachedMessage = this.createMessage();
+			this.createMessage = undefined;
+		}
+		return this.cachedMessage!;
+	}
 }
 
 export function typeErrorToString(typeError: TypeError): string {
-	if (typeError.innerError) {
-		return typeErrorToString(typeError.innerError) + '\n' + typeError.message;
-	}
-	return typeError.message;
+	return typeError.getMessage();
 }
 
 /**

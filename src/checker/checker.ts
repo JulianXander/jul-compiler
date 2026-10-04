@@ -4453,7 +4453,7 @@ function checkTypeHeadPredicates(
 		if (assignability.assignable === false) {
 			errors.push({
 				code: ErrorCode.typeGuardIsNotType,
-				message: assignability.error.message,
+				message: assignability.error.getMessage(),
 				startRowIndex: value.startRowIndex,
 				startColumnIndex: value.startColumnIndex,
 				endRowIndex: value.endRowIndex,
