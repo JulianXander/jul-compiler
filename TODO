@@ -1,7 +1,3 @@
--field completion funktioniert nicht beim 2. feld vgl tic-tac-toe GameState currentPlayer
-	-konnte nicht reproduziert werden
--float-grenzen (GreaterFloat, LessFloat): zurückgestellt bis zum ersten realen bedarf, plan in
-	docs/number-ranges.md phase 3
 -unmögliche typen an der ursache melden (plan in docs/three-valued-assignability.md, abschnitt Never):
 	-warnung an einem parameter vom typ Never: nie aufrufbar
 	-:? ohne passenden zweig am aufrufort: gibt es dafür schon eine meldung?
