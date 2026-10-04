@@ -67,7 +67,9 @@ import {
 	createIntegerLiteral,
 	createFloatLiteral,
 	createTextLiteral,
-	updateFunctionTypeUnresolvedFlag,
+	FunctionIdentity,
+	createFunctionIdentity,
+	getFunctionTypeFacts,
 } from '../syntax-tree.js';
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, forEach, isDefined, isNonEmpty, isTestFilePath, last, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
@@ -260,7 +262,7 @@ function createStreamTypeFunction(finite: boolean): CompileTimeFunctionType {
 		createCompileTimeTypeOfType(createCompileTimeStreamType(parameterReference, finite)),
 		'pure',
 	);
-	parameterReference.functionRef = functionType;
+	parameterReference.functionRef = functionType.identity;
 	return functionType;
 }
 
@@ -289,7 +291,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 			createCompileTimeTypeOfType(createCompileTimeListType(parameterReference)),
 			'pure',
 		);
-		parameterReference.functionRef = functionType;
+		parameterReference.functionRef = functionType.identity;
 		return functionType;
 	})(),
 	Dictionary: (() => {
@@ -304,7 +306,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 			createCompileTimeTypeOfType(createCompileTimeDictionaryType(parameterReference)),
 			'pure',
 		);
-		parameterReference.functionRef = functionType;
+		parameterReference.functionRef = functionType.identity;
 		return functionType;
 	})(),
 	Stream: createStreamTypeFunction(false),
@@ -327,7 +329,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 			parameterReference,
 			'impure',
 		);
-		parameterReference.functionRef = functionType;
+		parameterReference.functionRef = functionType.identity;
 		return functionType;
 	})(),
 	nativeValue: createCompileTimeFunctionType(
@@ -646,8 +648,8 @@ function dereferenceCallbackParams(
 			dereferencedCallbackReturnType,
 			parameterType.purity,
 			parameterType.aliasName,
+			{ predicate: parameterType.predicate },
 		);
-		dereferencedCallbackType.predicate = parameterType.predicate;
 		return { name: parameter.name, type: dereferencedCallbackType };
 	});
 	if (!changed) {
@@ -718,7 +720,7 @@ function getParameterProjection(
 		source = source.value;
 	}
 	if (source.julType !== 'parameterReference'
-		|| source.functionRef !== functionType) {
+		|| source.functionRef !== functionType.identity) {
 		return undefined;
 	}
 	return { index: source.index, path: path, reference: reference };
@@ -1765,14 +1767,13 @@ function instantiateExpectedCallback(
 	if (!changed) {
 		return expectedFunctionType;
 	}
-	const instantiatedFunctionType = createCompileTimeFunctionType(
+	return createCompileTimeFunctionType(
 		createParametersType(instantiatedSingleNames, paramsType.rest),
 		instantiatedReturnType,
 		expectedFunctionType.purity,
 		expectedFunctionType.aliasName,
+		{ predicate: expectedFunctionType.predicate },
 	);
-	instantiatedFunctionType.predicate = expectedFunctionType.predicate;
-	return instantiatedFunctionType;
 }
 
 //#endregion erwarteter Typ
@@ -2671,7 +2672,21 @@ function inferType(
 				? rawPrefixArgumentType
 				: prefixArgumentType;
 			// evaluate generic ReturnType
-			const dereferencedReturnType = dereferenceArgumentTypesNested(functionType, bindReceiver(returnPrefixArgumentType, argsType), returnType);
+			const outermostFunctionTypeArg = getArgValueExpressions(args)[0];
+			// :> an der äußersten Signatur eines nativeFunction-Aufrufs ist eine bedingte
+			// Zusicherung (Purity folgt den übergebenen Funktionsargumenten), keine unbestimmte -
+			// verschachtelte :> an Callback-Parametern derselben Signatur bleiben unknown. Der
+			// Klon teilt die Identität des Originals, die parameterReference-Knoten in ParamsType und
+			// ReturnType lösen sich also weiter auf.
+			const isConditionallyPureSignature = functionExpression.type === 'reference'
+				&& functionExpression.name.name === 'nativeFunction'
+				&& outermostFunctionTypeArg?.type === 'functionTypeLiteral'
+				&& outermostFunctionTypeArg.arrow === 'unknown';
+			const unadjustedReturnType = dereferenceArgumentTypesNested(functionType, bindReceiver(returnPrefixArgumentType, argsType), returnType);
+			const resolvedUnadjustedReturnType = resolveAlias(unadjustedReturnType);
+			const dereferencedReturnType = isConditionallyPureSignature && isFunctionType(resolvedUnadjustedReturnType)
+				? { ...resolvedUnadjustedReturnType, purity: 'pureIfArgsPure' as const }
+				: unadjustedReturnType;
 			// Für Hover und Co.: die Signatur, gegen die dieser Aufruf geprüft wurde. Eine Kopie,
 			// denn die Platzhalter in Parameter- und Rückgabetyp zeigen auf das Original.
 			// Der Aliasname entfällt, er stünde sonst in der Anzeige statt der verengten Typen.
@@ -2688,25 +2703,6 @@ function inferType(
 						|| dereferencedReturnType.isUnresolvedPlaceholder,
 				};
 			}
-			// :> an der äußersten Signatur eines nativeFunction-Aufrufs ist eine bedingte
-			// Zusicherung (Purity folgt den übergebenen Funktionsargumenten), keine unbestimmte -
-			// verschachtelte :> an Callback-Parametern derselben Signatur bleiben unknown. Der
-			// Ergebnistyp ist dasselbe Objekt wie der Typ des Argumentknotens (dereferenceArgumentTypesNested
-			// substituiert den parameterReference von nativeFunction ohne zu klonen); interne
-			// parameterReference-Knoten in ParamsType/ReturnType zeigen per functionRef auf genau
-			// dieses Objekt, deshalb hier gezielt mutiert statt kopiert - eine Kopie würde diese
-			// Identität brechen und generische Rückgabetypen nicht mehr auflösbar machen.
-			const outermostFunctionTypeArg = getArgValueExpressions(args)[0];
-			const isConditionallyPureSignature = functionExpression.type === 'reference'
-				&& functionExpression.name.name === 'nativeFunction'
-				&& outermostFunctionTypeArg?.type === 'functionTypeLiteral'
-				&& outermostFunctionTypeArg.arrow === 'unknown';
-			if (isConditionallyPureSignature) {
-				const resolvedReturnType = resolveAlias(dereferencedReturnType);
-				if (isFunctionType(resolvedReturnType)) {
-					resolvedReturnType.purity = 'pureIfArgsPure';
-				}
-			}
 			const foldedType = tryFoldCall(
 				functionExpression, functionType, boundArgsType, hasArgsError);
 			const boundReturnType = !foldedType && !hasArgsError
@@ -2719,13 +2715,11 @@ function inferType(
 			registerCompletedNames(ownSymbols, expression.body);
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, ownSymbols];
 			const params = expression.params;
-			const functionType = createCompileTimeFunctionType(
-				builtinEmpty,
-				builtinEmpty,
-				expression.arrow ?? 'unknown',
-			);
+			// Der Funktionstyp entsteht erst nach dem Rumpf. Bis dahin zeigen Parameter und
+			// parameterReference auf die Identität, die nur ParamsType trägt.
+			const identity = createFunctionIdentity(builtinEmpty);
 			if (params.type === 'parameters') {
-				setFunctionRefForParams(params, functionType, functionScopes);
+				setFunctionRefForParams(params, identity, functionScopes);
 			}
 			// Die Params sagen die Verengung erst aus, sie sehen sie also noch nicht.
 			const functionTypeContext: TypeContext = {
@@ -2738,8 +2732,7 @@ function inferType(
 			const paramsTypeValue = valueOf(params.typeInfo!.type);
 			checkParamsTypeIsCollection(params, errors);
 			checkTypeHeadPredicates(params, errors);
-			functionType.ParamsType = paramsTypeValue;
-			updateFunctionTypeUnresolvedFlag(functionType);
+			identity.ParamsType = paramsTypeValue;
 			//#region verengte Typen für branching
 			let branchNarrowedTypes = narrowedTypes;
 			const branching = expression.parent;
@@ -2792,6 +2785,7 @@ function inferType(
 					: undefined;
 				setInferredType(bodyExpression, branchTypeContext, expectedBodyType, checkContext);
 			});
+			let purity: CompileTimeFunctionType['purity'] = expression.arrow ?? 'unknown';
 			//#region Purity-Inferenz (docs/pure-inference-umsetzung.md Schritt 3)
 			// E6: der Dummy-Rumpf importierter TS-Funktionen ist keine Aussage über das JS dahinter -
 			// für sie gilt der Pfeil, den der typescript-parser aus dem JSDoc ableitet. @pure heißt
@@ -2799,18 +2793,18 @@ function inferType(
 			if (isTypeScriptFile(filePath)) {
 				if (expression.arrow === 'pure'
 					&& !canNotHoldFunction(paramsTypeValue)) {
-					functionType.purity = 'pureIfArgsPure';
+					purity = 'pureIfArgsPure';
 				}
 			}
 			else {
-				const bodyPurity = inferBodyPurity(expression.body, functionType);
+				const bodyPurity = inferBodyPurity(expression.body, identity);
 				// Ein Rumpf, der nur deshalb unentscheidbar ist, weil er eigene funktionswertige
 				// Parameter aufruft, ist nicht grundsätzlich unentscheidbar, sondern bedingt rein.
 				const conditionallyPure = bodyPurity.purity === 'unknown' && bodyPurity.unknownOnlyFromOwnParameterCalls;
 				switch (expression.arrow) {
 					case undefined:
 					case 'unknown':
-						functionType.purity = conditionallyPure ? 'pureIfArgsPure' : bodyPurity.purity;
+						purity = conditionallyPure ? 'pureIfArgsPure' : bodyPurity.purity;
 						break;
 					case 'impure':
 						break;
@@ -2819,10 +2813,10 @@ function inferType(
 							// Still herabgesetzt, keine Diagnose: das Ergebnis ist strikt
 							// präziser als die geschriebene Zusicherung und erhält das bisherige
 							// konservative Verhalten an der Aufrufstelle.
-							functionType.purity = 'pureIfArgsPure';
+							purity = 'pureIfArgsPure';
 						}
 						else if (bodyPurity.purity === 'impure') {
-							functionType.purity = 'impure';
+							purity = 'impure';
 							// expression.returnType ist gesetzt: ein Pfeil bedingt einen Rückgabetyp
 							// (functionTypeBodyParser), siehe "Geprüfte Voraussetzungen".
 							const declaredReturnType = expression.returnType!;
@@ -2856,8 +2850,7 @@ function inferType(
 			// Die dritte Bedingung - jede freie Referenz des Rumpfs lässt sich auflösen - hängt von
 			// der Umgebung an der jeweiligen Aufrufstelle ab und wird deshalb nicht hier, sondern
 			// im Auswerter geprüft (constant-folding.ts, buildEnvironment).
-			functionType.literal = expression;
-			functionType.foldable = !isTypeScriptFile(filePath)
+			const foldable = !isTypeScriptFile(filePath)
 				&& !expression.body.some(containsNativeLiteral);
 			//#endregion Faltbarkeit
 			// Ein leerer body ist ungültig, nicht leer (Empty). Any als Ergebnis, damit sich der
@@ -2908,35 +2901,39 @@ function inferType(
 					returnType = rawDeclaredReturnType;
 				}
 			}
-			functionType.ReturnType = returnType;
-			updateFunctionTypeUnresolvedFlag(functionType);
-			functionType.predicate = getPredicateFacts(expression, returnType);
+			const functionType = createCompileTimeFunctionType(paramsTypeValue, returnType, purity, undefined, {
+				identity: identity,
+				literal: expression,
+				foldable: foldable,
+				predicate: getPredicateFacts(expression, returnType),
+			});
 			return { type: functionType };
 		}
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			const params = expression.params;
-			const functionType = createCompileTimeFunctionType(
-				builtinEmpty,
-				builtinEmpty,
-				expression.arrow ?? 'unknown',
-			);
+			const identity = createFunctionIdentity(builtinEmpty);
 			if (params.type === 'parameters') {
-				setFunctionRefForParams(params, functionType, functionScopes);
+				setFunctionRefForParams(params, identity, functionScopes);
 			}
 			const functionTypeContext: TypeContext = {
 				scopes: functionScopes,
 				narrowedTypes: narrowedTypes,
 			};
 			setInferredType(params, functionTypeContext, undefined, checkContext);
-			functionType.ParamsType = valueOf(params.typeInfo!.type);
-			updateFunctionTypeUnresolvedFlag(functionType);
+			const paramsType = valueOf(params.typeInfo!.type);
+			identity.ParamsType = paramsType;
 			checkParamsTypeIsCollection(params, errors);
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionTypeContext, undefined, checkContext);
 			const inferredReturnType = expression.returnType.typeInfo!.type;
-			functionType.ReturnType = valueOf(inferredReturnType);
-			updateFunctionTypeUnresolvedFlag(functionType);
+			const functionType = createCompileTimeFunctionType(
+				paramsType,
+				valueOf(inferredReturnType),
+				expression.arrow ?? 'unknown',
+				undefined,
+				{ identity: identity },
+			);
 			const rawType = createCompileTimeTypeOfType(functionType);
 			return { type: rawType };
 		}
@@ -3646,7 +3643,7 @@ function joinPurity(first: Purity, second: Purity): Purity {
  * einer fremden Funktion stammt (E2). Ohne den Kontext - also bei der Faltung - zählt sie als
  * 'unknown'.
  */
-function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: CompileTimeFunctionType | undefined): Purity {
+function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: FunctionIdentity | undefined): Purity {
 	const argType = resolveAlias(rawArgType);
 	if (isFunctionType(argType)) {
 		// Mit welchen Argumenten eine bedingt reine Funktion später gerufen wird, ist an der
@@ -3727,7 +3724,7 @@ function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: Compile
 export function getCallPurityInfo(
 	functionType: CompileTimeType,
 	boundArgsType: CompileTimeType,
-	ownFunctionType?: CompileTimeFunctionType,
+	ownFunctionType?: FunctionIdentity,
 ): Purity {
 	const { receiverType: prefixArgumentType, argsType } = splitReceiver(boundArgsType);
 	const resolvedFunctionType = resolveAlias(functionType);
@@ -3801,7 +3798,7 @@ export interface BodyPurity {
  */
 export function inferBodyPurity(
 	body: ParseExpression[],
-	ownFunctionType: CompileTimeFunctionType,
+	ownFunctionType: FunctionIdentity,
 ): BodyPurity {
 	let purity: Purity = 'pure';
 	let impureExpression: PositionedExpression | undefined;
@@ -4066,15 +4063,13 @@ function bindClosureArguments(
 	const argumentsDisplay = getAllArgTypes(boundArgsType)
 		?.map(argType => typeToString(argType, 0, 1))
 		.join(' ') ?? '';
-	const boundType = createCompileTimeFunctionType(result.ParamsType, result.ReturnType, result.purity, result.aliasName);
-	boundType.predicate = result.predicate;
-	boundType.literal = result.literal;
-	boundType.foldable = result.foldable;
-	boundType.boundArguments = {
-		values: values,
-		display: `${functionExpression.name.name}(${argumentsDisplay})`,
-	};
-	return boundType;
+	return createCompileTimeFunctionType(result.ParamsType, result.ReturnType, result.purity, result.aliasName, {
+		...getFunctionTypeFacts(result),
+		boundArguments: {
+			values: values,
+			display: `${functionExpression.name.name}(${argumentsDisplay})`,
+		},
+	});
 }
 
 //#endregion Typ Arithmetik
@@ -4495,17 +4490,17 @@ function isDefinitelyNotCollectionType(rawType: CompileTimeType): boolean {
 
 function setFunctionRefForParams(
 	params: ParseParameterFields,
-	functionType: CompileTimeFunctionType,
+	identity: FunctionIdentity,
 	functionScopes: NonEmptyArray<SymbolTable>,
 ): void {
 	params.singleFields.forEach(parameter => {
 		const parameterSymbol = findParameterSymbol(parameter, functionScopes);
-		parameterSymbol.functionRef = functionType;
+		parameterSymbol.functionRef = identity;
 	});
 	const restParameter = params.rest;
 	if (restParameter) {
 		const parameterSymbol = findParameterSymbol(restParameter, functionScopes);
-		parameterSymbol.functionRef = functionType;
+		parameterSymbol.functionRef = identity;
 	}
 }
 

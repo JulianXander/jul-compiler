@@ -74,7 +74,7 @@ export interface SymbolDefinition extends Positioned {
 	 */
 	isUsed?: true;
 	//#region FunctionParameter
-	functionRef?: CompileTimeFunctionType;
+	functionRef?: FunctionIdentity;
 	functionParameterIndex?: number;
 	//#endregion FunctionParameter
 }
@@ -657,7 +657,6 @@ interface CompileTimeTypeBase {
 	 * Gecachtes Ergebnis von isUnresolvedPlaceholderType: enthält dieser Typ einen Platzhalter,
 	 * der noch auf den Aufrufort wartet? Pflichtfeld, damit der Compiler jede Konstruktionsstelle
 	 * erzwingt - wer es vergisst, bekäme sonst still `undefined` und damit "aufgelöst".
-	 * Wird bei Funktionstypen nachträglich mutiert, siehe updateFunctionTypeUnresolvedFlag.
 	 */
 	isUnresolvedPlaceholder: boolean;
 }
@@ -1096,17 +1095,33 @@ export function createCompileTimeDictionaryType(
 	};
 }
 
+/**
+ * Identität einer Funktion, die vor dem Funktionstyp existiert: parameterReference und Parameter-Symbole
+ * zeigen darauf statt auf den Funktionstyp, der erst nach dem Rumpf angelegt wird. Trägt nur, was der
+ * Rumpf über die Funktion lesen darf.
+ */
+export interface FunctionIdentity {
+	/** Marke, damit ein Funktionstyp nicht versehentlich als Identität durchgeht. */
+	readonly isFunctionIdentity: true;
+	ParamsType: CompileTimeType;
+}
+
+export function createFunctionIdentity(ParamsType: CompileTimeType): FunctionIdentity {
+	return { isFunctionIdentity: true, ParamsType: ParamsType };
+}
+
 export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	readonly julType: 'function';
-	ParamsType: CompileTimeType;
-	ReturnType: CompileTimeType;
-	purity: TypePurity;
-	predicate?: PredicateFacts;
+	readonly identity: FunctionIdentity;
+	readonly ParamsType: CompileTimeType;
+	readonly ReturnType: CompileTimeType;
+	readonly purity: TypePurity;
+	readonly predicate?: PredicateFacts;
 	/**
 	 * Nur bei Funktionsliteralen aus .jul-Dateien gesetzt (siehe 'functionLiteral' im Checker).
 	 * Rückverweis für constant folding: von hier aus wird bei Bedarf emittiert und ausgewertet.
 	 */
-	literal?: ParseFunctionLiteral;
+	readonly literal?: ParseFunctionLiteral;
 	/**
 	 * Nur gesetzt, wenn literal gesetzt ist: der Rumpf enthält kein nativeFunction-/nativeValue-
 	 * Literal (die Sicherheitsgrenze, siehe containsNativeLiteral im Checker) und stammt nicht aus
@@ -1114,14 +1129,14 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	 * prüft der Auswerter je Aufrufstelle, weil sie von der jeweiligen Umgebung abhängen
 	 * (constant-folding.ts, buildEnvironment).
 	 */
-	foldable?: boolean;
+	readonly foldable?: boolean;
 	/**
 	 * Nur gesetzt, wenn literal in einer anderen Funktion steht und ein Aufruf dieser Funktion mit
 	 * konstanten Argumenten den Funktionstyp geliefert hat: woran die Parameter der umgebenden
 	 * Funktionen gebunden sind. Ohne das wäre divisibleBy(5) nicht von divisibleBy(3) zu
 	 * unterscheiden und nicht faltbar, denn beide teilen den deklarierten Rückgabetyp.
 	 */
-	boundArguments?: BoundArguments;
+	readonly boundArguments?: BoundArguments;
 }
 
 export interface BoundArguments {
@@ -1142,21 +1157,60 @@ export interface PredicateFacts {
 	excludedIfFalse?: CompileTimeType;
 }
 
+/** Was ein Funktionstyp über seinen Wert festhält, nicht über seine Signatur. */
+export type FunctionTypeFacts = Pick<CompileTimeFunctionType, 'predicate' | 'literal' | 'foldable' | 'boundArguments'>;
+
+export interface FunctionTypeExtras extends FunctionTypeFacts {
+	/** Ohne Angabe bekommt der Funktionstyp eine neue Identität. */
+	identity?: FunctionIdentity;
+}
+
+/** Die Fakten von functionType für einen Neubau, bei dem sich die Signatur ändert. */
+export function getFunctionTypeFacts(functionType: CompileTimeFunctionType): FunctionTypeFacts {
+	return {
+		predicate: functionType.predicate,
+		literal: functionType.literal,
+		foldable: functionType.foldable,
+		boundArguments: functionType.boundArguments,
+	};
+}
+
+/**
+ * Alles, was den Funktionstyp ausmacht, wird hier gesetzt: er ist danach unveränderlich. Nur gesetzte
+ * Fakten werden übernommen, damit die Objekte ohne sie nicht um leere Eigenschaften wachsen.
+ */
 export function createCompileTimeFunctionType(
 	ParamsType: CompileTimeType,
 	ReturnType: CompileTimeType,
 	purity: TypePurity,
 	aliasName?: string,
+	extras?: FunctionTypeExtras,
 ): CompileTimeFunctionType {
-	return {
+	const functionType: Mutable<CompileTimeFunctionType> = {
 		julType: 'function',
+		identity: extras?.identity ?? createFunctionIdentity(ParamsType),
 		ParamsType: ParamsType,
 		ReturnType: ReturnType,
 		purity: purity,
 		aliasName: aliasName,
 		isUnresolvedPlaceholder: ParamsType.isUnresolvedPlaceholder || ReturnType.isUnresolvedPlaceholder,
 	};
+	if (extras?.predicate) {
+		functionType.predicate = extras.predicate;
+	}
+	if (extras?.literal) {
+		functionType.literal = extras.literal;
+	}
+	if (extras?.foldable !== undefined) {
+		functionType.foldable = extras.foldable;
+	}
+	if (extras?.boundArguments) {
+		functionType.boundArguments = extras.boundArguments;
+	}
+	return functionType;
 }
+
+type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
 
 export interface CompileTimeIntersectionType extends CompileTimeTypeBase {
 	readonly julType: 'and';
@@ -1279,7 +1333,7 @@ export interface ParameterReference extends CompileTimeTypeBase {
 	/**
 	 * Muss nach dem Erzeugen gesetzt werden.
 	 */
-	functionRef?: CompileTimeFunctionType;
+	functionRef?: FunctionIdentity;
 	/**
 	 * Die Referenz steht für den Typ des Arguments. Gesetzt heißt: hier war zusätzlich valueOf
 	 * verlangt, das erst beim Aufruf auf den Argumenttyp angewendet werden kann. Ein nacktes T in
@@ -1351,18 +1405,6 @@ export function createParametersType(singleNames: Parameter[], rest?: Parameter)
 export interface Parameter {
 	name: string;
 	type?: CompileTimeType;
-}
-
-/**
- * Setzt das gecachte Flag neu, nachdem ParamsType oder ReturnType zugewiesen wurden.
- * Funktionstypen werden absichtlich mutierbar gebaut (der Rumpf kennt seinen eigenen Typ, bevor
- * Parameter und Rückgabe feststehen) - ohne diesen Aufruf beschriebe das beim Konstruieren
- * berechnete Flag weiterhin die alten Werte.
- */
-export function updateFunctionTypeUnresolvedFlag(functionType: CompileTimeFunctionType): void {
-	functionType.isUnresolvedPlaceholder =
-		functionType.ParamsType.isUnresolvedPlaceholder
-		|| functionType.ReturnType.isUnresolvedPlaceholder;
 }
 
 /**

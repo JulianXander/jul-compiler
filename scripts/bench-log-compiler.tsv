@@ -194,3 +194,4 @@
 2026-10-03 16:46:44	bced935+	-	ADV-DEV-56627	yugioh	parse+check	5	1648.83	1946.62	1946.62	nach: Dictionary-Literal ist beim Casing immer ein Wert
 2026-10-04 07:05:50	5f6429f	-	ADV-DEV-56627	yugioh	parse+check	5	1578.17	1995.30	1995.30	Baseline vor lazy Fehlermeldung in getDefaultTypeError
 2026-10-04 07:10:25	5f6429f+	-	ADV-DEV-56627	yugioh	parse+check	5	1287.54	1672.41	1672.41	AssignabilityError mit lazy getMessage statt eager typeToString-Meldung
+2026-10-04 08:09:32	076dab8+	-	ADV-DEV-56627	yugioh	parse+check	5	1327.16	1683.29	1683.29	Funktionstypen unveraendlich (FunctionIdentity, Konstruktor mit Fakten)

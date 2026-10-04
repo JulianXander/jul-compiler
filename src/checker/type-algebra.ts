@@ -1,6 +1,6 @@
 import * as runtime from '../runtime/runtime.js';
 import { tryBuildCallable, typeToConstantValue } from './constant-folding.js';
-import { CompileTimeAliasType, CompileTimeBoundType, CompileTimeCollection, CompileTimeComplementType, CompileTimeDictionary, CompileTimeDictionaryLiteralType, CompileTimeDictionaryType, CompileTimeFunctionType, CompileTimeIndexRangeType, CompileTimeListType, CompileTimePredicateType, CompileTimeStreamType, CompileTimeTupleType, CompileTimeType, CompileTimeTypeOfType, CompileTimeUnionType, ConditionalTypeBranch, Parameter, ParameterReference, ParametersType, ResolvedType, TextLiteralType, TypePurity, builtinAny, builtinBoolean, builtinEmpty, builtinInteger, builtinNever, createBooleanLiteral, createCompileTimeAddType, createCompileTimeAliasType, createCompileTimeBoundType, createCompileTimeComplementType, createCompileTimeConcatType, createCompileTimeConditionalType, createCompileTimeDictionaryLiteralType, createCompileTimeDictionaryType, createCompileTimeFunctionType, createCompileTimeIndexRangeType, createCompileTimeIntersectionType, createCompileTimeLengthOfType, createCompileTimeListType, createCompileTimeMapElementsType, createCompileTimePredicateType, createCompileTimeStreamType, createCompileTimeTupleType, createCompileTimeTypeOfType, createCompileTimeUnionType, createCompileTimeWithElementAtType, createIntegerLiteral, createNestedReference, createParametersType, createTextLiteral, forEachChildType } from '../syntax-tree.js';
+import { CompileTimeAliasType, CompileTimeBoundType, CompileTimeCollection, CompileTimeComplementType, CompileTimeDictionary, CompileTimeDictionaryLiteralType, CompileTimeDictionaryType, CompileTimeFunctionType, CompileTimeIndexRangeType, CompileTimeListType, CompileTimePredicateType, CompileTimeStreamType, CompileTimeTupleType, CompileTimeType, CompileTimeTypeOfType, CompileTimeUnionType, ConditionalTypeBranch, Parameter, ParameterReference, ParametersType, ResolvedType, TextLiteralType, TypePurity, builtinAny, builtinBoolean, builtinEmpty, builtinInteger, builtinNever, createBooleanLiteral, createCompileTimeAddType, createCompileTimeAliasType, createCompileTimeBoundType, createCompileTimeComplementType, createCompileTimeConcatType, createCompileTimeConditionalType, createCompileTimeDictionaryLiteralType, createCompileTimeDictionaryType, createCompileTimeFunctionType, createCompileTimeIndexRangeType, createCompileTimeIntersectionType, createCompileTimeLengthOfType, createCompileTimeListType, createCompileTimeMapElementsType, createCompileTimePredicateType, createCompileTimeStreamType, createCompileTimeTupleType, createCompileTimeTypeOfType, createCompileTimeUnionType, createCompileTimeWithElementAtType, createIntegerLiteral, createNestedReference, createParametersType, createTextLiteral, forEachChildType, getFunctionTypeFacts } from '../syntax-tree.js';
 import { elementsEqual, fieldsEqual, isDefined, map, mapDictionary } from '../util.js';
 import { checkerStats } from './checker-stats.js';
 import { getNameFromValue, isInsideFunctionLiteral } from '../parser/parser-utils.js';
@@ -886,7 +886,7 @@ function dereferenceParameterFromArgumentType(
 ): CompileTimeType {
 	const { receiverType: prefixArgumentType, argsType: rawArgsType } = splitReceiver(rawBoundArgsType);
 	const argsType = resolveAlias(rawArgsType);
-	if (!calledFunction || parameterReference.functionRef !== calledFunction) {
+	if (calledFunction?.julType !== 'function' || parameterReference.functionRef !== calledFunction.identity) {
 		return parameterReference;
 	}
 	// TODO Param index nicht in ParameterReference, stattdessen mithilfe von parameterReference.functionRef.paramsType ermitteln?
@@ -1072,14 +1072,14 @@ function traversePlaceholders(
 				&& dereferencedReturnType === rawType.ReturnType) {
 				return rawType;
 			}
-			const dereferencedType = createCompileTimeFunctionType(dereferencedParamsType, dereferencedReturnType, rawType.purity, rawType.aliasName);
 			// Die Prädikat-Fakten und das Literal beschreiben den Wert, nicht die Platzhalter darin -
 			// sie gehen beim Neubau sonst still verloren. Am Literal hängen Faltung und Identität.
-			dereferencedType.predicate = rawType.predicate;
-			dereferencedType.literal = rawType.literal;
-			dereferencedType.foldable = rawType.foldable;
-			dereferencedType.boundArguments = rawType.boundArguments;
-			return dereferencedType;
+			return createCompileTimeFunctionType(
+				dereferencedParamsType,
+				dereferencedReturnType,
+				rawType.purity,
+				rawType.aliasName,
+				getFunctionTypeFacts(rawType));
 		}
 		case 'bound': {
 			const rawValue = rawType.Value;

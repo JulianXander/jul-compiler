@@ -5570,14 +5570,14 @@ imp.apply()`)).to.equal('impure');
 	it('getCallPurityInfo: Weitergabe des eigenen Parameters ist pure', () => {
 		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const ownParameter = createParameterReference('cb', 0);
-		ownParameter.functionRef = ownFunctionType;
+		ownParameter.functionRef = ownFunctionType.identity;
 		const argsType = createCompileTimeTupleType([ownParameter]);
-		expect(getCallPurityInfo(ownFunctionType, argsType, ownFunctionType)).to.equal('pure');
+		expect(getCallPurityInfo(ownFunctionType, argsType, ownFunctionType.identity)).to.equal('pure');
 	});
 	it('getCallPurityInfo: Weitergabe eines Parameters ohne Eigentümer-Kontext ist unknown', () => {
 		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const someParameter = createParameterReference('cb', 0);
-		someParameter.functionRef = ownFunctionType;
+		someParameter.functionRef = ownFunctionType.identity;
 		const argsType = createCompileTimeTupleType([someParameter]);
 		expect(getCallPurityInfo(ownFunctionType, argsType)).to.equal('unknown');
 	});
@@ -5585,9 +5585,9 @@ imp.apply()`)).to.equal('impure');
 		const ownFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const otherFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const foreignParameter = createParameterReference('cb', 0);
-		foreignParameter.functionRef = otherFunctionType;
+		foreignParameter.functionRef = otherFunctionType.identity;
 		const argsType = createCompileTimeTupleType([foreignParameter]);
-		expect(getCallPurityInfo(ownFunctionType, argsType, ownFunctionType)).to.equal('unknown');
+		expect(getCallPurityInfo(ownFunctionType, argsType, ownFunctionType.identity)).to.equal('unknown');
 	});
 
 	// Vierter Purity-Zustand pureIfArgsPure: rein, sofern die übergebenen Funktionsargumente
@@ -5647,7 +5647,7 @@ f(map)`)).to.equal('impure');
 		if (!functionType || !isFunctionType(functionType)) {
 			return undefined;
 		}
-		return inferBodyPurity(value.body, functionType).purity;
+		return inferBodyPurity(value.body, functionType.identity).purity;
 	}
 
 	// Für die Closure-Fälle (E2): der Rumpf, dessen Purity geprüft wird, ist die ZURÜCKGEGEBENE
@@ -5670,7 +5670,7 @@ f(map)`)).to.equal('impure');
 		if (!functionType || !isFunctionType(functionType)) {
 			return undefined;
 		}
-		return inferBodyPurity(inner.body, functionType).purity;
+		return inferBodyPurity(inner.body, functionType.identity).purity;
 	}
 
 	it('konstanter Rumpf ist pure', () => {
