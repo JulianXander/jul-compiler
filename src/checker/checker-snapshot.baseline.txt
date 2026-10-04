@@ -389,7 +389,6 @@ setText: (   element: Any   text: Text ) ~> Empty
 statusElement: Any
 subscribeEvent: (   element: Any   event: Text   listener: () :> Any ) ~> Empty
 walk: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   iteratee: (     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     cellElement: Any   ) ~> Any ) ~> Empty
-  warning 2500 at 43:47 This value is discarded. Expected 3 arguments, got 4.
 === ui/todo-list/todo-list.jul ===
 addHtml: (html: Text) ~> Any
 removeElement: (element: Any) ~> Any

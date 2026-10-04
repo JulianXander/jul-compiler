@@ -12,12 +12,14 @@ import {
 	createBooleanLiteral,
 	createCompileTimeBoundType,
 	createCompileTimeComplementType,
+	createCompileTimeDictionaryLiteralType,
 	createCompileTimeListType,
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
 	createCompileTimeTypeOfType,
 	createFloatLiteral,
 	createIntegerLiteral,
+	createParameterReference,
 } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
 import {
@@ -25,6 +27,7 @@ import {
 	createNormalizedUnionType,
 	dereferenceIndexFromObject,
 	isTypeAssignable,
+	spreadDictionaryTypes,
 	typeToString,
 	valueOf,
 } from './type-algebra.js';
@@ -38,6 +41,13 @@ const or = createNormalizedUnionType;
 // Wie in core-lib.jul: NonZeroInteger = Integer.Without(0), PositiveInteger = GreaterInteger(0)
 const nonZeroInteger = and([builtinInteger, not(integerLiteral(0))]);
 const positiveInteger = greaterInteger(0);
+
+const dictionary = (fields: Record<string, CompileTimeType>, complete = true) =>
+	createCompileTimeDictionaryLiteralType(fields, complete);
+const choicesOf = (type: CompileTimeType) =>
+	type.julType === 'or'
+		? type.ChoiceTypes
+		: [type];
 
 const expectAssignable = reportAtCaller((type: CompileTimeType, target: CompileTimeType) => {
 	const assignability = isTypeAssignable(type, target);
@@ -62,7 +72,201 @@ describe('Typalgebra', () => {
 	it('union-keeps-unrelated-choices', () => {
 		expect(or([builtinText, builtinInteger]).julType).to.equal('or');
 	});
+	// Or(1 Or(2 3)) => Or(1 2 3)
+	it('union-flattens-nested-unions', () => {
+		const type = or([integerLiteral(1), or([integerLiteral(2), integerLiteral(3)])]);
+		expect(type.julType).to.equal('or');
+		expect(choicesOf(type)).to.have.length(3);
+	});
+	it('union-with-any-is-any', () => {
+		expect(or([builtinInteger, builtinAny])).to.equal(builtinAny);
+	});
+	it('union-drops-never', () => {
+		expect(or([builtinInteger, builtinNever])).to.equal(builtinInteger);
+	});
+	it('union-of-only-never-is-never', () => {
+		expect(or([builtinNever, builtinNever])).to.equal(builtinNever);
+	});
+	it('empty-union-is-never', () => {
+		expect(or([])).to.equal(builtinNever);
+	});
+	it('union-removes-duplicates', () => {
+		const type = or([integerLiteral(1), integerLiteral(1)]);
+		expect(type).to.deep.equal(integerLiteral(1));
+	});
+	// Or(A Not(A)) => Any
+	it('union-with-own-complement-is-any', () => {
+		expect(or([builtinInteger, not(builtinInteger)])).to.equal(builtinAny);
+	});
+	// Gegenprobe: Not(0) deckt nicht alles ab, und keiner der beiden Choices ist Teilmenge des anderen.
+	it('union-with-foreign-complement-stays', () => {
+		expect(or([builtinInteger, not(integerLiteral(0))]).julType).to.equal('or');
+	});
+	// Integer liegt ganz in Not(Text): die Teilmengen-Reduktion lässt nur Not(Text) übrig.
+	it('union-reduces-subtype-of-complement', () => {
+		expect(or([builtinInteger, not(builtinText)]).julType).to.equal('not');
+	});
+	it('union-of-true-and-false-is-boolean', () => {
+		expect(or([createBooleanLiteral(true), createBooleanLiteral(false)])).to.equal(builtinBoolean);
+	});
+	// Gegenprobe: nur ein Wert von Boolean bleibt ein Literal.
+	it('union-of-true-and-integer-keeps-both', () => {
+		expect(choicesOf(or([createBooleanLiteral(true), builtinInteger]))).to.have.length(2);
+	});
+	// Ein nicht aufgelöster Platzhalter wird nie verworfen und verwirft nichts.
+	it('union-keeps-placeholder-and-does-not-reduce-with-it', () => {
+		const placeholder = createParameterReference('a', 0);
+		const type = or([placeholder, builtinInteger, integerLiteral(5)]);
+		const choices = choicesOf(type);
+		expect(choices).to.have.length(2);
+		expect(choices).to.include(placeholder);
+		expect(choices).to.include(builtinInteger);
+	});
+	it('union-reduces-subtypes-of-structured-types', () => {
+		const list = createCompileTimeListType(builtinInteger);
+		expect(or([list, createCompileTimeListType(integerLiteral(1))])).to.deep.equal(list);
+	});
+	// Über der Größenschwelle wird nicht mehr nach Teilmengen reduziert.
+	it('union-above-limit-skips-subtype-reduction', () => {
+		const literals = Array.from({ length: 25 }, (_, index) => integerLiteral(index));
+		const type = or([...literals, builtinInteger]);
+		expect(choicesOf(type)).to.have.length(26);
+	});
+	// Gegenprobe: darunter wird reduziert.
+	it('union-below-limit-reduces-subtypes', () => {
+		const literals = Array.from({ length: 5 }, (_, index) => integerLiteral(index));
+		expect(or([...literals, builtinInteger])).to.equal(builtinInteger);
+	});
+	it('union-of-finite-streams-is-finite', () => {
+		const union = or([
+			createCompileTimeStreamType(builtinInteger, true),
+			createCompileTimeStreamType(builtinText, true),
+		]);
+		expect(union.julType).to.equal('stream');
+		expectAssignable(union, createCompileTimeStreamType(builtinAny, true));
+	});
+	it('union-collapses-streams-but-keeps-other-choices', () => {
+		const type = or([
+			createCompileTimeStreamType(builtinInteger, false),
+			builtinText,
+			createCompileTimeStreamType(builtinBoolean, false),
+		]);
+		const choices = choicesOf(type);
+		expect(choices).to.have.length(2);
+		expect(choices.map(choice => choice.julType)).to.have.members(['stream', 'text']);
+	});
 	//#endregion Union
+
+	//#region Intersection
+	it('intersection-with-never-is-never', () => {
+		expect(and([builtinInteger, builtinNever])).to.equal(builtinNever);
+		expect(and([builtinNever, builtinInteger])).to.equal(builtinNever);
+	});
+	it('intersection-with-any-is-neutral', () => {
+		expect(and([builtinInteger, builtinAny])).to.equal(builtinInteger);
+		expect(and([builtinAny, builtinInteger])).to.equal(builtinInteger);
+	});
+	// Neben einem Not bleibt Any stehen: unbekannter Wert, der nur kein Integer ist.
+	it('intersection-of-any-and-complement-keeps-both', () => {
+		expect(and([builtinAny, not(builtinInteger)]).julType).to.equal('and');
+		expect(and([not(builtinInteger), builtinAny]).julType).to.equal('and');
+	});
+	// And(Or(A B) C) => Or(And(A C) And(B C)), egal auf welcher Seite die Union steht.
+	it('intersection-distributes-over-union', () => {
+		const union = or([integerLiteral(1), integerLiteral(2)]);
+		expect(choicesOf(and([union, builtinInteger]))).to.have.length(2);
+		expect(choicesOf(and([builtinInteger, union]))).to.have.length(2);
+	});
+	it('intersection-distribution-drops-disjoint-choices', () => {
+		const union = or([builtinInteger, builtinText]);
+		expect(and([union, integerLiteral(5)])).to.deep.equal(integerLiteral(5));
+		expect(and([integerLiteral(5), union])).to.deep.equal(integerLiteral(5));
+	});
+	it('intersection-with-own-complement-is-never', () => {
+		expect(and([builtinInteger, not(builtinInteger)])).to.equal(builtinNever);
+	});
+	// And(A Not(B)) => A, wenn B keine Schnittmenge mit A hat.
+	it('intersection-with-disjoint-complement-is-source', () => {
+		expect(and([builtinInteger, not(builtinText)])).to.equal(builtinInteger);
+	});
+	// Gegenprobe: B überschneidet A, beide Choices bleiben.
+	it('intersection-with-overlapping-complement-keeps-both', () => {
+		expect(and([builtinInteger, not(integerLiteral(0))]).julType).to.equal('and');
+	});
+	it('intersection-returns-subset', () => {
+		expect(and([builtinInteger, integerLiteral(5)])).to.deep.equal(integerLiteral(5));
+		expect(and([integerLiteral(5), builtinInteger])).to.deep.equal(integerLiteral(5));
+	});
+	it('intersection-of-equal-types-is-that-type', () => {
+		expect(and([builtinInteger, builtinInteger])).to.equal(builtinInteger);
+	});
+	it('intersection-of-disjoint-types-is-never', () => {
+		expect(and([builtinInteger, builtinText])).to.equal(builtinNever);
+	});
+	//#endregion Intersection
+
+	//#region Dictionary
+	// Ein Dictionary-Literal ist eine Struktur: Felder beider Seiten bleiben erhalten.
+	it('intersection-merges-dictionary-fields', () => {
+		const type = and([dictionary({ a: builtinInteger }), dictionary({ b: builtinText })]);
+		expect(type.julType).to.equal('dictionaryLiteral');
+		const fields = (type as ReturnType<typeof dictionary>).Fields;
+		expect(Object.keys(fields)).to.have.members(['a', 'b']);
+	});
+	it('intersection-merges-same-dictionary-field', () => {
+		const type = and([dictionary({ a: builtinInteger }), dictionary({ a: integerLiteral(5) })]);
+		expect((type as ReturnType<typeof dictionary>).Fields.a).to.deep.equal(integerLiteral(5));
+	});
+	it('intersection-of-dictionaries-with-conflicting-field-is-never', () => {
+		expect(and([dictionary({ a: builtinInteger }), dictionary({ a: builtinText })])).to.equal(builtinNever);
+	});
+	it('intersection-of-dictionaries-is-complete-if-either-side-is', () => {
+		const incompleteBoth = and([dictionary({ a: builtinInteger }, false), dictionary({ b: builtinText }, false)]);
+		const oneComplete = and([dictionary({ a: builtinInteger }, false), dictionary({ b: builtinText }, true)]);
+		expect((incompleteBoth as ReturnType<typeof dictionary>).complete).to.equal(false);
+		expect((oneComplete as ReturnType<typeof dictionary>).complete).to.equal(true);
+	});
+	it('intersection-of-dictionary-and-disjoint-type-is-never', () => {
+		expect(and([dictionary({ a: builtinInteger }), builtinText])).to.equal(builtinNever);
+	});
+	//#endregion Dictionary
+
+	//#region Spread
+	const spread = (left: CompileTimeType, right: CompileTimeType) =>
+		spreadDictionaryTypes(left, right, (fields, complete) => dictionary(fields, complete));
+	it('spread-right-overrides-left', () => {
+		const result = spread(
+			dictionary({ a: builtinInteger, b: builtinText }),
+			dictionary({ b: builtinBoolean, c: builtinInteger }),
+		) as ReturnType<typeof dictionary>;
+		expect(result.Fields).to.deep.equal({ a: builtinInteger, b: builtinBoolean, c: builtinInteger });
+	});
+	it('spread-is-complete-only-if-both-sides-are', () => {
+		const incomplete = spread(dictionary({ a: builtinInteger }, false), dictionary({ b: builtinText })) as ReturnType<typeof dictionary>;
+		const complete = spread(dictionary({ a: builtinInteger }), dictionary({ b: builtinText })) as ReturnType<typeof dictionary>;
+		expect(incomplete.complete).to.equal(false);
+		expect(complete.complete).to.equal(true);
+	});
+	it('spread-with-empty-returns-other-side', () => {
+		const dict = dictionary({ a: builtinInteger });
+		expect(spread(dict, builtinEmpty)).to.equal(dict);
+		expect(spread(builtinEmpty, dict)).to.equal(dict);
+	});
+	it('spread-of-non-dictionary-is-undefined', () => {
+		expect(spread(dictionary({ a: builtinInteger }), builtinInteger)).to.equal(undefined);
+	});
+	it('spread-distributes-over-union', () => {
+		const result = spread(
+			or([dictionary({ a: builtinInteger }), dictionary({ a: builtinText })]),
+			dictionary({ b: builtinBoolean }),
+		);
+		expect(choicesOf(result!)).to.have.length(2);
+	});
+	it('spread-with-undecidable-union-choice-is-undefined', () => {
+		const left = or([dictionary({ a: builtinInteger }), builtinInteger]);
+		expect(spread(left, dictionary({ b: builtinBoolean }))).to.equal(undefined);
+	});
+	//#endregion Spread
 
 	//#region Not
 	it('not-type-rejects-excluded-literal', () => {
