@@ -31,6 +31,7 @@
 		"bench": "tsx scripts/bench.ts",
 		"bench-chart": "node scripts/bench-chart.mjs",
 		"bench-runtime": "tsx scripts/bench-runtime.ts",
+		"fuzz": "tsx scripts/fuzz.ts",
 		"check-runtime-purity": "node scripts/check-runtime-purity.mjs",
 		"typecheck": "tsc -p tsconfig.json",
 		"install-cli": "npm i -g"
