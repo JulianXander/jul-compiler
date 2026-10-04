@@ -5167,6 +5167,31 @@ Target = [
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  zone: Or(Empty ZoneIndex)\n  other: Integer\n])');
 	});
+	// And(X Obermenge) ändert die Menge nicht: createNormalizedIntersectionType liefert X, aber
+	// aufgelöst statt wie geschrieben. Der Alias fehlt danach in der Anzeige, obwohl er im Code
+	// steht - anders als bei Or(Alias 2) und And(Alias Any), die den Namen behalten.
+	const expectFieldAliasShown = reportAtCaller((definitions: string, fieldType: string, shown: string) => {
+		const parsed = parseCode(`${definitions}\nTarget = [a: ${fieldType}]`, 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const expressions = parsed.checked?.expressions ?? [];
+		const targetDef = expressions[expressions.length - 1] as ParseSingleDefinition;
+		const targetType = targetDef.value?.typeInfo?.type;
+		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
+			`TypeOf([a: ${shown}])`);
+	});
+	it('type-alias-name-survives-intersection-with-superset', () => expectFieldAliasShown(
+		'Pos = PositiveInteger', 'And(Pos Integer)', 'Pos'));
+	it('type-alias-name-survives-intersection-with-superset-first', () => expectFieldAliasShown(
+		'Pos = PositiveInteger', 'And(Integer Pos)', 'Pos'));
+	it('type-alias-name-survives-intersection-with-itself', () => expectFieldAliasShown(
+		'Pos = PositiveInteger', 'And(Pos Pos)', 'Pos'));
+	it('type-alias-name-survives-intersection-of-union-with-superset', () => expectFieldAliasShown(
+		'Idx = Or(1 2 3)', 'And(Idx Integer)', 'Idx'));
+	it('type-alias-name-survives-intersection-of-range-with-superset', () => expectFieldAliasShown(
+		'Rng = And(GreaterInteger(0) LessInteger(4))', 'And(Rng Integer)', 'Rng'));
 	// Ein Typalias, der sich selbst nennt, fällt lautlos auf Any zurück: beim Konstruieren seines
 	// Werts ist die Definition noch nicht fertig, es gibt nichts einzusetzen. Kein Fehler, kein
 	// sichtbarer Unterschied - die Rekursion verschwindet einfach aus dem Typ, und jeder Zugriff

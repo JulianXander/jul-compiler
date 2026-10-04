@@ -2141,6 +2141,13 @@ export function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[])
 		if (unionIndex >= 0) {
 			const unionType = resolvedChoices[unionIndex] as CompileTimeUnionType;
 			const otherIntersectionType = resolvedChoices[unionIndex ? 0 : 1]!;
+			// Liegt die Union schon ganz in der anderen Seite, ändert der Schnitt nichts: die
+			// geschriebene Union (mit ihrem Alias) statt einer neu gebauten. Dictionaries sind
+			// ausgenommen, dort führt die Distribution unvollständige Felder zusammen.
+			if (otherIntersectionType.julType !== 'dictionaryLiteral'
+				&& isSubtypeOf(unionType, otherIntersectionType) === true) {
+				return ChoiceTypes[unionIndex]!;
+			}
 			const distributedChoices = unionType.ChoiceTypes.map(choice => {
 				return createNormalizedIntersectionType([choice, otherIntersectionType]);
 			});
@@ -2213,11 +2220,12 @@ export function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[])
 		// stehen und darf hier nicht als Obermenge wegfallen.
 		if (first.julType !== 'any'
 			&& second.julType !== 'any') {
+			// Der geschriebene Typ statt des aufgelösten, damit ein Alias in der Anzeige erhalten bleibt.
 			if (isSubtypeOf(first, second) === true) {
-				return first;
+				return ChoiceTypes[0]!;
 			}
 			if (isSubtypeOf(second, first) === true) {
-				return second;
+				return ChoiceTypes[1]!;
 			}
 		}
 
