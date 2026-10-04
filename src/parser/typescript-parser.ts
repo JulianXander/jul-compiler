@@ -54,6 +54,10 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 			return undefined;
 		case SyntaxKind.VariableStatement: {
 			const variableStatement = tsNode as VariableStatement;
+			// Nicht exportierte Konstanten sind von außen nicht sichtbar und müssen nicht übersetzt werden.
+			if (!variableStatement.modifiers?.some(modifier => modifier.kind === SyntaxKind.ExportKeyword)) {
+				return undefined;
+			}
 			const test = variableStatement.declarationList.declarations.map(declaration => {
 				return {
 					name: tsNameToJulName(declaration.name, sourceFile),
@@ -65,7 +69,6 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 				|| !test1.name) {
 				return undefined;
 			}
-			// TODO nur exported definitions lieferen?
 			return {
 				type: 'definition',
 				description: getJsDocDescription(variableStatement, sourceFile),
