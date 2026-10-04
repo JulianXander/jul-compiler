@@ -1,3 +1,4 @@
+-fuzzer findings fixen
 -unmögliche typen an der ursache melden (plan in docs/three-valued-assignability.md, abschnitt Never):
 	-warnung an einem parameter vom typ Never: nie aufrufbar
 	-:? ohne passenden zweig am aufrufort: gibt es dafür schon eine meldung?
