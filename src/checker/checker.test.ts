@@ -5810,7 +5810,7 @@ describe('constant folding', () => {
 	});
 	it('faltet nicht bei einem Aufruf mit Argumenttypfehler', () => {
 		// Eine Funktion mit festem Rückgabetyp, damit das Ergebnis nicht von den Argumenten abhängt.
-		const parsed = parseCode('r = subtractFloat(§abc§ 1.5f)', 'dummy.jul');
+		const parsed = parseCode('r = divideFloat(§abc§ 1.5f)', 'dummy.jul');
 		expect(parsed.unchecked.errors).to.deep.equal([]);
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.have.lengthOf(1);

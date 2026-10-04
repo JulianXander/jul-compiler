@@ -358,13 +358,18 @@ add = nativeFunction(
 )
 # Liefert die Summe der args.
 addFloat = nativeFunction(
-	(...args: List(Float)) -> Float
+	(...args: List(Float)) -> Or(Float Error)
 	§js
-		(...args) =>
-			args.reduce(
+		(...args) => {
+			const result = args.reduce(
 				(accumulator, current) =>
 					accumulator + current,
-				0)
+				0);
+			if (!Number.isFinite(result)) {
+				return new Error('Float overflow.');
+			}
+			return result;
+		}
 	§
 )
 # minuend - subtrahend
@@ -401,9 +406,15 @@ subtract = nativeFunction(
 )
 # minuend - subtrahend
 subtractFloat = nativeFunction(
-	(minuend: Float subtrahend: Float) -> Float
+	(minuend: Float subtrahend: Float) -> Or(Float Error)
 	§js
-		(minuend, subtrahend) => minuend - subtrahend
+		(minuend, subtrahend) => {
+			const result = minuend - subtrahend;
+			if (!Number.isFinite(result)) {
+				return new Error('Float overflow.');
+			}
+			return result;
+		}
 	§
 )
 # Liefert das Produkt der args
@@ -434,13 +445,18 @@ multiply = nativeFunction(
 )
 # Liefert das Produkt der args
 multiplyFloat = nativeFunction(
-	(...args: List(Float)) -> Float
+	(...args: List(Float)) -> Or(Float Error)
 	§js
-		(...args) =>
-			args.reduce(
+		(...args) => {
+			const result = args.reduce(
 				(accumulator, current) =>
 					accumulator * current,
-				1)
+				1);
+			if (!Number.isFinite(result)) {
+				return new Error('Float overflow.');
+			}
+			return result;
+		}
 	§
 )
 # dividend / divisor

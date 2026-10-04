@@ -1812,12 +1812,16 @@ export const multiply = /*#__PURE__*/ _createFunction(
 	}
 );
 export const multiplyFloat = /*#__PURE__*/ _createFunction(
-	function multiplyFloat(...args: number[]) {
-		return args.reduce(
+	function multiplyFloat(...args: number[]): number | Error {
+		const result = args.reduce(
 			(accumulator, current) => {
 				return accumulator * current;
 			},
 			1);
+		if (!Number.isFinite(result)) {
+			return new Error('Float overflow.');
+		}
+		return result;
 	},
 	{
 		rest: {
@@ -1878,8 +1882,12 @@ export const subtract = /*#__PURE__*/ _createFunction(
 	}
 );
 export const subtractFloat = /*#__PURE__*/ _createFunction(
-	function subtractFloat(minuend: number, subtrahend: number) {
-		return minuend - subtrahend;
+	function subtractFloat(minuend: number, subtrahend: number): number | Error {
+		const result = minuend - subtrahend;
+		if (!Number.isFinite(result)) {
+			return new Error('Float overflow.');
+		}
+		return result;
 	},
 	{
 		singleNames: [
@@ -1926,11 +1934,15 @@ export const add = /*#__PURE__*/ _createFunction(
 	}
 );
 export const addFloat = /*#__PURE__*/ _createFunction(
-	function addFloat(...args: number[]): number {
-		return args.reduce(
+	function addFloat(...args: number[]): number | Error {
+		const result = args.reduce(
 			(accumulator, current) =>
 				accumulator + current,
 			0);
+		if (!Number.isFinite(result)) {
+			return new Error('Float overflow.');
+		}
+		return result;
 	},
 	{
 		rest: {
