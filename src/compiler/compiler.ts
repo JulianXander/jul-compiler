@@ -29,6 +29,7 @@ export function compileProject(
 	outputFolderPath: string,
 	cli: boolean = false,
 	checkOnly: boolean = false,
+	warnUnknown: boolean = false,
 ): void {
 	const startTime = performance.now();
 	const renderer = new LiveRenderer();
@@ -49,7 +50,7 @@ export function compileProject(
 	// "compiling" und "bundling" vorbehalten), sondern nur die Detailanzeige neben dem laufenden
 	// Schritt.
 	const host: ProjectHost = {
-		...createFileSystemHost({ cloneUnchecked: false }),
+		...createFileSystemHost({ cloneUnchecked: false, warnUnknown: () => warnUnknown }),
 		onParsed: parsed => renderer.updateDetail(parsed.filePath),
 		// Der Checker blockiert den Event-Loop, der Frame-Timer kommt währenddessen nicht dran.
 		onProgress: () => renderer.tick(),
@@ -237,6 +238,10 @@ export interface TestProjectOptions {
 	 * Test Explorer. Die Terminalausgabe bleibt unverändert.
 	 */
 	reportPath?: string;
+	/**
+	 * Siehe CheckOptions.warnUnknown. Default: aus, die CLI reicht den Wert der Config durch.
+	 */
+	warnUnknown?: boolean;
 }
 
 /**
@@ -248,7 +253,7 @@ export interface TestProjectOptions {
 export async function testProject(
 	rootFolder: string,
 	outputFolderPath: string,
-	{ files, names, reportPath }: TestProjectOptions = {},
+	{ files, names, reportPath, warnUnknown = false }: TestProjectOptions = {},
 ): Promise<void> {
 	const startTime = performance.now();
 	const renderer = new LiveRenderer();
@@ -271,7 +276,7 @@ export async function testProject(
 	//#region load
 	renderer.startStep('compiling');
 	const host: ProjectHost = {
-		...createFileSystemHost({ cloneUnchecked: false }),
+		...createFileSystemHost({ cloneUnchecked: false, warnUnknown: () => warnUnknown }),
 		onParsed: parsed => renderer.updateDetail(parsed.filePath),
 		onProgress: () => renderer.tick(),
 	};

@@ -3266,7 +3266,7 @@ export function isTypeAssignable(
 	}
 }
 
-type TypeAssignability =
+export type TypeAssignability =
 	| {
 		assignable: false;
 		error: TypeError;

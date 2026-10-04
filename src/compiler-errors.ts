@@ -200,6 +200,12 @@ export enum ErrorCode {
 	destructuringFieldTypeMismatch = 5001,
 	typeGuardIsNotType = 5002,
 	/**
+	 * Der Checker kann nicht beweisen, dass ein Wert zu seinem Ziel passt, und kann es auch nicht
+	 * widerlegen (Definition mit Typ, Argument, Rückgabewert): Es kann zur Laufzeit schiefgehen.
+	 * Ein Versuch, über die Config abschaltbar (warnUnknown).
+	 */
+	typeNotProven = 5010,
+	/**
 	 * Der Params-Typ einer Funktion wird gegen die Argumentkollektion geprüft, und die ist List,
 	 * Dictionary oder Empty. Gemeldet wird, wenn der Typ bewohnt ist und keiner seiner Werte eine
 	 * Kollektion sein kann - dann ist die Funktion nicht aufrufbar. Never ist unbewohnt und fällt
@@ -321,6 +327,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.alreadyDefinedInUpperScope]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.unusedDefinition]: { type: 'semantic', severity: 'hint' },
 	[ErrorCode.definitionTypeMismatch]: { type: 'type', severity: 'error' },
+	[ErrorCode.typeNotProven]: { type: 'type', severity: 'warning' },
 	[ErrorCode.destructuringFieldTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.typeGuardIsNotType]: { type: 'type', severity: 'error' },
 	[ErrorCode.paramsTypeIsNotCollection]: { type: 'type', severity: 'error' },

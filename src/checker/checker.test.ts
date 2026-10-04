@@ -6494,3 +6494,45 @@ describe('test builtin', () => {
 });
 
 //#endregion test
+
+describe('Warnung bei unknown', () => {
+	const unknownMessages = (code: string, { enabled = true, filePath = 'dummy.jul' } = {}): string[] => {
+		const parsed = parseCode(code, filePath);
+		checkTypes(parsed, {}, { cloneUnchecked: false, warnUnknown: () => enabled });
+		return parsed.checked!.errors
+			.filter(error => error.code === ErrorCode.typeNotProven)
+			.map(error => error.message);
+	};
+	it('unknown-argument', () => {
+		expect(unknownMessages('g = (t: Text) => t\nf = (a: Any) => g(a)')).to.deep.equal([
+			'Argument type can not be verified.\nCan not prove that [Any] is assignable to (t: Text).',
+		]);
+	});
+	it('unknown-return', () => {
+		expect(unknownMessages('f = (a: Any) :> Text => a')).to.deep.equal([
+			'Return type can not be verified.\nCan not prove that Any is assignable to Text.',
+		]);
+	});
+	it('unknown-definition', () => {
+		expect(unknownMessages('f = (a: Any) =>\n\tx: Text = a\n\tx')).to.deep.equal([
+			'Definition type can not be verified.\nCan not prove that Any is assignable to Text.',
+		]);
+	});
+	// Wo das Ziel Any ist, gibt es nichts zu beweisen.
+	it('unknown-not-reported-for-any-target', () => {
+		expect(unknownMessages('f = (a: Any) => log(a)')).to.deep.equal([]);
+	});
+	it('unknown-not-reported-when-provable', () => {
+		expect(unknownMessages('g = (t: Text) => t\nf = (a: Text) => g(a)')).to.deep.equal([]);
+	});
+	it('unknown-not-reported-when-disabled', () => {
+		expect(unknownMessages('f = (a: Any) :> Text => a', { enabled: false })).to.deep.equal([]);
+	});
+	// Der Rumpf einer TypeScript-Funktion ist ein Artefakt des Parsers, seine Rückgabe immer Any.
+	it('unknown-not-reported-in-typescript-file', () => {
+		expect(unknownMessages('export function f(a: any): string { return a; }', { filePath: 'dummy.ts' })).to.deep.equal([]);
+	});
+	it('unknown-is-a-warning', () => {
+		expect(errorInfos[ErrorCode.typeNotProven].severity).to.equal('warning');
+	});
+});

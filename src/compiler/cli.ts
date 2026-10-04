@@ -1,22 +1,8 @@
 #!/usr/bin/env node
-import { Ajv } from 'ajv';
-import { load } from 'js-yaml';
 import { dirname, join } from 'path';
 import { compileProject, listTodos, testProject } from './compiler.js';
-import configSchema from './jul-config-schema.json' with { type: 'json' };
+import { defaultWarnUnknown, JulCompilerConfiguration, parseConfig } from './config.js';
 import { executingDirectory, readTextFile } from '../util.js';
-
-interface JulCompilerConfiguration {
-	entryFilePath: string;
-	/**
-	 * Default: out
-	 */
-	outputFolder?: string;
-	/**
-	 * Default: false
-	 */
-	cli?: boolean;
-}
 
 interface PackageJson {
 	version: string;
@@ -41,13 +27,7 @@ function loadConfig(configPathOption: string | undefined): {
 		}
 		throw error;
 	}
-	const config = load(configYaml) as JulCompilerConfiguration;
-	const ajv = new Ajv();
-	const validateConfig = ajv.compile(configSchema);
-	const valid = validateConfig(config);
-	if (!valid) {
-		throw new Error('Configuration file does not match schema');
-	}
+	const config = parseConfig(configYaml);
 	const rootFolder = dirname(configFilePath);
 	return {
 		rootFolder: rootFolder,
@@ -178,12 +158,14 @@ try {
 				outputFolder,
 				config.cli,
 				command === 'check',
+				config.warnUnknown ?? defaultWarnUnknown,
 			);
 			break;
 		}
 		case 'test': {
-			const { rootFolder, outputFolder } = loadConfig(optionValues['--config']?.[0]);
+			const { rootFolder, outputFolder, config } = loadConfig(optionValues['--config']?.[0]);
 			await testProject(rootFolder, outputFolder, {
+				warnUnknown: config.warnUnknown ?? defaultWarnUnknown,
 				files: optionValues['--file'],
 				names: optionValues['--name'],
 				reportPath: optionValues['--report']?.[0],

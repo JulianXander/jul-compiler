@@ -122,6 +122,7 @@ import {
 	valueFieldAccess,
 	valueOf,
 	withElementAtFromTypes,
+	type TypeAssignability,
 } from './type-algebra.js';
 
 export type ParsedDocuments = { [filePath: string]: ParsedFile; };
@@ -363,6 +364,7 @@ inferFileTypes([], {
 	filePath: '',
 	referenceIndex: undefined,
 	onProgress: undefined,
+	warnUnknown: false,
 });
 export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
 
@@ -869,6 +871,13 @@ export interface CheckOptions {
 	 * zeichnen). Der Abstand ist eine Anzahl inferierter Ausdrücke, keine Zeit.
 	 */
 	readonly onProgress?: () => void;
+	/**
+	 * Ob für diese Datei ein unknown an einer meldenden Stelle (Definition mit Typ, Argument,
+	 * Rückgabewert) als Warnung typeNotProven gemeldet wird. Fehlt die Funktion, wird nicht gemeldet.
+	 * Eine Funktion statt eines Werts, weil der Language Server mehrere Projekte mit je eigener
+	 * jul-config.yaml hält.
+	 */
+	readonly warnUnknown?: (filePath: string) => boolean;
 }
 
 /**
@@ -900,6 +909,9 @@ export function checkTypes(
 		filePath: document.filePath,
 		referenceIndex: referenceIndex,
 		onProgress: onProgress,
+		warnUnknown: !isCoreLibPath(document.filePath)
+			&& !isTypeScriptFile(document.filePath)
+			&& !!options.warnUnknown?.(document.filePath),
 	});
 	if (extname(document.filePath) === Extension.jul
 		&& !isCoreLibPath(document.filePath)) {
@@ -1039,6 +1051,11 @@ interface CheckContext {
 	readonly referenceIndex: ReferenceIndex | undefined;
 	/** Siehe CheckOptions. */
 	readonly onProgress: (() => void) | undefined;
+	/**
+	 * Ob ein unknown an einer meldenden Stelle als Warnung gemeldet wird: nur für .jul-Dateien des
+	 * Projekts, nicht für die core-lib und nicht für TS/JS, deren Rumpf nur ein Artefakt des Parsers ist.
+	 */
+	readonly warnUnknown: boolean;
 }
 
 /**
@@ -2250,6 +2267,9 @@ function inferType(
 						endColumnIndex: position.endColumnIndex,
 					});
 				}
+				else if (assignability && dereferencedTargetType) {
+					reportUnknown(assignability, checkContext, 'Definition', typeInfo.type, dereferencedTargetType, expression);
+				}
 			}
 			return typeInfo;
 		}
@@ -2652,6 +2672,9 @@ function inferType(
 					endColumnIndex: position.endColumnIndex,
 				});
 			}
+			else {
+				reportUnknown(argsAssignability, checkContext, 'Argument', boundArgsType, dereferencedParamsType, expression);
+			}
 			// Ein Parameter mit Funktionstyp ist eine Referenz, deren Stelligkeit erst aufgelöst
 			// bekannt ist. Aufgelöst wird nur dann, weil es sonst jeden Aufruf verteuert.
 			const discardCheckParamsType = paramsType.julType === 'any' && isFunction
@@ -2868,6 +2891,7 @@ function inferType(
 				const rawDeclaredReturnType = valueOf(declaredReturnType.typeInfo!.type);
 				const dereferencedDeclaredReturnType = resolvePlaceholders(rawDeclaredReturnType);
 				const returnAssignability = isTypeAssignable(resolvePlaceholders(inferredReturnType), dereferencedDeclaredReturnType);
+				reportUnknown(returnAssignability, checkContext, 'Return', inferredReturnType, dereferencedDeclaredReturnType, last(expression.body) ?? expression);
 				if (returnAssignability.assignable === false) {
 					// Markiert wird nur der zurückgegebene Ausdruck (last(body)), nicht die
 					// ganze Funktion - sonst ummantelt die mehrzeilige Klammerung (formatErrors)
@@ -4608,6 +4632,37 @@ function getArgValueExpressions(args: BracketedExpression): (ParseValueExpressio
 		}
 	}
 }
+
+//#region Warnung bei unknown
+
+/**
+ * Meldet ein unknown an einer meldenden Stelle als Warnung. Die Prüfung selbst bleibt unverändert:
+ * unknown ist weiter zulässig, es wird nur sichtbar.
+ */
+function reportUnknown(
+	assignability: TypeAssignability,
+	checkContext: CheckContext,
+	subject: 'Definition' | 'Argument' | 'Return',
+	source: CompileTimeType,
+	target: CompileTimeType,
+	position: Positioned,
+): void {
+	if (!checkContext.warnUnknown
+		|| assignability.assignable !== undefined) {
+		return;
+	}
+	checkContext.file.errors.push({
+		code: ErrorCode.typeNotProven,
+		message: `${subject} type can not be verified.
+Can not prove that ${typeToString(resolvePlaceholders(source), 0, 1, true)} is assignable to ${typeToString(resolvePlaceholders(target), 0, 1)}.`,
+		startRowIndex: position.startRowIndex,
+		startColumnIndex: position.startColumnIndex,
+		endRowIndex: position.endRowIndex,
+		endColumnIndex: position.endColumnIndex,
+	});
+}
+
+//#endregion Warnung bei unknown
 
 //#region Schreibweise
 
