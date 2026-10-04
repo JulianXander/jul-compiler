@@ -364,31 +364,50 @@ visibleInput: Any
 addMessage: (message: Text) ~> Any
 === ui/tic-tac-toe/tic-tac-toe-logic.jul ===
 Cell: TypeOf(Or(§§ Player))
+CellChange: TypeOf([   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3)   value: Or(Empty Cell)   enabled: Or(Empty Boolean) ])
 GameBoard: [[TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)]]
-GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player ])
+GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ])
+GameStateChange: TypeOf([   cellChanges: Or(Empty List(CellChange))   currentPlayer: Player   status: GameStatus ])
+GameStatus: TypeOf(Or(§running§ §tie§ §win§))
 Player: TypeOf(Or(§x§ §o§))
+PositionedCell: TypeOf([   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3)   value: Cell ])
 allEqual: (   values: List(Any)   expected: Any ) -> Boolean
+applyDelta: (   gameState: GameState   delta: GameStateChange ) -> [   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ]
+cellsOf: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Or(Empty List(Or(   [     rowIndex: 1     columnIndex: 1     value: Cell   ]   [     rowIndex: 1     columnIndex: 2     value: Cell   ]   [     rowIndex: 1     columnIndex: 3     value: Cell   ]   [     rowIndex: 2     columnIndex: 1     value: Cell   ]   [     rowIndex: 2     columnIndex: 2     value: Cell   ]   [     rowIndex: 2     columnIndex: 3     value: Cell   ]   [     rowIndex: 3     columnIndex: 1     value: Cell   ]   [     rowIndex: 3     columnIndex: 2     value: Cell   ]   [     rowIndex: 3     columnIndex: 3     value: Cell   ] )))
 checkWinner: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   player: Player   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> Boolean
+computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ])   currentPlayer: Player   status: Or(§win§ §tie§ §running§) ]
+computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ]))   currentPlayer: §x§   status: §running§ ]
+disableEmptyCells: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Or(Empty List([   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3)   enabled: false ]))
+isBoardEmpty: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 isTied: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 === ui/tic-tac-toe/tic-tac-toe-logic.test.jul ===
 allEqual: (   values: List(Any)   expected: Any ) -> Boolean
+applyDelta: (   gameState: GameState   delta: GameStateChange ) -> [   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ]
 checkWinner: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   player: Player   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> Boolean
+computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ])   currentPlayer: Player   status: Or(§win§ §tie§ §running§) ]
+computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ]))   currentPlayer: §x§   status: §running§ ]
+isBoardEmpty: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 isTied: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 === ui/tic-tac-toe/tic-tac-toe.jul ===
-GameBoard: [[TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)]]
-GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player ])
-checkWinner: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   player: Player   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> Boolean
-disableGameBoard: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) ~> Empty
+GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ])
+GameStateChange: TypeOf([   cellChanges: Or(Empty List(CellChange))   currentPlayer: Player   status: GameStatus ])
+applyDelta: (   gameState: GameState   delta: GameStateChange ) -> [   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ]
+computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ])   currentPlayer: Player   status: Or(§win§ §tie§ §running§) ]
+computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ]))   currentPlayer: §x§   status: §running§ ]
+delta$: Stream(GameStateChange)
 elementById: (id: Text) ~> Any
 gameState$: Stream(GameState)
-initialGameState: [   gameBoard: [[§§ §§ §§] [§§ §§ §§] [§§ §§ §§]]   currentPlayer: §x§ ]
-isTied: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
+initialDelta: [   cellChanges: Empty   currentPlayer: §x§   status: §running§ ]
+initialGameState: [   gameBoard: [[§§ §§ §§] [§§ §§ §§] [§§ §§ §§]]   currentPlayer: §x§   status: §running§ ]
+isBoardEmpty: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 resetElement: Any
+resetEnabled$: Stream(Boolean)
 setEnabled: (   element: Any   enabled: Boolean ) ~> Empty
 setText: (   element: Any   text: Text ) ~> Empty
 statusElement: Any
+statusText: (gameState: GameState) -> Text
+statusText$: Stream(Text)
 subscribeEvent: (   element: Any   event: Text   listener: () :> Any ) ~> Empty
-walk: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   iteratee: (     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     cellElement: Any   ) ~> Any ) ~> Empty
 === ui/todo-list/todo-list.jul ===
 addHtml: (html: Text) ~> Any
 removeElement: (element: Any) ~> Any
