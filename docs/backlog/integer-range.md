@@ -2,9 +2,9 @@
 
 Idee, keine Entscheidung. Ein Typ für die ganzen Zahlen von `start` bis `end`, beide inklusive.
 
-Aufgegangen in [number-ranges.md](../number-ranges.md): Grenzen je Familie und eine gemeinsame
-Bereichssicht des Checkers, ohne eigenen Knotentyp. `IntegerRange` ist dort als spätere Kurzform
-zurückgestellt.
+Teilweise umgesetzt: Grenzen je Familie (`GreaterInteger`, `LessInteger`) und eine gemeinsame
+Bereichssicht des Checkers, ohne eigenen Knotentyp. `IntegerRange` bleibt als spätere Kurzform
+zurückgestellt, der Rest steht in [number-ranges-open.md](number-ranges-open.md).
 
 ## Ausgangspunkt
 

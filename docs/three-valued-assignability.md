@@ -27,7 +27,7 @@ behoben bzw. umgangen:
 | `lengthOf` als Ziel wird gegen `PositiveInteger` geprüft, gilt aber als verlässlich | `And(PositiveInteger Or(length(values) LessInteger(length(values))))` wird zu `PositiveInteger`, die obere Grenze geht verloren |
 
 Der dritte Fall ist offen. Die core-lib umgeht ihn, indem sie obere Grenzen als
-`Not(GreaterInteger(…))` schreibt (siehe [number-ranges.md](number-ranges.md)).
+`Not(GreaterInteger(…))` schreibt.
 
 ## Wer die Prüfung benutzt
 
