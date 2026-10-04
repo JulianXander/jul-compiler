@@ -756,7 +756,7 @@ function getLiteralParameterNames(functionExpression: SimpleExpression): string[
 		|| params.rest) {
 		return undefined;
 	}
-	return params.singleFields.map(field => field.source ?? field.name.name);
+	return params.singleFields.map(field => field.source?.name ?? field.name.name);
 }
 
 /** Ohne Seiteneffekt, darf also in anderer Reihenfolge ausgewertet werden */
@@ -915,7 +915,7 @@ function parametersToJs(parameters: ParseParameterFields, indent: number): strin
 		const singleNamesValuesJs = parameters.singleFields.map(field => {
 			const fieldsJs: string[] = [singleDictionaryFieldToJsInternal('name', stringToJs(field.name.name))];
 			if (field.source) {
-				fieldsJs.push(singleDictionaryFieldToJsInternal('source', stringToJs(field.source)));
+				fieldsJs.push(singleDictionaryFieldToJsInternal('source', stringToJs(field.source.name)));
 			}
 			if (field.typeGuard) {
 				fieldsJs.push(singleDictionaryFieldToJsInternal('type', expressionToJs(field.typeGuard, innerIndent3)));

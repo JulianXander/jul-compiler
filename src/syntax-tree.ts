@@ -469,7 +469,7 @@ export interface ParseParameterField extends ParseExpressionBase {
 	description?: string;
 	name: Name;
 	typeGuard?: ParseValueExpression;
-	source?: string;
+	source?: Name;
 }
 
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {

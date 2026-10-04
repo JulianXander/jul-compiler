@@ -3241,7 +3241,7 @@ function inferType(
 			const rawType = createParametersType(
 				expression.singleFields.map(field => {
 					return {
-						name: field.source ?? field.name.name,
+						name: field.source?.name ?? field.name.name,
 						type: field.typeInfo?.type
 					};
 				}),

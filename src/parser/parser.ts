@@ -2747,13 +2747,10 @@ function bindingToParameters(
 	for (let index = 0; index < baseFields.length; index++) {
 		const baseField = baseFields[index]!;
 		const parseSource = baseField.assignedValue;
-		let source: string | undefined;
+		let source: Name | undefined;
 		if (parseSource) {
-			const checkedSource = checkName(parseSource);
-			if (checkedSource) {
-				source = checkedSource.name;
-			}
-			else {
+			source = checkName(parseSource);
+			if (!source) {
 				errors.push({
 					code: ErrorCode.invalidParameterSource,
 					message: `${parseSource.type} is not a valid expression for parameter source.`,
