@@ -4,6 +4,7 @@ TODO beispiel json, beispiel delta, reactive ui, diffing logic?, delta compressi
 
 # use cases
 1. reactive ui
+	?dom delta
 2. game logic
 3. client-server communication  
 	client holt einmal current, ab dann nur noch deltas
