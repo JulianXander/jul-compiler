@@ -34,12 +34,12 @@ cliArguments: Any
 progress$: FiniteStream(Integer)
 timer1$: FiniteStream(Or(0 PositiveInteger))
 === core-lib/aggregate/aggregate.jul ===
-aggregateRecursive: (   values: List(Any)   init: Any   fn: (     acc: Any     val: Any     i: Any   ) :> Any   index: Any   curr: Any ) :> Any
+aggregateRecursive: (   values: List(Any)   init: Any   fn: (     acc: Any     val: Any     i: Any   ) :> Any   index: PositiveInteger   curr: Any ) :> Any
 sumBuiltin: 6
 sumRecursive: 6
 testValues: [1 2 3]
 === core-lib/aggregate/aggregate.test.jul ===
-aggregateRecursive: (   values: List(Any)   init: Any   fn: (     acc: Any     val: Any     i: Any   ) :> Any   index: Any   curr: Any ) :> Any
+aggregateRecursive: (   values: List(Any)   init: Any   fn: (     acc: Any     val: Any     i: Any   ) :> Any   index: PositiveInteger   curr: Any ) :> Any
 testValues: [1 2 3]
 === core-lib/http-request/http-request.jul ===
 === core-lib/import/file1.jul ===

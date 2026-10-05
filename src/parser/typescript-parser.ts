@@ -1,7 +1,7 @@
-import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, Purity, SymbolTable } from '../syntax-tree.js';
+import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseNestedReference, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, Purity, SymbolTable } from '../syntax-tree.js';
 import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, Positioned } from '../compiler-errors.js';
-import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode } from 'typescript';
+import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode, TypeParameterDeclaration } from 'typescript';
 import { createParseFunctionLiteral, createParseFunctionTypeLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
 const { createSourceFile, getJSDocCommentsAndTags, getJSDocTags, ScriptKind, ScriptTarget, SyntaxKind } = typescript;
 
@@ -48,7 +48,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 			};
 		case SyntaxKind.ArrowFunction: {
 			const arrowFunction = tsNode as ArrowFunction;
-			return tsFunctionToJulAst(position, arrowFunction, arrowFunction.parameters, arrowFunction.type, sourceFile, errors);
+			return tsFunctionToJulAst(position, arrowFunction, arrowFunction.typeParameters, arrowFunction.parameters, arrowFunction.type, sourceFile, errors);
 		}
 		case SyntaxKind.EmptyStatement:
 			return undefined;
@@ -91,7 +91,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 				type: 'definition',
 				description: getJsDocDescription(functionDeclaration, sourceFile),
 				name: julName,
-				value: tsFunctionToJulAst(position, functionDeclaration, functionDeclaration.parameters, functionDeclaration.type, sourceFile, errors),
+				value: tsFunctionToJulAst(position, functionDeclaration, functionDeclaration.typeParameters, functionDeclaration.parameters, functionDeclaration.type, sourceFile, errors),
 				...position,
 			};
 		}
@@ -128,16 +128,21 @@ function getJsDocDescription(tsNode: Node, sourceFile: SourceFile): string | und
 function tsFunctionToJulAst(
 	position: Positioned,
 	tsFunction: Node,
+	typeParameters: NodeArray<TypeParameterDeclaration> | undefined,
 	parameters: NodeArray<ParameterDeclaration>,
 	returnType: TypeNode | undefined,
 	sourceFile: SourceFile,
 	errors: CompilerError[],
 ) {
 	return createParseFunctionLiteral(
-		tsParametersToJulParameters(parameters, position, sourceFile, errors),
+		withTypeParameters(
+			typeParameters && getParameterTypeParameters(typeParameters, sourceFile, errors),
+			() => tsParametersToJulParameters(parameters, position, sourceFile, errors)),
 		// Die Annotation wird ungeprüft übernommen. Der Checker fällt auf sie zurück, weil der
 		// Dummy-Rumpf nur Any liefert.
-		returnType && tsTypeToJulType(returnType, sourceFile, errors),
+		returnType && withTypeParameters(
+			typeParameters && getReturnTypeParameters(typeParameters, parameters),
+			() => tsTypeToJulType(returnType, sourceFile, errors)),
 		// TODO body, errors,
 		// erstmal dummy body nativeValue([...]) damit returnType = Any inferred wird
 		[
@@ -249,6 +254,144 @@ function tsParameterToJulType(
 		? orEmpty(julType, tsType, sourceFile, errors)
 		: julType;
 }
+
+//#region Generics
+
+type TypeParameterReplacements = Map<string, (position: Positioned) => ParseValueExpression>;
+
+/**
+ * Ersetzt beim Übersetzen einer Typannotation die Typparameter (T) durch ihre Übersetzung. Ein
+ * Typparameter ohne Eintrag bleibt unübersetzbar und fällt auf Any zurück.
+ */
+let activeTypeParameters: TypeParameterReplacements | undefined;
+
+function withTypeParameters<R>(replacements: TypeParameterReplacements | undefined, translate: () => R): R {
+	const previous = activeTypeParameters;
+	activeTypeParameters = replacements;
+	try {
+		return translate();
+	}
+	finally {
+		activeTypeParameters = previous;
+	}
+}
+
+/**
+ * In den Parametertypen steht T für seinen Constraint, ohne Constraint für Any.
+ */
+function getParameterTypeParameters(
+	typeParameters: NodeArray<TypeParameterDeclaration>,
+	sourceFile: SourceFile,
+	errors: CompilerError[],
+): TypeParameterReplacements {
+	const replacements: TypeParameterReplacements = new Map();
+	typeParameters.forEach(typeParameter => {
+		const tsConstraint = typeParameter.constraint;
+		const constraint = tsConstraint
+			&& withTypeParameters(undefined, () => tsTypeToJulType(tsConstraint, sourceFile, errors));
+		replacements.set(typeParameter.name.text, position =>
+			constraint ?? createReference('Any', position));
+	});
+	return replacements;
+}
+
+/**
+ * Im Rückgabetyp wird T aus dem ersten Parameter hergeleitet, in dem es vorkommt:
+ * `T[]` wird zu `TypeOf(array)/ElementType`. Kommt T in keinem Parameter vor, bleibt es unübersetzbar.
+ */
+function getReturnTypeParameters(
+	typeParameters: NodeArray<TypeParameterDeclaration>,
+	parameters: NodeArray<ParameterDeclaration>,
+): TypeParameterReplacements {
+	const replacements: TypeParameterReplacements = new Map();
+	typeParameters.forEach(typeParameter => {
+		const typeParameterName = typeParameter.name.text;
+		for (const parameter of parameters) {
+			if (parameter.name.kind !== SyntaxKind.Identifier
+				|| parameter.dotDotDotToken
+				|| !parameter.type) {
+				continue;
+			}
+			const path = findTypeParameterPath(parameter.type, typeParameterName);
+			if (path) {
+				const parameterName = parameter.name.text;
+				replacements.set(typeParameterName, position => {
+					let expression: ParseValueExpression = createCall('TypeOf', [createReference(parameterName, position)], position);
+					path.forEach(key => {
+						const nestedReference: ParseNestedReference = {
+							type: 'nestedReference',
+							source: expression,
+							nestedKey: { type: 'name', name: key, ...position },
+							...position,
+						};
+						expression = nestedReference;
+					});
+					return expression;
+				});
+				return;
+			}
+		}
+	});
+	return replacements;
+}
+
+/**
+ * Der Pfad von außen nach innen, der in einem Wert vom Typ tsType zu T führt, oder undefined,
+ * wenn T dort nicht eindeutig steckt. Ein Union zählt nur, wenn neben undefined/null genau ein
+ * Glied bleibt, und nur unterhalb einer Liste, weil T selbst sonst Empty enthielte.
+ */
+function findTypeParameterPath(tsType: TypeNode, typeParameterName: string): string[] | undefined {
+	switch (tsType.kind) {
+		case SyntaxKind.ParenthesizedType:
+			return findTypeParameterPath((tsType as ParenthesizedTypeNode).type, typeParameterName);
+		case SyntaxKind.TypeOperator: {
+			const typeOperator = tsType as TypeOperatorNode;
+			return typeOperator.operator === SyntaxKind.ReadonlyKeyword
+				? findTypeParameterPath(typeOperator.type, typeParameterName)
+				: undefined;
+		}
+		case SyntaxKind.ArrayType:
+			return prependPath('ElementType', findTypeParameterPath((tsType as ArrayTypeNode).elementType, typeParameterName));
+		case SyntaxKind.UnionType: {
+			const choices = (tsType as UnionTypeNode).types.filter(choice =>
+				choice.kind !== SyntaxKind.UndefinedKeyword
+				&& !(choice.kind === SyntaxKind.LiteralType && (choice as LiteralTypeNode).literal.kind === SyntaxKind.NullKeyword));
+			const [onlyChoice] = choices;
+			const path = choices.length === 1
+				? findTypeParameterPath(onlyChoice!, typeParameterName)
+				: undefined;
+			return path?.length
+				? path
+				: undefined;
+		}
+		case SyntaxKind.TypeReference: {
+			const typeReference = tsType as TypeReferenceNode;
+			const typeName = typeReference.typeName;
+			if (typeName.kind !== SyntaxKind.Identifier) {
+				return undefined;
+			}
+			const typeArguments = typeReference.typeArguments ?? [];
+			if (!typeArguments.length) {
+				return typeName.text === typeParameterName
+					? []
+					: undefined;
+			}
+			if ((typeName.text === 'Array' || typeName.text === 'ReadonlyArray')
+				&& typeArguments.length === 1) {
+				return prependPath('ElementType', findTypeParameterPath(typeArguments[0]!, typeParameterName));
+			}
+			return undefined;
+		}
+		default:
+			return undefined;
+	}
+}
+
+function prependPath(key: string, path: string[] | undefined): string[] | undefined {
+	return path && [key, ...path];
+}
+
+//#endregion Generics
 
 //#region Typannotation
 
@@ -373,6 +516,12 @@ function tsTypeReferenceToJulType(
 		return undefined;
 	}
 	const typeArguments = typeReference.typeArguments ?? [];
+	const typeParameterReplacement = typeArguments.length
+		? undefined
+		: activeTypeParameters?.get(typeName.text);
+	if (typeParameterReplacement) {
+		return typeParameterReplacement(position);
+	}
 	switch (typeName.text) {
 		case 'Array':
 		case 'ReadonlyArray': {

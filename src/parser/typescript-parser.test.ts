@@ -112,6 +112,66 @@ describe('TypeScript Parser', () => {
 		});
 	});
 
+	// Ein Typparameter im Rückgabetyp wird aus dem ersten Parameter hergeleitet, in dem er vorkommt.
+	describe('Generics', () => {
+		it('T[] | undefined', () => {
+			expectTypeOfF(
+				'export function f<T>(a: T[] | undefined): T[] | undefined {}',
+				'(a: Or(Empty List(Any))) ~> Or(Empty List(TypeOf(a)/ElementType))');
+		});
+		it('T[]', () => {
+			expectTypeOfF(
+				'export function f<T>(a: T[]): T[] {}',
+				'(a: List(Any)) ~> List(TypeOf(a)/ElementType)');
+		});
+		it('T direkt', () => expectTypeOfF('export function f<T>(a: T): T {}', '(a: Any) ~> a'));
+		it('T als Listenelement im Rückgabetyp', () => {
+			expectTypeOfF(
+				'export function f<T>(a: T[]): T {}',
+				'(a: List(Any)) ~> TypeOf(a)/ElementType');
+		});
+		it('zweiter Parameter liefert T', () => {
+			expectTypeOfF(
+				'export function f<T>(a: bigint, b: T[]): T[] {}',
+				'(\n  a: Integer\n  b: List(Any)\n) ~> List(TypeOf(b)/ElementType)');
+		});
+		it('T nur im Rückgabetyp bleibt Any', () => expectTypeOfF('export function f<T>(a: bigint): T[] {}', '(a: Integer) ~> List(Any)'));
+		it('T extends: Constraint als Parametertyp', () => {
+			expectTypeOfF(
+				'export function f<T extends string>(a: T[]): T[] {}',
+				'(a: List(Text)) ~> List(TypeOf(a)/ElementType)');
+		});
+
+		it('Aufruf mit direktem T liefert den Typ des Arguments', () => {
+			const folder = resolve('/typescript-parser-test');
+			const mainPath = join(folder, 'main.jul');
+			const main = loadFile(mainPath, {}, createInMemoryHost({
+				[mainPath]: '(f) = import(§./util.ts§)\nresult = f(§a§)',
+				[join(folder, 'util.ts')]: 'export function f<T>(a: T): T { return a; }',
+			}, { cloneUnchecked: false })) as ParsedFile;
+			expect(main.checked?.errors).to.deep.equal([]);
+			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === 'result');
+			const type = result?.value?.typeInfo?.type;
+			expect(type && typeToString(type, 0, 3)).to.equal('§a§');
+		});
+
+		it('Aufruf liefert den Elementtyp des Arguments', () => {
+			const folder = resolve('/typescript-parser-test');
+			const mainPath = join(folder, 'main.jul');
+			const documents: ParsedDocuments = {};
+			const main = loadFile(mainPath, documents, createInMemoryHost({
+				[mainPath]: '(f) = import(§./util.ts§)\nresult = f([§a§ §b§])',
+				[join(folder, 'util.ts')]: 'export function f<T>(a: T[] | undefined): T[] | undefined { return a; }',
+			}, { cloneUnchecked: false })) as ParsedFile;
+			expect(main.checked?.errors).to.deep.equal([]);
+			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === 'result');
+			const type = result?.value?.typeInfo?.type;
+			expect(type && typeToString(type, 0, 3)).to.equal('Or(Empty List(Or(§a§ §b§)))');
+		});
+	});
+
 	it('JUL-Aufruf mit falschem Argumenttyp wird gemeldet', () => {
 		const folder = resolve('/typescript-parser-test');
 		const mainPath = join(folder, 'main.jul');
