@@ -2,6 +2,7 @@
 	-function literal syntax überdenken, folgende form evtl erlauben, oder auto umformatieren:
 		myList.filter((x) =>
 			x.equal(true))
+?transform in corelib map auch in parameter position als function färben
 -fuzzer findings fixen
 -unmögliche typen an der ursache melden (plan in docs/three-valued-assignability.md, abschnitt Never):
 	-warnung an einem parameter vom typ Never: nie aufrufbar
