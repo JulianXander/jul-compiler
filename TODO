@@ -1,6 +1,4 @@
--generics aus TS importen im return type inferren, vgl shuffleArray in yugioh game-logic.jul
-	-ts: shuffleArray<T>(array: T[] | undefined): T[] | undefined
-	-jul: shuffleArray: (array: Or([] List(Any))) :> Or([] List(TypeOf(array)/ElementType))
+-vgl todos in test1.jul
 -fuzzer findings fixen
 -unmögliche typen an der ursache melden (plan in docs/three-valued-assignability.md, abschnitt Never):
 	-warnung an einem parameter vom typ Never: nie aufrufbar
