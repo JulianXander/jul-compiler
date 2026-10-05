@@ -1,6 +1,8 @@
 # Idee für delta streams
 
-TODO beispiel json, beispiel delta, reactive ui, diffing logic?, delta compression logic
+TODO beispiel json, beispiel delta, reactive ui, diffing logic?,
+# delta compression logic
+addDeltas: (first: Delta second: Delta) -> Delta
 
 # use cases
 1. reactive ui
