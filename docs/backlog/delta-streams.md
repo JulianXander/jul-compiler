@@ -3,6 +3,7 @@
 TODO beispiel json, beispiel delta, reactive ui, diffing logic?,
 # delta compression logic
 addDeltas: (first: Delta second: Delta) -> Delta
+oder direkt bulk operation: (deltas: List(Delta)) -> Delta
 
 # use cases
 1. reactive ui
