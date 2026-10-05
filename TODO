@@ -1,13 +1,13 @@
 -vgl todos in test1.jul
+	-function literal syntax überdenken, folgende form evtl erlauben, oder auto umformatieren:
+		myList.filter((x) =>
+			x.equal(true))
 -fuzzer findings fixen
 -unmögliche typen an der ursache melden (plan in docs/three-valued-assignability.md, abschnitt Never):
 	-warnung an einem parameter vom typ Never: nie aufrufbar
 	-:? ohne passenden zweig am aufrufort: gibt es dafür schon eine meldung?
 ?warum getValue als Feld von Stream Instanz? alle anderen Funktionen werden mit . aufgerufen, nur getValue mit / das ist unintuitiv
 ?impure variables kursiv?
--function literal syntax überdenken, folgende form evtl erlauben, oder auto umformatieren:
-	myList.filter((x) =>
-		x.equal(true))
 -flatMap in CoreLib und weitere fehlende core funktionen ermitteln
 -warnungen bei unknown: jedes unknown an einer meldenden stelle (definition mit typ, argument, rückgabewert,
 	feldzugriff x/name wie getField) ist eine warnung, mit meldung aus isTypeAssignable. betrifft Any, typen,
