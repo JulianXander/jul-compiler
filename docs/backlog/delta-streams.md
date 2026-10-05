@@ -9,4 +9,5 @@ TODO beispiel json, beispiel delta, reactive ui, diffing logic?, delta compressi
 	client holt einmal current, ab dann nur noch deltas
 	?delta mit auto increment id oder timestamp (unix epoch)
 4. database?
+5. caching?
 
