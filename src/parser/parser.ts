@@ -2802,7 +2802,7 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 			const headEndRowIndex = blockFunction.params.endRowIndex;
 			errors.push({
 				code: ErrorCode.blockFunctionNotOnOwnLine,
-				message: 'A field with a block body function must start on its own line.',
+				message: 'A function with a block body must start on its own line.',
 				startRowIndex: blockFunction.startRowIndex,
 				startColumnIndex: blockFunction.startColumnIndex,
 				endRowIndex: headEndRowIndex,

@@ -1601,7 +1601,7 @@ describe('Mehrzeilige Klammerlisten', () => {
 		expect(errors).to.deep.equal([
 			{
 				code: ErrorCode.blockFunctionNotOnOwnLine,
-				message: 'A field with a block body function must start on its own line.',
+				message: 'A function with a block body must start on its own line.',
 				startRowIndex: 0,
 				startColumnIndex: 7,
 				endRowIndex: 0,
