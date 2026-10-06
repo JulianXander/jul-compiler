@@ -1321,6 +1321,45 @@ describe('Mehrzeiliger Funktionskopf', () => {
 	});
 	// Ein Leerzeichen am Zeilenende (beim Tippen üblich) soll nicht zusätzlich als unparsedRestOfRow
 	// gemeldet werden. Die Meldung steht am Zeilenende, wo die Klammer fehlt.
+	// Öffnende Klammer ohne jedes Feld dahinter (beim Tippen der erste Zustand)
+	it('opening-bracket-only', () => {
+		expectParse('[', {
+			errors: [{
+				code: ErrorCode.closingBracketMissing,
+				message: 'Expected closing bracket ].',
+				startRowIndex: 0,
+				startColumnIndex: 1,
+				endRowIndex: 0,
+				endColumnIndex: 1,
+			}],
+		});
+	});
+
+	it('opening-bracket-with-trailing-space', () => {
+		expectParse('[ ', {
+			errors: [{
+				code: ErrorCode.closingBracketMissing,
+				message: 'Expected closing bracket ].',
+				startRowIndex: 0,
+				startColumnIndex: 2,
+				endRowIndex: 0,
+				endColumnIndex: 2,
+			}],
+		});
+	});
+
+	it('call-opening-bracket-only', () => {
+		expectParse('f(', {
+			errors: [{
+				code: ErrorCode.closingBracketMissing,
+				message: 'Expected closing bracket ).',
+				startRowIndex: 0,
+				startColumnIndex: 2,
+				endRowIndex: 0,
+				endColumnIndex: 2,
+			}],
+		});
+	});
 	it('list-without-closing-bracket-trailing-space', () => {
 		expectParse('[1 ', {
 			errors: [{

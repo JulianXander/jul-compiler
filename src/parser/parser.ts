@@ -249,6 +249,15 @@ const brackets = {
 
 type BracketKind = keyof typeof brackets;
 
+function hasOnlyEmptyRowsAfter(rows: string[], rowIndex: number): boolean {
+	for (let index = rowIndex + 1; index < rows.length; index++) {
+		if (rows[index] !== '') {
+			return false;
+		}
+	}
+	return true;
+}
+
 function closingBracketMissingError(
 	closingCharacter: string,
 	rowIndex: number,
@@ -2465,10 +2474,36 @@ function getOrphanArrowLineMessage(rows: string[], rowIndex: number, extraIndent
  * Die Klammerart bestimmt den Knotentyp: rund = Bindung, eckig = Daten.
  */
 function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpression | ParseDataExpression> {
-	const { opening, closing, nodeType } = brackets[kind];
+	const { opening, closing, closingCharacter, nodeType } = brackets[kind];
 	// Die leere Klammer braucht einen eigenen Zweig, weil bracketedInlineParser
 	// mindestens ein Feld verlangt und bracketedMultilineParser einen Zeilenumbruch.
 	const emptyBracketsParser = sequenceParser(opening, closing);
+	const openingWithoutRestParser = (rows: string[], startRowIndex: number, startColumnIndex: number, indent: number): ParserResult<undefined> => {
+		const openingResult = opening(rows, startRowIndex, startColumnIndex, indent);
+		if (!openingResult.hasParsed) {
+			return openingResult;
+		}
+		const row = rows[startRowIndex]!;
+		const rest = row.substring(openingResult.endColumnIndex);
+		const hasNothingAfter = /^ *$/.test(rest) && (
+			rest.length > 0 || hasOnlyEmptyRowsAfter(rows, startRowIndex)
+		);
+		return {
+			hasParsed: hasNothingAfter,
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex,
+		};
+	};
+	const missingClosingBracketParser: Parser<ParseFieldBase[]> = (rows, startRowIndex) => {
+		const endColumnIndex = rows[startRowIndex]!.length;
+		return {
+			hasParsed: true,
+			endRowIndex: startRowIndex,
+			endColumnIndex: endColumnIndex,
+			parsed: [],
+			errors: [closingBracketMissingError(closingCharacter, startRowIndex, endColumnIndex)],
+		};
+	};
 	const multilineParser2 = createBracketedMultilineParser(kind);
 	const inlineParser = createBracketedInlineParser(kind);
 	const parser = (
@@ -2484,6 +2519,11 @@ function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpres
 					emptyBracketsParser,
 					() =>
 						[]),
+			},
+			// Öffnende Klammer, hinter der nichts mehr kommt (beim Tippen der erste Zustand)
+			{
+				predicate: openingWithoutRestParser,
+				parser: missingClosingBracketParser,
 			},
 			{
 				predicate: sequenceParser(
