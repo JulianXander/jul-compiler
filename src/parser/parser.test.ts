@@ -1305,6 +1305,32 @@ describe('Mehrzeiliger Funktionskopf', () => {
 			errors: [{ code: ErrorCode.misplacedArrow, row: 1 }],
 		});
 	});
+	// Nach dem öffnenden Zeichen ist klar, was folgen muss: Fehlt die schließende Klammer, meldet der
+	// Parser genau das, statt den Rest der Zeile als unparsedRestOfRow zu verwerfen.
+	it('call-without-closing-bracket', () => {
+		expectParse('f(1 2', {
+			errors: [{
+				code: ErrorCode.closingBracketMissing,
+				message: 'Expected closing bracket ).',
+				startRowIndex: 0,
+				startColumnIndex: 5,
+				endRowIndex: 0,
+				endColumnIndex: 5,
+			}],
+		});
+	});
+	it('list-without-closing-bracket', () => {
+		expectParse('a = [1 2', {
+			errors: [{
+				code: ErrorCode.closingBracketMissing,
+				message: 'Expected closing bracket ].',
+				startRowIndex: 0,
+				startColumnIndex: 8,
+				endRowIndex: 0,
+				endColumnIndex: 8,
+			}],
+		});
+	});
 	//#endregion ungültig
 });
 

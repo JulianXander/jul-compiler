@@ -236,16 +236,33 @@ const brackets = {
 	round: {
 		opening: openingRoundBracketParser,
 		closing: closingRoundBracketParser,
+		closingCharacter: ')',
 		nodeType: 'binding',
 	},
 	square: {
 		opening: openingSquareBracketParser,
 		closing: closingSquareBracketParser,
+		closingCharacter: ']',
 		nodeType: 'data',
 	},
 } as const;
 
 type BracketKind = keyof typeof brackets;
+
+function closingBracketMissingError(
+	closingCharacter: string,
+	rowIndex: number,
+	columnIndex: number,
+): CompilerError {
+	return {
+		code: ErrorCode.closingBracketMissing,
+		message: `Expected closing bracket ${closingCharacter}.`,
+		startRowIndex: rowIndex,
+		startColumnIndex: columnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: columnIndex,
+	};
+}
 
 /**
  * Eine noch nicht aufgelöste Klammer, gleich welcher Art.
@@ -2508,7 +2525,7 @@ function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpres
 }
 
 function createBracketedMultilineParser(kind: BracketKind): Parser<(ParseFieldBase | string | undefined)[]> {
-	const { opening, closing } = brackets[kind];
+	const { opening, closing, closingCharacter } = brackets[kind];
 	const closingOnOwnLineParser = sequenceParser(
 		newLineParser,
 		indentParser,
@@ -2574,7 +2591,7 @@ interface ParseMissingField {
  * undefined bei fehlendem Feld
  */
 function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase | undefined)[]> {
-	const { opening, closing } = brackets[kind];
+	const { opening, closing, closingCharacter } = brackets[kind];
 	const closingOnOwnLineParser = sequenceParser(
 		newLineParser,
 		indentParser,
@@ -2657,11 +2674,14 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 			}
 		}
 		if (!closingResult.hasParsed) {
+			// Nach dem öffnenden Zeichen ist klar, was folgen muss. Fehlt die Klammer, den Knoten trotzdem
+			// liefern (der Baum bleibt für den Language Server erhalten) und genau das melden
 			return {
-				hasParsed: false,
-				endRowIndex: closingResult.endRowIndex,
-				endColumnIndex: closingResult.endColumnIndex,
-				errors: [...errors, ...(closingResult.errors ?? [])],
+				hasParsed: true,
+				endRowIndex: fieldsResult.endRowIndex,
+				endColumnIndex: fieldsResult.endColumnIndex,
+				parsed: parsed,
+				errors: [...errors, closingBracketMissingError(closingCharacter, fieldsResult.endRowIndex, fieldsResult.endColumnIndex)],
 			};
 		}
 		// Tolerieren, damit der Baum für den Language Server erhalten bleibt
