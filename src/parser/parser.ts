@@ -1736,7 +1736,7 @@ function branchingParser(
 		// dieselbe Argumentliste wie beim Aufruf, damit ... und benannte Argumente hier gelten
 		functionArgumentsParser,
 		newLineParser,
-		incrementIndent(multilineParser(withOrphanArrowLineCheck(valueExpressionParser))),
+		incrementIndent(multilineParser(withOrphanArrowLineCheck(valueExpressionParser), true)),
 	)(rows, startRowIndex, startColumnIndex, indent);
 	const parsed = result.parsed;
 	if (!parsed) {
@@ -2755,17 +2755,17 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 				return field;
 			}),
 		];
-		const blockFunctions = parsed.flatMap(field => {
-			const blockFunction = field && getBlockBodyFunction(field);
-			return blockFunction
-				? [blockFunction]
+		const blockExpressions = parsed.flatMap(field => {
+			const blockExpression = field && getBlockExpression(field);
+			return blockExpression
+				? [blockExpression]
 				: [];
 		});
-		// Hinter einem Blockrumpf steht die Klammer in der Rumpfzeile (der Block endet davor) oder
-		// in einer eigenen Zeile
+		// Hinter einem Block steht die Klammer in der Zeile seines letzten Ausdrucks (der Block endet
+		// davor) oder in einer eigenen Zeile
 		let closingResult: ParserResult<unknown> = closing(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
 		const lastField = parsed[parsed.length - 1];
-		if (!closingResult.hasParsed && lastField && getBlockBodyFunction(lastField)) {
+		if (!closingResult.hasParsed && lastField && getBlockExpression(lastField)) {
 			const closingOnOwnLineResult = closingOnOwnLineParser(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
 			if (closingOnOwnLineResult.hasParsed) {
 				closingResult = closingOnOwnLineResult;
@@ -2798,15 +2798,14 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 			};
 		}
 		// Tolerieren, damit der Baum für den Language Server erhalten bleibt
-		blockFunctions.forEach(blockFunction => {
-			const headEndRowIndex = blockFunction.params.endRowIndex;
+		blockExpressions.forEach(blockExpression => {
 			errors.push({
-				code: ErrorCode.blockFunctionNotOnOwnLine,
-				message: 'A function with a block body must start on its own line.',
-				startRowIndex: blockFunction.startRowIndex,
-				startColumnIndex: blockFunction.startColumnIndex,
-				endRowIndex: headEndRowIndex,
-				endColumnIndex: rows[headEndRowIndex]?.length ?? 0,
+				code: ErrorCode.blockExpressionNotOnOwnLine,
+				message: blockExpression.message,
+				startRowIndex: blockExpression.expression.startRowIndex,
+				startColumnIndex: blockExpression.expression.startColumnIndex,
+				endRowIndex: blockExpression.headEndRowIndex,
+				endColumnIndex: rows[blockExpression.headEndRowIndex]?.length ?? 0,
 			});
 		});
 		return {
@@ -2820,19 +2819,46 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 }
 
 /**
- * Das Funktionsliteral eines Felds, dessen Rumpf in den Zeilen unter dem Funktionskopf steht.
+ * Ausdruck eines Felds, dessen Block in den Zeilen unter dem Kopf steht: Funktion mit Rumpfblock
+ * oder Branching mit Zweigen darunter.
  */
-function getBlockBodyFunction(field: ParseFieldBase): ParseFunctionLiteral | undefined {
+function getBlockExpression(field: ParseFieldBase): {
+	expression: ParseFunctionLiteral | ParseBranching | ParseTypeBranching;
+	/**
+	 * Letzte Zeile des Kopfs, bis zu der ein Fehler reicht.
+	 */
+	headEndRowIndex: number;
+	message: string;
+} | undefined {
 	const value = field.definition
 		? field.assignedValue
 		: field.name;
-	if (value?.type !== 'functionLiteral') {
-		return undefined;
+	switch (value?.type) {
+		case 'functionLiteral': {
+			const firstBodyExpression = value.body[0];
+			return firstBodyExpression && firstBodyExpression.startRowIndex > value.params.endRowIndex
+				? {
+					expression: value,
+					headEndRowIndex: value.params.endRowIndex,
+					message: 'A function with a block body must start on its own line.',
+				}
+				: undefined;
+		}
+		case 'branching':
+		case 'typeBranching': {
+			const headEndRowIndex = value.args?.endRowIndex ?? value.startRowIndex;
+			const firstBranch = value.branches[0];
+			return firstBranch && firstBranch.startRowIndex > headEndRowIndex
+				? {
+					expression: value,
+					headEndRowIndex: headEndRowIndex,
+					message: 'A branching with branches below must start on its own line.',
+				}
+				: undefined;
+		}
+		default:
+			return undefined;
 	}
-	const firstBodyExpression = value.body[0];
-	return firstBodyExpression && firstBodyExpression.startRowIndex > value.params.endRowIndex
-		? value
-		: undefined;
 }
 
 const roundBracketedBaseParser = createBracketedBaseParser('round');
