@@ -1347,6 +1347,33 @@ describe('Mehrzeiliger Funktionskopf', () => {
 			}],
 		});
 	});
+	// Endet der Code direkt hinter einem Block in der Argumentliste, darf der Fehler der fehlenden
+	// Klammer nicht verloren gehen: Der Code ist ungültig und wurde bisher ohne jede Meldung gelesen.
+	it('call-with-block-function-without-closing-bracket-at-end-of-code', () => {
+		expectParse('[].map((value) =>\n\t§test§', {
+			errors: [{
+				code: ErrorCode.closingBracketMissing,
+				message: 'Expected closing bracket ).',
+				startRowIndex: 1,
+				startColumnIndex: 7,
+				endRowIndex: 1,
+				endColumnIndex: 7,
+			}],
+		});
+	});
+	// Ein Text ohne schließendes § meldet genau das, nicht einen fehlenden Wert der Definition.
+	it('text-without-closing-marker', () => {
+		expectParse('a = §abc', {
+			errors: [{
+				code: ErrorCode.closingTextMarkerMissing,
+				message: 'Expected closing §.',
+				startRowIndex: 0,
+				startColumnIndex: 8,
+				endRowIndex: 0,
+				endColumnIndex: 8,
+			}],
+		});
+	});
 	// Öffnende Klammer ohne jedes Feld dahinter (beim Tippen der erste Zustand)
 	it('opening-bracket-only', () => {
 		expectParse('[', {

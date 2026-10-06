@@ -1271,7 +1271,9 @@ function simpleExpressionBaseParser(
 				parser: choiceParser(
 					'Expected a text.',
 					inlineTextParser,
-					multilineTextParser
+					multilineTextParser,
+					// zuletzt: `§abc` ist auch der Kopf eines mehrzeiligen Textes
+					unclosedInlineTextParser,
 				)
 			},
 			// Reference
@@ -1478,6 +1480,55 @@ function inlineTextParser(
 				endRowIndex: result.endRowIndex,
 				endColumnIndex: result.endColumnIndex,
 			},
+	};
+}
+
+/**
+ * Einzeiliger Text ohne schließendes §, der bis zum Zeilenende reicht (beim Tippen üblich).
+ * Der Knoten entsteht trotzdem, damit der Baum für den Language Server erhalten bleibt.
+ */
+function unclosedInlineTextParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ParseTextLiteral> {
+	const result = sequenceParser(
+		paragraphParser,
+		textLineContentParser,
+	)(rows, startRowIndex, startColumnIndex, indent);
+	const rowLength = rows[startRowIndex]!.length;
+	if (!result.parsed || result.endColumnIndex !== rowLength) {
+		return {
+			hasParsed: false,
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex,
+			errors: result.errors,
+		};
+	}
+	return {
+		hasParsed: true,
+		endRowIndex: startRowIndex,
+		endColumnIndex: rowLength,
+		parsed: {
+			type: 'text',
+			values: result.parsed[1],
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: startRowIndex,
+			endColumnIndex: rowLength,
+		},
+		errors: [
+			...(result.errors ?? []),
+			{
+				code: ErrorCode.closingTextMarkerMissing,
+				message: 'Expected closing §.',
+				startRowIndex: startRowIndex,
+				startColumnIndex: rowLength,
+				endRowIndex: startRowIndex,
+				endColumnIndex: rowLength,
+			},
+		],
 	};
 }
 
@@ -2729,12 +2780,21 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 			const endColumnIndex = /^ *$/.test(endRow.substring(fieldsResult.endColumnIndex))
 				? endRow.length
 				: fieldsResult.endColumnIndex;
+			// Nach einem Block endet der Feldbereich am Anfang der Folgezeile (die es am Ende des Codes
+			// nicht gibt). Gemeldet wird am Ende der Zeile davor, dort fehlt die Klammer.
+			const endsAtLineStart = endColumnIndex === 0 && fieldsResult.endRowIndex > 0;
+			const errorRowIndex = endsAtLineStart
+				? fieldsResult.endRowIndex - 1
+				: fieldsResult.endRowIndex;
+			const errorColumnIndex = endsAtLineStart
+				? rows[errorRowIndex]!.length
+				: endColumnIndex;
 			return {
 				hasParsed: true,
 				endRowIndex: fieldsResult.endRowIndex,
 				endColumnIndex: endColumnIndex,
 				parsed: parsed,
-				errors: [...errors, closingBracketMissingError(closingCharacter, fieldsResult.endRowIndex, endColumnIndex)],
+				errors: [...errors, closingBracketMissingError(closingCharacter, errorRowIndex, errorColumnIndex)],
 			};
 		}
 		// Tolerieren, damit der Baum für den Language Server erhalten bleibt

@@ -179,6 +179,7 @@ export function multiplicationParser<T>(
 					endRowIndex: rowIndex,
 					endColumnIndex: columnIndex,
 					parsed: parsed,
+					errors: errors,
 				};
 			}
 			const result = parser(rows, rowIndex, columnIndex, indent);
