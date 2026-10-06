@@ -2675,13 +2675,19 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 		}
 		if (!closingResult.hasParsed) {
 			// Nach dem öffnenden Zeichen ist klar, was folgen muss. Fehlt die Klammer, den Knoten trotzdem
-			// liefern (der Baum bleibt für den Language Server erhalten) und genau das melden
+			// liefern (der Baum bleibt für den Language Server erhalten) und genau das melden.
+			// Leerzeichen am Zeilenende gehören dazu: Das Feld dahinter fehlt noch, sie blieben sonst
+			// als unparsedRestOfRow stehen.
+			const endRow = rows[fieldsResult.endRowIndex] ?? '';
+			const endColumnIndex = /^ *$/.test(endRow.substring(fieldsResult.endColumnIndex))
+				? endRow.length
+				: fieldsResult.endColumnIndex;
 			return {
 				hasParsed: true,
 				endRowIndex: fieldsResult.endRowIndex,
-				endColumnIndex: fieldsResult.endColumnIndex,
+				endColumnIndex: endColumnIndex,
 				parsed: parsed,
-				errors: [...errors, closingBracketMissingError(closingCharacter, fieldsResult.endRowIndex, fieldsResult.endColumnIndex)],
+				errors: [...errors, closingBracketMissingError(closingCharacter, fieldsResult.endRowIndex, endColumnIndex)],
 			};
 		}
 		// Tolerieren, damit der Baum für den Language Server erhalten bleibt
