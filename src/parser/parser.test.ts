@@ -416,28 +416,20 @@ describe('Parser', () => {
 		});
 	});
 	//#endregion Einrückung
-	it('branching-error', () => {
-		expectParse('?(4)\n\t[4] =>\n\t\tlog(\n\t\t\t4)', {
-			errors: [
-				{
-					code: ErrorCode.unparsedRestOfRow,
-					message: "multilineParser should parse until end of row",
-					startRowIndex: 2,
-					startColumnIndex: 5,
-					endRowIndex: 2,
-					endColumnIndex: 5,
-				},
-				{
-					code: ErrorCode.expectedOneOf,
-					startRowIndex: 3,
-					startColumnIndex: 2,
-					endRowIndex: 3,
-					endColumnIndex: 2,
-					message: "Expected one of: roundBracketedBaseParser,squareBracketedBaseParser,numberParser,,referenceParser",
-				},
-			],
+		it('branching-error', () => {
+			expectParse('?(4)\n\t[4] =>\n\t\tlog(\n\t\t\t4)', {
+				errors: [
+					{
+						code: ErrorCode.closingBracketNotOnOwnLine,
+						message: 'Closing bracket must be on its own line after a multiline list.',
+						startRowIndex: 3,
+						startColumnIndex: 4,
+						endRowIndex: 3,
+						endColumnIndex: 5,
+					},
+				],
+			});
 		});
-	});
 	it('branching-without-branches-is-error', () => {
 		expectParse('f = (value: Integer) =>\n\t?(value)', {
 			errors: [
@@ -1317,3 +1309,174 @@ describe('Mehrzeiliger Funktionskopf', () => {
 });
 
 //#endregion Mehrzeiliger Funktionskopf
+
+//#region Mehrzeilige Klammerlisten
+
+// Zwei Regeln für Klammerlisten, jeweils tolerant geparst und mit einem Fehler gemeldet, damit
+// der Baum für den Language Server erhalten bleibt:
+// - Ein Feld mit Block-Lambda beginnt in einer eigenen Zeile, nicht in der Zeile der öffnenden
+//   Klammer (blockFunctionNotOnOwnLine). Der Name vor dem = spielt keine Rolle. Definitionen
+//   außerhalb von Klammern sind nicht betroffen.
+// - In einer mehrzeiligen Klammerliste steht die schließende Klammer in einer eigenen Zeile, nicht
+//   hinter dem letzten Feld (closingBracketNotOnOwnLine). Trifft beides zu, wird nur
+//   blockFunctionNotOnOwnLine gemeldet.
+describe('Mehrzeilige Klammerlisten', () => {
+	const lambdaOnOwnLine = '[].map(\n\t(value) =>\n\t\t§test§\n)';
+	it('K1 Lambda in eigener Zeile bleibt fehlerfrei', () => {
+		expectMultilineHead(lambdaOnOwnLine);
+	});
+	it('K2 einzeiliges Lambda bleibt fehlerfrei', () => {
+		expectMultilineHead('[].map((value) => §test§)');
+	});
+	it('K3 Lambda in der Aufrufzeile, Klammer in eigener Zeile', () => {
+		expectMultilineHead('[].map((value) =>\n\t§test§\n)', {
+			equivalentTo: lambdaOnOwnLine,
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K4 Lambda in der Aufrufzeile, Klammer in der Rumpfzeile', () => {
+		expectMultilineHead('[].map((value) =>\n\t§test§)', {
+			equivalentTo: lambdaOnOwnLine,
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K5 Lambda in der Aufrufzeile nach einem Argument', () => {
+		expectMultilineHead('[].map(a (value) =>\n\t§test§\n)', {
+			equivalentTo: '[].map(\n\ta\n\t(value) =>\n\t\t§test§\n)',
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K6 eckige Klammer, Klammer in eigener Zeile', () => {
+		expectMultilineHead('[(value) =>\n\t§test§\n]', {
+			equivalentTo: '[\n\t(value) =>\n\t\t§test§\n]',
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K7 eckige Klammer, Klammer in der Rumpfzeile', () => {
+		expectMultilineHead('[(value) =>\n\t§test§]', {
+			equivalentTo: '[\n\t(value) =>\n\t\t§test§\n]',
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K8 Rumpf mit mehreren Zeilen, Klammer in der letzten', () => {
+		expectMultilineHead('[].map((value) =>\n\ta = 1\n\ta)', {
+			equivalentTo: '[].map(\n\t(value) =>\n\t\ta = 1\n\t\ta\n)',
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K9 Folgeausdruck geht nicht verloren', () => {
+		expectMultilineHead('[].map((value) =>\n\t§test§)\nx = 1', {
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+			expressionCount: 2,
+		});
+	});
+	it('K14 benanntes Feld in der Klammerzeile, Klammer in eigener Zeile', () => {
+		expectMultilineHead('[f = (value) =>\n\t§test§\n]', {
+			equivalentTo: '[\n\tf = (value) =>\n\t\t§test§\n]',
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K15 benanntes Feld in der Klammerzeile, Klammer in der Rumpfzeile', () => {
+		expectMultilineHead('[f = (value) =>\n\t§test§]', {
+			equivalentTo: '[\n\tf = (value) =>\n\t\t§test§\n]',
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K16 benanntes Argument in der Aufrufzeile', () => {
+		expectMultilineHead('g(f = (value) =>\n\t§test§\n)', {
+			equivalentTo: 'g(\n\tf = (value) =>\n\t\t§test§\n)',
+			errors: [{ code: ErrorCode.blockFunctionNotOnOwnLine, row: 0 }],
+		});
+	});
+	it('K17 benanntes Feld in eigener Zeile bleibt fehlerfrei', () => {
+		expectMultilineHead('[\n\tf = (value) =>\n\t\t§test§\n]');
+	});
+	it('K18 Feld in eigener Zeile, Klammer in der Rumpfzeile', () => {
+		expectMultilineHead('[\n\tf = (value) =>\n\t\t§test§]', {
+			equivalentTo: '[\n\tf = (value) =>\n\t\t§test§\n]',
+			errors: [{ code: ErrorCode.closingBracketNotOnOwnLine, row: 2 }],
+		});
+	});
+	it('K19 unbenanntes Lambda in eigener Zeile, Klammer in der Rumpfzeile', () => {
+		expectMultilineHead('[].map(\n\t(value) =>\n\t\t§test§)', {
+			equivalentTo: lambdaOnOwnLine,
+			errors: [{ code: ErrorCode.closingBracketNotOnOwnLine, row: 2 }],
+		});
+	});
+	it('K20 Fehler liegt auf der Klammer', () => {
+		const errors = parseCode('[\n\tf = (value) =>\n\t\t§test§]', 'dummy.jul').unchecked.errors;
+		expect(errors).to.deep.equal([
+			{
+				code: ErrorCode.closingBracketNotOnOwnLine,
+				message: 'Closing bracket must be on its own line after a multiline list.',
+				startRowIndex: 2,
+				startColumnIndex: 8,
+				endRowIndex: 2,
+				endColumnIndex: 9,
+			},
+		]);
+	});
+	it('K21 mehrzeilige Liste, Klammer in der Zeile des letzten Elements', () => {
+		expectMultilineHead('[\n\t1]', {
+			equivalentTo: '[\n\t1\n]',
+			errors: [{ code: ErrorCode.closingBracketNotOnOwnLine, row: 1 }],
+		});
+	});
+	it('K22 mehrzeilige Liste mit mehreren Elementen', () => {
+		expectMultilineHead('[\n\t1\n\t2]', {
+			equivalentTo: '[\n\t1\n\t2\n]',
+			errors: [{ code: ErrorCode.closingBracketNotOnOwnLine, row: 2 }],
+		});
+	});
+	it('K23 mehrzeiliges Dictionary mit benanntem Feld', () => {
+		expectMultilineHead('[\n\ta = 1]', {
+			equivalentTo: '[\n\ta = 1\n]',
+			errors: [{ code: ErrorCode.closingBracketNotOnOwnLine, row: 1 }],
+		});
+	});
+	it('K24 mehrzeilige Argumentliste', () => {
+		expectMultilineHead('f(\n\t1)', {
+			equivalentTo: 'f(\n\t1\n)',
+			errors: [{ code: ErrorCode.closingBracketNotOnOwnLine, row: 1 }],
+		});
+	});
+	it('K26 mehrzeilige Parameterliste', () => {
+		expectMultilineHead('(\n\ta\n\tb) => a', {
+			equivalentTo: '(\n\ta\n\tb\n) => a',
+			errors: [{ code: ErrorCode.closingBracketNotOnOwnLine, row: 2 }],
+		});
+	});
+	it('K27 äußere Klammer hinter der schließenden Klammer einer mehrzeiligen Liste', () => {
+		expectMultilineHead('[\n\t[\n\t\t1\n\t]]', {
+			equivalentTo: '[\n\t[\n\t\t1\n\t]\n]',
+			errors: [{ code: ErrorCode.closingBracketNotOnOwnLine, row: 3 }],
+		});
+	});
+	it('K25 Klammer hinter schließender Klammer bleibt fehlerfrei', () => {
+		expectMultilineHead('add(...[\n\t1\n\t2\n\t3\n])');
+	});
+	it('K11 Definition mit Blockrumpf bleibt fehlerfrei', () => {
+		expectMultilineHead('f = (value) =>\n\t§test§');
+	});
+	it('K12 Definition mit Blockrumpf in einem Block bleibt fehlerfrei', () => {
+		expectMultilineHead('g = (a: Integer) =>\n\tf = (value) =>\n\t\t§test§\n\tf');
+	});
+	it('K13 Definition mit Blockrumpf als Feld in mehrzeiligen Klammern bleibt fehlerfrei', () => {
+		expectMultilineHead('[\n\tf = (value) =>\n\t\t§test§\n]');
+	});
+	it('K10 Fehler liegt auf dem Funktionskopf', () => {
+		const errors = parseCode('[].map((value) =>\n\t§test§\n)', 'dummy.jul').unchecked.errors;
+		expect(errors).to.deep.equal([
+			{
+				code: ErrorCode.blockFunctionNotOnOwnLine,
+				message: 'A field with a block body function must start on its own line.',
+				startRowIndex: 0,
+				startColumnIndex: 7,
+				endRowIndex: 0,
+				endColumnIndex: 17,
+			},
+		]);
+	});
+});
+
+//#endregion Mehrzeilige Klammerlisten

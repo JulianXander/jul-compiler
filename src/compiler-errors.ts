@@ -58,6 +58,8 @@ export enum ErrorCode {
 	unexpectedIndentation = 1105,
 	misplacedArrow = 1106,
 	returnTypeRequiresBlock = 1107,
+	blockFunctionNotOnOwnLine = 1108,
+	closingBracketNotOnOwnLine = 1109,
 	// Abbruch, nicht geparster Restcode
 	unparsedCode = 1150,
 	expectedNestedKey = 1151,
@@ -275,6 +277,8 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.unexpectedIndentation]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.misplacedArrow]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.returnTypeRequiresBlock]: { type: 'syntax', severity: 'error' },
+	[ErrorCode.blockFunctionNotOnOwnLine]: { type: 'syntax', severity: 'error' },
+	[ErrorCode.closingBracketNotOnOwnLine]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.unparsedCode]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedNestedKey]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedExpression]: { type: 'syntax', severity: 'error' },

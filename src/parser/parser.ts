@@ -32,6 +32,7 @@ import {
 	ParseDictionaryTypeLiteral,
 	ParseExpression,
 	ParseFieldBase,
+	ParseFunctionLiteral,
 	ParseFunctionCall,
 	ParseListLiteral,
 	ParseListValue,
@@ -545,7 +546,14 @@ function indentParser(
  * Enthält ggf. endständiges Zeilenende nicht.
  * TODO comment in AST für Intellisense?
  */
-function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[]> {
+function multilineParser<T>(
+	parser: Parser<T>,
+	/**
+	 * Steht hinter einem Ausdruck eine schließende Klammer, endet der Block vor ihr, statt den Rest
+	 * der Zeile zu überspringen. Die Klammer gehört dem umschließenden Aufruf oder Literal.
+	 */
+	stopAtClosingBracket: boolean = false,
+): Parser<(T | string | undefined)[]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		const startOfLineResult = startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
 		if (!startOfLineResult.hasParsed) {
@@ -617,6 +625,16 @@ function multilineParser<T>(parser: Parser<T>): Parser<(T | string | undefined)[
 				break;
 			}
 			if (result.endColumnIndex !== endRow.length) {
+				const restCharacter = endRow[result.endColumnIndex];
+				if (stopAtClosingBracket && (restCharacter === ')' || restCharacter === ']')) {
+					return {
+						hasParsed: true,
+						endRowIndex: rowIndex,
+						endColumnIndex: result.endColumnIndex,
+						parsed: parsed,
+						errors: errors,
+					};
+				}
 				errors.push({
 					code: ErrorCode.unparsedRestOfRow,
 					message: 'multilineParser should parse until end of row',
@@ -652,12 +670,17 @@ function expressionBlockParser(
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
+	/**
+	 * Für Blöcke unter einem Pfeil: Eine schließende Klammer hinter dem letzten Ausdruck gehört dem
+	 * umschließenden Aufruf oder Literal und beendet den Block.
+	 */
+	stopAtClosingBracket: boolean = false,
 ): ParserResult<ParseExpression[]> {
 	const endOfCodeError = checkEndOfCode(rows, startRowIndex, startColumnIndex, 'expressionBlock');
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
-	const result = multilineParser(withOrphanArrowLineCheck(expressionParser))(rows, startRowIndex, startColumnIndex, indent);
+	const result = multilineParser(withOrphanArrowLineCheck(expressionParser), stopAtClosingBracket)(rows, startRowIndex, startColumnIndex, indent);
 	const expressions = result.parsed && assignDescriptions(result.parsed);
 	return {
 		...result,
@@ -2232,7 +2255,7 @@ function blockOperandParser(
 	arrow: Arrow,
 	reportMissingOperand: boolean,
 ): ParserResult<ParseExpression[]> {
-	const result = moveToNextLine(incrementIndent(expressionBlockParser))(rows, startRowIndex, startColumnIndex, indent);
+	const result = expressionBlockParser(rows, startRowIndex + 1, 0, indent + 1, true);
 	if (result.hasParsed && result.parsed?.length) {
 		return result;
 	}
@@ -2486,19 +2509,57 @@ function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpres
 
 function createBracketedMultilineParser(kind: BracketKind): Parser<(ParseFieldBase | string | undefined)[]> {
 	const { opening, closing } = brackets[kind];
+	const closingOnOwnLineParser = sequenceParser(
+		newLineParser,
+		indentParser,
+		closing,
+	);
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = sequenceParser(
+		const fieldsResult = sequenceParser(
 			opening,
 			newLineParser,
-			incrementIndent(multilineParser(withOrphanArrowLineCheck(fieldParser))),
-			newLineParser,
-			indentParser,
-			closing,
+			incrementIndent(multilineParser(withOrphanArrowLineCheck(fieldParser), true)),
 		)(rows, startRowIndex, startColumnIndex, indent);
-		const parsed = result.parsed?.[2];
+		if (!fieldsResult.hasParsed) {
+			return {
+				...fieldsResult,
+				parsed: undefined,
+			};
+		}
+		const parsed = fieldsResult.parsed?.[2];
+		const errors = fieldsResult.errors ?? [];
+		// Die Klammer steht hinter dem letzten Feld statt in einer eigenen Zeile: tolerieren, damit
+		// der Baum für den Language Server erhalten bleibt
+		const closingOnFieldLineResult = closing(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
+		if (closingOnFieldLineResult.hasParsed) {
+			errors.push({
+				code: ErrorCode.closingBracketNotOnOwnLine,
+				message: 'Closing bracket must be on its own line after a multiline list.',
+				startRowIndex: fieldsResult.endRowIndex,
+				startColumnIndex: fieldsResult.endColumnIndex,
+				endRowIndex: closingOnFieldLineResult.endRowIndex,
+				endColumnIndex: closingOnFieldLineResult.endColumnIndex,
+			});
+			return {
+				hasParsed: true,
+				endRowIndex: closingOnFieldLineResult.endRowIndex,
+				endColumnIndex: closingOnFieldLineResult.endColumnIndex,
+				parsed: parsed,
+				errors: errors,
+			};
+		}
+		const closingResult = closingOnOwnLineParser(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
+		if (closingResult.errors) {
+			errors.push(...closingResult.errors);
+		}
 		return {
-			...result,
-			parsed: parsed,
+			hasParsed: closingResult.hasParsed,
+			endRowIndex: closingResult.endRowIndex,
+			endColumnIndex: closingResult.endColumnIndex,
+			parsed: closingResult.hasParsed
+				? parsed
+				: undefined,
+			errors: errors,
 		};
 	};
 }
@@ -2514,8 +2575,13 @@ interface ParseMissingField {
  */
 function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase | undefined)[]> {
 	const { opening, closing } = brackets[kind];
+	const closingOnOwnLineParser = sequenceParser(
+		newLineParser,
+		indentParser,
+		closing,
+	);
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const result = sequenceParser(
+		const fieldsResult = sequenceParser(
 			opening,
 			fieldParser,
 			multiplicationParser(
@@ -2545,12 +2611,18 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 					),
 				),
 			),
-			closing,
 		)(rows, startRowIndex, startColumnIndex, indent);
-		const errors = result.errors ?? [];
-		const parsed = result.parsed && [
-			result.parsed[1],
-			...result.parsed[2].map(sequence => {
+		const errors = fieldsResult.errors ?? [];
+		if (!fieldsResult.parsed) {
+			return {
+				...fieldsResult,
+				parsed: undefined,
+				errors: errors,
+			};
+		}
+		const parsed = [
+			fieldsResult.parsed[1],
+			...fieldsResult.parsed[2].map(sequence => {
 				const field = sequence[1];
 				if (field.type === 'missingField') {
 					errors.push({
@@ -2568,12 +2640,66 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 				return field;
 			}),
 		];
+		const blockFunctions = parsed.flatMap(field => {
+			const blockFunction = field && getBlockBodyFunction(field);
+			return blockFunction
+				? [blockFunction]
+				: [];
+		});
+		// Hinter einem Blockrumpf steht die Klammer in der Rumpfzeile (der Block endet davor) oder
+		// in einer eigenen Zeile
+		let closingResult: ParserResult<unknown> = closing(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
+		const lastField = parsed[parsed.length - 1];
+		if (!closingResult.hasParsed && lastField && getBlockBodyFunction(lastField)) {
+			const closingOnOwnLineResult = closingOnOwnLineParser(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
+			if (closingOnOwnLineResult.hasParsed) {
+				closingResult = closingOnOwnLineResult;
+			}
+		}
+		if (!closingResult.hasParsed) {
+			return {
+				hasParsed: false,
+				endRowIndex: closingResult.endRowIndex,
+				endColumnIndex: closingResult.endColumnIndex,
+				errors: [...errors, ...(closingResult.errors ?? [])],
+			};
+		}
+		// Tolerieren, damit der Baum für den Language Server erhalten bleibt
+		blockFunctions.forEach(blockFunction => {
+			const headEndRowIndex = blockFunction.params.endRowIndex;
+			errors.push({
+				code: ErrorCode.blockFunctionNotOnOwnLine,
+				message: 'A field with a block body function must start on its own line.',
+				startRowIndex: blockFunction.startRowIndex,
+				startColumnIndex: blockFunction.startColumnIndex,
+				endRowIndex: headEndRowIndex,
+				endColumnIndex: rows[headEndRowIndex]?.length ?? 0,
+			});
+		});
 		return {
-			...result,
+			hasParsed: true,
+			endRowIndex: closingResult.endRowIndex,
+			endColumnIndex: closingResult.endColumnIndex,
 			parsed: parsed,
 			errors: errors,
 		};
 	};
+}
+
+/**
+ * Das Funktionsliteral eines Felds, dessen Rumpf in den Zeilen unter dem Funktionskopf steht.
+ */
+function getBlockBodyFunction(field: ParseFieldBase): ParseFunctionLiteral | undefined {
+	const value = field.definition
+		? field.assignedValue
+		: field.name;
+	if (value?.type !== 'functionLiteral') {
+		return undefined;
+	}
+	const firstBodyExpression = value.body[0];
+	return firstBodyExpression && firstBodyExpression.startRowIndex > value.params.endRowIndex
+		? value
+		: undefined;
 }
 
 const roundBracketedBaseParser = createBracketedBaseParser('round');
