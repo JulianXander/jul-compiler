@@ -996,7 +996,6 @@ function fieldParser(
 	const result = sequenceParser(
 		// spread/rest
 		multiplicationParser(
-			0,
 			1,
 			tokenParser('...'),
 		),
@@ -1026,7 +1025,6 @@ function fieldParser(
 					definitionTokenParser,
 					// nur kein value bei unvollständigem Feld
 					multiplicationParser(
-						0,
 						1,
 						valueExpressionParser,
 					)
@@ -1283,7 +1281,6 @@ function simpleExpressionBaseParser(
 			},
 		),
 		multiplicationParser(
-			0,
 			undefined,
 			discriminatedChoiceParser(
 				'Expected a nested reference, a call or an infix call.',
@@ -1546,7 +1543,6 @@ function textLineContentParser(
 ): ParserResult<(TextToken | ParseValueExpression)[]> {
 	const result =
 		multiplicationParser(
-			0,
 			undefined,
 			choiceParser(
 				'Expected text content.',
@@ -2653,7 +2649,6 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 			opening,
 			fieldParser,
 			multiplicationParser(
-				0,
 				undefined,
 				sequenceParser(
 					spaceParser,
