@@ -1619,7 +1619,7 @@ describe('Mehrzeilige Klammerlisten', () => {
 		expect(errors).to.deep.equal([
 			{
 				code: ErrorCode.blockExpressionNotOnOwnLine,
-				message: 'A branching must start on its own line.',
+				message: 'Branching must start on its own line.',
 				startRowIndex: 0,
 				startColumnIndex: 6,
 				endRowIndex: 0,

@@ -2852,7 +2852,7 @@ function getBlockExpression(field: ParseFieldBase): {
 				? {
 					expression: value,
 					headEndRowIndex: headEndRowIndex,
-					message: 'A branching must start on its own line.',
+					message: 'Branching must start on its own line.',
 				}
 				: undefined;
 		}
