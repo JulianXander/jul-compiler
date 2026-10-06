@@ -1321,6 +1321,32 @@ describe('Mehrzeiliger Funktionskopf', () => {
 	});
 	// Ein Leerzeichen am Zeilenende (beim Tippen üblich) soll nicht zusätzlich als unparsedRestOfRow
 	// gemeldet werden. Die Meldung steht am Zeilenende, wo die Klammer fehlt.
+	// Die Meldung nennt, was an dieser Stelle erlaubt ist, nicht die Namen interner Parser.
+	it('expression-expected-at-slash', () => {
+		expectParse('/a', {
+			errors: [{
+				code: ErrorCode.expectedOneOf,
+				message: 'Expected a bracket, number, text or reference.',
+				startRowIndex: 0,
+				startColumnIndex: 0,
+				endRowIndex: 0,
+				endColumnIndex: 0,
+			}],
+		});
+	});
+
+	it('expression-expected-after-type-guard-token', () => {
+		expectParse('a: = 1', {
+			errors: [{
+				code: ErrorCode.expectedOneOf,
+				message: 'Expected a bracket, number, text or reference.',
+				startRowIndex: 0,
+				startColumnIndex: 3,
+				endRowIndex: 0,
+				endColumnIndex: 3,
+			}],
+		});
+	});
 	// Öffnende Klammer ohne jedes Feld dahinter (beim Tippen der erste Zustand)
 	it('opening-bracket-only', () => {
 		expectParse('[', {

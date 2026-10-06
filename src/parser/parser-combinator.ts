@@ -52,7 +52,10 @@ export function moveToNextLine<T>(parser: Parser<T>): Parser<T> {
 type Parsers<T extends any[]> = { [k in keyof T]: Parser<T[k]> };
 // type OptionalTuple<T extends any[]> = { [k in keyof T]?: T[k] }
 
-export function choiceParser<T extends any[]>(...parsers: Parsers<T>): Parser<T[number]> {
+/**
+ * expected ist die Meldung, wenn keine Alternative passt. Sie sagt, was an dieser Stelle erlaubt ist.
+ */
+export function choiceParser<T extends any[]>(expected: string, ...parsers: Parsers<T>): Parser<T[number]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		for (const parser of parsers) {
 			const result = parser(rows, startRowIndex, startColumnIndex, indent);
@@ -71,7 +74,7 @@ export function choiceParser<T extends any[]>(...parsers: Parsers<T>): Parser<T[
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
 				code: ErrorCode.expectedOneOf,
-				message: `Expected one of: ${parsers.map(parser => parser.name).join(',')}`
+				message: expected
 			}],
 		};
 	};
@@ -87,8 +90,10 @@ type ParserChoices<T extends any[]> = {
 /**
  * Im Gegensatz zum choiceParser, der bei erfolglosem Parsen den nächsten parser versucht,
  * bricht der discriminatedChoiceParser ab, sobald das erste predicate passt.
+ * expected ist die Meldung, wenn kein predicate passt.
  */
 export function discriminatedChoiceParser<T extends any[]>(
+	expected: string,
 	...choices: ParserChoices<T>
 ): Parser<T[number]> {
 	return (rows, startRowIndex, startColumnIndex, indent) => {
@@ -111,7 +116,7 @@ export function discriminatedChoiceParser<T extends any[]>(
 				endRowIndex: startRowIndex,
 				endColumnIndex: startColumnIndex,
 				code: ErrorCode.expectedOneOf,
-				message: `Expected one of: ${choices.map(({ parser }) => parser.name).join(',')}`
+				message: expected
 			}],
 		};
 	};

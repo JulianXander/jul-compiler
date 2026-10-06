@@ -293,11 +293,13 @@ const returnTypeTokenParser = tokenParser(' :> ');
 const pureReturnTypeTokenParser = tokenParser(' -> ');
 const impureReturnTypeTokenParser = tokenParser(' ~> ');
 const anyReturnTypeTokenParser: Parser<undefined> = choiceParser(
+	'Expected a return arrow.',
 	returnTypeTokenParser,
 	pureReturnTypeTokenParser,
 	impureReturnTypeTokenParser,
 );
 const returnArrowParser: Parser<Purity> = discriminatedChoiceParser(
+	'Expected a return arrow.',
 	{ predicate: returnTypeTokenParser, parser: mapParser(returnTypeTokenParser, (): Purity => 'unknown') },
 	{ predicate: pureReturnTypeTokenParser, parser: mapParser(pureReturnTypeTokenParser, (): Purity => 'pure') },
 	{ predicate: impureReturnTypeTokenParser, parser: mapParser(impureReturnTypeTokenParser, (): Purity => 'impure') },
@@ -910,6 +912,7 @@ function nestedReferenceKeyParser(
 	nestedKey?: Name | ParseTextLiteral | Index;
 }> {
 	const result = moveColumnIndex(1, choiceParser(
+		'Expected a nested key.',
 		nameParser,
 		inlineTextParser,
 		indexParser,
@@ -1001,6 +1004,7 @@ function fieldParser(
 		valueExpressionBaseParser,
 		// typeGuard
 		discriminatedChoiceParser(
+			'Expected a type guard or nothing.',
 			{
 				predicate: typeGuardTokenParser,
 				parser: sequenceParser(
@@ -1015,6 +1019,7 @@ function fieldParser(
 		),
 		// source/assignedValue
 		discriminatedChoiceParser(
+			'Expected a definition or nothing.',
 			{
 				predicate: definitionTokenParser,
 				parser: sequenceParser(
@@ -1100,6 +1105,7 @@ function valueExpressionBaseParser(
 	const result = sequenceParser(
 		simpleExpressionBaseParser,
 		discriminatedChoiceParser(
+			'Expected a function body, a return type or nothing.',
 			// FunctionLiteral
 			{
 				predicate: functionTokenParser,
@@ -1244,6 +1250,7 @@ function simpleExpressionBaseParser(
 ): ParserResult<SimpleExpression> {
 	const result = sequenceParser(
 		discriminatedChoiceParser(
+			'Expected a bracket, number, text or reference.',
 			// Bindungsstelle: Parameterliste oder Destructuring-Ziel.
 			// Was davon, entscheidet erst das Token nach der schließenden Klammer.
 			{
@@ -1264,6 +1271,7 @@ function simpleExpressionBaseParser(
 			{
 				predicate: paragraphParser,
 				parser: choiceParser(
+					'Expected a text.',
 					inlineTextParser,
 					multilineTextParser
 				)
@@ -1278,6 +1286,7 @@ function simpleExpressionBaseParser(
 			0,
 			undefined,
 			discriminatedChoiceParser(
+				'Expected a nested reference, a call or an infix call.',
 				// Field/Index Reference
 				{
 					predicate: nestedReferenceTokenParser,
@@ -1292,6 +1301,7 @@ function simpleExpressionBaseParser(
 				// Infix FunctionCall
 				{
 					predicate: choiceParser(
+						'Expected an infix call.',
 						infixFunctionTokenParser,
 						// TODO multiline functionCall mit Kommentarzeilen
 					),
@@ -1539,6 +1549,7 @@ function textLineContentParser(
 			0,
 			undefined,
 			choiceParser(
+				'Expected text content.',
 				regexParser(/([^§]+|§§|§#)/y, { code: ErrorCode.invalidTextSyntax, message: 'Invalid String Syntax' }),
 				sequenceParser(
 					tokenParser('§('),
@@ -2100,6 +2111,7 @@ function bodyOperandParser(
 	indent: number,
 ): ParserResult<ParseExpression[]> {
 	return discriminatedChoiceParser<ParseExpression[][]>(
+		'Expected a line end or a space after the arrow.',
 		// multiline FunctionLiteral
 		{
 			predicate: endOfLineParser,
@@ -2513,6 +2525,7 @@ function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpres
 		indent: number,
 	): ParserResult<ParseBindingExpression | ParseDataExpression> => {
 		const result = discriminatedChoiceParser(
+			'Expected a bracket pair, a multiline list or fields.',
 			{
 				predicate: emptyBracketsParser,
 				parser: mapParser(
@@ -2559,8 +2572,6 @@ function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpres
 			parsed: bracketed,
 		};
 	};
-	// choiceParser baut seine Fehlermeldung aus parser.name
-	Object.defineProperty(parser, 'name', { value: `${kind}BracketedBaseParser` });
 	return parser;
 }
 
@@ -2647,9 +2658,10 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 				sequenceParser(
 					spaceParser,
 					discriminatedChoiceParser(
+						'Expected a missing field or a field.',
 						// missing field
 						{
-							predicate: choiceParser(spaceParser, closing),
+							predicate: choiceParser('Expected a space or a closing bracket.', spaceParser, closing),
 							parser: mapParser(
 								emptyParser,
 								(emptyResult) => {
