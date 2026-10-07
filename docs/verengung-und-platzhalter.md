@@ -428,6 +428,36 @@ beide Stellen auf roh umgestellt (Quelle und Ziel).
 Untersuchungsbericht stimmen (nur die Aussage zur Quelle als Obergrenze und der TODO-Fall sind selbst
 verifiziert), und wie viele neue Meldungen Zielbild-Schritt 4 wirklich ergibt. Dafür ist die Messung da.
 
+**Zielbild-Schritt 5: durchgesehen, drei Fehler gefunden und behoben, eine Einschränkung bleibt.**
+Jede Speicherstelle wurde mit einem Aufruf von außen geprüft (das Ergebnis am Aufrufort zeigt, ob die
+Generizität verloren ging):
+- **Gut:** Spread von Listen (auch `Or([] List(X))`), Tupeln, Destructuring und das Durchreichen eines Streams
+  behalten den Elementtyp am Aufrufort (`List(Or(Text 1))`, `[Text Integer 1]`, `Stream(Text)`). Die Listen
+  bleiben über den symbolischen `concat`-Knoten generisch.
+- **Fehler 1 (behoben):** Spread eines `Dictionary(X)` in ein Dictionary-Literal ergab `Any`.
+  `spreadDictionaryTypes` kennt jetzt ein `Dictionary(X)` auf einer Seite: Das Ergebnis ist ein `Dictionary`
+  über die Vereinigung aller Werttypen (ein unvollständiges Literal daneben bleibt unentscheidbar).
+- **Fehler 2 (behoben):** Spread von `Or([] Dictionary(X))` ergab nur `Empty`, der Dictionary-Zweig ging
+  verloren. Reine Spreads (`[...d]`) bleiben als `concat`-Knoten stehen, bis sich die Quelle auflösen lässt;
+  `concatFromTypes` kannte nur Listen und Tupel und behandelt jetzt auch Dictionaries.
+- **Fehler 3 (behoben):** \`withCompletedStream\`: Ein Stream, der im Rumpf mit \`complete\` beendet wird, verlor
+  den Wertetyp eines generischen Parameters (\`FiniteStream(Any)\` statt \`FiniteStream(Text)\`). Der Wertetyp
+  bleibt jetzt \`TypeOf(x)/ValueType\`, wenn der Stream selbst ein Platzhalter ist.
+- **Tests:** vier für Dictionary-Spreads (\`spread-of-dictionary-type-into-dictionary-literal\`,
+  \`spread-of-two-dictionary-types-merges-element-types\`, \`spread-of-dictionary-type-with-additional-field\`,
+  \`spread-of-optional-dictionary-type-keeps-both-cases\`) und \`completed-stream-keeps-generic-value-type\`, alle
+  vorher rot.
+- **Wirkung in yugioh:** Die Form \`cards: Any\` ist aus den Warnungen verschwunden (vorher 7), die Zahl der
+  Zeilen mit \`Any\` sank von 119 auf 112. Die Warnungen selbst bleiben bei 49, weil dort weiterhin andere
+  \`Any\` stecken (\`hand\`, \`activeGameCardId\`, \`stream$\`, \`passUntilPhase\`).
+- **Bleibt (Einschränkung, kein Fehler):** Ein Dictionary-**Literal** als Parameter, gespreadet
+  (\`d: [a: Any]\`, \`[...d y = 1]\`), verliert die Generizität: Am Aufruf mit \`[a: Text]\` steht \`a: Any\`. Für
+  Dictionaries gibt es kein Gegenstück zum \`concat\`-Knoten der Listen, ein Fix wäre ein neuer Typknoten.
+- **Nicht untersucht:** Der Spread in einer **Typangabe** (\`case 'dictionaryType'\`): Er wertet nur
+  Dictionary-Literale aus, andere Quellen werden still ignoriert (im Code mit \`TODO error when spread list\`
+  vermerkt). Dazu habe ich keinen Test.
+- **Ergebnis:** 1287 Tests grün, Snapshot und Zähler unverändert, Bench-Median etwa 1170 bis 1190 ms.
+
 ## Risiken und offene Fragen
 
 - **Ein `And` aus einer Signatur beim Nachschlagen:** Wird auf einem Rückgabetyp wie dem von `range`

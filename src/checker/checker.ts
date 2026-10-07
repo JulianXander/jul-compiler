@@ -17,6 +17,7 @@ import {
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
 	createCompileTimeTypeOfType,
+	createNestedReference,
 	ConditionalTypeBranch,
 	createParameterReference,
 	createParametersType,
@@ -1039,13 +1040,19 @@ function withCompletedStream(typeInfo: TypeInfo, scope: SymbolTable, name: strin
 	if (!completedNamesByScope.get(scope)?.has(name)) {
 		return typeInfo;
 	}
-	const resolved = resolvePlaceholders(typeInfo.type);
+	const rawType = typeInfo.type;
+	const resolved = resolvePlaceholders(rawType);
 	if (resolved.julType !== 'stream' || resolved.finite) {
 		return typeInfo;
 	}
+	// Ist der Stream selbst ein Platzhalter (ein Parameter), bleibt auch sein Wertetyp einer
+	// (TypeOf(x)/ValueType) und wird erst am Aufruf konkret. Aufgelöst wäre er hier der deklarierte.
+	const valueType = rawType.julType === 'parameterReference' || rawType.julType === 'nestedReference'
+		? valueOf(createNestedReference(createCompileTimeTypeOfType(rawType), 'ValueType'))
+		: resolved.ValueType;
 	return {
 		...typeInfo,
-		type: createCompileTimeStreamType(resolved.ValueType, true),
+		type: createCompileTimeStreamType(valueType, true),
 	};
 }
 

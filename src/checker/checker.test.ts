@@ -2849,6 +2849,27 @@ f = (l: Or([] List(Integer))) =>
 			],
 		});
 	});
+	// Ein Stream, der im Rumpf beendet wird (complete), ist ein FiniteStream. Der Wertetyp eines
+	// generischen Parameters muss dabei erhalten bleiben und am Aufruf konkret werden.
+	it('completed-stream-keeps-generic-value-type', () => {
+		expectCheck(`f = (s$: Stream(Any)) =>
+	t$ = s$
+	t$.complete()
+	t$
+g = (x$: Stream(Text)) =>
+	r: Boolean = f(x$)`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: "Definition type mismatch.\nCan not assign FiniteStream(Text) to Boolean.",
+					startRowIndex: 5,
+					startColumnIndex: 1,
+					endRowIndex: 5,
+					endColumnIndex: 19,
+				},
+			],
+		});
+	});
 	// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
 	// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 	// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
