@@ -5,7 +5,7 @@ import { checkTypes, ParsedDocuments } from './checker.js';
 import { errorInfos } from '../compiler-errors.js';
 import { createInMemoryHost, loadFile, ProjectHost } from '../compiler/project-loader.js';
 import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
-import { ReferenceIndex } from './reference-index.js';
+import { getFieldSymbolsFromDictionaryType, ReferenceIndex } from './reference-index.js';
 
 // Die Dateien gibt es nur im Speicher - so lässt sich der Import-Graph für diesen Test gezielt
 // konstruieren (mehrere Importeure, Alias).
@@ -320,5 +320,74 @@ describe('ReferenceIndex: Feldnamen mit einer Union als erwartetem Typ', () => {
 
 	it('Gegenprobe: ein Literal gehört nicht zu einem Zweig, dem ein Feld widerspricht', () => {
 		expect(getReferenceRows('B')).to.not.include(6);
+	});
+});
+
+// Ein Feld, das eine Variante per Spread aus einem Basistyp übernimmt, hat sein Symbol am Basistyp.
+// Fund: yugioh, GameUiState = Or([...GameUiStateBase status: …] …), Go to Definition auf passUntilPhase.
+describe('ReferenceIndex: Felder, die per Spread übernommen werden', () => {
+	const filePath = join(folder, 'spread-fields.jul');
+	let documents: ParsedDocuments;
+	let referenceIndex: ReferenceIndex;
+
+	beforeEach(() => {
+		documents = {};
+		referenceIndex = new ReferenceIndex();
+		const code = [
+			'Base = [',
+			'	name: Text',
+			']',
+			'Derived = [',
+			'	...Base',
+			'	age: Integer',
+			']',
+			'a: Derived = [name = §a§ age = 1]',
+			'Variant = Or(',
+			'	[',
+			'		...Base',
+			'		kind: §x§',
+			'	]',
+			'	[',
+			'		...Base',
+			'		kind: §y§',
+			'	]',
+			')',
+			'b: Variant = [name = §b§ kind = §x§]',
+			'',
+		].join('\n');
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
+	});
+
+	function getTypeOfSymbol(name: string) {
+		const type = documents[filePath]!.checked!.symbols[name]!.typeInfo!.type as any;
+		return type.julType === 'typeOf' ? type.value : type;
+	}
+
+	it('der Testcode prüft ohne Fehler', () => {
+		expect(getErrorsWithSeverityError(documents, filePath)).to.deep.equal([]);
+	});
+
+	it('das Feld einer abgeleiteten Struktur findet sein Symbol am Basistyp', () => {
+		const baseNameSymbol = getFieldSymbolOfType(documents, filePath, 'Base', 'name');
+		const found = getFieldSymbolsFromDictionaryType(getTypeOfSymbol('Derived'), 'name');
+		expect(found.map(location => location.symbol)).to.deep.equal([baseNameSymbol]);
+	});
+
+	it('das eigene Feld der abgeleiteten Struktur bleibt an der abgeleiteten Struktur', () => {
+		const ageSymbol = getFieldSymbolOfType(documents, filePath, 'Derived', 'age');
+		const found = getFieldSymbolsFromDictionaryType(getTypeOfSymbol('Derived'), 'age');
+		expect(found.map(location => location.symbol)).to.deep.equal([ageSymbol]);
+	});
+
+	it('das Feld einer Vereinigung von Varianten findet sein Symbol am Basistyp', () => {
+		const baseNameSymbol = getFieldSymbolOfType(documents, filePath, 'Base', 'name');
+		const found = getFieldSymbolsFromDictionaryType(getTypeOfSymbol('Variant'), 'name');
+		expect(new Set(found.map(location => location.symbol))).to.deep.equal(new Set([baseNameSymbol]));
+	});
+
+	it('der Feldname im Literal mit erwartetem Typ ist eine Referenz auf das Feld des Basistyps', () => {
+		const references = referenceIndex.getReferences(getFieldSymbolOfType(documents, filePath, 'Base', 'name'), filePath);
+		// die Literale in Zeile 7 (a: Derived) und 18 (b: Variant)
+		expect(references.map(location => location.startRowIndex)).to.include.members([7, 18]);
 	});
 });

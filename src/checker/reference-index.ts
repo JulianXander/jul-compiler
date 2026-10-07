@@ -26,6 +26,8 @@ export function getFieldSymbolsFromDictionaryType(
 	dictionaryType: CompileTimeType,
 	fieldName: string,
 	result: FieldSymbolLocation[] = [],
+	/** Die Literale, deren Spreads schon durchsucht werden: schützt vor einem Kreis. */
+	visitedDeclarations: Set<object> = new Set(),
 ): FieldSymbolLocation[] {
 	switch (dictionaryType.julType) {
 		case 'dictionaryLiteral': {
@@ -37,23 +39,38 @@ export function getFieldSymbolsFromDictionaryType(
 					filePath: declaration.filePath,
 				});
 			}
+			else if (declaration
+				&& !visitedDeclarations.has(declaration.expression)) {
+				// Ein Feld, das das Literal nicht selbst schreibt, kann es per Spread (...Base) von einem
+				// anderen Typ übernommen haben: sein Symbol steht dort.
+				visitedDeclarations.add(declaration.expression);
+				declaration.expression.fields.forEach(field => {
+					const spreadType = field.type === 'spread'
+						? field.value.typeInfo?.type
+						: undefined;
+					if (spreadType) {
+						getFieldSymbolsFromDictionaryType(spreadType, fieldName, result, visitedDeclarations);
+					}
+				});
+			}
 			return result;
 		}
 		case 'and':
 		case 'or': {
 			dictionaryType.ChoiceTypes.forEach(choiceType => {
-				getFieldSymbolsFromDictionaryType(choiceType, fieldName, result);
+				getFieldSymbolsFromDictionaryType(choiceType, fieldName, result, visitedDeclarations);
 			});
 			return result;
 		}
 		case 'typeOf':
-			return getFieldSymbolsFromDictionaryType(dictionaryType.value, fieldName, result);
+			return getFieldSymbolsFromDictionaryType(dictionaryType.value, fieldName, result, visitedDeclarations);
 		case 'alias':
 			// Der Alias ist Beschriftung; die Felddeklaration steht am Typ dahinter.
 			return getFieldSymbolsFromDictionaryType(
 				dictionaryType.symbol.typeInfo?.type ?? builtinAny,
 				fieldName,
-				result);
+				result,
+				visitedDeclarations);
 		default:
 			return result;
 	}
