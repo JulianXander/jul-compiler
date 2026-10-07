@@ -2645,6 +2645,26 @@ d/a`);
 			],
 		});
 	});
+	// Fund: yugioh game-logic.jul, combinationFn = ?(mode) [§and§] => all [§or§] => exists:
+	// der Callback bei einer Union von Funktionen bekam keinen erwarteten Parametertyp (Any).
+	it('callback-param-type-when-calling-union-of-functions', () => {
+		expectCheck(`f = (values: List([a: Integer]) mode: Or(§and§ §or§)) =>
+	fn = ?(mode)
+		[§and§] => all
+		[§or§] => exists
+	values.fn((value) => value/b)`, {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'b' in type [a: Integer]",
+					startRowIndex: 4,
+					startColumnIndex: 28,
+					endRowIndex: 4,
+					endColumnIndex: 29,
+				},
+			],
+		});
+	});
 	// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
 	// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 	// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder

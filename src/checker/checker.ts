@@ -1747,6 +1747,43 @@ function instantiateExpectedArgument(
 }
 
 /**
+ * Die Zweige einer aufgerufenen Union von Funktionen (?(mode) [§and§] => all [§or§] => exists).
+ * undefined, wenn der Typ keine Union ist oder ein Zweig keine Funktion.
+ */
+function getUnionFunctionChoices(calledType: CompileTimeType): CompileTimeFunctionType[] | undefined {
+	const type = resolveAlias(calledType);
+	if (!isUnionType(type)) {
+		return undefined;
+	}
+	const choices = type.ChoiceTypes.map(resolveAlias);
+	return choices.every(isFunctionType)
+		? choices as CompileTimeFunctionType[]
+		: undefined;
+}
+
+/**
+ * Fasst die erwarteten Typen eines Arguments aus den Zweigen einer aufgerufenen Union von Funktionen
+ * zusammen. Ein Funktionsliteral braucht einen eindeutigen Callback-Parametertyp: stimmen die
+ * Parameter der Zweige überein, gilt der des ersten, sonst gibt es keine Erwartung.
+ */
+function mergeExpectedArgumentTypes(
+	expectedTypes: (CompileTimeType | undefined)[],
+	argument: ParseValueExpression,
+): CompileTimeType | undefined {
+	const definedTypes = expectedTypes.filter(isDefined);
+	if (definedTypes.length !== expectedTypes.length) {
+		return undefined;
+	}
+	if (argument.type !== 'functionLiteral') {
+		return createNormalizedUnionType(definedTypes);
+	}
+	const [first, ...others] = definedTypes.map(getExpectedFunctionType);
+	return first && others.every(other => other && typeEquals(other.ParamsType, first.ParamsType))
+		? first
+		: undefined;
+}
+
+/**
  * Instanziiert die Parametertypen eines erwarteten Callbacks mit den Argumenten des Aufrufs, so
  * dass (value: TypeOf(values)/ElementType) zu (value: Integer) wird. Wie bei
  * dereferenceCallbackParams nur diese eine Ebene. Was sich nicht instanziieren lässt, bleibt roh.
@@ -2572,6 +2609,27 @@ function inferType(
 			// in Reihenfolge inferiert, die Argumentliste setzt sie danach nur noch zusammen.
 			const argsPrefixCount = prefixArgument ? 1 : 0;
 			const rawPrefixArgumentTypeForArgs = prefixArgument?.typeInfo?.type;
+			// Bei einer aufgerufenen Union von Funktionen wird pro Zweig erwartet und instanziiert,
+			// die Ergebnisse fasst mergeExpectedArgumentTypes zusammen.
+			const unionFunctionChoices = getUnionFunctionChoices(functionType);
+			const getExpectedArgumentType = (
+				getRawType: (paramsType: CompileTimeType) => CompileTimeType | undefined,
+				getProvisionalArgsType: () => CompileTimeType,
+				value: ParseValueExpression,
+			): CompileTimeType | undefined => {
+				const expectedTypes = (unionFunctionChoices ?? [functionType]).map(calledFunction => {
+					const rawType = getRawType(unionFunctionChoices
+						? getParamsType(calledFunction)
+						: paramsType);
+					return value.type === 'functionLiteral' || rawType?.isUnresolvedPlaceholder
+						? instantiateExpectedArgument(
+							calledFunction, bindReceiver(rawPrefixArgumentTypeForArgs, getProvisionalArgsType()), rawType, value)
+						: rawType;
+				});
+				return unionFunctionChoices
+					? mergeExpectedArgumentTypes(expectedTypes, value)
+					: expectedTypes[0];
+			};
 			switch (args.type) {
 				case 'list': {
 					// Ein Spread verschiebt alle folgenden Positionen unbekannt weit.
@@ -2582,16 +2640,14 @@ function inferType(
 							setInferredType(value.value, typeContext, undefined, checkContext);
 							return;
 						}
-						let expectedArgumentType = firstSpreadIndex === undefined
-							? getExpectedElementType(paramsType, index + argsPrefixCount)
-							: getExpectedElementTypeAfterSpread(paramsType, firstSpreadIndex);
-						if (value.type === 'functionLiteral' || expectedArgumentType?.isUnresolvedPlaceholder) {
+						const expectedArgumentType = getExpectedArgumentType(
+							calledParamsType => firstSpreadIndex === undefined
+								? getExpectedElementType(calledParamsType, index + argsPrefixCount)
+								: getExpectedElementTypeAfterSpread(calledParamsType, firstSpreadIndex),
 							// Vorläufige Argumente: die vorherigen sind schon inferiert, die übrigen Any.
-							const provisionalArgsType = createCompileTimeTupleType(args.values.map(otherValue =>
-								(otherValue as ParseExpressionBase).typeInfo?.type ?? builtinAny));
-							expectedArgumentType = instantiateExpectedArgument(
-								functionType, bindReceiver(rawPrefixArgumentTypeForArgs, provisionalArgsType), expectedArgumentType, value);
-						}
+							() => createCompileTimeTupleType(args.values.map(otherValue =>
+								(otherValue as ParseExpressionBase).typeInfo?.type ?? builtinAny)),
+							value);
 						setInferredType(value, typeContext, expectedArgumentType, checkContext);
 					});
 					break;
@@ -2606,18 +2662,12 @@ function inferType(
 						const fieldName = field.type === 'singleDictionaryField'
 							? getCheckedEscapableName(field.name)
 							: undefined;
-						let expectedArgumentType = fieldName === undefined
-							? undefined
-							: getExpectedFieldType(paramsType, fieldName);
-						if (value.type === 'functionLiteral' || expectedArgumentType?.isUnresolvedPlaceholder) {
-							expectedArgumentType = instantiateExpectedArgument(
-								functionType,
-								bindReceiver(
-									rawPrefixArgumentTypeForArgs,
-									createCompileTimeDictionaryLiteralType(provisionalFieldTypes, true)),
-								expectedArgumentType,
-								value);
-						}
+						const expectedArgumentType = getExpectedArgumentType(
+							calledParamsType => fieldName === undefined
+								? undefined
+								: getExpectedFieldType(calledParamsType, fieldName),
+							() => createCompileTimeDictionaryLiteralType(provisionalFieldTypes, true),
+							value);
 						setInferredType(value, typeContext, expectedArgumentType, checkContext);
 						if (fieldName !== undefined && value.typeInfo) {
 							provisionalFieldTypes[fieldName] = value.typeInfo.type;
