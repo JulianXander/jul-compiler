@@ -2608,13 +2608,11 @@ function inferType(
 			// Jedes Argument erwartet seinen Parametertyp. Dafür werden die Argumente hier einzeln und
 			// in Reihenfolge inferiert, die Argumentliste setzt sie danach nur noch zusammen.
 			const argsPrefixCount = prefixArgument ? 1 : 0;
-			const prefixArgumentTypeForArgs = prefixArgument?.typeInfo?.type;
-			// Ein Parameter bleibt hier ein Platzhalter, den die Instanziierung selbst auflöst. Nach einem
-			// Match steht er aber in einer Schnittmenge (And(values List(X))), mit der das nicht gelingt:
-			// der Elementtyp des Callbacks wäre Any.
-			const rawPrefixArgumentTypeForArgs = prefixArgumentTypeForArgs
-				? resolvePlaceholders(prefixArgumentTypeForArgs)
-				: prefixArgumentTypeForArgs;
+			// Wie bei der Prüfung unten gilt der aufgelöste Empfänger. Ein roher Parameter-Platzhalter
+			// reichte hier nur, solange er allein steht: nach einem Match steht er in einer Schnittmenge
+			// (And(values List(X))), und der Elementtyp des Callbacks wäre Any.
+			const prefixArgumentTypeForArgs = prefixArgument?.typeInfo
+				&& resolvePlaceholders(prefixArgument.typeInfo.type);
 			// Bei einer aufgerufenen Union von Funktionen wird pro Zweig erwartet und instanziiert,
 			// die Ergebnisse fasst mergeExpectedArgumentTypes zusammen.
 			const unionFunctionChoices = getUnionFunctionChoices(functionType);
@@ -2629,7 +2627,7 @@ function inferType(
 						: paramsType);
 					return value.type === 'functionLiteral' || rawType?.isUnresolvedPlaceholder
 						? instantiateExpectedArgument(
-							calledFunction, bindReceiver(rawPrefixArgumentTypeForArgs, getProvisionalArgsType()), rawType, value)
+							calledFunction, bindReceiver(prefixArgumentTypeForArgs, getProvisionalArgsType()), rawType, value)
 						: rawType;
 				});
 				return unionFunctionChoices
