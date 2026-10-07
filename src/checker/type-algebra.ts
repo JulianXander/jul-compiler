@@ -1017,9 +1017,26 @@ function dereferenceParameterFromArgumentType(
  * Dictionaries, Nachschlagen in einer Verengung (And) und der erwartete Callback-Typ am Aufruf.
  * Der Rückgabetyp einer aufgerufenen Funktion behält dagegen einen bloßen Platzhalter-Empfänger roh
  * (returnPrefixArgumentType), denn erst der Aufrufort kennt den konkreten Typ.
+ * Zum Nachschlagen eines Feldes oder Index gibt es getLookupType.
  */
 export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 	return traversePlaceholders(rawType, undefined);
+}
+
+/**
+ * Der Typ, auf dem nachgeschlagen wird (Feld, Index, ElementType): Ein zusammengesetzter Typ mit
+ * Platzhalter wird aufgelöst, etwa das And aus der Verengung eines Parameters
+ * (And(values List(X))) oder das Or, in das sich ein And bei einer Verengung auf eine Vereinigung
+ * verteilt. dereferenceNameFromObject und dereferenceIndexFromObject kennen diese Formen nicht und
+ * fielen auf Any. Ein bloßer Platzhalter bleibt roh: der Zugriff darauf liefert einen
+ * aufgeschobenen Knoten, der für Generizität nötig ist.
+ * Nur zum Nachschlagen und Prüfen, nie zum Speichern (siehe resolvePlaceholders).
+ */
+export function getLookupType(rawType: CompileTimeType): CompileTimeType {
+	return (rawType.julType === 'and' || rawType.julType === 'or')
+		&& isUnresolvedPlaceholderType(rawType)
+		? resolvePlaceholders(rawType)
+		: rawType;
 }
 
 /**

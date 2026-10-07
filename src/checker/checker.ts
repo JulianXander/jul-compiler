@@ -108,6 +108,7 @@ import {
 	isTypeAssignableForPredicateFunction,
 	isTypePropertyOfValue,
 	isUnionType,
+	getLookupType,
 	isUnresolvedPlaceholderType,
 	mapElementsFromTypes,
 	resolveAlias,
@@ -1178,11 +1179,8 @@ function getNarrowedType(
 	let type = longestMatch.type;
 	for (const key of keys.slice(longestMatch.keys.length)) {
 		// Die Verengung legt ein And über den noch unaufgelösten Typ der Quelle ab (etwa einen
-		// Parameter). dereferenceNestedKeyFromObject behandelt And nicht und fiele auf Any, erst
-		// der aufgelöste Typ kennt seine Felder.
-		const sourceType = type.julType === 'and'
-			? resolvePlaceholders(type)
-			: type;
+		// Parameter), erst der aufgelöste Typ kennt seine Felder.
+		const sourceType = getLookupType(type);
 		// Dieselben Funktionen wie die reguläre Prüfung des Zugriffs (case 'nestedReference'): sie
 		// liefern undefined für ein fehlendes Feld. dereferenceNestedKeyFromObject liefert dafür Empty
 		// bzw. Or(Empty X), und das ginge hier still als verengter Typ durch, ohne dass der Fehler
@@ -3110,10 +3108,10 @@ function inferType(
 						return { type: builtinAny };
 					}
 					const sourceType = resolvePlaceholders(source.typeInfo!.type);
-					// Der rawType kann eine Form sein, die dereferenceIndexFromObject nicht
-					// behandelt, z.B. das and aus der Verengung eines branches. Dann auf dem
-					// aufgelösten Typ nachsehen, bevor der Index als daneben gilt.
-					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, source.typeInfo!.type)
+					// Auf dem Nachschlagetyp (ein bloßer Platzhalter bleibt roh, ein zusammengesetzter
+					// wird aufgelöst, z.B. das and aus der Verengung eines branches). Bleibt ein roher
+					// Typ ohne Treffer, auf dem aufgelösten nachsehen, bevor der Index als daneben gilt.
+					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, getLookupType(source.typeInfo!.type))
 						?? dereferenceIndexFromObject(nestedKey.name, sourceType);
 					if (!dereferencedType) {
 						// Zwei verschiedene Aussagen: die Art passt nicht zur Quelle (beweisbar
@@ -3145,10 +3143,9 @@ function inferType(
 						return { type: builtinAny };
 					}
 					const sourceType = resolvePlaceholders(source.typeInfo!.type);
-					// Der rawType kann eine Form sein, die dereferenceNameFromObject nicht behandelt,
-					// z.B. das and aus der Verengung eines branches. Dann auf dem aufgelösten Typ
-					// nachsehen, bevor das Feld als fehlend gilt.
-					const rawDereferencedType = dereferenceNameFromObject(fieldName, source.typeInfo!.type);
+					// Wie beim Index: erst auf dem Nachschlagetyp, ohne Treffer auf dem aufgelösten, bevor
+					// das Feld als fehlend gilt.
+					const rawDereferencedType = dereferenceNameFromObject(fieldName, getLookupType(source.typeInfo!.type));
 					const resolvedDereferencedType = dereferenceNameFromObject(fieldName, sourceType);
 					const dereferencedType = rawDereferencedType ?? resolvedDereferencedType;
 					if (!dereferencedType

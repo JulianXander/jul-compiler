@@ -28,7 +28,10 @@ Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprac
   Listen, Tupeln und Dictionaries, Nachschlagen nach einer Verengung, erwarteter Callback-Typ am
   Aufruf). Nur der Rückgabetyp einer aufgerufenen Funktion behält einen bloßen
   Platzhalter-Empfänger roh (`returnPrefixArgumentType`). Neue Stellen, die einen Typ speichern,
-  müssen sich zwischen beiden entscheiden und nicht beides mischen.
+  müssen sich zwischen beiden entscheiden und nicht beides mischen. Zum Nachschlagen eines Feldes
+  oder Index gibt es `getLookupType`: Es löst ein `and` oder `or` mit Platzhalter auf (die Form, in
+  der eine Verengung den Parameter ablegt), ein bloßer Platzhalter bleibt roh. Wer nachschlägt,
+  ruft nicht selbst `resolvePlaceholders` auf und fragt nicht nur auf `and`.
 - **`Any` bedeutet drei verschiedene Dinge:** „Typ unbekannt", „hier bewusst permissiv prüfen" und
   „hier ist schon etwas schiefgelaufen, sei still". Die dritte Bedeutung zieht die zweite mit sich,
   deshalb verstummt nach einem gemeldeten Fehler die ganze Kette darunter. Ein eigener
