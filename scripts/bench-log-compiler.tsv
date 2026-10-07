@@ -199,3 +199,4 @@
 2026-10-04 08:59:04	bca5a9d+	-	ADV-DEV-56627	yugioh	parse+check	5	1400.95	2031.17	2031.17	nach Faltbudget-Abbruch
 2026-10-04 09:08:33	eb1d085+	-	ADV-DEV-56627	yugioh	parse+check	5	1324.04	1714.98	1714.98	nach: Warnung bei unknown (typeNotProven) hinter Schalter, Bench ohne Schalter
 2026-10-06 11:14:17	0c9e93c+	-	ADV-DEV-56627	yugioh	parse+check	5	1314.19	1644.10	1644.10	Parser: Blockausdruecke (Lambda, Branching) und schliessende Klammer in Klammerlisten tolerant parsen, Fehler 1108/1109
+2026-10-07 16:45:05	ef77f7b	-	ADV-DEV-56627	yugioh	parse+check	5	1244.16	1556.09	1556.09	nachher: Union-Funktionsaufruf, aufgeloester Empfaenger, instantiateCallbackSignature (ef77f7b)
