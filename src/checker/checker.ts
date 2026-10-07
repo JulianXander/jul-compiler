@@ -3235,23 +3235,17 @@ function inferType(
 
 			// Lässt sich nicht als Liste/Tuple auflösen: laut ParseUnknownObjectLiteral kann die
 			// Quelle statt dessen auch ein Dictionary sein (f(...namedArgs)). Wie beim Spread in
-			// case 'dictionary': spätere Felder überschreiben frühere gleichnamige.
-			const fieldTypes: CompileTimeDictionary = {};
-			let isResolvableAsDictionary = true;
+			// case 'dictionary': spätere Felder überschreiben frühere gleichnamige. Eine Quelle, die
+			// sich nicht als Dictionary auflösen lässt, macht den Typ unentscheidbar (Any).
+			let dictionaryType: CompileTimeType | undefined = createCompileTimeDictionaryLiteralType({}, true);
 			for (const element of expression.values) {
 				const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
-				if (!isDictionaryLiteralType(sourceType)) {
-					isResolvableAsDictionary = false;
-					break;
-				}
-				for (const key in sourceType.Fields) {
-					fieldTypes[key] = sourceType.Fields[key]!;
-				}
+				dictionaryType = dictionaryType && spreadDictionaryTypes(
+					dictionaryType,
+					sourceType,
+					(fieldTypes, complete) => createCompileTimeDictionaryLiteralType(fieldTypes, complete));
 			}
-			if (!isResolvableAsDictionary) {
-				return { type: builtinAny };
-			}
-			return { type: createCompileTimeDictionaryLiteralType(fieldTypes, true) };
+			return { type: dictionaryType ?? builtinAny };
 		}
 		case 'parameter': {
 			const typeGuard = expression.typeGuard;

@@ -2786,6 +2786,69 @@ f = (l: Or([] List(Integer))) =>
 	it('return-type-with-bound-of-unknown-value-is-not-rejected', () => {
 		expectCheck(`f = (a: Integer) :> GreaterInteger(add(a 1)) => add(a 2)`);
 	});
+	// Spread eines Dictionary-Typs (Dictionary(X)) in ein Dictionary-Literal: Fund beim Verfolgen von
+	// yugioh cards: Any. Das Ergebnis war Any, der Wert hat aber den Typ Dictionary(X).
+	it('spread-of-dictionary-type-into-dictionary-literal', () => {
+		expectCheck(`g = (d: Dictionary(Integer)) =>
+	r: Boolean = [...d]`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: "Definition type mismatch.\nCan not assign Dictionary(Integer) to Boolean.",
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 20,
+				},
+			],
+		});
+	});
+	it('spread-of-two-dictionary-types-merges-element-types', () => {
+		expectCheck(`g = (d: Dictionary(Integer) e: Dictionary(Text)) =>
+	r: Boolean = [...d ...e]`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: "Definition type mismatch.\nCan not assign Dictionary(Or(Integer Text)) to Boolean.",
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 25,
+				},
+			],
+		});
+	});
+	it('spread-of-dictionary-type-with-additional-field', () => {
+		expectCheck(`g = (d: Dictionary(Integer)) =>
+	r: Boolean = [...d x = 1]`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: "Definition type mismatch.\nCan not assign Dictionary(Integer) to Boolean.",
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 26,
+				},
+			],
+		});
+	});
+	// Spread von Or([] Dictionary(X)): der Dictionary-Zweig ging verloren, der Typ war nur Empty.
+	it('spread-of-optional-dictionary-type-keeps-both-cases', () => {
+		expectCheck(`g = (d: Or([] Dictionary(Integer))) =>
+	r: Boolean = [...d]`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: "Definition type mismatch.\nCan not assign Empty to Boolean.\nCan not assign Dictionary(Integer) to Boolean.",
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 20,
+				},
+			],
+		});
+	});
 	// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
 	// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 	// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder

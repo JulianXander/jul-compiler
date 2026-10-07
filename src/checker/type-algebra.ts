@@ -1734,6 +1734,19 @@ export function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType
 			return createNormalizedUnionType(choiceResults);
 		}
 	}
+	// Ein Literal mit reinen Spreads (f(...a ...b)) kann auch ein Dictionary meinen: Sind alle Quellen
+	// Dictionaries (und Empty), gilt der Spread eines Dictionaries, sonst bleibt es unentschieden.
+	const resolvedSources = sourceTypes.map(rawSource => resolveAlias(valueOf(rawSource)));
+	if (resolvedSources.some(source => isDictionaryType(source) || isDictionaryLiteralType(source))) {
+		let dictionaryType: CompileTimeType | undefined = createCompileTimeDictionaryLiteralType({}, true);
+		for (const source of resolvedSources) {
+			dictionaryType = dictionaryType && spreadDictionaryTypes(
+				dictionaryType,
+				source,
+				(fieldTypes, complete) => createCompileTimeDictionaryLiteralType(fieldTypes, complete));
+		}
+		return dictionaryType ?? createCompileTimeConcatType(sourceTypes);
+	}
 	const elementTypes: CompileTimeType[] = [];
 	let hasListSource = false;
 	for (const rawSource of sourceTypes) {
@@ -2186,6 +2199,27 @@ export function spreadDictionaryTypes(
 				...right.Fields,
 			},
 			left.complete && right.complete);
+	}
+	if (isDictionaryType(left)
+		|| isDictionaryType(right)) {
+		// Ein Dictionary(X) hat beliebige Schlüssel mit Werten aus X. Mit einem Literal daneben ist das
+		// Ergebnis ein Dictionary über die Vereinigung aller Werttypen: die Felder des Literals stehen
+		// nicht mehr einzeln da, es gilt aber für jeden Schlüssel. Ein unvollständiges Literal kann
+		// weitere Felder unbekannten Typs haben, dann ist nichts entscheidbar.
+		const valueTypes: CompileTimeType[] = [];
+		for (const side of [left, right]) {
+			if (isDictionaryType(side)) {
+				valueTypes.push(side.ElementType);
+			}
+			else if (isDictionaryLiteralType(side)
+				&& side.complete) {
+				valueTypes.push(...Object.values(side.Fields));
+			}
+			else {
+				return undefined;
+			}
+		}
+		return createCompileTimeDictionaryType(createNormalizedUnionType(valueTypes));
 	}
 	return undefined;
 }
