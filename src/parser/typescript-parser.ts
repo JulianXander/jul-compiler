@@ -135,9 +135,17 @@ function tsFunctionToJulAst(
 	errors: CompilerError[],
 ) {
 	return createParseFunctionLiteral(
-		withTypeParameters(
-			typeParameters && getParameterTypeParameters(typeParameters, sourceFile, errors),
-			() => tsParametersToJulParameters(parameters, position, sourceFile, errors)),
+		tsParametersToJulParameters(
+			parameters,
+			position,
+			sourceFile,
+			errors,
+			typeParameters && (parameterIndex => new Map([
+				...getParameterTypeParameters(typeParameters, sourceFile, errors),
+				// T im Parametertyp kommt aus einem früheren Parameter, sonst bekäme z.B. der
+				// Callback (element: T) => ... beim Aufruf Any statt des Elementtyps
+				...getReturnTypeParameters(typeParameters, parameters.slice(0, parameterIndex)),
+			]))),
 		// Die Annotation wird ungeprüft übernommen. Der Checker fällt auf sie zurück, weil der
 		// Dummy-Rumpf nur Any liefert.
 		returnType && withTypeParameters(
@@ -198,6 +206,7 @@ function tsParametersToJulParameters(
 	position: Positioned,
 	sourceFile: SourceFile,
 	errors: CompilerError[],
+	getTypeParameters?: (parameterIndex: number) => TypeParameterReplacements,
 ): ParseParameterFields {
 	const singleFields: ParseParameterField[] = [];
 	let rest: ParseParameterField | undefined;
@@ -219,7 +228,11 @@ function tsParametersToJulParameters(
 		const julParameter: ParseParameterField = {
 			type: 'parameter',
 			name: julName,
-			typeGuard: tsParameterToJulType(tsParameter, sourceFile, errors),
+			typeGuard: getTypeParameters
+				? withTypeParameters(
+					getTypeParameters(tsParameters.indexOf(tsParameter)),
+					() => tsParameterToJulType(tsParameter, sourceFile, errors))
+				: tsParameterToJulType(tsParameter, sourceFile, errors),
 			...getPositionFromTsNode(tsParameter, sourceFile),
 		};
 		if (tsParameter.dotDotDotToken) {
@@ -301,13 +314,14 @@ function getParameterTypeParameters(
  */
 function getReturnTypeParameters(
 	typeParameters: NodeArray<TypeParameterDeclaration>,
-	parameters: NodeArray<ParameterDeclaration>,
+	parameters: readonly ParameterDeclaration[],
 ): TypeParameterReplacements {
 	const replacements: TypeParameterReplacements = new Map();
 	typeParameters.forEach(typeParameter => {
 		const typeParameterName = typeParameter.name.text;
 		for (const parameter of parameters) {
 			if (parameter.name.kind !== SyntaxKind.Identifier
+				|| parameter.name.text === 'this'
 				|| parameter.dotDotDotToken
 				|| !parameter.type) {
 				continue;

@@ -142,6 +142,14 @@ describe('TypeScript Parser', () => {
 				'(a: List(Text)) ~> List(TypeOf(a)/ElementType)');
 		});
 
+		// T im Callback-Parameter soll wie im Rückgabetyp aus dem Array-Parameter kommen, sonst
+		// bekommt der Lambda-Parameter beim Aufruf Any statt des Elementtyps.
+		it('T im Callback-Parameter kommt aus dem Array-Parameter', () => {
+			expectTypeOfF(
+				'export function f<T>(array: T[], predicate: (element: T) => boolean): bigint {}',
+				'(\n  array: List(Any)\n  predicate: (element: TypeOf(array)/ElementType) :> Boolean\n) ~> Integer');
+		});
+
 		it('Aufruf mit direktem T liefert den Typ des Arguments', () => {
 			const folder = resolve('/typescript-parser-test');
 			const mainPath = join(folder, 'main.jul');
