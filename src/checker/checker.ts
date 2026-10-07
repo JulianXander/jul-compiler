@@ -585,6 +585,53 @@ function findParameterSymbol(
 }
 
 /**
+ * Instanziiert die Signatur eines Callbacks gegen die konkreten Argumente des Aufrufs: ein Typ wie
+ * `TypeOf(values)/ElementType` in seinen Parametern wird konkret, ebenso der Rückgabetyp (`:> T`).
+ * Roh bliebe er ein Platzhalter, den isTypeAssignable permissiv durchwinkt, und der Rückgabewert des
+ * Callbacks würde nicht verglichen. Gemeinsam für die Prüfung (dereferenceCallbackParams) und den
+ * erwarteten Typ eines Funktionsliterals (instantiateExpectedCallback).
+ * Unverändert kommt derselbe Funktionstyp zurück.
+ */
+function instantiateCallbackSignature(
+	calledFunction: CompileTimeType,
+	argsType: CompileTimeType,
+	callbackType: CompileTimeFunctionType,
+): CompileTimeFunctionType {
+	const callbackParamsType = callbackType.ParamsType;
+	let changed = false;
+	const instantiatedParamsType = isParametersType(callbackParamsType)
+		? createParametersType(
+			callbackParamsType.singleNames.map(callbackParameter => {
+				const callbackParameterType = callbackParameter.type;
+				if (!callbackParameterType) {
+					return callbackParameter;
+				}
+				const instantiated = dereferenceArgumentTypesNested(calledFunction, argsType, callbackParameterType);
+				if (instantiated === callbackParameterType) {
+					return callbackParameter;
+				}
+				changed = true;
+				return { name: callbackParameter.name, type: instantiated };
+			}),
+			callbackParamsType.rest)
+		: callbackParamsType;
+	const instantiatedReturnType = dereferenceArgumentTypesNested(calledFunction, argsType, callbackType.ReturnType);
+	if (instantiatedReturnType !== callbackType.ReturnType) {
+		changed = true;
+	}
+	if (!changed) {
+		return callbackType;
+	}
+	return createCompileTimeFunctionType(
+		instantiatedParamsType,
+		instantiatedReturnType,
+		callbackType.purity,
+		callbackType.aliasName,
+		{ predicate: callbackType.predicate },
+	);
+}
+
+/**
  * Instanziiert die Signaturen der Callback-Parameter gegen die konkreten Argumente des Aufrufs.
  * Ein Parametertyp wie `TypeOf(values)/ElementType` in einer Callback-Signatur wird erst hier
  * konkret; ohne das bliebe er ein Platzhalter, den isTypeAssignable permissiv durchwinkt.
@@ -617,42 +664,12 @@ function dereferenceCallbackParams(
 			changed = true;
 			return { name: parameter.name, type: dereferenced };
 		}
-		const callbackParamsType = parameterType.ParamsType;
-		let callbackChanged = false;
-		const dereferencedCallbackParamsType = isParametersType(callbackParamsType)
-			? createParametersType(
-				callbackParamsType.singleNames.map(callbackParameter => {
-					const callbackParameterType = callbackParameter.type;
-					if (!callbackParameterType) {
-						return callbackParameter;
-					}
-					const dereferenced = dereferenceArgumentTypesNested(calledFunction, argsType, callbackParameterType);
-					if (dereferenced === callbackParameterType) {
-						return callbackParameter;
-					}
-					callbackChanged = true;
-					return { name: callbackParameter.name, type: dereferenced };
-				}),
-				callbackParamsType.rest)
-			: callbackParamsType;
-		// Auch der Rückgabetyp kann einen Typparameter der aufgerufenen Funktion nennen (`:> T`).
-		// Roh bliebe er ein Platzhalter, und der Rückgabewert des Callbacks würde nicht verglichen.
-		const dereferencedCallbackReturnType = dereferenceArgumentTypesNested(calledFunction, argsType, parameterType.ReturnType);
-		if (dereferencedCallbackReturnType !== parameterType.ReturnType) {
-			callbackChanged = true;
-		}
-		if (!callbackChanged) {
+		const instantiatedCallbackType = instantiateCallbackSignature(calledFunction, argsType, parameterType);
+		if (instantiatedCallbackType === parameterType) {
 			return parameter;
 		}
 		changed = true;
-		const dereferencedCallbackType = createCompileTimeFunctionType(
-			dereferencedCallbackParamsType,
-			dereferencedCallbackReturnType,
-			parameterType.purity,
-			parameterType.aliasName,
-			{ predicate: parameterType.predicate },
-		);
-		return { name: parameter.name, type: dereferencedCallbackType };
+		return { name: parameter.name, type: instantiatedCallbackType };
 	});
 	if (!changed) {
 		return paramsType;
@@ -1797,37 +1814,7 @@ function instantiateExpectedCallback(
 	if (!expectedFunctionType) {
 		return expectedType;
 	}
-	const paramsType = expectedFunctionType.ParamsType;
-	if (!isParametersType(paramsType)) {
-		return expectedFunctionType;
-	}
-	let changed = false;
-	const instantiatedSingleNames = paramsType.singleNames.map(parameter => {
-		if (!parameter.type) {
-			return parameter;
-		}
-		const instantiatedType = dereferenceArgumentTypesNested(calledFunction, argsType, parameter.type);
-		if (instantiatedType === parameter.type) {
-			return parameter;
-		}
-		changed = true;
-		return { name: parameter.name, type: instantiatedType };
-	});
-	// Wie bei dereferenceCallbackParams: auch `:> T` am Callback wird mit dem Aufruf konkret.
-	const instantiatedReturnType = dereferenceArgumentTypesNested(calledFunction, argsType, expectedFunctionType.ReturnType);
-	if (instantiatedReturnType !== expectedFunctionType.ReturnType) {
-		changed = true;
-	}
-	if (!changed) {
-		return expectedFunctionType;
-	}
-	return createCompileTimeFunctionType(
-		createParametersType(instantiatedSingleNames, paramsType.rest),
-		instantiatedReturnType,
-		expectedFunctionType.purity,
-		expectedFunctionType.aliasName,
-		{ predicate: expectedFunctionType.predicate },
-	);
+	return instantiateCallbackSignature(calledFunction, argsType, expectedFunctionType);
 }
 
 //#endregion erwarteter Typ
