@@ -5,6 +5,7 @@ import {
 	builtinBlob,
 	builtinBoolean,
 	builtinEmpty,
+	builtinFloat,
 	builtinInteger,
 	builtinNever,
 	builtinText,
@@ -416,6 +417,35 @@ describe('Typalgebra', () => {
 	});
 	//#endregion Stream, Liste, Typwert
 
+	//#region Grenze mit unbekanntem Wert
+	// GreaterInteger(add(a 1)): der Wert der Grenze steht erst zur Laufzeit fest, im Typ steht dafür
+	// sein Typ (Integer) oder ein Platzhalter. Ob eine ganze Zahl darin liegt, ist dann nicht
+	// entscheidbar (unknown), nur ein Nicht-Integer ist sicher nicht zuweisbar.
+	const greaterThanUnknownValue = createCompileTimeBoundType('greater', 'integer', builtinInteger);
+	it('integer-to-bound-with-unknown-value-is-unknown', () => {
+		expect(isTypeAssignable(builtinInteger, greaterThanUnknownValue).assignable).to.equal(undefined);
+		expect(isTypeAssignable(integerLiteral(5), greaterThanUnknownValue).assignable).to.equal(undefined);
+		expect(isTypeAssignable(greaterInteger(1), greaterThanUnknownValue).assignable).to.equal(undefined);
+	});
+	it('bound-with-placeholder-value-is-unknown-for-integer', () => {
+		const greaterThanParameter = createCompileTimeBoundType('greater', 'integer', createParameterReference('a', 0));
+		expect(isTypeAssignable(builtinInteger, greaterThanParameter).assignable).to.equal(undefined);
+	});
+	it('text-to-bound-with-unknown-value-is-not-assignable', () => {
+		expect(isTypeAssignable(builtinText, greaterThanUnknownValue).assignable).to.equal(false);
+	});
+	it('bound-with-literal-value-is-still-decided', () => {
+		expect(isTypeAssignable(integerLiteral(5), greaterInteger(1)).assignable).to.equal(true);
+		expect(isTypeAssignable(integerLiteral(1), greaterInteger(1)).assignable).to.equal(false);
+		expect(isTypeAssignable(builtinInteger, greaterInteger(1)).assignable).to.equal(false);
+	});
+	it('float-to-float-bound-with-unknown-value-is-unknown', () => {
+		const greaterFloatThanUnknownValue = createCompileTimeBoundType('greater', 'float', builtinFloat);
+		expect(isTypeAssignable(builtinFloat, greaterFloatThanUnknownValue).assignable).to.equal(undefined);
+		expect(isTypeAssignable(createFloatLiteral(1.5), greaterFloatThanUnknownValue).assignable).to.equal(undefined);
+		expect(isTypeAssignable(builtinText, greaterFloatThanUnknownValue).assignable).to.equal(false);
+	});
+	//#endregion Grenze mit unbekanntem Wert
 	//#region Never
 	it('empty-range-is-never', () => {
 		const type = and([greaterInteger(2), lessInteger(2)]);

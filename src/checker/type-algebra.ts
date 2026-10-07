@@ -961,6 +961,9 @@ function dereferenceParameterFromArgumentType(
 				&& !prefixArgumentType) {
 				return rawArgsType;
 			}
+			// Ohne bekannte Positionen (benannte Argumente, Spread) lässt sich nicht bestimmen, was der
+			// Rest-Parameter hinter den einzelnen sammelt: unbekannt. Ein Fall, in dem das etwas
+			// Sichtbares verdeckt, ist nicht gefunden (die Proben melden vorher einen anderen Fehler).
 			return builtinAny;
 		}
 		return createCompileTimeTupleType(allArgTypes.slice(paramIndex));
@@ -1232,7 +1235,7 @@ function traversePlaceholders(
 					? valueOf(dereferencedNested)
 					: dereferencedNested;
 			}
-			const dereferenced1 = dereferenceParameterTypeFromFunctionRef(rawType);
+			const dereferenced1 = getParameterUpperBound(rawType);
 			if (!dereferenced1) {
 				return builtinAny;
 			}
@@ -1415,7 +1418,13 @@ function dereferenceNestedParameter(parameter: Parameter): Parameter {
 	};
 }
 
-export function dereferenceParameterTypeFromFunctionRef(parameterReference: ParameterReference): CompileTimeType | undefined {
+/**
+ * Die Obergrenze eines Parameter-Platzhalters: sein deklarierter Typ. Jedes Argument, das der
+ * Parameter bei einem Aufruf bekommen kann, liegt darin. undefined, wenn es keinen gibt (der
+ * Platzhalter kennt seine Funktion nicht, der Parameter ist nicht typisiert oder der Index zeigt auf
+ * keinen Parameter).
+ */
+export function getParameterUpperBound(parameterReference: ParameterReference): CompileTimeType | undefined {
 	const functionType = parameterReference.functionRef;
 	if (functionType) {
 		const paramsType = functionType.ParamsType;
@@ -1776,6 +1785,8 @@ export function addFromTypes(rawArgsType: CompileTimeType): CompileTimeType {
 			elementTypes = [argsType.ElementType];
 			break;
 		default:
+			// Weder Tuple noch Liste (etwa Empty oder eine nicht aufgelöste Form): grobe, aber gültige
+			// Obergrenze, denn die Summe ganzer Zahlen ist eine ganze Zahl.
 			return builtinInteger;
 	}
 	let sum = 0n;
@@ -3557,7 +3568,7 @@ function isTypeAssignableByStructure(
 			return joinTypeAssignabilities(choiceAssignabilities, true);
 		}
 		case 'parameterReference': {
-			const dereferencedParameterType = dereferenceParameterTypeFromFunctionRef(argumentsType);
+			const dereferencedParameterType = getParameterUpperBound(argumentsType);
 			if (!dereferencedParameterType) {
 				return { assignable: undefined };
 			}
@@ -3754,6 +3765,18 @@ function isTypeAssignableByStructure(
 			const boundValue = targetType.Value;
 			const literalFamily = targetType.Family === 'integer' ? 'integerLiteral' : 'floatLiteral';
 			if (boundValue.julType !== literalFamily) {
+				// Der Wert der Grenze steht nicht fest (GreaterInteger(add(a 1)): im Typ steht dafür sein
+				// Typ oder ein Platzhalter). Ob eine Zahl der Familie darin liegt, ist nicht entscheidbar.
+				// Eine Zahl einer anderen Familie oder ein Nicht-Zahl-Typ ist dagegen sicher nicht
+				// zuweisbar.
+				const isNumberOfFamily = targetType.Family === 'integer'
+					? getIntegerRange(argumentsType)?.isInteger
+					: argumentsType.julType === 'float'
+					|| argumentsType.julType === 'floatLiteral'
+					|| (argumentsType.julType === 'bound' && argumentsType.Family === 'float');
+				if (isNumberOfFamily) {
+					return { assignable: undefined };
+				}
 				break;
 			}
 			if (argumentsType.julType === literalFamily

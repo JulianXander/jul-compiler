@@ -74,7 +74,7 @@ oben. Sie prüft das Flag `isUnresolvedPlaceholder` und den `julType`, nicht nur
 
 - Ein eigener Typknoten für die Verengung (siehe „Zurückgestellt“).
 - Starre Variablen im Rumpf und `Any` als Rückfall für Nicht-Auflösbares.
-- `subst` und `reduce` für die Typ-Arithmetik, stehenbleibende `App` und `Cond`.
+- Einsetzen und Auswerten für die Typ-Arithmetik, stehenbleibende Anwendungen und Bedingungen.
 - Die Stellen, die einen aufgelösten Typ **speichern** (Spread in Listen, Tupeln und Dictionaries,
   `withCompletedStream`). Sie sind lokal begründet.
 
@@ -187,32 +187,32 @@ Ein Typ ist ein Term:
 
 ```
 Typ ::= Konkret                     Integer, List(X), 5, ...
-      | Var(param)                  der Typ des Arguments an dieser Stelle (heute parameterReference)
-      | Proj(Typ, name)             TypeOf(values)/ElementType            (heute nestedReference)
-      | App(Typfunktion, Typ...)    Add(...), Greater(...)
-      | Cond(Typ, Zweige)           :?(...)
+      | Variable(Parameter)         der Typ des Arguments an dieser Stelle (heute parameterReference)
+      | Projektion(Typ, Name)       TypeOf(values)/ElementType            (heute nestedReference)
+      | Anwendung(Typfunktion, Typ...)   Add(...), Greater(...)
+      | Bedingung(Typ, Zweige)      :?(...)
 ```
 
 Drei Operationen, die heute in `traversePlaceholders` und `resolvePlaceholders` vermischt sind:
 
 | Operation | Bedeutung | heute |
 |---|---|---|
-| `subst(term, Abbildung)` mit anschließendem `reduce` | Variablen durch Typen ersetzen und auswerten, soweit alle Argumente konkret sind (Add, Fold-Budget, `:?`-Zweige). Was nicht reduzierbar ist, bleibt als Term stehen. | `traversePlaceholders` mit `argumentContext`, `*FromTypes` |
-| `bound(term)` | die Obergrenze für Prüfungen: eine Variable wird durch ihre Grenze ersetzt, ein stehengebliebenes `Cond` durch die Vereinigung seiner Zweige. Kein `Any` als Rückfall. | `resolvePlaceholders` |
+| **Einsetzen** (Substitution), danach **Auswerten** | Variablen durch Typen ersetzen und danach auswerten, soweit alle Argumente konkret sind (Add, Fold-Budget, `:?`-Zweige). Was sich nicht auswerten lässt, bleibt als Term stehen. | `traversePlaceholders` mit `argumentContext`, `*FromTypes` |
+| **Obergrenze** | der größte Typ, in den jedes mögliche Argument passt, für Prüfungen: eine Variable wird durch ihre Grenze ersetzt, eine stehengebliebene Bedingung durch die Vereinigung ihrer Zweige. Kein `Any` als Rückfall. | `resolvePlaceholders` |
 | Verengung | ändert die Grenze einer Variable in einer Umgebung, nicht den Term | `narrowedTypes`, heute mit `And(Platzhalter X)` als Eintrag |
 
 Daraus folgt für die Arithmetik:
 
-- Mit konkreten Argumenten wertet `reduce` aus wie heute, die Konstantenfaltung bleibt
+- Mit konkreten Argumenten wird ausgewertet wie heute, die Konstantenfaltung bleibt
   (`add(2 3)` ergibt `5`).
-- Im Rumpf einer Funktion bleibt `Add(Var(a) 1)` als Term stehen und wird erst beim Aufruf von
+- Im Rumpf einer Funktion bleibt `Add(Variable(a) 1)` als Term stehen und wird erst beim Aufruf von
   außen eingesetzt. Das löst die offene Zeile in der [TODO](../TODO): „ein Aufruf im Rückgabetyp
   faltet nicht am Aufrufort: `Greater(add(a 1))` ergibt `Greater(Integer)`“.
 - Die dreiwertige Zuweisbarkeit ([three-valued-assignability.md](three-valued-assignability.md))
   bleibt: *yes*, wenn die Obergrenze zuweisbar ist, *no*, wenn Obergrenze und Ziel disjunkt sind,
   sonst *unknown*.
 
-Zu beachten, wenn es gebaut wird: Die Obergrenze eines `Cond` ist nicht das `Cond` der Obergrenzen,
+Zu beachten, wenn es gebaut wird: Die Obergrenze einer Bedingung ist nicht die Bedingung der Obergrenzen,
 deshalb die Vereinigung aller Zweige. Die Auswertung rekursiver Typfunktionen braucht weiter das
 Fold-Budget. Starre Variablen im Rumpf melden strengere Fehler als `Any`, das widerspricht dem
 Prinzip „im Zweifel permissiv“ und muss bewusst entschieden werden. Ein präziserer Typ kann sehr
@@ -223,11 +223,210 @@ teuer sein (siehe `CHECKER-AUDIT.md`), jeder Schritt wird deshalb gemessen.
 | Baustein des Ziels | Dieser Plan |
 |---|---|
 | Verengung ändert die Grenze in einer Umgebung | schon so gebaut (`narrowedTypes`) |
-| `bound` als einzige Auflösung für Prüfungen | `getLookupType` für verengte Typen, an den Nachschlage- und Prüfstellen |
+| Obergrenze als einzige Auflösung für Prüfungen | `getLookupType` für verengte Typen, an den Nachschlage- und Prüfstellen |
 | Variable mit Grenze als eigene Darstellung | nicht (zurückgestellt, `Refinement`) |
-| `subst` und `reduce`, stehenbleibende `App` und `Cond` | nicht Teil dieses Plans |
+| Einsetzen und Auswerten, stehenbleibende Anwendungen und Bedingungen | nicht Teil dieses Plans |
 | starre Variablen im Rumpf statt `Any` | nicht Teil dieses Plans |
 | Speichern von aufgelösten Typen beim Spread | nicht Teil dieses Plans |
+
+## Umsetzungsplan für das langfristige Ziel
+
+Grundlage ist eine Untersuchung des Codes (Zeilennummern können sich verschieben, die Namen der
+Funktionen bleiben). Sie ändert das Bild von oben deutlich: **Das Modell gibt es zu großen Teilen
+schon.** (Das „Bild von oben“ ist der Abschnitt „Langfristiges Ziel“.)
+
+Was es schon gibt:
+- **Einsetzen:** `traversePlaceholders` mit `argumentContext` (aufgerufen über
+  `dereferenceArgumentTypesNested`, 9 Stellen). Es ersetzt Platzhalter durch Argumenttypen.
+- **Auswerten und stehenbleibende Terme:** Die Funktionen `mapElementsFromTypes`, `concatFromTypes`,
+  `addFromTypes`, `withElementAtFromTypes`, `createConditionalType` (das `:?`) und
+  `getLengthFromType` bleiben **symbolisch** (als eigener Knoten), solange ein Operand ein
+  unaufgelöster Platzhalter ist, und werten sonst sofort aus. Am Aufrufort werden sie beim Einsetzen
+  neu ausgewertet (`add` über `:?` und `addFromTypes`).
+- **Obergrenze:** Die Zuweisbarkeit behandelt einen Parameter-Platzhalter als Quelle schon über seinen
+  deklarierten Typ (`dereferenceParameterTypeFromFunctionRef`).
+- Ein Parameter hat im Rumpf als Typ einen frischen `ParameterReference`, den deklarierten Typ erreicht
+  man nur über `functionRef`.
+
+Was **nicht** zum Plan gehört: `Add`, `Concat`, `MapElements`, `GreaterInteger` und weitere werden in
+`getReturnTypeFromFunctionCall` **nach ihrem Namen** behandelt und nicht aus der Deklaration
+abgeleitet. Das widerspricht „Keine Magie für Typen“ (`design-principles.md`), ist aber ein eigenes
+Thema.
+
+Der Plan hat fünf Schritte. Die Reihenfolge ist Zielbild-Schritt 1, dann 2 und 3 unabhängig voneinander, dann 4,
+dann 5. Jeder Schritt hat dieselbe Abnahme: alle Tests grün, Checker-Snapshot und Zähler-Gate
+unverändert (oder nach Ansehen bewusst neu geschrieben), yugioh bei 1 Fehler und 49 Warnungen
+(Stand nach Schritt 0b), Bench-Median etwa 1240 ms. Neue Meldungen sind Funde und werden einzeln
+angesehen. Erst ein roter Test, dann der Fix. Namen im Code werden ausgeschrieben, ohne Kürzel.
+
+**Zielbild-Schritt 1 — Obergrenze benennen** (reiner Umbau, kleiner Aufwand). *Ursprünglicher Plan, zum größten Teil zurückgenommen, siehe den Absatz darunter.*
+- `getParameterUpperBound(reference)` in `type-algebra.ts`: liefert den deklarierten Typ eines
+  Parameter-Platzhalters, oder den **Grund**, warum es keinen gibt (kein `functionRef`, die Parameter
+  der Funktion sind keine `parameters`, der Parameter hat keinen Typ, Index außerhalb ohne
+  Rest-Parameter). Heute ergibt jeder dieser Fälle ohne Unterscheidung `Any` (`traversePlaceholders`,
+  `case 'parameterReference'`, nur Auflösung ohne Kontext). Die Gründe braucht Zielbild-Schritt 4.
+- `getUpperBound(type)`: das heutige Verhalten von `resolvePlaceholders`, als Name für Prüfungen. Die
+  rund 37 Stellen, die prüfen (Zuweisbarkeit, Teilmenge, Überlappung, Erschöpfung von branches,
+  Rückgabetyp, Callback-Reinheit), rufen es auf. Anzeige und Speichern behalten
+  `resolvePlaceholders`. Das ist ein mechanisches Umbenennen, der Aufruf bleibt derselbe.
+- `isTypeAssignable` nutzt für einen Parameter-Platzhalter als Quelle `getParameterUpperBound`.
+- Tests: die vorhandenen, die das heutige Verhalten festhalten (unter anderem
+  `generic-return-type-survives-branching`, `chained-generic-call-checks-element-type`,
+  `predicate-with-unknown-purity-is-accepted`, `params-type-unknown-is-not-reported`, die Gruppe „Warnung
+  bei unknown“). Neu: je ein Test für die vier Gründe.
+- Risiko: gering. Es ändert sich nichts am Ergebnis.
+
+**Zielbild-Schritt 1: umgesetzt und zum größten Teil wieder zurückgenommen.** Er war die Vorbereitung für
+Zielbild-Schritt 4. Nachdem der verworfen wurde (siehe dort), hat er keinen Verbraucher mehr:
+- `getUpperBound` (dünne Hülle um `resolvePlaceholders`, 36 umbenannte Aufrufe) und die Gründe
+  (`missingReason`) in `getParameterUpperBound` samt ihren sechs Tests sind **zurückgenommen**. Zwei Namen
+  für dasselbe wären verwirrender als nützlich, und niemand las die Gründe.
+- **Geblieben ist** `getParameterUpperBound(reference)` in `type-algebra.ts`: der deklarierte Typ eines
+  Parameter-Platzhalters oder `undefined`. Es ersetzt `dereferenceParameterTypeFromFunctionRef` an allen
+  vier Stellen (zwei in `type-algebra.ts`, zwei in `checker.ts`), nur als klarerer Name.
+- Die Einteilung der Aufrufe von `resolvePlaceholders` in „prüfend“ und „Anzeige oder Speichern“ (36 und
+  rund 20 Stellen, selbst eingeordnet) bleibt als Analyse hier stehen: prüfend sind Zuweisbarkeit,
+  Teilmenge, Überlappung, Erschöpfung und Erreichbarkeit von branches, Typwächter, Reinheit, Rückgabetyp und
+  Argumentprüfung. Speichernd oder anzeigend sind Fehlertexte, die IDE, Spread und Stream, die
+  Erwartungstypen am Aufruf, die Verengung, die Rekursion in `traversePlaceholders` und der Emitter.
+- Ergebnis nach dem Zurücknehmen: 1282 Tests grün, yugioh unverändert (1 Fehler, 49 Warnungen).
+
+**Zielbild-Schritt 2 — Einsetzen: eine Funktion, Lücken ansehen** (kleiner bis mittlerer Aufwand).
+- `dereferenceArgumentTypesNested` (9 Stellen) bekommt den Namen `substituteArgumentTypes`, nur wenn
+  das beim Lesen hilft.
+- Die einzigen Stellen, an denen Einsetzen `Any` liefert, sind der Rest-Parameter ohne bekannte
+  Positionen (`dereferenceParameterFromArgumentType`) und `addFromTypes` für einen nicht auflösbaren
+  Argumenttyp (ergibt `Integer`). Für jede: entscheiden, ob das gewollt ist (dann kommentieren) oder
+  ein Fund (dann roter Test).
+- Risiko: gering.
+
+**Zielbild-Schritt 3 — Stehenbleibende Terme, grobe Rückfälle finden** (mittlerer Aufwand, unabhängig von 2).
+- Der erste, **reproduzierte** Fall (TODO „ein Aufruf im Rückgabetyp faltet nicht am Aufrufort“):
+  `f = (a: Integer) :> GreaterInteger(add(a 1)) => add(a 2)` meldet `Return type mismatch. Can not
+  assign Integer to GreaterInteger(Integer)`, obwohl der Code stimmt: `add(a 1)` wird im Rumpf mit der
+  Obergrenze von `a` zu `Integer` ausgewertet. Erwartet: keine Meldung (nicht beweisbar, aber auch
+  nicht widerlegt). Ursache vermutlich der Vergleich in `case 'functionLiteral'` (deklarierter gegen
+  inferierten Rückgabetyp, beide über `resolvePlaceholders`), vor dem Fix bestätigen.
+- Die anderen groben Rückfälle durchgehen, jeweils entscheiden: gewollt (kommentieren) oder ein Knoten:
+  `mapElementsFromTypes` bei unbekannter Quelle (`Or(Empty List(Any))`), `withElementAtFromTypes` bei
+  unbekannter Art der Quelle (`Any`), `createConditionalType` ohne passenden Zweig (`Never`),
+  `dereferenceUnknownKeyFromObject` für Dictionaries (laut Kommentar bewusst `Any`, aus Leistungsgründen)
+  und die vielen `return builtinAny` in `getReturnTypeFromFunctionCall` bei fehlenden Argumenten.
+- Ein Fund pro roter Test. Risiko: mittel, denn ein genauerer Typ kann teuer sein (siehe
+  `CHECKER-AUDIT.md`), also jeweils messen.
+
+**Zielbild-Schritt 3 ist erledigt.** Der erste Fall (Grenze mit unbekanntem Wert) war der einzige Fund.
+- **Ursache anders als vermutet.** Nicht der Vergleich von deklariertem und inferiertem Rückgabetyp war
+  falsch, sondern die Zuweisbarkeit mit einer Grenze als Ziel: Bei `GreaterInteger(add(a 1))` steht im
+  Typ für den Wert der Grenze sein Typ (`Integer`) oder ein Platzhalter, und `isTypeAssignable` lieferte
+  dafür ein sicheres **Nein**, selbst für `5` (`case 'bound'` auf der Zielseite, `break` ohne Ergebnis).
+  Der Rückgabetyp zeigte deshalb `GreaterInteger(Integer)` und meldete bei korrektem Code einen Fehler.
+- **Fix:** Ist der Wert einer ganzzahligen Grenze nicht bekannt und die Quelle eine ganze Zahl (Integer,
+  Literal oder Grenze mit bekanntem Wert), ist das Ergebnis *unknown* statt *nein*. Ein Nicht-Integer
+  (etwa Text) bleibt *nein*, Grenzen mit bekanntem Wert bleiben entschieden wie bisher.
+- **Gilt auch für die Float-Familie:** Eine Float-Quelle (Float, Float-Literal, Grenze mit Float) ist einer
+  Float-Grenze mit unbekanntem Wert *unknown* zuweisbar, alles andere weiterhin nicht.
+- **Tests:** `return-type-with-bound-of-unknown-value-is-not-rejected` (Checker, war rot), vier
+  Einheitentests zur Zuweisbarkeit (drei waren rot, darunter einer für Float) und eine Gegenprobe für
+  Literal-Grenzen.
+- **Ergebnis:** 1288 Tests grün, Snapshot und Zähler unverändert, yugioh unverändert (1 Fehler, 49
+  Warnungen), Bench-Median etwa 1200 bis 1290 ms.
+- **Zur Anzeige und zur TODO-Zeile „ein Aufruf im Rückgabetyp faltet nicht am Aufrufort“:** Als Wert einer
+  Grenze steht im Typ immer der **Typ des Wertes**. Das ist die Darstellung, kein Fehler: `GreaterInteger(a)`
+  mit `n: PositiveInteger` ergibt am Aufrufort `GreaterInteger(PositiveInteger)`,
+  `GreaterInteger(add(a 1))` ergibt `GreaterInteger(GreaterInteger(1))`, und mit einem Literal wird gefaltet
+  (`f(5)` ergibt `7`). Die Zeile in der TODO beschreibt also einen Stand, der am Aufrufort nicht mehr
+  zutrifft. Was bleibt, ist ein Funktionsumfang: Die Grenze selbst zu berechnen (`add(n 1)` größer
+  als 2 beweisen) bräuchte symbolische Arithmetik über Werte, das gehört nicht in diesen Plan.
+
+**Zielbild-Schritt 2 ist erledigt, ohne Änderung des Verhaltens.** Beide Stellen sind als gewollt
+eingeordnet und im Code kommentiert (`type-algebra.ts`):
+- `dereferenceParameterFromArgumentType`, Rest-Parameter ohne bekannte Positionen: `Any`, weil sich nicht
+  bestimmen lässt, was der Rest hinter den einzelnen Parametern sammelt. Vier Proben (Spread, benannte
+  Argumente, Rest hinter einem und hinter zwei Einzelparametern) melden vorher einen anderen Fehler. Ein
+  Fall, in dem das `Any` etwas Sichtbares verdeckt, ist nicht gefunden. Als Alternative käme die Obergrenze
+  des Rest-Parameters in Frage (`getParameterUpperBound`), das habe ich nicht umgesetzt, weil kein Test
+  einen Gewinn zeigt.
+- `addFromTypes`, Argumente weder Tuple noch Liste: `Integer`, eine grobe, aber gültige Obergrenze.
+- Die Umbenennung von `dereferenceArgumentTypesNested` habe ich nicht gemacht, sie hilft beim Lesen nicht
+  genug.
+
+**Zielbild-Schritt 3, übrige Rückfälle durchgesehen** (an der Quelle gelesen, nicht verändert):
+- `mapElementsFromTypes` bei unbekannter Quelle (`Or(Empty List(…))`): gewollt, der Code kommentiert, dass
+  die Quelle auch leer sein kann.
+- `withElementAtFromTypes` bei unbekannter Art der Quelle (`Any`): gewollt, nur `setElement` nutzt es, und
+  für Dictionaries gibt es `setField`.
+- `createConditionalType` ohne passenden Zweig (`Never`): gewollt (das Never-Idiom aus
+  `backlog/conditional-types.md`).
+- Dictionary-Literal mit unbekanntem Schlüssel oder als Quelle von `setField` (`Dictionary(And(Any
+  Not(Empty)))`): gewollt, der Kommentar im Code und `CHECKER-AUDIT.md` nennen das Leistungsventil
+  (die Vereinigung aller Felder eines großen Literals ließ die Laufzeit von 3,6 s auf 14,4 s steigen).
+- `getReturnTypeFromFunctionCall`, `return builtinAny`: gelesen. Es sind Importfehler (Pfad fehlt, Datei nicht
+  geladen, keine Ausdrücke) und die Typkombinierer (`And`, `Or`, `Not`, `TypeOf`, `GreaterInteger`, `LessInteger`,
+  `ElementAt`, `LengthOf`) bei Argumenten ohne bekannte Positionen (Spread, benannte Argumente, leer). Die
+  Autoren haben dort `TODO unknown?` vermerkt. Gewollt, kein Fall mit sichtbarer Wirkung gefunden.
+- Ergebnis: kein weiterer Falschfehler gefunden.
+
+**Zielbild-Schritt 4 — Starre Variablen im Rumpf** (großer Aufwand, größtes Risiko, nach 1 bis 3).
+- Heute ist ein Platzhalter als **Ziel** der Zuweisbarkeit *unknown* (`isTypeAssignable`,
+  `case 'parameterReference'` und `case 'nestedReference'` auf der Zielseite, jeweils mit TODO), als
+  Quelle schon eine Obergrenze. Starr hieße: Ein Wert ist einem Platzhalter nur zuweisbar, wenn es
+  derselbe Platzhalter ist (oder `Never`).
+- Der Rückfall auf `Any` bei nicht auflösbarem Platzhalter wird nach dem Grund getrennt: Ein Parameter ohne
+  Typ bleibt unbekannt, ein deklarierter, aber nicht auflösbarer Typ bekommt eine Obergrenze. (Dafür gab es
+  die Gründe in `getParameterUpperBound`, sie sind zurückgenommen und wären bei einem neuen Versuch
+  wieder einzuführen.)
+- Vorgehen **mit Messung vor der Entscheidung:** hinter einem Schalter (wie die Warnung bei unknown),
+  dann zählen, wie viele neue Meldungen im Beispiel-Korpus, in der core-lib und in yugioh entstehen.
+  Nur übernehmen, wenn sie echte Funde sind. Die Signaturen der core-lib (`nativeFunction`, `List`,
+  `Dictionary`) sind voller Platzhalter als Ziel, dort ist mit vielen neuen Meldungen zu rechnen.
+- Tests, die das heutige Wohlwollen festhalten und angesehen werden müssen:
+  `expected-type-placeholder-of-enclosing-function`, `generic-dictionary-target-elaborates-per-entry`,
+  `naming-case-generic-return-is-free`, `predicate-accepts-unknown-value-inside-parameter-type`.
+- Es kann sein, dass das Ergebnis lautet: nicht übernehmen. Das ist ein gültiger Ausgang.
+
+**Zielbild-Schritt 4: gemessen und die acht Abweichungen einzeln bewertet. Entscheidung: nicht übernehmen.**
+
+Gemessen mit einem Schalter (Umgebungsvariable, wieder entfernt): Ein Platzhalter als Ziel von
+`isTypeAssignable` ist nur sich selbst zuweisbar (starr). Weil die Definitions- und die Rückgabeprüfung das
+Ziel vorher mit `resolvePlaceholders` auflösen, kam ein Platzhalter dort nie als Ziel an. Für die Messung wurden
+beide Stellen auf roh umgestellt (Quelle und Ziel).
+
+- **Echte Projekte: nichts.** yugioh bleibt bei 1 Fehler und 49 Warnungen, die vier Beispielprojekte
+  bleiben fehlerfrei, die `core-lib` hat in beiden Fällen 0 Meldungen. Im Beispiel-Korpus (Snapshot) ändert
+  sich nur der Text einer vorhandenen Meldung.
+- **Tests: 21 weichen ab.** 13 davon nur im Meldungstext (derselbe Fehler, die Meldung nennt den
+  Platzhalter statt der Obergrenze). Die übrigen **acht** wurden einzeln gelesen:
+
+| Test | Was passiert | Bewertung |
+|---|---|---|
+| `callback-return-type-from-type-parameter-is-checked`, `...accepts-matching-value` | Neuer Fehler für den Rumpf der Fixture-Funktion `f = (T: Type …) :> T => 0` | **berechtigt**: Die Funktion gibt `0` für beliebiges `T` zurück. Der Fixture-Code ist falsch, nicht die Meldung |
+| `predicate-with-unknown-purity-is-accepted` | `g = (a: p) => a` mit einem Prädikat `p` als Typ, `g(v)` wird abgelehnt (`Can not assign v to the unresolved placeholder p`) | **Falschfehler**: Ob `v` das Prädikat erfüllt, ist unbekannt, nicht widerlegt. Das Test-Kommentar sagt es: „Unbekannte Reinheit ist keine Ablehnung“ |
+| `nested-condition-keeps-fraction-precise`, `flat-condition-keeps-fraction-precise`, `type-function-keeps-condition-until-arguments-are-known` | Der geschriebene Rückgabetyp ist eine Formel über die Argumenttypen (`Or(And(Integer And(TypeOf(a) TypeOf(b))) …)`). Der Rumpf `subtract(a b)` wird gegen die Formel mit den Platzhaltern `a` und `b` geprüft und abgelehnt | **Falschfehler**: Die Formel ist ein Typ je Aufruf. Der Rumpf ist dagegen nur mit der Obergrenze der Formel prüfbar, so ist es entworfen (siehe „bekannte Großzügigkeit“ in `R3`) |
+| `R2 Rumpf außerhalb der Union`, `R4 Teiltreffer im Rumpf` | Ein Fehler fehlt: Der Rumpf liefert Text bzw. `a` gegen einen bedingten Rückgabetyp (`:?`) | **verlorene Erkennung**: Mit rohem Ziel ist das `:?` ungefaltet und die Zuweisbarkeit *unknown*. Mit der Obergrenze (Vereinigung der Zweige) wird der Fehler gefunden |
+
+- **Bilanz:** zwei berechtigte neue Meldungen, beide nur in Fixtures; vier Falschfehler; zwei verlorene
+  Fehlererkennungen. Im echten Code kein Gewinn.
+- **Was daraus folgt:** Starr passt zu einem Typparameter, der der Typ eines Wertes ist (`:> T`, `x: T`). Es
+  passt **nicht** zu einer Formel über Argumenttypen (bedingte Typen, `TypeOf(a)` im Rückgabetyp), dort ist die
+  Obergrenze der Entwurf, und nicht zu einem Prädikat als Typ. Eine Regel, die das unterscheidet (nur ein
+  bloßer Platzhalter als oberstes Ziel, keiner in einer Formel, keiner mit Funktionstyp als Grenze), wären
+  drei Sonderfälle für einen Gewinn, der heute nur in Fixtures liegt.
+- **Entscheidung:** nicht übernehmen. Die Voraussetzung für einen späteren Versuch ist die Unterscheidung
+  von Typparameter und Formel, mit den acht Tests als Ausgangsliste.
+
+**Zielbild-Schritt 5 — Aufräumen, Speicherstellen** (mittlerer Aufwand, nach 4).
+- Stellen, die einen aufgelösten Typ speichern: Spread in Dictionaries (zwei Stellen), Spread in Listen,
+  Tupeln und Objekten (sechs Stellen), `withCompletedStream`. Einige Tests zeigen, dass die Elementtypen
+  eines generischen Spreads schon erhalten bleiben
+  (`spread-of-generic-list-parameter-keeps-element-type`). Für jede Stelle prüfen, welche Fälle die
+  Generizität verlieren, je ein roter Test, dann Umstellung auf den rohen Typ oder die Obergrenze.
+- Kommentare und Doku an das Modell anpassen (`resolvePlaceholders`, `CHECKER-AUDIT.md`, dieses
+  Dokument).
+
+**Was ich nicht geprüft habe:** Ob die Zeilen in `type-algebra.ts` und `checker.ts` aus dem
+Untersuchungsbericht stimmen (nur die Aussage zur Quelle als Obergrenze und der TODO-Fall sind selbst
+verifiziert), und wie viele neue Meldungen Zielbild-Schritt 4 wirklich ergibt. Dafür ist die Messung da.
 
 ## Risiken und offene Fragen
 

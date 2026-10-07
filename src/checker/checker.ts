@@ -90,7 +90,7 @@ import {
 	dereferenceIndexFromObject,
 	dereferenceNameFromObject,
 	dereferenceNestedKeyFromObject,
-	dereferenceParameterTypeFromFunctionRef,
+	getParameterUpperBound,
 	getAllArgTypes,
 	getArgumentsAssignability,
 	getElementTypeAtIndex,
@@ -3732,7 +3732,7 @@ function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: Functio
 		// Ein Funktionsparameter landet über den deklarierten Typ oben im Funktionstyp-Zweig und
 		// trägt dort weiterhin seine eigene (bei `:>` unbekannte) Purity - für ihn ändert sich
 		// nichts.
-		const declaredType = dereferenceParameterTypeFromFunctionRef(argType);
+		const declaredType = getParameterUpperBound(argType);
 		return declaredType && declaredType !== argType
 			? getArgumentPurity(declaredType, ownFunctionType)
 			: 'unknown';
@@ -4810,7 +4810,7 @@ function classifyTypenessOnPath(
 			// Die Referenz steht für das Argument selbst (`(T: Type) => T`) oder für die Werte, die
 			// es beschreibt (`(T: Type v: T) => v`). Bei einem Wert als Argument ist beides dasselbe
 			// Singleton, bei einem Typ nicht - dann bleibt es offen.
-			const declared = classifyTypenessOnPath(dereferenceParameterTypeFromFunctionRef(resolved), depth + 1, aliasesOnPath);
+			const declared = classifyTypenessOnPath(getParameterUpperBound(resolved), depth + 1, aliasesOnPath);
 			return declared === 'value' ? 'value' : 'unknown';
 		}
 		case 'any':

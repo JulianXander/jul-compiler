@@ -2781,6 +2781,11 @@ f = (l: Or([] List(Integer))) =>
 			],
 		});
 	});
+	// Der geschriebene Rückgabetyp nennt einen Wert, der erst zur Laufzeit feststeht (add(a 1) mit dem
+	// Parameter a). Ob add(a 2) darin liegt, ist nicht beweisbar, aber auch nicht widerlegt: keine Meldung.
+	it('return-type-with-bound-of-unknown-value-is-not-rejected', () => {
+		expectCheck(`f = (a: Integer) :> GreaterInteger(add(a 1)) => add(a 2)`);
+	});
 	// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
 	// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 	// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
@@ -2856,7 +2861,7 @@ x: T = [a = 1]`, {
 	});
 	// Ein aliasierter Callback-Parameter ("item = value") referenziert sich im Rumpf
 	// über eine ParameterReference mit dem LOKALEN Namen ("item"). Deren Auflösung
-	// (dereferenceParameterTypeFromFunctionRef) suchte bisher per Name in ParamsType,
+	// (getParameterUpperBound, früher dereferenceParameterTypeFromFunctionRef) suchte bisher per Name in ParamsType,
 	// wo der Parameter aber unter dem QUELLNAMEN ("value") steht - bei einem Alias
 	// liefen beide auseinander und der Typ fiel still auf Any zurück. Fund/Ursache
 	// eines falschen returnTypeMismatch bei draw() in yugioh/game-logic.jul.
