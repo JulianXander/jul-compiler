@@ -2665,6 +2665,25 @@ d/a`);
 			],
 		});
 	});
+	// Fund: yugioh game-logic.jul, ?(conditions) [List(Any)] => conditions.all((condition = value) => ...):
+	// nach dem Match auf einen Zweig verlor der Callback den Elementtyp (Any).
+	it('callback-param-type-after-match-on-list', () => {
+		expectCheck(`f = (values: Or([] List([a: Integer]))) =>
+	?(values)
+		[List([a: Integer])] => values.exists((value) => value/b)
+		() => false`, {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'b' in type [a: Integer]",
+					startRowIndex: 2,
+					startColumnIndex: 57,
+					endRowIndex: 2,
+					endColumnIndex: 58,
+				},
+			],
+		});
+	});
 	// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
 	// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 	// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder
