@@ -2684,6 +2684,103 @@ d/a`);
 			],
 		});
 	});
+	// Verengung eines Parameters (siehe docs/verengung-und-platzhalter.md): Das Nachschlagen im
+	// verengten Typ meldet ein fehlendes Feld bzw. einen Index wie ohne Verengung.
+	it('field-on-narrowed-dictionary-parameter-is-checked', () => {
+		expectCheck(`f = (d: Or(Integer [x: Integer])) =>
+	?(d)
+		[[x: Integer]] => d/y
+		() => 0`, {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'y' in type [x: Integer]",
+					startRowIndex: 2,
+					startColumnIndex: 22,
+					endRowIndex: 2,
+					endColumnIndex: 23,
+				},
+			],
+		});
+	});
+	it('field-on-narrowed-list-parameter-is-checked', () => {
+		expectCheck(`f = (l: Or([] List(Integer))) =>
+	?(l)
+		[List(Integer)] => l/foo
+		() => 0`, {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'foo' in type List(Integer). A field name needs a Dictionary.",
+					startRowIndex: 2,
+					startColumnIndex: 23,
+					endRowIndex: 2,
+					endColumnIndex: 26,
+				},
+			],
+		});
+	});
+	it('element-field-on-narrowed-list-parameter-is-checked', () => {
+		expectCheck(`f = (l: Or([] List([n: Integer]))) =>
+	?(l)
+		[List([n: Integer])] => l/1/m
+		() => 0`, {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'm' in type [n: Integer]",
+					startRowIndex: 2,
+					startColumnIndex: 30,
+					endRowIndex: 2,
+					endColumnIndex: 31,
+				},
+			],
+		});
+	});
+	// Gegenproben, die ein Umbau der Verengung nicht brechen darf.
+	it('narrowed-field-path-of-parameter-is-usable', () => {
+		expectCheck(`f = (d: [x: Or([] Integer)]) =>
+	?(d/x)
+		[Integer] => d/x.add(1)
+		() => 0`);
+	});
+	it('return-type-stays-concrete-through-narrowed-parameter', () => {
+		expectCheck(`g = (a: List(Any)) => a
+f = (l: Or([] List(Integer))) =>
+	?(l)
+		[List(Integer)] =>
+			r: Text = g(l)
+		() => 0`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: "Definition type mismatch.\nCan not assign List(Integer) to Text.",
+					startRowIndex: 4,
+					startColumnIndex: 3,
+					endRowIndex: 4,
+					endColumnIndex: 17,
+				},
+			],
+		});
+	});
+	// Ein And mit Platzhalter in einer Signatur (der Rückgabetyp von range) ist keine Verengung.
+	it('and-with-placeholder-in-signature-is-not-resolved', () => {
+		expectCheck(`f = (n: Integer) =>
+	a: Or([] List(PositiveInteger)) = range(1 n)`);
+		expectCheck(`f = (n: Integer) =>
+	a: Or([] List(PositiveInteger)) = range(0 n)`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: "Definition type mismatch.\nCan not assign List(Or(0 GreaterInteger(0))) to Or(Empty List(PositiveInteger)).\n  Can not assign List(Or(0 GreaterInteger(0))) to List(PositiveInteger).\n    Can not assign 0 to GreaterInteger(0).",
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 45,
+				},
+			],
+		});
+	});
 	// Ein fehlendes Feld sah bisher identisch aus wie ein vorhandenes Feld vom Typ
 	// Empty ("Can not assign Empty to Text."), weil ein fehlendes Feld intern durch
 	// Empty ersetzt wurde. Das verschleiert beim Suchen, ob ein Feld wirklich fehlt oder

@@ -1183,7 +1183,13 @@ function getNarrowedType(
 		const sourceType = type.julType === 'and'
 			? resolvePlaceholders(type)
 			: type;
-		const dereferenced = dereferenceNestedKeyFromObject(key, sourceType);
+		// Dieselben Funktionen wie die reguläre Prüfung des Zugriffs (case 'nestedReference'): sie
+		// liefern undefined für ein fehlendes Feld. dereferenceNestedKeyFromObject liefert dafür Empty
+		// bzw. Or(Empty X), und das ginge hier still als verengter Typ durch, ohne dass der Fehler
+		// gemeldet wird. Ohne Treffer entscheidet die reguläre Prüfung.
+		const dereferenced = typeof key === 'number'
+			? dereferenceIndexFromObject(key, sourceType)
+			: dereferenceNameFromObject(key, sourceType);
 		if (!dereferenced) {
 			return undefined;
 		}
