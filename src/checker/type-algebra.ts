@@ -1009,8 +1009,14 @@ function dereferenceParameterFromArgumentType(
 
 /**
  * Löst parameterReference und nestedReference über ihre Deklaration rekursiv soweit wie möglich auf.
- * Nicht Auflösbares wird zu Any — daher nur für Prüfung und Anzeige geeignet, nie zur
- * Weiterverarbeitung eines Typs, der seine Generizität behalten muss.
+ * Nicht Auflösbares wird zu Any: der Typ ist danach konkret, hat aber seine Generizität verloren
+ * (aus dem Elementtyp `TypeOf(a)/ElementType` eines Parameters `a: List(Any)` wird Any).
+ *
+ * Gedacht für Prüfung und Anzeige. Gespeichert wird der aufgelöste Typ nur dort, wo ein Platzhalter
+ * nicht erkannt würde und der Typ sonst still auf Any fiele: Spread in Listen, Tupeln und
+ * Dictionaries, Nachschlagen in einer Verengung (And) und der erwartete Callback-Typ am Aufruf.
+ * Der Rückgabetyp einer aufgerufenen Funktion behält dagegen einen bloßen Platzhalter-Empfänger roh
+ * (returnPrefixArgumentType), denn erst der Aufrufort kennt den konkreten Typ.
  */
 export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
 	return traversePlaceholders(rawType, undefined);

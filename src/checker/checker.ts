@@ -1803,7 +1803,8 @@ function mergeExpectedArgumentTypes(
 /**
  * Instanziiert die Parametertypen eines erwarteten Callbacks mit den Argumenten des Aufrufs, so
  * dass (value: TypeOf(values)/ElementType) zu (value: Integer) wird. Wie bei
- * dereferenceCallbackParams nur diese eine Ebene. Was sich nicht instanziieren lässt, bleibt roh.
+ * dereferenceCallbackParams nur diese eine Ebene (beide über instantiateCallbackSignature). Was sich
+ * nicht instanziieren lässt, bleibt roh.
  */
 function instantiateExpectedCallback(
 	calledFunction: CompileTimeType,
@@ -2596,8 +2597,11 @@ function inferType(
 			// in Reihenfolge inferiert, die Argumentliste setzt sie danach nur noch zusammen.
 			const argsPrefixCount = prefixArgument ? 1 : 0;
 			// Wie bei der Prüfung unten gilt der aufgelöste Empfänger. Ein roher Parameter-Platzhalter
-			// reichte hier nur, solange er allein steht: nach einem Match steht er in einer Schnittmenge
-			// (And(values List(X))), und der Elementtyp des Callbacks wäre Any.
+			// ergab den Callback-Parameter nur, solange er allein steht: nach einem Match steht er in
+			// einer Schnittmenge (And(values List(X))), und der Elementtyp des Callbacks wäre Any.
+			// Preis: im Rumpf einer generischen Funktion ist der Callback-Parameter damit der
+			// aufgelöste Typ (bei a: List(Any) also Any) statt TypeOf(a)/ElementType. Der Rückgabetyp
+			// am Aufrufort ist davon unabhängig, er wird dort aus den konkreten Argumenten berechnet.
 			const prefixArgumentTypeForArgs = prefixArgument?.typeInfo
 				&& resolvePlaceholders(prefixArgument.typeInfo.type);
 			// Bei einer aufgerufenen Union von Funktionen wird pro Zweig erwartet und instanziiert,

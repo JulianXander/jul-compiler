@@ -22,6 +22,13 @@ Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprac
   anderen entscheidet, bekommt Falschfehler: die Verengung erzeugt im rawType ein `and`, für das
   `dereferenceNameFromObject` keinen Fall hat, während der aufgelöste Typ ein `dictionaryLiteral`
   mit dem gesuchten Feld ist.
+- **Ein aufgelöster Typ hat seine Generizität verloren.** `resolvePlaceholders` macht aus einem
+  Platzhalter wie `TypeOf(a)/ElementType` den deklarierten Typ, aus Nicht-Auflösbarem `Any`. Das
+  Ergebnis wird trotzdem gespeichert, wo ein Platzhalter sonst nicht erkannt würde (Spread in
+  Listen, Tupeln und Dictionaries, Nachschlagen nach einer Verengung, erwarteter Callback-Typ am
+  Aufruf). Nur der Rückgabetyp einer aufgerufenen Funktion behält einen bloßen
+  Platzhalter-Empfänger roh (`returnPrefixArgumentType`). Neue Stellen, die einen Typ speichern,
+  müssen sich zwischen beiden entscheiden und nicht beides mischen.
 - **`Any` bedeutet drei verschiedene Dinge:** „Typ unbekannt", „hier bewusst permissiv prüfen" und
   „hier ist schon etwas schiefgelaufen, sei still". Die dritte Bedeutung zieht die zweite mit sich,
   deshalb verstummt nach einem gemeldeten Fehler die ganze Kette darunter. Ein eigener
