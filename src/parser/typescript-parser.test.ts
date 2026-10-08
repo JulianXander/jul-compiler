@@ -192,6 +192,20 @@ describe('TypeScript Parser', () => {
 			const type = h?.value?.typeInfo?.type;
 			expect(type && typeToString(type, 0, 3)).to.equal('Or(Empty List(1))');
 		});
+
+		it('Aufruf liefert den Elementtyp eines Dictionary-Arguments', () => {
+			const folder = resolve('/typescript-parser-test');
+			const mainPath = join(folder, 'main.jul');
+			const main = loadFile(mainPath, {}, createInMemoryHost({
+				[mainPath]: '(f) = import(§./util.ts§)\nsource = assume([] Dictionary(Integer))\nresult = f(source §a§)',
+				[join(folder, 'util.ts')]: 'export function f<T>(a: { [key: string]: T; } | undefined, key: string): { [key: string]: T; } | undefined { return a; }',
+			}, { cloneUnchecked: false })) as ParsedFile;
+			expect(main.checked?.errors).to.deep.equal([]);
+			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === 'result');
+			const type = result?.value?.typeInfo?.type;
+			expect(type && typeToString(type, 0, 3)).to.equal('Or(Empty Dictionary(Integer))');
+		});
 	});
 
 	it('JUL-Aufruf mit falschem Argumenttyp wird gemeldet', () => {

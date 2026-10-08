@@ -394,7 +394,25 @@ function findTypeParameterPath(tsType: TypeNode, typeParameterName: string): str
 				&& typeArguments.length === 1) {
 				return prependPath('ElementType', findTypeParameterPath(typeArguments[0]!, typeParameterName));
 			}
+			if (typeName.text === 'Record'
+				&& typeArguments.length === 2
+				&& typeArguments[0]!.kind === SyntaxKind.StringKeyword) {
+				return prependPath('ElementType', findTypeParameterPath(typeArguments[1]!, typeParameterName));
+			}
 			return undefined;
+		}
+		case SyntaxKind.TypeLiteral: {
+			// nur die reine Index-Signatur { [key: string]: T }, wie in tsTypeLiteralToJulType
+			const members = (tsType as TypeLiteralNode).members;
+			const [member] = members;
+			if (members.length !== 1
+				|| member!.kind !== SyntaxKind.IndexSignature) {
+				return undefined;
+			}
+			const indexSignature = member as IndexSignatureDeclaration;
+			return indexSignature.parameters[0]?.type?.kind === SyntaxKind.StringKeyword
+				? prependPath('ElementType', findTypeParameterPath(indexSignature.type, typeParameterName))
+				: undefined;
 		}
 		default:
 			return undefined;
