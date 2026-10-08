@@ -178,6 +178,20 @@ describe('TypeScript Parser', () => {
 			const type = result?.value?.typeInfo?.type;
 			expect(type && typeToString(type, 0, 3)).to.equal('Or(Empty List(Or(§a§ §b§)))');
 		});
+
+		it('Aufruf liefert den Elementtyp eines map-Ergebnisses über eine mögliche leere Liste', () => {
+			const folder = resolve('/typescript-parser-test');
+			const mainPath = join(folder, 'main.jul');
+			const main = loadFile(mainPath, {}, createInMemoryHost({
+				[mainPath]: '(f) = import(§./util.ts§)\ng = (texts: Or([] List(Text))) =>\n\tf(texts.map((value) => 1))\nh = (deck: [main: Or([] List(Text))]) =>\n\tg(deck/main)\nsource = assume([] [main: Or([] List(Text))])\nresult = h(source)',
+				[join(folder, 'util.ts')]: 'export function f<T>(a: T[] | undefined): T[] | undefined { return a; }',
+			}, { cloneUnchecked: false })) as ParsedFile;
+			expect(main.checked?.errors).to.deep.equal([]);
+			const h = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
+				expression.type === 'definition' && expression.name.name === 'result');
+			const type = h?.value?.typeInfo?.type;
+			expect(type && typeToString(type, 0, 3)).to.equal('Or(Empty List(1))');
+		});
 	});
 
 	it('JUL-Aufruf mit falschem Argumenttyp wird gemeldet', () => {

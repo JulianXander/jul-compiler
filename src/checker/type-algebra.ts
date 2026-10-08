@@ -714,6 +714,7 @@ function dereferenceNameFromObjectType(
 			const property = getNamedAccess(typePropertyAccess, innerType)!.get(innerType, name);
 			return property && createCompileTimeTypeOfType(property);
 		}
+		case 'mapElements':
 		case 'nestedReference':
 		case 'parameterReference':
 			return createNestedReference(sourceObjectType, name);
@@ -765,7 +766,6 @@ function dereferenceNameFromObjectType(
 		case 'indexRange':
 		case 'text':
 		case 'textLiteral':
-		case 'mapElements':
 		case 'type':
 		case 'typeOf':
 		case 'conditional':
