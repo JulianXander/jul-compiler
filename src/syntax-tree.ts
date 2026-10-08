@@ -423,6 +423,13 @@ export interface ParseFunctionCall extends ParseExpressionBase {
 	 * dagegen der Typ des Werts: dieselbe Funktion, unabhängig vom Aufruf.
 	 */
 	calledFunctionType?: CompileTimeFunctionType;
+	/**
+	 * Vom Checker gesetzt: die Namen, unter denen die Laufzeit benannte Argumente zuordnet
+	 * (source ?? name, wie assignArgs). Nur gesetzt, wenn die aufgerufene Funktion ein Verweis auf
+	 * ein JUL-Funktionsliteral mit einfacher Parameterliste ist. Der Emitter ordnet damit benannte
+	 * Argumente schon beim Emittieren den Parametern zu.
+	 */
+	literalParameterNames?: string[];
 }
 
 //#region FunctionLiteral

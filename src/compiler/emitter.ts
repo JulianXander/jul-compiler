@@ -21,7 +21,6 @@ import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
 import { getCheckedEscapableName, getTestCallArguments } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
-import { isFunctionType, resolveAlias, resolvePlaceholders } from '../checker/type-algebra.js';
 
 const runtimeKeys = Object.keys(runtime);
 const testRuntimeKeys = Object.keys(testRuntime);
@@ -675,13 +674,12 @@ function literalValueToJs(value: LiteralValue): string {
  * ein Arrow übergeben, das sie in Parameterreihenfolge weiterreicht.
  */
 function namedArgumentsToDirectCallJs(
-	functionExpression: SimpleExpression,
+	parameterNames: string[] | undefined,
 	functionJs: string,
 	prefixArgument: SimpleExpression | undefined,
 	args: ParseDictionaryLiteral,
 	indent: number,
 ): string | undefined {
-	const parameterNames = getLiteralParameterNames(functionExpression);
 	if (!parameterNames) {
 		return undefined;
 	}
@@ -733,30 +731,6 @@ function namedArgumentsToDirectCallJs(
 	const temporariesJs = written.map((_, index) => `_arg${index}`).join(', ');
 	const writtenJs = written.map(argument => expressionToJs(argument.value, innerIndent));
 	return `((${temporariesJs}) => ${functionJs}(${argumentsJs.join(', ')}))(${listValuesToJs(writtenJs, indent)})`;
-}
-
-/**
- * Die Namen, unter denen die Laufzeit benannte Argumente zuordnet (source ?? name, wie
- * assignArgs). undefined, wenn die Funktion kein JUL-Literal mit einfacher Parameterliste ist.
- * literal am Funktionstyp ist nur bei Funktionsliteralen aus .jul gesetzt, und das Symbol behält
- * den Typ des Werts.
- */
-function getLiteralParameterNames(functionExpression: SimpleExpression): string[] | undefined {
-	if (functionExpression.type !== 'reference'
-		|| !functionExpression.typeInfo) {
-		return undefined;
-	}
-	const functionType = resolveAlias(resolvePlaceholders(functionExpression.typeInfo.type));
-	if (!isFunctionType(functionType)
-		|| !functionType.literal) {
-		return undefined;
-	}
-	const params = functionType.literal.params;
-	if (params.type !== 'parameters'
-		|| params.rest) {
-		return undefined;
-	}
-	return params.singleFields.map(field => field.source?.name ?? field.name.name);
 }
 
 /** Ohne Seiteneffekt, darf also in anderer Reihenfolge ausgewertet werden */
@@ -839,7 +813,7 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 		case 'dictionary': {
 			const directCallJs = useTypeInfo
 				&& args.type === 'dictionary'
-				? namedArgumentsToDirectCallJs(functionExpression, functionJs, prefixArgument, args, indent)
+				? namedArgumentsToDirectCallJs(expression.literalParameterNames, functionJs, prefixArgument, args, indent)
 				: undefined;
 			if (directCallJs) {
 				return directCallJs;

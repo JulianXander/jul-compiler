@@ -2782,6 +2782,10 @@ function inferType(
 						|| dereferencedReturnType.isUnresolvedPlaceholder,
 				};
 			}
+			// Nur der Emitter-Pfad für benannte Argumente liest sie.
+			if (expression.arguments?.type === 'dictionary') {
+				expression.literalParameterNames = getLiteralParameterNames(functionExpression);
+			}
 			const foldedType = tryFoldCall(
 				functionExpression, functionType, boundArgsType, hasArgsError);
 			const boundReturnType = !foldedType && !hasArgsError
@@ -3465,6 +3469,30 @@ function findUnproductiveSelfReference(
 }
 
 //#region get Type from FunctionCall
+
+/**
+ * Die Namen, unter denen die Laufzeit benannte Argumente zuordnet (source ?? name, wie
+ * assignArgs). undefined, wenn die Funktion kein JUL-Literal mit einfacher Parameterliste ist.
+ * literal am Funktionstyp ist nur bei Funktionsliteralen aus .jul gesetzt, und das Symbol behält
+ * den Typ des Werts.
+ */
+function getLiteralParameterNames(functionExpression: SimpleExpression): string[] | undefined {
+	if (functionExpression.type !== 'reference'
+		|| !functionExpression.typeInfo) {
+		return undefined;
+	}
+	const functionType = resolveAlias(resolvePlaceholders(functionExpression.typeInfo.type));
+	if (!isFunctionType(functionType)
+		|| !functionType.literal) {
+		return undefined;
+	}
+	const params = functionType.literal.params;
+	if (params.type !== 'parameters'
+		|| params.rest) {
+		return undefined;
+	}
+	return params.singleFields.map(field => field.source?.name ?? field.name.name);
+}
 
 function getReturnTypeFromFunctionCall(
 	functionCall: ParseFunctionCall,
