@@ -112,6 +112,20 @@ describe('TypeScript Parser', () => {
 		});
 	});
 
+	// Ein lokaler type-Alias steht für den Typ auf seiner rechten Seite.
+	describe('Typ-Aliase', () => {
+		it('Alias auf einen Funktionstyp als Parametertyp', () => {
+			expectTypeOfF(
+				'type Listener = (urlHash: string | undefined) => void;\nexport function f(callback: Listener): void {}',
+				'(callback: (urlHash: Or(Empty Text)) :> Any) ~> Empty');
+		});
+		it('Alias auf eine String-Union als Parametertyp', () => {
+			expectTypeOfF(
+				"type TableName = 'decks' | 'games';\nexport function f(tableName: TableName): void {}",
+				'(tableName: Or(§decks§ §games§)) ~> Empty');
+		});
+	});
+
 	// Ein Typparameter im Rückgabetyp wird aus dem ersten Parameter hergeleitet, in dem er vorkommt.
 	describe('Generics', () => {
 		it('T[] | undefined', () => {

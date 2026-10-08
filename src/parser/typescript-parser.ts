@@ -1,7 +1,7 @@
 import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseNestedReference, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, Purity, SymbolTable } from '../syntax-tree.js';
 import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, Positioned } from '../compiler-errors.js';
-import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode, TypeParameterDeclaration } from 'typescript';
+import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode, TypeParameterDeclaration, TypeAliasDeclaration } from 'typescript';
 import { createParseFunctionLiteral, createParseFunctionTypeLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
 const { createSourceFile, getJSDocCommentsAndTags, getJSDocTags, ScriptKind, ScriptTarget, SyntaxKind } = typescript;
 
@@ -574,7 +574,42 @@ function tsTypeReferenceToJulType(
 				? undefined
 				: createReference('Error', position);
 		default:
-			return undefined;
+			return typeArguments.length
+				? undefined
+				: tsTypeAliasToJulType(typeName.text, sourceFile, errors);
+	}
+}
+
+/**
+ * Aliase, die gerade übersetzt werden: schützt vor Endlosschleifen bei zyklischen Aliasen (type A = A[]).
+ */
+const aliasesInTranslation = new Set<string>();
+
+/**
+ * Ein nicht generischer type-Alias derselben Datei steht für den Typ auf seiner rechten Seite.
+ * Aliase mit Typparametern, aus anderen Dateien und Interfaces bleiben unübersetzbar.
+ */
+function tsTypeAliasToJulType(
+	aliasName: string,
+	sourceFile: SourceFile,
+	errors: CompilerError[],
+): ParseValueExpression | undefined {
+	if (aliasesInTranslation.has(aliasName)) {
+		return undefined;
+	}
+	const alias = sourceFile.statements.find((statement): statement is TypeAliasDeclaration =>
+		statement.kind === SyntaxKind.TypeAliasDeclaration
+		&& (statement as TypeAliasDeclaration).name.text === aliasName);
+	if (!alias || alias.typeParameters?.length) {
+		return undefined;
+	}
+	aliasesInTranslation.add(aliasName);
+	try {
+		// Der Alias kennt die Typparameter der verwendenden Funktion nicht.
+		return withTypeParameters(undefined, () => tsTypeToJulType(alias.type, sourceFile, errors));
+	}
+	finally {
+		aliasesInTranslation.delete(aliasName);
 	}
 }
 
