@@ -1,9 +1,9 @@
 import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseNestedReference, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, Purity, SymbolTable } from '../syntax-tree.js';
 import { isDefined, NonEmptyArray } from '../util.js';
-import { CompilerError, Positioned } from '../compiler-errors.js';
+import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode, TypeParameterDeclaration, TypeAliasDeclaration } from 'typescript';
 import { createParseFunctionLiteral, createParseFunctionTypeLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
-const { createSourceFile, getJSDocCommentsAndTags, getJSDocTags, ScriptKind, ScriptTarget, SyntaxKind } = typescript;
+const { createSourceFile, forEachChild, getJSDocCommentsAndTags, getJSDocTags, ScriptKind, ScriptTarget, SyntaxKind } = typescript;
 
 export function parseTsCode(code: string, filePath = 'todo.ts'): ParsedExpressions {
 	// Parent-Pointer braucht getJSDocCommentsAndTags
@@ -96,6 +96,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 			};
 		}
 		case SyntaxKind.TypeAliasDeclaration:
+			reportNullInType((tsNode as TypeAliasDeclaration).type, sourceFile, errors);
 			return undefined;
 		default:
 			return undefined;
@@ -134,6 +135,10 @@ function tsFunctionToJulAst(
 	sourceFile: SourceFile,
 	errors: CompilerError[],
 ) {
+	parameters.forEach(parameter => parameter.type && reportNullInType(parameter.type, sourceFile, errors));
+	if (returnType) {
+		reportNullInType(returnType, sourceFile, errors);
+	}
 	return createParseFunctionLiteral(
 		tsParametersToJulParameters(
 			parameters,
@@ -426,6 +431,24 @@ function prependPath(key: string, path: string[] | undefined): string[] | undefi
 //#endregion Generics
 
 //#region Typannotation
+
+/**
+ * Das Leere ist in JUL undefined, ein JS-null erfüllt Empty nicht. Jedes null in einer
+ * Typannotation wird gemeldet, einmal je Fundstelle (die Übersetzung selbst läuft je Annotation
+ * mehrfach und taugt dafür nicht).
+ */
+function reportNullInType(tsType: Node, sourceFile: SourceFile, errors: CompilerError[]): void {
+	if (tsType.kind === SyntaxKind.LiteralType
+		&& (tsType as LiteralTypeNode).literal.kind === SyntaxKind.NullKeyword) {
+		errors.push({
+			code: ErrorCode.nullNotAllowedInTypeScriptType,
+			message: "'null' is not allowed in a TypeScript type, use 'undefined'.",
+			...getPositionFromTsNode(tsType, sourceFile),
+		});
+		return;
+	}
+	forEachChild(tsType, child => reportNullInType(child, sourceFile, errors));
+}
 
 /**
  * Übersetzt eine TS-Typannotation rein syntaktisch in den JUL-Typausdruck, den man in JUL dafür

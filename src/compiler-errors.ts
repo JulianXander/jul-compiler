@@ -183,6 +183,11 @@ export enum ErrorCode {
 	 * gelangten Tests in den normalen Build.
 	 */
 	testFileImportedOutsideTests = 3150,
+	/**
+	 * `null` in einer Typannotation einer importierten TS-Datei. Das Leere ist in JUL `undefined`, ein
+	 * JS-`null` erfüllt `Empty` nicht - der Typ würde etwas zusichern, das die Laufzeit nicht einhält.
+	 */
+	nullNotAllowedInTypeScriptType = 3160,
 	//#endregion 3100 Import und Modulauflösung
 
 	//#region 3200 Namensauflösung und Scopes
@@ -329,6 +334,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.dynamicImportNotAllowed]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.unsupportedImportPosition]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testFileImportedOutsideTests]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.nullNotAllowedInTypeScriptType]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.alreadyDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.notDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.usedBeforeDefined]: { type: 'semantic', severity: 'error' },

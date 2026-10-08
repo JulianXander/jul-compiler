@@ -112,6 +112,22 @@ describe('TypeScript Parser', () => {
 		});
 	});
 
+	// Das Leere ist in JUL undefined, ein JS-null erfüllt Empty nicht.
+	describe('null in Typannotationen', () => {
+		const expectNullError = reportAtCaller((code: string) => {
+			const errors = parseTsCode(code).errors;
+			expect(errors.map(error => error.code)).to.deep.equal([ErrorCode.nullNotAllowedInTypeScriptType]);
+		});
+		it('im Rückgabetyp', () => expectNullError('export function f(): string | null {}'));
+		it('im Parametertyp', () => expectNullError('export function f(a: string | null) {}'));
+		it('als Listenelement', () => expectNullError('export function f(a: (string | null)[]) {}'));
+		it('im Callback-Parameter', () => expectNullError('export function f(cb: (a: string | null) => void) {}'));
+		it('in einem Alias', () => expectNullError('type Name = string | null;\nexport function f(a: Name) {}'));
+		it('undefined bleibt erlaubt', () => {
+			expect(parseTsCode('export function f(a: string | undefined): bigint | undefined {}').errors).to.deep.equal([]);
+		});
+	});
+
 	// Ein lokaler type-Alias steht für den Typ auf seiner rechten Seite.
 	describe('Typ-Aliase', () => {
 		it('Alias auf einen Funktionstyp als Parametertyp', () => {
