@@ -17,7 +17,7 @@ import { Positioned } from '../compiler-errors.js';
 import * as runtime from '../runtime/runtime.js';
 import * as testRuntime from '../runtime/test-runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from '../util.js';
-import { dirname, extname, isAbsolute, join } from 'path';
+import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
 import { getCheckedEscapableName, getTestCallArguments } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
