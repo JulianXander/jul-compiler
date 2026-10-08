@@ -4828,6 +4828,17 @@ f(source)`;
 		const type = parsed.checked?.expressions?.at(-1)?.typeInfo?.type;
 		expect(type && typeToString(type, 0, 3)).to.equal('Board');
 	});
+	// Bug: Der Aufruf eines Funktions-Parameters lieferte Any statt des deklarierten Rückgabetyps,
+	// weil der Parameter im Rumpf ein offener Verweis ist und kein Funktionstyp (siehe yugioh:
+	// processPlayerInput$, inputSource/getInput$()).
+	it('call-of-function-parameter-returns-declared-return-type', () => {
+		const code = `f = (g: () :> Integer) => g()`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors).to.deep.equal([]);
+		const type = parsed.checked?.expressions?.at(-1)?.typeInfo?.type;
+		expect(type?.julType === 'function' && typeToString(type.ReturnType, 0, 3)).to.equal('Integer');
+	});
 	// Bug: withElementAtFromTypes ignoriert bei Source Empty den tatsächlichen Index und liefert
 	// immer ein 1-elementiges Tuple [valueType] (siehe checker.ts, case 'empty' in
 	// withElementAtFromTypes) - der Wert landet damit an Position 1 statt an der wirklichen

@@ -4726,6 +4726,14 @@ function getReturnTypeFromFunctionType(possibleFunctionType: TypeInfo | undefine
 	if (isFunctionType(rawType)) {
 		return rawType.ReturnType;
 	}
+	// Ein Funktions-Parameter ist im Rumpf ein offener Verweis. Zugesichert ist sein deklarierter
+	// Funktionstyp, also auch dessen Rückgabetyp.
+	if (isUnresolvedPlaceholderType(rawType)) {
+		const declaredType = resolvePlaceholders(rawType);
+		if (isFunctionType(declaredType)) {
+			return declaredType.ReturnType;
+		}
+	}
 	if (resolveAlias(rawType).julType === 'invalid') {
 		return builtinInvalid;
 	}
