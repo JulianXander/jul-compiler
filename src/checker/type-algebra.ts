@@ -25,6 +25,7 @@ import {
 	TextLiteralType,
 	TypePurity,
 	builtinAny,
+	builtinInvalid,
 	builtinBoolean,
 	builtinEmpty,
 	builtinInteger,
@@ -447,6 +448,8 @@ function dereferenceUnknownKeyFromObject(
 			return builtinEmpty;
 		case 'any':
 			return builtinAny;
+		case 'invalid':
+			return builtinInvalid;
 		case 'tuple':
 			return createNormalizedUnionType([builtinEmpty, ...source.ElementTypes]);
 		case 'list':
@@ -609,6 +612,8 @@ export function dereferenceNameFromObject(
 			return builtinEmpty;
 		case 'any':
 			return builtinAny;
+		case 'invalid':
+			return builtinInvalid;
 		case 'function':
 		case 'stream':
 			// Signatur und Werttyp sind Eigenschaften des Typs, gelesen über TypeOf(s$)/ValueType.
@@ -741,6 +746,7 @@ function dereferenceNameFromObjectType(
 		// Exhaustivitätsprüfung.
 		case 'and':
 		case 'any':
+		case 'invalid':
 		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
@@ -843,6 +849,7 @@ export function dereferenceIndexFromObject(
 		// Exhaustivitätsprüfung.
 		case 'and':
 		case 'any':
+		case 'invalid':
 		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
@@ -1097,6 +1104,7 @@ function traversePlaceholders(
 	}
 	switch (rawType.julType) {
 		case 'any':
+		case 'invalid':
 		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
@@ -1508,6 +1516,7 @@ export function getElementTypeAtIndex(
 	const type = rawType && resolveAlias(rawType);
 	switch (type?.julType) {
 		case 'any':
+		case 'invalid':
 			return type;
 		case 'list':
 			return type.ElementType;
@@ -2061,6 +2070,12 @@ export function createNormalizedUnionType(choiceTypes: CompileTimeType[]): Compi
 	//#endregion flatten UnionTypes
 	// Undurchsichtige Choices (isOpaqueForNormalization) werden hier nie aufgelöst: sie machen die
 	// Union weder zu Any noch fallen sie als Never weg.
+	// Ein schon gemeldeter Fehler macht die ganze Vereinigung ungültig, auch neben Any.
+	if (flatChoices.some(choice =>
+		!isOpaqueForNormalization(choice)
+		&& resolveAlias(choice).julType === 'invalid')) {
+		return builtinInvalid;
+	}
 	if (flatChoices.some(choice =>
 		!isOpaqueForNormalization(choice)
 		&& resolveAlias(choice).julType === 'any')) {
@@ -2225,6 +2240,12 @@ export function spreadDictionaryTypes(
 }
 
 export function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeType {
+	// Ein schon gemeldeter Fehler macht den ganzen Schnitt ungültig, auch neben Never und Any.
+	if (ChoiceTypes.some(choice =>
+		!isOpaqueForNormalization(choice)
+		&& resolveAlias(choice).julType === 'invalid')) {
+		return builtinInvalid;
+	}
 	// TODO flatten nested IntersectionTypes?
 
 	if (ChoiceTypes.length === 2) {
@@ -2882,6 +2903,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 	switch (first.julType) {
 		case 'empty':
 		case 'any':
+		case 'invalid':
 		case 'blob':
 		case 'boolean':
 		case 'date':
@@ -3258,6 +3280,7 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'alias':
 		case 'and':
 		case 'any':
+		case 'invalid':
 		case 'blob':
 		case 'add':
 		case 'boolean':
@@ -3348,13 +3371,16 @@ function isTypeAssignableAtDepth(
 	targetType: CompileTimeType,
 ): TypeAssignability {
 	checkerStats.getTypeError++;
+	// Ein schon gemeldeter Fehler soll nicht noch einmal gemeldet werden, auch nicht als unknown.
+	if (targetType.julType === 'invalid'
+		|| argumentsType.julType === 'invalid') {
+		return { assignable: true };
+	}
 	if (targetType.julType === 'any') {
 		return { assignable: true };
 	}
 	if (argumentsType.julType === 'any') {
-		// TODO error/warning bei any?
-		// error type bei assignment/function call?
-		// maybe return value?
+		// Any ist unbekannt, nicht bewiesen. Ein schon gemeldeter Fehler ist Invalid und oben entschieden.
 		return { assignable: undefined };
 	}
 	if (argumentsType === targetType) {
@@ -3448,8 +3474,8 @@ function integerRangeFits(argumentsType: CompileTimeType, targetType: CompileTim
 }
 
 function isTypeAssignableByStructure(
-	argumentsType: Exclude<ResolvedType, { julType: 'any'; }>,
-	targetType: Exclude<ResolvedType, { julType: 'any'; }>,
+	argumentsType: Exclude<ResolvedType, { julType: 'any' | 'invalid'; }>,
+	targetType: Exclude<ResolvedType, { julType: 'any' | 'invalid'; }>,
 ): TypeAssignability {
 	switch (argumentsType.julType) {
 		case 'and': {
@@ -4665,6 +4691,8 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return `And${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, suppressAlias, 'round')}`;
 		case 'any':
 			return 'Any';
+		case 'invalid':
+			return 'Invalid';
 		case 'blob':
 			return 'Blob';
 		case 'boolean':

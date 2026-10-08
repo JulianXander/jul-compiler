@@ -5,10 +5,13 @@ import { basename, join, relative, resolve } from 'path';
 
 import { ParsedDocuments } from './checker.js';
 import { checkerStats, resetCheckerStats } from './checker-stats.js';
+import { checkTypes } from './checker.js';
 import { resolvePlaceholders, typeToString } from './type-algebra.js';
 import { errorInfos } from '../compiler-errors.js';
 import { createFileSystemHost, loadFile } from '../compiler/project-loader.js';
-import { ParsedFile } from '../syntax-tree.js';
+import { builtinInvalid, ParsedFile } from '../syntax-tree.js';
+import { parseCode } from '../parser/parser.js';
+import { findInvalidWithoutError } from '../test-util.js';
 
 /**
  * Hält das nutzersichtbare Checker-Verhalten über alle Beispiele fest: inferierter Typ je
@@ -122,5 +125,37 @@ describe('checker snapshot', () => {
 			.map(([name, count]) => `${name}: ${count}`)
 			.join('\n') + '\n';
 		compareToBaseline(actual, statsBaselinePath);
+	});
+});
+
+/**
+ * Invalid entsteht nur, wo schon ein Fehler gemeldet ist (in dieser Datei oder in einer, die sie
+ * importiert). Sonst verschwände ein Fehler still.
+ */
+describe('Herkunft von Invalid', () => {
+	it('meldet einen Ausdruck mit Invalid, wenn nirgends ein Fehler steht', () => {
+		const parsed = parseCode('x = 1\nx', 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		parsed.checked!.expressions!.at(-1)!.typeInfo = { type: builtinInvalid };
+		const positions = findInvalidWithoutError({ 'dummy.jul': parsed });
+		expect(positions).to.deep.equal(['dummy.jul:2:1']);
+	});
+	it('meldet nichts, wenn der Fehler gemeldet ist', () => {
+		const parsed = parseCode('x = undefinedName\nx', 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(findInvalidWithoutError({ 'dummy.jul': parsed })).to.deep.equal([]);
+	});
+	it('gilt für alle Beispiele', () => {
+		const violations = findJulFiles(examplesFolder).flatMap(filePath => {
+			const parsedDocuments: ParsedDocuments = {};
+			try {
+				parseAndCheck(filePath, parsedDocuments);
+			}
+			catch {
+				return [];
+			}
+			return findInvalidWithoutError(parsedDocuments);
+		});
+		expect(violations).to.deep.equal([]);
 	});
 });

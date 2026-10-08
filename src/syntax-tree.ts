@@ -679,6 +679,7 @@ export interface TypeDeclaration {
 export type CompileTimeType =
 	| NeverType
 	| AnyType
+	| InvalidType
 	| EmptyType
 	| BooleanLiteralType
 	| IntegerLiteralType
@@ -739,6 +740,16 @@ export interface NeverType extends CompileTimeTypeBase {
  */
 export interface AnyType extends CompileTimeTypeBase {
 	readonly julType: 'any';
+}
+
+/**
+ * Ein Ausdruck, für den schon ein Fehler gemeldet ist. Anders als Any ist der Typ nicht unbekannt,
+ * sondern ungültig: Er ist in jeder Zuweisung zulässig und macht jeden Typ, in dem er vorkommt,
+ * ebenfalls ungültig, damit der Fehler keine Folgefehler erzeugt. Der Nutzer kann ihn nicht
+ * schreiben.
+ */
+export interface InvalidType extends CompileTimeTypeBase {
+	readonly julType: 'invalid';
 }
 
 //#region Primitive
@@ -1422,6 +1433,7 @@ export interface Parameter {
 export function forEachChildType(type: CompileTimeType, callback: (child: CompileTimeType) => void): void {
 	switch (type.julType) {
 		case 'any':
+		case 'invalid':
 		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
@@ -1537,6 +1549,7 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
  * Gecachte Instanzen für häufig verwendete Blatt-Typen - alle haben isUnresolvedPlaceholder: false
  */
 export const builtinAny: AnyType = { julType: 'any', isUnresolvedPlaceholder: false };
+export const builtinInvalid: InvalidType = { julType: 'invalid', isUnresolvedPlaceholder: false };
 export const builtinNever: NeverType = { julType: 'never', isUnresolvedPlaceholder: false };
 export const builtinEmpty: EmptyType = { julType: 'empty', isUnresolvedPlaceholder: false };
 export const builtinBoolean: BooleanType = { julType: 'boolean', isUnresolvedPlaceholder: false };

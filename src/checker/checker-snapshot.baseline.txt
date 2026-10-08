@@ -230,7 +230,7 @@ higherOrderFn: (lowerFn: (   arg1: Text   arg2: Boolean ) -> Empty) -> Empty
 myA1: NO TYPE
 parameterFn2: (x: [   blobNames: List(Text)   nextMarker: Or(Empty Text) ]) -> Empty
 paramterFn: (   blobNames: List(Text)   nextMarker: Or(Empty Text) ) -> Empty
-typeFnLong: Any
+typeFnLong: Invalid
 typeFnShort: BlubType -> Empty
   error 2100 at 7:1 assignedValue missing for definition
   error 1102 at 7:14 multilineParser should parse until end of row
@@ -254,13 +254,13 @@ someVar: 32
   error 3201 at 6:3 'Number' is not defined.
   warning 5152 at 8:2 Unreachable branch detected.
 === types.jul ===
-Article: TypeOf([   name: Text   price: Any   color: Text ])
+Article: TypeOf([   name: Text   price: Invalid   color: Text ])
 Even: (num: Integer) -> Boolean
 Number: Boolean
-ParserResult: (TypeParam: Text) -> Any :> Boolean
+ParserResult: (TypeParam: Text) -> Invalid :> Boolean
 addNums: (T: Boolean) -> (   num1: Boolean   num2: Boolean ) -> [Boolean Boolean]
 myVar: 3
-myVarIsText: Any
+myVarIsText: Invalid
   error 1102 at 15:26 multilineParser should parse until end of row
   error 1102 at 24:8 multilineParser should parse until end of row
   error 1102 at 30:13 multilineParser should parse until end of row
@@ -342,22 +342,22 @@ setHidden: (   element: Any   hidden: Boolean ) ~> Empty
 setText: (   element: Any   text: Text ) ~> Empty
 textValue: (input: Any) ~> Text
 === ui/dynamic-form/dynamic-form2.jul ===
-ageInput: Any
-body: Any
-booleanInput: Any
-data$: Stream([   name: Any   age: Any   visible: Any ])
-htmlIf: Any
-inputValue$: Any
-label: Any
-nameInput: Any
-numberInput: Any
-stackPanel: Any
-textInput: Any
-visibleInput: Any
+ageInput: Invalid
+body: Invalid
+booleanInput: Invalid
+data$: Stream([   name: Invalid   age: Invalid   visible: Invalid ])
+htmlIf: Invalid
+inputValue$: Invalid
+label: Invalid
+nameInput: Invalid
+numberInput: Invalid
+stackPanel: Invalid
+textInput: Invalid
+visibleInput: Invalid
   error 3110 at 1:88 Unexpected extension for import: 
   error 5050 at 6:9 Argument type mismatch. | Can not assign dictionary to rest parameter
   error 3201 at 29:3 'button' is not defined.
-  error 5160 at 32:15 Failed to dereference field 'value' in type Stream([ |   name: Any |   age: Any |   visible: Any | ])
+  error 5160 at 32:15 Failed to dereference field 'value' in type Stream([ |   name: Invalid |   age: Invalid |   visible: Invalid | ])
   hint 3204 at 1:66 'inputValue$' is defined but never used.
   warning 2800 at 6:9 Stream 'data$' is never completed. Call complete on it or return it.
 === ui/preserve-dom/main.jul ===

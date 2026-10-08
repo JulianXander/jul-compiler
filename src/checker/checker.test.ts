@@ -41,6 +41,51 @@ const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: 
 	}
 });
 
+/**
+ * Wie expectCheck, prüft aber zusätzlich den Typ des letzten Ausdrucks als Text.
+ */
+const expectLastTypeString = reportAtCaller((code: string, typeString: string, errors: CompilerError[] = []) => {
+	const parserResult = parseCode(code, 'dummy.jul');
+	expect(parserResult.unchecked.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
+	expectCheckedLastTypeString(parserResult, typeString, errors);
+});
+
+/**
+ * Wie expectLastTypeString für unvollständigen Code: Der Parser hat seinen Fehler schon gemeldet
+ * (er steht in errors), der Checker darf nichts hinzufügen.
+ */
+const expectLastTypeStringOfIncompleteCode = reportAtCaller((code: string, typeString: string, errors: CompilerError[]) => {
+	const parserResult = parseCode(code, 'dummy.jul');
+	expect(parserResult.unchecked.errors.filter(error => errorInfos[error.code].severity === 'error')).to.not.deep.equal([]);
+	expectCheckedLastTypeString(parserResult, typeString, errors);
+});
+
+function expectCheckedLastTypeString(parserResult: ReturnType<typeof parseCode>, typeString: string, errors: CompilerError[]): void {
+	checkTypes(parserResult, {}, { cloneUnchecked: false });
+	expect(parserResult.checked?.errors).to.deep.equal(errors);
+	const typeInfo = parserResult.checked?.expressions?.at(-1)?.typeInfo;
+	expect(typeInfo, 'der letzte Ausdruck hat keinen typeInfo').to.not.equal(undefined);
+	expect(typeToString(typeInfo!.type, 0, 1)).to.equal(typeString);
+}
+
+/**
+ * Code mit genau einem unbekannten Namen `undefinedName` in der ersten Zeile: gemeldet wird nur
+ * JUL3201, und der letzte Ausdruck hat den angegebenen Typ.
+ */
+const expectTypeWithUndefinedName = reportAtCaller((code: string, typeString: string) => {
+	const startColumnIndex = code.indexOf('undefinedName');
+	expectLastTypeString(code, typeString, [
+		{
+			code: ErrorCode.notDefined,
+			message: "'undefinedName' is not defined.",
+			startRowIndex: 0,
+			startColumnIndex,
+			endRowIndex: 0,
+			endColumnIndex: startColumnIndex + 'undefinedName'.length,
+		},
+	]);
+});
+
 describe('Checker', () => {
 	it('text-interpolation-reference-error', () => {
 		expectCheck('§§(a)§', {
@@ -5950,6 +5995,418 @@ f = (x: Or(1 2)) => ?(x)
 		expect(bodyPurityOf(`id = (x) -> Any => x
 f = () => id([cb = log])`)).to.equal('pure');
 	});
+	//#region Invalid
+	// Ein Ausdruck mit gemeldetem Fehler hat den Typ Invalid, nicht Any: Any hieße "unbekannt".
+	it('invalid-undefinierter-name', () => {
+		expectLastTypeString(`x = undefinedName
+x`, 'Invalid', [
+			{
+				code: ErrorCode.notDefined,
+				message: "'undefinedName' is not defined.",
+				startRowIndex: 0,
+				startColumnIndex: 4,
+				endRowIndex: 0,
+				endColumnIndex: 17,
+			},
+		]);
+	});
+	it('invalid-feld-auf-invalid', () => {
+		expectLastTypeString(`x = undefinedName
+x/foo`, 'Invalid', [
+			{
+				code: ErrorCode.notDefined,
+				message: "'undefinedName' is not defined.",
+				startRowIndex: 0,
+				startColumnIndex: 4,
+				endRowIndex: 0,
+				endColumnIndex: 17,
+			},
+		]);
+	});
+	it('invalid-aufruf-einer-nichtfunktion', () => {
+		expectLastTypeString(`f = 1
+f(2)`, 'Invalid', [
+			{
+				code: ErrorCode.valueIsNotFunction,
+				message: 'Expected a function to call.\nCan not assign 1 to Any :> Any.',
+				startRowIndex: 1,
+				startColumnIndex: 0,
+				endRowIndex: 1,
+				endColumnIndex: 1,
+			},
+		]);
+	});
+	// Gegenprobe: Any ohne Fehler bleibt Any.
+	it('any-ohne-fehler-bleibt-any', () => {
+		expectLastTypeString(`x = assume(1 Any)
+x`, 'Any');
+	});
+	// Ein Parameter-Element mit gemeldetem Fehler ist wie Any ein catchAll: Er ist nicht beweisbar
+	// unerreichbar, und die Meldung käme zum gemeldeten Fehler hinzu.
+	it('invalid-parameterelement-ist-nicht-unerreichbar', () => {
+		expectCheck(`f = (x: Integer) =>
+	?(x)
+		[1] => §a§
+		[undefinedName] => §b§`, {
+			errors: [
+				{
+					code: ErrorCode.notDefined,
+					message: "'undefinedName' is not defined.",
+					startRowIndex: 3,
+					startColumnIndex: 3,
+					endRowIndex: 3,
+					endColumnIndex: 16,
+				},
+			],
+		});
+	});
+	// Ein Typoperator mit gemeldetem Fehler im Operanden ist selbst ungültig. Sonst rechnet er mit
+	// dem Fehler wie mit Any, und aus Not(Any) wird Never.
+	it('not-invalid-meldet-keine-folgefehler', () => {
+		expectCheck('a: Not(undefinedName) = 1', {
+			errors: [
+				{
+					code: ErrorCode.notDefined,
+					message: "'undefinedName' is not defined.",
+					startRowIndex: 0,
+					startColumnIndex: 7,
+					endRowIndex: 0,
+					endColumnIndex: 20,
+				},
+			],
+		});
+	});
+	it('without-invalid-meldet-keine-folgefehler', () => {
+		expectCheck('a: Without(undefinedName Integer) = 1', {
+			errors: [
+				{
+					code: ErrorCode.notDefined,
+					message: "'undefinedName' is not defined.",
+					startRowIndex: 0,
+					startColumnIndex: 11,
+					endRowIndex: 0,
+					endColumnIndex: 24,
+				},
+			],
+		});
+	});
+	it('and-invalid-meldet-keine-folgefehler', () => {
+		expectCheck('a: And(undefinedName Integer) = §t§', {
+			errors: [
+				{
+					code: ErrorCode.notDefined,
+					message: "'undefinedName' is not defined.",
+					startRowIndex: 0,
+					startColumnIndex: 7,
+					endRowIndex: 0,
+					endColumnIndex: 20,
+				},
+			],
+		});
+	});
+	// Gegenproben: ohne Fehler rechnen die Operatoren mit Any wie bisher.
+	it('or-invalid-meldet-nur-den-fehler', () => {
+		expectCheck('a: Or(undefinedName Integer) = §t§', {
+			errors: [
+				{
+					code: ErrorCode.notDefined,
+					message: "'undefinedName' is not defined.",
+					startRowIndex: 0,
+					startColumnIndex: 6,
+					endRowIndex: 0,
+					endColumnIndex: 19,
+				},
+			],
+		});
+	});
+	it('not-any-bleibt-never', () => {
+		expectCheck('a: Not(Any) = 1', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign 1 to Not(Any).',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 15,
+				},
+			],
+		});
+	});
+	it('and-any-bleibt-neutral', () => {
+		expectCheck('a: And(Any Integer) = §t§', {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign §t§ to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 0,
+					endRowIndex: 0,
+					endColumnIndex: 25,
+				},
+			],
+		});
+	});
+	// Ein vorheriger Branch mit gemeldetem Fehler im Parametertyp fängt nichts sicher ab: Der
+	// folgende Branch ist nicht beweisbar unerreichbar.
+	it('branch-vorheriger-parametertyp-invalid-macht-nachfolger-nicht-unerreichbar', () => {
+		expectCheck(`f = (x: Integer) =>
+	?(x)
+		(u: undefinedName) => 1
+		(i: Integer) => 2`, {
+			errors: [
+				{
+					code: ErrorCode.notDefined,
+					message: "'undefinedName' is not defined.",
+					startRowIndex: 2,
+					startColumnIndex: 6,
+					endRowIndex: 2,
+					endColumnIndex: 19,
+				},
+			],
+		});
+	});
+	// Ein Scrutinee mit gemeldetem Fehler passt zu jedem Branch, der Rückgabetyp bleibt die
+	// Vereinigung der Branches und enthält kein Error.
+	it('branch-scrutinee-invalid-ergebnis-ohne-error', () => {
+		expectLastTypeString(`a = undefinedName
+r = ?(a)
+	(i: Integer) => 1
+	(t: Text) => 2
+r`, 'Or(1 2)', [
+			{
+				code: ErrorCode.notDefined,
+				message: "'undefinedName' is not defined.",
+				startRowIndex: 0,
+				startColumnIndex: 4,
+				endRowIndex: 0,
+				endColumnIndex: 17,
+			},
+		]);
+	});
+	// Typfunktionen: ein Operand mit gemeldetem Fehler macht das Ergebnis ungültig, statt mit Any zu
+	// rechnen oder den Fehler in einen Knoten zu verpacken.
+	it('typfunktion-lengthof-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('LengthOf(undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-elementat-index-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('ElementAt([1 2] undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-indexrange-start-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('IndexRange(undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-indexrange-ende-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('IndexRange(1 undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-mapelements-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('MapElements(undefinedName Integer)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-concat-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('Concat(undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-concat-zweiter-operand-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('Concat([1] undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-add-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('Add(undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-greaterinteger-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('GreaterInteger(undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-lessinteger-invalid-ist-invalid', () => {
+		expectTypeWithUndefinedName('LessInteger(undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-and-invalid-bleibt-invalid', () => {
+		expectTypeWithUndefinedName('And(undefinedName Integer)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-or-invalid-bleibt-invalid', () => {
+		expectTypeWithUndefinedName('Or(undefinedName Integer)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-not-invalid-bleibt-invalid', () => {
+		expectTypeWithUndefinedName('Not(undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-typeof-invalid-bleibt-invalid', () => {
+		expectTypeWithUndefinedName('TypeOf(undefinedName)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-elementat-quelle-invalid-bleibt-invalid', () => {
+		expectTypeWithUndefinedName('ElementAt(undefinedName 1)', 'TypeOf(Invalid)');
+	});
+	it('typfunktion-withelementat-wert-bleibt-container-invalid-bleibt-invalid', () => {
+		expectTypeWithUndefinedName('WithElementAt([1 2] 1 undefinedName)', 'TypeOf([Invalid 2])');
+	});
+	// Der Aufruf eines Werts mit gemeldetem Fehler ist selbst ungültig, nicht Any.
+	it('invalid-aufruf-eines-invalid-werts', () => {
+		expectLastTypeString(`x = undefinedName
+y = x(1)
+y`, 'Invalid', [
+			{
+				code: ErrorCode.notDefined,
+				message: "'undefinedName' is not defined.",
+				startRowIndex: 0,
+				startColumnIndex: 4,
+				endRowIndex: 0,
+				endColumnIndex: 17,
+			},
+		]);
+	});
+	// Gegenprobe: der Aufruf eines Any-Werts bleibt Any.
+	it('any-aufruf-eines-any-werts-bleibt-any', () => {
+		expectLastTypeString(`x = assume(1 Any)
+y = x(1)
+y`, 'Any');
+	});
+	// Unvollständiger Code: Der Parser hat den Fehler gemeldet, der Ausdruck ist ungültig.
+	it('invalid-aufruf-ohne-funktion', () => {
+		expectLastTypeStringOfIncompleteCode(`x = 1
+x.`, 'Invalid', [
+			{
+				code: ErrorCode.invalidName,
+				message: 'Invalid name',
+				startRowIndex: 1,
+				startColumnIndex: 2,
+				endRowIndex: 1,
+				endColumnIndex: 2,
+			},
+		]);
+	});
+	it('invalid-nestedreference-ohne-schluessel', () => {
+		expectLastTypeStringOfIncompleteCode(`x = [a = 1]
+x/`, 'Invalid', [
+			{
+				code: ErrorCode.expectedNestedKey,
+				message: 'Expected a nested key',
+				startRowIndex: 1,
+				startColumnIndex: 1,
+				endRowIndex: 1,
+				endColumnIndex: 2,
+			},
+		]);
+	});
+	it('invalid-index-null', () => {
+		expectLastTypeStringOfIncompleteCode(`x = [1 2]
+x/0`, 'Invalid', [
+			{
+				code: ErrorCode.invalidIndexSyntax,
+				message: 'Invalid index 0, indexes start at 1',
+				startRowIndex: 1,
+				startColumnIndex: 2,
+				endRowIndex: 1,
+				endColumnIndex: 3,
+			},
+		]);
+	});
+	it('invalid-aufruf-einer-funktion-mit-leerem-rumpf', () => {
+		expectLastTypeStringOfIncompleteCode(`f = () =>
+f()`, 'Invalid', [
+			{
+				code: ErrorCode.expectedExpression,
+				message: 'expression expected after =>',
+				startRowIndex: 0,
+				startColumnIndex: 7,
+				endRowIndex: 0,
+				endColumnIndex: 9,
+			},
+		]);
+	});
+	// Ein Import, dessen Pfad nicht bestimmbar ist, ist ungültig: Der Fehler ist gemeldet, und die
+	// importierten Werte sind unbekannt, nicht Any.
+	it('invalid-import-mit-leerem-pfad', () => {
+		expectLastTypeStringOfIncompleteCode(`x = import(§§)
+x`, 'Invalid', [
+			{
+				code: ErrorCode.dynamicImportNotAllowed,
+				message: 'dynamic import not allowed',
+				startRowIndex: 0,
+				startColumnIndex: 4,
+				endRowIndex: 0,
+				endColumnIndex: 14,
+			},
+		]);
+	});
+	it('invalid-import-mit-dynamischem-pfad', () => {
+		expectLastTypeStringOfIncompleteCode(`a = §./x.jul§
+x = import(a)
+x`, 'Invalid', [
+			{
+				code: ErrorCode.dynamicImportNotAllowed,
+				message: 'dynamic import not allowed',
+				startRowIndex: 1,
+				startColumnIndex: 4,
+				endRowIndex: 1,
+				endColumnIndex: 13,
+			},
+		]);
+	});
+	// Eine Definition, deren Wert der Parser nicht umsetzen konnte, hat den Typ Invalid, nicht Any.
+	it('invalid-definition-ohne-wert', () => {
+		expectLastTypeStringOfIncompleteCode(`x = [...]
+x`, 'Invalid', [
+			{
+				code: ErrorCode.assignedValueMissingForDefinition,
+				message: 'assignedValue missing for definition',
+				startRowIndex: 0,
+				startColumnIndex: 0,
+				endRowIndex: 0,
+				endColumnIndex: 4,
+			},
+			{
+				code: ErrorCode.unparsedRestOfRow,
+				message: 'multilineParser should parse until end of row',
+				startRowIndex: 0,
+				startColumnIndex: 4,
+				endRowIndex: 0,
+				endColumnIndex: 4,
+			},
+		]);
+	});
+	it('invalid-definition-mit-unvollstaendigem-dictionary', () => {
+		expectLastTypeStringOfIncompleteCode(`d = [a = 1 b =]
+d`, 'Invalid', [
+			{
+				code: ErrorCode.closingBracketMissing,
+				message: 'Expected closing bracket ].',
+				startRowIndex: 0,
+				startColumnIndex: 12,
+				endRowIndex: 0,
+				endColumnIndex: 12,
+			},
+			{
+				code: ErrorCode.invalidBracketedExpression,
+				message: 'could not convert bracketedExpression to ValueExpression',
+				startRowIndex: 0,
+				startColumnIndex: 4,
+				endRowIndex: 0,
+				endColumnIndex: 12,
+			},
+			{
+				code: ErrorCode.unparsedRestOfRow,
+				message: 'multilineParser should parse until end of row',
+				startRowIndex: 0,
+				startColumnIndex: 12,
+				endRowIndex: 0,
+				endColumnIndex: 12,
+			},
+		]);
+	});
+	// Ein Kopf mit gemeldetem Fehler verengt den Wert nicht: x bleibt im Branch, was es war. Sonst
+	// würde aus dem Fehler im Kopf ein ungültiger Wert und mit ihm der ganze Rückgabetyp.
+	it('invalid-kopf-verengt-nicht', () => {
+		expectLastTypeString(`f = (x: Integer) =>
+	?(x)
+		[undefinedName] => x
+		() => 0
+f`, '(x: Integer) -> Or(x 0)', [
+			{
+				code: ErrorCode.notDefined,
+				message: "'undefinedName' is not defined.",
+				startRowIndex: 2,
+				startColumnIndex: 3,
+				endRowIndex: 2,
+				endColumnIndex: 16,
+			},
+		]);
+	});
+	//#endregion Invalid
 });
 
 // Der letzte Ausdruck ist immer `r = <Aufruf>`, geprüft wird der Typ von r - Faltung meldet nie
@@ -6728,6 +7185,10 @@ describe('Warnung bei unknown', () => {
 			.filter(error => error.code === ErrorCode.typeNotProven)
 			.map(error => error.message);
 	};
+	// Ein schon gemeldeter Fehler soll nicht zusätzlich als unbewiesen gemeldet werden.
+	it('unknown-not-reported-for-invalid', () => {
+		expect(unknownMessages('g = (t: Text) => t\nf = () => g(undefinedName)')).to.deep.equal([]);
+	});
 	it('unknown-argument', () => {
 		expect(unknownMessages('g = (t: Text) => t\nf = (a: Any) => g(a)')).to.deep.equal([
 			'Argument type can not be verified.\nCan not prove that [Any] is assignable to (t: Text).',

@@ -3551,7 +3551,7 @@ export function getPathFromImport(
 			message: 'dynamic import not allowed',
 			startRowIndex: importExpression.startRowIndex,
 			startColumnIndex: importExpression.startColumnIndex,
-			endRowIndex: importExpression.endColumnIndex,
+			endRowIndex: importExpression.endRowIndex,
 			endColumnIndex: importExpression.endColumnIndex,
 		}
 	};

@@ -61,6 +61,9 @@ Gefragt ist: Liegt jeder Wert der Quelle im Ziel?
 Gefolgert wird nur aus yes. Gemeldet wird no als Fehler und unknown als Warnung (siehe Abschnitt
 „Warnung bei unknown"): Was der Checker nicht beweisen kann, kann zur Laufzeit schiefgehen.
 
+Ein Ausdruck, für den schon ein Fehler gemeldet ist (`Invalid`), ist als Quelle und als Ziel immer yes:
+weder Fehler noch Warnung, der Fehler steht schon. Siehe [invalid-type-umbau.md](invalid-type-umbau.md).
+
 Der Kern ist `isTypeAssignable` (umgesetzt, siehe Stand):
 
 ```ts

@@ -54,6 +54,7 @@ import {
 	forEachChildType,
 	NestedReferenceType,
 	builtinAny,
+	builtinInvalid,
 	builtinBlob,
 	builtinEmpty,
 	builtinNever,
@@ -249,6 +250,11 @@ const maxTypenessDepth = 50;
  * wird schon beim Modul-Load gecheckt und läuft dabei durch die Prüfung.
  */
 const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
+/**
+ * Typfunktionen, deren Ergebnis ungültig ist, wenn einer ihrer Operanden schon als Fehler gemeldet
+ * ist. And, Or, Not und TypeOf folgen dem über die Normalisierung bzw. ihren eigenen Zweig.
+ */
+const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'GreaterInteger', 'LessInteger'];
 
 /**
  * Stream(ValueType) und FiniteStream(ValueType): dieselbe Typfunktion, nur das Merkmal finite
@@ -448,7 +454,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	const findResult = findSymbolInScopes(name, scopes);
 	if (!findResult) {
 		return {
-			type: builtinAny,
+			type: builtinInvalid,
 			found: false,
 			isBuiltIn: false,
 		};
@@ -1371,8 +1377,8 @@ function mapBoundType(rawType: CompileTimeType, upper: boolean): CompileTimeType
 }
 
 /**
- * Not mit den beiden Randfällen, die als Quelle sonst permissiv blieben: Not(Never) ist alles,
- * Not(Any) nichts.
+ * Not mit den Randfällen, die als Quelle sonst permissiv blieben: Not(Never) ist alles,
+ * Not(Any) nichts, Not(Invalid) bleibt ungültig.
  */
 function createNormalizedComplementType(source: CompileTimeType): CompileTimeType {
 	const resolved = resolveAlias(source);
@@ -1381,6 +1387,8 @@ function createNormalizedComplementType(source: CompileTimeType): CompileTimeTyp
 			return builtinAny;
 		case 'any':
 			return builtinNever;
+		case 'invalid':
+			return builtinInvalid;
 		default:
 			return createCompileTimeComplementType(source);
 	}
@@ -1866,9 +1874,17 @@ function getPreviousBranchArgumentType(
  */
 function narrowBranchedType(
 	branchedType: CompileTimeType,
-	branchValueType: CompileTimeType | undefined,
-	previousBranchValueType: CompileTimeType | undefined,
+	rawBranchValueType: CompileTimeType | undefined,
+	rawPreviousBranchValueType: CompileTimeType | undefined,
 ): CompileTimeType {
+	// Ein Kopf mit gemeldetem Fehler sagt über den Wert nichts: Er verengt nicht, und er zieht nichts ab.
+	// Sonst würde aus dem Fehler im Kopf ein ungültiger Wert.
+	const branchValueType = rawBranchValueType && resolveAlias(rawBranchValueType).julType !== 'invalid'
+		? rawBranchValueType
+		: undefined;
+	const previousBranchValueType = rawPreviousBranchValueType && resolveAlias(rawPreviousBranchValueType).julType !== 'invalid'
+		? rawPreviousBranchValueType
+		: undefined;
 	const intersectedType = branchValueType
 		? createNormalizedIntersectionType([branchedType, branchValueType])
 		: branchedType;
@@ -2012,8 +2028,8 @@ function inferType(
 	switch (expression.type) {
 		case 'binding':
 		case 'data':
-			// TODO?
-			return { type: builtinAny };
+			// Der Parser konnte die Klammer nicht zu einer Kollektion auflösen und hat es gemeldet.
+			return { type: builtinInvalid };
 		case 'branching': {
 			// union branch return types
 			// TODO conditional type?
@@ -2087,6 +2103,11 @@ function inferType(
 								// Catchall oder Prädikat
 								return;
 							}
+							if (resolveAlias(argType).julType === 'invalid') {
+								// Schon gemeldet: Was dieser Kopf abfängt, ist unbekannt, der aktuelle Branch
+								// also nicht beweisbar unerreichbar.
+								return;
+							}
 							previousArgumentTypes.push(argType);
 						}
 					}
@@ -2105,8 +2126,10 @@ function inferType(
 						return;
 					}
 
-					// Any ist auch bei Parameter-Elementen ein catchAll
-					if (currentArgumentType.julType === 'any') {
+					// Any ist auch bei Parameter-Elementen ein catchAll. Invalid ist schon gemeldet und
+					// nicht beweisbar unerreichbar.
+					if (currentArgumentType.julType === 'any'
+						|| currentArgumentType.julType === 'invalid') {
 						return;
 					}
 
@@ -2258,7 +2281,8 @@ function inferType(
 					typeInfo = value.typeInfo;
 				}
 				else {
-					typeInfo = { type: builtinAny };
+					// Ohne Wert hat der Parser die Definition schon gemeldet (assignedValue missing).
+					typeInfo = { type: builtinInvalid };
 				}
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, name);
@@ -2576,7 +2600,7 @@ function inferType(
 				if (prefixArgument) {
 					setInferredType(prefixArgument, typeContext, undefined, checkContext);
 				}
-				return { type: builtinAny };
+				return { type: builtinInvalid };
 			}
 			// Die Funktion vor dem Präfix-Argument: es erwartet ihren ersten Parameter.
 			setInferredType(functionExpression, typeContext, undefined, checkContext);
@@ -2689,7 +2713,7 @@ function inferType(
 			if (!isFunction) {
 				// Die Argumente sind inferiert, ihre eigenen Fehler also gemeldet.
 				// Alles weitere setzt eine Funktion voraus und wäre wirkungslos.
-				return { type: builtinAny };
+				return { type: builtinInvalid };
 			}
 			// Präfix-Argument (z.B. `values` in `values.slice(1)`) referenziert einen eigenen
 			// Parameter und bleibt sonst eine abstrakte parameterReference statt des konkreten
@@ -2933,12 +2957,14 @@ function inferType(
 			// Die dritte Bedingung - jede freie Referenz des Rumpfs lässt sich auflösen - hängt von
 			// der Umgebung an der jeweiligen Aufrufstelle ab und wird deshalb nicht hier, sondern
 			// im Auswerter geprüft (constant-folding.ts, buildEnvironment).
+			// Ein leerer Rumpf ist ungültig und wertet zu Empty aus: gefaltet verdeckte das den Fehler.
 			const foldable = !isTypeScriptFile(filePath)
+				&& expression.body.length > 0
 				&& !expression.body.some(containsNativeLiteral);
 			//#endregion Faltbarkeit
-			// Ein leerer body ist ungültig, nicht leer (Empty). Any als Ergebnis, damit sich der
+			// Ein leerer body ist ungültig, nicht leer (Empty). Invalid als Ergebnis, damit sich der
 			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
-			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? builtinAny;
+			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? builtinInvalid;
 			// Any als inferierter Typ heißt "nichts Genaueres bekannt", nicht "Any ist der Typ" -
 			// hier auf den deklarierten Typ zurückfallen, sonst sehen Aufrufer Any statt der
 			// geprüften Zusicherung. Ist der inferierte Typ enger als deklariert (Normalfall,
@@ -3097,7 +3123,7 @@ function inferType(
 			setInferredType(source, typeContext, undefined, checkContext);
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
-				return { type: builtinAny };
+				return { type: builtinInvalid };
 			}
 			// Vor der Verengung, die weiter unten früh zurückkehrt: der Feldzugriff ist unabhängig
 			// vom verengten Ergebnis eine Referenz auf die Felddeklaration.
@@ -3116,7 +3142,7 @@ function inferType(
 					// Ein ungültiger Index kann nichts dereferenzieren. Der Parser hat ihn schon
 					// gemeldet, hier also gar nicht erst nachsehen.
 					if (nestedKey.name < 1) {
-						return { type: builtinAny };
+						return { type: builtinInvalid };
 					}
 					const sourceType = resolvePlaceholders(source.typeInfo!.type);
 					// Auf dem Nachschlagetyp (ein bloßer Platzhalter bleibt roh, ein zusammengesetzter
@@ -3142,8 +3168,8 @@ function inferType(
 								endColumnIndex: nestedKey.endColumnIndex,
 							});
 						}
-						// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
-						return { type: builtinAny };
+						// Invalid als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
+						return { type: builtinInvalid };
 					}
 					return { type: dereferencedType };
 				}
@@ -3186,8 +3212,8 @@ function inferType(
 								endRowIndex: nestedKey.endRowIndex,
 								endColumnIndex: nestedKey.endColumnIndex,
 							});
-							// Any als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
-							return { type: builtinAny };
+							// Invalid als Ergebnis, damit sich der Fehler nicht kaskadierend fortsetzt
+							return { type: builtinInvalid };
 						}
 						if (!dereferencedType) {
 							// Weder roh noch aufgelöst entscheidbar - abwarten wie bisher.
@@ -3506,6 +3532,17 @@ function getReturnTypeFromFunctionCall(
 	// TODO statt functionname functionref value/inferred type prüfen?
 	if (functionExpression.type === 'reference') {
 		const functionName = functionExpression.name.name;
+		if (invalidAbsorbingTypeFunctionNames.includes(functionName)) {
+			const argTypes = getAllArgTypes(boundArgsType);
+			// Der Wert von WithElementAt ist ein Element, kein Operand des Containers: ein Fehler dort
+			// macht den Container nicht ungültig.
+			const operandTypes = functionName === 'WithElementAt'
+				? argTypes?.slice(0, 2)
+				: argTypes;
+			if (operandTypes?.some(argType => resolveAlias(valueOf(argType)).julType === 'invalid')) {
+				return createCompileTimeTypeOfType(builtinInvalid);
+			}
+		}
 		switch (functionName) {
 			case 'import': {
 				const { path, error } = getPathFromImport(functionCall, folder);
@@ -3516,7 +3553,10 @@ function getReturnTypeFromFunctionCall(
 					errors.push(error);
 				}
 				if (!path) {
-					return builtinAny;
+					// Der Pfad ist nicht bestimmbar, der Fehler ist schon gemeldet.
+					return error
+						? builtinInvalid
+						: builtinAny;
 				}
 				// TODO get full path, get type from parsedfile
 				const fullPath = join(folder, path);
@@ -3637,7 +3677,10 @@ function getReturnTypeFromFunctionCall(
 					// TODO unknown?
 					return builtinAny;
 				}
-				return createCompileTimeTypeOfType(createCompileTimeComplementType(valueOf(argTypes[0])));
+				const complementSource = valueOf(argTypes[0]);
+				return createCompileTimeTypeOfType(resolveAlias(complementSource).julType === 'invalid'
+					? builtinInvalid
+					: createCompileTimeComplementType(complementSource));
 			}
 			case 'Or': {
 				const argTypes = getAllArgTypes(boundArgsType);
@@ -4668,6 +4711,10 @@ function getParamsType(possibleFunctionType: CompileTimeType | undefined): Compi
 	if (isFunctionType(functionType)) {
 		return resolveAlias(functionType.ParamsType);
 	}
+	// Ein Aufruf von etwas Ungültigem prüft seine Argumente gegen nichts Erfundenes.
+	if (functionType?.julType === 'invalid') {
+		return builtinInvalid;
+	}
 	return builtinAny;
 }
 
@@ -4678,6 +4725,9 @@ function getReturnTypeFromFunctionType(possibleFunctionType: TypeInfo | undefine
 	const rawType = possibleFunctionType.type;
 	if (isFunctionType(rawType)) {
 		return rawType.ReturnType;
+	}
+	if (resolveAlias(rawType).julType === 'invalid') {
+		return builtinInvalid;
 	}
 	return builtinAny;
 }
@@ -4843,6 +4893,7 @@ function classifyTypenessOnPath(
 			return declared === 'value' ? 'value' : 'unknown';
 		}
 		case 'any':
+		case 'invalid':
 		case 'never':
 		case 'not':
 		case 'conditional':

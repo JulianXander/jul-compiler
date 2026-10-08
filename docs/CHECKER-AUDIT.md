@@ -14,10 +14,13 @@ nicht was einmal kaputt war.
 
 Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprachkern.
 
-- **Wer aus einem ausbleibenden `getTypeError` etwas folgert, braucht `hasReliableTypeError` davor.**
-  Für `any`, `nestedReference`, `parameterReference` und `parameters` ist die Prüfung bewusst
-  permissiv, „kein Fehler" heißt dort nicht „ist zuweisbar". Daran ist die erste `typesOverlap`-
-  Fassung gescheitert, die `NonZeroInteger` zu `Never` gemacht hat.
+- **Wer aus der Zuweisbarkeit etwas folgert, fragt nur nach „yes".** `isTypeAssignable` liefert no, yes
+  oder unknown, `isSubtypeOf` liefert `true`, `false` oder `undefined` und wird immer mit `=== true`
+  bzw. `=== false` verglichen: `!isSubtypeOf(…)` hieße „nein oder unbekannt". Für `any`,
+  `nestedReference`, `parameterReference` und `parameters` ist die Prüfung bewusst nachsichtig und
+  liefert unknown, das ist nicht „ist zuweisbar". Daran ist die erste `typesOverlap`-Fassung
+  gescheitert, die `NonZeroInteger` zu `Never` gemacht hat. Näheres in
+  [three-valued-assignability.md](three-valued-assignability.md).
 - **rawType und dereferencedType nicht vermischen.** Wer auf dem einen nachschlägt und anhand des
   anderen entscheidet, bekommt Falschfehler: die Verengung erzeugt im rawType ein `and`, für das
   `dereferenceNameFromObject` keinen Fall hat, während der aufgelöste Typ ein `dictionaryLiteral`
@@ -32,14 +35,20 @@ Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprac
   oder Index gibt es `getLookupType`: Es löst ein `and` oder `or` mit Platzhalter auf (die Form, in
   der eine Verengung den Parameter ablegt), ein bloßer Platzhalter bleibt roh. Wer nachschlägt,
   ruft nicht selbst `resolvePlaceholders` auf und fragt nicht nur auf `and`.
-- **`Any` bedeutet drei verschiedene Dinge:** „Typ unbekannt", „hier bewusst permissiv prüfen" und
-  „hier ist schon etwas schiefgelaufen, sei still". Die dritte Bedeutung zieht die zweite mit sich,
-  deshalb verstummt nach einem gemeldeten Fehler die ganze Kette darunter. Ein eigener
-  **Invalid-Typ** — getrennt von `Any` und vom Laufzeit-`error` (`Error = nativeValue(§_Error§)`,
-  der Typ von `_branch` ohne Treffer) — würde das auflösen. Die Ausdrücke im Baum tragen keine
-  Fehlermarkierung, und die Fehler liegen als flache Liste pro Datei: der Checker kann also nicht
-  fragen „hat dieser Teilausdruck schon Fehler". Deshalb prüft heute jeder Konsument seine
-  Vorbedingung selbst (`hasKnownFields`, `hasKnownLength`, `nestedKey.name < 1`).
+- **`Any` heißt „unbekannt“ oder „hier bewusst nachsichtig prüfen“, ein gemeldeter Fehler ist `Invalid`.**
+  Wer an einer Fehlerstelle `builtinAny` zurückgibt, bringt die Folgefehler zurück, denn `Any` wirkt
+  nicht neutral: aus `Not(Any)` wird `Never`, ein Parameter `Any` fängt jeden Branch ab. `Invalid` ist
+  als Quelle und Ziel von `isTypeAssignable` immer yes (keine Warnung bei unknown), macht `Not`, `And`,
+  `Or` und Typfunktionen mit einem Invalid-Operanden selbst ungültig und verengt als Branch-Kopf nichts.
+  Ausgenommen ist das Element eines Containers: `[Invalid 2]` bleibt eine Liste. Es entsteht nur, wo für
+  den Ausdruck schon ein Fehler gemeldet ist (vom Parser oder vom Checker), `findInvalidWithoutError` in
+  `test-util.ts` prüft das über alle Beispiele. Unterschieden vom Laufzeit-`error` (`Error =
+  nativeValue(§_Error§)`, der Typ von `_branch` ohne Treffer). Die Ausdrücke im Baum tragen keine
+  Fehlermarkierung, die Fehler liegen als flache Liste pro Datei: Der Checker kann nicht fragen „hat
+  dieser Teilausdruck schon Fehler“, deshalb bleibt die Herkunftsregel eine Prüfung über den ganzen
+  Dokumentensatz. `hasKnownFields` und `hasKnownLength` fragen dagegen nicht nach Fehlern, sondern ob
+  ein noch nicht ausgewerteter Typ seine Feld- bzw. Längenmenge kennt. Siehe
+  [invalid-type-umbau.md](invalid-type-umbau.md).
 - **`Any` ist auch ein Performance-Ventil — ein präziserer Typ kann sehr teuer sein.** Wer statt
   `Any` die Vereinigung aller Felder eines großen `dictionaryLiteral` liefert, erzeugt Typen, die
   von dort an durch jede weitere Prüfung getragen werden. Gemessen an einem Zugriff mit

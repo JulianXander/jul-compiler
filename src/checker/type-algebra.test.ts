@@ -7,6 +7,7 @@ import {
 	builtinEmpty,
 	builtinFloat,
 	builtinInteger,
+	builtinInvalid,
 	builtinNever,
 	builtinText,
 	CompileTimeType,
@@ -29,6 +30,7 @@ import {
 	dereferenceIndexFromObject,
 	isTypeAssignable,
 	spreadDictionaryTypes,
+	typeEquals,
 	typeToString,
 	valueOf,
 } from './type-algebra.js';
@@ -487,4 +489,51 @@ describe('Typalgebra', () => {
 		expect(element).to.equal(builtinInteger);
 	});
 	//#endregion Index
+
+	//#region Invalid
+	// Invalid steht für einen Ausdruck, für den schon ein Fehler gemeldet ist. Es ist nicht Any.
+	it('invalid-ist-nicht-any', () => {
+		expect(typeEquals(builtinInvalid, builtinAny)).to.equal(false);
+	});
+	it('invalid-ist-gleich-invalid', () => {
+		expect(typeEquals(builtinInvalid, builtinInvalid)).to.equal(true);
+	});
+	it('invalid-to-string', () => {
+		expect(typeToString(builtinInvalid, 0, 1)).to.equal('Invalid');
+	});
+	// yes statt unknown, sonst meldete warnUnknown jede Verwendung eines schon gemeldeten Fehlers.
+	it('invalid-als-quelle-ist-zuweisbar', () => {
+		expect(isTypeAssignable(builtinInvalid, builtinInteger)).to.deep.equal({ assignable: true });
+	});
+	it('invalid-als-ziel-ist-zuweisbar', () => {
+		expect(isTypeAssignable(builtinInteger, builtinInvalid)).to.deep.equal({ assignable: true });
+	});
+	// Gegenprobe: Any bleibt nachsichtig, aber unbewiesen.
+	it('any-als-quelle-bleibt-unknown', () => {
+		expect(isTypeAssignable(builtinAny, builtinInteger)).to.deep.equal({ assignable: undefined });
+	});
+	// Ein Invalid-Operand macht Vereinigung und Schnitt ungültig, auch neben Any.
+	it('or-invalid-integer-ist-invalid', () => {
+		expect(or([builtinInvalid, builtinInteger])).to.equal(builtinInvalid);
+	});
+	it('or-integer-invalid-ist-invalid', () => {
+		expect(or([builtinInteger, builtinInvalid])).to.equal(builtinInvalid);
+	});
+	it('or-any-invalid-ist-invalid', () => {
+		expect(or([builtinAny, builtinInvalid])).to.equal(builtinInvalid);
+	});
+	it('and-invalid-integer-ist-invalid', () => {
+		expect(and([builtinInvalid, builtinInteger])).to.equal(builtinInvalid);
+	});
+	it('and-any-invalid-ist-invalid', () => {
+		expect(and([builtinAny, builtinInvalid])).to.equal(builtinInvalid);
+	});
+	it('and-invalid-not-integer-ist-invalid', () => {
+		expect(and([builtinInvalid, not(builtinInteger)])).to.equal(builtinInvalid);
+	});
+	// Gegenprobe: Any bleibt in der Vereinigung Any.
+	it('or-any-integer-bleibt-any', () => {
+		expect(or([builtinAny, builtinInteger])).to.equal(builtinAny);
+	});
+	//#endregion Invalid
 });
