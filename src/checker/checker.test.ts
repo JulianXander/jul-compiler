@@ -4808,6 +4808,26 @@ f = (cards: List(Integer)) =>
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Bug: Innerhalb der Funktion ist state ein offener Parameter, state/boards.map(...) bleibt
+	// deshalb als MapElements(...) stehen. Der Positionszugriff first(state2) → state/boards/1
+	// auf diesem Platzhalter lieferte undefined, also Any, statt auf die aufgelösten Quellen zu
+	// warten (siehe yugioh: game-logic.jul, returnGameCardIds → addMonsterToField).
+	it('index-access-on-map-of-open-parameter-keeps-resolved-type', () => {
+		const code = `Board = [x: Integer]
+State = [boards: [Board Board]]
+first = (state: State) => state/boards/1
+f = (state: State) =>
+	newBoards = state/boards.map((b = value) => b)
+	state2: State = [boards = newBoards]
+	first(state2)
+source = assume([] State)
+f(source)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors).to.deep.equal([]);
+		const type = parsed.checked?.expressions?.at(-1)?.typeInfo?.type;
+		expect(type && typeToString(type, 0, 3)).to.equal('Board');
+	});
 	// Bug: withElementAtFromTypes ignoriert bei Source Empty den tatsächlichen Index und liefert
 	// immer ein 1-elementiges Tuple [valueType] (siehe checker.ts, case 'empty' in
 	// withElementAtFromTypes) - der Wert landet damit an Position 1 statt an der wirklichen

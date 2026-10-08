@@ -809,6 +809,8 @@ export function dereferenceIndexFromObject(
 			}).filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(dereferencedChoices);
 		}
+		// Ein offenes MapElements wartet auf seine Quelle, der Zugriff darauf ebenso.
+		case 'mapElements':
 		case 'nestedReference':
 		case 'parameterReference':
 			return createNestedReference(sourceObjectType, index);
@@ -871,7 +873,6 @@ export function dereferenceIndexFromObject(
 		case 'stream':
 		case 'text':
 		case 'textLiteral':
-		case 'mapElements':
 		case 'type':
 		case 'typeOf':
 		case 'conditional':
