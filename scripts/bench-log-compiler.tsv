@@ -206,3 +206,5 @@
 2026-10-10 09:56:59	58876c2+	-	ADV-DEV-56627	yugioh	parse+check	5	1816.30	2168.72	2168.72	typesOverlap: disjunkte Dictionary-Literale
 2026-10-10 12:23:04	cae95cf	-	ADV-DEV-56627	yugioh	parse+check	5	10295.47	11536.49	11536.49	vor getLookupType-Fix (Ausgangsstand)
 2026-10-10 12:23:58	cae95cf+	-	ADV-DEV-56627	yugioh	parse+check	5	7991.25	8497.12	8497.12	nach getLookupType-Fix (Aufrufort, Destructuring)
+2026-10-10 12:25:58	7fb7fdc	-	ADV-DEV-56627	jul-examples	parse+check	5	91.46	152.99	152.99	jul-examples vor getLookupType-Fix
+2026-10-10 12:25:59	7fb7fdc+	-	ADV-DEV-56627	jul-examples	parse+check	5	86.68	139.85	139.85	jul-examples nach getLookupType-Fix
