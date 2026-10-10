@@ -791,6 +791,10 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 	if (isNamedFunction(functionExpression, 'test')) {
 		return testCallToJs(expression, functionExpression, indent);
 	}
+	const shortCircuitJs = shortCircuitCallToJs(expression, prefixArgJs, indent);
+	if (shortCircuitJs !== undefined) {
+		return shortCircuitJs;
+	}
 	const functionJs = expressionToJs(functionExpression, indent);
 	const testCallName = expression === instrumentedTestCall
 		&& functionExpression.type === 'reference'
@@ -847,6 +851,66 @@ function getSelfAppliedTypeFunctionName(expression: ParseFunctionCall): string |
 		? type.value.name
 		: undefined;
 }
+
+//#region short circuit
+
+const shortCircuitOperators: { readonly [functionName: string]: string | undefined; } = {
+	and: '&&',
+	or: '||',
+};
+
+/**
+ * Ein Aufruf von and/or mit direkt aufgeführten Argumenten wird zu && bzw. ||, damit nach dem ersten
+ * false bzw. true die übrigen Argumente nicht mehr ausgewertet werden. Bei Spread und bei benannten
+ * Argumenten (und wenn die Funktion als Wert weitergereicht wird) bleibt es beim Funktionsaufruf, der
+ * alle Argumente auswertet. Der Name allein genügt, weil and/or nicht überschrieben werden können.
+ */
+function shortCircuitCallToJs(expression: ParseFunctionCall, prefixArgJs: string, indent: number): string | undefined {
+	const functionExpression = expression.functionExpression;
+	const args = expression.arguments;
+	if (functionExpression?.type !== 'reference'
+		|| args?.type !== 'list') {
+		return undefined;
+	}
+	const operator = shortCircuitOperators[functionExpression.name.name];
+	if (operator === undefined) {
+		return undefined;
+	}
+	const operands: string[] = [];
+	if (expression.prefixArgument) {
+		operands.push(operandToJs(expression.prefixArgument, prefixArgJs));
+	}
+	for (const value of args.values) {
+		if (value.type === 'spread') {
+			return undefined;
+		}
+		operands.push(operandToJs(value, expressionToJs(value, indent)));
+	}
+	return operands.join(` ${operator} `);
+}
+
+/**
+ * Klammert den Operanden, wenn er kein primärer Ausdruck ist (zum Beispiel ein verschachteltes
+ * and/or oder eine Verzweigung). Referenzen, Zugriffe und normale Aufrufe brauchen keine Klammern.
+ */
+function operandToJs(operand: ParseExpression, operandJs: string): string {
+	switch (operand.type) {
+		case 'reference':
+		case 'nestedReference':
+			return operandJs;
+		case 'functionCall':
+			return operand.functionExpression?.type === 'reference'
+				&& shortCircuitOperators[operand.functionExpression.name.name] !== undefined
+				&& operand.arguments?.type === 'list'
+				&& !operand.arguments.values.some(value => value.type === 'spread')
+				? `(${operandJs})`
+				: operandJs;
+		default:
+			return `(${operandJs})`;
+	}
+}
+
+//#endregion short circuit
 
 function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;

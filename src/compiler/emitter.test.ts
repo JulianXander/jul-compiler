@@ -681,6 +681,45 @@ function runEmitted(code: string, resultName?: string): unknown {
 	return new Function(...runtimeNames, body)(...runtimeNames.map(name => (runtime as { [name: string]: unknown; })[name]));
 }
 
+function emitChecked(code: string): string {
+	const parsed = parseCode(code, 'dummy.jul');
+	checkTypes(parsed, {}, { cloneUnchecked: true });
+	expect(parsed.checked?.errors).to.deep.equal([]);
+	return withoutImports(syntaxTreeToJs(parsed.checked!.expressions!, ''));
+}
+
+const expectEmitChecked = reportAtCaller((code: string, result: string) => {
+	expect(emitChecked(code)).to.equal(result);
+});
+
+describe('Emitter and/or kurzschließend', () => {
+	it('and mit mehreren Argumenten wird zu &&', () => {
+		expectEmitChecked(
+			'x = true\ny = false\nz = true\nresult = and(x y z)',
+			'export const x = true;\nexport const y = false;\nexport const z = true;\nexport const result = x && y && z;',
+		);
+	});
+	it('or mit mehreren Argumenten wird zu ||', () => {
+		expectEmitChecked(
+			'x = true\ny = false\nresult = or(x y)',
+			'export const x = true;\nexport const y = false;\nexport const result = x || y;',
+		);
+	});
+	it('verschachtelte Aufrufe werden geklammert', () => {
+		expectEmitChecked(
+			'x = true\ny = false\nresult = and(x or(y x))',
+			'export const x = true;\nexport const y = false;\nexport const result = x && (y || x);',
+		);
+	});
+	it('and mit Spread bleibt ein Funktionsaufruf', () => {
+		const js = emitChecked('list = [true false]\nresult = and(...list)');
+		expect(js).to.not.contain('&&');
+	});
+	it('and liefert weiterhin das richtige Ergebnis', () => {
+		expect(runEmitted('x = true\ny = false\nresult = and(x y)', 'result')).to.equal(false);
+	});
+});
+
 describe('Emitter Ausführung', () => {
 	it('mapDictionary bildet jeden Wert mit seinem Schlüssel ab', () => {
 		const code = [

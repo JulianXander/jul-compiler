@@ -325,14 +325,20 @@ not = nativeFunction(
 		value => !value
 	§
 )
-# Liefert true, wenn alle args true sind
+# Liefert true, wenn alle args true sind.
+# Kurzschließend, wenn die args direkt im Aufruf stehen (and(a b c)): Sie werden von links nach
+# rechts ausgewertet, nach dem ersten false werden die übrigen nicht mehr ausgewertet.
+# Bei Spread (and(...list)) und wenn and als Wert weitergereicht wird, sind alle args schon ausgewertet.
 and = nativeFunction(
 	(...args: List(Boolean)) -> Boolean
 	§js
 		(...args) => !args.includes(false)
 	§
 )
-# Liefert true, wenn mindestens ein arg true ist
+# Liefert true, wenn mindestens ein arg true ist.
+# Kurzschließend, wenn die args direkt im Aufruf stehen (or(a b c)): Sie werden von links nach
+# rechts ausgewertet, nach dem ersten true werden die übrigen nicht mehr ausgewertet.
+# Bei Spread (or(...list)) und wenn or als Wert weitergereicht wird, sind alle args schon ausgewertet.
 or = nativeFunction(
 	(...args: List(Boolean)) -> Boolean
 	§js
