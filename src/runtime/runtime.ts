@@ -687,16 +687,23 @@ function isDeepEqual(value1: any, value2: any): boolean {
 			}
 			else {
 				// Dictionary/Function Object
-				if (Object.keys(value1).length !== Object.keys(value2).length) {
-					return false;
-				}
+				// Ohne Object.keys, um keine Arrays anzulegen
+				let fieldCount1 = 0;
 				for (const key in value1) {
+					if (!(key in value2)) {
+						return false;
+					}
 					const fieldValuesEqual = isDeepEqual(value1[key], value2[key]);
 					if (!fieldValuesEqual) {
 						return false;
 					}
+					fieldCount1++;
 				}
-				return true;
+				let fieldCount2 = 0;
+				for (const _key in value2) {
+					fieldCount2++;
+				}
+				return fieldCount1 === fieldCount2;
 			}
 		default: {
 			const assertNever: never = type1;

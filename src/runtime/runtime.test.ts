@@ -327,6 +327,9 @@ describe('deepEqual', () => {
 		expect(deepEqual({ a: 1n }, { a: 2n })).to.equal(false);
 		expect(deepEqual({ a: 1n }, { a: 1n, b: 2n })).to.equal(false);
 	});
+	it('dictionaries with different keys are not equal, even if the values are undefined', () => {
+		expect(deepEqual({ a: undefined }, { b: undefined })).to.equal(false);
+	});
 });
 
 //#endregion Any
