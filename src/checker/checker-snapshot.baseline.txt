@@ -62,17 +62,16 @@ yamlImport: §hello yaml§
 === core-lib/regex/regex.jul ===
 beforeHash: [§abc § §abc §]
 date: [   year: §2026§   month: §10§   day: §10§ ]
-dateMultiline: Empty
+dateMultiline: [   year: §2026§   month: §10§   day: §10§ ]
 dateWithSeparator: Or(Empty List(Text))
 noMatch: false
 separator: §-§
 === core-lib/regex/regex.test.jul ===
 beforeHash: [§abc § §abc §]
 date: [   year: §2026§   month: §10§   day: §10§ ]
-dateMultiline: Empty
+dateMultiline: [   year: §2026§   month: §10§   day: §10§ ]
 dateWithSeparator: Or(Empty List(Text))
 noMatch: false
-  error 5200 at 30:3 Test fails. | deepEqual(Empty [ |   year: §2026§ |   month: §10§ |   day: §10§ | ]) returns false.
 === fibonacci/fibonacci.jul ===
 fibonacci: (x: Integer) -> Any
 fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) -> Any
@@ -426,4 +425,4 @@ subscribeEvent: (   element: Any   event: Text   listener: () :> Any ) ~> Empty
 addHtml: (html: Text) ~> Any
 removeElement: (element: Any) ~> Any
 subscribeEvent: (listener: (   sender: Any   event: Text ) :> Any) ~> Any
-todoItemHtml: §<div>  	<input type="checkbox">  	<input>  	<button onclick="emit(this, 'delete')">x</button>  </div> §
+todoItemHtml: §<div> 	<input type="checkbox"> 	<input> 	<button onclick="emit(this, 'delete')">x</button> </div> §
