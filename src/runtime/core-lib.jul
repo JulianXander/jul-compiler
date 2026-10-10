@@ -113,6 +113,13 @@ Blob = nativeValue(§_Blob§)
 # Instance structure: (message: Text)
 #TODO was wenn message = undefined?
 Error = nativeValue(§_Error§)
+# Erzeugt einen Error mit der gegebenen Meldung. Der Error ist ein gewöhnlicher Wert, kein Wurf.
+error = nativeFunction(
+	(message: Text) -> Error
+	§js
+		(message) => new Error(message)
+	§
+)
 # Datenstruktur mit 1 oder mehr Feldern, deren Werte den Typ ElementType haben.
 # Ein Feld wird über seinen Key angesprochen, einen Text.
 Dictionary = nativeFunction(

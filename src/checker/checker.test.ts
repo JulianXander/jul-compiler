@@ -6477,6 +6477,9 @@ describe('constant folding', () => {
 	it('parseFloat faltet zu Error bei ungültigem Text (zurückgegebener Error, kein Wurf)', () => {
 		expect(typeOfLastDefinition('r = parseFloat(§abc§)')).to.equal('Error');
 	});
+	it('error liefert Error', () => {
+		expect(typeOfLastDefinition('r = error(§kaputt§)')).to.equal('Error');
+	});
 	it('slice faltet zu einem präzisen Tuple statt Or(Empty ...)', () => {
 		expect(typeOfLastDefinition('r = [1 2 3].slice(2)')).to.equal('[2 3]');
 	});

@@ -1976,6 +1976,19 @@ export const combineTexts = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const error = /*#__PURE__*/ _createFunction(
+	function error(message: string) {
+		return new Error(message);
+	},
+	{
+		singleNames: [
+			{
+				name: 'message',
+				type: _Text,
+			},
+		]
+	}
+);
 export const parseFloat = /*#__PURE__*/ _createFunction(
 	function parseFloat(textNumber: string) {
 		const result = +textNumber;
