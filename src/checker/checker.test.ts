@@ -6518,6 +6518,14 @@ describe('constant folding', () => {
 	it('Parametertyp Tupel-Alias mit Or-Elementen faltet', () => {
 		expect(typeOfLastDefinition('Cell = Or(§§ §x§)\nBoard = [[Cell Cell] [Cell Cell]]\nf = (b: Board) -> Boolean => b.all((row = value) => row.all((cell = value) => not(cell.equal(§§))))\nr = f([[§x§ §x§] [§x§ §x§]])')).to.equal('true');
 	});
+	// Ein Text aus mehreren Tokens (hier a, § und b) ergibt ein Literal ohne Trennzeichen,
+	// wie es der Emitter erzeugt.
+	it('Text mit §§ ist ein Literal ohne Zeilenumbruch', () => {
+		expect(typeOfLastDefinition('x = §a§§b§')).to.equal('§a§§b§');
+	});
+	it('mehrzeiliger regex Text ist ein Literal ohne Zeilenumbruch', () => {
+		expect(typeOfLastDefinition('x = §regex\n\t^(a)\n\t(b)\n§')).to.equal('§^(a)(b)§');
+	});
 	it('Parametertyp List-Alias faltet', () => {
 		expect(typeOfLastDefinition('Numbers = List(Integer)\nf = (n: Numbers) -> Integer => n.length()\nr = f([1 2 3])')).to.equal('3');
 	});

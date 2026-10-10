@@ -3403,7 +3403,7 @@ function inferType(
 				// string literal type
 				// TODO sollte hier überhaupt mehrelementiger string möglich sein?
 				const rawType = createTextLiteral(
-					expression.values.map(part => part.value).join('\n'));
+					expression.values.map(part => part.value).join(''));
 				return { type: rawType };
 			}
 			expression.values.forEach(part => {
