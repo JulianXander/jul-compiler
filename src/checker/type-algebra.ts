@@ -30,6 +30,7 @@ import {
 	builtinEmpty,
 	builtinInteger,
 	builtinNever,
+	builtinText,
 	createBooleanLiteral,
 	createCompileTimeAddType,
 	createCompileTimeSubtractType,
@@ -1673,7 +1674,7 @@ export function mapElementsFromTypes(
 				return builtinEmpty;
 			}
 			if (elementTypes.length > maxMappedPositions) {
-				const mapped = mapElementType(callbackType, createNormalizedUnionType(elementTypes), undefined);
+				const mapped = mapElementType(callbackType, createNormalizedUnionType(elementTypes), positionIndexType);
 				return createCompileTimeTupleType(new Array(elementTypes.length).fill(mapped));
 			}
 			return createCompileTimeTupleType(elementTypes.map((elementType, index) =>
@@ -1681,7 +1682,7 @@ export function mapElementsFromTypes(
 		}
 		case 'list':
 			// Die Länge steht nicht fest, jedes Element bekommt denselben Typ.
-			return createCompileTimeListType(mapElementType(callbackType, sourceType.ElementType, undefined));
+			return createCompileTimeListType(mapElementType(callbackType, sourceType.ElementType, positionIndexType));
 		case 'dictionaryLiteral': {
 			const fieldNames = Object.keys(sourceType.Fields);
 			if (!fieldNames.length
@@ -1690,7 +1691,7 @@ export function mapElementsFromTypes(
 			}
 			const mappedFields: CompileTimeDictionary = {};
 			if (fieldNames.length > maxMappedPositions) {
-				const mapped = mapElementType(callbackType, createNormalizedUnionType(Object.values(sourceType.Fields)), undefined);
+				const mapped = mapElementType(callbackType, createNormalizedUnionType(Object.values(sourceType.Fields)), builtinText);
 				fieldNames.forEach(fieldName => {
 					mappedFields[fieldName] = mapped;
 				});
@@ -1705,7 +1706,7 @@ export function mapElementsFromTypes(
 		}
 		case 'dictionary':
 			// Die Schlüssel stehen nicht fest, jeder Wert bekommt denselben Typ.
-			return createCompileTimeDictionaryType(mapElementType(callbackType, sourceType.ElementType, undefined));
+			return createCompileTimeDictionaryType(mapElementType(callbackType, sourceType.ElementType, builtinText));
 		case 'or':
 			return createNormalizedUnionType(sourceType.ChoiceTypes.map(choiceType =>
 				mapElementsFromTypes(choiceType, rawCallbackType)));
@@ -1716,26 +1717,28 @@ export function mapElementsFromTypes(
 			// Über die Quelle ist nichts bekannt, sie kann also auch leer sein.
 			return createNormalizedUnionType([
 				builtinEmpty,
-				createCompileTimeListType(mapElementType(callbackType, builtinAny, undefined)),
+				createCompileTimeListType(mapElementType(callbackType, builtinAny, positionIndexType)),
 			]);
 	}
 }
 
+/** Der deklarierte Typ des Index-Parameters von map über eine Sequenz (1 basiert). */
+const positionIndexType = createCompileTimeBoundType('greater', 'integer', createIntegerLiteral(0n));
+
 /**
- * Der Rückgabetyp von callback für ein Element. Ohne feststehenden Index bleibt der Parameter
- * index ungebunden und fällt später auf seinen deklarierten Typ zurück.
+ * Der Rückgabetyp von callback für ein Element. Steht der Index nicht fest, bekommt der Callback
+ * den deklarierten Typ des Parameters (positionIndexType bzw. Text als Schlüssel), sonst würde
+ * der Verweis auf index ins Leere greifen und zu Empty.
  */
 function mapElementType(
 	callbackType: CompileTimeType,
 	elementType: CompileTimeType,
-	indexType: CompileTimeType | undefined,
+	indexType: CompileTimeType,
 ): CompileTimeType {
 	if (callbackType.julType !== 'function') {
 		return builtinAny;
 	}
-	const argsType = createCompileTimeTupleType(indexType
-		? [elementType, indexType]
-		: [elementType]);
+	const argsType = createCompileTimeTupleType([elementType, indexType]);
 	return dereferenceArgumentTypesNested(callbackType, argsType, callbackType.ReturnType);
 }
 

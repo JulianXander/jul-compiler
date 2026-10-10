@@ -2193,6 +2193,14 @@ complete(a$)`, {
 			errors: [integerReturnTypeMismatch('List([Integer])', 37, 62, 26)],
 		});
 	});
+	// Bug: Über eine List steht der Index nicht fest, er bleibt ungebunden und fällt auf seinen
+	// deklarierten Typ PositiveInteger zurück (siehe mapElementType). Stattdessen ergibt
+	// (value index) => index List(Empty). Damit scheitert in yugioh auch toGameCards:
+	// firstGameCardId.add(index).subtract(1) im Callback wird zu Rational.
+	it('map-over-list-index-falls-back-to-declared-type', () => {
+		expectCheck(`f = (xs: List(Text)) :> List(PositiveInteger) =>
+	xs.map((value index) => index)`);
+	});
 	// Über eine unmögliche Quelle ist auch das Ergebnis unmöglich und passt damit überall.
 	it('map-over-never-is-never', () => {
 		expectCheck('f = (n: And(Integer Text)) :> Integer => n.map((value) => value)');
