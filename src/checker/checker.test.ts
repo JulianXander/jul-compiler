@@ -472,6 +472,26 @@ f = (flag: Boolean) =>
 			sum
 		[§b§] => 0`);
 	});
+	// Bug: Destructuring eines im Zweig verengten Parameters. Die Verengung ist ein Schnitt über dem
+	// noch offenen Parameter, das Destructuring schlägt Name bzw. Position aber ohne getLookupType
+	// nach und meldet "Failed to dereference", obwohl ein nicht verengtes Argument funktioniert.
+	it('branch-narrowing-destructures-by-name-in-remaining-branch', () => {
+		expectCheck(`H = [x: Integer y: Text]
+f = (v: Or(H Error)) :> [Integer Text] =>
+	?(v)
+		[Error] => [0 §§]
+		() =>
+			(x y) = v
+			[x y]`);
+	});
+	it('branch-narrowing-destructures-by-index-in-remaining-branch', () => {
+		expectCheck(`f = (v: Or([Integer Text] Error)) :> [Integer Text] =>
+	?(v)
+		[Error] => [0 §§]
+		() =>
+			(a b) = v
+			[a b]`);
+	});
 	// Gegenprobe: die Verengung darf nur an einem Namen hängen. Zwei Aufrufe sind zwei
 	// Werte — vom Typ des einen folgt nichts über den anderen.
 	it('branch-narrowing-needs-a-name-as-source', () => {
@@ -7227,6 +7247,50 @@ describe('Warnung bei unknown', () => {
 			.filter(error => error.code === ErrorCode.typeNotProven)
 			.map(error => error.message);
 	};
+	// Bug: Im verbleibenden Zweig ist history ein Schnitt aus dem eigenen, offenen Parameter und
+	// dem Komplement des vorherigen Kopfes. Beim Aufruf von step löst sich old/states über diesen
+	// Schnitt nicht auf (dereferenceNameFromObject kennt 'and' nicht) und wird zu Any. Der
+	// Rückgabetyp bleibt dadurch als [states: Concat(Any [1])] stehen und ist nicht als History
+	// beweisbar, obwohl ein nicht verengtes History-Argument den Typ auflöst.
+	it('unknown-not-reported-for-call-in-remaining-branch', () => {
+		expect(unknownMessages(`History = [states: List(Integer)]
+step = (old: History) :> History =>
+	[states = [...old/states 1]]
+wrap = (history: Or(History Error)) :> Or(History Error) =>
+	?(history)
+		[Error] => history
+		() => step(history)`)).to.deep.equal([]);
+	});
+	// Derselbe Fall über die Position statt über den Namen.
+	it('unknown-not-reported-for-call-in-remaining-branch-by-index', () => {
+		expect(unknownMessages(`step = (old: [List(Integer) Text]) :> [List(Integer) Text] =>
+	[[...old/1 1] old/2]
+wrap = (v: Or([List(Integer) Text] Error)) :> Or([List(Integer) Text] Error) =>
+	?(v)
+		[Error] => v
+		() => step(v)`)).to.deep.equal([]);
+	});
+	// Mehrere abgezogene Branches: der Schnitt verteilt sich auf eine Vereinigung.
+	it('unknown-not-reported-for-call-in-remaining-branch-of-union', () => {
+		expect(unknownMessages(`History = [states: List(Integer)]
+step = (old: History) :> History =>
+	[states = [...old/states 1]]
+wrap = (v: Or(History Text Error)) :> Or(History Text Error) =>
+	?(v)
+		[Error] => v
+		[Text] => v
+		() => step(v)`)).to.deep.equal([]);
+	});
+	// Die Quelle ist ein Feldpfad statt eines Namens.
+	it('unknown-not-reported-for-call-in-remaining-branch-of-field-path', () => {
+		expect(unknownMessages(`History = [states: List(Integer)]
+step = (old: History) :> History =>
+	[states = [...old/states 1]]
+wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
+	?(d/h)
+		[Error] => d/h
+		() => step(d/h)`)).to.deep.equal([]);
+	});
 	// Ein schon gemeldeter Fehler soll nicht zusätzlich als unbewiesen gemeldet werden.
 	it('unknown-not-reported-for-invalid', () => {
 		expect(unknownMessages('g = (t: Text) => t\nf = () => g(undefinedName)')).to.deep.equal([]);

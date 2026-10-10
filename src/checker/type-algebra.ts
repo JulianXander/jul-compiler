@@ -1193,7 +1193,9 @@ function traversePlaceholders(
 			const dereferencedKey = typeof rawType.nestedKey === 'object'
 				? traversePlaceholders(rawType.nestedKey, argumentContext)
 				: rawType.nestedKey;
-			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, dereferencedSource);
+			// Das Argument kann eine Verengung sein (And über dem noch offenen Parameter des
+			// Aufrufers): erst der aufgelöste Typ kennt seine Felder, wie bei jedem Nachschlagen.
+			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, getLookupType(dereferencedSource));
 			if (!dereferencedNested) {
 				return builtinAny;
 			}

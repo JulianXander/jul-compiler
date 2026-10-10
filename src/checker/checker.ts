@@ -2391,10 +2391,13 @@ function inferType(
 				// Felder aus, ist jedes Argument ein Array, gelesen wird also über die Position.
 				const readsByPosition = isUnresolvedPlaceholderType(valueType)
 					&& !canHaveFieldsBesideEmpty(resolvePlaceholders(valueType));
+				// Die Verengung legt ein And über den noch offenen Parameter, erst der aufgelöste Typ
+				// kennt seine Felder.
+				const lookupType = getLookupType(valueType);
 				const fieldType = readsByPosition
-					? dereferenceIndexFromObject(index + 1, valueType)
-					: dereferenceNameFromObject(referenceName, valueType)
-					?? dereferenceIndexFromObject(index + 1, valueType);
+					? dereferenceIndexFromObject(index + 1, lookupType)
+					: dereferenceNameFromObject(referenceName, lookupType)
+					?? dereferenceIndexFromObject(index + 1, lookupType);
 				if (!fieldType) {
 					allFieldsResolved = false;
 					errors.push({
