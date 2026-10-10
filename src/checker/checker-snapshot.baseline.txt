@@ -59,6 +59,20 @@ typescriptImport: [   greeting: §hello ts§   test2: 4f   testfn1: (par1: Text)
 valueImport: 15
 yamlImport: §hello yaml§
   error 1151 at 20:3 Expected a nested key
+=== core-lib/regex/regex.jul ===
+beforeHash: [§abc § §abc §]
+date: [   year: §2026§   month: §10§   day: §10§ ]
+dateMultiline: Empty
+dateWithSeparator: Or(Empty List(Text))
+noMatch: false
+separator: §-§
+=== core-lib/regex/regex.test.jul ===
+beforeHash: [§abc § §abc §]
+date: [   year: §2026§   month: §10§   day: §10§ ]
+dateMultiline: Empty
+dateWithSeparator: Or(Empty List(Text))
+noMatch: false
+  error 5200 at 30:3 Test fails. | deepEqual(Empty [ |   year: §2026§ |   month: §10§ |   day: §10§ | ]) returns false.
 === fibonacci/fibonacci.jul ===
 fibonacci: (x: Integer) -> Any
 fibonacciHelper: (   countdown: Integer   current: Integer   previous: Integer ) -> Any

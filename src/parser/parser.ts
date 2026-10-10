@@ -1553,7 +1553,18 @@ function multilineTextParser(
 	let languageIdentifier: string | undefined;
 	if (result.parsed) {
 		languageIdentifier = result.parsed[1];
+		const isRegex = languageIdentifier === 'regex';
 		result.parsed[3].forEach(line => {
+			if (isRegex) {
+				// Ein Regex ist ein Pattern, kein Text mit Zeilen: Zeilen ohne Umbruch und ohne
+				// Einrückung verbinden. Kommentar- und Leerzeilen tragen nichts bei.
+				if (typeof line === 'object') {
+					values.push(...line.map((value, index) => index === 0 && value.type === 'textToken'
+						? { ...value, value: value.value.replace(/^\t+/, '') }
+						: value));
+				}
+				return;
+			}
 			if (typeof line === 'object') {
 				values.push(...line);
 			}

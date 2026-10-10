@@ -20,6 +20,17 @@ const expectParse = reportAtCaller((code: string, { result, errors, filePath }: 
 	}
 });
 
+const expectTextValue = reportAtCaller((code: string, expected: string) => {
+	const parserResult = parseCode(code, 'dummy.jul');
+	expect(parserResult.unchecked.errors).to.deep.equal([]);
+	const text = parserResult.unchecked.expressions?.[0];
+	if (text?.type !== 'text') {
+		throw new Error('text expected');
+	}
+	const value = text.values.map(part => part.type === 'textToken' ? part.value : '').join('');
+	expect(value).to.equal(expected);
+});
+
 describe('Parser', () => {
 	//#region Literale und Schreibweisen
 	// Ohne result wird nur geprüft, dass fehlerfrei geparst wird. Das reicht für
@@ -32,6 +43,18 @@ describe('Parser', () => {
 	});
 	it('text-multiline', () => {
 		expectParse('§\n\t12\n§');
+	});
+	it('text-multiline-regex-joins-lines', () => {
+		expectTextValue('§regex\n\t^(a)\n\t\t(b)\n§', '^(a)(b)');
+	});
+	it('text-multiline-regex-single-line-has-no-trailing-newline', () => {
+		expectTextValue('§regex\n\t^([^#]*)\n§', '^([^#]*)');
+	});
+	it('text-multiline-regex-skips-comment-lines', () => {
+		expectTextValue('§regex\n\t^(a)\n\t# Kommentar\n\t(b)\n§', '^(a)(b)');
+	});
+	it('text-multiline-js-keeps-newlines', () => {
+		expectTextValue('§js\n\ta\n\tb\n§', 'a\nb\n');
 	});
 	it('definition-with-literal-type-guard', () => {
 		expectParse('a: 4 = 4');
