@@ -1,3 +1,4 @@
+-editor performance wegen gewachsenem yugioh verschlechter, untersuchen und verbessern
 -usages von assume in yugioh untersuchen:
 	-warum sind sie aktuell notwendig?
 	-wie könnte man das vermeiden?
