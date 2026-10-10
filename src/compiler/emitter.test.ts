@@ -717,6 +717,27 @@ describe('Emitter Ausführung', () => {
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(undefined);
 	});
+	it('findKey liefert den Schlüssel des passenden Werts', () => {
+		const code = [
+			'd = [a = 1 b = 2 c = 3]',
+			'result = d.findKey((value key) => value.equal(2))',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal('b');
+	});
+	it('findKey ohne Treffer liefert Empty', () => {
+		const code = [
+			'd = [a = 1 b = 2]',
+			'result = d.findKey((value key) => value.greater(5))',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(undefined);
+	});
+	it('findKey über Empty liefert Empty', () => {
+		const code = [
+			'f = (d: Or([] Dictionary(Integer))) => d.findKey((value) => value.greater(1))',
+			'result = f([])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(undefined);
+	});
 	// Die Selbstreferenz steht in einer Kollektion und ist damit produktiv, der Checker lässt sie
 	// durch. Zur Laufzeit darf sie dann nicht vor der fertigen Definition ausgewertet werden.
 	it('ein rekursiver Typ lässt sich laden', () => {

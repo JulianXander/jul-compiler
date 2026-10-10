@@ -1105,6 +1105,29 @@ findField = nativeFunction(
 		}
 	§
 )
+# Liefert den Schlüssel eines Feldes, dessen Wert predicate true liefert.
+# Zur Reihenfolge und zu mehreren Treffern siehe findField.
+findKey = nativeFunction(
+	(
+		dictionary: Or([] Dictionary(Any))
+		predicate: (
+			value: TypeOf(dictionary)/ElementType
+			key: Text
+		) :> Boolean
+	) :> Or([] Text)
+	§js
+		(dictionary, predicate) => {
+			if (!dictionary) {
+				return;
+			}
+			for (const key in dictionary) {
+				if (predicate(dictionary[key], key)) {
+					return key;
+				}
+			}
+		}
+	§
+)
 #endregion Dictionary
 #region Stream
 #region core

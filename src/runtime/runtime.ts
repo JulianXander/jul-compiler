@@ -2705,6 +2705,34 @@ export const findField = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const findKey = /*#__PURE__*/ _createFunction(
+	function findKey<T>(
+		dictionary: { [key: string]: T; } | undefined,
+		predicate: (value: T, key: string) => boolean,
+	): string | undefined {
+		if (!dictionary) {
+			return;
+		}
+		for (const key in dictionary) {
+			if (predicate(dictionary[key]!, key)) {
+				return key;
+			}
+		}
+		return;
+	},
+	{
+		singleNames: [
+			{
+				name: 'dictionary',
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
+			},
+			{
+				name: 'predicate',
+				type: _Function
+			},
+		]
+	}
+);
 //#endregion Dictionary
 //#region Stream
 //#region helper
