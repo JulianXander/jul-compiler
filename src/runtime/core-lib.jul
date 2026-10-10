@@ -264,12 +264,14 @@ Add = nativeFunction(
 #region Functions
 #region Any
 # Liefert true, wenn die beiden Werte gleich sind (Referenzgleichheit)
+# Für Wertgleichheit von Collections: stattdessen deepEqual verwenden
 equal = nativeFunction(
 	(first second) -> Boolean
 	§js
 		(first, second) => first === second
 	§
 )
+# Wertgleichheit
 deepEqual = nativeFunction(
 	(first second) -> Boolean
 	§js
