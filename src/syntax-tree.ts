@@ -701,6 +701,7 @@ export type CompileTimeType =
 	| CompileTimeMapElementsType
 	| CompileTimeConcatType
 	| CompileTimeAddType
+	| CompileTimeSubtractType
 	| CompileTimeListType
 	| CompileTimeTupleType
 	| CompileTimeDictionaryType
@@ -1061,6 +1062,28 @@ export function createCompileTimeAddType(ArgsType: CompileTimeType): CompileTime
 	return {
 		julType: 'add',
 		ArgsType: ArgsType,
+		isUnresolvedPlaceholder: true,
+	};
+}
+
+/**
+ * Die möglichen Differenzen der Integer MinuendType und SubtrahendType. Bleibt nur stehen,
+ * solange einer von beiden noch Platzhalter enthält (siehe subtractFromTypes im Checker).
+ */
+export interface CompileTimeSubtractType extends CompileTimeTypeBase {
+	readonly julType: 'subtract';
+	MinuendType: CompileTimeType;
+	SubtrahendType: CompileTimeType;
+}
+
+export function createCompileTimeSubtractType(
+	MinuendType: CompileTimeType,
+	SubtrahendType: CompileTimeType,
+): CompileTimeSubtractType {
+	return {
+		julType: 'subtract',
+		MinuendType: MinuendType,
+		SubtrahendType: SubtrahendType,
 		isUnresolvedPlaceholder: true,
 	};
 }
@@ -1457,6 +1480,10 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 			return;
 		case 'add':
 			callback(type.ArgsType);
+			return;
+		case 'subtract':
+			callback(type.MinuendType);
+			callback(type.SubtrahendType);
 			return;
 		case 'and':
 		case 'or':

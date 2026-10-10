@@ -1553,6 +1553,24 @@ export const Add = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const Subtract = /*#__PURE__*/ _createFunction(
+	function Subtract(MinuendType: RuntimeType, SubtrahendType: RuntimeType): RuntimeType {
+		// Wie Add nur für den Checker: der Rückgabetyp von subtract.
+		throw new Error('Subtract() is only for type-level computation and should never be called at runtime');
+	},
+	{
+		singleNames: [
+			{
+				name: 'MinuendType',
+				type: Type,
+			},
+			{
+				name: 'SubtrahendType',
+				type: Type,
+			},
+		]
+	}
+);
 export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {

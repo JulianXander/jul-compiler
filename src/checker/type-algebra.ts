@@ -32,6 +32,7 @@ import {
 	builtinNever,
 	createBooleanLiteral,
 	createCompileTimeAddType,
+	createCompileTimeSubtractType,
 	createCompileTimeAliasType,
 	createCompileTimeBoundType,
 	createCompileTimeComplementType,
@@ -58,7 +59,7 @@ import {
 	forEachChildType,
 	getFunctionTypeFacts,
 } from '../syntax-tree.js';
-import { elementsEqual, fieldsEqual, isDefined, map, mapDictionary } from '../util.js';
+import { elementsEqual, fieldsEqual, isDefined, isNonEmpty, map, mapDictionary } from '../util.js';
 import { checkerStats } from './checker-stats.js';
 import { getNameFromValue, isInsideFunctionLiteral } from '../parser/parser-utils.js';
 
@@ -491,6 +492,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'integer':
 		case 'integerLiteral':
 		case 'add':
+		case 'subtract':
 		case 'lengthOf':
 		case 'never':
 		case 'not':
@@ -677,6 +679,7 @@ export function dereferenceNameFromObject(
 		case 'integer':
 		case 'integerLiteral':
 		case 'add':
+		case 'subtract':
 		case 'lengthOf':
 		case 'never':
 		case 'not':
@@ -760,6 +763,7 @@ function dereferenceNameFromObjectType(
 		case 'integer':
 		case 'integerLiteral':
 		case 'add':
+		case 'subtract':
 		case 'lengthOf':
 		case 'never':
 		case 'not':
@@ -865,6 +869,7 @@ export function dereferenceIndexFromObject(
 		case 'integer':
 		case 'integerLiteral':
 		case 'add':
+		case 'subtract':
 		case 'lengthOf':
 		case 'never':
 		case 'not':
@@ -1380,6 +1385,18 @@ function traversePlaceholders(
 			// Neu falten statt neu einpacken.
 			return concatFromTypes(dereferencedSources);
 		}
+		case 'subtract': {
+			const rawMinuend = rawType.MinuendType;
+			const rawSubtrahend = rawType.SubtrahendType;
+			const dereferencedMinuend = traversePlaceholders(rawMinuend, argumentContext);
+			const dereferencedSubtrahend = traversePlaceholders(rawSubtrahend, argumentContext);
+			if (dereferencedMinuend === rawMinuend
+				&& dereferencedSubtrahend === rawSubtrahend) {
+				return rawType;
+			}
+			// Neu falten statt neu einpacken.
+			return subtractFromTypes(dereferencedMinuend, dereferencedSubtrahend);
+		}
 		case 'add': {
 			const rawArgs = rawType.ArgsType;
 			const dereferencedArgs = traversePlaceholders(rawArgs, argumentContext);
@@ -1828,6 +1845,97 @@ export function addFromTypes(rawArgsType: CompileTimeType): CompileTimeType {
 		sum += minimum;
 	}
 	return createCompileTimeBoundType('greater', 'integer', createIntegerLiteral(sum - 1n));
+}
+
+/**
+ * Die möglichen Differenzen der Integer minuend und subtrahend. Gerechnet wird mit Grenzen: Ist
+ * minuend ≥ m und subtrahend ≤ s, ist die Differenz ≥ m - s. Umgekehrt gilt für minuend ≤ n und
+ * subtrahend ≥ t die Obergrenze n - t. Ohne Grenzen bleibt Integer, auch für Argumente, die nicht
+ * sicher Integer sind: Den Rest deckt der catchAll von subtract ab.
+ * Bleibt stehen, solange minuend oder subtrahend noch Platzhalter enthält.
+ */
+export function subtractFromTypes(rawMinuendType: CompileTimeType, rawSubtrahendType: CompileTimeType): CompileTimeType {
+	if (isUnresolvedPlaceholderType(rawMinuendType)
+		|| isUnresolvedPlaceholderType(rawSubtrahendType)) {
+		return createCompileTimeSubtractType(rawMinuendType, rawSubtrahendType);
+	}
+	if (isSubtypeOf(rawMinuendType, builtinInteger) !== true
+		|| isSubtypeOf(rawSubtrahendType, builtinInteger) !== true) {
+		return builtinInteger;
+	}
+	const minuendMinimum = getIntegerMinimum(rawMinuendType);
+	const subtrahendMaximum = getIntegerMaximum(rawSubtrahendType);
+	const minuendMaximum = getIntegerMaximum(rawMinuendType);
+	const subtrahendMinimum = getIntegerMinimum(rawSubtrahendType);
+	const minimum = minuendMinimum !== undefined && subtrahendMaximum !== undefined
+		? minuendMinimum - subtrahendMaximum
+		: undefined;
+	const maximum = minuendMaximum !== undefined && subtrahendMinimum !== undefined
+		? minuendMaximum - subtrahendMinimum
+		: undefined;
+	if (minimum !== undefined
+		&& minimum === maximum) {
+		return createIntegerLiteral(minimum);
+	}
+	const boundTypes: CompileTimeType[] = [];
+	if (minimum !== undefined) {
+		boundTypes.push(createCompileTimeBoundType('greater', 'integer', createIntegerLiteral(minimum - 1n)));
+	}
+	if (maximum !== undefined) {
+		boundTypes.push(createCompileTimeBoundType('less', 'integer', createIntegerLiteral(maximum + 1n)));
+	}
+	if (!isNonEmpty(boundTypes)) {
+		return builtinInteger;
+	}
+	return boundTypes.length === 1
+		? boundTypes[0]
+		: createNormalizedIntersectionType(boundTypes);
+}
+
+/**
+ * Der größte Wert m, für den jeder Integer dieses Typs x ≤ m erfüllt. undefined heißt: nach
+ * oben offen, oder die Grenze ist hier nicht ablesbar. Das Spiegelbild zu getIntegerMinimum.
+ */
+function getIntegerMaximum(rawType: CompileTimeType): bigint | undefined {
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'integerLiteral':
+			return type.value;
+		case 'bound': {
+			const value = type.Value;
+			return type.Relation === 'less'
+				&& type.Family === 'integer'
+				&& value.julType === 'integerLiteral'
+				? value.value - 1n
+				: undefined;
+		}
+		case 'and': {
+			let minimum: bigint | undefined;
+			for (const choiceType of type.ChoiceTypes) {
+				const maximum = getIntegerMaximum(choiceType);
+				if (maximum !== undefined
+					&& (minimum === undefined || maximum < minimum)) {
+					minimum = maximum;
+				}
+			}
+			return minimum;
+		}
+		case 'or': {
+			let maximum: bigint | undefined;
+			for (const choiceType of type.ChoiceTypes) {
+				const choiceMaximum = getIntegerMaximum(choiceType);
+				if (choiceMaximum === undefined) {
+					return undefined;
+				}
+				if (maximum === undefined || choiceMaximum > maximum) {
+					maximum = choiceMaximum;
+				}
+			}
+			return maximum;
+		}
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -3003,6 +3111,10 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 		case 'add':
 			return second.julType === 'add'
 				&& typeEquals(first.ArgsType, second.ArgsType);
+		case 'subtract':
+			return second.julType === 'subtract'
+				&& typeEquals(first.MinuendType, second.MinuendType)
+				&& typeEquals(first.SubtrahendType, second.SubtrahendType);
 		case 'tuple':
 			return second.julType === 'tuple'
 				&& first.ElementTypes.length === second.ElementTypes.length
@@ -3307,6 +3419,7 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'invalid':
 		case 'blob':
 		case 'add':
+		case 'subtract':
 		case 'boolean':
 		case 'booleanLiteral':
 		case 'concat':
@@ -3580,7 +3693,8 @@ function isTypeAssignableByStructure(
 				break;
 			}
 		// falls through
-		case 'add': {
+		case 'add':
+		case 'subtract': {
 			// Wie withElementAt: eine noch unaufgelöste Source (z.B. der eigene Parameter, bevor
 			// er am Aufruf substituiert wird) hält den Knoten als Concat(...) stehen
 			// (concatFromTypes: isUnresolvedPlaceholderType-Guard). Erst per resolvePlaceholders
@@ -4098,6 +4212,9 @@ function isTypeAssignableByStructure(
 			return { assignable: undefined };
 		case 'add':
 			// Ungefaltete Summe: permissiv wie concat.
+			return { assignable: undefined };
+		case 'subtract':
+			// Ungefaltete Differenz: permissiv wie concat.
 			return { assignable: undefined };
 		case 'predicate': {
 			if (argumentsType.julType === 'predicate'
@@ -4809,6 +4926,8 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 				i > 0 ? ' ' + typeToString(source, indent, depth + 1, suppressAlias) : typeToString(source, indent, depth + 1, suppressAlias)).join('')})`;
 		case 'add':
 			return `Add(${typeToString(type.ArgsType, indent, depth + 1, suppressAlias)})`;
+		case 'subtract':
+			return `Subtract(${typeToString(type.MinuendType, indent, depth + 1, suppressAlias)} ${typeToString(type.SubtrahendType, indent, depth + 1, suppressAlias)})`;
 		case 'type':
 			return 'Type';
 		case 'typeOf':

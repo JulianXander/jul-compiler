@@ -83,6 +83,7 @@ import { applyIgnoreComments } from '../parser/comment-directives.js';
 import { checkerStats } from './checker-stats.js';
 import {
 	addFromTypes,
+	subtractFromTypes,
 	canHaveFields,
 	concatFromTypes,
 	createConditionalType,
@@ -254,7 +255,7 @@ const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
  * Typfunktionen, deren Ergebnis ungültig ist, wenn einer ihrer Operanden schon als Fehler gemeldet
  * ist. And, Or, Not und TypeOf folgen dem über die Normalisierung bzw. ihren eigenen Zweig.
  */
-const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'GreaterInteger', 'LessInteger'];
+const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'Subtract', 'GreaterInteger', 'LessInteger'];
 
 /**
  * Stream(ValueType) und FiniteStream(ValueType): dieselbe Typfunktion, nur das Merkmal finite
@@ -3670,6 +3671,16 @@ function getReturnTypeFromFunctionCall(
 				}
 				return createCompileTimeTypeOfType(addFromTypes(valueOf(argType)));
 			}
+			case 'Subtract': {
+				const argTypes = getAllArgTypes(boundArgsType);
+				const minuendType = argTypes?.[0];
+				const subtrahendType = argTypes?.[1];
+				if (!minuendType
+					|| !subtrahendType) {
+					return builtinAny;
+				}
+				return createCompileTimeTypeOfType(subtractFromTypes(valueOf(minuendType), valueOf(subtrahendType)));
+			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
@@ -4865,6 +4876,7 @@ function classifyTypenessOnPath(
 		case 'stream':
 		case 'bound':
 		case 'add':
+		case 'subtract':
 		case 'lengthOf':
 		case 'indexRange':
 			return 'value';

@@ -246,6 +246,14 @@ Add = nativeFunction(
 		(ArgsType) => Add(ArgsType)
 	§
 )
+# Die möglichen Differenzen der Integer MinuendType und SubtrahendType, der Rückgabetyp von subtract.
+# Hat der Minuend eine untere und der Subtrahend eine obere Grenze, ist die Differenz größer als deren Differenz.
+Subtract = nativeFunction(
+	(MinuendType: Type SubtrahendType: Type) -> Type
+	§js
+		(MinuendType, SubtrahendType) => Subtract(MinuendType, SubtrahendType)
+	§
+)
 # Function = nativeFunction(
 # 	# TODO?
 # 	# (
@@ -388,7 +396,7 @@ subtract = nativeFunction(
 	(minuend: Rational subtrahend: Rational)
 		->
 			:?(TypeOf(minuend) TypeOf(subtrahend))
-				[Integer Integer] => Integer
+				[Integer Integer] => Subtract(TypeOf(minuend) TypeOf(subtrahend))
 				[Integer Fraction] => Fraction
 				[Fraction Integer] => Fraction
 				() => Rational

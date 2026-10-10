@@ -3184,6 +3184,36 @@ n/1`, {
 	it('get-element-index-out-of-tuple-range-is-empty', () => {
 		expectCheck(`x: [] = [1 §a§].getElement(5)`);
 	});
+	// Bug: add über zwei PositiveInteger bleibt PositiveInteger, add(...).subtract(1) fiel
+	// aber auf Integer zurück, obwohl p + i - 1 mindestens 1 ist. Der Typ verlor die
+	// untere Schranke bei subtract (yugioh: firstGameCardId.add(index).subtract(1) brauchte
+	// deshalb ein assume auf GameCardId).
+	it('subtract-keeps-lower-bound-of-added-positives', () => {
+		expectCheck(`f = (p: PositiveInteger i: PositiveInteger) =>
+	x: PositiveInteger = p.add(i).subtract(1)
+	x`);
+	});
+	// Gegenprobe: ohne Obergrenze des Subtrahenden kann die Differenz beliebig klein werden.
+	it('subtract-without-upper-bound-of-subtrahend-is-integer', () => {
+		expectCheck(`f = (p: PositiveInteger i: PositiveInteger) =>
+	y: PositiveInteger = p.subtract(i)
+	y`, {
+			errors: [{
+				code: ErrorCode.definitionTypeMismatch,
+				message: 'Definition type mismatch.\nCan not assign Integer to GreaterInteger(0).',
+				startRowIndex: 1,
+				startColumnIndex: 1,
+				endRowIndex: 1,
+				endColumnIndex: 35,
+			}],
+		});
+	});
+	// Eine Obergrenze des Minuenden und eine Untergrenze des Subtrahenden ergeben eine Obergrenze.
+	it('subtract-keeps-upper-bound', () => {
+		expectCheck(`f = (a: LessInteger(10) b: PositiveInteger) =>
+	x: LessInteger(10) = a.subtract(b)
+	x`);
+	});
 	// Jeder Choice eines Union-Index ist ein eigener Zugriff. Trifft jeder von ihnen
 	// eine vorhandene Position, gehört kein Empty ins Ergebnis. Der Index muss dafür
 	// als Variable mit Union-Typ ankommen — ein Literal-Argument wäre schon verengt.
@@ -6896,7 +6926,7 @@ describe('bedingte Typen', () => {
 	it('K6', () => expectConditional('h = (x: Integer y: Rational) => add(x y)', { returnType: 'Rational' }));
 	it('K7', () => expectConditional('h = (ys: List(Integer)) => add(...ys)', { returnType: 'Integer' }));
 	it('K8 Präfix', () => expectConditional('h = (x: Integer) => x.add(1)', { returnType: 'Integer' }));
-	it('K9 Länge minus eins', () => expectConditional('h = (xs: List(Integer)) => xs.length().subtract(1)', { returnType: 'Integer' }));
+	it('K9 Länge minus eins', () => expectConditional('h = (xs: List(Integer)) => xs.length().subtract(1)', { returnType: 'GreaterInteger(-1)' }));
 	it('K10 Faltung add', () => expectConditional('r = add(2 3)', { type: '5' }));
 	it('K10 Faltung subtract', () => expectConditional('r = subtract(5 3)', { type: '2' }));
 	// Zwei Fractions können einen Integer ergeben: 1/2 + 1/2 = 1, 1/2 - 1/2 = 0.
