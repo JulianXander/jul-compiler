@@ -104,7 +104,56 @@ const textJson = JSON.stringify({
 		`Beschreibung ${index}: ein längerer Text mit Inhalt, wie er in Stammdaten steht. `.repeat(2)
 		+ (index % 10 ? '' : '\n"mit Escapes"\té')),
 });
+// Paare frischer Kopien: nie identisch, damit der === Kurzschluss nicht greift
+const createDeepValue = (): any => ({
+	id: 1n,
+	name: 'name',
+	tags: ['a', 'b', 'c'],
+	nested: { x: 1n, y: 2n, list: Array.from({ length: 10 }, (_, index) => BigInt(index)) },
+});
+const deepChanged = createDeepValue();
+deepChanged.nested.list[9] = 99n;
+const deepEqualPairs = {
+	lists: [
+		{ first: [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n], second: [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n] },
+		{ first: [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n], second: [1n, 2n, 3n, 4n, 5n, 6n, 7n, 9n] },
+	],
+	dictionaries: [
+		{ first: { a: 1n, b: 2n, c: 3n, d: 4n }, second: { a: 1n, b: 2n, c: 3n, d: 4n } },
+		{ first: { a: 1n, b: 2n, c: 3n, d: 4n }, second: { a: 1n, b: 2n, c: 3n, d: 5n } },
+		{ first: { a: 1n, b: 2n, c: 3n, d: 4n }, second: { a: 1n, b: 2n, c: 3n } },
+		{ first: { a: 1n, b: 2n, c: 3n, d: 4n }, second: { a: 1n, b: 2n, c: 3n, e: 4n } },
+	],
+	nested: [
+		{ first: createDeepValue(), second: createDeepValue() },
+		{ first: createDeepValue(), second: deepChanged },
+	],
+};
 const cases: BenchCase[] = [
+	{
+		file: 'deep-equal.jul',
+		functionName: 'equalPair',
+		label: 'deep-equal/lists',
+		inputs: deepEqualPairs.lists,
+		expected: [true, false],
+		calls: 500_000,
+	},
+	{
+		file: 'deep-equal.jul',
+		functionName: 'equalPair',
+		label: 'deep-equal/dictionaries',
+		inputs: deepEqualPairs.dictionaries,
+		expected: [true, false, false, false],
+		calls: 500_000,
+	},
+	{
+		file: 'deep-equal.jul',
+		functionName: 'equalPair',
+		label: 'deep-equal/nested',
+		inputs: deepEqualPairs.nested,
+		expected: [true, false],
+		calls: 200_000,
+	},
 	{
 		file: 'branching.jul',
 		functionName: 'emptyOrComplex',

@@ -1,0 +1,1 @@
+equalPair = (pair: [first: Any second: Any]) => deepEqual(pair/first pair/second)
