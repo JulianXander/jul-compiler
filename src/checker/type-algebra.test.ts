@@ -556,5 +556,44 @@ describe('Typalgebra', () => {
 		expect(typeEquals(result, maybeEmptyList), typeToString(result, 0, 0)).to.equal(true);
 		expect(checkerStats.getTypeError).to.be.lessThan(5000);
 	});
+	// Über dem Budget fasst Concat linear zusammen. Das Ergebnis ist nur dann auch leer, wenn jede
+	// Quelle leer sein kann.
+	it('concat-ueber-budget-mit-nie-leerer-quelle-ist-nie-leer', () => {
+		const maybeEmpty = or([builtinEmpty, createCompileTimeListType(builtinInteger)]);
+		const nonEmpty = createCompileTimeListType(builtinInteger);
+		const result = concatFromTypes([maybeEmpty, maybeEmpty, maybeEmpty, maybeEmpty, maybeEmpty, maybeEmpty, maybeEmpty, maybeEmpty, nonEmpty]);
+		expect(typeEquals(result, nonEmpty), typeToString(result, 0, 0)).to.equal(true);
+	});
+	// Die Tuple-Länge geht bei der Zusammenfassung bewusst verloren, die Elemente bleiben erhalten.
+	it('concat-ueber-budget-mit-tuples-wird-liste-der-elemente', () => {
+		const maybeEmptyTuple = or([builtinEmpty, createCompileTimeTupleType([builtinInteger, builtinText])]);
+		const result = concatFromTypes(Array.from({ length: 4 }, () => maybeEmptyTuple));
+		const expected = or([builtinEmpty, createCompileTimeListType(or([builtinInteger, builtinText]))]);
+		expect(typeEquals(result, expected), typeToString(result, 0, 0)).to.equal(true);
+	});
+	it('concat-ueber-budget-nur-empty-ist-empty', () => {
+		const maybeEmpty = or([builtinEmpty, createCompileTimeTupleType([])]);
+		const result = concatFromTypes(Array.from({ length: 4 }, () => or([builtinEmpty, builtinEmpty, maybeEmpty])));
+		expect(result).to.equal(builtinEmpty);
+	});
+	// Eine Quelle, die keine Sequenz ist, lässt die Zusammenfassung aus: Es wird wie gehabt verteilt.
+	it('concat-ueber-budget-mit-dictionary-quelle-faellt-auf-verteilung-zurueck', () => {
+		const dictionary = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
+		const maybeEmpty = or([builtinEmpty, createCompileTimeListType(builtinInteger)]);
+		const result = concatFromTypes([maybeEmpty, maybeEmpty, maybeEmpty, maybeEmpty, dictionary]);
+		// Verteilt: eine Union der 16 Kombinationen, keine zusammengefasste List
+		expect(result.julType).to.equal('or');
+	});
+	// Unter dem Budget bleibt die Verteilung exakt, die Tuple-Länge erhalten.
+	it('concat-unter-budget-behaelt-tuple-laenge', () => {
+		const maybeEmptyTuple = or([builtinEmpty, createCompileTimeTupleType([builtinInteger])]);
+		const result = concatFromTypes([maybeEmptyTuple, maybeEmptyTuple]);
+		const expected = or([
+			builtinEmpty,
+			createCompileTimeTupleType([builtinInteger]),
+			createCompileTimeTupleType([builtinInteger, builtinInteger]),
+		]);
+		expect(typeEquals(result, expected), typeToString(result, 0, 0)).to.equal(true);
+	});
 	//#endregion Concat
 });
