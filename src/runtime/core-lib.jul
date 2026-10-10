@@ -6,7 +6,8 @@ false = nativeValue(§false§)
 Any = nativeValue(§Any§)
 # Type = Any :> Boolean
 Type = nativeValue(§Type§)
-# data structure containing 1 or more elements of type ElementType
+# Datenstruktur mit 1 oder mehr Elementen vom Typ ElementType.
+# Ein Element wird über seinen Index angesprochen, einen 1-basierten PositiveInteger.
 List = nativeFunction(
 	(ElementType: Type) -> Type
 	§js
@@ -112,7 +113,8 @@ Blob = nativeValue(§_Blob§)
 # Instance structure: (message: Text)
 #TODO was wenn message = undefined?
 Error = nativeValue(§_Error§)
-# data structure containing 1 or more key-value-pairs of type ElementType
+# Datenstruktur mit 1 oder mehr Feldern, deren Werte den Typ ElementType haben.
+# Ein Feld wird über seinen Key angesprochen, einen Text.
 Dictionary = nativeFunction(
 	(ElementType: Type) -> Type
 	§js
@@ -1016,7 +1018,7 @@ aggregate = nativeFunction(
 )
 #endregion List
 #region Dictionary
-# Returns the value of the field
+# Liefert den Wert des Feldes mit dem gegebenen Key.
 getField = nativeFunction(
 	(
 		dictionary: Or([] Dictionary(Any))
@@ -1026,7 +1028,7 @@ getField = nativeFunction(
 		(dictionary, key) => dictionary?.[key]
 	§
 )
-# Creates a new Dictionary without mutating the given dictionary
+# Liefert ein neues Dictionary, in dem das Feld key den Wert value hat. Das übergebene bleibt unverändert.
 setField = nativeFunction(
 	(
 		dictionary: Or([] Dictionary(Any))
@@ -1058,7 +1060,7 @@ toList = nativeFunction(
 		}
 	§
 )
-# Creates a new Dictionary with the same keys, each value mapped by transform
+# Liefert ein neues Dictionary mit denselben Keys, dessen Feldwerte jeweils mit transform abgebildet sind.
 mapDictionary = nativeFunction(
 	(
 		dictionary: Or([] Dictionary(Any))
@@ -1080,8 +1082,8 @@ mapDictionary = nativeFunction(
 		}
 	§
 )
-# Liefert einen Wert, für den predicate true liefert.
-# Die Reihenfolge der Felder ist deterministisch, aber nicht Teil der Sprache (ganzzahlige Schlüssel
+# Liefert den Wert eines Feldes, für den predicate true liefert.
+# Die Reihenfolge der Felder ist deterministisch, aber nicht Teil der Sprache (ganzzahlige Keys
 # kommen zuerst und aufsteigend, danach die übrigen in Einfügereihenfolge).
 findField = nativeFunction(
 	(
@@ -1105,7 +1107,7 @@ findField = nativeFunction(
 		}
 	§
 )
-# Liefert den Schlüssel eines Feldes, dessen Wert predicate true liefert.
+# Liefert den Key eines Feldes, dessen Wert predicate true liefert.
 # Zur Reihenfolge und zu mehreren Treffern siehe findField.
 findKey = nativeFunction(
 	(
