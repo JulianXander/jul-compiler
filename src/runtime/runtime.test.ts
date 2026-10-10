@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
-	completed$, create$, deepEqual, delay$, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat,
+	completed$, create$, deepEqual, delay$, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat,
 	regex, setElement, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
 
@@ -335,6 +335,21 @@ describe('deepEqual', () => {
 //#endregion Any
 
 //#region List
+
+describe('findFirstIndex', () => {
+	it('finds the index of the first matching element (1-based)', () => {
+		const result = findFirstIndex([1n, 2n, 3n, 2n], (value: bigint) => value === 2n);
+		expect(result).to.equal(2n);
+	});
+	it('returns undefined when nothing matches', () => {
+		const result = findFirstIndex([1n, 2n], (value: bigint) => value === 9n);
+		expect(result).to.equal(undefined);
+	});
+	it('returns undefined for an empty value', () => {
+		const result = findFirstIndex(undefined, () => true);
+		expect(result).to.equal(undefined);
+	});
+});
 
 describe('findLastIndex', () => {
 	it('finds the index of the last matching element (1-based)', () => {

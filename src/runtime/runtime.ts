@@ -2412,6 +2412,34 @@ export const findFirst =/*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const findFirstIndex = /*#__PURE__*/ _createFunction(
+	function findFirstIndex<T>(
+		values: T[] | undefined,
+		predicate: (value: T, index: bigint) => boolean,
+	): bigint | undefined {
+		if (!values) {
+			return;
+		}
+		const firstIndexFloat = values.findIndex((value, index) => {
+			return predicate(value, BigInt(index + 1));
+		});
+		return firstIndexFloat === -1
+			? undefined
+			: BigInt(firstIndexFloat + 1);
+	},
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
+			},
+			{
+				name: 'predicate',
+				type: _Function
+			},
+		]
+	}
+);
 export const findLast = /*#__PURE__*/ _createFunction(
 	function findLast<T>(
 		values: T[] | undefined,

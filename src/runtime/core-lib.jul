@@ -875,6 +875,29 @@ findFirst = nativeFunction(
 		}
 	§
 )
+# Liefert den index des ersten Elements, für das predicate true liefert.
+findFirstIndex = nativeFunction(
+	(
+		values: Or([] List(Any))
+		predicate: (
+			value: TypeOf(values)/ElementType
+			index: PositiveInteger
+		) :> Boolean
+	) :> Or([] PositiveInteger)
+	§js
+		(values, predicate) => {
+			if (!values) {
+				return;
+			}
+			const firstIndex = values.findIndex((value, index) => {
+				return predicate(value, BigInt(index + 1));
+			});
+			return firstIndex === -1
+				? undefined
+				: BigInt(firstIndex + 1);
+		}
+	§
+)
 # Liefert das letzte Element, für das predicate true liefert.
 findLast = nativeFunction(
 	(
