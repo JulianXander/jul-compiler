@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
-	completed$, create$, deepEqual, delay$, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat,
+	completed$, create$, deepEqual, delay$, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField,
 	regex, setElement, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
 
@@ -385,6 +385,31 @@ describe('getElement/setElement', () => {
 });
 
 //#endregion List
+
+//#region Dictionary
+
+describe('removeField', () => {
+	it('removes the field and keeps the others', () => {
+		const dictionary = { a: 1n, b: 2n };
+		const result = removeField(dictionary, 'a');
+		expect(result).to.deep.equal({ b: 2n });
+		expect(dictionary).to.deep.equal({ a: 1n, b: 2n });
+	});
+	it('keeps the content when the key is missing', () => {
+		const result = removeField({ a: 1n }, 'x');
+		expect(result).to.deep.equal({ a: 1n });
+	});
+	it('returns undefined when no field is left', () => {
+		const result = removeField({ a: 1n }, 'a');
+		expect(result).to.equal(undefined);
+	});
+	it('returns undefined for an empty value', () => {
+		const result = removeField(undefined, 'a');
+		expect(result).to.equal(undefined);
+	});
+});
+
+//#endregion Dictionary
 
 //#region Text
 

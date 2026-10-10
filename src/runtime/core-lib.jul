@@ -1093,6 +1093,32 @@ setField = nativeFunction(
 		}
 	§
 )
+# Liefert ein neues Dictionary ohne das Feld mit dem gegebenen Key. Das übergebene bleibt unverändert.
+# Fehlt der Key, bleibt der Inhalt gleich. Bleibt kein Feld übrig, ist das Ergebnis empty.
+removeField = nativeFunction(
+	(
+		dictionary: Or([] Dictionary(Any))
+		key: Text
+	) -> Or([] Dictionary(TypeOf(dictionary)/ElementType))
+	§js
+		(dictionary, key) => {
+			if (!dictionary) {
+				return;
+			}
+			const newDictionary = {};
+			let hasField = false;
+			for (const oldKey in dictionary) {
+				if (oldKey !== key) {
+					newDictionary[oldKey] = dictionary[oldKey];
+					hasField = true;
+				}
+			}
+			return hasField
+				? newDictionary
+				: undefined;
+		}
+	§
+)
 toList = nativeFunction(
 	(
 		dictionary: Or([] Dictionary(Any))

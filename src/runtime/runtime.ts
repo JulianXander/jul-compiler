@@ -2670,6 +2670,39 @@ export const getField = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const removeField = /*#__PURE__*/ _createFunction(
+	function removeField<T>(
+		dictionary: { [key: string]: T; } | undefined,
+		key: string,
+	): { [key: string]: T; } | undefined {
+		if (!dictionary) {
+			return;
+		}
+		const newDictionary: { [key: string]: T; } = {};
+		let hasField = false;
+		for (const oldKey in dictionary) {
+			if (oldKey !== key) {
+				newDictionary[oldKey] = dictionary[oldKey]!;
+				hasField = true;
+			}
+		}
+		return hasField
+			? newDictionary
+			: undefined;
+	},
+	{
+		singleNames: [
+			{
+				name: 'dictionary',
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
+			},
+			{
+				name: 'key',
+				type: _Text
+			},
+		]
+	}
+);
 export const setField = /*#__PURE__*/ _createFunction(
 	function setField<T>(
 		dictionary: { [key: string]: T; } | undefined,
