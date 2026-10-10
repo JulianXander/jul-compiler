@@ -1,3 +1,6 @@
+-usages von assume in yugioh untersuchen:
+	-warum sind sie aktuell notwendig?
+	-wie könnte man das in vermeiden?
 -vgl todos in test1.jul
 	-function literal syntax überdenken, folgende form evtl erlauben, oder auto umformatieren:
 		myList.filter((x) =>
