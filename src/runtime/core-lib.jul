@@ -1080,6 +1080,31 @@ mapDictionary = nativeFunction(
 		}
 	§
 )
+# Liefert einen Wert, für den predicate true liefert.
+# Die Reihenfolge der Felder ist deterministisch, aber nicht Teil der Sprache (ganzzahlige Schlüssel
+# kommen zuerst und aufsteigend, danach die übrigen in Einfügereihenfolge).
+findField = nativeFunction(
+	(
+		dictionary: Or([] Dictionary(Any))
+		predicate: (
+			value: TypeOf(dictionary)/ElementType
+			key: Text
+		) :> Boolean
+	) :> Or([] And(TypeOf(dictionary)/ElementType TypeOf(predicate)/PredicateIfTrue))
+	§js
+		(dictionary, predicate) => {
+			if (!dictionary) {
+				return;
+			}
+			for (const key in dictionary) {
+				const value = dictionary[key];
+				if (predicate(value, key)) {
+					return value;
+				}
+			}
+		}
+	§
+)
 #endregion Dictionary
 #region Stream
 #region core

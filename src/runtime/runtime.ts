@@ -2676,6 +2676,35 @@ export const mapDictionary = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const findField = /*#__PURE__*/ _createFunction(
+	function findField<T>(
+		dictionary: { [key: string]: T; } | undefined,
+		predicate: (value: T, key: string) => boolean,
+	): T | undefined {
+		if (!dictionary) {
+			return;
+		}
+		for (const key in dictionary) {
+			const value = dictionary[key]!;
+			if (predicate(value, key)) {
+				return value;
+			}
+		}
+		return;
+	},
+	{
+		singleNames: [
+			{
+				name: 'dictionary',
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
+			},
+			{
+				name: 'predicate',
+				type: _Function
+			},
+		]
+	}
+);
 //#endregion Dictionary
 //#region Stream
 //#region helper
