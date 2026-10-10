@@ -203,3 +203,4 @@
 2026-10-08 09:21:20	699bb6e+	-	ADV-DEV-56627	yugioh	parse+check	5	1239.19	1717.76	1717.76	vorher: HEAD ohne literalParameterNames/Invalid
 2026-10-08 09:21:28	699bb6e+	-	ADV-DEV-56627	yugioh	parse+check	5	1222.18	1670.41	1670.41	nachher: literalParameterNames + Invalid Phase 1-4
 2026-10-08 14:44:16	699bb6e+	-	ADV-DEV-56627	yugioh	parse+check	5	1220.48	1691.53	1691.53	nachher: Invalid-Umbau komplett (Phase 1-7)
+2026-10-10 09:56:59	58876c2+	-	ADV-DEV-56627	yugioh	parse+check	5	1816.30	2168.72	2168.72	typesOverlap: disjunkte Dictionary-Literale

@@ -7257,6 +7257,20 @@ describe('Warnung bei unknown', () => {
 	it('unknown-not-reported-in-typescript-file', () => {
 		expect(unknownMessages('export function f(a: any): string { return a; }', { filePath: 'dummy.ts' })).to.deep.equal([]);
 	});
+	// Nach dem ersten branch zieht die Verengung dessen Typ ab. Dictionaries mit verschiedenem
+	// Literal im selben Feld sind disjunkt, der Abzug darf den Feldzugriff nicht zu Any machen.
+	it('unknown-not-reported-for-field-after-disjoint-branch', () => {
+		const code = [
+			'A = [type: §a§ card: Text]',
+			'B = [type: §b§ card: Text n: Integer]',
+			'g = (t: Text) => t',
+			'f = (u: Or(A B)) =>',
+			'\t?(u)',
+			'\t\t[A] => g(u/card)',
+			'\t\t[B] => g(u/card)',
+		].join('\n');
+		expect(unknownMessages(code)).to.deep.equal([]);
+	});
 	it('unknown-is-a-warning', () => {
 		expect(errorInfos[ErrorCode.typeNotProven].severity).to.equal('warning');
 	});

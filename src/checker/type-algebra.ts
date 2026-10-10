@@ -2545,8 +2545,9 @@ export function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeTy
 	switch (firstFamily) {
 		case 'list':
 			return sequencesOverlap(first, second);
-		// strukturierte Typen derselben Familie können sich beliebig überschneiden
 		case 'dictionary':
+			return dictionaryLiteralsOverlap(first, second);
+		// strukturierte Typen derselben Familie können sich beliebig überschneiden
 		case 'function':
 		case 'stream':
 			return undefined;
@@ -2555,6 +2556,26 @@ export function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeTy
 			return true;
 	}
 	//#endregion gleiche Familie
+}
+
+/**
+ * Zwei Dictionary-Literale sind disjunkt, wenn ein Feld, das beide nennen, in beiden disjunkte
+ * Typen hat (type: §a§ gegen type: §b§). Sonst können sie sich überschneiden, das lässt sich aus
+ * den Feldern nicht bestätigen.
+ */
+function dictionaryLiteralsOverlap(first: ResolvedType, second: ResolvedType): false | undefined {
+	if (first.julType !== 'dictionaryLiteral'
+		|| second.julType !== 'dictionaryLiteral') {
+		return undefined;
+	}
+	for (const [name, firstFieldType] of Object.entries(first.Fields)) {
+		const secondFieldType = second.Fields[name];
+		if (secondFieldType
+			&& typesOverlap(firstFieldType, secondFieldType) === false) {
+			return false;
+		}
+	}
+	return undefined;
 }
 
 /**
