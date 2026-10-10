@@ -208,3 +208,4 @@
 2026-10-10 12:23:58	cae95cf+	-	ADV-DEV-56627	yugioh	parse+check	5	7991.25	8497.12	8497.12	nach getLookupType-Fix (Aufrufort, Destructuring)
 2026-10-10 12:25:58	7fb7fdc	-	ADV-DEV-56627	jul-examples	parse+check	5	91.46	152.99	152.99	jul-examples vor getLookupType-Fix
 2026-10-10 12:25:59	7fb7fdc+	-	ADV-DEV-56627	jul-examples	parse+check	5	86.68	139.85	139.85	jul-examples nach getLookupType-Fix
+2026-10-10 14:51:47	8e4bb7e+	-	ADV-DEV-56627	yugioh	parse+check	5	4710.14	5332.36	5332.36	concatFromTypes: lineare Zusammenfassung ab 8 Faellen statt 2^n Verteilung

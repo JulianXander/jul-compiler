@@ -1742,6 +1742,53 @@ function mapElementType(
 	return dereferenceArgumentTypesNested(callbackType, argsType, callbackType.ReturnType);
 }
 
+/** Bis zu so vielen Fällen verteilt concatFromTypes Or-Quellen exakt (Tuple-Längen bleiben erhalten). */
+const maxConcatLeafCount = 8;
+
+/**
+ * Aneinanderreihung ohne Fallunterscheidung: Elementtypen aller Quellen vereinigt, das Ergebnis
+ * ist eine List und nur dann auch leer, wenn jede Quelle leer sein kann. undefined, wenn eine
+ * Quelle keine Sequenz ist (dann bleibt nur die Verteilung).
+ */
+function concatSequenceSourcesLinear(sourceTypes: CompileTimeType[]): CompileTimeType | undefined {
+	const elementTypes: CompileTimeType[] = [];
+	let hasListSource = false;
+	let canBeEmpty = true;
+	for (const rawSource of sourceTypes) {
+		const source = resolveAlias(valueOf(rawSource));
+		const choices = source.julType === 'or'
+			? source.ChoiceTypes.map(choice => resolveAlias(valueOf(choice)))
+			: [source];
+		let sourceCanBeEmpty = false;
+		for (const choice of choices) {
+			switch (choice.julType) {
+				case 'empty':
+					sourceCanBeEmpty = true;
+					break;
+				case 'tuple':
+					elementTypes.push(...choice.ElementTypes);
+					// ein Tuple unter mehreren Choices hat unbekannte Länge
+					hasListSource ||= choices.length > 1;
+					break;
+				case 'list':
+					elementTypes.push(choice.ElementType);
+					hasListSource = true;
+					break;
+				default:
+					return undefined;
+			}
+		}
+		canBeEmpty &&= sourceCanBeEmpty;
+	}
+	if (!elementTypes.length) {
+		return builtinEmpty;
+	}
+	const listType = createCompileTimeListType(createNormalizedUnionType(elementTypes));
+	return canBeEmpty
+		? createNormalizedUnionType([builtinEmpty, listType])
+		: listType;
+}
+
 /**
  * Die Aneinanderreihung mehrerer Quellen. Sind alle Quellen konkrete Tupel, wird das Ergebnis
  * ihr Tuple; hat eine Quelle eine List, Union der Elementtypen als List; bei unaufgelösten
@@ -1754,6 +1801,21 @@ export function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType
 	// Or-Quelle zuerst verteilen (Fund: Or([] List(X)) ist das Idiom für eine möglicherweise
 	// leere Liste, CLAUDE.md) - sonst gilt eine Quelle mit unbestimmter Länge fälschlich als
 	// nicht auflösbar.
+	// Jede Or-Quelle verdoppelt die Zahl der Fälle: Bei vielen möglicherweise leeren Listen
+	// ([...a() ...b() ...c()]) wären es 2^n Blätter mit je eigener Union-Normalisierung.
+	// Darüber wird nicht verteilt, sondern linear zusammengefasst.
+	const leafCount = sourceTypes.reduce((count, source) => {
+		const resolved = resolveAlias(valueOf(source));
+		return resolved.julType === 'or'
+			? count * resolved.ChoiceTypes.length
+			: count;
+	}, 1);
+	if (leafCount > maxConcatLeafCount) {
+		const collapsed = concatSequenceSourcesLinear(sourceTypes);
+		if (collapsed) {
+			return collapsed;
+		}
+	}
 	const orIndex = sourceTypes.findIndex(source => resolveAlias(valueOf(source)).julType === 'or');
 	if (orIndex !== -1) {
 		const orSource = resolveAlias(valueOf(sourceTypes[orIndex]!));

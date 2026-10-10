@@ -22,9 +22,12 @@ import {
 	createFloatLiteral,
 	createIntegerLiteral,
 	createParameterReference,
+	createTextLiteral,
 } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
+import { checkerStats, resetCheckerStats } from './checker-stats.js';
 import {
+	concatFromTypes,
 	createNormalizedIntersectionType,
 	createNormalizedUnionType,
 	dereferenceIndexFromObject,
@@ -536,4 +539,22 @@ describe('Typalgebra', () => {
 		expect(or([builtinAny, builtinInteger])).to.equal(builtinAny);
 	});
 	//#endregion Invalid
+	//#region Concat
+	// Jede Quelle Or([] List(X)) verdoppelt die Zahl der Fälle, wenn Concat die Quellen einzeln
+	// verteilt: Bei acht Quellen sind das 256 Blätter, jedes mit eigener Union-Normalisierung samt
+	// Teilmengenprüfung der Varianten. Der Aufwand muss mit der Quellenzahl wachsen, nicht mit ihrer
+	// Potenz (Muster: [...a() ...b() ...c()] mit Funktionen, die Or([] List(Input)) liefern).
+	it('concat-vieler-moeglicherweise-leerer-listen-bleibt-linear', () => {
+		const variant = (tag: string) => createCompileTimeDictionaryLiteralType({
+			type: createTextLiteral(tag),
+			gameCardId: builtinInteger,
+		}, true);
+		const input = createNormalizedUnionType(['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(variant));
+		const maybeEmptyList = createNormalizedUnionType([builtinEmpty, createCompileTimeListType(input)]);
+		resetCheckerStats();
+		const result = concatFromTypes(Array.from({ length: 8 }, () => maybeEmptyList));
+		expect(typeEquals(result, maybeEmptyList), typeToString(result, 0, 0)).to.equal(true);
+		expect(checkerStats.getTypeError).to.be.lessThan(5000);
+	});
+	//#endregion Concat
 });
