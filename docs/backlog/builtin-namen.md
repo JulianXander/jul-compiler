@@ -24,7 +24,12 @@ Container-Begriffe stehen in [container-nomenklatur.md](container-nomenklatur.md
 7. **Abkürzungen.** Der Rest-Parameter heißt `args` (`add`, `multiply`, `maxInteger` und weitere),
    Zeiten heißen `delayMs` und `timeoutMs`. Ausgeschrieben wären das `arguments` bzw. `numbers`
    und `delayMilliseconds`. Zu klären ist, ob `Ms` als bekannte Einheit durchgeht.
-8. **Kommentare.** Teils englisch („Creates a new List…"), teils deutsch.
+8. **Funktionen, die keine Verben sind.** `length`, `range`, `regex`, `currentDate` sind Nomen,
+   `greater` und `all` sind Adjektive bzw. Quantoren, `equal` ist ein Adjektiv (`and`, `or`,
+   `not` sind logische Operatoren und bleiben vermutlich). Mögliche Verb-Namen wären `getLength`,
+   `createRange`, `getCurrentDate`, `isGreater`, `isEqual`. Zu klären ist, ob Prädikate mit `is`
+   beginnen und ob Operatoren und kurze Ableitungen wie `length` Ausnahmen sind.
+9. **Kommentare.** Teils englisch („Creates a new List…"), teils deutsch.
 
 ## Offene Regelfragen
 

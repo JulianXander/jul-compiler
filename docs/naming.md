@@ -51,6 +51,10 @@ mehrdeutig wäre (`findFirstIndex` statt `firstIndex`).
   JavaScript, Haskell oder Rust heißt. Übernommen wird ein fremder Name, wenn er der beste ist
   (`map`, `filter`), nicht weil er fremd bekannt ist. Der Preis: Umsteiger müssen einzelne Namen
   neu lernen.
+- **Funktionen sind Verben, Typen eher Nomen.** Eine Funktion tut etwas und heißt danach
+  (`getElement`, `parseJson`, `filter`), ein Typ beschreibt, was ein Wert ist (`Integer`,
+  `PositiveInteger`, `Dictionary`). Eine Typfunktion trägt den Stamm ihrer Wertfunktion und
+  bleibt damit ein Verb (`Add`, `Concat`).
 - **Ein Wort pro Begriff.** Hat das Wort für eine Sache schon einen Namen in der core-lib, wird er
   wiederverwendet, kein Synonym. Gegenstücke heißen symmetrisch (`get`/`set`, nicht `get`/`put`).
 
