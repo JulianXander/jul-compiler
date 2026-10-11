@@ -38,6 +38,10 @@ dieselbe Operation, die eine auf Werten, die andere auf Typen.
 
 ## Neue Namen finden
 
+Ziele sind **Klarheit** und **Kürze**, Klarheit ist wichtiger. Ein Name ist nur dann kürzer zu
+machen, wenn er dadurch nicht unklarer wird. Der Preis: Namen werden länger, wo ein kürzerer
+mehrdeutig wäre (`findFirstIndex` statt `firstIndex`).
+
 - **Ausgeschrieben, keine Abkürzungen.** Ein Name wird gelesen, bevor er geschrieben wird, und
   eine Abkürzung muss der Leser auflösen. Erlaubt sind nur allgemein bekannte Abkürzungen, die
   ausgeschrieben länger oder weniger verständlich wären (`JSON`, `URL`, `HTTP`, `regex`). Im
