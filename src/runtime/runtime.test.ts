@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
-	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
+	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete,
 	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
-	regex, setElement, subscribe, subtract, take$, takeUntil$, interval$, toJson,
+	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
 
 //#region _branch
@@ -406,6 +406,49 @@ describe('findLastIndex', () => {
 	it('returns undefined when nothing matches', () => {
 		const result = findLastIndex([1n, 2n], (value: bigint) => value === 9n);
 		expect(result).to.equal(undefined);
+	});
+});
+
+describe('compareOrdinal', () => {
+	it('liefert less, equal und greater', () => {
+		expect(compareOrdinal('a', 'b')).to.equal('less');
+		expect(compareOrdinal('b', 'b')).to.equal('equal');
+		expect(compareOrdinal('c', 'b')).to.equal('greater');
+	});
+	it('ordnet Großbuchstaben vor Kleinbuchstaben', () => {
+		expect(compareOrdinal('B', 'a')).to.equal('less');
+	});
+	it('vergleicht Ziffern als Text, nicht als Zahl', () => {
+		expect(compareOrdinal('a10', 'a2')).to.equal('less');
+	});
+});
+
+describe('sort', () => {
+	const compareNumbers = (first: bigint, second: bigint) => first < second
+		? 'less'
+		: first > second
+			? 'greater'
+			: 'equal';
+	it('sortiert aufsteigend', () => {
+		expect(sort([3n, 1n, 2n], compareNumbers)).to.deep.equal([1n, 2n, 3n]);
+	});
+	it('mutiert die Eingabe nicht', () => {
+		const values = [3n, 1n, 2n];
+		sort(values, compareNumbers);
+		expect(values).to.deep.equal([3n, 1n, 2n]);
+	});
+	it('ist stabil bei gleichen Schlüsseln', () => {
+		const values = [
+			{ key: 2n, name: 'a' },
+			{ key: 1n, name: 'b' },
+			{ key: 2n, name: 'c' },
+			{ key: 1n, name: 'd' },
+		];
+		const sorted = sort(values, (first, second) => compareNumbers(first.key, second.key));
+		expect(sorted!.map(value => value.name)).to.deep.equal(['b', 'd', 'a', 'c']);
+	});
+	it('liefert empty für empty', () => {
+		expect(sort(undefined, compareNumbers)).to.equal(undefined);
 	});
 });
 

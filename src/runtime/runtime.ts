@@ -2039,6 +2039,27 @@ export const combineTexts = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const compareOrdinal = /*#__PURE__*/ _createFunction(
+	function compareOrdinal(first: string, second: string) {
+		return first < second
+			? 'less'
+			: first > second
+				? 'greater'
+				: 'equal';
+	},
+	{
+		singleNames: [
+			{
+				name: 'first',
+				type: _Text,
+			},
+			{
+				name: 'second',
+				type: _Text,
+			},
+		]
+	}
+);
 export const error = /*#__PURE__*/ _createFunction(
 	function error(message: string) {
 		return new Error(message);
@@ -2373,6 +2394,38 @@ export const flatten = /*#__PURE__*/ _createFunction(
 			{
 				name: 'values',
 				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(/*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))))
+			},
+		]
+	}
+);
+export const sort = /*#__PURE__*/ _createFunction(
+	function sort<T>(
+		values: T[] | undefined,
+		compare: (first: T, second: T) => 'less' | 'equal' | 'greater',
+	): T[] | undefined {
+		if (!values) {
+			return;
+		}
+		return [...values].sort((first, second) => {
+			switch (compare(first, second)) {
+				case 'less':
+					return -1;
+				case 'greater':
+					return 1;
+				default:
+					return 0;
+			}
+		});
+	},
+	{
+		singleNames: [
+			{
+				name: 'values',
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ List(Any))
+			},
+			{
+				name: 'compare',
+				type: _Function
 			},
 		]
 	}

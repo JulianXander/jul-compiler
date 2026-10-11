@@ -1580,6 +1580,40 @@ g = () => f([1 2 3] (index: Not(GreaterInteger(3))) => [])`);
 	it('flatten-accepts-empty-inner-lists', () => {
 		expectCheck('x: Or([] List(Integer)) = [[1 2] [] [3]].flatten()');
 	});
+	// sort erhält den Elementtyp, der Callback bekommt Elemente dieses Typs.
+	it('sort-keeps-element-type', () => {
+		expectCheck(`f = (values: List(Text)) :> Or([] List(Text)) =>
+	values.sort((first second) => compareOrdinal(first second))`);
+	});
+	it('sort-callback-must-return-ordering', () => {
+		expectCheck(`f = (values: List(Integer)) =>
+	values.sort((first second) => §smaller§)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'compare\'\n  Invalid return value\n    Can not assign §smaller§ to §less§.\n    Can not assign §smaller§ to §equal§.\n    Can not assign §smaller§ to §greater§.',
+					startRowIndex: 1,
+					startColumnIndex: 13,
+					endRowIndex: 1,
+					endColumnIndex: 40,
+				},
+			],
+		});
+	});
+	it('compareOrdinal-rejects-integer', () => {
+		expectCheck('x = compareOrdinal(§a§ 1)', {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'second\'\n  Can not assign 1 to Text.',
+					startRowIndex: 0,
+					startColumnIndex: 23,
+					endRowIndex: 0,
+					endColumnIndex: 24,
+				},
+			],
+		});
+	});
 	// Wie filter-return-type-accounts-for-possibly-empty-result: flatten kann die
 	// Liste leeren (alle inneren Listen sind Empty), ein deklarierter Rückgabetyp ohne
 	// Or([] ...) muss daran scheitern.

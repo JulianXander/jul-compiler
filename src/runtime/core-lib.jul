@@ -600,6 +600,20 @@ parseFloat = nativeFunction(
 		}
 	§
 )
+# Ergebnis eines Vergleichs: first ist kleiner, gleich oder größer als second.
+Ordering = Or(§less§ §equal§ §greater§)
+# Vergleicht zwei Texte ordinal, also nach UTF-16-Code-Units und unabhängig von Sprache und Umgebung.
+# Großbuchstaben stehen damit vor Kleinbuchstaben (§B§ vor §a§), §a10§ steht vor §a2§.
+compareOrdinal = nativeFunction(
+	(first: Text second: Text) -> Ordering
+	§js
+		(first, second) => first < second
+			? 'less'
+			: first > second
+				? 'greater'
+				: 'equal'
+	§
+)
 #region JSON
 JsonPrimitive = Or([] Boolean Rational Text)
 JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
@@ -839,6 +853,34 @@ flatten = nativeFunction(
 			}
 			const flattened = values.flatMap(value => value ?? []);
 			return flattened.length ? flattened : undefined;
+		}
+	§
+)
+# Sortiert die Liste stabil (gleiche Elemente behalten ihre Reihenfolge) und liefert eine neue Liste.
+# compare sagt, ob first vor, gleich oder nach second einsortiert wird.
+sort = nativeFunction(
+	(
+		values: Or([] List(Any))
+		compare: (
+			first: TypeOf(values)/ElementType
+			second: TypeOf(values)/ElementType
+		) :> Ordering
+	) :> Or([] List(TypeOf(values)/ElementType))
+	§js
+		(values, compare) => {
+			if (!values) {
+				return;
+			}
+			return [...values].sort((first, second) => {
+				switch (compare(first, second)) {
+					case 'less':
+						return -1;
+					case 'greater':
+						return 1;
+					default:
+						return 0;
+				}
+			});
 		}
 	§
 )
