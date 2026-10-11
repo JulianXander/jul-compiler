@@ -234,7 +234,7 @@ testWithout21: true
   error 5000 at 120:43 Definition type mismatch. | Can not assign [a: [b: 4f]] to [a: Float]. |   Invalid value for field 'a' |     Can not assign [b: 4f] to Float.
   error 5000 at 126:42 Definition type mismatch. | Invalid value for field 'a' |   Can not assign 4 to Text.
   error 5000 at 128:1 Definition type mismatch. | Can not assign Empty to Dictionary(Text).
-  error 5050 at 132:1 Argument type mismatch. | Invalid value for parameter 'minuend' |   Can not assign Empty to Integer. |   Can not assign Empty to [ |     numerator: Integer |     denominator: Integer |   ].
+  error 5050 at 132:1 Argument type mismatch. | Invalid value for parameter 'minuend' |   Can not assign Empty to Integer. |   Can not assign Empty to [ |     numerator: Integer |     denominator: NonZeroInteger |   ].
 === type-function.jul ===
 BlubType: TypeOf([   a: List(Text)   b: Or(Empty Text) ])
 arg1: true

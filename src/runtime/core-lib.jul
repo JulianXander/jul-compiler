@@ -102,9 +102,10 @@ LessInteger = nativeFunction(
 PositiveInteger = GreaterInteger(0)
 Fraction = [
 	numerator: Integer
-	denominator: Integer
+	denominator: NonZeroInteger
 ]
 Rational = Or(Integer Fraction)
+NonZeroRational = Rational.Without(0)
 #endregion Number
 # sequence of characters (String)
 Text = nativeValue(§_Text§)
@@ -481,6 +482,21 @@ multiplyFloat = nativeFunction(
 				return new Error('Float overflow.');
 			}
 			return result;
+		}
+	§
+)
+# dividend / divisor, exakt als Rational (ein ganzzahliges Ergebnis ist ein Integer).
+divide = nativeFunction(
+	(dividend: Rational divisor: NonZeroRational) -> Rational
+	§js
+		(dividend, divisor) => {
+			const dividendNumerator = typeof dividend === 'bigint' ? dividend : dividend.numerator;
+			const dividendDenominator = typeof dividend === 'bigint' ? 1n : dividend.denominator;
+			const divisorNumerator = typeof divisor === 'bigint' ? divisor : divisor.numerator;
+			const divisorDenominator = typeof divisor === 'bigint' ? 1n : divisor.denominator;
+			return normalizeRational(
+				dividendNumerator * divisorDenominator,
+				dividendDenominator * divisorNumerator);
 		}
 	§
 )

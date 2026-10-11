@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
-	completed$, create$, deepEqual, delay$, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField,
+	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField,
 	regex, setElement, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
 
@@ -298,6 +298,31 @@ describe('Bruch kuerzen', () => {
 	});
 	it('deepEqual gleicher Werte ist true', () => {
 		expect(deepEqual(add(quarter, quarter), half)).to.equal(true);
+	});
+});
+
+describe('divide', () => {
+	const half = { numerator: 1n, denominator: 2n };
+	it('divides two integers exactly', () => {
+		expect(divide(1n, 2n)).to.deep.equal(half);
+	});
+	it('returns an integer for a whole result', () => {
+		expect(divide(6n, 3n)).to.equal(2n);
+	});
+	it('divides an integer by a fraction', () => {
+		expect(divide(1n, half)).to.equal(2n);
+	});
+	it('divides a fraction by an integer', () => {
+		expect(divide(half, 2n)).to.deep.equal({ numerator: 1n, denominator: 4n });
+	});
+	it('divides two fractions and reduces the result', () => {
+		expect(divide(half, { numerator: 3n, denominator: 4n })).to.deep.equal({ numerator: 2n, denominator: 3n });
+	});
+	it('keeps the sign in the numerator for a negative divisor', () => {
+		expect(divide(1n, -2n)).to.deep.equal({ numerator: -1n, denominator: 2n });
+	});
+	it('divides zero to zero', () => {
+		expect(divide(0n, 5n)).to.equal(0n);
 	});
 });
 

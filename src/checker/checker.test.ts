@@ -2266,7 +2266,7 @@ complete(a$)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: "Argument type mismatch.\nInvalid value for parameter 'args'\n  Can not assign Text to Integer.\n  Can not assign Text to [\n    numerator: Integer\n    denominator: Integer\n  ].",
+					message: "Argument type mismatch.\nInvalid value for parameter 'args'\n  Can not assign Text to Integer.\n  Can not assign Text to [\n    numerator: Integer\n    denominator: NonZeroInteger\n  ].",
 					startRowIndex: 0,
 					startColumnIndex: 48,
 					endRowIndex: 0,

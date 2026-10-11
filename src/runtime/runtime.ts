@@ -1575,10 +1575,11 @@ export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {
 		numerator: Integer,
-		denominator: Integer
+		denominator: NonZeroInteger
 	},
 };
 export const Rational = /*#__PURE__*/ Or(Integer, Fraction);
+export const NonZeroRational = /*#__PURE__*/ And(Rational, /*#__PURE__*/ Not(0n));
 //#endregion Number
 export const _Text: TextType = { [_julTypeSymbol]: 'text' };
 export const _Date: DateType = { [_julTypeSymbol]: 'date' };
@@ -1834,6 +1835,29 @@ export const multiply = /*#__PURE__*/ _createFunction(
 		rest: {
 			type: /*#__PURE__*/ List(Rational)
 		}
+	}
+);
+export const divide = /*#__PURE__*/ _createFunction(
+	function divide(dividend: RuntimeRational, divisor: RuntimeRational): RuntimeRational {
+		const dividendNumerator = typeof dividend === 'bigint' ? dividend : dividend.numerator;
+		const dividendDenominator = typeof dividend === 'bigint' ? 1n : dividend.denominator;
+		const divisorNumerator = typeof divisor === 'bigint' ? divisor : divisor.numerator;
+		const divisorDenominator = typeof divisor === 'bigint' ? 1n : divisor.denominator;
+		return normalizeRational(
+			dividendNumerator * divisorDenominator,
+			dividendDenominator * divisorNumerator);
+	},
+	{
+		singleNames: [
+			{
+				name: 'dividend',
+				type: Rational,
+			},
+			{
+				name: 'divisor',
+				type: NonZeroRational,
+			}
+		]
 	}
 );
 export const multiplyFloat = /*#__PURE__*/ _createFunction(
