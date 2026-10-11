@@ -515,6 +515,23 @@ modulo = nativeFunction(
 		(dividend, divisor) => dividend % divisor
 	§
 )
+# Rundet value auf dem Zahlenstrahl nach oben zur nächsten ganzen Zahl (roundUp(-1/2) ist 0).
+roundUp = nativeFunction(
+	(value: Rational) -> Integer
+	§js
+		(value) => {
+			if (typeof value === 'bigint') {
+				return value;
+			}
+			const quotient = value.numerator / value.denominator;
+			const hasRemainder = value.numerator % value.denominator !== 0n;
+			const isPositive = (value.numerator < 0n) === (value.denominator < 0n);
+			return hasRemainder && isPositive
+				? quotient + 1n
+				: quotient;
+		}
+	§
+)
 #endregion arithmetic
 #TODO support Rational values
 # Liefert true, wenn first größer als second ist.

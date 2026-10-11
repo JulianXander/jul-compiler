@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
 	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, complete,
-	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField,
+	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
 	regex, setElement, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
 
@@ -323,6 +323,28 @@ describe('divide', () => {
 	});
 	it('divides zero to zero', () => {
 		expect(divide(0n, 5n)).to.equal(0n);
+	});
+});
+
+describe('roundUp', () => {
+	const fraction = (numerator: bigint, denominator: bigint) => ({ numerator, denominator });
+	it('returns an integer unchanged', () => {
+		expect(roundUp(3n)).to.equal(3n);
+	});
+	it('rounds a positive fraction up', () => {
+		expect(roundUp(fraction(1n, 2n))).to.equal(1n);
+	});
+	it('rounds a negative fraction up towards zero', () => {
+		expect(roundUp(fraction(-3n, 2n))).to.equal(-1n);
+	});
+	it('rounds a negative fraction between -1 and 0 to zero', () => {
+		expect(roundUp(fraction(-1n, 2n))).to.equal(0n);
+	});
+	it('handles a negative denominator', () => {
+		expect(roundUp(fraction(1n, -2n))).to.equal(0n);
+	});
+	it('handles a negative numerator and denominator', () => {
+		expect(roundUp(fraction(-1n, -2n))).to.equal(1n);
 	});
 });
 

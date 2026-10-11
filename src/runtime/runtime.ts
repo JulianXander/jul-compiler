@@ -1896,6 +1896,27 @@ export const rationalToFloat = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const roundUp = /*#__PURE__*/ _createFunction(
+	function roundUp(value: RuntimeRational): bigint {
+		if (typeof value === 'bigint') {
+			return value;
+		}
+		const quotient = value.numerator / value.denominator;
+		const hasRemainder = value.numerator % value.denominator !== 0n;
+		const isPositive = (value.numerator < 0n) === (value.denominator < 0n);
+		return hasRemainder && isPositive
+			? quotient + 1n
+			: quotient;
+	},
+	{
+		singleNames: [
+			{
+				name: 'value',
+				type: Rational,
+			},
+		]
+	}
+);
 export const subtract = /*#__PURE__*/ _createFunction(
 	function subtract(minuend: RuntimeRational, subtrahend: RuntimeRational): RuntimeRational {
 		if (typeof minuend === 'bigint') {
