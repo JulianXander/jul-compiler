@@ -515,7 +515,7 @@ modulo = nativeFunction(
 		(dividend, divisor) => dividend % divisor
 	§
 )
-# Rundet value auf dem Zahlenstrahl nach oben zur nächsten ganzen Zahl (roundUp(-1/2) ist 0).
+# Rundet value auf dem Zahlenstrahl nach oben zur nächsten ganzen Zahl (roundUp(1.5) ist 2, roundUp(-1.5) ist -1).
 roundUp = nativeFunction(
 	(value: Rational) -> Integer
 	§js
