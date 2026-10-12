@@ -176,6 +176,20 @@ const cases: BenchCase[] = [
 		calls: 200_000,
 	},
 	{
+		file: 'branching.jul',
+		functionName: 'literalUnion',
+		inputs: ['draw', 'main2', 'battle', 'end'],
+		expected: [1n, 2n, 3n, 4n],
+		calls: 200_000,
+	},
+	{
+		file: 'branching.jul',
+		functionName: 'emptyOrIntegerUnion',
+		inputs: [undefined, 3n, 6n, 8n],
+		expected: [0n, 0n, 1n, 2n],
+		calls: 200_000,
+	},
+	{
 		file: 'named-arguments.jul',
 		functionName: 'positional',
 		inputs: [1n],

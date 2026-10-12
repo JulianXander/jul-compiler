@@ -13,6 +13,8 @@ import { resolve } from 'path';
 const gridWidth = 680;
 const cellHeight = 190;
 const maxColumnCount = 2;
+/** Ab diesem Verhältnis von größtem zu kleinstem Wert eines Diagramms wird logarithmisch gezeichnet */
+const logarithmicRatio = 10;
 const padding = { top: 40, right: 16, bottom: 46, left: 52 };
 
 /**
@@ -76,18 +78,30 @@ function escapeText(text) {
 function renderCell(label, entries, cellWidth, offsetX, offsetY) {
 	const plotWidth = cellWidth - padding.left - padding.right;
 	const plotHeight = cellHeight - padding.top - padding.bottom;
-	const maxValue = Math.max(...entries.map(entry => entry.median)) * 1.15 || 1;
+	const medians = entries.map(entry => entry.median);
+	const minValue = Math.min(...medians);
+	const maxValue = Math.max(...medians) * 1.15 || 1;
+	// Ein Sprung um Größenordnungen (etwa durch eine Optimierung) drückt linear alle späteren
+	// Werte auf die Nulllinie, deshalb logarithmisch.
+	const isLogarithmic = minValue > 0 && maxValue / minValue > logarithmicRatio;
+	const logMin = Math.log(minValue / 1.15);
+	const logSpan = Math.log(maxValue) - logMin;
 	const getX = (/** @type {number} */ index) => entries.length > 1
 		? padding.left + (index / (entries.length - 1)) * plotWidth
 		: padding.left + plotWidth / 2;
-	const getY = (/** @type {number} */ value) => padding.top + plotHeight - (value / maxValue) * plotHeight;
+	const getFraction = (/** @type {number} */ value) => isLogarithmic
+		? (Math.log(value) - logMin) / logSpan
+		: value / maxValue;
+	const getY = (/** @type {number} */ value) => padding.top + plotHeight - getFraction(value) * plotHeight;
 	const points = entries.map((entry, index) => `${getX(index).toFixed(1)},${getY(entry.median).toFixed(1)}`);
 	const dots = entries.map((entry, index) =>
 		`<circle cx="${getX(index).toFixed(1)}" cy="${getY(entry.median).toFixed(1)}" r="2.5" fill="#5aa9e6">`
 		+ `<title>${escapeText(`${entry.timestamp}\n${entry.commit}${entry.deps === '-' ? '' : `, ${entry.deps}`}\n${entry.median.toFixed(2)} ms`)}</title>`
 		+ '</circle>').join('');
 	const gridLines = [0, 0.5, 1].map(fraction => {
-		const value = maxValue * fraction;
+		const value = isLogarithmic
+			? Math.exp(logMin + logSpan * fraction)
+			: maxValue * fraction;
 		const y = getY(value).toFixed(1);
 		return `<line x1="${padding.left}" y1="${y}" x2="${padding.left + plotWidth}" y2="${y}" stroke="#3a3a3a"/>`
 			+ `<text x="${padding.left - 6}" y="${y}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#999">${value.toFixed(2)}</text>`;

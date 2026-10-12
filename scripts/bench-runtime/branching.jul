@@ -23,3 +23,18 @@ tagField = (s: Shape) =>
 	?(s)
 		[[kind: §circle§]] => 1
 		() => 2
+
+Phase = Or(§draw§ §standby§ §main1§ §battle§ §main2§ §end§)
+
+literalUnion = (phase: Phase) =>
+	?(phase)
+		[Or(§draw§ §standby§)] => 1
+		[Or(§main1§ §main2§)] => 2
+		[Or(§battle§)] => 3
+		() => 4
+
+emptyOrIntegerUnion = (level: Or([] 1 2 3 4 5 6 7 8)) =>
+	?(level)
+		[Or([] 1 2 3 4)] => 0
+		[Or(5 6)] => 1
+		() => 2
