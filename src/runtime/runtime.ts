@@ -20,10 +20,9 @@ type JulFunction = Function & { params: Params; };
 //#region internals
 
 export function _branch(args: Collection | undefined, ...branches: JulFunction[]) {
-	// TODO collect inner Errors?
 	for (const branch of branches) {
 		const assignedParams = tryAssignArgs(branch.params, undefined, args);
-		if (!(assignedParams instanceof Error)) {
+		if (assignedParams) {
 			return branch(...assignedParams);
 		}
 	}
@@ -443,7 +442,7 @@ function getTypeError(value: any, type: RuntimeType): string | undefined {
 			if ('params' in type) {
 				const predicate = type as JulFunction;
 				const assignedParams = tryAssignArgs(predicate.params, undefined, [value]);
-				if (!(assignedParams instanceof Error)
+				if (assignedParams
 					&& predicate(...assignedParams) === true) {
 					return undefined;
 				}
@@ -565,13 +564,13 @@ function assignArgs(
 }
 
 /**
- * Mit type check
+ * Mit type check. Liefert die zugewiesenen Werte, oder undefined, wenn die Argumente nicht passen.
  */
 function tryAssignArgs(
 	params: Params,
 	prefixArg: any,
 	args: Collection | undefined,
-): any[] | Error {
+): any[] | undefined {
 	const assignedValues: any[] = [];
 	const { type: paramsType, singleNames, rest } = params;
 	const hasPrefixArg = prefixArg !== undefined;
@@ -579,7 +578,7 @@ function tryAssignArgs(
 		// TODO typecheck prefixArg with paramsType?
 		const typeError = getTypeError(args, paramsType);
 		if (typeError) {
-			return new Error(`Can not assign the value to params.\n${typeError}`);
+			return undefined;
 		}
 		return assignedValues;
 	}
@@ -605,7 +604,7 @@ function tryAssignArgs(
 				? getTypeError(arg, type)
 				: undefined;
 			if (typeError) {
-				return new Error(`Can not assign the value to param ${sourceWithFallback}.\n${typeError}`);
+				return undefined;
 			}
 			assignedValues.push(arg);
 		}
@@ -620,7 +619,7 @@ function tryAssignArgs(
 				? getTypeError(remainingArgs, restType)
 				: undefined;
 			if (typeError) {
-				return new Error(`Can not assign the value to rest param.\n${typeError}`);
+				return undefined;
 			}
 			assignedValues.push(...remainingArgs ?? []);
 		}
@@ -633,7 +632,7 @@ function tryAssignArgs(
 				? getTypeError(remainingArgs, restType)
 				: undefined;
 			if (typeError) {
-				return new Error(`Can not assign the value to rest param.\n${typeError}`);
+				return undefined;
 			}
 			assignedValues.push(...remainingArgs);
 		}
@@ -2154,14 +2153,14 @@ export const addDate = /*#__PURE__*/ _createFunction(
 		milliseconds: bigint | undefined
 	) {
 		return new Date(
-		date.getFullYear() + Number(years ?? 0),
-		date.getMonth() + Number(months ?? 0),
-		date.getDate() + Number(days ?? 0),
-		date.getHours() + Number(hours ?? 0),
-		date.getMinutes() + Number(minutes ?? 0),
-		date.getSeconds() + Number(seconds ?? 0),
-		date.getMilliseconds() + Number(milliseconds ?? 0),
-	);
+			date.getFullYear() + Number(years ?? 0),
+			date.getMonth() + Number(months ?? 0),
+			date.getDate() + Number(days ?? 0),
+			date.getHours() + Number(hours ?? 0),
+			date.getMinutes() + Number(minutes ?? 0),
+			date.getSeconds() + Number(seconds ?? 0),
+			date.getMilliseconds() + Number(milliseconds ?? 0),
+		);
 	},
 	{
 		singleNames: [

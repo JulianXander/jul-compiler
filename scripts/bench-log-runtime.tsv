@@ -170,3 +170,27 @@
 2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	json/small	15	3952.26	4456.54	4456.54	interval$ statt timer$, mit setInterval
 2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	json/large	15	4061506.00	4628826.00	4628826.00	interval$ statt timer$, mit setInterval
 2026-09-28 12:07:43	97fbf6f	-	ADV-DEV-56627	bench-runtime	json/texts	15	464027.00	504744.50	504744.50	interval$ statt timer$, mit setInterval
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	97.12	106.96	106.96	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	103.28	109.55	109.55	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	338.89	374.28	374.28	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.86	9.80	9.80	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.77	14.02	14.02	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	10.65	12.65	12.65	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	9.34	10.92	10.92	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	8.90	10.62	10.62	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	9.28	10.52	10.52	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	json/small	15	3871.77	4200.38	4200.38	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	json/large	15	3793836.00	3974454.00	3974454.00	vor tryAssignArgs ohne Error
+2026-10-12 14:37:34	34364d3	-	ADV-DEV-56627	bench-runtime	json/texts	15	446335.00	548584.00	548584.00	vor tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	95.73	99.72	99.72	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	98.53	110.26	110.26	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	333.60	358.31	358.31	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	9.52	13.71	13.71	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.80	15.21	15.21	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.04	15.41	15.41	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.41	10.54	10.54	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	9.49	10.68	10.68	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	8.53	10.63	10.63	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	json/small	15	3795.99	3964.24	3964.24	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	json/large	15	3595334.00	3797512.00	3797512.00	nach tryAssignArgs ohne Error
+2026-10-12 14:38:53	34364d3+	-	ADV-DEV-56627	bench-runtime	json/texts	15	431110.00	464447.00	464447.00	nach tryAssignArgs ohne Error
