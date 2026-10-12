@@ -5,7 +5,8 @@
 
 import { relative } from 'path';
 import { fileURLToPath } from 'url';
-import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _Text, _typeToString } from './runtime.js';
+import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _Text } from './runtime.js';
+import type { BuiltInType, RuntimeDictionary, RuntimeType } from './runtime.js';
 
 /**
  * Stelle des test-Aufrufs im .jul-Quelltext, 1-basiert. Setzt der Emitter als drittes Argument,
@@ -165,8 +166,8 @@ function getJulStackLocation(error: Error): TestLocation | undefined {
 }
 
 /**
- * Laufzeitwert in JUL-Schreibweise, einzeilig. Für Skalare genügt _typeToString, weil Literale in
- * JUL auch Typen sind. Kollektionen, Funktionen und Objekte wie Date würde _typeToString dagegen
+ * Laufzeitwert in JUL-Schreibweise, einzeilig. Für Skalare genügt typeToString, weil Literale in
+ * JUL auch Typen sind. Kollektionen, Funktionen und Objekte wie Date würde typeToString dagegen
  * als Typ lesen.
  */
 function valueToString(value: unknown): string {
@@ -190,5 +191,154 @@ function valueToString(value: unknown): string {
 		&& !(_julTypeSymbol in value)) {
 		return `[${Object.entries(value).map(([key, fieldValue]) => `${key} = ${valueToString(fieldValue)}`).join(' ')}]`;
 	}
-	return _typeToString(value as Parameters<typeof _typeToString>[0], 0);
+	return typeToString(value as RuntimeType, 0);
 }
+
+//#region Typen und Skalare als Text
+
+function typeToString(type: RuntimeType, indent: number): string {
+	switch (typeof type) {
+		case 'bigint':
+		case 'boolean':
+			return type.toString();
+		case 'function':
+			return 'CustomType: ' + type;
+		case 'number':
+			return type.toString() + 'f';
+		case 'object': {
+			if (type === null) {
+				// TODO throw error?
+				return '[]';
+			}
+			if (Array.isArray(type)) {
+				return arrayTypeToString(type, indent);
+			}
+			if (_julTypeSymbol in type) {
+				switch (type[_julTypeSymbol]) {
+					case 'and':
+						return `And${arrayTypeToString(type.ChoiceTypes, indent, 'round')}`;
+					case 'any':
+						return 'Any';
+					case 'blob':
+						return 'Blob';
+					case 'boolean':
+						return 'Boolean';
+					case 'date':
+						return 'Date';
+					case 'dictionary':
+						return `Dictionary(${typeToString(type.ElementType, indent)})`;
+					case 'dictionaryLiteral':
+						return dictionaryTypeToString(type.Fields, ': ', indent);
+					case 'empty':
+						return 'Empty';
+					case 'error':
+						return 'Error';
+					case 'float':
+						return 'Float';
+					case 'function':
+						return 'Function';
+					case 'bound':
+						return `${type.Relation === 'greater' ? 'Greater' : 'Less'}${type.Family === 'integer' ? 'Integer' : 'Float'}(${typeToString(type.Value, indent)})`;
+					case 'integer':
+						return 'Integer';
+					case 'list':
+						return `List(${typeToString(type.ElementType, indent)})`;
+					case 'not':
+						return `Not(${typeToString(type.SourceType, indent)})`;
+					case 'or':
+						return `Or${arrayTypeToString(type.ChoiceTypes, indent, 'round')}`;
+					case 'stream':
+						return 'Stream';
+					case 'text':
+						return 'Text';
+					case 'tuple':
+						return arrayTypeToString(type.ElementTypes, indent);
+					case 'type':
+						return 'Type';
+					case 'typeOf':
+						return `TypeOf(${typeToString(type.value, indent)})`;
+					case 'lazy':
+						// Der Name statt des Typs: ausgeschrieben endete die Rekursion nicht.
+						return type.name;
+					default: {
+						const assertNever: never = type;
+						throw new Error(`Unexpected BuiltInType ${(assertNever as BuiltInType)[_julTypeSymbol]}`);
+					}
+				}
+			}
+			// Dictionary
+			return dictionaryTypeToString(type, ' = ', indent);
+		}
+		case 'string':
+			return `§${type.replaceAll('§', '§§')}§`;
+		case 'undefined':
+			return '[]';
+		default: {
+			const assertNever: never = type;
+			throw new Error(`Unexpected type ${typeof assertNever}`);
+		}
+	}
+}
+
+const maxElementsPerLine = 5;
+function arrayTypeToString(
+	array: RuntimeType[],
+	indent: number,
+	kind: 'round' | 'square' = 'square',
+): string {
+	const multiline = array.length > maxElementsPerLine;
+	const newIndent = multiline
+		? indent + 1
+		: indent;
+	return bracketedExpressionToString(
+		array.map(element =>
+			typeToString(element, newIndent)),
+		multiline,
+		indent,
+		kind);
+}
+
+function dictionaryTypeToString(
+	dictionary: RuntimeDictionary,
+	nameSeparator: string,
+	indent: number,
+): string {
+	const multiline = Object.keys(dictionary).length > 1;
+	const newIndent = multiline
+		? indent + 1
+		: indent;
+	return bracketedExpressionToString(
+		Object.entries(dictionary).map(([key, element]) => {
+			return `${key}${nameSeparator}${typeToString(element, newIndent)}`;
+		}),
+		multiline,
+		indent);
+}
+
+/**
+ * @param kind Daten werden eckig geschrieben, die Argumentliste eines Typaufrufs
+ * wie Or/And rund.
+ */
+function bracketedExpressionToString(
+	elements: string[],
+	multiline: boolean,
+	indent: number,
+	kind: 'round' | 'square' = 'square',
+): string {
+	const indentString = '\t'.repeat(indent + 1);
+	const openingBracketSeparator = multiline
+		? '\n' + indentString
+		: '';
+	const elementSeparator = multiline
+		? '\n' + indentString
+		: ' ';
+	const closingBracketSeparator = multiline
+		? '\n' + '\t'.repeat(indent)
+		: '';
+	const [opening, closing] = kind === 'round'
+		? ['(', ')']
+		: ['[', ']'];
+	return `${opening}${openingBracketSeparator}${elements.join(elementSeparator)}${closingBracketSeparator}${closing}`;
+}
+
+//#endregion Typen und Skalare als Text

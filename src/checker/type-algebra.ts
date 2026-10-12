@@ -1,4 +1,4 @@
-import * as runtime from '../runtime/runtime.js';
+import { deepEqual, _isOfType } from '../runtime/runtime.js';
 import { tryBuildCallable, typeToConstantValue } from './constant-folding.js';
 import {
 	CompileTimeAliasType,
@@ -3280,7 +3280,7 @@ function haveSameBoundValues(
 	return names.length === Object.keys(second).length
 		&& names.every(name =>
 			name in second
-			&& runtime.deepEqual(first[name], second[name]));
+			&& deepEqual(first[name], second[name]));
 }
 
 //#endregion Typ Arithmetik
@@ -4367,7 +4367,7 @@ function tryFoldPredicate(predicate: CompileTimePredicateType, argumentsType: Co
 	checkerStats.foldableCall++;
 	let result: boolean | undefined;
 	try {
-		result = runtime._isOfType(value.value, callable as Parameters<typeof runtime._isOfType>[1]);
+		result = _isOfType(value.value, callable as Parameters<typeof _isOfType>[1]);
 	}
 	catch {
 		return undefined;
