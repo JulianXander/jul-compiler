@@ -802,3 +802,59 @@ describe('Emitter Ausführung', () => {
 		expect(runEmitted(code, 'result')).to.equal(1n);
 	});
 });
+
+describe('Emitter Tail-Call-Optimierung', () => {
+	it('ein Selbstaufruf in Tail-Position wird zur Schleife', () => {
+		expectBranchingEmit(`f = (n: Integer sum: Integer) =>
+	?(n)
+		[0] => sum
+		() => f(subtract(n 1) add(sum n))`, `
+		while (true) {
+			if (n === 0n) {
+				return sum
+			} else {
+				;[n, sum] = [subtract(
+						n,
+						1n,
+					), add(
+						sum,
+						n,
+					)];
+				continue;
+			}
+		}`);
+	});
+	it('die Rekursion überläuft den Stack nicht', () => {
+		const code = [
+			'f = (n: Integer sum: Integer) =>',
+			'\t?(n)',
+			'\t\t[0] => sum',
+			'\t\t() => f(subtract(n 1) add(sum n))',
+			'result = f(200000 0)',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(20000100000n);
+	});
+	it('ein einzelner Parameter wird ohne Array zugewiesen', () => {
+		const code = [
+			'f = (n: Integer) =>',
+			'\t?(n)',
+			'\t\t[0] => 0',
+			'\t\t() => f(subtract(n 1))',
+			'result = f(200000)',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(0n);
+	});
+	it('ein Aufruf außerhalb der Tail-Position bleibt Rekursion', () => {
+		expect(emitCheckedFunctionBody(`f = (n: Integer) =>
+	?(n)
+		[0] => 0
+		() => add(1 f(subtract(n 1)))`)).to.not.contain('while');
+	});
+	// Eine Closure sähe sonst die Parameter der Folgeiterationen
+	it('eine Closure im Rumpf verhindert die Schleife', () => {
+		expect(emitCheckedFunctionBody(`f = (n: Integer g: Any) =>
+	?(n)
+		[0] => g
+		() => f(subtract(n 1) () => n)`)).to.not.contain('while');
+	});
+});

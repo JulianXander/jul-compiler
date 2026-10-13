@@ -264,3 +264,33 @@
 2026-10-12 15:01:52	1218b18+	-	ADV-DEV-56627	bench-runtime	json/small	15	4096.58	6250.10	6250.10	typeToString nach test-runtime, Import in type-algebra benannt
 2026-10-12 15:01:52	1218b18+	-	ADV-DEV-56627	bench-runtime	json/large	15	3698962.00	3928880.00	3928880.00	typeToString nach test-runtime, Import in type-algebra benannt
 2026-10-12 15:01:52	1218b18+	-	ADV-DEV-56627	bench-runtime	json/texts	15	436551.50	465159.00	465159.00	typeToString nach test-runtime, Import in type-algebra benannt
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	96.43	101.31	101.31	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	95.15	102.49	102.49	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	343.42	373.69	373.69	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	65598.65	79268.30	79268.30	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.70	14.20	14.20	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	8.99	10.28	10.28	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.25	12.18	12.18	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	167.13	191.61	191.61	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	151.17	161.73	161.73	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	9.05	9.74	9.74	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	9.47	10.64	10.64	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	8.67	10.87	10.87	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/small	15	3776.04	4116.51	4116.51	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/large	15	3660634.00	3757058.00	3757058.00	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:22	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/texts	15	440200.50	502901.00	502901.00	vorher: ohne Tail-Call-Schleife (recursion-Fall neu)
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	100.15	134.07	134.07	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	101.48	106.60	106.60	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	348.39	398.98	398.98	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	29460.30	34476.30	34476.30	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	9.58	13.79	13.79	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.75	11.06	11.06	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.87	12.47	12.47	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	176.11	190.71	190.71	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	143.08	156.61	156.61	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	9.19	10.64	10.64	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	8.38	8.84	8.84	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	9.13	9.73	9.73	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/small	15	3719.39	3825.41	3825.41	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/large	15	3680798.00	5255396.00	5255396.00	nachher: Tail-Call-Optimierung als Schleife
+2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/texts	15	437788.50	478438.50	478438.50	nachher: Tail-Call-Optimierung als Schleife

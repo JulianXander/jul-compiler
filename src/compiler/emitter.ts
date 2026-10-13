@@ -12,6 +12,7 @@ import {
 	ParseReference,
 	PositionedExpression,
 	SimpleExpression,
+	forEachChild,
 } from '../syntax-tree.js';
 import { Positioned } from '../compiler-errors.js';
 import * as runtime from '../runtime/runtime.js';
@@ -371,10 +372,14 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				: `_lazyType(${stringToJs(selfAppliedName)}, () => ${callJs})`;
 		}
 		case 'functionLiteral': {
-			const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(expression.params, expression.body, indent);
 			const parent = expression.parent;
-			if (parent?.type === 'definition'
-				&& expression === parent.value) {
+			const isNamed = parent?.type === 'definition'
+				&& expression === parent.value;
+			const tail = useTypeInfo && isNamed
+				? analyzeTailCalls(expression, parent.name.name)
+				: undefined;
+			const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(expression.params, expression.body, indent, tail);
+			if (isNamed) {
 				// named function
 				const nameJs = escapeReservedJsVariableName(parent.name.name);
 				return `${functionJs}${delimiterJs}${callCreateFunctionJs(nameJs, paramsJs, indent)}`;
@@ -500,19 +505,24 @@ function getPathFromImport(importExpression: ParseFunctionCall): string {
 
 //#endregion import
 
-function functionBodyToJs(expressions: ParseExpression[], indent: number): string {
+function functionBodyToJs(expressions: ParseExpression[], indent: number, tail?: TailContext): string {
 	const delimiter = getRowDelimiterJs(indent);
 	const js = delimiter + expressions.map((expression, index) => {
 		const markerJs = sourcePositionMarkerJs(expression);
-		const expressionJs = expressionToJs(expression, indent);
 		// Die letzte Expression ist der Rückgabewert
 		if (index === expressions.length - 1) {
+			if (tail
+				&& (expression.type === 'functionCall' || expression.type === 'branching')
+				&& (tail.calls.has(expression as ParseFunctionCall) || tail.branchings.has(expression as ParseBranching))) {
+				return `${markerJs}${tailExpressionToJs(expression, indent, tail)}`;
+			}
+			const expressionJs = expressionToJs(expression, indent);
 			if (expression.type === 'definition') {
 				return `${markerJs}${expressionJs}${delimiter}return ${escapeReservedJsVariableName(expression.name.name)};`;
 			}
 			return `${markerJs}return ${expressionJs}`;
 		}
-		return markerJs + expressionJs;
+		return markerJs + expressionToJs(expression, indent);
 	}).join(delimiter);
 	return js;
 }
@@ -529,6 +539,7 @@ function functionLiteralToJsParts(
 	params: SimpleExpression | ParseParameterFields,
 	body: ParseExpression[],
 	indent: number,
+	tail?: TailContext,
 ): { functionJs: string; paramsJs: string; delimiterJs: string; } {
 	let argsJs: string;
 	let paramsJs: string;
@@ -546,9 +557,191 @@ function functionLiteralToJsParts(
 		paramsJs = dictionaryToJs([typeFieldJs], indent);
 	}
 	const delimiterJs = getRowDelimiterJs(indent + 1);
-	const functionJs = `(${argsJs}) => {${functionBodyToJs(body, indent + 2)}${delimiterJs}}`;
+	const functionJs = tail
+		? `(${argsJs}) => {${getRowDelimiterJs(indent + 2)}while (true) {${functionBodyToJs(body, indent + 3, tail)}${getRowDelimiterJs(indent + 2)}}${delimiterJs}}`
+		: `(${argsJs}) => {${functionBodyToJs(body, indent + 2)}${delimiterJs}}`;
 	return { functionJs, paramsJs, delimiterJs };
 }
+
+//#region Tail-Call-Optimierung
+
+/**
+ * Selbstaufrufe in Tail-Position, die als Schleife emittiert werden. JS führt keine Tail Calls
+ * aus, jeder Schritt der Rekursion verbrauchte sonst einen Stack-Frame.
+ */
+interface TailContext {
+	paramNamesJs: string[];
+	/** Die Selbstaufrufe in Tail-Position: werden zu Parameterzuweisung und continue */
+	calls: Set<ParseFunctionCall>;
+	/** Die branchings auf dem Weg zu einem Selbstaufruf: werden zu if/else-Ketten, ihre branches inline */
+	branchings: Set<ParseBranching>;
+}
+
+/**
+ * undefined, wenn die Funktion nicht als Schleife emittiert wird: kein Selbstaufruf in Tail-Position,
+ * oder die Umformung wäre nicht gleichwertig. Das Letzte gilt, sobald irgendwo im Rumpf ein weiteres
+ * Funktionsliteral steht (außer den inline emittierten branches): Eine Closure sähe sonst die
+ * Parameter der Folgeiterationen. Ebenso, wenn ein inline emittierter branch einen Namen bindet, der
+ * einen Parameter verdeckte: Die Zuweisung für den nächsten Durchlauf träfe den falschen.
+ */
+function analyzeTailCalls(literal: ParseFunctionLiteral, name: string): TailContext | undefined {
+	const params = literal.params;
+	if (params.type !== 'parameters'
+		|| params.rest
+		|| !params.singleFields.length) {
+		return undefined;
+	}
+	const parameterNames = params.singleFields.map(field => field.name.name);
+	const calls = new Set<ParseFunctionCall>();
+	const branchings = new Set<ParseBranching>();
+	const inlinedBranches = new Set<ParseFunctionLiteral>();
+	const visitTail = (expression: ParseExpression | undefined): boolean => {
+		if (expression?.type === 'functionCall') {
+			if (!isTailSelfCall(expression, name, parameterNames.length)) {
+				return false;
+			}
+			calls.add(expression);
+			return true;
+		}
+		if (expression?.type !== 'branching') {
+			return false;
+		}
+		const dispatch = getBranchDispatch(expression);
+		if (!dispatch) {
+			return false;
+		}
+		const emittedBranches: ParseValueExpression[] = [];
+		dispatch.tests.forEach((test, index) => {
+			if (test.kind !== 'never') {
+				emittedBranches.push(expression.branches[index]!);
+			}
+		});
+		const inlinableBranches = emittedBranches.filter(isInlinableBranch);
+		if (inlinableBranches.length !== emittedBranches.length) {
+			return false;
+		}
+		let containsTailCall = false;
+		for (const branch of inlinableBranches) {
+			if (visitTail(branch.body[branch.body.length - 1])) {
+				containsTailCall = true;
+			}
+		}
+		if (containsTailCall) {
+			branchings.add(expression);
+			inlinableBranches.forEach(branch => inlinedBranches.add(branch));
+		}
+		return containsTailCall;
+	};
+	if (!visitTail(literal.body[literal.body.length - 1])) {
+		return undefined;
+	}
+	const hasForeignClosure = (expression: PositionedExpression): true | undefined =>
+		forEachChild(expression, child =>
+			child.type === 'functionLiteral' && !inlinedBranches.has(child)
+				? true
+				: hasForeignClosure(child));
+	if (literal.body.some(expression => hasForeignClosure(expression))) {
+		return undefined;
+	}
+	// Die Selbstreferenz im Rumpf hat keinen Typ (die Funktion ist noch in Arbeit), sie wird deshalb
+	// über den Namen erkannt: kein Parameter, keine Definition im Rumpf und in den inline emittierten
+	// branches darf ihn verdecken.
+	const shadowing = [literal, ...inlinedBranches].some(scope =>
+		Object.keys(scope.symbols).some(symbol => symbol === name));
+	if (shadowing) {
+		return undefined;
+	}
+	for (const branch of inlinedBranches) {
+		if (Object.keys(branch.symbols).some(symbol => parameterNames.includes(symbol))) {
+			return undefined;
+		}
+	}
+	return {
+		paramNamesJs: parameterNames.map(escapeReservedJsVariableName),
+		calls: calls,
+		branchings: branchings,
+	};
+}
+
+function isInlinableBranch(branch: ParseValueExpression): branch is ParseFunctionLiteral {
+	return branch.type === 'functionLiteral'
+		&& (branch.params.type !== 'parameters'
+			|| (!branch.params.rest && branch.params.singleFields.length <= 1));
+}
+
+/**
+ * Ein Aufruf der Funktion `name` selbst, mit genau so vielen positionalen Argumenten wie Parametern.
+ * Dass die Referenz die Definition meint und keinen verdeckenden Namen, prüft analyzeTailCalls.
+ */
+function isTailSelfCall(
+	call: ParseFunctionCall,
+	name: string,
+	parameterCount: number,
+): boolean {
+	const functionExpression = call.functionExpression;
+	const args = call.arguments;
+	if (functionExpression?.type !== 'reference'
+		|| functionExpression.name.name !== name
+		|| call.prefixArgument
+		|| args?.type !== 'list'
+		|| args.values.length !== parameterCount
+		|| args.values.some(value => value.type === 'spread')
+		|| getSelfAppliedTypeFunctionName(call) !== undefined) {
+		return false;
+	}
+	return true;
+}
+
+/** Die Anweisungen für eine Expression in Tail-Position, die in tail.calls oder tail.branchings steht */
+function tailExpressionToJs(expression: ParseExpression, indent: number, tail: TailContext): string {
+	if (expression.type === 'functionCall') {
+		const values = (expression.arguments as { values: ParseValueExpression[]; }).values
+			.map(value => expressionToJs(value, indent + 1));
+		// Das führende ; schützt vor einer Fortsetzung der vorigen Zeile (kein Semikolon nach Aufrufen)
+		const assignmentJs = values.length === 1
+			? `${tail.paramNamesJs[0]} = ${values[0]};`
+			: `;[${tail.paramNamesJs.join(', ')}] = [${values.join(', ')}];`;
+		return `${assignmentJs}${getRowDelimiterJs(indent)}continue;`;
+	}
+	const branching = expression as ParseBranching;
+	const dispatch = getBranchDispatch(branching)!;
+	const argument = (branching.args as { values: ParseListValue[]; }).values[0] as ParseValueExpression;
+	const isReference = argument.type === 'reference';
+	const argumentJs = isReference
+		? referenceToJs(argument)
+		: '_arg';
+	const delimiterJs = getRowDelimiterJs(indent);
+	let js = isReference
+		? ''
+		: `const _arg = ${expressionToJs(argument, indent)};${delimiterJs}`;
+	let hasCatchAll = false;
+	const chainJs: string[] = [];
+	dispatch.tests.forEach((test, index) => {
+		if (test.kind === 'never') {
+			return;
+		}
+		const branch = branching.branches[index] as ParseFunctionLiteral;
+		const bindsArgument = branch.params.type === 'parameters'
+			&& branch.params.singleFields.length === 1;
+		const bindingJs = bindsArgument
+			? `${getRowDelimiterJs(indent + 1)}const ${escapeReservedJsVariableName((branch.params as ParseParameterFields).singleFields[0]!.name.name)} = ${argumentJs};`
+			: '';
+		const blockJs = `{${bindingJs}${functionBodyToJs(branch.body, indent + 1, tail)}${delimiterJs}}`;
+		if (test.kind === 'always') {
+			hasCatchAll = true;
+			chainJs.push(blockJs);
+			return;
+		}
+		chainJs.push(`if (${branchTestToJs(test, argumentJs)}) ${blockJs}`);
+	});
+	if (!hasCatchAll) {
+		chainJs.push(`{${getRowDelimiterJs(indent + 1)}return _noBranchMatched(${argumentJs});${delimiterJs}}`);
+	}
+	js += chainJs.join(' else ');
+	return js;
+}
+
+//#endregion Tail-Call-Optimierung
 
 //#region branching mit Typinformation
 

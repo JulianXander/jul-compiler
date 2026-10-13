@@ -1,0 +1,7 @@
+sumHelper = (countdown: Integer sum: Integer) =>
+	?(countdown)
+		[0] => sum
+		() => sumHelper(subtract(countdown 1) add(sum countdown))
+
+sumTo = (n: Integer) =>
+	sumHelper(n 0)

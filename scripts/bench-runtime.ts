@@ -155,6 +155,13 @@ const cases: BenchCase[] = [
 		calls: 200_000,
 	},
 	{
+		file: 'recursion.jul',
+		functionName: 'sumTo',
+		inputs: [2000n],
+		expected: [2001000n],
+		calls: 2_000,
+	},
+	{
 		file: 'branching.jul',
 		functionName: 'emptyOrComplex',
 		inputs: [undefined, complexValue],
