@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
-	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete,
+	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
 	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
@@ -406,6 +406,24 @@ describe('findLastIndex', () => {
 	it('returns undefined when nothing matches', () => {
 		const result = findLastIndex([1n, 2n], (value: bigint) => value === 9n);
 		expect(result).to.equal(undefined);
+	});
+});
+
+describe('splitText', () => {
+	it('zerlegt am Separator', () => {
+		expect(splitText('a-b-c', '-')).to.deep.equal(['a', 'b', 'c']);
+	});
+	it('liefert den ganzen Text, wenn der Separator fehlt', () => {
+		expect(splitText('abc', '-')).to.deep.equal(['abc']);
+	});
+	it('liefert bei leerem Text eine Liste mit einem leeren Text', () => {
+		expect(splitText('', '-')).to.deep.equal(['']);
+	});
+	it('behält leere Teile bei aufeinanderfolgenden Separatoren', () => {
+		expect(splitText('a--b', '-')).to.deep.equal(['a', '', 'b']);
+	});
+	it('zerlegt bei leerem Separator in einzelne Zeichen', () => {
+		expect(splitText('abc', '')).to.deep.equal(['a', 'b', 'c']);
 	});
 });
 

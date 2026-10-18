@@ -587,6 +587,17 @@ combineTexts = nativeFunction(
 		String.join
 	§
 )
+# Zerlegt den Text an jedem Vorkommen des Separators, Verhalten wie String.split in JavaScript.
+# Ein leerer Separator zerlegt in UTF-16-Code-Units, ein leerer Text liefert [§§].
+splitText = nativeFunction(
+	(
+		text: Text
+		separator: Text
+	) -> List(Text)
+	§js
+		(text, separator) => text.split(separator)
+	§
+)
 # Liefert Error, wenn die gegebene TextNumber keine valide Zahl ist.
 parseFloat = nativeFunction(
 	(textNumber: Text) -> Or(Float Error)

@@ -1884,6 +1884,23 @@ export const compareOrdinal = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const splitText = /*#__PURE__*/ _createFunction(
+	function splitText(text: string, separator: string) {
+		return text.split(separator);
+	},
+	{
+		singleNames: [
+			{
+				name: 'text',
+				type: _Text,
+			},
+			{
+				name: 'separator',
+				type: _Text,
+			},
+		]
+	}
+);
 export const error = /*#__PURE__*/ _createFunction(
 	function error(message: string) {
 		return new Error(message);
