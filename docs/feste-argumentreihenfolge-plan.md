@@ -39,7 +39,7 @@ Das Ergebnis entscheidet über die Punkte „Offene Entscheidungen" unten.
 
 ### Ergebnis Schritt 0
 
-Gemessen mit `scripts/probe-argument-order.ts` (`npx tsx scripts/probe-argument-order.ts <ordner...>`).
+Einmalig gemessen mit einem AST-Skript über den Checker (nicht im Repo geblieben).
 
 | | yugioh (7150 Aufrufe) | jul-examples (485 Aufrufe) |
 |---|---|---|
@@ -246,7 +246,7 @@ Compiler geprüft). `error-codes.md`: JUL2501, JUL2502 und JUL5011. `design-prin
 Entscheidung belegt kein Prinzip.
 
 **Offen, bewusst nicht Teil dieses Plans:** die `params` an den rund 540 Builtins in `runtime.ts` (`tryFoldCall`
-erkennt faltbare Builtins daran) und das Zählskript `scripts/probe-argument-order.ts`.
+erkennt faltbare Builtins daran).
 
 ## Reihenfolge und Abnahme
 
