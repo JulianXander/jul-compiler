@@ -153,6 +153,12 @@
 	-dieselbe restbereich-rechnung wie die exhaustivitätsprüfung darüber
 	-später: hint, wo auch mit typwissen nur die volle prüfung entscheidet
 	 (Or(List(Integer) List(Or(Integer Text))) mit kopf [List(Integer)])
+-params an den builtins in runtime.ts entfernen (rund 540 _createFunction-Aufrufe mit Parameterliste)
+	-tryFoldCall erkennt faltbare builtins an 'params' in fn, das ist nur ein Erkennungsmerkmal.
+	 ersetzen, etwa durch "in der core-lib deklariert und in runtime.ts exportiert" (coreBuiltInSymbolTypes)
+	-vorher prüfen: ein builtin als prädikat in typposition (Or(1 isEmpty)) liefe ohne params über
+	 type(value) === true und prüfte seine parametertypen nicht mehr
+	-vorher und nachher messen: ladezeit der runtime, bundle-größe
 -n-stellige And/Or in createNormalizedIntersectionType paarweise reduzieren
 	-die regeln greifen heute nur bei genau zwei choices
 	-And(TypeOf(a) TypeOf(b) Integer) bleibt sonst als knoten stehen statt zu Integer zu werden

@@ -123,7 +123,7 @@ neuen Compiler grün. Offen für diesen Punkt: Callbacks, die nie über `_callFu
 `params` ganz weglassen, das setzt eine Escape-Analyse im Emitter voraus und wurde nicht angegangen.
 
 **Nachtrag zu Punkt 1.** Das Hoisting ist wieder entfernt: Mit der festen Argumentreihenfolge
-([feste-argumentreihenfolge-plan.md](feste-argumentreihenfolge-plan.md), Schritt 4) lesen nur noch Branches,
+(feste Argumentreihenfolge, Entscheidung in [backlog/typed-emission.md](backlog/typed-emission.md)) lesen nur noch Branches,
 Typ-Köpfe und Parametertypen die `params`, alle anderen Funktionsliterale sind nackte Arrows. Das spart
 Parameterliste und Zuweisung vollständig: `callbacks/countSmall` 95 ms ursprünglich, 76 ms mit Hoisting, jetzt 60 bis
 62 ms, yugioh Match 7,74 s, 7,07 s, jetzt 6,98 s (-9,8 % gegenüber dem Ausgangswert).
