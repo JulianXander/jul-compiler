@@ -154,7 +154,7 @@ describe('ReferenceIndex: Feldnamen an Stellen mit erwartetem Typ', () => {
 			'g = (count: Integer value: MyType) => count',
 			'a: MyType = [name = §a§]',
 			'b = f([name = §b§])',
-			'c = g(value = [name = §c§] count = 1)',
+			'c = g(count = 1 value = [name = §c§])',
 			'd: List(MyType) = [[name = §d§]]',
 			'o: Outer = [inner = [name = §o§]]',
 			'r = () :> MyType => [name = §r§]',

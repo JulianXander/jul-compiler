@@ -62,12 +62,9 @@ describe('Emitter', () => {
 	it('log(1)', () => {
 		expectEmit('log(1)', `export default log(1n)`);
 	});
-	it('functionCall-unknown-object', () => {
-		expectEmit('log(...[])', `export default _callFunction(
-	log,
-	undefined,
-	_combineObject(undefined),
-)`);
+	// Eine reine Spread-Argumentliste ist ein List-Spread (der Checker lässt nur eine List zu).
+	it('functionCall-spread-only', () => {
+		expectEmit('log(...[])', 'export default log(...undefined ?? [])');
 	});
 	it('1.log()', () => {
 		expectEmit('1.log()', 'export default log(1n)');
@@ -78,12 +75,9 @@ describe('Emitter', () => {
 	1n,
 )`);
 	});
+	// Ohne Check kennt der Emitter keine Parameterliste: Die Werte gehen der Reihe nach an die Funktion.
 	it('function-call-named-args', () => {
-		expectEmit('log(a = 1)', `export default _callFunction(
-	log,
-	undefined,
-	{'a': 1n},
-)`);
+		expectEmit('log(a = 1)', 'export default log(1n)');
 	});
 	it('text-argument', () => {
 		expectEmit('log(§hallo welt§)', 'export default log(`hallo welt`)');
@@ -92,37 +86,22 @@ describe('Emitter', () => {
 		expectEmit('someVar/1/test', 'export default someVar?.[1 - 1]?.[\'test\']');
 	});
 	it('functionLiteral', () => {
-		expectEmit('(a b) => log(a)', `export default _createFunction(
-	(a, b) => {
+		expectEmit('(a b) => log(a)', `export default (a, b) => {
 		return log(a)
-	},
-	{singleNames: [
-		{name: 'a'},
-		{name: 'b'},
-	]},
-)`);
+	}`);
 	});
 	it('function-return-type-check', () => {
 		expectEmit(`() =>
-	a: Integer = 1`, `export default _createFunction(
-	() => {
+	a: Integer = 1`, `export default () => {
 		const a = 1n;
 		return a;
-	},
-	{},
-)`);
+	}`);
 	});
 	it('multiline-function-body', () => {
-		expectEmit('(a b) =>\n\tlog(a)\n\tlog(b)', `export default _createFunction(
-	(a, b) => {
+		expectEmit('(a b) =>\n\tlog(a)\n\tlog(b)', `export default (a, b) => {
 		log(a)
 		return log(b)
-	},
-	{singleNames: [
-		{name: 'a'},
-		{name: 'b'},
-	]},
-)`);
+	}`);
 	});
 	it('branching', () => {
 		expectEmit('?(4)\n\t(a) => log(a)\n\t(b) => log(b)', `export default _branch(
@@ -208,7 +187,11 @@ function emitCheckedFunctionBody(code: string): string {
 	const compiled = syntaxTreeToJs(checked.expressions!, '');
 	const functionStart = compiled.indexOf('export const f = (');
 	const bodyStart = compiled.indexOf(' => {', functionStart) + ' => {'.length;
-	const bodyEnd = compiled.indexOf('\n\t}\n\t_createFunction(\n\tf,', bodyStart);
+	// Mit Parametertypen folgt ein _createFunction, sonst endet f nach dem Arrow.
+	const bodyEndWithParams = compiled.indexOf('\n\t}\n\t_createFunction(\n\tf,', bodyStart);
+	const bodyEnd = bodyEndWithParams >= 0
+		? bodyEndWithParams
+		: compiled.indexOf('\n\t};', bodyStart);
 	expect(functionStart, 'f fehlt').to.be.greaterThan(-1);
 	expect(bodyEnd, 'Ende von f nicht gefunden').to.be.greaterThan(-1);
 	return compiled.slice(bodyStart, bodyEnd);
@@ -593,25 +576,11 @@ const expectCallEmit = reportAtCaller((code: string, bodyJs: string) => {
 	expect(emitCheckedFunctionBody(code)).to.equal(bodyJs);
 });
 
-/** Fälle, in denen der Aufruf weiter zur Laufzeit über _callFunction zugeordnet wird */
-const expectCallFallback = reportAtCaller((code: string) => {
-	expect(emitCheckedFunctionBody(code)).to.match(/^\n\t\treturn _callFunction\(/);
-});
-
 describe('Emitter benannte Argumente mit Typinformation', () => {
 	it('gleiche Reihenfolge wird zum positionalen Aufruf', () => {
 		expectCallEmit(`g = (a: Integer b: Integer) => a
 f = (x: Integer) =>
 	g(a = x b = 1)`, `
-		return g(
-			x,
-			1n,
-		)`);
-	});
-	it('abweichende Reihenfolge wird in Parameterreihenfolge übergeben', () => {
-		expectCallEmit(`g = (a: Integer b: Integer) => a
-f = (x: Integer) =>
-	g(b = 1 a = x)`, `
 		return g(
 			x,
 			1n,
@@ -641,26 +610,6 @@ f = (x: Integer) =>
 			1n,
 		)`);
 	});
-	it('ein einzelnes nicht-triviales Argument darf die Position wechseln', () => {
-		expectCallEmit(`h = (y: Integer) => y
-g = (a: Integer b: Integer) => a
-f = (x: Integer) =>
-	g(b = h(x) a = x)`, `
-		return g(
-			x,
-			h(x),
-		)`);
-	});
-	it('mehrere nicht-triviale Argumente werden in geschriebener Reihenfolge ausgewertet', () => {
-		expectCallEmit(`h = (y: Integer) => y
-g = (a: Integer b: Integer) => a
-f = (x: Integer) =>
-	g(b = h(x) a = h(1))`, `
-		return ((_arg0, _arg1) => g(_arg1, _arg0))(
-			h(x),
-			h(1n),
-		)`);
-	});
 	it('überzähliges nicht-triviales Argument wird trotzdem ausgewertet', () => {
 		expectCallEmit(`h = (y: Integer) => y
 g = (a: Integer) => a
@@ -671,13 +620,66 @@ f = (x: Integer) =>
 			h(x),
 		)`);
 	});
-	it('Rückfall: nativeFunction bekommt weiter das Dictionary', () => {
-		expectCallFallback(`f = (x: Integer) =>
-	modulo(dividend = x divisor = 3)`);
+	// Der eigene Typ steht beim rekursiven Aufruf noch nicht fest (Any): Die Namen kommen vom Literal.
+	it('rekursiver Aufruf mit Namen wird positional', () => {
+		expectCallEmit(`f = (n: Integer acc: Integer) =>
+	?(n)
+		[0] => acc
+		() => f(n = subtract(n 1) acc = add(acc n))`, `
+		return n === 0n
+			? (() => {
+				return acc
+			})()
+			: (() => {
+				return f(
+					subtract(
+						n,
+						1n,
+					),
+					add(
+						acc,
+						n,
+					),
+				)
+			})()`);
 	});
-	it('Rückfall: funktionswertiger Parameter', () => {
-		expectCallFallback(`f = (g: (a: Integer) -> Integer) =>
-	g(a = 1)`);
+	// Ohne bekannte Parameterliste (Any, JUL5011) gehen die Werte der Reihe nach, die Namen entfallen.
+	it('Aufruf eines Any-Werts mit Namen wird positional in geschriebener Reihenfolge', () => {
+		expectCallEmit(`f = (g: Any) =>
+	g(a = 1 b = 2)`, `
+		return g(
+			1n,
+			2n,
+		)`);
+	});
+	it('Builtin wird direkt aufgerufen', () => {
+		expectCallEmit(`f = (x: Integer) =>
+	modulo(dividend = x divisor = 3)`, `
+		return modulo(
+			x,
+			3n,
+		)`);
+	});
+	it('funktionswertiger Parameter wird direkt aufgerufen', () => {
+		expectCallEmit(`f = (g: (a: Integer) -> Integer) =>
+	g(a = 1)`, `
+		return g(1n)`);
+	});
+	it('Funktion mit Typ-Kopf bekommt die Argumente in Parameterreihenfolge, sie liest sie nicht', () => {
+		expectCallEmit(`MyType = [a: Integer b: Integer]
+typeFunction = MyType => 1
+f = () =>
+	typeFunction(a = 1 b = 2)`, `
+		return typeFunction(
+			1n,
+			2n,
+		)`);
+	});
+	it('List-Spread in der Argumentliste ist ein JS-Spread', () => {
+		expectCallEmit(`g = (a: Integer b: Integer) => a
+f = (values: [Integer Integer]) =>
+	g(...values)`, `
+		return g(...values ?? [])`);
 	});
 });
 
@@ -692,8 +694,7 @@ describe('Emitter test', () => {
 	it('instrumented-outermost-call', () => {
 		expectTestEmit('test(§a§ () => equal(1 2))', `export default test(
 	\`a\`,
-	_createFunction(
-		() => {
+	() => {
 			return _testCall(
 				'equal',
 				equal,
@@ -703,16 +704,13 @@ describe('Emitter test', () => {
 				],
 			)
 		},
-		{},
-	),
 	{ file: 'dummy.test.jul', row: 1, column: 1 },
 )`);
 	});
 	it('prefix-argument-is-first-instrumented-argument', () => {
 		expectTestEmit('test(§a§ () => 1.equal(2))', `export default test(
 	\`a\`,
-	_createFunction(
-		() => {
+	() => {
 			return _testCall(
 				'equal',
 				equal,
@@ -722,8 +720,6 @@ describe('Emitter test', () => {
 				],
 			)
 		},
-		{},
-	),
 	{ file: 'dummy.test.jul', row: 1, column: 1 },
 )`);
 	});
@@ -731,12 +727,9 @@ describe('Emitter test', () => {
 	it('named-arguments-are-emitted-positionally', () => {
 		expectTestEmit('test(name = §a§ callback = () => true)', `export default test(
 	\`a\`,
-	_createFunction(
-		() => {
+	() => {
 			return true
 		},
-		{},
-	),
 	{ file: 'dummy.test.jul', row: 1, column: 1 },
 )`);
 	});
@@ -828,8 +821,11 @@ describe('Emitter Runtime-Import', () => {
 	it('ohne Runtime-Bezug keine Import-Zeile', () => {
 		expectRuntimeImport('x = 1\ny = [1 2]', undefined);
 	});
-	it('Funktionsliteral importiert _createFunction', () => {
-		expectRuntimeImport('f = (a) => a', ['_createFunction']);
+	it('Funktionsliteral ohne Typen importiert nichts', () => {
+		expectRuntimeImport('f = (a) => a', undefined);
+	});
+	it('Funktionsliteral mit Typ importiert _createFunction', () => {
+		expectRuntimeImport('f = (a: Integer) => a', ['Integer', '_createFunction']);
 	});
 	it('Typ-Guard importiert den Builtin-Typ', () => {
 		expectRuntimeImport('f = (a: Integer) => a', ['Integer', '_createFunction']);
@@ -841,7 +837,7 @@ describe('Emitter Runtime-Import', () => {
 		expectRuntimeImport('a = §map§', ['map']);
 	});
 	it('Testdatei importiert aus der Runtime nur die benutzten Namen', () => {
-		expectRuntimeImport('test(§x§ () => equal(1 1))', ['_createFunction', 'equal'], 'dummy.test.jul');
+		expectRuntimeImport('test(§x§ () => equal(1 1))', ['equal'], 'dummy.test.jul');
 	});
 	it('Testdatei importiert aus der Test-Runtime nur die benutzten Namen', () => {
 		expectTestRuntimeImport('test(§x§ () => equal(1 1))', ['_testCall', 'test']);
@@ -1056,5 +1052,49 @@ describe('Emitter Tail-Call-Optimierung', () => {
 	?(n)
 		[0] => g
 		() => f(subtract(n 1) () => n)`)).to.not.contain('while');
+	});
+});
+
+describe('Emitter: params nur, wo die Laufzeit sie liest', () => {
+	const emitUnchecked = (code: string): string =>
+		withoutImports(syntaxTreeToJs(parseCode(code, 'dummy.jul').unchecked.expressions!, ''));
+
+	it('Funktionsliteral ohne Typen ist ein nacktes Arrow', () => {
+		expect(emitUnchecked('f = (x) => x')).not.to.contain('_createFunction');
+	});
+	it('verschachtelter Callback ohne Typen ist ein nacktes Arrow', () => {
+		const js = emitUnchecked(`f = (x) =>
+	map(x (value) => value)`);
+		expect(js).not.to.contain('_createFunction');
+		expect(js).not.to.contain('singleNames');
+	});
+	it('Parametertyp: die Parameterliste bleibt', () => {
+		const js = emitUnchecked('f = (x: Integer) => x');
+		expect(js).to.contain('_createFunction');
+		expect(js).to.contain('type: Integer');
+	});
+	it('verschachtelter Callback mit Parametertyp behält die Parameterliste', () => {
+		const js = emitUnchecked(`f = (x) =>
+	map(x (value: Integer) => value)`);
+		expect(js).to.contain('_createFunction');
+		expect(js).to.contain('type: Integer');
+	});
+	it('Typ-Kopf: die Parameterliste bleibt', () => {
+		expect(emitUnchecked('Any => []')).to.contain('{type: Any}');
+	});
+	it('Typ eines Rest-Parameters: die Parameterliste bleibt', () => {
+		const js = emitUnchecked('f = (...rest: List(Integer)) => rest');
+		expect(js).to.contain('_createFunction');
+	});
+	it('Branch in _branch behält die Parameterliste auch ohne Typen', () => {
+		const js = emitUnchecked(`?(4)
+	(a) => log(a)
+	(b) => log(b)`);
+		expect(js.match(/_createFunction/g)).to.have.length(2);
+	});
+	it('constant folding emittiert weiter mit _createFunction', () => {
+		const parsed = parseCode('f = (x) => x', 'dummy.jul');
+		const literal = (parsed.unchecked.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
+		expect(functionLiteralToEvaluableJs(literal)).to.contain('_createFunction');
 	});
 });

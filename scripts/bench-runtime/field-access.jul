@@ -1,0 +1,10 @@
+# Records mit gleichem Feld hp, aber unterschiedlichen Formen: Feldzugriff auf wechselnde Hidden Classes
+Unit = Or(
+	[name: Text hp: Integer atk: Integer]
+	[hp: Integer name: Text def: Integer]
+	[atk: Integer hp: Integer level: Integer name: Text]
+	[level: Integer hp: Integer]
+)
+
+unitScore = (unit: Unit) =>
+	add(unit/hp 1)

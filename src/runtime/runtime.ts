@@ -37,25 +37,6 @@ export function _noBranchMatched(args: unknown) {
 	return new Error(`${args} did not match any branch`);
 }
 
-/**
- * Wird aufgerufen mit args = dictionary, oder unknown object, also Ergebnis von _combineObject
- */
-export function _callFunction(fn: JulFunction | Function, prefixArg: any, args: Collection | undefined) {
-	if ('params' in fn) {
-		// jul function
-		const assignedParams = assignArgs(fn.params, prefixArg, args);
-		return fn(...assignedParams);
-	}
-	// js function
-	const wrappedArgs = Array.isArray(args)
-		? args
-		: [args];
-	const argsWithPrefix = prefixArg === undefined
-		? wrappedArgs
-		: [prefixArg, ...wrappedArgs];
-	return fn(...argsWithPrefix);
-}
-
 export function _combineObject(...parts: (Collection | undefined)[]): Collection | undefined {
 	const nonEmptyParts = parts.filter(part => part !== undefined);
 	const firstNonEmptyPart = nonEmptyParts[0];
@@ -341,63 +322,6 @@ function isDictionary(value: any): value is RuntimeDictionary {
 }
 
 //#endregion check type
-
-/**
- * Ohne type check
- */
-function assignArgs(
-	params: Params,
-	prefixArg: any,
-	args: Collection | undefined,
-): any[] {
-	const assignedValues: any[] = [];
-	const { type: paramsType, singleNames, rest } = params;
-	const hasPrefixArg = prefixArg !== undefined;
-	if (paramsType !== undefined) {
-		return assignedValues;
-	}
-	const isArray = Array.isArray(args);
-	let paramIndex = 0;
-	let argIndex = 0;
-	if (singleNames) {
-		for (; paramIndex < singleNames.length; paramIndex++) {
-			const param = singleNames[paramIndex]!;
-			const { name, source } = param;
-			const sourceWithFallback = source ?? name;
-			let arg;
-			if (hasPrefixArg && !paramIndex) {
-				arg = prefixArg;
-			}
-			else {
-				arg = isArray
-					? args[argIndex]
-					: args?.[sourceWithFallback];
-				argIndex++;
-			}
-			assignedValues.push(arg);
-		}
-	}
-	if (rest) {
-		if (args === undefined) {
-			const remainingArgs = hasPrefixArg && !paramIndex
-				? [prefixArg]
-				: undefined;
-			assignedValues.push(...remainingArgs ?? []);
-		}
-		else if (isArray) {
-			const remainingArgs = args.slice(argIndex);
-			if (hasPrefixArg && !paramIndex) {
-				remainingArgs.unshift(prefixArg);
-			}
-			assignedValues.push(...remainingArgs);
-		}
-		else {
-			// TODO rest dictionary??
-			throw new Error('tryAssignArgs not implemented yet for rest dictionary');
-		}
-	}
-	return assignedValues;
-}
 
 /**
  * Mit type check. Liefert die zugewiesenen Werte, oder undefined, wenn die Argumente nicht passen.

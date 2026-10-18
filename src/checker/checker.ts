@@ -35,6 +35,7 @@ import {
 	ParseParameterField,
 	ParseParameterFields,
 	ParseTextLiteral,
+	ParseSpreadValueExpression,
 	ParseValueExpression,
 	ParseReference,
 	PredicateFacts,
@@ -2622,6 +2623,21 @@ function inferType(
 				};
 			}
 			const isFunction = checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
+			// Wie typeNotProven nur mit warnUnknown. Ein rekursiver Aufruf sieht den eigenen Typ erst nach
+			// dem Rumpf: bis dahin ist er Any, aber nicht unsicher.
+			if (checkContext.warnUnknown
+				&& resolvePlaceholders(functionExpression.typeInfo!.type).julType === 'any'
+				&& !(functionExpression.type === 'reference'
+					&& isSelfReference(functionExpression, functionExpression.name.name))) {
+				errors.push({
+					code: ErrorCode.callOfAny,
+					message: 'Calling a value of type Any is unsafe: it is not known to be a function.',
+					startRowIndex: functionExpression.startRowIndex,
+					startColumnIndex: functionExpression.startColumnIndex,
+					endRowIndex: functionExpression.endRowIndex,
+					endColumnIndex: functionExpression.endColumnIndex,
+				});
+			}
 			const functionType = functionExpression.typeInfo!.type;
 			const paramsType = getParamsType(functionType);
 			if (prefixArgument) {
@@ -2765,6 +2781,12 @@ function inferType(
 				? getParamsType(resolvePlaceholders(functionType))
 				: paramsType;
 			checkDiscardedArguments(args, discardCheckParamsType, !!prefixArgument, errors);
+			// Ein rekursiver Aufruf sieht den eigenen Typ erst nach dem Rumpf: Seine Parameternamen stehen
+			// dann nur am Funktionsliteral.
+			const calledParameterNames = getKnownFieldNames(discardCheckParamsType)
+				?? getSelfReferenceParameterNames(functionExpression);
+			checkArgumentOrder(args, calledParameterNames, !!prefixArgument, errors);
+			checkSpreadArgument(args, errors);
 			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'test') {
@@ -2812,7 +2834,7 @@ function inferType(
 			}
 			// Nur der Emitter-Pfad für benannte Argumente liest sie.
 			if (expression.arguments?.type === 'dictionary') {
-				expression.literalParameterNames = getLiteralParameterNames(functionExpression);
+				expression.calledParameterNames = calledParameterNames;
 			}
 			const foldedType = tryFoldCall(
 				functionExpression, functionType, boundArgsType, hasArgsError);
@@ -3500,30 +3522,6 @@ function findUnproductiveSelfReference(
 
 //#region get Type from FunctionCall
 
-/**
- * Die Namen, unter denen die Laufzeit benannte Argumente zuordnet (source ?? name, wie
- * assignArgs). undefined, wenn die Funktion kein JUL-Literal mit einfacher Parameterliste ist.
- * literal am Funktionstyp ist nur bei Funktionsliteralen aus .jul gesetzt, und das Symbol behält
- * den Typ des Werts.
- */
-function getLiteralParameterNames(functionExpression: SimpleExpression): string[] | undefined {
-	if (functionExpression.type !== 'reference'
-		|| !functionExpression.typeInfo) {
-		return undefined;
-	}
-	const functionType = resolveAlias(resolvePlaceholders(functionExpression.typeInfo.type));
-	if (!isFunctionType(functionType)
-		|| !functionType.literal) {
-		return undefined;
-	}
-	const params = functionType.literal.params;
-	if (params.type !== 'parameters'
-		|| params.rest) {
-		return undefined;
-	}
-	return params.singleFields.map(field => field.source?.name ?? field.name.name);
-}
-
 function getReturnTypeFromFunctionCall(
 	functionCall: ParseFunctionCall,
 	functionExpression: SimpleExpression,
@@ -4149,12 +4147,38 @@ function tryFoldCall(
 	}
 	checkerStats.foldableCall++;
 	try {
-		const result = runtime._callFunction(callable, prefixValue?.value, argsValue.value as any);
+		const result = callWithConstantArguments(callable, resolvedFunctionType.ParamsType, prefixValue?.value, argsValue.value);
 		return constantValueToType(result);
 	}
 	catch {
 		return undefined;
 	}
+}
+
+/**
+ * Ruft callable mit konstanten Argumenten auf, wie der Emitter es für denselben Aufruf schreibt:
+ * Eine List gibt die Argumente der Reihe nach, ein Dictionary ordnet nach den Parameternamen, das
+ * Prefix-Argument belegt den ersten Parameter (ein Name für ihn fällt weg). Wirft, wenn die
+ * Parameternamen unbekannt sind: Der Aufruf bleibt dann ungefaltet.
+ */
+function callWithConstantArguments(
+	callable: Function,
+	paramsType: CompileTimeType,
+	prefixValue: unknown,
+	args: unknown,
+): unknown {
+	const hasPrefix = prefixValue !== undefined;
+	if (args === undefined || Array.isArray(args)) {
+		return callable(...(hasPrefix ? [prefixValue] : []), ...(args ?? []));
+	}
+	const parameterNames = getKnownFieldNames(paramsType);
+	if (!parameterNames) {
+		throw new Error('Parameter names are unknown.');
+	}
+	return callable(...parameterNames.map((name, index) =>
+		hasPrefix && !index
+			? prefixValue
+			: (args as { [name: string]: unknown; })[name]));
 }
 
 /**
@@ -4555,6 +4579,114 @@ function getKnownFieldNames(paramsType: CompileTimeType): string[] | undefined {
 }
 
 //#endregion verworfene Werte
+
+//#region Reihenfolge der Argumente
+
+/**
+ * Die Parameternamen (source ?? name) der Funktion, in deren eigener Definition der Aufruf steht,
+ * wenn sie ein Literal mit einfacher Parameterliste ist. undefined sonst.
+ */
+function getSelfReferenceParameterNames(functionExpression: SimpleExpression): string[] | undefined {
+	if (functionExpression.type !== 'reference') {
+		return undefined;
+	}
+	const name = functionExpression.name.name;
+	let current: PositionedExpression | undefined = functionExpression.parent;
+	while (current) {
+		if (current.type === 'definition'
+			&& current.name.name === name) {
+			const literal = current.value;
+			return literal?.type === 'functionLiteral'
+				&& literal.params.type === 'parameters'
+				&& !literal.params.rest
+				? literal.params.singleFields.map(field => field.source?.name ?? field.name.name)
+				: undefined;
+		}
+		current = current.parent;
+	}
+	return undefined;
+}
+
+/**
+ * Benannte Argumente stehen in der Reihenfolge der Parameter, Auslassen ist erlaubt. Ein Aufruf
+ * mit Namen ist ein positionaler Aufruf mit Beschriftung: Die Namen werden geprüft, nicht zur Laufzeit
+ * zugeordnet. Namen, die kein Parameter kennt, oder die das Prefix-Argument schon bindet, meldet
+ * checkDiscardedArguments und gehen hier nicht in die Reihenfolge ein.
+ */
+function checkArgumentOrder(
+	writtenArgs: BracketedExpression,
+	knownNames: string[] | undefined,
+	hasReceiver: boolean,
+	errors: CompilerError[],
+): void {
+	if (writtenArgs.type !== 'dictionary'
+		|| !knownNames) {
+		return;
+	}
+	const prefixParameterName = hasReceiver
+		? knownNames[0]
+		: undefined;
+	let highestIndex = -1;
+	let highestName = '';
+	writtenArgs.fields.forEach(field => {
+		if (field.type !== 'singleDictionaryField') {
+			return;
+		}
+		const fieldName = getCheckedEscapableName(field.name);
+		if (fieldName === undefined
+			|| fieldName === prefixParameterName) {
+			return;
+		}
+		const parameterIndex = knownNames.indexOf(fieldName);
+		if (parameterIndex < 0) {
+			return;
+		}
+		if (parameterIndex > highestIndex) {
+			highestIndex = parameterIndex;
+			highestName = fieldName;
+			return;
+		}
+		errors.push({
+			code: ErrorCode.argumentsOutOfOrder,
+			message: `Named arguments must follow the parameter order (${knownNames.join(', ')}). '${fieldName}' comes after '${highestName}'.`,
+			startRowIndex: field.startRowIndex,
+			startColumnIndex: field.startColumnIndex,
+			endRowIndex: field.endRowIndex,
+			endColumnIndex: field.endColumnIndex,
+		});
+	});
+}
+
+/**
+ * Ein Spread in der Argumentliste muss eine List sein. Ein Dictionary hat keine Reihenfolge,
+ * die sich den Parametern zuordnen ließe, ebenso wenig ein Wert unbekannten Typs.
+ */
+function checkSpreadArgument(
+	writtenArgs: BracketedExpression,
+	errors: CompilerError[],
+): void {
+	const spreads: ParseSpreadValueExpression[] = writtenArgs.type === 'object'
+		? writtenArgs.values
+		: writtenArgs.type === 'dictionary'
+			? writtenArgs.fields.filter((field): field is ParseSpreadValueExpression => field.type === 'spread')
+			: [];
+	spreads.forEach(spread => {
+		const sourceType = spread.value.typeInfo && resolvePlaceholders(spread.value.typeInfo.type);
+		if (sourceType && getSpreadElementTypes(sourceType)) {
+			return;
+		}
+		errors.push({
+			code: ErrorCode.spreadArgumentNotList,
+			message: 'A spread in the argument list must be a list.',
+			startRowIndex: spread.startRowIndex,
+			startColumnIndex: spread.startColumnIndex,
+			endRowIndex: spread.endRowIndex,
+			endColumnIndex: spread.endColumnIndex,
+		});
+	});
+}
+
+//#endregion Reihenfolge der Argumente
 
 /**
  * Ein Params-Typ wird gegen die Argumentkollektion geprüft. Kann keiner seiner Werte eine

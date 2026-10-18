@@ -1,0 +1,34 @@
+GameLike = [
+	turn: Integer
+	phase: Text
+	priority: Integer
+	turnPlayer: Integer
+	life1: Integer
+	life2: Integer
+	deck1: List(Integer)
+	deck2: List(Integer)
+	hand1: List(Integer)
+	hand2: List(Integer)
+	events: List(Text)
+	chain: List(Integer)
+]
+
+# Neuer Zustand mit einem geänderten Feld, wie ein Zustandsupdate im Spiel
+nextTurn = (state: GameLike) =>
+	next: GameLike = [
+		...state
+		turn = add(state/turn 1)
+	]
+	next/turn
+
+# Zwei Updates hintereinander
+nextTwice = (state: GameLike) =>
+	first: GameLike = [
+		...state
+		turn = add(state/turn 1)
+	]
+	second: GameLike = [
+		...first
+		life1 = subtract(first/life1 100)
+	]
+	second/life1

@@ -3621,17 +3621,17 @@ g(...others (x) => x)`, {
 			],
 		});
 	});
-	// Benannte Argumente werden über den Namen zugeordnet, nicht über die Position.
+	// Das benannte Argument bekommt den erwarteten Typ seines Parameters.
 	it('expected-type-named-argument', () => {
 		expectCheck(`g = (a: Integer cb: (x: Integer) :> Text) => a
-g(cb = (x) => x a = 1)`, {
+g(a = 1 cb = (x) => x)`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
-					"endColumnIndex": 15,
+					"endColumnIndex": 21,
 					"endRowIndex": 1,
 					"message": "Argument type mismatch.\nInvalid value for parameter 'cb'\n  Invalid return value\n    Can not assign Integer to Text.",
-					"startColumnIndex": 7,
+					"startColumnIndex": 13,
 					"startRowIndex": 1,
 				},
 			],
@@ -3895,10 +3895,10 @@ f(...values)`, {
 		});
 	});
 	// Gegenstück zu spread-argument-is-not-type-checked: eine reine Spread-Argumentliste
-	// kann laut ParseUnknownObjectLiteral auch ein Dictionary werden (benannte Argumente) -
-	// case 'object' muss also denselben Fehler melden wie derselbe Wert direkt geschrieben
-	// (f(a = §x§)), nicht nur case 'list'.
-	it('dictionary-spread-argument-is-not-type-checked', () => {
+	// kann laut ParseUnknownObjectLiteral auch ein Dictionary werden. case 'object' meldet
+	// denselben Typfehler wie derselbe Wert direkt geschrieben (f(a = §x§)), nicht nur case 'list'.
+	// Ein Dictionary-Spread in der Argumentliste ist zusätzlich nicht zulässig (spreadArgumentNotList).
+	it('dictionary-spread-argument-is-an-error', () => {
 		expectCheck(`namedArgs = [a = §x§]
 f = (a: Integer) => a
 f(...namedArgs)`, {
@@ -3910,6 +3910,14 @@ f(...namedArgs)`, {
 					startColumnIndex: 0,
 					endRowIndex: 2,
 					endColumnIndex: 15,
+				},
+				{
+					code: ErrorCode.spreadArgumentNotList,
+					message: 'A spread in the argument list must be a list.',
+					startRowIndex: 2,
+					startColumnIndex: 2,
+					endRowIndex: 2,
+					endColumnIndex: 14,
 				},
 			],
 		});
@@ -4072,6 +4080,158 @@ f(a = 1 b = 2)`, {
 	it('known-named-argument-is-not-discarded', () => {
 		expectCheck(`f = (a: Integer b: Integer) => a
 f(a = 1 b = 2)`);
+	});
+	// Benannte Argumente stehen in der Reihenfolge der Parameter. Gemeldet wird das Argument,
+	// das vor einem bereits geschriebenen späteren Parameter steht.
+	it('named-arguments-out-of-order', () => {
+		expectCheck(`f = (a: Integer b: Integer) => a
+f(b = 2 a = 1)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentsOutOfOrder,
+					message: "Named arguments must follow the parameter order (a, b). 'a' comes after 'b'.",
+					startRowIndex: 1,
+					startColumnIndex: 8,
+					endRowIndex: 1,
+					endColumnIndex: 13,
+				},
+			],
+		});
+	});
+	// Auslassen ist erlaubt, wo der Typ Empty zulässt, die Reihenfolge der übrigen bleibt.
+	it('named-arguments-with-omission-in-order', () => {
+		expectCheck(`f = (a: Integer b: Or([] Integer) c: Integer) => a
+f(a = 1 c = 3)`);
+	});
+	it('named-arguments-with-omission-out-of-order', () => {
+		expectCheck(`f = (a: Integer b: Or([] Integer) c: Integer) => a
+f(c = 3 a = 1)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentsOutOfOrder,
+					message: "Named arguments must follow the parameter order (a, b, c). 'a' comes after 'c'.",
+					startRowIndex: 1,
+					startColumnIndex: 8,
+					endRowIndex: 1,
+					endColumnIndex: 13,
+				},
+			],
+		});
+	});
+	// Ein Name ohne Parameter ist verworfen (discardedValue), geht aber nicht in die Reihenfolge ein.
+	it('unknown-named-argument-does-not-count-for-order', () => {
+		expectCheck(`f = (a: Integer b: Integer) => a
+f(b = 2 c = 3 a = 1)`, {
+			errors: [
+				{
+					code: ErrorCode.discardedValue,
+					message: "This value is discarded. There is no parameter named 'c'.",
+					startRowIndex: 1,
+					startColumnIndex: 8,
+					endRowIndex: 1,
+					endColumnIndex: 13,
+				},
+				{
+					code: ErrorCode.argumentsOutOfOrder,
+					message: "Named arguments must follow the parameter order (a, b). 'a' comes after 'b'.",
+					startRowIndex: 1,
+					startColumnIndex: 14,
+					endRowIndex: 1,
+					endColumnIndex: 19,
+				},
+			],
+		});
+	});
+	// Das Prefix-Argument belegt den ersten Parameter, die übrigen Namen folgen ihm.
+	// Ein Parameter mit Alias heißt für den Aufrufer wie seine Quelle: (a1: Boolean = a) wird als a übergeben.
+	it('named-arguments-use-source-name-for-order', () => {
+		expectCheck(`f = (a1: Boolean = a b1: Text = b) => b1
+f(b = §x§ a = true)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentsOutOfOrder,
+					message: "Named arguments must follow the parameter order (a, b). 'a' comes after 'b'.",
+					startRowIndex: 1,
+					startColumnIndex: 10,
+					endRowIndex: 1,
+					endColumnIndex: 18,
+				},
+			],
+		});
+	});
+	it('prefix-argument-then-named-arguments-in-order', () => {
+		expectCheck(`f = (a: Integer b: Integer c: Integer) => a
+1.f(b = 2 c = 3)`);
+	});
+	it('prefix-argument-then-named-arguments-out-of-order', () => {
+		expectCheck(`f = (a: Integer b: Integer c: Integer) => a
+1.f(c = 3 b = 2)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentsOutOfOrder,
+					message: "Named arguments must follow the parameter order (a, b, c). 'b' comes after 'c'.",
+					startRowIndex: 1,
+					startColumnIndex: 10,
+					endRowIndex: 1,
+					endColumnIndex: 15,
+				},
+			],
+		});
+	});
+	// Ein rekursiver Aufruf kennt den eigenen Typ noch nicht, die Namen kommen vom Funktionsliteral.
+	it('recursive-call-named-arguments-out-of-order', () => {
+		expectCheck(`f = (a: Integer b: Integer) =>
+	?(a)
+		[0] => b
+		() => f(b = 1 a = 0)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentsOutOfOrder,
+					message: "Named arguments must follow the parameter order (a, b). 'a' comes after 'b'.",
+					startRowIndex: 3,
+					startColumnIndex: 16,
+					endRowIndex: 3,
+					endColumnIndex: 21,
+				},
+			],
+		});
+	});
+	// Ein Spread in der Argumentliste ist nur als List zulässig.
+	it('list-spread-argument-is-allowed', () => {
+		expectCheck(`f = (a: Integer b: Integer) => a
+values = [1 2]
+f(...values)`);
+	});
+	it('any-spread-argument-is-an-error', () => {
+		expectCheck(`f = (a: Integer b: Integer) => a
+g = (x: Any) => f(...x)`, {
+			errors: [
+				{
+					code: ErrorCode.spreadArgumentNotList,
+					message: 'A spread in the argument list must be a list.',
+					startRowIndex: 1,
+					startColumnIndex: 18,
+					endRowIndex: 1,
+					endColumnIndex: 22,
+				},
+			],
+		});
+	});
+	it('dictionary-spread-next-to-named-argument-is-an-error', () => {
+		expectCheck(`f = (a: Integer b: Integer) => a
+rest = [b = 2]
+f(a = 1 ...rest)`, {
+			errors: [
+				{
+					code: ErrorCode.spreadArgumentNotList,
+					message: 'A spread in the argument list must be a list.',
+					startRowIndex: 2,
+					startColumnIndex: 8,
+					endRowIndex: 2,
+					endColumnIndex: 15,
+				},
+			],
+		});
 	});
 	// Ein Prefix-Argument bindet schon Parameter — eine gleichnamige explizite
 	// Bindung sollte als discarded gemeldet werden, tut es aber nicht.
@@ -6563,6 +6723,17 @@ describe('constant folding', () => {
 	it('Rest-Parameter wird gefaltet', () => {
 		expect(typeOfLastDefinition('r = add(2 3)')).to.equal('5');
 	});
+	// Ein Dictionary ordnet nach den Parameternamen, in Parameterreihenfolge.
+	it('benannte Argumente werden gefaltet', () => {
+		expect(typeOfLastDefinition('r = subtract(minuend = 5 subtrahend = 3)')).to.equal('2');
+	});
+	it('benannte Argumente mit Prefixargument werden gefaltet', () => {
+		expect(typeOfLastDefinition('r = 5.subtract(subtrahend = 3)')).to.equal('2');
+	});
+	it('benannte Argumente einer Nutzerfunktion werden gefaltet', () => {
+		expect(typeOfLastDefinition(`f = (a: Integer b: Integer) => subtract(a b)
+r = f(a = 5 b = 3)`)).to.equal('2');
+	});
 	it('parseFloat faltet einen validen Text', () => {
 		expect(typeOfLastDefinition('r = parseFloat(§1.5§)')).to.equal('1.5f');
 	});
@@ -7209,7 +7380,7 @@ describe('test builtin', () => {
 		});
 	});
 	it('named-name-argument-as-literal', () => {
-		expectCheck('test(callback = () => true name = §a§)', { filePath: 'dummy.test.jul' });
+		expectCheck('test(name = §a§ callback = () => true)', { filePath: 'dummy.test.jul' });
 	});
 	it('test-in-function-body', () => {
 		expectCheck('f = () =>\n\ttest(§a§ () => true)', {
@@ -7412,5 +7583,35 @@ wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
 	});
 	it('unknown-is-a-warning', () => {
 		expect(errorInfos[ErrorCode.typeNotProven].severity).to.equal('warning');
+	});
+	// Aufruf eines Werts vom Typ Any: Parameterliste und Rückgabetyp sind unbekannt.
+	const callOfAnyPositions = (code: string, { enabled = true } = {}): number[] => {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false, warnUnknown: () => enabled });
+		return parsed.checked!.errors
+			.filter(error => error.code === ErrorCode.callOfAny)
+			.map(error => error.startColumnIndex);
+	};
+	it('call-of-any-is-reported', () => {
+		expect(callOfAnyPositions('g = (f: Any) => f(1)')).to.deep.equal([16]);
+	});
+	it('call-of-any-with-named-arguments-is-reported', () => {
+		expect(callOfAnyPositions('g = (f: Any) => f(a = 1)')).to.deep.equal([16]);
+	});
+	it('call-of-any-is-not-reported-when-disabled', () => {
+		expect(callOfAnyPositions('g = (f: Any) => f(1)', { enabled: false })).to.deep.equal([]);
+	});
+	it('call-of-typed-function-is-not-reported', () => {
+		expect(callOfAnyPositions('g = (f: (a: Integer) -> Integer) => f(1)')).to.deep.equal([]);
+	});
+	// Der eigene Typ steht erst nach dem Rumpf fest, bis dahin ist die Selbstreferenz Any.
+	it('recursive-call-is-not-reported', () => {
+		expect(callOfAnyPositions(`f = (n: Integer) =>
+	?(n)
+		[0] => 0
+		() => f(subtract(n 1))`)).to.deep.equal([]);
+	});
+	it('call-of-any-is-a-warning', () => {
+		expect(errorInfos[ErrorCode.callOfAny].severity).to.equal('warning');
 	});
 });

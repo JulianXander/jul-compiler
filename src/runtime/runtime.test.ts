@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
-	_branch, _callFunction, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
+	_branch, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
 	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
@@ -484,12 +484,6 @@ describe('getElement/setElement', () => {
 	it('setElement hat die Parameter values, index und value', () => {
 		expect(getParamNames(setElement)).to.deep.equal(['values', 'index', 'value']);
 	});
-	it('getElement mit benannten Argumenten', () => {
-		expect(_callFunction(getElement, undefined, { values: [7n, 8n], index: 2n })).to.equal(8n);
-	});
-	it('setElement mit benannten Argumenten', () => {
-		expect(_callFunction(setElement, undefined, { values: [1n, 2n], index: 2n, value: 5n })).to.deep.equal([1n, 5n]);
-	});
 });
 
 //#endregion List
@@ -804,25 +798,3 @@ describe('combine$', () => {
 });
 
 //#endregion Stream
-
-// Für Listen-Argumente emittiert der Emitter `fn(a, b, c)` direkt statt über _callFunction
-// (emitter.ts, case 'list'), constant folding ruft dagegen immer _callFunction. Für Listen-
-// Argumente müssen beide Wege dasselbe Ergebnis liefern, sonst weicht ein gefalteter Typ vom
-// tatsächlich emittierten Programmverhalten ab.
-describe('_callFunction folgt der vom Emitter erzeugten Aufrufkonvention (Listen-Argumente)', () => {
-	it('Rest-Parameter', () => {
-		const values = [2n, 3n];
-		expect(_callFunction(add, undefined, values)).to.equal(add(...values));
-	});
-	it('singleNames-Parameter', () => {
-		const values: [bigint, bigint] = [5n, 3n];
-		expect(_callFunction(subtract, undefined, values)).to.deep.equal(subtract(...values));
-	});
-	it('Prefixargument mit Rest-Parameter', () => {
-		expect(_callFunction(add, 2n, [3n])).to.equal(add(2n, 3n));
-	});
-	it('Prefixargument mit singleNames-Parameter', () => {
-		const texts = ['x', 'y'];
-		expect(_callFunction(combineTexts, texts, ['-'])).to.equal(combineTexts(texts, '-'));
-	});
-});

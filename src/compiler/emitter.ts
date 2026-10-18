@@ -46,7 +46,6 @@ let instrumentedTestCall: ParseExpression | undefined;
  * functionLiteralToEvaluableJs emittiert ohne Marker.
  */
 let emitSourcePositions = false;
-
 //#region source map
 
 /**
@@ -379,6 +378,15 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				? analyzeTailCalls(expression, parent.name.name)
 				: undefined;
 			const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(expression.params, expression.body, indent, tail);
+			if (!needsRuntimeParams(expression)) {
+				// Nichts liest die Parameterliste: ein nacktes Arrow, ohne _createFunction.
+				if (isNamed) {
+					return functionJs;
+				}
+				return isAccessSource(expression)
+					? `(${functionJs})`
+					: functionJs;
+			}
 			if (isNamed) {
 				// named function
 				const nameJs = escapeReservedJsVariableName(parent.name.name);
@@ -561,6 +569,33 @@ function functionLiteralToJsParts(
 		? `(${argsJs}) => {${getRowDelimiterJs(indent + 2)}while (true) {${functionBodyToJs(body, indent + 3, tail)}${getRowDelimiterJs(indent + 2)}}${delimiterJs}}`
 		: `(${argsJs}) => {${functionBodyToJs(body, indent + 2)}${delimiterJs}}`;
 	return { functionJs, paramsJs, delimiterJs };
+}
+
+/**
+ * Liest die Laufzeit die Parameterliste dieses Funktionsliterals? Nur tryAssignArgs tut es, für
+ * ein Prädikat in Typposition und für die Branches von _branch. Es prüft Typen aus der Liste:
+ * einen Typ-Kopf und Parametertypen. Ohne sie bindet es nur der Reihe nach, wie ein direkter
+ * Aufruf. Benannte Aufrufe ordnet der Emitter selbst zu (JUL2501).
+ */
+function needsRuntimeParams(literal: ParseFunctionLiteral): boolean {
+	if (literal.parent?.type === 'branching') {
+		return true;
+	}
+	const params = literal.params;
+	if (params.type !== 'parameters') {
+		return true;
+	}
+	return params.singleFields.some(field => field.typeGuard)
+		|| !!params.rest?.typeGuard;
+}
+
+/**
+ * Ein Arrow als Quelle eines Zugriffs braucht Klammern. Als aufgerufener Ausdruck steht nie ein
+ * Funktionsliteral, die Grammatik lässt es nicht zu.
+ */
+function isAccessSource(literal: ParseFunctionLiteral): boolean {
+	const parent = literal.parent;
+	return parent?.type === 'nestedReference' && parent.source === literal;
 }
 
 //#region Tail-Call-Optimierung
@@ -865,12 +900,13 @@ function literalValueToJs(value: LiteralValue | undefined): string {
 //#region benannte Argumente mit Typinformation
 
 /**
- * Ordnet benannte Argumente schon beim Emittieren den Parametern zu, statt zur Laufzeit über
- * _callFunction/assignArgs. Nur, wenn die aufgerufene Funktion nachweislich ein JUL-Literal ist:
- * eine nativeFunction bekommt von _callFunction das Dictionary selbst.
- * Die Auswertung bleibt in geschriebener Reihenfolge. Müssten dafür nicht-triviale Argumente die
- * Reihenfolge tauschen oder fiele eines weg, werden alle Argumente in geschriebener Reihenfolge an
- * ein Arrow übergeben, das sie in Parameterreihenfolge weiterreicht.
+ * Schreibt benannte Argumente als positionalen Aufruf: Die Namen stehen in Parameterreihenfolge
+ * (der Checker prüft es, JUL2501), ein ausgelassener Parameter in der Mitte wird undefined, am Ende
+ * entfällt er. Gilt für jede Funktion, deren Parameternamen der Checker kennt (JUL-Literal,
+ * Builtin, Funktionswert, importierte Funktion mit Signatur).
+ * Ein Argument ohne Parameter (eine verworfene Warnung) wird trotzdem ausgewertet: Steht ein
+ * nicht-triviales davon im Aufruf, gehen alle Argumente in geschriebener Reihenfolge an ein Arrow,
+ * das sie weiterreicht.
  */
 function namedArgumentsToDirectCallJs(
 	parameterNames: string[] | undefined,
@@ -906,10 +942,12 @@ function namedArgumentsToDirectCallJs(
 		});
 	}
 	const innerIndent = indent + 1;
-	const nonTrivial = written.filter(argument => !isTrivialArgument(argument.value));
-	const needsTemporaries = nonTrivial.some((argument, index) =>
+	// Die Namen stehen in Parameterreihenfolge (der Checker prüft es), die Auswertung folgt also von
+	// selbst der geschriebenen Reihenfolge. Nur ein Argument ohne Parameter muss trotzdem ausgewertet
+	// werden und käme sonst ans Ende.
+	const needsTemporaries = written.some(argument =>
 		argument.parameterIndex < 0
-		|| (index && argument.parameterIndex < nonTrivial[index - 1]!.parameterIndex));
+		&& !isTrivialArgument(argument.value));
 	const slotsJs: (string | undefined)[] = parameterNames.map(() => undefined);
 	written.forEach((argument, index) => {
 		if (argument.parameterIndex >= 0) {
@@ -1012,19 +1050,32 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 			const valuesJs = listValuesToJs(jsValues, indent);
 			return `${functionJs}(${valuesJs})`;
 		}
-		case 'object':
+		case 'object': {
+			// Nur Spreads: eine List, wie f(1 ...values) (der Checker lässt nichts anderes zu).
+			const jsValues = parseListValuesToJs(args.values, indent);
+			if (prefixArgument) {
+				jsValues.unshift(prefixArgJs);
+			}
+			return `${functionJs}(${listValuesToJs(jsValues, indent)})`;
+		}
 		case 'dictionary': {
-			const directCallJs = useTypeInfo
-				&& args.type === 'dictionary'
-				? namedArgumentsToDirectCallJs(expression.literalParameterNames, functionJs, prefixArgument, args, indent)
-				: undefined;
+			const directCallJs = namedArgumentsToDirectCallJs(expression.calledParameterNames, functionJs, prefixArgument, args, indent);
 			if (directCallJs) {
 				return directCallJs;
 			}
-			const argsJs = expressionToJs(args, indent);
-			const jsValues = [functionJs, prefixArgJs, argsJs];
-			const valuesJs = listValuesToJs(jsValues, indent);
-			return `_callFunction(${valuesJs})`;
+			// Ohne bekannte Parameterliste (Typ Any, JUL5011) gehen die Werte der Reihe nach an die Funktion,
+			// die Namen entfallen.
+			const jsArguments = args.fields.map(field => {
+				if (field.type !== 'singleDictionaryField'
+					|| !field.value) {
+					throw new Error('unexpected field in named arguments.');
+				}
+				return expressionToJs(field.value, indent + 1);
+			});
+			if (prefixArgument) {
+				jsArguments.unshift(prefixArgJs);
+			}
+			return `${functionJs}(${listValuesToJs(jsArguments, indent)})`;
 		}
 		case undefined:
 		case 'empty': {

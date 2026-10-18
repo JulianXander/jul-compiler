@@ -94,8 +94,6 @@ aliasFn: (   a: Boolean   b: Any ) ~> Empty
 fn1: (   a: Boolean   b: Text ) -> Empty
 fn2: (   b: Text   a: Boolean ) -> Empty
 higherOrderFn: (fn: (   a: Boolean   b: Text ) :> Empty) -> Empty
-myDictionary: [   a: 1   b: 2 ]
-myDictionary1: [   b: 2   a: 1 ]
 myFunction: (   a: Any   b: Any ) ~> Empty
 myFunction1: (a: MyType) ~> Empty
 myFunction4: (   a: 1   b: 2 ) ~> Empty
@@ -104,10 +102,10 @@ primitiveTypeFunction: Integer ~> Empty
 restFunction: (...restParameter: Any) ~> Empty
 restFunction2: (...restParameter: MyType) ~> Empty
 typeFunction: MyType ~> Empty
-  error 5050 at 48:1 Argument type mismatch. | Can not assign [[ |   a: 1 |   b: 2 | ]] to [ |   a: 1 |   b: 2 | ].
-  error 5003 at 53:25 Expected the params type to describe an argument collection. Did you mean [Integer]?
-  error 5050 at 54:1 Argument type mismatch. | Can not assign [1] to Integer.
-  error 5050 at 70:1 Argument type mismatch. | Can not assign dictionary to rest parameter
+  error 5050 at 28:1 Argument type mismatch. | Can not assign [[ |   a: 1 |   b: 2 | ]] to [ |   a: 1 |   b: 2 | ].
+  error 5003 at 33:25 Expected the params type to describe an argument collection. Did you mean [Integer]?
+  error 5050 at 34:1 Argument type mismatch. | Can not assign [1] to Integer.
+  error 5050 at 50:1 Argument type mismatch. | Can not assign dictionary to rest parameter
 === object-example.jul ===
 myDictValue1: 1
 myDictValue2: 1234

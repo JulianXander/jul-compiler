@@ -75,6 +75,30 @@ const boundState = {
 		atk: index % 3 ? 1800n : undefined,
 	})),
 };
+const hundredIntegers = Array.from({ length: 100 }, (_, index) => BigInt(index + 1));
+const fiftyIntegers = Array.from({ length: 50 }, (_, index) => BigInt(index + 1));
+// Wie ein Spielzustand: ein Record mit vielen Feldern, ein Feld ändert sich je Update
+const createGameLike = (turn: bigint) => ({
+	turn,
+	phase: 'main1',
+	priority: 1n,
+	turnPlayer: 1n,
+	life1: 8000n,
+	life2: 8000n,
+	deck1: fiftyIntegers,
+	deck2: fiftyIntegers,
+	hand1: [1n, 2n, 3n, 4n, 5n],
+	hand2: [6n, 7n, 8n, 9n, 10n],
+	events: ['draw', 'summon'],
+	chain: [1n],
+});
+// Gleiches Feld hp in vier Formen (andere Feldreihenfolge und andere Felder)
+const unitShapes = [
+	{ name: 'a', hp: 10n, atk: 1n },
+	{ hp: 20n, name: 'b', def: 2n },
+	{ atk: 3n, hp: 30n, level: 4n, name: 'c' },
+	{ level: 5n, hp: 40n },
+];
 // Deckt alles ab, was der JSON-Parser für JUL umwandelt: Integer, Dezimalzahl und Exponent,
 // null und leere Kollektionen (Empty), Escapes
 const smallJson = JSON.stringify({
@@ -241,10 +265,52 @@ const cases: BenchCase[] = [
 		calls: 1_000_000,
 	},
 	{
-		file: 'named-arguments.jul',
-		functionName: 'namedSwapped',
-		inputs: [1n],
-		expected: [1n],
+		file: 'callbacks.jul',
+		functionName: 'countAbove',
+		inputs: [{ limit: 50n, values: hundredIntegers }, { limit: 0n, values: hundredIntegers }],
+		expected: [50n, 100n],
+		calls: 100_000,
+	},
+	{
+		file: 'callbacks.jul',
+		functionName: 'countSmall',
+		inputs: [{ limit: 1n, values: [1n, 2n, 3n] }, { limit: 5n, values: [1n, 2n, 3n] }],
+		expected: [2n, 0n],
+		calls: 500_000,
+	},
+	{
+		file: 'callbacks.jul',
+		functionName: 'sumWithIndex',
+		inputs: [fiftyIntegers],
+		expected: [2550n],
+		calls: 100_000,
+	},
+	{
+		file: 'callbacks.jul',
+		functionName: 'sumWithoutIndex',
+		inputs: [fiftyIntegers],
+		expected: [1275n],
+		calls: 100_000,
+	},
+	{
+		file: 'record-update.jul',
+		functionName: 'nextTurn',
+		inputs: [createGameLike(3n), createGameLike(10n)],
+		expected: [4n, 11n],
+		calls: 500_000,
+	},
+	{
+		file: 'record-update.jul',
+		functionName: 'nextTwice',
+		inputs: [createGameLike(3n)],
+		expected: [7900n],
+		calls: 500_000,
+	},
+	{
+		file: 'field-access.jul',
+		functionName: 'unitScore',
+		inputs: unitShapes,
+		expected: [11n, 21n, 31n, 41n],
 		calls: 1_000_000,
 	},
 	{

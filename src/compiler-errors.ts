@@ -107,6 +107,17 @@ export enum ErrorCode {
 	 */
 	discardedValue = 2500,
 	/**
+	 * Benannte Argumente stehen nicht in der Reihenfolge der Parameter. Ein Aufruf mit Namen ist
+	 * ein positionaler Aufruf mit Beschriftung: Die Namen werden geprüft, nicht zur Laufzeit
+	 * zugeordnet. Auslassen bleibt erlaubt, wo der Parametertyp Empty zulässt.
+	 */
+	argumentsOutOfOrder = 2501,
+	/**
+	 * Ein Spread in der Argumentliste ist keine List: Ein Dictionary hat keine Reihenfolge und
+	 * lässt sich nicht den Parametern zuordnen. Nur `f(...list)` ist zulässig.
+	 */
+	spreadArgumentNotList = 2502,
+	/**
 	 * Ein Name passt in der Schreibweise nicht zu seinem Wert: Typen und Funktionen, die einen Typ
 	 * liefern, beginnen groß, alles, was sicher kein Typ ist, beginnt klein. Gemeldet wird nur,
 	 * wenn der statische Typ das eindeutig sagt - bei Any, gemischten Typen und Prädikaten nicht.
@@ -215,6 +226,12 @@ export enum ErrorCode {
 	 */
 	typeNotProven = 5010,
 	/**
+	 * Aufruf eines Werts vom Typ Any: Es steht nicht fest, dass er eine Funktion ist, der Aufruf kann
+	 * zur Laufzeit scheitern. Parameterliste und Rückgabetyp sind ebenfalls unbekannt, benannte
+	 * Argumente gehen der Reihe nach an die Funktion, ihre Namen entfallen.
+	 */
+	callOfAny = 5011,
+	/**
 	 * Der Params-Typ einer Funktion wird gegen die Argumentkollektion geprüft, und die ist List,
 	 * Dictionary oder Empty. Gemeldet wird, wenn der Typ bewohnt ist und keiner seiner Werte eine
 	 * Kollektion sein kann - dann ist die Funktion nicht aufrufbar. Never ist unbewohnt und fällt
@@ -316,6 +333,8 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.invalidParameterSource]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.restArgumentNotLast]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.discardedValue]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.argumentsOutOfOrder]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.spreadArgumentNotList]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.namingCase]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.testOutsideTestFile]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testNameNotLiteral]: { type: 'semantic', severity: 'error' },
@@ -342,6 +361,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.unusedDefinition]: { type: 'semantic', severity: 'hint' },
 	[ErrorCode.definitionTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.typeNotProven]: { type: 'type', severity: 'warning' },
+	[ErrorCode.callOfAny]: { type: 'type', severity: 'warning' },
 	[ErrorCode.destructuringFieldTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.typeGuardIsNotType]: { type: 'type', severity: 'error' },
 	[ErrorCode.paramsTypeIsNotCollection]: { type: 'type', severity: 'error' },

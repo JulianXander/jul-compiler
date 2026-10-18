@@ -150,7 +150,6 @@
 	 "fall fehlt" gemeldet werden, sonst wird aus unwissen eine falschmeldung
 -typgestützte emission, siehe docs/typed-emission.md
 	-branching: billigster test, der im restbereich trennt, statt _branch mit vollem typcheck
-	-benannte argumente: direkter aufruf statt _callFunction, wenn die funktion ein jul-literal ist
 	-dieselbe restbereich-rechnung wie die exhaustivitätsprüfung darüber
 	-später: hint, wo auch mit typwissen nur die volle prüfung entscheidet
 	 (Or(List(Integer) List(Or(Integer Text))) mit kopf [List(Integer)])
