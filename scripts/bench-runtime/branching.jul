@@ -38,3 +38,34 @@ emptyOrIntegerUnion = (level: Or([] 1 2 3 4 5 6 7 8)) =>
 		[Or([] 1 2 3 4)] => 0
 		[Or(5 6)] => 1
 		() => 2
+
+# Records mit PositiveInteger-Feldern (wie GameCardId in yugioh): bound ist ein Integer mit Grenze,
+# die Laufzeitart steht trotzdem fest
+BoundCard = [
+	id: PositiveInteger
+	name: Text
+	atk: Or([] Integer)
+]
+
+BoundState = [
+	turn: PositiveInteger
+	cards: List(BoundCard)
+]
+
+# Fehler oder großer Record: der Test auf Error darf den Record nicht prüfen
+errorOrBoundState = (x: Or(Error BoundState)) =>
+	?(x)
+		[Error] => 1
+		() => 2
+
+# Leer oder großer Record
+emptyOrBoundState = (x: Or([] BoundState)) =>
+	?(x)
+		[Empty] => 1
+		() => 2
+
+# Kopf mit dem Record-Typ, wie [PlayerInput] in apply
+boundStateHead = (x: Or([] BoundState)) =>
+	?(x)
+		[BoundState] => 1
+		() => 2

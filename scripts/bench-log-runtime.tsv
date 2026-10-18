@@ -294,3 +294,39 @@
 2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/small	15	3719.39	3825.41	3825.41	nachher: Tail-Call-Optimierung als Schleife
 2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/large	15	3680798.00	5255396.00	5255396.00	nachher: Tail-Call-Optimierung als Schleife
 2026-10-13 08:22:35	9a58aa8+	-	ADV-DEV-56627	bench-runtime	json/texts	15	437788.50	478438.50	478438.50	nachher: Tail-Call-Optimierung als Schleife
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	95.67	102.79	102.79	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	96.28	101.75	101.75	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	332.07	352.37	352.37	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	27417.70	31499.15	31499.15	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.67	12.86	12.86	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.35	9.80	9.80	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.33	9.63	9.63	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	148.98	161.06	161.06	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	133.09	148.39	148.39	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	47.24	59.57	59.57	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	47.16	59.05	59.05	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	3191.80	3255.40	3255.40	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.31	10.87	10.87	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	8.31	9.07	9.07	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	8.40	9.44	9.44	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	json/small	15	3533.85	3657.45	3657.45	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	json/large	15	3540532.00	3862440.00	3862440.00	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:07	6f09d5b+	-	ADV-DEV-56627	bench-runtime	json/texts	15	417085.50	432376.00	432376.00	vorher: bound-Fixtures (errorOrBoundState, emptyOrBoundState, boundStateHead), ohne bound in branch-dispatch
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	99.36	103.47	103.47	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	92.58	102.72	102.72	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	330.85	380.95	380.95	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	27114.35	28185.35	28185.35	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.47	12.16	12.16	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.09	9.47	9.47	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.05	10.03	10.03	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	155.37	164.20	164.20	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	133.98	151.58	151.58	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	9.10	10.37	10.37	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	7.58	8.97	8.97	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	7.49	14.05	14.05	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.54	10.72	10.72	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	7.98	10.79	10.79	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedSwapped	15	8.38	10.15	10.15	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	json/small	15	3618.40	3872.26	3872.26	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	json/large	15	3466374.00	3601776.00	3601776.00	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)
+2026-10-18 08:47:24	6f09d5b+	-	ADV-DEV-56627	bench-runtime	json/texts	15	426242.00	449276.00	449276.00	nachher: bound als JsKind im Branch-Dispatch (gleiche Fixtures wie vorher)

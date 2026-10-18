@@ -387,6 +387,124 @@ f = (x: Or(Text List(Integer))) =>
 		[List(Integer)] => 1
 		() => 2`);
 	});
+	// bound (PositiveInteger = GreaterInteger(0)) hat als Laufzeitart bigint bzw. number. Ein Feld mit bound
+	// macht den Record nicht unbestimmbar: gefragt ist nur, welcher der möglichen Fälle vorliegt.
+	it('bound im Record: Error gegen Record mit PositiveInteger-Feld wird zu instanceof', () => {
+		expectBranchingEmit(`f = (x: Or(Error [a: PositiveInteger])) =>
+	?(x)
+		[Error] => 1
+		() => 2`, `
+		return x instanceof Error
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('bound im Record: Empty gegen Record mit PositiveInteger-Feld wird zu undefined-Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or([] [a: PositiveInteger])) =>
+	?(x)
+		[Empty] => 1
+		() => 2`, `
+		return x === undefined
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('bound im Record: Kopf mit dem Record-Typ wird zu undefined-Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or([] [a: PositiveInteger])) =>
+	?(x)
+		[[a: PositiveInteger]] => 1
+		() => 2`, `
+		return x !== undefined
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('bound im Record: unterscheidendes Feld wird direkt verglichen', () => {
+		expectBranchingEmit(`f = (x: Or([kind: §a§ id: PositiveInteger] [kind: §b§ id: PositiveInteger])) =>
+	?(x)
+		[[kind: §a§]] => 1
+		() => 2`, `
+		return x?.['kind'] === 'a'
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('bound als Glied: Text gegen PositiveInteger wird zu typeof', () => {
+		expectBranchingEmit(`f = (x: Or(Text PositiveInteger)) =>
+	?(x)
+		[Text] => 1
+		() => 2`, `
+		return typeof x === 'string'
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('bound als Glied: Kopf PositiveInteger auf Or([] PositiveInteger) wird zu undefined-Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or([] PositiveInteger)) =>
+	?(x)
+		[PositiveInteger] => 1
+		() => 2`, `
+		return x !== undefined
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('bound im Record: Record mit PositiveInteger-Feld ist Teilmenge von Record mit Integer-Feld', () => {
+		expectBranchingEmit(`f = (x: Or(Text [a: PositiveInteger])) =>
+	?(x)
+		[[a: Integer]] => 1
+		() => 2`, `
+		return typeof x !== 'string'
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Rückfall: Record mit Integer-Feld ist keine Teilmenge von Record mit PositiveInteger-Feld', () => {
+		expectBranchingFallback(`f = (x: Or(Text [a: Integer])) =>
+	?(x)
+		[[a: PositiveInteger]] => 1
+		() => 2`);
+	});
+	// Ob ein Integer größer 0 ist, entscheidet erst die Laufzeit: Integer und PositiveInteger haben dieselbe Laufzeitart.
+	it('Rückfall: Kopf PositiveInteger auf Integer, die Grenze entscheidet erst die Laufzeit', () => {
+		expectBranchingFallback(`f = (x: Integer) =>
+	?(x)
+		[PositiveInteger] => 1
+		() => 2`);
+	});
+	it('Rückfall: Kopf PositiveInteger auf Or([] Integer)', () => {
+		expectBranchingFallback(`f = (x: Or([] Integer)) =>
+	?(x)
+		[PositiveInteger] => 1
+		() => 2`);
+	});
+	it('Rückfall: bound in einem Glied mit Any bleibt unbrauchbar', () => {
+		expectBranchingFallback(`f = (x: Or([] [a: PositiveInteger b: Any])) =>
+	?(x)
+		[[a: PositiveInteger b: Integer]] => 1
+		() => 2`);
+	});
 });
 
 const expectCallEmit = reportAtCaller((code: string, bodyJs: string) => {

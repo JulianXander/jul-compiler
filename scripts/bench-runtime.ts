@@ -66,6 +66,15 @@ const complexValue = {
 		d: Array.from({ length: 20 }, (_, index) => BigInt(index)),
 	},
 };
+// Wie ein Spielzustand mit Karten-Ids (PositiveInteger): 60 Karten, jede mit eigenem Record
+const boundState = {
+	turn: 3n,
+	cards: Array.from({ length: 60 }, (_, index) => ({
+		id: BigInt(index + 1),
+		name: `Karte ${index}`,
+		atk: index % 3 ? 1800n : undefined,
+	})),
+};
 // Deckt alles ab, was der JSON-Parser für JUL umwandelt: Integer, Dezimalzahl und Exponent,
 // null und leere Kollektionen (Empty), Escapes
 const smallJson = JSON.stringify({
@@ -194,6 +203,27 @@ const cases: BenchCase[] = [
 		functionName: 'emptyOrIntegerUnion',
 		inputs: [undefined, 3n, 6n, 8n],
 		expected: [0n, 0n, 1n, 2n],
+		calls: 200_000,
+	},
+	{
+		file: 'branching.jul',
+		functionName: 'errorOrBoundState',
+		inputs: [new Error('fehler'), boundState],
+		expected: [1n, 2n],
+		calls: 200_000,
+	},
+	{
+		file: 'branching.jul',
+		functionName: 'emptyOrBoundState',
+		inputs: [undefined, boundState],
+		expected: [1n, 2n],
+		calls: 200_000,
+	},
+	{
+		file: 'branching.jul',
+		functionName: 'boundStateHead',
+		inputs: [undefined, boundState],
+		expected: [2n, 1n],
 		calls: 200_000,
 	},
 	{

@@ -395,6 +395,9 @@ function containsAny(type: CompileTimeType, visitedAliases: Set<CompileTimeType>
 			return Object.values(type.Fields).some(fieldType => containsAny(fieldType, visitedAliases));
 		case 'stream':
 			return containsAny(type.ValueType, visitedAliases);
+		case 'bound':
+			// Die Grenze ist ein Wert, den der Dispatch nie auswertet. Ein unbekannter Wert (Platzhalter) bleibt unbrauchbar.
+			return containsAny(type.Value, visitedAliases);
 		case 'or':
 		case 'and':
 			return type.ChoiceTypes.some(choiceType => containsAny(choiceType, visitedAliases));
@@ -430,6 +433,10 @@ function getJsKinds(type: CompileTimeType): Set<JsKind> | undefined {
 		case 'float':
 		case 'floatLiteral':
 			return new Set(['number']);
+		case 'bound':
+			// Wie integer bzw. float: die Grenze schränkt die Werte ein, nicht die Laufzeitart.
+			// Ob ein Wert innerhalb der Grenze liegt, kann nur isSubtypeOf (statisch) entscheiden.
+			return new Set([resolved.Family === 'integer' ? 'bigint' : 'number']);
 		case 'text':
 		case 'textLiteral':
 			return new Set(['string']);
