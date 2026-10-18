@@ -470,3 +470,78 @@
 2026-10-18 13:57:08	88f9af8+	-	ADV-DEV-56627	bench-runtime	json/small	15	4079.09	4322.43	4322.43	Schritt 4 feste Argumentreihenfolge: params nur noch bei Parametertypen, Typ-Kopf und Branches, Hoisting entfernt
 2026-10-18 13:57:08	88f9af8+	-	ADV-DEV-56627	bench-runtime	json/large	15	4034456.00	4235940.00	4235940.00	Schritt 4 feste Argumentreihenfolge: params nur noch bei Parametertypen, Typ-Kopf und Branches, Hoisting entfernt
 2026-10-18 13:57:08	88f9af8+	-	ADV-DEV-56627	bench-runtime	json/texts	15	423119.00	504751.00	504751.00	Schritt 4 feste Argumentreihenfolge: params nur noch bei Parametertypen, Typ-Kopf und Branches, Hoisting entfernt
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	95.87	116.29	116.29	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	101.94	111.33	111.33	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	344.97	360.51	360.51	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	30198.30	32668.55	32668.55	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	9.66	14.98	14.98	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	11.02	15.07	15.07	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.67	13.94	13.94	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	10.90	19.32	19.32	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	15.81	18.59	18.59	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	8.97	16.47	16.47	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	8.61	10.95	10.95	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	10.49	12.70	12.70	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	9.05	11.29	11.29	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	9.31	10.73	10.73	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	576.90	608.41	608.41	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	63.01	74.18	74.18	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1256.27	1662.94	1662.94	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	745.82	1085.62	1085.62	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	50.81	54.18	54.18	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	29.95	35.19	35.19	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	46.58	51.63	51.63	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	16.77	21.47	21.47	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	json/small	15	3671.60	3889.84	3889.84	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	json/large	15	3568466.00	3802616.00	3802616.00	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:40:21	07cc535+	-	ADV-DEV-56627	bench-runtime	json/texts	15	434061.00	474124.00	474124.00	list-search Fixture, Stand vor Listenschleifen
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	102.64	113.82	113.82	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	110.61	116.49	116.49	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	385.01	398.46	398.46	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	29618.55	33406.75	33406.75	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	9.84	10.29	10.29	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	10.82	17.20	17.20	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	10.60	13.94	13.94	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	10.29	13.87	13.87	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	16.69	21.58	21.58	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	11.23	11.87	11.87	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	9.88	10.75	10.75	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	10.50	13.35	13.35	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	10.15	11.63	11.63	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	10.22	11.27	11.27	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	561.80	589.73	589.73	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	69.74	77.01	77.01	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1325.27	1372.21	1372.21	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	712.37	777.61	777.61	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	29.92	34.94	34.94	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	32.06	36.98	36.98	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	51.55	58.66	58.66	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	19.66	22.61	22.61	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	json/small	15	4060.33	4254.59	4254.59	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	json/large	15	3930174.00	4115510.00	4115510.00	exists als Schleife inlined (Spike)
+2026-10-18 14:47:25	07cc535+	-	ADV-DEV-56627	bench-runtime	json/texts	15	489774.00	502236.00	502236.00	exists als Schleife inlined (Spike)
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	95.79	105.94	105.94	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	97.27	109.54	109.54	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	336.57	384.74	384.74	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	30519.15	33851.15	33851.15	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	10.19	15.26	15.26	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	10.81	15.36	15.36	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.83	13.01	13.01	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	10.51	15.19	15.19	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	15.78	20.29	20.29	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	9.89	15.56	15.56	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	9.21	11.69	11.69	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	9.74	12.89	12.89	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	10.06	11.48	11.48	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	9.95	11.40	11.40	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	489.65	519.52	519.52	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	55.77	60.42	60.42	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1321.79	1583.85	1583.85	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	756.21	820.28	820.28	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	32.01	36.34	36.34	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	33.19	35.25	35.25	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	51.85	56.77	56.77	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	18.88	20.46	20.46	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	json/small	15	4117.89	4300.03	4300.03	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	json/large	15	4037260.00	4276118.00	4276118.00	exists, filter, map, filterMap als Schleife
+2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	json/texts	15	485513.00	500562.50	500562.50	exists, filter, map, filterMap als Schleife

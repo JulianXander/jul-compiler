@@ -293,6 +293,13 @@ const cases: BenchCase[] = [
 		calls: 100_000,
 	},
 	{
+		file: 'list-search.jul',
+		functionName: 'containsBoth',
+		inputs: [[1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n]],
+		expected: [true],
+		calls: 500_000,
+	},
+	{
 		file: 'record-update.jul',
 		functionName: 'nextTurn',
 		inputs: [createGameLike(3n), createGameLike(10n)],

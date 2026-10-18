@@ -1041,6 +1041,10 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 		&& (args?.type === 'list' || args?.type === 'empty' || !args)) {
 		return testCallToInstrumentedJs(testCallName, functionJs, expression, indent);
 	}
+	const inlinedListJs = inlinedListCallToJs(expression, prefixArgJs, indent);
+	if (inlinedListJs !== undefined) {
+		return inlinedListJs;
+	}
 	switch (args?.type) {
 		case 'list': {
 			const jsValues = parseListValuesToJs(args.values, indent);
@@ -1161,6 +1165,154 @@ function operandToJs(operand: ParseExpression, operandJs: string): string {
 }
 
 //#endregion short circuit
+
+//#region inlined list functions
+
+/** Was ein Parameter des Callbacks bekommt */
+type InlinedListParameter = 'accumulator' | 'value' | 'index';
+
+/**
+ * Wie eine Listenfunktion als Schleife aussieht: `init` steht vor der Schleife, `step` bekommt den
+ * Ausdruck der letzten Anweisung des Callbacks und `finish` steht danach. Ist die Liste empty, liefert
+ * die Funktion `emptyResult`, wie die Runtime-Implementierung.
+ */
+interface InlinedListFunction {
+	/** Die Parameter des Callbacks der Reihe nach, ein Literal darf weniger nehmen */
+	readonly parameters: readonly InlinedListParameter[];
+	/** Argumente zwischen der Liste und dem Callback (bei aggregate: der Typ und der Startwert) */
+	readonly extraArgumentCount: number;
+	/** Welches der Zusatzargumente der Startwert des Akkumulators ist */
+	readonly initialValueArgument?: number;
+	readonly emptyResult: string;
+	readonly init: string[];
+	readonly step: (lastJs: string, delimiterJs: string) => string;
+	readonly finish: string[];
+}
+
+const inlinedListFunctions: { readonly [functionName: string]: InlinedListFunction | undefined; } = {
+	exists: {
+		parameters: ['value', 'index'],
+		extraArgumentCount: 0,
+		emptyResult: 'false',
+		init: [],
+		step: (lastJs, delimiterJs) => `if (${lastJs}) {${delimiterJs}\treturn true;${delimiterJs}}`,
+		finish: ['return false;'],
+	},
+	all: {
+		parameters: ['value', 'index'],
+		extraArgumentCount: 0,
+		emptyResult: 'true',
+		init: [],
+		step: (lastJs, delimiterJs) => `if (!(${lastJs})) {${delimiterJs}\treturn false;${delimiterJs}}`,
+		finish: ['return true;'],
+	},
+	findFirst: {
+		parameters: ['value', 'index'],
+		extraArgumentCount: 0,
+		emptyResult: 'undefined',
+		init: [],
+		step: (lastJs, delimiterJs) => `if (${lastJs}) {${delimiterJs}\treturn _listValues[_listIndex];${delimiterJs}}`,
+		finish: ['return undefined;'],
+	},
+	filter: {
+		parameters: ['value', 'index'],
+		extraArgumentCount: 0,
+		emptyResult: 'undefined',
+		init: ['const _listResult = [];'],
+		step: (lastJs, delimiterJs) => `if (${lastJs}) {${delimiterJs}\t_listResult.push(_listValues[_listIndex]);${delimiterJs}}`,
+		finish: ['return _listResult.length ? _listResult : undefined;'],
+	},
+	map: {
+		parameters: ['value', 'index'],
+		extraArgumentCount: 0,
+		emptyResult: 'undefined',
+		init: ['const _listResult = [];'],
+		step: lastJs => `_listResult.push(${lastJs});`,
+		finish: ['return _listResult.length ? _listResult : undefined;'],
+	},
+	filterMap: {
+		parameters: ['value', 'index'],
+		extraArgumentCount: 0,
+		emptyResult: 'undefined',
+		init: ['const _listResult = [];'],
+		step: (lastJs, delimiterJs) => `const _listMapped = ${lastJs};${delimiterJs}if (_listMapped !== undefined) {${delimiterJs}\t_listResult.push(_listMapped);${delimiterJs}}`,
+		finish: ['return _listResult.length ? _listResult : undefined;'],
+	},
+	aggregate: {
+		parameters: ['accumulator', 'value', 'index'],
+		extraArgumentCount: 2,
+		initialValueArgument: 1,
+		emptyResult: '_listAccumulator',
+		init: [],
+		step: lastJs => `_listAccumulator = ${lastJs};`,
+		finish: ['return _listAccumulator;'],
+	},
+};
+
+const inlinedListParameterJs: { readonly [parameter in InlinedListParameter]: string; } = {
+	accumulator: '_listAccumulator',
+	value: '_listValues[_listIndex]',
+	index: 'BigInt(_listIndex + 1)',
+};
+
+/**
+ * Ein Aufruf einer Listenfunktion mit einem Funktionsliteral als Callback wird zu einer Schleife an
+ * der Aufrufstelle: keine Closure je Aufruf, und der Index entsteht nur, wenn das Literal ihn als
+ * Parameter nimmt. Der Name allein genügt, weil core-lib-Namen nicht überschrieben werden können.
+ * Alles andere (Callback als Wert, Typ-Guards, Rest, Spread, benannte Argumente) bleibt beim
+ * Funktionsaufruf.
+ */
+function inlinedListCallToJs(expression: ParseFunctionCall, prefixArgJs: string, indent: number): string | undefined {
+	const functionExpression = expression.functionExpression;
+	const args = expression.arguments;
+	if (functionExpression?.type !== 'reference'
+		|| args?.type !== 'list'
+		|| args.values.some(value => value.type === 'spread')) {
+		return undefined;
+	}
+	const inlined = inlinedListFunctions[functionExpression.name.name];
+	if (inlined === undefined) {
+		return undefined;
+	}
+	const hasPrefix = !!expression.prefixArgument;
+	const values = args.values as ParseValueExpression[];
+	if (values.length !== (hasPrefix ? 0 : 1) + inlined.extraArgumentCount + 1) {
+		return undefined;
+	}
+	const callback = values[values.length - 1]!;
+	if (callback.type !== 'functionLiteral'
+		|| callback.params.type !== 'parameters'
+		|| callback.params.rest
+		|| callback.params.singleFields.length > inlined.parameters.length
+		|| callback.params.singleFields.some(field => field.typeGuard)
+		|| !callback.body.length
+		|| callback.body[callback.body.length - 1]!.type === 'definition') {
+		return undefined;
+	}
+	const listOffset = hasPrefix ? 0 : 1;
+	const valuesJs = hasPrefix
+		? prefixArgJs
+		: expressionToJs(values[0]!, indent + 1);
+	const delimiterJs = getRowDelimiterJs(indent + 2);
+	const bodyIndent = indent + 3;
+	const bodyDelimiterJs = getRowDelimiterJs(bodyIndent);
+	const bindings = callback.params.singleFields.map((field, index) =>
+		`const ${escapeReservedJsVariableName(field.name.name)} = ${inlinedListParameterJs[inlined.parameters[index]!]};`);
+	const body = callback.body;
+	const statements = body.slice(0, -1).map(statement => sourcePositionMarkerJs(statement) + expressionToJs(statement, bodyIndent));
+	const last = body[body.length - 1]!;
+	statements.push(`${sourcePositionMarkerJs(last)}${inlined.step(expressionToJs(last, bodyIndent), bodyDelimiterJs)}`);
+	const header = [`const _listValues = ${valuesJs};`];
+	if (inlined.initialValueArgument !== undefined) {
+		const initialValue = values[listOffset + inlined.initialValueArgument]!;
+		header.push(`let _listAccumulator = ${expressionToJs(initialValue, indent + 1)};`);
+	}
+	header.push(`if (!_listValues) {${bodyDelimiterJs}return ${inlined.emptyResult};${delimiterJs}}`, ...inlined.init);
+	const loop = `for (let _listIndex = 0; _listIndex < _listValues.length; _listIndex++) {${bodyDelimiterJs}${[...bindings, ...statements].join(bodyDelimiterJs)}${delimiterJs}}`;
+	return `(() => {${delimiterJs}${[...header, loop, ...inlined.finish].join(delimiterJs)}${getRowDelimiterJs(indent + 1)}})()`;
+}
+
+//#endregion inlined list functions
 
 function referenceToJs(reference: ParseReference): string {
 	const name = reference.name.name;

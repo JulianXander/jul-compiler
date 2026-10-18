@@ -1098,3 +1098,199 @@ describe('Emitter: params nur, wo die Laufzeit sie liest', () => {
 		expect(functionLiteralToEvaluableJs(literal)).to.contain('_createFunction');
 	});
 });
+
+describe('Emitter exists als Schleife', () => {
+	const listOf3 = 'values = [1 2 3]';
+	it('ein Treffer liefert true', () => {
+		expect(runEmitted(`${listOf3}\nresult = exists(values (value) => equal(value 2))`, 'result')).to.equal(true);
+	});
+	it('kein Treffer liefert false', () => {
+		expect(runEmitted(`${listOf3}\nresult = exists(values (value) => equal(value 9))`, 'result')).to.equal(false);
+	});
+	it('Empty liefert false', () => {
+		const code = [
+			'f = (values: Or([] List(Integer))) => values.exists((value) => true)',
+			'result = f([])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(false);
+	});
+	it('die Schreibweise mit Präfix wird ebenfalls zur Schleife', () => {
+		const code = `${listOf3}\nresult = values.exists((value) => equal(value 3))`;
+		expect(emitChecked(code)).to.contain('_listValues');
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+	it('der Index ist 1-basiert und wird nur mit zweitem Parameter gebildet', () => {
+		const withIndex = `${listOf3}\nresult = exists(values (value index) => equal(index 3))`;
+		expect(emitChecked(withIndex)).to.contain('BigInt(_listIndex + 1)');
+		expect(runEmitted(withIndex, 'result')).to.equal(true);
+		const withoutIndex = `${listOf3}\nresult = exists(values (value) => equal(value 3))`;
+		expect(emitChecked(withoutIndex)).to.not.contain('BigInt');
+	});
+	it('der Rumpf darf mehrere Anweisungen haben', () => {
+		const code = [
+			listOf3,
+			'result = exists(',
+			'	values',
+			'	(value) =>',
+			'		doubled = add(value value)',
+			'		equal(doubled 6)',
+			')',
+		].join('\n');
+		expect(emitChecked(code)).to.contain('_listValues');
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+	it('der Callback sieht Werte der Umgebung', () => {
+		const code = [
+			'f = (values: List(Integer) limit: Integer) => values.exists((value) => greater(value limit))',
+			'result = and(f([1 2 3] 2) not(f([1 2 3] 3)))',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+	it('verschachtelte exists', () => {
+		const code = [
+			'hasFour = (values: List(Integer)) => exists(values (value) => equal(value 4))',
+			'result = exists([[1 2] [3 4]] (value) => hasFour(value))',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+	it('ein Callback als Wert bleibt ein Funktionsaufruf', () => {
+		const code = `${listOf3}\nisTwo = (value) => equal(value 2)\nresult = exists(values isTwo)`;
+		const js = emitChecked(code);
+		expect(js).to.not.contain('_listValues');
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+	it('ein Callback mit Typ-Guard bleibt ein Funktionsaufruf', () => {
+		const code = `${listOf3}\nresult = exists(values (value: Integer) => equal(value 2))`;
+		expect(emitChecked(code)).to.not.contain('_listValues');
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+});
+
+describe('Emitter filter, map und filterMap als Schleife', () => {
+	const listOf3 = 'values = [1 2 3]';
+	const expectLoop = (code: string) => {
+		expect(emitChecked(code)).to.contain('_listValues');
+	};
+	it('filter behält die passenden Elemente', () => {
+		const code = `${listOf3}\nresult = filter(values (value) => greater(value 1))`;
+		expectLoop(code);
+		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n]);
+	});
+	it('filter ohne Treffer liefert Empty', () => {
+		const code = `${listOf3}\nresult = filter(values (value) => greater(value 9))`;
+		expect(runEmitted(code, 'result')).to.equal(undefined);
+	});
+	it('filter über Empty liefert Empty', () => {
+		const code = [
+			'f = (values: Or([] List(Integer))) => values.filter((value) => true)',
+			'result = f([])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(undefined);
+	});
+	it('filter reicht den 1-basierten Index', () => {
+		const code = `${listOf3}\nresult = filter(values (value index) => greater(index 1))`;
+		expectLoop(code);
+		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n]);
+	});
+	it('map bildet jedes Element ab', () => {
+		const code = `${listOf3}\nresult = values.map((value) => add(value 10))`;
+		expectLoop(code);
+		expect(runEmitted(code, 'result')).to.deep.equal([11n, 12n, 13n]);
+	});
+	it('map reicht den 1-basierten Index', () => {
+		const code = `${listOf3}\nresult = map(values (value index) => add(value index))`;
+		expect(runEmitted(code, 'result')).to.deep.equal([2n, 4n, 6n]);
+	});
+	it('map über Empty liefert Empty', () => {
+		const code = [
+			'f = (values: Or([] List(Integer))) => values.map((value) => value)',
+			'result = f([])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(undefined);
+	});
+	it('filterMap lässt Empty-Ergebnisse weg', () => {
+		const code = [
+			'f = (values: List(Or([] Integer))) => filterMap(values (value) => value)',
+			'result = f([[] 5 [] 7])',
+		].join('\n');
+		expect(emitChecked(code)).to.contain('_listValues');
+		expect(runEmitted(code, 'result')).to.deep.equal([5n, 7n]);
+	});
+	it('ein Callback als Wert bleibt ein Funktionsaufruf', () => {
+		const code = `${listOf3}\ninc = (value) => add(value 1)\nresult = map(values inc)`;
+		expect(emitChecked(code)).to.not.contain('_listValues');
+		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n, 4n]);
+	});
+	it('verkettete Aufrufe bleiben richtig geordnet', () => {
+		const code = `${listOf3}\nresult = values.filter((value) => greater(value 1)).map((value) => add(value 10))`;
+		expect(runEmitted(code, 'result')).to.deep.equal([12n, 13n]);
+	});
+});
+
+describe('Emitter all, findFirst und aggregate als Schleife', () => {
+	const listOf3 = 'values = [1 2 3]';
+	const expectLoop = (code: string) => {
+		expect(emitChecked(code)).to.contain('_listValues');
+	};
+	it('all ist true, wenn jedes Element passt', () => {
+		const code = `${listOf3}\nresult = all(values (value) => greater(value 0))`;
+		expectLoop(code);
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+	it('all ist false, sobald ein Element nicht passt', () => {
+		const code = `${listOf3}\nresult = all(values (value) => greater(value 1))`;
+		expect(runEmitted(code, 'result')).to.equal(false);
+	});
+	it('all über Empty ist true', () => {
+		const code = [
+			'f = (values: Or([] List(Integer))) => values.all((value) => false)',
+			'result = f([])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+	it('all reicht den 1-basierten Index', () => {
+		const code = `${listOf3}\nresult = all(values (value index) => equal(value index))`;
+		expect(runEmitted(code, 'result')).to.equal(true);
+	});
+	it('findFirst liefert das erste passende Element', () => {
+		const code = `${listOf3}\nresult = findFirst(values (value) => greater(value 1))`;
+		expectLoop(code);
+		expect(runEmitted(code, 'result')).to.equal(2n);
+	});
+	it('findFirst ohne Treffer liefert Empty', () => {
+		const code = `${listOf3}\nresult = findFirst(values (value) => greater(value 9))`;
+		expect(runEmitted(code, 'result')).to.equal(undefined);
+	});
+	it('findFirst über Empty liefert Empty', () => {
+		const code = [
+			'f = (values: Or([] List(Integer))) => values.findFirst((value) => true)',
+			'result = f([])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(undefined);
+	});
+	it('aggregate summiert mit Startwert', () => {
+		const code = `${listOf3}\nresult = values.aggregate(Integer 10 (accumulator value) => add(accumulator value))`;
+		expectLoop(code);
+		expect(runEmitted(code, 'result')).to.equal(16n);
+	});
+	it('aggregate reicht den 1-basierten Index', () => {
+		const code = `${listOf3}\nresult = aggregate(values Integer 0 (accumulator value index) => add(accumulator index))`;
+		expect(runEmitted(code, 'result')).to.equal(6n);
+	});
+	it('aggregate über Empty liefert den Startwert', () => {
+		const code = [
+			'f = (values: Or([] List(Integer))) => values.aggregate(Integer 7 (accumulator value) => add(accumulator value))',
+			'result = f([])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(7n);
+	});
+	it('aggregate mit einem Parameter sieht nur den Akkumulator', () => {
+		const code = `${listOf3}\nresult = values.aggregate(Integer 0 (accumulator) => add(accumulator 2))`;
+		expect(runEmitted(code, 'result')).to.equal(6n);
+	});
+	it('aggregate mit Callback als Wert bleibt ein Funktionsaufruf', () => {
+		const code = `${listOf3}\nsum = (accumulator value) => add(accumulator value)\nresult = values.aggregate(Rational 0 sum)`;
+		expect(emitChecked(code)).to.not.contain('_listValues');
+		expect(runEmitted(code, 'result')).to.equal(6n);
+	});
+});

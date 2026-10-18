@@ -1,0 +1,8 @@
+# Lineare Suche nach einem Element, wie elementExists in der Spiellogik: je Aufruf eine Closure
+# über das gesuchte Element und ein exists über die Liste
+elementExists = (values: List(Integer) element: Integer) =>
+	values.exists((value) => equal(value element))
+
+# Treffer und Fehlschlag auf kurzer Liste
+containsBoth = (values: List(Integer)) =>
+	and(elementExists(values 3) not(elementExists(values 99)))
