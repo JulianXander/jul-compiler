@@ -41,6 +41,8 @@ export type BranchTest =
 	/** Der Wert gehört zu einer der Laufzeitarten (negated: zu keiner). */
 	| { kind: 'jsKind'; kinds: JsKind[]; negated: boolean; }
 	| { kind: 'literal'; value: LiteralValue; }
+	/** Der Wert ist gleich einem der Werte (undefined steht für Empty). */
+	| { kind: 'literals'; values: Array<LiteralValue | undefined>; }
 	/** Ein Feld mit Literaltyp unterscheidet die Glieder. */
 	| { kind: 'field'; name: string; value: LiteralValue; }
 	;
@@ -171,14 +173,80 @@ function getRequirementForType(type: CompileTimeType | undefined): BranchRequire
 
 //#region Schritt je branch
 
+type BranchStep = { test: BranchTest; remaining: CompileTimeType[]; };
+
 /**
  * Teilt die noch möglichen Glieder in die, die der branch sicher fängt, und die, die er sicher
  * nicht fängt. Bleibt ein Glied unentschieden, gibt es keinen exakten billigen Test.
+ * Erst der Test nach Laufzeitart bzw. Feld, sonst (Kopf ist eine Union aus Einzelwerten) der Vergleich mit den Werten.
  */
 function getBranchStep(
 	remaining: CompileTimeType[],
 	required: CompileTimeType,
-): { test: BranchTest; remaining: CompileTimeType[]; } | undefined {
+): BranchStep | undefined {
+	return getKindStep(remaining, required) ?? getSingletonStep(remaining, required);
+}
+
+/**
+ * Der Kopf ist eine Union aus Einzelwerten (Literale, Empty): Ein Literal-Glied ist gefangen, wenn sein Wert
+ * dazugehört, sonst sicher verfehlt, auch bei gleicher Laufzeitart. Ein Glied, das kein Einzelwert ist
+ * (Text, Integer), mit derselben Laufzeitart wie der Kopf lässt sich nicht entscheiden: Rückfall.
+ */
+function getSingletonStep(
+	remaining: CompileTimeType[],
+	required: CompileTimeType,
+): BranchStep | undefined {
+	const requiredValues = getSingletonValues(required);
+	const requiredKinds = getJsKinds(required);
+	if (!requiredValues
+		|| !requiredKinds) {
+		return undefined;
+	}
+	const caughtValues: Array<LiteralValue | undefined> = [];
+	const missed: CompileTimeType[] = [];
+	for (const member of remaining) {
+		const memberValues = getSingletonValues(member);
+		if (memberValues?.length === 1) {
+			const memberValue = memberValues[0];
+			if (requiredValues.includes(memberValue)) {
+				if (!caughtValues.includes(memberValue)) {
+					caughtValues.push(memberValue);
+				}
+			}
+			else {
+				missed.push(member);
+			}
+			continue;
+		}
+		const memberKind = getMemberKind(member);
+		if (!memberKind
+			|| requiredKinds.has(memberKind)) {
+			return undefined;
+		}
+		missed.push(member);
+	}
+	if (!missed.length) {
+		return {
+			test: { kind: 'always' },
+			remaining: [],
+		};
+	}
+	if (!caughtValues.length) {
+		return {
+			test: { kind: 'never' },
+			remaining: missed,
+		};
+	}
+	return {
+		test: { kind: 'literals', values: caughtValues },
+		remaining: missed,
+	};
+}
+
+function getKindStep(
+	remaining: CompileTimeType[],
+	required: CompileTimeType,
+): BranchStep | undefined {
 	const literal = getLiteralValue(required);
 	if (literal !== undefined) {
 		// x === literal ist für jeden Wert exakt. Der Rest bleibt bewusst zu groß (Integer statt
@@ -469,6 +537,33 @@ function getJsKinds(type: CompileTimeType): Set<JsKind> | undefined {
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * Die Einzelwerte eines Typs, der nur aus Literalen und Empty besteht (undefined steht für Empty).
+ * undefined, wenn irgendein Glied mehr als ein Wert sein kann.
+ */
+function getSingletonValues(type: CompileTimeType): Array<LiteralValue | undefined> | undefined {
+	const resolved = resolveAlias(type);
+	if (resolved.julType === 'empty') {
+		return [undefined];
+	}
+	const literal = getLiteralValue(resolved);
+	if (literal !== undefined) {
+		return [literal];
+	}
+	if (resolved.julType !== 'or') {
+		return undefined;
+	}
+	const values: Array<LiteralValue | undefined> = [];
+	for (const choiceType of resolved.ChoiceTypes) {
+		const choiceValues = getSingletonValues(choiceType);
+		if (!choiceValues) {
+			return undefined;
+		}
+		values.push(...choiceValues);
+	}
+	return values;
 }
 
 function getLiteralValue(type: CompileTimeType): LiteralValue | undefined {

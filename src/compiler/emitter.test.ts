@@ -505,6 +505,88 @@ f = (x: Or(Text List(Integer))) =>
 		[[a: PositiveInteger b: Integer]] => 1
 		() => 2`);
 	});
+	// Literaltypen sind Einzelwerte: Ein Literal, das nicht zum Kopf gehört, ist sicher verfehlt, auch bei gleicher Laufzeitart.
+	it('Kopf mit Union von Text-Literalen wird zu Gleichheitsvergleichen', () => {
+		expectBranchingEmit(`Phase = Or(§draw§ §standby§ §main1§ §battle§ §main2§ §end§)
+f = (x: Phase) =>
+	?(x)
+		[Or(§draw§ §standby§)] => 1
+		[Or(§main1§ §main2§)] => 2
+		[Or(§battle§)] => 3
+		() => 4`, `
+		return x === 'draw' || x === 'standby'
+			? (() => {
+				return 1n
+			})()
+			: x === 'main1' || x === 'main2'
+			? (() => {
+				return 2n
+			})()
+			: x === 'battle'
+			? (() => {
+				return 3n
+			})()
+			: (() => {
+				return 4n
+			})()`);
+	});
+	it('Kopf mit Union von Integer-Literalen und Empty wird zu Gleichheitsvergleichen', () => {
+		expectBranchingEmit(`f = (x: Or([] 1 2 3 4 5 6 7 8)) =>
+	?(x)
+		[Or([] 1 2 3 4)] => 0
+		[Or(5 6)] => 1
+		() => 2`, `
+		return x === undefined || x === 1n || x === 2n || x === 3n || x === 4n
+			? (() => {
+				return 0n
+			})()
+			: x === 5n || x === 6n
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Kopf mit Union von Literalen: Glieder außerhalb des Kopfs entfallen', () => {
+		expectBranchingEmit(`f = (x: Or(§a§ §b§ §c§)) =>
+	?(x)
+		[Or(§a§ §z§)] => 1
+		() => 2`, `
+		return x === 'a'
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	// Der Test nach Laufzeitart greift zuerst: a und b sind die einzigen Texte im Typ.
+	it('Kopf mit Union von Literalen, Argument mit anderer Laufzeitart: typeof reicht', () => {
+		expectBranchingEmit(`f = (x: Or(§a§ §b§ Integer)) =>
+	?(x)
+		[Or(§a§ §b§)] => 1
+		() => 2`, `
+		return typeof x === 'string'
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Rückfall: Kopf mit Union von Literalen, Argument mit Text (Wert unbekannt)', () => {
+		expectBranchingFallback(`f = (x: Or(Text Integer)) =>
+	?(x)
+		[Or(§a§ §b§)] => 1
+		() => 2`);
+	});
+	it('Rückfall: Kopf mit Union von Literalen, Argument mit Integer (Wert unbekannt)', () => {
+		expectBranchingFallback(`f = (x: Or([] Integer)) =>
+	?(x)
+		[Or(1 2)] => 1
+		() => 2`);
+	});
 });
 
 const expectCallEmit = reportAtCaller((code: string, bodyJs: string) => {

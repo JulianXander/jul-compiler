@@ -804,6 +804,10 @@ function branchTestToJs(test: BranchTest, argumentJs: string): string {
 				.join(test.negated ? ' && ' : ' || ');
 		case 'literal':
 			return `${argumentJs} === ${literalValueToJs(test.value)}`;
+		case 'literals':
+			return test.values
+				.map(value => `${argumentJs} === ${literalValueToJs(value)}`)
+				.join(' || ');
 		case 'field':
 			return `${argumentJs}?.[${stringToJs(test.name)}] === ${literalValueToJs(test.value)}`;
 		default: {
@@ -843,12 +847,14 @@ function jsKindTestToJs(kind: JsKind, argumentJs: string, negated: boolean): str
 	}
 }
 
-function literalValueToJs(value: LiteralValue): string {
+function literalValueToJs(value: LiteralValue | undefined): string {
 	switch (typeof value) {
 		case 'bigint':
 			return `${value}n`;
 		case 'string':
 			return stringToJs(value);
+		case 'undefined':
+			return 'undefined';
 		default:
 			return String(value);
 	}
