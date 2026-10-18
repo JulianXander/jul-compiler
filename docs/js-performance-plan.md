@@ -28,6 +28,21 @@ Objektallokation und Objektzugriffen, nicht in Zahlen. BigInt macht unter 1 % au
   über dasselbe Gerüst, brachten aber keinen messbaren Zusatzgewinn (Median 6,45 s gegen 6,47 s, vier
   abwechselnde Läufe), weil sie im Match selten sind.
 
+**Profil nach den Schleifen** (Tick-Profil `--prof`, 11,6 Mio. Ticks, Match 6,0 s). Der Anteil von `runtime.js`
+sank von 24,2 auf 17,2 %, `game-logic.js` steht bei 57 % und ist flach. Die Builtins von V8:
+
+| Anteil | Builtin | Herkunft |
+|---|---|---|
+| etwa 10,7 % | `CreateDataProperty`, `CloneObjectIC(_Slow)`, `DefineNamedOwnIC` | Objekt-Spread in Zustandsupdates, verteilt auf `apply`, `declineOptionalEventTriggers`, `passPrioOrAdvance`, `updatePendingTriggers`, `moveCardsToGraveRaw` (je 0,3 bis 1,0 %) |
+| etwa 10,3 % | `LoadIC_Megamorphic`, `LoadICTrampoline_Megamorphic`, `KeyedLoadIC` | Feldzugriffe auf Objekte mit wechselnder Form, breit verteilt (größter Einzelposten 0,74 %) |
+| 2,8 % | `StrictEqual` | `===` auf BigInt in `getActivationInputs` und seinen Callbacks |
+| 5,1 % + 2,8 % | `getField`, `getElement` | Kartenschlagen über dynamischen Schlüssel (`getCardEffect`, `getCardDataFromDataId`, `getGameCard`) |
+| 4,1 % + 1,8 % | GC, `FastNewClosure` | Rest-Closures |
+
+Kein einzelner Aufrufer liegt über etwa 1 %. Aufrufe von `equal`, `not` und `getElement` direkt auszuschreiben
+brachte nichts (V8 inlinet die Wrapper selbst), die einfachen Emitter-Gewinne sind damit ausgeschöpft.
+Was bleibt, hängt an der Form der Objekte oder an Datenstrukturen, nicht an der Emission.
+
 ## Offen, nach erwartetem Gewinn geordnet
 
 Je Punkt: Erst die Fixture in `scripts/bench-runtime` auf dem ungeänderten Compiler messen und mit
