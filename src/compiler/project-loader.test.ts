@@ -102,6 +102,28 @@ describe('project-loader', () => {
 		expect(documents[path('util.ts')]).to.equal(undefined);
 	});
 
+	// Wie im Language Server, der solche Dateien gar nicht lädt: Sonst wäre ein `assume` in der
+	// CLI überflüssig (JUL2503), in der IDE aber nötig.
+	it('zu große Datei liefert beim Importeur Any, ein assume darauf ist nicht überflüssig', () => {
+		const files = {
+			'main.jul': 'data = import(§./data.json§)\nlist = assume(data List(Integer))',
+			'data.json': '[1, 2, 3]',
+		};
+		const { main, documents } = loadMain(files, {
+			...createCountingHost(files).host,
+			maxTypedFileSize: 5,
+		});
+		expect(main.checked?.errors).to.deep.equal([]);
+		expect(documents[path('data.json')]?.untyped).to.equal(true);
+	});
+	it('Datei unter der Grenze behält ihren Typ, ein assume darauf ist überflüssig', () => {
+		const { main } = loadMain({
+			'main.jul': 'data = import(§./data.json§)\nlist = assume(data List(Integer))',
+			'data.json': '[1, 2, 3]',
+		});
+		expect(main.checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.redundantAssume]);
+	});
+
 	it('jede Datei einer Raute wird genau einmal gelesen und gecheckt', () => {
 		const { host, readCounts } = createCountingHost({
 			'main.jul': '(b) = import(§./b.jul§)\n(c) = import(§./c.jul§)',

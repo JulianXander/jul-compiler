@@ -3568,8 +3568,10 @@ function getReturnTypeFromFunctionCall(
 				}
 				// TODO get full path, get type from parsedfile
 				const fullPath = join(folder, path);
-				const importedFile = parsedDocuments[fullPath]?.checked;
-				if (!importedFile) {
+				const importedDocument = parsedDocuments[fullPath];
+				const importedFile = importedDocument?.checked;
+				if (!importedFile
+					|| importedDocument?.untyped) {
 					return builtinAny;
 				}
 				// definitions import

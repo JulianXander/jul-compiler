@@ -12,6 +12,16 @@ import { readTextFile } from '../util.js';
  * liest (siehe checker.ts).
  */
 
+/**
+ * Schutz vor Riesendateien (z.B. generierter Code oder große JSON-Daten): Eine größere Quelle
+ * liefert beim Importeur Any statt ihres Typs. Eine Grenze für CLI und Language Server, sonst
+ * kennt der eine den Typ und der andere nicht, und ein `assume` wäre nur in einem von beiden
+ * überflüssig. Der Language Server lädt Dateien darüber gar nicht erst, die CLI lädt sie für den
+ * Emit. Die Grenze muss über echten Quelldateien liegen: Any erzeugt beim Importeur Folgewarnungen
+ * (typeNotProven).
+ */
+export const maxTypedFileSize = 1000000;
+
 export type SourceReadResult =
 	| { type: 'code'; code: string; }
 	| { type: 'notFound'; }
@@ -26,6 +36,10 @@ export type SourceReadResult =
  */
 export interface ProjectHost extends CheckOptions {
 	readSource(filePath: string): SourceReadResult;
+	/**
+	 * Fehlt sie, gilt maxTypedFileSize. Nur für Tests, damit sie keine Megabyte-Quellen brauchen.
+	 */
+	maxTypedFileSize?: number;
 	/**
 	 * Nach dem Parsen, vor dem Laden der Abhängigkeiten. previous ist der ersetzte Stand, falls
 	 * die Datei schon in documents stand - der Language Server pflegt damit seinen
@@ -92,6 +106,9 @@ function loadFileRecursive(
 		sourceCode = readResult.code;
 	}
 	const parsed = parseCode(sourceCode, filePath);
+	if (sourceCode.length > (host.maxTypedFileSize ?? maxTypedFileSize)) {
+		parsed.untyped = true;
+	}
 	documents[filePath] = parsed;
 	host.onParsed?.(parsed, previous);
 	loading.add(filePath);

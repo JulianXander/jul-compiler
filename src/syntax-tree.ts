@@ -14,6 +14,11 @@ export interface ParsedFile {
 	 * nur für .jul Dateien
 	 */
 	dependencies?: ImportedDependency[];
+	/**
+	 * Die Quelle ist größer als maxTypedFileSize (project-loader.ts): Der Importeur bekommt Any
+	 * statt des Typs. Die Datei selbst wird trotzdem geladen, damit der Emitter sie hat.
+	 */
+	untyped?: boolean;
 }
 
 export interface ImportedDependency {
