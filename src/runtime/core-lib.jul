@@ -627,7 +627,7 @@ compareOrdinal = nativeFunction(
 )
 #region JSON
 JsonPrimitive = Or([] Boolean Rational Text)
-JsonValue = Or(JsonPrimitive List(JsonPrimitive) Dictionary(JsonPrimitive))
+JsonValue = Or(JsonPrimitive List(JsonValue) Dictionary(JsonValue))
 # Liefert Error, wenn das gegebene json kein valides JSON ist.
 parseJson = nativeFunction(
 	(json: Text) -> Or(JsonValue Error)

@@ -4513,6 +4513,11 @@ f = (tree: Tree(Integer)) =>
 	x: Integer = tree/value
 	x`);
 	});
+	// JsonValue der core-lib ist rekursiv: verschachtelte Records und Listen gehen an toJson.
+	it('json-value-accepts-nested-records-and-lists', () => {
+		expectCheck(`R = [c: List(Integer) d: [a: Integer] e: List([b: Integer])]
+f = (r: R) :> Text => toJson(r)`);
+	});
 	// Die Kinder sind wieder Tree(Integer), nicht Any: ihr value ist Integer und passt nicht zu Text.
 	it('recursive-type-function-keeps-the-argument-in-nested-levels', () => {
 		expectCheck(`Tree = (T: Type) => [value: T children: Or([] List(Tree(T)))]
