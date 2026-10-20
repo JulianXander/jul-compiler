@@ -4959,6 +4959,29 @@ f = (x: Fraction y: Integer) :> Fraction =>
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Bug: Nach einer Verzweigung `[List(Any)]` ist values garantiert nicht leer, lastElement liefert
+	// trotzdem Or(Empty Integer). Direkt auf einem List(Integer)-Parameter (Test darüber) stimmt es.
+	it('last-element-after-narrowing-to-list-adds-no-empty', () => {
+		const code = `needInt = (x: Integer) :> Integer => x
+a = (values: Or([] List(Integer))) :> Integer =>
+	?(values)
+		[List(Any)] => needInt(lastElement(values))
+		() => 0`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
+	it('last-element-in-fallback-branch-keeps-empty', () => {
+		// Gegenprobe: im Zweig, der die List ausschließt, ist values nur noch Empty. Die Auflösung
+		// der Verengung darf Empty dort nicht verlieren.
+		const code = `a = (values: Or([] List(Integer))) :> Or([] Integer) =>
+	?(values)
+		[List(Any)] => 0
+		() => lastElement(values)`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors).to.deep.equal([]);
+	});
 	// getElement(values length(values)) liefert bei garantiert nicht-leerer List präzise Integer,
 	// ohne dass es dafür einen Sonderfall im Checker braucht: length(List(T)) faltet zu
 	// lengthOf(List(T)); ElementAt erkennt, dass der Index exakt die Länge derselben Quelle ist,

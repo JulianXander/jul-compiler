@@ -2063,7 +2063,7 @@ export function getLengthFromType(rawArgType: CompileTimeType | undefined): Comp
 		// TODO non negative
 		return builtinInteger;
 	}
-	const argType = resolveAlias(rawArgType);
+	const argType = getLookupType(resolveAlias(rawArgType));
 	switch (argType.julType) {
 		case 'empty':
 			return createIntegerLiteral(0n);
