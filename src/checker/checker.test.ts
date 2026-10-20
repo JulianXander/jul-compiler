@@ -6789,6 +6789,16 @@ r = f(a = 5 b = 3)`)).to.equal('2');
 	it('error liefert Error', () => {
 		expect(typeOfLastDefinition('r = error(§kaputt§)')).to.equal('Error');
 	});
+	it('das Feld message eines Errors hat den Typ Text', () => {
+		expect(typeOfLastDefinition(`f = (e: Error) => e/message
+R = TypeOf(f)/ReturnType`)).to.equal('TypeOf(Text)');
+	});
+	it('ein unbekanntes Feld eines Errors ist ein Fehler', () => {
+		const parsed = parseCode('f = (e: Error) => e/nachricht', 'dummy.jul');
+		expect(parsed.unchecked.errors).to.deep.equal([]);
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.dereferenceFailed]);
+	});
 	it('slice faltet zu einem präzisen Tuple statt Or(Empty ...)', () => {
 		expect(typeOfLastDefinition('r = [1 2 3].slice(2)')).to.equal('[2 3]');
 	});

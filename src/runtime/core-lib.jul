@@ -111,8 +111,7 @@ NonZeroRational = Rational.Without(0)
 Text = nativeValue(§_Text§)
 Date = nativeValue(§_Date§)
 Blob = nativeValue(§_Blob§)
-# Instance structure: (message: Text)
-#TODO was wenn message = undefined?
+# Instance structure: [message: Text]
 Error = nativeValue(§_Error§)
 # Erzeugt einen Error mit der gegebenen Meldung. Der Error ist ein gewöhnlicher Wert, kein Wurf.
 error = nativeFunction(

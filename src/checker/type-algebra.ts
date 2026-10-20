@@ -148,6 +148,11 @@ export const valueFieldAccess: NamedAccessTable = {
 		get: type => type.ElementType,
 		set: (_type, _name, value) => createCompileTimeDictionaryType(value),
 	},
+	error: {
+		get: (_type, name) => name === 'message' ? builtinText : undefined,
+		// Ein Error trägt nur message, und die hat immer den Typ Text.
+		set: () => undefined,
+	},
 	function: {
 		get: (type, name) => {
 			switch (name) {
@@ -543,6 +548,7 @@ export function hasKnownFields(rawType: CompileTimeType): boolean {
 			return true;
 		case 'dictionaryLiteral':
 			return type.complete;
+		case 'error':
 		case 'function':
 		case 'parameters':
 		case 'stream':
@@ -627,6 +633,7 @@ export function dereferenceNameFromObject(
 			return getNamedAccess(valueFieldAccess, sourceObjectType)!.get(sourceObjectType, name);
 		case 'dictionaryLiteral':
 		case 'dictionary':
+		case 'error':
 		case 'parameters':
 			return getNamedAccess(valueFieldAccess, sourceObjectType)!.get(sourceObjectType, name);
 		case 'concat':
@@ -673,7 +680,6 @@ export function dereferenceNameFromObject(
 		case 'boolean':
 		case 'booleanLiteral':
 		case 'date':
-		case 'error':
 		case 'float':
 		case 'floatLiteral':
 		case 'bound':
