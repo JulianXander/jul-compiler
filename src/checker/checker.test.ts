@@ -4081,6 +4081,47 @@ f(a = 1 b = 2)`, {
 		expectCheck(`f = (a: Integer b: Integer) => a
 f(a = 1 b = 2)`);
 	});
+	// assume für einen Typ, den der Checker schon beweist, ist überflüssig.
+	it('assume-of-proven-type-is-redundant', () => {
+		expectCheck(`f = (a: Integer) => assume(a Integer)`, {
+			errors: [
+				{
+					code: ErrorCode.redundantAssume,
+					message: 'Redundant assume: the value is already known to be Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 20,
+					endRowIndex: 0,
+					endColumnIndex: 37,
+				},
+			],
+		});
+	});
+	it('assume-with-prefix-argument-of-proven-type-is-redundant', () => {
+		expectCheck(`f = (a: Integer) => a.assume(Integer)`, {
+			errors: [
+				{
+					code: ErrorCode.redundantAssume,
+					message: 'Redundant assume: the value is already known to be Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 20,
+					endRowIndex: 0,
+					endColumnIndex: 37,
+				},
+			],
+		});
+	});
+	// Gegenprobe: unbewiesen ist genau der Fall, für den assume da ist.
+	it('assume-of-unproven-type-is-not-redundant', () => {
+		expectCheck(`f = (a: Any) => assume(a Integer)`);
+	});
+	// Gegenprobe: ein genauerer Wert wird absichtlich auf Any verbreitert.
+	it('assume-widening-to-any-is-not-redundant', () => {
+		expectCheck(`f = (a: Integer) => assume(a Any)`);
+	});
+	// Gegenprobe: ein hingeschriebenes Literal wird verbreitert, um es undurchsichtig zu machen.
+	it('assume-of-written-literal-is-not-redundant', () => {
+		expectCheck(`x = assume(5 Integer)`);
+	});
 	// Benannte Argumente stehen in der Reihenfolge der Parameter. Gemeldet wird das Argument,
 	// das vor einem bereits geschriebenen späteren Parameter steht.
 	it('named-arguments-out-of-order', () => {

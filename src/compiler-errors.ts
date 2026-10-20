@@ -118,6 +118,11 @@ export enum ErrorCode {
 	 */
 	spreadArgumentNotList = 2502,
 	/**
+	 * `assume` für einen Typ, den der Checker schon beweist. Die Behauptung ist überflüssig und
+	 * kann gelöscht werden.
+	 */
+	redundantAssume = 2503,
+	/**
 	 * Ein Name passt in der Schreibweise nicht zu seinem Wert: Typen und Funktionen, die einen Typ
 	 * liefern, beginnen groß, alles, was sicher kein Typ ist, beginnt klein. Gemeldet wird nur,
 	 * wenn der statische Typ das eindeutig sagt - bei Any, gemischten Typen und Prädikaten nicht.
@@ -335,6 +340,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.discardedValue]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.argumentsOutOfOrder]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.spreadArgumentNotList]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.redundantAssume]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.namingCase]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.testOutsideTestFile]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testNameNotLiteral]: { type: 'semantic', severity: 'error' },

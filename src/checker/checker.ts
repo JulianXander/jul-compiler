@@ -2792,6 +2792,12 @@ function inferType(
 				&& functionExpression.name.name === 'test') {
 				checkTestCall(expression, hasArgsError, checkContext.filePath, errors);
 			}
+			// Wie `test`: Name statt Symbol.
+			if (functionExpression.type === 'reference'
+				&& functionExpression.name.name === 'assume'
+				&& !hasArgsError) {
+				checkRedundantAssume(expression, prefixArgument ?? getArgValueExpressions(args)[0], boundArgsType, errors);
+			}
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, checkContext);
 			// Für den Rückgabetyp bleibt ein Platzhalter stehen, statt hier schon auf den
 			// deklarierten Parametertyp zu fallen: erst der Aufrufort kennt den konkreten Typ,
@@ -4255,6 +4261,60 @@ function bindClosureArguments(
 }
 
 //#endregion Typ Arithmetik
+
+//#region assume
+
+/**
+ * `assume` behauptet einen Typ, den der Checker nicht beweisen kann. Beweist er ihn schon, ist
+ * die Behauptung überflüssig und verdeckt nur, dass sie nicht mehr gebraucht wird (z. B. nach
+ * einer verbesserten Typinferenz). Nur ein bewiesenes `assignable === true` meldet, ein
+ * unbekanntes Ergebnis ist genau der Fall, für den `assume` gedacht ist. Ausgenommen ist das
+ * bewusste Verbreitern auf Any und ein Literal als Wert.
+ */
+function checkRedundantAssume(
+	call: ParseFunctionCall,
+	valueExpression: ParseValueExpression | undefined,
+	boundArgsType: CompileTimeType,
+	errors: CompilerError[],
+): void {
+	// Ein hingeschriebenes Literal zu verbreitern (`assume(5 Integer)`) ist die Art, einen
+	// Wert undurchsichtig zu machen, kein Leerlauf.
+	switch (valueExpression?.type) {
+		case 'integer':
+		case 'float':
+		case 'fraction':
+		case 'text':
+		case 'list':
+		case 'dictionary':
+			return;
+		default:
+			break;
+	}
+	const argTypes = getAllArgTypes(boundArgsType);
+	if (argTypes?.length !== 2) {
+		return;
+	}
+	const valueType = resolvePlaceholders(argTypes[0]!);
+	const targetType = resolvePlaceholders(valueOf(argTypes[1]));
+	// `assume(x Any)` mit einem genaueren x vergisst den Typ absichtlich, das ist kein Leerlauf.
+	if (targetType.julType === 'any'
+		&& valueType.julType !== 'any') {
+		return;
+	}
+	if (isTypeAssignable(valueType, targetType).assignable !== true) {
+		return;
+	}
+	errors.push({
+		code: ErrorCode.redundantAssume,
+		message: `Redundant assume: the value is already known to be ${typeToString(targetType, 0, 1)}.`,
+		startRowIndex: call.startRowIndex,
+		startColumnIndex: call.startColumnIndex,
+		endRowIndex: call.endRowIndex,
+		endColumnIndex: call.endColumnIndex,
+	});
+}
+
+//#endregion assume
 
 //#region test
 
