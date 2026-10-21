@@ -703,6 +703,18 @@ export interface TypeDeclaration {
  */
 const maxInternedTypes = 500_000;
 const internedTypes = new Map<string, CompileTimeType>();
+const dictionaryLiterals = new Map<number, DictionaryLiteralEntry[]>();
+/** Kleine Nummern für Feld- und Aliasnamen, damit der Hash keine Strings durchlaufen muss. */
+const nameIds = new Map<string, number>();
+
+function getNameId(name: string): number {
+	let id = nameIds.get(name);
+	if (id === undefined) {
+		id = nameIds.size + 1;
+		nameIds.set(name, id);
+	}
+	return id;
+}
 let nextTypeId = 1;
 
 export function createTypeId(): number {
@@ -730,6 +742,8 @@ function internType<T extends CompileTimeType>(key: string, create: (id: number)
  */
 export function clearInternedTypes(): void {
 	internedTypes.clear();
+	dictionaryLiterals.clear();
+	nameIds.clear();
 	integerLiterals.clear();
 	textLiterals.clear();
 }
@@ -1202,11 +1216,31 @@ export function createCompileTimeDictionaryLiteralType(
 	declaration?: TypeDeclaration,
 	aliasName?: string,
 ): CompileTimeDictionaryLiteralType {
-	let fieldsKey = '';
-	for (const name in Fields) {
-		fieldsKey += `${name.length}:${name}=${Fields[name]!.id};`;
+	// Ein Hash aus den Ids statt eines Schlüssel-Strings: Große Dictionaries (Spielzustand, Daten aus
+	// JSON) hätten bei jeder Erzeugung einen langen String gebaut und gehasht.
+	let hash = (complete ? 1 : 2) + Math.imul(getObjectId(declaration), 0x9e3779b1);
+	if (aliasName !== undefined) {
+		hash = Math.imul(hash ^ getNameId(aliasName), 0x85ebca6b);
 	}
-	return internType(`dict-literal:${complete ? 1 : 0},${getObjectId(declaration)},${aliasName === undefined ? '-' : aliasName.length + ':' + aliasName}|${fieldsKey}`, id => ({
+	let fieldCount = 0;
+	for (const name in Fields) {
+		hash = Math.imul(hash ^ getNameId(name), 0x85ebca6b);
+		hash = Math.imul(hash ^ Fields[name]!.id, 0xc2b2ae35);
+		hash ^= hash >>> 15;
+		fieldCount++;
+	}
+	const candidates = dictionaryLiterals.get(hash);
+	if (candidates) {
+		for (const candidate of candidates) {
+			if (isSameDictionaryLiteral(candidate, Fields, fieldCount, complete, declaration, aliasName)) {
+				return candidate.type;
+			}
+		}
+	}
+	if (dictionaryLiterals.size >= maxInternedTypes) {
+		dictionaryLiterals.clear();
+	}
+	const type: CompileTimeDictionaryLiteralType = {
 		julType: 'dictionaryLiteral',
 		Fields: Fields,
 		complete: complete,
@@ -1215,8 +1249,48 @@ export function createCompileTimeDictionaryLiteralType(
 		// Felder zählen nicht mit: ein Dictionary ist als Ganzes zuweisbar, auch wenn einzelne
 		// Feldtypen noch offen sind.
 		isUnresolvedPlaceholder: false,
-		id: id,
-	}));
+		id: nextTypeId++,
+	};
+	const entry: DictionaryLiteralEntry = { type: type, fieldNames: Object.keys(Fields) };
+	if (candidates) {
+		candidates.push(entry);
+	}
+	else {
+		dictionaryLiterals.set(hash, [entry]);
+	}
+	return type;
+}
+
+interface DictionaryLiteralEntry {
+	type: CompileTimeDictionaryLiteralType;
+	/** Die Reihenfolge der Felder gehört zum Typ (Anzeige, Ausgabe), der Vergleich prüft sie mit. */
+	fieldNames: string[];
+}
+
+/** Treffer gleichen Hashs sind nicht zwingend gleich: Felder, Reihenfolge und Merkmale prüfen. */
+function isSameDictionaryLiteral(
+	entry: DictionaryLiteralEntry,
+	Fields: CompileTimeDictionary,
+	fieldCount: number,
+	complete: boolean,
+	declaration: TypeDeclaration | undefined,
+	aliasName: string | undefined,
+): boolean {
+	const { type, fieldNames } = entry;
+	if (type.complete !== complete
+		|| type.declaration !== declaration
+		|| type.aliasName !== aliasName
+		|| fieldNames.length !== fieldCount) {
+		return false;
+	}
+	let index = 0;
+	for (const name in Fields) {
+		if (fieldNames[index++] !== name
+			|| type.Fields[name] !== Fields[name]) {
+			return false;
+		}
+	}
+	return true;
 }
 
 export interface CompileTimeDictionaryType extends CompileTimeTypeBase {

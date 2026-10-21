@@ -221,3 +221,9 @@
 2026-10-21 11:53:56	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1593.15	1834.16	1834.16	wie vorher, dazu Kürzel: Identität in typesOverlap, typeEquals in isTypeAssignable
 2026-10-21 11:55:02	-	-	ADV-DEV-56627	yugioh	parse+check	5	11990.83	12535.84	12535.84	nach Umbau: Interning mit Ids, Ergebnis-Caches, Siegel der Funktionsidentität, Leeren je loadFile
 2026-10-21 11:55:02	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	901.91	943.76	943.76	nach Umbau: Interning mit Ids, Ergebnis-Caches, Siegel der Funktionsidentität, Leeren je loadFile
+2026-10-21 15:13:08	f8a553c+	-	ADV-DEV-56627	yugioh	parse+check	5	12078.44	12278.22	12278.22	Dictionary-Literale interniert über Hash der Ids statt Schlüssel-String (Feldnamen als Nummern)
+2026-10-21 15:13:08	f8a553c+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	890.04	927.69	927.69	Dictionary-Literale interniert über Hash der Ids statt Schlüssel-String (Feldnamen als Nummern)
+2026-10-21 15:14:31	-	-	ADV-DEV-56627	yugioh	parse+check	5	12588.59	12930.17	12930.17	Paar mit Dictionary-Hash, Basis: Stand nach Umbau (Schlüssel als String)
+2026-10-21 15:14:31	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	916.45	987.14	987.14	Paar mit Dictionary-Hash, Basis: Stand nach Umbau (Schlüssel als String)
+2026-10-21 15:15:37	-	-	ADV-DEV-56627	yugioh	parse+check	5	12047.06	12161.01	12161.01	Paar mit Basis: Dictionary-Literale über Hash der Ids statt Schlüssel-String
+2026-10-21 15:15:37	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	917.59	935.10	935.10	Paar mit Basis: Dictionary-Literale über Hash der Ids statt Schlüssel-String

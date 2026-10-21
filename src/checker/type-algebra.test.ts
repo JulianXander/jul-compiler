@@ -642,6 +642,25 @@ describe('Interning und Caches', () => {
 		expect(createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true))
 			.to.not.equal(createCompileTimeDictionaryLiteralType({ a: builtinInteger }, false));
 	});
+	it('dictionary-literale-mit-anderer-feldreihenfolge-bleiben-getrennt', () => {
+		const first = createCompileTimeDictionaryLiteralType({ a: builtinInteger, b: builtinText }, true);
+		const second = createCompileTimeDictionaryLiteralType({ b: builtinText, a: builtinInteger }, true);
+		expect(first).to.not.equal(second);
+		expect(Object.keys(first.Fields)).to.deep.equal(['a', 'b']);
+		expect(Object.keys(second.Fields)).to.deep.equal(['b', 'a']);
+	});
+	it('dictionary-literale-mit-anderem-feldtyp-oder-feldnamen-bleiben-getrennt', () => {
+		const base = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
+		expect(createCompileTimeDictionaryLiteralType({ a: builtinText }, true)).to.not.equal(base);
+		expect(createCompileTimeDictionaryLiteralType({ b: builtinInteger }, true)).to.not.equal(base);
+		expect(createCompileTimeDictionaryLiteralType({ a: builtinInteger, b: builtinInteger }, true)).to.not.equal(base);
+		expect(createCompileTimeDictionaryLiteralType({}, true)).to.not.equal(base);
+	});
+	it('dictionary-literal-mit-gleichen-feldern-aus-neuem-objekt-ist-dasselbe', () => {
+		const first = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
+		const second = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
+		expect(second).to.equal(first);
+	});
 	it('funktionstypen-werden-nicht-interniert', () => {
 		const first = createCompileTimeFunctionType(createParametersType([]), builtinInteger, 'pure');
 		const second = createCompileTimeFunctionType(createParametersType([]), builtinInteger, 'pure');
