@@ -211,3 +211,4 @@
 2026-10-10 14:51:47	8e4bb7e+	-	ADV-DEV-56627	yugioh	parse+check	5	4710.14	5332.36	5332.36	concatFromTypes: lineare Zusammenfassung ab 8 Faellen statt 2^n Verteilung
 2026-10-20 09:07:07	b8b98f3+	-	ADV-DEV-56627	yugioh	parse+check	5	19736.81	23273.87	23273.87	vor lengthOf-Fix (getLengthFromType)
 2026-10-20 09:08:53	b8b98f3+	-	ADV-DEV-56627	yugioh	parse+check	5	19482.94	20975.77	20975.77	nach lengthOf-Fix (getLengthFromType)
+2026-10-21 06:23:06	155094e	-	ADV-DEV-56627	yugioh	parse+check	5	16515.96	17192.79	17192.79	Neumessung, ruhige Maschine
