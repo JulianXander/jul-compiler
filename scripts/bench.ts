@@ -5,6 +5,7 @@ import { basename, join, resolve } from 'path';
 
 import { checkerStats, resetCheckerStats } from '../src/checker/checker-stats.js';
 import { createFileSystemHost, loadFile } from '../src/compiler/project-loader.js';
+import { parseCode } from '../src/parser/parser.js';
 import {
 	alarmingDeviation,
 	appendEntries,
@@ -24,6 +25,7 @@ import {
  * Wall-Clock Messung von parse + check, zweimal: je Datei mit frischem Host (jede Wurzel lädt ihre
  * ganze Importkette neu, Label 'parse+check') und mit gemeinsamen Dokumenten über alle Wurzeln
  * (jede Datei wird einmal geparst und gecheckt, wie bei einem CLI-Lauf, Label 'parse+check geteilt').
+ * Dazu 'parse': nur der Parser über alle .jul-Dateien, Quellen vorab gelesen.
  * Kein Test-Gate, nur Beleg für Umbauten am Checker.
  * Aufruf: npm run bench [--save] [--note "grund"] [ordner...]
  * Mit --save wird die Messung an scripts/bench-log-compiler.tsv angehängt, ohne nur verglichen.
@@ -87,6 +89,13 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 		});
 		sharedDurations.push(performance.now() - start);
 	}
+	const sources = julFiles.map(filePath => [filePath, readFileSync(filePath, { encoding: 'utf8' })] as const);
+	const parseDurations: number[] = [];
+	for (let run = 0; run < runCount; run++) {
+		const start = performance.now();
+		sources.forEach(([filePath, code]) => parseCode(code, filePath));
+		parseDurations.push(performance.now() - start);
+	}
 	const target = basename(folder);
 	const machine = getMachine();
 	const results: BenchResult[] = [
@@ -97,6 +106,10 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 		{
 			label: 'parse+check geteilt',
 			values: stats(sharedDurations),
+		},
+		{
+			label: 'parse',
+			values: stats(parseDurations),
 		},
 	];
 	const previous = readPrevious(logPath, target, machine);

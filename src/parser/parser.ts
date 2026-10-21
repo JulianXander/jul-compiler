@@ -1,20 +1,4 @@
 import {
-	choiceParser,
-	discriminatedChoiceParser,
-	emptyParser,
-	endOfCodeError,
-	incrementIndent,
-	mapParser,
-	moveColumnIndex,
-	moveToNextLine,
-	multiplicationParser,
-	Parser,
-	ParserResult,
-	regexParser,
-	sequenceParser,
-	tokenParser,
-} from './parser-combinator.js';
-import {
 	BracketedExpression,
 	ParseBindingExpression,
 	ParseDataExpression,
@@ -78,6 +62,33 @@ import { basename, dirname, extname, join } from 'path';
 import { _parseJson, normalizeRational } from '../runtime/runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
+
+/**
+ * Ein Parser liest an (Zeile, Spalte) bei der Einrückungstiefe indent. Parser arbeiten auf Zeilen
+ * (rows), die Tiefe zählt die Tabs der Zeile.
+ */
+type LineParser<T> = (
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+) => ParserResult<T>;
+
+interface ParserResult<T> {
+	/**
+	 * Gibt an, ob etwas geparst wurde.
+	 * Es kann trotzdem errors geben.
+	 */
+	hasParsed: boolean;
+	parsed?: T;
+	endRowIndex: number;
+	endColumnIndex: number;
+	errors?: CompilerError[];
+}
+
+function endOfCodeError(searched: string): string {
+	return `End of code reached while looking for ${searched}`;
+}
 
 const coreLibFileName = 'core-lib.jul';
 export const coreLibPath = join(executingDirectory, 'runtime', coreLibFileName);
@@ -221,12 +232,6 @@ function parseJulCode(code: string): ParsedExpressions {
 
 //#region Tokens
 
-const spaceParser = tokenParser(' ');
-const openingRoundBracketParser = tokenParser('(');
-const closingRoundBracketParser = tokenParser(')');
-const openingSquareBracketParser = tokenParser('[');
-const closingSquareBracketParser = tokenParser(']');
-
 /**
  * Die beiden Klammerarten. Rund ist eine Bindungsstelle (Aufruf, Parameterliste,
  * Destructuring), eckig ein Datenliteral.
@@ -234,14 +239,10 @@ const closingSquareBracketParser = tokenParser(']');
  */
 const brackets = {
 	round: {
-		opening: openingRoundBracketParser,
-		closing: closingRoundBracketParser,
 		closingCharacter: ')',
 		nodeType: 'binding',
 	},
 	square: {
-		opening: openingSquareBracketParser,
-		closing: closingSquareBracketParser,
 		closingCharacter: ']',
 		nodeType: 'data',
 	},
@@ -280,34 +281,116 @@ function isBracketed(expression: { type: string; }): expression is ParseBindingE
 	return expression.type === 'binding'
 		|| expression.type === 'data';
 }
-const paragraphParser = tokenParser('§');
-const nestedReferenceTokenParser = tokenParser('/');
-// SVO InfixFunctionCall
-const infixFunctionTokenParser = tokenParser('.');
-const branchingTokenParser = tokenParser('?');
-const typeBranchingTokenParser = tokenParser(':?');
-const definitionTokenParser = tokenParser(' = ');
-const functionTokenParser = tokenParser(' =>');
-const typeGuardTokenParser = tokenParser(': ');
-const returnTypeTokenParser = tokenParser(' :> ');
-const pureReturnTypeTokenParser = tokenParser(' -> ');
-const impureReturnTypeTokenParser = tokenParser(' ~> ');
-const anyReturnTypeTokenParser: Parser<undefined> = choiceParser(
-	'Expected a return arrow.',
-	returnTypeTokenParser,
-	pureReturnTypeTokenParser,
-	impureReturnTypeTokenParser,
-);
-const returnArrowParser: Parser<Purity> = discriminatedChoiceParser(
-	'Expected a return arrow.',
-	{ predicate: returnTypeTokenParser, parser: mapParser(returnTypeTokenParser, (): Purity => 'unknown') },
-	{ predicate: pureReturnTypeTokenParser, parser: mapParser(pureReturnTypeTokenParser, (): Purity => 'pure') },
-	{ predicate: impureReturnTypeTokenParser, parser: mapParser(impureReturnTypeTokenParser, (): Purity => 'impure') },
-);
+// SVO InfixFunctionCall: Der Punkt steht zwischen erstem Argument und Funktion.
 
 //#endregion Tokens
 
 //#region utility parser
+
+/**
+ * Ergebnis eines Tokens, das an dieser Stelle nicht steht. Der Aufrufer prüft vorher mit
+ * startsWith, ob es passt, und ruft das hier nur im Fehlerfall: Meldung und Position sind
+ * dieselben wie bei tokenParser.
+ */
+function tokenFailure(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	token: string,
+): ParserResult<never> {
+	const row = rows[startRowIndex];
+	if (row === undefined) {
+		return {
+			hasParsed: false,
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex,
+			errors: [{
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: startRowIndex,
+				endColumnIndex: startColumnIndex,
+				code: ErrorCode.endOfCode,
+				message: endOfCodeError(token),
+			}],
+		};
+	}
+	for (let tokenIndex = 0; tokenIndex < token.length; tokenIndex++) {
+		const tokenChar = token[tokenIndex];
+		const columnIndex = tokenIndex + startColumnIndex;
+		const codeChar = row[columnIndex];
+		if (!codeChar) {
+			return {
+				hasParsed: false,
+				endRowIndex: startRowIndex,
+				endColumnIndex: columnIndex,
+				errors: [{
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: startRowIndex,
+					endColumnIndex: columnIndex,
+					code: ErrorCode.endOfCode,
+					message: endOfCodeError(token),
+				}],
+			};
+		}
+		if (codeChar !== tokenChar) {
+			return {
+				hasParsed: false,
+				endRowIndex: startRowIndex,
+				endColumnIndex: columnIndex,
+				errors: [{
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: startRowIndex,
+					endColumnIndex: columnIndex,
+					code: ErrorCode.unexpectedCharacter,
+					message: `Unexpected character: ${codeChar} while looking for: ${token}`,
+				}],
+			};
+		}
+	}
+	throw new Error(`Token ${token} passt an dieser Stelle, tokenFailure ist nur für den Fehlerfall`);
+}
+
+/**
+ * Ergebnis eines Regex, der an dieser Stelle nicht passt (wie regexParser, ohne Treffer).
+ * error fehlt bei Prädikat-Parsern: Deren Fehler wird ohnehin verworfen.
+ */
+function regexFailure(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	error: { code: ErrorCode; message: string; },
+): ParserResult<never> {
+	if (rows[startRowIndex] === undefined) {
+		return {
+			hasParsed: false,
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex,
+			errors: [{
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex,
+				endRowIndex: startRowIndex,
+				endColumnIndex: startColumnIndex,
+				code: ErrorCode.regexAtEndOfCode,
+				message: 'Can not match regex at end of code',
+			}],
+		};
+	}
+	return {
+		hasParsed: false,
+		endRowIndex: startRowIndex,
+		endColumnIndex: startColumnIndex,
+		errors: [{
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex,
+			code: error.code,
+			message: error.message,
+		}],
+	};
+}
 
 /**
  * Liefert CompilerErrorResult bei endOfCode
@@ -416,6 +499,13 @@ function newLineParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<undefined> {
+	if (startColumnIndex === rows[startRowIndex]?.length) {
+		return {
+			hasParsed: true,
+			endRowIndex: startRowIndex + 1,
+			endColumnIndex: 0,
+		};
+	}
 	const result = endOfLineParser(rows, startRowIndex, startColumnIndex, indent);
 	if (!result.hasParsed) {
 		return result;
@@ -545,26 +635,46 @@ function spaceIndentParser(
 	};
 }
 
+const indentTokens: string[] = [];
+
+function getIndentToken(indent: number): string {
+	return indentTokens[indent] ??= '\t'.repeat(indent);
+}
+
 function indentParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<undefined> {
-	const startOfLineResult = startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
-	if (!startOfLineResult.hasParsed) {
-		return startOfLineResult;
+	if (startColumnIndex !== 0) {
+		return startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
 	}
-	const totalIndentToken = '\t'.repeat(indent);
-	const indentResult = tokenParser(totalIndentToken)(rows, startRowIndex, startColumnIndex, indent);
-	if (indentResult.hasParsed) {
-		return indentResult;
+	const totalIndentToken = getIndentToken(indent);
+	if (rows[startRowIndex]?.startsWith(totalIndentToken, startColumnIndex)) {
+		return {
+			hasParsed: true,
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex + totalIndentToken.length,
+		};
 	}
+	const indentResult = tokenFailure(rows, startRowIndex, startColumnIndex, totalIndentToken);
 	// Die erwartete Tiefe mit Leerzeichen zu erreichen ist ein Erfolg mit Diagnose, kein
-	// Fehlschlag: ein Fehlschlag würde beim Backtracking (multiplicationParser, choiceParser)
+	// Fehlschlag: ein Fehlschlag würde beim Backtracking (Wiederholung, Auswahl)
 	// samt Diagnose verworfen und käme beim Nutzer nie an.
 	return spaceIndentParser(rows, startRowIndex, startColumnIndex, indent)
 		?? indentResult;
+}
+
+function indentMatcher(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): boolean {
+	return startColumnIndex === 0
+		&& (rows[startRowIndex]?.startsWith(getIndentToken(indent), startColumnIndex) === true
+			|| spaceIndentParser(rows, startRowIndex, startColumnIndex, indent) !== undefined);
 }
 
 /**
@@ -574,125 +684,129 @@ function indentParser(
  * Enthält ggf. endständiges Zeilenende nicht.
  * TODO comment in AST für Intellisense?
  */
-function multilineParser<T>(
-	parser: Parser<T>,
+function multilineBlock<T>(
+	parser: LineParser<T>,
 	/**
 	 * Steht hinter einem Ausdruck eine schließende Klammer, endet der Block vor ihr, statt den Rest
 	 * der Zeile zu überspringen. Die Klammer gehört dem umschließenden Aufruf oder Literal.
 	 */
-	stopAtClosingBracket: boolean = false,
-): Parser<(T | string | undefined)[]> {
-	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const startOfLineResult = startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
-		if (!startOfLineResult.hasParsed) {
+	stopAtClosingBracket: boolean,
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<(T | string | undefined)[]> {
+	const startOfLineResult = startOfLineParser(rows, startRowIndex, startColumnIndex, indent);
+	if (!startOfLineResult.hasParsed) {
+		return {
+			...startOfLineResult,
+		};
+	}
+	const parsed: (T | string | undefined)[] = [];
+	const errors: CompilerError[] = [];
+	let rowIndex = startRowIndex;
+	let columnIndex = 0;
+	for (; rowIndex < rows.length; rowIndex++) {
+		columnIndex = 0;
+		const row = rows[rowIndex];
+		if (row === undefined) {
+			throw new Error(`row[${rowIndex}] missing`);
+		}
+		if (row === '') {
+			// Leerzeile
+			parsed.push(undefined);
+			continue;
+		}
+		// Reine Tab-Einrückung ist der Regelfall und braucht kein Ergebnisobjekt, das Blockende
+		// ebenso kein Fehlerobjekt.
+		const hasTabIndent = row.startsWith(getIndentToken(indent));
+		const indentResult = hasTabIndent
+			? undefined
+			: indentMatcher(rows, rowIndex, columnIndex, indent)
+				? indentParser(rows, rowIndex, columnIndex, indent)
+				: undefined;
+		if (!hasTabIndent && !indentResult) {
+			const endRowIndex = rowIndex - 1;
+			const endRow = rows[endRowIndex];
+			if (endRow === undefined) {
+				throw new Error(`row[${endRowIndex}] missing`);
+			}
+			// Ende des Blocks
 			return {
-				...startOfLineResult,
+				hasParsed: true,
+				endRowIndex: endRowIndex,
+				endColumnIndex: endRow.length,
+				parsed: parsed,
+				errors: errors,
 			};
 		}
-		const parsed: (T | string | undefined)[] = [];
-		const errors: CompilerError[] = [];
-		let rowIndex = startRowIndex;
-		let columnIndex = 0;
-		for (; rowIndex < rows.length; rowIndex++) {
-			columnIndex = 0;
-			const row = rows[rowIndex];
-			if (row === undefined) {
-				throw new Error(`row[${rowIndex}] missing`);
+		columnIndex = indentResult
+			? indentResult.endColumnIndex
+			: indent;
+		if (indentResult?.errors) {
+			// spaceIndentation: die Zeile wurde trotz falscher Einrückung auf der erwarteten
+			// Ebene erkannt, die Diagnose muss aber sichtbar bleiben.
+			errors.push(...indentResult.errors);
+		}
+		if (row[columnIndex] === '#') {
+			// Kommentarzeile
+			const comment = row.substring(columnIndex + 1);
+			const directiveError = getCommentDirectiveError(comment, rowIndex, columnIndex, row.length);
+			if (directiveError) {
+				errors.push(directiveError);
 			}
-			if (row === '') {
-				// Leerzeile
-				parsed.push(undefined);
-				continue;
-			}
-			const indentResult = indentParser(rows, rowIndex, columnIndex, indent);
-			columnIndex = indentResult.endColumnIndex;
-			if (!indentResult.hasParsed) {
-				const endRowIndex = rowIndex - 1;
-				const endRow = rows[endRowIndex];
-				if (endRow === undefined) {
-					throw new Error(`row[${endRowIndex}] missing`);
-				}
-				// Ende des Blocks
+			parsed.push(comment);
+			continue;
+		}
+		const result = parser(rows, rowIndex, columnIndex, indent);
+		rowIndex = result.endRowIndex;
+		if (result.errors) {
+			errors.push(...result.errors);
+		}
+		if (!result.hasParsed) {
+			// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
+			continue;
+		}
+		parsed.push(result.parsed);
+		// check columnIndex at endindex
+		const endRow = rows[rowIndex];
+		if (endRow === undefined) {
+			// Ende des Codes
+			break;
+		}
+		if (result.endColumnIndex !== endRow.length) {
+			const restCharacter = endRow[result.endColumnIndex];
+			if (stopAtClosingBracket && (restCharacter === ')' || restCharacter === ']')) {
 				return {
 					hasParsed: true,
-					endRowIndex: endRowIndex,
-					endColumnIndex: endRow.length,
+					endRowIndex: rowIndex,
+					endColumnIndex: result.endColumnIndex,
 					parsed: parsed,
 					errors: errors,
 				};
 			}
-			if (indentResult.errors) {
-				// spaceIndentation: die Zeile wurde trotz falscher Einrückung auf der erwarteten
-				// Ebene erkannt, die Diagnose muss aber sichtbar bleiben.
-				errors.push(...indentResult.errors);
-			}
-			if (row[columnIndex] === '#') {
-				// Kommentarzeile
-				const comment = row.substring(columnIndex + 1);
-				const directiveError = getCommentDirectiveError(comment, rowIndex, columnIndex, row.length);
-				if (directiveError) {
-					errors.push(directiveError);
-				}
-				parsed.push(comment);
-				continue;
-			}
-			const result = parser(rows, rowIndex, columnIndex, indent);
-			rowIndex = result.endRowIndex;
-			if (result.errors) {
-				errors.push(...result.errors);
-			}
-			if (!result.hasParsed) {
-				// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
-				continue;
-			}
-			parsed.push(result.parsed);
-			// check columnIndex at endindex
-			const endRow = rows[rowIndex];
-			if (endRow === undefined) {
-				// Ende des Codes
-				break;
-			}
-			if (result.endColumnIndex !== endRow.length) {
-				const restCharacter = endRow[result.endColumnIndex];
-				if (stopAtClosingBracket && (restCharacter === ')' || restCharacter === ']')) {
-					return {
-						hasParsed: true,
-						endRowIndex: rowIndex,
-						endColumnIndex: result.endColumnIndex,
-						parsed: parsed,
-						errors: errors,
-					};
-				}
-				errors.push({
-					code: ErrorCode.unparsedRestOfRow,
-					message: 'multilineParser should parse until end of row',
-					startRowIndex: rowIndex,
-					startColumnIndex: result.endColumnIndex,
-					endRowIndex: rowIndex,
-					endColumnIndex: result.endColumnIndex,
-				});
-				// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
-				continue;
-			}
+			errors.push({
+				code: ErrorCode.unparsedRestOfRow,
+				message: 'multilineParser should parse until end of row',
+				startRowIndex: rowIndex,
+				startColumnIndex: result.endColumnIndex,
+				endRowIndex: rowIndex,
+				endColumnIndex: result.endColumnIndex,
+			});
+			// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
+			continue;
 		}
-		// Ende des Codes
-		return {
-			hasParsed: true,
-			endRowIndex: rowIndex,
-			endColumnIndex: columnIndex,
-			parsed: parsed,
-			errors: errors,
-		};
+	}
+	// Ende des Codes
+	return {
+		hasParsed: true,
+		endRowIndex: rowIndex,
+		endColumnIndex: columnIndex,
+		parsed: parsed,
+		errors: errors,
 	};
 }
 
-//#endregion utility parser
-
-//#region expression parser
-
-/**
- * enthält ggf. endständiges Zeilenende nicht
- */
 function expressionBlockParser(
 	rows: string[],
 	startRowIndex: number,
@@ -708,7 +822,7 @@ function expressionBlockParser(
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
-	const result = multilineParser(withOrphanArrowLineCheck(expressionParser), stopAtClosingBracket)(rows, startRowIndex, startColumnIndex, indent);
+	const result = multilineBlock(orphanCheckedExpressionParser, stopAtClosingBracket, rows, startRowIndex, startColumnIndex, indent);
 	const expressions = result.parsed && assignDescriptions(result.parsed);
 	return {
 		...result,
@@ -860,26 +974,38 @@ function expressionParser(
 	};
 }
 
+const nameRegex = /[a-zA-Z][0-9a-zA-Z]*\$?/y;
+const invalidNameError = { code: ErrorCode.invalidName, message: 'Invalid name' };
+
 function nameParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<Name> {
-	const result = regexParser(/[a-zA-Z][0-9a-zA-Z]*\$?/y, { code: ErrorCode.invalidName, message: 'Invalid name' })(rows, startRowIndex, startColumnIndex, indent);
-	return {
-		...result,
-		parsed: result.parsed
-			? {
-				type: 'name',
-				name: result.parsed,
-				startRowIndex: startRowIndex,
-				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-			}
-			: undefined
-	};
+	const row = rows[startRowIndex];
+	if (row !== undefined) {
+		nameRegex.lastIndex = startColumnIndex;
+		const match = nameRegex.exec(row);
+		if (match) {
+			const endColumnIndex = startColumnIndex + match[0].length;
+			return {
+				hasParsed: true,
+				endRowIndex: startRowIndex,
+				endColumnIndex: endColumnIndex,
+				parsed: {
+					type: 'name',
+					name: match[0],
+					startRowIndex: startRowIndex,
+					startColumnIndex: startColumnIndex,
+					endRowIndex: startRowIndex,
+					endColumnIndex: endColumnIndex,
+				},
+			};
+		}
+	}
+	// Fehlerpfad wie bisher über den regexParser, damit Meldung und Position gleich bleiben
+	return regexFailure(rows, startRowIndex, startColumnIndex, invalidNameError);
 }
 
 function referenceParser(
@@ -889,16 +1015,21 @@ function referenceParser(
 	indent: number,
 ): ParserResult<ParseReference> {
 	const result = nameParser(rows, startRowIndex, startColumnIndex, indent);
+	if (!result.parsed) {
+		return result as ParserResult<never>;
+	}
 	return {
-		...result,
-		parsed: result.parsed && {
+		hasParsed: true,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
+		parsed: {
 			type: 'reference',
 			name: result.parsed,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
-		}
+		},
 	};
 }
 
@@ -911,13 +1042,27 @@ function nestedReferenceKeyParser(
 	type: 'nestedReference';
 	nestedKey?: Name | ParseTextLiteral | Index;
 }> {
-	const result = moveColumnIndex(1, choiceParser(
-		'Expected a nested key.',
-		nameParser,
-		inlineTextParser,
-		indexParser,
-		emptyParser,
-	))(rows, startRowIndex, startColumnIndex, indent);
+	// Hinter dem / steht ein Name, ein Text, ein Index oder nichts (beim Tippen).
+	const keyColumnIndex = startColumnIndex + 1;
+	const character = rows[startRowIndex]?.[keyColumnIndex];
+	let result: ParserResult<Name | ParseTextLiteral | Index> | undefined;
+	if (character !== undefined && nameStartRegex.test(character)) {
+		result = nameParser(rows, startRowIndex, keyColumnIndex, indent);
+	}
+	else if (character === '§') {
+		const textResult = inlineTextParser(rows, startRowIndex, keyColumnIndex, indent);
+		if (textResult.hasParsed) {
+			result = textResult;
+		}
+	}
+	if (!result && character !== undefined && character >= '0' && character <= '9') {
+		result = indexParser(rows, startRowIndex, keyColumnIndex, indent);
+	}
+	result ??= {
+		hasParsed: true,
+		endRowIndex: startRowIndex,
+		endColumnIndex: keyColumnIndex,
+	};
 	const errors = result.errors
 		? [...result.errors]
 		: [];
@@ -941,6 +1086,11 @@ function nestedReferenceKeyParser(
 	};
 }
 
+const nameStartRegex = /[a-zA-Z]/;
+
+const indexRegex = /0|[1-9][0-9]*/y;
+const invalidIndexSyntaxError = { code: ErrorCode.invalidIndexSyntax, message: 'Invalid index syntax' };
+
 function indexParser(
 	rows: string[],
 	startRowIndex: number,
@@ -949,115 +1099,138 @@ function indexParser(
 ): ParserResult<Index> {
 	// Ein Index ist eine positive Ganzzahl ohne führende Nullen. Die 0 wird trotzdem geparst,
 	// weil sie getippt wird: nur wenn sie konsumiert ist, kann die Meldung auf ihr sitzen —
-	// sonst fällt der choiceParser durch und nestedReferenceKeyParser meldet generisch
+	// sonst fällt die Auswahl in nestedReferenceKeyParser durch und meldet generisch
 	// "Expected a nested key" auf dem vorangehenden /.
-	const result = regexParser(/0|[1-9][0-9]*/y, { code: ErrorCode.invalidIndexSyntax, message: 'Invalid index syntax' })(rows, startRowIndex, startColumnIndex, indent);
-	if (result.parsed === undefined) {
-		return {
-			...result,
-			parsed: undefined,
-		};
+	const row = rows[startRowIndex];
+	let match: RegExpExecArray | null = null;
+	if (row !== undefined) {
+		indexRegex.lastIndex = startColumnIndex;
+		match = indexRegex.exec(row);
 	}
-	const index = +result.parsed;
-	// Indizes sind 1-basiert
-	const errors = index < 1
-		? [
-			...result.errors ?? [],
-			{
+	if (!match) {
+		return regexFailure(rows, startRowIndex, startColumnIndex, invalidIndexSyntaxError);
+	}
+	const index = +match[0];
+	const endColumnIndex = startColumnIndex + match[0].length;
+	return {
+		hasParsed: true,
+		endRowIndex: startRowIndex,
+		endColumnIndex: endColumnIndex,
+		// Indizes sind 1-basiert
+		errors: index < 1
+			? [{
 				code: ErrorCode.invalidIndexSyntax,
 				message: `Invalid index ${index}, indexes start at 1`,
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-			},
-		]
-		: result.errors;
-	return {
-		...result,
-		errors: errors,
+				endRowIndex: startRowIndex,
+				endColumnIndex: endColumnIndex,
+			}]
+			: undefined,
 		parsed: {
 			type: 'index',
 			name: index,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
+			endRowIndex: startRowIndex,
+			endColumnIndex: endColumnIndex,
 		},
 	};
 }
 
+/**
+ * Verkettet zwei Fehlerlisten: undefined bleibt undefined, eine einzelne Liste
+ * wird weitergereicht.
+ */
+function mergeErrors(
+	errors: CompilerError[] | undefined,
+	more: CompilerError[] | undefined,
+): CompilerError[] | undefined {
+	if (!more) {
+		return errors;
+	}
+	return errors
+		? errors.concat(more)
+		: more;
+}
+
+/**
+ * Spread, Name oder Wert, Typ-Guard, Zuweisung. Geradlinig geschrieben statt aus Kombinatoren, das
+ * Verhalten ist dasselbe:
+ * - Ein Fehlschlag von Name oder Typ-Guard-Wert endet das Feld mit den bisherigen Fehlern.
+ * - Fehlt der Wert hinter ` = `, ist das kein Fehler des Feldes, die Fehler des Versuchs gehen
+ *   verloren (assignedValueMissingForDefinition meldet es später).
+ */
 function fieldParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ParseFieldBase> {
-	const result = sequenceParser(
-		// spread/rest
-		multiplicationParser(
-			1,
-			tokenParser('...'),
-		),
-		// name/single value/definitionFields
-		valueExpressionBaseParser,
-		// typeGuard
-		discriminatedChoiceParser(
-			'Expected a type guard or nothing.',
-			{
-				predicate: typeGuardTokenParser,
-				parser: sequenceParser(
-					typeGuardTokenParser,
-					valueExpressionParser,
-				),
-			},
-			{
-				predicate: emptyParser,
-				parser: emptyParser,
-			}
-		),
-		// source/assignedValue
-		discriminatedChoiceParser(
-			'Expected a definition or nothing.',
-			{
-				predicate: definitionTokenParser,
-				parser: sequenceParser(
-					definitionTokenParser,
-					// nur kein value bei unvollständigem Feld
-					multiplicationParser(
-						1,
-						valueExpressionParser,
-					)
-				),
-			},
-			{
-				predicate: emptyParser,
-				parser: emptyParser,
-			}
-		),
-	)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed = result.parsed;
-	if (!parsed) {
+	let columnIndex = startColumnIndex;
+	let spread = false;
+	if (rows[startRowIndex]?.startsWith('...', columnIndex)) {
+		spread = true;
+		columnIndex += 3;
+	}
+	const nameResult = valueExpressionBaseParser(rows, startRowIndex, columnIndex, indent);
+	let errors = nameResult.errors;
+	let rowIndex = nameResult.endRowIndex;
+	columnIndex = nameResult.endColumnIndex;
+	if (!nameResult.hasParsed) {
 		return {
-			...result,
-			parsed: undefined,
+			hasParsed: false,
+			endRowIndex: rowIndex,
+			endColumnIndex: columnIndex,
+			errors: errors,
 		};
 	}
-	const field: ParseFieldBase = {
-		type: 'field',
-		spread: !!parsed[0].length,
-		name: parsed[1],
-		typeGuard: parsed[2]?.[1],
-		definition: !!parsed[3],
-		assignedValue: parsed[3]?.[1][0],
-		startRowIndex: startRowIndex,
-		startColumnIndex: startColumnIndex,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
-	};
+	let typeGuard: ParseValueExpression | undefined;
+	if (rows[rowIndex]?.startsWith(': ', columnIndex)) {
+		const typeGuardResult = valueExpressionParser(rows, rowIndex, columnIndex + 2, indent);
+		errors = mergeErrors(errors, typeGuardResult.errors);
+		rowIndex = typeGuardResult.endRowIndex;
+		columnIndex = typeGuardResult.endColumnIndex;
+		if (!typeGuardResult.hasParsed) {
+			return {
+				hasParsed: false,
+				endRowIndex: rowIndex,
+				endColumnIndex: columnIndex,
+				errors: errors,
+			};
+		}
+		typeGuard = typeGuardResult.parsed;
+	}
+	let definition = false;
+	let assignedValue: ParseValueExpression | undefined;
+	if (rows[rowIndex]?.startsWith(' = ', columnIndex)) {
+		definition = true;
+		columnIndex += 3;
+		const valueResult = valueExpressionParser(rows, rowIndex, columnIndex, indent);
+		if (valueResult.hasParsed) {
+			errors = mergeErrors(errors, valueResult.errors);
+			rowIndex = valueResult.endRowIndex;
+			columnIndex = valueResult.endColumnIndex;
+			assignedValue = valueResult.parsed;
+		}
+	}
 	return {
-		...result,
-		parsed: field,
+		hasParsed: true,
+		endRowIndex: rowIndex,
+		endColumnIndex: columnIndex,
+		parsed: {
+			type: 'field',
+			spread: spread,
+			name: nameResult.parsed!,
+			typeGuard: typeGuard,
+			definition: definition,
+			assignedValue: assignedValue,
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: rowIndex,
+			endColumnIndex: columnIndex,
+		},
+		errors: errors,
 	};
 }
 
@@ -1094,58 +1267,65 @@ function valueExpressionBaseParser(
 		return endOfCodeError;
 	}
 	// Branching steht praefix und kann daher nicht hinter der simpleExpression haengen.
-	if (typeBranchingTokenParser(rows, startRowIndex, startColumnIndex, indent).hasParsed) {
+	if (rows[startRowIndex]?.startsWith(':?', startColumnIndex)) {
 		return branchingParser(rows, startRowIndex, startColumnIndex, indent, 'typeBranching');
 	}
-	if (branchingTokenParser(rows, startRowIndex, startColumnIndex, indent).hasParsed) {
+	if (rows[startRowIndex]?.startsWith('?', startColumnIndex)) {
 		return branchingParser(rows, startRowIndex, startColumnIndex, indent, 'branching');
 	}
-	const result = sequenceParser(
-		simpleExpressionBaseParser,
-		discriminatedChoiceParser(
-			'Expected a function body, a return type or nothing.',
-			// FunctionLiteral
-			{
-				predicate: functionTokenParser,
-				// expressionBlock
-				parser: functionBodyParser,
-			},
-			// FunctionTypeLiteral/FunctionLiteral mit ReturnType
-			{
-				predicate: anyReturnTypeTokenParser,
-				parser: functionTypeBodyParser,
-			},
-			// Rückgabepfeil am Ende der Kopfzeile (ungültig)
-			{
-				predicate: returnArrowAtEndOfRowPredicate,
-				parser: returnArrowAtEndOfRowParser,
-			},
-			// Pfeilzeilen unter dem Kopf
-			{
-				predicate: functionHeadContinuationPredicate,
-				parser: functionHeadContinuationParser,
-			},
-			// SimpleExpressionBase
-			{
-				predicate: emptyParser,
-				parser: emptyParser
-			},
-		)
-	)(rows, startRowIndex, startColumnIndex, indent);
-	if (!result.hasParsed) {
+	const firstResult = simpleExpressionBaseParser(rows, startRowIndex, startColumnIndex, indent);
+	if (!firstResult.hasParsed) {
 		return {
-			...result,
+			hasParsed: false,
+			endRowIndex: firstResult.endRowIndex,
+			endColumnIndex: firstResult.endColumnIndex,
+			errors: firstResult.errors,
 			parsed: undefined,
 		};
 	}
-	const [parsed1, parsed2] = result.parsed!;
-	const errors = result.errors
-		? [...result.errors]
+	const parsed1 = firstResult.parsed!;
+	let endRowIndex = firstResult.endRowIndex;
+	let endColumnIndex = firstResult.endColumnIndex;
+	let mergedErrors = firstResult.errors;
+	// Was auf die simpleExpression folgt: Rumpf, Rückgabepfeil mit Typ, ein ungültiger Pfeil am
+	// Zeilenende, Pfeilzeilen unter dem Kopf oder nichts. Das erste passende Prädikat gewinnt.
+	let restResult: ParserResult<FunctionHeadRest> | undefined;
+	if (rows[endRowIndex]?.startsWith(' =>', endColumnIndex)) {
+		restResult = functionBodyParser(rows, endRowIndex, endColumnIndex, indent);
+	}
+	else if (getReturnArrowPurity(rows[endRowIndex], endColumnIndex) !== undefined) {
+		restResult = functionTypeBodyParser(rows, endRowIndex, endColumnIndex, indent);
+	}
+	else if (isReturnArrowAtEndOfRow(rows, endRowIndex, endColumnIndex)) {
+		restResult = returnArrowAtEndOfRowParser(rows, endRowIndex, endColumnIndex, indent);
+	}
+	else if (isFunctionHeadContinued(rows, endRowIndex, endColumnIndex, indent)) {
+		restResult = functionHeadContinuationParser(rows, endRowIndex, endColumnIndex, indent);
+	}
+	if (restResult) {
+		mergedErrors = mergeErrors(mergedErrors, restResult.errors);
+		endRowIndex = restResult.endRowIndex;
+		endColumnIndex = restResult.endColumnIndex;
+		if (!restResult.hasParsed) {
+			return {
+				hasParsed: false,
+				endRowIndex: endRowIndex,
+				endColumnIndex: endColumnIndex,
+				errors: mergedErrors,
+				parsed: undefined,
+			};
+		}
+	}
+	const parsed2 = restResult?.parsed;
+	const errors = mergedErrors
+		? [...mergedErrors]
 		: [];
 	if (!parsed2) {
 		// SimpleExpressionBase
 		return {
-			...result,
+			hasParsed: true,
+			endRowIndex: endRowIndex,
+			endColumnIndex: endColumnIndex,
 			parsed: parsed1,
 			errors: errors,
 		};
@@ -1162,15 +1342,15 @@ function valueExpressionBaseParser(
 				{
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
+					endRowIndex: endRowIndex,
+					endColumnIndex: endColumnIndex,
 				},
 				errors,
 			);
 			return {
 				hasParsed: true,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
+				endRowIndex: endRowIndex,
+				endColumnIndex: endColumnIndex,
 				parsed: functionLiteral,
 				errors: errors,
 			};
@@ -1188,16 +1368,16 @@ function valueExpressionBaseParser(
 					{
 						startRowIndex: startRowIndex,
 						startColumnIndex: startColumnIndex,
-						endRowIndex: result.endRowIndex,
-						endColumnIndex: result.endColumnIndex,
+						endRowIndex: endRowIndex,
+						endColumnIndex: endColumnIndex,
 					},
 					errors,
 					parsed2.arrow,
 				);
 				return {
 					hasParsed: true,
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
+					endRowIndex: endRowIndex,
+					endColumnIndex: endColumnIndex,
 					parsed: functionLiteral,
 					errors: errors,
 				};
@@ -1209,24 +1389,24 @@ function valueExpressionBaseParser(
 				// Language Server erhalten bleibt
 				returnType ?? {
 					type: 'empty',
-					startRowIndex: result.endRowIndex,
-					startColumnIndex: result.endColumnIndex,
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
+					startRowIndex: endRowIndex,
+					startColumnIndex: endColumnIndex,
+					endRowIndex: endRowIndex,
+					endColumnIndex: endColumnIndex,
 				},
 				parsed2.arrow,
 				{
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
+					endRowIndex: endRowIndex,
+					endColumnIndex: endColumnIndex,
 				},
 				errors,
 			);
 			return {
 				hasParsed: true,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
+				endRowIndex: endRowIndex,
+				endColumnIndex: endColumnIndex,
 				parsed: functionTypeLiteral,
 				errors: errors,
 			};
@@ -1240,84 +1420,135 @@ function valueExpressionBaseParser(
 
 //#region SimpleExpression
 
+function expectedOneOfResult(
+	rowIndex: number,
+	columnIndex: number,
+	expected: string,
+): ParserResult<never> {
+	return {
+		hasParsed: false,
+		endRowIndex: rowIndex,
+		endColumnIndex: columnIndex,
+		errors: [{
+			startRowIndex: rowIndex,
+			startColumnIndex: columnIndex,
+			// TODO end indices
+			endRowIndex: rowIndex,
+			endColumnIndex: columnIndex,
+			code: ErrorCode.expectedOneOf,
+			message: expected,
+		}],
+	};
+}
+
+/**
+ * Text: inline mit schließendem §, mehrzeilig, zuletzt ohne schließendes §.
+ */
+function textParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ParseTextLiteral> {
+	const inlineResult = inlineTextParser(rows, startRowIndex, startColumnIndex, indent);
+	if (inlineResult.hasParsed) {
+		return inlineResult;
+	}
+	const multilineResult = multilineTextParser(rows, startRowIndex, startColumnIndex, indent);
+	if (multilineResult.hasParsed) {
+		return multilineResult;
+	}
+	// zuletzt: `§abc` ist auch der Kopf eines mehrzeiligen Textes
+	const unclosedResult = unclosedInlineTextParser(rows, startRowIndex, startColumnIndex, indent);
+	if (unclosedResult.hasParsed) {
+		return unclosedResult;
+	}
+	return expectedOneOfResult(startRowIndex, startColumnIndex, 'Expected a text.');
+}
+
+/**
+ * Der Anfang einer simpleExpression: Klammer, Zahl, Text oder Referenz. Das erste Zeichen
+ * entscheidet, danach gibt es keinen Rückfall auf eine andere Alternative.
+ */
+function simpleExpressionStartParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<SimpleExpression> {
+	const character = rows[startRowIndex]?.[startColumnIndex];
+	if (character !== undefined) {
+		if (character === '(') {
+			// Bindungsstelle: Parameterliste oder Destructuring-Ziel.
+			// Was davon, entscheidet erst das Token nach der schließenden Klammer.
+			return roundBracketedBaseParser(rows, startRowIndex, startColumnIndex, indent);
+		}
+		if (character === '[') {
+			// Datenliteral
+			return squareBracketedBaseParser(rows, startRowIndex, startColumnIndex, indent);
+		}
+		if (character === '-' || (character >= '0' && character <= '9')) {
+			return numberParser(rows, startRowIndex, startColumnIndex, indent);
+		}
+		if (character === '§') {
+			return textParser(rows, startRowIndex, startColumnIndex, indent);
+		}
+		if (nameStartRegex.test(character)) {
+			return referenceParser(rows, startRowIndex, startColumnIndex, indent);
+		}
+	}
+	return expectedOneOfResult(startRowIndex, startColumnIndex, 'Expected a bracket, number, text or reference.');
+}
+
+type SimpleExpressionChainLink =
+	| NonNullable<ReturnType<typeof nestedReferenceKeyParser>['parsed']>
+	| BracketedExpression
+	| NonNullable<ReturnType<typeof infixFunctionArgumentsParser>['parsed']>;
+
 function simpleExpressionBaseParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<SimpleExpression> {
-	const result = sequenceParser(
-		discriminatedChoiceParser(
-			'Expected a bracket, number, text or reference.',
-			// Bindungsstelle: Parameterliste oder Destructuring-Ziel.
-			// Was davon, entscheidet erst das Token nach der schließenden Klammer.
-			{
-				predicate: openingRoundBracketParser,
-				parser: roundBracketedBaseParser,
-			},
-			// Datenliteral
-			{
-				predicate: openingSquareBracketParser,
-				parser: squareBracketedBaseParser,
-			},
-			// NumberLiteral
-			{
-				predicate: regexParser(/[-0-9]/y),
-				parser: numberParser,
-			},
-			// TextLiteral
-			{
-				predicate: paragraphParser,
-				parser: choiceParser(
-					'Expected a text.',
-					inlineTextParser,
-					multilineTextParser,
-					// zuletzt: `§abc` ist auch der Kopf eines mehrzeiligen Textes
-					unclosedInlineTextParser,
-				)
-			},
-			// Reference
-			{
-				predicate: regexParser(/[a-zA-Z]/y),
-				parser: referenceParser,
-			},
-		),
-		multiplicationParser(
-			undefined,
-			discriminatedChoiceParser(
-				'Expected a nested reference, a call or an infix call.',
-				// Field/Index Reference
-				{
-					predicate: nestedReferenceTokenParser,
-					parser: nestedReferenceKeyParser,
-				},
-				// FunctionCall
-				{
-					predicate: openingRoundBracketParser,
-					// ObjectLiteral
-					parser: functionArgumentsParser
-				},
-				// Infix FunctionCall
-				{
-					predicate: choiceParser(
-						'Expected an infix call.',
-						infixFunctionTokenParser,
-						// TODO multiline functionCall mit Kommentarzeilen
-					),
-					parser: infixFunctionArgumentsParser,
-				},
-			)),
-	)(rows, startRowIndex, startColumnIndex, indent);
-	if (!result.hasParsed) {
+	const baseResult = simpleExpressionStartParser(rows, startRowIndex, startColumnIndex, indent);
+	if (!baseResult.hasParsed) {
 		return {
-			...result,
+			hasParsed: false,
+			endRowIndex: baseResult.endRowIndex,
+			endColumnIndex: baseResult.endColumnIndex,
+			errors: baseResult.errors,
 			parsed: undefined,
 		};
 	}
-	const errors = result.errors
-		? [...result.errors]
+	const parsed1 = baseResult.parsed!;
+	// Kette aus Verschachtelung (/), Aufruf und Infix-Aufruf, so oft es passt. Ein Fehlschlag
+	// beendet die Kette ohne Folgen, die Fehler des Versuchs gehen verloren.
+	let endRowIndex = baseResult.endRowIndex;
+	let endColumnIndex = baseResult.endColumnIndex;
+	let mergedErrors = baseResult.errors;
+	const parsed2: SimpleExpressionChainLink[] = [];
+	while (endRowIndex < rows.length) {
+		const row = rows[endRowIndex]!;
+		const character = row[endColumnIndex];
+		const linkResult: ParserResult<SimpleExpressionChainLink> | undefined = character === '/'
+			? nestedReferenceKeyParser(rows, endRowIndex, endColumnIndex, indent)
+			: character === '('
+				? functionArgumentsParser(rows, endRowIndex, endColumnIndex, indent)
+				: character === '.'
+					? infixFunctionArgumentsParser(rows, endRowIndex, endColumnIndex, indent)
+					: undefined;
+		if (!linkResult?.hasParsed) {
+			break;
+		}
+		mergedErrors = mergeErrors(mergedErrors, linkResult.errors);
+		endRowIndex = linkResult.endRowIndex;
+		endColumnIndex = linkResult.endColumnIndex;
+		parsed2.push(linkResult.parsed!);
+	}
+	const errors = mergedErrors
+		? [...mergedErrors]
 		: [];
-	const [parsed1, parsed2] = result.parsed!;
 	let expression: SimpleExpression = parsed1;
 	if (parsed2.length) {
 		// (Nested Ref/Function Call) Chain
@@ -1378,12 +1609,15 @@ function simpleExpressionBaseParser(
 	}
 	return {
 		hasParsed: true,
-		endRowIndex: result.endRowIndex,
-		endColumnIndex: result.endColumnIndex,
+		endRowIndex: endRowIndex,
+		endColumnIndex: endColumnIndex,
 		parsed: expression,
 		errors: errors,
 	};
 }
+
+const numberRegex = /-?(0|[1-9][0-9]*)(\.[0-9]+)?f?/y;
+const invalidNumberError = { code: ErrorCode.invalidNumber, message: 'not a valid number' };
 
 function numberParser(
 	rows: string[],
@@ -1391,26 +1625,29 @@ function numberParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<NumberLiteral> {
-	const result = regexParser(/-?(0|[1-9][0-9]*)(\.[0-9]+)?f?/y, { code: ErrorCode.invalidNumber, message: 'not a valid number' })(rows, startRowIndex, startColumnIndex, indent);
-	if (!result.hasParsed) {
-		return {
-			...result,
-			parsed: undefined,
-		};
+	const row = rows[startRowIndex];
+	let match: RegExpExecArray | null = null;
+	if (row !== undefined) {
+		numberRegex.lastIndex = startColumnIndex;
+		match = numberRegex.exec(row);
 	}
-	const parsed = result.parsed!;
+	if (!match) {
+		return regexFailure(rows, startRowIndex, startColumnIndex, invalidNumberError);
+	}
+	const parsed = match[0];
+	const endColumnIndex = startColumnIndex + parsed.length;
 	if (last(parsed) === 'f') {
 		return {
 			hasParsed: true,
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
+			endRowIndex: startRowIndex,
+			endColumnIndex: endColumnIndex,
 			parsed: {
 				type: 'float',
 				value: +parsed.substring(0, parsed.length - 1),
 				startRowIndex: startRowIndex,
 				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
+				endRowIndex: startRowIndex,
+				endColumnIndex: endColumnIndex,
 			},
 		};
 	}
@@ -1419,15 +1656,17 @@ function numberParser(
 		const numberOfDecimalPlaces = (parsed.length - 1) - decimalSeparatorIndex;
 		const normalized = normalizeRational(BigInt(parsed.replace('.', '')), 10n ** BigInt(numberOfDecimalPlaces));
 		return {
-			...result,
+			hasParsed: true,
+			endRowIndex: startRowIndex,
+			endColumnIndex: endColumnIndex,
 			parsed: typeof normalized === 'bigint'
 				? {
 					type: 'integer',
 					value: normalized,
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
+					endRowIndex: startRowIndex,
+					endColumnIndex: endColumnIndex,
 				}
 				: {
 					type: 'fraction',
@@ -1435,20 +1674,22 @@ function numberParser(
 					denominator: normalized.denominator,
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
-					endRowIndex: result.endRowIndex,
-					endColumnIndex: result.endColumnIndex,
+					endRowIndex: startRowIndex,
+					endColumnIndex: endColumnIndex,
 				},
 		};
 	}
 	return {
-		...result,
+		hasParsed: true,
+			endRowIndex: startRowIndex,
+			endColumnIndex: endColumnIndex,
 		parsed: {
 			type: 'integer',
 			value: BigInt(parsed),
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
-			endRowIndex: result.endRowIndex,
-			endColumnIndex: result.endColumnIndex,
+			endRowIndex: startRowIndex,
+			endColumnIndex: endColumnIndex,
 		},
 	};
 }
@@ -1463,23 +1704,34 @@ function inlineTextParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ParseTextLiteral> {
-	const result = sequenceParser(
-		paragraphParser,
-		textLineContentParser,
-		paragraphParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
+	if (!rows[startRowIndex]?.startsWith('§', startColumnIndex)) {
+		return tokenFailure(rows, startRowIndex, startColumnIndex, '§');
+	}
+	const contentResult = textLineContentParser(rows, startRowIndex, startColumnIndex + 1, indent);
+	const closingRowIndex = contentResult.endRowIndex;
+	const closingColumnIndex = contentResult.endColumnIndex;
+	if (!rows[closingRowIndex]?.startsWith('§', closingColumnIndex)) {
+		const closingResult = tokenFailure(rows, closingRowIndex, closingColumnIndex, '§');
+		return {
+			hasParsed: false,
+			endRowIndex: closingResult.endRowIndex,
+			endColumnIndex: closingResult.endColumnIndex,
+			errors: mergeErrors(contentResult.errors, closingResult.errors),
+		};
+	}
 	return {
-		...result,
-		parsed: result.parsed === undefined
-			? undefined
-			: {
-				type: 'text',
-				values: result.parsed[1],
-				startRowIndex: startRowIndex,
-				startColumnIndex: startColumnIndex,
-				endRowIndex: result.endRowIndex,
-				endColumnIndex: result.endColumnIndex,
-			},
+		hasParsed: true,
+		endRowIndex: closingRowIndex,
+		endColumnIndex: closingColumnIndex + 1,
+		parsed: {
+			type: 'text',
+			values: contentResult.parsed!,
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: closingRowIndex,
+			endColumnIndex: closingColumnIndex + 1,
+		},
+		errors: contentResult.errors,
 	};
 }
 
@@ -1493,17 +1745,22 @@ function unclosedInlineTextParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ParseTextLiteral> {
-	const result = sequenceParser(
-		paragraphParser,
-		textLineContentParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
 	const rowLength = rows[startRowIndex]!.length;
-	if (!result.parsed || result.endColumnIndex !== rowLength) {
+	if (!rows[startRowIndex]!.startsWith('§', startColumnIndex)) {
 		return {
 			hasParsed: false,
 			endRowIndex: startRowIndex,
 			endColumnIndex: startColumnIndex,
-			errors: result.errors,
+			errors: tokenFailure(rows, startRowIndex, startColumnIndex, '§').errors,
+		};
+	}
+	const contentResult = textLineContentParser(rows, startRowIndex, startColumnIndex + 1, indent);
+	if (contentResult.endColumnIndex !== rowLength) {
+		return {
+			hasParsed: false,
+			endRowIndex: startRowIndex,
+			endColumnIndex: startColumnIndex,
+			errors: contentResult.errors,
 		};
 	}
 	return {
@@ -1512,14 +1769,14 @@ function unclosedInlineTextParser(
 		endColumnIndex: rowLength,
 		parsed: {
 			type: 'text',
-			values: result.parsed[1],
+			values: contentResult.parsed!,
 			startRowIndex: startRowIndex,
 			startColumnIndex: startColumnIndex,
 			endRowIndex: startRowIndex,
 			endColumnIndex: rowLength,
 		},
 		errors: [
-			...(result.errors ?? []),
+			...(contentResult.errors ?? []),
 			{
 				code: ErrorCode.closingTextMarkerMissing,
 				message: 'Expected closing §.',
@@ -1532,29 +1789,80 @@ function unclosedInlineTextParser(
 	};
 }
 
+/**
+ * §, Sprachkennung, Zeilenumbruch, eingerückte Zeilen, Zeilenumbruch, Einrückung, §.
+ */
+function multilineTextHeadParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<{ languageIdentifier: string; lines: ((TextToken | ParseValueExpression)[] | string | undefined)[]; }> {
+	if (!rows[startRowIndex]?.startsWith('§', startColumnIndex)) {
+		return tokenFailure(rows, startRowIndex, startColumnIndex, '§');
+	}
+	// language identifier
+	// TODO nur unterstützte sprachen? validieren?
+	languageIdentifierRegex.lastIndex = startColumnIndex + 1;
+	const languageIdentifier = languageIdentifierRegex.exec(rows[startRowIndex]!)![0];
+	let errors: CompilerError[] | undefined;
+	const opened = newLineParser(rows, startRowIndex, startColumnIndex + 1 + languageIdentifier.length, indent);
+	errors = mergeErrors(errors, opened.errors);
+	if (!opened.hasParsed) {
+		return { hasParsed: false, endRowIndex: opened.endRowIndex, endColumnIndex: opened.endColumnIndex, errors: errors };
+	}
+	const linesResult = multilineBlock(textLineContentParser, false, rows, opened.endRowIndex, opened.endColumnIndex, indent + 1);
+	errors = mergeErrors(errors, linesResult.errors);
+	if (!linesResult.hasParsed) {
+		return { hasParsed: false, endRowIndex: linesResult.endRowIndex, endColumnIndex: linesResult.endColumnIndex, errors: errors };
+	}
+	const closed = newLineParser(rows, linesResult.endRowIndex, linesResult.endColumnIndex, indent);
+	errors = mergeErrors(errors, closed.errors);
+	if (!closed.hasParsed) {
+		return { hasParsed: false, endRowIndex: closed.endRowIndex, endColumnIndex: closed.endColumnIndex, errors: errors };
+	}
+	const indentResult = indentParser(rows, closed.endRowIndex, closed.endColumnIndex, indent);
+	errors = mergeErrors(errors, indentResult.errors);
+	if (!indentResult.hasParsed) {
+		return { hasParsed: false, endRowIndex: indentResult.endRowIndex, endColumnIndex: indentResult.endColumnIndex, errors: errors };
+	}
+	if (!rows[indentResult.endRowIndex]?.startsWith('§', indentResult.endColumnIndex)) {
+		const endResult = tokenFailure(rows, indentResult.endRowIndex, indentResult.endColumnIndex, '§');
+		return {
+			hasParsed: false,
+			endRowIndex: endResult.endRowIndex,
+			endColumnIndex: endResult.endColumnIndex,
+			errors: mergeErrors(errors, endResult.errors),
+		};
+	}
+	return {
+		hasParsed: true,
+		endRowIndex: indentResult.endRowIndex,
+		endColumnIndex: indentResult.endColumnIndex + 1,
+		parsed: { languageIdentifier: languageIdentifier, lines: linesResult.parsed! },
+		errors: errors,
+	};
+}
+
+const languageIdentifierRegex = /[a-z]*/y;
+
 function multilineTextParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ParseTextLiteral> {
-	const result = sequenceParser(
-		paragraphParser,
-		// language identifier
-		// TODO nur unterstützte sprachen? validieren?
-		regexParser(/[a-z]*/y, { code: ErrorCode.invalidLanguageIdentifier, message: 'language identifier' }),
-		newLineParser,
-		incrementIndent(multilineParser(textLineContentParser)),
-		newLineParser,
-		indentParser,
-		paragraphParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
+	const head = multilineTextHeadParser(rows, startRowIndex, startColumnIndex, indent);
+	if (!head.hasParsed) {
+		return head as ParserResult<never>;
+	}
+	const result = head;
 	const values: (TextToken | ParseValueExpression)[] = [];
 	let languageIdentifier: string | undefined;
 	if (result.parsed) {
-		languageIdentifier = result.parsed[1];
+		languageIdentifier = result.parsed.languageIdentifier;
 		const isRegex = languageIdentifier === 'regex';
-		result.parsed[3].forEach(line => {
+		result.parsed.lines.forEach(line => {
 			if (isRegex) {
 				// Ein Regex ist ein Pattern, kein Text mit Zeilen: Zeilen ohne Umbruch und ohne
 				// Einrückung verbinden. Kommentar- und Leerzeilen tragen nichts bei.
@@ -1597,44 +1905,58 @@ function multilineTextParser(
 	};
 }
 
+/**
+ * Text bis zum nächsten §, mit §§ und §# als Escapes und §( ) für eingebettete Ausdrücke. Ein Stück,
+ * das nicht passt, beendet die Wiederholung ohne Folgen, die Fehler des Versuchs gehen verloren.
+ */
 function textLineContentParser(
 	rows: string[],
 	startRowIndex: number,
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<(TextToken | ParseValueExpression)[]> {
-	const result =
-		multiplicationParser(
-			undefined,
-			choiceParser(
-				'Expected text content.',
-				regexParser(/([^§]+|§§|§#)/y, { code: ErrorCode.invalidTextSyntax, message: 'Invalid String Syntax' }),
-				sequenceParser(
-					tokenParser('§('),
-					valueExpressionParser,
-					closingRoundBracketParser,
-				),
-			)
-		)(rows, startRowIndex, startColumnIndex, indent);
+	const values: (TextToken | ParseValueExpression)[] = [];
+	let errors: CompilerError[] | undefined;
+	let rowIndex = startRowIndex;
+	let columnIndex = startColumnIndex;
+	while (rowIndex < rows.length) {
+		const row = rows[rowIndex]!;
+		textContentRegex.lastIndex = columnIndex;
+		const match = textContentRegex.exec(row);
+		if (match) {
+			const text = match[0];
+			values.push({
+				type: 'textToken',
+				value: text.startsWith('§')
+					? text.substring(1)
+					: text,
+			});
+			columnIndex += text.length;
+			continue;
+		}
+		if (!row.startsWith('§(', columnIndex)) {
+			break;
+		}
+		const expressionResult = valueExpressionParser(rows, rowIndex, columnIndex + 2, indent);
+		if (!expressionResult.hasParsed
+			|| !rows[expressionResult.endRowIndex]?.startsWith(')', expressionResult.endColumnIndex)) {
+			break;
+		}
+		errors = mergeErrors(errors, expressionResult.errors);
+		values.push(expressionResult.parsed!);
+		rowIndex = expressionResult.endRowIndex;
+		columnIndex = expressionResult.endColumnIndex + 1;
+	}
 	return {
-		...result,
-		parsed: result.parsed?.map(choice => {
-			switch (typeof choice) {
-				case 'string':
-					return {
-						type: 'textToken',
-						value: choice.startsWith('§')
-							? choice.substring(1)
-							: choice
-					};
-				case 'object':
-					return choice[1];
-				default:
-					throw new Error('unexpected String Token choice');
-			}
-		})
+		hasParsed: true,
+		endRowIndex: rowIndex,
+		endColumnIndex: columnIndex,
+		parsed: values,
+		errors: errors,
 	};
 }
+
+const textContentRegex = new RegExp('([^§]+|§§|§#)', 'y');
 
 //#endregion String
 
@@ -1661,16 +1983,12 @@ function infixFunctionArgumentsParser(
 	// 	nameParser,
 	// 	functionArgumentsParser,
 	// )(rows, startRowIndex, startColumnIndex, indent);
-	const infixTokenResult = infixFunctionTokenParser(rows, startRowIndex, startColumnIndex, indent);
-	if (!infixTokenResult.hasParsed) {
-		return {
-			...infixTokenResult,
-			parsed: undefined,
-		};
+	if (!rows[startRowIndex]?.startsWith('.', startColumnIndex)) {
+		return tokenFailure(rows, startRowIndex, startColumnIndex, '.');
 	}
-	const errors = infixTokenResult.errors ?? [];
-	let endRowIndex = infixTokenResult.endRowIndex;
-	let endColumnIndex = infixTokenResult.endColumnIndex;
+	const errors: CompilerError[] = [];
+	let endRowIndex = startRowIndex;
+	let endColumnIndex = startColumnIndex + 1;
 	const functionReferenceResult = referenceParser(rows, endRowIndex, endColumnIndex, indent);
 	if (functionReferenceResult.errors) {
 		errors.push(...functionReferenceResult.errors);
@@ -1691,7 +2009,7 @@ function infixFunctionArgumentsParser(
 	}
 
 	return {
-		...infixTokenResult,
+		hasParsed: true,
 		endRowIndex: endRowIndex,
 		endColumnIndex: endColumnIndex,
 		parsed: {
@@ -1742,25 +2060,51 @@ function branchingParser(
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
-	const result = sequenceParser(
-		kind === 'branching' ? branchingTokenParser : typeBranchingTokenParser,
-		// dieselbe Argumentliste wie beim Aufruf, damit ... und benannte Argumente hier gelten
-		functionArgumentsParser,
-		newLineParser,
-		incrementIndent(multilineParser(withOrphanArrowLineCheck(valueExpressionParser), true)),
-	)(rows, startRowIndex, startColumnIndex, indent);
-	const parsed = result.parsed;
-	if (!parsed) {
+	const token = kind === 'branching' ? '?' : ':?';
+	if (!rows[startRowIndex]?.startsWith(token, startColumnIndex)) {
+		return tokenFailure(rows, startRowIndex, startColumnIndex, token);
+	}
+	// dieselbe Argumentliste wie beim Aufruf, damit ... und benannte Argumente hier gelten
+	const argumentsResult = functionArgumentsParser(rows, startRowIndex, startColumnIndex + token.length, indent);
+	let sequenceErrors = argumentsResult.errors;
+	if (!argumentsResult.hasParsed) {
 		return {
-			...result,
-			parsed: undefined,
+			hasParsed: false,
+			endRowIndex: argumentsResult.endRowIndex,
+			endColumnIndex: argumentsResult.endColumnIndex,
+			errors: sequenceErrors,
 		};
 	}
-	const branches = parsed[3].filter((x): x is ParseValueExpression =>
+	const newLineResult = newLineParser(rows, argumentsResult.endRowIndex, argumentsResult.endColumnIndex, indent);
+	sequenceErrors = mergeErrors(sequenceErrors, newLineResult.errors);
+	if (!newLineResult.hasParsed) {
+		return {
+			hasParsed: false,
+			endRowIndex: newLineResult.endRowIndex,
+			endColumnIndex: newLineResult.endColumnIndex,
+			errors: sequenceErrors,
+		};
+	}
+	const branchesResult = multilineBlock(orphanCheckedValueExpressionParser, true, rows, newLineResult.endRowIndex, newLineResult.endColumnIndex, indent + 1);
+	sequenceErrors = mergeErrors(sequenceErrors, branchesResult.errors);
+	if (!branchesResult.hasParsed) {
+		return {
+			hasParsed: false,
+			endRowIndex: branchesResult.endRowIndex,
+			endColumnIndex: branchesResult.endColumnIndex,
+			errors: sequenceErrors,
+		};
+	}
+	const result = {
+		endRowIndex: branchesResult.endRowIndex,
+		endColumnIndex: branchesResult.endColumnIndex,
+		errors: sequenceErrors,
+	};
+	const branches = branchesResult.parsed!.filter((x): x is ParseValueExpression =>
 		typeof x === 'object');
 	const branching: ParseBranching | ParseTypeBranching = {
 		type: kind,
-		args: parsed[1],
+		args: argumentsResult.parsed!,
 		branches: branches,
 		startRowIndex: startRowIndex,
 		startColumnIndex: startColumnIndex,
@@ -1779,7 +2123,9 @@ function branchingParser(
 		});
 	}
 	return {
-		...result,
+		hasParsed: true,
+		endRowIndex: result.endRowIndex,
+		endColumnIndex: result.endColumnIndex,
 		parsed: branching,
 		errors: errors,
 	};
@@ -1822,6 +2168,25 @@ const returnArrowPurities: { [arrow in ReturnArrow]: Purity } = {
 /**
  * Pfeil an columnIndex, gefolgt von Leerzeichen oder Zeilenende.
  */
+/**
+ * Rückgabepfeil samt Leerzeichen davor und danach an columnIndex: ' :> ', ' -> ', ' ~> '.
+ */
+function getReturnArrowPurity(row: string | undefined, columnIndex: number): Purity | undefined {
+	if (row === undefined) {
+		return undefined;
+	}
+	if (row.startsWith(' :> ', columnIndex)) {
+		return 'unknown';
+	}
+	if (row.startsWith(' -> ', columnIndex)) {
+		return 'pure';
+	}
+	if (row.startsWith(' ~> ', columnIndex)) {
+		return 'impure';
+	}
+	return undefined;
+}
+
 function getArrowAt(row: string, columnIndex: number): Arrow | undefined {
 	const arrow = row.substring(columnIndex, columnIndex + 2);
 	if (arrow !== '->'
@@ -1938,6 +2303,24 @@ function misplacedArrowError(rowIndex: number, columnIndex: number, message: str
 	};
 }
 
+function isReturnArrowAtEndOfRow(rows: string[], rowIndex: number, columnIndex: number): boolean {
+	const row = rows[rowIndex];
+	if (row === undefined
+		|| row[columnIndex] !== ' '
+		|| columnIndex + 3 !== row.length) {
+		return false;
+	}
+	const arrow = getArrowAt(row, columnIndex + 1);
+	return !!arrow && arrow !== '=>';
+}
+
+function isFunctionHeadContinued(rows: string[], rowIndex: number, columnIndex: number, indent: number): boolean {
+	const row = rows[rowIndex];
+	return row !== undefined
+		&& columnIndex === row.length
+		&& !!findArrowLine(rows, rowIndex + 1, indent + 1, false);
+}
+
 /**
  * Parst 0 Zeichen.
  * Passt, wenn die Zeile zu Ende ist und die nächste Zeile eine Ebene tiefer mit einem Pfeil
@@ -2033,7 +2416,7 @@ function arrowLinesParser(
 				arrow: returnArrowPurities[arrow],
 				returnTypeBase: operandResult.parsed as ParseValueExpression | undefined,
 			};
-			if (functionTokenParser(rows, endRowIndex, endColumnIndex, arrowIndent).hasParsed) {
+			if (rows[endRowIndex]?.startsWith(' =>', endColumnIndex)) {
 				// Rumpf in derselben Zeile wie der umgebrochene Rückgabepfeil: gemeldet, aber übernommen
 				errors.push(misplacedArrowError(
 					endRowIndex,
@@ -2168,25 +2551,20 @@ function bodyOperandParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ParseExpression[]> {
-	return discriminatedChoiceParser<ParseExpression[][]>(
-		'Expected a line end or a space after the arrow.',
+	const row = rows[startRowIndex];
+	if (row !== undefined && startColumnIndex === row.length) {
 		// multiline FunctionLiteral
-		{
-			predicate: endOfLineParser,
-			parser: (rows, startRowIndex, startColumnIndex, indent) =>
-				blockOperandParser(rows, startRowIndex, startColumnIndex, indent, '=>', true),
-		},
+		return blockOperandParser(rows, startRowIndex, startColumnIndex, indent, '=>', true);
+	}
+	if (row?.startsWith(' ', startColumnIndex)) {
 		// inline FunctionLiteral
-		{
-			predicate: spaceParser,
-			parser: moveColumnIndex(1, mapParser(
-				valueExpressionParser,
-				valueResult => {
-					const expression = valueResult.parsed;
-					return expression && [expression];
-				})),
-		},
-	)(rows, startRowIndex, startColumnIndex, indent);
+		const valueResult = valueExpressionParser(rows, startRowIndex, startColumnIndex + 1, indent);
+		return {
+			...valueResult,
+			parsed: valueResult.parsed && [valueResult.parsed],
+		};
+	}
+	return expectedOneOfResult(startRowIndex, startColumnIndex, 'Expected a line end or a space after the arrow.');
 }
 
 /**
@@ -2212,7 +2590,7 @@ function returnTypeOperandParser(
 			errors: errors,
 		};
 	}
-	return moveColumnIndex(1, returnTypeInlineParser)(rows, startRowIndex, startColumnIndex, indent);
+	return returnTypeInlineParser(rows, startRowIndex, startColumnIndex + 1, indent);
 }
 
 /**
@@ -2221,6 +2599,31 @@ function returnTypeOperandParser(
  * gelesen und übernommen, damit der Knoten vollständig entsteht, aber mit
  * returnTypeRequiresBlock gemeldet.
  */
+/**
+ * Rückgabepfeil, dann eine simpleExpression.
+ */
+function returnArrowOperandParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<[Purity, SimpleExpression]> {
+	const arrow = getReturnArrowPurity(rows[startRowIndex], startColumnIndex);
+	if (arrow === undefined) {
+		return expectedOneOfResult(startRowIndex, startColumnIndex, 'Expected a return arrow.');
+	}
+	const operandResult = simpleExpressionBaseParser(rows, startRowIndex, startColumnIndex + 4, indent);
+	return {
+		hasParsed: operandResult.hasParsed,
+		endRowIndex: operandResult.endRowIndex,
+		endColumnIndex: operandResult.endColumnIndex,
+		parsed: operandResult.hasParsed
+			? [arrow, operandResult.parsed!]
+			: undefined,
+		errors: operandResult.errors,
+	};
+}
+
 function returnTypeInlineParser(
 	rows: string[],
 	startRowIndex: number,
@@ -2257,14 +2660,11 @@ function returnTypeInlineParser(
 	const result = simpleExpressionBaseParser(rows, startRowIndex, startColumnIndex, indent);
 	const paramsBase = result.parsed;
 	if (paramsBase?.type !== 'binding'
-		|| !anyReturnTypeTokenParser(rows, result.endRowIndex, result.endColumnIndex, indent).hasParsed) {
+		|| getReturnArrowPurity(rows[result.endRowIndex], result.endColumnIndex) === undefined) {
 		return result;
 	}
 	// Funktionstyp als Rückgabetyp
-	const innerResult = sequenceParser(
-		returnArrowParser,
-		simpleExpressionBaseParser,
-	)(rows, result.endRowIndex, result.endColumnIndex, indent);
+	const innerResult = returnArrowOperandParser(rows, result.endRowIndex, result.endColumnIndex, indent);
 	const errors = [
 		...(result.errors ?? []),
 		...(innerResult.errors ?? []),
@@ -2389,16 +2789,21 @@ function functionBodyParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<FunctionBody> {
-	const result = sequenceParser(
-		functionTokenParser,
-		bodyOperandParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
+	if (!rows[startRowIndex]?.startsWith(' =>', startColumnIndex)) {
+		return tokenFailure(rows, startRowIndex, startColumnIndex, ' =>');
+	}
+	const bodyResult = bodyOperandParser(rows, startRowIndex, startColumnIndex + 3, indent);
 	return {
-		...result,
-		parsed: result.parsed && {
-			type: 'functionBody',
-			body: result.parsed[1],
-		},
+		hasParsed: bodyResult.hasParsed,
+		endRowIndex: bodyResult.endRowIndex,
+		endColumnIndex: bodyResult.endColumnIndex,
+		parsed: bodyResult.hasParsed
+			? {
+				type: 'functionBody',
+				body: bodyResult.parsed!,
+			}
+			: undefined,
+		errors: bodyResult.errors,
 	};
 }
 
@@ -2413,20 +2818,23 @@ function functionTypeBodyParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<FunctionTypeBody> {
-	const headResult = sequenceParser(
-		returnArrowParser,
-		returnTypeInlineParser,
-	)(rows, startRowIndex, startColumnIndex, indent);
-	if (!headResult.parsed) {
+	const arrow = getReturnArrowPurity(rows[startRowIndex], startColumnIndex);
+	if (arrow === undefined) {
+		return expectedOneOfResult(startRowIndex, startColumnIndex, 'Expected a return arrow.');
+	}
+	const returnTypeResult = returnTypeInlineParser(rows, startRowIndex, startColumnIndex + 4, indent);
+	if (!returnTypeResult.hasParsed) {
 		return {
-			...headResult,
-			parsed: undefined,
+			hasParsed: false,
+			endRowIndex: returnTypeResult.endRowIndex,
+			endColumnIndex: returnTypeResult.endColumnIndex,
+			errors: returnTypeResult.errors,
 		};
 	}
-	const [arrow, returnTypeBase] = headResult.parsed;
-	const errors = headResult.errors ?? [];
-	const { endRowIndex, endColumnIndex } = headResult;
-	if (functionTokenParser(rows, endRowIndex, endColumnIndex, indent).hasParsed) {
+	const returnTypeBase = returnTypeResult.parsed!;
+	const errors = returnTypeResult.errors ?? [];
+	const { endRowIndex, endColumnIndex } = returnTypeResult;
+	if (rows[endRowIndex]?.startsWith(' =>', endColumnIndex)) {
 		const bodyResult = functionBodyParser(rows, endRowIndex, endColumnIndex, indent);
 		if (bodyResult.errors) {
 			errors.push(...bodyResult.errors);
@@ -2442,7 +2850,7 @@ function functionTypeBodyParser(
 			errors: errors,
 		};
 	}
-	if (functionHeadContinuationPredicate(rows, endRowIndex, endColumnIndex, indent).hasParsed) {
+	if (isFunctionHeadContinued(rows, endRowIndex, endColumnIndex, indent)) {
 		// Rückgabetyp in der Kopfzeile, nur => umgebrochen
 		const restResult = arrowLinesParser(
 			rows,
@@ -2484,37 +2892,47 @@ function functionTypeBodyParser(
  * eingerückten Folgezeilen gemeldet und übersprungen, statt sie als Ausdruck zu parsen.
  * Gültige Programme enthalten solche Zeilen nie.
  */
-function withOrphanArrowLineCheck<T>(parser: Parser<T>): Parser<T> {
-	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const row = rows[startRowIndex];
-		if (row === undefined) {
-			return parser(rows, startRowIndex, startColumnIndex, indent);
+const orphanCheckedExpressionParser = (rows: string[], startRowIndex: number, startColumnIndex: number, indent: number) =>
+	checkOrphanArrowLine(expressionParser, rows, startRowIndex, startColumnIndex, indent);
+
+const orphanCheckedValueExpressionParser = (rows: string[], startRowIndex: number, startColumnIndex: number, indent: number) =>
+	checkOrphanArrowLine(valueExpressionParser, rows, startRowIndex, startColumnIndex, indent);
+
+function checkOrphanArrowLine<T>(
+	parser: LineParser<T>,
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<T> {
+	const row = rows[startRowIndex];
+	if (row === undefined) {
+		return parser(rows, startRowIndex, startColumnIndex, indent);
+	}
+	let arrowColumnIndex = startColumnIndex;
+	while (row[arrowColumnIndex] === '\t') {
+		arrowColumnIndex++;
+	}
+	if (!getArrowAt(row, arrowColumnIndex)) {
+		return parser(rows, startRowIndex, startColumnIndex, indent);
+	}
+	const extraIndent = arrowColumnIndex - startColumnIndex;
+	const error: CompilerError = extraIndent >= 2
+		? {
+			code: ErrorCode.unexpectedIndentation,
+			message: `Arrow line is indented ${extraIndent} levels deeper than the function head, expected one level.`,
+			startRowIndex: startRowIndex,
+			startColumnIndex: startColumnIndex,
+			endRowIndex: startRowIndex,
+			endColumnIndex: arrowColumnIndex,
 		}
-		let arrowColumnIndex = startColumnIndex;
-		while (row[arrowColumnIndex] === '\t') {
-			arrowColumnIndex++;
-		}
-		if (!getArrowAt(row, arrowColumnIndex)) {
-			return parser(rows, startRowIndex, startColumnIndex, indent);
-		}
-		const extraIndent = arrowColumnIndex - startColumnIndex;
-		const error: CompilerError = extraIndent >= 2
-			? {
-				code: ErrorCode.unexpectedIndentation,
-				message: `Arrow line is indented ${extraIndent} levels deeper than the function head, expected one level.`,
-				startRowIndex: startRowIndex,
-				startColumnIndex: startColumnIndex,
-				endRowIndex: startRowIndex,
-				endColumnIndex: arrowColumnIndex,
-			}
-			: misplacedArrowError(startRowIndex, arrowColumnIndex, getOrphanArrowLineMessage(rows, startRowIndex, extraIndent));
-		const lastRowIndex = getLastDeeperRowIndex(rows, startRowIndex, indent + extraIndent);
-		return {
-			hasParsed: false,
-			endRowIndex: lastRowIndex,
-			endColumnIndex: rows[lastRowIndex]!.length,
-			errors: [error],
-		};
+		: misplacedArrowError(startRowIndex, arrowColumnIndex, getOrphanArrowLineMessage(rows, startRowIndex, extraIndent));
+	const lastRowIndex = getLastDeeperRowIndex(rows, startRowIndex, indent + extraIndent);
+	return {
+		hasParsed: false,
+		endRowIndex: lastRowIndex,
+		endColumnIndex: rows[lastRowIndex]!.length,
+		errors: [error],
 	};
 }
 
@@ -2543,71 +2961,58 @@ function getOrphanArrowLineMessage(rows: string[], rowIndex: number, extraIndent
  * Multiline oder inline mit Leerzeichen getrennt.
  * Die Klammerart bestimmt den Knotentyp: rund = Bindung, eckig = Daten.
  */
-function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpression | ParseDataExpression> {
-	const { opening, closing, closingCharacter, nodeType } = brackets[kind];
-	// Die leere Klammer braucht einen eigenen Zweig, weil bracketedInlineParser
-	// mindestens ein Feld verlangt und bracketedMultilineParser einen Zeilenumbruch.
-	const emptyBracketsParser = sequenceParser(opening, closing);
-	const openingWithoutRestParser = (rows: string[], startRowIndex: number, startColumnIndex: number, indent: number): ParserResult<undefined> => {
-		const openingResult = opening(rows, startRowIndex, startColumnIndex, indent);
-		if (!openingResult.hasParsed) {
-			return openingResult;
-		}
-		const row = rows[startRowIndex]!;
-		const rest = row.substring(openingResult.endColumnIndex);
-		const hasNothingAfter = /^ *$/.test(rest) && (
-			rest.length > 0 || hasOnlyEmptyRowsAfter(rows, startRowIndex)
-		);
-		return {
-			hasParsed: hasNothingAfter,
-			endRowIndex: startRowIndex,
-			endColumnIndex: startColumnIndex,
-		};
-	};
-	const missingClosingBracketParser: Parser<ParseFieldBase[]> = (rows, startRowIndex) => {
-		const endColumnIndex = rows[startRowIndex]!.length;
-		return {
-			hasParsed: true,
-			endRowIndex: startRowIndex,
-			endColumnIndex: endColumnIndex,
-			parsed: [],
-			errors: [closingBracketMissingError(closingCharacter, startRowIndex, endColumnIndex)],
-		};
-	};
+function createBracketedBaseParser(kind: BracketKind): LineParser<ParseBindingExpression | ParseDataExpression> {
+	const { closingCharacter, nodeType } = brackets[kind];
+	const openingCharacter = kind === 'round' ? '(' : '[';
 	const multilineParser2 = createBracketedMultilineParser(kind);
 	const inlineParser = createBracketedInlineParser(kind);
+	/**
+	 * Die Alternativen in dieser Reihenfolge, das erste passende Prädikat gewinnt:
+	 * 1. Die leere Klammer braucht einen eigenen Zweig, weil bracketedInlineParser mindestens ein
+	 *    Feld verlangt und bracketedMultilineParser einen Zeilenumbruch.
+	 * 2. Öffnende Klammer, hinter der nichts mehr kommt (beim Tippen der erste Zustand).
+	 * 3. Öffnende Klammer am Zeilenende: mehrzeilig.
+	 * 4. Sonst inline.
+	 */
 	const parser = (
 		rows: string[],
 		startRowIndex: number,
 		startColumnIndex: number,
 		indent: number,
 	): ParserResult<ParseBindingExpression | ParseDataExpression> => {
-		const result = discriminatedChoiceParser(
-			'Expected a bracket pair, a multiline list or fields.',
-			{
-				predicate: emptyBracketsParser,
-				parser: mapParser(
-					emptyBracketsParser,
-					() =>
-						[]),
-			},
-			// Öffnende Klammer, hinter der nichts mehr kommt (beim Tippen der erste Zustand)
-			{
-				predicate: openingWithoutRestParser,
-				parser: missingClosingBracketParser,
-			},
-			{
-				predicate: sequenceParser(
-					opening,
-					newLineParser,
-				),
-				parser: multilineParser2,
-			},
-			{
-				predicate: emptyParser,
-				parser: inlineParser,
-			},
-		)(rows, startRowIndex, startColumnIndex, indent);
+		const row = rows[startRowIndex];
+		let result: ParserResult<(ParseFieldBase | string | undefined)[]>;
+		if (row !== undefined && row.startsWith(openingCharacter, startColumnIndex)) {
+			const rest = row.substring(startColumnIndex + 1);
+			if (rest.startsWith(closingCharacter)) {
+				result = {
+					hasParsed: true,
+					endRowIndex: startRowIndex,
+					endColumnIndex: startColumnIndex + 2,
+					parsed: [],
+				};
+			}
+			else if (/^ *$/.test(rest) && (
+				rest.length > 0 || hasOnlyEmptyRowsAfter(rows, startRowIndex)
+			)) {
+				result = {
+					hasParsed: true,
+					endRowIndex: startRowIndex,
+					endColumnIndex: row.length,
+					parsed: [],
+					errors: [closingBracketMissingError(closingCharacter, startRowIndex, row.length)],
+				};
+			}
+			else if (rest.length === 0) {
+				result = multilineParser2(rows, startRowIndex, startColumnIndex, indent);
+			}
+			else {
+				result = inlineParser(rows, startRowIndex, startColumnIndex, indent);
+			}
+		}
+		else {
+			result = inlineParser(rows, startRowIndex, startColumnIndex, indent);
+		}
 		const parsed = result.parsed;
 		if (!parsed) {
 			return {
@@ -2633,48 +3038,85 @@ function createBracketedBaseParser(kind: BracketKind): Parser<ParseBindingExpres
 	return parser;
 }
 
-function createBracketedMultilineParser(kind: BracketKind): Parser<(ParseFieldBase | string | undefined)[]> {
-	const { opening, closing, closingCharacter } = brackets[kind];
-	const closingOnOwnLineParser = sequenceParser(
-		newLineParser,
-		indentParser,
-		closing,
-	);
+/**
+ * Schließende Klammer in einer eigenen Zeile: Zeilenumbruch, Einrückung, Klammer.
+ */
+function closingOnOwnLine(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+	closingCharacter: string,
+): ParserResult<undefined> {
+	const newLineResult = newLineParser(rows, startRowIndex, startColumnIndex, indent);
+	let errors = newLineResult.errors;
+	if (!newLineResult.hasParsed) {
+		return { hasParsed: false, endRowIndex: newLineResult.endRowIndex, endColumnIndex: newLineResult.endColumnIndex, errors: errors };
+	}
+	const indentResult = indentParser(rows, newLineResult.endRowIndex, newLineResult.endColumnIndex, indent);
+	errors = mergeErrors(errors, indentResult.errors);
+	if (!indentResult.hasParsed) {
+		return { hasParsed: false, endRowIndex: indentResult.endRowIndex, endColumnIndex: indentResult.endColumnIndex, errors: errors };
+	}
+	if (!rows[indentResult.endRowIndex]?.startsWith(closingCharacter, indentResult.endColumnIndex)) {
+		const closingResult = tokenFailure(rows, indentResult.endRowIndex, indentResult.endColumnIndex, closingCharacter);
+		return {
+			hasParsed: false,
+			endRowIndex: closingResult.endRowIndex,
+			endColumnIndex: closingResult.endColumnIndex,
+			errors: mergeErrors(errors, closingResult.errors),
+		};
+	}
+	return {
+		hasParsed: true,
+		endRowIndex: indentResult.endRowIndex,
+		endColumnIndex: indentResult.endColumnIndex + 1,
+		errors: errors,
+	};
+}
+
+const orphanCheckedFieldParser = (rows: string[], startRowIndex: number, startColumnIndex: number, indent: number) =>
+	checkOrphanArrowLine(fieldParser, rows, startRowIndex, startColumnIndex, indent);
+
+function createBracketedMultilineParser(kind: BracketKind): LineParser<(ParseFieldBase | string | undefined)[]> {
+	const { closingCharacter } = brackets[kind];
+	const openingCharacter = kind === 'round' ? '(' : '[';
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const fieldsResult = sequenceParser(
-			opening,
-			newLineParser,
-			incrementIndent(multilineParser(withOrphanArrowLineCheck(fieldParser), true)),
-		)(rows, startRowIndex, startColumnIndex, indent);
-		if (!fieldsResult.hasParsed) {
-			return {
-				...fieldsResult,
-				parsed: undefined,
-			};
+		if (!rows[startRowIndex]?.startsWith(openingCharacter, startColumnIndex)) {
+			return tokenFailure(rows, startRowIndex, startColumnIndex, openingCharacter);
 		}
-		const parsed = fieldsResult.parsed?.[2];
-		const errors = fieldsResult.errors ?? [];
+		const newLineResult = newLineParser(rows, startRowIndex, startColumnIndex + 1, indent);
+		let fieldsErrors = newLineResult.errors;
+		if (!newLineResult.hasParsed) {
+			return { hasParsed: false, endRowIndex: newLineResult.endRowIndex, endColumnIndex: newLineResult.endColumnIndex, errors: fieldsErrors };
+		}
+		const fieldsResult = multilineBlock(orphanCheckedFieldParser, true, rows, newLineResult.endRowIndex, newLineResult.endColumnIndex, indent + 1);
+		fieldsErrors = mergeErrors(fieldsErrors, fieldsResult.errors);
+		if (!fieldsResult.hasParsed) {
+			return { hasParsed: false, endRowIndex: fieldsResult.endRowIndex, endColumnIndex: fieldsResult.endColumnIndex, errors: fieldsErrors };
+		}
+		const parsed = fieldsResult.parsed;
+		const errors = fieldsErrors ?? [];
 		// Die Klammer steht hinter dem letzten Feld statt in einer eigenen Zeile: tolerieren, damit
 		// der Baum für den Language Server erhalten bleibt
-		const closingOnFieldLineResult = closing(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
-		if (closingOnFieldLineResult.hasParsed) {
+		if (rows[fieldsResult.endRowIndex]?.startsWith(closingCharacter, fieldsResult.endColumnIndex)) {
 			errors.push({
 				code: ErrorCode.closingBracketNotOnOwnLine,
 				message: 'Closing bracket must be on its own line after a multiline list.',
 				startRowIndex: fieldsResult.endRowIndex,
 				startColumnIndex: fieldsResult.endColumnIndex,
-				endRowIndex: closingOnFieldLineResult.endRowIndex,
-				endColumnIndex: closingOnFieldLineResult.endColumnIndex,
+				endRowIndex: fieldsResult.endRowIndex,
+				endColumnIndex: fieldsResult.endColumnIndex + 1,
 			});
 			return {
 				hasParsed: true,
-				endRowIndex: closingOnFieldLineResult.endRowIndex,
-				endColumnIndex: closingOnFieldLineResult.endColumnIndex,
+				endRowIndex: fieldsResult.endRowIndex,
+				endColumnIndex: fieldsResult.endColumnIndex + 1,
 				parsed: parsed,
 				errors: errors,
 			};
 		}
-		const closingResult = closingOnOwnLineParser(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
+		const closingResult = closingOnOwnLine(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent, closingCharacter);
 		if (closingResult.errors) {
 			errors.push(...closingResult.errors);
 		}
@@ -2699,73 +3141,72 @@ interface ParseMissingField {
 /**
  * undefined bei fehlendem Feld
  */
-function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase | undefined)[]> {
-	const { opening, closing, closingCharacter } = brackets[kind];
-	const closingOnOwnLineParser = sequenceParser(
-		newLineParser,
-		indentParser,
-		closing,
-	);
+function createBracketedInlineParser(kind: BracketKind): LineParser<(ParseFieldBase | undefined)[]> {
+	const { closingCharacter } = brackets[kind];
+	const openingCharacter = kind === 'round' ? '(' : '[';
 	return (rows, startRowIndex, startColumnIndex, indent) => {
-		const fieldsResult = sequenceParser(
-			opening,
-			fieldParser,
-			multiplicationParser(
-				undefined,
-				sequenceParser(
-					spaceParser,
-					discriminatedChoiceParser(
-						'Expected a missing field or a field.',
-						// missing field
-						{
-							predicate: choiceParser('Expected a space or a closing bracket.', spaceParser, closing),
-							parser: mapParser(
-								emptyParser,
-								(emptyResult) => {
-									const missingField: ParseMissingField = {
-										type: 'missingField',
-										rowIndex: emptyResult.endRowIndex,
-										columnIndex: emptyResult.endColumnIndex,
-									};
-									return missingField;
-								}),
-						},
-						{
-							predicate: emptyParser,
-							parser: fieldParser,
-						},
-					),
-				),
-			),
-		)(rows, startRowIndex, startColumnIndex, indent);
-		const errors = fieldsResult.errors ?? [];
-		if (!fieldsResult.parsed) {
+		if (!rows[startRowIndex]?.startsWith(openingCharacter, startColumnIndex)) {
+			const openingFailure = tokenFailure(rows, startRowIndex, startColumnIndex, openingCharacter);
+			return { ...openingFailure, parsed: undefined, errors: openingFailure.errors ?? [] };
+		}
+		const firstResult = fieldParser(rows, startRowIndex, startColumnIndex + 1, indent);
+		let fieldsErrors = firstResult.errors;
+		if (!firstResult.hasParsed) {
 			return {
-				...fieldsResult,
+				hasParsed: false,
+				endRowIndex: firstResult.endRowIndex,
+				endColumnIndex: firstResult.endColumnIndex,
 				parsed: undefined,
-				errors: errors,
+				errors: fieldsErrors ?? [],
 			};
 		}
-		const parsed = [
-			fieldsResult.parsed[1],
-			...fieldsResult.parsed[2].map(sequence => {
-				const field = sequence[1];
-				if (field.type === 'missingField') {
-					errors.push({
-						// TODO error message abhängig von der Art der erwarteten expression? (field vs value)
-						code: ErrorCode.expectedExpression,
-						message: 'expression expected',
-						// TODO get position from empty
-						startRowIndex: field.rowIndex,
-						startColumnIndex: field.columnIndex,
-						endRowIndex: field.rowIndex,
-						endColumnIndex: field.columnIndex,
-					});
-					return undefined;
-				}
-				return field;
-			}),
-		];
+		const fields: (ParseMissingField | ParseFieldBase)[] = [firstResult.parsed!];
+		let fieldsEndRowIndex = firstResult.endRowIndex;
+		let fieldsEndColumnIndex = firstResult.endColumnIndex;
+		// Weitere Felder, jeweils nach einem Leerzeichen. Direkt dahinter folgt noch ein Leerzeichen
+		// oder die Klammer: dann fehlt ein Feld. Ein Fehlschlag beendet die Wiederholung ohne
+		// Folgen, die Fehler des Versuchs gehen verloren.
+		while (fieldsEndRowIndex < rows.length) {
+			const row = rows[fieldsEndRowIndex]!;
+			if (!row.startsWith(' ', fieldsEndColumnIndex)) {
+				break;
+			}
+			const fieldColumnIndex = fieldsEndColumnIndex + 1;
+			if (row.startsWith(' ', fieldColumnIndex) || row.startsWith(closingCharacter, fieldColumnIndex)) {
+				fields.push({
+					type: 'missingField',
+					rowIndex: fieldsEndRowIndex,
+					columnIndex: fieldColumnIndex,
+				});
+				fieldsEndColumnIndex = fieldColumnIndex;
+				continue;
+			}
+			const fieldResult = fieldParser(rows, fieldsEndRowIndex, fieldColumnIndex, indent);
+			if (!fieldResult.hasParsed) {
+				break;
+			}
+			fieldsErrors = mergeErrors(fieldsErrors, fieldResult.errors);
+			fields.push(fieldResult.parsed!);
+			fieldsEndRowIndex = fieldResult.endRowIndex;
+			fieldsEndColumnIndex = fieldResult.endColumnIndex;
+		}
+		const errors = fieldsErrors ?? [];
+		const parsed = fields.map(field => {
+			if (field.type === 'missingField') {
+				errors.push({
+					// TODO error message abhängig von der Art der erwarteten expression? (field vs value)
+					code: ErrorCode.expectedExpression,
+					message: 'expression expected',
+					// TODO get position from empty
+					startRowIndex: field.rowIndex,
+					startColumnIndex: field.columnIndex,
+					endRowIndex: field.rowIndex,
+					endColumnIndex: field.columnIndex,
+				});
+				return undefined;
+			}
+			return field;
+		});
 		const blockExpressions = parsed.flatMap(field => {
 			const blockExpression = field && getBlockExpression(field);
 			return blockExpression
@@ -2774,35 +3215,41 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 		});
 		// Hinter einem Block steht die Klammer in der Zeile seines letzten Ausdrucks (der Block endet
 		// davor) oder in einer eigenen Zeile
-		let closingResult: ParserResult<unknown> = closing(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
+		let closingEndRowIndex: number | undefined;
+		let closingEndColumnIndex = 0;
+		if (rows[fieldsEndRowIndex]?.startsWith(closingCharacter, fieldsEndColumnIndex)) {
+			closingEndRowIndex = fieldsEndRowIndex;
+			closingEndColumnIndex = fieldsEndColumnIndex + 1;
+		}
 		const lastField = parsed[parsed.length - 1];
-		if (!closingResult.hasParsed && lastField && getBlockExpression(lastField)) {
-			const closingOnOwnLineResult = closingOnOwnLineParser(rows, fieldsResult.endRowIndex, fieldsResult.endColumnIndex, indent);
+		if (closingEndRowIndex === undefined && lastField && getBlockExpression(lastField)) {
+			const closingOnOwnLineResult = closingOnOwnLine(rows, fieldsEndRowIndex, fieldsEndColumnIndex, indent, closingCharacter);
 			if (closingOnOwnLineResult.hasParsed) {
-				closingResult = closingOnOwnLineResult;
+				closingEndRowIndex = closingOnOwnLineResult.endRowIndex;
+				closingEndColumnIndex = closingOnOwnLineResult.endColumnIndex;
 			}
 		}
-		if (!closingResult.hasParsed) {
+		if (closingEndRowIndex === undefined) {
 			// Nach dem öffnenden Zeichen ist klar, was folgen muss. Fehlt die Klammer, den Knoten trotzdem
 			// liefern (der Baum bleibt für den Language Server erhalten) und genau das melden.
 			// Leerzeichen am Zeilenende gehören dazu: Das Feld dahinter fehlt noch, sie blieben sonst
 			// als unparsedRestOfRow stehen.
-			const endRow = rows[fieldsResult.endRowIndex] ?? '';
-			const endColumnIndex = /^ *$/.test(endRow.substring(fieldsResult.endColumnIndex))
+			const endRow = rows[fieldsEndRowIndex] ?? '';
+			const endColumnIndex = /^ *$/.test(endRow.substring(fieldsEndColumnIndex))
 				? endRow.length
-				: fieldsResult.endColumnIndex;
+				: fieldsEndColumnIndex;
 			// Nach einem Block endet der Feldbereich am Anfang der Folgezeile (die es am Ende des Codes
 			// nicht gibt). Gemeldet wird am Ende der Zeile davor, dort fehlt die Klammer.
-			const endsAtLineStart = endColumnIndex === 0 && fieldsResult.endRowIndex > 0;
+			const endsAtLineStart = endColumnIndex === 0 && fieldsEndRowIndex > 0;
 			const errorRowIndex = endsAtLineStart
-				? fieldsResult.endRowIndex - 1
-				: fieldsResult.endRowIndex;
+				? fieldsEndRowIndex - 1
+				: fieldsEndRowIndex;
 			const errorColumnIndex = endsAtLineStart
 				? rows[errorRowIndex]!.length
 				: endColumnIndex;
 			return {
 				hasParsed: true,
-				endRowIndex: fieldsResult.endRowIndex,
+				endRowIndex: fieldsEndRowIndex,
 				endColumnIndex: endColumnIndex,
 				parsed: parsed,
 				errors: [...errors, closingBracketMissingError(closingCharacter, errorRowIndex, errorColumnIndex)],
@@ -2821,8 +3268,8 @@ function createBracketedInlineParser(kind: BracketKind): Parser<(ParseFieldBase 
 		});
 		return {
 			hasParsed: true,
-			endRowIndex: closingResult.endRowIndex,
-			endColumnIndex: closingResult.endColumnIndex,
+			endRowIndex: closingEndRowIndex,
+			endColumnIndex: closingEndColumnIndex,
 			parsed: parsed,
 			errors: errors,
 		};

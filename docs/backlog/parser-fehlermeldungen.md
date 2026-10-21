@@ -65,7 +65,7 @@ Rest stehen.
 - `1001 End of code reached while looking for (`: nennt das Token, nicht das Konstrukt (Beispiel:
   `x.subscribe` ohne Argumentliste).
 
-Quelle ist `endOfCodeError` in `parser-combinator.ts`, aufgerufen mit Token oder Parsername.
+Quelle ist `endOfCodeError` in `parser.ts`, aufgerufen mit Token oder Parsername.
 
 ### 3. Mehrzeilige Konstrukte ohne Abschluss
 

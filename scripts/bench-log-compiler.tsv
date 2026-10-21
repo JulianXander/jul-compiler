@@ -227,3 +227,21 @@
 2026-10-21 15:14:31	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	916.45	987.14	987.14	Paar mit Dictionary-Hash, Basis: Stand nach Umbau (Schlüssel als String)
 2026-10-21 15:15:37	-	-	ADV-DEV-56627	yugioh	parse+check	5	12047.06	12161.01	12161.01	Paar mit Basis: Dictionary-Literale über Hash der Ids statt Schlüssel-String
 2026-10-21 15:15:37	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	917.59	935.10	935.10	Paar mit Basis: Dictionary-Literale über Hash der Ids statt Schlüssel-String
+2026-10-21 18:30:00	f68d551+	-	ADV-DEV-56627	yugioh	parse+check	5	10657.56	10727.06	10727.06	Parser vorher (Grammatik je Aufruf neu gebaut)
+2026-10-21 18:30:00	f68d551+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	776.80	858.73	858.73	Parser vorher (Grammatik je Aufruf neu gebaut)
+2026-10-21 18:30:00	f68d551+	-	ADV-DEV-56627	yugioh	parse	5	117.41	127.18	127.18	Parser vorher (Grammatik je Aufruf neu gebaut)
+2026-10-21 18:30:56	f68d551+	-	ADV-DEV-56627	yugioh	parse+check	5	9207.77	9900.71	9900.71	Parser nachher (Grammatik einmal gebaut, Schnellpfade für Prädikate)
+2026-10-21 18:30:56	f68d551+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	696.59	731.82	731.82	Parser nachher (Grammatik einmal gebaut, Schnellpfade für Prädikate)
+2026-10-21 18:30:56	f68d551+	-	ADV-DEV-56627	yugioh	parse	5	90.08	109.38	109.38	Parser nachher (Grammatik einmal gebaut, Schnellpfade für Prädikate)
+2026-10-21 18:44:52	f68d551+	-	ADV-DEV-56627	yugioh	parse+check	5	10278.23	10440.21	10440.21	Parser: canStart, Blockende ohne Fehlerobjekt, lazy Fehlerlisten
+2026-10-21 18:44:52	f68d551+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	798.68	840.53	840.53	Parser: canStart, Blockende ohne Fehlerobjekt, lazy Fehlerlisten
+2026-10-21 18:44:52	f68d551+	-	ADV-DEV-56627	yugioh	parse	5	100.41	103.14	103.14	Parser: canStart, Blockende ohne Fehlerobjekt, lazy Fehlerlisten
+2026-10-21 18:55:28	f68d551+	-	ADV-DEV-56627	yugioh	parse+check	5	10163.87	10361.83	10361.83	Parser: nameParser/referenceParser geradlinig
+2026-10-21 18:55:28	f68d551+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	809.96	849.30	849.30	Parser: nameParser/referenceParser geradlinig
+2026-10-21 18:55:28	f68d551+	-	ADV-DEV-56627	yugioh	parse	5	97.89	100.90	100.90	Parser: nameParser/referenceParser geradlinig
+2026-10-21 19:04:08	f68d551+	-	ADV-DEV-56627	yugioh	parse+check	5	9712.63	9815.17	9815.17	Parser: Feld, Wert, simpleExpression, Klammern, Einrückung geradlinig
+2026-10-21 19:04:08	f68d551+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	758.69	802.03	802.03	Parser: Feld, Wert, simpleExpression, Klammern, Einrückung geradlinig
+2026-10-21 19:04:08	f68d551+	-	ADV-DEV-56627	yugioh	parse	5	64.57	67.75	67.75	Parser: Feld, Wert, simpleExpression, Klammern, Einrückung geradlinig
+2026-10-21 19:17:30	f68d551+	-	ADV-DEV-56627	yugioh	parse+check	5	9490.30	9774.52	9774.52	Parser ohne Kombinatoren (parser-combinator.ts entfernt)
+2026-10-21 19:17:30	f68d551+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	748.04	777.95	777.95	Parser ohne Kombinatoren (parser-combinator.ts entfernt)
+2026-10-21 19:17:30	f68d551+	-	ADV-DEV-56627	yugioh	parse	5	41.19	50.45	50.45	Parser ohne Kombinatoren (parser-combinator.ts entfernt)
