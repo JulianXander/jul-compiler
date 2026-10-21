@@ -671,6 +671,12 @@ interface CompileTimeTypeBase {
 	 * erzwingt - wer es vergisst, bekäme sonst still `undefined` und damit "aufgelöst".
 	 */
 	isUnresolvedPlaceholder: boolean;
+	/**
+	 * Eindeutige Nummer des Objekts, vergeben bei der Erzeugung (siehe internType). Strukturell
+	 * gleiche Typen sind dasselbe Objekt und haben dieselbe Nummer, damit steht sie für den Typ
+	 * als Schlüssel von Caches und Interning.
+	 */
+	readonly id: number;
 }
 
 export interface TypeDeclaration {
@@ -680,6 +686,78 @@ export interface TypeDeclaration {
 	 */
 	filePath: string;
 }
+
+//#region Interning
+
+/**
+ * Strukturell gleiche Typen sind dasselbe Objekt: Wer einen Typ baut, bekommt einen vorhandenen
+ * mit denselben Bestandteilen zurück. Damit greift die Prüfung auf Identität (===) überall,
+ * ohne den Typbaum zu durchlaufen, und die Nummer (id) taugt als Schlüssel für Caches.
+ * Zum Bestandteil zählt alles, was den Typ von einem anderen unterscheidet, auch Aliasname und
+ * Herkunft (declaration): zwei Typen, die sich in der Anzeige unterscheiden, bleiben zwei Objekte.
+ * Nicht interniert werden Typen mit eigener Identität: Funktionstypen (FunctionIdentity) und
+ * ParameterReference, die nach dem Erzeugen ihre Funktion bekommt.
+ * Korrektheit hängt nirgends an der Identität. Die Tabelle wird bei zu vielen Einträgen geleert
+ * (ein Language Server läuft lange), danach entstehen gleiche Typen als neue Objekte, und
+ * typeEquals entscheidet weiter strukturell.
+ */
+const maxInternedTypes = 500_000;
+const internedTypes = new Map<string, CompileTimeType>();
+let nextTypeId = 1;
+
+export function createTypeId(): number {
+	return nextTypeId++;
+}
+
+function internType<T extends CompileTimeType>(key: string, create: (id: number) => T): T {
+	const existing = internedTypes.get(key);
+	if (existing) {
+		return existing as T;
+	}
+	if (internedTypes.size >= maxInternedTypes) {
+		internedTypes.clear();
+	}
+	const type = create(nextTypeId++);
+	internedTypes.set(key, type);
+	return type;
+}
+
+/**
+ * Leert die Tabellen, damit sie nicht über die Prüfung hinaus wachsen: Ein Typ hält über sein
+ * Symbol den Syntaxbaum seiner Datei, ein Language Server prüft ständig neu. Gleiche Typen aus
+ * früheren Prüfungen bleiben gültig, sind aber nicht mehr dasselbe Objekt wie neu gebaute -
+ * typeEquals entscheidet dann strukturell.
+ */
+export function clearInternedTypes(): void {
+	internedTypes.clear();
+	integerLiterals.clear();
+	textLiterals.clear();
+}
+
+const objectIds = new WeakMap<object, number>();
+
+/** Nummer eines Objekts, das selbst kein Typ ist (Herkunft, Symbol), für den Schlüssel eines Typs. */
+function getObjectId(value: object | undefined): number {
+	if (!value) {
+		return 0;
+	}
+	let id = objectIds.get(value);
+	if (id === undefined) {
+		id = nextTypeId++;
+		objectIds.set(value, id);
+	}
+	return id;
+}
+
+function getIds(types: readonly CompileTimeType[]): string {
+	let key = '';
+	for (let index = 0; index < types.length; index++) {
+		key += (index ? ',' : '') + types[index]!.id;
+	}
+	return key;
+}
+
+//#endregion Interning
 
 export type CompileTimeType =
 	| NeverType
@@ -837,11 +915,12 @@ export interface CompileTimeComplementType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeComplementType(SourceType: CompileTimeType): CompileTimeComplementType {
-	return {
+	return internType(`not:${SourceType.id}`, id => ({
 		julType: 'not',
 		SourceType: SourceType,
 		isUnresolvedPlaceholder: SourceType.isUnresolvedPlaceholder,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -869,14 +948,15 @@ export function createCompileTimePredicateType(
 	LowerBound: CompileTimeType,
 	name: string | undefined,
 ): CompileTimePredicateType {
-	return {
+	return internType(`pred:${FunctionType.id},${UpperBound.id},${LowerBound.id},${name ?? ''}`, id => ({
 		julType: 'predicate',
 		FunctionType: FunctionType,
 		UpperBound: UpperBound,
 		LowerBound: LowerBound,
 		name: name,
 		isUnresolvedPlaceholder: FunctionType.isUnresolvedPlaceholder,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -899,13 +979,14 @@ export function createCompileTimeBoundType(
 	Family: CompileTimeBoundType['Family'],
 	Value: CompileTimeType,
 ): CompileTimeBoundType {
-	return {
+	return internType(`bound:${Relation},${Family},${Value.id}`, id => ({
 		julType: 'bound',
 		Relation: Relation,
 		Family: Family,
 		Value: Value,
 		isUnresolvedPlaceholder: Value.isUnresolvedPlaceholder,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -920,13 +1001,14 @@ export interface CompileTimeLengthOfType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileTimeLengthOfType {
-	return {
+	return internType(`len:${Source.id}`, id => ({
 		julType: 'lengthOf',
 		Source: Source,
 		// Die Länge selbst wartet nicht: sie ist immer ein Integer, egal wie offen die Quelle noch
 		// ist. Wer die Quelle meint, prüft sie ausdrücklich.
 		isUnresolvedPlaceholder: false,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -946,13 +1028,14 @@ export function createCompileTimeWithElementAtType(
 	Index: CompileTimeType,
 	Value: CompileTimeType,
 ): CompileTimeWithElementAtType {
-	return {
+	return internType(`wea:${Source.id},${Index.id},${Value.id}`, id => ({
 		julType: 'withElementAt',
 		Source: Source,
 		Index: Index,
 		Value: Value,
 		isUnresolvedPlaceholder: true,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -976,12 +1059,14 @@ export function createCompileTimeConditionalType(
 	Operands: CompileTimeType[],
 	Branches: ConditionalTypeBranch[],
 ): CompileTimeConditionalType {
-	return {
+	const branchKey = Branches.map(branch => `${branch.Head.id}>${branch.Result.id}`).join(';');
+	return internType(`cond:${getIds(Operands)}|${branchKey}`, id => ({
 		julType: 'conditional',
 		Operands: Operands,
 		Branches: Branches,
 		isUnresolvedPlaceholder: true,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -998,12 +1083,13 @@ export function createCompileTimeIndexRangeType(
 	Start: CompileTimeType,
 	End: CompileTimeType,
 ): CompileTimeIndexRangeType {
-	return {
+	return internType(`range:${Start.id},${End.id}`, id => ({
 		julType: 'indexRange',
 		Start: Start,
 		End: End,
 		isUnresolvedPlaceholder: Start.isUnresolvedPlaceholder || End.isUnresolvedPlaceholder,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -1026,12 +1112,13 @@ export function createCompileTimeMapElementsType(
 	Source: CompileTimeType,
 	Callback: CompileTimeType,
 ): CompileTimeMapElementsType {
-	return {
+	return internType(`map:${Source.id},${Callback.id}`, id => ({
 		julType: 'mapElements',
 		Source: Source,
 		Callback: Callback,
 		isUnresolvedPlaceholder: true,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -1047,11 +1134,12 @@ export interface CompileTimeConcatType extends CompileTimeTypeBase {
 export function createCompileTimeConcatType(
 	Sources: CompileTimeType[],
 ): CompileTimeConcatType {
-	return {
+	return internType(`concat:${getIds(Sources)}`, id => ({
 		julType: 'concat',
 		Sources: Sources,
 		isUnresolvedPlaceholder: Sources.some(s => s.isUnresolvedPlaceholder),
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -1064,11 +1152,12 @@ export interface CompileTimeAddType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeAddType(ArgsType: CompileTimeType): CompileTimeAddType {
-	return {
+	return internType(`add:${ArgsType.id}`, id => ({
 		julType: 'add',
 		ArgsType: ArgsType,
 		isUnresolvedPlaceholder: true,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -1085,12 +1174,13 @@ export function createCompileTimeSubtractType(
 	MinuendType: CompileTimeType,
 	SubtrahendType: CompileTimeType,
 ): CompileTimeSubtractType {
-	return {
+	return internType(`sub:${MinuendType.id},${SubtrahendType.id}`, id => ({
 		julType: 'subtract',
 		MinuendType: MinuendType,
 		SubtrahendType: SubtrahendType,
 		isUnresolvedPlaceholder: true,
-	};
+		id: id,
+	}));
 }
 
 export interface CompileTimeDictionaryLiteralType extends CompileTimeTypeBase {
@@ -1112,7 +1202,11 @@ export function createCompileTimeDictionaryLiteralType(
 	declaration?: TypeDeclaration,
 	aliasName?: string,
 ): CompileTimeDictionaryLiteralType {
-	return {
+	let fieldsKey = '';
+	for (const name in Fields) {
+		fieldsKey += `${name.length}:${name}=${Fields[name]!.id};`;
+	}
+	return internType(`dict-literal:${complete ? 1 : 0},${getObjectId(declaration)},${aliasName === undefined ? '-' : aliasName.length + ':' + aliasName}|${fieldsKey}`, id => ({
 		julType: 'dictionaryLiteral',
 		Fields: Fields,
 		complete: complete,
@@ -1121,7 +1215,8 @@ export function createCompileTimeDictionaryLiteralType(
 		// Felder zählen nicht mit: ein Dictionary ist als Ganzes zuweisbar, auch wenn einzelne
 		// Feldtypen noch offen sind.
 		isUnresolvedPlaceholder: false,
-	};
+		id: id,
+	}));
 }
 
 export interface CompileTimeDictionaryType extends CompileTimeTypeBase {
@@ -1133,12 +1228,13 @@ export function createCompileTimeDictionaryType(
 	ElementType: CompileTimeType,
 	aliasName?: string,
 ): CompileTimeDictionaryType {
-	return {
+	return internType(`dict:${ElementType.id},${aliasName === undefined ? '-' : aliasName.length + ':' + aliasName}`, id => ({
 		julType: 'dictionary',
 		ElementType: ElementType,
 		aliasName: aliasName,
 		isUnresolvedPlaceholder: ElementType.isUnresolvedPlaceholder,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -1150,10 +1246,16 @@ export interface FunctionIdentity {
 	/** Marke, damit ein Funktionstyp nicht versehentlich als Identität durchgeht. */
 	readonly isFunctionIdentity: true;
 	ParamsType: CompileTimeType;
+	/**
+	 * Die ParamsType steht fest. Beim Prüfen eines Funktionsliterals ist sie bis nach den Parametern
+	 * noch ein Platzhalter: Was in dieser Zeit aus den Parameterverweisen gelesen wird, ist
+	 * vorläufig und darf nicht gemerkt werden (siehe resultContext).
+	 */
+	sealed: boolean;
 }
 
-export function createFunctionIdentity(ParamsType: CompileTimeType): FunctionIdentity {
-	return { isFunctionIdentity: true, ParamsType: ParamsType };
+export function createFunctionIdentity(ParamsType: CompileTimeType, sealed = true): FunctionIdentity {
+	return { isFunctionIdentity: true, ParamsType: ParamsType, sealed: sealed };
 }
 
 export interface CompileTimeFunctionType extends CompileTimeTypeBase {
@@ -1240,6 +1342,7 @@ export function createCompileTimeFunctionType(
 		purity: purity,
 		aliasName: aliasName,
 		isUnresolvedPlaceholder: ParamsType.isUnresolvedPlaceholder || ReturnType.isUnresolvedPlaceholder,
+		id: nextTypeId++,
 	};
 	if (extras?.predicate) {
 		functionType.predicate = extras.predicate;
@@ -1264,11 +1367,12 @@ export interface CompileTimeIntersectionType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeIntersectionType {
-	return {
+	return internType(`and:${getIds(ChoiceTypes)}`, id => ({
 		julType: 'and',
 		ChoiceTypes: ChoiceTypes,
 		isUnresolvedPlaceholder: ChoiceTypes.some(t => t.isUnresolvedPlaceholder),
-	};
+		id: id,
+	}));
 }
 
 export interface CompileTimeListType extends CompileTimeTypeBase {
@@ -1277,11 +1381,12 @@ export interface CompileTimeListType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeListType(ElementType: CompileTimeType): CompileTimeListType {
-	return {
+	return internType(`list:${ElementType.id}`, id => ({
 		julType: 'list',
 		ElementType: ElementType,
 		isUnresolvedPlaceholder: ElementType.isUnresolvedPlaceholder,
-	};
+		id: id,
+	}));
 }
 
 export interface CompileTimeStreamType extends CompileTimeTypeBase {
@@ -1295,12 +1400,13 @@ export interface CompileTimeStreamType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeStreamType(ValueType: CompileTimeType, finite: boolean): CompileTimeStreamType {
-	return {
+	return internType(`stream:${ValueType.id},${finite ? 1 : 0}`, id => ({
 		julType: 'stream',
 		ValueType: ValueType,
 		finite: finite,
 		isUnresolvedPlaceholder: ValueType.isUnresolvedPlaceholder,
-	};
+		id: id,
+	}));
 }
 
 export interface CompileTimeTupleType extends CompileTimeTypeBase {
@@ -1310,11 +1416,12 @@ export interface CompileTimeTupleType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeTupleType(ElementTypes: CompileTimeType[]): CompileTimeTupleType {
-	return {
+	return internType(`tuple:${getIds(ElementTypes)}`, id => ({
 		julType: 'tuple',
 		ElementTypes: ElementTypes,
 		isUnresolvedPlaceholder: ElementTypes.some(t => t.isUnresolvedPlaceholder),
-	};
+		id: id,
+	}));
 }
 
 export interface CompileTimeTypeOfType extends CompileTimeTypeBase {
@@ -1323,11 +1430,12 @@ export interface CompileTimeTypeOfType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeTypeOfType(value: CompileTimeType): CompileTimeTypeOfType {
-	return {
+	return internType(`typeOf:${value.id}`, id => ({
 		julType: 'typeOf',
 		value: value,
 		isUnresolvedPlaceholder: value.isUnresolvedPlaceholder,
-	};
+		id: id,
+	}));
 }
 
 export interface CompileTimeUnionType extends CompileTimeTypeBase {
@@ -1336,11 +1444,12 @@ export interface CompileTimeUnionType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeUnionType(ChoiceTypes: CompileTimeType[]): CompileTimeUnionType {
-	return {
+	return internType(`or:${getIds(ChoiceTypes)}`, id => ({
 		julType: 'or',
 		ChoiceTypes: ChoiceTypes,
 		isUnresolvedPlaceholder: ChoiceTypes.some(t => t.isUnresolvedPlaceholder),
-	};
+		id: id,
+	}));
 }
 
 export interface NestedReferenceType extends CompileTimeTypeBase {
@@ -1359,14 +1468,20 @@ export interface NestedReferenceType extends CompileTimeTypeBase {
 }
 
 export function createNestedReference(source: CompileTimeType, nestedKey: string | number | CompileTimeType): NestedReferenceType {
-	return {
+	const keyId = typeof nestedKey === 'object'
+		? `t${nestedKey.id}`
+		: typeof nestedKey === 'number'
+			? `n${nestedKey}`
+			: `s${nestedKey}`;
+	return internType(`nested:${source.id},${keyId}`, id => ({
 		julType: 'nestedReference',
 		source: source,
 		nestedKey: nestedKey,
 		// Der Knoten entsteht nur, wenn der Zugriff nicht gefaltet werden konnte - er wartet also
 		// noch, unabhängig davon, wie aufgelöst Quelle und Schlüssel einzeln aussehen.
 		isUnresolvedPlaceholder: true,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -1395,6 +1510,7 @@ export function createParameterReference(name: string, index: number): Parameter
 		name: name,
 		index: index,
 		isUnresolvedPlaceholder: true,
+		id: nextTypeId++,
 	};
 }
 
@@ -1415,7 +1531,7 @@ export interface CompileTimeAliasType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeAliasType(name: string, symbol: SymbolDefinition, args?: CompileTimeType): CompileTimeAliasType {
-	return {
+	return internType(`alias:${name.length}:${name},${getObjectId(symbol)},${args?.id ?? 0}`, id => ({
 		julType: 'alias',
 		name: name,
 		symbol: symbol,
@@ -1425,7 +1541,8 @@ export function createCompileTimeAliasType(name: string, symbol: SymbolDefinitio
 		// Konsumenten verteuern, ohne dass er je auf etwas wartet. Offene Argumente warten dagegen
 		// sehr wohl auf den Aufruf der umgebenden Typfunktion.
 		isUnresolvedPlaceholder: args?.isUnresolvedPlaceholder ?? false,
-	};
+		id: id,
+	}));
 }
 
 /**
@@ -1438,14 +1555,18 @@ export interface ParametersType extends CompileTimeTypeBase {
 }
 
 export function createParametersType(singleNames: Parameter[], rest?: Parameter): ParametersType {
-	return {
+	const parameterKey = (parameter: Parameter | undefined) => parameter
+		? `${parameter.name.length}:${parameter.name}=${parameter.type?.id ?? 0}`
+		: '-';
+	return internType(`params:${singleNames.map(parameterKey).join(';')}|${parameterKey(rest)}`, id => ({
 		julType: 'parameters',
 		singleNames: singleNames,
 		rest: rest,
 		// Eine Parameterliste steht als Ganzes fest; offene Parametertypen macht getTypeError
 		// einzeln permissiv (hasReliableTypeError).
 		isUnresolvedPlaceholder: false,
-	};
+		id: id,
+	}));
 }
 
 export interface Parameter {
@@ -1580,33 +1701,86 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 /**
  * Gecachte Instanzen für häufig verwendete Blatt-Typen - alle haben isUnresolvedPlaceholder: false
  */
-export const builtinAny: AnyType = { julType: 'any', isUnresolvedPlaceholder: false };
-export const builtinInvalid: InvalidType = { julType: 'invalid', isUnresolvedPlaceholder: false };
-export const builtinNever: NeverType = { julType: 'never', isUnresolvedPlaceholder: false };
-export const builtinEmpty: EmptyType = { julType: 'empty', isUnresolvedPlaceholder: false };
-export const builtinBoolean: BooleanType = { julType: 'boolean', isUnresolvedPlaceholder: false };
-export const builtinInteger: IntegerType = { julType: 'integer', isUnresolvedPlaceholder: false };
-export const builtinFloat: FloatType = { julType: 'float', isUnresolvedPlaceholder: false };
-export const builtinText: TextType = { julType: 'text', isUnresolvedPlaceholder: false };
-export const builtinDate: DateType = { julType: 'date', isUnresolvedPlaceholder: false };
-export const builtinBlob: BlobType = { julType: 'blob', isUnresolvedPlaceholder: false };
-export const builtinType: TypeType = { julType: 'type', isUnresolvedPlaceholder: false };
-export const builtinError: ErrorType = { julType: 'error', isUnresolvedPlaceholder: false };
+export const builtinAny: AnyType = { julType: 'any', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinInvalid: InvalidType = { julType: 'invalid', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinNever: NeverType = { julType: 'never', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinEmpty: EmptyType = { julType: 'empty', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinBoolean: BooleanType = { julType: 'boolean', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinInteger: IntegerType = { julType: 'integer', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinFloat: FloatType = { julType: 'float', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinText: TextType = { julType: 'text', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinDate: DateType = { julType: 'date', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinBlob: BlobType = { julType: 'blob', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinType: TypeType = { julType: 'type', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinError: ErrorType = { julType: 'error', isUnresolvedPlaceholder: false, id: createTypeId() };
 
 export function createBooleanLiteral(value: boolean): BooleanLiteralType {
-	return { julType: 'booleanLiteral', value, isUnresolvedPlaceholder: false };
+	return internType(`boolean-literal:${value}`, id => ({ julType: 'booleanLiteral', value, isUnresolvedPlaceholder: false, id: id }));
 }
 
+// Eigene Tabellen ohne zusammengesetzten Schlüssel: Die Literale sind zahlreich (Daten aus JSON), und ein
+// langer Text als Schlüssel würde bei jeder Erzeugung neu gehasht.
+const integerLiterals = new Map<bigint, IntegerLiteralType>();
+const textLiterals = new Map<string, TextLiteralType>();
+
 export function createIntegerLiteral(value: bigint): IntegerLiteralType {
-	return { julType: 'integerLiteral', value, isUnresolvedPlaceholder: false };
+	let literal = integerLiterals.get(value);
+	if (!literal) {
+		if (integerLiterals.size >= maxInternedTypes) {
+			integerLiterals.clear();
+		}
+		literal = { julType: 'integerLiteral', value, isUnresolvedPlaceholder: false, id: createTypeId() };
+		integerLiterals.set(value, literal);
+	}
+	return literal;
 }
 
 export function createFloatLiteral(value: number): FloatLiteralType {
-	return { julType: 'floatLiteral', value, isUnresolvedPlaceholder: false };
+	return internType(`float-literal:${Object.is(value, -0) ? '-0' : value}`, id => ({ julType: 'floatLiteral', value, isUnresolvedPlaceholder: false, id: id }));
 }
 
 export function createTextLiteral(value: string): TextLiteralType {
-	return { julType: 'textLiteral', value, isUnresolvedPlaceholder: false };
+	let literal = textLiterals.get(value);
+	if (!literal) {
+		if (textLiterals.size >= maxInternedTypes) {
+			textLiterals.clear();
+		}
+		literal = { julType: 'textLiteral', value, isUnresolvedPlaceholder: false, id: createTypeId() };
+		textLiterals.set(value, literal);
+	}
+	return literal;
 }
 
 //#endregion Blatt-Typ Factories
+//#region Kopien
+
+/**
+ * Derselbe Typ mit gesetztem deferValueOf: aufgelöst und ausgepackt wird erst am Aufruf. Ein
+ * neues Objekt (nicht verändert), weil der Typ interniert und geteilt sein kann.
+ */
+export function withDeferValueOf<T extends NestedReferenceType | CompileTimeMapElementsType | ParameterReference>(type: T): T {
+	if (type.deferValueOf) {
+		return type;
+	}
+	switch (type.julType) {
+		case 'parameterReference':
+			// Veränderlich und nicht interniert: eine Kopie mit eigener Nummer.
+			return { ...type, deferValueOf: true, id: nextTypeId++ };
+		case 'nestedReference':
+		case 'mapElements':
+			return internType(`defer:${type.id}`, id => ({ ...type, deferValueOf: true, id: id })) as T;
+	}
+}
+
+/**
+ * Eine Kopie des Funktionstyps mit geänderten Eigenschaften, die Identität (FunctionIdentity) bleibt.
+ * Eigene Nummer, denn Funktionstypen werden nicht interniert.
+ */
+export function copyFunctionType(
+	functionType: CompileTimeFunctionType,
+	changes: Partial<Pick<CompileTimeFunctionType, 'ParamsType' | 'ReturnType' | 'purity' | 'aliasName' | 'isUnresolvedPlaceholder'>>,
+): CompileTimeFunctionType {
+	return { ...functionType, ...changes, id: nextTypeId++ };
+}
+
+//#endregion Kopien

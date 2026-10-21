@@ -7,6 +7,7 @@
 // Zusage "ohne laufenden Checker testbar" gilt weiter für die reine Typübersetzung, nicht mehr für
 // die Ausführung - die braucht zwangsläufig einen bereits geprüften Baum.
 import * as runtime from '../runtime/runtime.js';
+import { resultContext } from './checker-stats.js';
 import { _julTypeSymbol } from '../runtime/runtime.js';
 import { functionLiteralToEvaluableJs } from '../compiler/emitter.js';
 import { escapeReservedJsVariableName } from '../util.js';
@@ -324,6 +325,7 @@ function createBudgetedCreateFunction(): (fn: Function, params: unknown) => Func
 				return cache.get(key);
 			}
 			if (foldBudgetRemaining <= 0) {
+				resultContext.dependence++;
 				throw new FoldBudgetExhaustedError();
 			}
 			foldBudgetRemaining--;
@@ -465,6 +467,9 @@ export function tryBuildCallable(functionType: CompileTimeFunctionType): Functio
 	// Bei leerem Budget wirft jeder Aufruf des Callables. Es gar nicht erst zu bauen spart new Function
 	// und den Fehler samt Stacktrace, die sonst bei jeder weiteren Prüfung erneut anfallen.
 	if (!literal || !functionType.foldable || foldBudgetRemaining <= 0) {
+		if (foldBudgetRemaining <= 0) {
+			resultContext.dependence++;
+		}
 		return undefined;
 	}
 	const environment = buildEnvironment(literal, functionType.boundArguments?.values);

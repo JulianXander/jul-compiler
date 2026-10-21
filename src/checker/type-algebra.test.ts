@@ -12,26 +12,36 @@ import {
 	builtinText,
 	CompileTimeType,
 	createBooleanLiteral,
+	createCompileTimeAliasType,
 	createCompileTimeBoundType,
 	createCompileTimeComplementType,
 	createCompileTimeDictionaryLiteralType,
+	createCompileTimeFunctionType,
 	createCompileTimeListType,
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
 	createCompileTimeTypeOfType,
+	createCompileTimeUnionType,
 	createFloatLiteral,
+	createFunctionIdentity,
 	createIntegerLiteral,
+	createNestedReference,
 	createParameterReference,
+	createParametersType,
 	createTextLiteral,
+	SymbolDefinition,
+	withDeferValueOf,
 } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
 import { checkerStats, resetCheckerStats } from './checker-stats.js';
 import {
+	clearTypeCaches,
 	concatFromTypes,
 	createNormalizedIntersectionType,
 	createNormalizedUnionType,
 	dereferenceIndexFromObject,
 	isTypeAssignable,
+	resolvePlaceholders,
 	spreadDictionaryTypes,
 	typeEquals,
 	typeToString,
@@ -596,4 +606,101 @@ describe('Typalgebra', () => {
 		expect(typeEquals(result, expected), typeToString(result, 0, 0)).to.equal(true);
 	});
 	//#endregion Concat
+});
+
+describe('Interning und Caches', () => {
+	const symbolWithoutType = () => ({} as SymbolDefinition);
+	it('gleiche-union-ist-dasselbe-objekt', () => {
+		expect(createCompileTimeUnionType([builtinInteger, builtinText]))
+			.to.equal(createCompileTimeUnionType([builtinInteger, builtinText]));
+	});
+	it('gleiche-literale-sind-dasselbe-objekt', () => {
+		expect(createTextLiteral('a')).to.equal(createTextLiteral('a'));
+		expect(createIntegerLiteral(7n)).to.equal(createIntegerLiteral(7n));
+		expect(createTextLiteral('a')).to.not.equal(createTextLiteral('b'));
+	});
+	it('verschachtelte-gleiche-typen-sind-dasselbe-objekt', () => {
+		const build = () => createCompileTimeDictionaryLiteralType({
+			a: createCompileTimeListType(createTextLiteral('x')),
+			b: createCompileTimeTupleType([builtinInteger]),
+		}, true);
+		expect(build()).to.equal(build());
+	});
+	it('verschiedene-reihenfolge-der-union-ist-ein-anderes-objekt-aber-gleich', () => {
+		const first = createCompileTimeUnionType([builtinInteger, builtinText]);
+		const second = createCompileTimeUnionType([builtinText, builtinInteger]);
+		expect(first).to.not.equal(second);
+		expect(typeEquals(first, second)).to.equal(true);
+	});
+	it('dictionary-literale-mit-verschiedenem-aliasnamen-bleiben-getrennt', () => {
+		const plain = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
+		const named = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true, undefined, 'Named');
+		expect(plain).to.not.equal(named);
+		expect(typeEquals(plain, named)).to.equal(true);
+	});
+	it('unvollstaendige-und-vollstaendige-dictionaries-bleiben-getrennt', () => {
+		expect(createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true))
+			.to.not.equal(createCompileTimeDictionaryLiteralType({ a: builtinInteger }, false));
+	});
+	it('funktionstypen-werden-nicht-interniert', () => {
+		const first = createCompileTimeFunctionType(createParametersType([]), builtinInteger, 'pure');
+		const second = createCompileTimeFunctionType(createParametersType([]), builtinInteger, 'pure');
+		expect(first).to.not.equal(second);
+		expect(first.id).to.not.equal(second.id);
+	});
+	it('kopie-mit-defer-value-of-veraendert-das-original-nicht', () => {
+		const source = createParameterReference('T', 0);
+		const reference = createNestedReference(source, 'name');
+		const deferred = withDeferValueOf(reference);
+		expect(reference.deferValueOf).to.equal(undefined);
+		expect(deferred.deferValueOf).to.equal(true);
+		expect(withDeferValueOf(reference)).to.equal(deferred);
+		expect(withDeferValueOf(deferred)).to.equal(deferred);
+	});
+	it('kopie-eines-parameterverweises-bekommt-eine-eigene-nummer', () => {
+		const reference = createParameterReference('T', 0);
+		const deferred = withDeferValueOf(reference);
+		expect(deferred.id).to.not.equal(reference.id);
+		expect(reference.deferValueOf).to.equal(undefined);
+	});
+	it('nach-clear-sind-neue-typen-andere-objekte-aber-gleich', () => {
+		const before = createCompileTimeListType(createTextLiteral('clear'));
+		clearTypeCaches();
+		const after = createCompileTimeListType(createTextLiteral('clear'));
+		expect(after).to.not.equal(before);
+		expect(typeEquals(before, after)).to.equal(true);
+	});
+	it('zuweisbarkeit-eines-alias-in-pruefung-wird-nicht-gemerkt', () => {
+		const symbol = symbolWithoutType();
+		const alias = createCompileTimeAliasType('Pending', symbol);
+		// Das Symbol wird noch geprüft: der Alias steht für Any, das Ergebnis ist unbekannt.
+		expect(isTypeAssignable(alias, builtinInteger).assignable).to.equal(undefined);
+		symbol.typeInfo = { type: createCompileTimeTypeOfType(builtinText) };
+		expect(isTypeAssignable(alias, builtinInteger).assignable).to.equal(false);
+	});
+	it('union-mit-alias-in-pruefung-wird-nicht-gemerkt', () => {
+		const symbol = symbolWithoutType();
+		const alias = createCompileTimeAliasType('PendingUnion', symbol);
+		const before = createNormalizedUnionType([alias, builtinText, createTextLiteral('x')]);
+		symbol.typeInfo = { type: createCompileTimeTypeOfType(builtinText) };
+		const after = createNormalizedUnionType([alias, builtinText, createTextLiteral('x')]);
+		// Vorher blieb der Alias als undurchsichtige Choice stehen, danach fällt er in Text zusammen.
+		expect(typeEquals(before, after)).to.equal(false);
+	});
+	it('aufloesung-eines-parameters-vor-dem-siegel-wird-nicht-gemerkt', () => {
+		const identity = createFunctionIdentity(builtinEmpty, false);
+		const reference = createParameterReference('a', 0);
+		reference.functionRef = identity;
+		expect(resolvePlaceholders(reference).julType).to.equal('any');
+		identity.ParamsType = createParametersType([{ name: 'a', type: builtinInteger }]);
+		identity.sealed = true;
+		expect(resolvePlaceholders(reference)).to.equal(builtinInteger);
+	});
+	it('aufloesung-eines-versiegelten-parameters-ist-stabil', () => {
+		const identity = createFunctionIdentity(createParametersType([{ name: 'a', type: builtinInteger }]));
+		const reference = createParameterReference('a', 0);
+		reference.functionRef = identity;
+		expect(resolvePlaceholders(reference)).to.equal(builtinInteger);
+		expect(resolvePlaceholders(reference)).to.equal(builtinInteger);
+	});
 });

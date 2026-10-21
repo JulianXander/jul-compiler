@@ -19,3 +19,12 @@ export function resetCheckerStats(): void {
 	checkerStats.getTypeError = 0;
 	checkerStats.foldableCall = 0;
 }
+
+/**
+ * Zählt, wann ein Ergebnis nicht allein von seinen Eingaben abhängt: es hat eine koinduktive
+ * Annahme eines umgebenden Vergleichs gebraucht, eine Notbremse (Tiefe, Aufblähung, Faltbudget)
+ * ausgelöst oder den veränderlichen Zustand einer Funktion gelesen (getParameterUpperBound).
+ * Ein Ergebnis, bei dem der Zähler unverändert blieb, ist geschlossen und darf nach den Ids seiner
+ * Eingaben gemerkt werden.
+ */
+export const resultContext = { dependence: 0 };

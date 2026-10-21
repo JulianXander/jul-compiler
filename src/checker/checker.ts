@@ -73,6 +73,7 @@ import {
 	FunctionIdentity,
 	createFunctionIdentity,
 	getFunctionTypeFacts,
+	copyFunctionType,
 } from '../syntax-tree.js';
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, forEach, isDefined, isNonEmpty, isTestFilePath, last, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
@@ -1114,7 +1115,16 @@ type NarrowedTypes = Map<SymbolDefinition, NarrowedPath[]>;
 interface NarrowedPath {
 	/** Feldnamen und Indizes ab der Wurzel. Leer = die Wurzel selbst. */
 	keys: (string | number)[];
-	type: CompileTimeType;
+	/**
+	 * Erst beim ersten Nachschlag berechnet: Die Schnitte über große Typen sind teuer, und die
+	 * meisten Verengungen liest der Rumpf nie.
+	 */
+	getType: () => CompileTimeType;
+}
+
+function createLazyType(compute: () => CompileTimeType): () => CompileTimeType {
+	let computed: CompileTimeType | undefined;
+	return () => computed ??= compute();
 }
 
 interface AccessPath {
@@ -1191,7 +1201,7 @@ function getNarrowedType(
 	if (!longestMatch) {
 		return undefined;
 	}
-	let type = longestMatch.type;
+	let type = longestMatch.getType();
 	for (const key of keys.slice(longestMatch.keys.length)) {
 		// Die Verengung legt ein And über den noch unaufgelösten Typ der Quelle ab (etwa einen
 		// Parameter), erst der aufgelöste Typ kennt seine Felder.
@@ -1219,7 +1229,7 @@ function withNarrowedType(
 	narrowedTypes: NarrowedTypes | undefined,
 	symbol: SymbolDefinition,
 	keys: (string | number)[],
-	type: CompileTimeType,
+	getType: () => CompileTimeType,
 ): NarrowedTypes {
 	const result: NarrowedTypes = new Map(narrowedTypes);
 	const paths = result.get(symbol) ?? [];
@@ -1230,7 +1240,7 @@ function withNarrowedType(
 		...withoutPath,
 		{
 			keys: keys,
-			type: type,
+			getType: getType,
 		},
 	]);
 	return result;
@@ -1244,16 +1254,16 @@ function withNarrowedType(
 function withNarrowedPath(
 	narrowedTypes: NarrowedTypes | undefined,
 	expression: ParseValueExpression,
-	type: CompileTimeType,
+	getType: () => CompileTimeType,
 	scopes: SymbolTable[],
 ): NarrowedTypes | undefined {
 	const path = getAccessPath(expression, scopes);
 	if (!path) {
 		return narrowedTypes;
 	}
-	let result = withNarrowedType(narrowedTypes, path.symbol, path.keys, type);
+	let result = withNarrowedType(narrowedTypes, path.symbol, path.keys, getType);
 	let narrowedExpression: ParseValueExpression = expression;
-	let narrowedType = type;
+	let getNarrowedSourceType = getType;
 	while (narrowedExpression.type === 'nestedReference') {
 		const source = narrowedExpression.source;
 		const nestedKey = narrowedExpression.nestedKey;
@@ -1267,16 +1277,20 @@ function withNarrowedPath(
 			|| !sourcePath) {
 			break;
 		}
-		const sourceType = getNarrowedType(result, sourcePath.symbol, sourcePath.keys)
-			?? source.typeInfo?.type
-			?? builtinAny;
-		narrowedType = createNormalizedIntersectionType([
-			sourceType,
-			// complete: false, denn der branch beweist nur diesen einen Fakt - über andere
-			// Felder der Quelle ist damit nichts gesagt.
-			createCompileTimeDictionaryLiteralType({ [key]: narrowedType }, false),
-		]);
-		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, narrowedType);
+		const resultBefore = result;
+		const getFieldType = getNarrowedSourceType;
+		getNarrowedSourceType = createLazyType(() => {
+			const sourceType = getNarrowedType(resultBefore, sourcePath.symbol, sourcePath.keys)
+				?? source.typeInfo?.type
+				?? builtinAny;
+			return createNormalizedIntersectionType([
+				sourceType,
+				// complete: false, denn der branch beweist nur diesen einen Fakt - über andere
+				// Felder der Quelle ist damit nichts gesagt.
+				createCompileTimeDictionaryLiteralType({ [key]: getFieldType() }, false),
+			]);
+		});
+		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, getNarrowedSourceType);
 		narrowedExpression = source;
 	}
 	return result;
@@ -2820,7 +2834,7 @@ function inferType(
 			const unadjustedReturnType = dereferenceArgumentTypesNested(functionType, bindReceiver(returnPrefixArgumentType, argsType), returnType);
 			const resolvedUnadjustedReturnType = resolveAlias(unadjustedReturnType);
 			const dereferencedReturnType = isConditionallyPureSignature && isFunctionType(resolvedUnadjustedReturnType)
-				? { ...resolvedUnadjustedReturnType, purity: 'pureIfArgsPure' as const }
+				? copyFunctionType(resolvedUnadjustedReturnType, { purity: 'pureIfArgsPure' })
 				: unadjustedReturnType;
 			// Für Hover und Co.: die Signatur, gegen die dieser Aufruf geprüft wurde. Eine Kopie,
 			// denn die Platzhalter in Parameter- und Rückgabetyp zeigen auf das Original.
@@ -2829,14 +2843,13 @@ function inferType(
 			if (isFunctionType(resolvedFunctionType)) {
 				const callSiteParamsType = substituteParameterProjections(
 					resolvedFunctionType, functionType, boundArgsType, dereferencedParamsType);
-				expression.calledFunctionType = {
-					...resolvedFunctionType,
+				expression.calledFunctionType = copyFunctionType(resolvedFunctionType, {
 					ParamsType: callSiteParamsType,
 					ReturnType: dereferencedReturnType,
 					aliasName: undefined,
 					isUnresolvedPlaceholder: callSiteParamsType.isUnresolvedPlaceholder
 						|| dereferencedReturnType.isUnresolvedPlaceholder,
-				};
+				});
 			}
 			// Nur der Emitter-Pfad für benannte Argumente liest sie.
 			if (expression.arguments?.type === 'dictionary') {
@@ -2856,7 +2869,7 @@ function inferType(
 			const params = expression.params;
 			// Der Funktionstyp entsteht erst nach dem Rumpf. Bis dahin zeigen Parameter und
 			// parameterReference auf die Identität, die nur ParamsType trägt.
-			const identity = createFunctionIdentity(builtinEmpty);
+			const identity = createFunctionIdentity(builtinEmpty, false);
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, identity, functionScopes);
 			}
@@ -2872,6 +2885,7 @@ function inferType(
 			checkParamsTypeIsCollection(params, errors);
 			checkTypeHeadPredicates(params, errors);
 			identity.ParamsType = paramsTypeValue;
+			identity.sealed = true;
 			//#region verengte Typen für branching
 			let branchNarrowedTypes = narrowedTypes;
 			const branching = expression.parent;
@@ -2889,15 +2903,18 @@ function inferType(
 						return;
 					}
 					// branching.args wird in case 'branching' vor den branches inferiert
-					const currentType = getNarrowedType(branchNarrowedTypes, path.symbol, path.keys)
-						?? argument.typeInfo?.type
-						?? builtinAny;
+					const outerNarrowedTypes = branchNarrowedTypes;
 					// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
-					const narrowedType = narrowBranchedType(currentType, branchRawType, previousBranchValueType);
-					branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, argument, narrowedType, functionScopes);
+					const getBranchNarrowedType = createLazyType(() => {
+						const currentType = getNarrowedType(outerNarrowedTypes, path.symbol, path.keys)
+							?? argument.typeInfo?.type
+							?? builtinAny;
+						return narrowBranchedType(currentType, branchRawType, previousBranchValueType);
+					});
+					branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, argument, getBranchNarrowedType, functionScopes);
 					const originExpression = getOriginExpression(path.symbol);
 					if (originExpression) {
-						branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, originExpression, narrowedType, functionScopes);
+						branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, originExpression, getBranchNarrowedType, functionScopes);
 					}
 				});
 			}
@@ -3054,7 +3071,7 @@ function inferType(
 		case 'functionTypeLiteral': {
 			const functionScopes: NonEmptyArray<SymbolTable> = [...scopes, expression.symbols];
 			const params = expression.params;
-			const identity = createFunctionIdentity(builtinEmpty);
+			const identity = createFunctionIdentity(builtinEmpty, false);
 			if (params.type === 'parameters') {
 				setFunctionRefForParams(params, identity, functionScopes);
 			}
@@ -3065,6 +3082,7 @@ function inferType(
 			setInferredType(params, functionTypeContext, undefined, checkContext);
 			const paramsType = valueOf(params.typeInfo!.type);
 			identity.ParamsType = paramsType;
+			identity.sealed = true;
 			checkParamsTypeIsCollection(params, errors);
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionTypeContext, undefined, checkContext);

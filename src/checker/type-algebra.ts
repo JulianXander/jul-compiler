@@ -52,6 +52,9 @@ import {
 	createCompileTimeTupleType,
 	createCompileTimeTypeOfType,
 	createCompileTimeUnionType,
+	clearInternedTypes,
+	copyFunctionType,
+	withDeferValueOf,
 	createCompileTimeWithElementAtType,
 	createIntegerLiteral,
 	createNestedReference,
@@ -61,7 +64,7 @@ import {
 	getFunctionTypeFacts,
 } from '../syntax-tree.js';
 import { elementsEqual, fieldsEqual, isDefined, isNonEmpty, map, mapDictionary } from '../util.js';
-import { checkerStats } from './checker-stats.js';
+import { checkerStats, resultContext } from './checker-stats.js';
 import { getNameFromValue, isInsideFunctionLiteral } from '../parser/parser-utils.js';
 
 /**
@@ -113,13 +116,12 @@ function withReturnOrParamsType(
 		return undefined;
 	}
 	// Der Aliasname beschriebe die geänderte Signatur nicht mehr.
-	return {
-		...functionType,
+	return copyFunctionType(functionType, {
 		ParamsType: paramsType,
 		ReturnType: returnType,
 		aliasName: undefined,
 		isUnresolvedPlaceholder: paramsType.isUnresolvedPlaceholder || returnType.isUnresolvedPlaceholder,
-	};
+	});
 }
 
 function withDictionaryLiteralField(
@@ -271,6 +273,69 @@ const aliasEqualityInProgress: { first: CompileTimeType; second: CompileTimeType
  * Plattform). Der Wert liegt bewusst weit darunter und weit über jeder realen Verschachtelung -
  * eine Notbremse, die selbst am Abgrund steht, ist keine.
  */
+//#region Ergebnis-Caches
+
+/**
+ * Ergebnisse, die nur von den Typen selbst abhängen (siehe resultContext), nach deren Ids gemerkt.
+ * Beim Überlaufen wird geleert: ein Cache ist nur Abkürzung.
+ */
+const maxCachedResults = 500_000;
+const maxCacheableId = 2 ** 26;
+const assignabilityCache = new Map<number, TypeAssignability>();
+const typeEqualsCache = new Map<number, boolean>();
+const typesOverlapCache = new Map<number, boolean | 'unknown'>();
+const unionCache = new Map<string, CompileTimeType>();
+const intersectionCache = new Map<string, CompileTimeType>();
+/** Das Ergebnis von resolvePlaceholders je Typ. Bei einem Typ ohne Platzhalter ist es der Typ selbst. */
+const resolvedTypes = new Map<number, CompileTimeType>();
+
+function getPairKey(first: CompileTimeType, second: CompileTimeType): number | undefined {
+	return first.id < maxCacheableId && second.id < maxCacheableId
+		? first.id * maxCacheableId + second.id
+		: undefined;
+}
+
+function getSymmetricPairKey(first: CompileTimeType, second: CompileTimeType): number | undefined {
+	return first.id <= second.id
+		? getPairKey(first, second)
+		: getPairKey(second, first);
+}
+
+function getListKey(types: readonly CompileTimeType[]): string | undefined {
+	let key = '';
+	for (let index = 0; index < types.length; index++) {
+		const id = types[index]!.id;
+		if (id >= maxCacheableId) {
+			return undefined;
+		}
+		key += (index ? ',' : '') + id;
+	}
+	return key;
+}
+
+/**
+ * Leert Interning und alle Caches. Zu Beginn jeder Prüfung (loadFile): Ein gemerktes Ergebnis hält
+ * über seine Typen Symbole und damit ganze Syntaxbäume am Leben.
+ */
+export function clearTypeCaches(): void {
+	clearInternedTypes();
+	assignabilityCache.clear();
+	typeEqualsCache.clear();
+	typesOverlapCache.clear();
+	unionCache.clear();
+	intersectionCache.clear();
+	resolvedTypes.clear();
+}
+
+function rememberResult<Key, Value>(cache: Map<Key, Value>, key: Key, value: Value): void {
+	if (cache.size >= maxCachedResults) {
+		cache.clear();
+	}
+	cache.set(key, value);
+}
+
+//#endregion Ergebnis-Caches
+
 const maxTypeComparisonDepth = 100;
 
 let typeComparisonDepth = 0;
@@ -1112,9 +1177,26 @@ function traversePlaceholders(
 	rawType: CompileTimeType,
 	argumentContext: ArgumentContext | undefined,
 ): CompileTimeType {
-	if (!argumentContext) {
-		checkerStats.resolvePlaceholders++;
+	if (argumentContext) {
+		return traversePlaceholdersUncached(rawType, argumentContext);
 	}
+	checkerStats.resolvePlaceholders++;
+	const cached = resolvedTypes.get(rawType.id);
+	if (cached) {
+		return cached;
+	}
+	const dependenceBefore = resultContext.dependence;
+	const result = traversePlaceholdersUncached(rawType, undefined);
+	if (resultContext.dependence === dependenceBefore) {
+		rememberResult(resolvedTypes, rawType.id, result);
+	}
+	return result;
+}
+
+function traversePlaceholdersUncached(
+	rawType: CompileTimeType,
+	argumentContext: ArgumentContext | undefined,
+): CompileTimeType {
 	switch (rawType.julType) {
 		case 'any':
 		case 'invalid':
@@ -1372,7 +1454,7 @@ function traversePlaceholders(
 			const mapped = mapElementsFromTypes(dereferencedSource, dereferencedCallback);
 			if (mapped.julType === 'mapElements') {
 				return rawType.deferValueOf
-					? { ...mapped, deferValueOf: true }
+					? withDeferValueOf(mapped)
 					: mapped;
 			}
 			// Der Rückgabetyp des Callbacks kann noch Parameter der umgebenden Funktion nennen.
@@ -1461,6 +1543,10 @@ function dereferenceNestedParameter(parameter: Parameter): Parameter {
  */
 export function getParameterUpperBound(parameterReference: ParameterReference): CompileTimeType | undefined {
 	const functionType = parameterReference.functionRef;
+	// Die Identität bekommt ihre ParamsType erst nach den Parametern: wer vorher liest, ist nicht geschlossen.
+	if (!functionType?.sealed) {
+		resultContext.dependence++;
+	}
 	if (functionType) {
 		const paramsType = functionType.ParamsType;
 		if (isParametersType(paramsType)) {
@@ -2208,12 +2294,50 @@ export function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
 }
 
 /**
+ * Zwei Dictionary-Literale, die in einem gemeinsamen Feld nur Literale (oder Empty) mit
+ * verschiedenen Werten tragen, haben keinen gemeinsamen Wert (status: §a§ gegen status: §b§):
+ * keines ist Teilmenge des anderen. Das ist billiger als die Teilmengenprüfung, die auch die
+ * Felder vor dem Diskriminator vergleicht.
+ */
+function createDisjointByDiscriminantCheck(): (first: CompileTimeType, second: CompileTimeType) => boolean {
+	const isLiteralOnly = (type: CompileTimeType): boolean => {
+		const resolved = resolveAlias(type);
+		return resolved.julType === 'empty'
+			|| isLiteralType(resolved)
+			|| (isUnionType(resolved) && resolved.ChoiceTypes.every(isLiteralOnly));
+	};
+	return (rawFirst, rawSecond) => {
+		const first = resolveAlias(rawFirst);
+		const second = resolveAlias(rawSecond);
+		if (!isDictionaryLiteralType(first)
+			|| !isDictionaryLiteralType(second)) {
+			return false;
+		}
+		for (const fieldName in first.Fields) {
+			const firstFieldType = first.Fields[fieldName]!;
+			const secondFieldType = second.Fields[fieldName];
+			if (secondFieldType === undefined
+				|| firstFieldType === secondFieldType
+				|| !isLiteralOnly(firstFieldType)
+				|| !isLiteralOnly(secondFieldType)) {
+				continue;
+			}
+			if (typesOverlap(firstFieldType, secondFieldType) === false) {
+				return true;
+			}
+		}
+		return false;
+	};
+}
+
+/**
  * Entfernt Choices, die bereits Teilmenge eines anderen Choice in derselben Liste sind:
  * Or(Boolean False) => [Boolean]. Bei struktureller Gleichwertigkeit (a Teilmenge von b und b
  * Teilmenge von a) gewinnt der frühere Index - sollte durch die Duplikat-Entfernung davor aber
  * ohnehin nicht mehr vorkommen.
  */
 function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
+	const isDisjointByDiscriminant = createDisjointByDiscriminantCheck();
 	const isComparable = (type: CompileTimeType) =>
 		!isUnresolvedPlaceholderType(type)
 		&& !isOpaqueForNormalization(type);
@@ -2224,6 +2348,9 @@ function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
 		return !choices.some((otherChoice, otherIndex) => {
 			if (index === otherIndex
 				|| !isComparable(otherChoice)) {
+				return false;
+			}
+			if (isDisjointByDiscriminant(choice, otherChoice)) {
 				return false;
 			}
 			if (isSubtypeOf(choice, otherChoice) !== true) {
@@ -2238,6 +2365,21 @@ function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
 }
 
 export function createNormalizedUnionType(choiceTypes: CompileTimeType[]): CompileTimeType {
+	const key = getListKey(choiceTypes);
+	const cached = key === undefined ? undefined : unionCache.get(key);
+	if (cached) {
+		return cached;
+	}
+	const dependenceBefore = resultContext.dependence;
+	const result = createNormalizedUnionTypeUncached(choiceTypes);
+	if (key !== undefined
+		&& resultContext.dependence === dependenceBefore) {
+		rememberResult(unionCache, key, result);
+	}
+	return result;
+}
+
+function createNormalizedUnionTypeUncached(choiceTypes: CompileTimeType[]): CompileTimeType {
 	//#region flatten UnionTypes
 	// Or(1 Or(2 3)) => Or(1 2 3)
 	// Ein Alias auf eine Union wird NICHT aufgeflacht: er ist der einzige Träger seines Namens,
@@ -2422,6 +2564,21 @@ export function spreadDictionaryTypes(
 }
 
 export function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeType {
+	const key = getListKey(ChoiceTypes);
+	const cached = key === undefined ? undefined : intersectionCache.get(key);
+	if (cached) {
+		return cached;
+	}
+	const dependenceBefore = resultContext.dependence;
+	const result = createNormalizedIntersectionTypeUncached(ChoiceTypes);
+	if (key !== undefined
+		&& resultContext.dependence === dependenceBefore) {
+		rememberResult(intersectionCache, key, result);
+	}
+	return result;
+}
+
+function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]): CompileTimeType {
 	// Ein schon gemeldeter Fehler macht den ganzen Schnitt ungültig, auch neben Never und Any.
 	if (ChoiceTypes.some(choice =>
 		!isOpaqueForNormalization(choice)
@@ -2644,6 +2801,25 @@ function predicateOverlapsWith(predicate: CompileTimePredicateType, other: Resol
 }
 
 export function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeType): boolean | undefined {
+	if (rawFirst === rawSecond
+		&& rawFirst.julType !== 'never') {
+		return true;
+	}
+	const key = getSymmetricPairKey(rawFirst, rawSecond);
+	const cached = key === undefined ? undefined : typesOverlapCache.get(key);
+	if (cached !== undefined) {
+		return cached === 'unknown' ? undefined : cached;
+	}
+	const dependenceBefore = resultContext.dependence;
+	const result = typesOverlapUncached(rawFirst, rawSecond);
+	if (key !== undefined
+		&& resultContext.dependence === dependenceBefore) {
+		rememberResult(typesOverlapCache, key, result === undefined ? 'unknown' : result);
+	}
+	return result;
+}
+
+function typesOverlapUncached(rawFirst: CompileTimeType, rawSecond: CompileTimeType): boolean | undefined {
 	const first = resolveAlias(rawFirst);
 	const second = resolveAlias(rawSecond);
 	// never enthält keinen Wert, any alle
@@ -3057,15 +3233,29 @@ export function typeEquals(first: CompileTimeType, second: CompileTimeType): boo
 	// Dieselbe Notbremse wie in isTypeAssignable. Hier fällt sie auf "nicht gleich" zurück: eine
 	// ausgelassene Deduplizierung ist harmlos, eine fälschlich angenommene Gleichheit nicht.
 	if (typeEqualsDepth >= maxTypeComparisonDepth) {
+		resultContext.dependence++;
 		return false;
 	}
+	// Gleichheit ist symmetrisch: ein Eintrag für beide Richtungen.
+	const key = getSymmetricPairKey(first, second);
+	const cached = key === undefined ? undefined : typeEqualsCache.get(key);
+	if (cached !== undefined) {
+		return cached;
+	}
+	const dependenceBefore = resultContext.dependence;
 	typeEqualsDepth++;
+	let result: boolean;
 	try {
-		return typeEqualsAtDepth(first, second);
+		result = typeEqualsAtDepth(first, second);
 	}
 	finally {
 		typeEqualsDepth--;
 	}
+	if (key !== undefined
+		&& resultContext.dependence === dependenceBefore) {
+		rememberResult(typeEqualsCache, key, result);
+	}
+	return result;
 }
 
 function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boolean {
@@ -3078,6 +3268,8 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 		if (aliasEqualityInProgress.some(pair =>
 			isSameOrSameAliasApplication(pair.first, first)
 			&& isSameOrSameAliasApplication(pair.second, second))) {
+			// Die Annahme gilt nur innerhalb des umgebenden Vergleichs.
+			resultContext.dependence++;
 			return true;
 		}
 		if (isSameAliasApplication(first, second)) {
@@ -3089,6 +3281,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 		if (isAliasApplication(first) || isAliasApplication(second)) {
 			// Wie bei der Tiefenbremse "nicht gleich": eine ausgelassene Deduplizierung ist harmlos.
 			if (typeEqualsApplicationExpansionsRemaining <= 0) {
+				resultContext.dependence++;
 				return false;
 			}
 			typeEqualsApplicationExpansionsRemaining--;
@@ -3299,6 +3492,8 @@ function haveSameBoundValues(
 function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
 	const symbolType = alias.symbol.typeInfo?.type;
 	if (!symbolType) {
+		// Das Symbol wird noch geprüft: danach steht an dieser Stelle der fertige Typ.
+		resultContext.dependence++;
 		return builtinAny;
 	}
 	if (alias.args) {
@@ -3316,8 +3511,13 @@ function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
  * zusammenfasst, darf das nicht für bare Münze nehmen - er steht für den fertigen Typ.
  */
 function isPendingAlias(type: CompileTimeType): type is CompileTimeAliasType {
-	return type.julType === 'alias'
+	const isPending = type.julType === 'alias'
 		&& !type.symbol.typeInfo;
+	if (isPending) {
+		// Gilt nur, bis das Symbol fertig geprüft ist.
+		resultContext.dependence++;
+	}
+	return isPending;
 }
 
 /**
@@ -3442,7 +3642,7 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			// Wie bei parameterReference: aufgelöst und ausgepackt wird am Aufruf.
 			return type.deferValueOf
 				? type
-				: { ...type, deferValueOf: true };
+				: withDeferValueOf(type);
 		case 'parameters':
 			return type;
 		case 'parameterReference':
@@ -3450,7 +3650,7 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			// valueOf nach.
 			return type.deferValueOf
 				? type
-				: { ...type, deferValueOf: true };
+				: withDeferValueOf(type);
 		case 'stream':
 			// TODO?
 			return type;
@@ -3549,20 +3749,39 @@ export function isSubtypeOf(type: CompileTimeType, superType: CompileTimeType): 
 	return isTypeAssignable(type, superType).assignable;
 }
 
+const assignableResult: TypeAssignability = { assignable: true };
+
 export function isTypeAssignable(
 	argumentsType: CompileTimeType,
 	targetType: CompileTimeType,
 ): TypeAssignability {
+	// Jeder Typ passt zu sich selbst, auch Any und Invalid.
+	if (argumentsType === targetType) {
+		return assignableResult;
+	}
 	if (typeComparisonDepth >= maxTypeComparisonDepth) {
+		resultContext.dependence++;
 		return { assignable: false, error: new TypeError('Type comparison is excessively deep and possibly infinite.') };
 	}
+	const key = getPairKey(argumentsType, targetType);
+	const cached = key === undefined ? undefined : assignabilityCache.get(key);
+	if (cached) {
+		return cached;
+	}
+	const dependenceBefore = resultContext.dependence;
 	typeComparisonDepth++;
+	let result: TypeAssignability;
 	try {
-		return isTypeAssignableAtDepth(argumentsType, targetType);
+		result = isTypeAssignableAtDepth(argumentsType, targetType);
 	}
 	finally {
 		typeComparisonDepth--;
 	}
+	if (key !== undefined
+		&& resultContext.dependence === dependenceBefore) {
+		rememberResult(assignabilityCache, key, result);
+	}
+	return result;
 }
 
 export type TypeAssignability =
@@ -3615,6 +3834,8 @@ function isTypeAssignableAtDepth(
 			// Koinduktiv: Findet der Vergleich sonst nirgends ein Nein, ist es eine Teilmenge. Das gilt,
 			// weil ein Typ sich nur über ein Feld, eine Liste, ein Tuple, einen Stream oder eine
 			// Funktion selbst enthalten darf (Circular type definition), nie direkt über Or oder And.
+			// Die Annahme gilt nur innerhalb des umgebenden Vergleichs.
+			resultContext.dependence++;
 			return { assignable: true };
 		}
 		if (isSameAliasApplication(argumentsType, targetType)) {
@@ -3626,6 +3847,7 @@ function isTypeAssignableAtDepth(
 		if (isAliasApplication(argumentsType) || isAliasApplication(targetType)) {
 			// Siehe maxAliasApplicationExpansions: im Zweifel zuweisbar, wie beim Stapel.
 			if (aliasApplicationExpansionsRemaining <= 0) {
+				resultContext.dependence++;
 				return { assignable: undefined };
 			}
 			aliasApplicationExpansionsRemaining--;

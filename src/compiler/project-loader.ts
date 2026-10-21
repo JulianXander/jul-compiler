@@ -1,5 +1,6 @@
 import { existsSync } from 'fs';
 import { CheckOptions, checkTypes, ParsedDocuments } from '../checker/checker.js';
+import { clearTypeCaches } from '../checker/type-algebra.js';
 import { ErrorCode } from '../compiler-errors.js';
 import { parseCode } from '../parser/parser.js';
 import { ParsedFile } from '../syntax-tree.js';
@@ -73,6 +74,7 @@ export function loadFile(
 	host: ProjectHost,
 	code?: string,
 ): ParsedFile | 'notFound' | 'skipped' {
+	clearTypeCaches();
 	return loadFileRecursive(filePath, documents, host, code, new Set());
 }
 
