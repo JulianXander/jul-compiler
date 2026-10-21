@@ -8,10 +8,11 @@ import { checkerStats, resetCheckerStats } from './checker-stats.js';
 import { checkTypes } from './checker.js';
 import { resolvePlaceholders, typeToString } from './type-algebra.js';
 import { errorInfos } from '../compiler-errors.js';
-import { createFileSystemHost, loadFile } from '../compiler/project-loader.js';
+import { createFileSystemHost, createInMemoryHost, loadFile } from '../compiler/project-loader.js';
 import { builtinInvalid, ParsedFile } from '../syntax-tree.js';
 import { parseCode } from '../parser/parser.js';
 import { findInvalidWithoutError } from '../test-util.js';
+import { sequenceFixture, stateMachineFixture } from './stress-fixtures.js';
 
 /**
  * Hält das nutzersichtbare Checker-Verhalten über alle Beispiele fest: inferierter Typ je
@@ -24,6 +25,7 @@ import { findInvalidWithoutError } from '../test-util.js';
 const examplesFolder = resolve(import.meta.dirname, '../../../jul-examples');
 const baselinePath = join(import.meta.dirname, 'checker-snapshot.baseline.txt');
 const statsBaselinePath = join(import.meta.dirname, 'checker-stats.baseline.txt');
+const stressStatsBaselinePath = join(import.meta.dirname, 'checker-stress-stats.baseline.txt');
 
 // test1.jul ist ein Scratch-File zum manuellen Ausprobieren, kein stabiles Beispiel.
 const excludedFiles = ['test1.jul'];
@@ -125,6 +127,34 @@ describe('checker snapshot', () => {
 			.map(([name, count]) => `${name}: ${count}`)
 			.join('\n') + '\n';
 		compareToBaseline(actual, statsBaselinePath);
+	});
+});
+
+/**
+ * Das Zähler-Gate für Muster großer Projekte (stress-fixtures.ts). Die Beispiele oben sind klein:
+ * Ein Ausreißer, der erst bei großen Union-Dictionaries oder tiefem Branching auftritt, bliebe dort
+ * unsichtbar und fiele erst in der Laufzeit eines großen Projekts auf. Ein Sprung der Zähler hier
+ * heißt: dieser Umbau macht ein solches Muster teurer (oder billiger, dann die Baseline ansehen).
+ */
+describe('Zähler-Gate für große Muster', () => {
+	const fixtures = { stateMachine: stateMachineFixture, sequence: sequenceFixture };
+	const checkFixture = (code: string) =>
+		loadFile('fixture.jul', {}, createInMemoryHost({}, { cloneUnchecked: false }), code);
+	it('prüft die Fixtures ohne Diagnosen', () => {
+		Object.entries(fixtures).forEach(([name, code]) => {
+			expect(checkFixture(code).checked?.errors, name).to.deep.equal([]);
+		});
+	});
+	it('matches the stress stats baseline', () => {
+		const lines = Object.entries(fixtures).map(([name, code]) => {
+			resetCheckerStats();
+			checkFixture(code);
+			const counts = Object.entries(checkerStats)
+				.map(([counter, count]) => `${counter}: ${count}`)
+				.join(', ');
+			return `${name}: ${counts}`;
+		});
+		compareToBaseline(lines.join('\n') + '\n', stressStatsBaselinePath);
 	});
 });
 
