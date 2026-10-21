@@ -116,6 +116,19 @@ describe('project-loader', () => {
 		expect(main.checked?.errors).to.deep.equal([]);
 		expect(documents[path('data.json')]?.untyped).to.equal(true);
 	});
+	it('zu große Datendatei wird nicht inferiert, bleibt aber gecheckt für den Emit', () => {
+		const files = {
+			'main.jul': 'data = import(§./data.json§)',
+			'data.json': '[1, 2, 3]',
+		};
+		const { documents } = loadMain(files, {
+			...createCountingHost(files).host,
+			maxTypedFileSize: 5,
+		});
+		const data = documents[path('data.json')]!;
+		expect(data.checked).to.not.equal(undefined);
+		expect(data.checked?.expressions?.[0]?.typeInfo).to.equal(undefined);
+	});
 	it('Datei unter der Grenze behält ihren Typ, ein assume darauf ist überflüssig', () => {
 		const { main } = loadMain({
 			'main.jul': 'data = import(§./data.json§)\nlist = assume(data List(Integer))',

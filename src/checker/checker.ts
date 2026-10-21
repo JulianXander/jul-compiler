@@ -924,6 +924,12 @@ export function checkTypes(
 		? structuredClone(document.unchecked)
 		: document.unchecked;
 	document.checked = checked;
+	// Große Datendateien liefern dem Importeur Any, ihr Typ wird nie gelesen. Der Emitter
+	// braucht für Daten keine typeInfo.
+	if (document.untyped
+		&& isDataFilePath(document.filePath)) {
+		return;
+	}
 	// Die core-lib definiert die builtInSymbols selbst. Bekäme sie sie zusätzlich als oberen
 	// Scope, stünde ihre Symboltabelle zweimal im Stack und jede Definition wäre
 	// alreadyDefinedInUpperScope. Daher ohne Scopes checken, genau wie beim initialen Laden.
@@ -3929,6 +3935,11 @@ export function getCallPurity(
 	argsType: CompileTimeType,
 ): Purity {
 	return getCallPurityInfo(functionType, argsType) === 'pure' ? 'pure' : 'impure';
+}
+
+function isDataFilePath(filePath: string): boolean {
+	const extension = extname(filePath);
+	return extension === Extension.json || extension === Extension.yaml;
 }
 
 /**
