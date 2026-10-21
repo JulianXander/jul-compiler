@@ -21,7 +21,10 @@ import {
 } from './bench-log.js';
 
 /**
- * Wall-Clock Messung von parse + check. Kein Test-Gate, nur Beleg für Umbauten am Checker.
+ * Wall-Clock Messung von parse + check, zweimal: je Datei mit frischem Host (jede Wurzel lädt ihre
+ * ganze Importkette neu, Label 'parse+check') und mit gemeinsamen Dokumenten über alle Wurzeln
+ * (jede Datei wird einmal geparst und gecheckt, wie bei einem CLI-Lauf, Label 'parse+check geteilt').
+ * Kein Test-Gate, nur Beleg für Umbauten am Checker.
  * Aufruf: npm run bench [--save] [--note "grund"] [ordner...]
  * Mit --save wird die Messung an scripts/bench-log-compiler.tsv angehängt, ohne nur verglichen.
  */
@@ -69,12 +72,33 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 		});
 		durations.push(performance.now() - start);
 	}
+	const sharedDurations: number[] = [];
+	for (let run = 0; run < runCount; run++) {
+		const documents = {};
+		const host = createFileSystemHost({ cloneUnchecked: false });
+		const start = performance.now();
+		julFiles.forEach(filePath => {
+			try {
+				loadFile(filePath, documents, host);
+			}
+			catch {
+				// wie oben: nur die Laufzeit zählt
+			}
+		});
+		sharedDurations.push(performance.now() - start);
+	}
 	const target = basename(folder);
 	const machine = getMachine();
-	const results: BenchResult[] = [{
-		label: 'parse+check',
-		values: stats(durations),
-	}];
+	const results: BenchResult[] = [
+		{
+			label: 'parse+check',
+			values: stats(durations),
+		},
+		{
+			label: 'parse+check geteilt',
+			values: stats(sharedDurations),
+		},
+	];
 	const previous = readPrevious(logPath, target, machine);
 
 	console.log(folder);

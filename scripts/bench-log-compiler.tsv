@@ -213,3 +213,11 @@
 2026-10-20 09:08:53	b8b98f3+	-	ADV-DEV-56627	yugioh	parse+check	5	19482.94	20975.77	20975.77	nach lengthOf-Fix (getLengthFromType)
 2026-10-21 06:23:06	155094e	-	ADV-DEV-56627	yugioh	parse+check	5	16515.96	17192.79	17192.79	Neumessung, ruhige Maschine
 2026-10-21 11:36:04	10bf712+	-	ADV-DEV-56627	yugioh	parse+check	5	11540.27	12110.94	12110.94	nach: Interning aller strukturellen Typen (Ids), Ergebnis-Caches, lazy Narrowing, Diskriminator in removeSubtypes
+2026-10-21 11:50:51	-	-	ADV-DEV-56627	yugioh	parse+check	5	17461.90	22616.86	22616.86	vor Umbau: Ausgangsstand 10bf712 (Interning und Caches fehlen)
+2026-10-21 11:50:51	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	2767.01	2899.62	2899.62	vor Umbau: Ausgangsstand 10bf712 (Interning und Caches fehlen)
+2026-10-21 11:52:23	-	-	ADV-DEV-56627	yugioh	parse+check	5	16244.19	16993.37	16993.37	lazy Narrowing und Diskriminator in removeSubtypes
+2026-10-21 11:52:23	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1775.24	1816.27	1816.27	lazy Narrowing und Diskriminator in removeSubtypes
+2026-10-21 11:53:56	-	-	ADV-DEV-56627	yugioh	parse+check	5	16641.31	17615.26	17615.26	wie vorher, dazu Kürzel: Identität in typesOverlap, typeEquals in isTypeAssignable
+2026-10-21 11:53:56	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1593.15	1834.16	1834.16	wie vorher, dazu Kürzel: Identität in typesOverlap, typeEquals in isTypeAssignable
+2026-10-21 11:55:02	-	-	ADV-DEV-56627	yugioh	parse+check	5	11990.83	12535.84	12535.84	nach Umbau: Interning mit Ids, Ergebnis-Caches, Siegel der Funktionsidentität, Leeren je loadFile
+2026-10-21 11:55:02	-	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	901.91	943.76	943.76	nach Umbau: Interning mit Ids, Ergebnis-Caches, Siegel der Funktionsidentität, Leeren je loadFile
