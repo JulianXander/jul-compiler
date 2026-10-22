@@ -1681,8 +1681,8 @@ function numberParser(
 	}
 	return {
 		hasParsed: true,
-			endRowIndex: startRowIndex,
-			endColumnIndex: endColumnIndex,
+		endRowIndex: startRowIndex,
+		endColumnIndex: endColumnIndex,
 		parsed: {
 			type: 'integer',
 			value: BigInt(parsed),
@@ -3968,7 +3968,7 @@ export function getPathFromImport(
 				message: 'arguments missing for import',
 				startRowIndex: importExpression.startRowIndex,
 				startColumnIndex: importExpression.startColumnIndex,
-				endRowIndex: importExpression.endColumnIndex,
+				endRowIndex: importExpression.endRowIndex,
 				endColumnIndex: importExpression.endColumnIndex,
 			}
 		};

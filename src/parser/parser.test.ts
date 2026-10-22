@@ -741,6 +741,29 @@ describe('Parser', () => {
 	it('test-file-import-in-test-file', () => {
 		expectParse('a = import(§./a.test.jul§)', { filePath: 'dummy.test.jul' });
 	});
+	// Die Endzeile des Fehlers ist die Zeile des Ausdrucks, nicht dessen Endspalte.
+	it('import-without-arguments-is-reported-in-its-row', () => {
+		expectParse('a = x.import', {
+			errors: [
+				{
+					code: ErrorCode.endOfCode,
+					message: 'End of code reached while looking for (',
+					startRowIndex: 0,
+					startColumnIndex: 12,
+					endRowIndex: 0,
+					endColumnIndex: 12,
+				},
+				{
+					code: ErrorCode.importArgumentsMissing,
+					message: 'arguments missing for import',
+					startRowIndex: 0,
+					startColumnIndex: 4,
+					endRowIndex: 0,
+					endColumnIndex: 12,
+				},
+			],
+		});
+	});
 	//#endregion Import
 	//#region Index
 	// Indizes sind 1-basiert, 0 ist also nie gültig. Die Meldung soll das sagen und auf
