@@ -240,10 +240,12 @@ function parseJulCode(code: string): ParsedExpressions {
  */
 const brackets = {
 	round: {
+		openingCharacter: '(',
 		closingCharacter: ')',
 		nodeType: 'binding',
 	},
 	square: {
+		openingCharacter: '[',
 		closingCharacter: ']',
 		nodeType: 'data',
 	},
@@ -2917,8 +2919,7 @@ function getOrphanArrowLineMessage(rows: string[], rowIndex: number, extraIndent
  * Die Klammerart bestimmt den Knotentyp: rund = Bindung, eckig = Daten.
  */
 function createBracketedBaseParser(kind: BracketKind): LineParser<ParseBindingExpression | ParseDataExpression> {
-	const { closingCharacter, nodeType } = brackets[kind];
-	const openingCharacter = kind === 'round' ? '(' : '[';
+	const { openingCharacter, closingCharacter, nodeType } = brackets[kind];
 	const multilineParser2 = createBracketedMultilineParser(kind);
 	const inlineParser = createBracketedInlineParser(kind);
 	/**
@@ -3034,8 +3035,7 @@ const orphanCheckedFieldParser = (rows: string[], startRowIndex: number, startCo
 	checkOrphanArrowLine(fieldParser, rows, startRowIndex, startColumnIndex, indent);
 
 function createBracketedMultilineParser(kind: BracketKind): LineParser<(ParseFieldBase | string | undefined)[]> {
-	const { closingCharacter } = brackets[kind];
-	const openingCharacter = kind === 'round' ? '(' : '[';
+	const { openingCharacter, closingCharacter } = brackets[kind];
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		if (!rows[startRowIndex]?.startsWith(openingCharacter, startColumnIndex)) {
 			return tokenFailure(rows, startRowIndex, startColumnIndex, openingCharacter);
@@ -3097,8 +3097,7 @@ interface ParseMissingField {
  * undefined bei fehlendem Feld
  */
 function createBracketedInlineParser(kind: BracketKind): LineParser<(ParseFieldBase | undefined)[]> {
-	const { closingCharacter } = brackets[kind];
-	const openingCharacter = kind === 'round' ? '(' : '[';
+	const { openingCharacter, closingCharacter } = brackets[kind];
 	return (rows, startRowIndex, startColumnIndex, indent) => {
 		if (!rows[startRowIndex]?.startsWith(openingCharacter, startColumnIndex)) {
 			const openingFailure = tokenFailure(rows, startRowIndex, startColumnIndex, openingCharacter);
