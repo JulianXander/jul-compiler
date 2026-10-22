@@ -281,7 +281,6 @@ function isBracketed(expression: { type: string; }): expression is ParseBindingE
 	return expression.type === 'binding'
 		|| expression.type === 'data';
 }
-// SVO InfixFunctionCall: Der Punkt steht zwischen erstem Argument und Funktion.
 
 //#endregion Tokens
 
@@ -2166,9 +2165,6 @@ const returnArrowPurities: { [arrow in ReturnArrow]: Purity } = {
 };
 
 /**
- * Pfeil an columnIndex, gefolgt von Leerzeichen oder Zeilenende.
- */
-/**
  * Rückgabepfeil samt Leerzeichen davor und danach an columnIndex: ' :> ', ' -> ', ' ~> '.
  */
 function getReturnArrowPurity(row: string | undefined, columnIndex: number): Purity | undefined {
@@ -2187,6 +2183,9 @@ function getReturnArrowPurity(row: string | undefined, columnIndex: number): Pur
 	return undefined;
 }
 
+/**
+ * Pfeil an columnIndex, gefolgt von Leerzeichen oder Zeilenende.
+ */
 function getArrowAt(row: string, columnIndex: number): Arrow | undefined {
 	const arrow = row.substring(columnIndex, columnIndex + 2);
 	if (arrow !== '->'
@@ -2322,28 +2321,6 @@ function isFunctionHeadContinued(rows: string[], rowIndex: number, columnIndex: 
 }
 
 /**
- * Parst 0 Zeichen.
- * Passt, wenn die Zeile zu Ende ist und die nächste Zeile eine Ebene tiefer mit einem Pfeil
- * beginnt. Kommentarzeilen auf dieser Ebene dürfen davor stehen, Leerzeilen nicht.
- */
-function functionHeadContinuationPredicate(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<undefined> {
-	const row = rows[startRowIndex];
-	const isContinued = row !== undefined
-		&& startColumnIndex === row.length
-		&& !!findArrowLine(rows, startRowIndex + 1, indent + 1, false);
-	return {
-		hasParsed: isContinued,
-		endRowIndex: startRowIndex,
-		endColumnIndex: startColumnIndex,
-	};
-}
-
-/**
  * Pfeilzeilen unter dem Funktionskopf, eine Ebene tiefer eingerückt als die Zeile, in der der Kopf
  * beginnt.
  */
@@ -2467,29 +2444,6 @@ function arrowLinesParser(
 }
 
 /**
- * Parst 0 Zeichen.
- * Passt, wenn die Zeile mit einem Rückgabepfeil endet (` ->`, ` :>`, ` ~>` ohne Operand dahinter).
- */
-function returnArrowAtEndOfRowPredicate(
-	rows: string[],
-	startRowIndex: number,
-	startColumnIndex: number,
-	indent: number,
-): ParserResult<undefined> {
-	const row = rows[startRowIndex];
-	const arrow = row !== undefined
-		&& row[startColumnIndex] === ' '
-		&& startColumnIndex + 3 === row.length
-		? getArrowAt(row, startColumnIndex + 1)
-		: undefined;
-	return {
-		hasParsed: !!arrow && arrow !== '=>',
-		endRowIndex: startRowIndex,
-		endColumnIndex: startColumnIndex,
-	};
-}
-
-/**
  * Rückgabepfeil am Ende der Kopfzeile ist ungültig. Gemeldet wird er, der Rest wird aber gelesen,
  * als stünde der Pfeil schon am Anfang der nächsten Zeile, damit keine Folgefehler entstehen.
  */
@@ -2594,12 +2548,6 @@ function returnTypeOperandParser(
 }
 
 /**
- * Rückgabetyp in derselben Zeile wie der Pfeil. Erlaubt ist nur eine simpleExpression, sonst wäre
- * nicht entscheidbar, wem ein folgendes => gehört. Branching und Funktionstypen werden trotzdem
- * gelesen und übernommen, damit der Knoten vollständig entsteht, aber mit
- * returnTypeRequiresBlock gemeldet.
- */
-/**
  * Rückgabepfeil, dann eine simpleExpression.
  */
 function returnArrowOperandParser(
@@ -2624,6 +2572,12 @@ function returnArrowOperandParser(
 	};
 }
 
+/**
+ * Rückgabetyp in derselben Zeile wie der Pfeil. Erlaubt ist nur eine simpleExpression, sonst wäre
+ * nicht entscheidbar, wem ein folgendes => gehört. Branching und Funktionstypen werden trotzdem
+ * gelesen und übernommen, damit der Knoten vollständig entsteht, aber mit
+ * returnTypeRequiresBlock gemeldet.
+ */
 function returnTypeInlineParser(
 	rows: string[],
 	startRowIndex: number,
