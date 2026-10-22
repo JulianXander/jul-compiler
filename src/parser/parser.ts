@@ -154,12 +154,13 @@ export function parseCode(
 			parsedExpressions = jsonValueToParsedExpressions(parsedJson);
 			break;
 		}
-		case Extension.jul:
+		case Extension.jul: {
 			parsedExpressions = parseJulCode(code);
 			const imported = getImportedPaths(parsedExpressions.expressions, sourceFolder, isTestFilePath(filePath));
 			parsedExpressions.errors.push(...imported.errors);
 			dependencies = imported.dependencies;
 			break;
+		}
 		case Extension.ts:
 			parsedExpressions = parseTsCode(code, filePath);
 			break;
