@@ -1268,7 +1268,8 @@ function valueExpressionBaseParser(
 	if (endOfCodeError) {
 		return endOfCodeError;
 	}
-	// Branching steht praefix und kann daher nicht hinter der simpleExpression haengen.
+	// Branching (`?` und `:?`) beginnt den Ausdruck und hat keinen linken Operanden. Es wird deshalb
+	// vor der simpleExpression geprüft und nicht wie der Rumpf oder Rückgabepfeil danach angehängt.
 	if (rows[startRowIndex]?.startsWith(':?', startColumnIndex)) {
 		return branchingParser(rows, startRowIndex, startColumnIndex, indent, 'typeBranching');
 	}
