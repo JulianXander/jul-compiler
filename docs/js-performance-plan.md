@@ -55,6 +55,7 @@ dass der Gewinn im echten Lauf ankommt.
    oder persistente Datenstrukturen für große Listen. Erst die Stellen analysieren, an denen die
    Kopien entstehen, und mit einem Test, dass Aliasing nie beobachtbar ist.
    Fixture: `record-update.jul` (`nextTurn`, `nextTwice`, Record mit 12 Feldern).
+   Entwurf und Messung für die in-place-Variante: [backlog/inplace-mutationen.md](backlog/inplace-mutationen.md).
    **Obergrenze der Feld-Ausschreibung gemessen** (Mikro-Messung, 5 Mio. Updates, 12 Felder, zwei Formen im
    Umlauf): `{...s, turn}` 133 bis 155 ms, ausgeschriebenes Literal `{turn, phase: s.phase, ...}` 89 bis 92 ms,
    also etwa 40 % je Update. Auf die 11 % im yugioh-Profil angewandt wären das höchstens etwa 4 % am Match.
