@@ -22,6 +22,7 @@ import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
 import { getCheckedEscapableName, getTestCallArguments } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
+import { classifyCopySource, copyingBuiltinNames } from './copy-sites.js';
 
 const runtimeKeys = Object.keys(runtime);
 const testRuntimeKeys = Object.keys(testRuntime);
@@ -46,6 +47,11 @@ let instrumentedTestCall: ParseExpression | undefined;
  * functionLiteralToEvaluableJs emittiert ohne Marker.
  */
 let emitSourcePositions = false;
+/**
+ * Messinstrument, siehe countCopyJs.
+ */
+const countCopies = typeof process !== 'undefined'
+	&& process.env['JUL_COUNT_COPIES'] === '1';
 //#region source map
 
 /**
@@ -330,7 +336,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 					return singleDictionaryFieldToJs(field.name, valueJs);
 				}
 				else {
-					return spreadDictionaryFieldToJs(valueJs);
+					return spreadDictionaryFieldToJs(countCopyJs(valueJs, field.value, expression, 'dictSpread'));
 				}
 			}), indent);
 		}
@@ -400,7 +406,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list': {
-			const jsValues = parseListValuesToJs(expression.values, indent);
+			const jsValues = parseListValuesToJs(expression.values, indent, expression);
 			return listToJs(jsValues, indent);
 		}
 		case 'nestedReference': {
@@ -446,11 +452,16 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 	}
 }
 
-function parseListValuesToJs(values: NonEmptyArray<ParseListValue>, indent: number): string[] {
+/**
+ * listLiteral nur für ein List-Literal, nicht für Argumentlisten: Nur dort kopiert ein Spread.
+ */
+function parseListValuesToJs(values: NonEmptyArray<ParseListValue>, indent: number, listLiteral?: ParseExpression): string[] {
 	const innerIndent = indent + 1;
 	const jsValues = values.map(value => {
 		const valueJs = value.type === 'spread'
-			? `...${expressionToJs(value.value, innerIndent)} ?? []`
+			? `...${listLiteral
+				? countCopyJs(expressionToJs(value.value, innerIndent), value.value, listLiteral, 'listSpread')
+				: expressionToJs(value.value, innerIndent)} ?? []`
 			: expressionToJs(value, innerIndent);
 		return valueJs;
 	});
@@ -1004,8 +1015,14 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 	}
 	const args = expression.arguments;
 	const prefixArgument = expression.prefixArgument;
+	const copyingBuiltinName = functionExpression.type === 'reference'
+		&& copyingBuiltinNames.has(functionExpression.name.name)
+		? functionExpression.name.name
+		: undefined;
 	const prefixArgJs = prefixArgument
-		? expressionToJs(prefixArgument, indent)
+		? copyingBuiltinName
+			? countCopyJs(expressionToJs(prefixArgument, indent), prefixArgument, expression, copyingBuiltinName)
+			: expressionToJs(prefixArgument, indent)
 		: 'undefined';
 	if (isNamedFunction(functionExpression, 'assume')) {
 		if (prefixArgument) {
@@ -1048,8 +1065,13 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 	switch (args?.type) {
 		case 'list': {
 			const jsValues = parseListValuesToJs(args.values, indent);
+			const firstValue = args.values[0];
 			if (prefixArgument) {
 				jsValues.unshift(prefixArgJs);
+			}
+			else if (copyingBuiltinName
+				&& firstValue.type !== 'spread') {
+				jsValues[0] = countCopyJs(jsValues[0]!, firstValue, expression, copyingBuiltinName);
 			}
 			const valuesJs = listValuesToJs(jsValues, indent);
 			return `${functionJs}(${valuesJs})`;
@@ -1410,6 +1432,20 @@ function singleDictionaryFieldToJsInternal(
 
 function spreadDictionaryFieldToJs(valueJs: string): string {
 	return `...${valueJs}`;
+}
+
+/**
+ * Mit JUL_COUNT_COPIES=1 beim Build läuft die Quelle jeder Kopierstelle durch einen Zähler, den
+ * scripts/count-copies.mjs setzt. Messinstrument für docs/backlog/inplace-mutationen.md.
+ */
+function countCopyJs(valueJs: string, source: ParseExpression, copyExpression: ParseExpression, kind: string): string {
+	if (!countCopies
+		|| !useTypeInfo) {
+		return valueJs;
+	}
+	const category = classifyCopySource(source, copyExpression);
+	const site = `${sourceFilePath}:${copyExpression.startRowIndex + 1}:${kind}:${category}`;
+	return `globalThis._julCountCopy(${stringToJs(site)}, ${valueJs})`;
 }
 
 function escapeStringForBacktickJs(value: string): string {
