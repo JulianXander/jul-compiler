@@ -135,7 +135,7 @@ Eine allgemeine Regel mit Ausnahmenliste ist teurer als eine strengere Regel ohn
 
 #### Beispiele
 
-- **Typen und Länge:** Tupel in ihrer Länge exakt zu machen wäre die Ausnahme — Dictionaries lassen überzählige Felder zu, `f(1 2)` und `f(a = 1 b = 2)` sind derselbe Aufruf. Stattdessen: Ein Typ nennt Anforderungen, kein vollständiges Bild.
+- **Typen und Länge:** Ein Record-Typ und eine Parameterliste nennen Anforderungen und lassen mehr zu — `f(1 2)` und `f(a = 1 b = 2)` sind derselbe Aufruf. Ein Tupeltyp ist geschlossen: Er hat genau die Länge, die er nennt. Ein Feld hat einen Namen, ein weiteres Feld ändert die Bedeutung der übrigen nicht. Bei einem Tupel hängt dagegen alles an der Gestalt: Länge, Index und die Elemente, die ein Spread oder `map` sieht. Als offene Anforderung widersprach sich der Tupeltyp: Der Checker machte `List(X)` zur Teilmenge von `[X]`, rechnete mit der Länge aber exakt weiter, sodass eine Union aus `[n]` und einer `List` danach die Länge 1 hatte.
 - **Checker-Helfer:** Fünf separate Funktionen (`getElement`, `lastElement`, `length`, `setElement`, `map`), die alle über `Or` verteilen und bei Unbekanntem zurückfallen — war eine Ausnahmenliste. Richtig wäre ein Konstrukt statt fünf Fällen.
 - **Klammer-Regel:** rund = Bindungsstelle, eckig = Daten — ausnahmslos.
 - **Keine Magie für Typen:** Was für Typen gebraucht wird, wird zuerst als gewöhnlicher Wert bzw. gewöhnliche Funktion versucht, statt einer Ausnahme extra Typ-Syntax zu geben. `Or`, `And`, `Not`, `TypeOf`, `Without` sind normale Funktionen, nicht Syntax. Bedingte Typen sind heute schon ausdrückbar, aber nur als `Or(And(And(TypeOf(a) Integer) …) …)` — unbenutzbar. Erst wenn das unlesbar bleibt, ist die Ausnahme (neue Syntax) gerechtfertigt (Schwelle, an der `:?` gerade steht).
@@ -191,7 +191,7 @@ Sie tun es regelmäßig. Die bisher praktizierte Rangfolge (daraus ergibt sich d
 1. **Ist-Zustand am Code beschreiben**, nicht aus der Erinnerung. Beim Auto-Spread im Branching
    stellte sich heraus, dass `isRealObject` etwas anderes prüfte als gemeint war. Dazu gehört,
    die **benachbarten Konstrukte danebenzulegen**: Ob an einem Konstrukt etwas fehlt oder ob dort
-   die Regel der Sprache steht, sieht man erst im Vergleich. Bei der Tupel-Länge sah „zu kurz
+   die Regel der Sprache steht, sieht man erst im Vergleich. Bei der Argumentliste sah „zu kurz
    meldet, zu lang nicht" nach einer Lücke aus — bis Dictionary und Parameterliste danebenlagen
    und dasselbe taten.
 2. **Die begrenzende Randbedingung vorab benennen**, sonst wird eine Option diskutiert, die es
