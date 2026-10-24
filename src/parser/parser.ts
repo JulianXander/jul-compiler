@@ -60,7 +60,7 @@ import {
 	setParentsRecursive,
 } from './parser-utils.js';
 import { basename, dirname, extname, join } from 'path';
-import { _parseJson, normalizeRational } from '../runtime/runtime.js';
+import { _parseJson, JsonValue, normalizeRational } from '../runtime/runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
 
@@ -121,9 +121,15 @@ export function parseFile(filePath: string): ParsedFile {
 	return result;
 }
 
+/**
+ * untyped: Die Datei ist zu groß für einen Typ (siehe maxTypedFileSize). Eine Datendatei
+ * (.json, .yaml) bekommt dann keinen Syntaxbaum: Niemand liest ihn, der Emitter arbeitet vom
+ * geparsten Wert (ParsedFile.jsonValue).
+ */
 export function parseCode(
 	code: string,
 	filePath: string,
+	untyped?: boolean,
 ): ParsedFile {
 	const extension = extname(filePath);
 	if (!isValidExtension(extension)) {
@@ -132,6 +138,7 @@ export function parseCode(
 	const sourceFolder = dirname(filePath);
 	let parsedExpressions: ParsedExpressions;
 	let dependencies: ImportedDependency[] | undefined;
+	let jsonValue: JsonValue | undefined;
 	switch (extension) {
 		case Extension.js:
 			parsedExpressions = parseTsCode(code, filePath);
@@ -152,6 +159,11 @@ export function parseCode(
 				};
 				break;
 			}
+			if (untyped) {
+				jsonValue = parsedJson;
+				parsedExpressions = { errors: [] };
+				break;
+			}
 			parsedExpressions = jsonValueToParsedExpressions(parsedJson);
 			break;
 		}
@@ -166,6 +178,10 @@ export function parseCode(
 			parsedExpressions = parseTsCode(code, filePath);
 			break;
 		case Extension.yaml: {
+			if (untyped) {
+				parsedExpressions = { errors: [] };
+				break;
+			}
 			// TODO bigints, Fractions
 			const parsedYaml = load(code);
 			parsedExpressions = jsonValueToParsedExpressions(parsedYaml as any);
@@ -193,6 +209,7 @@ export function parseCode(
 			ignoreComments: ignoreComments,
 		},
 		dependencies: dependencies,
+		jsonValue: jsonValue,
 	};
 }
 

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { parseCode } from '../parser/parser.js';
 import { checkTypes } from '../checker/checker.js';
-import { errorInfos } from '../compiler-errors.js';
-import { functionLiteralToEvaluableJs, getUsedRuntimeNames, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
+import { ErrorCode, errorInfos } from '../compiler-errors.js';
+import { functionLiteralToEvaluableJs, getUsedRuntimeNames, jsonValueToJs, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
 import { ParseFunctionLiteral, ParseSingleDefinition } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
 import * as runtime from '../runtime/runtime.js';
@@ -1376,5 +1376,51 @@ describe('Emitter all, findFirst und aggregate als Schleife', () => {
 		const code = `${listOf3}\nsum = (accumulator value) => add(accumulator value)\nresult = values.aggregate(Rational 0 sum)`;
 		expect(emitChecked(code)).to.not.contain('_listValues');
 		expect(runEmitted(code, 'result')).to.equal(6n);
+	});
+});
+
+describe('Emitter untypisiertes JSON', () => {
+	function evaluateDefaultExport(js: string): unknown {
+		return new Function(`return ${js.replace(/^export default /, '')}`)();
+	}
+
+	// Der Baum ist die Referenz: die untypisierte Datei muss zur Laufzeit dieselben Werte liefern.
+	const expectSameValue = reportAtCaller((json: string) => {
+		const fromTree = syntaxTreeToJs(parseCode(json, 'data.json').unchecked.expressions!, '', 'data.json');
+		const untyped = parseCode(json, 'data.json', true);
+		expect(untyped.unchecked.expressions).to.equal(undefined);
+		const direct = jsonValueToJs(untyped.jsonValue);
+		expect(evaluateDefaultExport(direct)).to.deep.equal(evaluateDefaultExport(fromTree));
+	});
+
+	it('Integer', () => {
+		expectSameValue('5');
+	});
+	it('großer Integer bleibt exakt', () => {
+		expectSameValue('[12345678901234567890]');
+	});
+	it('Bruch und Exponent', () => {
+		expectSameValue('[0.1, 1.50, 1e3, -2.5e-2]');
+	});
+	it('Text mit Anführungszeichen, Umbruch, Backtick und Backslash', () => {
+		expectSameValue(JSON.stringify(['a"b', 'x' + String.fromCharCode(10) + 'y', '`', String.fromCharCode(92)]));
+	});
+	it('Text mit Platzhalter-Syntax bleibt Text', () => {
+		const text = '$' + '{x}';
+		const untyped = parseCode(JSON.stringify([text]), 'data.json', true);
+		expect(evaluateDefaultExport(jsonValueToJs(untyped.jsonValue))).to.deep.equal([text]);
+	});
+	it('true, false, null', () => {
+		expectSameValue('[true, false, null]');
+	});
+	it('leere Liste und leeres Objekt', () => {
+		expectSameValue('{"a": [], "b": {}, "c": [[]]}');
+	});
+	it('verschachtelt', () => {
+		expectSameValue('{"a": {"b": [1, {"c": "d"}]}, "e": [true]}');
+	});
+	it('ungültiges JSON meldet weiter invalidJson', () => {
+		const untyped = parseCode('[1,', 'data.json', true);
+		expect(untyped.unchecked.errors.map(error => error.code)).to.deep.equal([ErrorCode.invalidJson]);
 	});
 });

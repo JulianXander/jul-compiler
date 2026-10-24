@@ -107,8 +107,9 @@ function loadFileRecursive(
 		}
 		sourceCode = readResult.code;
 	}
-	const parsed = parseCode(sourceCode, filePath);
-	if (sourceCode.length > (host.maxTypedFileSize ?? maxTypedFileSize)) {
+	const untyped = sourceCode.length > (host.maxTypedFileSize ?? maxTypedFileSize);
+	const parsed = parseCode(sourceCode, filePath, untyped);
+	if (untyped) {
 		parsed.untyped = true;
 	}
 	documents[filePath] = parsed;

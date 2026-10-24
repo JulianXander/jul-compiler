@@ -16,6 +16,7 @@ import {
 } from '../syntax-tree.js';
 import { Positioned } from '../compiler-errors.js';
 import * as runtime from '../runtime/runtime.js';
+import type { JsonValue } from '../runtime/runtime.js';
 import * as testRuntime from '../runtime/test-runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from '../util.js';
 import { extname, isAbsolute } from 'path';
@@ -169,6 +170,43 @@ export function syntaxTreeToJs(
 	testRuntimeImportPath: string = '',
 ): string {
 	return syntaxTreeToJsWithMappings(expressions, runtimeImportPath, filePath, testRuntimeImportPath).js;
+}
+
+/**
+ * Das JS einer untypisierten .json-Datei, ohne Umweg über einen Syntaxbaum. Dieselben Werte wie
+ * der Baum aus jsonValueToParsedExpressions: Integer als bigint, Brüche und Dictionaries als
+ * Objekte, null und leere Kollektionen als undefined.
+ */
+export function jsonValueToJs(value: JsonValue): string {
+	return `export default ${jsonValueToJsExpression(value)}`;
+}
+
+function jsonValueToJsExpression(value: JsonValue | null): string {
+	switch (typeof value) {
+		case 'bigint':
+			return `${value}n`;
+		case 'boolean':
+			return '' + value;
+		case 'string':
+			// Ein JSON-String-Literal ist auch ein gültiges JS-Literal.
+			return JSON.stringify(value);
+		case 'object': {
+			if (value === null) {
+				return 'undefined';
+			}
+			if (Array.isArray(value)) {
+				return `[${value.map(jsonValueToJsExpression).join(',')}]`;
+			}
+			const fieldsJs = Object.entries(value).map(([key, fieldValue]) => {
+				return `${JSON.stringify(key)}:${jsonValueToJsExpression(fieldValue)}`;
+			});
+			return `{${fieldsJs.join(',')}}`;
+		}
+		case 'undefined':
+			return 'undefined';
+		default:
+			throw new Error(`Unexpected jsonValue type: ${typeof value}`);
+	}
 }
 
 /**

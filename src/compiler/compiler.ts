@@ -5,7 +5,7 @@ import { RawSourceMap, SourceMapGenerator } from 'source-map';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { format } from 'util';
 import webpack from 'webpack';
-import { SourceMapping, syntaxTreeToJsWithMappings } from './emitter.js';
+import { SourceMapping, jsonValueToJs, syntaxTreeToJsWithMappings } from './emitter.js';
 import { shakeRuntime } from '../runtime/runtime-shaking.js';
 import { _runTests, TestLocation, TestResult } from '../runtime/test-runtime.js';
 import { ParsedDocuments } from '../checker/checker.js';
@@ -639,6 +639,13 @@ function emitToJs(
 		case Extension.json:
 		// parse json and write to js in output folder
 		case Extension.jul: {
+			if (parsed.untyped
+				&& extension === Extension.json) {
+				// Kein Syntaxbaum, das JS entsteht direkt aus dem geparsten Wert.
+				compiled = jsonValueToJs(parsed.jsonValue);
+				outFilePath = join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
+				break;
+			}
 			// checked trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht
 			const expressions = (parsed.checked ?? parsed.unchecked).expressions ?? [];
 			const emitted = syntaxTreeToJsWithMappings(expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath);

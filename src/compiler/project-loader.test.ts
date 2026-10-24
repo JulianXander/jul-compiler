@@ -116,7 +116,7 @@ describe('project-loader', () => {
 		expect(main.checked?.errors).to.deep.equal([]);
 		expect(documents[path('data.json')]?.untyped).to.equal(true);
 	});
-	it('zu große Datendatei wird nicht inferiert, bleibt aber gecheckt für den Emit', () => {
+	it('zu große Datendatei bekommt keinen Syntaxbaum und wird nicht inferiert', () => {
 		const files = {
 			'main.jul': 'data = import(§./data.json§)',
 			'data.json': '[1, 2, 3]',

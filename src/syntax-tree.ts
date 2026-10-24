@@ -1,4 +1,5 @@
 import { CompilerError, Positioned } from './compiler-errors.js';
+import type { JsonValue } from './runtime/runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
 export interface ParsedFile {
@@ -23,6 +24,11 @@ export interface ParsedFile {
 	 * statt des Typs. Die Datei selbst wird trotzdem geladen, damit der Emitter sie hat.
 	 */
 	untyped?: boolean;
+	/**
+	 * Nur bei einer untypisierten .json: der geparste Wert statt eines Syntaxbaums. Der Emitter
+	 * erzeugt das JS direkt daraus (jsonValueToJs).
+	 */
+	jsonValue?: JsonValue;
 }
 
 export interface ImportedDependency {
