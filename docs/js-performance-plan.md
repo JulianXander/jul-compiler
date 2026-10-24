@@ -1,95 +1,93 @@
 # Plan: Laufzeit-Performance des JS-Backends
 
-Entwurf, keine Entscheidung. Ziel: KI-Simulationen wie in `C:\Projects\privat\yugioh` schneller
-machen, ohne WebAssembly. Das Profil der Lookahead-KI steht in
-[backlog/profil-yugioh-lookahead.md](backlog/profil-yugioh-lookahead.md): Die Zeit steckt in
-Objektallokation und Objektzugriffen, nicht in Zahlen. BigInt macht unter 1 % aus.
+Entwurf, keine Entscheidung. Ziel: möglichst schnelles JS aus unverändertem JUL-Code, ohne neue Syntax,
+gemessen an den KI-Simulationen in `C:\Projects\privat\yugioh`. Das erste Profil der Lookahead-KI steht in
+[backlog/profil-yugioh-lookahead.md](backlog/profil-yugioh-lookahead.md).
 
 ## Erledigt
 
-- **Profilierung** (Phase 1). `--trace-gc` und `--heap-prof` wurden nicht gebraucht, die BigInt-Fixture
-  entfällt, weil das V8-Profil BigInt schon als Nebensache zeigt.
-- **Benannte Argumente als direkte Aufrufe, `params` nur wo nötig.** Entscheidung und Umsetzung in
-  [backlog/typed-emission.md](backlog/typed-emission.md) (feste Argumentreihenfolge). Nur Branches,
-  Typ-Köpfe und Parametertypen tragen noch `params`, alle anderen Funktionsliterale sind nackte Arrows.
-  `_callFunction` und `assignArgs` gibt es nicht mehr.
+| Schritt | Gewinn im yugioh-Match |
+|---|---|
+| Benannte Argumente als direkte Aufrufe, `params` nur wo die Laufzeit sie liest ([backlog/typed-emission.md](backlog/typed-emission.md)) | −9,8 % |
+| Branching-Diskriminatoren statt `_branch` mit vollem Typcheck (ebenda) | Fixtures um Faktor 500 bis 1000 |
+| Listenfunktionen mit Funktionsliteral als Schleife an der Aufrufstelle (`inlinedListCallToJs`: `exists`, `filter`, `map`, `filterMap`, `all`, `findFirst`, `aggregate`) | −15,6 % |
+| History aus der Spiellogik entfernt (in yugioh, ohne Compiler-Änderung, [backlog/inplace-mutationen.md](backlog/inplace-mutationen.md)) | −5,6 % |
 
-| Messung | Ausgangslage | jetzt |
+**Gemessen, kein Gewinn:**
+- `equal`, `not` und `getElement` direkt ausschreiben: V8 inlinet die Wrapper selbst.
+- `add` mit Rest-Parametern und `reduce` gegen direktes `a + b`: im Mikrotest 25 gegen 14 ms je 2 Mio. Aufrufe, im Match bedeutungslos.
+- Den Index nur bilden, wenn der Callback ihn nimmt (`fn.length`): langsamer, der Zugriff auf `length` kostet mehr als der BigInt.
+- Records im Spread ausgeschriebenes Literal statt `{...s, turn}`: höchstens etwa 4 % am Match und semantisch falsch, weil ein Wert mehr Felder haben darf, als sein Typ nennt.
+- Stufe 1 der In-place-Mutation (frische lokale Werte): nur 0,2 % der kopierten Felder.
+
+## Profil
+
+Tick-Profil (`--prof`), aufgenommen am 24.10.2026 mit Node 24.19 auf yugioh `cb16121`. Gemessen wurde `node out-bench/bundle.js 1 lookahead greedy`. Unter Windows kamen nur etwa 1000 Ticks zustande, die Anteile passen aber zum früheren Profil mit 11,6 Mio. Ticks.
+
+| Anteil | Posten | Ursache |
 |---|---|---|
-| `bench-runtime` `callbacks/countSmall` (ms je 1 Mio.) | 95 | 60 bis 62 |
-| yugioh Match (3 Läufe, Median) | 7,74 s | 6,98 s (-9,8 %) |
+| etwa 10,5 % | `LoadIC_Megamorphic`, `LoadICTrampoline_Megamorphic` | Objekte desselben Typs in vielen Hidden Classes, siehe unten |
+| etwa 8 % | `CreateDataProperty`, `CloneObjectIC(_Slow)`, `DefineNamedOwnIC` | Spread-Kopien in Zustandsupdates. Den langsamen Pfad wählt V8 auch wegen der wechselnden Formen. |
+| etwa 4,5 % | `ArrayPrototypeFlatMap`, `FlattenIntoArrayWithoutMapFn` | `flatten` in der Runtime (`values.flatMap(...)`), in V8 ein C++-Pfad. Aufrufer: `getController`, `evaluateCardQuery`, Synchro-Materialien. |
+| etwa 5,4 % | GC | |
+| etwa 2,4 % | `StrictEqual` | `===` auf BigInt |
+| etwa 2,1 % | `getSearchKey` | Schlüssel der Transpositionstabelle in der KI, Nutzercode |
+| etwa 1,4 % | `FastNewClosure` | Branches als sofort aufgerufene Arrows, verbliebene Callbacks |
 
-- **Listenfunktionen mit Funktionsliteral als Schleife** (`exists`, `filter`, `map`, `filterMap`). Der Emitter
-  schreibt den Aufruf als sofort aufgerufene Schleife an der Aufrufstelle aus: keine Callback-Closure, der
-  Index nur, wenn das Literal ihn als zweiten Parameter nimmt (`inlinedListCallToJs`). Callbacks als Wert,
-  mit Typ-Guard, Rest oder mehr als zwei Parametern bleiben Funktionsaufrufe. Gemessen im yugioh-Match
-  (vier abwechselnde Läufe, Median): 7,68 s ohne, 6,79 s mit nur `exists` (-11,6 %), 6,48 s mit allen vier
-  (-15,6 %). Fixture `list-search/containsBoth`: 50,8 auf 29,9 ms. `all`, `findFirst` und `aggregate` laufen
-  über dasselbe Gerüst, brachten aber keinen messbaren Zusatzgewinn (Median 6,45 s gegen 6,47 s, vier
-  abwechselnde Läufe), weil sie im Match selten sind.
-
-**Profil nach den Schleifen** (Tick-Profil `--prof`, 11,6 Mio. Ticks, Match 6,0 s). Der Anteil von `runtime.js`
-sank von 24,2 auf 17,2 %, `game-logic.js` steht bei 57 % und ist flach. Die Builtins von V8:
-
-| Anteil | Builtin | Herkunft |
-|---|---|---|
-| etwa 10,7 % | `CreateDataProperty`, `CloneObjectIC(_Slow)`, `DefineNamedOwnIC` | Objekt-Spread in Zustandsupdates, verteilt auf `apply`, `declineOptionalEventTriggers`, `passPrioOrAdvance`, `updatePendingTriggers`, `moveCardsToGraveRaw` (je 0,3 bis 1,0 %) |
-| etwa 10,3 % | `LoadIC_Megamorphic`, `LoadICTrampoline_Megamorphic`, `KeyedLoadIC` | Feldzugriffe auf Objekte mit wechselnder Form, breit verteilt (größter Einzelposten 0,74 %) |
-| 2,8 % | `StrictEqual` | `===` auf BigInt in `getActivationInputs` und seinen Callbacks |
-| 5,1 % + 2,8 % | `getField`, `getElement` | Kartenschlagen über dynamischen Schlüssel (`getCardEffect`, `getCardDataFromDataId`, `getGameCard`) |
-| 4,1 % + 1,8 % | GC, `FastNewClosure` | Rest-Closures |
-
-Kein einzelner Aufrufer liegt über etwa 1 %. Aufrufe von `equal`, `not` und `getElement` direkt auszuschreiben
-brachte nichts (V8 inlinet die Wrapper selbst), die einfachen Emitter-Gewinne sind damit ausgeschöpft.
-Was bleibt, hängt an der Form der Objekte oder an Datenstrukturen, nicht an der Emission.
+**Hidden Classes** (`--log-ic` sowie Zählung der Schlüsselfolgen am Eingang von `applyToGameState`):
+- **GameState** hat 78 verschiedene Schlüsselfolgen, Zugriffsstellen auf `boards` und `turnPlayer` sehen je 87 Maps.
+- **Karten** haben 23 Formen mit 5 bis 18 Feldern.
+- **Ursache** ist nicht die Feldreihenfolge in den Literalen. Optionale Felder fehlen in manchen Objekten und kommen in anderen per Spread hinzu, in wechselnder Reihenfolge. Bei GameState betrifft das `resolvingEffectStepIndex`, `winner` und `chain`, bei Karten `face`, `battlePosition`, `def`, `level` und `effectsNegated`.
+- **Am häufigsten megamorph** sind die Zugriffe auf `boards`, `priority`, `chain`, `turnPlayer`, `cards` und `pendingSummon`.
 
 ## Offen, nach erwartetem Gewinn geordnet
 
-Je Punkt: Erst die Fixture in `scripts/bench-runtime` auf dem ungeänderten Compiler messen und mit
-`--save` protokollieren, dann die Änderung. Der yugioh-Bench streut um etwa 10 % und bestätigt danach nur,
-dass der Gewinn im echten Lauf ankommt.
+Je Punkt erst die Fixture in `scripts/bench-runtime` auf dem ungeänderten Compiler messen und mit
+`--save` protokollieren, dann ändern. Der yugioh-Bench streut um etwa 10 % und bestätigt danach nur,
+dass der Gewinn im echten Lauf ankommt. Gewinne unter etwa 5 % lassen sich dort nur mit mehreren
+abwechselnden Läufen nachweisen.
 
-1. **Spread-Kopien in Zustandsupdates reduzieren.** Etwa 11 % im Profil (`CreateDataProperty`,
-   `CloneObjectIC_Slow`), größter Aufrufer `declineOptionalEventTriggers`. Kandidaten: Updates im Emitter
-   in-place, wenn der alte Wert nachweislich nicht mehr gelesen wird (letzte Verwendung, kein Alias),
-   oder persistente Datenstrukturen für große Listen. Erst die Stellen analysieren, an denen die
-   Kopien entstehen, und mit einem Test, dass Aliasing nie beobachtbar ist.
-   Fixture: `record-update.jul` (`nextTurn`, `nextTwice`, Record mit 12 Feldern).
-   Entwurf und Messung für die in-place-Variante: [backlog/inplace-mutationen.md](backlog/inplace-mutationen.md).
-   **Obergrenze der Feld-Ausschreibung gemessen** (Mikro-Messung, 5 Mio. Updates, 12 Felder, zwei Formen im
-   Umlauf): `{...s, turn}` 133 bis 155 ms, ausgeschriebenes Literal `{turn, phase: s.phase, ...}` 89 bis 92 ms,
-   also etwa 40 % je Update. Auf die 11 % im yugioh-Profil angewandt wären das höchstens etwa 4 % am Match.
-   Zusätzlich semantisch nicht sicher: Ein Wert darf mehr Felder haben als sein Typ nennt, das Ausschreiben
-   würde sie verlieren. Nur mit dem Beweis, dass der Wert genau die Typfelder hat, zulässig. Daher nicht
-   umgesetzt, bevor ein Weg gefunden ist, der Spread-Aufrufer ohne Typannahme beschleunigt.
-2. **Megamorphe Feldzugriffe.** Etwa 9 % im Profil (`LoadIC_Megamorphic`), vor allem in
-   `applyContinuousEffectsForPlayer`. Offen, ob der Emitter Objekte mit gleicher Feldreihenfolge und
-   vollständigen Feldern erzeugen kann (stabile Hidden Classes).
-   Fixture: `field-access.jul` (`unitScore`, Feld `hp` in vier Formen).
-3. **Index nur bilden, wenn der Callback ihn nimmt: gemessen, kein Gewinn, zurückgenommen.** Umgesetzt war
-   `callback.length === 1 ? callback(value) : callback(value, BigInt(index + 1))` in den elf HOFs von `runtime.ts`.
-   Gemessen im yugioh-Match, abwechselnd gebaut: 7,1 bis 7,5 s ohne die Änderung, 7,6 bis 8,4 s mit ihr
-   (zweite Variante mit einmal je Aufruf berechnetem `takesIndex`: 8,0 bis 9,3 s, unvollständig umgesetzt).
-   Der BigInt je Element ist also billig, der Zugriff auf `fn.length` teuer (vermutlich ein Accessor auf
-   Funktionsobjekten mit wechselnder Form). Fixture `callbacks.jul` (`sumWithIndex` gegen `sumWithoutIndex`)
-   bleibt als Vergleich. Ein neuer Versuch bräuchte ein anderes Merkmal als `length`, etwa vom Emitter
-   gesetzt, und ist nach diesem Ergebnis nicht aussichtsreich.
-4. **Typgestützte Emission, Rest.** `_branch` mit mehreren Argumenten, wo korrekt ableitbar (im Profil
-   1,8 Mio. Aufrufe je Match), und Aufrufe bekannter Builtins direkt auf die native Implementierung. Fixtures: `branching`, `named-arguments`.
-5. **Worker-Parallelisierung der Simulationen.** Unabhängige Läufe auf `worker_threads` verteilen,
-   unabhängig vom Compiler und vermutlich der größte Hebel für die Paare-Läufe. Braucht eine Entscheidung
-   auf Sprachebene (Builtin, Library oder Tooling von außen). Zunächst als Mess-Experiment in
-   `scripts/` ohne Sprachänderung: dieselbe kompilierte Funktion in N Workern.
-6. **`params` der Builtins entfernen.** Rund 540 `_createFunction`-Aufrufe in `runtime.ts`, Vorbedingungen
-   stehen im `TODO`. Nur Ladezeit und Bundle-Größe, kein Gewinn im Lauf erwartet.
+1. **Stabile Objektformen: geschätzt 5 bis 12 %.**
+   - **Idee:** Der Emitter schreibt jedes Dictionary-Literal mit bekanntem Typ vollständig und in Typreihenfolge aus und setzt fehlende optionale Felder auf `undefined`. Ein späterer Spread überschreibt dann nur noch und hängt nichts an, die Hidden Class bleibt gleich.
+   - **Gewinn:** Die megamorphen Zugriffe werden weitgehend monomorph. Die Spread-Kopien können den schnellen Pfad von `CloneObjectIC` nutzen.
+   - **Haken 1, die Semantik:** Heute unterscheidet `deepEqual` zwischen „Feld fehlt“ und „Feld ist Empty“ (`isDeepEqual` in `runtime.ts`). Dasselbe gilt für alles, was über Schlüssel iteriert: `mapDictionary`, `findField`, `findKey` und die Textausgabe. Nötig ist also die Sprachentscheidung, dass ein Feld mit Empty einem fehlenden gleichsteht. Danach überspringen diese Builtins `undefined`.
+   - **Haken 2, nicht normierte Quellen:** Objekte aus JSON- und TS-Importen sowie aus `setField` mit neuem Schlüssel bleiben unnormiert. Ein Rest an Polymorphie bleibt.
+   - **Haken 3, größere Objekte:** Karten hätten immer 18 statt 5 bis 11 Felder, jede Kopie wird etwas teurer.
+   - **Vorgehen:** erst ein Prototyp hinter einem Env-Flag im Emitter (wie `JUL_COUNT_COPIES`), der die Spanne im Match misst. Die Semantik wird erst danach entschieden.
+   - Fixture: `field-access.jul` (`unitScore`, Feld `hp` in vier Formen).
+2. **Langsame Array-Builtins in der Runtime ersetzen: geschätzt 3 bis 4 %.**
+   - `flatten` als Schleife statt `flatMap`. Mikrotest mit 2 Mio. Aufrufen auf kleinen Listen: 250 ms gegen 60 ms.
+   - `_combineObject` (Verkettung `[...a ...b]`) ohne Rest-Parameter, `filter` und `concat`. Mikrotest für zwei Listen: 160 ms gegen 45 ms. Das Gewicht im Match ist klein. Ist der Typ als List bekannt, kann der Emitter direkt eine Listenverkettung schreiben.
+   - Die übrigen Builtins, die yugioh importiert, auf dieselben Muster durchsehen (`flatMap`, `reduce`, `concat` mit Spread, `Object.assign`).
+   - Reine Runtime-Änderung ohne Semantikfrage.
+3. **Branches ohne sofort aufgerufene Arrows: geschätzt 1 bis 3 %.**
+   - Heute erzeugt jeder Branch `(() => { return x })()`, und ein Argument ohne Referenz wird zu `((_arg) => …)(y)`.
+   - Besteht ein Branch nur aus einem Ausdruck, kommt dieser direkt in die `?:`-Kette. An Statement-Position wird daraus `if`/`else` mit Blöcken.
+   - TurboFan inlinet die Arrows im optimierten Code meist ohnehin. Der Gewinn liegt in der Aufwärmphase, bei den Closure-Allokationen und in der Codegröße.
+   - Fixture: `branching`.
+4. **In-place für den Akkumulator von `aggregate`: geschätzt 1 bis 3 %.**
+   - Den Startwert einmal kopieren, danach in-place weiterarbeiten. Das gilt, solange der Callback den Akkumulator nur als Quelle von `setElement`, `setField` oder Spread verwendet oder unverändert zurückgibt.
+   - Aus `setElement` in der Schleife wird so O(n) statt O(n²). Größte Stelle: `accumulator.setElement(gameCardId newCard)` in `game-logic.jul`.
+   - Entwurf und Absicherung: [backlog/inplace-mutationen.md](backlog/inplace-mutationen.md). Stufe 2 dort (Besitz über Funktionsgrenzen) nur, wenn die Spreads aus Parametern nach Punkt 1 noch oben im Profil stehen.
+   - Fixture: `record-update.jul`.
+5. **Konstante Literale aus Funktionen herausziehen: höchstens etwa 1 %.**
+   - Beispiel: `getController` baut bei jedem Aufruf ein neues `fieldQuery`-Objekt.
+   - **Haken:** `equal` vergleicht mit `===`, die Identität ist also beobachtbar. Zwei Aufrufe lieferten danach dasselbe Objekt.
+6. **`params` der Builtins entfernen.** Rund 540 `_createFunction`-Aufrufe in `runtime.ts`, die Vorbedingungen stehen im `TODO`. Betrifft nur Ladezeit und Bundle-Größe, im Lauf ist kein Gewinn zu erwarten.
 
-**Zurückgestellt: Integer als `number`.** Das Profil hat die Annahme widerlegt (BigInt unter 1 %). Falls es
-doch wieder aufkommt: größte Änderung der Liste (Emitter, Runtime, Gleichheit, Textausgabe, JSON und die
-`§js§`-Blöcke der core-lib), mit kleinerem Radius nur dort, wo der Checker den Bereich beweisen kann
-(Zusammenhang mit [backlog/integer-range.md](backlog/integer-range.md)).
+**Außerhalb des Emitters:**
+- **Parallelisierung:** Die Paare eines Matches sind je Seed unabhängig. Auf mehrere Prozesse oder `worker_threads` verteilt, ist das der größte Hebel für die Paare-Läufe (22 Kerne). Ein erster Schritt braucht keine Sprachänderung: mehrere Prozesse mit getrennten Seed-Bereichen, gestartet aus `measure-ai.js`.
+- **`getSearchKey`** in der KI baut einen Text als Schlüssel, das ist Nutzercode.
 
-**Wasm:** Die Entscheidung kommt nach den Punkten oben, mit den dann gemessenen Zahlen. Nach dem Profil ist
-es für diese Last nicht indiziert, der Zeitanteil steckt nicht in Zahlen.
+**Zurückgestellt: Integer als `number`.**
+- Würde `StrictEqual` und die BigInt-Arithmetik treffen, zusammen geschätzt 3 bis 5 %.
+- Größte Änderung der Liste: Emitter, Runtime, Gleichheit, Textausgabe, JSON und die `§js§`-Blöcke der core-lib.
+- Mit kleinerem Radius ginge es nur dort, wo der Checker den Wertebereich beweisen kann (Zusammenhang mit [backlog/integer-range.md](backlog/integer-range.md)).
+
+**Kein Gewinn zu erwarten:**
+- `?.['x']` durch `.x` ersetzen, wo der Typ nicht optional ist: V8 faltet die Prüfung.
+- Minifizierung.
+- Wasm: Die Zeit steckt in Objektformen und Kopien, nicht in Zahlen.
 
 ## Grenzen der Fixtures
 
