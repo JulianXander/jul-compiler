@@ -2051,15 +2051,87 @@ x: Integer = typeOfValue(Integer)`, {
 			],
 		});
 	});
+	// Ein Typwert hat genau die Eigenschaften seiner Typart (Integer keine, List ElementType). Fehlt
+	// eine nachweislich, ist das ein Fehler wie ein fehlendes Feld eines Records, nicht still Any.
+	it('missing-property-of-type-value-is-an-error', () => {
+		expectCheck('f = (T: TypeOf(Integer)) => T/Foo', {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'Foo' in type TypeOf(Integer)",
+					startRowIndex: 0,
+					startColumnIndex: 30,
+					endRowIndex: 0,
+					endColumnIndex: 33,
+				},
+			],
+		});
+	});
+	it('value-type-of-list-type-is-an-error', () => {
+		expectCheck('f = (T: TypeOf(List(Integer))) => T/ValueType', {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'ValueType' in type TypeOf(List(Integer))",
+					startRowIndex: 0,
+					startColumnIndex: 36,
+					endRowIndex: 0,
+					endColumnIndex: 45,
+				},
+			],
+		});
+	});
+	it('element-type-of-type-of-integer-value-is-an-error', () => {
+		expectCheck('f = (x: Integer) => TypeOf(x)/ElementType', {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'ElementType' in type TypeOf(Integer)",
+					startRowIndex: 0,
+					startColumnIndex: 30,
+					endRowIndex: 0,
+					endColumnIndex: 41,
+				},
+			],
+		});
+	});
+	// Empty hat als leere Kollektion keine Felder, sein Typ aber die Eigenschaft ElementType (Never).
+	it('missing-property-of-empty-type-is-an-error', () => {
+		expectCheck('f = (T: TypeOf(Empty)) => T/Foo', {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'Foo' in type TypeOf(Empty)",
+					startRowIndex: 0,
+					startColumnIndex: 28,
+					endRowIndex: 0,
+					endColumnIndex: 31,
+				},
+			],
+		});
+	});
+	it('element-type-of-empty-type-is-not-an-error', () => {
+		expectCheck('f = (T: TypeOf(Empty)) => T/ElementType', {
+			errors: [],
+		});
+	});
 	// T hält einen Typ, die Großschreibung ist also richtig.
-	// Keiner der Typwerte hat eine Eigenschaft Foo, bekannt ist über das Ergebnis also nichts.
+	// Keiner der Typwerte hat eine Eigenschaft Foo, wie bei einem einzelnen Typwert ein Fehler.
 	// Die leere Union wäre Never, das überall zuweisbar ist und den Fehler verdeckte.
-	it('name-access-on-union-of-type-values-is-unknown', () => {
+	it('name-access-on-union-of-type-values-is-an-error', () => {
 		expectCheck('f = (T: Or(TypeOf(Integer) TypeOf(Text))) :> Integer => [T/Foo]', {
 			errors: [
 				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'Foo' in type Or(TypeOf(Integer) TypeOf(Text))",
+					startRowIndex: 0,
+					startColumnIndex: 59,
+					endRowIndex: 0,
+					endColumnIndex: 62,
+				},
+				{
 					code: ErrorCode.returnTypeMismatch,
-					message: 'Return type mismatch.\nCan not assign [Any] to Integer.',
+					message: 'Return type mismatch.\nCan not assign [Invalid] to Integer.',
 					startRowIndex: 0,
 					startColumnIndex: 56,
 					endRowIndex: 0,
@@ -2076,12 +2148,20 @@ x: Integer = typeOfValue(Integer)`, {
 		});
 	});
 	// Dasselbe über TypeOf eines Werts, dessen Typ eine Union ist.
-	it('name-access-on-type-of-union-is-unknown', () => {
+	it('name-access-on-type-of-union-is-an-error', () => {
 		expectCheck('f = (x: Or(Integer Text)) :> Integer => [TypeOf(x)/Foo]', {
 			errors: [
 				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'Foo' in type TypeOf(Or(Integer Text))",
+					startRowIndex: 0,
+					startColumnIndex: 51,
+					endRowIndex: 0,
+					endColumnIndex: 54,
+				},
+				{
 					code: ErrorCode.returnTypeMismatch,
-					message: 'Return type mismatch.\nCan not assign [Any] to Integer.',
+					message: 'Return type mismatch.\nCan not assign [Invalid] to Integer.',
 					startRowIndex: 0,
 					startColumnIndex: 40,
 					endRowIndex: 0,

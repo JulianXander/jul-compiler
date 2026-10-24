@@ -623,8 +623,76 @@ export function hasKnownFields(rawType: CompileTimeType): boolean {
 			// Union feststellbar, ob ein Feld existiert (siehe dereferenceNameFromObject,
 			// case 'or': das setzt genau diese Entscheidbarkeit je Choice voraus).
 			return type.ChoiceTypes.every(choiceType => !canHaveFields(choiceType) || hasKnownFields(choiceType));
+		// Die Felder eines Typwerts sind die Eigenschaften seiner Typart (dereferenceNameFromObjectType).
+		// Ohne diesen Fall stiege der Zugriff beim Fehlschlag in den Wert ab: Aus der fehlenden
+		// Eigenschaft würde ein Feldzugriff auf den Wert, und die Definitionsstelle meldete nichts.
+		case 'typeOf':
+			return hasKnownTypeProperties(type.value);
 		default:
 			return false;
+	}
+}
+
+/**
+ * Kennt diese Typart die Menge ihrer Eigenschaften (`TypeOf(x)/name`, siehe
+ * dereferenceNameFromObjectType)? Nur dann heißt eine fehlende Eigenschaft "gibt es nicht".
+ */
+function hasKnownTypeProperties(rawType: CompileTimeType): boolean {
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		// Wie bei hasKnownFields: erst wenn jeder Choice entscheidbar ist. Hat nur ein Teil der
+		// Choices die Eigenschaft, verwirft dereferenceNameFromObjectType die übrigen still
+		// (CHECKER-AUDIT, offener Punkt 6), gemeldet wird nur, wenn keiner sie hat.
+		case 'or':
+			return type.ChoiceTypes.every(hasKnownTypeProperties);
+		case 'blob':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'bound':
+		case 'date':
+		case 'dictionary':
+		case 'empty':
+		case 'error':
+		case 'float':
+		case 'floatLiteral':
+		case 'function':
+		case 'integer':
+		case 'integerLiteral':
+		case 'list':
+		case 'parameters':
+		case 'stream':
+		case 'text':
+		case 'textLiteral':
+		case 'tuple':
+			return true;
+		// Ein Record-Typ liefert über die Tabelle nur seine Felder. ElementType (die Vereinigung der
+		// Feldtypen) kommt bisher erst über den Rückfall auf den Wert zustande
+		// (dereferenceUnknownKeyFromObject), den dieser Fall offen halten muss.
+		case 'dictionaryLiteral':
+		// Platzhalter, Unbekanntes und Typen, deren Gestalt erst eine weitere Auswertung zeigt.
+		case 'add':
+		case 'and':
+		case 'any':
+		case 'concat':
+		case 'conditional':
+		case 'indexRange':
+		case 'invalid':
+		case 'lengthOf':
+		case 'mapElements':
+		case 'nestedReference':
+		case 'never':
+		case 'not':
+		case 'parameterReference':
+		case 'predicate':
+		case 'subtract':
+		case 'type':
+		case 'typeOf':
+		case 'withElementAt':
+			return false;
+		default: {
+			const assertNever: never = type;
+			throw new Error('Unexpected julType: ' + (assertNever as CompileTimeType).julType);
+		}
 	}
 }
 
