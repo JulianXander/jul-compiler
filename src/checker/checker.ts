@@ -1455,6 +1455,23 @@ function getRawBranchArgumentType(
 }
 
 /**
+ * Ob der Kopf eine andere Stelle als die erste einschränkt. Dann fängt er an der ersten Stelle
+ * nicht sicher alles ab, was er dort nennt: nach (x: Integer y: Integer) kann das erste Argument
+ * noch Integer sein, solange das zweite keins ist. argumentCount sind die geschriebenen Argumente
+ * des branchings, Stellen dahinter prüft der Kopf nicht.
+ */
+function constrainsPositionsBeyondFirst(paramsType: CompileTimeType, argumentCount: number): boolean {
+	for (let argumentIndex = 1; argumentIndex < argumentCount; argumentIndex++) {
+		const otherType = getBranchArgumentType(paramsType, argumentIndex);
+		if (otherType
+			&& otherType.julType !== 'any') {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
  * Ob die branches beweisbar jeden möglichen Wert von args abdecken - nur für den Fall eines
  * einzelnen, nicht destrukturierten Arguments (?(x)). Bei mehreren Argumenten oder wenn sich
  * args/branch-Typen nicht auflösen lassen, konservativ false: dann bleibt Error im Rückgabetyp.
@@ -1463,6 +1480,7 @@ function getRawBranchArgumentType(
 function isBranchingExhaustive(
 	args: ParseValueExpression | undefined,
 	branches: ParseValueExpression[],
+	argumentCount: number,
 ): boolean {
 	const argsType = args?.typeInfo && resolvePlaceholders(args.typeInfo.type);
 	if (!argsType) {
@@ -1474,10 +1492,14 @@ function isBranchingExhaustive(
 	if (!argValueType) {
 		return false;
 	}
-	const branchValueTypes = branches.map(branch => {
+	// Ein Kopf, der auch andere Stellen einschränkt, deckt die erste nicht ab. Er trägt nichts bei.
+	const branchValueTypes: (CompileTimeType | undefined)[] = [];
+	for (const branch of branches) {
 		const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
-		return getBranchArgumentType(paramsType, 0);
-	});
+		if (!constrainsPositionsBeyondFirst(paramsType, argumentCount)) {
+			branchValueTypes.push(getBranchArgumentType(paramsType, 0));
+		}
+	}
 	if (branchValueTypes.some(valueType => !valueType)) {
 		// undefined heißt hier: nicht bestimmbar (catchAll wurde vom Aufrufer schon ausgeschlossen)
 		return false;
@@ -2087,6 +2109,8 @@ function inferType(
 			if (args) {
 				setInferredType(args, typeContext, undefined, checkContext);
 			}
+			// Lässt sich kein Ausdruck zuordnen, zählt nur die erste Stelle.
+			const argumentCount = getWrittenArguments(args)?.length ?? 1;
 			const branches = expression.branches;
 			branches.forEach((branch, index) => {
 				setInferredType(branch, typeContext, undefined, checkContext);
@@ -2146,6 +2170,10 @@ function inferType(
 							if (prevType.julType === 'any') {
 								// Any matcht alles → der aktuelle Branch kann nicht unreachable sein
 								return;
+							}
+							// Ein Kopf, der auch andere Stellen einschränkt, fängt nur eine Kombination ab.
+							if (constrainsPositionsBeyondFirst(prevType, argumentCount)) {
+								continue;
 							}
 							// Untypisierte Parameter (getBranchArgumentType gibt undefined) sind auch catchAll
 							const argType = getBranchArgumentType(prevType, 0);
@@ -2222,7 +2250,7 @@ function inferType(
 				const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
 				return paramsType.julType === 'any'
 					|| (isParametersType(paramsType) && !paramsType.singleNames.length && !paramsType.rest);
-			}) || isBranchingExhaustive(args, branches);
+			}) || isBranchingExhaustive(args, branches, argumentCount);
 			const rawType = createNormalizedUnionType(
 				isExhaustive
 					? branchReturnTypes

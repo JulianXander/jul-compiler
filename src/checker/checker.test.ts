@@ -891,6 +891,17 @@ useType(isLegal)`);
 			],
 		});
 	});
+	// Der erste Kopf fängt nur [Integer Integer] ab. Der zweite trifft mit a = 1, b = §b§ noch,
+	// obwohl sein erstes Element dasselbe ist.
+	it('branch-differing-in-second-position-is-reachable', () => {
+		expectCheck(`f = (a: Integer b: Or(Integer Text)) =>
+	?(a b)
+		(x: Integer y: Integer) => 1
+		(x: Integer y: Text) => 2
+		() => 3`, {
+			errors: [],
+		});
+	});
 	it('branch-with-matching-param-count-is-reachable', () => {
 		expectCheck(`f = (value: Integer) =>
 	?(value value)
@@ -5426,6 +5437,24 @@ f(source)`;
 		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
 		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(false,
 			'Vollständig abgedeckter Eingabetyp darf kein Error erzeugen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
+	});
+	// Die Köpfe decken nur [Integer Integer] und [Text Text] ab. [Integer Text] kommt durch, obwohl
+	// jede Position einzeln abgedeckt ist: _branch gibt dann Error zurück.
+	it('multi-value-branching-with-uncovered-combination-has-error-in-union', () => {
+		const code = `f = (a: Or(Text Integer) b: Or(Text Integer)) => ?(a b)
+	(x: Integer y: Integer) => 1
+	(x: Text y: Text) => 2`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const returnType = definition.value?.typeInfo?.type.julType === 'function'
+			? definition.value.typeInfo.type.ReturnType
+			: undefined;
+		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
+		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(true,
+			'[Integer Text] fehlt, Error muss im Rückgabetyp stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
 	});
 	// Motivbeispiel: Fall 3 fehlt, ohne catchAll.
 	it('branching-without-catchall-non-exhaustive-has-error-in-union', () => {
