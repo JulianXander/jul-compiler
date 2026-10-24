@@ -1886,6 +1886,7 @@ function getPreviousBranchArgumentType(
 	branching: ParseBranching,
 	branch: ParseValueExpression,
 	argumentIndex: number,
+	argumentCount: number,
 ): CompileTimeType | undefined {
 	const branchIndex = branching.branches.indexOf(branch);
 	if (branchIndex < 1) {
@@ -1898,6 +1899,19 @@ function getPreviousBranchArgumentType(
 		if (!previousValueType
 			|| previousValueType.julType === 'any') {
 			return undefined;
+		}
+		// Ein Kopf fängt nur die Kombination seiner Positionen ab. Schränkt er auch eine andere
+		// Position ein, ist an dieser nicht ausgeschlossen, was er hier nennt: nach
+		// (x: Integer y: Integer) kann a noch Integer sein, solange b keins ist.
+		for (let otherIndex = 0; otherIndex < argumentCount; otherIndex++) {
+			if (otherIndex === argumentIndex) {
+				continue;
+			}
+			const otherType = getBranchArgumentType(previousParamsType, otherIndex);
+			if (otherType
+				&& otherType.julType !== 'any') {
+				return undefined;
+			}
 		}
 		previousValueTypes.push(previousValueType);
 	}
@@ -2915,14 +2929,15 @@ function inferType(
 			let branchNarrowedTypes = narrowedTypes;
 			const branching = expression.parent;
 			if (branching?.type === 'branching') {
-				getWrittenArguments(branching.args)?.forEach((argument, argumentIndex) => {
+				const writtenArguments = getWrittenArguments(branching.args);
+				writtenArguments?.forEach((argument, argumentIndex) => {
 					const path = getAccessPath(argument, functionScopes);
 					if (!path) {
 						return;
 					}
 					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex);
 					// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
-					const previousBranchValueType = getPreviousBranchArgumentType(branching, expression, argumentIndex);
+					const previousBranchValueType = getPreviousBranchArgumentType(branching, expression, argumentIndex, writtenArguments!.length);
 					if (!branchRawType
 						&& !previousBranchValueType) {
 						return;

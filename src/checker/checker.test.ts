@@ -417,6 +417,27 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 		[Integer Integer] => g(a b)
 		() => 0`);
 	});
+	// Ein mehrstelliger Kopf fängt nur das Paar ab, nicht jede Position einzeln: Nach
+	// (x: Integer y: Integer) ist a kein Integer nur, wenn auch b keins ist. Mit a = 1 und
+	// b = §b§ landet der zweite branch hier mit einem Integer in a.
+	it('branch-narrowing-previous-multi-value-branch-does-not-exclude-per-position', () => {
+		expectCheck(`g = (x: Text) => x
+f = (a: Or(Text Integer) b: Or(Text Integer)) =>
+	?(a b)
+		(x: Integer y: Integer) => 0
+		(x: Any y: Any) => g(a)`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'x\'\n  Can not assign Integer to Text.',
+					startRowIndex: 4,
+					startColumnIndex: 23,
+					endRowIndex: 4,
+					endColumnIndex: 24,
+				},
+			],
+		});
+	});
 	// Ohne Parameternamen ist bei mehreren Argumenten nicht erkennbar, welches falsch ist -
 	// Fund an einem echten Aufruf mit mehreren Kandidaten-Fehlern ohne Zuordnung
 	// (game-logic.jul: 3 "Can not assign"-Zeilen, keine sagt welches Argument gemeint ist).
