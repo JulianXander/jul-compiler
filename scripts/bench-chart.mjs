@@ -16,6 +16,8 @@ const maxColumnCount = 2;
 /** Ab diesem Verhältnis von größtem zu kleinstem Wert eines Diagramms wird logarithmisch gezeichnet */
 const logarithmicRatio = 10;
 const padding = { top: 40, right: 16, bottom: 46, left: 52 };
+/** Je Diagramm werden nur die letzten Messungen gezeichnet, ältere verwässern den aktuellen Verlauf */
+const maxPointCount = 10;
 
 /**
  * @param {string[]} argv
@@ -70,12 +72,13 @@ function escapeText(text) {
 /**
  * ein Diagramm, x nach Position im Protokoll, nicht nach Datum: Messungen sind ungleich verteilt
  * @param {string} label
- * @param {any[]} entries
+ * @param {any[]} allEntries
  * @param {number} cellWidth
  * @param {number} offsetX
  * @param {number} offsetY
  */
-function renderCell(label, entries, cellWidth, offsetX, offsetY) {
+function renderCell(label, allEntries, cellWidth, offsetX, offsetY) {
+	const entries = allEntries.slice(-maxPointCount);
 	const plotWidth = cellWidth - padding.left - padding.right;
 	const plotHeight = cellHeight - padding.top - padding.bottom;
 	const medians = entries.map(entry => entry.median);
@@ -178,7 +181,7 @@ else {
 			const targetSection = `<g transform="translate(0 ${totalHeight})">`
 				+ `<rect x="0" y="0" width="${gridWidth}" height="30" fill="#252525"/>`
 				+ `<text x="${padding.left}" y="22" font-size="12" font-weight="bold" fill="#e8e8e8">${escapeText(chosenTarget)}</text>`
-				+ `<text x="${gridWidth - 12}" y="22" text-anchor="end" font-size="9" fill="#999">${Math.round(measurementCount)} Messungen</text>`
+				+ `<text x="${gridWidth - 12}" y="22" text-anchor="end" font-size="9" fill="#999">${Math.min(Math.round(measurementCount), maxPointCount)} von ${Math.round(measurementCount)} Messungen</text>`
 				+ `<g transform="translate(0 30)">${cells}</g>`
 				+ '</g>';
 

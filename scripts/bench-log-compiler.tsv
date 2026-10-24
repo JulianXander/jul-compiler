@@ -290,3 +290,9 @@
 2026-10-24 20:09:59	78a801d+	-	ADV-DEV-56627	yugioh	parse+check	5	8432.07	8899.42	8899.42	nach p4 stream-lifetime einmal je datei
 2026-10-24 20:09:59	78a801d+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	666.08	718.09	718.09	nach p4 stream-lifetime einmal je datei
 2026-10-24 20:09:59	78a801d+	-	ADV-DEV-56627	yugioh	parse	5	58.88	67.22	67.22	nach p4 stream-lifetime einmal je datei
+2026-10-24 20:13:01	7403e80+	-	ADV-DEV-56627	yugioh	parse+check	5	8177.95	8962.26	8962.26	nach p5 paar-caches zweistufig
+2026-10-24 20:13:01	7403e80+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	624.78	755.57	755.57	nach p5 paar-caches zweistufig
+2026-10-24 20:13:01	7403e80+	-	ADV-DEV-56627	yugioh	parse	5	51.79	59.49	59.49	nach p5 paar-caches zweistufig
+2026-10-24 20:13:47	7403e80+	-	ADV-DEV-56627	yugioh	parse+check	5	8307.04	8776.31	8776.31	p5 wiederholung
+2026-10-24 20:13:47	7403e80+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	622.26	681.24	681.24	p5 wiederholung
+2026-10-24 20:13:47	7403e80+	-	ADV-DEV-56627	yugioh	parse	5	54.15	58.30	58.30	p5 wiederholung

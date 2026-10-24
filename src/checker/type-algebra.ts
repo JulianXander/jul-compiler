@@ -293,25 +293,54 @@ const aliasEqualityInProgress: { first: CompileTimeType; second: CompileTimeType
  */
 const maxCachedResults = 500_000;
 const maxCacheableId = 2 ** 26;
-const assignabilityCache = new Map<number, TypeAssignability>();
-const typeEqualsCache = new Map<number, boolean>();
-const typesOverlapCache = new Map<number, boolean | 'unknown'>();
+/**
+ * Ergebnisse je Paar von Typen, zweistufig nach den Ids. Ein einzelner Schlüssel
+ * `first.id * 2^26 + second.id` läge außerhalb des Smi-Bereichs, jeder Zugriff würde eine
+ * HeapNumber anlegen und das Hashing der Map verlangsamen. Kleine Ids bleiben Smis.
+ * Bei einem symmetrischen Paar (Gleichheit, Überlappung) gilt ein Eintrag für beide Richtungen.
+ */
+class PairCache<Value> {
+	private readonly rows = new Map<number, Map<number, Value>>();
+	private size = 0;
+
+	constructor(private readonly symmetric: boolean) { }
+
+	get(first: CompileTimeType, second: CompileTimeType): Value | undefined {
+		const swap = this.symmetric && first.id > second.id;
+		return this.rows.get(swap ? second.id : first.id)?.get(swap ? first.id : second.id);
+	}
+
+	set(first: CompileTimeType, second: CompileTimeType, value: Value): void {
+		if (this.size >= maxCachedResults) {
+			this.clear();
+		}
+		const swap = this.symmetric && first.id > second.id;
+		const rowId = swap ? second.id : first.id;
+		let row = this.rows.get(rowId);
+		if (!row) {
+			row = new Map();
+			this.rows.set(rowId, row);
+		}
+		const columnId = swap ? first.id : second.id;
+		if (!row.has(columnId)) {
+			this.size++;
+		}
+		row.set(columnId, value);
+	}
+
+	clear(): void {
+		this.rows.clear();
+		this.size = 0;
+	}
+}
+
+const assignabilityCache = new PairCache<TypeAssignability>(false);
+const typeEqualsCache = new PairCache<boolean>(true);
+const typesOverlapCache = new PairCache<boolean | 'unknown'>(true);
 const unionCache = new Map<string, CompileTimeType>();
 const intersectionCache = new Map<string, CompileTimeType>();
 /** Das Ergebnis von resolvePlaceholders je Typ. Bei einem Typ ohne Platzhalter ist es der Typ selbst. */
 const resolvedTypes = new Map<number, CompileTimeType>();
-
-function getPairKey(first: CompileTimeType, second: CompileTimeType): number | undefined {
-	return first.id < maxCacheableId && second.id < maxCacheableId
-		? first.id * maxCacheableId + second.id
-		: undefined;
-}
-
-function getSymmetricPairKey(first: CompileTimeType, second: CompileTimeType): number | undefined {
-	return first.id <= second.id
-		? getPairKey(first, second)
-		: getPairKey(second, first);
-}
 
 function getListKey(types: readonly CompileTimeType[]): string | undefined {
 	let key = '';
@@ -3014,16 +3043,14 @@ export function typesOverlap(rawFirst: CompileTimeType, rawSecond: CompileTimeTy
 		&& rawFirst.julType !== 'never') {
 		return true;
 	}
-	const key = getSymmetricPairKey(rawFirst, rawSecond);
-	const cached = key === undefined ? undefined : typesOverlapCache.get(key);
+	const cached = typesOverlapCache.get(rawFirst, rawSecond);
 	if (cached !== undefined) {
 		return cached === 'unknown' ? undefined : cached;
 	}
 	const dependenceBefore = resultContext.dependence;
 	const result = typesOverlapUncached(rawFirst, rawSecond);
-	if (key !== undefined
-		&& resultContext.dependence === dependenceBefore) {
-		rememberResult(typesOverlapCache, key, result === undefined ? 'unknown' : result);
+	if (resultContext.dependence === dependenceBefore) {
+		typesOverlapCache.set(rawFirst, rawSecond, result === undefined ? 'unknown' : result);
 	}
 	return result;
 }
@@ -3466,8 +3493,7 @@ export function typeEquals(first: CompileTimeType, second: CompileTimeType): boo
 		return false;
 	}
 	// Gleichheit ist symmetrisch: ein Eintrag für beide Richtungen.
-	const key = getSymmetricPairKey(first, second);
-	const cached = key === undefined ? undefined : typeEqualsCache.get(key);
+	const cached = typeEqualsCache.get(first, second);
 	if (cached !== undefined) {
 		return cached;
 	}
@@ -3480,9 +3506,8 @@ export function typeEquals(first: CompileTimeType, second: CompileTimeType): boo
 	finally {
 		typeEqualsDepth--;
 	}
-	if (key !== undefined
-		&& resultContext.dependence === dependenceBefore) {
-		rememberResult(typeEqualsCache, key, result);
+	if (resultContext.dependence === dependenceBefore) {
+		typeEqualsCache.set(first, second, result);
 	}
 	return result;
 }
@@ -3993,8 +4018,7 @@ export function isTypeAssignable(
 		resultContext.dependence++;
 		return { assignable: false, error: new TypeError('Type comparison is excessively deep and possibly infinite.') };
 	}
-	const key = getPairKey(argumentsType, targetType);
-	const cached = key === undefined ? undefined : assignabilityCache.get(key);
+	const cached = assignabilityCache.get(argumentsType, targetType);
 	if (cached) {
 		return cached;
 	}
@@ -4007,9 +4031,8 @@ export function isTypeAssignable(
 	finally {
 		typeComparisonDepth--;
 	}
-	if (key !== undefined
-		&& resultContext.dependence === dependenceBefore) {
-		rememberResult(assignabilityCache, key, result);
+	if (resultContext.dependence === dependenceBefore) {
+		assignabilityCache.set(argumentsType, targetType, result);
 	}
 	return result;
 }
