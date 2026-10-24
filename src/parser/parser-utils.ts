@@ -1,4 +1,4 @@
-import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable, TypedExpression } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable, TypedExpression, createSymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
@@ -8,7 +8,7 @@ export function createParseParameters(
 	position: Positioned,
 	errors: CompilerError[],
 ): ParseParameterFields {
-	const symbols: SymbolTable = {};
+	const symbols = createSymbolTable();
 	const parameters: ParseParameterFields = {
 		type: 'parameters',
 		singleFields: singleFields,
@@ -52,7 +52,7 @@ export function createParseFunctionLiteral(
 	errors: CompilerError[],
 	arrow?: Purity,
 ): ParseFunctionLiteral {
-	const symbols: SymbolTable = {};
+	const symbols = createSymbolTable();
 	if (params.type === 'binding'
 		|| params.type === 'parameters') {
 		fillSymbolTableWithParams(symbols, errors, params);
@@ -77,7 +77,7 @@ export function createParseFunctionTypeLiteral(
 	position: Positioned,
 	errors: CompilerError[],
 ): ParseFunctionTypeLiteral {
-	const symbols: SymbolTable = {};
+	const symbols = createSymbolTable();
 	if (params.type === 'binding'
 		|| params.type === 'parameters') {
 		fillSymbolTableWithParams(symbols, errors, params);

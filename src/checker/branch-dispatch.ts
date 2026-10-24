@@ -2,6 +2,7 @@ import {
 	CompileTimeType,
 	ParseBranching,
 	ParseValueExpression,
+	getOwnField,
 } from '../syntax-tree.js';
 import { isFunctionType, isParametersType, isSubtypeOf, resolveAlias, resolvePlaceholders } from './type-algebra.js';
 
@@ -382,7 +383,7 @@ function getFieldTest(remaining: CompileTimeType[], required: CompileTimeType): 
 		}
 		const decides = members.every(member => {
 			const memberFieldType = member.julType === 'dictionaryLiteral'
-				? member.Fields[name]
+				? getOwnField(member.Fields, name)
 				: undefined;
 			const memberValue = memberFieldType && getLiteralValue(resolveAlias(memberFieldType));
 			if (memberValue === undefined) {

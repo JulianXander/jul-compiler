@@ -426,7 +426,7 @@ function buildEnvironment(
 		const escapedName = escapeReservedJsVariableName(name);
 		// Ein Parameter der umgebenden Funktion, an den der Aufruf, der diesen Funktionstyp
 		// geliefert hat, einen konstanten Wert gebunden hat.
-		if (boundValues && name in boundValues) {
+		if (boundValues && Object.hasOwn(boundValues, name)) {
 			environment.push({ name: escapedName, value: boundValues[name] });
 			continue;
 		}

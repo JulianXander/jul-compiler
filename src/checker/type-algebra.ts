@@ -62,6 +62,7 @@ import {
 	createTextLiteral,
 	forEachChildType,
 	getFunctionTypeFacts,
+	getOwnField,
 } from '../syntax-tree.js';
 import { elementsEqual, fieldsEqual, isDefined, isNonEmpty, map, mapDictionary } from '../util.js';
 import { checkerStats, resultContext } from './checker-stats.js';
@@ -129,7 +130,7 @@ function withDictionaryLiteralField(
 	name: string,
 	value: CompileTimeType,
 ): CompileTimeType | undefined {
-	if (!(name in type.Fields)) {
+	if (!Object.hasOwn(type.Fields, name)) {
 		return undefined;
 	}
 	return createCompileTimeDictionaryLiteralType({ ...type.Fields, [name]: value }, type.complete, type.declaration);
@@ -142,7 +143,7 @@ function withDictionaryLiteralField(
  */
 export const valueFieldAccess: NamedAccessTable = {
 	dictionaryLiteral: {
-		get: (type, name) => type.Fields[name],
+		get: (type, name) => getOwnField(type.Fields, name),
 		set: withDictionaryLiteralField,
 	},
 	dictionary: {
@@ -215,7 +216,7 @@ export const typePropertyAccess: NamedAccessTable = {
 			: undefined,
 	},
 	dictionaryLiteral: {
-		get: (type, name) => type.Fields[name],
+		get: (type, name) => getOwnField(type.Fields, name),
 		set: withDictionaryLiteralField,
 	},
 	list: {
@@ -1138,7 +1139,7 @@ function dereferenceParameterFromArgumentType(
 	switch (argsType.julType) {
 		case 'dictionaryLiteral': {
 			const referenceName = parameterReference.name;
-			const argType = argsType.Fields[referenceName];
+			const argType = getOwnField(argsType.Fields, referenceName);
 			// Ohne Argument kommt der Parameter zur Laufzeit als Empty an. Sonst ist das Argument
 			// selbst der Wert des Parameters, wie beim Tuple.
 			return argType ?? builtinEmpty;
@@ -1886,7 +1887,7 @@ export function mapElementsFromTypes(
 			}
 			else {
 				fieldNames.forEach(fieldName => {
-					mappedFields[fieldName] = mapElementType(callbackType, sourceType.Fields[fieldName]!, createTextLiteral(fieldName));
+					mappedFields[fieldName] = mapElementType(callbackType, getOwnField(sourceType.Fields, fieldName)!, createTextLiteral(fieldName));
 				});
 			}
 			// Weitere, unbekannte Felder werden ebenso abgebildet, bleiben also unbekannt.
@@ -2465,8 +2466,8 @@ function createDisjointByDiscriminantCheck(): (first: CompileTimeType, second: C
 			return false;
 		}
 		for (const fieldName in first.Fields) {
-			const firstFieldType = first.Fields[fieldName]!;
-			const secondFieldType = second.Fields[fieldName];
+			const firstFieldType = getOwnField(first.Fields, fieldName)!;
+			const secondFieldType = getOwnField(second.Fields, fieldName);
 			if (secondFieldType === undefined
 				|| firstFieldType === secondFieldType
 				|| !isLiteralOnly(firstFieldType)
@@ -2824,8 +2825,8 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 				const keys = new Set([...Object.keys(first.Fields), ...Object.keys(second.Fields)]);
 				const mergedFields: CompileTimeDictionary = {};
 				for (const key of keys) {
-					const firstFieldType = first.Fields[key];
-					const secondFieldType = second.Fields[key];
+					const firstFieldType = getOwnField(first.Fields, key);
+					const secondFieldType = getOwnField(second.Fields, key);
 					if (firstFieldType && secondFieldType) {
 						const mergedFieldType = createNormalizedIntersectionType([firstFieldType, secondFieldType]);
 						// Beide Seiten verlangen das Feld, kein Wert erfüllt beide: dann gibt es auch
@@ -3077,7 +3078,7 @@ function dictionaryLiteralsOverlap(first: ResolvedType, second: ResolvedType): f
 		return undefined;
 	}
 	for (const [name, firstFieldType] of Object.entries(first.Fields)) {
-		const secondFieldType = second.Fields[name];
+		const secondFieldType = getOwnField(second.Fields, name);
 		if (secondFieldType
 			&& typesOverlap(firstFieldType, secondFieldType) === false) {
 			return false;
@@ -3551,7 +3552,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 			return second.julType === 'dictionaryLiteral'
 				&& Object.keys(first.Fields).length === Object.keys(second.Fields).length
 				&& Object.entries(first.Fields).every(([key, value]) => {
-					const otherValue = second.Fields[key];
+					const otherValue = getOwnField(second.Fields, key);
 					return otherValue !== undefined && typeEquals(value, otherValue);
 				});
 		case 'parameterReference':
@@ -3629,7 +3630,7 @@ function haveSameBoundValues(
 	const names = Object.keys(first);
 	return names.length === Object.keys(second).length
 		&& names.every(name =>
-			name in second
+			Object.hasOwn(second, name)
 			&& deepEqual(first[name], second[name]));
 }
 
@@ -4861,7 +4862,7 @@ function isTypeAssignableForDictionaryLiteral(
 			const fieldAssignabilities = map(
 				targetFieldTypes,
 				(fieldType, fieldName): TypeAssignability => {
-					const knownField = argumentsType.Fields[fieldName];
+					const knownField = getOwnField(argumentsType.Fields, fieldName);
 					if (knownField === undefined) {
 						if (!argumentsType.complete) {
 							// Unwissen ist keine Ablehnung: taucht das Feld in einem

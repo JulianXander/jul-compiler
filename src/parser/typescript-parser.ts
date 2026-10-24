@@ -1,4 +1,4 @@
-import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseNestedReference, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, Purity, SymbolTable } from '../syntax-tree.js';
+import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseNestedReference, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, Purity, SymbolTable, createSymbolTable } from '../syntax-tree.js';
 import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode, TypeParameterDeclaration, TypeAliasDeclaration } from 'typescript';
@@ -687,7 +687,7 @@ function tsTypeLiteralToJulType(
 			...getPositionFromTsNode(member, sourceFile),
 		});
 	}
-	const symbols: SymbolTable = {};
+	const symbols = createSymbolTable();
 	fillSymbolTableWithFields(symbols, errors, fields, false);
 	const dictionaryType: ParseDictionaryTypeLiteral = {
 		type: 'dictionaryType',

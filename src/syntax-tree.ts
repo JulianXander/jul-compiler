@@ -61,6 +61,14 @@ export interface SymbolTable {
 	[symbol: string]: SymbolDefinition;
 }
 
+/**
+ * Ohne Prototyp, sonst findet eine Abfrage mit einem Namen wie toString oder constructor
+ * Eigenschaften von Object.prototype statt eines Symbols.
+ */
+export function createSymbolTable(): SymbolTable {
+	return Object.create(null);
+}
+
 export interface SymbolDefinition extends Positioned {
 	definition?: DefinitionExpression;
 	description?: string;
@@ -648,6 +656,13 @@ export interface TypeInfo {
 }
 
 export interface CompileTimeDictionary { [key: string]: CompileTimeType; }
+
+/**
+ * Nur ein eigenes Feld, damit ein Name wie constructor nicht über Object.prototype gefunden wird.
+ */
+export function getOwnField(fields: CompileTimeDictionary, name: string): CompileTimeType | undefined {
+	return Object.hasOwn(fields, name) ? fields[name] : undefined;
+}
 
 export type CompileTimeCollection =
 	| CompileTimeType[]

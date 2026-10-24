@@ -74,6 +74,7 @@ import {
 	createFunctionIdentity,
 	getFunctionTypeFacts,
 	copyFunctionType,
+	getOwnField,
 } from '../syntax-tree.js';
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, forEach, isDefined, isNonEmpty, isTestFilePath, last, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
@@ -280,7 +281,7 @@ function createStreamTypeFunction(finite: boolean): CompileTimeFunctionType {
 	return functionType;
 }
 
-const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
+const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assign(Object.create(null), {
 	true: createBooleanLiteral(true),
 	false: createBooleanLiteral(false),
 	Any: createCompileTimeTypeOfType(builtinAny),
@@ -356,7 +357,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = {
 		builtinAny,
 		'impure',
 	),
-};
+});
 
 /**
  * Je Rumpf die Namen, auf die dort irgendwo complete aufgerufen wird. Vor dem Rumpf gesammelt,
@@ -1683,7 +1684,7 @@ function getExpectedFieldType(
 	const type = resolveAlias(expectedType);
 	switch (type.julType) {
 		case 'dictionaryLiteral':
-			return toExpectedType(type.Fields[fieldName]);
+			return toExpectedType(getOwnField(type.Fields, fieldName));
 		case 'dictionary':
 			return toExpectedType(type.ElementType);
 		case 'parameters':
@@ -1772,7 +1773,7 @@ function narrowExpectedTypeByFields(
 			return false;
 		}
 		for (const fieldName in fieldTypes) {
-			const choiceFieldType = resolvedChoiceType.Fields[fieldName];
+			const choiceFieldType = getOwnField(resolvedChoiceType.Fields, fieldName);
 			if (choiceFieldType
 				&& isSubtypeOf(resolvePlaceholders(fieldTypes[fieldName]!), resolvePlaceholders(choiceFieldType)) === false) {
 				return false;
@@ -1781,7 +1782,7 @@ function narrowExpectedTypeByFields(
 		if (writtenFieldNames) {
 			for (const fieldName in resolvedChoiceType.Fields) {
 				if (!writtenFieldNames.has(fieldName)
-					&& isSubtypeOf(builtinEmpty, resolvePlaceholders(resolvedChoiceType.Fields[fieldName]!)) === false) {
+					&& isSubtypeOf(builtinEmpty, resolvePlaceholders(getOwnField(resolvedChoiceType.Fields, fieldName)!)) === false) {
 					return false;
 				}
 			}
@@ -2597,7 +2598,7 @@ function inferType(
 						// TODO error when spread list
 						if (isDictionaryLiteralType(spreadType)) {
 							for (const key in spreadType.Fields) {
-								fieldTypes[key] = spreadType.Fields[key]!;
+								fieldTypes[key] = getOwnField(spreadType.Fields, key)!;
 							}
 						}
 						return;

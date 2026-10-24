@@ -7929,3 +7929,28 @@ wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
 		expect(errorInfos[ErrorCode.callOfAny].severity).to.equal('warning');
 	});
 });
+
+describe('Namen aus Object.prototype', () => {
+	// Die Symboltabellen und coreBuiltInSymbolTypes sind einfache Objekte. Ein Name wie toString
+	// wird dort über den Prototyp gefunden und liefert eine Funktion statt eines Typs, der Checker
+	// wirft dann 'Unexpected julType: undefined'.
+	const expectNoThrow = reportAtCaller((code: string) => {
+		const parserResult = parseCode(code, 'dummy.jul');
+		expect(() => checkTypes(parserResult, {}, { cloneUnchecked: false })).not.to.throw();
+	});
+	it('prototype-name-as-reference-does-not-throw', () => {
+		expectNoThrow('x = toString');
+	});
+	it('prototype-name-as-field-does-not-throw', () => {
+		expectNoThrow('d = [a = 1]\nx = d/constructor');
+	});
+	it('prototype-name-as-parameter-does-not-throw', () => {
+		expectNoThrow('f = (valueOf: Integer) => valueOf');
+	});
+	it('prototype-name-as-parameter-is-usable', () => {
+		expectLastTypeString('f = (valueOf: Integer) => valueOf\nx = f(1)', '1');
+	});
+	it('prototype-name-as-definition-does-not-throw', () => {
+		expectNoThrow('hasOwnProperty = 1\nx = hasOwnProperty');
+	});
+});

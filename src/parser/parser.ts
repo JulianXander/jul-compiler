@@ -36,6 +36,7 @@ import {
 	SimpleExpression,
 	SymbolTable,
 	TextToken,
+	createSymbolTable,
 } from '../syntax-tree.js';
 import {
 	executingDirectory,
@@ -178,7 +179,7 @@ export function parseCode(
 	const { errors, expressions, ignoreComments } = parsedExpressions;
 	// Erst hier, nicht beim Bauen der Knoten: siehe setParentsRecursive.
 	expressions?.forEach(setParentsRecursive);
-	const symbols: SymbolTable = {};
+	const symbols = createSymbolTable();
 	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
 	return {
 		filePath: filePath,
@@ -3401,7 +3402,7 @@ function bindingToDestructuringFields(
 		};
 		fields.push(destructuringField);
 	});
-	const symbols: SymbolTable = {};
+	const symbols = createSymbolTable();
 	fillSymbolTableWithFields(symbols, errors, fields, false);
 	const parseFields: ParseDestructuringFields = {
 		type: 'destructuringFields',
@@ -3666,7 +3667,7 @@ function bracketedExpressionToValueExpression(
 				};
 				return singleDictionaryField;
 			});
-		const symbols: SymbolTable = {};
+		const symbols = createSymbolTable();
 		fillSymbolTableWithFields(symbols, errors, fields, false);
 		const dictionary: ParseDictionaryLiteral = {
 			type: 'dictionary',
@@ -3736,7 +3737,7 @@ function bracketedExpressionToValueExpression(
 				};
 				return singleDictionaryField;
 			});
-		const symbols: SymbolTable = {};
+		const symbols = createSymbolTable();
 		fillSymbolTableWithFields(symbols, errors, fields, false);
 		const dictionaryType: ParseDictionaryTypeLiteral = {
 			type: 'dictionaryType',
