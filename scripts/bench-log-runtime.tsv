@@ -601,3 +601,31 @@
 2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/small	15	3625.86	3778.37	3778.37	flatten und _combineObject als Schleife
 2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/large	15	3658896.00	4380814.00	4380814.00	flatten und _combineObject als Schleife
 2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/texts	15	421996.00	446699.50	446699.50	flatten und _combineObject als Schleife
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	97.34	108.84	108.84	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	94.76	105.71	105.71	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	339.46	398.79	398.79	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	27055.35	27890.95	27890.95	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.70	10.46	10.46	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.56	11.89	11.89	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.46	10.20	10.20	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	10.13	11.54	11.54	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	14.44	17.54	17.54	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	9.33	9.78	9.78	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	8.54	10.10	10.10	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	8.79	14.79	14.79	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.74	10.33	10.33	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	8.30	9.41	9.41	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	404.69	434.37	434.37	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	47.09	54.37	54.37	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1221.82	1256.97	1256.97	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	490.56	516.77	516.77	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	27.86	30.96	30.96	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	26.67	28.72	28.72	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	25.26	29.30	29.30	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	36.26	39.61	39.61	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	27.62	31.70	31.70	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	45.58	54.14	54.14	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	17.93	30.35	30.35	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	json/small	15	3620.37	4249.24	4249.24	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	json/large	15	3757244.00	3911644.00	3911644.00	vor geschlossenen Records
+2026-10-24 13:15:24	c8bc464+	-	ADV-DEV-56627	bench-runtime	json/texts	15	427937.50	471637.50	471637.50	vor geschlossenen Records

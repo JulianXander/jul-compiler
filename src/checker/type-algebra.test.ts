@@ -222,12 +222,30 @@ describe('Typalgebra', () => {
 	//#endregion Intersection
 
 	//#region Dictionary
-	// Ein Dictionary-Literal ist eine Struktur: Felder beider Seiten bleiben erhalten.
-	it('intersection-merges-dictionary-fields', () => {
-		const type = and([dictionary({ a: builtinInteger }), dictionary({ b: builtinText })]);
+	// Ein vollständiges Dictionary nennt alle seine Felder: ein Feld, das nur die andere Seite
+	// kennt, ist dort Empty. Ein Wert kann nicht a und zugleich nur b haben.
+	it('intersection-of-closed-dictionaries-with-different-required-fields-is-never', () => {
+		expect(and([dictionary({ a: builtinInteger }), dictionary({ b: builtinText })])).to.equal(builtinNever);
+	});
+	// Ist das fremde Feld optional, bleibt es und wird auf der anderen Seite zu Empty.
+	it('intersection-of-closed-dictionaries-keeps-optional-field', () => {
+		const optionalText = createCompileTimeUnionType([builtinEmpty, builtinText]);
+		const type = and([dictionary({ a: builtinInteger }), dictionary({ a: builtinInteger, b: optionalText })]);
 		expect(type.julType).to.equal('dictionaryLiteral');
-		const fields = (type as ReturnType<typeof dictionary>).Fields;
-		expect(Object.keys(fields)).to.have.members(['a', 'b']);
+		expect(Object.keys((type as ReturnType<typeof dictionary>).Fields)).to.have.members(['a', 'b']);
+	});
+	// Eine unvollständige Seite nennt nur einen bewiesenen Fakt, über andere Felder weiß man nichts.
+	it('intersection-merges-fields-of-incomplete-dictionaries', () => {
+		const type = and([dictionary({ a: builtinInteger }, false), dictionary({ b: builtinText }, false)]);
+		expect(type.julType).to.equal('dictionaryLiteral');
+		expect(Object.keys((type as ReturnType<typeof dictionary>).Fields)).to.have.members(['a', 'b']);
+	});
+	// Ein weiteres Feld ändert die Bedeutung: der Record mit b ist kein Teil des Records ohne b mehr.
+	it('union-does-not-absorb-record-with-additional-field', () => {
+		const withoutB = dictionary({ a: builtinInteger });
+		const withB = dictionary({ a: builtinInteger, b: builtinText });
+		const type = createNormalizedUnionType([withoutB, withB]);
+		expect(type.julType).to.equal('or');
 	});
 	it('intersection-merges-same-dictionary-field', () => {
 		const type = and([dictionary({ a: builtinInteger }), dictionary({ a: integerLiteral(5) })]);
@@ -238,7 +256,7 @@ describe('Typalgebra', () => {
 	});
 	it('intersection-of-dictionaries-is-complete-if-either-side-is', () => {
 		const incompleteBoth = and([dictionary({ a: builtinInteger }, false), dictionary({ b: builtinText }, false)]);
-		const oneComplete = and([dictionary({ a: builtinInteger }, false), dictionary({ b: builtinText }, true)]);
+		const oneComplete = and([dictionary({ a: builtinInteger }, false), dictionary({ a: builtinInteger, b: builtinText }, true)]);
 		expect((incompleteBoth as ReturnType<typeof dictionary>).complete).to.equal(false);
 		expect((oneComplete as ReturnType<typeof dictionary>).complete).to.equal(true);
 	});

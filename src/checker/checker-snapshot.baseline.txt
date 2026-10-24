@@ -217,7 +217,8 @@ testWithout21: true
   error 5000 at 48:1 Definition type mismatch. | Can not assign 6 to 4. | Can not assign 6 to 5.
   error 5000 at 54:1 Definition type mismatch. | Can not assign 5 to Never.
   error 5000 at 56:1 Definition type mismatch. | Can not assign 6 to Never.
-  error 5000 at 71:6 Definition type mismatch. | Invalid value for field 'b' |   Can not assign 6 to 5.
+  error 5000 at 58:1 Definition type mismatch. | Can not assign [ |   a: 4 |   b: 5 | ] to Never.
+  error 5000 at 66:1 Definition type mismatch. | Can not assign [ |   a: 4 |   b: 6 | ] to Never.
   error 5000 at 74:1 Definition type mismatch. | Can not assign true to Not(true).
   warning 2600 at 77:1 't1' is a type and should start with an uppercase letter.
   warning 2600 at 78:1 't2' is a type and should start with an uppercase letter.
@@ -228,6 +229,7 @@ testWithout21: true
   error 5000 at 93:31 Definition type mismatch. | Can not assign 4 to Text.
   error 5000 at 95:1 Definition type mismatch. | Can not assign Empty to List(Text).
   error 5000 at 99:39 Definition type mismatch. | Can not assign [a: 6] to [a: 4]. |   Invalid value for field 'a' |     Can not assign 6 to 4.
+  error 5000 at 109:1 Definition type mismatch. | Unexpected field 'b'.
   error 5000 at 118:49 Definition type mismatch. | Can not assign [a: [b: 5]] to [a: [b: 4]]. |   Invalid value for field 'a' |     Can not assign [b: 5] to [b: 4]. |       Invalid value for field 'b' |         Can not assign 5 to 4.
   error 5000 at 120:43 Definition type mismatch. | Can not assign [a: [b: 4f]] to [a: Float]. |   Invalid value for field 'a' |     Can not assign [b: 4f] to Float.
   error 5000 at 126:42 Definition type mismatch. | Invalid value for field 'a' |   Can not assign 4 to Text.
@@ -386,8 +388,8 @@ allEqual: (   values: List(Any)   expected: Any ) -> Boolean
 applyDelta: (   gameState: GameState   delta: GameStateChange ) -> [   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ]
 cellsOf: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Or(Empty List(Or(   [     rowIndex: 1     columnIndex: 1     value: Cell   ]   [     rowIndex: 1     columnIndex: 2     value: Cell   ]   [     rowIndex: 1     columnIndex: 3     value: Cell   ]   [     rowIndex: 2     columnIndex: 1     value: Cell   ]   [     rowIndex: 2     columnIndex: 2     value: Cell   ]   [     rowIndex: 2     columnIndex: 3     value: Cell   ]   [     rowIndex: 3     columnIndex: 1     value: Cell   ]   [     rowIndex: 3     columnIndex: 2     value: Cell   ]   [     rowIndex: 3     columnIndex: 3     value: Cell   ] )))
 checkWinner: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   player: Player   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> Boolean
-computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ])   currentPlayer: Player   status: Or(§win§ §running§ §tie§) ]
-computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ]))   currentPlayer: §x§   status: §running§ ]
+computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List(Or(clickedChange [     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ]))   currentPlayer: Player   status: Or(§win§ §running§ §tie§) ]
+computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List(Or([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ] [     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     value: §§     enabled: true   ])))   currentPlayer: §x§   status: §running§ ]
 disableEmptyCells: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Or(Empty List([   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3)   enabled: false ]))
 hasFreeCell: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 isBoardEmpty: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
@@ -395,16 +397,16 @@ isBoardEmpty: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) 
 allEqual: (   values: List(Any)   expected: Any ) -> Boolean
 applyDelta: (   gameState: GameState   delta: GameStateChange ) -> [   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ]
 checkWinner: (   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   player: Player   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> Boolean
-computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ])   currentPlayer: Player   status: Or(§win§ §running§ §tie§) ]
-computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ]))   currentPlayer: §x§   status: §running§ ]
+computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List(Or(clickedChange [     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ]))   currentPlayer: Player   status: Or(§win§ §running§ §tie§) ]
+computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List(Or([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ] [     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     value: §§     enabled: true   ])))   currentPlayer: §x§   status: §running§ ]
 hasFreeCell: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 isBoardEmpty: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 === ui/tic-tac-toe/tic-tac-toe.jul ===
 GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ])
 GameStateChange: TypeOf([   cellChanges: Or(Empty List(CellChange))   currentPlayer: Player   status: GameStatus ])
 applyDelta: (   gameState: GameState   delta: GameStateChange ) -> [   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ]
-computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ])   currentPlayer: Player   status: Or(§win§ §running§ §tie§) ]
-computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ]))   currentPlayer: §x§   status: §running§ ]
+computeMoveDelta: (   gameState: GameState   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3) ) -> [   cellChanges: List(Or(clickedChange [     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: false   ]))   currentPlayer: Player   status: Or(§win§ §running§ §tie§) ]
+computeResetDelta: (gameState: GameState) -> [   cellChanges: Or(Empty List(Or([     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     enabled: true   ] [     rowIndex: Or(1 2 3)     columnIndex: Or(1 2 3)     value: §§     enabled: true   ])))   currentPlayer: §x§   status: §running§ ]
 delta$: Stream(GameStateChange)
 elementById: (id: Text) ~> Any
 gameState$: Stream(GameState)

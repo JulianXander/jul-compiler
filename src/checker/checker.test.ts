@@ -3939,17 +3939,17 @@ g((x) => x)`, {
 					"code": ErrorCode.definitionTypeMismatch,
 					"endColumnIndex": 145,
 					"endRowIndex": 0,
-					"message": "Definition type mismatch.\nInvalid value for field 'cb'\n  Invalid return value\n    Can not assign Integer to Text.\nMissing field 'species'.\nInvalid value for field 'cb'\n  Invalid type for parameter 'v'\n    Can not assign Text to Integer.",
+					"message": "Definition type mismatch.\nInvalid value for field 'cb'\n  Invalid return value\n    Can not assign Integer to Text.\nUnexpected field 'age'.\nMissing field 'species'.\nInvalid value for field 'cb'\n  Invalid type for parameter 'v'\n    Can not assign Text to Integer.",
 					"startColumnIndex": 137,
 					"startRowIndex": 0,
 				},
 			],
 		});
 	});
-	// Gegenprobe: ein Feld, dessen Typ Empty zulässt, darf fehlen - der Zweig bleibt, es
+	// Gegenprobe: ein Feld, dessen Typ Empty zulässt, darf fehlen - beide Zweige bleiben, es
 	// bleiben also zwei Funktionszweige und v ohne Typ.
 	it('expected-type-union-branch-with-optional-field-stays', () => {
-		expectCheck('x: Or([name: Text age: Integer cb: (v: Integer) :> Text] [name: Text species: Or([] Text) cb: (v: Text) :> Text]) = [name = §Ada§ age = 36 cb = (v) => v]');
+		expectCheck('x: Or([name: Text age: Or([] Integer) cb: (v: Integer) :> Text] [name: Text species: Or([] Text) cb: (v: Text) :> Text]) = [name = §Ada§ cb = (v) => v]');
 	});
 	// Gegenprobe: ohne erwarteten Typ bleibt ein untypisierter Parameter Any.
 	it('expected-type-absent-leaves-parameter-untyped', () => {
@@ -4115,7 +4115,8 @@ f(...namedArgs)`, {
 		});
 	});
 	// Empty trägt beim Spread keine Felder bei. Aus Or([] [a: Integer]) werden [c: 1] und
-	// [a: Integer c: 1], zusammengefasst [c: 1].
+	// [a: Integer c: 1]. Beide bleiben, denn ein Record mit weiterem Feld ist kein Teil des Records
+	// ohne dieses Feld.
 	it('dictionary-spread-of-possibly-empty-value', () => {
 		expectCheck(`f = (s: Or([] [a: Integer])) =>
 	x: Empty = [...s c = 1]
@@ -4123,7 +4124,7 @@ f(...namedArgs)`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
-					message: 'Definition type mismatch.\nCan not assign [c: 1] to Empty.',
+					message: 'Definition type mismatch.\nCan not assign [c: 1] to Empty.\nCan not assign [\n  a: Integer\n  c: 1\n] to Empty.',
 					startRowIndex: 1,
 					startColumnIndex: 1,
 					endRowIndex: 1,
@@ -4239,13 +4240,81 @@ f(a = 1 b = 2)`, {
 			],
 		});
 	});
-	// Eine Zuweisung verwirft nichts: der TypeGuard prüft, er formt nicht um. Ein Tupel ist
-	// geschlossen, ein drittes Element passt deshalb nicht auf [Integer Integer] (siehe
-	// longer-tuple-is-not-assignable-to-tuple-type). Nur der Aufruf lässt überzählige Werte fallen.
-	// Für Felder: x behält b, der TypeGuard schneidet es nicht weg.
+	// Eine Zuweisung verwirft nichts: der TypeGuard prüft, er formt nicht um. Ein Tupel und ein
+	// Record sind geschlossen, ein drittes Element passt deshalb nicht auf [Integer Integer] (siehe
+	// longer-tuple-is-not-assignable-to-tuple-type) und ein weiteres Feld nicht auf [a: Integer].
+	// Nur der Aufruf lässt überzählige Werte fallen.
 	// Vgl. jul-examples/type-checking-test.jul testDictionaryLiteral3a.
-	it('assignment-keeps-surplus-field', () => {
-		expectCheck('x: [a: Integer] = [a = 1 b = 2]');
+	it('assignment-rejects-surplus-field', () => {
+		expectCheck('x: [a: Integer] = [a = 1 b = 2]', {
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 31,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nUnexpected field 'b'.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		});
+	});
+	// Ein weiteres Feld mit dem Wert Empty ist dasselbe wie ein fehlendes: der geschlossene Typ
+	// nennt für jedes andere Feld Empty.
+	it('surplus-field-with-empty-is-allowed', () => {
+		expectCheck('x: [a: Integer] = [a = 1 b = []]');
+	});
+	// Kann das weitere Feld einen Wert haben, ist die Zuweisung nicht bewiesen sicher.
+	it('surplus-field-that-may-be-non-empty-is-rejected', () => {
+		expectCheck(`f = (x: [a: Integer b: Or([] Integer)]) =>
+	y: [a: Integer] = x
+	y`, {
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 20,
+					"endRowIndex": 1,
+					"message": "Definition type mismatch.\nUnexpected field 'b'.",
+					"startColumnIndex": 1,
+					"startRowIndex": 1,
+				},
+			],
+		});
+	});
+	// Der Fall, der mit offenen Records unbemerkt blieb: x hat laut Typ nur a, der Aufruf reicht
+	// aber ein b durch. Mit geschlossenen Records scheitert schon der Aufruf.
+	it('optional-field-from-declared-record-is-sound', () => {
+		expectCheck(`f = (x: [a: Integer]) =>
+	y: [a: Integer b: Or([] Integer)] = x
+	y
+z = f([a = 1 b = §s§])`, {
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 21,
+					"endRowIndex": 3,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'x'\n  Unexpected field 'b'.",
+					"startColumnIndex": 6,
+					"startRowIndex": 3,
+				},
+			],
+		});
+	});
+	// Ein Spread in einem Record-Typ muss ein Record sein. Any wurde bisher still ignoriert,
+	// damit war [a: Integer ...Any] ein geschlossener Typ, der offen aussieht.
+	it('spread-of-non-record-in-dictionary-type-is-error', () => {
+		expectCheck('x: [a: Integer ...Any] = [a = 1]', {
+			errors: [
+				{
+					"code": ErrorCode.dictionaryTypeSpreadNotRecord,
+					"endColumnIndex": 21,
+					"endRowIndex": 0,
+					"message": "Only a record type can be spread into a record type.",
+					"startColumnIndex": 18,
+					"startRowIndex": 0,
+				},
+			],
+		});
 	});
 	// Gegenprobe: ein Feld, das die Parameterliste kennt, meldet nicht.
 	it('known-named-argument-is-not-discarded', () => {

@@ -1800,6 +1800,13 @@ function narrowExpectedTypeByFields(
 				&& isSubtypeOf(resolvePlaceholders(fieldTypes[fieldName]!), resolvePlaceholders(choiceFieldType)) === false) {
 				return false;
 			}
+			// Ein geschlossener Zweig nennt alle seine Felder: ein weiteres Feld darf er nur
+			// aufnehmen, wenn es Empty sein kann.
+			if (!choiceFieldType
+				&& resolvedChoiceType.complete
+				&& isSubtypeOf(resolvePlaceholders(fieldTypes[fieldName]!), builtinEmpty) === false) {
+				return false;
+			}
 		}
 		if (writtenFieldNames) {
 			for (const fieldName in resolvedChoiceType.Fields) {
@@ -2637,11 +2644,24 @@ function inferType(
 						// wie beim Spread in case 'dictionary'.
 						const spreadType = field.value.typeInfo
 							&& resolveAlias(valueOf(resolvePlaceholders(field.value.typeInfo.type)));
-						// TODO error when spread list
 						if (isDictionaryLiteralType(spreadType)) {
 							for (const key in spreadType.Fields) {
 								fieldTypes[key] = getOwnField(spreadType.Fields, key)!;
 							}
+						}
+						else if (spreadType
+							&& !spreadType.isUnresolvedPlaceholder
+							&& spreadType.julType !== 'invalid') {
+							// Ein Record-Typ ist geschlossen und nennt alle seine Felder. Was kein Record
+							// ist, trüge keine Felder bei und würde sonst still ignoriert.
+							errors.push({
+								code: ErrorCode.dictionaryTypeSpreadNotRecord,
+								message: 'Only a record type can be spread into a record type.',
+								startRowIndex: field.value.startRowIndex,
+								startColumnIndex: field.value.startColumnIndex,
+								endRowIndex: field.value.endRowIndex,
+								endColumnIndex: field.value.endColumnIndex,
+							});
 						}
 						return;
 					}

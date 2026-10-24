@@ -313,7 +313,7 @@ describe('Emitter branching mit Typinformation', () => {
 	it('unterscheidendes Feld wird direkt verglichen', () => {
 		expectBranchingEmit(`f = (x: Or([kind: §circle§ radius: Float] [kind: §rect§ width: Float])) =>
 	?(x)
-		[[kind: §circle§]] => 1
+		[[kind: §circle§ radius: Float]] => 1
 		() => 2`, `
 		return x?.['kind'] === 'circle'
 			? (() => {
@@ -414,7 +414,7 @@ f = (x: Or(Text List(Integer))) =>
 	it('bound im Record: unterscheidendes Feld wird direkt verglichen', () => {
 		expectBranchingEmit(`f = (x: Or([kind: §a§ id: PositiveInteger] [kind: §b§ id: PositiveInteger])) =>
 	?(x)
-		[[kind: §a§]] => 1
+		[[kind: §a§ id: PositiveInteger]] => 1
 		() => 2`, `
 		return x?.['kind'] === 'a'
 			? (() => {

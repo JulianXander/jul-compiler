@@ -24,7 +24,7 @@ gemessen an den KI-Simulationen in `C:\Projects\privat\yugioh`. Das erste Profil
 - `equal`, `not` und `getElement` direkt ausschreiben: V8 inlinet die Wrapper selbst.
 - `add` mit Rest-Parametern und `reduce` gegen direktes `a + b`: im Mikrotest 25 gegen 14 ms je 2 Mio. Aufrufe, im Match bedeutungslos.
 - Den Index nur bilden, wenn der Callback ihn nimmt (`fn.length`): langsamer, der Zugriff auf `length` kostet mehr als der BigInt.
-- Records im Spread ausgeschriebenes Literal statt `{...s, turn}`: höchstens etwa 4 % am Match und semantisch falsch, weil ein Wert mehr Felder haben darf, als sein Typ nennt.
+- Records im Spread ausgeschriebenes Literal statt `{...s, turn}`: höchstens etwa 4 % am Match. Mit geschlossenen Record-Typen ist es semantisch zulässig, weil ein Wert keine weiteren Felder mit Wert haben darf, der Gewinn bleibt aber klein.
 - Stufe 1 der In-place-Mutation (frische lokale Werte): nur 0,2 % der kopierten Felder.
 
 ## Profil

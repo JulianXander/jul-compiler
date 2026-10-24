@@ -2827,7 +2827,19 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 				for (const key of keys) {
 					const firstFieldType = getOwnField(first.Fields, key);
 					const secondFieldType = getOwnField(second.Fields, key);
-					if (firstFieldType && secondFieldType) {
+					// Eine vollständige Seite nennt alle ihre Felder, ein Feld, das nur die andere
+					// Seite kennt, ist dort Empty. Ein unvollständiges Gegenüber weiß nichts darüber.
+					const closedSideLacksField = (firstFieldType === undefined && first.complete)
+						|| (secondFieldType === undefined && second.complete);
+					if (closedSideLacksField) {
+						const onlyFieldType = (firstFieldType ?? secondFieldType)!;
+						const fieldWithEmpty = createNormalizedIntersectionType([onlyFieldType, builtinEmpty]);
+						if (fieldWithEmpty.julType === 'never') {
+							return builtinNever;
+						}
+						mergedFields[key] = fieldWithEmpty;
+					}
+					else if (firstFieldType && secondFieldType) {
 						const mergedFieldType = createNormalizedIntersectionType([firstFieldType, secondFieldType]);
 						// Beide Seiten verlangen das Feld, kein Wert erfüllt beide: dann gibt es auch
 						// kein Dictionary, das beide erfüllt. So fällt z.B. beim Verengen über
@@ -3081,6 +3093,20 @@ function dictionaryLiteralsOverlap(first: ResolvedType, second: ResolvedType): f
 		const secondFieldType = getOwnField(second.Fields, name);
 		if (secondFieldType
 			&& typesOverlap(firstFieldType, secondFieldType) === false) {
+			return false;
+		}
+		// Eine vollständige Seite nennt alle ihre Felder: ein Feld, das sie nicht nennt, ist dort
+		// Empty. Kann die andere Seite es nicht leer lassen, teilen beide keinen Wert.
+		if (!secondFieldType
+			&& second.complete
+			&& typesOverlap(firstFieldType, builtinEmpty) === false) {
+			return false;
+		}
+	}
+	for (const [name, secondFieldType] of Object.entries(second.Fields)) {
+		if (!getOwnField(first.Fields, name)
+			&& first.complete
+			&& typesOverlap(secondFieldType, builtinEmpty) === false) {
 			return false;
 		}
 	}
@@ -4312,7 +4338,7 @@ function isTypeAssignableByStructure(
 			break;
 		}
 		case 'dictionaryLiteral': {
-			const fieldsAssignability = isTypeAssignableForDictionaryLiteral(argumentsType, targetType.Fields);
+			const fieldsAssignability = isTypeAssignableForDictionaryLiteral(argumentsType, targetType.Fields, targetType.complete);
 			if (!fieldsAssignability) {
 				// Standardfehler
 				break;
@@ -4850,6 +4876,7 @@ function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[], keepD
 function isTypeAssignableForDictionaryLiteral(
 	argumentsType: CompileTimeType,
 	targetFieldTypes: CompileTimeDictionary,
+	targetComplete: boolean,
 ): TypeAssignability | undefined {
 	switch (argumentsType.julType) {
 		case 'dictionaryLiteral': {
@@ -4887,6 +4914,36 @@ function isTypeAssignableForDictionaryLiteral(
 						? `Missing field '${missingFieldNames[0]}'.`
 						: `Missing fields: ${missingFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`),
 				});
+			}
+			// Ein Record-Typ ist geschlossen: jedes Feld, das er nicht nennt, ist Empty. Ein
+			// weiteres Feld im Wert passt deshalb nur, wenn es Empty sein kann. Eine
+			// unvollständige Seite nennt nur einen bewiesenen Fakt, dort ist das Zuviel unbekannt.
+			if (targetComplete && argumentsType.complete) {
+				const surplusFieldNames: string[] = [];
+				let surplusUnknown = false;
+				for (const fieldName of Object.keys(argumentsType.Fields)) {
+					if (getOwnField(targetFieldTypes, fieldName) !== undefined) {
+						continue;
+					}
+					const surplusAssignable = isTypeAssignable(argumentsType.Fields[fieldName]!, builtinEmpty).assignable;
+					if (surplusAssignable === false) {
+						surplusFieldNames.push(fieldName);
+					}
+					else if (surplusAssignable === undefined) {
+						surplusUnknown = true;
+					}
+				}
+				if (surplusFieldNames.length) {
+					fieldAssignabilities.unshift({
+						assignable: false,
+						error: new TypeError(surplusFieldNames.length === 1
+							? `Unexpected field '${surplusFieldNames[0]}'.`
+							: `Unexpected fields: ${surplusFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`),
+					});
+				}
+				else if (surplusUnknown) {
+					fieldAssignabilities.push({ assignable: undefined });
+				}
 			}
 			return joinTypeAssignabilities(fieldAssignabilities, true);
 		}

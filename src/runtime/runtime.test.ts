@@ -3,7 +3,7 @@ import { reportAtCaller } from '../test-util.js';
 import {
 	_branch, _combineObject, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
 	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
-	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson,
+	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol,
 } from './runtime.js';
 
 //#region _branch
@@ -102,6 +102,26 @@ describe('Grenze als Typ', () => {
 	});
 	it('matches an integer above the bound', () => {
 		expect(_branch([1n], branchWithType(GreaterInteger(0n)), fallback)).to.equal('matched');
+	});
+});
+
+describe('Record als Typ', () => {
+	const fallback = _createFunction(() => 'fallback', {});
+	const recordType = { [_julTypeSymbol]: 'dictionaryLiteral', Fields: { a: Integer } };
+	const branchWithType = _createFunction(
+		() => 'matched',
+		{ singleNames: [{ name: 'x', type: recordType as any }] },
+	);
+	it('matches exactly the named fields', () => {
+		expect(_branch([{ a: 1n }], branchWithType, fallback)).to.equal('matched');
+	});
+	// Ein Record-Typ ist geschlossen: ein weiterer Schlüssel mit Wert passt nicht.
+	it('does not match a surplus field with a value', () => {
+		expect(_branch([{ a: 1n, b: 2n }], branchWithType, fallback)).to.equal('fallback');
+	});
+	// Ein Schlüssel mit undefined ist dasselbe wie ein fehlender.
+	it('matches a surplus field with undefined', () => {
+		expect(_branch([{ a: 1n, b: undefined }], branchWithType, fallback)).to.equal('matched');
 	});
 });
 

@@ -349,6 +349,13 @@ function isDictionaryLiteralOfType(value: any, fieldTypes: RuntimeDictionary): b
 			return false;
 		}
 	}
+	// Ein Record-Typ ist geschlossen: ein weiterer Schlüssel zählt nur, wenn er Empty ist.
+	for (const key in value) {
+		if (!(key in fieldTypes)
+			&& value[key] !== undefined) {
+			return false;
+		}
+	}
 	return true;
 }
 

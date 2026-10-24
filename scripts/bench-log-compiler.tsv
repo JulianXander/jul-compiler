@@ -254,3 +254,6 @@
 2026-10-24 09:45:37	2748110+	-	ADV-DEV-56627	yugioh	parse+check	5	10794.64	11170.28	11170.28	nach Umbau: Tupel geschlossen (Schritt 3), Kopf aus Positionen
 2026-10-24 09:45:37	2748110+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	784.02	832.38	832.38	nach Umbau: Tupel geschlossen (Schritt 3), Kopf aus Positionen
 2026-10-24 09:45:37	2748110+	-	ADV-DEV-56627	yugioh	parse	5	43.54	47.26	47.26	nach Umbau: Tupel geschlossen (Schritt 3), Kopf aus Positionen
+2026-10-24 13:15:07	c8bc464+	-	ADV-DEV-56627	yugioh	parse+check	5	9887.76	10514.74	10514.74	vor geschlossenen Records
+2026-10-24 13:15:07	c8bc464+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	686.86	755.10	755.10	vor geschlossenen Records
+2026-10-24 13:15:07	c8bc464+	-	ADV-DEV-56627	yugioh	parse	5	38.87	44.03	44.03	vor geschlossenen Records

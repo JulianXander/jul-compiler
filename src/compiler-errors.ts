@@ -224,6 +224,8 @@ export enum ErrorCode {
 	definitionTypeMismatch = 5000,
 	destructuringFieldTypeMismatch = 5001,
 	typeGuardIsNotType = 5002,
+	/** Ein Spread in einem Record-Typ ist kein Record (Any, Dictionary(X)): sonst bliebe unklar, welche Felder der Typ hat. */
+	dictionaryTypeSpreadNotRecord = 5004,
 	/**
 	 * Der Checker kann nicht beweisen, dass ein Wert zu seinem Ziel passt, und kann es auch nicht
 	 * widerlegen (Definition mit Typ, Argument, Rückgabewert): Es kann zur Laufzeit schiefgehen.
@@ -370,6 +372,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.callOfAny]: { type: 'type', severity: 'warning' },
 	[ErrorCode.destructuringFieldTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.typeGuardIsNotType]: { type: 'type', severity: 'error' },
+	[ErrorCode.dictionaryTypeSpreadNotRecord]: { type: 'type', severity: 'error' },
 	[ErrorCode.paramsTypeIsNotCollection]: { type: 'type', severity: 'error' },
 	[ErrorCode.argumentTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.returnTypeMismatch]: { type: 'type', severity: 'error' },

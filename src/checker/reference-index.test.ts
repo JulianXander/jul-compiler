@@ -280,12 +280,12 @@ describe('ReferenceIndex: Feldnamen mit einer Union als erwartetem Typ', () => {
 		documents = {};
 		referenceIndex = new ReferenceIndex();
 		const code = [
-			'Person = [name: Text age: Integer]',
-			'Pet = [name: Text species: Text]',
+			'Person = [name: Text age: Or([] Integer)]',
+			'Pet = [name: Text species: Or([] Text)]',
 			'A = [kind: §a§ name: Text]',
 			'B = [kind: §b§ name: Text]',
 			'x: Or(Person Pet) = [name = §Ada§ age = 36]',
-			'y: Or(Person Pet) = [name = §Rex§ age = 3 species = §Hund§]',
+			'y: Or(Person Pet) = [name = §Rex§]',
 			'z: Or(A B) = [kind = §a§ name = §z§]',
 			'',
 		].join('\n');
@@ -305,7 +305,7 @@ describe('ReferenceIndex: Feldnamen mit einer Union als erwartetem Typ', () => {
 		expect(getReferenceRows('Person')).to.include(4);
 	});
 
-	it('Gegenprobe: ein Literal gehört nicht zu einem Zweig, dessen Pflichtfeld ihm fehlt', () => {
+	it('Gegenprobe: ein Literal gehört nicht zu einem Zweig, der eines seiner Felder nicht kennt', () => {
 		expect(getReferenceRows('Pet')).to.not.include(4);
 	});
 
