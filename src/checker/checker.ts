@@ -2252,9 +2252,9 @@ function inferType(
 				const paramsType = branchType.ParamsType;
 				let head: CompileTimeType;
 				if (isParametersType(paramsType) && isUnnamedParameters(paramsType)) {
-					// Ein Kopf ohne Namen bindet nichts: [Integer] => Integer. Als Kopf gilt die Kollektion
-					// der Typen.
-					head = createCompileTimeTupleType(paramsType.singleNames.map(parameter => parameter.type ?? builtinAny));
+					// Ein Kopf ohne Namen bindet nichts: [Integer] => Integer. Er bleibt eine Parameterliste
+					// und lässt weitere Operanden zu, wie ein Branch-Kopf (createConditionalType).
+					head = paramsType;
 				}
 				else if (isParametersType(paramsType)) {
 					// () ist der catchAll. Eine Bindung im Kopf bleibt für ihre Bedeutung auf

@@ -1491,7 +1491,7 @@ function traversePlaceholdersUncached(
 			const dereferencedOperands = rawOperands.map(operand => traversePlaceholders(operand, argumentContext));
 			const rawBranches = rawType.Branches;
 			const dereferencedBranches = rawBranches.map(branch => ({
-				Head: traversePlaceholders(branch.Head, argumentContext),
+				Head: traverseConditionalHead(branch.Head, argumentContext),
 				Result: traversePlaceholders(branch.Result, argumentContext),
 			}));
 			if (elementsEqual(rawOperands, dereferencedOperands)
@@ -2338,6 +2338,25 @@ export function withElementAtFromTypes(
 //#region Bedingte Typen
 
 /**
+ * Eine Parameterliste löst traversePlaceholders am Aufruf nicht auf, sie gehört zu ihrer Funktion.
+ * Ein Kopf ohne Namen ist aber keine Signatur, sondern die Typen, gegen die die Operanden geprüft
+ * werden: Ein Platzhalter darin wird wie in jedem anderen Kopf am Aufruf konkret.
+ */
+function traverseConditionalHead(head: CompileTimeType, argumentContext: ArgumentContext | undefined): CompileTimeType {
+	if (!isParametersType(head)
+		|| !isUnnamedParameters(head)) {
+		return traversePlaceholders(head, argumentContext);
+	}
+	const singleNames = head.singleNames.map(parameter => ({
+		name: parameter.name,
+		type: parameter.type && traversePlaceholders(parameter.type, argumentContext),
+	}));
+	return singleNames.every((parameter, index) => parameter.type === head.singleNames[index]!.type)
+		? head
+		: createParametersType(singleNames);
+}
+
+/**
  * `:?(Operanden)`: prüft die Kollektion der Operanden der Reihe nach gegen die Köpfe der Zweige.
  * Teilmenge: Ergebnis aufnehmen, fertig. Disjunkt: Zweig überspringen. Überlappend: Ergebnis
  * aufnehmen, weiter mit dem nächsten Zweig. Das Ergebnis ist die Union der aufgenommenen
@@ -2359,16 +2378,52 @@ export function createConditionalType(
 	// überlappen den Kopf dann höchstens.
 	const results: CompileTimeType[] = [];
 	for (const branch of branches) {
-		if (isSubtypeOf(collection, branch.Head) === true) {
+		const relation = getOperandsRelationToHead(operands, collection, branch.Head);
+		if (relation === 'subset') {
 			results.push(branch.Result);
 			break;
 		}
-		if (typesOverlap(collection, branch.Head) === false) {
+		if (relation === 'disjoint') {
 			continue;
 		}
 		results.push(branch.Result);
 	}
 	return createNormalizedUnionType(results);
+}
+
+/**
+ * Wie die Operanden zu einem Kopf stehen. Ein Kopf ohne Namen (`[Integer Integer] => …`) ist eine
+ * Parameterliste: Er prüft seine Positionen einzeln und lässt weitere Operanden zu, wie ein
+ * Branch-Kopf zur Laufzeit (isHeadOfTypes). Ein fehlender Operand zählt als Empty. Jeder andere Kopf
+ * ist ein Typ und beschreibt die ganze Kollektion, auch ein Alias auf ein Tupel.
+ */
+function getOperandsRelationToHead(
+	operands: CompileTimeType[],
+	collection: CompileTimeType,
+	rawHead: CompileTimeType,
+): 'subset' | 'disjoint' | 'overlap' {
+	const head = resolveAlias(rawHead);
+	if (isParametersType(head)
+		&& isUnnamedParameters(head)) {
+		let isSubset = true;
+		for (const [index, parameter] of head.singleNames.entries()) {
+			const operand = operands[index] ?? builtinEmpty;
+			const parameterType = parameter.type ?? builtinAny;
+			if (typesOverlap(operand, parameterType) === false) {
+				return 'disjoint';
+			}
+			isSubset &&= isSubtypeOf(operand, parameterType) === true;
+		}
+		return isSubset
+			? 'subset'
+			: 'overlap';
+	}
+	if (isSubtypeOf(collection, head) === true) {
+		return 'subset';
+	}
+	return typesOverlap(collection, head) === false
+		? 'disjoint'
+		: 'overlap';
 }
 
 //#endregion Bedingte Typen
@@ -5281,6 +5336,15 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'or':
 			return `Or${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, suppressAlias, 'round')}`;
 		case 'parameters': {
+			// Ein Kopf ohne Namen (`[Integer] => …`) erscheint wie das Listenliteral, aus dem er
+			// entstanden ist, nicht als Parameterliste mit leeren Namen.
+			if (isUnnamedParameters(type)) {
+				return typeToString(
+					createCompileTimeTupleType(type.singleNames.map(element => element.type ?? builtinAny)),
+					indent,
+					depth,
+					suppressAlias);
+			}
 			const rest = type.rest;
 			const multiline = type.singleNames.length + (rest ? 1 : 0) > 1;
 			const newIndent = multiline

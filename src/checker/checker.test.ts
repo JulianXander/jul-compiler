@@ -5570,6 +5570,14 @@ f([1 2])`, [ErrorCode.argumentTypeMismatch]);
 	[Integer] => 1
 	() => 2`, 'parameters', 0);
 	});
+	// Ein Kopf wird wie das Listenliteral ausgegeben, aus dem er entstanden ist, nicht als
+	// Parameterliste mit leeren Namen.
+	it('unnamed-head-is-printed-as-list', () => {
+		expectLastTypeString('f = [Integer] => 1', '[Integer] -> 1');
+	});
+	it('unnamed-head-with-two-positions-is-printed-as-list', () => {
+		expectLastTypeString('f = [Integer Text] => 1', '[Integer Text] -> 1');
+	});
 	// Gegenproben, die schon heute grün sind: Ein Kopf mit weniger Positionen als Argumenten passt
 	// weiter, auch auf die zweistellige Signatur von map.
 	it('unnamed-head-fits-callback-with-more-arguments', () => {
@@ -7297,7 +7305,10 @@ r = toDictionary([1 2] getKey getValue)`)).to.equal('[\n  first: 10\n  rest: 20\
 // von deren Umstellung. Jeder Fall hängt h an, geprüft wird der Rückgabetyp von h.
 const conditionalOneOperand = 'f = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t\t\t() => Fraction\n\t=> a';
 const conditionalTwoOperands = 'd = (a: Rational b: Rational)\n\t->\n\t\t:?(TypeOf(a) TypeOf(b))\n\t\t\t[Integer Integer] => Integer\n\t\t\t() => Fraction\n\t=> a';
-const conditionalVariadic = 's = (...xs: List(Rational))\n\t->\n\t\t:?(TypeOf(xs))\n\t\t\t[List(Integer)] => Integer\n\t\t\t() => Fraction\n\t=> 1';
+// Der Kopf nennt weniger Positionen als es Operanden gibt: Er ist eine Parameterliste und lässt die
+// übrigen Operanden zu, wie ein Branch-Kopf zur Laufzeit.
+const conditionalHeadShorterThanOperands = 'd = (a: Rational b: Rational c: Rational)\n\t->\n\t\t:?(TypeOf(a) TypeOf(b) TypeOf(c))\n\t\t\t[Integer Integer] => Text\n\t\t\t() => Boolean\n\t=> §x§';
+const conditionalVariadic ='s = (...xs: List(Rational))\n\t->\n\t\t:?(TypeOf(xs))\n\t\t\t[List(Integer)] => Integer\n\t\t\t() => Fraction\n\t=> 1';
 const conditionalFirstMatch = 'g = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[PositiveInteger] => Text\n\t\t\t[Integer] => Integer\n\t\t\t() => Fraction\n\t=> a';
 const conditionalWithoutCatchAll = 'n = (a: Rational)\n\t->\n\t\t:?(TypeOf(a))\n\t\t\t[Integer] => Integer\n\t=> 1';
 
@@ -7371,6 +7382,17 @@ describe('bedingte Typen', () => {
 	it('M3', () => expectConditional(`${conditionalTwoOperands}\nh = (x: Rational y: Integer) => d(x y)`, { returnType: 'Or(Integer Fraction)' }));
 	it('M4', () => expectConditional(`${conditionalTwoOperands}\nh = (x: PositiveInteger y: Integer) => d(x y)`, { returnType: 'Integer' }));
 	it('M5 Präfix', () => expectConditional(`${conditionalTwoOperands}\nh = (x: Integer y: Integer) => x.d(y)`, { returnType: 'Integer' }));
+	it('M6 Kopf mit weniger Positionen als Operanden trifft', () => expectConditional(`${conditionalHeadShorterThanOperands}\nh = (x: Integer y: Integer z: Integer) => d(x y z)`, { returnType: 'Text' }));
+	it('M7 Kopf mit weniger Positionen prüft die genannten', () => expectConditional(`${conditionalHeadShorterThanOperands}\nh = (x: Fraction y: Integer z: Integer) => d(x y z)`, { returnType: 'Boolean' }));
+	// Der Rückgabetyp bleibt unaufgelöst stehen (Hover), der Kopf erscheint wie das geschriebene Literal.
+	it('M9 Kopf im bedingten Typ wird als Liste ausgegeben', () => {
+		const parsed = check(conditionalHeadShorterThanOperands);
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const functionType = definition.value?.typeInfo?.type;
+		expect(isFunctionType(functionType) && typeToString(functionType.ReturnType, 0, 5))
+			.to.equal(':?(a b c) [[Integer Integer] => Text, Any => Boolean]');
+	});
+	it('M8 Kopf mit weniger Positionen, ein Operand überlappt', () => expectConditional(`${conditionalHeadShorterThanOperands}\nh = (x: Rational y: Integer z: Integer) => d(x y z)`, { returnType: 'Or(Text Boolean)' }));
 	//#endregion M: zwei Operanden
 	//#region V: variadisch
 	it('V1', () => expectConditional(`${conditionalVariadic}\nh = (x: Integer y: Integer z: Integer) => s(x y z)`, { returnType: 'Integer' }));
