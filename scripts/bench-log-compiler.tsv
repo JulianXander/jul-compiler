@@ -272,3 +272,9 @@
 2026-10-24 19:31:46	3278fb5+	-	ADV-DEV-56627	yugioh	parse+check	5	9068.91	9669.62	9669.62	nach json-symbols
 2026-10-24 19:31:46	3278fb5+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	669.46	693.13	693.13	nach json-symbols
 2026-10-24 19:31:46	3278fb5+	-	ADV-DEV-56627	yugioh	parse	5	53.07	67.44	67.44	nach json-symbols
+2026-10-24 19:41:01	8969d0d	-	ADV-DEV-56627	yugioh	parse+check	5	10055.56	10356.65	10356.65	vor tryFoldCall-Reihenfolge
+2026-10-24 19:41:01	8969d0d	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	768.19	815.44	815.44	vor tryFoldCall-Reihenfolge
+2026-10-24 19:41:01	8969d0d	-	ADV-DEV-56627	yugioh	parse	5	61.95	76.85	76.85	vor tryFoldCall-Reihenfolge
+2026-10-24 19:42:10	8969d0d+	-	ADV-DEV-56627	yugioh	parse+check	5	8992.26	9462.44	9462.44	nach tryFoldCall-Reihenfolge
+2026-10-24 19:42:10	8969d0d+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	659.52	689.25	689.25	nach tryFoldCall-Reihenfolge
+2026-10-24 19:42:10	8969d0d+	-	ADV-DEV-56627	yugioh	parse	5	54.06	79.41	79.41	nach tryFoldCall-Reihenfolge

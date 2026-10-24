@@ -4240,6 +4240,16 @@ function tryFoldCall(
 		|| declaredReturnJulType === 'typeOf') {
 		return undefined;
 	}
+	// Die Argumente zuerst: Sind sie nicht konstant, wäre der Callable (new Function mit der
+	// ganzen Runtime als Bindungen) umsonst gebaut.
+	const prefixValue = prefixArgumentType && typeToConstantValue(prefixArgumentType);
+	if (prefixArgumentType && !prefixValue) {
+		return undefined;
+	}
+	const argsValue = typeToConstantValue(argsType);
+	if (!argsValue) {
+		return undefined;
+	}
 	// Trägt der Typ ein literal, ist es eine Nutzerfunktion (case 'functionLiteral' setzt es) -
 	// dafür der Auswerter (tryBuildCallable). Sonst ein Runtime-Export mit params unter diesem
 	// Namen; params hängt nur an Builtins, die runtime.ts selbst per _createFunction(...)
@@ -4259,14 +4269,6 @@ function tryFoldCall(
 			: undefined;
 	}
 	if (!callable) {
-		return undefined;
-	}
-	const prefixValue = prefixArgumentType && typeToConstantValue(prefixArgumentType);
-	if (prefixArgumentType && !prefixValue) {
-		return undefined;
-	}
-	const argsValue = typeToConstantValue(argsType);
-	if (!argsValue) {
 		return undefined;
 	}
 	checkerStats.foldableCall++;
