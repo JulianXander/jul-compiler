@@ -572,8 +572,14 @@ function functionLiteralToJsParts(
 	}
 	else {
 		argsJs = '';
-		const typeFieldJs = singleDictionaryFieldToJsInternal('type', expressionToJs(params, indent));
-		paramsJs = dictionaryToJs([typeFieldJs], indent);
+		// Ein Listenliteral, dem der Checker einen Tupeltyp gegeben hat, ist eine Parameterliste ohne
+		// Namen (siehe createUnnamedParametersType): Positionen unter head. Jeder andere Kopf ist ein
+		// Typ und beschreibt die ganze Argumentkollektion. Ohne Typinfo (ungeprüfter Baum) bleibt es
+		// ein Typ-Kopf.
+		const isPositionalHead = params.type === 'list'
+			&& params.typeInfo?.type.julType === 'tuple';
+		const headFieldJs = singleDictionaryFieldToJsInternal(isPositionalHead ? 'head' : 'type', expressionToJs(params, indent));
+		paramsJs = dictionaryToJs([headFieldJs], indent);
 	}
 	const delimiterJs = getRowDelimiterJs(indent + 1);
 	const functionJs = tail

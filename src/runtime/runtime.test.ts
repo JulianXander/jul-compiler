@@ -43,6 +43,39 @@ describe('Prädikat als Typ', () => {
 		expect(_branch(['a'], branchWithType(predicate), fallback)).to.equal('fallback');
 		expect(_branch([1n], branchWithType(predicate), fallback)).to.equal('matched');
 	});
+	// Ein Kopf aus Positionen ([Integer] => …) nennt nur die Argumente, die er braucht: Er prüft sie
+	// der Reihe nach und lässt weitere zu. Das unterscheidet ihn von einem Typ-Kopf (`type`), der die
+	// ganze Argumentkollektion beschreibt.
+	describe('Kopf aus Positionen', () => {
+		const headBranch = (...head: unknown[]) => _createFunction(() => 'matched', { head: head as any });
+		it('matches the named position', () => {
+			expect(_branch([1n], headBranch(Integer), fallback)).to.equal('matched');
+		});
+		it('does not match another type at the named position', () => {
+			expect(_branch(['a'], headBranch(Integer), fallback)).to.equal('fallback');
+		});
+		it('allows more arguments than positions', () => {
+			expect(_branch([1n, 'a'], headBranch(Integer), fallback)).to.equal('matched');
+		});
+		it('checks only the named positions', () => {
+			expect(_branch(['a', 1n], headBranch(Integer), fallback)).to.equal('fallback');
+		});
+		it('does not match fewer arguments than positions', () => {
+			expect(_branch([1n], headBranch(Integer, Integer), fallback)).to.equal('fallback');
+		});
+		it('does not match a dictionary', () => {
+			expect(_branch({ a: 1n }, headBranch(Integer), fallback)).to.equal('fallback');
+		});
+		it('binds nothing', () => {
+			const branch = _createFunction((...bound: unknown[]) => bound.length, { head: [Integer] });
+			expect(_branch([1n, 2n], branch, fallback)).to.equal(0);
+		});
+		it('gives a predicate its value', () => {
+			const predicate = _createFunction(() => true, { head: [Integer] });
+			expect(_branch(['a'], branchWithType(predicate), fallback)).to.equal('fallback');
+			expect(_branch([1n], branchWithType(predicate), fallback)).to.equal('matched');
+		});
+	});
 	// Eine JS-Funktion ohne Parameterbindung wird weiter direkt aufgerufen.
 	it('calls a plain JS function directly', () => {
 		const predicate = (value: unknown) => value === 1n;

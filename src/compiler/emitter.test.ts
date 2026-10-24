@@ -1099,6 +1099,36 @@ describe('Emitter Tail-Call-Optimierung', () => {
 	});
 });
 
+// Ein Kopf aus einem Listenliteral ist eine Parameterliste ohne Namen (der Checker gibt ihm den Typ
+// parameters): Der Emitter schreibt ihn als Positionen unter head. Ein Typ-Kopf beschreibt dagegen
+// die ganze Argumentkollektion und bleibt unter type, auch wenn er ein Tupeltyp ist: Ein Alias
+// auf ein Tupel ist zur Laufzeit ein Array wie das Listenliteral.
+describe('Emitter: Kopf aus Positionen', () => {
+	it('Listenliteral als Kopf steht unter head', () => {
+		const js = emitChecked('f = [Integer] => 1');
+		expect(js).to.contain('head: [Integer]');
+		expect(js).not.to.contain('type: [Integer]');
+	});
+	it('Listenliteral als Kopf eines Branch-Arms steht unter head', () => {
+		const js = emitChecked(`f = (a: Any b: Any) =>
+	?(a b)
+		[Integer] => 1
+		() => 2`);
+		expect(js).to.contain('head: [Integer]');
+	});
+	it('Alias auf ein Tupel als Kopf bleibt ein Typ-Kopf', () => {
+		const js = emitChecked(`Pair = [Integer Integer]
+f = Pair => 1`);
+		expect(js).to.contain('type: Pair');
+		expect(js).not.to.contain('head:');
+	});
+	it('Any als Kopf bleibt ein Typ-Kopf', () => {
+		const js = emitChecked('f = Any => 1');
+		expect(js).to.contain('type: Any');
+		expect(js).not.to.contain('head:');
+	});
+});
+
 describe('Emitter: params nur, wo die Laufzeit sie liest', () => {
 	const emitUnchecked = (code: string): string =>
 		withoutImports(syntaxTreeToJs(parseCode(code, 'dummy.jul').unchecked.expressions!, ''));

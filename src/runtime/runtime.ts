@@ -4,7 +4,15 @@
 let processId = 1;
 
 export interface Params {
+	/**
+	 * Ein Typ-Kopf (`Any => …`, `Pair => …`): beschreibt die ganze Argumentkollektion.
+	 */
 	type?: RuntimeType;
+	/**
+	 * Ein Kopf aus Positionen (`[Integer] => …`): eine Parameterliste ohne Namen. Prüft die
+	 * Argumente der Reihe nach, lässt weitere zu und bindet nichts.
+	 */
+	head?: RuntimeType[];
 	singleNames?: {
 		name: string;
 		type?: RuntimeType;
@@ -299,7 +307,21 @@ export function _isOfType(value: any, type: RuntimeType): boolean {
 	return false;
 }
 
+/**
+ * Ein Tupeltyp ist geschlossen: Passt nur ein Array mit genau so vielen Elementen. Ein Kopf aus
+ * Positionen (isHeadOfTypes) lässt dagegen weitere Elemente zu.
+ */
 function isTupleOfType(value: any, elementTypes: RuntimeType[]): boolean {
+	return Array.isArray(value)
+		&& value.length === elementTypes.length
+		&& isHeadOfTypes(value, elementTypes);
+}
+
+/**
+ * Passt value auf die Positionen eines Kopfs? Ein Array mit mindestens so vielen Elementen, von
+ * denen die ersten den Typen entsprechen. Weitere Elemente bleiben ungeprüft.
+ */
+function isHeadOfTypes(value: any, elementTypes: RuntimeType[]): boolean {
 	if (!Array.isArray(value)) {
 		return false;
 	}
@@ -354,8 +376,13 @@ function tryAssignArgs(
 	args: Collection | undefined,
 ): any[] | undefined {
 	const assignedValues: any[] = [];
-	const { type: paramsType, singleNames, rest } = params;
+	const { type: paramsType, head, singleNames, rest } = params;
 	const hasPrefixArg = prefixArg !== undefined;
+	if (head !== undefined) {
+		return isHeadOfTypes(args, head)
+			? assignedValues
+			: undefined;
+	}
 	if (paramsType !== undefined) {
 		// TODO typecheck prefixArg with paramsType?
 		return _isOfType(args, paramsType)

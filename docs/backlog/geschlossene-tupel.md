@@ -4,7 +4,7 @@ Ein Tupeltyp (`[Integer]`, `[GameBoard GameBoard]`) hat genau so viele Elemente,
 Ein unbenannter Kopf (`[Integer] => …`, Branch-Arm) ist dagegen eine Parameterliste und bleibt
 offen: Er nennt die Argumente, die er braucht, und lässt weitere zu.
 
-Status: Entwurf, noch keine Entscheidung in `design-principles.md`.
+Status: umgesetzt (Schritte 1 bis 3, 2026-10-24). Offen: `design-principles.md` und CLAUDE.md nachziehen (Schritt 4).
 
 ## Problem
 
@@ -83,8 +83,13 @@ geschlossenen Parameterlisten zusätzlich
    `'functionTypeLiteral'`). Betroffen sind `getRawBranchArgumentType`, `getBranchHeadLength`,
    `getFirstParameterType`, `typeBranching`, `getRequirementForType` in `branch-dispatch.ts`.
    Verhalten unverändert, die Suite muss grün bleiben.
-2. **Runtime.** `tryAssignArgs` prüft einen Kopf selbst positionsweise mit Präfix-Vergleich, nicht
-   über `isTupleOfType`. Der Emitter schreibt dazu die Positionen statt eines Arrays.
+2. **Runtime.** `Params` bekommt das Feld `head` (Positionen, ohne Namen). `tryAssignArgs` prüft
+   es selbst mit Präfix-Vergleich (`isHeadOfTypes`), nicht über `isTupleOfType`. Der Emitter
+   schreibt einen Kopf, dem der Checker einen Tupeltyp gegeben hat, unter `head`, jeden anderen unter
+   `type`. Ein Alias auf ein Tupel (`Pair => …`) bleibt ein Typ-Kopf: Zur Laufzeit ist er ein Array
+   wie das Listenliteral, nur das Feld unterscheidet die beiden. Ein eigenes Feld statt `singleNames`
+   mit leeren Namen, damit sich das Matching nicht ändert (ein zu kurzes Array, ein Dictionary und ein
+   `Any` hinter dem Ende hätten sonst anders gematcht).
 3. **Schließen.** `isTypeAssignableForTuple` lehnt ein längeres Tupel und eine `List` ab,
    `isTupleOfType` vergleicht die Länge exakt. Die Parameterliste ersetzt die Sonderfälle in
    `isTypeAssignableForTuple` (`case 'parameters'`) und `isTypeAssignableForParameters` (`case
@@ -93,6 +98,20 @@ geschlossenen Parameterlisten zusätzlich
    das Gegenteil), `CLAUDE.md` den Absatz zur Zuweisung, und die Tests `assignment-discards-nothing`
    und `…-annotated-tuple` folgen der neuen Regel.
 5. **Messen.** `npm run bench -- --save` vor und nach dem Umbau, dazu yugioh.
+
+## Umgesetzt
+
+- Schritt 1: `createUnnamedParametersType` (type-algebra.ts), `getHeadParamsType` im Checker. Der
+  Namensvergleich zweier Parameterlisten und `:?` (typeBranching) lassen unbenannte Positionen aus.
+- Schritt 2: `head` in Laufzeit und Emitter.
+- Schritt 3: `isTypeAssignableForTuple` lehnt `List` und ein längeres Tupel ab, `isTupleOfType` prüft
+  die Länge exakt. Ein zu kurzes Tupel scheitert weiter erst am Elementtyp (eine fehlende Position
+  zählt als `Empty`), `Or([] X)` an einer Tupelposition lässt sie also zu.
+- Zähler (yugioh): `getTypeError` 2 091 150 → 2 054 811, `resolvePlaceholders` 2 261 147 → 2 273 495
+  (+0,5 %), `inferType` gleich. Die Zeitmessungen schwanken stärker als der Effekt (der unveränderte
+  Parser war bei der letzten Messung +16 %).
+- yugioh: gleiche 18 Meldungen, 399 Tests grün. jul-examples: Snapshot unverändert, die Tests der
+  vier Beispiele mit Tests grün.
 
 ## Offen
 

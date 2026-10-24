@@ -4714,15 +4714,20 @@ function isTypeAssignableForTuple(
 ): TypeAssignability {
 	const targetElementTypes = targetType.ElementTypes;
 	switch (argumentsType.julType) {
+		// Ein Tupeltyp ist geschlossen (docs/backlog/geschlossene-tupel.md): Er hat genau so viele
+		// Elemente, wie er nennt. Eine List kann jede Länge haben, ein längeres Tupel hat zu viele.
 		case 'list':
-			if (targetElementTypes.length > 1) {
+			return {
+				assignable: false,
+				error: new TypeError(`Expected ${targetElementTypes.length} elements, but List can have any length.`)
+			};
+		case 'tuple':
+			if (argumentsType.ElementTypes.length > targetElementTypes.length) {
 				return {
 					assignable: false,
-					error: new TypeError(`Expected ${targetElementTypes.length} elements, but List may contain less.`)
+					error: new TypeError(`Expected ${targetElementTypes.length} elements, but got ${argumentsType.ElementTypes.length}.`)
 				};
 			}
-			return isTypeAssignable(argumentsType.ElementType, targetElementTypes[0]!);
-		case 'tuple':
 			return isTypeAssignableForTupleArgAndTupleTarget(argumentsType.ElementTypes, targetElementTypes);
 		case 'parameters':
 			// Gegenstück zu isTypeAssignableForParameters' case 'tuple': dort darf ein unbenanntes
@@ -4745,7 +4750,6 @@ function isTypeAssignableForTupleArgAndTupleTarget(
 	argumentElementTypes: CompileTimeType[],
 	targetElementTypes: CompileTimeType[],
 ): TypeAssignability {
-	// TODO fehler wenn argument mehr elemente entfält als target?
 	const elementAssignabilities = targetElementTypes.map((targetElementType, index) => {
 		const valueElement = argumentElementTypes[index] ?? builtinEmpty;
 		return isTypeAssignable(valueElement, targetElementType);
