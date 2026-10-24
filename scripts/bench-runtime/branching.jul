@@ -21,7 +21,7 @@ Shape = Or([kind: §circle§ radius: Float] [kind: §rect§ width: Float height:
 
 tagField = (s: Shape) =>
 	?(s)
-		[[kind: §circle§]] => 1
+		[[kind: §circle§ radius: Float]] => 1
 		() => 2
 
 Phase = Or(§draw§ §standby§ §main1§ §battle§ §main2§ §end§)

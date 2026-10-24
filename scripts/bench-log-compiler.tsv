@@ -257,3 +257,6 @@
 2026-10-24 13:15:07	c8bc464+	-	ADV-DEV-56627	yugioh	parse+check	5	9887.76	10514.74	10514.74	vor geschlossenen Records
 2026-10-24 13:15:07	c8bc464+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	686.86	755.10	755.10	vor geschlossenen Records
 2026-10-24 13:15:07	c8bc464+	-	ADV-DEV-56627	yugioh	parse	5	38.87	44.03	44.03	vor geschlossenen Records
+2026-10-24 13:40:29	397bffa	-	ADV-DEV-56627	yugioh	parse+check	5	10794.01	11226.31	11226.31	nach geschlossenen Records
+2026-10-24 13:40:29	397bffa	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	770.35	795.85	795.85	nach geschlossenen Records
+2026-10-24 13:40:29	397bffa	-	ADV-DEV-56627	yugioh	parse	5	40.98	47.00	47.00	nach geschlossenen Records
