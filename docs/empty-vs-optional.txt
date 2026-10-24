@@ -10,3 +10,9 @@ myVar: [a: Or([] Integer)] = []
 ?was ist mit Dictionary(Or([] Text))
 ?sollte das erlaubt sein?
 myVar2: Dictionary(Or([] Text)) = []
+
+
+mögliche syntax für optionale felder:
+[
+	a?: Text
+]

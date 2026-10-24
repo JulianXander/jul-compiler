@@ -1666,6 +1666,26 @@ export function isParametersType(type: CompileTimeType | undefined): type is Par
 	return !!type && type.julType === 'parameters';
 }
 
+/**
+ * Ein Kopf, der als Listenliteral geschrieben ist (`[Integer] => …`, ein Branch-Arm), ist eine
+ * Parameterliste ohne Namen: Er nennt die Argumente, die er braucht, und lässt weitere zu. Ein
+ * Datentupel ist dagegen geschlossen (docs/backlog/geschlossene-tupel.md). Jede Position heißt
+ * intern leer. Alles außer einem Tupel (Any, ein Typ, eine Liste) bleibt als Typ-Kopf stehen und
+ * beschreibt die ganze Argumentkollektion.
+ */
+export function createUnnamedParametersType(headType: CompileTimeType): CompileTimeType {
+	return headType.julType === 'tuple'
+		? createParametersType(headType.ElementTypes.map(elementType => ({ name: unnamedParameterName, type: elementType })))
+		: headType;
+}
+
+export const unnamedParameterName = '';
+
+export function isUnnamedParameters(type: ParametersType): boolean {
+	return !!type.singleNames.length
+		&& type.singleNames.every(parameter => parameter.name === unnamedParameterName);
+}
+
 export function isParameterReference(type: CompileTimeType | undefined): type is ParameterReference {
 	return !!type && type.julType === 'parameterReference';
 }
@@ -4989,7 +5009,11 @@ function isTypeAssignableForParametersWithLeading(
 				const targetParameterName = targetParameter.name;
 				const targetParameterType = targetParameter.type;
 				const valueParameter = valueSingleNames[index];
-				if (valueParameter && valueParameter.name !== targetParameterName) {
+				// Eine Position ohne Namen (Kopf `[Integer] => …`) legt nur den Typ fest.
+				if (valueParameter
+					&& valueParameter.name !== targetParameterName
+					&& valueParameter.name !== unnamedParameterName
+					&& targetParameterName !== unnamedParameterName) {
 					return {
 						assignable: false,
 						error: new TypeError(`Parameter name mismatch. Got '${targetParameterName}' but expected '${valueParameter.name}'`)

@@ -1,3 +1,4 @@
+-stabile objekte (monomoprh statt megamorph) für js perf
 -usages von assume in yugioh untersuchen:
 	-warum sind sie aktuell notwendig?
 	-wie könnte man das vermeiden?

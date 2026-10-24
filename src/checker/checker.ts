@@ -106,8 +106,10 @@ import {
 	isDictionaryLiteralType,
 	isDictionaryType,
 	isFunctionType,
+	createUnnamedParametersType,
 	isParametersType,
 	isSubtypeOf,
+	isUnnamedParameters,
 	isTupleType,
 	isTypeAssignable,
 	isTypeAssignableForPredicateFunction,
@@ -1416,6 +1418,17 @@ function createNormalizedComplementType(source: CompileTimeType): CompileTimeTyp
 	}
 }
 
+/**
+ * Der Parametertyp aus dem geprüften params-Ausdruck. Ein Listenliteral als Kopf wird zur
+ * Parameterliste ohne Namen (siehe createUnnamedParametersType).
+ */
+function getHeadParamsType(params: ParseFunctionLiteral['params']): CompileTimeType {
+	const paramsType = valueOf(params.typeInfo!.type);
+	return params.type === 'list'
+		? createUnnamedParametersType(paramsType)
+		: paramsType;
+}
+
 function getRawBranchArgumentType(
 	paramsType: CompileTimeType,
 	argumentIndex: number,
@@ -2238,7 +2251,12 @@ function inferType(
 				}
 				const paramsType = branchType.ParamsType;
 				let head: CompileTimeType;
-				if (isParametersType(paramsType)) {
+				if (isParametersType(paramsType) && isUnnamedParameters(paramsType)) {
+					// Ein Kopf ohne Namen bindet nichts: [Integer] => Integer. Als Kopf gilt die Kollektion
+					// der Typen.
+					head = createCompileTimeTupleType(paramsType.singleNames.map(parameter => parameter.type ?? builtinAny));
+				}
+				else if (isParametersType(paramsType)) {
 					// () ist der catchAll. Eine Bindung im Kopf bleibt für ihre Bedeutung auf
 					// Typebene frei. Als Kopf gelten dann die Typen der Parameter, damit auf den
 					// Fehler keine Folgefehler kommen.
@@ -2887,7 +2905,7 @@ function inferType(
 			// Untypisierte Parameter bekommen ihren Typ aus dem erwarteten Funktionstyp.
 			const expectedFunctionType = getExpectedFunctionType(expression.expectedType);
 			setInferredType(params, functionTypeContext, expectedFunctionType?.ParamsType, checkContext);
-			const paramsTypeValue = valueOf(params.typeInfo!.type);
+			const paramsTypeValue = getHeadParamsType(params);
 			checkParamsTypeIsCollection(params, errors);
 			checkTypeHeadPredicates(params, errors);
 			identity.ParamsType = paramsTypeValue;
@@ -3086,7 +3104,7 @@ function inferType(
 				narrowedTypes: narrowedTypes,
 			};
 			setInferredType(params, functionTypeContext, undefined, checkContext);
-			const paramsType = valueOf(params.typeInfo!.type);
+			const paramsType = getHeadParamsType(params);
 			identity.ParamsType = paramsType;
 			identity.sealed = true;
 			checkParamsTypeIsCollection(params, errors);

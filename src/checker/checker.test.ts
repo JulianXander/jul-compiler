@@ -51,6 +51,54 @@ const expectLastTypeString = reportAtCaller((code: string, typeString: string, e
 });
 
 /**
+ * Prüft den aufgelösten Rückgabetyp der ersten Definition, einer Funktion: Ihre Parameter stehen
+ * dann für ihren deklarierten Typ, nicht für das Argument eines Aufrufs.
+ */
+const expectResolvedReturnType = reportAtCaller((code: string, typeString: string) => {
+	const parserResult = parseCode(code, 'dummy.jul');
+	checkTypes(parserResult, {}, { cloneUnchecked: false });
+	expect(parserResult.checked?.errors).to.deep.equal([]);
+	const functionType = parserResult.checked?.expressions?.[0]?.typeInfo?.type;
+	expect(functionType && isFunctionType(functionType), 'die erste Definition ist keine Funktion').to.equal(true);
+	if (functionType && isFunctionType(functionType)) {
+		expect(typeToString(resolvePlaceholders(functionType.ReturnType), 0, 1)).to.equal(typeString);
+	}
+});
+
+/**
+ * Prüft nur die Fehlercodes (ohne Meldung und Position), für Fälle, in denen die Meldung nichts
+ * zur Aussage beiträgt.
+ */
+const expectErrorCodes = reportAtCaller((code: string, errorCodes: ErrorCode[]) => {
+	const parserResult = parseCode(code, 'dummy.jul');
+	expect(parserResult.unchecked.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
+	checkTypes(parserResult, {}, { cloneUnchecked: false });
+	expect(parserResult.checked?.errors.map(error => error.code)).to.deep.equal(errorCodes);
+});
+
+/**
+ * Prüft die Art des ParamsType der ersten Definition. Mit branchIndex stattdessen der des
+ * Branch-Arms in deren erstem Branching (die Definition ist dann eine Funktion).
+ */
+const expectParamsJulType = reportAtCaller((code: string, julType: string, branchIndex?: number) => {
+	const parserResult = parseCode(code, 'dummy.jul');
+	checkTypes(parserResult, {}, { cloneUnchecked: false });
+	expect(parserResult.checked?.errors).to.deep.equal([]);
+	const definition = parserResult.checked?.expressions?.[0] as ParseSingleDefinition;
+	let literal: ParseExpression | undefined = definition.value;
+	if (branchIndex !== undefined) {
+		const body = (literal as ParseFunctionLiteral).body;
+		const branching = body[body.length - 1] as ParseExpression & { branches?: ParseExpression[]; };
+		literal = branching.branches?.[branchIndex];
+	}
+	const functionType = literal?.typeInfo?.type;
+	expect(functionType && isFunctionType(functionType), 'kein Funktionstyp: ' + functionType?.julType).to.equal(true);
+	if (functionType && isFunctionType(functionType)) {
+		expect(functionType.ParamsType.julType).to.equal(julType);
+	}
+});
+
+/**
  * Wie expectLastTypeString für unvollständigen Code: Der Parser hat seinen Fehler schon gemeldet
  * (er steht in errors), der Checker darf nichts hinzufügen.
  */
@@ -4159,13 +4207,10 @@ f(a = 1 b = 2)`, {
 			],
 		});
 	});
-	// Eine Zuweisung verwirft nichts: der TypeGuard prüft, er formt nicht um. x behält
-	// den Typ des Werts samt drittem Element, x/3 bleibt lesbar und das emittierte JS
-	// enthält alle drei. Nur der Aufruf lässt überzählige Werte fallen.
-	it('assignment-discards-nothing', () => {
-		expectCheck('x: [Integer Integer] = [1 2 3]');
-	});
-	// Dasselbe für Felder: x behält b, der TypeGuard schneidet es nicht weg.
+	// Eine Zuweisung verwirft nichts: der TypeGuard prüft, er formt nicht um. Ein Tupel ist
+	// geschlossen, ein drittes Element passt deshalb nicht auf [Integer Integer] (siehe
+	// longer-tuple-is-not-assignable-to-tuple-type). Nur der Aufruf lässt überzählige Werte fallen.
+	// Für Felder: x behält b, der TypeGuard schneidet es nicht weg.
 	// Vgl. jul-examples/type-checking-test.jul testDictionaryLiteral3a.
 	it('assignment-keeps-surplus-field', () => {
 		expectCheck('x: [a: Integer] = [a = 1 b = 2]');
@@ -5455,6 +5500,80 @@ f(source)`;
 			expect(returnType.ElementType.julType).to.equal('integer',
 				'ElementType sollte Integer sein, tatsächlich: ' + returnType.ElementType.julType);
 		}
+	});
+
+	// Ein Tupeltyp ist geschlossen (docs/backlog/geschlossene-tupel.md): [Integer] hat genau ein
+	// Element, List(Integer) ist keine Teilmenge davon. Sonst verschwindet die List aus einer Union
+	// mit einem Tupel, und die Länge der Union gilt danach fälschlich als 1.
+	it('length-of-spread-of-possibly-empty-list-is-not-constant', () => {
+		expectCheck(`f = (l: Or([] List(Integer)) entry: Integer) =>
+	extended = [...l entry]
+	?(extended.length().greater(100))
+		[true] => 1
+		[false] => 2`);
+	});
+	it('length-of-union-of-tuple-literal-and-list-is-not-constant', () => {
+		expectCheck(`f = (l: List(Integer) n: Integer b: Boolean) =>
+	x = ?(b)
+		[true] => [n]
+		[false] => l
+	?(x.length().greater(1))
+		[true] => 1
+		[false] => 2`);
+	});
+	it('union-of-tuple-literal-and-list-keeps-later-elements', () => {
+		expectCheck(`f = (l: List(Integer) n: Integer b: Boolean) =>
+	x = ?(b)
+		[true] => [n]
+		[false] => l
+	?(x.getElement(2))
+		[Empty] => 0
+		[Integer] => 1`);
+	});
+	// Länge und Index eines Tupeltyps sind exakt, auch bei einer Annotation. Das gilt schon heute
+	// und muss nach dem Schließen so bleiben.
+	it('length-of-annotated-tuple-is-its-element-count', () => {
+		expectResolvedReturnType('f = (t: [Integer]) => t.length()', '1');
+	});
+	it('element-after-annotated-tuple-is-empty', () => {
+		expectResolvedReturnType('f = (t: [Integer]) => t.getElement(2)', 'Empty');
+	});
+	it('length-of-tuple-literal-is-exact', () => {
+		expectResolvedReturnType('f = (n: Integer) => [n].length()', '1');
+	});
+	// Geschlossen: ein längeres Tupel und eine List passen nicht auf einen Tupeltyp.
+	it('longer-tuple-is-not-assignable-to-tuple-type', () => {
+		expectErrorCodes('x: [Integer Integer] = [1 2 3]', [ErrorCode.definitionTypeMismatch]);
+	});
+	it('list-is-not-assignable-to-tuple-type', () => {
+		expectErrorCodes(`f = (l: List(Integer)) =>
+	u: [Integer] = l
+	u`, [ErrorCode.definitionTypeMismatch]);
+	});
+	it('longer-tuple-argument-is-not-assignable-to-tuple-parameter', () => {
+		expectErrorCodes(`f = (t: [Integer]) => t
+f([1 2])`, [ErrorCode.argumentTypeMismatch]);
+	});
+	it('shorter-tuple-is-not-assignable-to-tuple-type', () => {
+		expectErrorCodes('x: [Integer Integer] = [1]', [ErrorCode.definitionTypeMismatch]);
+	});
+	it('tuple-is-assignable-to-list-type', () => {
+		expectErrorCodes('x: List(Integer) = [1 2 3]', []);
+	});
+	// Ein unbenannter Kopf ist eine Parameterliste, kein Datentupel: Er nennt die Argumente, die er
+	// braucht, und lässt weitere zu.
+	it('unnamed-head-has-parameters-type', () => {
+		expectParamsJulType('f = [Integer] => 1', 'parameters');
+	});
+	it('unnamed-head-of-branch-has-parameters-type', () => {
+		expectParamsJulType(`f = (x: Any) => ?(x)
+	[Integer] => 1
+	() => 2`, 'parameters', 0);
+	});
+	// Gegenproben, die schon heute grün sind: Ein Kopf mit weniger Positionen als Argumenten passt
+	// weiter, auch auf die zweistellige Signatur von map.
+	it('unnamed-head-fits-callback-with-more-arguments', () => {
+		expectErrorCodes('r = [1 2].map([Integer] => 1)', []);
 	});
 
 	// a.filterMap(...) und [...a].filterMap(...) müssen denselben Elementtyp liefern - a wird nur

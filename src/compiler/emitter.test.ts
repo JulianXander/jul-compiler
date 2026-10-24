@@ -997,6 +997,50 @@ describe('Emitter Ausführung', () => {
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(1n);
 	});
+	// Ein Datentupel ist geschlossen (docs/backlog/geschlossene-tupel.md): [Integer] als Typ trifft
+	// nur ein Array mit genau einem Element.
+	it('ein Tupeltyp als Kopf trifft kein längeres Array', () => {
+		const code = [
+			'f = (x: Any) =>',
+			'	?(x)',
+			'		[[Integer]] => 1',
+			'		() => 2',
+			'result = f([1 2])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(2n);
+	});
+	it('ein Tupeltyp als Kopf trifft ein Array mit genau so vielen Elementen', () => {
+		const code = [
+			'f = (x: Any) =>',
+			'	?(x)',
+			'		[[Integer]] => 1',
+			'		() => 2',
+			'result = f([1])',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(1n);
+	});
+	// Ein Kopf ist dagegen eine Parameterliste: Er prüft die Positionen, die er nennt, und lässt
+	// weitere Operanden zu.
+	it('ein Kopf mit weniger Positionen als Operanden trifft', () => {
+		const code = [
+			'f = (a: Any b: Any) =>',
+			'	?(a b)',
+			'		[Integer] => 1',
+			'		() => 2',
+			'result = f(1 §x§)',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(1n);
+	});
+	it('ein Kopf mit weniger Positionen als Operanden prüft die genannte Position', () => {
+		const code = [
+			'f = (a: Any b: Any) =>',
+			'	?(a b)',
+			'		[Integer] => 1',
+			'		() => 2',
+			'result = f(§x§ 1)',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(2n);
+	});
 });
 
 describe('Emitter Tail-Call-Optimierung', () => {
