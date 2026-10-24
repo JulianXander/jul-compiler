@@ -545,3 +545,59 @@
 2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	json/small	15	4117.89	4300.03	4300.03	exists, filter, map, filterMap als Schleife
 2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	json/large	15	4037260.00	4276118.00	4276118.00	exists, filter, map, filterMap als Schleife
 2026-10-18 14:54:35	07cc535+	-	ADV-DEV-56627	bench-runtime	json/texts	15	485513.00	500562.50	500562.50	exists, filter, map, filterMap als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	94.20	109.46	109.46	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	93.31	98.89	98.89	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	318.30	338.81	338.81	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	26632.85	29071.05	29071.05	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.33	13.90	13.90	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.40	15.56	15.56	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.22	12.76	12.76	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	9.05	13.89	13.89	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	13.48	14.66	14.66	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	8.69	14.63	14.63	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	8.14	17.49	17.49	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	8.63	10.25	10.25	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	7.68	9.69	9.69	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	7.95	10.49	10.49	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	419.85	470.74	470.74	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	47.96	55.18	55.18	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1208.54	1314.52	1314.52	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	488.91	540.61	540.61	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	26.57	32.61	32.61	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	191.88	206.48	206.48	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	53.50	61.99	61.99	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	67.44	70.69	70.69	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	27.12	32.69	32.69	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	45.86	52.52	52.52	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	17.17	19.55	19.55	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/small	15	3716.53	3897.04	3897.04	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/large	15	3643038.00	3870290.00	3870290.00	vor flatten/combineObject als Schleife
+2026-10-24 07:18:31	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/texts	15	439241.50	473178.00	473178.00	vor flatten/combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	97.97	104.47	104.47	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	92.98	98.77	98.77	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	336.69	381.15	381.15	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	26002.35	30183.25	30183.25	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.73	14.82	14.82	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.40	11.31	11.31	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.50	22.68	22.68	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	9.74	15.25	15.25	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	13.31	14.27	14.27	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	9.38	16.25	16.25	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	9.43	17.56	17.56	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	8.84	14.76	14.76	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.67	10.55	10.55	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	8.63	10.87	10.87	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	423.54	448.21	448.21	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	55.38	68.42	68.42	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1244.34	1325.54	1325.54	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	486.86	523.93	523.93	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	28.45	31.88	31.88	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	25.50	29.16	29.16	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	25.24	29.80	29.80	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	36.50	39.86	39.86	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	28.72	32.13	32.13	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	46.13	51.76	51.76	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	16.79	19.72	19.72	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/small	15	3625.86	3778.37	3778.37	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/large	15	3658896.00	4380814.00	4380814.00	flatten und _combineObject als Schleife
+2026-10-24 07:21:08	848d2a3+	-	ADV-DEV-56627	bench-runtime	json/texts	15	421996.00	446699.50	446699.50	flatten und _combineObject als Schleife

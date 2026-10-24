@@ -12,6 +12,13 @@ gemessen an den KI-Simulationen in `C:\Projects\privat\yugioh`. Das erste Profil
 | Branching-Diskriminatoren statt `_branch` mit vollem Typcheck (ebenda) | Fixtures um Faktor 500 bis 1000 |
 | Listenfunktionen mit Funktionsliteral als Schleife an der Aufrufstelle (`inlinedListCallToJs`: `exists`, `filter`, `map`, `filterMap`, `all`, `findFirst`, `aggregate`) | −15,6 % |
 | History aus der Spiellogik entfernt (in yugioh, ohne Compiler-Änderung, [backlog/inplace-mutationen.md](backlog/inplace-mutationen.md)) | −5,6 % |
+| `flatten` und `_combineObject` als Schleifen statt `flatMap`, `filter`, `concat` und `Object.assign` mit Spread | −10,7 % |
+
+**`flatten` und `_combineObject`** (24.10.2026):
+- **Fixture `list-concat`** (ms je 1 Mio. Aufrufe): `flattenShort` 192 auf 26, `concatLists` 54 auf 25, `mergeDictionaries` 67 auf 37. Beim Dictionary hilft vor allem, das erste Teil per Spread zu klonen statt per `Object.assign` in ein leeres Objekt.
+- **yugioh-Match**, sechs abwechselnde Läufe mit identischem Compiler: Median 12 091 ms auf 10 801 ms. Jeder neue Lauf war schneller als jeder alte, das Spielergebnis blieb gleich.
+- Das Tick-Profil hatte etwa 3 bis 4 % erwarten lassen. Unter Windows unterschätzt es Posten, die in V8-Builtins und C++ laufen.
+- Die übrigen Listen-Builtins (`map`, `filter`, `some`, `every`, `findIndex`, `forEach`) inlinet TurboFan selbst, sie brauchen keinen Umbau.
 
 **Gemessen, kein Gewinn:**
 - `equal`, `not` und `getElement` direkt ausschreiben: V8 inlinet die Wrapper selbst.
@@ -28,7 +35,7 @@ Tick-Profil (`--prof`), aufgenommen am 24.10.2026 mit Node 24.19 auf yugioh `cb1
 |---|---|---|
 | etwa 10,5 % | `LoadIC_Megamorphic`, `LoadICTrampoline_Megamorphic` | Objekte desselben Typs in vielen Hidden Classes, siehe unten |
 | etwa 8 % | `CreateDataProperty`, `CloneObjectIC(_Slow)`, `DefineNamedOwnIC` | Spread-Kopien in Zustandsupdates. Den langsamen Pfad wählt V8 auch wegen der wechselnden Formen. |
-| etwa 4,5 % | `ArrayPrototypeFlatMap`, `FlattenIntoArrayWithoutMapFn` | `flatten` in der Runtime (`values.flatMap(...)`), in V8 ein C++-Pfad. Aufrufer: `getController`, `evaluateCardQuery`, Synchro-Materialien. |
+| etwa 4,5 % | `ArrayPrototypeFlatMap`, `FlattenIntoArrayWithoutMapFn` | `flatten` in der Runtime, inzwischen behoben (siehe oben) |
 | etwa 5,4 % | GC | |
 | etwa 2,4 % | `StrictEqual` | `===` auf BigInt |
 | etwa 2,1 % | `getSearchKey` | Schlüssel der Transpositionstabelle in der KI, Nutzercode |
@@ -55,25 +62,20 @@ abwechselnden Läufen nachweisen.
    - **Haken 3, größere Objekte:** Karten hätten immer 18 statt 5 bis 11 Felder, jede Kopie wird etwas teurer.
    - **Vorgehen:** erst ein Prototyp hinter einem Env-Flag im Emitter (wie `JUL_COUNT_COPIES`), der die Spanne im Match misst. Die Semantik wird erst danach entschieden.
    - Fixture: `field-access.jul` (`unitScore`, Feld `hp` in vier Formen).
-2. **Langsame Array-Builtins in der Runtime ersetzen: geschätzt 3 bis 4 %.**
-   - `flatten` als Schleife statt `flatMap`. Mikrotest mit 2 Mio. Aufrufen auf kleinen Listen: 250 ms gegen 60 ms.
-   - `_combineObject` (Verkettung `[...a ...b]`) ohne Rest-Parameter, `filter` und `concat`. Mikrotest für zwei Listen: 160 ms gegen 45 ms. Das Gewicht im Match ist klein. Ist der Typ als List bekannt, kann der Emitter direkt eine Listenverkettung schreiben.
-   - Die übrigen Builtins, die yugioh importiert, auf dieselben Muster durchsehen (`flatMap`, `reduce`, `concat` mit Spread, `Object.assign`).
-   - Reine Runtime-Änderung ohne Semantikfrage.
-3. **Branches ohne sofort aufgerufene Arrows: geschätzt 1 bis 3 %.**
+2. **Branches ohne sofort aufgerufene Arrows: geschätzt 1 bis 3 %.**
    - Heute erzeugt jeder Branch `(() => { return x })()`, und ein Argument ohne Referenz wird zu `((_arg) => …)(y)`.
    - Besteht ein Branch nur aus einem Ausdruck, kommt dieser direkt in die `?:`-Kette. An Statement-Position wird daraus `if`/`else` mit Blöcken.
    - TurboFan inlinet die Arrows im optimierten Code meist ohnehin. Der Gewinn liegt in der Aufwärmphase, bei den Closure-Allokationen und in der Codegröße.
    - Fixture: `branching`.
-4. **In-place für den Akkumulator von `aggregate`: geschätzt 1 bis 3 %.**
+3. **In-place für den Akkumulator von `aggregate`: geschätzt 1 bis 3 %.**
    - Den Startwert einmal kopieren, danach in-place weiterarbeiten. Das gilt, solange der Callback den Akkumulator nur als Quelle von `setElement`, `setField` oder Spread verwendet oder unverändert zurückgibt.
    - Aus `setElement` in der Schleife wird so O(n) statt O(n²). Größte Stelle: `accumulator.setElement(gameCardId newCard)` in `game-logic.jul`.
    - Entwurf und Absicherung: [backlog/inplace-mutationen.md](backlog/inplace-mutationen.md). Stufe 2 dort (Besitz über Funktionsgrenzen) nur, wenn die Spreads aus Parametern nach Punkt 1 noch oben im Profil stehen.
    - Fixture: `record-update.jul`.
-5. **Konstante Literale aus Funktionen herausziehen: höchstens etwa 1 %.**
+4. **Konstante Literale aus Funktionen herausziehen: höchstens etwa 1 %.**
    - Beispiel: `getController` baut bei jedem Aufruf ein neues `fieldQuery`-Objekt.
    - **Haken:** `equal` vergleicht mit `===`, die Identität ist also beobachtbar. Zwei Aufrufe lieferten danach dasselbe Objekt.
-6. **`params` der Builtins entfernen.** Rund 540 `_createFunction`-Aufrufe in `runtime.ts`, die Vorbedingungen stehen im `TODO`. Betrifft nur Ladezeit und Bundle-Größe, im Lauf ist kein Gewinn zu erwarten.
+5. **`params` der Builtins entfernen.** Rund 540 `_createFunction`-Aufrufe in `runtime.ts`, die Vorbedingungen stehen im `TODO`. Betrifft nur Ladezeit und Bundle-Größe, im Lauf ist kein Gewinn zu erwarten.
 
 **Außerhalb des Emitters:**
 - **Parallelisierung:** Die Paare eines Matches sind je Seed unabhängig. Auf mehrere Prozesse oder `worker_threads` verteilt, ist das der größte Hebel für die Paare-Läufe (22 Kerne). Ein erster Schritt braucht keine Sprachänderung: mehrere Prozesse mit getrennten Seed-Bereichen, gestartet aus `measure-ai.js`.

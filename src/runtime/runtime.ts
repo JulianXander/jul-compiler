@@ -37,18 +37,40 @@ export function _noBranchMatched(args: unknown) {
 	return new Error(`${args} did not match any branch`);
 }
 
+/**
+ * Schleifen statt filter, concat und Object.assign mit Spread: Die beiden Spreads laufen in V8 über
+ * einen langsamen generischen Pfad (bench-runtime list-concat).
+ */
 export function _combineObject(...parts: (Collection | undefined)[]): Collection | undefined {
-	const nonEmptyParts = parts.filter(part => part !== undefined);
-	const firstNonEmptyPart = nonEmptyParts[0];
-	if (!firstNonEmptyPart) {
+	let firstIndex = 0;
+	while (firstIndex < parts.length && parts[firstIndex] === undefined) {
+		firstIndex++;
+	}
+	const firstPart = parts[firstIndex];
+	if (firstPart === undefined) {
 		return;
 	}
-	if (Array.isArray(firstNonEmptyPart)) {
-		return ([] as any[]).concat(...nonEmptyParts);
+	if (Array.isArray(firstPart)) {
+		const combined: RuntimeType[] = [];
+		for (let partIndex = firstIndex; partIndex < parts.length; partIndex++) {
+			const part = parts[partIndex] as RuntimeType[] | undefined;
+			if (part !== undefined) {
+				for (let index = 0; index < part.length; index++) {
+					combined.push(part[index]);
+				}
+			}
+		}
+		return combined;
 	}
-	else {
-		return Object.assign({}, ...nonEmptyParts);
+	// Der Spread des ersten Teils übernimmt dessen Form und ist schneller als Object.assign in ein leeres Objekt
+	const combined = { ...firstPart };
+	for (let partIndex = firstIndex + 1; partIndex < parts.length; partIndex++) {
+		const part = parts[partIndex];
+		if (part !== undefined) {
+			Object.assign(combined, part);
+		}
 	}
+	return combined;
 }
 
 /**
@@ -2149,7 +2171,16 @@ export const flatten = /*#__PURE__*/ _createFunction(
 		if (!values) {
 			return;
 		}
-		const flattened = values.flatMap(value => value ?? []);
+		// Schleife statt flatMap: flatMap inlinet V8 nicht, es läuft über einen langsamen C++-Pfad.
+		const flattened: T[] = [];
+		for (let outerIndex = 0; outerIndex < values.length; outerIndex++) {
+			const inner = values[outerIndex];
+			if (inner !== undefined) {
+				for (let index = 0; index < inner.length; index++) {
+					flattened.push(inner[index]!);
+				}
+			}
+		}
 		return flattened.length
 			? flattened
 			: undefined;

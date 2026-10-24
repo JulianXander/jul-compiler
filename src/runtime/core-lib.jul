@@ -861,7 +861,16 @@ flatten = nativeFunction(
 			if (!values) {
 				return;
 			}
-			const flattened = values.flatMap(value => value ?? []);
+			// Schleife statt flatMap: flatMap inlinet V8 nicht, es läuft über einen langsamen C++-Pfad.
+			const flattened = [];
+			for (let outerIndex = 0; outerIndex < values.length; outerIndex++) {
+				const inner = values[outerIndex];
+				if (inner !== undefined) {
+					for (let index = 0; index < inner.length; index++) {
+						flattened.push(inner[index]);
+					}
+				}
+			}
 			return flattened.length ? flattened : undefined;
 		}
 	§

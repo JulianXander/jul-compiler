@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
-	_branch, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
-	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
+	_branch, _combineObject, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
+	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson,
 } from './runtime.js';
 
@@ -382,6 +382,46 @@ describe('deepEqual', () => {
 //#endregion Any
 
 //#region List
+
+describe('_combineObject', () => {
+	it('concatenates lists and skips empty parts', () => {
+		const result = _combineObject(undefined, [1n, 2n], undefined, [3n]);
+		expect(result).to.deep.equal([1n, 2n, 3n]);
+	});
+	// Auch ein einzelner Teil wird kopiert, nicht durchgereicht.
+	it('copies a single list part', () => {
+		const part = [1n, 2n];
+		const result = _combineObject(part, undefined);
+		expect(result).to.deep.equal([1n, 2n]);
+		expect(result).not.to.equal(part);
+	});
+	it('merges dictionaries, later fields win', () => {
+		const result = _combineObject(undefined, { a: 1n, b: 2n }, { b: 20n, c: 3n });
+		expect(result).to.deep.equal({ a: 1n, b: 20n, c: 3n });
+	});
+	it('copies a single dictionary part', () => {
+		const part = { a: 1n };
+		const result = _combineObject(part);
+		expect(result).to.deep.equal({ a: 1n });
+		expect(result).not.to.equal(part);
+	});
+	it('returns undefined when all parts are empty', () => {
+		expect(_combineObject(undefined, undefined)).to.equal(undefined);
+	});
+});
+
+describe('flatten', () => {
+	it('flattens one level and skips empty inner lists', () => {
+		const result = flatten([[1n, 2n], undefined, [3n, [4n]]]);
+		expect(result).to.deep.equal([1n, 2n, 3n, [4n]]);
+	});
+	it('returns undefined when every inner list is empty', () => {
+		expect(flatten([undefined, undefined])).to.equal(undefined);
+	});
+	it('returns undefined for an empty value', () => {
+		expect(flatten(undefined)).to.equal(undefined);
+	});
+});
 
 describe('findFirstIndex', () => {
 	it('finds the index of the first matching element (1-based)', () => {

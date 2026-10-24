@@ -300,6 +300,37 @@ const cases: BenchCase[] = [
 		calls: 500_000,
 	},
 	{
+		file: 'list-concat.jul',
+		functionName: 'flattenShort',
+		inputs: [
+			[[1n, 2n], undefined, [3n, 4n, 5n], [6n], undefined, [7n, 8n]],
+			[undefined, [1n], undefined],
+		],
+		expected: [8n, 1n],
+		calls: 500_000,
+	},
+	{
+		file: 'list-concat.jul',
+		functionName: 'concatLists',
+		inputs: [
+			{ first: [1n, 2n, 3n, 4n, 5n], second: [6n, 7n] },
+			{ first: [1n, 2n, 3n], second: undefined },
+			{ first: undefined, second: [1n, 2n] },
+		],
+		expected: [7n, 3n, 2n],
+		calls: 500_000,
+	},
+	{
+		file: 'list-concat.jul',
+		functionName: 'mergeDictionaries',
+		inputs: [
+			{ first: { a: 1n, b: 2n, c: 3n }, second: { b: 20n, d: 4n } },
+			{ first: { a: 1n, b: 2n }, second: { c: 3n } },
+		],
+		expected: [20n, 2n],
+		calls: 500_000,
+	},
+	{
 		file: 'record-update.jul',
 		functionName: 'nextTurn',
 		inputs: [createGameLike(3n), createGameLike(10n)],
