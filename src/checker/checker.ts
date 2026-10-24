@@ -4212,8 +4212,8 @@ function containsNativeLiteral(expression: PositionedExpression): boolean {
  * und sein Ergebnis als präziseren Typ zurückzugeben - der emittierte Code bleibt unverändert,
  * gefaltet wird nur der Typ. `undefined` heißt "nicht gefaltet"; das ist kein Fehler und wird nie
  * gemeldet. Die Bedingungen (kein Argumentfehler, Aufruf über eine Referenz, beweisbar reiner
- * Aufruf, Runtime-Export unter dem Namen, konstante Argumente) werden unten in dieser Reihenfolge
- * geprüft.
+ * Aufruf, Konstante Argumente, Runtime-Export unter dem Namen bzw. baubarer Callable) werden unten
+ * in dieser Reihenfolge geprüft.
  */
 function tryFoldCall(
 	functionExpression: SimpleExpression,
