@@ -42,6 +42,43 @@ export function collectCompletedNames(body: readonly PositionedExpression[]): Se
 	return names;
 }
 
+/**
+ * Wie collectCompletedNames, aber für alle Rümpfe einer Datei in einem Durchlauf: je Rumpf (der
+ * Datei selbst und jedes Funktionsliterals) die Menge samt der verschachtelten Rümpfe. Ein
+ * complete-Aufruf landet in der Menge jedes umschließenden Rumpfs, die Kosten wachsen so mit der
+ * Zahl der Aufrufe und nicht mit der Verschachtelungstiefe. Die Parameter eines Funktionsliterals
+ * zählen zu seinem Rumpf, dort steht kein complete.
+ */
+export function collectCompletedNamesByBody(fileExpressions: readonly PositionedExpression[]): Map<readonly PositionedExpression[], Set<string>> {
+	const namesByBody = new Map<readonly PositionedExpression[], Set<string>>();
+	const fileNames = new Set<string>();
+	namesByBody.set(fileExpressions, fileNames);
+	const enclosing: Set<string>[] = [fileNames];
+	const visit = (expression: PositionedExpression): void => {
+		if (expression.type === 'functionCall') {
+			const completedName = getCompletedName(expression);
+			if (completedName) {
+				enclosing.forEach(names => names.add(completedName));
+			}
+		}
+		const isFunctionLiteral = expression.type === 'functionLiteral';
+		if (isFunctionLiteral) {
+			const names = new Set<string>();
+			namesByBody.set(expression.body, names);
+			enclosing.push(names);
+		}
+		forEachChild(expression, child => {
+			visit(child);
+			return undefined;
+		});
+		if (isFunctionLiteral) {
+			enclosing.pop();
+		}
+	};
+	fileExpressions.forEach(visit);
+	return namesByBody;
+}
+
 function getCompletedName(call: ParseFunctionCall): string | undefined {
 	const functionExpression = call.functionExpression;
 	if (functionExpression?.type !== 'reference'
@@ -75,17 +112,22 @@ export function reportStreamsWithoutEnd(fileExpressions: readonly ParseExpressio
 	if (!fileExpressions) {
 		return;
 	}
-	reportInBody(fileExpressions, false, errors);
+	reportInBody(fileExpressions, false, errors, collectCompletedNamesByBody(fileExpressions));
 }
 
-function reportInBody(body: readonly ParseExpression[], isFunctionBody: boolean, errors: CompilerError[]): void {
-	const completedNames = collectCompletedNames(body);
+function reportInBody(
+	body: readonly ParseExpression[],
+	isFunctionBody: boolean,
+	errors: CompilerError[],
+	completedNamesByBody: Map<readonly PositionedExpression[], Set<string>>,
+): void {
+	const completedNames = completedNamesByBody.get(body) ?? collectCompletedNames(body);
 	const passedOnNames = collectPassedOnNames(body);
 	const returned = isFunctionBody ? last(body) : undefined;
 	const returnedName = getReturnedName(returned);
 	const visit = (expression: PositionedExpression, definedName: string | undefined): void => {
 		if (expression.type === 'functionLiteral') {
-			reportInBody(expression.body, true, errors);
+			reportInBody(expression.body, true, errors, completedNamesByBody);
 			return;
 		}
 		if (expression.type === 'functionCall'

@@ -84,7 +84,7 @@ import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, is
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName, getExportedSymbols, getTestCallArguments, getNameFromValue, getTestName, isInsideFunctionLiteral } from '../parser/parser-utils.js';
 import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex, ReferenceLocation, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
-import { collectCompletedNames, reportStreamsWithoutEnd } from './stream-lifetime.js';
+import { collectCompletedNames, collectCompletedNamesByBody, reportStreamsWithoutEnd } from './stream-lifetime.js';
 import { applyIgnoreComments } from '../parser/comment-directives.js';
 import { checkerStats } from './checker-stats.js';
 import {
@@ -368,6 +368,8 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
  * Check der core-lib stehen, der beim Modul-Load läuft.
  */
 const completedNamesByScope = new WeakMap<SymbolTable, Set<string>>();
+/** Die Mengen aus einem Durchlauf je Datei (collectCompletedNamesByBody), je Rumpf. */
+const completedNamesByBody = new WeakMap<readonly PositionedExpression[], Set<string>>();
 
 // Einziger Dateizugriff des Checkers, bewusst am ProjectHost vorbei: die core-lib gehört zum
 // Compiler, nicht zum Projekt, ändert sich während eines Laufs nicht und wird deshalb einmal je
@@ -1041,7 +1043,11 @@ function inferFileTypes(
 		...scopes,
 		file.symbols,
 	] as any as NonEmptyArray<SymbolTable>;
-	registerCompletedNames(file.symbols, file.expressions ?? []);
+	const fileExpressions = file.expressions ?? [];
+	collectCompletedNamesByBody(fileExpressions).forEach((names, body) => {
+		completedNamesByBody.set(body, names);
+	});
+	registerCompletedNames(file.symbols, fileExpressions);
 	file.expressions?.forEach(expression => {
 		setInferredType(expression, { scopes: fileScopes, narrowedTypes: undefined }, undefined, checkContext);
 	});
@@ -1049,7 +1055,7 @@ function inferFileTypes(
 
 function registerCompletedNames(scope: SymbolTable, body: readonly PositionedExpression[]): void {
 	if (!completedNamesByScope.has(scope)) {
-		completedNamesByScope.set(scope, collectCompletedNames(body));
+		completedNamesByScope.set(scope, completedNamesByBody.get(body) ?? collectCompletedNames(body));
 	}
 }
 
