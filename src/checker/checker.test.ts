@@ -1690,6 +1690,20 @@ f = (values: List(Integer)) :> Or([] List(Integer)) =>
 			errors: [],
 		});
 	});
+	// Ein leeres Argument steuert zum Elementtyp nichts bei: TypeOf(Empty)/ElementType darf beim
+	// Aufruf nicht zu Empty werden, sonst bekommt das Ergebnis leere Elemente.
+	it('filter-on-spread-of-empty-argument-has-no-empty-element', () => {
+		expectLastTypeString(`f = (x: Or([] List(Integer)) entry: Integer) => [...x entry].filter((value) => true)
+f([] 1)`, 'Or(Empty List(1))');
+	});
+	it('filter-on-spread-of-empty-field-is-assignable-to-declared-type', () => {
+		expectCheck(`History = [past: Or([] List(Integer))]
+pushHistory = (history: History entry: Integer) :> History =>
+	[past = [...history/past entry].filter((value) => true)]
+pushed: History = pushHistory([past = []] 1)`, {
+			errors: [],
+		});
+	});
 	// findFirst schneidet wie filter über TypeOf(predicate)/PredicateIfTrue, statt stur
 	// Or([] TypeOf(values)/ElementType) zu liefern.
 	it('find-first-narrows-element-type-through-predicate', () => {

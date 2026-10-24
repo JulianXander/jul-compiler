@@ -794,7 +794,9 @@ function dereferenceNameFromObjectType(
 		case 'parameterReference':
 			return createNestedReference(sourceObjectType, name);
 		case 'or': {
-			const dereferencedChoices = innerType.ChoiceTypes.map(choiceType => {
+			// Ein leerer Choice steuert nichts bei (siehe case 'empty'). Weglassen statt TypeOf(Never)
+			// vereinigen: Die Union aus Typwerten vereinfacht TypeOf(Never) nicht weg.
+			const dereferencedChoices = innerType.ChoiceTypes.filter(choiceType => resolveAlias(choiceType).julType !== 'empty').map(choiceType => {
 				// Der choice braucht seine eigene TypeOf Hülle: sonst entsteht für einen noch
 				// nicht aufgelösten choice die Referenz values/ElementType statt
 				// TypeOf(values)/ElementType, und die ist nicht auflösbar, weil ElementType
@@ -813,11 +815,18 @@ function dereferenceNameFromObjectType(
 			// Spread) liefert über den 'parameterReference'-Fall bereits eine offene
 			// nestedReference zurück - die Generizität bleibt so erhalten, statt hier auf Any
 			// zu kollabieren.
-			const dereferencedSources = innerType.Sources.map(sourceType => {
+			const dereferencedSources = innerType.Sources.filter(sourceType => resolveAlias(sourceType).julType !== 'empty').map(sourceType => {
 				return dereferenceNameFromObjectType(name, sourceType, createCompileTimeTypeOfType(sourceType));
 			}).filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(dereferencedSources);
 		}
+		// Empty ist die leere Kollektion: Sie hat keine Elemente, ihr ElementType ist Never. Sonst
+		// fiele der Zugriff auf den Feldzugriff des Werts zurück (Empty), und ein leeres Argument
+		// brächte ein leeres Element in den Elementtyp, z.B. bei filter auf [...x v] mit x = [].
+		case 'empty':
+			return name === 'ElementType'
+				? createCompileTimeTypeOfType(builtinNever)
+				: undefined;
 		// Keine Eigenschaft mit diesem Namen bekannt - unverändertes Verhalten wie vor der
 		// Exhaustivitätsprüfung.
 		case 'and':
@@ -827,7 +836,6 @@ function dereferenceNameFromObjectType(
 		case 'boolean':
 		case 'booleanLiteral':
 		case 'date':
-		case 'empty':
 		case 'error':
 		case 'float':
 		case 'floatLiteral':
