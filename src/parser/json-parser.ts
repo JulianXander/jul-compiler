@@ -1,6 +1,6 @@
 import { JsonValue } from '../runtime/runtime.js';
-import { Name, ParseDictionaryLiteral, ParseExpression, ParseSingleDictionaryField, ParsedExpressions, SymbolDefinition } from '../syntax-tree.js';
-import { mapDictionary } from '../util.js';
+import { Name, ParseDictionaryLiteral, ParseExpression, ParseSingleDictionaryField, ParsedExpressions, createSymbolTable } from '../syntax-tree.js';
+import { fillSymbolTableWithFields } from './parser-utils.js';
 import { Positioned } from '../compiler-errors.js';
 
 export function jsonValueToParsedExpressions(jsonValue: JsonValue): ParsedExpressions {
@@ -52,30 +52,27 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 					...position,
 				};
 			}
+			const fields = Object.entries(jsonValue).map(([key, value]) => {
+				const name: Name = {
+					type: 'name',
+					name: key,
+					...position,
+				};
+				const field: ParseSingleDictionaryField = {
+					type: 'singleDictionaryField',
+					name: name,
+					value: jsonValueToJulAst(value) as any,
+					...position,
+				};
+				return field;
+			});
+			// Wie beim JUL-Parser verweist das Symbol auf das Feld, der Wert wird nur einmal gebaut.
+			const symbols = createSymbolTable();
+			fillSymbolTableWithFields(symbols, [], fields, false);
 			const dictionary: ParseDictionaryLiteral = {
 				type: 'dictionary',
-				fields: Object.entries(jsonValue).map(([key, value]) => {
-					const name: Name = {
-						type: 'name',
-						name: key,
-						...position,
-					};
-					const field: ParseSingleDictionaryField = {
-						type: 'singleDictionaryField',
-						name: name,
-						value: jsonValueToJulAst(value) as any,
-						...position,
-					};
-					return field;
-				}) as any,
-				symbols: mapDictionary(jsonValue as { [key: string]: JsonValue; }, (value, key) => {
-					const symbolDefinition: SymbolDefinition = {
-						// TODO definition? zumindest range für DocumentSymbol?
-						typeExpression: jsonValueToJulAst(value) as any,
-						...position,
-					};
-					return symbolDefinition;
-				}),
+				fields: fields as any,
+				symbols: symbols,
 				...position,
 			};
 			return dictionary;
