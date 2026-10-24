@@ -54,14 +54,11 @@ Je Punkt erst die Fixture in `scripts/bench-runtime` auf dem ungeänderten Compi
 dass der Gewinn im echten Lauf ankommt. Gewinne unter etwa 5 % lassen sich dort nur mit mehreren
 abwechselnden Läufen nachweisen.
 
-1. **Stabile Objektformen: geschätzt 5 bis 12 %.**
-   - **Idee:** Der Emitter schreibt jedes Dictionary-Literal mit bekanntem Typ vollständig und in Typreihenfolge aus und setzt fehlende optionale Felder auf `undefined`. Ein späterer Spread überschreibt dann nur noch und hängt nichts an, die Hidden Class bleibt gleich.
-   - **Gewinn:** Die megamorphen Zugriffe werden weitgehend monomorph. Die Spread-Kopien können den schnellen Pfad von `CloneObjectIC` nutzen.
-   - **Haken 1, die Semantik:** Heute unterscheidet `deepEqual` zwischen „Feld fehlt“ und „Feld ist Empty“ (`isDeepEqual` in `runtime.ts`). Dasselbe gilt für alles, was über Schlüssel iteriert: `mapDictionary`, `findField`, `findKey` und die Textausgabe. Nötig ist also die Sprachentscheidung, dass ein Feld mit Empty einem fehlenden gleichsteht. Danach überspringen diese Builtins `undefined`.
-   - **Haken 2, nicht normierte Quellen:** Objekte aus JSON- und TS-Importen sowie aus `setField` mit neuem Schlüssel bleiben unnormiert. Ein Rest an Polymorphie bleibt.
-   - **Haken 3, größere Objekte:** Karten hätten immer 18 statt 5 bis 11 Felder, jede Kopie wird etwas teurer.
-   - **Vorgehen:** erst ein Prototyp hinter einem Env-Flag im Emitter (wie `JUL_COUNT_COPIES`), der die Spanne im Match misst. Die Semantik wird erst danach entschieden.
-   - Fixture: `field-access.jul` (`unitScore`, Feld `hp` in vier Formen).
+1. **Stabile Objektformen: im Prototyp etwa −24 % im yugioh-Match.**
+   - **Idee:** Ein Literal nennt jedes Feld ohne `?` (auch als `b = []`), nur `b?: X` darf fehlen. Alle Werte eines Typs haben dieselbe Hidden Class, ein überschreibender Spread erhält sie. Das alphabetische Sortieren der Schlüssel und das Ausschreiben der Spreads im Emitter brachten im Match nichts (gemessen, verworfen). Gewonnen hat die Migration selbst: `GameCard` und `GameState` haben immer alle Felder.
+   - **Prototyp** (inzwischen entfernt) hinter `JUL_STABLE_SHAPES=1` (noch Typreihenfolge mit Auffüllen, für die Form gleichwertig), Fixture `object-shapes.jul`: `attackRound` 1350 auf 365 ms, yugioh-Match 166 bis 175 s auf 126 bis 137 s bei gleichem Ergebnis.
+   - **Voraussetzung:** die Syntax `b?: X` und die strenge Prüfung fehlender Felder, auch für JSON. Das macht nebenbei JSON-`null` gegen fehlenden Schlüssel ausdrückbar.
+   - Ausgearbeitet mit Messungen und Schritten in [backlog/stabile-objektformen.md](backlog/stabile-objektformen.md).
 2. **Branches ohne sofort aufgerufene Arrows: geschätzt 1 bis 3 %.**
    - Heute erzeugt jeder Branch `(() => { return x })()`, und ein Argument ohne Referenz wird zu `((_arg) => …)(y)`.
    - Besteht ein Branch nur aus einem Ausdruck, kommt dieser direkt in die `?:`-Kette. An Statement-Position wird daraus `if`/`else` mit Blöcken.

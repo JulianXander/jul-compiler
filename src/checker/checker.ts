@@ -4,6 +4,7 @@ import { constantValueToType, resetFoldBudget, typeToConstantValue, tryBuildCall
 import {
 	BracketedExpression,
 	CompileTimeDictionary,
+	CompileTimeFields,
 	CompileTimeFunctionType,
 	CompileTimeType,
 	createCompileTimeConcatType,
@@ -75,6 +76,8 @@ import {
 	getFunctionTypeFacts,
 	copyFunctionType,
 	getOwnField,
+	getOwnLiteralField,
+	toRequiredFields,
 } from '../syntax-tree.js';
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, forEach, isDefined, isNonEmpty, isTestFilePath, last, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
@@ -1296,7 +1299,7 @@ function withNarrowedPath(
 				sourceType,
 				// complete: false, denn der branch beweist nur diesen einen Fakt - über andere
 				// Felder der Quelle ist damit nichts gesagt.
-				createCompileTimeDictionaryLiteralType({ [key]: getFieldType() }, false),
+				createCompileTimeDictionaryLiteralType({ [key]: { type: getFieldType(), optional: false } }, false),
 			]);
 		});
 		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, getNarrowedSourceType);
@@ -1706,7 +1709,7 @@ function getExpectedFieldType(
 	const type = resolveAlias(expectedType);
 	switch (type.julType) {
 		case 'dictionaryLiteral':
-			return toExpectedType(getOwnField(type.Fields, fieldName));
+			return toExpectedType(getOwnField(type.FieldTypes, fieldName));
 		case 'dictionary':
 			return toExpectedType(type.ElementType);
 		case 'parameters':
@@ -1765,8 +1768,8 @@ function getWrittenFieldNames(dictionary: ParseDictionaryLiteral): Set<string> |
  * Sortiert aus einer Union die Zweige aus, die ein Dictionary-Literal nicht aufnehmen können:
  * - ein schon inferiertes Feld widerspricht dem Feldtyp des Zweigs (diskriminierte Union:
  *   kind = §a§ passt nicht zu [kind: §b§ ...])
- * - der Zweig verlangt ein Feld, das im Literal nicht ausgeschrieben ist. Ein Feld, dessen Typ
- *   Empty zulässt, darf fehlen.
+ * - der Zweig verlangt ein Feld, das im Literal nicht ausgeschrieben ist. Nur ein Feld mit ?
+ *   darf fehlen.
  * Ein Zweig fällt nur bei einem nachgewiesenen Widerspruch weg.
  */
 function narrowExpectedTypeByFields(
@@ -1795,7 +1798,7 @@ function narrowExpectedTypeByFields(
 			return false;
 		}
 		for (const fieldName in fieldTypes) {
-			const choiceFieldType = getOwnField(resolvedChoiceType.Fields, fieldName);
+			const choiceFieldType = getOwnField(resolvedChoiceType.FieldTypes, fieldName);
 			if (choiceFieldType
 				&& isSubtypeOf(resolvePlaceholders(fieldTypes[fieldName]!), resolvePlaceholders(choiceFieldType)) === false) {
 				return false;
@@ -1809,9 +1812,11 @@ function narrowExpectedTypeByFields(
 			}
 		}
 		if (writtenFieldNames) {
+			// Ein Pflichtfeld muss im Literal stehen, auch wenn sein Typ Empty zulässt. Nur ein Feld mit ?
+			// darf fehlen.
 			for (const fieldName in resolvedChoiceType.Fields) {
 				if (!writtenFieldNames.has(fieldName)
-					&& isSubtypeOf(builtinEmpty, resolvePlaceholders(getOwnField(resolvedChoiceType.Fields, fieldName)!)) === false) {
+					&& !resolvedChoiceType.Fields[fieldName]!.optional) {
 					return false;
 				}
 			}
@@ -2530,8 +2535,8 @@ function inferType(
 		}
 		case 'dictionary': {
 			const aliasName = getNameFromValue(expression);
-			const createDictionary = (fieldTypes: CompileTimeDictionary, complete = true) => createCompileTimeDictionaryLiteralType(
-				fieldTypes,
+			const createDictionary = (fields: CompileTimeFields, complete = true) => createCompileTimeDictionaryLiteralType(
+				fields,
 				complete,
 				{ expression: expression, filePath: filePath },
 				aliasName);
@@ -2541,12 +2546,12 @@ function inferType(
 			// Aufeinanderfolgende Felder werden gesammelt und erst vor dem nächsten Spread bzw. am
 			// Ende gemergt. Ein Merge je Feld kopiert jedes Mal alle Felder und normalisiert eine
 			// Union jedes Mal neu, das hat parse+check von yugioh mehr als verdreifacht.
-			let pendingFieldTypes: CompileTimeDictionary = {};
+			let pendingFields: CompileTimeFields = {};
 			const mergePendingFields = () => {
-				if (Object.keys(pendingFieldTypes).length) {
+				if (Object.keys(pendingFields).length) {
 					literalType = literalType
-						&& spreadDictionaryTypes(literalType, createDictionary(pendingFieldTypes), createDictionary);
-					pendingFieldTypes = {};
+						&& spreadDictionaryTypes(literalType, createDictionary(pendingFields), createDictionary);
+					pendingFields = {};
 				}
 			};
 			// Die schon inferierten und alle ausgeschriebenen Felder, für das Aussortieren einer
@@ -2583,7 +2588,7 @@ function inferType(
 							return;
 						}
 						const fieldType = field.value?.typeInfo?.type ?? builtinAny;
-						pendingFieldTypes[fieldName] = fieldType;
+						pendingFields[fieldName] = { type: fieldType, optional: false };
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
@@ -2614,7 +2619,7 @@ function inferType(
 			return { type: literalType ?? builtinAny };
 		}
 		case 'dictionaryType': {
-			const fieldTypes: CompileTimeDictionary = {};
+			const fields: CompileTimeFields = {};
 			expression.fields.forEach(field => {
 				switch (field.type) {
 					case 'singleDictionaryTypeField': {
@@ -2629,7 +2634,7 @@ function inferType(
 							return;
 						}
 						const fieldType = valueOf(typeGuard.typeInfo?.type);
-						fieldTypes[fieldName] = fieldType;
+						fields[fieldName] = { type: fieldType, optional: field.optional ?? false };
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
@@ -2646,7 +2651,7 @@ function inferType(
 							&& resolveAlias(valueOf(resolvePlaceholders(field.value.typeInfo.type)));
 						if (isDictionaryLiteralType(spreadType)) {
 							for (const key in spreadType.Fields) {
-								fieldTypes[key] = getOwnField(spreadType.Fields, key)!;
+								fields[key] = getOwnLiteralField(spreadType.Fields, key)!;
 							}
 						}
 						else if (spreadType
@@ -2673,7 +2678,7 @@ function inferType(
 			});
 			const aliasName = getNameFromValue(expression);
 			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(
-				fieldTypes,
+				fields,
 				true,
 				{ expression: expression, filePath: filePath },
 				aliasName));
@@ -2689,10 +2694,10 @@ function inferType(
 			return { type: rawType };
 		}
 		case 'fraction': {
-			const rawType = createCompileTimeDictionaryLiteralType({
+			const rawType = createCompileTimeDictionaryLiteralType(toRequiredFields({
 				numerator: createIntegerLiteral(expression.numerator),
 				denominator: createIntegerLiteral(expression.denominator),
-			}, true);
+			}), true);
 			return { type: rawType };
 		}
 		case 'functionCall': {
@@ -2817,7 +2822,7 @@ function inferType(
 							calledParamsType => fieldName === undefined
 								? undefined
 								: getExpectedFieldType(calledParamsType, fieldName),
-							() => createCompileTimeDictionaryLiteralType(provisionalFieldTypes, true),
+							() => createCompileTimeDictionaryLiteralType(toRequiredFields(provisionalFieldTypes), true),
 							value);
 						setInferredType(value, typeContext, expectedArgumentType, checkContext);
 						if (fieldName !== undefined && value.typeInfo) {
@@ -3691,7 +3696,7 @@ function getReturnTypeFromFunctionCall(
 						return symbolType;
 					});
 					// TODO exrepssion, filePath?
-					return createCompileTimeDictionaryLiteralType(importedTypes, true);
+					return createCompileTimeDictionaryLiteralType(toRequiredFields(importedTypes), true);
 				}
 				// value import
 				// the last expression is imported
@@ -3957,7 +3962,7 @@ function getArgumentPurity(rawArgType: CompileTimeType, ownFunctionType: Functio
 			'pure');
 	}
 	if (isDictionaryLiteralType(argType)) {
-		return Object.values(argType.Fields).reduce<Purity>(
+		return Object.values(argType.FieldTypes).reduce<Purity>(
 			(purity, fieldType) => joinPurity(purity, getArgumentPurity(fieldType, ownFunctionType)),
 			'pure');
 	}
@@ -4746,7 +4751,7 @@ function getKnownFieldNames(paramsType: CompileTimeType): string[] | undefined {
 			: paramsType.singleNames.map(parameter => parameter.name);
 	}
 	if (isDictionaryLiteralType(paramsType)) {
-		return Object.keys(paramsType.Fields);
+		return Object.keys(paramsType.FieldTypes);
 	}
 	return undefined;
 }

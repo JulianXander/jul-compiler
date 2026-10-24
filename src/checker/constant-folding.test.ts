@@ -9,6 +9,7 @@ import {
 	createCompileTimeTypeOfType,
 	createBooleanLiteral,
 	createCompileTimeDictionaryLiteralType,
+	toRequiredFields,
 	createCompileTimeTupleType,
 	createFloatLiteral,
 	createIntegerLiteral,
@@ -36,10 +37,10 @@ describe('typeToConstantValue', () => {
 		expect(typeToConstantValue(tuple)).to.deep.equal({ value: [1n, 2n] });
 	});
 	it('liest ein Dictionary-Literal aus Literalen (Bruch)', () => {
-		const fraction = createCompileTimeDictionaryLiteralType({
+		const fraction = createCompileTimeDictionaryLiteralType(toRequiredFields({
 			numerator: createIntegerLiteral(1n),
 			denominator: createIntegerLiteral(2n),
-		}, true);
+		}), true);
 		expect(typeToConstantValue(fraction)).to.deep.equal({ value: { numerator: 1n, denominator: 2n } });
 	});
 	// Ein Typ als Argument (Integer in aggregate(values Integer ...)) hat den Typ TypeOf(Integer);
@@ -62,7 +63,7 @@ describe('typeToConstantValue', () => {
 		expect(typeToConstantValue(tuple)).to.equal(undefined);
 	});
 	it('ist nicht faltbar, wenn ein Dictionary-Feld nicht konstant ist', () => {
-		const dictionary = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
+		const dictionary = createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), true);
 		expect(typeToConstantValue(dictionary)).to.equal(undefined);
 	});
 });
@@ -108,9 +109,9 @@ describe('constantValueToType', () => {
 	});
 	it('übersetzt ein Objekt zu einem vollständigen Dictionary-Literal (Bruch)', () => {
 		expect(constantValueToType({ numerator: 1n, denominator: 2n })).to.deep.equal(
-			createCompileTimeDictionaryLiteralType({
+			createCompileTimeDictionaryLiteralType(toRequiredFields({
 				numerator: createIntegerLiteral(1n),
 				denominator: createIntegerLiteral(2n),
-			}, true));
+			}), true));
 	});
 });

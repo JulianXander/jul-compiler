@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import {
 	builtinEmpty,
 	createCompileTimeDictionaryLiteralType,
+	toRequiredFields,
 	createCompileTimeFunctionType,
 	createCompileTimeListType,
 	createCompileTimeTupleType,
@@ -3215,14 +3216,11 @@ x: Dictionary(T) = [
 			],
 		});
 	});
-	// Or([] X) ist das Idiom für optionale Felder (CLAUDE.md) - Weglassen muss dafür
-	// erlaubt bleiben, wie vor der "Missing field"-Verbesserung. Nur ein Feld, dessen
-	// Typ Empty nicht zulässt, darf beim Fehlen gemeldet werden.
-	it('optional-field-with-or-empty-type-may-be-omitted', () => {
-		expectCheck(`T = [a: Integer b: Or([] Text)]
-x: T = [a = 1]`, {
-			errors: [],
-		});
+	// Auch über einen Alias: ein Pflichtfeld muss dastehen, sein Typ ändert daran nichts. Darf es
+	// fehlen, schreibt der Typ b?: X.
+	it('field-with-or-empty-type-cannot-be-omitted-via-alias', () => {
+		expectErrorCodes(`T = [a: Integer b: Or([] Text)]
+x: T = [a = 1]`, [ErrorCode.definitionTypeMismatch]);
 	});
 	// Ein aliasierter Callback-Parameter ("item = value") referenziert sich im Rumpf
 	// über eine ParameterReference mit dem LOKALEN Namen ("item"). Deren Auflösung
@@ -3946,10 +3944,10 @@ g((x) => x)`, {
 			],
 		});
 	});
-	// Gegenprobe: ein Feld, dessen Typ Empty zulässt, darf fehlen - beide Zweige bleiben, es
-	// bleiben also zwei Funktionszweige und v ohne Typ.
+	// Gegenprobe: ein Feld, das fehlen darf (?), lässt beide Zweige stehen - es bleiben also zwei
+	// Funktionszweige und v ohne Typ.
 	it('expected-type-union-branch-with-optional-field-stays', () => {
-		expectCheck('x: Or([name: Text age: Or([] Integer) cb: (v: Integer) :> Text] [name: Text species: Or([] Text) cb: (v: Text) :> Text]) = [name = §Ada§ cb = (v) => v]');
+		expectCheck('x: Or([name: Text age?: Integer cb: (v: Integer) :> Text] [name: Text species?: Text cb: (v: Text) :> Text]) = [name = §Ada§ cb = (v) => v]');
 	});
 	// Gegenprobe: ohne erwarteten Typ bleibt ein untypisierter Parameter Any.
 	it('expected-type-absent-leaves-parameter-untyped', () => {
@@ -4285,7 +4283,7 @@ f(a = 1 b = 2)`, {
 	// aber ein b durch. Mit geschlossenen Records scheitert schon der Aufruf.
 	it('optional-field-from-declared-record-is-sound', () => {
 		expectCheck(`f = (x: [a: Integer]) =>
-	y: [a: Integer b: Or([] Integer)] = x
+	y: [a: Integer b?: Integer] = x
 	y
 z = f([a = 1 b = §s§])`, {
 			errors: [
@@ -4316,6 +4314,75 @@ z = f([a = 1 b = §s§])`, {
 			],
 		});
 	});
+	// b?: X darf im Wert fehlen, der Schlüssel ist dann nicht vorhanden (docs/backlog/stabile-objektformen.md).
+	it('optional-field-may-be-omitted', () => {
+		expectCheck('x: [a: Integer b?: Text] = [a = 1]');
+	});
+	it('optional-field-accepts-value', () => {
+		expectCheck('x: [a: Integer b?: Text] = [a = 1 b = §s§]');
+	});
+	// Empty ist kein Text: ein vorhandenes b mit Empty passt nur auf b?: Or([] Text).
+	it('optional-field-rejects-empty-value', () => {
+		expectErrorCodes('x: [a: Integer b?: Text] = [a = 1 b = []]', [ErrorCode.definitionTypeMismatch]);
+	});
+	it('optional-field-accepts-empty-value-if-type-allows-empty', () => {
+		expectCheck('x: [a: Integer b?: Or([] Text)] = [a = 1 b = []]');
+	});
+	// Eine Quelle, bei der b fehlen darf, passt nicht auf ein Ziel mit Pflichtfeld b.
+	it('optional-field-is-not-assignable-to-required-field', () => {
+		expectErrorCodes(`f = (x: [a: Integer b?: Text]) =>
+	y: [a: Integer b: Text] = x
+	y`, [ErrorCode.definitionTypeMismatch]);
+	});
+	it('required-field-is-assignable-to-optional-field', () => {
+		expectCheck(`f = (x: [a: Integer b: Text]) =>
+	y: [a: Integer b?: Text] = x
+	y`);
+	});
+	// Ein optionales Feld im Ziel, das die Quelle nicht kennt, ist kein weiteres Feld mit Wert.
+	it('optional-field-omitted-in-declared-source', () => {
+		expectCheck(`f = (x: [a: Integer]) =>
+	y: [a: Integer b?: Text] = x
+	y`);
+	});
+	//#region strenge Prüfung: ein Pflichtfeld muss im Wert stehen, auch wenn sein Typ Empty zulässt
+	it('required-field-with-empty-type-cannot-be-omitted', () => {
+		expectCheck('x: [a: Integer b: Or([] Text)] = [a = 1]', {
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 40,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nMissing field 'b'.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		});
+	});
+	it('required-field-with-empty-type-accepts-empty-value', () => {
+		expectCheck('x: [a: Integer b: Or([] Text)] = [a = 1 b = []]');
+	});
+	it('optional-field-with-empty-type-may-be-omitted', () => {
+		expectCheck('x: [a: Integer b?: Or([] Text)] = [a = 1]');
+	});
+	// Auch eine deklarierte Quelle ohne das Feld füllt es nicht auf.
+	it('required-field-with-empty-type-is-missing-in-declared-source', () => {
+		expectErrorCodes(`f = (x: [a: Integer]) =>
+	y: [a: Integer b: Or([] Text)] = x
+	y`, [ErrorCode.definitionTypeMismatch]);
+	});
+	it('optional-field-source-does-not-fit-required-field-with-empty-type', () => {
+		expectErrorCodes(`f = (x: [a: Integer b?: Text]) =>
+	y: [a: Integer b: Or([] Text)] = x
+	y`, [ErrorCode.definitionTypeMismatch]);
+	});
+	it('required-field-with-empty-type-fits-optional-field', () => {
+		expectCheck(`f = (x: [a: Integer b: Or([] Text)]) =>
+	y: [a: Integer b?: Or([] Text)] = x
+	y`);
+	});
+	//#endregion strenge Prüfung
 	// Gegenprobe: ein Feld, das die Parameterliste kennt, meldet nicht.
 	it('known-named-argument-is-not-discarded', () => {
 		expectCheck(`f = (a: Integer b: Integer) => a
@@ -5694,6 +5761,14 @@ f([1 2])`, [ErrorCode.argumentTypeMismatch]);
 	it('unnamed-head-is-printed-as-list', () => {
 		expectLastTypeString('f = [Integer] => 1', '[Integer] -> 1');
 	});
+	// Ein Feld mit ? kann fehlen, gelesen ergibt es Empty oder den Wert.
+	it('optional-field-read-includes-empty', () => {
+		expectResolvedReturnType('f = (x: [a: Integer b?: Text]) => x/b', 'Or(Empty Text)');
+	});
+	// ein Feld, das fehlen darf, steht mit ? im Typ
+	it('optional-field-is-shown-with-question-mark', () => {
+		expectResolvedReturnType('f = (x: [a: Integer b?: Text]) => x', '[\n  a: Integer\n  b?: Text\n]');
+	});
 	it('unnamed-head-with-two-positions-is-printed-as-list', () => {
 		expectLastTypeString('f = [Integer Text] => 1', '[Integer Text] -> 1');
 	});
@@ -6069,11 +6144,11 @@ f = (source: T) => [
 		if (returnType && returnType.julType === 'dictionaryLiteral') {
 			expect(Object.keys(returnType.Fields).length).to.equal(3,
 				'Sollte 3 Felder haben (a, b, c)');
-			expect(returnType.Fields['a']?.julType).to.equal('integer',
+			expect(returnType.FieldTypes['a']?.julType).to.equal('integer',
 				'Feld a sollte integer sein');
-			expect(returnType.Fields['b']?.julType).to.equal('text',
+			expect(returnType.FieldTypes['b']?.julType).to.equal('text',
 				'Feld b sollte text sein');
-			expect(returnType.Fields['c']?.julType).to.equal('booleanLiteral',
+			expect(returnType.FieldTypes['c']?.julType).to.equal('booleanLiteral',
 				'Feld c sollte booleanLiteral sein');
 		}
 	});
@@ -6510,7 +6585,7 @@ imp.apply()`)).to.equal('impure');
 	it('getCallPurityInfo: unreine Funktion in einem Dictionary-Argument ist impure', () => {
 		const conditionallyPureFunctionType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'pureIfArgsPure');
 		const impureFieldType = createCompileTimeFunctionType(builtinEmpty, builtinEmpty, 'impure');
-		const dictionaryArgType = createCompileTimeDictionaryLiteralType({ cb: impureFieldType }, true);
+		const dictionaryArgType = createCompileTimeDictionaryLiteralType(toRequiredFields({ cb: impureFieldType }), true);
 		const argsType = createCompileTimeTupleType([dictionaryArgType]);
 		expect(getCallPurityInfo(conditionallyPureFunctionType, argsType)).to.equal('impure');
 	});

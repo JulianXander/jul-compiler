@@ -313,6 +313,10 @@ export interface ParseSingleDictionaryTypeField extends PositionedExpressionBase
 	 */
 	name: ParseValueExpression | Name;
 	typeGuard?: ParseValueExpression;
+	/**
+	 * `b?: X`: das Feld darf im Wert fehlen.
+	 */
+	optional?: boolean;
 }
 
 //#endregion DictionaryType
@@ -410,6 +414,10 @@ export interface ParseFieldBase extends ParseExpressionBase {
 	 */
 	name: ParseValueExpression;
 	typeGuard?: ParseValueExpression;
+	/**
+	 * `b?: X`, nur im Dictionary-Typ erlaubt
+	 */
+	optional?: boolean;
 	/**
 	 * definition token ' = '
 	 */
@@ -658,9 +666,61 @@ export interface TypeInfo {
 export interface CompileTimeDictionary { [key: string]: CompileTimeType; }
 
 /**
+ * Ein Feld eines Dictionary-Literal-Typs. optional: das Feld darf im Wert fehlen (`b?: X`), der Schlüssel
+ * ist dann nicht vorhanden. Ein Feld ohne optional ist immer als Schlüssel da, auch mit Empty.
+ */
+export interface CompileTimeField {
+	readonly type: CompileTimeType;
+	readonly optional: boolean;
+}
+
+export interface CompileTimeFields { [key: string]: CompileTimeField; }
+
+/**
+ * Lauter Pflichtfelder aus Namen und Typen.
+ */
+export function toRequiredFields(fieldTypes: CompileTimeDictionary): CompileTimeFields {
+	const fields: CompileTimeFields = {};
+	for (const name in fieldTypes) {
+		fields[name] = { type: fieldTypes[name]!, optional: false };
+	}
+	return fields;
+}
+
+/**
+ * Nur die Typen der Felder, ohne das Optional-Kennzeichen.
+ */
+/**
+ * Dieselben Felder mit neuen Typen, das Optional-Kennzeichen bleibt.
+ */
+export function mapFieldTypes(fields: CompileTimeFields, map: (type: CompileTimeType, name: string) => CompileTimeType): CompileTimeFields {
+	const mapped: CompileTimeFields = {};
+	for (const name in fields) {
+		const field = fields[name]!;
+		mapped[name] = { type: map(field.type, name), optional: field.optional };
+	}
+	return mapped;
+}
+
+export function toFieldTypes(fields: CompileTimeFields): CompileTimeDictionary {
+	const fieldTypes: CompileTimeDictionary = {};
+	for (const name in fields) {
+		fieldTypes[name] = fields[name]!.type;
+	}
+	return fieldTypes;
+}
+
+/**
  * Nur ein eigenes Feld, damit ein Name wie constructor nicht über Object.prototype gefunden wird.
  */
 export function getOwnField(fields: CompileTimeDictionary, name: string): CompileTimeType | undefined {
+	return Object.hasOwn(fields, name) ? fields[name] : undefined;
+}
+
+/**
+ * Nur ein eigenes Feld eines Dictionary-Literal-Typs, siehe getOwnField.
+ */
+export function getOwnLiteralField(fields: CompileTimeFields, name: string): CompileTimeField | undefined {
 	return Object.hasOwn(fields, name) ? fields[name] : undefined;
 }
 
@@ -1214,7 +1274,13 @@ export function createCompileTimeSubtractType(
 
 export interface CompileTimeDictionaryLiteralType extends CompileTimeTypeBase {
 	readonly julType: 'dictionaryLiteral';
-	Fields: CompileTimeDictionary;
+	Fields: CompileTimeFields;
+	/**
+	 * Name und Typ der Felder ohne das Optional-Kennzeichen, beim Erzeugen aus Fields abgeleitet. Für
+	 * Stellen, die nur Typen lesen. Wer Felder kopiert oder mischt, braucht Fields, sonst geht das
+	 * Kennzeichen verloren.
+	 */
+	readonly FieldTypes: CompileTimeDictionary;
 	/**
 	 * true: Fields ist die vollständige Feldliste, ein fehlendes Feld gibt es nachweisbar nicht
 	 * (z.B. ein geschriebenes Dictionary-Literal).
@@ -1226,7 +1292,7 @@ export interface CompileTimeDictionaryLiteralType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeDictionaryLiteralType(
-	Fields: CompileTimeDictionary,
+	Fields: CompileTimeFields,
 	complete: boolean,
 	declaration?: TypeDeclaration,
 	aliasName?: string,
@@ -1240,7 +1306,8 @@ export function createCompileTimeDictionaryLiteralType(
 	let fieldCount = 0;
 	for (const name in Fields) {
 		hash = Math.imul(hash ^ getNameId(name), 0x85ebca6b);
-		hash = Math.imul(hash ^ Fields[name]!.id, 0xc2b2ae35);
+		const field = Fields[name]!;
+		hash = Math.imul(hash ^ (field.optional ? ~field.type.id : field.type.id), 0xc2b2ae35);
 		hash ^= hash >>> 15;
 		fieldCount++;
 	}
@@ -1258,6 +1325,7 @@ export function createCompileTimeDictionaryLiteralType(
 	const type: CompileTimeDictionaryLiteralType = {
 		julType: 'dictionaryLiteral',
 		Fields: Fields,
+		FieldTypes: toFieldTypes(Fields),
 		complete: complete,
 		declaration: declaration,
 		aliasName: aliasName,
@@ -1285,7 +1353,7 @@ interface DictionaryLiteralEntry {
 /** Treffer gleichen Hashs sind nicht zwingend gleich: Felder, Reihenfolge und Merkmale prüfen. */
 function isSameDictionaryLiteral(
 	entry: DictionaryLiteralEntry,
-	Fields: CompileTimeDictionary,
+	Fields: CompileTimeFields,
 	fieldCount: number,
 	complete: boolean,
 	declaration: TypeDeclaration | undefined,
@@ -1301,7 +1369,8 @@ function isSameDictionaryLiteral(
 	let index = 0;
 	for (const name in Fields) {
 		if (fieldNames[index++] !== name
-			|| type.Fields[name] !== Fields[name]) {
+			|| type.Fields[name]!.type !== Fields[name]!.type
+			|| type.Fields[name]!.optional !== Fields[name]!.optional) {
 			return false;
 		}
 	}
@@ -1719,7 +1788,7 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 			callback(type.ElementType);
 			return;
 		case 'dictionaryLiteral':
-			Object.values(type.Fields).forEach(callback);
+			Object.values(type.FieldTypes).forEach(callback);
 			return;
 		case 'function':
 			callback(type.ParamsType);

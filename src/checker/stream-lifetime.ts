@@ -186,7 +186,7 @@ function containsStream(type: CompileTimeType | undefined): boolean {
 		case 'tuple':
 			return resolved.ElementTypes.some(containsStream);
 		case 'dictionaryLiteral':
-			return Object.values(resolved.Fields).some(containsStream);
+			return Object.values(resolved.FieldTypes).some(containsStream);
 		case 'or':
 		case 'and':
 			return resolved.ChoiceTypes.some(containsStream);

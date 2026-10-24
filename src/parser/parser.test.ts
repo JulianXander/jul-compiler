@@ -217,6 +217,29 @@ describe('Parser', () => {
 			})(),
 		});
 	});
+	// somekey?: Text: das Feld darf im Wert fehlen
+	// ein ? außerhalb eines Dictionary-Typs ist ein Fehler am Feld
+	it('optional-field-in-dictionary-is-error', () => {
+		const parserResult = parseCode('x = [a?: Integer = 1]', 'dummy.jul');
+		expect(parserResult.unchecked.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
+	});
+	it('optional-field-in-definition-is-error', () => {
+		const parserResult = parseCode('a?: Integer = 1', 'dummy.jul');
+		expect(parserResult.unchecked.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
+	});
+	it('optional-parameter-is-error', () => {
+		const parserResult = parseCode('f = (a?: Integer) => a', 'dummy.jul');
+		expect(parserResult.unchecked.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
+	});
+	it('dictionary-type-optional-field', () => {
+		const parserResult = parseCode('[\n\tsomeKey?: Text\n\tother: Integer\n]', 'dummy.jul');
+		expect(parserResult.unchecked.errors).to.deep.equal([]);
+		const dictionaryType = parserResult.unchecked.expressions?.[0] as ParseDictionaryTypeLiteral;
+		expect(dictionaryType.type).to.equal('dictionaryType');
+		expect(dictionaryType.fields.map(field => field.type === 'singleDictionaryTypeField' && field.optional === true))
+			.to.deep.equal([true, false]);
+		expect((dictionaryType.fields[0] as ParseSingleDictionaryTypeField).name).to.deep.include({ name: 'someKey' });
+	});
 	it('dictionary-type', () => {
 		expectParse('[\n\tsomeKey: Text\n]', {
 			result: (() => {

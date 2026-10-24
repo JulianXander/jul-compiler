@@ -1,0 +1,48 @@
+# Karten wie GameCard in yugioh: wenige Pflichtfelder, viele optionale. Ohne Normierung hat jede
+# Kombination gesetzter Felder und jede Schreibreihenfolge eine eigene Hidden Class, ein Spread hängt
+# fehlende Felder hinten an, und die Feldzugriffe werden megamorph.
+Card = [
+	id: Integer
+	name: Text
+	owner: Integer
+	face?: Text
+	position?: Text
+	atk?: Integer
+	def?: Integer
+	level?: Integer
+	attacked?: Boolean
+	negated?: Boolean
+	bonus?: Integer
+]
+
+cards: List(Card) = [
+	[id = 1 name = §monster§ owner = 1 atk = 1800 def = 1000 level = 4]
+	[id = 2 name = §spell§ owner = 2]
+	[id = 3 name = §monster§ owner = 1 level = 3 atk = 1200 def = 900 face = §up§]
+	[id = 4 name = §trap§ owner = 2 face = §down§ position = §set§]
+	[id = 5 name = §monster§ owner = 1 atk = 2000 def = 0 level = 4 negated = true]
+	[id = 6 name = §monster§ owner = 2 atk = 1500 def = 1500 level = 4 bonus = 300 attacked = true]
+	[id = 7 name = §monster§ owner = 1 atk = 1000 def = 1000 level = 3 face = §up§ position = §attack§]
+	[id = 8 name = §spell§ owner = 1 face = §up§]
+	[id = 9 name = §monster§ owner = 2 def = 2100 atk = 1100 level = 4]
+	[id = 10 name = §monster§ owner = 2 atk = 2500 def = 2000 level = 7 face = §up§ position = §defense§ attacked = true]
+	[id = 11 name = §trap§ owner = 1 position = §set§ face = §down§]
+	[id = 12 name = §monster§ owner = 1 atk = 1700 def = 800 level = 4 bonus = 500]
+]
+
+atkOf = (card: Card) =>
+	?(card/atk)
+		(atk: Integer) => atk
+		() => 0
+
+# Nur Feldzugriffe auf Karten aller Formen
+sumAtk = (start: Integer) =>
+	cards.aggregate(Integer start (accumulator value) => add(accumulator atkOf(value)))
+
+# Zustandsupdate wie in yugioh: die Karte kommt über einen Parameter vom Record-Typ
+attack = (card: Card) =>
+	[...card face = §up§ attacked = true]
+
+# Ein Zustandsupdate je Karte (Spread mit zwei Feldern), danach Feldzugriffe auf die neuen Karten
+attackRound = (start: Integer) =>
+	cards.map((value) => attack(value)).aggregate(Integer start (accumulator value) => add(accumulator atkOf(value)))

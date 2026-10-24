@@ -16,6 +16,7 @@ import {
 	createCompileTimeBoundType,
 	createCompileTimeComplementType,
 	createCompileTimeDictionaryLiteralType,
+	toRequiredFields,
 	createCompileTimeFunctionType,
 	createCompileTimeListType,
 	createCompileTimeStreamType,
@@ -59,7 +60,7 @@ const nonZeroInteger = and([builtinInteger, not(integerLiteral(0))]);
 const positiveInteger = greaterInteger(0);
 
 const dictionary = (fields: Record<string, CompileTimeType>, complete = true) =>
-	createCompileTimeDictionaryLiteralType(fields, complete);
+	createCompileTimeDictionaryLiteralType(toRequiredFields(fields), complete);
 const choicesOf = (type: CompileTimeType) =>
 	type.julType === 'or'
 		? type.ChoiceTypes
@@ -249,7 +250,7 @@ describe('Typalgebra', () => {
 	});
 	it('intersection-merges-same-dictionary-field', () => {
 		const type = and([dictionary({ a: builtinInteger }), dictionary({ a: integerLiteral(5) })]);
-		expect((type as ReturnType<typeof dictionary>).Fields.a).to.deep.equal(integerLiteral(5));
+		expect((type as ReturnType<typeof dictionary>).FieldTypes.a).to.deep.equal(integerLiteral(5));
 	});
 	it('intersection-of-dictionaries-with-conflicting-field-is-never', () => {
 		expect(and([dictionary({ a: builtinInteger }), dictionary({ a: builtinText })])).to.equal(builtinNever);
@@ -267,13 +268,13 @@ describe('Typalgebra', () => {
 
 	//#region Spread
 	const spread = (left: CompileTimeType, right: CompileTimeType) =>
-		spreadDictionaryTypes(left, right, (fields, complete) => dictionary(fields, complete));
+		spreadDictionaryTypes(left, right, (fields, complete) => createCompileTimeDictionaryLiteralType(fields, complete));
 	it('spread-right-overrides-left', () => {
 		const result = spread(
 			dictionary({ a: builtinInteger, b: builtinText }),
 			dictionary({ b: builtinBoolean, c: builtinInteger }),
 		) as ReturnType<typeof dictionary>;
-		expect(result.Fields).to.deep.equal({ a: builtinInteger, b: builtinBoolean, c: builtinInteger });
+		expect(result.FieldTypes).to.deep.equal({ a: builtinInteger, b: builtinBoolean, c: builtinInteger });
 	});
 	it('spread-is-complete-only-if-both-sides-are', () => {
 		const incomplete = spread(dictionary({ a: builtinInteger }, false), dictionary({ b: builtinText })) as ReturnType<typeof dictionary>;
@@ -573,10 +574,10 @@ describe('Typalgebra', () => {
 	// Teilmengenprüfung der Varianten. Der Aufwand muss mit der Quellenzahl wachsen, nicht mit ihrer
 	// Potenz (Muster: [...a() ...b() ...c()] mit Funktionen, die Or([] List(Input)) liefern).
 	it('concat-vieler-moeglicherweise-leerer-listen-bleibt-linear', () => {
-		const variant = (tag: string) => createCompileTimeDictionaryLiteralType({
+		const variant = (tag: string) => createCompileTimeDictionaryLiteralType(toRequiredFields({
 			type: createTextLiteral(tag),
 			gameCardId: builtinInteger,
-		}, true);
+		}), true);
 		const input = createNormalizedUnionType(['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(variant));
 		const maybeEmptyList = createNormalizedUnionType([builtinEmpty, createCompileTimeListType(input)]);
 		resetCheckerStats();
@@ -606,7 +607,7 @@ describe('Typalgebra', () => {
 	});
 	// Eine Quelle, die keine Sequenz ist, lässt die Zusammenfassung aus: Es wird wie gehabt verteilt.
 	it('concat-ueber-budget-mit-dictionary-quelle-faellt-auf-verteilung-zurueck', () => {
-		const dictionary = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
+		const dictionary = createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), true);
 		const maybeEmpty = or([builtinEmpty, createCompileTimeListType(builtinInteger)]);
 		const result = concatFromTypes([maybeEmpty, maybeEmpty, maybeEmpty, maybeEmpty, dictionary]);
 		// Verteilt: eine Union der 16 Kombinationen, keine zusammengefasste List
@@ -638,10 +639,10 @@ describe('Interning und Caches', () => {
 		expect(createTextLiteral('a')).to.not.equal(createTextLiteral('b'));
 	});
 	it('verschachtelte-gleiche-typen-sind-dasselbe-objekt', () => {
-		const build = () => createCompileTimeDictionaryLiteralType({
+		const build = () => createCompileTimeDictionaryLiteralType(toRequiredFields({
 			a: createCompileTimeListType(createTextLiteral('x')),
 			b: createCompileTimeTupleType([builtinInteger]),
-		}, true);
+		}), true);
 		expect(build()).to.equal(build());
 	});
 	it('verschiedene-reihenfolge-der-union-ist-ein-anderes-objekt-aber-gleich', () => {
@@ -651,32 +652,32 @@ describe('Interning und Caches', () => {
 		expect(typeEquals(first, second)).to.equal(true);
 	});
 	it('dictionary-literale-mit-verschiedenem-aliasnamen-bleiben-getrennt', () => {
-		const plain = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
-		const named = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true, undefined, 'Named');
+		const plain = createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), true);
+		const named = createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), true, undefined, 'Named');
 		expect(plain).to.not.equal(named);
 		expect(typeEquals(plain, named)).to.equal(true);
 	});
 	it('unvollstaendige-und-vollstaendige-dictionaries-bleiben-getrennt', () => {
-		expect(createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true))
-			.to.not.equal(createCompileTimeDictionaryLiteralType({ a: builtinInteger }, false));
+		expect(createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), true))
+			.to.not.equal(createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), false));
 	});
 	it('dictionary-literale-mit-anderer-feldreihenfolge-bleiben-getrennt', () => {
-		const first = createCompileTimeDictionaryLiteralType({ a: builtinInteger, b: builtinText }, true);
-		const second = createCompileTimeDictionaryLiteralType({ b: builtinText, a: builtinInteger }, true);
+		const first = createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger, b: builtinText }), true);
+		const second = createCompileTimeDictionaryLiteralType(toRequiredFields({ b: builtinText, a: builtinInteger }), true);
 		expect(first).to.not.equal(second);
 		expect(Object.keys(first.Fields)).to.deep.equal(['a', 'b']);
 		expect(Object.keys(second.Fields)).to.deep.equal(['b', 'a']);
 	});
 	it('dictionary-literale-mit-anderem-feldtyp-oder-feldnamen-bleiben-getrennt', () => {
-		const base = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
-		expect(createCompileTimeDictionaryLiteralType({ a: builtinText }, true)).to.not.equal(base);
-		expect(createCompileTimeDictionaryLiteralType({ b: builtinInteger }, true)).to.not.equal(base);
-		expect(createCompileTimeDictionaryLiteralType({ a: builtinInteger, b: builtinInteger }, true)).to.not.equal(base);
-		expect(createCompileTimeDictionaryLiteralType({}, true)).to.not.equal(base);
+		const base = createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), true);
+		expect(createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinText }), true)).to.not.equal(base);
+		expect(createCompileTimeDictionaryLiteralType(toRequiredFields({ b: builtinInteger }), true)).to.not.equal(base);
+		expect(createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger, b: builtinInteger }), true)).to.not.equal(base);
+		expect(createCompileTimeDictionaryLiteralType(toRequiredFields({}), true)).to.not.equal(base);
 	});
 	it('dictionary-literal-mit-gleichen-feldern-aus-neuem-objekt-ist-dasselbe', () => {
-		const first = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
-		const second = createCompileTimeDictionaryLiteralType({ a: builtinInteger }, true);
+		const first = createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), true);
+		const second = createCompileTimeDictionaryLiteralType(toRequiredFields({ a: builtinInteger }), true);
 		expect(second).to.equal(first);
 	});
 	it('funktionstypen-werden-nicht-interniert', () => {

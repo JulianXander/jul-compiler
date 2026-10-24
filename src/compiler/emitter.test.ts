@@ -135,6 +135,16 @@ describe('Emitter', () => {
 	},
 }`);
 	});
+	// Ein Feld, das fehlen darf, trägt das Kennzeichen am Typ des Felds.
+	it('[a: String b?: String]', () => {
+		expectEmit('[a: String b?: String]', `export default {
+	[_julTypeSymbol]: 'dictionaryLiteral',
+	Fields: {
+		'a': _String,
+		'b': _optionalField(_String),
+	},
+}`);
+	});
 	// Der gespreadete Typ ist selbst ein Typobjekt, übernommen werden seine Fields.
 	it('dictionary-type-spread', () => {
 		expectEmit('[...a b: String]', `export default {
@@ -976,12 +986,12 @@ describe('Emitter Ausführung', () => {
 	// Die Selbstreferenz steht in einer Kollektion und ist damit produktiv, der Checker lässt sie
 	// durch. Zur Laufzeit darf sie dann nicht vor der fertigen Definition ausgewertet werden.
 	it('ein rekursiver Typ lässt sich laden', () => {
-		expect(() => runEmitted('Node = [value: Integer children: Or([] List(Node))]')).to.not.throw();
+		expect(() => runEmitted('Node = [value: Integer children?: List(Node)]')).to.not.throw();
 	});
 	// Die Elemente von children werden gegen die Selbstreferenz geprüft, sie wird also aufgelöst.
 	it('ein verschachtelter Wert besteht die Prüfung gegen einen rekursiven Typ', () => {
 		const code = [
-			'Node = [value: Integer children: Or([] List(Node))]',
+			'Node = [value: Integer children?: List(Node)]',
 			'f = (node: Node) => node/value',
 			'result = f([value = 1 children = [[value = 2 children = [[value = 3]]]]])',
 		].join('\n');
@@ -991,7 +1001,7 @@ describe('Emitter Ausführung', () => {
 	// jeder Aufruf von Tree sofort den nächsten auf.
 	it('ein verschachtelter Wert besteht die Prüfung gegen eine rekursive Typfunktion', () => {
 		const code = [
-			'Tree = (T: Type) => [value: T children: Or([] List(Tree(T)))]',
+			'Tree = (T: Type) => [value: T children?: List(Tree(T))]',
 			'f = (tree: Tree(Integer)) => tree/value',
 			'result = f([value = 1 children = [[value = 2 children = [[value = 3]]]]])',
 		].join('\n');

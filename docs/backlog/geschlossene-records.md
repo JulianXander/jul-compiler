@@ -27,6 +27,8 @@ Perf-Plan (stabile Objektformen) vollständige Feldmengen aus den Typen.
   Idiom für optionale Felder sound, auch wenn die Quelle ein deklarierter Typ und kein Literal ist.
 - `?` bräuchte es nur, um bei JSON zwischen `null` und einem fehlenden Schlüssel zu unterscheiden.
   Diese Frage ist unabhängig von diesem Plan und kommt in ein Backlog-Dokument.
+- **Nachtrag:** Für JSON und stabile Objektformen wird `?` inzwischen doch vorgeschlagen, siehe
+  [stabile-objektformen.md](stabile-objektformen.md). Für die Geschlossenheit bleibt es unnötig.
 
 **Entscheidungen:**
 - Ein weiteres Feld mit Empty ist erlaubt (Lesart „Rest ist Empty“). Darauf beruht yugioh, z.B.

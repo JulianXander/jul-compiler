@@ -3,7 +3,7 @@ flattenShort = (lists: List(Or([] List(Integer)))) =>
 	length(flatten(lists))
 
 # Verkettung zweier Listen, von denen eine leer sein kann, wie beim Anhängen von Events
-concatLists = (pair: [first: Or([] List(Integer)) second: Or([] List(Integer))]) =>
+concatLists = (pair: [first?: List(Integer) second?: List(Integer)]) =>
 	length([...pair/first ...pair/second])
 
 # Zusammenführen zweier Dictionaries über denselben Weg

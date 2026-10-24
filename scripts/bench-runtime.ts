@@ -24,7 +24,7 @@ import {
  * exportierten Funktionen in einer heißen Schleife auf. Kein Test-Gate, nur Beleg für Umbauten
  * am Emitter und an der Runtime.
  * Emittiert wird gegen src/runtime/runtime.ts (über tsx), also ohne Build und ohne webpack.
- * Aufruf: npm run bench-runtime [--save] [--note "grund"]
+ * Aufruf: npm run bench-runtime [--save] [--note "grund"] [fixture ...]
  * Mit --save wird die Messung an scripts/bench-log-runtime.tsv angehängt, sonst nur verglichen.
  * Protokolliert werden ms je normCalls Aufrufe, unabhängig davon, wie viele ein Durchlauf macht:
  * so bleibt ein Fall vergleichbar, wenn seine Aufrufzahl später angepasst werden muss.
@@ -352,6 +352,20 @@ const cases: BenchCase[] = [
 		calls: 1_000_000,
 	},
 	{
+		file: 'object-shapes.jul',
+		functionName: 'sumAtk',
+		inputs: [0n, 1n],
+		expected: [12800n, 12801n],
+		calls: 500_000,
+	},
+	{
+		file: 'object-shapes.jul',
+		functionName: 'attackRound',
+		inputs: [0n, 1n],
+		expected: [12800n, 12801n],
+		calls: 200_000,
+	},
+	{
 		file: 'json.jul',
 		functionName: 'parseJsonText',
 		label: 'json/small',
@@ -431,14 +445,18 @@ function measure(benchCase: BenchCase, fn: Function): number[] {
 	return durations;
 }
 
-const { save, note } = parseArgs(process.argv.slice(2));
+const { save, note, targets } = parseArgs(process.argv.slice(2));
+// Weitere Argumente wählen Fixtures aus (Dateiname ohne .jul), für abwechselnde Läufe einzelner Fälle
+const selectedCases = targets.length
+	? cases.filter(benchCase => targets.includes(basename(benchCase.file, '.jul')))
+	: cases;
 const outFolder = mkdtempSync(join(tmpdir(), 'jul-bench-runtime-'));
 try {
 	const modules: { [file: string]: { [name: string]: unknown; }; } = {};
-	for (const benchCase of cases) {
+	for (const benchCase of selectedCases) {
 		modules[benchCase.file] ??= await compileFixture(benchCase.file, outFolder);
 	}
-	const results: BenchResult[] = cases.map(benchCase => {
+	const results: BenchResult[] = selectedCases.map(benchCase => {
 		const fn = modules[benchCase.file]![benchCase.functionName];
 		if (typeof fn !== 'function') {
 			throw new Error(`${benchCase.file}: ${benchCase.functionName} ist keine Funktion`);
@@ -456,7 +474,7 @@ try {
 	});
 	const previous = readPrevious(logPath, target, getMachine());
 	console.log(fixtureFolder);
-	console.log(`  ${cases.length} Fälle, je ${runCount} Durchläufe, ms je ${normCalls} Aufrufe`);
+	console.log(`  ${selectedCases.length} Fälle, je ${runCount} Durchläufe, ms je ${normCalls} Aufrufe`);
 	results.forEach(({ label, values }) =>
 		console.log(formatResult(label, values, previous?.[label])));
 	if (save) {

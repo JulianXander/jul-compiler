@@ -229,6 +229,8 @@ function typeToString(type: RuntimeType, indent: number): string {
 						return `Dictionary(${typeToString(type.ElementType, indent)})`;
 					case 'dictionaryLiteral':
 						return dictionaryTypeToString(type.Fields, ': ', indent);
+					case 'optionalField':
+						return typeToString(type.Type, indent);
 					case 'empty':
 						return 'Empty';
 					case 'error':
@@ -309,7 +311,10 @@ function dictionaryTypeToString(
 		: indent;
 	return bracketedExpressionToString(
 		Object.entries(dictionary).map(([key, element]) => {
-			return `${key}${nameSeparator}${typeToString(element, newIndent)}`;
+			const optional = typeof element === 'object'
+				&& element !== null
+				&& (element as { [_julTypeSymbol]?: string; })[_julTypeSymbol] === 'optionalField';
+			return `${key}${optional ? '?' : ''}${nameSeparator}${typeToString(element, newIndent)}`;
 		}),
 		multiline,
 		indent);

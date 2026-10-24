@@ -376,14 +376,14 @@ function getFieldTest(remaining: CompileTimeType[], required: CompileTimeType): 
 	if (members.some(member => member.julType !== 'dictionaryLiteral')) {
 		return undefined;
 	}
-	for (const [name, rawFieldType] of Object.entries(required.Fields)) {
+	for (const [name, rawFieldType] of Object.entries(required.FieldTypes)) {
 		const requiredValue = getLiteralValue(resolveAlias(rawFieldType));
 		if (requiredValue === undefined) {
 			continue;
 		}
 		const decides = members.every(member => {
 			const memberFieldType = member.julType === 'dictionaryLiteral'
-				? getOwnField(member.Fields, name)
+				? getOwnField(member.FieldTypes, name)
 				: undefined;
 			const memberValue = memberFieldType && getLiteralValue(resolveAlias(memberFieldType));
 			if (memberValue === undefined) {
@@ -461,7 +461,7 @@ function containsAny(type: CompileTimeType, visitedAliases: Set<CompileTimeType>
 		case 'tuple':
 			return type.ElementTypes.some(elementType => containsAny(elementType, visitedAliases));
 		case 'dictionaryLiteral':
-			return Object.values(type.Fields).some(fieldType => containsAny(fieldType, visitedAliases));
+			return Object.values(type.FieldTypes).some(fieldType => containsAny(fieldType, visitedAliases));
 		case 'stream':
 			return containsAny(type.ValueType, visitedAliases);
 		case 'bound':

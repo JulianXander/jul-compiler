@@ -15,6 +15,7 @@ import {
 	builtinEmpty,
 	builtinError,
 	CompileTimeDictionary,
+	toRequiredFields,
 	CompileTimeFunctionType,
 	CompileTimeType,
 	createBooleanLiteral,
@@ -60,7 +61,7 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown; } 
 		}
 		case 'dictionaryLiteral': {
 			const fields: { [key: string]: unknown; } = {};
-			for (const [fieldName, fieldType] of Object.entries(type.Fields)) {
+			for (const [fieldName, fieldType] of Object.entries(type.FieldTypes)) {
 				const fieldValue = typeToConstantValue(fieldType);
 				if (!fieldValue) {
 					return undefined;
@@ -274,7 +275,7 @@ export function constantValueToType(value: unknown): CompileTimeType | undefined
 			}
 			fields[fieldName] = fieldType;
 		}
-		return createCompileTimeDictionaryLiteralType(fields, true);
+		return createCompileTimeDictionaryLiteralType(toRequiredFields(fields), true);
 	}
 	return undefined;
 }

@@ -188,6 +188,8 @@ export function _isOfType(value: any, type: RuntimeType): boolean {
 					}
 					case 'dictionaryLiteral':
 						return isDictionaryLiteralOfType(value, type.Fields);
+					case 'optionalField':
+						return _isOfType(value, type.Type);
 					case 'list': {
 						if (!Array.isArray(value)) {
 							return false;
@@ -343,8 +345,19 @@ function isDictionaryLiteralOfType(value: any, fieldTypes: RuntimeDictionary): b
 		return false;
 	}
 	for (const key in fieldTypes) {
+		let elementType = fieldTypes[key];
+		if (isOptionalFieldType(elementType)) {
+			// Ein fehlender Schlüssel passt, ein vorhandener muss zum Typ passen (auch mit Empty).
+			if (!(key in value)) {
+				continue;
+			}
+			elementType = elementType.Type;
+		}
+		else if (!(key in value)) {
+			// Ein Pflichtfeld steht als Schlüssel da, auch wenn sein Typ Empty zulässt.
+			return false;
+		}
 		const elementValue = value[key];
-		const elementType = fieldTypes[key];
 		if (!_isOfType(elementValue, elementType)) {
 			return false;
 		}
@@ -357,6 +370,12 @@ function isDictionaryLiteralOfType(value: any, fieldTypes: RuntimeDictionary): b
 		}
 	}
 	return true;
+}
+
+function isOptionalFieldType(type: unknown): type is OptionalFieldType {
+	return typeof type === 'object'
+		&& type !== null
+		&& (type as { [_julTypeSymbol]?: string; })[_julTypeSymbol] === 'optionalField';
 }
 
 function isRealObject(value: any): value is Collection {
@@ -569,6 +588,7 @@ export type BuiltInType =
 	| TupleType
 	| DictionaryType
 	| DictionaryLiteralType
+	| OptionalFieldType
 	| StreamType
 	| FunctionType
 	| TypeType
@@ -647,6 +667,19 @@ interface DictionaryLiteralType {
 	readonly [_julTypeSymbol]: 'dictionaryLiteral';
 	readonly Fields: RuntimeDictionary;
 }
+
+/**
+ * Der Typ eines Felds, das im Wert fehlen darf (`b?: X`). Kommt nur als Wert in Fields vor.
+ */
+interface OptionalFieldType {
+	readonly [_julTypeSymbol]: 'optionalField';
+	readonly Type: RuntimeType;
+}
+
+/**
+ * Wird vom emitter benutzt
+ */
+export const _optionalField = (Type: RuntimeType): OptionalFieldType => ({ [_julTypeSymbol]: 'optionalField', Type });
 
 interface StreamType {
 	readonly [_julTypeSymbol]: 'stream';

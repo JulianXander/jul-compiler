@@ -92,6 +92,7 @@ export enum ErrorCode {
 	definitionNotAllowedForDictionaryTypeField = 2203,
 	typeGuardNotAllowedForSpreadDictionaryTypeField = 2204,
 	typeGuardNotAllowedForDictionaryField = 2205,
+	optionalNotAllowedOutsideDictionaryType = 2206,
 	// Namen, escaped names
 	escapedNameIsMultilineText = 2300,
 	escapedNameHasInterpolation = 2301,
@@ -334,6 +335,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.definitionNotAllowedForDictionaryTypeField]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.typeGuardNotAllowedForSpreadDictionaryTypeField]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.typeGuardNotAllowedForDictionaryField]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.optionalNotAllowedOutsideDictionaryType]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.escapedNameIsMultilineText]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.escapedNameHasInterpolation]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidEscapableName]: { type: 'semantic', severity: 'error' },

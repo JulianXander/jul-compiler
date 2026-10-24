@@ -849,6 +849,7 @@ function expressionParser(
 		};
 	}
 	const errors = result.errors ?? [];
+	checkOptionalNotAllowed(parsed, errors);
 	const baseName = parsed.name;
 	// bei name = BracketedExpression und definition: DestructuringDefinition
 	// bei name = ref und definition: SingleDefinition
@@ -1164,6 +1165,22 @@ function mergeErrors(
  * - Fehlt der Wert hinter ` = `, ist das kein Fehler des Feldes, die Fehler des Versuchs gehen
  *   verloren (assignedValueMissingForDefinition meldet es später).
  */
+/**
+ * `b?: X` ist nur im Dictionary-Typ erlaubt, überall sonst meldet das ein Fehler am Feld.
+ */
+function checkOptionalNotAllowed(field: ParseFieldBase, errors: CompilerError[]): void {
+	if (field.optional) {
+		errors.push({
+			code: ErrorCode.optionalNotAllowedOutsideDictionaryType,
+			message: 'An optional field (name?: Type) is only allowed in a dictionary type.',
+			startRowIndex: field.name.endRowIndex,
+			startColumnIndex: field.name.endColumnIndex,
+			endRowIndex: field.name.endRowIndex,
+			endColumnIndex: field.name.endColumnIndex + 1,
+		});
+	}
+}
+
 function fieldParser(
 	rows: string[],
 	startRowIndex: number,
@@ -1187,6 +1204,12 @@ function fieldParser(
 			endColumnIndex: columnIndex,
 			errors: errors,
 		};
+	}
+	// b?: X, das ? gehört zum Feld (nur der Dictionary-Typ erlaubt es)
+	let optional = false;
+	if (rows[rowIndex]?.startsWith('?: ', columnIndex)) {
+		optional = true;
+		columnIndex += 1;
 	}
 	let typeGuard: ParseValueExpression | undefined;
 	if (rows[rowIndex]?.startsWith(': ', columnIndex)) {
@@ -1226,6 +1249,7 @@ function fieldParser(
 			spread: spread,
 			name: nameResult.parsed!,
 			typeGuard: typeGuard,
+			...(optional ? { optional: true } : {}),
 			definition: definition,
 			assignedValue: assignedValue,
 			startRowIndex: startRowIndex,
@@ -3347,6 +3371,7 @@ function bindingToDestructuringFields(
 	}
 	const fields: ParseDestructuringField[] = [];
 	bracketedExpression.fields.forEach(baseField => {
+		checkOptionalNotAllowed(baseField, errors);
 		const baseName = baseField.name;
 		const checkedName = checkName(baseName);
 		if (!checkedName) {
@@ -3445,6 +3470,7 @@ function bindingToParameters(
 	const singleFields: ParseParameterField[] = [];
 	for (let index = 0; index < baseFields.length; index++) {
 		const baseField = baseFields[index]!;
+		checkOptionalNotAllowed(baseField, errors);
 		const parseSource = baseField.assignedValue;
 		let source: Name | undefined;
 		if (parseSource) {
@@ -3595,6 +3621,7 @@ function bracketedExpressionToValueExpression(
 		const fields = mapNonEmpty(
 			baseFields,
 			baseField => {
+				checkOptionalNotAllowed(baseField, errors);
 				const baseName = baseField.name;
 				const typeGuard = baseField.typeGuard;
 				if (baseField.spread) {
@@ -3730,6 +3757,7 @@ function bracketedExpressionToValueExpression(
 					description: baseField.description,
 					name: name,
 					typeGuard: typeGuard,
+					...(baseField.optional ? { optional: true } : {}),
 					startRowIndex: baseField.startRowIndex,
 					startColumnIndex: baseField.startColumnIndex,
 					endRowIndex: baseField.endRowIndex,

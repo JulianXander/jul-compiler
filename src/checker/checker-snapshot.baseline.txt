@@ -377,7 +377,7 @@ visibleInput: Invalid
 addMessage: (message: Text) ~> Any
 === ui/tic-tac-toe/tic-tac-toe-logic.jul ===
 Cell: TypeOf(Or(§§ Player))
-CellChange: TypeOf([   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3)   value: Or(Empty Cell)   enabled: Or(Empty Boolean) ])
+CellChange: TypeOf([   rowIndex: Or(1 2 3)   columnIndex: Or(1 2 3)   value?: Cell   enabled?: Boolean ])
 GameBoard: [[TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)] [TypeOf(Cell) TypeOf(Cell) TypeOf(Cell)]]
 GameState: TypeOf([   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ])
 GameStateChange: TypeOf([   cellChanges: Or(Empty List(CellChange))   currentPlayer: Player   status: GameStatus ])

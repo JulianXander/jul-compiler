@@ -3,7 +3,7 @@ import { reportAtCaller } from '../test-util.js';
 import {
 	_branch, _combineObject, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
 	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
-	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol,
+	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol, _optionalField, _Text, Or,
 } from './runtime.js';
 
 //#region _branch
@@ -122,6 +122,27 @@ describe('Record als Typ', () => {
 	// Ein Schlüssel mit undefined ist dasselbe wie ein fehlender.
 	it('matches a surplus field with undefined', () => {
 		expect(_branch([{ a: 1n, b: undefined }], branchWithType, fallback)).to.equal('matched');
+	});
+	// b?: Text: der Schlüssel darf fehlen, ist er da, muss der Wert zum Typ passen.
+	it('matches an optional field that is missing', () => {
+		const optionalType = { [_julTypeSymbol]: 'dictionaryLiteral', Fields: { a: Integer, b: _optionalField(_Text) } };
+		const branch = _createFunction(() => 'matched', { singleNames: [{ name: 'x', type: optionalType as any }] });
+		expect(_branch([{ a: 1n }], branch, fallback)).to.equal('matched');
+		expect(_branch([{ a: 1n, b: 's' }], branch, fallback)).to.equal('matched');
+	});
+	// Ein Pflichtfeld muss als Schlüssel da sein, auch wenn sein Typ Empty zulässt.
+	it('does not match a missing key of a required field that allows empty', () => {
+		const emptyType = { [_julTypeSymbol]: 'dictionaryLiteral', Fields: { a: Integer, b: Or(undefined, _Text) } };
+		const branch = _createFunction(() => 'matched', { singleNames: [{ name: 'x', type: emptyType as any }] });
+		expect(_branch([{ a: 1n }], branch, fallback)).to.equal('fallback');
+		expect(_branch([{ a: 1n, b: undefined }], branch, fallback)).to.equal('matched');
+		expect(_branch([{ a: 1n, b: 's' }], branch, fallback)).to.equal('matched');
+	});
+	it('does not match an optional field with the wrong value or with undefined', () => {
+		const optionalType = { [_julTypeSymbol]: 'dictionaryLiteral', Fields: { a: Integer, b: _optionalField(_Text) } };
+		const branch = _createFunction(() => 'matched', { singleNames: [{ name: 'x', type: optionalType as any }] });
+		expect(_branch([{ a: 1n, b: 2n }], branch, fallback)).to.equal('fallback');
+		expect(_branch([{ a: 1n, b: undefined }], branch, fallback)).to.equal('fallback');
 	});
 });
 

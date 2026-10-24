@@ -6,6 +6,11 @@ import {
 	CompileTimeCollection,
 	CompileTimeComplementType,
 	CompileTimeDictionary,
+	CompileTimeFields,
+	getOwnLiteralField,
+	mapFieldTypes,
+	toFieldTypes,
+	toRequiredFields,
 	CompileTimeDictionaryLiteralType,
 	CompileTimeDictionaryType,
 	CompileTimeFunctionType,
@@ -133,7 +138,7 @@ function withDictionaryLiteralField(
 	if (!Object.hasOwn(type.Fields, name)) {
 		return undefined;
 	}
-	return createCompileTimeDictionaryLiteralType({ ...type.Fields, [name]: value }, type.complete, type.declaration);
+	return createCompileTimeDictionaryLiteralType({ ...type.Fields, [name]: { type: value, optional: false } }, type.complete, type.declaration);
 }
 
 /**
@@ -143,7 +148,13 @@ function withDictionaryLiteralField(
  */
 export const valueFieldAccess: NamedAccessTable = {
 	dictionaryLiteral: {
-		get: (type, name) => getOwnField(type.Fields, name),
+		// Ein Feld mit ? kann im Wert fehlen, gelesen ergibt es dann Empty.
+		get: (type, name) => {
+			const field = getOwnLiteralField(type.Fields, name);
+			return field?.optional
+				? createNormalizedUnionType([builtinEmpty, field.type])
+				: field?.type;
+		},
 		set: withDictionaryLiteralField,
 	},
 	dictionary: {
@@ -216,7 +227,7 @@ export const typePropertyAccess: NamedAccessTable = {
 			: undefined,
 	},
 	dictionaryLiteral: {
-		get: (type, name) => getOwnField(type.Fields, name),
+		get: (type, name) => getOwnField(type.FieldTypes, name),
 		set: withDictionaryLiteralField,
 	},
 	list: {
@@ -1139,7 +1150,7 @@ function dereferenceParameterFromArgumentType(
 	switch (argsType.julType) {
 		case 'dictionaryLiteral': {
 			const referenceName = parameterReference.name;
-			const argType = getOwnField(argsType.Fields, referenceName);
+			const argType = getOwnField(argsType.FieldTypes, referenceName);
 			// Ohne Argument kommt der Parameter zur Laufzeit als Empty an. Sonst ist das Argument
 			// selbst der Wert des Parameters, wie beim Tuple.
 			return argType ?? builtinEmpty;
@@ -1317,12 +1328,12 @@ function traversePlaceholdersUncached(
 			if (argumentContext && !containsArgumentPlaceholder(rawType)) {
 				return rawType;
 			}
-			const rawFields = rawType.Fields;
-			const dereferencedFields = mapDictionary(rawFields, field => traversePlaceholders(field, argumentContext));
-			if (fieldsEqual(rawFields, dereferencedFields)) {
+			const rawFields = rawType.FieldTypes;
+			const dereferencedFieldTypes = mapDictionary(rawFields, field => traversePlaceholders(field, argumentContext));
+			if (fieldsEqual(rawFields, dereferencedFieldTypes)) {
 				return rawType;
 			}
-			return createCompileTimeDictionaryLiteralType(dereferencedFields, rawType.complete, rawType.declaration, rawType.aliasName);
+			return createCompileTimeDictionaryLiteralType(mapFieldTypes(rawType.Fields, (_type, name) => dereferencedFieldTypes[name]!), rawType.complete, rawType.declaration, rawType.aliasName);
 		}
 		case 'function': {
 			if (argumentContext) {
@@ -1873,21 +1884,24 @@ export function mapElementsFromTypes(
 			// Die Länge steht nicht fest, jedes Element bekommt denselben Typ.
 			return createCompileTimeListType(mapElementType(callbackType, sourceType.ElementType, positionIndexType));
 		case 'dictionaryLiteral': {
-			const fieldNames = Object.keys(sourceType.Fields);
+			const fieldNames = Object.keys(sourceType.FieldTypes);
 			if (!fieldNames.length
 				&& sourceType.complete) {
 				return builtinEmpty;
 			}
-			const mappedFields: CompileTimeDictionary = {};
+			const mappedFields: CompileTimeFields = {};
 			if (fieldNames.length > maxMappedPositions) {
-				const mapped = mapElementType(callbackType, createNormalizedUnionType(Object.values(sourceType.Fields)), builtinText);
+				const mapped = mapElementType(callbackType, createNormalizedUnionType(Object.values(sourceType.FieldTypes)), builtinText);
 				fieldNames.forEach(fieldName => {
-					mappedFields[fieldName] = mapped;
+					mappedFields[fieldName] = { type: mapped, optional: sourceType.Fields[fieldName]!.optional };
 				});
 			}
 			else {
 				fieldNames.forEach(fieldName => {
-					mappedFields[fieldName] = mapElementType(callbackType, getOwnField(sourceType.Fields, fieldName)!, createTextLiteral(fieldName));
+					mappedFields[fieldName] = {
+						type: mapElementType(callbackType, sourceType.FieldTypes[fieldName]!, createTextLiteral(fieldName)),
+						optional: sourceType.Fields[fieldName]!.optional,
+					};
 				});
 			}
 			// Weitere, unbekannte Felder werden ebenso abgebildet, bleiben also unbekannt.
@@ -2026,7 +2040,7 @@ export function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType
 			dictionaryType = dictionaryType && spreadDictionaryTypes(
 				dictionaryType,
 				source,
-				(fieldTypes, complete) => createCompileTimeDictionaryLiteralType(fieldTypes, complete));
+				(fields, complete) => createCompileTimeDictionaryLiteralType(fields, complete));
 		}
 		return dictionaryType ?? createCompileTimeConcatType(sourceTypes);
 	}
@@ -2466,9 +2480,14 @@ function createDisjointByDiscriminantCheck(): (first: CompileTimeType, second: C
 			return false;
 		}
 		for (const fieldName in first.Fields) {
-			const firstFieldType = getOwnField(first.Fields, fieldName)!;
-			const secondFieldType = getOwnField(second.Fields, fieldName);
+			const firstField = first.Fields[fieldName]!;
+			const firstFieldType = firstField.type;
+			const secondField = getOwnLiteralField(second.Fields, fieldName);
+			const secondFieldType = secondField?.type;
+			// Ein optionales Feld kann fehlen, dann gibt es keinen Widerspruch.
 			if (secondFieldType === undefined
+				|| firstField.optional
+				|| secondField!.optional
 				|| firstFieldType === secondFieldType
 				|| !isLiteralOnly(firstFieldType)
 				|| !isLiteralOnly(secondFieldType)) {
@@ -2661,7 +2680,7 @@ function createNormalizedUnionTypeUncached(choiceTypes: CompileTimeType[]): Comp
 export function spreadDictionaryTypes(
 	rawLeft: CompileTimeType,
 	rawRight: CompileTimeType,
-	createDictionary: (fieldTypes: CompileTimeDictionary, complete: boolean) => CompileTimeType,
+	createDictionary: (fields: CompileTimeFields, complete: boolean) => CompileTimeType,
 ): CompileTimeType | undefined {
 	const left = resolveAlias(rawLeft);
 	const right = resolveAlias(rawRight);
@@ -2685,10 +2704,7 @@ export function spreadDictionaryTypes(
 		&& isDictionaryLiteralType(right)) {
 		// Ist eine Seite unvollständig, kann der Wert weitere Felder haben, und das Ergebnis ebenso.
 		return createDictionary(
-			{
-				...left.Fields,
-				...right.Fields,
-			},
+			spreadFields(left.Fields, right.Fields),
 			left.complete && right.complete);
 	}
 	if (isDictionaryType(left)
@@ -2704,7 +2720,7 @@ export function spreadDictionaryTypes(
 			}
 			else if (isDictionaryLiteralType(side)
 				&& side.complete) {
-				valueTypes.push(...Object.values(side.Fields));
+				valueTypes.push(...Object.values(side.FieldTypes));
 			}
 			else {
 				return undefined;
@@ -2713,6 +2729,26 @@ export function spreadDictionaryTypes(
 		return createCompileTimeDictionaryType(createNormalizedUnionType(valueTypes));
 	}
 	return undefined;
+}
+
+/**
+ * Die Felder von [...left ...right]. Ein Feld von right überschreibt das von left. Darf es fehlen
+ * (`?`), scheint left durch: Der Typ ist dann die Vereinigung, und das Feld darf nur fehlen, wenn es
+ * auch in left fehlen darf oder dort nicht steht.
+ */
+function spreadFields(left: CompileTimeFields, right: CompileTimeFields): CompileTimeFields {
+	const fields: CompileTimeFields = { ...left };
+	for (const name in right) {
+		const rightField = right[name]!;
+		const leftField = getOwnLiteralField(left, name);
+		fields[name] = rightField.optional
+			? {
+				type: leftField ? createNormalizedUnionType([leftField.type, rightField.type]) : rightField.type,
+				optional: !leftField || leftField.optional,
+			}
+			: rightField;
+	}
+	return fields;
 }
 
 export function createNormalizedIntersectionType(ChoiceTypes: CompileTimeType[]): CompileTimeType {
@@ -2823,34 +2859,43 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 			if (first.julType === 'dictionaryLiteral'
 				&& second.julType === 'dictionaryLiteral') {
 				const keys = new Set([...Object.keys(first.Fields), ...Object.keys(second.Fields)]);
-				const mergedFields: CompileTimeDictionary = {};
+				const mergedFields: CompileTimeFields = {};
 				for (const key of keys) {
-					const firstFieldType = getOwnField(first.Fields, key);
-					const secondFieldType = getOwnField(second.Fields, key);
+					const firstField = getOwnLiteralField(first.Fields, key);
+					const secondField = getOwnLiteralField(second.Fields, key);
+					const firstFieldType = firstField?.type;
+					const secondFieldType = secondField?.type;
 					// Eine vollständige Seite nennt alle ihre Felder, ein Feld, das nur die andere
 					// Seite kennt, ist dort Empty. Ein unvollständiges Gegenüber weiß nichts darüber.
 					const closedSideLacksField = (firstFieldType === undefined && first.complete)
 						|| (secondFieldType === undefined && second.complete);
 					if (closedSideLacksField) {
-						const onlyFieldType = (firstFieldType ?? secondFieldType)!;
-						const fieldWithEmpty = createNormalizedIntersectionType([onlyFieldType, builtinEmpty]);
+						const onlyField = (firstField ?? secondField)!;
+						const fieldWithEmpty = createNormalizedIntersectionType([onlyField.type, builtinEmpty]);
 						if (fieldWithEmpty.julType === 'never') {
+							// Ein optionales Feld darf fehlen, mehr bleibt dann nicht übrig.
+							if (onlyField.optional) {
+								continue;
+							}
 							return builtinNever;
 						}
-						mergedFields[key] = fieldWithEmpty;
+						mergedFields[key] = { type: fieldWithEmpty, optional: onlyField.optional };
 					}
 					else if (firstFieldType && secondFieldType) {
 						const mergedFieldType = createNormalizedIntersectionType([firstFieldType, secondFieldType]);
 						// Beide Seiten verlangen das Feld, kein Wert erfüllt beide: dann gibt es auch
 						// kein Dictionary, das beide erfüllt. So fällt z.B. beim Verengen über
 						// step/type die Choice mit dem anderen type aus der Union.
-						if (mergedFieldType.julType === 'never') {
+						const bothOptional = firstField!.optional && secondField!.optional;
+						if (mergedFieldType.julType === 'never'
+							&& !bothOptional) {
 							return builtinNever;
 						}
-						mergedFields[key] = mergedFieldType;
+						// Fehlen darf das Feld nur, wenn beide Seiten es zulassen.
+						mergedFields[key] = { type: mergedFieldType, optional: bothOptional };
 					}
 					else {
-						mergedFields[key] = firstFieldType ?? secondFieldType!;
+						mergedFields[key] = (firstField ?? secondField)!;
 					}
 				}
 				return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
@@ -3089,9 +3134,13 @@ function dictionaryLiteralsOverlap(first: ResolvedType, second: ResolvedType): f
 		|| second.julType !== 'dictionaryLiteral') {
 		return undefined;
 	}
-	for (const [name, firstFieldType] of Object.entries(first.Fields)) {
-		const secondFieldType = getOwnField(second.Fields, name);
+	for (const [name, firstField] of Object.entries(first.Fields)) {
+		const firstFieldType = firstField.type;
+		const secondField = getOwnLiteralField(second.Fields, name);
+		const secondFieldType = secondField?.type;
+		// Dürfen beide fehlen, teilen sie sich den Wert ohne dieses Feld.
 		if (secondFieldType
+			&& !(firstField.optional && secondField!.optional)
 			&& typesOverlap(firstFieldType, secondFieldType) === false) {
 			return false;
 		}
@@ -3099,14 +3148,16 @@ function dictionaryLiteralsOverlap(first: ResolvedType, second: ResolvedType): f
 		// Empty. Kann die andere Seite es nicht leer lassen, teilen beide keinen Wert.
 		if (!secondFieldType
 			&& second.complete
+			&& !firstField.optional
 			&& typesOverlap(firstFieldType, builtinEmpty) === false) {
 			return false;
 		}
 	}
-	for (const [name, secondFieldType] of Object.entries(second.Fields)) {
-		if (!getOwnField(first.Fields, name)
+	for (const [name, secondField] of Object.entries(second.Fields)) {
+		if (!getOwnLiteralField(first.Fields, name)
 			&& first.complete
-			&& typesOverlap(secondFieldType, builtinEmpty) === false) {
+			&& !secondField.optional
+			&& typesOverlap(secondField.type, builtinEmpty) === false) {
 			return false;
 		}
 	}
@@ -3577,9 +3628,11 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 		case 'dictionaryLiteral':
 			return second.julType === 'dictionaryLiteral'
 				&& Object.keys(first.Fields).length === Object.keys(second.Fields).length
-				&& Object.entries(first.Fields).every(([key, value]) => {
-					const otherValue = getOwnField(second.Fields, key);
-					return otherValue !== undefined && typeEquals(value, otherValue);
+				&& Object.entries(first.Fields).every(([key, field]) => {
+					const otherField = getOwnLiteralField(second.Fields, key);
+					return otherField !== undefined
+						&& field.optional === otherField.optional
+						&& typeEquals(field.type, otherField.type);
 				});
 		case 'parameterReference':
 			return second.julType === 'parameterReference'
@@ -3806,8 +3859,7 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 	}
 	switch (type.julType) {
 		case 'dictionaryLiteral': {
-			const fieldValues = mapDictionary(type.Fields, valueOf);
-			return createCompileTimeDictionaryLiteralType(fieldValues, type.complete);
+			return createCompileTimeDictionaryLiteralType(mapFieldTypes(type.Fields, fieldType => valueOf(fieldType)), type.complete);
 		}
 		case 'function':
 			// Ein Funktionswert in Typ-Position ist ein Prädikat. Das Funktionstyp-Literal kommt
@@ -4326,7 +4378,7 @@ function isTypeAssignableByStructure(
 				case 'dictionaryLiteral': {
 					// TODO the field x is missing error?
 					const fieldAssignabilities = map(
-						argumentsType.Fields,
+						argumentsType.FieldTypes,
 						(fieldType, fieldName) => isTypeAssignableForField(fieldName, elementType, fieldType),
 					);
 					return joinTypeAssignabilities(fieldAssignabilities, true);
@@ -4875,7 +4927,7 @@ function joinTypeAssignabilities(typeAssignabilities: TypeAssignability[], keepD
  */
 function isTypeAssignableForDictionaryLiteral(
 	argumentsType: CompileTimeType,
-	targetFieldTypes: CompileTimeDictionary,
+	targetFields: CompileTimeFields,
 	targetComplete: boolean,
 ): TypeAssignability | undefined {
 	switch (argumentsType.julType) {
@@ -4886,10 +4938,12 @@ function isTypeAssignableForDictionaryLiteral(
 			// Feldnamen werden deshalb gesammelt und zu einer Zeile zusammengefasst, statt je
 			// Feld eine eigene "Missing field X, expected Y."-Zeile zu erzeugen.
 			const missingFieldNames: string[] = [];
+			const mayBeMissingFieldNames: string[] = [];
 			const fieldAssignabilities = map(
-				targetFieldTypes,
-				(fieldType, fieldName): TypeAssignability => {
-					const knownField = getOwnField(argumentsType.Fields, fieldName);
+				targetFields,
+				(targetField, fieldName): TypeAssignability => {
+					const fieldType = targetField.type;
+					const knownField = getOwnLiteralField(argumentsType.Fields, fieldName);
 					if (knownField === undefined) {
 						if (!argumentsType.complete) {
 							// Unwissen ist keine Ablehnung: taucht das Feld in einem
@@ -4897,16 +4951,29 @@ function isTypeAssignableForDictionaryLiteral(
 							// es fehlt.
 							return { assignable: undefined };
 						}
-						if (isFieldOptional(fieldType)) {
-							// Or([] X) ist das Idiom für optionale Felder - Weglassen bleibt erlaubt.
+						if (targetField.optional) {
+							// b?: X darf fehlen. Ein Pflichtfeld muss dastehen, auch wenn sein Typ Empty zulässt.
 							return { assignable: true };
 						}
 						missingFieldNames.push(fieldName);
 						return { assignable: true };
 					}
-					return isTypeAssignableForField(fieldName, fieldType, knownField);
+					// Ein Feld, das im Wert fehlen darf, passt nicht auf ein Pflichtfeld.
+					if (knownField.optional
+						&& !targetField.optional) {
+						mayBeMissingFieldNames.push(fieldName);
+					}
+					return isTypeAssignableForField(fieldName, fieldType, knownField.type);
 				},
 			);
+			if (mayBeMissingFieldNames.length) {
+				fieldAssignabilities.unshift({
+					assignable: false,
+					error: new TypeError(mayBeMissingFieldNames.length === 1
+						? `Field '${mayBeMissingFieldNames[0]}' may be missing.`
+						: `Fields may be missing: ${mayBeMissingFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`),
+				});
+			}
 			if (missingFieldNames.length) {
 				fieldAssignabilities.unshift({
 					assignable: false,
@@ -4922,10 +4989,10 @@ function isTypeAssignableForDictionaryLiteral(
 				const surplusFieldNames: string[] = [];
 				let surplusUnknown = false;
 				for (const fieldName of Object.keys(argumentsType.Fields)) {
-					if (getOwnField(targetFieldTypes, fieldName) !== undefined) {
+					if (getOwnLiteralField(targetFields, fieldName) !== undefined) {
 						continue;
 					}
-					const surplusAssignable = isTypeAssignable(argumentsType.Fields[fieldName]!, builtinEmpty).assignable;
+					const surplusAssignable = isTypeAssignable(argumentsType.Fields[fieldName]!.type, builtinEmpty).assignable;
 					if (surplusAssignable === false) {
 						surplusFieldNames.push(fieldName);
 					}
@@ -5000,15 +5067,6 @@ function isTypeAssignableForParameter(
 }
 
 /**
- * Darf ein Feld dieses Zieltyps im Literal fehlen? Or([] X) ist das Idiom für optionale Felder
- * (CLAUDE.md) - Empty erfüllt das Ziel dann bereits, ohne dass es explizit als `feld = []`
- * dastehen muss.
- */
-function isFieldOptional(fieldTargetType: CompileTimeType): boolean {
-	return isTypeAssignable(builtinEmpty, fieldTargetType).assignable !== false;
-}
-
-/**
  * Die Argumentkollektion eines Aufrufs gegen die Parameterliste. Ein Empfänger (a in a.f(b)) steckt
  * darin, siehe bindReceiver.
  */
@@ -5045,7 +5103,7 @@ function isTypeAssignableForParametersWithLeading(
 			return joinTypeAssignabilities(choiceAssignabilities, true);
 		}
 		case 'dictionaryLiteral':
-			return isTypeAssignableForParametersWithCollectionArgs(leadingArgumentType, argumentsType.Fields, targetType);
+			return isTypeAssignableForParametersWithCollectionArgs(leadingArgumentType, argumentsType.FieldTypes, targetType);
 		case 'empty':
 			return isTypeAssignableForParametersWithCollectionArgs(leadingArgumentType, undefined, targetType);
 		case 'tuple':
@@ -5500,12 +5558,12 @@ function arrayTypeToString(
  * werden würde (dann trägt die Hülle nichts bei, was die Feld-Kette nicht ohnehin zeigt).
  * Eine Quelle statt zweier, die auseinanderlaufen könnten.
  */
-function hasMultipleFields(dictionary: CompileTimeDictionary): boolean {
+function hasMultipleFields(dictionary: object): boolean {
 	return Object.keys(dictionary).length > 1;
 }
 
 function dictionaryTypeToString(
-	dictionary: CompileTimeDictionary,
+	dictionary: CompileTimeFields,
 	nameSeparator: string,
 	indent: number,
 	depth: number,
@@ -5517,8 +5575,8 @@ function dictionaryTypeToString(
 		: indent;
 	const allFields = map(
 		dictionary,
-		(element, key) => {
-			return `${key}${nameSeparator}${typeToString(element, newIndent, depth, suppressAlias)}`;
+		(field, key) => {
+			return `${key}${field.optional ? '?' : ''}${nameSeparator}${typeToString(field.type, newIndent, depth, suppressAlias)}`;
 		});
 
 	// Begrenzen bei zu vielen Feldern: zeige maxFieldsInTypeDump Felder, dann "and N more"

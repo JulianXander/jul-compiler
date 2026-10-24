@@ -58,7 +58,7 @@ describe('TypeScript Parser', () => {
 		it('Objekt-Typliteral mit optionalem Feld und Error', () => {
 			expectTypeOfF('export function f(): { main: string[] | undefined, extra?: bigint } | Error {}', `() ~> Or([
   main: Or(Empty List(Text))
-  extra: Or(Empty Integer)
+  extra?: Or(Empty Integer)
 ] Error)`);
 		});
 		it('Literaltypen', () => expectTypeOfF('export function f(): \'a\' | 1n | 2 | true {}', '() ~> Or(§a§ 1 2f true)'));

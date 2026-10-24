@@ -280,8 +280,8 @@ describe('ReferenceIndex: Feldnamen mit einer Union als erwartetem Typ', () => {
 		documents = {};
 		referenceIndex = new ReferenceIndex();
 		const code = [
-			'Person = [name: Text age: Or([] Integer)]',
-			'Pet = [name: Text species: Or([] Text)]',
+			'Person = [name: Text age?: Integer]',
+			'Pet = [name: Text species?: Text]',
 			'A = [kind: §a§ name: Text]',
 			'B = [kind: §b§ name: Text]',
 			'x: Or(Person Pet) = [name = §Ada§ age = 36]',

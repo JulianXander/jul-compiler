@@ -348,7 +348,8 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 					const typeGuardJs = field.typeGuard
 						? expressionToJs(field.typeGuard, fieldsIndent)
 						: 'Any';
-					return singleDictionaryFieldToJs(field.name, typeGuardJs);
+					// Ein Feld, das fehlen darf (b?: X), trägt das Kennzeichen am Typ des Felds.
+					return singleDictionaryFieldToJs(field.name, field.optional ? `_optionalField(${typeGuardJs})` : typeGuardJs);
 				}
 				else {
 					// Der gespreadete Wert ist selbst ein Typobjekt, übernommen werden seine Fields.
@@ -430,10 +431,11 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				}
 			}
 		}
-		case 'object':
+		case 'object': {
 			return `_combineObject(${expression.values.map(value => {
 				return expressionToJs(value.value, indent);
 			}).join(`,${getRowDelimiterJs(indent)}`)})`;
+		}
 		case 'reference':
 			return referenceToJs(expression);
 		case 'text':

@@ -260,3 +260,9 @@
 2026-10-24 13:40:29	397bffa	-	ADV-DEV-56627	yugioh	parse+check	5	10794.01	11226.31	11226.31	nach geschlossenen Records
 2026-10-24 13:40:29	397bffa	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	770.35	795.85	795.85	nach geschlossenen Records
 2026-10-24 13:40:29	397bffa	-	ADV-DEV-56627	yugioh	parse	5	40.98	47.00	47.00	nach geschlossenen Records
+2026-10-24 15:52:27	3accd19+	-	ADV-DEV-56627	yugioh	parse+check	5	10472.04	10947.55	10947.55	vor optionalen Feldern
+2026-10-24 15:52:27	3accd19+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	734.80	784.63	784.63	vor optionalen Feldern
+2026-10-24 15:52:27	3accd19+	-	ADV-DEV-56627	yugioh	parse	5	43.05	48.87	48.87	vor optionalen Feldern
+2026-10-24 16:07:40	3accd19+	-	ADV-DEV-56627	yugioh	parse+check	5	9862.96	11054.20	11054.20	nach Flag optional am Feld
+2026-10-24 16:07:40	3accd19+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	724.27	746.95	746.95	nach Flag optional am Feld
+2026-10-24 16:07:40	3accd19+	-	ADV-DEV-56627	yugioh	parse	5	39.57	46.83	46.83	nach Flag optional am Feld

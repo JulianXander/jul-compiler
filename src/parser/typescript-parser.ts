@@ -684,6 +684,7 @@ function tsTypeLiteralToJulType(
 			typeGuard: fieldType && propertySignature.questionToken
 				? orEmpty(fieldType, tsFieldType!, sourceFile, errors)
 				: fieldType,
+			...(propertySignature.questionToken ? { optional: true } : {}),
 			...getPositionFromTsNode(member, sourceFile),
 		});
 	}
