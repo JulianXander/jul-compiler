@@ -1669,7 +1669,7 @@ export function isParametersType(type: CompileTimeType | undefined): type is Par
 /**
  * Ein Kopf, der als Listenliteral geschrieben ist (`[Integer] => …`, ein Branch-Arm), ist eine
  * Parameterliste ohne Namen: Er nennt die Argumente, die er braucht, und lässt weitere zu. Ein
- * Datentupel ist dagegen geschlossen (docs/backlog/geschlossene-tupel.md). Jede Position heißt
+ * Datentupel ist dagegen geschlossen. Jede Position heißt
  * intern leer. Alles außer einem Tupel (Any, ein Typ, eine Liste) bleibt als Typ-Kopf stehen und
  * beschreibt die ganze Argumentkollektion.
  */
@@ -4769,7 +4769,7 @@ function isTypeAssignableForTuple(
 ): TypeAssignability {
 	const targetElementTypes = targetType.ElementTypes;
 	switch (argumentsType.julType) {
-		// Ein Tupeltyp ist geschlossen (docs/backlog/geschlossene-tupel.md): Er hat genau so viele
+		// Ein Tupeltyp ist geschlossen: Er hat genau so viele
 		// Elemente, wie er nennt. Eine List kann jede Länge haben, ein längeres Tupel hat zu viele.
 		case 'list':
 			return {

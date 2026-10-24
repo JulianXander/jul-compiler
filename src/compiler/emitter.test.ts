@@ -997,7 +997,7 @@ describe('Emitter Ausführung', () => {
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(1n);
 	});
-	// Ein Datentupel ist geschlossen (docs/backlog/geschlossene-tupel.md): [Integer] als Typ trifft
+	// Ein Datentupel ist geschlossen: [Integer] als Typ trifft
 	// nur ein Array mit genau einem Element.
 	it('ein Tupeltyp als Kopf trifft kein längeres Array', () => {
 		const code = [

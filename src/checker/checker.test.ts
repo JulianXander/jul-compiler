@@ -5502,7 +5502,7 @@ f(source)`;
 		}
 	});
 
-	// Ein Tupeltyp ist geschlossen (docs/backlog/geschlossene-tupel.md): [Integer] hat genau ein
+	// Ein Tupeltyp ist geschlossen: [Integer] hat genau ein
 	// Element, List(Integer) ist keine Teilmenge davon. Sonst verschwindet die List aus einer Union
 	// mit einem Tupel, und die Länge der Union gilt danach fälschlich als 1.
 	it('length-of-spread-of-possibly-empty-list-is-not-constant', () => {
