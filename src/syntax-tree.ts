@@ -7,6 +7,10 @@ export interface ParsedFile {
 	sourceFolder: string;
 	unchecked: ParsedExpressions2;
 	/**
+	 * Zeilen des Quelltexts, nur bei .jul gezählt, sonst 0.
+	 */
+	lineCount: number;
+	/**
 	 * Wird vom checker gesetzt.
 	 */
 	checked?: ParsedExpressions2;
@@ -40,6 +44,10 @@ export interface ParsedExpressions {
 	 * Nur bei .jul: die Kommentare `#ignore JUL<nr>`, angewendet am Ende von checkTypes.
 	 */
 	ignoreComments?: IgnoreComment[];
+	/**
+	 * Nur bei .jul: die Zeilen des Quelltexts.
+	 */
+	lineCount?: number;
 }
 
 /**

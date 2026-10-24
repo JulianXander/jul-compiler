@@ -220,7 +220,11 @@ function reportErrors(
 	}
 	return {
 		hasError: hasError,
-		summary: formatSummary(Object.keys(documents).length, errorCount, warningCount),
+		summary: formatSummary(
+			Object.keys(documents).length,
+			Object.values(documents).reduce((sum, document) => sum + document.lineCount, 0),
+			errorCount,
+			warningCount),
 	};
 }
 
@@ -882,11 +886,11 @@ function formatMs(durationMs: number): string {
 }
 
 /**
- * Kurzfassung für die Abschlusszeile, z.B. "- 3 files, 2 warnings". Fehler und Warnungen erscheinen
- * nur, wenn es welche gibt, damit die Erfolgszeile im Normalfall kurz bleibt.
+ * Kurzfassung für die Abschlusszeile, z.B. "- 3 files, 120 lines, 2 warnings". Fehler und Warnungen
+ * erscheinen nur, wenn es welche gibt, damit die Erfolgszeile im Normalfall kurz bleibt.
  */
-function formatSummary(fileCount: number, errorCount: number, warningCount: number): string {
-	const parts = [pluralize(fileCount, 'file')];
+function formatSummary(fileCount: number, lineCount: number, errorCount: number, warningCount: number): string {
+	const parts = [pluralize(fileCount, 'file'), pluralize(lineCount, 'line')];
 	if (errorCount) {
 		parts.push(pluralize(errorCount, 'error'));
 	}

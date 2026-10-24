@@ -185,6 +185,7 @@ export function parseCode(
 		filePath: filePath,
 		extension: extension,
 		sourceFolder: sourceFolder,
+		lineCount: parsedExpressions.lineCount ?? 0,
 		unchecked: {
 			errors: errors,
 			expressions: expressions,
@@ -229,6 +230,8 @@ function parseJulCode(code: string): ParsedExpressions {
 		errors: errors,
 		expressions: expressions,
 		ignoreComments: parseIgnoreComments(rows),
+		// Eine abschließende leere Zeile hinter dem letzten Zeilenumbruch ist keine Zeile.
+		lineCount: rows[rows.length - 1] === '' ? rows.length - 1 : rows.length,
 	};
 }
 
