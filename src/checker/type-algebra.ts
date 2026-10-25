@@ -2814,159 +2814,145 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		return reduceIntersectionOperands(ChoiceTypes);
 	}
 
-	if (ChoiceTypes.length === 2) {
-		const first = resolveAlias(ChoiceTypes[0]!);
-		const second = resolveAlias(ChoiceTypes[1]!);
+	// Ab hier genau zwei Operanden.
+	const first = resolveAlias(ChoiceTypes[0]!);
+	const second = resolveAlias(ChoiceTypes[1]!);
 
-		// Never ist das absorbierende Element:
-		// And(A Never) => Never
-		if (first.julType === 'never'
-			|| second.julType === 'never') {
-			return builtinNever;
-		}
-
-		// Any ist das neutrale Element:
-		// And(A Any) => A
-		// Außer neben einem Not: And(Any Not(Integer)) ist ein unbekannter Wert, der nur kein Integer
-		// ist, etwa nach dem Verengen eines Any. Not(Integer) allein hieße "alles außer Integer" und
-		// wäre damit keinem engeren Typ zuweisbar, das Unwissen ginge verloren.
-		if (first.julType === 'any'
-			&& !isComplementType(second)) {
-			return ChoiceTypes[1]!;
-		}
-		if (second.julType === 'any'
-			&& !isComplementType(first)) {
-			return ChoiceTypes[0]!;
-		}
+	// Never ist das absorbierende Element:
+	// And(A Never) => Never
+	if (first.julType === 'never'
+		|| second.julType === 'never') {
+		return builtinNever;
 	}
 
-	// Ab hier bauen die Regeln den Typ um (Distribution, Feld-Merge, Teilmengen-Shortcut) - ein
-	// Alias überlebt das ohnehin nicht, also gleich auf den aufgelösten Choices arbeiten.
-	const resolvedChoices = ChoiceTypes.map(resolveAlias);
+	// Any ist das neutrale Element:
+	// And(A Any) => A
+	// Außer neben einem Not: And(Any Not(Integer)) ist ein unbekannter Wert, der nur kein Integer
+	// ist, etwa nach dem Verengen eines Any. Not(Integer) allein hieße "alles außer Integer" und
+	// wäre damit keinem engeren Typ zuweisbar, das Unwissen ginge verloren.
+	if (first.julType === 'any'
+		&& !isComplementType(second)) {
+		return ChoiceTypes[1]!;
+	}
+	if (second.julType === 'any'
+		&& !isComplementType(first)) {
+		return ChoiceTypes[0]!;
+	}
 
 	// Distributivgesetz anwenden:
 	// And(Or(A B) C) => Or(And(A C) And(B C)
-	if (ChoiceTypes.length === 2) {
-		// beide Seiten prüfen, damit die Reihenfolge der Argumente egal ist
-		const unionIndex = resolvedChoices.findIndex(isUnionType);
-		if (unionIndex >= 0) {
-			const unionType = resolvedChoices[unionIndex] as CompileTimeUnionType;
-			const otherIntersectionType = resolvedChoices[unionIndex ? 0 : 1]!;
-			// Liegt die Union schon ganz in der anderen Seite, ändert der Schnitt nichts: die
-			// geschriebene Union (mit ihrem Alias) statt einer neu gebauten. Dictionaries sind
-			// ausgenommen, dort führt die Distribution unvollständige Felder zusammen.
-			if (otherIntersectionType.julType !== 'dictionaryLiteral'
-				&& isSubtypeOf(unionType, otherIntersectionType) === true) {
-				return ChoiceTypes[unionIndex]!;
-			}
-			const distributedChoices = unionType.ChoiceTypes.map(choice => {
-				return createNormalizedIntersectionType([choice, otherIntersectionType]);
-			});
-			const distributedType = createNormalizedUnionType(distributedChoices);
-			return distributedType;
+	// beide Seiten prüfen, damit die Reihenfolge der Argumente egal ist
+	const unionIndex = isUnionType(first) ? 0 : isUnionType(second) ? 1 : -1;
+	if (unionIndex >= 0) {
+		const unionType = (unionIndex ? second : first) as CompileTimeUnionType;
+		const otherIntersectionType = unionIndex ? first : second;
+		// Liegt die Union schon ganz in der anderen Seite, ändert der Schnitt nichts: die
+		// geschriebene Union (mit ihrem Alias) statt einer neu gebauten. Dictionaries sind
+		// ausgenommen, dort führt die Distribution unvollständige Felder zusammen.
+		if (otherIntersectionType.julType !== 'dictionaryLiteral'
+			&& isSubtypeOf(unionType, otherIntersectionType) === true) {
+			return ChoiceTypes[unionIndex]!;
 		}
+		const distributedChoices = unionType.ChoiceTypes.map(choice => {
+			return createNormalizedIntersectionType([choice, otherIntersectionType]);
+		});
+		const distributedType = createNormalizedUnionType(distributedChoices);
+		return distributedType;
 	}
 
-	if (resolvedChoices.length === 2
-		&& isComplementType(resolvedChoices[1])) {
-		const first = resolvedChoices[0]!;
-		const second = resolvedChoices[1].SourceType;
-		if (typeEquals(first, second)) {
+	if (isComplementType(second)) {
+		const source = second.SourceType;
+		if (typeEquals(first, source)) {
 			// And(A Not(A)) => Never
 			return builtinNever;
 		}
 		// And(A Not(B))
 		// Wenn B keine Schnittmenge mit A hat: nur A liefern. Dass B keine Teilmenge von A ist,
 		// reicht nicht: Or(0 §a§) liegt nicht in Integer, schließt aber die 0 aus.
-		if (typesOverlap(first, second) === false) {
+		if (typesOverlap(first, source) === false) {
 			// Der geschriebene Typ statt des aufgelösten, damit ein Alias wie PositiveInteger in
 			// der Anzeige erhalten bleibt.
 			return ChoiceTypes[0]!;
 		}
 	}
 
-	if (resolvedChoices.length === 2) {
-		const first = resolvedChoices[0]!;
-		const second = resolvedChoices[1]!;
-
-		// Dictionaries sind Strukturen, keine Wertemengen: der Teilmengen-Shortcut unten würde bei
-		// einer unvollständigen Seite (complete: false) Felder verlieren, die nur die andere Seite
-		// kennt - "zuweisbar" heißt dort nur "widerspricht nicht nachweisbar", nicht "enthält schon
-		// alles". Deshalb werden Felder hier stattdessen zusammengeführt, bevor der Shortcut greift.
+	// Dictionaries sind Strukturen, keine Wertemengen: der Teilmengen-Shortcut unten würde bei
+	// einer unvollständigen Seite (complete: false) Felder verlieren, die nur die andere Seite
+	// kennt - "zuweisbar" heißt dort nur "widerspricht nicht nachweisbar", nicht "enthält schon
+	// alles". Deshalb werden Felder hier stattdessen zusammengeführt, bevor der Shortcut greift.
+	if (first.julType === 'dictionaryLiteral'
+		|| second.julType === 'dictionaryLiteral') {
 		if (first.julType === 'dictionaryLiteral'
-			|| second.julType === 'dictionaryLiteral') {
-			if (first.julType === 'dictionaryLiteral'
-				&& second.julType === 'dictionaryLiteral') {
-				const keys = new Set([...Object.keys(first.Fields), ...Object.keys(second.Fields)]);
-				const mergedFields: CompileTimeFields = {};
-				for (const key of keys) {
-					const firstField = getOwnLiteralField(first.Fields, key);
-					const secondField = getOwnLiteralField(second.Fields, key);
-					const firstFieldType = firstField?.type;
-					const secondFieldType = secondField?.type;
-					// Eine vollständige Seite nennt alle ihre Felder, ein Feld, das nur die andere
-					// Seite kennt, ist dort Empty. Ein unvollständiges Gegenüber weiß nichts darüber.
-					const closedSideLacksField = (firstFieldType === undefined && first.complete)
-						|| (secondFieldType === undefined && second.complete);
-					if (closedSideLacksField) {
-						const onlyField = (firstField ?? secondField)!;
-						const fieldWithEmpty = createNormalizedIntersectionType([onlyField.type, builtinEmpty]);
-						if (fieldWithEmpty.julType === 'never') {
-							// Ein optionales Feld darf fehlen, mehr bleibt dann nicht übrig.
-							if (onlyField.optional) {
-								continue;
-							}
-							return builtinNever;
+			&& second.julType === 'dictionaryLiteral') {
+			const keys = new Set([...Object.keys(first.Fields), ...Object.keys(second.Fields)]);
+			const mergedFields: CompileTimeFields = {};
+			for (const key of keys) {
+				const firstField = getOwnLiteralField(first.Fields, key);
+				const secondField = getOwnLiteralField(second.Fields, key);
+				const firstFieldType = firstField?.type;
+				const secondFieldType = secondField?.type;
+				// Eine vollständige Seite nennt alle ihre Felder, ein Feld, das nur die andere
+				// Seite kennt, ist dort Empty. Ein unvollständiges Gegenüber weiß nichts darüber.
+				const closedSideLacksField = (firstFieldType === undefined && first.complete)
+					|| (secondFieldType === undefined && second.complete);
+				if (closedSideLacksField) {
+					const onlyField = (firstField ?? secondField)!;
+					const fieldWithEmpty = createNormalizedIntersectionType([onlyField.type, builtinEmpty]);
+					if (fieldWithEmpty.julType === 'never') {
+						// Ein optionales Feld darf fehlen, mehr bleibt dann nicht übrig.
+						if (onlyField.optional) {
+							continue;
 						}
-						mergedFields[key] = { type: fieldWithEmpty, optional: onlyField.optional };
+						return builtinNever;
 					}
-					else if (firstFieldType && secondFieldType) {
-						const mergedFieldType = createNormalizedIntersectionType([firstFieldType, secondFieldType]);
-						// Beide Seiten verlangen das Feld, kein Wert erfüllt beide: dann gibt es auch
-						// kein Dictionary, das beide erfüllt. So fällt z.B. beim Verengen über
-						// step/type die Choice mit dem anderen type aus der Union.
-						const bothOptional = firstField!.optional && secondField!.optional;
-						if (mergedFieldType.julType === 'never'
-							&& !bothOptional) {
-							return builtinNever;
-						}
-						// Fehlen darf das Feld nur, wenn beide Seiten es zulassen.
-						mergedFields[key] = { type: mergedFieldType, optional: bothOptional };
-					}
-					else {
-						mergedFields[key] = (firstField ?? secondField)!;
-					}
+					mergedFields[key] = { type: fieldWithEmpty, optional: onlyField.optional };
 				}
-				return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
+				else if (firstFieldType && secondFieldType) {
+					const mergedFieldType = createNormalizedIntersectionType([firstFieldType, secondFieldType]);
+					// Beide Seiten verlangen das Feld, kein Wert erfüllt beide: dann gibt es auch
+					// kein Dictionary, das beide erfüllt. So fällt z.B. beim Verengen über
+					// step/type die Choice mit dem anderen type aus der Union.
+					const bothOptional = firstField!.optional && secondField!.optional;
+					if (mergedFieldType.julType === 'never'
+						&& !bothOptional) {
+						return builtinNever;
+					}
+					// Fehlen darf das Feld nur, wenn beide Seiten es zulassen.
+					mergedFields[key] = { type: mergedFieldType, optional: bothOptional };
+				}
+				else {
+					mergedFields[key] = (firstField ?? secondField)!;
+				}
 			}
-			if (typesOverlap(first, second) === false) {
-				return builtinNever;
-			}
-			return createCompileTimeIntersectionType(ChoiceTypes);
+			return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
 		}
-
-		// Teilmenge liefern:
-		// And(A B) => A, wenn A Teilmenge von B ist
-		// z.B. And(Integer Rational) => Integer, And(Integer Integer) => Integer
-		// Any hat die Regel für das neutrale Element oben schon entschieden. Neben einem Not bleibt es
-		// stehen und darf hier nicht als Obermenge wegfallen.
-		if (first.julType !== 'any'
-			&& second.julType !== 'any') {
-			// Der geschriebene Typ statt des aufgelösten, damit ein Alias in der Anzeige erhalten bleibt.
-			if (isSubtypeOf(first, second) === true) {
-				return ChoiceTypes[0]!;
-			}
-			if (isSubtypeOf(second, first) === true) {
-				return ChoiceTypes[1]!;
-			}
-		}
-
-		// leere Schnittmenge:
-		// And(A B) => Never, wenn A und B keinen gemeinsamen Wert haben
-		// z.B. And(Integer Text) => Never
 		if (typesOverlap(first, second) === false) {
 			return builtinNever;
 		}
+		return createCompileTimeIntersectionType(ChoiceTypes);
+	}
+
+	// Teilmenge liefern:
+	// And(A B) => A, wenn A Teilmenge von B ist
+	// z.B. And(Integer Rational) => Integer, And(Integer Integer) => Integer
+	// Any hat die Regel für das neutrale Element oben schon entschieden. Neben einem Not bleibt es
+	// stehen und darf hier nicht als Obermenge wegfallen.
+	if (first.julType !== 'any'
+		&& second.julType !== 'any') {
+		// Der geschriebene Typ statt des aufgelösten, damit ein Alias in der Anzeige erhalten bleibt.
+		if (isSubtypeOf(first, second) === true) {
+			return ChoiceTypes[0]!;
+		}
+		if (isSubtypeOf(second, first) === true) {
+			return ChoiceTypes[1]!;
+		}
+	}
+
+	// leere Schnittmenge:
+	// And(A B) => Never, wenn A und B keinen gemeinsamen Wert haben
+	// z.B. And(Integer Text) => Never
+	if (typesOverlap(first, second) === false) {
+		return builtinNever;
 	}
 
 	// Kein Paarregel hat gegriffen: ein verschachteltes And wird aufgeflacht und dann mit den
