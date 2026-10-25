@@ -88,6 +88,16 @@ import { collectCompletedNames, collectCompletedNamesByBody, reportStreamsWithou
 import { applyIgnoreComments } from '../parser/comment-directives.js';
 import { checkerStats } from './checker-stats.js';
 import {
+	applyBranchHead,
+	BranchCoverage,
+	createBranchCoverage,
+	getBranchHead,
+	getBranchHeadOfFunction,
+	isCoverageExhausted,
+	mayNarrowAt,
+	narrowArgumentType,
+} from './branch-coverage.js';
+import {
 	addFromTypes,
 	subtractFromTypes,
 	canHaveFields,
@@ -368,6 +378,12 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
  * Check der core-lib stehen, der beim Modul-Load läuft.
  */
 const completedNamesByScope = new WeakMap<SymbolTable, Set<string>>();
+/**
+ * Was vor diesem branch noch ankommen kann, gesetzt in case 'branching' vor dem Inferieren des
+ * branches. Die Verengung in seinem Rumpf liest es.
+ */
+const coverageBeforeBranch = new WeakMap<ParseValueExpression, BranchCoverage>();
+
 /** Die Mengen aus einem Durchlauf je Datei (collectCompletedNamesByBody), je Rumpf. */
 const completedNamesByBody = new WeakMap<readonly PositionedExpression[], Set<string>>();
 
@@ -1361,74 +1377,6 @@ function getBranchArgumentType(
 }
 
 /**
- * Höchstens diese Werte liegen im Typ: ein Prädikat zählt mit seiner Obermenge, unter Not mit
- * seiner Untermenge. Für die Frage "könnte der Wert hier liegen".
- */
-function getUpperBoundType(type: CompileTimeType): CompileTimeType {
-	return mapBoundType(type, true);
-}
-
-/**
- * Mindestens diese Werte liegen im Typ: ein Prädikat zählt nur mit dem, wofür es nachweislich
- * true liefert. Für die Frage "fängt dieser Kopf den Wert sicher ab".
- */
-function getLowerBoundType(type: CompileTimeType): CompileTimeType {
-	return mapBoundType(type, false);
-}
-
-function mapBoundType(rawType: CompileTimeType, upper: boolean): CompileTimeType {
-	const type = resolveAlias(rawType);
-	switch (type.julType) {
-		case 'predicate':
-			return upper
-				? type.UpperBound
-				: type.LowerBound;
-		case 'not': {
-			const source = mapBoundType(type.SourceType, !upper);
-			return source === type.SourceType
-				? type
-				: createNormalizedComplementType(source);
-		}
-		case 'or':
-		case 'and': {
-			const choices = type.ChoiceTypes.map(choice => mapBoundType(choice, upper));
-			if (elementsEqual(choices, type.ChoiceTypes)) {
-				return type;
-			}
-			return type.julType === 'or'
-				? createNormalizedUnionType(choices)
-				: createNormalizedIntersectionType(choices);
-		}
-		case 'tuple': {
-			const elements = type.ElementTypes.map(element => mapBoundType(element, upper));
-			return elementsEqual(elements, type.ElementTypes)
-				? type
-				: createCompileTimeTupleType(elements);
-		}
-		default:
-			return type;
-	}
-}
-
-/**
- * Not mit den Randfällen, die als Quelle sonst permissiv blieben: Not(Never) ist alles,
- * Not(Any) nichts, Not(Invalid) bleibt ungültig.
- */
-function createNormalizedComplementType(source: CompileTimeType): CompileTimeType {
-	const resolved = resolveAlias(source);
-	switch (resolved.julType) {
-		case 'never':
-			return builtinAny;
-		case 'any':
-			return builtinNever;
-		case 'invalid':
-			return builtinInvalid;
-		default:
-			return createCompileTimeComplementType(source);
-	}
-}
-
-/**
  * Der Parametertyp aus dem geprüften params-Ausdruck. Ein Listenliteral als Kopf wird zur
  * Parameterliste ohne Namen (siehe createUnnamedParametersType).
  */
@@ -1461,148 +1409,6 @@ function getRawBranchArgumentType(
 	return rest
 		? getElementTypeAtIndex(rest.type, argumentIndex - singleNames.length)
 		: undefined;
-}
-
-/**
- * Ob der Kopf eine andere Stelle als die erste einschränkt. Dann fängt er an der ersten Stelle
- * nicht sicher alles ab, was er dort nennt: nach (x: Integer y: Integer) kann das erste Argument
- * noch Integer sein, solange das zweite keins ist. argumentCount sind die geschriebenen Argumente
- * des branchings, Stellen dahinter prüft der Kopf nicht.
- */
-function constrainsPositionsBeyondFirst(paramsType: CompileTimeType, argumentCount: number): boolean {
-	for (let argumentIndex = 1; argumentIndex < argumentCount; argumentIndex++) {
-		const otherType = getBranchArgumentType(paramsType, argumentIndex);
-		if (otherType
-			&& otherType.julType !== 'any') {
-			return true;
-		}
-	}
-	return false;
-}
-
-/**
- * Ob die branches beweisbar jeden möglichen Wert von args abdecken - nur für den Fall eines
- * einzelnen, nicht destrukturierten Arguments (?(x)). Bei mehreren Argumenten oder wenn sich
- * args/branch-Typen nicht auflösen lassen, konservativ false: dann bleibt Error im Rückgabetyp.
- * Syntaktisches catchAll ((), Any) wird vom Aufrufer schon vorher geprüft.
- */
-function isBranchingExhaustive(
-	args: ParseValueExpression | undefined,
-	branches: ParseValueExpression[],
-	argumentCount: number,
-): boolean {
-	const argsType = args?.typeInfo && resolvePlaceholders(args.typeInfo.type);
-	if (!argsType) {
-		return false;
-	}
-	// args ist die Argumentkollektion (Tuple/List/...), nicht der Wert selbst - dieselbe
-	// Auflösung wie getBranchArgumentType für den Typ-Kopf-Fall.
-	const argValueType = getElementTypeAtIndex(argsType, 0);
-	if (!argValueType) {
-		return false;
-	}
-	// Ein Kopf, der auch andere Stellen einschränkt, deckt die erste nicht ab. Er trägt nichts bei.
-	const branchValueTypes: (CompileTimeType | undefined)[] = [];
-	for (const branch of branches) {
-		const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
-		if (!constrainsPositionsBeyondFirst(paramsType, argumentCount)) {
-			branchValueTypes.push(getBranchArgumentType(paramsType, 0));
-		}
-	}
-	if (branchValueTypes.some(valueType => !valueType)) {
-		// undefined heißt hier: nicht bestimmbar (catchAll wurde vom Aufrufer schon ausgeschlossen)
-		return false;
-	}
-	const combinedType = createNormalizedUnionType(branchValueTypes as CompileTimeType[]);
-	// Abgedeckt ist nur, was die Köpfe sicher abfangen: von einem Prädikat die Untermenge. Oder
-	// es bleibt nach dem Abziehen nichts übrig - dort greift die Identität, sodass isEven im
-	// Kopf den isEven-Anteil des Arguments abdeckt. Abgezogen wird Kopf für Kopf: die ganze
-	// Union auf einmal würde über das Or des Arguments verteilt und nie mit dem gleichen Kopf
-	// verglichen.
-	// Nicht erschöpfend heißt: Error kommt in den Rückgabetyp, und das wird an der Verwendung zum
-	// Fehler. Das darf nur ein Beweis auslösen (Prinzip Freiheit), unbekannt gilt als erschöpfend.
-	if (isSubtypeOf(argValueType, getLowerBoundType(combinedType)) !== false) {
-		return true;
-	}
-	const remainingType = (branchValueTypes as CompileTimeType[]).reduce<CompileTimeType>(
-		(remaining, branchValueType) =>
-			createNormalizedIntersectionType([remaining, createCompileTimeComplementType(branchValueType)]),
-		argValueType);
-	return resolveAlias(remainingType).julType === 'never';
-}
-
-/**
- * Ob der Kopf dieses branches beweisbar keinen Wert der Argumente trifft: An einer Stelle
- * haben Argument und Kopf keinen gemeinsamen Wert. Was sich nicht entscheiden lässt, gilt
- * als erreichbar.
- */
-function isBranchDisjointToArgs(
-	args: ParseValueExpression | undefined,
-	branch: ParseValueExpression,
-): boolean {
-	const argsType = args?.typeInfo && resolvePlaceholders(args.typeInfo.type);
-	if (!argsType) {
-		return false;
-	}
-	const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
-	const headLength = getBranchHeadLength(paramsType);
-	for (let argumentIndex = 0; argumentIndex < headLength; argumentIndex++) {
-		const headType = getBranchArgumentType(paramsType, argumentIndex);
-		if (!headType) {
-			continue;
-		}
-		const argumentType = getArgumentTypeAtIndex(argsType, argumentIndex);
-		if (argumentType
-			&& typesOverlap(argumentType, headType) === false) {
-			return true;
-		}
-	}
-	return false;
-}
-
-/**
- * Anzahl der Stellen, die ein branch-Kopf einzeln benennt. Ein Rest-Parameter und eine Liste
- * als Typ-Kopf zählen nicht mit, ihre Länge ist offen.
- */
-function getBranchHeadLength(paramsType: CompileTimeType): number {
-	if (isParametersType(paramsType)) {
-		return paramsType.singleNames.length;
-	}
-	const resolvedType = resolveAlias(paramsType);
-	return resolvedType.julType === 'tuple'
-		? resolvedType.ElementTypes.length
-		: 0;
-}
-
-/**
- * Der Typ des Arguments an dieser Stelle der Argumentkollektion. Fehlt die Stelle in einem
- * Tuple, kommt dort Empty an. undefined, wenn er sich nicht bestimmen lässt.
- */
-function getArgumentTypeAtIndex(
-	argsType: CompileTimeType,
-	index: number,
-): CompileTimeType | undefined {
-	const resolvedType = resolveAlias(argsType);
-	switch (resolvedType.julType) {
-		case 'empty':
-			return builtinEmpty;
-		case 'tuple':
-			return resolvedType.ElementTypes[index] ?? builtinEmpty;
-		case 'or': {
-			const choiceTypes: CompileTimeType[] = [];
-			for (const choiceType of resolvedType.ChoiceTypes) {
-				const elementType = getArgumentTypeAtIndex(choiceType, index);
-				if (!elementType) {
-					return undefined;
-				}
-				choiceTypes.push(elementType);
-			}
-			return createNormalizedUnionType(choiceTypes);
-		}
-		// Bei List steht die Länge nicht fest, bei Dictionary hängt die Stelle an den Namen.
-		default:
-			return undefined;
-	}
 }
 
 //#region erwarteter Typ
@@ -1916,74 +1722,6 @@ function instantiateExpectedCallback(
 //#endregion erwarteter Typ
 
 /**
- * Die Veroderung dessen, was die branches vor diesem an dieser Argumentstelle bereits abfangen.
- * _branch probiert die branches der Reihe nach, wer hier ankommt hat also alle vorherigen nicht
- * gematcht. undefined, wenn es keine vorherigen branches gibt oder einer davon alles matcht bzw.
- * nicht bestimmbar ist — dann wird nichts abgezogen. Ein solcher branch macht diesen hier
- * unerreichbar, das ist aber eine eigene Diagnose und kein Fall für die Verengung.
- */
-function getPreviousBranchArgumentType(
-	branching: ParseBranching,
-	branch: ParseValueExpression,
-	argumentIndex: number,
-	argumentCount: number,
-): CompileTimeType | undefined {
-	const branchIndex = branching.branches.indexOf(branch);
-	if (branchIndex < 1) {
-		return undefined;
-	}
-	const previousValueTypes: CompileTimeType[] = [];
-	for (const previousBranch of branching.branches.slice(0, branchIndex)) {
-		const previousParamsType = getParamsType(previousBranch.typeInfo && resolvePlaceholders(previousBranch.typeInfo.type));
-		const previousValueType = getBranchArgumentType(previousParamsType, argumentIndex);
-		if (!previousValueType
-			|| previousValueType.julType === 'any') {
-			return undefined;
-		}
-		// Ein Kopf fängt nur die Kombination seiner Positionen ab. Schränkt er auch eine andere
-		// Position ein, ist an dieser nicht ausgeschlossen, was er hier nennt: nach
-		// (x: Integer y: Integer) kann a noch Integer sein, solange b keins ist.
-		for (let otherIndex = 0; otherIndex < argumentCount; otherIndex++) {
-			if (otherIndex === argumentIndex) {
-				continue;
-			}
-			const otherType = getBranchArgumentType(previousParamsType, otherIndex);
-			if (otherType
-				&& otherType.julType !== 'any') {
-				return undefined;
-			}
-		}
-		previousValueTypes.push(previousValueType);
-	}
-	return createNormalizedUnionType(previousValueTypes);
-}
-
-/**
- * Verengt den Typ des gebranchten Werts: schneidet mit dem Typ, den dieser branch matcht,
- * und zieht ab, was die vorherigen branches schon abgefangen haben.
- */
-function narrowBranchedType(
-	branchedType: CompileTimeType,
-	rawBranchValueType: CompileTimeType | undefined,
-	rawPreviousBranchValueType: CompileTimeType | undefined,
-): CompileTimeType {
-	// Ein Kopf mit gemeldetem Fehler sagt über den Wert nichts: Er verengt nicht, und er zieht nichts ab.
-	// Sonst würde aus dem Fehler im Kopf ein ungültiger Wert.
-	const branchValueType = rawBranchValueType && resolveAlias(rawBranchValueType).julType !== 'invalid'
-		? rawBranchValueType
-		: undefined;
-	const previousBranchValueType = rawPreviousBranchValueType && resolveAlias(rawPreviousBranchValueType).julType !== 'invalid'
-		? rawPreviousBranchValueType
-		: undefined;
-	const intersectedType = branchValueType
-		? createNormalizedIntersectionType([branchedType, branchValueType])
-		: branchedType;
-	return previousBranchValueType
-		? createNormalizedIntersectionType([intersectedType, createCompileTimeComplementType(previousBranchValueType)])
-		: intersectedType;
-}
-
-/**
  * Was aus dem Ergebnis dieses Funktionsliterals als Prädikat folgt, je Richtung getrennt.
  * Erkannt wird bewusst nur die einfachste Form: ein Parameter, Rumpf genau ein branching über
  * eben diesen Parameter. undefined ("keine Aussage") ist überall erlaubt, zu klein bzw. zu groß
@@ -2127,15 +1865,17 @@ function inferType(
 			if (args) {
 				setInferredType(args, typeContext, undefined, checkContext);
 			}
-			// Lässt sich kein Ausdruck zuordnen, zählt nur die erste Stelle.
-			const argumentCount = getWrittenArguments(args)?.length ?? 1;
 			const branches = expression.branches;
-			branches.forEach((branch, index) => {
+			// Der Rest vor jedem branch, siehe branch-coverage.ts. Die Verengung im Rumpf liest ihn.
+			let coverage = createBranchCoverage(args?.typeInfo && resolvePlaceholders(args.typeInfo.type));
+			branches.forEach(branch => {
+				coverageBeforeBranch.set(branch, coverage);
 				setInferredType(branch, typeContext, undefined, checkContext);
 				checkIsFunction(branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
-				// Unreachable auch ohne vorherigen Branch: Der Kopf hat mit den Argumenten keinen
-				// gemeinsamen Wert, etwa ein zweistelliger Kopf bei ?([a b]).
-				if (isBranchDisjointToArgs(args, branch)) {
+				const head = getBranchHeadOfFunction(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
+				const step = applyBranchHead(coverage, head);
+				coverage = step.coverage;
+				if (step.unreachable) {
 					errors.push({
 						code: ErrorCode.unreachableBranch,
 						message: 'Unreachable branch detected.',
@@ -2144,131 +1884,16 @@ function inferType(
 						endRowIndex: branch.endRowIndex,
 						endColumnIndex: branch.endColumnIndex,
 					});
-					return;
-				}
-				if (index) {
-					// Unreachable: Ein Branch ist unreachable, wenn sein Argument-Typ bereits
-					// von vorherigen Branches abgedeckt wird. Sonderfall: () ist orthogonal zu
-					// konkreten Typ-Köpfen, kann aber gegen einen anderen () unreachable sein.
-					const currentParamsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
-
-					// Any ist ein Typ-Kopf catchAll und kann nicht unreachable sein
-					if (currentParamsType.julType === 'any') {
-						return;
-					}
-
-					const previousTypes = branches.slice(0, index).map(previousBranch => {
-						const ty = previousBranch.typeInfo && resolvePlaceholders(previousBranch.typeInfo.type);
-						return getParamsType(ty);
-					});
-
-					// Spezialfall: () vs () ist unreachable
-					if (currentParamsType.julType === 'empty') {
-						const previousHasEmpty = previousTypes.some(t => t.julType === 'empty');
-						if (previousHasEmpty) {
-							errors.push({
-								code: ErrorCode.unreachableBranch,
-								message: 'Unreachable branch detected.',
-								startRowIndex: branch.startRowIndex,
-								startColumnIndex: branch.startColumnIndex,
-								endRowIndex: branch.endRowIndex,
-								endColumnIndex: branch.endColumnIndex,
-							});
-						}
-						return;
-					}
-
-					// Extrahiere Argument-Typen aller vorherigen Branches (Typ-Kopf-Elementen)
-					// und kombiniere sie zu einer Union. () hat keinen Argument-Typ (undefined).
-					// Spezialfall: Any und untypisierte Parameter sind catchAll — sie sind nie unreachable
-					const previousArgumentTypes: CompileTimeType[] = [];
-					for (const prevType of previousTypes) {
-						if (prevType.julType !== 'empty') {
-							// Any ist ein Typ-Kopf catchAll
-							if (prevType.julType === 'any') {
-								// Any matcht alles → der aktuelle Branch kann nicht unreachable sein
-								return;
-							}
-							// Ein Kopf, der auch andere Stellen einschränkt, fängt nur eine Kombination ab.
-							if (constrainsPositionsBeyondFirst(prevType, argumentCount)) {
-								continue;
-							}
-							// Untypisierte Parameter (getBranchArgumentType gibt undefined) sind auch catchAll
-							const argType = getBranchArgumentType(prevType, 0);
-							if (!argType) {
-								// Catchall oder Prädikat
-								return;
-							}
-							if (resolveAlias(argType).julType === 'invalid') {
-								// Schon gemeldet: Was dieser Kopf abfängt, ist unbekannt, der aktuelle Branch
-								// also nicht beweisbar unerreichbar.
-								return;
-							}
-							previousArgumentTypes.push(argType);
-						}
-					}
-
-					if (previousArgumentTypes.length === 0) {
-						// Keine konkreten vorherigen Branches
-						return;
-					}
-
-					// Argument-Typ des aktuellen Branches
-					const currentArgumentType = getBranchArgumentType(currentParamsType, 0);
-					if (!currentArgumentType) {
-						// undefined: entweder catchAll (untypisiert) oder Prädikat.
-						// Catchall und Prädikat sind nicht unreachable (sie matchen immer).
-						// TODO: Prädikat-Fakten checken falls nötig
-						return;
-					}
-
-					// Any ist auch bei Parameter-Elementen ein catchAll. Invalid ist schon gemeldet und
-					// nicht beweisbar unerreichbar.
-					if (currentArgumentType.julType === 'any'
-						|| currentArgumentType.julType === 'invalid') {
-						return;
-					}
-
-					// Kombiniere vorherige Argument-Typen zu Union
-					const combinedPreviousArgumentType = createNormalizedUnionType(previousArgumentTypes);
-
-					// Prüfe ob currentArgumentType Teilmenge von combinedPreviousArgumentType ist.
-					// Sicher abgefangen haben die vorherigen Köpfe nur ihre Untermenge, und der
-					// aktuelle kann alles aus seiner Obermenge treffen - das zählt bei Prädikaten.
-					// Derselbe Kopf ist dagegen über die Identität abgefangen.
-					// Unerreichbar ist er nur bewiesen: kann der aktuelle Kopf etwas treffen, das die
-					// vorherigen nicht sicher abfangen, oder ist das unbekannt (Any), ist er erreichbar.
-					const isSameAsPrevious = previousArgumentTypes.some(previousArgumentType =>
-						typeEquals(previousArgumentType, currentArgumentType));
-					const isUnreachable = isSameAsPrevious
-						|| isSubtypeOf(
-							getUpperBoundType(currentArgumentType),
-							getLowerBoundType(combinedPreviousArgumentType)) === true;
-					if (isUnreachable) {
-						errors.push({
-							code: ErrorCode.unreachableBranch,
-							message: 'Unreachable branch detected.',
-							startRowIndex: branch.startRowIndex,
-							startColumnIndex: branch.startColumnIndex,
-							endRowIndex: branch.endRowIndex,
-							endColumnIndex: branch.endColumnIndex,
-						});
-					}
 				}
 			});
 			const branchReturnTypes = expression.branches.map(branch => {
 				return getReturnTypeFromFunctionType(branch.typeInfo);
 			});
 			// _branch (runtime.ts) gibt Error zurück, wenn kein branch matcht. Das gehört nur
-			// dann nicht in den Typ, wenn beweisbar kein Wert von args durchrutschen kann:
-			// entweder ein branch matcht syntaktisch alles (catchAll), oder die branches decken
-			// den ganzen args-Typ ab. Nicht entscheidbar zählt als nicht exhaustiv - lieber
-			// Error zu viel im Typ als ein unsound weggelassenes Error (Prinzip Freiheit).
-			const isExhaustive = branches.some(branch => {
-				const paramsType = getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
-				return paramsType.julType === 'any'
-					|| (isParametersType(paramsType) && !paramsType.singleNames.length && !paramsType.rest);
-			}) || isBranchingExhaustive(args, branches, argumentCount);
+			// dann nicht in den Typ, wenn beweisbar kein Wert von args durchrutschen kann.
+			// Nicht entscheidbar zählt als nicht exhaustiv - lieber Error zu viel im Typ als ein
+			// unsound weggelassenes Error (Prinzip Freiheit).
+			const isExhaustive = isCoverageExhausted(coverage);
 			const rawType = createNormalizedUnionType(
 				isExhaustive
 					? branchReturnTypes
@@ -2988,17 +2613,14 @@ function inferType(
 			let branchNarrowedTypes = narrowedTypes;
 			const branching = expression.parent;
 			if (branching?.type === 'branching') {
-				const writtenArguments = getWrittenArguments(branching.args);
-				writtenArguments?.forEach((argument, argumentIndex) => {
+				// Fehlt der Rest (der branch wird außerhalb der Reihenfolge inferiert), verengt nur der Kopf.
+				const coverage = coverageBeforeBranch.get(expression)
+					?? createBranchCoverage(branching.args?.typeInfo && resolvePlaceholders(branching.args.typeInfo.type));
+				const head = getBranchHead(paramsTypeValue);
+				getWrittenArguments(branching.args)?.forEach((argument, argumentIndex) => {
 					const path = getAccessPath(argument, functionScopes);
-					if (!path) {
-						return;
-					}
-					const branchRawType = getBranchArgumentType(paramsTypeValue, argumentIndex);
-					// Was vorherige branches schon abfangen, kann hier nicht mehr ankommen.
-					const previousBranchValueType = getPreviousBranchArgumentType(branching, expression, argumentIndex, writtenArguments!.length);
-					if (!branchRawType
-						&& !previousBranchValueType) {
+					if (!path
+						|| !mayNarrowAt(coverage, head, argumentIndex)) {
 						return;
 					}
 					// branching.args wird in case 'branching' vor den branches inferiert
@@ -3008,7 +2630,7 @@ function inferType(
 						const currentType = getNarrowedType(outerNarrowedTypes, path.symbol, path.keys)
 							?? argument.typeInfo?.type
 							?? builtinAny;
-						return narrowBranchedType(currentType, branchRawType, previousBranchValueType);
+						return narrowArgumentType(coverage, head, argumentIndex, currentType);
 					});
 					branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, argument, getBranchNarrowedType, functionScopes);
 					const originExpression = getOriginExpression(path.symbol);

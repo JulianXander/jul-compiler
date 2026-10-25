@@ -28,6 +28,7 @@ myList: [1 2]
 myVal: 6
   warning 5152 at 10:2 Unreachable branch detected.
   warning 5152 at 16:2 Unreachable branch detected.
+  warning 5152 at 37:2 Unreachable branch detected.
 === cli/cli.jul ===
 cliArguments: Any
 === console-progress/console-progress.jul ===

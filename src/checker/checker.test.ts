@@ -418,6 +418,15 @@ f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 		[Integer Integer] => g(a b)
 		() => 0`);
 	});
+	// b ist immer Integer: Der Kopf schränkt in Wahrheit nur a ein, und der zweite branch
+	// sieht a ohne Integer.
+	it('branch-narrowing-multi-value-head-with-covered-other-position', () => {
+		expectCheck(`g = (x: Text) => x
+f = (a: Or(Text Integer) b: Integer) =>
+	?(a b)
+		[Integer Integer] => 0
+		[Any Any] => g(a)`);
+	});
 	// Ein mehrstelliger Kopf fängt nur das Paar ab, nicht jede Position einzeln: Nach
 	// (x: Integer y: Integer) ist a kein Integer nur, wenn auch b keins ist. Mit a = 1 und
 	// b = §b§ landet der zweite branch hier mit einem Integer in a.
@@ -909,6 +918,42 @@ useType(isLegal)`);
 		(a: Integer b: Integer) => 1
 		() => 2`, {
 			errors: [],
+		});
+	});
+	// Zwei Köpfe über zwei Stellen: Was der erste abfängt, trifft der zweite nie.
+	it('branch-repeating-a-multi-value-head-is-unreachable', () => {
+		expectCheck(`f = (a: Integer b: Integer) =>
+	?(a b)
+		[Integer Integer] => 1
+		[Integer Integer] => 2`, {
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable branch detected.',
+					startRowIndex: 3,
+					startColumnIndex: 2,
+					endRowIndex: 3,
+					endColumnIndex: 24,
+				},
+			],
+		});
+	});
+	// Die Argumente sind beide Integer, der erste Kopf fängt also jedes Paar.
+	it('branch-after-head-covering-all-argument-combinations-is-unreachable', () => {
+		expectCheck(`f = (a: Integer b: Integer) =>
+	?(a b)
+		[Integer Integer] => 1
+		[Any Any] => 2`, {
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable branch detected.',
+					startRowIndex: 3,
+					startColumnIndex: 2,
+					endRowIndex: 3,
+					endColumnIndex: 16,
+				},
+			],
 		});
 	});
 	//#endregion branching: Erreichbarkeit
@@ -5591,6 +5636,25 @@ f(source)`;
 		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
 		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(true,
 			'[Integer Text] fehlt, Error muss im Rückgabetyp stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
+	});
+	// Die vier Köpfe decken jede Kombination ab, auch wenn keiner eine Position allein abdeckt.
+	it('multi-value-branching-with-all-combinations-has-no-error-in-union', () => {
+		const code = `f = (a: Or(Text Integer) b: Or(Text Integer)) => ?(a b)
+	[Integer Integer] => 1
+	[Integer Text] => 2
+	[Text Integer] => 3
+	[Text Text] => 4`;
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {}, { cloneUnchecked: false });
+		expect(parsed.checked?.errors).to.deep.equal([]);
+
+		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
+		const returnType = definition.value?.typeInfo?.type.julType === 'function'
+			? definition.value.typeInfo.type.ReturnType
+			: undefined;
+		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
+		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(false,
+			'Jede Kombination ist abgedeckt, es darf kein Error im Rückgabetyp stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
 	});
 	// Motivbeispiel: Fall 3 fehlt, ohne catchAll.
 	it('branching-without-catchall-non-exhaustive-has-error-in-union', () => {
