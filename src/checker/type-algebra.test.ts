@@ -270,6 +270,13 @@ describe('Typalgebra', () => {
 		const inner = and([builtinInteger, not(integerLiteral(0))]);
 		expect(and([inner, not(builtinInteger)])).to.equal(builtinNever);
 	});
+	// Auch neben einem Dictionary wird aufgeflacht, die beiden Dictionaries werden zusammengeführt.
+	it('intersection-flattens-nested-intersection-next-to-dictionary', () => {
+		const inner = and([dictionary({ a: builtinInteger }, false), not(dictionary({ a: integerLiteral(1) }))]);
+		const nested = and([dictionary({ b: builtinText }, false), inner]);
+		const flat = and([dictionary({ b: builtinText }, false), dictionary({ a: builtinInteger }, false), not(dictionary({ a: integerLiteral(1) }))]);
+		expect(typeEquals(nested, flat)).to.equal(true);
+	});
 	//#endregion Intersection mit mehr als zwei Operanden
 	//#endregion Intersection
 

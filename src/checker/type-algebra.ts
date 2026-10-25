@@ -2876,60 +2876,50 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		}
 	}
 
-	// Dictionaries sind Strukturen, keine Wertemengen: der Teilmengen-Shortcut unten würde bei
-	// einer unvollständigen Seite (complete: false) Felder verlieren, die nur die andere Seite
-	// kennt - "zuweisbar" heißt dort nur "widerspricht nicht nachweisbar", nicht "enthält schon
-	// alles". Deshalb werden Felder hier stattdessen zusammengeführt, bevor der Shortcut greift.
+	// Zwei Dictionaries werden feldweise zusammengeführt.
 	if (first.julType === 'dictionaryLiteral'
-		|| second.julType === 'dictionaryLiteral') {
-		if (first.julType === 'dictionaryLiteral'
-			&& second.julType === 'dictionaryLiteral') {
-			const keys = new Set([...Object.keys(first.Fields), ...Object.keys(second.Fields)]);
-			const mergedFields: CompileTimeFields = {};
-			for (const key of keys) {
-				const firstField = getOwnLiteralField(first.Fields, key);
-				const secondField = getOwnLiteralField(second.Fields, key);
-				const firstFieldType = firstField?.type;
-				const secondFieldType = secondField?.type;
-				// Eine vollständige Seite nennt alle ihre Felder, ein Feld, das nur die andere
-				// Seite kennt, ist dort Empty. Ein unvollständiges Gegenüber weiß nichts darüber.
-				const closedSideLacksField = (firstFieldType === undefined && first.complete)
-					|| (secondFieldType === undefined && second.complete);
-				if (closedSideLacksField) {
-					const onlyField = (firstField ?? secondField)!;
-					const fieldWithEmpty = createNormalizedIntersectionType([onlyField.type, builtinEmpty]);
-					if (fieldWithEmpty.julType === 'never') {
-						// Ein optionales Feld darf fehlen, mehr bleibt dann nicht übrig.
-						if (onlyField.optional) {
-							continue;
-						}
-						return builtinNever;
+		&& second.julType === 'dictionaryLiteral') {
+		const keys = new Set([...Object.keys(first.Fields), ...Object.keys(second.Fields)]);
+		const mergedFields: CompileTimeFields = {};
+		for (const key of keys) {
+			const firstField = getOwnLiteralField(first.Fields, key);
+			const secondField = getOwnLiteralField(second.Fields, key);
+			const firstFieldType = firstField?.type;
+			const secondFieldType = secondField?.type;
+			// Eine vollständige Seite nennt alle ihre Felder, ein Feld, das nur die andere
+			// Seite kennt, ist dort Empty. Ein unvollständiges Gegenüber weiß nichts darüber.
+			const closedSideLacksField = (firstFieldType === undefined && first.complete)
+				|| (secondFieldType === undefined && second.complete);
+			if (closedSideLacksField) {
+				const onlyField = (firstField ?? secondField)!;
+				const fieldWithEmpty = createNormalizedIntersectionType([onlyField.type, builtinEmpty]);
+				if (fieldWithEmpty.julType === 'never') {
+					// Ein optionales Feld darf fehlen, mehr bleibt dann nicht übrig.
+					if (onlyField.optional) {
+						continue;
 					}
-					mergedFields[key] = { type: fieldWithEmpty, optional: onlyField.optional };
+					return builtinNever;
 				}
-				else if (firstFieldType && secondFieldType) {
-					const mergedFieldType = createNormalizedIntersectionType([firstFieldType, secondFieldType]);
-					// Beide Seiten verlangen das Feld, kein Wert erfüllt beide: dann gibt es auch
-					// kein Dictionary, das beide erfüllt. So fällt z.B. beim Verengen über
-					// step/type die Choice mit dem anderen type aus der Union.
-					const bothOptional = firstField!.optional && secondField!.optional;
-					if (mergedFieldType.julType === 'never'
-						&& !bothOptional) {
-						return builtinNever;
-					}
-					// Fehlen darf das Feld nur, wenn beide Seiten es zulassen.
-					mergedFields[key] = { type: mergedFieldType, optional: bothOptional };
-				}
-				else {
-					mergedFields[key] = (firstField ?? secondField)!;
-				}
+				mergedFields[key] = { type: fieldWithEmpty, optional: onlyField.optional };
 			}
-			return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
+			else if (firstFieldType && secondFieldType) {
+				const mergedFieldType = createNormalizedIntersectionType([firstFieldType, secondFieldType]);
+				// Beide Seiten verlangen das Feld, kein Wert erfüllt beide: dann gibt es auch
+				// kein Dictionary, das beide erfüllt. So fällt z.B. beim Verengen über
+				// step/type die Choice mit dem anderen type aus der Union.
+				const bothOptional = firstField!.optional && secondField!.optional;
+				if (mergedFieldType.julType === 'never'
+					&& !bothOptional) {
+					return builtinNever;
+				}
+				// Fehlen darf das Feld nur, wenn beide Seiten es zulassen.
+				mergedFields[key] = { type: mergedFieldType, optional: bothOptional };
+			}
+			else {
+				mergedFields[key] = (firstField ?? secondField)!;
+			}
 		}
-		if (typesOverlap(first, second) === false) {
-			return builtinNever;
-		}
-		return createCompileTimeIntersectionType(ChoiceTypes);
+		return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
 	}
 
 	// Teilmenge liefern:
@@ -2937,8 +2927,13 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 	// z.B. And(Integer Rational) => Integer, And(Integer Integer) => Integer
 	// Any hat die Regel für das neutrale Element oben schon entschieden. Neben einem Not bleibt es
 	// stehen und darf hier nicht als Obermenge wegfallen.
+	// Dictionaries sind Strukturen, keine Wertemengen: bei einer unvollständigen Seite
+	// (complete: false) heißt "zuweisbar" nur "widerspricht nicht nachweisbar", nicht "enthält schon
+	// alles". Der Shortcut würde Felder verlieren, die nur die andere Seite kennt.
 	if (first.julType !== 'any'
-		&& second.julType !== 'any') {
+		&& second.julType !== 'any'
+		&& first.julType !== 'dictionaryLiteral'
+		&& second.julType !== 'dictionaryLiteral') {
 		// Der geschriebene Typ statt des aufgelösten, damit ein Alias in der Anzeige erhalten bleibt.
 		if (isSubtypeOf(first, second) === true) {
 			return ChoiceTypes[0]!;
