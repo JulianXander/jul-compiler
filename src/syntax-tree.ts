@@ -906,6 +906,7 @@ export type CompileTimeType =
 	| CompileTimeTypeOfType
 	| NestedReferenceType
 	| ParameterReference
+	| CompileTimeValueAsType
 	| CompileTimeAliasType
 	| ParametersType
 	;
@@ -918,6 +919,73 @@ export type CompileTimeType =
  * Vorbild: mypys ProperType.
  */
 export type ResolvedType = Exclude<CompileTimeType, CompileTimeAliasType>;
+
+/**
+ * Eine offene Rechnung: die Anwendung einer Typoperation, die sich nicht ausrechnen ließ, meist weil
+ * ein Operand noch auf den Aufrufort wartet. Am Aufruf werden die Operanden eingesetzt, und die
+ * Operation wird neu ausgerechnet. Die Relationen behandeln alle Varianten in einem einzigen Fall,
+ * siehe docs/offene-rechnungen.md.
+ */
+export type CompileTimeOperationType =
+	| NestedReferenceType
+	| CompileTimeAddType
+	| CompileTimeSubtractType
+	| CompileTimeConcatType
+	| CompileTimeMapElementsType
+	| CompileTimeWithElementAtType
+	| CompileTimeConditionalType
+	| CompileTimeValueAsType
+	;
+
+export function isOperationType(type: CompileTimeType): type is CompileTimeOperationType {
+	switch (type.julType) {
+		case 'nestedReference':
+		case 'add':
+		case 'subtract':
+		case 'concat':
+		case 'mapElements':
+		case 'withElementAt':
+		case 'conditional':
+		case 'valueAsType':
+			return true;
+		default:
+			return false;
+	}
+}
+
+/**
+ * Die Typen, aus denen eine offene Rechnung ausgerechnet wird. Bei einem bedingten Typ folgen auf die
+ * Operanden Kopf und Ergebnis jedes Zweigs.
+ */
+export function getOperands(type: CompileTimeOperationType): CompileTimeType[] {
+	switch (type.julType) {
+		case 'nestedReference':
+			return typeof type.nestedKey === 'object'
+				? [type.source, type.nestedKey]
+				: [type.source];
+		case 'add':
+			return [type.ArgsType];
+		case 'subtract':
+			return [type.MinuendType, type.SubtrahendType];
+		case 'concat':
+			return type.Sources;
+		case 'mapElements':
+			return [type.Source, type.Callback];
+		case 'withElementAt':
+			return [type.Source, type.Index, type.Value];
+		case 'conditional':
+			return [
+				...type.Operands,
+				...type.Branches.flatMap(branch => [branch.Head, branch.Result]),
+			];
+		case 'valueAsType':
+			return [type.Source];
+		default: {
+			const assertNever: never = type;
+			throw new Error('Unexpected julType: ' + (assertNever as CompileTimeType).julType);
+		}
+	}
+}
 
 /**
  * Untertyp von allem, erfüllt jede Anforderung. Kein Wert hat diesen Typ; er entsteht z.B. als
@@ -1209,11 +1277,6 @@ export interface CompileTimeMapElementsType extends CompileTimeTypeBase {
 	readonly julType: 'mapElements';
 	Source: CompileTimeType;
 	Callback: CompileTimeType;
-	/**
-	 * Der Knoten steht an einer Stelle, an der ein Wert als Typ gelesen wird, wie bei
-	 * NestedReferenceType: das valueOf wird nachgeholt, sobald er aufgelöst ist.
-	 */
-	deferValueOf?: true;
 }
 
 export function createCompileTimeMapElementsType(
@@ -1637,11 +1700,6 @@ export interface NestedReferenceType extends CompileTimeTypeBase {
 	 * einem Argument folgt (ElementAt) und daher noch aufgelöst werden muss.
 	 */
 	nestedKey: string | number | CompileTimeType;
-	/**
-	 * Der Verweis steht an einer Stelle, an der ein Wert als Typ gelesen wird. Aufgelöst wird er
-	 * erst am Aufruf, dort holt traversePlaceholders das valueOf nach, wie bei ParameterReference.
-	 */
-	deferValueOf?: true;
 }
 
 export function createNestedReference(source: CompileTimeType, nestedKey: string | number | CompileTimeType): NestedReferenceType {
@@ -1662,7 +1720,8 @@ export function createNestedReference(source: CompileTimeType, nestedKey: string
 }
 
 /**
- * Wird aktuell nur als CompileTimeType benutzt
+ * Der Typ des Arguments, das ein Aufruf an diesen Parameter übergibt: TypeOf(x) im Rumpf. Das
+ * Argument selbst als Typ gelesen (ein nacktes T) ist die offene Rechnung valueOf darauf.
  */
 export interface ParameterReference extends CompileTimeTypeBase {
 	readonly julType: 'parameterReference';
@@ -1672,13 +1731,24 @@ export interface ParameterReference extends CompileTimeTypeBase {
 	 * Muss nach dem Erzeugen gesetzt werden.
 	 */
 	functionRef?: FunctionIdentity;
-	/**
-	 * Die Referenz steht für den Typ des Arguments. Gesetzt heißt: hier war zusätzlich valueOf
-	 * verlangt, das erst beim Aufruf auf den Argumenttyp angewendet werden kann. Ein nacktes T in
-	 * Typ-Position trägt es, TypeOf(value) nicht - ohne die Markierung wären beide nach dem
-	 * Auspacken derselbe Platzhalter.
-	 */
-	deferValueOf?: true;
+}
+
+/**
+ * Ein Wert als Typ gelesen, solange der Wert noch auf den Aufruf wartet: `T` in `(T: Type v: T)`,
+ * `TypeOf(xs)/ElementType` als Parametertyp. Am Aufruf wird valueOf auf das Eingesetzte angewendet.
+ */
+export interface CompileTimeValueAsType extends CompileTimeTypeBase {
+	readonly julType: 'valueAsType';
+	Source: CompileTimeType;
+}
+
+export function createCompileTimeValueAsType(Source: CompileTimeType): CompileTimeValueAsType {
+	return internType(`valueAsType:${Source.id}`, id => ({
+		julType: 'valueAsType',
+		Source: Source,
+		isDeferred: Source.isDeferred,
+		id: id,
+	}));
 }
 
 export function createParameterReference(name: string, index: number): ParameterReference {
@@ -1757,6 +1827,10 @@ export interface Parameter {
  * seine Argumente, und nicht in die Funktion eines Prädikats (sie ist ein Wert, keine Typangabe).
  */
 export function forEachChildType(type: CompileTimeType, callback: (child: CompileTimeType) => void): void {
+	if (isOperationType(type)) {
+		getOperands(type).forEach(callback);
+		return;
+	}
 	switch (type.julType) {
 		case 'any':
 		case 'invalid':
@@ -1781,26 +1855,9 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 				callback(type.args);
 			}
 			return;
-		case 'add':
-			callback(type.ArgsType);
-			return;
-		case 'subtract':
-			callback(type.MinuendType);
-			callback(type.SubtrahendType);
-			return;
 		case 'and':
 		case 'or':
 			type.ChoiceTypes.forEach(callback);
-			return;
-		case 'concat':
-			type.Sources.forEach(callback);
-			return;
-		case 'conditional':
-			type.Operands.forEach(callback);
-			type.Branches.forEach(branch => {
-				callback(branch.Head);
-				callback(branch.Result);
-			});
 			return;
 		case 'dictionary':
 		case 'list':
@@ -1818,12 +1875,6 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 			return;
 		case 'lengthOf':
 			callback(type.Source);
-			return;
-		case 'nestedReference':
-			callback(type.source);
-			if (typeof type.nestedKey === 'object') {
-				callback(type.nestedKey);
-			}
 			return;
 		case 'not':
 			callback(type.SourceType);
@@ -1852,17 +1903,8 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 		case 'tuple':
 			type.ElementTypes.forEach(callback);
 			return;
-		case 'mapElements':
-			callback(type.Source);
-			callback(type.Callback);
-			return;
 		case 'typeOf':
 			callback(type.value);
-			return;
-		case 'withElementAt':
-			callback(type.Source);
-			callback(type.Index);
-			callback(type.Value);
 			return;
 		default: {
 			const assertNever: never = type;
@@ -1930,24 +1972,6 @@ export function createTextLiteral(value: string): TextLiteralType {
 
 //#endregion Blatt-Typ Factories
 //#region Kopien
-
-/**
- * Derselbe Typ mit gesetztem deferValueOf: aufgelöst und ausgepackt wird erst am Aufruf. Ein
- * neues Objekt (nicht verändert), weil der Typ interniert und geteilt sein kann.
- */
-export function withDeferValueOf<T extends NestedReferenceType | CompileTimeMapElementsType | ParameterReference>(type: T): T {
-	if (type.deferValueOf) {
-		return type;
-	}
-	switch (type.julType) {
-		case 'parameterReference':
-			// Veränderlich und nicht interniert: eine Kopie mit eigener Nummer.
-			return { ...type, deferValueOf: true, id: nextTypeId++ };
-		case 'nestedReference':
-		case 'mapElements':
-			return internType(`defer:${type.id}`, id => ({ ...type, deferValueOf: true, id: id })) as T;
-	}
-}
 
 /**
  * Eine Kopie des Funktionstyps mit geänderten Eigenschaften, die Identität (FunctionIdentity) bleibt.

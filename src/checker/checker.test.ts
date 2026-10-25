@@ -484,6 +484,67 @@ complete(i$)`, {
 			],
 		});
 	});
+	// Eine Eigenschaft einer offenen Rechnung bleibt im Rumpf offen und wird erst am Aufruf mit dem
+	// Argument ausgerechnet: für [1 2] genau die Elemente des Ergebnisses, nicht die Schranke Integer.
+	it('type-property-of-open-operation-is-computed-at-call', () => {
+		expectLastTypeString(`F = (xs: List(Integer)) => TypeOf(setElement(xs 1 §a§))/ElementType
+F([1 2])`, 'TypeOf(Or(§a§ 2))');
+	});
+	// Eine übergebene Funktion wird gegen ihren deklarierten Typ aufgerufen, wie eine definierte.
+	it('argument-type-mismatch-calling-function-parameter', () => {
+		expectCheck(`f = (g: (x: Integer) :> Integer) => g(§a§)`, {
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 41,
+					"endRowIndex": 0,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'x'\n  Can not assign §a§ to Integer.",
+					"startColumnIndex": 38,
+					"startRowIndex": 0,
+				},
+			],
+		});
+	});
+	it('calling-function-parameter-with-matching-argument', () => {
+		expectCheck(`f = (g: (x: Integer) :> Integer) => g(1)`);
+	});
+	// Im Rumpf steht TypeOf(x) für den Typ des Arguments, das ein beliebiger Aufrufer übergibt, nicht
+	// für die Schranke Integer: f(3 (y: 3) => y) bekäme sonst 5.
+	it('argument-type-mismatch-parameter-type-is-rigid-in-body', () => {
+		expectCheck(`f = (x: Integer g: (y: TypeOf(x)) :> Integer) => g(5)`, {
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 52,
+					"endRowIndex": 0,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'y'\n  Can not assign 5 to TypeOf(x).",
+					"startColumnIndex": 51,
+					"startRowIndex": 0,
+				},
+			],
+		});
+	});
+	it('parameter-type-accepts-same-parameter-in-body', () => {
+		expectCheck(`f = (x: Integer g: (y: TypeOf(x)) :> Integer) => g(x)`);
+	});
+	// Wie beim Parameter selbst: Der Elementtyp hängt am Argument, xs = [1 2] erlaubt nur 1 und 2.
+	it('argument-type-mismatch-element-type-of-parameter-is-rigid-in-body', () => {
+		expectCheck(`f = (xs: List(Integer) g: (y: TypeOf(xs)/ElementType) :> Integer) => g(5)`, {
+			errors: [
+				{
+					"code": ErrorCode.argumentTypeMismatch,
+					"endColumnIndex": 72,
+					"endRowIndex": 0,
+					"message": "Argument type mismatch.\nInvalid value for parameter 'y'\n  Can not assign 5 to TypeOf(xs)/ElementType.",
+					"startColumnIndex": 71,
+					"startRowIndex": 0,
+				},
+			],
+		});
+	});
+	it('element-type-of-parameter-accepts-element-in-body', () => {
+		expectCheck(`f = (xs: List(Integer) g: (y: TypeOf(xs)/ElementType) :> Integer) => g(xs/1)`);
+	});
 	// Ein Feldpfad als Branch-Argument verengt die Quelle: im Integer-Zweig ist d/a auf
 	// Integer verengt, also auch beim erneuten Lesen.
 	it('branch-narrowing-through-field-path', () => {
@@ -3783,7 +3844,7 @@ g([cb = (x) => x])`, {
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 16,
 					"endRowIndex": 1,
-					"message": "Argument type mismatch.\nInvalid value for parameter 'o'\n  Can not assign [cb: (x: Integer) -> x] to [cb: (x: Integer) :> Text].\n    Invalid value for field 'cb'\n      Invalid return value\n        Can not assign Integer to Text.",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'o'\n  Can not assign [cb: (x: Integer) -> TypeOf(x)] to [cb: (x: Integer) :> Text].\n    Invalid value for field 'cb'\n      Invalid return value\n        Can not assign Integer to Text.",
 					"startColumnIndex": 8,
 					"startRowIndex": 1,
 				},
@@ -3936,7 +3997,7 @@ g((x) => x)`, {
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 10,
 					"endRowIndex": 1,
-					"message": "Argument type mismatch.\nInvalid value for parameter 'cb'\n  Can not assign (x: Integer) -> x to Or(Empty (x: Integer) :> Text).\n    Invalid return value\n      Can not assign Integer to Text.",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'cb'\n  Can not assign (x: Integer) -> TypeOf(x) to Or(Empty (x: Integer) :> Text).\n    Invalid return value\n      Can not assign Integer to Text.",
 					"startColumnIndex": 2,
 					"startRowIndex": 1,
 				},
@@ -7226,7 +7287,7 @@ d`, 'Invalid', [
 	?(x)
 		[undefinedName] => x
 		() => 0
-f`, '(x: Integer) -> Or(x 0)', [
+f`, '(x: Integer) -> Or(TypeOf(x) 0)', [
 			{
 				code: ErrorCode.notDefined,
 				message: "'undefinedName' is not defined.",
@@ -7648,7 +7709,7 @@ describe('bedingte Typen', () => {
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		const functionType = definition.value?.typeInfo?.type;
 		expect(isFunctionType(functionType) && typeToString(functionType.ReturnType, 0, 5))
-			.to.equal(':?(a b c) [[Integer Integer] => Text, Any => Boolean]');
+			.to.equal(':?(TypeOf(a) TypeOf(b) TypeOf(c)) [[Integer Integer] => Text, Any => Boolean]');
 	});
 	it('M8 Kopf mit weniger Positionen, ein Operand überlappt', () => expectConditional(`${conditionalHeadShorterThanOperands}\nh = (x: Rational y: Integer z: Integer) => d(x y z)`, { returnType: 'Or(Text Boolean)' }));
 	//#endregion M: zwei Operanden

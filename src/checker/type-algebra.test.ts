@@ -31,7 +31,6 @@ import {
 	createParametersType,
 	createTextLiteral,
 	SymbolDefinition,
-	withDeferValueOf,
 } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
 import { checkerStats, resetCheckerStats } from './checker-stats.js';
@@ -744,20 +743,23 @@ describe('Interning und Caches', () => {
 		expect(first).to.not.equal(second);
 		expect(first.id).to.not.equal(second.id);
 	});
-	it('kopie-mit-defer-value-of-veraendert-das-original-nicht', () => {
-		const source = createParameterReference('T', 0);
-		const reference = createNestedReference(source, 'name');
-		const deferred = withDeferValueOf(reference);
-		expect(reference.deferValueOf).to.equal(undefined);
-		expect(deferred.deferValueOf).to.equal(true);
-		expect(withDeferValueOf(reference)).to.equal(deferred);
-		expect(withDeferValueOf(deferred)).to.equal(deferred);
+	it('wert-als-typ-umschliesst-die-unveraenderte-quelle', () => {
+		const reference = createNestedReference(createParameterReference('T', 0), 'name');
+		const asType = valueOf(reference);
+		expect(asType.julType).to.equal('valueAsType');
+		expect(asType.julType === 'valueAsType' && asType.Source).to.equal(reference);
+		expect(valueOf(reference)).to.equal(asType);
 	});
-	it('kopie-eines-parameterverweises-bekommt-eine-eigene-nummer', () => {
+	it('wert-als-typ-zweimal-gelesen-bleibt-derselbe', () => {
+		const asType = valueOf(createNestedReference(createParameterReference('T', 0), 'name'));
+		expect(valueOf(asType)).to.equal(asType);
+	});
+	// Die Funktion bekommt der Verweis erst nach dem Erzeugen: Sie muss auch über den Wert als Typ
+	// erreichbar sein.
+	it('wert-als-typ-eines-parameterverweises-teilt-den-verweis', () => {
 		const reference = createParameterReference('T', 0);
-		const deferred = withDeferValueOf(reference);
-		expect(deferred.id).to.not.equal(reference.id);
-		expect(reference.deferValueOf).to.equal(undefined);
+		const asType = valueOf(reference);
+		expect(asType.julType === 'valueAsType' && asType.Source).to.equal(reference);
 	});
 	it('nach-clear-sind-neue-typen-andere-objekte-aber-gleich', () => {
 		const before = createCompileTimeListType(createTextLiteral('clear'));

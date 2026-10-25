@@ -7,7 +7,10 @@ import {
 	CompileTimeComplementType,
 	CompileTimeDictionary,
 	CompileTimeFields,
+	CompileTimeOperationType,
+	getOperands,
 	getOwnLiteralField,
+	isOperationType,
 	mapFieldTypes,
 	toFieldTypes,
 	toRequiredFields,
@@ -59,7 +62,7 @@ import {
 	createCompileTimeUnionType,
 	clearInternedTypes,
 	copyFunctionType,
-	withDeferValueOf,
+	createCompileTimeValueAsType,
 	createCompileTimeWithElementAtType,
 	createIntegerLiteral,
 	createNestedReference,
@@ -556,6 +559,9 @@ function dereferenceUnknownKeyFromObject(
 	rawSource: CompileTimeType,
 ): CompileTimeType | undefined {
 	const source = resolveAlias(rawSource);
+	if (waitsWithOperation(source, true)) {
+		return createNestedReference(source, nestedKey);
+	}
 	switch (source.julType) {
 		case 'empty':
 			return builtinEmpty;
@@ -617,23 +623,13 @@ function dereferenceUnknownKeyFromObject(
 		case 'type':
 		case 'conditional':
 		case 'withElementAt':
+		case 'valueAsType':
 			return builtinAny;
 		default: {
 			const assertNever: never = source;
 			throw new Error('Unexpected source.julType: ' + (assertNever as CompileTimeType).julType);
 		}
 	}
-}
-
-function nestedKeysEqual(
-	first: string | number | CompileTimeType,
-	second: string | number | CompileTimeType,
-): boolean {
-	if (typeof first === 'object'
-		&& typeof second === 'object') {
-		return typeEquals(first, second);
-	}
-	return first === second;
 }
 
 /**
@@ -729,6 +725,7 @@ function hasKnownTypeProperties(rawType: CompileTimeType): boolean {
 		case 'type':
 		case 'typeOf':
 		case 'withElementAt':
+		case 'valueAsType':
 			return false;
 		default: {
 			const assertNever: never = type;
@@ -790,6 +787,9 @@ export function dereferenceNameFromObject(
 	rawSourceObjectType: CompileTimeType,
 ): CompileTimeType | undefined {
 	const sourceObjectType = resolveAlias(rawSourceObjectType);
+	if (waitsWithOperation(sourceObjectType, false)) {
+		return createNestedReference(sourceObjectType, name);
+	}
 	switch (sourceObjectType.julType) {
 		case 'empty':
 			return builtinEmpty;
@@ -871,6 +871,7 @@ export function dereferenceNameFromObject(
 		case 'type':
 		case 'conditional':
 		case 'withElementAt':
+		case 'valueAsType':
 			return undefined;
 		default: {
 			const assertNever: never = sourceObjectType;
@@ -885,6 +886,9 @@ function dereferenceNameFromObjectType(
 	sourceObjectType: CompileTimeType,
 ): CompileTimeType | undefined {
 	const innerType = resolveAlias(rawInnerType);
+	if (waitsWithOperation(innerType, true)) {
+		return createNestedReference(sourceObjectType, name);
+	}
 	switch (innerType.julType) {
 		case 'dictionary':
 		case 'dictionaryLiteral':
@@ -965,6 +969,7 @@ function dereferenceNameFromObjectType(
 		case 'withElementAt':
 		// Ein Prädikat als Typwert hat keine benannten Felder wie ElementType.
 		case 'predicate':
+		case 'valueAsType':
 			return undefined;
 		default: {
 			const assertNever: never = innerType;
@@ -981,6 +986,9 @@ export function dereferenceIndexFromObject(
 		return undefined;
 	}
 	const sourceObjectType = resolveAlias(rawSourceObjectType);
+	if (waitsWithOperation(sourceObjectType, true)) {
+		return createNestedReference(sourceObjectType, index);
+	}
 	switch (sourceObjectType.julType) {
 		case 'empty':
 			return builtinEmpty;
@@ -1071,6 +1079,7 @@ export function dereferenceIndexFromObject(
 		case 'typeOf':
 		case 'conditional':
 		case 'withElementAt':
+		case 'valueAsType':
 			return undefined;
 		default: {
 			const assertNever: never = sourceObjectType;
@@ -1316,6 +1325,9 @@ function traversePlaceholdersUncached(
 	rawType: CompileTimeType,
 	argumentContext: ArgumentContext | undefined,
 ): CompileTimeType {
+	if (isOperationType(rawType)) {
+		return traverseOperation(rawType, argumentContext);
+	}
 	switch (rawType.julType) {
 		case 'any':
 		case 'invalid':
@@ -1401,21 +1413,6 @@ function traversePlaceholdersUncached(
 			}
 			return createCompileTimeListType(dereferencedElement);
 		}
-		case 'nestedReference': {
-			const dereferencedSource = traversePlaceholders(rawType.source, argumentContext);
-			const dereferencedKey = typeof rawType.nestedKey === 'object'
-				? traversePlaceholders(rawType.nestedKey, argumentContext)
-				: rawType.nestedKey;
-			// Das Argument kann eine Verengung sein (And über dem noch offenen Parameter des
-			// Aufrufers): erst der aufgelöste Typ kennt seine Felder, wie bei jedem Nachschlagen.
-			const dereferencedNested = dereferenceNestedKeyFromObject(dereferencedKey, getLookupType(dereferencedSource));
-			if (!dereferencedNested) {
-				return builtinAny;
-			}
-			return rawType.deferValueOf
-				? valueOf(dereferencedNested)
-				: dereferencedNested;
-		}
 		case 'not': {
 			const rawSource = rawType.SourceType;
 			const dereferencedSource = traversePlaceholders(rawSource, argumentContext);
@@ -1454,10 +1451,7 @@ function traversePlaceholdersUncached(
 				const dereferencedNested = dereferencedParameter === rawType
 					? dereferencedParameter
 					: traversePlaceholders(dereferencedParameter, argumentContext);
-				// Ein nacktes T meint das Argument als Typ, TypeOf(value) den Typ des Arguments.
-				return rawType.deferValueOf
-					? valueOf(dereferencedNested)
-					: dereferencedNested;
+				return dereferencedNested;
 			}
 			const dereferenced1 = getParameterUpperBound(rawType);
 			if (!dereferenced1) {
@@ -1512,40 +1506,6 @@ function traversePlaceholdersUncached(
 			}
 			return createCompileTimeTypeOfType(dereferencedValue);
 		}
-		case 'withElementAt': {
-			const rawSource = rawType.Source;
-			const rawIndex = rawType.Index;
-			const rawValue = rawType.Value;
-			const dereferencedSource = traversePlaceholders(rawSource, argumentContext);
-			const dereferencedIndex = traversePlaceholders(rawIndex, argumentContext);
-			const dereferencedValue = traversePlaceholders(rawValue, argumentContext);
-			if (dereferencedSource === rawSource
-				&& dereferencedIndex === rawIndex
-				&& dereferencedValue === rawValue) {
-				return rawType;
-			}
-			// Neu falten statt neu einpacken, sonst bleibt der Knoten trotz aufgelöster Teile stehen.
-			return withElementAtFromTypes(dereferencedSource, dereferencedIndex, dereferencedValue);
-		}
-		case 'conditional': {
-			// Nur die Operanden entscheiden über den Zweig. Köpfe und Ergebnisse werden mit
-			// aufgelöst, damit ein Ergebnis wie TypeOf(a) am Aufruf ebenfalls konkret wird.
-			const rawOperands = rawType.Operands;
-			const dereferencedOperands = rawOperands.map(operand => traversePlaceholders(operand, argumentContext));
-			const rawBranches = rawType.Branches;
-			const dereferencedBranches = rawBranches.map(branch => ({
-				Head: traverseConditionalHead(branch.Head, argumentContext),
-				Result: traversePlaceholders(branch.Result, argumentContext),
-			}));
-			if (elementsEqual(rawOperands, dereferencedOperands)
-				&& rawBranches.every((branch, index) =>
-					branch.Head === dereferencedBranches[index]!.Head
-					&& branch.Result === dereferencedBranches[index]!.Result)) {
-				return rawType;
-			}
-			// Neu auswerten statt neu einpacken.
-			return createConditionalType(dereferencedOperands, dereferencedBranches);
-		}
 		case 'indexRange': {
 			const rawStart = rawType.Start;
 			const rawEnd = rawType.End;
@@ -1556,63 +1516,6 @@ function traversePlaceholdersUncached(
 				return rawType;
 			}
 			return createCompileTimeIndexRangeType(dereferencedStart, dereferencedEnd);
-		}
-		case 'mapElements': {
-			const rawSource = rawType.Source;
-			const rawCallback = rawType.Callback;
-			const dereferencedSource = traversePlaceholders(rawSource, argumentContext);
-			// Die Verweise im Rückgabetyp des Callbacks zeigen auf genau dieses Funktionsobjekt.
-			// resolvePlaceholders baut Funktionen neu, in einer Kopie fände das Einsetzen sie nicht.
-			const dereferencedCallback = rawCallback.julType === 'function'
-				? rawCallback
-				: traversePlaceholders(rawCallback, argumentContext);
-			if (dereferencedSource === rawSource
-				&& dereferencedCallback === rawCallback) {
-				return rawType;
-			}
-			const mapped = mapElementsFromTypes(dereferencedSource, dereferencedCallback);
-			if (mapped.julType === 'mapElements') {
-				return rawType.deferValueOf
-					? withDeferValueOf(mapped)
-					: mapped;
-			}
-			// Der Rückgabetyp des Callbacks kann noch Parameter der umgebenden Funktion nennen.
-			const resolved = isDeferredType(mapped)
-				? traversePlaceholders(mapped, argumentContext)
-				: mapped;
-			return rawType.deferValueOf
-				? valueOf(resolved)
-				: resolved;
-		}
-		case 'concat': {
-			const rawSources = rawType.Sources;
-			const dereferencedSources = rawSources.map(source => traversePlaceholders(source, argumentContext));
-			if (rawSources.every((source, i) => source === dereferencedSources[i])) {
-				return rawType;
-			}
-			// Neu falten statt neu einpacken.
-			return concatFromTypes(dereferencedSources);
-		}
-		case 'subtract': {
-			const rawMinuend = rawType.MinuendType;
-			const rawSubtrahend = rawType.SubtrahendType;
-			const dereferencedMinuend = traversePlaceholders(rawMinuend, argumentContext);
-			const dereferencedSubtrahend = traversePlaceholders(rawSubtrahend, argumentContext);
-			if (dereferencedMinuend === rawMinuend
-				&& dereferencedSubtrahend === rawSubtrahend) {
-				return rawType;
-			}
-			// Neu falten statt neu einpacken.
-			return subtractFromTypes(dereferencedMinuend, dereferencedSubtrahend);
-		}
-		case 'add': {
-			const rawArgs = rawType.ArgsType;
-			const dereferencedArgs = traversePlaceholders(rawArgs, argumentContext);
-			if (dereferencedArgs === rawArgs) {
-				return rawType;
-			}
-			// Neu falten statt neu einpacken.
-			return addFromTypes(dereferencedArgs);
 		}
 		case 'alias': {
 			// Stoppt vor dem Ziel: Absteigen würde bei einem rekursiven Typ nicht terminieren.
@@ -1646,6 +1549,188 @@ function traversePlaceholdersUncached(
 		}
 	}
 }
+
+//#region offene Rechnungen
+
+/**
+ * Was eine offene Rechnung von den anderen unterscheidet. Alles Übrige behandeln die Relationen für
+ * alle gleich: Als Quelle zählt die aufgelöste Rechnung, als Ziel ist sie unbekannt, und verglichen
+ * wird über die Operanden (getOperands).
+ */
+interface Operation<T extends CompileTimeOperationType> {
+	/**
+	 * Rechnet mit den eingesetzten Operanden, in der Reihenfolge von getOperands, so weit wie möglich
+	 * aus. Bleibt ein Operand offen, entsteht wieder eine offene Rechnung.
+	 */
+	evaluate(type: T, operands: CompileTimeType[], argumentContext: ArgumentContext | undefined): CompileTimeType;
+	/** Ein Operand, der beim Einsetzen nicht wie jeder andere Typ durchlaufen wird. */
+	traverseOperand?(type: T, operand: CompileTimeType, index: number, argumentContext: ArgumentContext | undefined): CompileTimeType;
+	/**
+	 * Auch mit unveränderten Operanden neu ausrechnen: Das Ergebnis hängt dann nicht nur an den
+	 * Operanden.
+	 */
+	evaluateUnchanged?: true;
+	/** Was außer den Operanden zur Gleichheit gehört. */
+	isSameShape(first: T, second: T): boolean;
+	/** Ein Operand, der als Objekt zählt statt strukturell. */
+	isIdentityOperand?(index: number): boolean;
+}
+
+type OperationTable = { [K in CompileTimeOperationType['julType']]: Operation<Extract<CompileTimeOperationType, { julType: K; }>> };
+
+const alwaysSameShape = () => true;
+
+const operations: OperationTable = {
+	nestedReference: {
+		evaluate: (type, [source, key]) => {
+			// Das Argument kann eine Verengung sein (And über dem noch offenen Parameter des
+			// Aufrufers): erst der aufgelöste Typ kennt seine Felder, wie bei jedem Nachschlagen.
+			const dereferencedNested = dereferenceNestedKeyFromObject(
+				typeof type.nestedKey === 'object' ? key! : type.nestedKey,
+				getLookupType(source!));
+			return dereferencedNested ?? builtinAny;
+		},
+		// getLookupType kann eine Quelle auflösen, die selbst unverändert geblieben ist.
+		evaluateUnchanged: true,
+		isSameShape: (first, second) =>
+			typeof first.nestedKey === 'object'
+				? typeof second.nestedKey === 'object'
+				: first.nestedKey === second.nestedKey,
+	},
+	add: {
+		evaluate: (_type, [args]) => addFromTypes(args!),
+		isSameShape: alwaysSameShape,
+	},
+	subtract: {
+		evaluate: (_type, [minuend, subtrahend]) => subtractFromTypes(minuend!, subtrahend!),
+		isSameShape: alwaysSameShape,
+	},
+	concat: {
+		evaluate: (_type, sources) => concatFromTypes(sources),
+		isSameShape: alwaysSameShape,
+	},
+	mapElements: {
+		evaluate: (type, [source, callback], argumentContext) => {
+			const mapped = mapElementsFromTypes(source!, callback!);
+			// Der Rückgabetyp des Callbacks kann noch Parameter der umgebenden Funktion nennen.
+			return mapped.julType !== 'mapElements' && isDeferredType(mapped)
+				? traversePlaceholders(mapped, argumentContext)
+				: mapped;
+		},
+		// Die Verweise im Rückgabetyp des Callbacks zeigen auf genau dieses Funktionsobjekt.
+		// resolvePlaceholders baut Funktionen neu, in einer Kopie fände das Einsetzen sie nicht.
+		traverseOperand: (_type, operand, index, argumentContext) =>
+			index === 1 && operand.julType === 'function'
+				? operand
+				: traversePlaceholders(operand, argumentContext),
+		isSameShape: alwaysSameShape,
+		isIdentityOperand: index => index === 1,
+	},
+	withElementAt: {
+		evaluate: (_type, [source, index, value]) => withElementAtFromTypes(source!, index!, value!),
+		isSameShape: alwaysSameShape,
+	},
+	conditional: {
+		evaluate: (type, operands) => {
+			const operandCount = type.Operands.length;
+			const branches = type.Branches.map((_branch, index) => ({
+				Head: operands[operandCount + 2 * index]!,
+				Result: operands[operandCount + 2 * index + 1]!,
+			}));
+			return createConditionalType(operands.slice(0, operandCount), branches);
+		},
+		// Nur die Operanden entscheiden über den Zweig. Köpfe und Ergebnisse werden mit aufgelöst,
+		// damit ein Ergebnis wie TypeOf(a) am Aufruf ebenfalls konkret wird.
+		traverseOperand: (type, operand, index, argumentContext) => {
+			const branchOffset = index - type.Operands.length;
+			return branchOffset >= 0 && branchOffset % 2 === 0
+				? traverseConditionalHead(operand, argumentContext)
+				: traversePlaceholders(operand, argumentContext);
+		},
+		isSameShape: (first, second) =>
+			first.Operands.length === second.Operands.length
+			&& first.Branches.length === second.Branches.length,
+	},
+	valueAsType: {
+		evaluate: (_type, [source]) => valueOf(source!),
+		isSameShape: alwaysSameShape,
+	},
+};
+
+function getOperation<T extends CompileTimeOperationType>(type: T): Operation<T> {
+	return operations[type.julType] as Operation<CompileTimeOperationType> as Operation<T>;
+}
+
+/**
+ * Setzt die Operanden ein und rechnet neu aus, statt neu einzupacken: sonst bliebe die Rechnung trotz
+ * aufgelöster Operanden offen.
+ */
+function traverseOperation(
+	rawType: CompileTimeOperationType,
+	argumentContext: ArgumentContext | undefined,
+): CompileTimeType {
+	const operation = getOperation(rawType);
+	const rawOperands = getOperands(rawType);
+	const operands = rawOperands.map((operand, index) => operation.traverseOperand
+		? operation.traverseOperand(rawType, operand, index, argumentContext)
+		: traversePlaceholders(operand, argumentContext));
+	if (!operation.evaluateUnchanged
+		&& elementsEqual(rawOperands, operands)) {
+		return rawType;
+	}
+	return operation.evaluate(rawType, operands, argumentContext);
+}
+
+/**
+ * Ein Typ, der als Ganzes auf das Argument eines Aufrufs wartet: ein Parameterverweis oder eine Rechnung
+ * darauf. Ein Concat, das an einer unbestimmten Quelle hängt statt an einem Aufruf, gehört nicht dazu.
+ * Ebensowenig ein Argument, das als Typ gelesen wird, aber auch eine Funktion sein kann (`(a: p)` mit
+ * einer Funktion p): Es ist ein Prädikat, und ob ein Wert es erfüllt, prüft die Laufzeit.
+ */
+function isRigidType(type: CompileTimeType): boolean {
+	if (!isDeferredType(type)) {
+		return false;
+	}
+	if (type.julType === 'parameterReference') {
+		return true;
+	}
+	if (type.julType === 'valueAsType'
+		&& type.Source.julType === 'parameterReference') {
+		const upperBound = getParameterUpperBound(type.Source);
+		return !!upperBound && resolveAlias(upperBound).julType === 'type';
+	}
+	return isOperationType(type);
+}
+
+/**
+ * Wartet ein Zugriff auf diese Quelle mit ihr auf den Aufruf? Für jede offene Rechnung gleich: Erst
+ * mit den eingesetzten Operanden steht fest, was die Quelle an der Stelle hat. Concat ist ausgenommen,
+ * wo es eine eigene Regel hat (concatHasOwnRule): Es reicht Positionen seiner festen Quellen schon
+ * vorher durch und verteilt sich über die Quellen, beides genauer als das bloße Warten.
+ */
+function waitsWithOperation(source: CompileTimeType, concatHasOwnRule: boolean): boolean {
+	return isOperationType(source)
+		&& isDeferredType(source)
+		&& !(concatHasOwnRule && source.julType === 'concat');
+}
+
+function operationEquals(first: CompileTimeOperationType, second: CompileTimeType): boolean {
+	if (second.julType !== first.julType) {
+		return false;
+	}
+	const operation = getOperation(first);
+	if (!operation.isSameShape(first, second as CompileTimeOperationType)) {
+		return false;
+	}
+	const firstOperands = getOperands(first);
+	const secondOperands = getOperands(second as CompileTimeOperationType);
+	return firstOperands.length === secondOperands.length
+		&& firstOperands.every((operand, index) => operation.isIdentityOperand?.(index)
+			? operand === secondOperands[index]
+			: typeEquals(operand, secondOperands[index]!));
+}
+
+//#endregion offene Rechnungen
 
 function dereferenceNestedParameter(parameter: Parameter): Parameter {
 	return {
@@ -3614,6 +3699,9 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 			aliasEqualityInProgress.pop();
 		}
 	}
+	if (isOperationType(first)) {
+		return operationEquals(first, second);
+	}
 	switch (first.julType) {
 		case 'empty':
 		case 'any':
@@ -3663,40 +3751,10 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 				&& typeEquals(first.ParamsType, second.ParamsType)
 				&& typeEquals(first.ReturnType, second.ReturnType)
 				&& effectivePurity(first.purity) === effectivePurity(second.purity);
-		case 'conditional':
-			return second.julType === 'conditional'
-				&& first.Operands.length === second.Operands.length
-				&& first.Operands.every((operand, i) => typeEquals(operand, second.Operands[i]!))
-				&& first.Branches.length === second.Branches.length
-				&& first.Branches.every((branch, i) =>
-					typeEquals(branch.Head, second.Branches[i]!.Head)
-					&& typeEquals(branch.Result, second.Branches[i]!.Result));
-		case 'withElementAt':
-			return second.julType === 'withElementAt'
-				&& typeEquals(first.Source, second.Source)
-				&& typeEquals(first.Index, second.Index)
-				&& typeEquals(first.Value, second.Value);
 		case 'indexRange':
 			return second.julType === 'indexRange'
 				&& typeEquals(first.Start, second.Start)
 				&& typeEquals(first.End, second.End);
-		case 'mapElements':
-			// Der Callback zählt als Objekt: seine Parameterverweise hängen an genau diesem.
-			return second.julType === 'mapElements'
-				&& typeEquals(first.Source, second.Source)
-				&& first.Callback === second.Callback
-				&& first.deferValueOf === second.deferValueOf;
-		case 'concat':
-			return second.julType === 'concat'
-				&& first.Sources.length === second.Sources.length
-				&& first.Sources.every((source, i) => typeEquals(source, second.Sources[i]!));
-		case 'add':
-			return second.julType === 'add'
-				&& typeEquals(first.ArgsType, second.ArgsType);
-		case 'subtract':
-			return second.julType === 'subtract'
-				&& typeEquals(first.MinuendType, second.MinuendType)
-				&& typeEquals(first.SubtrahendType, second.SubtrahendType);
 		case 'tuple':
 			return second.julType === 'tuple'
 				&& first.ElementTypes.length === second.ElementTypes.length
@@ -3726,13 +3784,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 		case 'parameterReference':
 			return second.julType === 'parameterReference'
 				&& first.name === second.name
-				&& first.index === second.index
-				&& first.deferValueOf === second.deferValueOf;
-		case 'nestedReference':
-			return second.julType === 'nestedReference'
-				&& nestedKeysEqual(first.nestedKey, second.nestedKey)
-				&& typeEquals(first.source, second.source)
-				&& first.deferValueOf === second.deferValueOf;
+				&& first.index === second.index;
 		case 'parameters':
 			return second.julType === 'parameters'
 				&& first.singleNames.length === second.singleNames.length
@@ -3956,20 +4008,16 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			return createPredicateFromFunctionType(type);
 		case 'predicate':
 			return type;
+		// Der Wert steht erst am Aufruf fest, ausgepackt wird dann (valueAsType).
 		case 'mapElements':
 		case 'nestedReference':
-			// Wie bei parameterReference: aufgelöst und ausgepackt wird am Aufruf.
-			return type.deferValueOf
-				? type
-				: withDeferValueOf(type);
+		case 'parameterReference':
+			return createCompileTimeValueAsType(type);
+		// Schon als Typ gelesen: ein zweites Lesen ändert nichts.
+		case 'valueAsType':
+			return type;
 		case 'parameters':
 			return type;
-		case 'parameterReference':
-			// Der Argumenttyp steht erst beim Aufruf fest, dort holt traversePlaceholders das
-			// valueOf nach.
-			return type.deferValueOf
-				? type
-				: withDeferValueOf(type);
 		case 'stream':
 			// TODO?
 			return type;
@@ -4179,6 +4227,24 @@ function isTypeAssignableAtDepth(
 			aliasComparisonsInProgress.pop();
 		}
 	}
+	// Ein offener Typ als Ziel steht für das Argument eines beliebigen Aufrufers, nicht für seine
+	// Schranke: Der Rumpf muss für jeden Aufruf stimmen. Hinein passt sicher derselbe offene Typ und
+	// sicher nicht ein Typ ohne Platzhalter, denn der trifft nicht jedes Argument (5 gegen TypeOf(x)
+	// mit x = 3). Dazwischen fehlt eine Rechenregel, etwa für xs/1 gegen TypeOf(xs)/ElementType:
+	// unbekannt. Die Quelle dafür aufzulösen hieße, ihre Schranke mit dem offenen Ziel zu vergleichen,
+	// und das sagt nichts. Nur And und Or werden weiter zerlegt, jeder Teil trifft dann selbst hierauf.
+	if (isRigidType(targetType)) {
+		if (typeEquals(argumentsType, targetType)) {
+			return { assignable: true };
+		}
+		if (!hasArgumentSubstitution(argumentsType)) {
+			return getDefaultTypeError(argumentsType, targetType);
+		}
+		if (argumentsType.julType !== 'and'
+			&& argumentsType.julType !== 'or') {
+			return { assignable: undefined };
+		}
+	}
 	// Ganze Zahlen zwischen zwei Grenzen passen genau dann, wenn beide Grenzen im target liegen.
 	// Die Zerlegung unten geht über Or(T B) und verlangt dort einen einzelnen passenden Choice, das
 	// scheitert schon an And(Integer Not(GreaterInteger(2))) gegen Not(GreaterInteger(3)).
@@ -4224,6 +4290,17 @@ function isTypeAssignableByStructure(
 	argumentsType: Exclude<ResolvedType, { julType: 'any' | 'invalid'; }>,
 	targetType: Exclude<ResolvedType, { julType: 'any' | 'invalid'; }>,
 ): TypeAssignability {
+	// Eine offene Rechnung als Quelle: aufgelöst neu versuchen, denn ihre Operanden können seither
+	// feststehen, sonst unbekannt. Gegen eine Parameterliste ist Concat dagegen die
+	// Argumentkollektion mit Empfänger, siehe isTypeAssignableForParameters.
+	if (isOperationType(argumentsType)
+		&& !(argumentsType.julType === 'concat' && targetType.julType === 'parameters')) {
+		const resolved = resolvePlaceholders(argumentsType);
+		if (resolved !== argumentsType) {
+			return isTypeAssignable(resolved, targetType);
+		}
+		return { assignable: undefined };
+	}
 	switch (argumentsType.julType) {
 		case 'and': {
 			if (targetType.julType === 'and') {
@@ -4296,26 +4373,6 @@ function isTypeAssignableByStructure(
 			}
 			return { assignable: undefined };
 		}
-		case 'concat':
-			// Gegen eine Parameterliste ist Concat die Argumentkollektion mit Empfänger, siehe
-			// isTypeAssignableForParameters.
-			if (targetType.julType === 'parameters') {
-				break;
-			}
-		// falls through
-		case 'add':
-		case 'subtract': {
-			// Wie withElementAt: eine noch unaufgelöste Source (z.B. der eigene Parameter, bevor
-			// er am Aufruf substituiert wird) hält den Knoten als Concat(...) stehen
-			// (concatFromTypes: isDeferredType-Guard). Erst per resolvePlaceholders
-			// neu falten versuchen, sonst permissiv wie nestedReference - als Zieltyp ist concat
-			// schon permissiv (siehe unten), als Argumenttyp fehlte das.
-			const resolved = resolvePlaceholders(argumentsType);
-			if (resolved !== argumentsType) {
-				return isTypeAssignable(resolved, targetType);
-			}
-			return { assignable: undefined };
-		}
 		case 'lengthOf': {
 			// Dieselbe Länge liegt in sich selbst, als PositiveInteger gelesen wäre das nur unbekannt.
 			if (targetType.julType === 'lengthOf'
@@ -4335,14 +4392,6 @@ function isTypeAssignableByStructure(
 				}
 			}
 			return isTypeAssignable(CompileTimePositiveInteger, targetType);
-		}
-		case 'nestedReference': {
-			// Wie concat/withElementAt: erst auflösen versuchen, sonst permissiv.
-			const resolved = resolvePlaceholders(argumentsType);
-			if (resolved !== argumentsType) {
-				return isTypeAssignable(resolved, targetType);
-			}
-			return { assignable: undefined };
 		}
 		case 'not': {
 			// Not(A) heißt "alles außer A" und liegt genau dann in T, wenn T alles außer A abdeckt.
@@ -4395,38 +4444,12 @@ function isTypeAssignableByStructure(
 					return isTypeAssignable(argumentsType.UpperBound, targetType);
 			}
 			break;
-		case 'mapElements': {
-			// Wie concat/withElementAt: solange die Anzahl noch offen ist, bleibt der Knoten
-			// stehen - erst neu falten versuchen, sonst permissiv.
-			const resolved = resolvePlaceholders(argumentsType);
-			if (resolved !== argumentsType) {
-				return isTypeAssignable(resolved, targetType);
-			}
-			return { assignable: undefined };
-		}
-		case 'conditional': {
-			// Wie withElementAt: erst auswerten versuchen, sonst permissiv.
-			const resolved = resolvePlaceholders(argumentsType);
-			if (resolved !== argumentsType) {
-				return isTypeAssignable(resolved, targetType);
-			}
-			return { assignable: undefined };
-		}
-		case 'withElementAt': {
-			// Steht die Position (noch) nicht fest, bleibt setElement als WithElementAt(...)
-			// stehen (withElementAtFromTypes: Platzhalter bleibt ungefaltet, bis Source/Index
-			// feststehen) - das ist kein falscher Wert, sondern einer, der es noch werden kann.
-			// Erst per resolvePlaceholders neu falten versuchen (Source/Index könnten seither
-			// aufgelöst sein), sonst permissiv wie nestedReference/parameterReference: als
-			// Zieltyp ist withElementAt schon permissiv (siehe unten), als Argumenttyp fehlte das.
-			const resolved = resolvePlaceholders(argumentsType);
-			if (resolved !== argumentsType) {
-				return isTypeAssignable(resolved, targetType);
-			}
-			return { assignable: undefined };
-		}
 		default:
 			break;
+	}
+	// Eine offene Rechnung als Ziel steht noch nicht fest, nichts ist entschieden.
+	if (isOperationType(targetType)) {
+		return { assignable: undefined };
 	}
 	// TODO generic types (customType, union/intersection, ...?)
 	switch (targetType.julType) {
@@ -4654,9 +4677,6 @@ function isTypeAssignableByStructure(
 			}
 			break;
 		}
-		case 'nestedReference':
-			// TODO?
-			return { assignable: undefined };
 		case 'never':
 			break;
 		case 'not': {
@@ -4804,27 +4824,8 @@ function isTypeAssignableByStructure(
 				? getDefaultTypeError(argumentsType, targetType)
 				: { assignable: undefined };
 		}
-		case 'conditional':
-			// Wartet noch auf seine Operanden: permissiv wie withElementAt.
-			return { assignable: undefined };
-		case 'withElementAt':
-			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference, sonst
-			// entstünden Fehler an einem Typ, der noch gar nicht feststeht.
-			return { assignable: undefined };
 		case 'indexRange':
 			// Nur als Schlüssel sinnvoll, nie als Zieltyp einer Zuweisung.
-			return { assignable: undefined };
-		case 'mapElements':
-			// Noch ungefalteter Platzhalter als Ziel: permissiv wie nestedReference.
-			return { assignable: undefined };
-		case 'concat':
-			// Ungefaltete Konkatenation: permissiv wie nestedReference.
-			return { assignable: undefined };
-		case 'add':
-			// Ungefaltete Summe: permissiv wie concat.
-			return { assignable: undefined };
-		case 'subtract':
-			// Ungefaltete Differenz: permissiv wie concat.
 			return { assignable: undefined };
 		case 'predicate': {
 			if (argumentsType.julType === 'predicate'
@@ -5564,7 +5565,13 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return bracketedExpressionToString(elements, multiline, indent, 'round');
 		}
 		case 'parameterReference':
-			return type.name;
+			// Der Verweis steht für den Typ des Arguments, das Argument selbst als Typ ist valueAsType.
+			return `TypeOf(${type.name})`;
+		// Ein Wert als Typ zeigt sich, wie er geschrieben wird: ein nacktes T als T.
+		case 'valueAsType':
+			return type.Source.julType === 'parameterReference'
+				? type.Source.name
+				: typeToString(type.Source, indent, depth, suppressAlias);
 		case 'stream':
 			return `${type.finite ? 'FiniteStream' : 'Stream'}(${typeToString(type.ValueType, indent, depth + 1, suppressAlias)})`;
 		case 'text':
@@ -5595,7 +5602,10 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'type':
 			return 'Type';
 		case 'typeOf':
-			return `TypeOf(${typeToString(type.value, indent, depth, suppressAlias)})`;
+			// Ein Verweis auf den Typ eines Arguments zeigt sich schon selbst als TypeOf(x).
+			return type.value.julType === 'parameterReference'
+				? typeToString(type.value, indent, depth, suppressAlias)
+				: `TypeOf(${typeToString(type.value, indent, depth, suppressAlias)})`;
 		case 'alias':
 			// Wie aliasName: ab depth > 0 nur der Name, die äußerste Ebene wird ausgeschrieben.
 			// suppressAlias greift nicht - es zielt auf Namen von Wertdefinitionen, und ein

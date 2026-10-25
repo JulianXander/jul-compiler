@@ -18,6 +18,7 @@ import {
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
 	createCompileTimeTypeOfType,
+	createCompileTimeValueAsType,
 	createNestedReference,
 	ConditionalTypeBranch,
 	createParameterReference,
@@ -281,13 +282,12 @@ const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElement
  */
 function createStreamTypeFunction(finite: boolean): CompileTimeFunctionType {
 	const parameterReference = createParameterReference('ValueType', 0);
-	parameterReference.deferValueOf = true;
 	const functionType = createCompileTimeFunctionType(
 		createParametersType([{
 			name: 'ValueType',
 			type: builtinType,
 		}]),
-		createCompileTimeTypeOfType(createCompileTimeStreamType(parameterReference, finite)),
+		createCompileTimeTypeOfType(createCompileTimeStreamType(createCompileTimeValueAsType(parameterReference), finite)),
 		'pure',
 	);
 	parameterReference.functionRef = functionType.identity;
@@ -309,14 +309,13 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
 	Error: createCompileTimeTypeOfType(builtinError),
 	List: (() => {
 		const parameterReference = createParameterReference('ElementType', 0);
-		// Das Argument ist ein Typwert, gemeint ist der Typ, den er beschreibt.
-		parameterReference.deferValueOf = true;
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ElementType',
 				type: builtinType,
 			}]),
-			createCompileTimeTypeOfType(createCompileTimeListType(parameterReference)),
+			// Das Argument ist ein Typwert, gemeint ist der Typ, den er beschreibt.
+			createCompileTimeTypeOfType(createCompileTimeListType(createCompileTimeValueAsType(parameterReference))),
 			'pure',
 		);
 		parameterReference.functionRef = functionType.identity;
@@ -324,14 +323,13 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
 	})(),
 	Dictionary: (() => {
 		const parameterReference = createParameterReference('ElementType', 0);
-		// Das Argument ist ein Typwert, gemeint ist der Typ, den er beschreibt.
-		parameterReference.deferValueOf = true;
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([{
 				name: 'ElementType',
 				type: builtinType,
 			}]),
-			createCompileTimeTypeOfType(createCompileTimeDictionaryType(parameterReference)),
+			// Das Argument ist ein Typwert, gemeint ist der Typ, den er beschreibt.
+			createCompileTimeTypeOfType(createCompileTimeDictionaryType(createCompileTimeValueAsType(parameterReference))),
 			'pure',
 		);
 		parameterReference.functionRef = functionType.identity;
@@ -341,7 +339,6 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
 	FiniteStream: createStreamTypeFunction(true),
 	nativeFunction: (() => {
 		const parameterReference = createParameterReference('FunctionType', 0);
-		parameterReference.deferValueOf = true;
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([
 				{
@@ -354,7 +351,7 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
 					type: builtinText,
 				},
 			]),
-			parameterReference,
+			createCompileTimeValueAsType(parameterReference),
 			'impure',
 		);
 		parameterReference.functionRef = functionType.identity;
@@ -722,8 +719,11 @@ interface ParameterProjection {
 	index: number;
 	/** Von außen nach innen, bei `TypeOf(x)/ElementType/ValueType` also ElementType, ValueType. */
 	path: ProjectionStep[];
-	/** Der Verweis selbst, er wird gegen die Argumente aufgelöst. */
-	reference: NestedReferenceType;
+	/**
+	 * Der Verweis selbst, er wird gegen die Argumente aufgelöst. Als Typ gelesen (valueAsType) samt
+	 * dieser Hülle, sonst käme der Typwert heraus statt des Typs, den er beschreibt.
+	 */
+	reference: CompileTimeType;
 }
 
 /**
@@ -742,10 +742,13 @@ function getParameterProjections(functionType: CompileTimeFunctionType): Paramet
 	}
 	const projections: ParameterProjection[] = [];
 	const visit = (type: CompileTimeType): void => {
-		if (type.julType === 'nestedReference') {
-			const projection = getParameterProjection(type, functionType);
+		const reference = type.julType === 'valueAsType'
+			? type.Source
+			: type;
+		if (reference.julType === 'nestedReference') {
+			const projection = getParameterProjection(reference, functionType);
 			if (projection) {
-				projections.push(projection);
+				projections.push({ ...projection, reference: type });
 				return;
 			}
 		}
@@ -3862,8 +3865,11 @@ function tryFoldCall(
 		return undefined;
 	}
 	// Ein Typkonstruktor (List, Or, ...) liefert ein Typobjekt, das sich nicht in einen Typ
-	// zurückübersetzen lässt (constantValueToType): der Aufruf liefe umsonst.
-	const declaredReturnJulType = resolveAlias(resolvedFunctionType.ReturnType).julType;
+	// zurückübersetzen lässt (constantValueToType): der Aufruf liefe umsonst. Gefragt ist der
+	// Rückgabetyp dieses Aufrufs: Ein offener Rückgabetyp kann je nach Argument einen Typ liefern
+	// (TypeOf(xs)/ElementType) oder einen Wert (AccumulatorType mit Integer).
+	const declaredReturnJulType = resolveAlias(
+		dereferenceArgumentTypesNested(resolvedFunctionType, boundArgsType, resolvedFunctionType.ReturnType)).julType;
 	if (declaredReturnJulType === 'type'
 		|| declaredReturnJulType === 'typeOf') {
 		return undefined;
@@ -4665,6 +4671,16 @@ function getParamsType(possibleFunctionType: CompileTimeType | undefined): Compi
 	if (isFunctionType(functionType)) {
 		return resolveAlias(functionType.ParamsType);
 	}
+	// Eine übergebene Funktion ist im Rumpf ein Parameterverweis und wird gegen ihren deklarierten Typ
+	// aufgerufen. Roh, nicht aufgelöst: Sonst stünde für einen Parametertyp wie TypeOf(x) schon die
+	// Schranke von x, und der Rumpf würde nur für irgendeinen Aufruf geprüft statt für jeden.
+	if (functionType?.julType === 'parameterReference') {
+		const declaredType = getParameterUpperBound(functionType);
+		const declaredFunctionType = declaredType && resolveAlias(declaredType);
+		if (isFunctionType(declaredFunctionType)) {
+			return resolveAlias(declaredFunctionType.ParamsType);
+		}
+	}
 	// Ein Aufruf von etwas Ungültigem prüft seine Argumente gegen nichts Erfundenes.
 	if (functionType?.julType === 'invalid') {
 		return builtinInvalid;
@@ -4855,6 +4871,11 @@ function classifyTypenessOnPath(
 			const declared = classifyTypenessOnPath(getParameterUpperBound(resolved), depth + 1, aliasesOnPath);
 			return declared === 'value' ? 'value' : 'unknown';
 		}
+		// Dasselbe Argument, nur als Typ gelesen.
+		case 'valueAsType':
+			return resolved.Source.julType === 'parameterReference'
+				? classifyTypenessOnPath(resolved.Source, depth + 1, aliasesOnPath)
+				: 'unknown';
 		case 'any':
 		case 'invalid':
 		case 'never':

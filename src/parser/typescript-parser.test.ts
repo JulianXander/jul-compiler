@@ -154,7 +154,7 @@ describe('TypeScript Parser', () => {
 				'export function f<T>(a: T[]): T[] {}',
 				'(a: List(Any)) ~> List(TypeOf(a)/ElementType)');
 		});
-		it('T direkt', () => expectTypeOfF('export function f<T>(a: T): T {}', '(a: Any) ~> a'));
+		it('T direkt', () => expectTypeOfF('export function f<T>(a: T): T {}', '(a: Any) ~> TypeOf(a)'));
 		it('T als Listenelement im Rückgabetyp', () => {
 			expectTypeOfF(
 				'export function f<T>(a: T[]): T {}',
