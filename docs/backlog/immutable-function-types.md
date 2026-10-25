@@ -6,7 +6,7 @@ Ein Funktionstyp (`CompileTimeFunctionType`) wird beim Prüfen eines Funktionsli
 Platzhaltern angelegt (`ParamsType` und `ReturnType` sind `builtinEmpty`) und erst danach gefüllt:
 `ParamsType` nach den Parametern, `purity`, `literal`, `foldable`, `ReturnType` und `predicate` nach dem
 Rumpf (`checker.ts`, Fall `functionLiteral`). Nach jeder Zuweisung an `ParamsType` oder `ReturnType`
-rechnet `updateFunctionTypeUnresolvedFlag` das Flag `isUnresolvedPlaceholder` neu, weil es sonst nicht
+rechnet `updateFunctionTypeUnresolvedFlag` das Flag `isDeferred` neu, weil es sonst nicht
 mehr stimmt. Alle anderen Typen haben dieses Flag ab dem Erzeugen fest.
 
 Der Grund ist ein Zyklus: Die Parameter-Symbole und jede `parameterReference` im Typ tragen ein
@@ -19,7 +19,7 @@ Funktionsobjekt muss deshalb vor seinen Bestandteilen existieren.
 - Typen sind nicht durchgängig unveränderlich. Ein Cache über Typpaare oder über die Identität eines
   Typs (Relationen, Normalisierung von Unions) ist für Typen mit Funktionsanteil nicht sicher, solange
   ein Funktionstyp noch gefüllt wird.
-- Das Flag `isUnresolvedPlaceholder` und alles, was sich darauf stützt, braucht bei Funktionen eine
+- Das Flag `isDeferred` und alles, was sich darauf stützt, braucht bei Funktionen eine
   eigene Pflege (`updateFunctionTypeUnresolvedFlag`, 4 Aufrufe in `checker.ts`).
 - Wer einen Funktionstyp während der Prüfung des Rumpfs liest, sieht einen Zwischenstand.
 
@@ -160,7 +160,7 @@ Nicht geprüft und offen:
 - Ein Cache für Relationen und normalisierte Unions wäre für Funktionstypen sicher. Ob er sich lohnt,
   ist offen: Der A/B-Test mit der Textliteral-Abkürzung in `removeSubtypes` hat gezeigt, dass weniger
   Aufrufe nicht automatisch weniger Zeit bedeuten.
-- Ohne die Mutation entfällt das Nachführen des Flags `isUnresolvedPlaceholder` bei Funktionstypen.
+- Ohne die Mutation entfällt das Nachführen des Flags `isDeferred` bei Funktionstypen.
 - Möglicherweise lässt sich `structuredClone` in `checkTypes` vermeiden (8 % des Checks). Das hängt
   vom ungecheckten Baum ab, nicht vom Typ, und ist hier nicht untersucht.
 

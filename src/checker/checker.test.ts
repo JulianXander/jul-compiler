@@ -5449,7 +5449,7 @@ f = (row: List(Integer) index: PositiveInteger value: Integer) :> List(Integer) 
 	// Bug: dasselbe Muster wie bei withElementAt, diesmal bei Concat. Innerhalb der eigenen
 	// Funktionsdefinition ist chain noch der eigene, offene Parameter (parameterReference) -
 	// [...chain value] bleibt deshalb als Concat(...) stehen (concatFromTypes:
-	// isUnresolvedPlaceholderType-Guard). Solange dieser Wert die Funktion nur verlässt und
+	// isDeferredType-Guard). Solange dieser Wert die Funktion nur verlässt und
 	// direkt zurückgegeben wird, fällt das nicht auf. Erst wenn er an einer WEITEREN Stelle
 	// erneut als Argument geprüft wird (hier useChain, in yugioh: getController), schlägt
 	// getTypeError zu: es behandelt ein unaufgelöstes Concat als Argument nicht permissiv - nur

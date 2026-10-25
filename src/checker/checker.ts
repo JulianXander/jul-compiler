@@ -130,7 +130,7 @@ import {
 	isTypePropertyOfValue,
 	isUnionType,
 	getLookupType,
-	isUnresolvedPlaceholderType,
+	isDeferredType,
 	mapElementsFromTypes,
 	resolveAlias,
 	resolvePlaceholders,
@@ -814,7 +814,7 @@ function substituteParameterProjections(
 				const projected = dereferenceArgumentTypesNested(calledFunction, argsType, projection.reference);
 				// Empty und Never sagen nichts über die Form: aus einem leeren Argument würde sonst
 				// List(Empty).
-				if (projected.isUnresolvedPlaceholder
+				if (projected.isDeferred
 					|| projected.julType === 'any'
 					|| projected.julType === 'empty'
 					|| projected.julType === 'never') {
@@ -2115,7 +2115,7 @@ function inferType(
 				// Bei einer offenen Quelle legt sich dereferenceNameFromObject aber auf den Namen
 				// fest (a/x), und die Position ginge verloren. Schließt der Typ der Quelle benannte
 				// Felder aus, ist jedes Argument ein Array, gelesen wird also über die Position.
-				const readsByPosition = isUnresolvedPlaceholderType(valueType)
+				const readsByPosition = isDeferredType(valueType)
 					&& !canHaveFieldsBesideEmpty(resolvePlaceholders(valueType));
 				// Die Verengung legt ein And über den noch offenen Parameter, erst der aufgelöste Typ
 				// kennt seine Felder.
@@ -2286,7 +2286,7 @@ function inferType(
 							}
 						}
 						else if (spreadType
-							&& !spreadType.isUnresolvedPlaceholder
+							&& !spreadType.isDeferred
 							&& spreadType.julType !== 'invalid') {
 							// Ein Record-Typ ist geschlossen und nennt alle seine Felder. Was kein Record
 							// ist, trüge keine Felder bei und würde sonst still ignoriert.
@@ -2408,7 +2408,7 @@ function inferType(
 					const rawType = getRawType(unionFunctionChoices
 						? getParamsType(calledFunction)
 						: paramsType);
-					return value.type === 'functionLiteral' || rawType?.isUnresolvedPlaceholder
+					return value.type === 'functionLiteral' || rawType?.isDeferred
 						? instantiateExpectedArgument(
 							calledFunction, bindReceiver(prefixArgumentTypeForArgs, getProvisionalArgsType()), rawType, value)
 						: rawType;
@@ -2540,7 +2540,7 @@ function inferType(
 			// deklarierten Parametertyp zu fallen: erst der Aufrufort kennt den konkreten Typ,
 			// und der generische Rückgabetyp der gerufenen Funktion kann ihn dort exakt
 			// weiterrechnen. Geprüft wird weiter gegen den aufgelösten Typ (siehe oben).
-			const returnPrefixArgumentType = rawPrefixArgumentType && isUnresolvedPlaceholderType(rawPrefixArgumentType)
+			const returnPrefixArgumentType = rawPrefixArgumentType && isDeferredType(rawPrefixArgumentType)
 				? rawPrefixArgumentType
 				: prefixArgumentType;
 			// evaluate generic ReturnType
@@ -2570,8 +2570,8 @@ function inferType(
 					ParamsType: callSiteParamsType,
 					ReturnType: dereferencedReturnType,
 					aliasName: undefined,
-					isUnresolvedPlaceholder: callSiteParamsType.isUnresolvedPlaceholder
-						|| dereferencedReturnType.isUnresolvedPlaceholder,
+					isDeferred: callSiteParamsType.isDeferred
+						|| dereferencedReturnType.isDeferred,
 				});
 			}
 			// Nur der Emitter-Pfad für benannte Argumente liest sie.
@@ -2773,7 +2773,7 @@ function inferType(
 					});
 				}
 				else if (inferredReturnType.julType === 'any'
-					|| isUnresolvedPlaceholderType(rawDeclaredReturnType)) {
+					|| isDeferredType(rawDeclaredReturnType)) {
 					// Any: kein body-Typ bekannt, deklarierter Typ ist die einzige Information.
 					// Platzhalter: der deklarierte Typ referenziert eigene Parameter (z.B.
 					// Concat(TypeOf(a) TypeOf(b))) und muss je Aufruf neu aufgelöst werden - der
@@ -2843,7 +2843,7 @@ function inferType(
 			// deklarierten Parametertyp zurück, obwohl Concat sie am Aufrufort exakt berechnen
 			// könnte (docs/generic-types-through-function-body.md).
 			const hasDeferredSpread = expression.values.some(element =>
-				element.type === 'spread' && isUnresolvedPlaceholderType(element.value.typeInfo!.type));
+				element.type === 'spread' && isDeferredType(element.value.typeInfo!.type));
 			if (hasDeferredSpread) {
 				const sources = expression.values.map(element =>
 					element.type === 'spread'
@@ -2957,7 +2957,7 @@ function inferType(
 					const resolvedDereferencedType = dereferenceNameFromObject(fieldName, sourceType);
 					const dereferencedType = rawDereferencedType ?? resolvedDereferencedType;
 					if (!dereferencedType
-						|| (isUnresolvedPlaceholderType(dereferencedType) && !resolvedDereferencedType)) {
+						|| (isDeferredType(dereferencedType) && !resolvedDereferencedType)) {
 						// Ein Zugriff über einen unaufgelösten Verweis (parameterReference/
 						// nestedReference) liefert selbst IMMER einen aufgeschobenen Knoten, nie
 						// undefined - richtig fürs echte Generic-Warten, würde ein konkret
@@ -3010,7 +3010,7 @@ function inferType(
 			// Bleibt eine Spread-Quelle bis zum Aufruf offen, muss die Aneinanderreihung ebenso
 			// offen bleiben (dieselbe Begründung wie bei case 'list').
 			const hasDeferredSpread = expression.values.some(element =>
-				isUnresolvedPlaceholderType(element.value.typeInfo!.type));
+				isDeferredType(element.value.typeInfo!.type));
 			if (hasDeferredSpread) {
 				return { type: concatFromTypes(expression.values.map(element => element.value.typeInfo!.type)) };
 			}
@@ -4682,7 +4682,7 @@ function getReturnTypeFromFunctionType(possibleFunctionType: TypeInfo | undefine
 	}
 	// Ein Funktions-Parameter ist im Rumpf ein offener Verweis. Zugesichert ist sein deklarierter
 	// Funktionstyp, also auch dessen Rückgabetyp.
-	if (isUnresolvedPlaceholderType(rawType)) {
+	if (isDeferredType(rawType)) {
 		const declaredType = resolvePlaceholders(rawType);
 		if (isFunctionType(declaredType)) {
 			return declaredType.ReturnType;

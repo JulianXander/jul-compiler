@@ -74,9 +74,9 @@ import { checkerStats, resultContext } from './checker-stats.js';
 import { getNameFromValue, isInsideFunctionLiteral } from '../parser/parser-utils.js';
 
 /**
- * Ergebnis von containsArgumentPlaceholder je Typobjekt.
+ * Ergebnis von hasArgumentSubstitution je Typobjekt.
  */
-const argumentPlaceholderCache = new WeakMap<CompileTimeType, boolean>();
+const argumentSubstitutionCache = new WeakMap<CompileTimeType, boolean>();
 
 /**
  * Der aufgelöste Typ je Anwendungsknoten (Alias mit args), siehe dereferenceAlias.
@@ -126,7 +126,7 @@ function withReturnOrParamsType(
 		ParamsType: paramsType,
 		ReturnType: returnType,
 		aliasName: undefined,
-		isUnresolvedPlaceholder: paramsType.isUnresolvedPlaceholder || returnType.isUnresolvedPlaceholder,
+		isDeferred: paramsType.isDeferred || returnType.isDeferred,
 	});
 }
 
@@ -484,7 +484,7 @@ export function dereferenceNestedKeyFromObject(
 			// Ein Platzhalter kann sich noch zu einem Literal auflösen, der Knoten bleibt also
 			// stehen. Nur ein aufgelöster, aber unbestimmter Schlüssel (PositiveInteger, Any)
 			// heißt wirklich "die Position steht nicht fest".
-			if (isUnresolvedPlaceholderType(nestedKey)) {
+			if (isDeferredType(nestedKey)) {
 				return createNestedReference(source, nestedKey);
 			}
 			// Liegt er zwischen zwei Grenzen, stehen zumindest die möglichen Positionen fest.
@@ -1014,7 +1014,7 @@ export function dereferenceIndexFromObject(
 			// Die Quellen werden abgezählt, solange ihre Länge feststeht; liegt die Position
 			// dahinter, hängt sie vom Argument ab, und der Zugriff wartet auf die aufgelösten
 			// Quellen, statt verloren zu gehen.
-			const deferred = sourceObjectType.Sources.some(isUnresolvedPlaceholderType)
+			const deferred = sourceObjectType.Sources.some(isDeferredType)
 				? createNestedReference(sourceObjectType, index)
 				: undefined;
 			let remainingIndex = index;
@@ -1239,7 +1239,7 @@ export function resolvePlaceholders(rawType: CompileTimeType): CompileTimeType {
  */
 export function getLookupType(rawType: CompileTimeType): CompileTimeType {
 	return (rawType.julType === 'and' || rawType.julType === 'or')
-		&& isUnresolvedPlaceholderType(rawType)
+		&& isDeferredType(rawType)
 		? resolvePlaceholders(rawType)
 		: rawType;
 }
@@ -1247,32 +1247,34 @@ export function getLookupType(rawType: CompileTimeType): CompileTimeType {
 /**
  * Enthält der Typ etwas, das traversePlaceholders mit argumentContext ersetzen würde? Folgt
  * denselben Abstiegen, also nicht in Funktionen, Parameter und das Ziel eines Alias. Das Flag
- * isUnresolvedPlaceholder taugt dafür nicht, ein Dictionary-Literal setzt es bewusst nie.
+ * isDeferred ist eine andere Frage (wartet der Typ als Ganzes?) und taugt dafür nicht: Ein
+ * Dictionary-Literal setzt es bewusst nie, eine Funktion mit offenen Parametern setzt es,
+ * obwohl hier nicht in sie abgestiegen wird.
  * Gecacht, weil große Dictionary-Literale sonst bei jedem Aufruf durchlaufen würden. Das geht, weil
  * Dictionary-Literale und Tupel nach dem Erzeugen nicht mehr verändert werden.
  */
-function containsArgumentPlaceholder(type: CompileTimeType): boolean {
+function hasArgumentSubstitution(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'parameterReference':
 		case 'nestedReference':
 			return true;
 		case 'alias':
-			return !!type.args && containsArgumentPlaceholder(type.args);
+			return !!type.args && hasArgumentSubstitution(type.args);
 		case 'function':
 		case 'parameters':
 			return false;
 		default:
 			break;
 	}
-	const cached = argumentPlaceholderCache.get(type);
+	const cached = argumentSubstitutionCache.get(type);
 	if (cached !== undefined) {
 		return cached;
 	}
 	let contains = false;
 	forEachChildType(type, child => {
-		contains ||= containsArgumentPlaceholder(child);
+		contains ||= hasArgumentSubstitution(child);
 	});
-	argumentPlaceholderCache.set(type, contains);
+	argumentSubstitutionCache.set(type, contains);
 	return contains;
 }
 
@@ -1354,7 +1356,7 @@ function traversePlaceholdersUncached(
 		case 'dictionaryLiteral': {
 			// Auch mit argumentContext: ein Typparameter in einem Feld (`[value: T]`) wird erst am
 			// Aufruf der Typfunktion konkret.
-			if (argumentContext && !containsArgumentPlaceholder(rawType)) {
+			if (argumentContext && !hasArgumentSubstitution(rawType)) {
 				return rawType;
 			}
 			const rawFields = rawType.FieldTypes;
@@ -1492,7 +1494,7 @@ function traversePlaceholdersUncached(
 		case 'tuple': {
 			// Auch mit argumentContext: ein Typparameter in einem Tupel (`[T T]`) wird erst am
 			// Aufruf der Typfunktion konkret.
-			if (argumentContext && !containsArgumentPlaceholder(rawType)) {
+			if (argumentContext && !hasArgumentSubstitution(rawType)) {
 				return rawType;
 			}
 			const rawElements = rawType.ElementTypes;
@@ -1575,7 +1577,7 @@ function traversePlaceholdersUncached(
 					: mapped;
 			}
 			// Der Rückgabetyp des Callbacks kann noch Parameter der umgebenden Funktion nennen.
-			const resolved = isUnresolvedPlaceholderType(mapped)
+			const resolved = isDeferredType(mapped)
 				? traversePlaceholders(mapped, argumentContext)
 				: mapped;
 			return rawType.deferValueOf
@@ -1802,7 +1804,7 @@ function dereferenceIndexRangeFromObject(
 	rawSource: CompileTimeType,
 ): CompileTimeType | undefined {
 	const source = resolveAlias(rawSource);
-	if (isUnresolvedPlaceholderType(source)) {
+	if (isDeferredType(source)) {
 		return createNestedReference(source, range);
 	}
 	// Steht die Quelle fest, müssen die Grenzen jetzt entschieden werden. Ein weggelassenes
@@ -1888,7 +1890,7 @@ export function mapElementsFromTypes(
 ): CompileTimeType {
 	const callbackType = resolveAlias(rawCallbackType);
 	if (callbackType.julType !== 'function'
-		&& isUnresolvedPlaceholderType(callbackType)) {
+		&& isDeferredType(callbackType)) {
 		return createCompileTimeMapElementsType(rawSourceType, rawCallbackType);
 	}
 	const sourceType = resolveAlias(rawSourceType);
@@ -1943,7 +1945,7 @@ export function mapElementsFromTypes(
 			return createNormalizedUnionType(sourceType.ChoiceTypes.map(choiceType =>
 				mapElementsFromTypes(choiceType, rawCallbackType)));
 		default:
-			if (isUnresolvedPlaceholderType(sourceType)) {
+			if (isDeferredType(sourceType)) {
 				return createCompileTimeMapElementsType(rawSourceType, rawCallbackType);
 			}
 			// Über die Quelle ist nichts bekannt, sie kann also auch leer sein.
@@ -2027,7 +2029,7 @@ function concatSequenceSourcesLinear(sourceTypes: CompileTimeType[]): CompileTim
  * Quellen aufschieben.
  */
 export function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType {
-	if (sourceTypes.some(isUnresolvedPlaceholderType)) {
+	if (sourceTypes.some(isDeferredType)) {
 		return createCompileTimeConcatType(sourceTypes);
 	}
 	// Or-Quelle zuerst verteilen (Fund: Or([] List(X)) ist das Idiom für eine möglicherweise
@@ -2111,7 +2113,7 @@ export function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType
  * Bleibt stehen, solange ArgsType noch Platzhalter enthält.
  */
 export function addFromTypes(rawArgsType: CompileTimeType): CompileTimeType {
-	if (isUnresolvedPlaceholderType(rawArgsType)) {
+	if (isDeferredType(rawArgsType)) {
 		return createCompileTimeAddType(rawArgsType);
 	}
 	const argsType = resolveAlias(rawArgsType);
@@ -2152,8 +2154,8 @@ export function addFromTypes(rawArgsType: CompileTimeType): CompileTimeType {
  * Bleibt stehen, solange minuend oder subtrahend noch Platzhalter enthält.
  */
 export function subtractFromTypes(rawMinuendType: CompileTimeType, rawSubtrahendType: CompileTimeType): CompileTimeType {
-	if (isUnresolvedPlaceholderType(rawMinuendType)
-		|| isUnresolvedPlaceholderType(rawSubtrahendType)) {
+	if (isDeferredType(rawMinuendType)
+		|| isDeferredType(rawSubtrahendType)) {
 		return createCompileTimeSubtractType(rawMinuendType, rawSubtrahendType);
 	}
 	if (isSubtypeOf(rawMinuendType, builtinInteger) !== true
@@ -2306,7 +2308,7 @@ export function getLengthFromType(rawArgType: CompileTimeType | undefined): Comp
 			// als nestedReference): Länge an die Quelle binden, statt sie auf ein anonymes Integer
 			// abzuflachen - sonst erkennt ElementAt später nicht mehr, dass ein Index exakt diese
 			// Länge ist (siehe dereferenceNestedKeyFromObject, case 'lengthOf').
-			return isUnresolvedPlaceholderType(argType)
+			return isDeferredType(argType)
 				? createCompileTimeLengthOfType(argType)
 				// TODO non negative
 				: builtinInteger;
@@ -2326,8 +2328,8 @@ export function withElementAtFromTypes(
 	const indexType = resolveAlias(rawIndexType);
 	// Ein Platzhalter kann sich noch zu einem Literal auflösen - dann steht genau eine Position
 	// fest. Vorschnelles Falten würde stattdessen jede Position mit Value vereinigen.
-	if (isUnresolvedPlaceholderType(sourceType)
-		|| isUnresolvedPlaceholderType(indexType)) {
+	if (isDeferredType(sourceType)
+		|| isDeferredType(indexType)) {
 		return createCompileTimeWithElementAtType(sourceType, indexType, valueType);
 	}
 	if (isUnionType(indexType)) {
@@ -2412,7 +2414,7 @@ export function createConditionalType(
 	operands: CompileTimeType[],
 	branches: ConditionalTypeBranch[],
 ): CompileTimeType {
-	if (operands.some(isUnresolvedPlaceholderType)) {
+	if (operands.some(isDeferredType)) {
 		return createCompileTimeConditionalType(operands, branches);
 	}
 	const collection = operands.length
@@ -2475,7 +2477,8 @@ function getOperandsRelationToHead(
 //#region Typ Arithmetik
 
 /**
- * Wartet dieser Typ noch auf den Aufrufort?
+ * Wartet dieser Typ als Ganzes noch auf den Aufrufort? Nicht dasselbe wie "enthält einen Platzhalter",
+ * siehe isDeferred in syntax-tree.ts.
  * Choices, für die das gilt, werden nie verworfen und verwerfen auch nichts, damit die
  * Elimination im Zweifel keine Information wegwirft (Prinzip Freiheit) - isTypeAssignable prüft eine
  * parameterReference gegen ihren deklarierten Typ, ein Ja darüber würde sonst eine Elimination
@@ -2484,8 +2487,8 @@ function getOperandsRelationToHead(
  * syntax-tree.ts), weil die Frage pro Typ vielfach gestellt wird - unter anderem in einer
  * verschachtelten Schleife in removeSubtypes.
  */
-export function isUnresolvedPlaceholderType(type: CompileTimeType): boolean {
-	return type.isUnresolvedPlaceholder;
+export function isDeferredType(type: CompileTimeType): boolean {
+	return type.isDeferred;
 }
 
 /**
@@ -2539,7 +2542,7 @@ function createDisjointByDiscriminantCheck(): (first: CompileTimeType, second: C
 function removeSubtypes(choices: CompileTimeType[]): CompileTimeType[] {
 	const isDisjointByDiscriminant = createDisjointByDiscriminantCheck();
 	const isComparable = (type: CompileTimeType) =>
-		!isUnresolvedPlaceholderType(type)
+		!isDeferredType(type)
 		&& !isOpaqueForNormalization(type);
 	return choices.filter((choice, index) => {
 		if (!isComparable(choice)) {
@@ -4323,7 +4326,7 @@ function isTypeAssignableByStructure(
 		case 'subtract': {
 			// Wie withElementAt: eine noch unaufgelöste Source (z.B. der eigene Parameter, bevor
 			// er am Aufruf substituiert wird) hält den Knoten als Concat(...) stehen
-			// (concatFromTypes: isUnresolvedPlaceholderType-Guard). Erst per resolvePlaceholders
+			// (concatFromTypes: isDeferredType-Guard). Erst per resolvePlaceholders
 			// neu falten versuchen, sonst permissiv wie nestedReference - als Zieltyp ist concat
 			// schon permissiv (siehe unten), als Argumenttyp fehlte das.
 			const resolved = resolvePlaceholders(argumentsType);
@@ -4379,7 +4382,7 @@ function isTypeAssignableByStructure(
 				default:
 					// Steht das target noch nicht fest, ist nichts entschieden. Jedes andere target
 					// lässt Werte außerhalb von A aus, etwa Text bei Not(0) gegen Integer.
-					return isUnresolvedPlaceholderType(targetType)
+					return isDeferredType(targetType)
 						? { assignable: undefined }
 						: getDefaultTypeError(argumentsType, targetType);
 			}
@@ -5336,7 +5339,7 @@ function isTypeAssignableForParametersWithLeading(
 			if (resolved !== argumentsType) {
 				return isTypeAssignableForParametersWithLeading(leadingArgumentType, resolved, targetType);
 			}
-			if (isUnresolvedPlaceholderType(argumentsType)
+			if (isDeferredType(argumentsType)
 				|| argumentsType.julType === 'concat') {
 				return { assignable: undefined };
 			}

@@ -755,11 +755,16 @@ interface CompileTimeTypeBase {
 	 */
 	declaration?: TypeDeclaration;
 	/**
-	 * Gecachtes Ergebnis von isUnresolvedPlaceholderType: enthält dieser Typ einen Platzhalter,
-	 * der noch auf den Aufrufort wartet? Pflichtfeld, damit der Compiler jede Konstruktionsstelle
-	 * erzwingt - wer es vergisst, bekäme sonst still `undefined` und damit "aufgelöst".
+	 * Gecachtes Ergebnis von isDeferredType: wartet dieser Typ als Ganzes noch auf den Aufrufort,
+	 * ist er also noch nicht vergleichbar, übersetzbar oder normalisierbar? Das ist NICHT "enthält
+	 * irgendwo einen Platzhalter": dictionaryLiteral, parameters und lengthOf setzen es bewusst auf
+	 * false (als Ganzes verwendbar, auch mit offenen Feldern), ein alias erbt es nur aus seinen
+	 * Argumenten. Ob eine Ersetzung per argumentContext etwas ändern würde, beantwortet
+	 * hasArgumentSubstitution in type-algebra.ts, nicht dieses Flag.
+	 * Pflichtfeld, damit der Compiler jede Konstruktionsstelle erzwingt - wer es vergisst, bekäme
+	 * sonst still `undefined` und damit "verwendbar".
 	 */
-	isUnresolvedPlaceholder: boolean;
+	isDeferred: boolean;
 	/**
 	 * Eindeutige Nummer des Objekts, vergeben bei der Erzeugung (siehe internType). Strukturell
 	 * gleiche Typen sind dasselbe Objekt und haben dieselbe Nummer, damit steht sie für den Typ
@@ -1021,7 +1026,7 @@ export function createCompileTimeComplementType(SourceType: CompileTimeType): Co
 	return internType(`not:${SourceType.id}`, id => ({
 		julType: 'not',
 		SourceType: SourceType,
-		isUnresolvedPlaceholder: SourceType.isUnresolvedPlaceholder,
+		isDeferred: SourceType.isDeferred,
 		id: id,
 	}));
 }
@@ -1057,7 +1062,7 @@ export function createCompileTimePredicateType(
 		UpperBound: UpperBound,
 		LowerBound: LowerBound,
 		name: name,
-		isUnresolvedPlaceholder: FunctionType.isUnresolvedPlaceholder,
+		isDeferred: FunctionType.isDeferred,
 		id: id,
 	}));
 }
@@ -1087,7 +1092,7 @@ export function createCompileTimeBoundType(
 		Relation: Relation,
 		Family: Family,
 		Value: Value,
-		isUnresolvedPlaceholder: Value.isUnresolvedPlaceholder,
+		isDeferred: Value.isDeferred,
 		id: id,
 	}));
 }
@@ -1109,7 +1114,7 @@ export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileT
 		Source: Source,
 		// Die Länge selbst wartet nicht: sie ist immer ein Integer, egal wie offen die Quelle noch
 		// ist. Wer die Quelle meint, prüft sie ausdrücklich.
-		isUnresolvedPlaceholder: false,
+		isDeferred: false,
 		id: id,
 	}));
 }
@@ -1136,7 +1141,7 @@ export function createCompileTimeWithElementAtType(
 		Source: Source,
 		Index: Index,
 		Value: Value,
-		isUnresolvedPlaceholder: true,
+		isDeferred: true,
 		id: id,
 	}));
 }
@@ -1167,7 +1172,7 @@ export function createCompileTimeConditionalType(
 		julType: 'conditional',
 		Operands: Operands,
 		Branches: Branches,
-		isUnresolvedPlaceholder: true,
+		isDeferred: true,
 		id: id,
 	}));
 }
@@ -1190,7 +1195,7 @@ export function createCompileTimeIndexRangeType(
 		julType: 'indexRange',
 		Start: Start,
 		End: End,
-		isUnresolvedPlaceholder: Start.isUnresolvedPlaceholder || End.isUnresolvedPlaceholder,
+		isDeferred: Start.isDeferred || End.isDeferred,
 		id: id,
 	}));
 }
@@ -1219,7 +1224,7 @@ export function createCompileTimeMapElementsType(
 		julType: 'mapElements',
 		Source: Source,
 		Callback: Callback,
-		isUnresolvedPlaceholder: true,
+		isDeferred: true,
 		id: id,
 	}));
 }
@@ -1240,7 +1245,7 @@ export function createCompileTimeConcatType(
 	return internType(`concat:${getIds(Sources)}`, id => ({
 		julType: 'concat',
 		Sources: Sources,
-		isUnresolvedPlaceholder: Sources.some(s => s.isUnresolvedPlaceholder),
+		isDeferred: Sources.some(s => s.isDeferred),
 		id: id,
 	}));
 }
@@ -1258,7 +1263,7 @@ export function createCompileTimeAddType(ArgsType: CompileTimeType): CompileTime
 	return internType(`add:${ArgsType.id}`, id => ({
 		julType: 'add',
 		ArgsType: ArgsType,
-		isUnresolvedPlaceholder: true,
+		isDeferred: true,
 		id: id,
 	}));
 }
@@ -1281,7 +1286,7 @@ export function createCompileTimeSubtractType(
 		julType: 'subtract',
 		MinuendType: MinuendType,
 		SubtrahendType: SubtrahendType,
-		isUnresolvedPlaceholder: true,
+		isDeferred: true,
 		id: id,
 	}));
 }
@@ -1345,7 +1350,7 @@ export function createCompileTimeDictionaryLiteralType(
 		aliasName: aliasName,
 		// Felder zählen nicht mit: ein Dictionary ist als Ganzes zuweisbar, auch wenn einzelne
 		// Feldtypen noch offen sind.
-		isUnresolvedPlaceholder: false,
+		isDeferred: false,
 		id: nextTypeId++,
 	};
 	const entry: DictionaryLiteralEntry = { type: type, fieldNames: Object.keys(Fields) };
@@ -1404,7 +1409,7 @@ export function createCompileTimeDictionaryType(
 		julType: 'dictionary',
 		ElementType: ElementType,
 		aliasName: aliasName,
-		isUnresolvedPlaceholder: ElementType.isUnresolvedPlaceholder,
+		isDeferred: ElementType.isDeferred,
 		id: id,
 	}));
 }
@@ -1513,7 +1518,7 @@ export function createCompileTimeFunctionType(
 		ReturnType: ReturnType,
 		purity: purity,
 		aliasName: aliasName,
-		isUnresolvedPlaceholder: ParamsType.isUnresolvedPlaceholder || ReturnType.isUnresolvedPlaceholder,
+		isDeferred: ParamsType.isDeferred || ReturnType.isDeferred,
 		id: nextTypeId++,
 	};
 	if (extras?.predicate) {
@@ -1542,7 +1547,7 @@ export function createCompileTimeIntersectionType(ChoiceTypes: CompileTimeType[]
 	return internType(`and:${getIds(ChoiceTypes)}`, id => ({
 		julType: 'and',
 		ChoiceTypes: ChoiceTypes,
-		isUnresolvedPlaceholder: ChoiceTypes.some(t => t.isUnresolvedPlaceholder),
+		isDeferred: ChoiceTypes.some(t => t.isDeferred),
 		id: id,
 	}));
 }
@@ -1556,7 +1561,7 @@ export function createCompileTimeListType(ElementType: CompileTimeType): Compile
 	return internType(`list:${ElementType.id}`, id => ({
 		julType: 'list',
 		ElementType: ElementType,
-		isUnresolvedPlaceholder: ElementType.isUnresolvedPlaceholder,
+		isDeferred: ElementType.isDeferred,
 		id: id,
 	}));
 }
@@ -1576,7 +1581,7 @@ export function createCompileTimeStreamType(ValueType: CompileTimeType, finite: 
 		julType: 'stream',
 		ValueType: ValueType,
 		finite: finite,
-		isUnresolvedPlaceholder: ValueType.isUnresolvedPlaceholder,
+		isDeferred: ValueType.isDeferred,
 		id: id,
 	}));
 }
@@ -1591,7 +1596,7 @@ export function createCompileTimeTupleType(ElementTypes: CompileTimeType[]): Com
 	return internType(`tuple:${getIds(ElementTypes)}`, id => ({
 		julType: 'tuple',
 		ElementTypes: ElementTypes,
-		isUnresolvedPlaceholder: ElementTypes.some(t => t.isUnresolvedPlaceholder),
+		isDeferred: ElementTypes.some(t => t.isDeferred),
 		id: id,
 	}));
 }
@@ -1605,7 +1610,7 @@ export function createCompileTimeTypeOfType(value: CompileTimeType): CompileTime
 	return internType(`typeOf:${value.id}`, id => ({
 		julType: 'typeOf',
 		value: value,
-		isUnresolvedPlaceholder: value.isUnresolvedPlaceholder,
+		isDeferred: value.isDeferred,
 		id: id,
 	}));
 }
@@ -1619,7 +1624,7 @@ export function createCompileTimeUnionType(ChoiceTypes: CompileTimeType[]): Comp
 	return internType(`or:${getIds(ChoiceTypes)}`, id => ({
 		julType: 'or',
 		ChoiceTypes: ChoiceTypes,
-		isUnresolvedPlaceholder: ChoiceTypes.some(t => t.isUnresolvedPlaceholder),
+		isDeferred: ChoiceTypes.some(t => t.isDeferred),
 		id: id,
 	}));
 }
@@ -1651,7 +1656,7 @@ export function createNestedReference(source: CompileTimeType, nestedKey: string
 		nestedKey: nestedKey,
 		// Der Knoten entsteht nur, wenn der Zugriff nicht gefaltet werden konnte - er wartet also
 		// noch, unabhängig davon, wie aufgelöst Quelle und Schlüssel einzeln aussehen.
-		isUnresolvedPlaceholder: true,
+		isDeferred: true,
 		id: id,
 	}));
 }
@@ -1681,7 +1686,7 @@ export function createParameterReference(name: string, index: number): Parameter
 		julType: 'parameterReference',
 		name: name,
 		index: index,
-		isUnresolvedPlaceholder: true,
+		isDeferred: true,
 		id: nextTypeId++,
 	};
 }
@@ -1712,7 +1717,7 @@ export function createCompileTimeAliasType(name: string, symbol: SymbolDefinitio
 		// einen Aufrufort wartet, der nie kommen muss. Als unaufgelöst gemeldet würde er jeden
 		// Konsumenten verteuern, ohne dass er je auf etwas wartet. Offene Argumente warten dagegen
 		// sehr wohl auf den Aufruf der umgebenden Typfunktion.
-		isUnresolvedPlaceholder: args?.isUnresolvedPlaceholder ?? false,
+		isDeferred: args?.isDeferred ?? false,
 		id: id,
 	}));
 }
@@ -1736,7 +1741,7 @@ export function createParametersType(singleNames: Parameter[], rest?: Parameter)
 		rest: rest,
 		// Eine Parameterliste steht als Ganzes fest; offene Parametertypen macht getTypeError
 		// einzeln permissiv (hasReliableTypeError).
-		isUnresolvedPlaceholder: false,
+		isDeferred: false,
 		id: id,
 	}));
 }
@@ -1871,23 +1876,23 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 //#region Blatt-Typ Factories - für O(1) Zugriff ohne Rekursion
 
 /**
- * Gecachte Instanzen für häufig verwendete Blatt-Typen - alle haben isUnresolvedPlaceholder: false
+ * Gecachte Instanzen für häufig verwendete Blatt-Typen - alle haben isDeferred: false
  */
-export const builtinAny: AnyType = { julType: 'any', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinInvalid: InvalidType = { julType: 'invalid', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinNever: NeverType = { julType: 'never', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinEmpty: EmptyType = { julType: 'empty', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinBoolean: BooleanType = { julType: 'boolean', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinInteger: IntegerType = { julType: 'integer', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinFloat: FloatType = { julType: 'float', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinText: TextType = { julType: 'text', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinDate: DateType = { julType: 'date', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinBlob: BlobType = { julType: 'blob', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinType: TypeType = { julType: 'type', isUnresolvedPlaceholder: false, id: createTypeId() };
-export const builtinError: ErrorType = { julType: 'error', isUnresolvedPlaceholder: false, id: createTypeId() };
+export const builtinAny: AnyType = { julType: 'any', isDeferred: false, id: createTypeId() };
+export const builtinInvalid: InvalidType = { julType: 'invalid', isDeferred: false, id: createTypeId() };
+export const builtinNever: NeverType = { julType: 'never', isDeferred: false, id: createTypeId() };
+export const builtinEmpty: EmptyType = { julType: 'empty', isDeferred: false, id: createTypeId() };
+export const builtinBoolean: BooleanType = { julType: 'boolean', isDeferred: false, id: createTypeId() };
+export const builtinInteger: IntegerType = { julType: 'integer', isDeferred: false, id: createTypeId() };
+export const builtinFloat: FloatType = { julType: 'float', isDeferred: false, id: createTypeId() };
+export const builtinText: TextType = { julType: 'text', isDeferred: false, id: createTypeId() };
+export const builtinDate: DateType = { julType: 'date', isDeferred: false, id: createTypeId() };
+export const builtinBlob: BlobType = { julType: 'blob', isDeferred: false, id: createTypeId() };
+export const builtinType: TypeType = { julType: 'type', isDeferred: false, id: createTypeId() };
+export const builtinError: ErrorType = { julType: 'error', isDeferred: false, id: createTypeId() };
 
 export function createBooleanLiteral(value: boolean): BooleanLiteralType {
-	return internType(`boolean-literal:${value}`, id => ({ julType: 'booleanLiteral', value, isUnresolvedPlaceholder: false, id: id }));
+	return internType(`boolean-literal:${value}`, id => ({ julType: 'booleanLiteral', value, isDeferred: false, id: id }));
 }
 
 // Eigene Tabellen ohne zusammengesetzten Schlüssel: Die Literale sind zahlreich (Daten aus JSON), und ein
@@ -1901,14 +1906,14 @@ export function createIntegerLiteral(value: bigint): IntegerLiteralType {
 		if (integerLiterals.size >= maxInternedTypes) {
 			integerLiterals.clear();
 		}
-		literal = { julType: 'integerLiteral', value, isUnresolvedPlaceholder: false, id: createTypeId() };
+		literal = { julType: 'integerLiteral', value, isDeferred: false, id: createTypeId() };
 		integerLiterals.set(value, literal);
 	}
 	return literal;
 }
 
 export function createFloatLiteral(value: number): FloatLiteralType {
-	return internType(`float-literal:${Object.is(value, -0) ? '-0' : value}`, id => ({ julType: 'floatLiteral', value, isUnresolvedPlaceholder: false, id: id }));
+	return internType(`float-literal:${Object.is(value, -0) ? '-0' : value}`, id => ({ julType: 'floatLiteral', value, isDeferred: false, id: id }));
 }
 
 export function createTextLiteral(value: string): TextLiteralType {
@@ -1917,7 +1922,7 @@ export function createTextLiteral(value: string): TextLiteralType {
 		if (textLiterals.size >= maxInternedTypes) {
 			textLiterals.clear();
 		}
-		literal = { julType: 'textLiteral', value, isUnresolvedPlaceholder: false, id: createTypeId() };
+		literal = { julType: 'textLiteral', value, isDeferred: false, id: createTypeId() };
 		textLiterals.set(value, literal);
 	}
 	return literal;
@@ -1950,7 +1955,7 @@ export function withDeferValueOf<T extends NestedReferenceType | CompileTimeMapE
  */
 export function copyFunctionType(
 	functionType: CompileTimeFunctionType,
-	changes: Partial<Pick<CompileTimeFunctionType, 'ParamsType' | 'ReturnType' | 'purity' | 'aliasName' | 'isUnresolvedPlaceholder'>>,
+	changes: Partial<Pick<CompileTimeFunctionType, 'ParamsType' | 'ReturnType' | 'purity' | 'aliasName' | 'isDeferred'>>,
 ): CompileTimeFunctionType {
 	return { ...functionType, ...changes, id: nextTypeId++ };
 }

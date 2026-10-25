@@ -135,7 +135,7 @@ const maxAliasDepth = 100;
  */
 function typeToRuntimeType(rawType: CompileTimeType): unknown | undefined {
 	const type = dereferencePlainAlias(rawType);
-	if (!type || type.isUnresolvedPlaceholder) {
+	if (!type || type.isDeferred) {
 		return undefined;
 	}
 	const builtin = getBuiltinRuntimeType(type);
