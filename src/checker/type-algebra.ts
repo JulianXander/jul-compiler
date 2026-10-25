@@ -2802,7 +2802,14 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		&& resolveAlias(choice).julType === 'invalid')) {
 		return builtinInvalid;
 	}
-	// TODO flatten nested IntersectionTypes?
+
+	// Mit einer anderen Operandenzahl als zwei läuft alles über die Reduktion auf einer flachen
+	// Operandenliste, die die Paarregeln unten wiederverwendet. Zwei Operanden gehen zuerst durch
+	// die Paarregeln: Die liefern den geschriebenen Operanden samt Alias zurück, ein Aufflachen
+	// vorher ginge verloren (And(Rng Integer) mit Rng = And(...) soll Rng bleiben).
+	if (ChoiceTypes.length !== 2) {
+		return reduceIntersectionOperands(ChoiceTypes);
+	}
 
 	if (ChoiceTypes.length === 2) {
 		const first = resolveAlias(ChoiceTypes[0]!);
@@ -2959,6 +2966,23 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		}
 	}
 
+	// Kein Paarregel hat gegriffen: ein verschachteltes And wird aufgeflacht und dann mit den
+	// Operanden der anderen Seite reduziert.
+	if (ChoiceTypes.some(isNestedIntersection)) {
+		return reduceIntersectionOperands(ChoiceTypes);
+	}
+	return finishIntersection(ChoiceTypes);
+}
+
+function isNestedIntersection(choice: CompileTimeType): boolean {
+	return !isOpaqueForNormalization(choice)
+		&& resolveAlias(choice).julType === 'and';
+}
+
+/**
+ * Baut das And aus Operanden, die sich paarweise nicht weiter reduzieren lassen.
+ */
+function finishIntersection(ChoiceTypes: CompileTimeType[]): CompileTimeType {
 	const intersectionType = createCompileTimeIntersectionType(ChoiceTypes);
 	// Grenzen ohne gemeinsame ganze Zahl, auch über mehr als zwei Choices:
 	// And(Integer GreaterInteger(2) LessInteger(2)) => Never
@@ -2968,6 +2992,62 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		return builtinNever;
 	}
 	return intersectionType;
+}
+
+/**
+ * Normalisiert ein And mit beliebig vielen Operanden und verschachtelten Operanden.
+ * Verschachtelte And werden aufgeflacht, dann wird jeder Operand paarweise gegen die schon
+ * behaltenen reduziert (Teilmenge, Disjunktheit, Not, Any, Never, Distribution). Ein Paar, das
+ * sich reduziert, geht als Ergebnis zurück in die Warteschlange und trifft erneut auf die
+ * übrigen Operanden. Die Paarregeln selbst stehen in createNormalizedIntersectionTypeUncached.
+ */
+function reduceIntersectionOperands(ChoiceTypes: CompileTimeType[]): CompileTimeType {
+	const pending = [...ChoiceTypes];
+	const kept: CompileTimeType[] = [];
+	while (pending.length > 0) {
+		const operand = pending.shift()!;
+		const resolved = isOpaqueForNormalization(operand)
+			? undefined
+			: resolveAlias(operand);
+		if (resolved?.julType === 'and') {
+			// Aufflachen unter Erhalt der Reihenfolge
+			pending.unshift(...resolved.ChoiceTypes);
+			continue;
+		}
+		let reducedWith: number | undefined;
+		let reduced: CompileTimeType | undefined;
+		for (let index = 0; index < kept.length; index++) {
+			const other = kept[index]!;
+			const pair = createNormalizedIntersectionType([other, operand]);
+			if (pair.julType === 'never') {
+				return builtinNever;
+			}
+			// Unverändert, wenn das Paar mit denselben beiden Operanden zurückkommt.
+			const unchanged = pair.julType === 'and'
+				&& pair.ChoiceTypes.length === 2
+				&& pair.ChoiceTypes[0] === other
+				&& pair.ChoiceTypes[1] === operand;
+			if (!unchanged) {
+				reducedWith = index;
+				reduced = pair;
+				break;
+			}
+		}
+		if (reducedWith === undefined) {
+			kept.push(operand);
+		}
+		else {
+			kept.splice(reducedWith, 1);
+			pending.unshift(reduced!);
+		}
+	}
+	if (kept.length === 0) {
+		return builtinAny;
+	}
+	if (kept.length === 1) {
+		return kept[0]!;
+	}
+	return finishIntersection(kept);
 }
 
 /**

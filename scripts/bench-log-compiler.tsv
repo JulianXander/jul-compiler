@@ -302,3 +302,15 @@
 2026-10-25 08:55:07	cadfa2a+	-	ADV-DEV-56627	yugioh	parse+check	5	8367.84	10377.83	10377.83	Box-Modell branch-coverage
 2026-10-25 08:55:07	cadfa2a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	670.54	680.84	680.84	Box-Modell branch-coverage
 2026-10-25 08:55:07	cadfa2a+	-	ADV-DEV-56627	yugioh	parse	5	58.83	64.67	64.67	Box-Modell branch-coverage
+2026-10-25 09:09:18	151fd2a+	-	ADV-DEV-56627	yugioh	parse+check	5	8257.68	8565.40	8565.40	vor And-Normalisierung n-aer
+2026-10-25 09:09:18	151fd2a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	607.94	677.05	677.05	vor And-Normalisierung n-aer
+2026-10-25 09:09:18	151fd2a+	-	ADV-DEV-56627	yugioh	parse	5	53.86	58.72	58.72	vor And-Normalisierung n-aer
+2026-10-25 09:11:38	151fd2a+	-	ADV-DEV-56627	yugioh	parse+check	5	9410.81	10094.99	10094.99	nach And-Normalisierung n-aer
+2026-10-25 09:11:38	151fd2a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	734.13	760.64	760.64	nach And-Normalisierung n-aer
+2026-10-25 09:11:38	151fd2a+	-	ADV-DEV-56627	yugioh	parse	5	60.01	64.36	64.36	nach And-Normalisierung n-aer
+2026-10-25 09:12:35	151fd2a+	-	ADV-DEV-56627	yugioh	parse+check	5	9917.86	10167.43	10167.43	nach And n-aer, Wiederholung 1
+2026-10-25 09:12:35	151fd2a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	651.29	690.41	690.41	nach And n-aer, Wiederholung 1
+2026-10-25 09:12:35	151fd2a+	-	ADV-DEV-56627	yugioh	parse	5	54.53	61.13	61.13	nach And n-aer, Wiederholung 1
+2026-10-25 09:13:27	151fd2a+	-	ADV-DEV-56627	yugioh	parse+check	5	9499.37	10227.18	10227.18	nach And n-aer, Wiederholung 2
+2026-10-25 09:13:27	151fd2a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	687.51	780.45	780.45	nach And n-aer, Wiederholung 2
+2026-10-25 09:13:27	151fd2a+	-	ADV-DEV-56627	yugioh	parse	5	57.30	92.30	92.30	nach And n-aer, Wiederholung 2

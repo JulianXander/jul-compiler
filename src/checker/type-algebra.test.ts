@@ -220,6 +220,57 @@ describe('Typalgebra', () => {
 	it('intersection-of-disjoint-types-is-never', () => {
 		expect(and([builtinInteger, builtinText])).to.equal(builtinNever);
 	});
+	//#region Intersection mit mehr als zwei Operanden
+	// Die Regeln gelten unabhängig von der Operandenzahl und der Position.
+	it('intersection-of-three-disjoint-types-is-never', () => {
+		expect(and([builtinInteger, builtinText, builtinBoolean])).to.equal(builtinNever);
+	});
+	it('intersection-with-disjoint-pair-in-the-middle-is-never', () => {
+		expect(and([builtinInteger, builtinText, not(integerLiteral(0))])).to.equal(builtinNever);
+	});
+	it('intersection-of-three-with-never-is-never', () => {
+		expect(and([builtinInteger, builtinNever, not(integerLiteral(0))])).to.equal(builtinNever);
+	});
+	it('intersection-of-three-drops-neutral-any', () => {
+		const type = and([builtinInteger, builtinAny, not(integerLiteral(0))]);
+		expect(type).to.deep.equal(and([builtinInteger, not(integerLiteral(0))]));
+	});
+	it('intersection-of-three-with-own-complement-is-never', () => {
+		expect(and([builtinInteger, not(integerLiteral(0)), not(builtinInteger)])).to.equal(builtinNever);
+	});
+	it('intersection-of-three-with-subset-keeps-only-the-subset', () => {
+		expect(and([builtinInteger, integerLiteral(5), not(integerLiteral(0))])).to.deep.equal(integerLiteral(5));
+	});
+	it('intersection-of-three-removes-duplicates', () => {
+		const type = and([builtinInteger, not(integerLiteral(0)), builtinInteger]);
+		expect(type.julType).to.equal('and');
+		expect((type as { ChoiceTypes: CompileTimeType[] }).ChoiceTypes).to.have.length(2);
+	});
+	// Not an erster Stelle wird genauso erkannt wie an zweiter.
+	it('intersection-with-leading-own-complement-is-never', () => {
+		expect(and([not(builtinInteger), builtinInteger])).to.equal(builtinNever);
+	});
+	it('intersection-with-leading-disjoint-complement-is-source', () => {
+		expect(and([not(builtinText), builtinInteger])).to.equal(builtinInteger);
+	});
+	it('intersection-flattens-nested-intersections', () => {
+		const inner = and([builtinInteger, not(integerLiteral(0))]);
+		const type = and([inner, not(integerLiteral(1))]);
+		expect(type.julType).to.equal('and');
+		const choices = (type as { ChoiceTypes: CompileTimeType[] }).ChoiceTypes;
+		expect(choices).to.have.length(3);
+		expect(choices.some(choice => choice.julType === 'and')).to.equal(false);
+	});
+	it('intersection-is-independent-of-nesting', () => {
+		const left = and([and([builtinInteger, not(integerLiteral(0))]), not(integerLiteral(1))]);
+		const right = and([builtinInteger, and([not(integerLiteral(0)), not(integerLiteral(1))])]);
+		expect(typeEquals(left, right)).to.equal(true);
+	});
+	it('intersection-flattens-nested-intersection-and-finds-contradiction', () => {
+		const inner = and([builtinInteger, not(integerLiteral(0))]);
+		expect(and([inner, not(builtinInteger)])).to.equal(builtinNever);
+	});
+	//#endregion Intersection mit mehr als zwei Operanden
 	//#endregion Intersection
 
 	//#region Dictionary
