@@ -624,6 +624,16 @@ f = (v: Or(H Error)) :> [Integer Text] =>
 			(x y) = v
 			[x y]`);
 	});
+	// Ein fehlendes Feld bleibt ein Fehler, auch wenn der verengte Typ noch auf den Parameter wartet.
+	it('branch-narrowing-destructuring-reports-missing-field', () => {
+		expectErrorCodes(`H = [x: Integer y: Text]
+f = (v: Or(H Error)) =>
+	?(v)
+		[Error] => []
+		() =>
+			(x z) = v
+			[x z]`, [ErrorCode.dereferenceFailed]);
+	});
 	it('branch-narrowing-destructures-by-index-in-remaining-branch', () => {
 		expectCheck(`f = (v: Or([Integer Text] Error)) :> [Integer Text] =>
 	?(v)
@@ -8166,6 +8176,66 @@ wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
 	?(d/h)
 		[Error] => d/h
 		() => step(d/h)`)).to.deep.equal([]);
+	});
+	// Bug: TypeOf(values)/ElementType auf einem im Zweig verengten Argument liefert Any. Die Verengung
+	// ist ein Schnitt über dem noch offenen Parameter, und der Zugriff auf einen Schnitt fiel auf Any.
+	it('unknown-not-reported-for-element-type-of-narrowed-parameter', () => {
+		expect(unknownMessages(`f = (past: Or([] List(Text))) :> Or([] List(Text)) =>
+	?(past)
+		[Empty] => []
+		() => past.filter((value index) => index.greater(1))`)).to.deep.equal([]);
+	});
+	// Die Quelle ist ein Feldpfad statt eines Namens.
+	it('unknown-not-reported-for-element-type-of-narrowed-field-path', () => {
+		expect(unknownMessages(`H = [past: Or([] List(Text))]
+f = (history: H) :> Or([] List(Text)) =>
+	?(history/past)
+		[Empty] => []
+		() => history/past.filter((value index) => index.greater(1))`)).to.deep.equal([]);
+	});
+	// Dasselbe über eine Kopie des Feldes.
+	it('unknown-not-reported-for-element-type-of-narrowed-field-copy', () => {
+		expect(unknownMessages(`H = [past: Or([] List(Text))]
+f = (history: H) :> Or([] List(Text)) =>
+	past = history/past
+	?(past)
+		[Empty] => []
+		() => past.filter((value index) => index.greater(1))`)).to.deep.equal([]);
+	});
+	it('unknown-not-reported-for-element-type-of-narrowed-field-copy-in-find-first', () => {
+		expect(unknownMessages(`H = [past: Or([] List(Text))]
+f = (history: H) :> Or([] Text) =>
+	past = history/past
+	?(past)
+		[Empty] => []
+		() => past.findFirst((value index) => index.greater(1))`)).to.deep.equal([]);
+	});
+	// ElementAt(TypeOf(values) length(values)): Der Index ist die Länge genau der verengten Quelle.
+	it('unknown-not-reported-for-last-element-of-narrowed-parameter', () => {
+		expect(unknownMessages(`Link = [id: Integer]
+f = (chain: Or([] List(Link))) :> Or([] Link) =>
+	?(chain)
+		[List(Any)] => lastElement(chain)
+		() => []`)).to.deep.equal([]);
+	});
+	// Nicht filter ist betroffen, sondern jeder Rückgabetyp über TypeOf(values)/ElementType.
+	it('unknown-not-reported-for-element-type-of-narrowed-field-copy-in-own-function', () => {
+		expect(unknownMessages(`h = (values: Or([] List(Any))) :> Or([] List(TypeOf(values)/ElementType)) => values
+H = [past: Or([] List(Text))]
+f = (history: H) :> Or([] List(Text)) =>
+	past = history/past
+	?(past)
+		[Empty] => []
+		() => h(past)`)).to.deep.equal([]);
+	});
+	// Die Verengung darf die Generizität nicht kosten: Der Elementtyp eines verengten List(Any)-Parameters
+	// kommt erst am Aufrufort aus dem Argument, nicht aus der Deklaration (die nur Any kennt).
+	it('unknown-not-reported-for-element-type-of-narrowed-generic-parameter', () => {
+		expect(unknownMessages(`tail = (values: Or([] List(Any))) =>
+	?(values)
+		[Empty] => []
+		() => values.filter((value index) => index.greater(1))
+g = (numbers: List(Integer)) :> Or([] List(Integer)) => tail(numbers)`)).to.deep.equal([]);
 	});
 	// Ein schon gemeldeter Fehler soll nicht zusätzlich als unbewiesen gemeldet werden.
 	it('unknown-not-reported-for-invalid', () => {

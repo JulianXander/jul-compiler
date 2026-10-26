@@ -335,3 +335,9 @@
 2026-10-25 13:13:44	c0d5573+	-	ADV-DEV-56627	yugioh	parse+check	5	7759.42	8427.64	8427.64	deferValueOf als offene Rechnung valueAsType
 2026-10-25 13:13:44	c0d5573+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	593.98	634.71	634.71	deferValueOf als offene Rechnung valueAsType
 2026-10-25 13:13:44	c0d5573+	-	ADV-DEV-56627	yugioh	parse	5	56.13	66.21	66.21	deferValueOf als offene Rechnung valueAsType
+2026-10-26 15:50:23	3be10e0+	-	ADV-DEV-56627	yugioh	parse+check	5	11984.88	13594.40	13594.40	vor and-Nachschlagen (Finding 58)
+2026-10-26 15:50:23	3be10e0+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	838.22	883.35	883.35	vor and-Nachschlagen (Finding 58)
+2026-10-26 15:50:23	3be10e0+	-	ADV-DEV-56627	yugioh	parse	5	60.20	61.58	61.58	vor and-Nachschlagen (Finding 58)
+2026-10-26 16:09:05	3be10e0+	-	ADV-DEV-56627	yugioh	parse+check	5	12020.02	12419.57	12419.57	nach and-Nachschlagen (Finding 58)
+2026-10-26 16:09:05	3be10e0+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	850.39	876.92	876.92	nach and-Nachschlagen (Finding 58)
+2026-10-26 16:09:05	3be10e0+	-	ADV-DEV-56627	yugioh	parse	5	63.67	68.53	68.53	nach and-Nachschlagen (Finding 58)

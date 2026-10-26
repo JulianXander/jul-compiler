@@ -22,9 +22,9 @@ Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprac
   gescheitert, die `NonZeroInteger` zu `Never` gemacht hat. Näheres in
   [three-valued-assignability.md](three-valued-assignability.md).
 - **rawType und dereferencedType nicht vermischen.** Wer auf dem einen nachschlägt und anhand des
-  anderen entscheidet, bekommt Falschfehler: die Verengung erzeugt im rawType ein `and`, für das
-  `dereferenceNameFromObject` keinen Fall hat, während der aufgelöste Typ ein `dictionaryLiteral`
-  mit dem gesuchten Feld ist.
+  anderen entscheidet, bekommt Falschfehler: die Verengung erzeugt im rawType ein `and` mit
+  Platzhalter, auf dem `dereferenceNameFromObject` nur einen aufgeschobenen Zugriff liefert, während
+  der aufgelöste Typ ein `dictionaryLiteral` mit dem gesuchten Feld ist.
 - **Ein aufgelöster Typ hat seine Generizität verloren.** `resolvePlaceholders` macht aus einem
   Platzhalter wie `TypeOf(a)/ElementType` den deklarierten Typ, aus Nicht-Auflösbarem `Any`. Das
   Ergebnis wird trotzdem gespeichert, wo ein Platzhalter sonst nicht erkannt würde (Spread in
@@ -34,7 +34,10 @@ Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprac
   müssen sich zwischen beiden entscheiden und nicht beides mischen. Zum Nachschlagen eines Feldes
   oder Index gibt es `getLookupType`: Es löst ein `and` oder `or` mit Platzhalter auf (die Form, in
   der eine Verengung den Parameter ablegt), ein bloßer Platzhalter bleibt roh. Wer nachschlägt,
-  ruft nicht selbst `resolvePlaceholders` auf und fragt nicht nur auf `and`.
+  ruft nicht selbst `resolvePlaceholders` auf und fragt nicht nur auf `and`. Ein `and` in einer Hülle
+  (`TypeOf(values)/ElementType` mit verengtem Argument) erreicht `getLookupType` nicht. Dafür haben
+  die Dereferenzierungen der Typalgebra selbst einen `and`-Fall (`dereferenceFromIntersection`): Mit
+  Platzhalter wartet der Schnitt als Ganzes, ohne verteilt sich der Zugriff auf die Operanden.
 - **`Any` heißt „unbekannt“ oder „hier bewusst nachsichtig prüfen“, ein gemeldeter Fehler ist `Invalid`.**
   Wer an einer Fehlerstelle `builtinAny` zurückgibt, bringt die Folgefehler zurück, denn `Any` wirkt
   nicht neutral: aus `Not(Any)` wird `Never`, ein Parameter `Any` fängt jeden Branch ab. `Invalid` ist
@@ -73,7 +76,7 @@ gefixt, das reale Projekt blieb trotzdem unverändert. Erst der Blick auf `rawTy
 **Ein grüner Testsatz reicht als Absicherung nicht.** Der `dereferenceFailed`-Fix hatte alle Tests
 grün und erzeugte im realen Projekt trotzdem zwölf Falschfehler: nachgeschlagen wurde auf dem rohen
 Typ, entschieden anhand des aufgelösten. Die Verengung erzeugt im rohen Typ ein `and`, für das
-`dereferenceNameFromObject` keinen Fall hat. Ohne den Durchlauf gegen echten Code wäre das
+`dereferenceNameFromObject` damals keinen Fall hatte. Ohne den Durchlauf gegen echten Code wäre das
 durchgerutscht.
 
 ---
@@ -91,6 +94,7 @@ sortiert.
 | 4 | Ein Parametertyp, der sich auf einen früheren Parameter bezieht (`TypeOf(stream$)/ValueType`, `list/ElementType`, `TypeOf(x)`), wird bei **benannten** Argumenten nicht gegen das Argument geprüft. Für Positionsargumente wird er mit den Argumenten des Aufrufs aufgelöst und dann geprüft (Test `argument-type-mismatch-parameter-type-from-previous-parameter`) | `push(stream$ = i$ value = §text§)` geht ohne Meldung durch. Nebenbefund: `l/ElementType` zu `[1 2]` ergibt `Or([] 1 2)`, das `Empty` darin ist zu viel. `TypeOf(x)` wird zum Typ des Arguments aufgelöst, `h(1 2)` gegen `(x: Integer y: TypeOf(x))` meldet also `Can not assign 2 to 1` | klein bis mittel — benannte Argumente über den Namen statt über die Position auflösen |
 | 5 | Eine fehlende Eigenschaft eines Record-Typwerts wird nicht gemeldet: `hasKnownTypeProperties` zählt `dictionaryLiteral` als unbekannt, weil `typePropertyAccess` dort nur die Felder liefert. `ElementType` eines Record-Typs (`findField` auf `[a = 1 b = 2]`) entsteht bisher nur über den Rückfall `dereferenceUnknownKeyFromObject`, Fall `typeOf`, der in den Wert absteigt | `TypeOf([a: Integer])/Foo` geht ohne Meldung durch, das Ergebnis ist `Any` | klein — `ElementType` in `typePropertyAccess.dictionaryLiteral` aufnehmen (Messen: die Vereinigung aller Feldtypen war schon einmal teuer, siehe oben „Any ist auch ein Performance-Ventil“), dann `dictionaryLiteral` mit `complete` als bekannt zählen |
 | 6 | Auf Typebene verwirft ein Choice ohne die Eigenschaft den Zugriff nicht: `Or(TypeOf(List(Integer)) TypeOf(Integer))/ElementType` ergibt `TypeOf(Integer)`, der `Integer`-Zweig fällt still weg (`dereferenceNameFromObjectType`, Fall `or`, filtert). Bei Werten macht ein nachweislich fehlendes Feld den Zugriff für die ganze Union unsicher. Dasselbe Filtern steht im Fall `concat` und in `dereferenceIndexFromObject`, Fall `or`. Gemeldet wird nur, wenn kein Choice die Eigenschaft hat | ein Zugriff, der zur Laufzeit für einen Zweig nichts liefert, gilt als sicher | klein — die Eigenschaftsmengen je Typart stehen jetzt in `hasKnownTypeProperties` |
+| 7 | Ein Feldzugriff auf einen verengten Parameter verliert seine Generizität: `getLookupType` an den Aufrufstellen löst den Schnitt zur Deklaration auf. `name = (p: Or([] [name: Text])) => ?(p) [Empty] => §§ () => p/name` liefert für das Argument `[name: §Bob§]` den Typ `Text`, ohne die Verengung `§Bob§`. Ein Versuch, `getLookupType` an allen sieben Stellen durch den `and`-Fall der Typalgebra zu ersetzen, scheiterte auf yugioh: Ohne das Nachschlagen in `nestedReference.evaluate` fallen Verengungen über Callback-Parametern später auf `Any` (13 neue Warnungen), `resolvePlaceholders` stieg auf das 2,8-Fache, und nur einzelne Stellen umzustellen erzeugte echte Fehler (JUL5050) | nur Präzision: Der Typ ist zu weit, nicht falsch | groß — zuerst klären, warum der aufgeschobene Schnitt über einem Callback-Parameter später nicht mehr auflösbar ist |
 
 ---
 

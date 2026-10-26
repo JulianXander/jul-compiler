@@ -15,6 +15,7 @@ import {
 	CompileTimeDictionaryType,
 	CompileTimeFunctionType,
 	CompileTimeIndexRangeType,
+	CompileTimeIntersectionType,
 	CompileTimeListType,
 	CompileTimePredicateType,
 	CompileTimeStreamType,
@@ -844,9 +845,14 @@ export function dereferenceNameFromObject(
 		// Ein Wert, der das Prädikat erfüllt, liegt in dessen Obermenge und hat deren Gestalt.
 		case 'predicate':
 			return dereferenceNameFromObject(name, sourceObjectType.UpperBound);
+		case 'and':
+			return dereferenceFromIntersection(
+				sourceObjectType,
+				sourceObjectType,
+				name,
+				operand => dereferenceNameFromObject(name, operand));
 		// Keine benannten Felder und kein Sonderfall nötig - unverändertes Verhalten wie vor der
 		// Exhaustivitätsprüfung.
-		case 'and':
 		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
@@ -874,6 +880,39 @@ export function dereferenceNameFromObject(
 			const assertNever: never = sourceObjectType;
 			throw new Error('Unexpected sourceObjectType.julType: ' + (assertNever as CompileTimeType).julType);
 		}
+	}
+}
+
+/**
+ * Der Zugriff auf einen Schnitt.
+ * Mit Platzhalter wartet der Schnitt als Ganzes, wie eine offene Rechnung: Erst mit dem eingesetzten
+ * Operanden wird geschnitten und dann nachgeschlagen. Pro Operand nachzuschlagen verlöre die
+ * Verengung: And(p Not(Empty))/name ergäbe p/name, und das ist für p: Or([] [name: Text]) wieder
+ * Or(Empty Text). So bleibt eine Verengung generisch, ohne ihre Wirkung zu verlieren.
+ * Ohne Platzhalter liegt ein Wert in And(A B) in A und in B, seine Eigenschaft also in beiden
+ * Eigenschaften. Ein Operand ohne Antwort (ein Not, ein Typ ohne diese Eigenschaft) schränkt nichts
+ * ein und wird übergangen. Das Ergebnis wird dadurch nur weiter, nie falsch.
+ */
+function dereferenceFromIntersection(
+	intersection: CompileTimeIntersectionType,
+	deferredSource: CompileTimeType,
+	key: string | number,
+	dereference: (operand: CompileTimeType) => CompileTimeType | undefined,
+	intersect: (properties: CompileTimeType[]) => CompileTimeType = createNormalizedIntersectionType,
+): CompileTimeType | undefined {
+	if (isDeferredType(intersection)) {
+		return createNestedReference(deferredSource, key);
+	}
+	const properties = intersection.ChoiceTypes
+		.map(dereference)
+		.filter((type): type is CompileTimeType => !!type);
+	switch (properties.length) {
+		case 0:
+			return undefined;
+		case 1:
+			return properties[0];
+		default:
+			return intersect(properties);
 	}
 }
 
@@ -937,9 +976,18 @@ function dereferenceNameFromObjectType(
 			return name === 'ElementType'
 				? createCompileTimeTypeOfType(builtinNever)
 				: undefined;
+		case 'and':
+			// Jeder Operand mit eigener TypeOf-Hülle, aus demselben Grund wie bei 'or'. Die Ergebnisse
+			// sind Typwerte: Geschnitten werden die Typen darin, nicht die Werte, denn TypeOf(A) und
+			// TypeOf(B) haben als Werte nichts gemeinsam.
+			return dereferenceFromIntersection(
+				innerType,
+				sourceObjectType,
+				name,
+				operand => dereferenceNameFromObjectType(name, operand, createCompileTimeTypeOfType(operand)),
+				properties => createCompileTimeTypeOfType(createNormalizedIntersectionType(properties.map(valueOf))));
 		// Keine Eigenschaft mit diesem Namen bekannt - unverändertes Verhalten wie vor der
 		// Exhaustivitätsprüfung.
-		case 'and':
 		case 'any':
 		case 'invalid':
 		case 'blob':
@@ -1007,6 +1055,12 @@ export function dereferenceIndexFromObject(
 			}).filter((type): type is CompileTimeType => !!type);
 			return createNormalizedUnionType(dereferencedChoices);
 		}
+		case 'and':
+			return dereferenceFromIntersection(
+				sourceObjectType,
+				sourceObjectType,
+				index,
+				operand => dereferenceIndexFromObject(index, operand));
 		// Ein offenes MapElements wartet auf seine Quelle, der Zugriff darauf ebenso.
 		case 'mapElements':
 		case 'nestedReference':
@@ -1047,7 +1101,6 @@ export function dereferenceIndexFromObject(
 		}
 		// Keine Position mit diesem Index bekannt - unverändertes Verhalten wie vor der
 		// Exhaustivitätsprüfung.
-		case 'and':
 		case 'any':
 		case 'invalid':
 		case 'blob':
