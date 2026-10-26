@@ -3080,6 +3080,64 @@ function closingOnOwnLine(
 const orphanCheckedFieldParser = (rows: string[], startRowIndex: number, startColumnIndex: number, indent: number) =>
 	checkOrphanArrowLine(fieldParser, rows, startRowIndex, startColumnIndex, indent);
 
+/**
+ * Felder einer Zeile in einer mehrzeiligen Klammerliste. Erlaubt ist eines je Zeile, weitere mit
+ * Leerzeichen getrennte Felder werden trotzdem geparst und als multipleFieldsInRow gemeldet,
+ * damit der Baum vollständig bleibt.
+ */
+function fieldsInRowParser(
+	rows: string[],
+	startRowIndex: number,
+	startColumnIndex: number,
+	indent: number,
+): ParserResult<ParseFieldBase[]> {
+	const firstResult = orphanCheckedFieldParser(rows, startRowIndex, startColumnIndex, indent);
+	if (!firstResult.hasParsed) {
+		return { ...firstResult, parsed: undefined };
+	}
+	const fields = [firstResult.parsed!];
+	let errors = firstResult.errors;
+	let endRowIndex = firstResult.endRowIndex;
+	let endColumnIndex = firstResult.endColumnIndex;
+	while (true) {
+		const row = rows[endRowIndex];
+		const fieldColumnIndex = endColumnIndex + 1;
+		if (row === undefined
+			|| row[endColumnIndex] !== ' '
+			|| fieldColumnIndex >= row.length
+			|| ' )]#'.includes(row[fieldColumnIndex]!)) {
+			break;
+		}
+		const fieldResult = orphanCheckedFieldParser(rows, endRowIndex, fieldColumnIndex, indent);
+		if (!fieldResult.hasParsed) {
+			// Der Rest der Zeile bleibt stehen und wird vom Block als unparsedRestOfRow gemeldet
+			break;
+		}
+		errors = mergeErrors(errors, fieldResult.errors);
+		fields.push(fieldResult.parsed!);
+		endRowIndex = fieldResult.endRowIndex;
+		endColumnIndex = fieldResult.endColumnIndex;
+	}
+	if (fields.length > 1) {
+		const secondField = fields[1]!;
+		errors = mergeErrors(errors, [{
+			code: ErrorCode.multipleFieldsInRow,
+			message: 'Each field of a multiline list must be on its own line.',
+			startRowIndex: secondField.startRowIndex,
+			startColumnIndex: secondField.startColumnIndex,
+			endRowIndex: endRowIndex,
+			endColumnIndex: endColumnIndex,
+		}]);
+	}
+	return {
+		hasParsed: true,
+		endRowIndex: endRowIndex,
+		endColumnIndex: endColumnIndex,
+		parsed: fields,
+		errors: errors,
+	};
+}
+
 function createBracketedMultilineParser(kind: BracketKind): LineParser<(ParseFieldBase | string | undefined)[]> {
 	const { openingCharacter, closingCharacter } = brackets[kind];
 	return (rows, startRowIndex, startColumnIndex, indent) => {
@@ -3091,12 +3149,15 @@ function createBracketedMultilineParser(kind: BracketKind): LineParser<(ParseFie
 		if (!newLineResult.hasParsed) {
 			return { hasParsed: false, endRowIndex: newLineResult.endRowIndex, endColumnIndex: newLineResult.endColumnIndex, errors: fieldsErrors };
 		}
-		const fieldsResult = multilineBlock(orphanCheckedFieldParser, true, rows, newLineResult.endRowIndex, newLineResult.endColumnIndex, indent + 1);
+		const fieldsResult = multilineBlock(fieldsInRowParser, true, rows, newLineResult.endRowIndex, newLineResult.endColumnIndex, indent + 1);
 		fieldsErrors = mergeErrors(fieldsErrors, fieldsResult.errors);
 		if (!fieldsResult.hasParsed) {
 			return { hasParsed: false, endRowIndex: fieldsResult.endRowIndex, endColumnIndex: fieldsResult.endColumnIndex, errors: fieldsErrors };
 		}
-		const parsed = fieldsResult.parsed;
+		const parsed = fieldsResult.parsed!.flatMap<ParseFieldBase | string | undefined>(rowFields =>
+			Array.isArray(rowFields)
+				? rowFields
+				: [rowFields]);
 		const errors = fieldsErrors ?? [];
 		// Die Klammer steht hinter dem letzten Feld statt in einer eigenen Zeile: tolerieren, damit
 		// der Baum für den Language Server erhalten bleibt
@@ -3163,11 +3224,51 @@ function createBracketedInlineParser(kind: BracketKind): LineParser<(ParseFieldB
 		const fields: (ParseMissingField | ParseFieldBase)[] = [firstResult.parsed!];
 		let fieldsEndRowIndex = firstResult.endRowIndex;
 		let fieldsEndColumnIndex = firstResult.endColumnIndex;
+		/**
+		 * Felder stehen in tiefer eingerückten Folgezeilen, die Klammer darf dann auch in einer
+		 * eigenen Zeile stehen.
+		 */
+		let spansRows = false;
+		const continuationIndentToken = getIndentToken(indent + 1);
 		// Weitere Felder, jeweils nach einem Leerzeichen. Direkt dahinter folgt noch ein Leerzeichen
 		// oder die Klammer: dann fehlt ein Feld. Ein Fehlschlag beendet die Wiederholung ohne
 		// Folgen, die Fehler des Versuchs gehen verloren.
 		while (fieldsEndRowIndex < rows.length) {
 			const row = rows[fieldsEndRowIndex]!;
+			// Zeilenende hinter einem Feld (nicht hinter einem Block, der endet am Anfang der
+			// Folgezeile): Geht es in einer tiefer eingerückten Zeile weiter, gehören deren Felder
+			// trotzdem dazu und werden als inlineFieldsSpanRows gemeldet.
+			if (fieldsEndColumnIndex > 0 && fieldsEndColumnIndex === row.length) {
+				const nextRowIndex = fieldsEndRowIndex + 1;
+				const nextRow = rows[nextRowIndex];
+				const fieldColumnIndex = indent + 1;
+				if (nextRow === undefined
+					|| !nextRow.startsWith(continuationIndentToken)
+					|| fieldColumnIndex >= nextRow.length
+					|| ' \t#)]'.includes(nextRow[fieldColumnIndex]!)) {
+					break;
+				}
+				const fieldResult = fieldParser(rows, nextRowIndex, fieldColumnIndex, indent + 1);
+				if (!fieldResult.hasParsed) {
+					break;
+				}
+				fieldsErrors = mergeErrors(fieldsErrors, [
+					...fieldResult.errors ?? [],
+					{
+						code: ErrorCode.inlineFieldsSpanRows,
+						message: 'Fields of an inline list must start on the row of the opening bracket.',
+						startRowIndex: nextRowIndex,
+						startColumnIndex: fieldColumnIndex,
+						endRowIndex: fieldResult.endRowIndex,
+						endColumnIndex: fieldResult.endColumnIndex,
+					},
+				]);
+				fields.push(fieldResult.parsed!);
+				fieldsEndRowIndex = fieldResult.endRowIndex;
+				fieldsEndColumnIndex = fieldResult.endColumnIndex;
+				spansRows = true;
+				continue;
+			}
 			if (!row.startsWith(' ', fieldsEndColumnIndex)) {
 				break;
 			}
@@ -3222,7 +3323,7 @@ function createBracketedInlineParser(kind: BracketKind): LineParser<(ParseFieldB
 			closingEndColumnIndex = fieldsEndColumnIndex + 1;
 		}
 		const lastField = parsed[parsed.length - 1];
-		if (closingEndRowIndex === undefined && lastField && getBlockExpression(lastField)) {
+		if (closingEndRowIndex === undefined && (spansRows || lastField && getBlockExpression(lastField))) {
 			const closingOnOwnLineResult = closingOnOwnLine(rows, fieldsEndRowIndex, fieldsEndColumnIndex, indent, closingCharacter);
 			if (closingOnOwnLineResult.hasParsed) {
 				closingEndRowIndex = closingOnOwnLineResult.endRowIndex;

@@ -1721,3 +1721,112 @@ describe('Mehrzeilige Klammerlisten', () => {
 });
 
 //#endregion Mehrzeilige Klammerlisten
+
+//#region Klammerlisten mit Feldern abweichend vom Umbruch
+
+// Ob eine Klammerliste einzeilig oder mehrzeilig ist, entscheidet das Zeichen hinter der öffnenden
+// Klammer. Passen die Felder nicht dazu, wird trotzdem jedes Feld geparst und die Abweichung
+// gemeldet, damit der Formatter die Liste in die passende Form bringen kann:
+// - Mehrzeilige Liste mit mehreren Feldern in einer Zeile (multipleFieldsInRow), einmal je Zeile.
+// - Einzeilige Liste mit Feldern in tiefer eingerückten Folgezeilen (inlineFieldsSpanRows), einmal
+//   je Folgezeile.
+describe('Klammerlisten mit Feldern abweichend vom Umbruch', () => {
+	//#region mehrzeilig, mehrere Felder in einer Zeile
+	it('alle Felder in einer Zeile', () => {
+		expectMultilineHead('[\n\t1 2 3\n]', {
+			equivalentTo: '[\n\t1\n\t2\n\t3\n]',
+			errors: [{ code: ErrorCode.multipleFieldsInRow, row: 1 }],
+		});
+	});
+	it('alle Felder in einer Zeile, Klammer dahinter', () => {
+		expectMultilineHead('f(\n\ta b c)', {
+			equivalentTo: 'f(\n\ta\n\tb\n\tc\n)',
+			errors: [
+				{ code: ErrorCode.multipleFieldsInRow, row: 1 },
+				{ code: ErrorCode.closingBracketNotOnOwnLine, row: 1 },
+			],
+		});
+	});
+	it('nur eine Zeile mit mehreren Feldern', () => {
+		expectMultilineHead('[\n\t1\n\t2 3\n]', {
+			equivalentTo: '[\n\t1\n\t2\n\t3\n]',
+			errors: [{ code: ErrorCode.multipleFieldsInRow, row: 2 }],
+		});
+	});
+	it('mehrere Zeilen mit mehreren Feldern', () => {
+		expectMultilineHead('[\n\t1 2\n\t3 4\n]', {
+			equivalentTo: '[\n\t1\n\t2\n\t3\n\t4\n]',
+			errors: [
+				{ code: ErrorCode.multipleFieldsInRow, row: 1 },
+				{ code: ErrorCode.multipleFieldsInRow, row: 2 },
+			],
+		});
+	});
+	it('benannte Felder in einer Zeile', () => {
+		expectMultilineHead('[\n\ta = 1 b = 2\n]', {
+			equivalentTo: '[\n\ta = 1\n\tb = 2\n]',
+			errors: [{ code: ErrorCode.multipleFieldsInRow, row: 1 }],
+		});
+	});
+	it('Destructuring mit Namen in einer Zeile', () => {
+		expectMultilineHead('(\n\ta b\n) = x', {
+			equivalentTo: '(\n\ta\n\tb\n) = x',
+			errors: [{ code: ErrorCode.multipleFieldsInRow, row: 1 }],
+		});
+	});
+	it('Folgeausdruck geht nicht verloren', () => {
+		expectMultilineHead('x = f(\n\ta b)\ny = 1', {
+			errors: [
+				{ code: ErrorCode.multipleFieldsInRow, row: 1 },
+				{ code: ErrorCode.closingBracketNotOnOwnLine, row: 1 },
+			],
+			expressionCount: 2,
+		});
+	});
+	it('Funktionsrumpf bleibt beim Rest der Zeile', () => {
+		const errors = parseCode('f = () =>\n\ta b', 'dummy.jul').unchecked.errors;
+		expect(errors.map(error => error.code)).to.deep.equal([ErrorCode.unparsedRestOfRow]);
+	});
+	//#endregion mehrzeilig, mehrere Felder in einer Zeile
+
+	//#region einzeilig, Felder in Folgezeilen
+	it('ein Feld in der Folgezeile', () => {
+		expectMultilineHead('x = [a b\n\tc]', {
+			equivalentTo: 'x = [a b c]',
+			errors: [{ code: ErrorCode.inlineFieldsSpanRows, row: 1 }],
+		});
+	});
+	it('je ein Feld in Folgezeilen, Klammer in eigener Zeile', () => {
+		expectMultilineHead('x = [a\n\tb\n\tc\n]', {
+			equivalentTo: 'x = [a b c]',
+			errors: [
+				{ code: ErrorCode.inlineFieldsSpanRows, row: 1 },
+				{ code: ErrorCode.inlineFieldsSpanRows, row: 2 },
+			],
+		});
+	});
+	it('Argumentliste mit Feld in der Folgezeile', () => {
+		expectMultilineHead('f(a\n\tb)', {
+			equivalentTo: 'f(a b)',
+			errors: [{ code: ErrorCode.inlineFieldsSpanRows, row: 1 }],
+		});
+	});
+	it('einzeilig, Folgeausdruck geht nicht verloren', () => {
+		expectMultilineHead('x = [a\n\tb]\ny = 1', {
+			errors: [{ code: ErrorCode.inlineFieldsSpanRows, row: 1 }],
+			expressionCount: 2,
+		});
+	});
+	it('offene Klammer über einer Zeile gleicher Ebene bleibt fehlende Klammer', () => {
+		expectMultilineHead('x = [a\ny = 1', {
+			errors: [{ code: ErrorCode.closingBracketMissing, row: 0 }],
+			expressionCount: 2,
+		});
+	});
+	it('mehrzeiliges Feld mitten in einzeiliger Liste bleibt fehlerfrei', () => {
+		expectMultilineHead('x = f(a [\n\tb\n] c)');
+	});
+	//#endregion einzeilig, Felder in Folgezeilen
+});
+
+//#endregion Klammerlisten mit Feldern abweichend vom Umbruch

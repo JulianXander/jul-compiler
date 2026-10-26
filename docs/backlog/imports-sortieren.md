@@ -10,7 +10,7 @@ Destructuring alphabetisch nach Name (`createFieldEdit`), beides über `compareT
 Imports sortiert nichts nach. In yugioh stehen sie teils ungeordnet, z. B. in `game-logic.jul`:
 `./game-types.jul`, `./card-effects.jul`, `../util.ts`, `./card-data.json`.
 
-Unsortierte Imports sind kein Fehler, der Diagnosen-Formatter aus `formatter.md` passt daher nicht.
+Unsortierte Imports sind kein Fehler, der Klammerlisten-Formatter aus [../formatter-plan.md](../formatter-plan.md) deckt sie daher nicht ab.
 
 ## Idee
 
@@ -53,4 +53,4 @@ wandert mit, Leerzeile trennt Gruppen, Felder sortiert, gemischte Endungen (`.ju
   Beim bestehenden `compareText` zu bleiben hält Einfügen und Sortieren deckungsgleich.
 - **Gruppen:** Leerzeile trennt Gruppen, oder alle Imports einer Datei bilden einen Block.
 - **Auslöser:** nur die Code-Action `source.organizeImports`, oder zusätzlich im „Dokument
-  formatieren“ aus `formatter.md`.
+  formatieren“ aus [../formatter-plan.md](../formatter-plan.md).
