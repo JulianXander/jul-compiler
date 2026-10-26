@@ -70,6 +70,9 @@ describe('Formatter', () => {
 	it('mehrzeiliger Text wird ausgerückt', () => {
 		expectFormat('x = f(a\n\t§\n\t\ttext\n\t§\n)', 'x = f(a §\n\ttext\n§)');
 	});
+	it('Umbruch hinter der Klammer mit Entf gelöscht', () => {
+		expectFormat('x = [\ta\n\tb\n]', 'x = [a b]');
+	});
 	it('Kommentar zwischen Feldern verhindert das Zusammenziehen', () => {
 		expectFormat('x = f(a\n\t# Kommentar\n\tb\n)');
 	});

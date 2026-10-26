@@ -1826,6 +1826,23 @@ describe('Klammerlisten mit Feldern abweichend vom Umbruch', () => {
 	it('mehrzeiliges Feld mitten in einzeiliger Liste bleibt fehlerfrei', () => {
 		expectMultilineHead('x = f(a [\n\tb\n] c)');
 	});
+	// Entsteht, wenn der Umbruch hinter der öffnenden Klammer mit Entf gelöscht wird: Die
+	// Einrückung der Folgezeile rückt hinter die Klammer.
+	it('Tab hinter der öffnenden Klammer, Felder in Folgezeilen', () => {
+		expectMultilineHead('x = [\ta\n\tb\n]', {
+			equivalentTo: 'x = [a b]',
+			errors: [
+				{ code: ErrorCode.whitespaceAfterOpeningBracket, row: 0 },
+				{ code: ErrorCode.inlineFieldsSpanRows, row: 1 },
+			],
+		});
+	});
+	it('Leerzeichen hinter der öffnenden Klammer', () => {
+		expectMultilineHead('x = f( a b)', {
+			equivalentTo: 'x = f(a b)',
+			errors: [{ code: ErrorCode.whitespaceAfterOpeningBracket, row: 0 }],
+		});
+	});
 	//#endregion einzeilig, Felder in Folgezeilen
 });
 

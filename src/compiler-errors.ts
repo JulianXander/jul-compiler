@@ -64,6 +64,7 @@ export enum ErrorCode {
 	closingTextMarkerMissing = 1111,
 	multipleFieldsInRow = 1112,
 	inlineFieldsSpanRows = 1113,
+	whitespaceAfterOpeningBracket = 1114,
 	// Abbruch, nicht geparster Restcode
 	unparsedCode = 1150,
 	expectedNestedKey = 1151,
@@ -317,6 +318,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.closingTextMarkerMissing]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.multipleFieldsInRow]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.inlineFieldsSpanRows]: { type: 'syntax', severity: 'error' },
+	[ErrorCode.whitespaceAfterOpeningBracket]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.unparsedCode]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedNestedKey]: { type: 'syntax', severity: 'error' },
 	[ErrorCode.expectedExpression]: { type: 'syntax', severity: 'error' },

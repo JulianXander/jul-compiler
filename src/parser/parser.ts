@@ -3210,8 +3210,32 @@ function createBracketedInlineParser(kind: BracketKind): LineParser<(ParseFieldB
 			const openingFailure = tokenFailure(rows, startRowIndex, startColumnIndex, openingCharacter);
 			return { ...openingFailure, parsed: undefined, errors: openingFailure.errors ?? [] };
 		}
-		const firstResult = fieldParser(rows, startRowIndex, startColumnIndex + 1, indent);
-		let fieldsErrors = firstResult.errors;
+		// Leerraum vor dem ersten Feld (etwa die Einrückung der Folgezeile, wenn der Umbruch hinter der
+		// Klammer mit Entf gelöscht wurde): überspringen und melden, damit die Liste erhalten bleibt.
+		// Steht danach nichts oder die Klammer, bleibt es bei den bisherigen Fehlern.
+		const openingRow = rows[startRowIndex]!;
+		let firstColumnIndex = startColumnIndex + 1;
+		while (openingRow[firstColumnIndex] === ' ' || openingRow[firstColumnIndex] === '\t') {
+			firstColumnIndex++;
+		}
+		let whitespaceErrors: CompilerError[] | undefined;
+		if (firstColumnIndex > startColumnIndex + 1
+			&& firstColumnIndex < openingRow.length
+			&& openingRow[firstColumnIndex] !== closingCharacter) {
+			whitespaceErrors = [{
+				code: ErrorCode.whitespaceAfterOpeningBracket,
+				message: 'The first field of an inline list must follow the opening bracket directly.',
+				startRowIndex: startRowIndex,
+				startColumnIndex: startColumnIndex + 1,
+				endRowIndex: startRowIndex,
+				endColumnIndex: firstColumnIndex,
+			}];
+		}
+		else {
+			firstColumnIndex = startColumnIndex + 1;
+		}
+		const firstResult = fieldParser(rows, startRowIndex, firstColumnIndex, indent);
+		let fieldsErrors = mergeErrors(whitespaceErrors, firstResult.errors);
 		if (!firstResult.hasParsed) {
 			return {
 				hasParsed: false,
