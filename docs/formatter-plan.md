@@ -78,15 +78,22 @@ Wird nicht zusammengezogen (Knoten bleibt unverändert, der Fehler bleibt stehen
 - Kommentare zwischen den Feldern, sie werden zu Beschreibungen und laufen bis zum Zeilenende.
 - Ein Feld mit Blockrumpf, siehe oben.
 
-### 3. Language Server und Extension
+### 3. Language Server und Extension (erledigt)
 
-Modul `formatting.ts` mit Unit-Tests, in `server.ts` nur die Verdrahtung:
+Modul `formatting.ts` im Language Server mit Unit-Tests, in `server.ts` nur die Verdrahtung, für
+`.jul`-Dateien:
 
 - `textDocument/formatting`: Dokument formatieren und Format-on-save.
-- `textDocument/onTypeFormatting` mit Auslöser `\n`: Umbrechen schon beim Enter. In der Extension
+- `textDocument/onTypeFormatting` mit Auslöser `\n`: Enter in einer Klammerliste bricht sie um, hinter
+  der öffnenden Klammer wie zwischen zwei Feldern. Der Server nimmt den getippten Umbruch zurück und
+  schreibt nur die Liste an dieser Stelle mehrzeilig (`FormatOptions.at` und `multiline`), weil
+  VSCode die neue Zeile zwischen zwei Feldern nicht tiefer einrückt. Eine leere neue Zeile und ein
+  Umbruch mitten in einem Feld lassen alles, wie es ist. In der Extension
   `"[jul]": { "editor.formatOnType": true }` als `configurationDefaults`.
-- QuickFix auf JUL1108, JUL1109, JUL1112 und JUL1113 über den vorhandenen `codeActionProvider`.
-  Zusammenziehen löst kein getipptes Zeichen aus, es läuft über Format-on-save oder den QuickFix.
+- Zusammenziehen löst kein getipptes Zeichen aus, es läuft über Format-on-save oder „Dokument
+  formatieren“.
+
+Keine QuickFixes für die Formfehler, das Formatieren deckt sie ab.
 
 Optional `jul format [--write]` in der CLI.
 

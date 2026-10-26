@@ -21,6 +21,24 @@ export interface FormatEdit {
 	newText: string;
 }
 
+export interface FormatPosition {
+	rowIndex: number;
+	columnIndex: number;
+}
+
+export interface FormatOptions {
+	/**
+	 * Nur die innerste Klammerliste an dieser Stelle samt der Listen darin formatieren. Die Stelle
+	 * liegt zwischen den Feldern der Liste oder am Anfang eines Felds, nicht mitten in einem Feld.
+	 * Gibt es dort keine Liste, bleibt der Code unverändert.
+	 */
+	at?: FormatPosition;
+	/**
+	 * Die Liste an `at` mehrzeilig schreiben, unabhängig vom Zeichen hinter der Klammer.
+	 */
+	multiline?: boolean;
+}
+
 /**
  * Schranke für die Durchgänge, je Durchgang wird eine Verschachtelungsebene je Pfad umgestellt.
  */
@@ -30,22 +48,35 @@ const maxPasses = 50;
  * Formatierter Code, oder der unveränderte, wenn sich der Syntaxbaum (ohne Positionen) dabei
  * ändern würde.
  */
-export function formatCode(code: string, filePath: string): string {
+export function formatCode(code: string, filePath: string, options: FormatOptions = {}): string {
 	if (code.includes('\r')) {
 		// Windows-Zeilenenden meldet der Parser als Fehler, die Spaltenlogik hier rechnet ohne \r.
 		return code;
 	}
-	const originalExpressions = parseCode(code, filePath).unchecked.expressions;
+	const originalExpressions = parseCode(code, filePath).unchecked.expressions ?? [];
+	let region: Region | undefined;
+	if (options.at) {
+		const target = findBracketListAt(originalExpressions, code.split('\n'), options.at);
+		if (!target) {
+			return code;
+		}
+		region = {
+			startRowIndex: target.startRowIndex,
+			startColumnIndex: target.startColumnIndex,
+			endRowIndex: target.endRowIndex,
+			multiline: !!options.multiline,
+		};
+	}
 	let formatted = code;
 	let expressions = originalExpressions;
 	for (let pass = 0; pass < maxPasses; pass++) {
 		const rows = formatted.split('\n');
-		const edits = getPassEdits(rows, expressions ?? []);
+		const edits = getPassEdits(rows, expressions, region);
 		if (!edits.length) {
 			break;
 		}
 		formatted = applyEdits(rows, edits);
-		expressions = parseCode(formatted, filePath).unchecked.expressions;
+		expressions = parseCode(formatted, filePath).unchecked.expressions ?? [];
 	}
 	if (formatted === code || !isStructurallyEqual(originalExpressions, expressions)) {
 		return code;
@@ -56,8 +87,15 @@ export function formatCode(code: string, filePath: string): string {
 /**
  * Ein Edit über den geänderten Bereich, leer, wenn nichts zu tun ist.
  */
-export function getFormatEdits(code: string, filePath: string): FormatEdit[] {
-	const formatted = formatCode(code, filePath);
+export function getFormatEdits(code: string, filePath: string, options?: FormatOptions): FormatEdit[] {
+	return getDiffEdits(code, formatCode(code, filePath, options));
+}
+
+/**
+ * Ein Edit, der code in formatted überführt, über den Bereich zwischen gemeinsamem Anfang und
+ * gemeinsamem Ende. Leer, wenn beide gleich sind.
+ */
+export function getDiffEdits(code: string, formatted: string): FormatEdit[] {
 	if (formatted === code) {
 		return [];
 	}
@@ -87,14 +125,36 @@ export function getFormatEdits(code: string, filePath: string): FormatEdit[] {
 //#region Durchgang
 
 /**
- * Edits für die äußersten Klammerlisten, die nicht in ihrer Form stehen. Darin Verschachteltes
- * kommt im nächsten Durchgang dran, nachdem neu geparst wurde.
+ * Die Liste aus FormatOptions.at und ihre Zeilen. Der Anfang bleibt über die Durchgänge gleich,
+ * weil alle Edits an ihm oder dahinter liegen, das Ende wandert mit den eingefügten Zeilen.
  */
-function getPassEdits(rows: string[], expressions: ParseExpression[]): FormatEdit[] {
+interface Region {
+	startRowIndex: number;
+	startColumnIndex: number;
+	endRowIndex: number;
+	multiline: boolean;
+}
+
+/**
+ * Edits für die äußersten Klammerlisten, die nicht in ihrer Form stehen. Darin Verschachteltes
+ * kommt im nächsten Durchgang dran, nachdem neu geparst wurde. Mit region nur die Listen darin,
+ * deren Ende wird dabei nachgeführt.
+ */
+function getPassEdits(rows: string[], expressions: ParseExpression[], region: Region | undefined): FormatEdit[] {
 	const edits: FormatEdit[] = [];
+	let addedRowCount = 0;
 	const visit = (expression: PositionedExpression): undefined => {
+		if (region && !isInRegion(expression, region)) {
+			if (overlapsRegion(expression, region)) {
+				forEachChild(expression, visit);
+			}
+			return undefined;
+		}
 		if (isBracketList(expression, rows)) {
-			const newText = renderBracketList(expression, rows);
+			const forceMultiline = !!region?.multiline
+				&& expression.startRowIndex === region.startRowIndex
+				&& expression.startColumnIndex === region.startColumnIndex;
+			const newText = renderBracketList(expression, rows, forceMultiline);
 			if (newText !== undefined) {
 				edits.push({
 					startRowIndex: expression.startRowIndex,
@@ -103,6 +163,7 @@ function getPassEdits(rows: string[], expressions: ParseExpression[]): FormatEdi
 					endColumnIndex: expression.endColumnIndex,
 					newText: newText,
 				});
+				addedRowCount += newText.split('\n').length - 1 - (expression.endRowIndex - expression.startRowIndex);
 				return undefined;
 			}
 		}
@@ -110,7 +171,62 @@ function getPassEdits(rows: string[], expressions: ParseExpression[]): FormatEdi
 		return undefined;
 	};
 	expressions.forEach(visit);
+	if (region) {
+		region.endRowIndex += addedRowCount;
+	}
 	return edits;
+}
+
+function isInRegion(expression: PositionedExpression, region: Region): boolean {
+	return comparePositions(expression.startRowIndex, expression.startColumnIndex, region.startRowIndex, region.startColumnIndex) >= 0
+		&& expression.endRowIndex <= region.endRowIndex;
+}
+
+function overlapsRegion(expression: PositionedExpression, region: Region): boolean {
+	return expression.startRowIndex <= region.endRowIndex
+		&& comparePositions(expression.endRowIndex, expression.endColumnIndex, region.startRowIndex, region.startColumnIndex) > 0;
+}
+
+/**
+ * Die innerste Klammerliste, in der die Stelle hinter der öffnenden und vor der schließenden
+ * Klammer liegt, aber nicht mitten in einem ihrer Felder (am Anfang eines Felds zählt zur Liste).
+ * Liegt die Stelle mitten in einem Feld ohne Liste darin, gibt es keine.
+ */
+function findBracketListAt(
+	expressions: ParseExpression[],
+	rows: string[],
+	position: FormatPosition,
+): PositionedExpression | undefined {
+	const visit = (expression: PositionedExpression): PositionedExpression | undefined => {
+		if (!containsStrictly(expression, position)) {
+			return undefined;
+		}
+		if (!isBracketList(expression, rows)) {
+			return forEachChild(expression, visit);
+		}
+		const field = getChildren(expression).find(child => containsStrictly(child, position));
+		return field
+			? visit(field)
+			: expression;
+	};
+	for (const expression of expressions) {
+		const found = visit(expression);
+		if (found) {
+			return found;
+		}
+	}
+	return undefined;
+}
+
+function containsStrictly(expression: PositionedExpression, position: FormatPosition): boolean {
+	return comparePositions(position.rowIndex, position.columnIndex, expression.startRowIndex, expression.startColumnIndex) > 0
+		&& comparePositions(position.rowIndex, position.columnIndex, expression.endRowIndex, expression.endColumnIndex) < 0;
+}
+
+function comparePositions(rowA: number, columnA: number, rowB: number, columnB: number): number {
+	return rowA === rowB
+		? columnA - columnB
+		: rowA - rowB;
 }
 
 /**
@@ -173,7 +289,7 @@ function isBracketList(expression: PositionedExpression, rows: string[]): boolea
  * Neuer Text vom öffnenden bis zum schließenden Zeichen, undefined, wenn die Liste schon in ihrer
  * Form steht oder sich nicht umstellen lässt.
  */
-function renderBracketList(list: PositionedExpression, rows: string[]): string | undefined {
+function renderBracketList(list: PositionedExpression, rows: string[], forceMultiline: boolean): string | undefined {
 	const fields = getChildren(list);
 	if (!fields.length) {
 		return undefined;
@@ -182,7 +298,8 @@ function renderBracketList(list: PositionedExpression, rows: string[]): string |
 	const opening = openingRow[list.startColumnIndex]!;
 	const closing = closingCharacters[opening]!;
 	const indent = getTabCount(openingRow);
-	const isMultiline = list.startColumnIndex + 1 === openingRow.length
+	const isMultiline = forceMultiline
+		|| list.startColumnIndex + 1 === openingRow.length
 		|| fields.some(hasBlockBody);
 	if (isMultiline) {
 		if (isMultilineForm(list, fields, rows, indent)) {

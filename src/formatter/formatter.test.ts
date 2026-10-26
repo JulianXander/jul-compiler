@@ -111,6 +111,37 @@ describe('Formatter', () => {
 	});
 	//#endregion unverändert
 
+	//#region nur die Liste an einer Stelle
+	it('Liste an der Stelle mehrzeilig', () => {
+		expect(formatCode('x = f(a b c)', 'dummy.jul', { at: { rowIndex: 0, columnIndex: 8 }, multiline: true }))
+			.to.equal('x = f(\n\ta\n\tb\n\tc\n)');
+	});
+	it('Stelle am Anfang des ersten Felds', () => {
+		expect(formatCode('x = f(a b)', 'dummy.jul', { at: { rowIndex: 0, columnIndex: 6 }, multiline: true }))
+			.to.equal('x = f(\n\ta\n\tb\n)');
+	});
+	it('innerste Liste an der Stelle', () => {
+		expect(formatCode('x = [1 [2 3] 4]', 'dummy.jul', { at: { rowIndex: 0, columnIndex: 9 }, multiline: true }))
+			.to.equal('x = [1 [\n\t2\n\t3\n] 4]');
+	});
+	it('Stelle mitten in einem Text', () => {
+		expect(formatCode('x = f(§ab c§ d)', 'dummy.jul', { at: { rowIndex: 0, columnIndex: 9 }, multiline: true }))
+			.to.equal('x = f(§ab c§ d)');
+	});
+	it('andere Listen bleiben unverändert', () => {
+		expect(formatCode('x = [\n\t1 2\n]\ny = f(a b)', 'dummy.jul', { at: { rowIndex: 3, columnIndex: 7 }, multiline: true }))
+			.to.equal('x = [\n\t1 2\n]\ny = f(\n\ta\n\tb\n)');
+	});
+	it('ohne multiline nach dem Zeichen hinter der Klammer', () => {
+		expect(formatCode('x = [a\n\tb]\ny = [\n\t1 2\n]', 'dummy.jul', { at: { rowIndex: 0, columnIndex: 6 } }))
+			.to.equal('x = [a b]\ny = [\n\t1 2\n]');
+	});
+	it('verschachtelte Liste in der Liste an der Stelle', () => {
+		expect(formatCode('x = f(a [1\n\t2])', 'dummy.jul', { at: { rowIndex: 0, columnIndex: 7 }, multiline: true }))
+			.to.equal('x = f(\n\ta\n\t[1 2]\n)');
+	});
+	//#endregion nur die Liste an einer Stelle
+
 	//#region Edits
 	it('ein Edit nur über den geänderten Bereich', () => {
 		expect(getFormatEdits('a = 1\nx = [\n\t1 2\n]\nb = 2', 'dummy.jul')).to.deep.equal([{
