@@ -56,10 +56,13 @@ describe('TypeScript Parser', () => {
 		it('index signature mit undefined', () => expectTypeOfF('export function f(): { [key: string]: any; } | undefined {}', '() ~> Or(Empty Dictionary(Any))'));
 		it('Record', () => expectTypeOfF('export function f(): Record<string, number> {}', '() ~> Dictionary(Float)'));
 		it('Objekt-Typliteral mit optionalem Feld und Error', () => {
-			expectTypeOfF('export function f(): { main: string[] | undefined, extra?: bigint } | Error {}', `() ~> Or([
-  main: Or(Empty List(Text))
-  extra?: Or(Empty Integer)
-] Error)`);
+			expectTypeOfF('export function f(): { main: string[] | undefined, extra?: bigint } | Error {}', `() ~> Or(
+  [
+    main: Or(Empty List(Text))
+    extra?: Or(Empty Integer)
+  ]
+  Error
+)`);
 		});
 		it('Literaltypen', () => expectTypeOfF('export function f(): \'a\' | 1n | 2 | true {}', '() ~> Or(§a§ 1 2f true)'));
 		it('Klammertyp', () => expectTypeOfF('export function f(): (bigint) {}', '() ~> Integer'));
@@ -85,10 +88,12 @@ describe('TypeScript Parser', () => {
 		it('optionaler Callback', () => expectTypeOfF('export function f(cb?: () => void) {}', '(cb: Or(Empty () :> Any)) ~> Any'));
 		it('Callback mit nicht übersetzbarem Parametertyp', () => expectTypeOfF('export function f(cb: (event: Event) => void) {}', '(cb: (event: Any) :> Any) ~> Any'));
 		it('Callback mit optionalem und Rest-Parameter', () => {
-			expectTypeOfF('export function f(cb: (a?: string, ...rest: bigint[]) => void) {}', `(cb: (
-  a: Or(Empty Text)
-  ...rest: Or(Empty List(Integer))
-) :> Any) ~> Any`);
+			expectTypeOfF('export function f(cb: (a?: string, ...rest: bigint[]) => void) {}', `(
+  cb: (
+    a: Or(Empty Text)
+    ...rest: Or(Empty List(Integer))
+  ) :> Any
+) ~> Any`);
 		});
 		// Ohne Namen lässt sich der Parameter nicht übersetzen, und weglassen würde die Positionen verschieben.
 		it('Callback mit Destructuring bleibt ungetypt', () => expectTypeOfF('export function f(cb: ({ a }: { a: bigint }) => void) {}', '(cb: Any) ~> Any'));

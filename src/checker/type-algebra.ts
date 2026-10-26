@@ -260,7 +260,8 @@ export function getNamedAccess(table: NamedAccessTable, type: ResolvedType): Nam
 
 //#endregion benannte Eigenschaften
 
-const maxElementsPerLine = 5;
+/** Ab dieser Länge wird eine Klammerform mehrzeilig geschrieben. */
+const maxLineWidth = 80;
 
 const maxFieldsInTypeDump = 5;
 
@@ -5601,9 +5602,7 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			}
 			const rest = type.rest;
 			const multiline = type.singleNames.length + (rest ? 1 : 0) > 1;
-			const newIndent = multiline
-				? indent + 1
-				: indent;
+			const newIndent = indent + 1;
 			const elements = [
 				...type.singleNames.map(element => {
 					return `${element.name}${optionalTypeGuardToString(element.type, newIndent, depth + 1, suppressAlias)}`;
@@ -5687,14 +5686,12 @@ function arrayTypeToString(
 	suppressAlias: boolean,
 	kind: 'round' | 'square' = 'square',
 ): string {
-	const multiline = array.length > maxElementsPerLine;
-	const newIndent = multiline
-		? indent + 1
-		: indent;
+	// Die Elemente werden für den mehrzeiligen Fall eingerückt gerendert, ob umgebrochen wird,
+	// zeigt sich erst an ihrer Länge. Einzeilige Elemente hängen nicht vom Einzug ab.
 	return bracketedExpressionToString(
 		array.map(element =>
-			typeToString(element, newIndent, depth, suppressAlias)),
-		multiline,
+			typeToString(element, indent + 1, depth, suppressAlias)),
+		false,
 		indent,
 		kind);
 }
@@ -5717,13 +5714,10 @@ function dictionaryTypeToString(
 	suppressAlias: boolean,
 ): string {
 	const multiline = hasMultipleFields(dictionary);
-	const newIndent = multiline
-		? indent + 1
-		: indent;
 	const allFields = map(
 		dictionary,
 		(field, key) => {
-			return `${key}${field.optional ? '?' : ''}${nameSeparator}${typeToString(field.type, newIndent, depth, suppressAlias)}`;
+			return `${key}${field.optional ? '?' : ''}${nameSeparator}${typeToString(field.type, indent + 1, depth, suppressAlias)}`;
 		});
 
 	// Begrenzen bei zu vielen Feldern: zeige maxFieldsInTypeDump Felder, dann "and N more"
@@ -5748,10 +5742,14 @@ function dictionaryTypeToString(
  */
 function bracketedExpressionToString(
 	elements: string[],
-	multiline: boolean,
+	forceMultiline: boolean,
 	indent: number,
 	kind: 'round' | 'square' = 'square',
 ): string {
+	// Mehrzeilig, wenn erzwungen, wenn ein Element selbst umbricht oder wenn die Zeile zu lang würde.
+	const multiline = forceMultiline
+		|| elements.some(element => element.includes('\n'))
+		|| elements.join(' ').length > maxLineWidth;
 	// Dieselbe Einheit wie indentLines (indentUnit) - sonst mischen sich Tabs und Leerzeichen,
 	// sobald dieser Dump in eine bereits eingerückte Fehlerkette eingebettet wird (Fund im
 	// echten yugioh-Fehlerbild, Session 2026-09-10).

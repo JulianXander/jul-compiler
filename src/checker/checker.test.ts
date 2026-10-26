@@ -1677,7 +1677,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 					code: ErrorCode.returnTypeMismatch,
 					endColumnIndex: 15,
 					endRowIndex: 1,
-					message: 'Return type mismatch.\nCan not assign List(Or(5 And(LessInteger(5) PositiveInteger) And(LessInteger(5) GreaterInteger(PositiveInteger)))) to Or(Empty List(GreaterInteger(1))).\n  Can not assign List(Or(5 And(LessInteger(5) PositiveInteger) And(LessInteger(5) GreaterInteger(PositiveInteger)))) to List(GreaterInteger(1)).\n    Can not assign LessInteger(5) to GreaterInteger(1).\n    Can not assign GreaterInteger(0) to GreaterInteger(1).\n    Can not assign LessInteger(5) to GreaterInteger(1).\n    Can not assign GreaterInteger(PositiveInteger) to GreaterInteger(1).',
+					message: 'Return type mismatch.\nCan not assign List(Or(\n  5\n  And(LessInteger(5) PositiveInteger)\n  And(LessInteger(5) GreaterInteger(PositiveInteger))\n)) to Or(Empty List(GreaterInteger(1))).\n  Can not assign List(Or(\n    5\n    And(LessInteger(5) PositiveInteger)\n    And(LessInteger(5) GreaterInteger(PositiveInteger))\n  )) to List(GreaterInteger(1)).\n    Can not assign LessInteger(5) to GreaterInteger(1).\n    Can not assign GreaterInteger(0) to GreaterInteger(1).\n    Can not assign LessInteger(5) to GreaterInteger(1).\n    Can not assign GreaterInteger(PositiveInteger) to GreaterInteger(1).',
 					relatedInformation: {
 						endColumnIndex: 62,
 						endRowIndex: 0,
@@ -6043,7 +6043,7 @@ x: Outer = [inner = [a = §wrong§]]`;
 	// (2 Leerzeichen), dann fügt sich die eigene Einrückung sauber in jede Einbettungstiefe.
 	// Umgesetzt in bracketedExpressionToString (indentUnit).
 	it('multiline-type-dump-uses-the-same-indent-unit-as-the-surrounding-chain', () => {
-		const code = `Inner = [a: [Integer Integer Integer Integer Integer Integer]]
+		const code = `Inner = [a: [Integer Integer Integer Integer Integer Integer Integer Integer Integer Integer Integer Integer]]
 x: Inner = [a = []]`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {}, { cloneUnchecked: false });
@@ -6054,12 +6054,7 @@ x: Inner = [a = []]`;
 				'Can not assign [a: Empty] to Inner.',
 				'  Invalid value for field \'a\'',
 				'    Can not assign Empty to [',
-				'      Integer',
-				'      Integer',
-				'      Integer',
-				'      Integer',
-				'      Integer',
-				'      Integer',
+				...Array<string>(12).fill('      Integer'),
 				'    ].',
 			].join('\n'),
 		]);
