@@ -1228,6 +1228,24 @@ export const LessInteger = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const GreaterFloat = /*#__PURE__*/ _createFunction(
+	function GreaterFloat(Value: number): BoundType {
+		return {
+			[_julTypeSymbol]: 'bound',
+			Relation: 'greater',
+			Family: 'float',
+			Value: Value,
+		};
+	},
+	{
+		singleNames: [
+			{
+				name: 'value',
+				type: Float,
+			},
+		]
+	}
+);
 export const PositiveInteger = /*#__PURE__*/ GreaterInteger(0n);
 export const ElementAt = /*#__PURE__*/ _createFunction(
 	function ElementAt(Source: any, index: bigint): RuntimeType {
@@ -1408,6 +1426,23 @@ export const Subtract = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const Is = /*#__PURE__*/ _createFunction(
+	function Is(value: unknown, ValueType: RuntimeType): RuntimeType {
+		// Wie Add nur für den Checker: die Zusicherung im Rückgabetyp eines Builtins.
+		throw new Error('Is() is only for type-level computation and should never be called at runtime');
+	},
+	{
+		singleNames: [
+			{
+				name: 'value',
+			},
+			{
+				name: 'ValueType',
+				type: Type,
+			},
+		]
+	}
+);
 export const Fraction: DictionaryLiteralType = {
 	[_julTypeSymbol]: 'dictionaryLiteral',
 	Fields: {
@@ -1553,20 +1588,36 @@ export const divideFloat = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-// TODO support Rational values
-export const greater = /*#__PURE__*/ _createFunction(
-	function greater(first: number | bigint, second: number | bigint) {
+export const greaterInteger = /*#__PURE__*/ _createFunction(
+	function greaterInteger(first: bigint, second: bigint) {
 		return first > second;
 	},
 	{
 		singleNames: [
 			{
 				name: 'first',
-				type: /*#__PURE__*/ Or(Integer, Float),
+				type: Integer,
 			},
 			{
 				name: 'second',
-				type: /*#__PURE__*/ Or(Integer, Float),
+				type: Integer,
+			}
+		]
+	}
+);
+export const greaterFloat = /*#__PURE__*/ _createFunction(
+	function greaterFloat(first: number, second: number) {
+		return first > second;
+	},
+	{
+		singleNames: [
+			{
+				name: 'first',
+				type: Float,
+			},
+			{
+				name: 'second',
+				type: Float,
 			}
 		]
 	}

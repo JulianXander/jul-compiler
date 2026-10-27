@@ -270,6 +270,12 @@ export enum ErrorCode {
 	 * ihre Bedeutung auf Typebene frei.
 	 */
 	typeBranchHeadBinding = 5154,
+	/**
+	 * `Is(...)` steht nicht als Rückgabetyp einer nativeFunction-Signatur. Nur dort ist die Zusicherung
+	 * vertretbar, weil die Implementierung ohnehin ungeprüft ist. Bei einer JUL-Funktion leitet der
+	 * Checker sie aus dem Rumpf her.
+	 */
+	isOutsideNativeSignature = 5155,
 	dereferenceFailed = 5160,
 	/**
 	 * Eine Definition nennt sich selbst, ohne dass ein datentragender Konstruktor dazwischenliegt.
@@ -390,6 +396,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.unreachableBranch]: { type: 'type', severity: 'warning' },
 	[ErrorCode.typeBranchingOutsideReturnType]: { type: 'type', severity: 'error' },
 	[ErrorCode.typeBranchHeadBinding]: { type: 'type', severity: 'error' },
+	[ErrorCode.isOutsideNativeSignature]: { type: 'type', severity: 'error' },
 	[ErrorCode.dereferenceFailed]: { type: 'type', severity: 'error' },
 	[ErrorCode.circularTypeDefinition]: { type: 'type', severity: 'error' },
 	[ErrorCode.testFails]: { type: 'type', severity: 'error' },

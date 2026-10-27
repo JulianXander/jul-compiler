@@ -1924,6 +1924,66 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 			errors: [],
 		});
 	});
+	it('filter-narrows-through-greater-call', () => {
+		expectResolvedReturnType(`f = (values: List(Integer)) =>
+	values.filter((value) => value.greaterInteger(1))`, 'Or(Empty List(GreaterInteger(1)))');
+	});
+	it('filter-narrows-through-named-greater-predicate', () => {
+		expectCheck(`check = (value: Integer) => value.greaterInteger(1)
+f = (values: List(Integer)) :> Or([] List(GreaterInteger(1))) =>
+	values.filter(check)`);
+	});
+	it('filter-narrows-through-greater-call-in-prefix-free-form', () => {
+		expectResolvedReturnType(`f = (values: List(Integer)) =>
+	values.filter((value) => greaterInteger(value 1))`, 'Or(Empty List(GreaterInteger(1)))');
+	});
+	it('filter-narrows-through-predicate-calling-predicate', () => {
+		expectCheck(`check = (value: Integer) => value.greaterInteger(1)
+isBig = (value: Integer) => check(value)
+f = (values: List(Integer)) :> Or([] List(GreaterInteger(1))) =>
+	values.filter(isBig)`);
+	});
+	it('filter-narrows-through-equal-call-with-literal', () => {
+		expectResolvedReturnType(`f = (values: List(Text)) =>
+	values.filter((value) => value.equal(§draw§))`, 'Or(Empty List(§draw§))');
+	});
+	it('filter-narrows-through-greater-float-call', () => {
+		expectResolvedReturnType(`f = (values: List(Float)) =>
+	values.filter((value) => value.greaterFloat(1f))`, 'Or(Empty List(GreaterFloat(1f)))');
+	});
+	it('filter-keeps-element-type-through-greater-call-with-unknown-bound', () => {
+		expectResolvedReturnType(`f = (values: List(Integer) count: Integer) =>
+	values.filter((value) => value.greaterInteger(count))`, 'Or(Empty List(Integer))');
+	});
+	it('filter-keeps-element-type-through-equal-call-with-non-literal', () => {
+		expectResolvedReturnType(`f = (values: List(Integer) other: Integer) =>
+	values.filter((value) => value.equal(other))`, 'Or(Empty List(Integer))');
+	});
+	it('filter-keeps-element-type-when-parameter-is-second-argument', () => {
+		expectResolvedReturnType(`f = (values: List(Integer)) =>
+	values.filter((value) => 1.greaterInteger(value))`, 'Or(Empty List(Integer))');
+	});
+	it('branching-false-branch-subtracts-predicate-from-call', () => {
+		expectCheck(`check = (value: Integer) => value.greaterInteger(1)
+f = (value: Integer) :> Or([] LessInteger(2)) =>
+	?(value)
+		[check] => []
+		(rest) => rest`);
+	});
+	it('is-outside-native-signature', () => {
+		expectCheck(`f = (value: Integer) -> Is(value PositiveInteger) => value.greaterInteger(0)`, {
+			errors: [
+				{
+					code: ErrorCode.isOutsideNativeSignature,
+					message: 'Is is only allowed as return type of a nativeFunction signature.',
+					startRowIndex: 0,
+					startColumnIndex: 24,
+					endRowIndex: 0,
+					endColumnIndex: 49,
+				},
+			],
+		});
+	});
 	// Ein unbenanntes Klammer-Pattern wie `[Integer] => true` (dieselbe Form wie ein
 	// ?-Branch-Arm) bekommt beim Checken einen 'tuple'-förmigen ParamsType, filter
 	// verlangt für predicate aber die 'parameters'-förmige Form
@@ -5829,7 +5889,7 @@ f(source)`;
 	it('length-of-spread-of-possibly-empty-list-is-not-constant', () => {
 		expectCheck(`f = (l: Or([] List(Integer)) entry: Integer) =>
 	extended = [...l entry]
-	?(extended.length().greater(100))
+	?(extended.length().greaterInteger(100))
 		[true] => 1
 		[false] => 2`);
 	});
@@ -5838,7 +5898,7 @@ f(source)`;
 	x = ?(b)
 		[true] => [n]
 		[false] => l
-	?(x.length().greater(1))
+	?(x.length().greaterInteger(1))
 		[true] => 1
 		[false] => 2`);
 	});
@@ -8178,7 +8238,7 @@ wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
 		expect(unknownMessages(`f = (past: Or([] List(Text))) :> Or([] List(Text)) =>
 	?(past)
 		[Empty] => []
-		() => past.filter((value index) => index.greater(1))`)).to.deep.equal([]);
+		() => past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
 	});
 	// Die Quelle ist ein Feldpfad statt eines Namens.
 	it('unknown-not-reported-for-element-type-of-narrowed-field-path', () => {
@@ -8186,7 +8246,7 @@ wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
 f = (history: H) :> Or([] List(Text)) =>
 	?(history/past)
 		[Empty] => []
-		() => history/past.filter((value index) => index.greater(1))`)).to.deep.equal([]);
+		() => history/past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
 	});
 	// Dasselbe über eine Kopie des Feldes.
 	it('unknown-not-reported-for-element-type-of-narrowed-field-copy', () => {
@@ -8195,7 +8255,7 @@ f = (history: H) :> Or([] List(Text)) =>
 	past = history/past
 	?(past)
 		[Empty] => []
-		() => past.filter((value index) => index.greater(1))`)).to.deep.equal([]);
+		() => past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
 	});
 	it('unknown-not-reported-for-element-type-of-narrowed-field-copy-in-find-first', () => {
 		expect(unknownMessages(`H = [past: Or([] List(Text))]
@@ -8203,7 +8263,7 @@ f = (history: H) :> Or([] Text) =>
 	past = history/past
 	?(past)
 		[Empty] => []
-		() => past.findFirst((value index) => index.greater(1))`)).to.deep.equal([]);
+		() => past.findFirst((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
 	});
 	// ElementAt(TypeOf(values) length(values)): Der Index ist die Länge genau der verengten Quelle.
 	it('unknown-not-reported-for-last-element-of-narrowed-parameter', () => {
@@ -8229,7 +8289,7 @@ f = (history: H) :> Or([] List(Text)) =>
 		expect(unknownMessages(`tail = (values: Or([] List(Any))) =>
 	?(values)
 		[Empty] => []
-		() => values.filter((value index) => index.greater(1))
+		() => values.filter((value index) => index.greaterInteger(1))
 g = (numbers: List(Integer)) :> Or([] List(Integer)) => tail(numbers)`)).to.deep.equal([]);
 	});
 	// Ein schon gemeldeter Fehler soll nicht zusätzlich als unbewiesen gemeldet werden.

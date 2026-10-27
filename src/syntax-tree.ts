@@ -1506,6 +1506,12 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	readonly purity: TypePurity;
 	readonly predicate?: PredicateFacts;
 	/**
+	 * Nur bei einer nativeFunction-Signatur mit Is(...) als Rückgabetyp. Getrennt von predicate, weil der
+	 * Typ Platzhalter auf die eigenen Parameter enthält: Nur die Herleitung in getPredicateFacts setzt
+	 * die Argumente eines Aufrufs ein, PredicateIfTrue würde sie gegen den falschen Aufruf auflösen.
+	 */
+	readonly contract?: PredicateContract;
+	/**
 	 * Nur bei Funktionsliteralen aus .jul-Dateien gesetzt (siehe 'functionLiteral' im Checker).
 	 * Rückverweis für constant folding: von hier aus wird bei Bedarf emittiert und ausgewertet.
 	 */
@@ -1545,8 +1551,17 @@ export interface PredicateFacts {
 	excludedIfFalse?: CompileTimeType;
 }
 
+/**
+ * Was ein natives Builtin über einen seiner Parameter zusichert: true heißt, der Wert liegt in type,
+ * false, dass er nicht darin liegt. Wird nicht gegen die Implementierung geprüft.
+ */
+export interface PredicateContract {
+	parameterIndex: number;
+	type: CompileTimeType;
+}
+
 /** Was ein Funktionstyp über seinen Wert festhält, nicht über seine Signatur. */
-export type FunctionTypeFacts = Pick<CompileTimeFunctionType, 'predicate' | 'literal' | 'foldable' | 'boundArguments'>;
+export type FunctionTypeFacts = Pick<CompileTimeFunctionType, 'predicate' | 'contract' | 'literal' | 'foldable' | 'boundArguments'>;
 
 export interface FunctionTypeExtras extends FunctionTypeFacts {
 	/** Ohne Angabe bekommt der Funktionstyp eine neue Identität. */
@@ -1557,6 +1572,7 @@ export interface FunctionTypeExtras extends FunctionTypeFacts {
 export function getFunctionTypeFacts(functionType: CompileTimeFunctionType): FunctionTypeFacts {
 	return {
 		predicate: functionType.predicate,
+		contract: functionType.contract,
 		literal: functionType.literal,
 		foldable: functionType.foldable,
 		boundArguments: functionType.boundArguments,
@@ -1586,6 +1602,9 @@ export function createCompileTimeFunctionType(
 	};
 	if (extras?.predicate) {
 		functionType.predicate = extras.predicate;
+	}
+	if (extras?.contract) {
+		functionType.contract = extras.contract;
 	}
 	if (extras?.literal) {
 		functionType.literal = extras.literal;

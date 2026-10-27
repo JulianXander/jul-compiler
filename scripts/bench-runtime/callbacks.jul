@@ -1,6 +1,6 @@
 # Callbacks, die eine Variable einfangen: je Aufruf entsteht eine neue Closure
 countAbove = (input: [limit: Integer values: List(Integer)]) =>
-	input/values.filter((value) => greater(value input/limit)).length()
+	input/values.filter((value) => greaterInteger(value input/limit)).length()
 
 # Callback mit Index: der Index wird gebraucht
 sumWithIndex = (values: List(Integer)) =>
@@ -12,4 +12,4 @@ sumWithoutIndex = (values: List(Integer)) =>
 
 # Kurze Liste, mehrere Closures je Aufruf: hier zählt die Erzeugung der Closures, nicht die Schleife
 countSmall = (input: [limit: Integer values: List(Integer)]) =>
-	input/values.filter((value) => greater(value input/limit)).map((value) => add(value input/limit)).length()
+	input/values.filter((value) => greaterInteger(value input/limit)).map((value) => add(value input/limit)).length()

@@ -99,6 +99,13 @@ LessInteger = nativeFunction(
 		LessInteger
 	§
 )
+# Die Fließkommazahlen größer als value.
+GreaterFloat = nativeFunction(
+	(value: Float) -> Type
+	§js
+		GreaterFloat
+	§
+)
 PositiveInteger = GreaterInteger(0)
 Fraction = [
 	numerator: Integer
@@ -254,6 +261,14 @@ Subtract = nativeFunction(
 		(MinuendType, SubtrahendType) => Subtract(MinuendType, SubtrahendType)
 	§
 )
+# Nur als Rückgabetyp einer nativeFunction-Signatur: Die Funktion liefert Boolean, true heißt, der
+# Parameter value liegt in ValueType, false, dass er nicht darin liegt.
+Is = nativeFunction(
+	(value: Any ValueType: Type) -> Type
+	§js
+		(value, ValueType) => Is(value, ValueType)
+	§
+)
 # Function = nativeFunction(
 # 	# TODO?
 # 	# (
@@ -281,7 +296,7 @@ Subtract = nativeFunction(
 # Liefert true, wenn die beiden Werte gleich sind (Referenzgleichheit)
 # Für Wertgleichheit von Collections: stattdessen deepEqual verwenden
 equal = nativeFunction(
-	(first second) -> Boolean
+	(first second) -> Is(first TypeOf(second))
 	§js
 		(first, second) => first === second
 	§
@@ -532,13 +547,23 @@ roundUp = nativeFunction(
 	§
 )
 #endregion arithmetic
-#TODO support Rational values
+#TODO greater für Rational-Werte
 # Liefert true, wenn first größer als second ist.
-greater = nativeFunction(
+greaterInteger = nativeFunction(
 	(
-		first: Or(Integer Float)
-		second: Or(Integer Float)
-	) -> Boolean
+		first: Integer
+		second: Integer
+	) -> Is(first GreaterInteger(second))
+	§js
+		(first, second) => first > second
+	§
+)
+# Liefert true, wenn first größer als second ist.
+greaterFloat = nativeFunction(
+	(
+		first: Float
+		second: Float
+	) -> Is(first GreaterFloat(second))
 	§js
 		(first, second) => first > second
 	§

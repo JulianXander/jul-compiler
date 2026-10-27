@@ -16,7 +16,7 @@ Container-Begriffe stehen in [container-nomenklatur.md](container-nomenklatur.md
 4. **Typ-Suffix an Funktionen.** `addFloat`, `subtractFloat`, `multiplyFloat`, `divideFloat`,
    `maxInteger`, `maxFloat`. Offen ist, ob der Typ den Namen trägt oder der Aufruf anhand des
    Argumenttyps aufgelöst wird (das widerspräche nicht der Klarheit, `add` löst schon so auf).
-5. **Lücken in Paaren.** `lastElement` ohne `firstElement`, `greater` ohne `less`,
+5. **Lücken in Paaren.** `lastElement` ohne `firstElement`, `greaterInteger` ohne `lessInteger`, `GreaterFloat` ohne `LessFloat`,
    `removeField` ohne `removeElement`.
 6. **Gleiche Idee, verschiedene Wörter.** `map` für List, `mapDictionary` für Dictionary,
    `MapElements` als Typfunktion. `exists` und `all` statt `any` und `all`. `Rational` neben
@@ -25,7 +25,7 @@ Container-Begriffe stehen in [container-nomenklatur.md](container-nomenklatur.md
    Zeiten heißen `delayMs` und `timeoutMs`. Ausgeschrieben wären das `arguments` bzw. `numbers`
    und `delayMilliseconds`. Zu klären ist, ob `Ms` als bekannte Einheit durchgeht.
 8. **Funktionen, die keine Verben sind.** `length`, `range`, `regex`, `currentDate` sind Nomen,
-   `greater` und `all` sind Adjektive bzw. Quantoren, `equal` ist ein Adjektiv (`and`, `or`,
+   `greaterInteger` und `all` sind Adjektive bzw. Quantoren, `equal` ist ein Adjektiv (`and`, `or`,
    `not` sind logische Operatoren und bleiben vermutlich). Mögliche Verb-Namen wären `getLength`,
    `createRange`, `getCurrentDate`, `isGreater`, `isEqual`. Zu klären ist, ob Prädikate mit `is`
    beginnen und ob Operatoren und kurze Ableitungen wie `length` Ausnahmen sind.
@@ -35,4 +35,4 @@ Container-Begriffe stehen in [container-nomenklatur.md](container-nomenklatur.md
 
 - Wie heißt ein Prädikat-Callback-Parameter, und heißen Callback-Parameter überall gleich
   (`value`, `index`)?
-- Gibt es eine Regel für Verneinung und Gegenstücke (`greater`/`less`, `Greater…`/`Less…`)?
+- Gibt es eine Regel für Verneinung und Gegenstücke (`greaterInteger`/`lessInteger`, `Greater…`/`Less…`)?

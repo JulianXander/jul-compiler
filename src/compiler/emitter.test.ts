@@ -1022,7 +1022,7 @@ describe('Emitter Ausführung', () => {
 	it('findField liefert den passenden Wert', () => {
 		const code = [
 			'd = [a = 1 b = 2 c = 3]',
-			'result = d.findField((value key) => value.greater(2))',
+			'result = d.findField((value key) => value.greaterInteger(2))',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(3n);
 	});
@@ -1035,7 +1035,7 @@ describe('Emitter Ausführung', () => {
 	});
 	it('findField über Empty liefert Empty', () => {
 		const code = [
-			'f = (d: Or([] Dictionary(Integer))) => d.findField((value) => value.greater(1))',
+			'f = (d: Or([] Dictionary(Integer))) => d.findField((value) => value.greaterInteger(1))',
 			'result = f([])',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(undefined);
@@ -1050,13 +1050,13 @@ describe('Emitter Ausführung', () => {
 	it('findKey ohne Treffer liefert Empty', () => {
 		const code = [
 			'd = [a = 1 b = 2]',
-			'result = d.findKey((value key) => value.greater(5))',
+			'result = d.findKey((value key) => value.greaterInteger(5))',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(undefined);
 	});
 	it('findKey über Empty liefert Empty', () => {
 		const code = [
-			'f = (d: Or([] Dictionary(Integer))) => d.findKey((value) => value.greater(1))',
+			'f = (d: Or([] Dictionary(Integer))) => d.findKey((value) => value.greaterInteger(1))',
 			'result = f([])',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(undefined);
@@ -1303,7 +1303,7 @@ describe('Emitter exists als Schleife', () => {
 	});
 	it('der Callback sieht Werte der Umgebung', () => {
 		const code = [
-			'f = (values: List(Integer) limit: Integer) => values.exists((value) => greater(value limit))',
+			'f = (values: List(Integer) limit: Integer) => values.exists((value) => greaterInteger(value limit))',
 			'result = and(f([1 2 3] 2) not(f([1 2 3] 3)))',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(true);
@@ -1334,12 +1334,12 @@ describe('Emitter filter, map und filterMap als Schleife', () => {
 		expect(emitChecked(code)).to.contain('_listValues');
 	};
 	it('filter behält die passenden Elemente', () => {
-		const code = `${listOf3}\nresult = filter(values (value) => greater(value 1))`;
+		const code = `${listOf3}\nresult = filter(values (value) => greaterInteger(value 1))`;
 		expectLoop(code);
 		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n]);
 	});
 	it('filter ohne Treffer liefert Empty', () => {
-		const code = `${listOf3}\nresult = filter(values (value) => greater(value 9))`;
+		const code = `${listOf3}\nresult = filter(values (value) => greaterInteger(value 9))`;
 		expect(runEmitted(code, 'result')).to.equal(undefined);
 	});
 	it('filter über Empty liefert Empty', () => {
@@ -1350,7 +1350,7 @@ describe('Emitter filter, map und filterMap als Schleife', () => {
 		expect(runEmitted(code, 'result')).to.equal(undefined);
 	});
 	it('filter reicht den 1-basierten Index', () => {
-		const code = `${listOf3}\nresult = filter(values (value index) => greater(index 1))`;
+		const code = `${listOf3}\nresult = filter(values (value index) => greaterInteger(index 1))`;
 		expectLoop(code);
 		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n]);
 	});
@@ -1384,7 +1384,7 @@ describe('Emitter filter, map und filterMap als Schleife', () => {
 		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n, 4n]);
 	});
 	it('verkettete Aufrufe bleiben richtig geordnet', () => {
-		const code = `${listOf3}\nresult = values.filter((value) => greater(value 1)).map((value) => add(value 10))`;
+		const code = `${listOf3}\nresult = values.filter((value) => greaterInteger(value 1)).map((value) => add(value 10))`;
 		expect(runEmitted(code, 'result')).to.deep.equal([12n, 13n]);
 	});
 });
@@ -1395,12 +1395,12 @@ describe('Emitter all, findFirst und aggregate als Schleife', () => {
 		expect(emitChecked(code)).to.contain('_listValues');
 	};
 	it('all ist true, wenn jedes Element passt', () => {
-		const code = `${listOf3}\nresult = all(values (value) => greater(value 0))`;
+		const code = `${listOf3}\nresult = all(values (value) => greaterInteger(value 0))`;
 		expectLoop(code);
 		expect(runEmitted(code, 'result')).to.equal(true);
 	});
 	it('all ist false, sobald ein Element nicht passt', () => {
-		const code = `${listOf3}\nresult = all(values (value) => greater(value 1))`;
+		const code = `${listOf3}\nresult = all(values (value) => greaterInteger(value 1))`;
 		expect(runEmitted(code, 'result')).to.equal(false);
 	});
 	it('all über Empty ist true', () => {
@@ -1415,12 +1415,12 @@ describe('Emitter all, findFirst und aggregate als Schleife', () => {
 		expect(runEmitted(code, 'result')).to.equal(true);
 	});
 	it('findFirst liefert das erste passende Element', () => {
-		const code = `${listOf3}\nresult = findFirst(values (value) => greater(value 1))`;
+		const code = `${listOf3}\nresult = findFirst(values (value) => greaterInteger(value 1))`;
 		expectLoop(code);
 		expect(runEmitted(code, 'result')).to.equal(2n);
 	});
 	it('findFirst ohne Treffer liefert Empty', () => {
-		const code = `${listOf3}\nresult = findFirst(values (value) => greater(value 9))`;
+		const code = `${listOf3}\nresult = findFirst(values (value) => greaterInteger(value 9))`;
 		expect(runEmitted(code, 'result')).to.equal(undefined);
 	});
 	it('findFirst über Empty liefert Empty', () => {

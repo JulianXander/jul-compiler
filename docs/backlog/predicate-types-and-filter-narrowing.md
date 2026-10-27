@@ -4,7 +4,14 @@ Ausgangspunkt war ein Fund in yugioh (Session 2026-09-10): `filter` verengte
 `List(Or(Integer Empty))` nicht auf `List(Integer)`, obwohl das Prädikat es beweist. Heute gilt:
 Erkennt der Checker im Rumpf eines Boolean-Callbacks exakt ein `?(param)`-Branching, hängt er
 `predicate: PredicateFacts` an den Funktionstyp ([syntax-tree.ts](../src/syntax-tree.ts)) -
-`ifTrue` als Obermenge, `excludedIfFalse` als Untermenge. Ein Funktionswert in Typ-Position ist
+`ifTrue` als Obermenge, `excludedIfFalse` als Untermenge. Dasselbe gilt für einen Rumpf aus genau
+einem Aufruf, der den Parameter an ein Prädikat übergibt: Hat die gerufene JUL-Funktion Fakten,
+gelten sie unverändert (Argument 0). Ein natives Builtin sichert seine Aussage im Rückgabetyp zu,
+`Is(first GreaterInteger(second))` bei `greaterInteger`, `Is(first TypeOf(second))` bei `equal`.
+Der Checker hält sie getrennt als `contract` und setzt die Argumente des Aufrufs erst bei der
+Herleitung ein, und nur, wenn alle übrigen Argumente einzelne Literale sind. Sonst wäre die
+Zusicherung nicht exakt (`x.equal(n)` mit `n: Integer`). `Is` außerhalb einer
+nativeFunction-Signatur ist JUL5155. Ein Funktionswert in Typ-Position ist
 ein Prädikat mit eigenem Typ `julType: 'predicate'`, seine Schranken kommen aus dem Typ des ersten
 Parameters und diesen Fakten. `filter`, `findFirst` und `findLast` schneiden ihren ElementType
 über `TypeOf(predicate)/PredicateIfTrue`.
@@ -61,8 +68,13 @@ JULs struktureller Checker und außer Verhältnis zum Sprachumfang.
 
 ### 1. Weitere Rumpfformen
 
-Erkannt wird nur: **ein** Parameter, Rumpf **genau ein** `?(param)`-Branching. Offen sind
-mehrere Parameter, Prädikate aus Aufrufen und Referenzketten.
+Erkannt wird nur: **ein** Parameter, Rumpf **genau ein** `?(param)`-Branching oder **genau ein**
+Aufruf eines Prädikats mit dem Parameter an der Stelle, über die es etwas aussagt. Offen sind
+mehrere Parameter, Rümpfe mit Definitionen vor dem Ergebnis, der Parameter an anderer Stelle eines
+Builtins (`1.greaterInteger(v)` bräuchte einen zweiten Vertrag je Funktion) und die Kombination
+über `not`/`and`/`or` (Typed Racket: `not` vertauscht die Richtungen, `and` schneidet beide).
+Einseitige Aussagen wie die von `exists` (true heißt nicht leer, false heißt nicht leer oder ohne
+Treffer) kann `Is` nicht ausdrücken, es sagt beide Richtungen zu.
 
 Ein nicht-literaler branch-Rumpf zählt bereits konservativ zu `ifTrue` (das vergrößert die
 Obermenge, bleibt also sound), zu `excludedIfFalse` dagegen nicht - jede Erweiterung muss diese

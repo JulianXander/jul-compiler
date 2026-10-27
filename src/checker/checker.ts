@@ -33,6 +33,7 @@ import {
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
 	ParseFunctionLiteral,
+	ParseFunctionTypeLiteral,
 	ParseListLiteral,
 	ParseParameterField,
 	ParseParameterFields,
@@ -40,6 +41,7 @@ import {
 	ParseSpreadValueExpression,
 	ParseValueExpression,
 	ParseReference,
+	PredicateContract,
 	PredicateFacts,
 	Purity,
 	SimpleExpression,
@@ -274,7 +276,7 @@ const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
  * Typfunktionen, deren Ergebnis ungültig ist, wenn einer ihrer Operanden schon als Fehler gemeldet
  * ist. And, Or, Not und TypeOf folgen dem über die Normalisierung bzw. ihren eigenen Zweig.
  */
-const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'Subtract', 'GreaterInteger', 'LessInteger'];
+const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'Subtract', 'GreaterInteger', 'LessInteger', 'GreaterFloat'];
 
 /**
  * Stream(ValueType) und FiniteStream(ValueType): dieselbe Typfunktion, nur das Merkmal finite
@@ -1726,9 +1728,9 @@ function instantiateExpectedCallback(
 
 /**
  * Was aus dem Ergebnis dieses Funktionsliterals als Prädikat folgt, je Richtung getrennt.
- * Erkannt wird bewusst nur die einfachste Form: ein Parameter, Rumpf genau ein branching über
- * eben diesen Parameter. undefined ("keine Aussage") ist überall erlaubt, zu klein bzw. zu groß
- * wäre der Fehler, der verengt, wo nichts folgt.
+ * Erkannt werden bewusst nur die einfachsten Formen: ein Parameter, Rumpf genau ein branching über
+ * eben diesen Parameter oder genau ein Aufruf, der ihn einem Prädikat übergibt. undefined ("keine
+ * Aussage") ist überall erlaubt, zu klein bzw. zu groß wäre der Fehler, der verengt, wo nichts folgt.
  */
 function getPredicateFacts(
 	expression: ParseFunctionLiteral,
@@ -1740,19 +1742,24 @@ function getPredicateFacts(
 		|| params.rest) {
 		return undefined;
 	}
-	const branching = expression.body.length === 1
+	const body = expression.body.length === 1
 		? expression.body[0]
 		: undefined;
-	if (branching?.type !== 'branching') {
+	const parameterName = params.singleFields[0]!.name.name;
+	if (body?.type === 'functionCall') {
+		return getPredicateFactsFromCall(body, parameterName, returnType);
+	}
+	if (body?.type !== 'branching') {
 		return undefined;
 	}
+	const branching = body;
 	// Die Aussage gilt dem Parameter, also muss genau er gebrancht werden.
 	const branchedValues = getWrittenArguments(branching.args);
 	const branchedValue = branchedValues?.length === 1
 		? branchedValues[0]
 		: undefined;
 	if (branchedValue?.type !== 'reference'
-		|| branchedValue.name.name !== params.singleFields[0]!.name.name) {
+		|| branchedValue.name.name !== parameterName) {
 		return undefined;
 	}
 	// Die Laufzeit matcht ein Prädikat in Typ-Position mit einer Wahrheitsprüfung. Damit würde
@@ -1810,6 +1817,143 @@ function getPredicateFacts(
 		excludedIfFalse: definitelyTrueTypes.length
 			? createNormalizedUnionType(definitelyTrueTypes)
 			: undefined,
+	};
+}
+
+/**
+ * Rumpf ist genau ein Aufruf, der den Parameter an die Stelle übergibt, über die das gerufene
+ * Prädikat etwas aussagt: Fakten einer JUL-Funktion gelten unverändert (Argument 0), die Zusicherung
+ * eines Builtins (Is) wird mit den Argumenten des Aufrufs instanziiert. Die billigen Formprüfungen
+ * stehen vorn, denn sie laufen für jedes Funktionsliteral mit einem Aufruf als Rumpf.
+ */
+function getPredicateFactsFromCall(
+	call: ParseFunctionCall,
+	parameterName: string,
+	returnType: CompileTimeType,
+): PredicateFacts | undefined {
+	const calleeType = call.functionExpression?.typeInfo && resolveAlias(call.functionExpression.typeInfo.type);
+	if (!calleeType
+		|| !isFunctionType(calleeType)
+		|| (!calleeType.contract && !calleeType.predicate)) {
+		return undefined;
+	}
+	const writtenArgs = getWrittenArguments(call.arguments);
+	if (!writtenArgs) {
+		return undefined;
+	}
+	const args = call.prefixArgument
+		? [call.prefixArgument, ...writtenArgs]
+		: writtenArgs;
+	const contract = calleeType.contract;
+	const parameterIndex = contract?.parameterIndex ?? 0;
+	const argument = args[parameterIndex];
+	if (argument?.type !== 'reference'
+		|| argument.name.name !== parameterName) {
+		return undefined;
+	}
+	if (isSubtypeOf(resolvePlaceholders(returnType), builtinBoolean) !== true) {
+		return undefined;
+	}
+	if (!contract) {
+		return calleeType.predicate;
+	}
+	// Die Zusicherung ist exakt (true und false sagen beide etwas), solange die übrigen Argumente
+	// feststehen. x.equal(n) mit n: Integer hieße sonst bei false "x ist kein Integer".
+	const hasOnlyLiteralOthers = args.every((otherArgument, index) =>
+		index === parameterIndex
+		|| (otherArgument.typeInfo !== undefined
+			&& isSingletonLiteral(resolvePlaceholders(otherArgument.typeInfo.type))));
+	if (!hasOnlyLiteralOthers) {
+		return undefined;
+	}
+	const argsType = bindReceiver(call.prefixArgument?.typeInfo?.type, call.arguments?.typeInfo?.type ?? builtinAny);
+	const contractType = dereferenceArgumentTypesNested(calleeType, argsType, contract.type);
+	if (isDeferredType(contractType)
+		|| hasUndecidableBound(contractType)) {
+		return undefined;
+	}
+	return {
+		ifTrue: contractType,
+		excludedIfFalse: contractType,
+	};
+}
+
+function isSingletonLiteral(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'booleanLiteral':
+		case 'integerLiteral':
+		case 'floatLiteral':
+		case 'textLiteral':
+			return true;
+		default:
+			return false;
+	}
+}
+
+/**
+ * Eine Grenze, deren Wert kein Literal ihrer Familie ist (GreaterInteger(1.5)), kann die Typalgebra
+ * nicht entscheiden: Die Verengung damit wäre nicht falsch, aber unbrauchbar.
+ */
+function hasUndecidableBound(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'bound':
+			return type.Value.julType !== (type.Family === 'integer' ? 'integerLiteral' : 'floatLiteral');
+		case 'or':
+		case 'and':
+			return type.ChoiceTypes.some(hasUndecidableBound);
+		case 'not':
+			return hasUndecidableBound(type.SourceType);
+		default:
+			return false;
+	}
+}
+
+/**
+ * Die nativeFunction-Signatur, deren Rückgabetyp isCall ist. undefined, wenn Is anderswo steht.
+ */
+function getContractSignature(isCall: ParseFunctionCall): ParseFunctionTypeLiteral | undefined {
+	const signature = isCall.parent;
+	if (signature?.type !== 'functionTypeLiteral'
+		|| signature.returnType !== isCall) {
+		return undefined;
+	}
+	const nativeCall = signature.parent?.parent;
+	if (nativeCall?.type !== 'functionCall'
+		|| nativeCall.functionExpression?.type !== 'reference'
+		|| nativeCall.functionExpression.name.name !== 'nativeFunction'
+		|| !nativeCall.arguments
+		|| getArgValueExpressions(nativeCall.arguments)[0] !== signature) {
+		return undefined;
+	}
+	return signature;
+}
+
+/**
+ * Is(parameter Typ) als Rückgabetyp einer nativeFunction-Signatur. Der Typ darf Platzhalter auf die
+ * übrigen Parameter enthalten, eingesetzt wird erst in getPredicateFactsFromCall.
+ */
+function getPredicateContract(signature: ParseFunctionTypeLiteral): PredicateContract | undefined {
+	const isCall = signature.returnType;
+	if (isCall.type !== 'functionCall'
+		|| isCall.functionExpression?.type !== 'reference'
+		|| isCall.functionExpression.name.name !== 'Is'
+		|| signature.params.type !== 'parameters'
+		|| !getContractSignature(isCall)) {
+		return undefined;
+	}
+	const [valueArgument, typeArgument] = getWrittenArguments(isCall.arguments) ?? [];
+	if (valueArgument?.type !== 'reference'
+		|| !typeArgument?.typeInfo) {
+		return undefined;
+	}
+	const parameterIndex = signature.params.singleFields.findIndex(field =>
+		field.name.name === valueArgument.name.name);
+	if (parameterIndex === -1) {
+		return undefined;
+	}
+	return {
+		parameterIndex: parameterIndex,
+		type: valueOf(typeArgument.typeInfo.type),
 	};
 }
 
@@ -2816,7 +2960,7 @@ function inferType(
 				valueOf(inferredReturnType),
 				expression.arrow ?? 'unknown',
 				undefined,
-				{ identity: identity },
+				{ identity: identity, contract: getPredicateContract(expression) },
 			);
 			const rawType = createCompileTimeTypeOfType(functionType);
 			return { type: rawType };
@@ -3429,6 +3573,20 @@ function getReturnTypeFromFunctionCall(
 				}
 				return createCompileTimeTypeOfType(subtractFromTypes(valueOf(minuendType), valueOf(subtrahendType)));
 			}
+			case 'Is': {
+				// Die Zusicherung liest getPredicateContract aus der Signatur, als Typ steht hier nur Boolean.
+				if (!getContractSignature(functionCall)) {
+					errors.push({
+						code: ErrorCode.isOutsideNativeSignature,
+						message: 'Is is only allowed as return type of a nativeFunction signature.',
+						startRowIndex: functionCall.startRowIndex,
+						startColumnIndex: functionCall.startColumnIndex,
+						endRowIndex: functionCall.endRowIndex,
+						endColumnIndex: functionCall.endColumnIndex,
+					});
+				}
+				return createCompileTimeTypeOfType(builtinBoolean);
+			}
 			case 'Not': {
 				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
@@ -3467,7 +3625,8 @@ function getReturnTypeFromFunctionCall(
 				return createCompileTimeTypeOfType(argTypes[0]);
 			}
 			case 'GreaterInteger':
-			case 'LessInteger': {
+			case 'LessInteger':
+			case 'GreaterFloat': {
 				const argTypes = getAllArgTypes(boundArgsType);
 				if (!argTypes) {
 					// TODO unknown?
@@ -3478,8 +3637,8 @@ function getReturnTypeFromFunctionCall(
 					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(createCompileTimeBoundType(
-					functionName === 'GreaterInteger' ? 'greater' : 'less',
-					'integer',
+					functionName === 'LessInteger' ? 'less' : 'greater',
+					functionName === 'GreaterFloat' ? 'float' : 'integer',
 					valueOf(argTypes[0])));
 			}
 			default:

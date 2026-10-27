@@ -84,4 +84,4 @@ textOrBoundHead = (value: Or(Text Integer)) =>
 
 # Derselbe Test als Aufruf, Vergleichsmaßstab für boundHead
 greaterCall = (value: Integer) =>
-	value.greater(1)
+	value.greaterInteger(1)
