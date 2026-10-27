@@ -368,3 +368,6 @@
 2026-10-27 11:40:17	4be1c0e+	-	ADV-DEV-56627	yugioh	parse+check	5	11796.26	11848.20	11848.20	nach Occurrence Typing im Branching, dritter Lauf
 2026-10-27 11:40:17	4be1c0e+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	798.04	846.05	846.05	nach Occurrence Typing im Branching, dritter Lauf
 2026-10-27 11:40:17	4be1c0e+	-	ADV-DEV-56627	yugioh	parse	5	59.35	83.56	83.56	nach Occurrence Typing im Branching, dritter Lauf
+2026-10-27 15:34:01	003ac3f+	-	ADV-DEV-56627	yugioh	parse+check	5	10962.95	11756.67	11756.67	erwarteter Rückgabetyp in branches
+2026-10-27 15:34:01	003ac3f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	789.84	853.07	853.07	erwarteter Rückgabetyp in branches
+2026-10-27 15:34:01	003ac3f+	-	ADV-DEV-56627	yugioh	parse	5	56.87	64.56	64.56	erwarteter Rückgabetyp in branches

@@ -2895,10 +2895,14 @@ function inferType(
 				setInferredType(declaredReturnType, branchTypeContext, undefined, checkContext);
 			}
 			// Der letzte Ausdruck ist der Rückgabewert: er erwartet den deklarierten Rückgabetyp, sonst
-			// den des erwarteten Funktionstyps.
+			// den des erwarteten Funktionstyps, sonst als branch, was das branching erwartet. Ein branch
+			// bekommt keinen erwarteten Funktionstyp, seine Parameter kommen aus den Argumenten.
 			const expectedReturnType = declaredReturnType?.typeInfo
 				? valueOf(declaredReturnType.typeInfo.type)
-				: expectedFunctionType?.ReturnType;
+				: expectedFunctionType?.ReturnType
+				?? (branching?.type === 'branching'
+					? branching.expectedType
+					: undefined);
 			const lastBodyExpression = last(expression.body);
 			expression.body.forEach(bodyExpression => {
 				const expectedBodyType = bodyExpression === lastBodyExpression

@@ -167,6 +167,10 @@ describe('ReferenceIndex: Feldnamen an Stellen mit erwartetem Typ', () => {
 			'i = h([name = §s§])',
 			'nameUsage = name',
 			'aliasedUsage = aliased',
+			's = (flag: Boolean) :> MyType =>',
+			'	?(flag)',
+			'		[true] => [name = §t§]',
+			'		[false] => [name = §u§]',
 			'',
 		].join('\n');
 		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
@@ -198,6 +202,9 @@ describe('ReferenceIndex: Feldnamen an Stellen mit erwartetem Typ', () => {
 	});
 	it('Rückgabewert: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
 		expect(getReferenceRows()).to.include(12);
+	});
+	it('Rückgabewert aus einem branching: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
+		expect(getReferenceRows()).to.include.members([24, 25]);
 	});
 	it('Zugriff über eine typisierte Variable: der Feldname ist eine Referenz auf das Feld des erwarteten Typs', () => {
 		expect(getReferenceRows()).to.include(13);
