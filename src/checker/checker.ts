@@ -1352,6 +1352,49 @@ function getOriginExpression(symbol: SymbolDefinition): ParseValueExpression | u
 }
 
 /**
+ * Eine neue Umgebung, in der das Subjekt des Prädikataufrufs verengt ist, aus dem dieses gebranchte
+ * Argument stammt: mit ifTrue, wenn das Argument im branch true ist, ohne excludedIfFalse, wenn es
+ * false ist. Ist es beides möglich, bleibt der Typ, wie er ist.
+ */
+function withNarrowedPredicateSubject(
+	narrowedTypes: NarrowedTypes | undefined,
+	argument: ParseValueExpression,
+	getConditionType: () => CompileTimeType,
+	scopes: SymbolTable[],
+): NarrowedTypes | undefined {
+	const predicateCall = getPredicateCallOfArgument(argument, scopes);
+	if (!predicateCall) {
+		return narrowedTypes;
+	}
+	const subject = predicateCall.subject;
+	const subjectPath = getAccessPath(subject, scopes);
+	if (!subjectPath) {
+		return narrowedTypes;
+	}
+	const facts = predicateCall.facts;
+	const getSubjectNarrowedType = createLazyType(() => {
+		// Aufgelöst: Ein Parameter steht hier noch als Platzhalter, und unter Not entscheidet die
+		// Typalgebra die Zuweisung erst über den aufgelösten Typ.
+		const currentType = resolvePlaceholders(getNarrowedType(narrowedTypes, subjectPath.symbol, subjectPath.keys)
+			?? subject.typeInfo?.type
+			?? builtinAny);
+		const conditionType = getConditionType();
+		if (isSubtypeOf(conditionType, coreBuiltInSymbolTypes.true!) === true) {
+			return createNormalizedIntersectionType([currentType, facts.ifTrue]);
+		}
+		if (facts.excludedIfFalse
+			&& isSubtypeOf(conditionType, coreBuiltInSymbolTypes.false!) === true) {
+			return createNormalizedIntersectionType([
+				currentType,
+				createCompileTimeComplementType(facts.excludedIfFalse),
+			]);
+		}
+		return currentType;
+	});
+	return withNarrowedPath(narrowedTypes, subject, getSubjectNarrowedType, scopes);
+}
+
+/**
  * Die geschriebenen Werte einer Kollektion, Index für Index.
  * undefined, wenn sich kein Ausdruck zuordnen lässt - dann wird weder verengt noch gemeldet.
  */
@@ -1822,15 +1865,38 @@ function getPredicateFacts(
 
 /**
  * Rumpf ist genau ein Aufruf, der den Parameter an die Stelle übergibt, über die das gerufene
- * Prädikat etwas aussagt: Fakten einer JUL-Funktion gelten unverändert (Argument 0), die Zusicherung
- * eines Builtins (Is) wird mit den Argumenten des Aufrufs instanziiert. Die billigen Formprüfungen
- * stehen vorn, denn sie laufen für jedes Funktionsliteral mit einem Aufruf als Rumpf.
+ * Prädikat etwas aussagt.
  */
 function getPredicateFactsFromCall(
 	call: ParseFunctionCall,
 	parameterName: string,
 	returnType: CompileTimeType,
 ): PredicateFacts | undefined {
+	const predicateCall = getPredicateCall(call);
+	const subject = predicateCall?.subject;
+	if (subject?.type !== 'reference'
+		|| subject.name.name !== parameterName) {
+		return undefined;
+	}
+	if (isSubtypeOf(resolvePlaceholders(returnType), builtinBoolean) !== true) {
+		return undefined;
+	}
+	return predicateCall!.facts;
+}
+
+interface PredicateCall {
+	/** Das Argument, über das das gerufene Prädikat etwas aussagt */
+	readonly subject: ParseValueExpression;
+	readonly facts: PredicateFacts;
+}
+
+/**
+ * Was ein Aufruf eines Prädikats über eines seiner Argumente aussagt: Fakten einer JUL-Funktion
+ * gelten unverändert (Argument 0), die Zusicherung eines Builtins (Is) wird mit den Argumenten des
+ * Aufrufs instanziiert. Die billigen Formprüfungen stehen vorn, denn sie laufen für jedes
+ * Funktionsliteral mit einem Aufruf als Rumpf und für jeden Aufruf, über den gebrancht wird.
+ */
+function getPredicateCall(call: ParseFunctionCall): PredicateCall | undefined {
 	const calleeType = call.functionExpression?.typeInfo && resolveAlias(call.functionExpression.typeInfo.type);
 	if (!calleeType
 		|| !isFunctionType(calleeType)
@@ -1846,16 +1912,15 @@ function getPredicateFactsFromCall(
 		: writtenArgs;
 	const contract = calleeType.contract;
 	const parameterIndex = contract?.parameterIndex ?? 0;
-	const argument = args[parameterIndex];
-	if (argument?.type !== 'reference'
-		|| argument.name.name !== parameterName) {
-		return undefined;
-	}
-	if (isSubtypeOf(resolvePlaceholders(returnType), builtinBoolean) !== true) {
+	const subject = args[parameterIndex];
+	if (!subject) {
 		return undefined;
 	}
 	if (!contract) {
-		return calleeType.predicate;
+		return calleeType.predicate && {
+			subject: subject,
+			facts: calleeType.predicate,
+		};
 	}
 	// Die Zusicherung ist exakt (true und false sagen beide etwas), solange die übrigen Argumente
 	// feststehen. x.equal(n) mit n: Integer hieße sonst bei false "x ist kein Integer".
@@ -1873,9 +1938,34 @@ function getPredicateFactsFromCall(
 		return undefined;
 	}
 	return {
-		ifTrue: contractType,
-		excludedIfFalse: contractType,
+		subject: subject,
+		facts: {
+			ifTrue: contractType,
+			excludedIfFalse: contractType,
+		},
 	};
+}
+
+/**
+ * Der Prädikataufruf, aus dem das Boolean eines gebranchten Arguments stammt: der Aufruf selbst
+ * oder die Definition, auf die es verweist. Ein Name bezeichnet in JUL genau einen Wert, das
+ * Ergebnis des Aufrufs gilt also auch im branching über den Namen.
+ */
+function getPredicateCallOfArgument(
+	argument: ParseValueExpression,
+	scopes: SymbolTable[],
+): PredicateCall | undefined {
+	if (argument.type === 'functionCall') {
+		return getPredicateCall(argument);
+	}
+	if (argument.type !== 'reference') {
+		return undefined;
+	}
+	const definition = findSymbolInScopesWithBuiltIns(argument.name.name, scopes)?.symbol.definition;
+	return definition?.type === 'definition'
+		&& definition.value?.type === 'functionCall'
+		? getPredicateCall(definition.value)
+		: undefined;
 }
 
 function isSingletonLiteral(type: CompileTimeType): boolean {
@@ -2765,9 +2855,16 @@ function inferType(
 					?? createBranchCoverage(branching.args?.typeInfo && resolvePlaceholders(branching.args.typeInfo.type));
 				const head = getBranchHead(paramsTypeValue);
 				getWrittenArguments(branching.args)?.forEach((argument, argumentIndex) => {
+					if (!mayNarrowAt(coverage, head, argumentIndex)) {
+						return;
+					}
+					branchNarrowedTypes = withNarrowedPredicateSubject(
+						branchNarrowedTypes,
+						argument,
+						() => narrowArgumentType(coverage, head, argumentIndex, argument.typeInfo?.type ?? builtinBoolean),
+						functionScopes);
 					const path = getAccessPath(argument, functionScopes);
-					if (!path
-						|| !mayNarrowAt(coverage, head, argumentIndex)) {
+					if (!path) {
 						return;
 					}
 					// branching.args wird in case 'branching' vor den branches inferiert

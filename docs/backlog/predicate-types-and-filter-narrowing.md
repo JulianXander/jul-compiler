@@ -16,6 +16,15 @@ ein Prädikat mit eigenem Typ `julType: 'predicate'`, seine Schranken kommen aus
 Parameters und diesen Fakten. `filter`, `findFirst` und `findLast` schneiden ihren ElementType
 über `TypeOf(predicate)/PredicateIfTrue`.
 
+Dieselben Fakten verengen ein Branching über einen Prädikataufruf (Occurrence Typing): Bei
+`?(value.greaterInteger(1))` hat `value` in einem branch, in dem das Argument `true` ist, den Typ
+`ifTrue`, und in einem, in dem es `false` ist, den Typ ohne `excludedIfFalse`. Welcher Wert im
+branch gilt, rechnet die Coverage aus, also auch `()` nach `[true]`. Ein Name, dessen Definition
+genau ein solcher Aufruf ist, gilt wie der Aufruf (`isBig = value.greaterInteger(1)` und dann
+`?(isBig)`), sound, weil Bindungen unveränderlich sind und Überdecken JUL3203 ist. Subjekt,
+Fakten und die Regeln für die übrigen Argumente stehen für `filter` und das Branching an einer
+Stelle (`getPredicateCall`).
+
 Dieses Dokument hält fest, **was daran noch offen ist** - und warum die Grenze dort liegt, wo sie
 liegt.
 
@@ -100,6 +109,13 @@ aus genau diesem Grund.
   gemessen. Der Bench misst nur parse und check, dafür wäre `bench-runtime` da.
 - `Boolean.Without(true)` heißt `And(Boolean Not(true))`, wird aber noch nicht zu `false`
   vereinfacht (jul-examples, type-checking-test.jul).
+- Ebenso bleibt der false-Zweig von `?(value.greaterInteger(1))` als
+  `And(Integer Not(GreaterInteger(1)))` stehen statt `LessInteger(2)`. Zuweisbar ist er, im Hover
+  sieht man aber die lange Form.
+- Das Branching verengt über einen Namen nur eine Definition tief (`a = x.greaterInteger(1)`,
+  `b = a`, `?(b)` verengt nicht), und nicht über ein Feld (`[ok = check]`, `?(r/ok)`).
+- Lagert man eine Bedingung in eine Hilfsfunktion aus, die mehr als genau einen Prädikataufruf im
+  Rumpf hat, geht die Verengung still verloren.
 
 ## Weitergehende Idee: Typ-/Literal-Werte direkt als Prädikat-Argument
 

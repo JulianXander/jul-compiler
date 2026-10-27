@@ -1970,6 +1970,61 @@ f = (value: Integer) :> Or([] LessInteger(2)) =>
 		[check] => []
 		(rest) => rest`);
 	});
+	// Choices ohne ganze Zahlen (hier Empty) nehmen von einem Integer-Bereich nichts auf.
+	it('integer-range-is-assignable-to-or-with-non-integer-choice', () => {
+		expectCheck(`f = (value: And(Integer Not(GreaterInteger(1)))) :> Or([] LessInteger(2)) => value`);
+	});
+	it('branching-over-predicate-call-narrows-subject-in-true-branch', () => {
+		expectResolvedReturnType(`f = (value: Integer) =>
+	?(value.greaterInteger(1))
+		[true] => value
+		[false] => []`, 'Or(GreaterInteger(1) Empty)');
+	});
+	it('branching-over-predicate-call-narrows-subject-in-false-branch', () => {
+		expectCheck(`f = (value: Integer) :> Or([] LessInteger(2)) =>
+	?(value.greaterInteger(1))
+		[true] => []
+		[false] => value`);
+	});
+	it('branching-over-predicate-call-narrows-subject-in-rest-branch', () => {
+		expectCheck(`f = (value: Integer) :> Or([] LessInteger(2)) =>
+	?(value.greaterInteger(1))
+		[true] => []
+		() => value`);
+	});
+	it('branching-over-predicate-call-in-prefix-free-form', () => {
+		expectResolvedReturnType(`f = (value: Integer) =>
+	?(greaterInteger(value 1))
+		[true] => value
+		[false] => []`, 'Or(GreaterInteger(1) Empty)');
+	});
+	it('branching-over-equal-call-narrows-union-of-field', () => {
+		expectCheck(`State = Or([phase: §draw§ drawn: Integer] [phase: §battle§ attacker: Integer])
+f = (state: State) :> Integer =>
+	?(state/phase.equal(§battle§))
+		[true] => state/attacker
+		[false] => state/drawn`);
+	});
+	it('branching-over-definition-of-predicate-call-narrows-subject', () => {
+		expectResolvedReturnType(`f = (value: Integer) =>
+	isBig = value.greaterInteger(1)
+	?(isBig)
+		[true] => value
+		[false] => []`, 'Or(GreaterInteger(1) Empty)');
+	});
+	it('branching-over-predicate-call-calling-predicate-narrows-subject', () => {
+		expectCheck(`check = (value: Integer) => value.greaterInteger(1)
+f = (value: Integer) :> Or([] GreaterInteger(1)) =>
+	?(check(value))
+		[true] => value
+		[false] => []`);
+	});
+	it('branching-over-predicate-call-with-unknown-bound-keeps-subject-type', () => {
+		expectResolvedReturnType(`f = (value: Integer count: Integer) =>
+	?(value.greaterInteger(count))
+		[true] => value
+		[false] => []`, 'Or(Integer Empty)');
+	});
 	it('is-outside-native-signature', () => {
 		expectCheck(`f = (value: Integer) -> Is(value PositiveInteger) => value.greaterInteger(0)`, {
 			errors: [

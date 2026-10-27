@@ -356,3 +356,15 @@
 2026-10-27 08:32:09	5577a33+	-	ADV-DEV-56627	yugioh	parse+check	5	12427.16	25128.42	25128.42	nach Is-Vertrag, greater -> greaterInteger/greaterFloat
 2026-10-27 08:32:09	5577a33+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	948.75	1001.61	1001.61	nach Is-Vertrag, greater -> greaterInteger/greaterFloat
 2026-10-27 08:32:09	5577a33+	-	ADV-DEV-56627	yugioh	parse	5	71.50	77.49	77.49	nach Is-Vertrag, greater -> greaterInteger/greaterFloat
+2026-10-27 10:39:10	4be1c0e	-	ADV-DEV-56627	yugioh	parse+check	5	11784.11	12012.59	12012.59	vor Occurrence Typing im Branching
+2026-10-27 10:39:10	4be1c0e	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	863.97	877.33	877.33	vor Occurrence Typing im Branching
+2026-10-27 10:39:10	4be1c0e	-	ADV-DEV-56627	yugioh	parse	5	71.04	72.91	72.91	vor Occurrence Typing im Branching
+2026-10-27 10:47:36	4be1c0e+	-	ADV-DEV-56627	yugioh	parse+check	5	12088.79	14245.73	14245.73	nach Occurrence Typing im Branching
+2026-10-27 10:47:36	4be1c0e+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	803.19	838.59	838.59	nach Occurrence Typing im Branching
+2026-10-27 10:47:36	4be1c0e+	-	ADV-DEV-56627	yugioh	parse	5	60.02	62.05	62.05	nach Occurrence Typing im Branching
+2026-10-27 11:38:39	4be1c0e+	-	ADV-DEV-56627	yugioh	parse+check	5	14561.93	15090.70	15090.70	nach Occurrence Typing im Branching, Wiederholung ohne Last
+2026-10-27 11:38:39	4be1c0e+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	840.18	1175.92	1175.92	nach Occurrence Typing im Branching, Wiederholung ohne Last
+2026-10-27 11:38:39	4be1c0e+	-	ADV-DEV-56627	yugioh	parse	5	63.61	110.18	110.18	nach Occurrence Typing im Branching, Wiederholung ohne Last
+2026-10-27 11:40:17	4be1c0e+	-	ADV-DEV-56627	yugioh	parse+check	5	11796.26	11848.20	11848.20	nach Occurrence Typing im Branching, dritter Lauf
+2026-10-27 11:40:17	4be1c0e+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	798.04	846.05	846.05	nach Occurrence Typing im Branching, dritter Lauf
+2026-10-27 11:40:17	4be1c0e+	-	ADV-DEV-56627	yugioh	parse	5	59.35	83.56	83.56	nach Occurrence Typing im Branching, dritter Lauf

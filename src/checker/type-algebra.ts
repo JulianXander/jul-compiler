@@ -3517,6 +3517,22 @@ function getIntegerRange(rawType: CompileTimeType): IntegerRange | undefined {
 	}
 }
 
+/**
+ * Der Bereich eines Or ohne die Choices, die keine ganze Zahl enthalten: Für einen Wert aus ganzen
+ * Zahlen sind sie bedeutungslos, Or([] LessInteger(2)) nimmt von ihm dasselbe auf wie LessInteger(2).
+ */
+function getIntegerRangeOfIntegerChoices(rawType: CompileTimeType): IntegerRange | undefined {
+	const type = resolveAlias(rawType);
+	if (type.julType !== 'or') {
+		return undefined;
+	}
+	const integerChoices = type.ChoiceTypes.filter(choiceType =>
+		typesOverlap(choiceType, builtinInteger) !== false);
+	return integerChoices.length < type.ChoiceTypes.length
+		? getIntegerRange(createNormalizedUnionType(integerChoices))
+		: undefined;
+}
+
 function isEmptyIntegerRange(range: IntegerRange): boolean {
 	return range.min !== undefined
 		&& range.max !== undefined
@@ -4322,7 +4338,7 @@ function integerRangeFits(argumentsType: CompileTimeType, targetType: CompileTim
 	if (!argumentsRange?.isInteger) {
 		return undefined;
 	}
-	const targetRange = getIntegerRange(targetType);
+	const targetRange = getIntegerRange(targetType) ?? getIntegerRangeOfIntegerChoices(targetType);
 	if (!targetRange) {
 		return undefined;
 	}
