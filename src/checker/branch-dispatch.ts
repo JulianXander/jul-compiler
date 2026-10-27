@@ -46,6 +46,11 @@ export type BranchTest =
 	| { kind: 'literals'; values: Array<LiteralValue | undefined>; }
 	/** Ein Feld mit Literaltyp unterscheidet die Glieder. */
 	| { kind: 'field'; name: string; value: LiteralValue; }
+	/**
+	 * Der Wert liegt jenseits einer Literal-Grenze. guarded: Nicht jedes Glied hat die Laufzeitart der
+	 * Grenze, vor dem Vergleich wird sie geprüft.
+	 */
+	| { kind: 'bound'; relation: 'greater' | 'less'; value: LiteralValue; jsKind: 'bigint' | 'number'; guarded: boolean; }
 	;
 
 export type LiteralValue = bigint | string | boolean | number;
@@ -179,13 +184,45 @@ type BranchStep = { test: BranchTest; remaining: CompileTimeType[]; };
 /**
  * Teilt die noch möglichen Glieder in die, die der branch sicher fängt, und die, die er sicher
  * nicht fängt. Bleibt ein Glied unentschieden, gibt es keinen exakten billigen Test.
- * Erst der Test nach Laufzeitart bzw. Feld, sonst (Kopf ist eine Union aus Einzelwerten) der Vergleich mit den Werten.
+ * Erst der Test nach Laufzeitart bzw. Feld, dann der Vergleich mit einer Grenze, sonst (Kopf ist eine Union
+ * aus Einzelwerten) der Vergleich mit den Werten. Die Art zuerst: Bei Or([] PositiveInteger) mit Kopf
+ * PositiveInteger reicht x !== undefined, der Vergleich wäre überflüssig.
  */
 function getBranchStep(
 	remaining: CompileTimeType[],
 	required: CompileTimeType,
 ): BranchStep | undefined {
-	return getKindStep(remaining, required) ?? getSingletonStep(remaining, required);
+	return getKindStep(remaining, required)
+		?? getBoundStep(remaining, required)
+		?? getSingletonStep(remaining, required);
+}
+
+/**
+ * Der Kopf ist ein Grenztyp mit Literal-Grenze (GreaterInteger(1)): Der Vergleich entscheidet jeden Wert
+ * exakt, so wie getTypeError in runtime.ts. Eine Grenze, die erst zur Laufzeit feststeht
+ * (GreaterInteger(count)), hat keinen Literalwert und bleibt beim vollen Check.
+ */
+function getBoundStep(
+	remaining: CompileTimeType[],
+	required: CompileTimeType,
+): BranchStep | undefined {
+	if (required.julType !== 'bound') {
+		return undefined;
+	}
+	const value = getLiteralValue(resolveAlias(required.Value));
+	if (value === undefined) {
+		return undefined;
+	}
+	const jsKind = required.Family === 'integer'
+		? 'bigint'
+		: 'number';
+	// Ohne Test der Art wäre der Vergleich falsch: §5§ > 1n ist in JS true.
+	const guarded = remaining.some(member => getMemberKind(member) !== jsKind);
+	return {
+		test: { kind: 'bound', relation: required.Relation, value: value, jsKind: jsKind, guarded: guarded },
+		// Wie beim Literal: Der Test ist für jeden Wert exakt, der Rest darf zu groß bleiben.
+		remaining: remaining.filter(member => isSubtypeOf(member, required) !== true),
+	};
 }
 
 /**

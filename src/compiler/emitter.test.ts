@@ -479,18 +479,32 @@ f = (x: Or(Text List(Integer))) =>
 		[[a: PositiveInteger]] => 1
 		() => 2`);
 	});
-	// Ob ein Integer größer 0 ist, entscheidet erst die Laufzeit: Integer und PositiveInteger haben dieselbe Laufzeitart.
-	it('Rückfall: Kopf PositiveInteger auf Integer, die Grenze entscheidet erst die Laufzeit', () => {
-		expectBranchingFallback(`f = (x: Integer) =>
+	// Integer und PositiveInteger haben dieselbe Laufzeitart, die Grenze entscheidet der Vergleich.
+	it('Kopf PositiveInteger auf Integer wird zu Vergleich', () => {
+		expectBranchingEmit(`f = (x: Integer) =>
 	?(x)
 		[PositiveInteger] => 1
-		() => 2`);
+		() => 2`, `
+		return x > 0n
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
 	});
-	it('Rückfall: Kopf PositiveInteger auf Or([] Integer)', () => {
-		expectBranchingFallback(`f = (x: Or([] Integer)) =>
+	it('Kopf PositiveInteger auf Or([] Integer): erst typeof, dann Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or([] Integer)) =>
 	?(x)
 		[PositiveInteger] => 1
-		() => 2`);
+		() => 2`, `
+		return (typeof x === 'bigint' && x > 0n)
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
 	});
 	it('Rückfall: bound in einem Glied mit Any bleibt unbrauchbar', () => {
 		expectBranchingFallback(`f = (x: Or([] [a: PositiveInteger b: Any])) =>
@@ -578,6 +592,60 @@ f = (x: Phase) =>
 		expectBranchingFallback(`f = (x: Or([] Integer)) =>
 	?(x)
 		[Or(1 2)] => 1
+		() => 2`);
+	});
+	it('Kopf GreaterInteger mit Literal-Grenze auf Integer wird zu Vergleich', () => {
+		expectBranchingEmit(`f = (x: Integer) =>
+	?(x)
+		[GreaterInteger(1)] => 1
+		() => 2`, `
+		return x > 1n
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Kopf LessInteger mit Literal-Grenze auf Integer wird zu Vergleich', () => {
+		expectBranchingEmit(`f = (x: Integer) =>
+	?(x)
+		[LessInteger(1)] => 1
+		() => 2`, `
+		return x < 1n
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Kopf mit Grenze, Argument mit anderer Laufzeitart: erst typeof, dann Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or(Text Integer)) =>
+	?(x)
+		[GreaterInteger(1)] => 1
+		() => 2`, `
+		return (typeof x === 'bigint' && x > 1n)
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Kopf mit Grenze, die das Argument statisch erfüllt: kein Test', () => {
+		expectBranchingEmit(`f = (x: GreaterInteger(5)) =>
+	?(x)
+		[GreaterInteger(1)] => 1
+		() => 2`, `
+		return (() => {
+				return 1n
+			})()`);
+	});
+	it('Rückfall: Kopf mit Grenze, die erst zur Laufzeit feststeht', () => {
+		expectBranchingFallback(`f = (x: Integer count: Integer) =>
+	?(x)
+		[GreaterInteger(count)] => 1
 		() => 2`);
 	});
 });
@@ -927,6 +995,16 @@ describe('Emitter and/or kurzschließend', () => {
 });
 
 describe('Emitter Ausführung', () => {
+	it('Kopf mit Grenze fängt keinen Text, dessen Inhalt jenseits der Grenze liegt', () => {
+		const code = [
+			'f = (x: Or(Text Integer)) =>',
+			'\t?(x)',
+			'\t\t[GreaterInteger(1)] => 1',
+			'\t\t() => 2',
+			'result = [f(§5§) f(0) f(5)]',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.deep.equal([2n, 2n, 1n]);
+	});
 	it('mapDictionary bildet jeden Wert mit seinem Schlüssel ab', () => {
 		const code = [
 			'd = [a = 1 b = 2]',

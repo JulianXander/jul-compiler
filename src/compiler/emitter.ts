@@ -902,6 +902,12 @@ function branchTestToJs(test: BranchTest, argumentJs: string): string {
 				.join(' || ');
 		case 'field':
 			return `${argumentJs}?.[${stringToJs(test.name)}] === ${literalValueToJs(test.value)}`;
+		case 'bound': {
+			const compareJs = `${argumentJs} ${test.relation === 'greater' ? '>' : '<'} ${literalValueToJs(test.value)}`;
+			return test.guarded
+				? `(typeof ${argumentJs} === '${test.jsKind}' && ${compareJs})`
+				: compareJs;
+		}
 		default: {
 			const assertNever: never = test;
 			throw new Error(`Unexpected BranchTest ${(assertNever as BranchTest).kind}`);

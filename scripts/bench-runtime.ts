@@ -251,6 +251,27 @@ const cases: BenchCase[] = [
 		calls: 200_000,
 	},
 	{
+		file: 'branching.jul',
+		functionName: 'boundHead',
+		inputs: [0n, 5n],
+		expected: [2n, 1n],
+		calls: 200_000,
+	},
+	{
+		file: 'branching.jul',
+		functionName: 'textOrBoundHead',
+		inputs: ['5', 0n, 5n],
+		expected: [2n, 2n, 1n],
+		calls: 200_000,
+	},
+	{
+		file: 'branching.jul',
+		functionName: 'greaterCall',
+		inputs: [0n, 5n],
+		expected: [false, true],
+		calls: 200_000,
+	},
+	{
 		file: 'named-arguments.jul',
 		functionName: 'positional',
 		inputs: [1n],

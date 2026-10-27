@@ -69,3 +69,19 @@ boundStateHead = (x: Or([] BoundState)) =>
 	?(x)
 		[BoundState] => 1
 		() => 2
+
+# Kopf mit einem Grenztyp: der Vergleich reicht, die Laufzeitart steht fest
+boundHead = (value: Integer) =>
+	?(value)
+		[GreaterInteger(1)] => 1
+		() => 2
+
+# Grenztyp neben einer anderen Laufzeitart: vor dem Vergleich die Art prüfen
+textOrBoundHead = (value: Or(Text Integer)) =>
+	?(value)
+		[GreaterInteger(1)] => 1
+		() => 2
+
+# Derselbe Test als Aufruf, Vergleichsmaßstab für boundHead
+greaterCall = (value: Integer) =>
+	value.greater(1)

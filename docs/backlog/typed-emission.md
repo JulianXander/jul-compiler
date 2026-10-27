@@ -59,6 +59,7 @@ Datei (`syntaxTreeToJs`), nicht beim Constant Folding mitten im Checklauf (`func
 | `jsKind` | Laufzeitart, direkt oder negiert | `x !== undefined`, `typeof x === 'string'`, `Array.isArray(x)`, `x instanceof Date` |
 | `literal` | Literal-Kopf | `x === 1n`, `x === 'a'` |
 | `field` | unterscheidendes Feld mit Literaltyp | `x?.['kind'] === 'circle'` |
+| `bound` | Grenztyp-Kopf mit Literal-Grenze, bei fremden Laufzeitarten mit Test der Art davor | `x > 1n`, `(typeof x === 'bigint' && x > 1n)` |
 
 **Rechnung.** Der Argumenttyp wird in seine Glieder zerlegt (Or aufgelöst, Aliase aufgelöst, Never entfernt).
 Je Branch mit gefordertem Typ `P` wird jedes noch mögliche Glied eingeordnet:
@@ -79,6 +80,12 @@ Test allein das nicht sagt (letztes Literal einer Literal-Union).
   scheidet deshalb aus.
 - **Feld-Test:** wenn alle noch möglichen Glieder Dictionaries sind und `P` ein Feld mit Literaltyp fordert, das jedes
   Glied als Literal festlegt. Gleiches Literal gilt als gefangen, sofern das Glied `P` ganz erfüllt.
+- **Grenz-Test:** wenn `P` ein Grenztyp mit Literal-Grenze ist (`GreaterInteger(1)`, `PositiveInteger`), erst nach
+  Art- und Feld-Test (bei `Or([] PositiveInteger)` reicht `x !== undefined`). Der Vergleich ist exakt wie
+  `getTypeError` in der Runtime, der Rest bleibt wie beim Literal-Kopf zu groß. Hat ein Glied eine andere Laufzeitart,
+  steht der Test der Art davor, denn `'5' > 1n` ist in JS `true`. Eine Grenze, die erst zur Laufzeit feststeht
+  (`GreaterInteger(count)`), führt zum Rückfall. Bereiche (`And(GreaterInteger(0) LessInteger(10))`) kennt der
+  Dispatch noch nicht.
 - Sonst Rückfall auf `_branch` für das ganze Branching.
 
 **Any macht ein Glied unbrauchbar.** Die Teilmengenprüfung des Checkers ist für `Any` permissiv, sie hält

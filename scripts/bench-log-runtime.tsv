@@ -687,3 +687,25 @@
 2026-10-24 15:52:50	3accd19+	-	ADV-DEV-56627	bench-runtime	json/small	15	4009.31	4300.55	4300.55	vor optionalen Feldern
 2026-10-24 15:52:50	3accd19+	-	ADV-DEV-56627	bench-runtime	json/large	15	4012520.00	4273774.00	4273774.00	vor optionalen Feldern
 2026-10-24 15:52:50	3accd19+	-	ADV-DEV-56627	bench-runtime	json/texts	15	491124.00	504348.00	504348.00	vor optionalen Feldern
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.39	19.09	19.09	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	7.34	11.08	11.08	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.58	12.14	12.14	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	7.81	8.32	8.32	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	11.57	12.17	12.17	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	7.08	7.63	7.63	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	6.74	8.07	8.07	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	6.77	7.03	7.03	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	58.78	66.61	66.61	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	54.58	58.09	58.09	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:52:33	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	7.57	9.24	9.24	vor bound-Dispatch (neue Fälle boundHead, textOrBoundHead, greaterCall)
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	4.17	17.53	17.53	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	6.95	12.60	12.60	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.63	8.01	8.01	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	7.62	8.20	8.20	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	11.76	17.25	17.25	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	6.98	7.79	7.79	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	6.63	7.27	7.27	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	6.93	7.30	7.30	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	8.96	9.80	9.80	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	8.62	13.74	13.74	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
+2026-10-27 07:53:58	c158a5a+	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	7.55	9.22	9.22	nach bound-Dispatch: Grenztyp-Kopf mit Literal-Grenze wird zu Vergleich
