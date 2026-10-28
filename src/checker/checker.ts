@@ -915,9 +915,12 @@ export interface CheckOptions {
 	/**
 	 * Der Checker schreibt seine Ergebnisse (typeInfo, Fehler) in den Baum und überspringt
 	 * Ausdrücke, die schon eine typeInfo haben. Wer dieselbe Datei später ohne neues Parsen erneut
-	 * checkt (Language Server: Abhängige nach Änderung eines Imports), braucht deshalb checked als
-	 * Klon von unchecked. Sonst ist checked dasselbe Objekt wie unchecked - das spart bei großen
-	 * Dateien den Großteil der Ladezeit. Pflicht, damit jeder Aufrufer das ausdrücklich entscheidet.
+	 * checkt, braucht deshalb checked als Klon von unchecked. Sonst ist checked dasselbe Objekt wie
+	 * unchecked - das spart bei großen Dateien den Großteil der Ladezeit. CLI und Language Server
+	 * klonen nicht (der Server parst für einen Recheck neu), nur einige Tests prüfen ohne neues
+	 * Parsen erneut. Fällt mit der Trennung von Syntaxbaum und Typen weg
+	 * (docs/backlog/immutable-syntax-tree.md). Pflicht, damit jeder Aufrufer das ausdrücklich
+	 * entscheidet.
 	 */
 	readonly cloneUnchecked: boolean;
 	/**
