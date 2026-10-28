@@ -5601,6 +5601,35 @@ f = (a: History b: History) :> Integer =>
 	count = length(values)
 	getElement(values count)`);
 	});
+	// Der Index im Callback von map ist höchstens die Länge derselben Liste (Or(length(values)
+	// LessInteger(length(values))) in der core-lib), ein Zugriff damit ist sicher.
+	it('element-at-callback-index-of-same-list-adds-no-empty', () => {
+		expectCheck(`f = (values: List(Integer)) :> List(Integer) =>
+	values.map((value index) => getElement(values index))`);
+	});
+	// Gegenprobe: Der Index einer anderen Liste beweist nichts.
+	it('element-at-callback-index-of-other-list-keeps-empty', () => {
+		expectCheck(`f = (values: List(Integer) other: List(Integer)) :> List(Integer) =>
+	values.map((value index) => getElement(other index))`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign List(Or(Empty Integer)) to List(Integer).\n  Can not assign Empty to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 53,
+					relatedInformation: {
+						message: 'Declared as List(Integer) here.',
+						startRowIndex: 0,
+						startColumnIndex: 52,
+						endRowIndex: 0,
+						endColumnIndex: 65,
+					},
+				},
+			],
+		});
+	});
 	// Länge minus Konstante: Mit der Untergrenze aus der Verengung liegt count - 1 zwischen 1 und der
 	// Länge (docs/backlog/laengen-terme.md, Schritt 3).
 	it('element-at-length-minus-one-with-narrowed-lower-bound-adds-no-empty', () => {

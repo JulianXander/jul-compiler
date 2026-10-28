@@ -2102,6 +2102,21 @@ function rangeCoversFirstPosition(rawStart: CompileTimeType, rawEnd: CompileTime
  * wird dafür nicht neu inferiert: sein Rückgabetyp nennt die eigenen Parameter noch als Verweise,
  * eingesetzt wird wie beim Aufruf einer Funktion mit generischem Rückgabetyp.
  */
+/**
+ * Der Index eines Elements dieser Liste: mit Längen-Term höchstens die Länge, wie der Index im Callback
+ * von map in der core-lib (docs/backlog/laengen-terme.md).
+ */
+function getListIndexType(sourceType: CompileTimeListType): CompileTimeType {
+	if (sourceType.Length === undefined) {
+		return positionIndexType;
+	}
+	const length = createCompileTimeLengthOfType(sourceType);
+	return createNormalizedIntersectionType([
+		positionIndexType,
+		createNormalizedUnionType([length, createCompileTimeBoundType('less', 'integer', length)]),
+	]);
+}
+
 export function mapElementsFromTypes(
 	rawSourceType: CompileTimeType,
 	rawCallbackType: CompileTimeType,
@@ -2131,7 +2146,7 @@ export function mapElementsFromTypes(
 		}
 		case 'list':
 			// Die Länge steht nicht fest, jedes Element bekommt denselben Typ.
-			return createCompileTimeListType(mapElementType(callbackType, sourceType.ElementType, positionIndexType));
+			return createCompileTimeListType(mapElementType(callbackType, sourceType.ElementType, getListIndexType(sourceType)));
 		case 'dictionaryLiteral': {
 			const fieldNames = Object.keys(sourceType.FieldTypes);
 			if (!fieldNames.length
@@ -2595,7 +2610,8 @@ function hasListLength(type: CompileTimeType): boolean {
  * Liegt der Index beweisbar zwischen 1 und der Länge genau dieser Liste? Er enthält dafür die Länge
  * derselben Quelle mit einem Abstand ≤ 0 (derselbe Längen-Term, typeEquals vergleicht ihn mit) und
  * ist mindestens 1: lengthOf selbst ist es immer (die Quelle ist nie Empty, siehe getLengthFromType),
- * Länge - k nur mit einer Untergrenze aus einem Schnitt, etwa der Verengung count > 1.
+ * Länge - k nur mit einer Untergrenze aus einem Schnitt, etwa der Verengung count > 1. Ebenso der
+ * Index im Callback von map/forEach: Or(length(values) LessInteger(length(values))).
  * Ohne Längen-Term an der Liste gälte die Länge jeder Liste gleichen Typs als Beweis
  * (docs/backlog/laengen-terme.md).
  */
@@ -2604,17 +2620,35 @@ function isIndexWithinLength(key: CompileTimeType, source: CompileTimeType): boo
 		|| source.Length === undefined) {
 		return false;
 	}
-	const lengthChoices = key.julType === 'and'
-		? key.ChoiceTypes
-		: [key];
-	const hasOwnLength = lengthChoices.some(choice => choice.julType === 'lengthOf'
-		&& choice.Offset <= 0n
-		&& typeEquals(choice.Source, source));
-	if (!hasOwnLength) {
+	if (!isAtMostLength(key, source)) {
 		return false;
 	}
 	const minimum = getIntegerMinimum(key);
 	return minimum !== undefined && minimum >= 1n;
+}
+
+/** Ist jeder Wert von type höchstens die Länge von source (derselbe Längen-Term)? */
+function isAtMostLength(type: CompileTimeType, source: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'lengthOf':
+			return type.Offset <= 0n
+				&& typeEquals(type.Source, source);
+		case 'bound': {
+			// x < Länge + k heißt x ≤ Länge + k - 1.
+			const value = type.Value;
+			return type.Relation === 'less'
+				&& type.Family === 'integer'
+				&& value.julType === 'lengthOf'
+				&& value.Offset <= 1n
+				&& typeEquals(value.Source, source);
+		}
+		case 'or':
+			return type.ChoiceTypes.every(choice => isAtMostLength(choice, source));
+		case 'and':
+			return type.ChoiceTypes.some(choice => isAtMostLength(choice, source));
+		default:
+			return false;
+	}
 }
 
 /**

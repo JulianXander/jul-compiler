@@ -2,7 +2,7 @@
 
 Entwurf. Angestoßen vom assume-Abbau in yugioh (Funde 57 und 59 in `yugioh/docs/jul-findings.md`).
 
-**Stand 2026-10-28:** Schritte 1 bis 3 umgesetzt. Schritt 3: `CompileTimeLengthOfType.Offset` (Länge + Konstante), `subtractFromTypes` verschiebt den Abstand und lässt die Zahlengrenzen daneben stehen, `isIndexWithinLength` verlangt denselben Term, Abstand ≤ 0 und Minimum ≥ 1. Zu Schritt 1 und 2, mit diesen Abweichungen vom Entwurf:
+**Stand 2026-10-28:** Schritte 1 bis 3 umgesetzt. Von Schritt 4 nur der Callback-Index: Die core-lib typisiert `index` in map, filter, filterMap, aggregate, exists, all, find*, toDictionary wie forEach als `And(PositiveInteger Or(length(values) LessInteger(length(values))))`, `MapElements` setzt bei einer Liste mit Länge denselben Index ein (`getListIndexType`), `isIndexWithinLength` versteht die Form (`isAtMostLength`). Längenerhaltendes `map`, `setElement`, `sort` (Rest von Schritt 4) ist zurückgestellt: In yugioh gäbe es dafür derzeit keine Stelle. Kosten des Callback-Index: `getTypeError` auf yugioh +3,9 %, `resolvePlaceholders` +1,8 %. Schritt 3: `CompileTimeLengthOfType.Offset` (Länge + Konstante), `subtractFromTypes` verschiebt den Abstand und lässt die Zahlengrenzen daneben stehen, `isIndexWithinLength` verlangt denselben Term, Abstand ≤ 0 und Minimum ≥ 1. Zu Schritt 1 und 2, mit diesen Abweichungen vom Entwurf:
 
 - Keine frischen Terme für Ausdrücke ohne Pfad. Eine Liste ohne Länge beweist nichts mehr
   (`dereferenceNestedKeyFromObject` verlangt `Length`), frische Terme wären also nur Präzision und
