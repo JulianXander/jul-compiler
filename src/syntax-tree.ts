@@ -7,11 +7,23 @@ export interface ParsedFile {
 	filePath: string;
 	extension: Extension;
 	sourceFolder: string;
-	unchecked: ParsedExpressions2;
+	/**
+	 * Der Baum aus dem Parser samt Symboltabellen und Parse-Fehlern. Nach dem Parsen unverändert:
+	 * Was der Checker herausfindet, steht in checkResult.
+	 */
+	syntax: ParsedExpressions2;
 	/**
 	 * Zeilen des Quelltexts, nur bei .jul gezählt, sonst 0.
 	 */
 	lineCount: number;
+	/**
+	 * Wie viele Ids der Parser an Knoten vergeben hat, siehe PositionedExpressionBase.id.
+	 */
+	nodeCount: number;
+	/**
+	 * Wie viele Ids der Parser an Symbole vergeben hat, siehe SymbolDefinition.id.
+	 */
+	symbolCount: number;
 	/**
 	 * Wird vom checker gesetzt.
 	 */
@@ -25,6 +37,11 @@ export interface ParsedFile {
 	 * nur für .jul Dateien
 	 */
 	dependencies?: ImportedDependency[];
+	/**
+	 * Wird vom project-loader gesetzt, bei jedem Laden und Recheck neu: Abhängigkeiten, die es nicht
+	 * gibt (fileNotFound). Kein Parse-Fehler, weil sich das ändert, ohne dass die Datei sich ändert.
+	 */
+	loadErrors?: CompilerError[];
 	/**
 	 * Die Quelle ist größer als maxTypedFileSize (project-loader.ts): Der Importeur bekommt Any
 	 * statt des Typs. Die Datei selbst wird trotzdem geladen, damit der Emitter sie hat.
@@ -90,25 +107,20 @@ export function createSymbolTable(): SymbolTable {
 }
 
 export interface SymbolDefinition extends Positioned {
-	definition?: DefinitionExpression;
-	description?: string;
+	readonly definition?: DefinitionExpression;
+	readonly description?: string;
 	/**
 	 * undefined bei unvollständiger definition
 	 */
-	typeExpression?: ParseValueExpression;
+	readonly typeExpression?: ParseValueExpression;
 	/**
-	 * inferred type aus dem value
+	 * Wird vom parser gesetzt (setParentsAndIds, setFileSymbolIds): je Datei dicht ab 0, getrennt von
+	 * den Knoten-Ids. Index in die Symboltabellen des CheckResult, Typ, functionRef und Verwendung
+	 * des Symbols stehen dort.
 	 */
-	typeInfo?: TypeInfo;
-	/**
-	 * Wird vom checker gesetzt, sobald eine Referenz außerhalb der eigenen Definition das Symbol
-	 * findet. Gilt nur für den Checklauf, der den Baum erzeugt hat: checked entsteht dafür jedes
-	 * Mal frisch.
-	 */
-	isUsed?: true;
+	id?: number;
 	//#region FunctionParameter
-	functionRef?: FunctionIdentity;
-	functionParameterIndex?: number;
+	readonly functionParameterIndex?: number;
 	//#endregion FunctionParameter
 }
 
@@ -171,65 +183,61 @@ export interface PositionedExpressionBase extends Positioned {
 	 * Wird vom parser gesetzt.
 	 */
 	parent?: PositionedExpression;
+	/**
+	 * Wird vom parser gesetzt (setParentsAndIds): je Datei dicht ab 0, Index in die Tabellen des
+	 * CheckResult.
+	 */
+	id?: number;
 }
 
 // TODO bei allen parseExpressions oder nur bei value expressions?
+/**
+ * Was der Checker über den Ausdruck herausfindet, steht im CheckResult (checker/check-result.ts).
+ */
 export interface ParseExpressionBase extends PositionedExpressionBase {
-	/**
-	 * Wird vom checker gesetzt.
-	 */
-	typeInfo?: TypeInfo;
-	/**
-	 * Der Typ, den die Stelle verlangt, an der der Ausdruck steht (Typguard, Parameter,
-	 * Rückgabetyp, Feld oder Element eines solchen). Mit den Argumenten des Aufrufs instanziiert,
-	 * aber nicht über Deklarationen aufgelöst. undefined, wenn die Stelle nichts verlangt.
-	 * Eigenes Feld statt Teil von TypeInfo, weil TypeInfo-Objekte zwischen Ausdrücken und Symbolen
-	 * geteilt werden. Wird vom checker gesetzt.
-	 */
-	expectedType?: CompileTimeType;
 }
 
 export interface ParseSpreadValueExpression extends PositionedExpressionBase {
-	type: 'spread';
-	value: ParseValueExpression;
+	readonly type: 'spread';
+	readonly value: ParseValueExpression;
 }
 
 export interface ParseSingleDefinition extends ParseExpressionBase {
-	type: 'definition';
-	description?: string;
+	readonly type: 'definition';
+	readonly description?: string;
 	// TODO spread?
-	name: Name;
-	typeGuard?: ParseValueExpression;
+	readonly name: Name;
+	readonly typeGuard?: ParseValueExpression;
 	/**
 	 * undefined bei unvollständiger Expression
 	 */
-	value?: ParseValueExpression;
+	readonly value?: ParseValueExpression;
 }
 
 export interface ParseDestructuringDefinition extends ParseExpressionBase {
-	type: 'destructuring';
-	fields: ParseDestructuringFields;
+	readonly type: 'destructuring';
+	readonly fields: ParseDestructuringFields;
 	/**
 	 * undefined bei unvollständiger Expression
 	 */
-	value?: ParseValueExpression;
+	readonly value?: ParseValueExpression;
 }
 
 export interface ParseDestructuringFields extends ParseExpressionBase {
-	type: 'destructuringFields';
-	fields: ParseDestructuringField[];
+	readonly type: 'destructuringFields';
+	readonly fields: ParseDestructuringField[];
 	/**
 	 * Die Felder
 	 */
-	symbols: SymbolTable;
+	readonly symbols: SymbolTable;
 }
 
 export interface ParseDestructuringField extends ParseExpressionBase {
-	type: 'destructuringField';
-	description?: string;
-	name: Name;
-	typeGuard?: ParseValueExpression;
-	source?: Name;
+	readonly type: 'destructuringField';
+	readonly description?: string;
+	readonly name: Name;
+	readonly typeGuard?: ParseValueExpression;
+	readonly source?: Name;
 }
 
 //#region Bracketed
@@ -245,26 +253,26 @@ export type BracketedExpression =
 	;
 
 export interface ParseEmptyLiteral extends ParseExpressionBase {
-	type: 'empty';
+	readonly type: 'empty';
 }
 
 /**
  * ListLiteral oder DictionaryLiteral (abhängig vom Typ des gespreadeten Werts)
  */
 export interface ParseUnknownObjectLiteral extends ParseExpressionBase {
-	type: 'object';
+	readonly type: 'object';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
-	values: NonEmptyArray<ParseSpreadValueExpression>;
+	readonly values: NonEmptyArray<ParseSpreadValueExpression>;
 }
 
 export interface ParseListLiteral extends ParseExpressionBase {
-	type: 'list';
+	readonly type: 'list';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
-	values: NonEmptyArray<ParseListValue>;
+	readonly values: NonEmptyArray<ParseListValue>;
 }
 
 export type ParseListValue =
@@ -275,15 +283,15 @@ export type ParseListValue =
 //#region Dictionary
 
 export interface ParseDictionaryLiteral extends ParseExpressionBase {
-	type: 'dictionary';
+	readonly type: 'dictionary';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
-	fields: NonEmptyArray<ParseDictionaryField>;
+	readonly fields: NonEmptyArray<ParseDictionaryField>;
 	/**
 	 * Die Felder
 	 */
-	symbols: SymbolTable;
+	readonly symbols: SymbolTable;
 }
 
 export type ParseDictionaryField =
@@ -292,16 +300,16 @@ export type ParseDictionaryField =
 	;
 
 export interface ParseSingleDictionaryField extends PositionedExpressionBase {
-	type: 'singleDictionaryField';
-	description?: string;
+	readonly type: 'singleDictionaryField';
+	readonly description?: string;
 	/**
 	 * escapable
 	 */
-	name: ParseValueExpression | Name;
+	readonly name: ParseValueExpression | Name;
 	/**
 	 * undefined bei unvollständiger Expression
 	 */
-	value?: ParseValueExpression;
+	readonly value?: ParseValueExpression;
 }
 
 //#endregion Dictionary
@@ -309,15 +317,15 @@ export interface ParseSingleDictionaryField extends PositionedExpressionBase {
 //#region DictionaryType
 
 export interface ParseDictionaryTypeLiteral extends ParseExpressionBase {
-	type: 'dictionaryType';
+	readonly type: 'dictionaryType';
 	/**
 	 * niemals leeres array (stattdessen EmptyLiteral)
 	 */
-	fields: NonEmptyArray<ParseDictionaryTypeField>;
+	readonly fields: NonEmptyArray<ParseDictionaryTypeField>;
 	/**
 	 * Die Felder
 	 */
-	symbols: SymbolTable;
+	readonly symbols: SymbolTable;
 }
 
 export type ParseDictionaryTypeField =
@@ -326,17 +334,17 @@ export type ParseDictionaryTypeField =
 	;
 
 export interface ParseSingleDictionaryTypeField extends PositionedExpressionBase {
-	type: 'singleDictionaryTypeField';
-	description?: string;
+	readonly type: 'singleDictionaryTypeField';
+	readonly description?: string;
 	/**
 	 * escapable
 	 */
-	name: ParseValueExpression | Name;
-	typeGuard?: ParseValueExpression;
+	readonly name: ParseValueExpression | Name;
+	readonly typeGuard?: ParseValueExpression;
 	/**
 	 * `b?: X`: das Feld darf im Wert fehlen.
 	 */
-	optional?: boolean;
+	readonly optional?: boolean;
 }
 
 //#endregion DictionaryType
@@ -347,8 +355,8 @@ export interface ParseSingleDictionaryTypeField extends PositionedExpressionBase
  * Bleibt nur im Fehlerfall unaufgelöst im Baum stehen.
  */
 export interface ParseBindingExpression extends ParseExpressionBase {
-	type: 'binding';
-	fields: ParseFieldBase[];
+	readonly type: 'binding';
+	readonly fields: ParseFieldBase[];
 }
 
 /**
@@ -357,18 +365,18 @@ export interface ParseBindingExpression extends ParseExpressionBase {
  * Bleibt nur im Fehlerfall unaufgelöst im Baum stehen.
  */
 export interface ParseDataExpression extends ParseExpressionBase {
-	type: 'data';
-	fields: ParseFieldBase[];
+	readonly type: 'data';
+	readonly fields: ParseFieldBase[];
 }
 
 //#endregion Bracketed
 
 export interface ParseBranching extends ParseExpressionBase {
-	type: 'branching';
+	readonly type: 'branching';
 	/** Die Argumentkollektion, gegen die die branches geprüft werden - wie die arguments eines Aufrufs. */
-	args?: BracketedExpression;
+	readonly args?: BracketedExpression;
 	/** Nicht auf Funktionen eingeengt: der checker meldet den Rest als branchIsNotFunction. */
-	branches: ParseValueExpression[];
+	readonly branches: ParseValueExpression[];
 }
 
 /**
@@ -376,22 +384,22 @@ export interface ParseBranching extends ParseExpressionBase {
  * des Kopfs sind. Eigener Knoten, damit Narrowing und Prädikate von `?` hier nie greifen.
  */
 export interface ParseTypeBranching extends ParseExpressionBase {
-	type: 'typeBranching';
+	readonly type: 'typeBranching';
 	/** Die Operanden, als Kollektion wie die args von `?`. */
-	args?: BracketedExpression;
+	readonly args?: BracketedExpression;
 	/** Nicht auf Funktionen eingeengt: der checker meldet den Rest als branchIsNotFunction. */
-	branches: ParseValueExpression[];
+	readonly branches: ParseValueExpression[];
 }
 
 export interface ParseTextLiteral extends ParseExpressionBase {
-	type: 'text';
-	language?: string;
-	values: (TextToken | ParseValueExpression)[];
+	readonly type: 'text';
+	readonly language?: string;
+	readonly values: (TextToken | ParseValueExpression)[];
 }
 
 export interface TextToken {
-	type: 'textToken';
-	value: string;
+	readonly type: 'textToken';
+	readonly value: string;
 }
 
 //#region NumberLiteral
@@ -403,74 +411,60 @@ export type NumberLiteral =
 	;
 
 export interface IntegerLiteral extends ParseExpressionBase {
-	type: 'integer';
-	value: bigint;
+	readonly type: 'integer';
+	readonly value: bigint;
 }
 
 export interface FloatLiteral extends ParseExpressionBase {
-	type: 'float';
-	value: number;
+	readonly type: 'float';
+	readonly value: number;
 }
 
 export interface FractionLiteral extends ParseExpressionBase {
-	type: 'fraction';
-	numerator: bigint;
-	denominator: bigint;
+	readonly type: 'fraction';
+	readonly numerator: bigint;
+	readonly denominator: bigint;
 }
 
 //#endregion NumberLiteral
 
 export interface ParseFieldBase extends ParseExpressionBase {
-	type: 'field';
-	description?: string;
+	readonly type: 'field';
+	readonly description?: string;
 	// TODO List/Dictionary
 	// isList: boolean;
 	/**
 	 * spread/rest
 	 */
-	spread: boolean;
+	readonly spread: boolean;
 	/**
 	 * name/single value/definitionNames
 	 */
-	name: ParseValueExpression;
-	typeGuard?: ParseValueExpression;
+	readonly name: ParseValueExpression;
+	readonly typeGuard?: ParseValueExpression;
 	/**
 	 * `b?: X`, nur im Dictionary-Typ erlaubt
 	 */
-	optional?: boolean;
+	readonly optional?: boolean;
 	/**
 	 * definition token ' = '
 	 */
-	definition: boolean;
+	readonly definition: boolean;
 	/**
 	 * source/assignedValue
 	 */
-	assignedValue?: ParseValueExpression;
+	readonly assignedValue?: ParseValueExpression;
 }
 
 export interface ParseFunctionCall extends ParseExpressionBase {
-	type: 'functionCall';
+	readonly type: 'functionCall';
 	/**
 	 * Nur bei InfixFunctionCall
 	 */
-	prefixArgument?: SimpleExpression;
-	functionExpression?: SimpleExpression;
+	readonly prefixArgument?: SimpleExpression;
+	readonly functionExpression?: SimpleExpression;
 	// TODO primitive value direkt als arguments?
-	arguments?: BracketedExpression;
-	/**
-	 * Vom Checker gesetzt: der Typ der aufgerufenen Funktion, verengt auf diesen Aufruf.
-	 * Parametertypen, die auf ein Argument verweisen (`TypeOf(stream$)/ValueType`), sind gegen die
-	 * Argumente aufgelöst, ebenso der Rückgabetyp. Der typeInfo der functionExpression bleibt
-	 * dagegen der Typ des Werts: dieselbe Funktion, unabhängig vom Aufruf.
-	 */
-	calledFunctionType?: CompileTimeFunctionType;
-	/**
-	 * Vom Checker gesetzt, wenn die Argumente ein Dictionary sind: die Parameternamen des
-	 * aufgerufenen Funktionstyps in deklarierter Reihenfolge (source ?? name). Nicht gesetzt bei
-	 * Rest-Parameter oder unbekannter Signatur. Der Emitter schreibt damit benannte Argumente als
-	 * positionalen Aufruf: Die Reihenfolge der Namen hat der Checker schon geprüft.
-	 */
-	calledParameterNames?: string[];
+	readonly arguments?: BracketedExpression;
 }
 
 //#region FunctionLiteral
@@ -490,75 +484,94 @@ export type Purity =
 export type TypePurity = Purity | 'pureIfArgsPure';
 
 export interface ParseFunctionLiteral extends ParseExpressionBase {
-	type: 'functionLiteral';
-	params: SimpleExpression | ParseParameterFields;
-	returnType?: ParseValueExpression;
-	body: ParseExpression[];
+	readonly type: 'functionLiteral';
+	readonly params: SimpleExpression | ParseParameterFields;
+	readonly returnType?: ParseValueExpression;
+	readonly body: ParseExpression[];
 	/**
 	 * Die Variablen aus den Parametern sowie dem body.
 	 */
-	symbols: SymbolTable;
+	readonly symbols: SymbolTable;
 	/**
 	 * Der geschriebene Pfeil. Fehlt bei Funktionen ohne Rückgabetyp ((a) => a)
 	 * und bei aus TypeScript importierten Funktionen.
 	 */
-	arrow?: Purity;
+	readonly arrow?: Purity;
 }
 
 export interface ParseParameterFields extends ParseExpressionBase {
-	type: 'parameters';
-	singleFields: ParseParameterField[];
-	rest?: ParseParameterField;
-	symbols: SymbolTable;
+	readonly type: 'parameters';
+	readonly singleFields: ParseParameterField[];
+	readonly rest?: ParseParameterField;
+	readonly symbols: SymbolTable;
 }
 
 export interface ParseParameterField extends ParseExpressionBase {
-	type: 'parameter';
-	description?: string;
-	name: Name;
-	typeGuard?: ParseValueExpression;
-	source?: Name;
+	readonly type: 'parameter';
+	readonly description?: string;
+	readonly name: Name;
+	readonly typeGuard?: ParseValueExpression;
+	readonly source?: Name;
 }
 
 export interface ParseFunctionTypeLiteral extends ParseExpressionBase {
-	type: 'functionTypeLiteral';
-	params: SimpleExpression | ParseParameterFields;
-	returnType: ParseValueExpression;
-	symbols: SymbolTable;
-	arrow?: Purity;
+	readonly type: 'functionTypeLiteral';
+	readonly params: SimpleExpression | ParseParameterFields;
+	readonly returnType: ParseValueExpression;
+	readonly symbols: SymbolTable;
+	readonly arrow?: Purity;
 }
 
 //#endregion FunctionLiteral
 
 export interface ParseReference extends ParseExpressionBase {
-	type: 'reference';
-	name: Name;
+	readonly type: 'reference';
+	readonly name: Name;
 }
 
 export interface ParseNestedReference extends ParseExpressionBase {
-	type: 'nestedReference';
-	source: ParseValueExpression;
+	readonly type: 'nestedReference';
+	readonly source: ParseValueExpression;
 	/**
 	 * undefined, bei unvollständiger expression
 	 * escapable, bei field reference
 	 */
-	nestedKey?: Name | ParseTextLiteral | Index;
+	readonly nestedKey?: Name | ParseTextLiteral | Index;
 }
 
 export interface Name extends PositionedExpressionBase {
-	type: 'name';
-	name: string;
+	readonly type: 'name';
+	readonly name: string;
 }
 
 export interface Index extends PositionedExpressionBase {
-	type: 'index';
+	readonly type: 'index';
 	/**
 	 * Startet mit 1
 	 */
-	name: number;
+	readonly name: number;
 }
 
 //#region forEachChild
+
+/**
+ * Die Symboltabelle des Knotens, falls er eine hat. Über type statt `'symbols' in`: Bei den vielen
+ * Formen der Knoten ist die Abfrage einer Eigenschaft in einem Durchlauf über den ganzen Baum
+ * messbar teurer.
+ */
+export function getNodeSymbols(expression: PositionedExpression): SymbolTable | undefined {
+	switch (expression.type) {
+		case 'destructuringFields':
+		case 'dictionary':
+		case 'dictionaryType':
+		case 'functionLiteral':
+		case 'functionTypeLiteral':
+		case 'parameters':
+			return expression.symbols;
+		default:
+			return undefined;
+	}
+}
 
 /**
  * Die einzige Stelle, die weiß, welche Kinder ein Knoten hat. Ruft callback für jedes Kind in
@@ -1928,17 +1941,30 @@ export interface CompileTimeAliasType extends CompileTimeTypeBase {
 	name: string;
 	symbol: SymbolDefinition;
 	/**
+	 * Das Ergebnis der Datei, zu der das Symbol gehört: Darin steht sein Typ. Der Alias wandert mit
+	 * dem Typ in andere Dateien, wie literalResult bei CompileTimeFunctionType.
+	 */
+	symbolResult: CheckResult;
+	/**
 	 * Nur bei der Anwendung einer Typfunktion auf sich selbst (`Tree(T)` im Rumpf von Tree): die
 	 * Argumente, mit denen der Rückgabetyp beim Auflösen berechnet wird.
 	 */
 	args?: CompileTimeType;
 }
 
-export function createCompileTimeAliasType(name: string, symbol: SymbolDefinition, args?: CompileTimeType): CompileTimeAliasType {
-	return internType(`alias:${name.length}:${name},${getObjectId(symbol)},${args?.id ?? 0}`, id => ({
+export function createCompileTimeAliasType(
+	name: string,
+	symbol: SymbolDefinition,
+	symbolResult: CheckResult,
+	args?: CompileTimeType,
+): CompileTimeAliasType {
+	// Mit dem Ergebnis im Schlüssel: Ein neuer Prüflauf derselben Datei liest den Typ des Symbols aus
+	// seinem eigenen Ergebnis, nicht aus einem früheren.
+	return internType(`alias:${name.length}:${name},${getObjectId(symbol)},${symbolResult.id},${args?.id ?? 0}`, id => ({
 		julType: 'alias',
 		name: name,
 		symbol: symbol,
+		symbolResult: symbolResult,
 		args: args,
 		// Ein Alias ist immer auflösbar, nur nicht sofort - anders als parameterReference, der auf
 		// einen Aufrufort wartet, der nie kommen muss. Als unaufgelöst gemeldet würde er jeden

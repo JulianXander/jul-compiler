@@ -421,7 +421,7 @@ async function compileFixture(file: string, outFolder: string): Promise<{ [name:
 	const documents: ParsedDocuments = {};
 	loadFile(filePath, documents, createFileSystemHost());
 	const parsed = documents[filePath]!;
-	const expressions = parsed.checked ?? parsed.unchecked;
+	const expressions = parsed.checked ?? parsed.syntax;
 	const errors = expressions.errors.filter(error => errorInfos[error.code].severity === 'error');
 	if (errors.length) {
 		throw new Error(`${file}: ${errors.map(error => `${error.startRowIndex + 1}: ${error.message}`).join('\n')}`);

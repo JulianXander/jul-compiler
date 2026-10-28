@@ -12,7 +12,7 @@ const expectFormat = reportAtCaller((code: string, expected?: string) => {
 	const formatted = formatCode(code, 'dummy.jul');
 	expect(formatted).to.equal(expected ?? code);
 	if (expected !== undefined) {
-		expect(parseCode(formatted, 'dummy.jul').unchecked.errors, 'Ergebnis muss fehlerfrei sein').to.deep.equal([]);
+		expect(parseCode(formatted, 'dummy.jul').syntax.errors, 'Ergebnis muss fehlerfrei sein').to.deep.equal([]);
 		expect(formatCode(formatted, 'dummy.jul'), 'zweiter Lauf').to.equal(formatted);
 	}
 });

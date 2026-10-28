@@ -398,3 +398,18 @@
 2026-10-28 14:42:44	6f39675+	-	ADV-DEV-56627	yugioh	parse+check	5	11668.03	12529.32	12529.32	Schritt 2: Zugriffsschicht CheckResult (Felder am Knoten, Ergebnis durchgereicht)
 2026-10-28 14:42:44	6f39675+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	736.72	752.79	752.79	Schritt 2: Zugriffsschicht CheckResult (Felder am Knoten, Ergebnis durchgereicht)
 2026-10-28 14:42:44	6f39675+	-	ADV-DEV-56627	yugioh	parse	5	66.97	72.21	72.21	Schritt 2: Zugriffsschicht CheckResult (Felder am Knoten, Ergebnis durchgereicht)
+2026-10-28 17:23:25	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check	5	10797.17	11481.07	11481.07	Schritt 3: Ausdrücke in Tabellen des CheckResult (Knoten-Id), Fehler im Ergebnis
+2026-10-28 17:23:25	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	717.88	803.65	803.65	Schritt 3: Ausdrücke in Tabellen des CheckResult (Knoten-Id), Fehler im Ergebnis
+2026-10-28 17:23:25	ebd578d+	-	ADV-DEV-56627	yugioh	parse	5	61.64	63.42	63.42	Schritt 3: Ausdrücke in Tabellen des CheckResult (Knoten-Id), Fehler im Ergebnis
+2026-10-28 17:41:23	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check	5	12451.72	13281.05	13281.05	Schritt 4: Symbole (Typ, functionRef, isUsed) im CheckResult
+2026-10-28 17:41:23	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	858.93	940.77	940.77	Schritt 4: Symbole (Typ, functionRef, isUsed) im CheckResult
+2026-10-28 17:41:23	ebd578d+	-	ADV-DEV-56627	yugioh	parse	5	72.61	81.74	81.74	Schritt 4: Symbole (Typ, functionRef, isUsed) im CheckResult
+2026-10-28 17:49:06	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check	5	12452.00	13218.58	13218.58	Schritt 4 Endstand: Symbol-Ids im ersten Durchlauf (voriger Eintrag unter Last)
+2026-10-28 17:49:06	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	854.73	876.90	876.90	Schritt 4 Endstand: Symbol-Ids im ersten Durchlauf (voriger Eintrag unter Last)
+2026-10-28 17:49:06	ebd578d+	-	ADV-DEV-56627	yugioh	parse	5	72.37	75.59	75.59	Schritt 4 Endstand: Symbol-Ids im ersten Durchlauf (voriger Eintrag unter Last)
+2026-10-28 18:11:42	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check	5	12549.08	12901.34	12901.34	Schritt 5: syntax statt unchecked, readonly, loadErrors, recheckFile
+2026-10-28 18:11:42	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	836.47	912.79	912.79	Schritt 5: syntax statt unchecked, readonly, loadErrors, recheckFile
+2026-10-28 18:11:42	ebd578d+	-	ADV-DEV-56627	yugioh	parse	5	71.69	76.41	76.41	Schritt 5: syntax statt unchecked, readonly, loadErrors, recheckFile
+2026-10-28 18:29:01	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check	5	12272.63	12934.22	12934.22	Schritt 5 Endstand: getrennte Id-Räume, Tabellen gepackt, Alias-Schlüssel ohne WeakMap
+2026-10-28 18:29:01	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	841.90	868.13	868.13	Schritt 5 Endstand: getrennte Id-Räume, Tabellen gepackt, Alias-Schlüssel ohne WeakMap
+2026-10-28 18:29:01	ebd578d+	-	ADV-DEV-56627	yugioh	parse	5	65.27	72.02	72.02	Schritt 5 Endstand: getrennte Id-Räume, Tabellen gepackt, Alias-Schlüssel ohne WeakMap

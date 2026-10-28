@@ -53,7 +53,7 @@ export function formatCode(code: string, filePath: string, options: FormatOption
 		// Windows-Zeilenenden meldet der Parser als Fehler, die Spaltenlogik hier rechnet ohne \r.
 		return code;
 	}
-	const originalExpressions = parseCode(code, filePath).unchecked.expressions ?? [];
+	const originalExpressions = parseCode(code, filePath).syntax.expressions ?? [];
 	let region: Region | undefined;
 	if (options.at) {
 		const target = findBracketListAt(originalExpressions, code.split('\n'), options.at);
@@ -76,7 +76,7 @@ export function formatCode(code: string, filePath: string, options: FormatOption
 			break;
 		}
 		formatted = applyEdits(rows, edits);
-		expressions = parseCode(formatted, filePath).unchecked.expressions ?? [];
+		expressions = parseCode(formatted, filePath).syntax.expressions ?? [];
 	}
 	if (formatted === code || !isStructurallyEqual(originalExpressions, expressions)) {
 		return code;

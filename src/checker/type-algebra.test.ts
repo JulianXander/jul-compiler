@@ -33,6 +33,8 @@ import {
 	SymbolDefinition,
 } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
+import { CheckResult, createCheckResult, setSymbolTypeInfo } from './check-result.js';
+import { parseCode } from '../parser/parser.js';
 import { checkerStats, resetCheckerStats } from './checker-stats.js';
 import {
 	clearTypeCaches,
@@ -685,7 +687,11 @@ describe('Typalgebra', () => {
 });
 
 describe('Interning und Caches', () => {
-	const symbolWithoutType = () => ({} as SymbolDefinition);
+	// Ein Symbol samt dem leeren Ergebnis seiner Datei: Sein Typ fehlt, bis der Test ihn setzt.
+	const symbolWithoutType = (): { symbol: SymbolDefinition; result: CheckResult; } => {
+		const parsed = parseCode('Pending = Integer', 'pending.jul');
+		return { symbol: parsed.syntax.symbols['Pending']!, result: createCheckResult(parsed) };
+	};
 	it('gleiche-union-ist-dasselbe-objekt', () => {
 		expect(createCompileTimeUnionType([builtinInteger, builtinText]))
 			.to.equal(createCompileTimeUnionType([builtinInteger, builtinText]));
@@ -769,18 +775,18 @@ describe('Interning und Caches', () => {
 		expect(typeEquals(before, after)).to.equal(true);
 	});
 	it('zuweisbarkeit-eines-alias-in-pruefung-wird-nicht-gemerkt', () => {
-		const symbol = symbolWithoutType();
-		const alias = createCompileTimeAliasType('Pending', symbol);
+		const { symbol, result } = symbolWithoutType();
+		const alias = createCompileTimeAliasType('Pending', symbol, result);
 		// Das Symbol wird noch geprüft: der Alias steht für Any, das Ergebnis ist unbekannt.
 		expect(isTypeAssignable(alias, builtinInteger).assignable).to.equal(undefined);
-		symbol.typeInfo = { type: createCompileTimeTypeOfType(builtinText) };
+		setSymbolTypeInfo(result, symbol, { type: createCompileTimeTypeOfType(builtinText) });
 		expect(isTypeAssignable(alias, builtinInteger).assignable).to.equal(false);
 	});
 	it('union-mit-alias-in-pruefung-wird-nicht-gemerkt', () => {
-		const symbol = symbolWithoutType();
-		const alias = createCompileTimeAliasType('PendingUnion', symbol);
+		const { symbol, result } = symbolWithoutType();
+		const alias = createCompileTimeAliasType('PendingUnion', symbol, result);
 		const before = createNormalizedUnionType([alias, builtinText, createTextLiteral('x')]);
-		symbol.typeInfo = { type: createCompileTimeTypeOfType(builtinText) };
+		setSymbolTypeInfo(result, symbol, { type: createCompileTimeTypeOfType(builtinText) });
 		const after = createNormalizedUnionType([alias, builtinText, createTextLiteral('x')]);
 		// Vorher blieb der Alias als undurchsichtige Choice stehen, danach fällt er in Text zusammen.
 		expect(typeEquals(before, after)).to.equal(false);

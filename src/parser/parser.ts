@@ -57,7 +57,8 @@ import {
 	createParseParameters,
 	fillSymbolTableWithFields,
 	fillSymbolTableWithExpressions,
-	setParentsRecursive,
+	setParentsAndIds,
+	setFileSymbolIds,
 } from './parser-utils.js';
 import { basename, dirname, extname, join } from 'path';
 import { _parseJson, JsonValue, normalizeRational } from '../runtime/runtime.js';
@@ -193,16 +194,21 @@ export function parseCode(
 		}
 	}
 	const { errors, expressions, ignoreComments } = parsedExpressions;
-	// Erst hier, nicht beim Bauen der Knoten: siehe setParentsRecursive.
-	expressions?.forEach(setParentsRecursive);
+	// Erst hier, nicht beim Bauen der Knoten: siehe setParentsAndIds.
+	const { nodeCount, symbolCount } = expressions
+		? setParentsAndIds(expressions)
+		: { nodeCount: 0, symbolCount: 0 };
 	const symbols = createSymbolTable();
 	expressions && fillSymbolTableWithExpressions(symbols, errors, expressions);
+	const fileSymbolCount = setFileSymbolIds(symbols, symbolCount);
 	return {
 		filePath: filePath,
 		extension: extension,
 		sourceFolder: sourceFolder,
 		lineCount: parsedExpressions.lineCount ?? 0,
-		unchecked: {
+		nodeCount: nodeCount,
+		symbolCount: fileSymbolCount,
+		syntax: {
 			errors: errors,
 			expressions: expressions,
 			symbols: symbols,
@@ -1926,7 +1932,9 @@ function multilineTextParser(
 			}
 			const tail = last(values);
 			if (tail?.type === 'textToken') {
-				tail.value += '\n';
+				// Ersetzen statt anhängen: Der Token kann aus einem Teilergebnis stammen, das der Parser
+				// mehrfach durchläuft (siehe setParentsAndIds).
+				values[values.length - 1] = { ...tail, value: tail.value + '\n' };
 			}
 			else {
 				const textToken: TextToken = {
@@ -3031,7 +3039,7 @@ function createBracketedBaseParser(kind: BracketKind): LineParser<ParseBindingEx
 			endRowIndex: result.endRowIndex,
 			endColumnIndex: result.endColumnIndex,
 		};
-		// parent wird nachgelagert gesetzt, siehe setParentsRecursive
+		// parent wird nachgelagert gesetzt, siehe setParentsAndIds
 		return {
 			...result,
 			parsed: bracketed,

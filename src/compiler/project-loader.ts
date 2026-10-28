@@ -1,6 +1,6 @@
 import { CheckOptions, checkTypes, ParsedDocuments } from '../checker/checker.js';
 import { clearTypeCaches } from '../checker/type-algebra.js';
-import { ErrorCode } from '../compiler-errors.js';
+import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { parseCode } from '../parser/parser.js';
 import { ParsedFile } from '../syntax-tree.js';
 import { readTextFile } from '../util.js';
@@ -113,22 +113,47 @@ function loadFileRecursive(
 	}
 	documents[filePath] = parsed;
 	host.onParsed?.(parsed, previous);
-	loading.add(filePath);
-	parsed.dependencies?.forEach(dependency => {
+	loadDependencies(parsed, documents, host, loading);
+	checkTypes(parsed, documents, host);
+	return parsed;
+}
+
+/**
+ * Prüft eine geladene Datei erneut, ohne sie neu zu parsen: Eine Datei, die sie importiert, hat sich
+ * geändert (Language Server). Der Checker schreibt nichts in den Baum, ein neuer Lauf gibt ein neues
+ * CheckResult. Die Abhängigkeiten werden wie beim Laden aufgelöst, eine inzwischen gelöschte meldet
+ * fileNotFound, eine fehlende wird geladen, falls es sie jetzt gibt.
+ */
+export function recheckFile(file: ParsedFile, documents: ParsedDocuments, host: ProjectHost): void {
+	// Wie loadFile, siehe clearTypeCaches.
+	clearTypeCaches();
+	loadDependencies(file, documents, host, new Set());
+	checkTypes(file, documents, host);
+}
+
+/**
+ * Lädt die Abhängigkeiten der Datei, soweit nicht schon in documents, und setzt ihre loadErrors.
+ */
+function loadDependencies(
+	file: ParsedFile,
+	documents: ParsedDocuments,
+	host: ProjectHost,
+	loading: Set<string>,
+): void {
+	const loadErrors: CompilerError[] = [];
+	loading.add(file.filePath);
+	file.dependencies?.forEach(dependency => {
 		const loaded = loadFileRecursive(dependency.fullPath, documents, host, undefined, loading);
 		if (loaded === 'notFound') {
-			// In unchecked, damit der Fehler wie ein Parse-Fehler behandelt wird: checkTypes
-			// übernimmt ihn per Klon nach checked, die CLI emittiert nicht.
-			parsed.unchecked.errors.push({
+			loadErrors.push({
 				code: ErrorCode.fileNotFound,
 				message: `File not found: ${dependency.fullPath}`,
 				...dependency.source,
 			});
 		}
 	});
-	loading.delete(filePath);
-	checkTypes(parsed, documents, host);
-	return parsed;
+	loading.delete(file.filePath);
+	file.loadErrors = loadErrors;
 }
 
 //#region Hosts

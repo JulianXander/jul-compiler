@@ -87,7 +87,7 @@ function collectWrittenEmptyNames(path, names) {
 		}
 		forEachChild(expression, visit);
 	};
-	(parsed.unchecked.expressions ?? []).forEach(visit);
+	(parsed.syntax.expressions ?? []).forEach(visit);
 }
 
 function migrateFile(path, writtenEmptyNames) {
@@ -186,7 +186,7 @@ ${code.slice(lineStarts[first.startRowIndex], insertAt)}`
 		}
 		forEachChild(expression, visit);
 	};
-	(parsed.unchecked.expressions ?? []).forEach(visit);
+	(parsed.syntax.expressions ?? []).forEach(visit);
 	// Eine Ersetzung, die eine andere umschließt (ein Feld im Typ eines Felds), schreibt den Text der
 	// inneren aus dem Original und würde sie überschreiben. Die innere entfällt, ein weiterer Durchgang
 	// holt sie nach.

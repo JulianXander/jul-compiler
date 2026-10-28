@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { join, resolve } from 'path';
 import { ParsedDocuments } from '../checker/checker.js';
 import { ErrorCode } from '../compiler-errors.js';
-import { createInMemoryHost, loadFile, ProjectHost } from './project-loader.js';
+import { createInMemoryHost, loadFile, ProjectHost, recheckFile } from './project-loader.js';
 import { ParsedFile } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
 
@@ -182,5 +182,29 @@ describe('project-loader', () => {
 		expect(calls.length).to.equal(2);
 		expect(calls[0]![1]).to.equal(undefined);
 		expect(calls[1]![1]).to.equal(first);
+	});
+
+	// Der Recheck parst nicht neu, löst die Abhängigkeiten aber neu auf: fileNotFound ist ein
+	// Ladefehler und ändert sich, ohne dass die Datei sich ändert.
+	it('recheck meldet eine gelöschte Abhängigkeit und vergisst sie, wenn sie wieder da ist', () => {
+		const files: { [filePath: string]: string; } = {
+			[path('main.jul')]: '(a) = import(§./b.jul§)\nc = a',
+			[path('b.jul')]: 'a = 1',
+		};
+		const host = createInMemoryHost(files);
+		const { main, documents } = loadMain({}, host);
+		const errorCodes = () => main.checked!.errors.map(error => error.code);
+		expect(errorCodes()).to.deep.equal([]);
+
+		delete files[path('b.jul')];
+		delete documents[path('b.jul')];
+		recheckFile(main, documents, host);
+		expect(errorCodes()).to.deep.equal([ErrorCode.fileNotFound]);
+
+		files[path('b.jul')] = 'a = 1';
+		recheckFile(main, documents, host);
+		expect(errorCodes()).to.deep.equal([]);
+		expect(documents[path('main.jul')]).to.equal(main);
+		expect(main.syntax.errors).to.deep.equal([]);
 	});
 });

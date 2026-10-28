@@ -144,11 +144,11 @@ function migrateFile(filePath) {
 	const code = readFileSync(filePath, 'utf8');
 	const parsed = parseCode(code, filePath);
 	// Bereits migrierte Dateien scheitern am alten Parser - unveraendert lassen.
-	if (parsed.unchecked.errors.length) {
+	if (parsed.syntax.errors.length) {
 		return { migrated: code, branchings: 0, heads: 0, skipped: true };
 	}
 	const rows = code.split('\n');
-	const branchings = collectBranchings(parsed.unchecked.expressions);
+	const branchings = collectBranchings(parsed.syntax.expressions);
 	const edits = [];
 	let heads = 0;
 	for (const branching of branchings) {

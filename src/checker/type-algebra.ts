@@ -1,5 +1,6 @@
 import { deepEqual, _isOfType } from '../runtime/runtime.js';
 import { tryBuildCallable, typeToConstantValue } from './constant-folding.js';
+import { getAliasSymbolType } from './check-result.js';
 import {
 	CompileTimeAliasType,
 	CompileTimeBoundType,
@@ -1598,7 +1599,7 @@ function traversePlaceholdersUncached(
 			if (dereferencedArgs === rawArgs) {
 				return rawType;
 			}
-			return createCompileTimeAliasType(rawType.name, rawType.symbol, dereferencedArgs);
+			return createCompileTimeAliasType(rawType.name, rawType.symbol, rawType.symbolResult, dereferencedArgs);
 		}
 		case 'predicate': {
 			// Aufgelöst werden nur die Schranken. Die Funktion bleibt dasselbe Objekt, an ihr
@@ -4258,7 +4259,7 @@ function haveSameBoundValues(
  * sind an dieser Stelle bereits als JUL5170 gemeldet.
  */
 function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
-	const symbolType = alias.symbol.typeInfo?.type;
+	const symbolType = getAliasSymbolType(alias);
 	if (!symbolType) {
 		// Das Symbol wird noch geprüft: danach steht an dieser Stelle der fertige Typ.
 		resultContext.dependence++;
@@ -4280,7 +4281,7 @@ function dereferenceAlias(alias: CompileTimeAliasType): CompileTimeType {
  */
 function isPendingAlias(type: CompileTimeType): type is CompileTimeAliasType {
 	const isPending = type.julType === 'alias'
-		&& !type.symbol.typeInfo;
+		&& !getAliasSymbolType(type);
 	if (isPending) {
 		// Gilt nur, bis das Symbol fertig geprüft ist.
 		resultContext.dependence++;

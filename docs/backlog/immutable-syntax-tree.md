@@ -1,15 +1,17 @@
 # Unveränderlicher Syntaxbaum
 
 Plan, entschieden am 2026-10-28. Schritt 0 umgesetzt, Schritt 1 (Gate) bestanden mit Knoten-Id und
-Array, Schritt 2 für Ausdrücke umgesetzt, ab Schritt 3 offen.
+Array, Schritte 2 bis 5 umgesetzt. Offen ist nur Schritt 6, ein eigener Entwurf.
 
 ## Stand
 
-Der Checker schreibt seine Ergebnisse in den Syntaxbaum, den der Parser geliefert hat: `typeInfo` und
-`expectedType` an jedem Ausdruck, `calledFunctionType` und `calledParameterNames` an Aufrufen,
-`typeInfo`, `functionRef` und `isUsed` an den Symbolen, Fehler in `errors`. Ausdrücke, die schon eine
-`typeInfo` haben, überspringt er (`setInferredType`). Wer dieselbe Datei ein zweites Mal prüfen will,
-braucht deshalb einen frischen Baum.
+Bis Schritt 3 schrieb der Checker seine Ergebnisse in den Syntaxbaum, den der Parser geliefert hat:
+`typeInfo` und `expectedType` an jedem Ausdruck, `calledFunctionType` und `calledParameterNames` an
+Aufrufen, `typeInfo`, `functionRef` und `isUsed` an den Symbolen, Fehler in `errors`. Ausdrücke, die
+schon eine `typeInfo` haben, überspringt er (`setInferredType`). Seit Schritt 4 steht all das im
+`CheckResult`, der Checker schreibt nichts mehr in den Baum. Ein zweiter Check desselben Baums liefert
+dasselbe Ergebnis (`check-result.test.ts`). Seit Schritt 5 prüfen Server und Tests einen Importeur
+ohne Neuparsen (`recheckFile`), der Baum heißt `syntax` und seine Typen sind `readonly`.
 
 Bis 2026-10-28 klonte der Language Server dafür bei **jedem** Check den Baum (`structuredClone`,
 `cloneUnchecked: true`), obwohl nur das erneute Prüfen eines Importeurs ihn brauchte. Seit Schritt 0
@@ -161,40 +163,136 @@ identisch. B war in allen Runden etwas langsamer. Laut CPU-Profil kosten die Zug
 0,3 % (V8 bettet `setTypeInfo`/`getTypeInfo` nicht ganz ein), der Rest ist verteilt. Unter dem Gate,
 die Summe mit Schritt 3 ist neu zu messen. Suite (1769), LSP-Snapshot und yugioh (Build, Tests) grün.
 
-### 3. Ausdrücke umschalten
+### 3. Ausdrücke umschalten (umgesetzt 2026-10-28)
 
-Die Zugriffe für Ausdrücke (`typeOf`, `expectedTypeOf`, `calledFunctionOf`) auf die Seitentabelle aus
-Schritt 1 umstellen und die Felder aus den AST-Typen löschen: Was der TypeScript-Compiler danach noch
-meldet, ist übersehen worden. `setInferredType` prüft die Tabelle statt des Felds.
-`coverageBeforeBranch` zieht ins Ergebnis.
+Die Zugriffe aus Schritt 2 lesen und schreiben jetzt Tabellen im `CheckResult` (`typeInfos`,
+`expectedTypes`, `calledFunctionTypes`, `calledParameterNames`), indiziert über die Knoten-Id. Die
+Felder sind aus den AST-Typen gelöscht. Der TypeScript-Compiler meldete danach nur noch zwei Stellen in
+Tests, der Codemod aus Schritt 2 hatte alles erfasst. Übersehen hatte er drei Abfragen zur Laufzeit im
+Language Server (`'expectedType' in expression` in `util.ts`, `'typeInfo' in …` in `hover.ts` und
+`completion.ts`), die ohne die Felder immer falsch waren. Gefunden haben sie 8 Tests in
+`completion.test.ts`, nicht der Compiler.
 
-Fehler trennen: Parse-Fehler bleiben am Baum, Prüffehler kommen ins Ergebnis, der `fileNotFound` aus
-`project-loader.ts` ebenfalls. Leser (`compiler.ts` zweimal, Language Server) verbinden beide Listen.
+- **Ids:** `setParentsAndIds` in `parser-utils.ts` (vorher `setParentsRecursive`) vergibt sie im
+  nachgelagerten Durchlauf, der schon `parent` setzte: je Datei dicht ab 0 in Vorordnung, für alle
+  Knoten einschließlich Namen. Eine Stelle in `parseFile` für `.jul`, TypeScript und JSON statt rund 90
+  Stellen beim Bauen der Knoten. Die Id wird vor `parent` gesetzt, damit Wurzeln und Kinder dieselbe
+  Kette von Formen durchlaufen. `ParsedFile.nodeCount` hält die Anzahl.
+- **Tabellen:** In `createCheckResult` auf `nodeCount` angelegt und mit `undefined` gefüllt. In
+  beliebiger Reihenfolge beschrieben bleibt das Array dicht, ein wachsendes würde bei Lücken zum
+  Wörterbuch. Ein Knoten ohne Id wirft.
+- **`coverageBeforeBranch`:** eine `Map` von der Id des branches im Ergebnis statt einer modulweiten
+  `WeakMap`.
+- **Fehler:** `CheckResult.errors` beginnt als Kopie von `unchecked.errors`, der Checker hängt an, die
+  `#ignore`-Kommentare filtern zuletzt. `checked` ist eine flache Kopie von `unchecked` mit genau diesem
+  Array als `errors`, Ausdrücke und Symbole sind dieselben. So lesen alle Leser von `checked.errors`
+  (Compiler, Language Server, 32 Stellen in Tests) unverändert, `unchecked.errors` hält nur noch, was
+  Parser und Loader melden. Abweichung vom Plan: Der `fileNotFound` aus `project-loader.ts` bleibt in
+  `unchecked`. Er ist ein Ladefehler und gilt, bis die Datei neu geladen wird, nicht nur für einen
+  Prüflauf.
+- **Prüfung der Dateizugehörigkeit:** Mit `JUL_VERIFY_NODE_OWNERSHIP=1` hält das Ergebnis die Wurzeln
+  der Datei, jeder Zugriff läuft die `parent`-Kette hoch und wirft bei einem fremden Knoten. Fest
+  eingeschaltet in `test-setup.mjs` beider Pakete (die Suiten werden dadurch nicht spürbar langsamer),
+  belegt durch `check-result.test.ts`. Die Suiten fanden keinen Zugriff mit falschem Ergebnis.
+- **Parser-Tests:** Die von Hand gebauten erwarteten Bäume bekommen ihre Ids über dieselbe Funktion. In
+  `dictionary-type` war `symbols.someKey.typeExpression` eine Kopie des Typguards, im Parser ist es
+  dasselbe Objekt, jetzt auch im Test.
 
-Mit Ids je Datei liefert ein falsches Ergebnis still den Typ eines anderen Knotens. In Schritt 2
-blieb das folgenlos, weil die Zugriffe noch die Felder lesen. Deshalb in den Tests eine Prüfung
-einschalten, dass der Knoten zur Datei des Ergebnisses gehört (etwa das Ergebnis hält die Knoten je Id
-und vergleicht), und die Suite damit einmal laufen lassen. Verdächtig sind vor allem die
-Test-Hilfen, die `parsed.checkResult!` für Ausdrücke aus importierten Dateien nehmen könnten.
+Gemessen A/B gegen `6f39675`, also Schritte 2 und 3 zusammen (yugioh, 6 Runden à 7 Läufe): Median
++0,8 %, Minimum −0,5 %, Zähler identisch. Damit unter dem Gate. Protokollierte Benches: Compiler
+parse+check geteilt 737 → 718 ms, Language Server tippen → diagnostics 244 → 234 ms, Importeure
+832 → 790 ms (im Rauschen). Suiten (Compiler 1772, Language Server 176), LSP-Snapshot und yugioh
+(Build ohne Warnungen, 403 Tests) grün.
 
-### 4. Symbole umschalten
+### 4. Symbole umschalten (umgesetzt 2026-10-28)
 
-`symbolTypeOf`, `functionRef`, `isUsed` an die Seite. Hier liegt der Teil über Dateigrenzen: Der
-Checker liest die Typen importierter Symbole (`case` für `import` um `parsedDocuments[fullPath]` in
-`checker.ts`), der Language Server in `symbol-lookup.ts`, `reference-index.ts` ebenso. Sie lesen aus
-dem `CheckResult` der importierten Datei, nicht aus dem eigenen. Die core-lib wird beim Modul-Load einmal
-geprüft, ihr Ergebnis bleibt modulweit.
+Typ, `functionRef` und Verwendung der Symbole stehen in Tabellen im `CheckResult`
+(`symbolTypeInfos`, `functionRefs`, `usedSymbols`), Zugriffe `getSymbolTypeInfo`/`setSymbolTypeInfo`,
+`getFunctionRef`/`setFunctionRef`, `isSymbolUsed`/`markSymbolUsed`. Die Felder sind aus
+`SymbolDefinition` gelöscht, übrig bleibt dort nur, was der Parser setzt.
 
-### 5. Aufräumen
+- **Ids:** `setParentsAndIds` vergibt sie für die Symboltabellen der Knoten im selben Durchlauf,
+  `setFileSymbolIds` danach für die Tabelle der Datei, die erst nach dem Durchlauf entsteht. Ein
+  erster Entwurf lief für die Symbole ein zweites Mal über den Baum, das kostete bei parse messbar.
+  Zuerst teilten Symbole den Id-Raum der Knoten, seit Schritt 5 zählen sie getrennt
+  (`ParsedFile.nodeCount`, `symbolCount`).
+- **Welches Ergebnis:** Der Kern des Schritts, denn ein Symbol aus einer anderen Datei liest im eigenen
+  Ergebnis still einen fremden Eintrag.
+  - Im Checker kommt ein Symbol aus den Scopes entweder aus der eigenen Datei oder aus der core-lib.
+    `dereferenceType` vergleicht dafür die Tabelle, in der es gefunden wurde, mit der der core-lib,
+    nicht den Index 0: Ein Test, der die core-lib neu parst und prüft, hat an Index 0 seine eigene
+    Tabelle. Den Fall hat die Prüfung der Dateizugehörigkeit sofort gefunden.
+  - Der Import liest die Typen der exportierten Symbole aus `importedDocument.checkResult`.
+  - `CompileTimeAliasType` trägt `symbolResult` neben `symbol`, wie `literalResult`. Damit lesen
+    `type-algebra.ts`, die Konstantenfaltung und `reference-index.ts` über `getAliasSymbolType(alias)`.
+    Das Ergebnis steht mit im Schlüssel des Interning, ein neuer Prüflauf bekommt also eigene Aliase.
+  - Language Server: `getSymbolResult(fileResult, symbol)` und `getScopeSymbolTypeInfo` aus
+    `checker.ts` für Symbole aus Scopes (core-lib per Menge der `builtInSymbols`), für gefundene
+    Symbole mit Datei `getSymbolInfoTypeInfo` in `symbol-lookup.ts` über `SymbolInfo.filePath`.
+- **Prüfung der Dateizugehörigkeit:** Für Symbole hält das Ergebnis in den Tests die Menge aller Symbole
+  der Datei.
+- **Tests:** `builtInSymbols[...].typeInfo` liest jetzt `getSymbolTypeInfo(coreLibCheckResult, …)`
+  (`coreLibCheckResult` ist exportiert). Ein Alias-Test in `type-algebra.test.ts` baute ein leeres
+  Symbol-Objekt, jetzt ein geparstes samt Ergebnis.
 
-- Die Recheck-Tests in `reference-index.test.ts` prüfen wieder mit `checkTypes` statt neu zu laden.
-- `recheckDocument` im Server ruft `checkTypes` auf dem vorhandenen Baum auf statt `loadFile` mit
-  neuem Parsen. Dabei klären, welche Caches ein Recheck leeren muss: `loadFile` ruft heute
-  `clearTypeCaches`, ein bloßes `checkTypes` nicht. Die Längen-Terme (`getPathLengthTerm`) hängen an
-  der Identität der Symbole, die jetzt über Läufe hinweg gleich bleibt.
-- `unchecked` in `syntax` umbenennen, AST-Typen `readonly`.
-- Doku: Abschnitt „Architektur" in `JUL/CLAUDE.md` („Der Checker schreibt `checked`-Ausdrücke samt
-  `TypeInfo` in dasselbe `ParsedFile` zurück") anpassen.
+Danach schreibt der Checker nichts mehr in den Baum (gesucht nach Zuweisungen an Knoten und Symbole in
+`checker.ts`, `stream-lifetime.ts`, `branch-dispatch.ts`, `constant-folding.ts`,
+`reference-index.ts`). Ein neuer Test prüft denselben Baum zweimal und vergleicht Fehler und Typen, mit
+Vorwärtsreferenz und ungenutzter Definition, die früher am Symbol hingen.
+
+Gemessen A/B gegen `6f39675`, Schritte 2 bis 4 zusammen (6 Runden à 7 Läufe): Median +0,6 %, Minimum
+−2,6 %, Zähler identisch. Die protokollierten Benches schwankten an diesem Nachmittag stark (derselbe
+Stand parse 62 bis 74 ms). Der erste Eintrag zu Schritt 4 zeigt deshalb +15 %, der alte Stand lag
+direkt danach gleichauf (parse+check 12 402 gegen 12 404 ms). Suiten (Compiler 1773, Language Server
+176), LSP-Snapshot und yugioh (Build ohne Warnungen, 403 Tests) grün.
+
+### 5. Aufräumen (umgesetzt 2026-10-28)
+
+- **Recheck ohne Parsen:** `recheckFile(file, documents, host)` in `project-loader.ts` leert die
+  Caches, löst die Abhängigkeiten auf und ruft `checkTypes` auf dem vorhandenen Baum.
+  `recheckDocument` im Server und die Recheck-Tests in `reference-index.test.ts` nutzen es.
+  - Caches: `clearTypeCaches` ist keine Frage der Korrektheit, sondern des Speichers (ein gemerkter
+    Typ hält über Symbole ganze Bäume). `recheckFile` ruft es wie `loadFile`. Die Längen-Terme
+    (`getPathLengthTerm`) hängen an der Identität der Symbole, die über Läufe gleich bleibt. Das ist
+    korrekt: Ein Recheck läuft nur, wenn die Datei selbst unverändert ist, dasselbe Symbol bezeichnet
+    also denselben Wert.
+  - **Befund:** Das alte Neuladen löste nebenbei die Importe neu auf. Ein bloßes `checkTypes` hätte
+    eine inzwischen gelöschte Abhängigkeit still als `Any` importiert, ohne `fileNotFound`. Deshalb
+    zieht `fileNotFound` doch aus `syntax.errors` aus, wie ursprünglich geplant (in Schritt 3 war er
+    dort geblieben): `ParsedFile.loadErrors`, bei jedem Laden und Recheck neu gesetzt
+    (`loadDependencies`), das `CheckResult` übernimmt sie nach den Parse-Fehlern. Test in
+    `project-loader.test.ts`: Abhängigkeit gelöscht, Recheck meldet sie, wieder da, Recheck vergisst
+    sie, alles ohne Neuparsen.
+- **`unchecked` heißt `syntax`** (rund 110 Stellen samt Skripten), Kommentare zum alten Klon angepasst.
+- **AST-Typen `readonly`:** alle Felder der Knoten und von `SymbolDefinition` außer `parent` und `id`,
+  die der Parser nachgelagert setzt (105 Felder, Arrays darin bleiben veränderlich). Der Compiler
+  meldete nur fünf Schreibstellen:
+  - Der Parser hängte bei mehrzeiligem Text `'\n'` an einen schon gebauten `TextToken` an. Der kann aus
+    einem Teilergebnis stammen, das der Parser mehrfach durchläuft. Jetzt wird er ersetzt.
+  - Vier Parser-Tests bauen zyklische erwartete Bäume (Symbol ↔ Definition), dafür ein Helfer
+    `setDefinition`.
+- **Doku:** Abschnitt „Architektur" und Language Server in `JUL/CLAUDE.md`.
+
+**Leistung.** Das A/B gegen `6f39675` lag nach diesen Punkten bei +1,6 % und +2,8 %, also am bzw.
+über dem Gate, obwohl Schritt 5 am Prüfpfad kaum etwas ändert. Die Rundenmediane schwankten um ±5 %,
+die Reihenfolge von A und B kippte. Deshalb ein zweites Messverfahren: beide Compiler im selben Prozess,
+abwechselnd, 30 bis 60 Paare, Median der Verhältnisse je Paar (Skript `ab-same.mts` im Scratchpad).
+Ergebnis: Parsen +4 % (rund 2 ms bei 56 ms), Prüfen und Parsen zusammen +2,7 %. Behoben:
+
+- `'symbols' in expression` an jedem Knoten war bei den vielen Knotenformen teuer, jetzt
+  `getNodeSymbols` mit `switch` über `type`.
+- Getrennte Id-Räume für Knoten und Symbole: Symbole sind in yugioh 16 % der Ids (19 856 von
+  123 665), ihre drei Tabellen hatten aber eine Zeile je Knoten.
+- Tabellen per `push` statt `new Array(n).fill()`: gepackt statt „holey", und V8 legt `new Array` mit
+  großer Länge als Wörterbuch an.
+- Der Interning-Schlüssel des Alias nahm `getObjectId(symbolResult)`, eine `WeakMap` je Referenz auf
+  einen Typnamen. Jetzt eine laufende Nummer `CheckResult.id`.
+- Die Zugehörigkeitsprüfung hängt an der Modulkonstante statt an `result.roots`, ohne Prüfung kostet
+  der Zugriff so keinen Ladebefehl.
+
+Danach im selben Prozess +0,7 % (40 Paare), mit getrennten Prozessen +1,5 % Median, Minimum −0,1 %
+(8 Runden à 7 Läufe), Zähler identisch. Language Server: tippen → importeure fertig 816 → 759 ms. Suiten
+(Compiler 1774, Language Server 176), LSP-Snapshot und yugioh (Build ohne Warnungen, 403 Tests) grün.
 
 ### 6. Später, eigener Entwurf
 

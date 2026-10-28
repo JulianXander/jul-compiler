@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { parseCode } from '../parser/parser.js';
 import { checkTypes } from '../checker/checker.js';
-import { createCheckResult } from '../checker/check-result.js';
+import { getFileCheckResult } from '../checker/check-result.js';
 import { ErrorCode, errorInfos } from '../compiler-errors.js';
 import { functionLiteralToEvaluableJs, getUsedRuntimeNames, jsonValueToJs, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
 import { ParseFunctionLiteral, ParseSingleDefinition } from '../syntax-tree.js';
@@ -17,13 +17,10 @@ function withoutImports(js: string): string {
 	return js.replace(importLinesRegex, '');
 }
 
-/** Für Bäume ohne Check: ein leeres Ergebnis, der Emitter sieht dann keine Typen. */
-const uncheckedResult = createCheckResult('');
-
 const expectEmit = reportAtCaller((code: string, result: string) => {
 	const parsed = parseCode(code, 'dummy.jul');
-	const syntaxTree = parsed.unchecked.expressions!;
-	const compiled = syntaxTreeToJs(uncheckedResult, syntaxTree, '');
+	const syntaxTree = parsed.syntax.expressions!;
+	const compiled = syntaxTreeToJs(getFileCheckResult(parsed), syntaxTree, '');
 	expect(withoutImports(compiled)).to.equal(result);
 });
 
@@ -767,7 +764,7 @@ f = (values: [Integer Integer]) =>
 
 const expectTestEmit = reportAtCaller((code: string, result: string) => {
 	const parsed = parseCode(code, 'dummy.test.jul');
-	const compiled = syntaxTreeToJs(uncheckedResult, parsed.unchecked.expressions!, '', 'dummy.test.jul');
+	const compiled = syntaxTreeToJs(getFileCheckResult(parsed), parsed.syntax.expressions!, '', 'dummy.test.jul');
 	expect(withoutImports(compiled)).to.equal(result);
 });
 
@@ -828,7 +825,7 @@ const expectMapping = reportAtCaller((
 	generatedJs: string,
 ) => {
 	const parsed = parseCode(code, 'dummy.jul');
-	const { js, mappings } = syntaxTreeToJsWithMappings(uncheckedResult, parsed.unchecked.expressions!, '');
+	const { js, mappings } = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), parsed.syntax.expressions!, '');
 	const mapping = mappings.find(candidate =>
 		candidate.sourceLine === sourceLine
 		&& candidate.sourceColumn === sourceColumn);
@@ -865,14 +862,14 @@ describe('Emitter source map', () => {
 	// Ein Markerzeichen aus dem Quelltext darf nicht als Marker gelesen werden.
 	it('marker-character-in-text-is-escaped', () => {
 		const parsed = parseCode('a = §x\u0001y\u0002z§', 'dummy.jul');
-		const { js, mappings } = syntaxTreeToJsWithMappings(uncheckedResult, parsed.unchecked.expressions!, '');
+		const { js, mappings } = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), parsed.syntax.expressions!, '');
 		expect(js).to.equal('export const a = `x\\u0001y\\u0002z`;');
 		expect(mappings).to.have.length(1);
 	});
 	it('constant-folding-emits-without-markers', () => {
 		const parsed = parseCode('f = (x: Integer) =>\n\ty = x\n\ty', 'dummy.jul');
-		const literal = (parsed.unchecked.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
-		expect(functionLiteralToEvaluableJs(uncheckedResult, literal)).to.not.match(/[\u0001\u0002]/);
+		const literal = (parsed.syntax.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
+		expect(functionLiteralToEvaluableJs(getFileCheckResult(parsed), literal)).to.not.match(/[\u0001\u0002]/);
 	});
 });
 
@@ -886,13 +883,13 @@ function getImportedNames(js: string, path: string): string[] | undefined {
 
 const expectRuntimeImport = reportAtCaller((code: string, names: string[] | undefined, filePath: string = 'dummy.jul') => {
 	const parsed = parseCode(code, filePath);
-	const compiled = syntaxTreeToJs(uncheckedResult, parsed.unchecked.expressions!, '', filePath);
+	const compiled = syntaxTreeToJs(getFileCheckResult(parsed), parsed.syntax.expressions!, '', filePath);
 	expect(getImportedNames(compiled, '')).to.deep.equal(names);
 });
 
 const expectTestRuntimeImport = reportAtCaller((code: string, names: string[] | undefined) => {
 	const parsed = parseCode(code, 'dummy.test.jul');
-	const compiled = syntaxTreeToJs(uncheckedResult, parsed.unchecked.expressions!, '', 'dummy.test.jul', 'test-runtime.js');
+	const compiled = syntaxTreeToJs(getFileCheckResult(parsed), parsed.syntax.expressions!, '', 'dummy.test.jul', 'test-runtime.js');
 	expect(getImportedNames(compiled, 'test-runtime.js')).to.deep.equal(names);
 });
 
@@ -1222,8 +1219,10 @@ f = Pair => 1`);
 });
 
 describe('Emitter: params nur, wo die Laufzeit sie liest', () => {
-	const emitUnchecked = (code: string): string =>
-		withoutImports(syntaxTreeToJs(uncheckedResult, parseCode(code, 'dummy.jul').unchecked.expressions!, ''));
+	const emitUnchecked = (code: string): string => {
+		const parsed = parseCode(code, 'dummy.jul');
+		return withoutImports(syntaxTreeToJs(getFileCheckResult(parsed), parsed.syntax.expressions!, ''));
+	};
 
 	it('Funktionsliteral ohne Typen ist ein nacktes Arrow', () => {
 		expect(emitUnchecked('f = (x) => x')).not.to.contain('_createFunction');
@@ -1260,8 +1259,8 @@ describe('Emitter: params nur, wo die Laufzeit sie liest', () => {
 	});
 	it('constant folding emittiert weiter mit _createFunction', () => {
 		const parsed = parseCode('f = (x) => x', 'dummy.jul');
-		const literal = (parsed.unchecked.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
-		expect(functionLiteralToEvaluableJs(uncheckedResult, literal)).to.contain('_createFunction');
+		const literal = (parsed.syntax.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
+		expect(functionLiteralToEvaluableJs(getFileCheckResult(parsed), literal)).to.contain('_createFunction');
 	});
 });
 
@@ -1468,9 +1467,10 @@ describe('Emitter untypisiertes JSON', () => {
 
 	// Der Baum ist die Referenz: die untypisierte Datei muss zur Laufzeit dieselben Werte liefern.
 	const expectSameValue = reportAtCaller((json: string) => {
-		const fromTree = syntaxTreeToJs(uncheckedResult, parseCode(json, 'data.json').unchecked.expressions!, '', 'data.json');
+		const parsed = parseCode(json, 'data.json');
+		const fromTree = syntaxTreeToJs(getFileCheckResult(parsed), parsed.syntax.expressions!, '', 'data.json');
 		const untyped = parseCode(json, 'data.json', true);
-		expect(untyped.unchecked.expressions).to.equal(undefined);
+		expect(untyped.syntax.expressions).to.equal(undefined);
 		const direct = jsonValueToJs(untyped.jsonValue);
 		expect(evaluateDefaultExport(direct)).to.deep.equal(evaluateDefaultExport(fromTree));
 	});
@@ -1503,6 +1503,6 @@ describe('Emitter untypisiertes JSON', () => {
 	});
 	it('ungültiges JSON meldet weiter invalidJson', () => {
 		const untyped = parseCode('[1,', 'data.json', true);
-		expect(untyped.unchecked.errors.map(error => error.code)).to.deep.equal([ErrorCode.invalidJson]);
+		expect(untyped.syntax.errors.map(error => error.code)).to.deep.equal([ErrorCode.invalidJson]);
 	});
 });

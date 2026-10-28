@@ -347,7 +347,7 @@ ${julCode}`,
 		it('Anzeige mit @pure', () => expectTypeOfF('/** @pure */\nexport function f(a: bigint): bigint { return a; }', '(a: Integer) -> Integer'));
 		it('@pure erscheint nicht in der Beschreibung', () => {
 			const parsed = parseCode('/**\n * Verdoppelt\n * @pure\n */\nexport function f(a: bigint) {}', 'test.ts');
-			expect(parsed.unchecked.symbols.f?.description).to.equal('Verdoppelt');
+			expect(parsed.syntax.symbols.f?.description).to.equal('Verdoppelt');
 		});
 	});
 
@@ -369,7 +369,7 @@ ${julCode}`,
 
 	const expectDescriptionOfF = reportAtCaller((code: string, description: string | undefined) => {
 		const parsed = parseCode(code, 'test.ts');
-		expect(parsed.unchecked.symbols.f?.description).to.equal(description);
+		expect(parsed.syntax.symbols.f?.description).to.equal(description);
 	});
 	describe('Beschreibung aus JSDoc', () => {
 		it('Funktion', () => expectDescriptionOfF('/**\n * Erste Zeile\n * zweite Zeile\n */\nexport function f() {}', 'Erste Zeile\nzweite Zeile'));

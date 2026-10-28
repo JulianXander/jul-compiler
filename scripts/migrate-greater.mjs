@@ -62,7 +62,7 @@ let changedCount = 0;
 for (const file of targets.flatMap(collectJulFiles)) {
 	const code = readFileSync(file, 'utf8');
 	const references = [];
-	parseCode(code, file).unchecked.expressions?.forEach(expression => {
+	parseCode(code, file).syntax.expressions?.forEach(expression => {
 		collectReferences(expression, references);
 	});
 	if (!references.length) {

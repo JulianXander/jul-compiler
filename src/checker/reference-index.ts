@@ -1,4 +1,4 @@
-import { getTypeInfo } from './check-result.js';
+import { getAliasSymbolType, getTypeInfo } from './check-result.js';
 import { dirname } from 'path';
 import { getPathFromImport, isImportFunctionCall } from '../parser/parser.js';
 import { isExportedSymbol } from '../parser/parser-utils.js';
@@ -67,7 +67,7 @@ export function getFieldSymbolsFromDictionaryType(
 			return getFieldSymbolsFromDictionaryType(dictionaryType.value, fieldName, result, visitedDeclarations);
 		case 'alias':
 			// Der Alias ist Beschriftung; die Felddeklaration steht am Typ dahinter.
-			return getFieldSymbolsFromDictionaryType(dictionaryType.symbol.typeInfo?.type ?? builtinAny,
+			return getFieldSymbolsFromDictionaryType(getAliasSymbolType(dictionaryType) ?? builtinAny,
 				fieldName,
 				result,
 				visitedDeclarations);
@@ -108,7 +108,7 @@ function followImportHop(
 	if (!importedDocument) {
 		return undefined;
 	}
-	const importedExpressions = importedDocument.checked ?? importedDocument.unchecked;
+	const importedExpressions = importedDocument.checked ?? importedDocument.syntax;
 	const importedSymbol = importedExpressions.symbols[definition.source?.name ?? definition.name.name];
 	if (!importedSymbol
 		|| !isExportedSymbol(importedSymbol)) {

@@ -8,7 +8,7 @@
 // die Ausführung - die braucht zwangsläufig einen bereits geprüften Baum.
 import * as runtime from '../runtime/runtime.js';
 import { resultContext } from './checker-stats.js';
-import { CheckResult, getTypeInfo } from './check-result.js';
+import { CheckResult, getAliasSymbolType, getTypeInfo } from './check-result.js';
 import { _julTypeSymbol } from '../runtime/runtime.js';
 import { functionLiteralToEvaluableJs } from '../compiler/emitter.js';
 import { escapeReservedJsVariableName } from '../util.js';
@@ -114,7 +114,7 @@ function dereferencePlainAlias(type: CompileTimeType): CompileTimeType | undefin
 		if (depth >= maxAliasDepth || current.args) {
 			return undefined;
 		}
-		const symbolType = current.symbol.typeInfo?.type;
+		const symbolType = getAliasSymbolType(current);
 		if (!symbolType) {
 			return undefined;
 		}

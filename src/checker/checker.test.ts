@@ -1,4 +1,4 @@
-import { CheckResult, getTypeInfo } from './check-result.js';
+import { CheckResult, getSymbolTypeInfo, getTypeInfo } from './check-result.js';
 import { expect } from 'chai';
 
 import {
@@ -22,7 +22,7 @@ import { CompilerError, ErrorCode, errorInfos } from '../compiler-errors.js';
 import { reportAtCaller } from '../test-util.js';
 import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
 import { checkTypes } from './checker.js';
-import { bindReceiver, builtInSymbols, getCallPurity, getCallPurityInfo, inferBodyPurity } from './checker.js';
+import { bindReceiver, builtInSymbols, coreLibCheckResult, getCallPurity, getCallPurityInfo, inferBodyPurity } from './checker.js';
 import { isFunctionType, resolvePlaceholders, typeToString } from './type-algebra.js';
 
 const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: {
@@ -32,10 +32,10 @@ const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: 
 } = {}) => {
 	const parserResult = parseCode(code, filePath ?? 'dummy.jul');
 	// Sonst gilt ein Syntaxfehler als bestandener Checker Test, weil der Checker auf dem
-	// unvollständigen Baum schlicht nichts zu melden hat. Vor dem Check, weil ohne Klon
-	// danach auch die Checker-Fehler in unchecked stehen. Warnungen des Parsers stehen danach in
-	// checked.errors und werden dort mitgeprüft.
-	expect(parserResult.unchecked.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
+	// unvollständigen Baum schlicht nichts zu melden hat. syntax.errors hält nur die Fehler des
+	// Parsers. Seine Warnungen stehen nach dem Check auch in checked.errors und werden dort
+	// mitgeprüft.
+	expect(parserResult.syntax.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
 	checkTypes(parserResult, {});
 	expect(parserResult.checked?.errors).to.deep.equal(errors ?? []);
 	if (result) {
@@ -48,7 +48,7 @@ const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: 
  */
 const expectLastTypeString = reportAtCaller((code: string, typeString: string, errors: CompilerError[] = []) => {
 	const parserResult = parseCode(code, 'dummy.jul');
-	expect(parserResult.unchecked.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
+	expect(parserResult.syntax.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
 	expectCheckedLastTypeString(parserResult, typeString, errors);
 });
 
@@ -73,7 +73,7 @@ const expectResolvedReturnType = reportAtCaller((code: string, typeString: strin
  */
 const expectErrorCodes = reportAtCaller((code: string, errorCodes: ErrorCode[]) => {
 	const parserResult = parseCode(code, 'dummy.jul');
-	expect(parserResult.unchecked.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
+	expect(parserResult.syntax.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
 	checkTypes(parserResult, {});
 	expect(parserResult.checked?.errors.map(error => error.code)).to.deep.equal(errorCodes);
 });
@@ -106,7 +106,7 @@ const expectParamsJulType = reportAtCaller((code: string, julType: string, branc
  */
 const expectLastTypeStringOfIncompleteCode = reportAtCaller((code: string, typeString: string, errors: CompilerError[]) => {
 	const parserResult = parseCode(code, 'dummy.jul');
-	expect(parserResult.unchecked.errors.filter(error => errorInfos[error.code].severity === 'error')).to.not.deep.equal([]);
+	expect(parserResult.syntax.errors.filter(error => errorInfos[error.code].severity === 'error')).to.not.deep.equal([]);
 	expectCheckedLastTypeString(parserResult, typeString, errors);
 });
 
@@ -3097,7 +3097,7 @@ x = 1`);
 	it('todo-comment-is-not-a-description', () => {
 		const parsed = parseCode(`#TODO später
 x = 1`, 'dummy.jul');
-		expect(parsed.unchecked.symbols['x']?.description).to.equal(undefined);
+		expect(parsed.syntax.symbols['x']?.description).to.equal(undefined);
 	});
 	it('known-directives-and-comments-do-not-warn', () => {
 		expectCheck(`#region Werte
@@ -3111,7 +3111,7 @@ x = 1
 		const parsed = parseCode(`# Zustand der Seite
 #ignore JUL2800
 page$ = create$(Integer 1)`, 'dummy.jul');
-		expect(parsed.unchecked.symbols['page$']?.description).to.equal(' Zustand der Seite');
+		expect(parsed.syntax.symbols['page$']?.description).to.equal(' Zustand der Seite');
 	});
 	//#endregion #ignore
 	//#region dereference
@@ -5359,7 +5359,7 @@ g: Text = f(3)`, {
 	// Eigener Test, weil expectCheck fehlerfreies Parsen voraussetzt.
 	const expectEmptyBodyDoesNotThrow = reportAtCaller((code: string) => {
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors.map(error => error.code)).to.deep.equal([ErrorCode.expectedExpression]);
+		expect(parsed.syntax.errors.map(error => error.code)).to.deep.equal([ErrorCode.expectedExpression]);
 		checkTypes(parsed, {});
 	});
 	it('function-with-empty-body-does-not-throw: "f = () =>\\n\\t# Kommentar"', () => {
@@ -5368,10 +5368,10 @@ g: Text = f(3)`, {
 	it('function-with-empty-body-does-not-throw: "f = () =>"', () => {
 		expectEmptyBodyDoesNotThrow('f = () =>');
 	});
-	// Der Parser meldet Import-Fehler schon beim Auflösen der Abhängigkeiten. checked ist ein Klon
-	// von unchecked und enthält sie also bereits - der Checker darf sie nicht ein zweites Mal
-	// anhängen, sonst steht jede Meldung doppelt im Editor und in der CLI. fileNotFound meldet der
-	// Loader, dafür siehe project-loader.test.ts.
+	// Der Parser meldet Import-Fehler schon beim Auflösen der Abhängigkeiten. checked.errors
+	// beginnt mit den Fehlern aus syntax und enthält sie also bereits - der Checker darf sie nicht
+	// ein zweites Mal anhängen, sonst steht jede Meldung doppelt im Editor und in der CLI.
+	// fileNotFound meldet der Loader, dafür siehe project-loader.test.ts.
 	it('import-error-reported-once', () => {
 		const parsed = parseCode('(a) = import(§./datei.txt§)\nb = a', 'dummy.jul');
 		checkTypes(parsed, {});
@@ -5392,7 +5392,7 @@ g: Text = f(3)`, {
 		errors: { code: ErrorCode; startRowIndex: number; startColumnIndex: number; }[],
 	) => {
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors?.map(error => ({
 			code: error.code,
@@ -5427,7 +5427,7 @@ g: Text = f(3)`, {
 	// Eigener Test, weil expectCheck fehlerfrei parsenden Code voraussetzt.
 	it('index-zero-reports-once', () => {
 		const parsed = parseCode('a = [1 2]\na/0', 'dummy.jul');
-		const parseErrors = parsed.unchecked.errors;
+		const parseErrors = parsed.syntax.errors;
 		expect(parseErrors, 'Parse-Fehler erwartet').to.have.lengthOf(1);
 		checkTypes(parsed, {});
 		expect(parsed.checked!.errors).to.deep.equal(parseErrors);
@@ -6268,7 +6268,7 @@ f([1 2])`, [ErrorCode.argumentTypeMismatch]);
 	[b c]
 `;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
@@ -6295,7 +6295,7 @@ f([1 2])`, [ErrorCode.argumentTypeMismatch]);
 b = 0.50
 c = 1.0`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		const typeOf = (index: number) => {
 			const def = parsed.checked?.expressions?.[index] as ParseSingleDefinition;
@@ -6447,7 +6447,7 @@ f(1 0)`;
 	// marked ist der Text, den die einzige Meldung markieren soll.
 	const expectErrorMarks = reportAtCaller((code: string, marked: string) => {
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		const errors = parsed.checked?.errors ?? [];
 		expect(errors).to.have.length(1);
@@ -6648,7 +6648,7 @@ Target = [
 	zones: List(ZoneIndex)
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
@@ -6668,7 +6668,7 @@ Target = [
 	other: Integer
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
@@ -6682,7 +6682,7 @@ Target = [
 	// steht - anders als bei Or(Alias 2) und And(Alias Any), die den Namen behalten.
 	const expectFieldAliasShown = reportAtCaller((definitions: string, fieldType: string, shown: string) => {
 		const parsed = parseCode(`${definitions}\nTarget = [a: ${fieldType}]`, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
@@ -6712,7 +6712,7 @@ Target = [
 	children: Or([] List(Tree))
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
@@ -6728,7 +6728,7 @@ Target = [
 	it('unproductive-type-cycle-is-reported', () => {
 		const code = 'Bad = Or(Integer Bad)';
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors[0]?.message).to.equal(
@@ -6750,7 +6750,7 @@ Tree2 = [
 f = (t: Tree) => t
 g = (t: Tree2) => f(t)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
@@ -6769,7 +6769,7 @@ Tree2 = [
 ]
 Both = Or(Tree Tree2)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
@@ -6790,7 +6790,7 @@ Both = Or(Tree Tree2)`;
 		code += `f = (t: T${depth}) => t\n`;
 		code += `g = (u: U${depth}) => f(u)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		const messages = parsed.checked?.errors.map(error => error.message) ?? [];
 		expect(messages.some(message => message.includes('excessively deep'))).to.equal(
@@ -6809,7 +6809,7 @@ Both = Or(Tree Tree2)`;
 	values.getElement(2)
 result = [1 §a§].second()`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
@@ -6825,7 +6825,7 @@ result = [1 §a§].second()`;
 	values/2
 result = [1 §a§].second()`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
@@ -6837,7 +6837,7 @@ result = [1 §a§].second()`;
 	o/x
 result = [x = §a§].getX()`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
@@ -6855,7 +6855,7 @@ result = [x = §a§].getX()`;
 getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	values.getElement(trigger/effectIndex)`;
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors[0]?.message).to.equal(
@@ -6875,7 +6875,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	// hart setzte - auch log und currentDate, die offensichtlich nicht pure sind. Seit der
 	// Migration kommt die Purity aus dem geschriebenen Pfeil.
 	function purityOf(name: string): TypePurity | undefined {
-		const type = builtInSymbols[name]?.typeInfo?.type;
+		const type = getSymbolTypeInfo(coreLibCheckResult, builtInSymbols[name])?.type;
 		return type && isFunctionType(type) ? type.purity : undefined;
 	}
 
@@ -7654,7 +7654,7 @@ f`, '(x: Integer) -> Or(TypeOf(x) 0)', [
 describe('constant folding', () => {
 	function typeOfLastDefinition(code: string): string | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 		const expressions = parsed.checked?.expressions ?? [];
@@ -7706,7 +7706,7 @@ R = TypeOf(f)/ReturnType`)).to.equal('TypeOf(Text)');
 	});
 	it('ein unbekanntes Feld eines Errors ist ein Fehler', () => {
 		const parsed = parseCode('f = (e: Error) => e/nachricht', 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.dereferenceFailed]);
 	});
@@ -7790,7 +7790,7 @@ R = TypeOf(f)/ReturnType`)).to.equal('TypeOf(Text)');
 	it('faltet nicht bei einem Aufruf mit Argumenttypfehler', () => {
 		// Eine Funktion mit festem Rückgabetyp, damit das Ergebnis nicht von den Argumenten abhängt.
 		const parsed = parseCode('r = divideFloat(§abc§ 1.5f)', 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		const def = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
@@ -7899,7 +7899,7 @@ r = spin(0)`)).to.equal('Any');
 	// Namensgleichheit selbst ist bereits durch den Checker ausgeschlossen.
 	it('ein Parameter mit gleichem Namen wie eine äußere Definition ist JUL3203', () => {
 		const parsed = parseCode('factor = 99\nf = (factor: Integer) => factor.multiply(2)\nr = f(4)', 'dummy.jul');
-		expect(parsed.unchecked.errors).to.deep.equal([]);
+		expect(parsed.syntax.errors).to.deep.equal([]);
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		expect(parsed.checked?.errors?.[0]?.code).to.equal(ErrorCode.alreadyDefinedInUpperScope);
@@ -8168,7 +8168,7 @@ describe('bedingte Typen', () => {
 
 	// Der Hover zeigt die aufgelöste Union, mit Alias statt ausgeschriebenem Dictionary.
 	it('K12 Hover', () => {
-		const type = builtInSymbols['add']?.typeInfo?.type;
+		const type = getSymbolTypeInfo(coreLibCheckResult, builtInSymbols['add'])?.type;
 		expect(type && typeToString(resolvePlaceholders(type), 0, 0))
 			.to.equal('(...args: List(Rational)) -> Rational');
 	});

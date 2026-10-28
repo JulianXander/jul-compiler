@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 
-import { BracketedExpression, forEachChild, ParseFunctionCall, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseBranching, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDefinition, ParseSingleDictionaryTypeField, ParseValueExpression, PositionedExpression } from '../syntax-tree.js';
+import { BracketedExpression, DefinitionExpression, forEachChild, ParseFunctionCall, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseBranching, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDefinition, ParseSingleDictionaryTypeField, ParseValueExpression, PositionedExpression, SymbolDefinition } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
 import { reportAtCaller } from '../test-util.js';
+import { setFileSymbolIds, setParentsAndIds } from './parser-utils.js';
 
 const expectParse = reportAtCaller((code: string, { result, errors, filePath }: {
 	result?: ParseExpression[];
@@ -14,16 +15,27 @@ const expectParse = reportAtCaller((code: string, { result, errors, filePath }: 
 	// if (parserResult.errors?.length) {
 	// 	console.log(parserResult.errors);
 	// }
-	expect(parserResult.unchecked.errors).to.deep.equal(errors ?? []);
+	expect(parserResult.syntax.errors).to.deep.equal(errors ?? []);
 	if (result) {
-		expect(parserResult.unchecked.expressions).to.deep.equal(result);
+		// Die Ids vergibt der Parser nachgelagert, im erwarteten Baum dieselben Funktionen. Die
+		// Symboltabelle der Datei ist die gemessene, sie vergibt dieselben Ids erneut.
+		setFileSymbolIds(parserResult.syntax.symbols, setParentsAndIds(result).symbolCount);
+		expect(parserResult.syntax.expressions).to.deep.equal(result);
 	}
 });
 
+/**
+ * Die erwarteten Bäume sind zyklisch: Das Symbol zeigt auf seine Definition, die erst danach steht.
+ * Im Parser entstehen beide zusammen, deshalb ist das Feld sonst readonly.
+ */
+function setDefinition(symbol: SymbolDefinition, definition: DefinitionExpression): void {
+	(symbol as { definition?: DefinitionExpression; }).definition = definition;
+}
+
 const expectTextValue = reportAtCaller((code: string, expected: string) => {
 	const parserResult = parseCode(code, 'dummy.jul');
-	expect(parserResult.unchecked.errors).to.deep.equal([]);
-	const text = parserResult.unchecked.expressions?.[0];
+	expect(parserResult.syntax.errors).to.deep.equal([]);
+	const text = parserResult.syntax.expressions?.[0];
 	if (text?.type !== 'text') {
 		throw new Error('text expected');
 	}
@@ -145,7 +157,7 @@ describe('Parser', () => {
 					"type": "dictionary",
 				};
 				dictionary.fields[0].parent = dictionary;
-				dictionary.symbols.someKey!.definition = field;
+				setDefinition(dictionary.symbols.someKey!, field);
 				const result: ParseExpression[] = [
 					dictionary,
 				];
@@ -209,7 +221,7 @@ describe('Parser', () => {
 					"type": "dictionary",
 				};
 				dictionary.fields[0].parent = dictionary;
-				dictionary.symbols.someKey!.definition = field;
+				setDefinition(dictionary.symbols.someKey!, field);
 				const result: ParseExpression[] = [
 					dictionary,
 				];
@@ -221,20 +233,20 @@ describe('Parser', () => {
 	// ein ? außerhalb eines Dictionary-Typs ist ein Fehler am Feld
 	it('optional-field-in-dictionary-is-error', () => {
 		const parserResult = parseCode('x = [a?: Integer = 1]', 'dummy.jul');
-		expect(parserResult.unchecked.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
+		expect(parserResult.syntax.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
 	});
 	it('optional-field-in-definition-is-error', () => {
 		const parserResult = parseCode('a?: Integer = 1', 'dummy.jul');
-		expect(parserResult.unchecked.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
+		expect(parserResult.syntax.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
 	});
 	it('optional-parameter-is-error', () => {
 		const parserResult = parseCode('f = (a?: Integer) => a', 'dummy.jul');
-		expect(parserResult.unchecked.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
+		expect(parserResult.syntax.errors.map(error => error.code)).to.include(ErrorCode.optionalNotAllowedOutsideDictionaryType);
 	});
 	it('dictionary-type-optional-field', () => {
 		const parserResult = parseCode('[\n\tsomeKey?: Text\n\tother: Integer\n]', 'dummy.jul');
-		expect(parserResult.unchecked.errors).to.deep.equal([]);
-		const dictionaryType = parserResult.unchecked.expressions?.[0] as ParseDictionaryTypeLiteral;
+		expect(parserResult.syntax.errors).to.deep.equal([]);
+		const dictionaryType = parserResult.syntax.expressions?.[0] as ParseDictionaryTypeLiteral;
 		expect(dictionaryType.type).to.equal('dictionaryType');
 		expect(dictionaryType.fields.map(field => field.type === 'singleDictionaryTypeField' && field.optional === true))
 			.to.deep.equal([true, false]);
@@ -292,28 +304,14 @@ describe('Parser', () => {
 							"functionParameterIndex": undefined,
 							"startColumnIndex": 1,
 							"startRowIndex": 1,
-							"typeExpression": {
-								"endColumnIndex": 14,
-								"endRowIndex": 1,
-								"name": {
-									"endColumnIndex": 14,
-									"endRowIndex": 1,
-									"name": "Text",
-									"startColumnIndex": 10,
-									"startRowIndex": 1,
-									"type": "name",
-								},
-								"startColumnIndex": 10,
-								"startRowIndex": 1,
-								"type": "reference",
-							},
+							// Dasselbe Objekt wie im Feld, im Parser auch.
+							"typeExpression": field.typeGuard,
 						},
 					},
 					"type": "dictionaryType",
 				};
 				dictionaryType.fields[0].parent = dictionaryType;
-				dictionaryType.symbols.someKey!.definition = field;
-				dictionaryType.symbols.someKey!.typeExpression!.parent = field;
+				setDefinition(dictionaryType.symbols.someKey!, field);
 				const result: ParseExpression[] = [
 					dictionaryType,
 				];
@@ -662,7 +660,7 @@ describe('Parser', () => {
 				};
 				dictionary.fields[0].parent = dictionary;
 				(dictionary.fields[0] as any).name.parent = dictionary.fields[0];
-				dictionary.symbols.a!.definition = dictionary.fields[0] as any;
+				setDefinition(dictionary.symbols.a!, dictionary.fields[0] as any);
 				return [
 					dictionary,
 				];
@@ -842,7 +840,7 @@ describe('Parser', () => {
 	// realistischer JUL-Code mit Parameterlisten, FunctionTypeLiterals, DictionaryTypes,
 	// Spread/Rest, Multiline und Interpolation. Fehler dort werden sonst still ignoriert.
 	it('core-lib parses without errors', () => {
-		expect(parseFile(coreLibPath).unchecked.errors).to.deep.equal([]);
+		expect(parseFile(coreLibPath).syntax.errors).to.deep.equal([]);
 	});
 	// Die Erkennung darf nicht an coreLibPath hängen: der Sprachserver läuft aus dem out
 	// Verzeichnis der installierten Extension, geöffnet wird aber die Quelldatei im Repo.
@@ -864,7 +862,7 @@ describe('Parser', () => {
 	children: Or([] List(Tree))
 ]`;
 		const parsed = parseCode(code, 'dummy.jul');
-		const definition = parsed.unchecked.expressions![0]!;
+		const definition = parsed.syntax.expressions![0]!;
 
 		function findReference(expression: PositionedExpression): ParseReference | undefined {
 			if (expression.type === 'reference'
@@ -888,25 +886,25 @@ describe('Parser', () => {
 	// prüfen nur fehlerfreies Parsen, nicht den Inhalt.
 	it('arrow landet an functionTypeLiteral und functionLiteral', () => {
 		const functionType = parseCode('(a: Integer) -> Integer', 'dummy.jul')
-			.unchecked.expressions![0] as ParseFunctionTypeLiteral;
+			.syntax.expressions![0] as ParseFunctionTypeLiteral;
 		expect(functionType.type).to.equal('functionTypeLiteral');
 		expect(functionType.arrow).to.equal('pure');
 
 		const impureFunctionType = parseCode('(a: Integer) ~> Integer', 'dummy.jul')
-			.unchecked.expressions![0] as ParseFunctionTypeLiteral;
+			.syntax.expressions![0] as ParseFunctionTypeLiteral;
 		expect(impureFunctionType.arrow).to.equal('impure');
 
 		const unknownFunctionType = parseCode('(a: Integer) :> Integer', 'dummy.jul')
-			.unchecked.expressions![0] as ParseFunctionTypeLiteral;
+			.syntax.expressions![0] as ParseFunctionTypeLiteral;
 		expect(unknownFunctionType.arrow).to.equal('unknown');
 
 		const functionLiteral = parseCode('(a: Integer) -> Integer => a', 'dummy.jul')
-			.unchecked.expressions![0] as ParseFunctionLiteral;
+			.syntax.expressions![0] as ParseFunctionLiteral;
 		expect(functionLiteral.type).to.equal('functionLiteral');
 		expect(functionLiteral.arrow).to.equal('pure');
 
 		const functionLiteralWithoutArrow = parseCode('(a) => a', 'dummy.jul')
-			.unchecked.expressions![0] as ParseFunctionLiteral;
+			.syntax.expressions![0] as ParseFunctionLiteral;
 		expect(functionLiteralWithoutArrow.arrow).to.equal(undefined);
 	});
 });
@@ -923,7 +921,7 @@ const expectMultilineHead = reportAtCaller((code: string, { equivalentTo, check,
 	/** Anzahl der Ausdrücke auf oberster Ebene, belegt, dass der Rest der Datei nicht verloren geht. */
 	expressionCount?: number;
 } = {}) => {
-	const parsed = parseCode(code, 'dummy.jul').unchecked;
+	const parsed = parseCode(code, 'dummy.jul').syntax;
 	const actualErrors = parsed.errors.map(error => ({ code: error.code, row: error.startRowIndex }));
 	expect(actualErrors).to.deep.equal(errors ?? []);
 	for (const error of parsed.errors) {
@@ -933,7 +931,7 @@ const expectMultilineHead = reportAtCaller((code: string, { equivalentTo, check,
 		expect(parsed.expressions?.length).to.equal(expressionCount);
 	}
 	if (equivalentTo !== undefined) {
-		const equivalent = parseCode(equivalentTo, 'dummy.jul').unchecked;
+		const equivalent = parseCode(equivalentTo, 'dummy.jul').syntax;
 		expect(equivalent.errors, 'einzeilige Entsprechung muss fehlerfrei sein').to.deep.equal([]);
 		expect(stripPositions(parsed.expressions)).to.deep.equal(stripPositions(equivalent.expressions));
 		expect(stripPositions(parsed.symbols)).to.deep.equal(stripPositions(equivalent.symbols));
@@ -1605,7 +1603,7 @@ describe('Mehrzeilige Klammerlisten', () => {
 		});
 	});
 	it('Fehler liegt auf der Klammer', () => {
-		const errors = parseCode('[\n\tf = (value) =>\n\t\t§test§]', 'dummy.jul').unchecked.errors;
+		const errors = parseCode('[\n\tf = (value) =>\n\t\t§test§]', 'dummy.jul').syntax.errors;
 		expect(errors).to.deep.equal([
 			{
 				code: ErrorCode.closingBracketNotOnOwnLine,
@@ -1684,7 +1682,7 @@ describe('Mehrzeilige Klammerlisten', () => {
 		expectMultilineHead('2.add(\n\t?(1)\n\t\t() => 1\n)');
 	});
 	it('Fehler liegt auf dem Branching-Kopf', () => {
-		const errors = parseCode('2.add(?(1)\n\t() => 1)', 'dummy.jul').unchecked.errors;
+		const errors = parseCode('2.add(?(1)\n\t() => 1)', 'dummy.jul').syntax.errors;
 		expect(errors).to.deep.equal([
 			{
 				code: ErrorCode.blockExpressionNotOnOwnLine,
@@ -1706,7 +1704,7 @@ describe('Mehrzeilige Klammerlisten', () => {
 		expectMultilineHead('[\n\tf = (value) =>\n\t\t§test§\n]');
 	});
 	it('Fehler liegt auf dem Funktionskopf', () => {
-		const errors = parseCode('[].map((value) =>\n\t§test§\n)', 'dummy.jul').unchecked.errors;
+		const errors = parseCode('[].map((value) =>\n\t§test§\n)', 'dummy.jul').syntax.errors;
 		expect(errors).to.deep.equal([
 			{
 				code: ErrorCode.blockExpressionNotOnOwnLine,
@@ -1784,7 +1782,7 @@ describe('Klammerlisten mit Feldern abweichend vom Umbruch', () => {
 		});
 	});
 	it('Funktionsrumpf bleibt beim Rest der Zeile', () => {
-		const errors = parseCode('f = () =>\n\ta b', 'dummy.jul').unchecked.errors;
+		const errors = parseCode('f = () =>\n\ta b', 'dummy.jul').syntax.errors;
 		expect(errors.map(error => error.code)).to.deep.equal([ErrorCode.unparsedRestOfRow]);
 	});
 	//#endregion mehrzeilig, mehrere Felder in einer Zeile

@@ -6,6 +6,7 @@ import { basename, join, relative, resolve } from 'path';
 import { ParsedDocuments } from './checker.js';
 import { checkerStats, resetCheckerStats } from './checker-stats.js';
 import { checkTypes } from './checker.js';
+import { getSymbolTypeInfo, setTypeInfo } from './check-result.js';
 import { resolvePlaceholders, typeToString } from './type-algebra.js';
 import { errorInfos } from '../compiler-errors.js';
 import { createFileSystemHost, createInMemoryHost, loadFile } from '../compiler/project-loader.js';
@@ -74,7 +75,7 @@ function snapshotFile(filePath: string): string[] {
 		return lines;
 	}
 	Object.keys(checked.symbols).sort().forEach(name => {
-		const typeInfo = checked.symbols[name]!.typeInfo;
+		const typeInfo = getSymbolTypeInfo(parsed.checkResult!, checked.symbols[name]);
 		const typeString = typeInfo
 			? typeToString(resolvePlaceholders(typeInfo.type), 0, 0)
 			: 'NO TYPE';
@@ -166,7 +167,7 @@ describe('Herkunft von Invalid', () => {
 	it('meldet einen Ausdruck mit Invalid, wenn nirgends ein Fehler steht', () => {
 		const parsed = parseCode('x = 1\nx', 'dummy.jul');
 		checkTypes(parsed, {});
-		parsed.checked!.expressions!.at(-1)!.typeInfo = { type: builtinInvalid };
+		setTypeInfo(parsed.checkResult!, parsed.checked!.expressions!.at(-1)!, { type: builtinInvalid });
 		const positions = findInvalidWithoutError({ 'dummy.jul': parsed });
 		expect(positions).to.deep.equal(['dummy.jul:2:1']);
 	});

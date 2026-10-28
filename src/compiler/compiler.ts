@@ -186,14 +186,15 @@ function reportErrors(
 	// Codes, die der Aufrufer selbst abdeckt: weder gemeldet noch Abbruchgrund.
 	ignoredCodes: ErrorCode[] = [],
 ): { hasError: boolean; summary: string; } {
-	// checked enthält die Parse-Fehler schon (Klon von unchecked), deshalb nicht beide Listen.
+	// checked enthält die Parse-Fehler schon (das CheckResult kopiert syntax.errors), deshalb nicht
+	// beide Listen.
 	let errorCount = notFoundPaths.length;
 	let warningCount = 0;
 	const formattedErrors = notFoundPaths.map(path => `File not found: ${path}`);
 	Object.values(documents).forEach(document => {
 		// Hinweise sind für den Editor, der sie an der Stelle zeigt. In der Ausgabe gingen die
 		// Beanstandungen darin unter.
-		const errors = (document.checked?.errors ?? document.unchecked.errors)
+		const errors = (document.checked?.errors ?? document.syntax.errors)
 			.filter(error => errorInfos[error.code].severity !== 'hint'
 				&& !ignoredCodes.includes(error.code));
 		if (!errors.length) {
@@ -481,7 +482,7 @@ function getCompileErrors(
 	return [
 		...notFoundPaths.map(path => ({ file: resolve(path), row: 1, column: 1, message: `File not found: ${path}` })),
 		...Object.values(documents).flatMap(document =>
-			(document.checked?.errors ?? document.unchecked.errors)
+			(document.checked?.errors ?? document.syntax.errors)
 				.filter(error => errorInfos[error.code].severity === 'error'
 					&& !ignoredCodes.includes(error.code))
 				.map(error => ({
@@ -647,9 +648,9 @@ function emitToJs(
 				outFilePath = join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
 				break;
 			}
-			// checkResult trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht. Ohne Check
-			// (nur unchecked) ein leeres Ergebnis: dann ohne Typen, wie der Baum ohne typeInfo.
-			const expressions = (parsed.checked ?? parsed.unchecked).expressions ?? [];
+			// checkResult trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht. Ohne
+			// Check ein leeres Ergebnis: dann ohne Typen.
+			const expressions = (parsed.checked ?? parsed.syntax).expressions ?? [];
 			const emitted = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath);
 			compiled = emitted.js;
 			runtimeNames = emitted.runtimeNames;

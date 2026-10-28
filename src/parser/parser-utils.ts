@@ -1,4 +1,4 @@
-import { ParseBindingExpression, DefinitionExpression, forEachChild, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable, TypedExpression, createSymbolTable } from "../syntax-tree.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, getNodeSymbols, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable, TypedExpression, createSymbolTable } from "../syntax-tree.js";
 import { forEach } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
@@ -248,19 +248,61 @@ export function getCheckedEscapableName(parseName: PositionedExpression): string
 }
 
 /**
- * Setzt die parent-Kette ueber den fertigen Baum.
+ * Setzt die parent-Kette und vergibt Ids an die Knoten und an die Symbole ihrer Symboltabellen, über
+ * den fertigen Baum einer Datei. Knoten und Symbole zählen getrennt, je dicht ab 0 in Vorordnung,
+ * Rückgabe ist die Anzahl je Raum (siehe CheckResult). Die Symboltabelle der Datei entsteht erst
+ * danach, ihre Ids vergibt setFileSymbolIds.
  * Nachgelagert und nicht beim Bauen: derselbe Parser-Pfad laeuft mehrfach ueber dieselbe Eingabe
  * und reicht die inneren Ergebnisse weiter, eine Huelle steht also noch nicht fest, waehrend ihre
  * Kinder schon existieren. Wer parent beim Bauen setzt, schreibt auf ein Objekt, dessen
  * Zugehoerigkeit noch offen ist (TypeScript setzt parent aus demselben Grund nachgelagert;
  * Roslyn und rust-analyzer speichern ihn im geteilten Baum gar nicht erst).
+ * Die Id vor parent, damit Wurzeln (nur id) und Kinder (id, parent) dieselbe Kette von Formen
+ * durchlaufen.
  */
-export function setParentsRecursive(expression: PositionedExpression): void {
-	forEachChild(expression, child => {
-		child.parent = expression;
-		setParentsRecursive(child);
+export function setParentsAndIds(expressions: readonly PositionedExpression[]): {
+	nodeCount: number;
+	symbolCount: number;
+} {
+	let nextId = 0;
+	let nextSymbolId = 0;
+	const visit = (expression: PositionedExpression): undefined => {
+		const symbols = getNodeSymbols(expression);
+		if (symbols) {
+			nextSymbolId = setSymbolIds(symbols, nextSymbolId);
+		}
+		forEachChild(expression, child => {
+			child.id = nextId++;
+			child.parent = expression;
+			visit(child);
+			return undefined;
+		});
 		return undefined;
+	};
+	expressions.forEach(expression => {
+		expression.id = nextId++;
+		visit(expression);
 	});
+	return {
+		nodeCount: nextId,
+		symbolCount: nextSymbolId,
+	};
+}
+
+/**
+ * Vergibt Ids an die Symbole der Datei, im Anschluss an die Symbole der Knoten (ab firstId).
+ * Rückgabe ist die Anzahl der Symbole.
+ */
+export function setFileSymbolIds(fileSymbols: SymbolTable, firstId: number): number {
+	return setSymbolIds(fileSymbols, firstId);
+}
+
+function setSymbolIds(symbols: SymbolTable, firstId: number): number {
+	let nextId = firstId;
+	for (const name in symbols) {
+		symbols[name]!.id = nextId++;
+	}
+	return nextId;
 }
 //#region test
 

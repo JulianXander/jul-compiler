@@ -405,8 +405,8 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 /**
  * Ein Fehler im kompilierten Quelltext, an dessen Position.
  * Wird von allen Phasen erzeugt (Parser wie Checker) - deshalb sagt der Code, um welche Art es sich
- * handelt, und nicht die Liste, in der der Fehler landet: derselbe Fehler kann in unchecked und
- * checked errors stehen.
+ * handelt, und nicht die Liste, in der der Fehler landet: derselbe Fehler kann in syntax.errors und
+ * checked.errors stehen.
  *
  * Nicht gemeint sind Fehler des Compilers selbst (verletzte Invarianten).
  * Die werden geworfen und nicht gesammelt.

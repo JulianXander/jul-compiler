@@ -48,7 +48,7 @@ function checkInput(files: { [path: string]: string; }, request: WorkerRequest):
 		const parsed = loadFile(request.path, documents, host, request.code);
 		const rows = request.code.split('\n');
 		const errors: CompilerError[] = [
-			...parsed.unchecked.errors,
+			...parsed.syntax.errors,
 			...parsed.checked?.errors ?? [],
 		];
 		for (const error of errors) {

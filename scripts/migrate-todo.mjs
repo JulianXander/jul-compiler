@@ -40,7 +40,7 @@ function collectJulFiles(path) {
 let changedRows = 0;
 for (const file of targets.flatMap(collectJulFiles)) {
 	const code = readFileSync(file, 'utf8');
-	const rowIndexes = new Set(parseCode(code, file).unchecked.errors
+	const rowIndexes = new Set(parseCode(code, file).syntax.errors
 		.filter(error => error.code === ErrorCode.todoSpelling)
 		.map(error => error.startRowIndex));
 	if (!rowIndexes.size) {

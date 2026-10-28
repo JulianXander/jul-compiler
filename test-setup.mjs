@@ -8,3 +8,7 @@ use(chaiAsPromised);
 // ein einzelner Test brauchte dadurch über 100 ms statt 5 ms. So laufen die Tests wie CLI und
 // Language Server.
 Error.stackTraceLimit = 10;
+
+// Die Zugriffe auf das CheckResult prüfen, ob der Knoten zur Datei des Ergebnisses gehört (siehe
+// checker/check-result.ts). Vor dem ersten Import des Checkers, der die core-lib beim Laden prüft.
+process.env.JUL_VERIFY_NODE_OWNERSHIP = '1';

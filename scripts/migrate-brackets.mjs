@@ -143,7 +143,7 @@ function migrateFile(filePath) {
 	const code = readFileSync(filePath, 'utf8');
 	const rows = code.split('\n');
 	const parsed = parseCode(code, filePath);
-	const { hits, leftovers } = analyse(parsed.unchecked.expressions);
+	const { hits, leftovers } = analyse(parsed.syntax.expressions);
 
 	// Ersetzungen als Einzelkoordinaten. ( -> [ ist laengenneutral, daher ist die
 	// Reihenfolge egal und verschachtelte Klammern kollidieren nie.

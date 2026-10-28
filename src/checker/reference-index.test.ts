@@ -2,8 +2,9 @@ import { expect } from 'chai';
 import { join, resolve } from 'path';
 
 import { ParsedDocuments } from './checker.js';
+import { getSymbolTypeInfo } from './check-result.js';
 import { errorInfos } from '../compiler-errors.js';
-import { createInMemoryHost, loadFile, ProjectHost } from '../compiler/project-loader.js';
+import { createInMemoryHost, loadFile, ProjectHost, recheckFile } from '../compiler/project-loader.js';
 import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
 import { getFieldSymbolsFromDictionaryType, ReferenceIndex } from './reference-index.js';
 
@@ -79,7 +80,7 @@ describe('ReferenceIndex', () => {
 		expect(afterEdit.filter(location => location.filePath === directPath)).to.have.lengthOf(1);
 
 		// Recheck ohne weitere Änderung (wie recheckDocument im Language Server) darf nichts verdoppeln
-		load(directPath, documents, host, editedCode);
+		recheckFile(documents[directPath]!, documents, host);
 		expect(referenceIndex.getReferences(fooSymbol, originPath)).to.have.lengthOf(3);
 	});
 });
@@ -108,7 +109,7 @@ describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
 
 	function getFieldSymbol(typeName: string, fieldName: string): SymbolDefinition {
 		const typeSymbol = documents[filePath]!.checked!.symbols[typeName]!;
-		const type = typeSymbol.typeInfo!.type as any;
+		const type = getSymbolTypeInfo(documents[filePath]!.checkResult!, typeSymbol)!.type as any;
 		const declaration = (type.julType === 'typeOf' ? type.value : type).declaration;
 		return declaration.expression.symbols[fieldName];
 	}
@@ -130,7 +131,7 @@ function getErrorsWithSeverityError(documents: ParsedDocuments, filePath: string
 
 function getFieldSymbolOfType(documents: ParsedDocuments, filePath: string, typeName: string, fieldName: string): SymbolDefinition {
 	const typeSymbol = documents[filePath]!.checked!.symbols[typeName]!;
-	const type = typeSymbol.typeInfo!.type as any;
+	const type = getSymbolTypeInfo(documents[filePath]!.checkResult!, typeSymbol)!.type as any;
 	const declaration = (type.julType === 'typeOf' ? type.value : type).declaration;
 	return declaration.expression.symbols[fieldName];
 }
@@ -271,7 +272,7 @@ describe('ReferenceIndex: Feldnamen mit erwartetem Typ aus einer anderen Datei',
 		expect(getUsageRows()).to.deep.equal([1, 2]);
 
 		// Recheck ohne Änderung, wie recheckDocument im Language Server
-		load(usagePath, documents, host, usageCode);
+		recheckFile(documents[usagePath]!, documents, host);
 		expect(getUsageRows()).to.deep.equal([1, 2]);
 
 		load(usagePath, documents, host, '(MyType) = import(§./type.jul§)\n');
@@ -367,7 +368,7 @@ describe('ReferenceIndex: Felder, die per Spread übernommen werden', () => {
 	});
 
 	function getTypeOfSymbol(name: string) {
-		const type = documents[filePath]!.checked!.symbols[name]!.typeInfo!.type as any;
+		const type = getSymbolTypeInfo(documents[filePath]!.checkResult!, documents[filePath]!.checked!.symbols[name])!.type as any;
 		return type.julType === 'typeOf' ? type.value : type;
 	}
 

@@ -91,7 +91,7 @@ import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex,
 import { collectCompletedNames, collectCompletedNamesByBody, reportStreamsWithoutEnd } from './stream-lifetime.js';
 import { applyIgnoreComments } from '../parser/comment-directives.js';
 import { checkerStats } from './checker-stats.js';
-import { CheckResult, createCheckResult, getExpectedType, getTypeInfo, setCalledFunctionType, setCalledParameterNames, setExpectedType, setTypeInfo } from './check-result.js';
+import { CheckResult, createCheckResult, getAliasSymbolType, getExpectedType, getFunctionRef, getSymbolTypeInfo, getTypeInfo, isSymbolUsed, markSymbolUsed, setCalledFunctionType, setCalledParameterNames, setExpectedType, setFunctionRef, setSymbolTypeInfo, setTypeInfo } from './check-result.js';
 import {
 	applyBranchHead,
 	BranchCoverage,
@@ -383,11 +383,6 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
  * Check der core-lib stehen, der beim Modul-Load läuft.
  */
 const completedNamesByScope = new WeakMap<SymbolTable, Set<string>>();
-/**
- * Was vor diesem branch noch ankommen kann, gesetzt in case 'branching' vor dem Inferieren des
- * branches. Die Verengung in seinem Rumpf liest es.
- */
-const coverageBeforeBranch = new WeakMap<ParseValueExpression, BranchCoverage>();
 
 /** Die Mengen aus einem Durchlauf je Datei (collectCompletedNamesByBody), je Rumpf. */
 const completedNamesByBody = new WeakMap<readonly PositionedExpression[], Set<string>>();
@@ -396,12 +391,16 @@ const completedNamesByBody = new WeakMap<readonly PositionedExpression[], Set<st
 // Compiler, nicht zum Projekt, ändert sich während eines Laufs nicht und wird deshalb einmal je
 // Prozess gelesen statt je Host.
 const parsedCoreLib = parseFile(coreLibPath);
-const parsedCoreLib2 = parsedCoreLib.unchecked;
-const coreLibCheckResult = createCheckResult(coreLibPath);
+const parsedCoreLib2 = parsedCoreLib.syntax;
+export const coreLibCheckResult = createCheckResult(parsedCoreLib);
 parsedCoreLib.checkResult = coreLibCheckResult;
+parsedCoreLib.checked = {
+	...parsedCoreLib2,
+	errors: coreLibCheckResult.errors,
+};
 inferFileTypes([], {
 	documents: {},
-	file: parsedCoreLib2,
+	file: parsedCoreLib.checked,
 	result: coreLibCheckResult,
 	folder: '',
 	filePath: '',
@@ -410,6 +409,25 @@ inferFileTypes([], {
 	warnUnknown: false,
 });
 export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
+/** Die Symbole aus builtInSymbols, die jede andere Datei in ihren Scopes sieht. */
+const coreLibSymbols = new Set(Object.values(builtInSymbols));
+
+/**
+ * Das Ergebnis, in dem Typ und Verwendung eines Symbols aus den Scopes einer Datei stehen: für ein
+ * Symbol aus builtInSymbols das der core-lib, sonst das der Datei.
+ */
+export function getSymbolResult(fileResult: CheckResult, symbol: SymbolDefinition): CheckResult {
+	return coreLibSymbols.has(symbol)
+		? coreLibCheckResult
+		: fileResult;
+}
+
+/**
+ * Der Typ eines Symbols aus den Scopes einer Datei, siehe getSymbolResult.
+ */
+export function getScopeSymbolTypeInfo(fileResult: CheckResult, symbol: SymbolDefinition | undefined): TypeInfo | undefined {
+	return symbol && getSymbolTypeInfo(getSymbolResult(fileResult, symbol), symbol);
+}
 
 //#region dereference
 
@@ -446,7 +464,7 @@ function getSelfAppliedTypeFunction(checkResult: CheckResult, functionExpression
 		return undefined;
 	}
 	const alias = type.value;
-	if (alias.symbol.typeInfo) {
+	if (getAliasSymbolType(alias)) {
 		return undefined;
 	}
 	const definition = alias.symbol.definition;
@@ -468,7 +486,7 @@ function isSelfReference(reference: ParseReference, name: string): boolean {
 	return false;
 }
 
-function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
+function dereferenceType(checkResult: CheckResult, reference: ParseReference, scopes: SymbolTable[]): {
 	type: CompileTimeType;
 	found: boolean;
 	/**
@@ -500,11 +518,17 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	// (sie wird ohne builtInSymbols gecheckt). Auch dann ist isBuiltIn korrekt:
 	// innerhalb der core-lib sind Vorwärtsreferenzen erlaubt (kein usedBeforeDefined).
 	const isBuiltIn = findResult.scopeIndex === 0;
+	// Aus den Scopes kommt ein Symbol aus der geprüften Datei oder aus der core-lib, die beim Modul-Load
+	// geprüft wurde. Verglichen wird die Tabelle, nicht der Index: Prüft ein Test die core-lib erneut,
+	// steht an Index 0 ihre eigene, neu geparste Tabelle.
+	const symbolResult = scopes[findResult.scopeIndex] === parsedCoreLib2.symbols
+		? coreLibCheckResult
+		: checkResult;
 	if (foundSymbol.functionParameterIndex !== undefined) {
 		// TODO ParameterReference nur liefern, wenn Symbol im untersten Scope gefunden,
 		// da ParameterReference auf höhere Funktionen problematisch ist?
 		const parameterReference = createParameterReference(reference.name.name, foundSymbol.functionParameterIndex);
-		parameterReference.functionRef = foundSymbol.functionRef;
+		parameterReference.functionRef = getFunctionRef(symbolResult, foundSymbol);
 		return {
 			type: parameterReference,
 			found: true,
@@ -512,7 +536,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 			isBuiltIn: isBuiltIn,
 		};
 	}
-	const referencedType = foundSymbol.typeInfo;
+	const referencedType = getSymbolTypeInfo(symbolResult, foundSymbol);
 	if (!referencedType) {
 		// Das Symbol wird gerade selbst gecheckt: eine Selbstreferenz. Ein Typ bekommt den
 		// Alias-Knoten, der den Namen hält und erst auflöst, wenn das Symbol fertig ist -
@@ -520,7 +544,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 		// Funktion) bleibt bei Any, sonst stünde sein Name fälschlich für einen Typ.
 		return {
 			type: isTypeName(name) && isSelfReference(reference, name)
-				? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol))
+				? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol, symbolResult))
 				: builtinAny,
 			found: true,
 			foundSymbol: foundSymbol,
@@ -532,7 +556,7 @@ function dereferenceType(reference: ParseReference, scopes: SymbolTable[]): {
 	// wird also nirgends zu GameCardId, nur weil GameCardId darauf zeigt.
 	return {
 		type: isTypeName(name) && referencedType.type.julType === 'typeOf'
-			? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol))
+			? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol, symbolResult))
 			: referencedType.type,
 		found: true,
 		foundSymbol: foundSymbol,
@@ -941,10 +965,10 @@ export interface CheckOptions {
 /**
  * infer types of expressions, normalize typeGuards
  * fills errors
- * Schreibt die Ergebnisse (typeInfo, Fehler) in den Baum aus dem Parser und überspringt Ausdrücke,
- * die schon eine typeInfo haben: checked ist dasselbe Objekt wie unchecked. Ein erneuter Check
- * braucht deshalb einen neu geparsten Baum (Language Server: recheckDocument). Das entfällt mit der
- * Trennung von Syntaxbaum und Typen (docs/backlog/immutable-syntax-tree.md).
+ * Die Typen der Ausdrücke und die Fehler landen in einem neuen CheckResult (document.checkResult),
+ * checked teilt Ausdrücke und Symbole mit syntax und hat nur die Fehler des Ergebnisses. Der Baum
+ * bleibt unverändert, ein erneuter Check desselben Baums gibt ein neues Ergebnis (project-loader:
+ * recheckFile, docs/backlog/immutable-syntax-tree.md).
  */
 export function checkTypes(
 	document: ParsedFile,
@@ -954,10 +978,13 @@ export function checkTypes(
 	const { referenceIndex, onProgress } = options;
 	referenceIndex?.clearReferencesFromFile(document.filePath);
 	resetFoldBudget();
-	const checked = document.unchecked;
-	document.checked = checked;
-	const result = createCheckResult(document.filePath);
+	const result = createCheckResult(document);
 	document.checkResult = result;
+	const checked: ParsedExpressions2 = {
+		...document.syntax,
+		errors: result.errors,
+	};
+	document.checked = checked;
 	// Große Datendateien liefern dem Importeur Any, ihr Typ wird nie gelesen. Der Emitter
 	// braucht für Daten keine typeInfo.
 	if (document.untyped
@@ -984,7 +1011,7 @@ export function checkTypes(
 	});
 	if (extname(document.filePath) === Extension.jul
 		&& !isCoreLibPath(document.filePath)) {
-		reportUnusedDefinitions(checked);
+		reportUnusedDefinitions(result, checked);
 		reportStreamsWithoutEnd(result, checked.expressions, checked.errors);
 	}
 	if (isTestFilePath(document.filePath)) {
@@ -997,41 +1024,41 @@ export function checkTypes(
 //#region ungenutzte Definitionen
 
 /**
- * Meldet lokale Bindungen, die keine Referenz gefunden hat (isUsed).
+ * Meldet lokale Bindungen, die keine Referenz gefunden hat (isSymbolUsed).
  * Ausgenommen ist, was außerhalb des Scopes noch ankommt: Top-Level-Definitionen sind exportiert,
  * die letzte Definition eines Funktionsrumpfs ist sein Rückgabewert, Parameter werden vom Aufrufer
  * belegt. Destructuring auf oberster Ebene wird nicht exportiert und daher geprüft.
  */
-function reportUnusedDefinitions(file: ParsedExpressions2): void {
+function reportUnusedDefinitions(result: CheckResult, file: ParsedExpressions2): void {
 	const { errors } = file;
 	forEach(file.symbols, (symbol, name) => {
 		if (symbol.definition?.type === 'destructuringField') {
-			reportIfUnused(symbol, name, errors);
+			reportIfUnused(result, symbol, name, errors);
 		}
 	});
 	file.expressions?.forEach(expression => {
-		reportUnusedInFunctionBodies(expression, errors);
+		reportUnusedInFunctionBodies(result, expression, errors);
 	});
 }
 
-function reportUnusedInFunctionBodies(expression: PositionedExpression, errors: CompilerError[]): void {
+function reportUnusedInFunctionBodies(result: CheckResult, expression: PositionedExpression, errors: CompilerError[]): void {
 	if (expression.type === 'functionLiteral') {
 		const returnedDefinition = last(expression.body);
 		forEach(expression.symbols, (symbol, name) => {
 			const definition = symbol.definition;
 			if ((definition?.type === 'definition' && definition !== returnedDefinition)
 				|| definition?.type === 'destructuringField') {
-				reportIfUnused(symbol, name, errors);
+				reportIfUnused(result, symbol, name, errors);
 			}
 		});
 	}
 	forEachChild(expression, child => {
-		reportUnusedInFunctionBodies(child, errors);
+		reportUnusedInFunctionBodies(result, child, errors);
 	});
 }
 
-function reportIfUnused(symbol: SymbolDefinition, name: string, errors: CompilerError[]): void {
-	if (symbol.isUsed) {
+function reportIfUnused(result: CheckResult, symbol: SymbolDefinition, name: string, errors: CompilerError[]): void {
+	if (isSymbolUsed(result, symbol)) {
 		return;
 	}
 	errors.push({
@@ -2164,7 +2191,7 @@ function inferType(
 			// Der Rest vor jedem branch, siehe branch-coverage.ts. Die Verengung im Rumpf liest ihn.
 			let coverage = createBranchCoverage(getTypeInfo(checkContext.result, args) && resolvePlaceholders(getTypeInfo(checkContext.result, args)!.type));
 			branches.forEach(branch => {
-				coverageBeforeBranch.set(branch, coverage);
+				checkContext.result.coverageBeforeBranch.set(branch.id!, coverage);
 				setInferredType(branch, typeContext, undefined, checkContext);
 				checkIsFunction(checkContext.result, branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
 				const head = getBranchHeadOfFunction(getTypeInfo(checkContext.result, branch) && resolvePlaceholders(getTypeInfo(checkContext.result, branch)!.type));
@@ -2314,7 +2341,7 @@ function inferType(
 				throw new Error(`Definition Symbol ${name} not found`);
 			}
 			typeInfo = withCompletedStream(typeInfo, currentScope, name);
-			symbol.typeInfo = typeInfo;
+			setSymbolTypeInfo(checkContext.result, symbol, typeInfo);
 			// Ein hingeschriebener TypeGuard ist die erklärte Absicht und geht dem inferierten Typ vor.
 			checkNamingCase(
 				expression.name,
@@ -2432,7 +2459,7 @@ function inferType(
 					return;
 				}
 				const symbol = currentScope[fieldName]!;
-				symbol.typeInfo = { type: fieldType };
+				setSymbolTypeInfo(checkContext.result, symbol, { type: fieldType });
 				checkNamingCase(field.name, fieldType, errors);
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
@@ -2519,7 +2546,7 @@ function inferType(
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
 						}
-						fieldSymbol.typeInfo = { type: fieldType };
+						setSymbolTypeInfo(checkContext.result, fieldSymbol, { type: fieldType });
 						return;
 					}
 					case 'spread':
@@ -2565,7 +2592,7 @@ function inferType(
 						if (!fieldSymbol) {
 							throw new Error(`fieldSymbol ${fieldName} not found`);
 						}
-						fieldSymbol.typeInfo = { type: fieldType };
+						setSymbolTypeInfo(checkContext.result, fieldSymbol, { type: fieldType });
 						return;
 					}
 					case 'spread': {
@@ -2651,7 +2678,7 @@ function inferType(
 				}
 				const selfArgsType = getTypeInfo(checkContext.result, selfArgs)?.type ?? builtinEmpty;
 				return {
-					type: createCompileTimeTypeOfType(createCompileTimeAliasType(selfApplied.name, selfApplied.symbol, selfArgsType)),
+					type: createCompileTimeTypeOfType(createCompileTimeAliasType(selfApplied.name, selfApplied.symbol, selfApplied.symbolResult, selfArgsType)),
 				};
 			}
 			const isFunction = checkIsFunction(checkContext.result, functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
@@ -2889,7 +2916,7 @@ function inferType(
 			// parameterReference auf die Identität, die nur ParamsType trägt.
 			const identity = createFunctionIdentity(builtinEmpty, false);
 			if (params.type === 'parameters') {
-				setFunctionRefForParams(params, identity, functionScopes);
+				setFunctionRefForParams(checkContext.result, params, identity, functionScopes);
 			}
 			// Die Params sagen die Verengung erst aus, sie sehen sie also noch nicht.
 			const functionTypeContext: TypeContext = {
@@ -2909,14 +2936,15 @@ function inferType(
 			const branching = expression.parent;
 			if (branching?.type === 'branching') {
 				// Fehlt der Rest (der branch wird außerhalb der Reihenfolge inferiert), verengt nur der Kopf.
-				const coverage = coverageBeforeBranch.get(expression)
+				const coverage = checkContext.result.coverageBeforeBranch.get(expression.id!)
 					?? createBranchCoverage(getTypeInfo(checkContext.result, branching.args) && resolvePlaceholders(getTypeInfo(checkContext.result, branching.args)!.type));
 				const head = getBranchHead(paramsTypeValue);
 				getWrittenArguments(branching.args)?.forEach((argument, argumentIndex) => {
 					if (!mayNarrowAt(coverage, head, argumentIndex)) {
 						return;
 					}
-					branchNarrowedTypes = withNarrowedPredicateSubject(checkContext.result, 
+					branchNarrowedTypes = withNarrowedPredicateSubject(
+						checkContext.result,
 						branchNarrowedTypes,
 						argument,
 						() => narrowArgumentType(coverage, head, argumentIndex, getTypeInfo(checkContext.result, argument)?.type ?? builtinBoolean),
@@ -3102,7 +3130,7 @@ function inferType(
 			const params = expression.params;
 			const identity = createFunctionIdentity(builtinEmpty, false);
 			if (params.type === 'parameters') {
-				setFunctionRefForParams(params, identity, functionScopes);
+				setFunctionRefForParams(checkContext.result, params, identity, functionScopes);
 			}
 			const functionTypeContext: TypeContext = {
 				scopes: functionScopes,
@@ -3382,7 +3410,7 @@ function inferType(
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			const typeInfo: TypeInfo = { type: inferredType };
-			parameterSymbol.typeInfo = typeInfo;
+			setSymbolTypeInfo(checkContext.result, parameterSymbol, typeInfo);
 			checkNamingCase(expression.name, inferredType, errors);
 			return typeInfo;
 		}
@@ -3416,7 +3444,7 @@ function inferType(
 				foundSymbol,
 				type,
 				isBuiltIn,
-			} = dereferenceType(expression, scopes);
+			} = dereferenceType(checkContext.result, expression, scopes);
 			const name = expression.name.name;
 			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (name === 'test'
@@ -3459,9 +3487,9 @@ function inferType(
 			}
 			if (foundSymbol
 				&& !isBuiltIn
-				&& !foundSymbol.isUsed
+				&& !isSymbolUsed(checkContext.result, foundSymbol)
 				&& !isInside(expression, foundSymbol.definition)) {
-				foundSymbol.isUsed = true;
+				markSymbolUsed(checkContext.result, foundSymbol);
 			}
 			if (referenceIndex && foundSymbol && !isBuiltIn) {
 				const canonical = resolveCanonicalSymbol(foundSymbol, filePath, parsedDocuments);
@@ -3602,7 +3630,8 @@ function getReturnTypeFromFunctionCall(
 			case 'import': {
 				const { path, error } = getPathFromImport(functionCall, folder);
 				// Für einen Top-Level-Import hat der Parser den Fehler schon gemeldet
-				// (getImportedPaths), und checked ist ein Klon von unchecked - sonst stünde er doppelt da.
+				// (getImportedPaths), und checked.errors enthält die Fehler aus syntax - sonst stünde er
+				// doppelt da.
 				if (error
 					&& !isTopLevelImport(functionCall)) {
 					errors.push(error);
@@ -3625,10 +3654,10 @@ function getReturnTypeFromFunctionCall(
 				// a dictionary containing all definitions is imported
 				const exportedSymbols = getExportedSymbols(importedFile.symbols);
 				if (Object.keys(exportedSymbols).length) {
+					const importedResult = importedDocument.checkResult;
 					const importedTypes = mapDictionary(exportedSymbols, symbol => {
-						const symbolType: CompileTimeType = symbol.typeInfo
-							? symbol.typeInfo.type
-							: builtinAny;
+						const symbolType: CompileTimeType = (importedResult && getSymbolTypeInfo(importedResult, symbol)?.type)
+							?? builtinAny;
 						return symbolType;
 					});
 					// TODO exrepssion, filePath?
@@ -4918,18 +4947,19 @@ function isDefinitelyNotCollectionType(rawType: CompileTimeType): boolean {
 }
 
 function setFunctionRefForParams(
+	checkResult: CheckResult,
 	params: ParseParameterFields,
 	identity: FunctionIdentity,
 	functionScopes: NonEmptyArray<SymbolTable>,
 ): void {
 	params.singleFields.forEach(parameter => {
 		const parameterSymbol = findParameterSymbol(parameter, functionScopes);
-		parameterSymbol.functionRef = identity;
+		setFunctionRef(checkResult, parameterSymbol, identity);
 	});
 	const restParameter = params.rest;
 	if (restParameter) {
 		const parameterSymbol = findParameterSymbol(restParameter, functionScopes);
-		parameterSymbol.functionRef = identity;
+		setFunctionRef(checkResult, parameterSymbol, identity);
 	}
 }
 
