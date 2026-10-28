@@ -23,6 +23,7 @@ import {
 	CompileTimeType,
 	CompileTimeTypeOfType,
 	CompileTimeUnionType,
+	LengthTerm,
 	ConditionalTypeBranch,
 	Parameter,
 	ParameterReference,
@@ -52,6 +53,8 @@ import {
 	createCompileTimeIntersectionType,
 	createCompileTimeLengthOfType,
 	createCompileTimeListType,
+	getPathLengthTerm,
+	createFreshLengthTerm,
 	createCompileTimeMapElementsType,
 	createCompileTimePredicateType,
 	createCompileTimeStreamType,
@@ -474,7 +477,11 @@ export function dereferenceNestedKeyFromObject(
 			// Der Index ist beweisbar die Länge genau dieser Quelle: bei einer List ist er
 			// damit nie zu groß (er trifft exakt das letzte Element) und nie 0 (lengthOf.Source
 			// ist per Konstruktion nie Empty, siehe getLengthFromType). Kein Empty im Ergebnis.
+			// "Genau dieser Quelle" heißt: derselbe Längen-Term (typeEquals vergleicht ihn mit).
+			// Ohne Term gälte die Länge jeder Liste gleichen Typs als Beweis
+			// (docs/backlog/laengen-terme.md).
 			if (source.julType === 'list'
+				&& source.Length !== undefined
 				&& typeEquals(nestedKey.Source, source)) {
 				return source.ElementType;
 			}
@@ -1462,7 +1469,7 @@ function traversePlaceholdersUncached(
 			if (dereferencedElement === rawElement) {
 				return rawType;
 			}
-			return createCompileTimeListType(dereferencedElement);
+			return createCompileTimeListType(dereferencedElement, rawType.Length);
 		}
 		case 'not': {
 			const rawSource = rawType.SourceType;
@@ -1511,7 +1518,16 @@ function traversePlaceholdersUncached(
 			if (dereferenced1 === rawType) {
 				return rawType;
 			}
-			return resolvePlaceholders(dereferenced1);
+			// Im Rumpf steht der Parameter für genau ein Argument: Eine Liste daraus bekommt die
+			// Länge dieses Parameters, nicht die irgendeiner Liste gleichen Typs
+			// (docs/backlog/laengen-terme.md).
+			const resolvedParameter = resolvePlaceholders(dereferenced1);
+			return rawType.functionRef && hasListChoice(resolvedParameter)
+				? withListLength(
+					resolvedParameter,
+					getPathLengthTerm(rawType.functionRef, ['parameter', rawType.index], rawType.name),
+					false)
+				: resolvedParameter;
 		}
 		case 'parameters': {
 			if (argumentContext) {
@@ -1729,7 +1745,69 @@ function traverseOperation(
 		&& elementsEqual(rawOperands, operands)) {
 		return rawType;
 	}
-	return operation.evaluate(rawType, operands, argumentContext);
+	const evaluated = operation.evaluate(rawType, operands, argumentContext);
+	if (rawType.julType !== 'nestedReference'
+		|| !hasListChoice(evaluated)) {
+		return evaluated;
+	}
+	// Ein Feldpfad auf einem Parameter (a/past im Rumpf) bezeichnet wie der Parameter selbst genau
+	// einen Wert, siehe case 'parameterReference' in traversePlaceholdersUncached. Am Aufruf ist es
+	// der Wert im Argument dieses einen Aufrufs.
+	const path = getParameterAccessPath(rawType);
+	if (!path) {
+		return evaluated;
+	}
+	const name = path.keys.join('/');
+	const term = argumentContext
+		? getArgumentLengthTerm(argumentContext, path.index, path.keys, name)
+		: getPathLengthTerm(path.functionRef, ['parameter', path.index, ...path.keys], name);
+	return withListLength(evaluated, term, false);
+}
+
+const argumentLengthTerms = new WeakMap<ArgumentContext, Map<string, LengthTerm>>();
+
+/** Die Länge eines Feldpfads im Argument eines Aufrufs, gleich für alle Zugriffe dieses Aufrufs. */
+function getArgumentLengthTerm(
+	argumentContext: ArgumentContext,
+	index: number,
+	keys: (string | number)[],
+	name: string,
+): LengthTerm {
+	let terms = argumentLengthTerms.get(argumentContext);
+	if (!terms) {
+		terms = new Map();
+		argumentLengthTerms.set(argumentContext, terms);
+	}
+	const key = [index, ...keys].join('/');
+	let term = terms.get(key);
+	if (!term) {
+		term = createFreshLengthTerm(name);
+		terms.set(key, term);
+	}
+	return term;
+}
+
+/** Parameter und Feldschlüssel eines Zugriffs wie a/past/1, falls er ein reiner Pfad ist. */
+function getParameterAccessPath(type: CompileTimeType): {
+	functionRef: object;
+	index: number;
+	keys: (string | number)[];
+} | undefined {
+	switch (type.julType) {
+		case 'parameterReference':
+			return type.functionRef
+				? { functionRef: type.functionRef, index: type.index, keys: [] }
+				: undefined;
+		case 'nestedReference': {
+			if (typeof type.nestedKey === 'object') {
+				return undefined;
+			}
+			const sourcePath = getParameterAccessPath(type.source);
+			return sourcePath && { ...sourcePath, keys: [...sourcePath.keys, type.nestedKey] };
+		}
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -2448,6 +2526,143 @@ export function getLengthFromType(rawArgType: CompileTimeType | undefined): Comp
 				? createCompileTimeLengthOfType(argType)
 				// TODO non negative
 				: builtinInteger;
+	}
+}
+
+/** Liegt in type direkt (ohne Verschachtelung) eine Liste, die eine Länge tragen kann? Billige Vorprüfung für withListLength. */
+export function hasListChoice(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'list':
+			return true;
+		case 'alias':
+			return resolveAlias(type).julType === 'list';
+		case 'or':
+		case 'and':
+			return type.ChoiceTypes.some(choice => choice.julType === 'list'
+				|| (choice.julType === 'alias' && resolveAlias(choice).julType === 'list'));
+		default:
+			return false;
+	}
+}
+
+/** Verlangt type direkt (ohne Verschachtelung) eine bestimmte Listenlänge? */
+function hasListLength(type: CompileTimeType): boolean {
+	switch (type.julType) {
+		case 'list':
+			return type.Length !== undefined;
+		case 'or':
+		case 'and':
+			return type.ChoiceTypes.some(hasListLength);
+		default:
+			return false;
+	}
+}
+
+/**
+ * Gibt den Listen in rawType die Länge des Werts, den der Ausdruck liefert (siehe
+ * docs/backlog/laengen-terme.md). Ein Or/And beschreibt denselben Wert, jede Liste darin bekommt
+ * also denselben Term. override: auch eine schon vorhandene Länge ersetzen (der Pfad einer Bindung
+ * ist der genauere Name als eine Länge, die der Typ von woanders mitbringt). term undefined mit
+ * override entfernt die Länge.
+ */
+export function withListLength(rawType: CompileTimeType, term: LengthTerm | undefined, override: boolean): CompileTimeType {
+	switch (rawType.julType) {
+		case 'list':
+			return rawType.Length === term
+				|| (rawType.Length !== undefined && !override)
+				? rawType
+				: createCompileTimeListType(rawType.ElementType, term);
+		case 'alias': {
+			// Nur ein Alias auf eine Liste. Die Beschriftung geht dabei verloren.
+			const resolved = resolveAlias(rawType);
+			if (resolved.julType !== 'list') {
+				return rawType;
+			}
+			const withLength = withListLength(resolved, term, override);
+			return withLength === resolved
+				? rawType
+				: withLength;
+		}
+		case 'or': {
+			const choices = rawType.ChoiceTypes.map(choice => withListLength(choice, term, override));
+			return elementsEqual(choices, rawType.ChoiceTypes)
+				? rawType
+				: createNormalizedUnionType(choices);
+		}
+		case 'and': {
+			const choices = rawType.ChoiceTypes.map(choice => withListLength(choice, term, override));
+			return elementsEqual(choices, rawType.ChoiceTypes)
+				? rawType
+				: createNormalizedIntersectionType(choices);
+		}
+		default:
+			return rawType;
+	}
+}
+
+/**
+ * Entfernt die Längen-Terme aus dem Rückgabetyp einer Funktion: Sie bezeichnen Werte eines
+ * einzelnen Aufrufs. Ein anderer Aufruf (Rekursion) liefert andere Werte unter demselben Term.
+ * Ohne Term beweist ein lengthOf nichts mehr.
+ */
+const erasedListLengths = new WeakMap<CompileTimeType, CompileTimeType>();
+
+export function eraseListLengths(rawType: CompileTimeType): CompileTimeType {
+	// Typen sind interniert, große Rückgabetypen (ein Spielzustand) kommen oft wieder.
+	const cached = erasedListLengths.get(rawType);
+	if (cached) {
+		return cached;
+	}
+	const erased = eraseListLengthsUncached(rawType);
+	erasedListLengths.set(rawType, erased);
+	return erased;
+}
+
+function eraseListLengthsUncached(rawType: CompileTimeType): CompileTimeType {
+	switch (rawType.julType) {
+		case 'list': {
+			const elementType = eraseListLengths(rawType.ElementType);
+			return rawType.Length === undefined && elementType === rawType.ElementType
+				? rawType
+				: createCompileTimeListType(elementType);
+		}
+		case 'lengthOf': {
+			const source = eraseListLengths(rawType.Source);
+			return source === rawType.Source
+				? rawType
+				: createCompileTimeLengthOfType(source);
+		}
+		case 'tuple': {
+			const elementTypes = rawType.ElementTypes.map(eraseListLengths);
+			return elementsEqual(elementTypes, rawType.ElementTypes)
+				? rawType
+				: createCompileTimeTupleType(elementTypes);
+		}
+		case 'or': {
+			const choices = rawType.ChoiceTypes.map(eraseListLengths);
+			return elementsEqual(choices, rawType.ChoiceTypes)
+				? rawType
+				: createNormalizedUnionType(choices);
+		}
+		case 'and': {
+			const choices = rawType.ChoiceTypes.map(eraseListLengths);
+			return elementsEqual(choices, rawType.ChoiceTypes)
+				? rawType
+				: createNormalizedIntersectionType(choices);
+		}
+		case 'dictionaryLiteral': {
+			let changed = false;
+			const fields = mapFieldTypes(rawType.Fields, fieldType => {
+				const erased = eraseListLengths(fieldType);
+				changed ||= erased !== fieldType;
+				return erased;
+			});
+			return changed
+				? createCompileTimeDictionaryLiteralType(fields, rawType.complete, rawType.declaration, rawType.aliasName)
+				: rawType;
+		}
+		default:
+			return rawType;
 	}
 }
 
@@ -3802,6 +4017,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 				&& typeEquals(first.Source, second.Source);
 		case 'list':
 			return second.julType === 'list'
+				&& first.Length === second.Length
 				&& typeEquals(first.ElementType, second.ElementType);
 		case 'not':
 			return second.julType === 'not'
@@ -4196,6 +4412,13 @@ export function isTypeAssignable(
 	if (typeComparisonDepth >= maxTypeComparisonDepth) {
 		resultContext.dependence++;
 		return { assignable: false, error: new TypeError('Type comparison is excessively deep and possibly infinite.') };
+	}
+	// Die Länge einer Liste zählt nur, wenn das Ziel eine verlangt. Ohne sie trifft der Cache den
+	// Vergleich derselben Liste ohne Länge, statt für jeden Pfad neu zu rechnen.
+	if (argumentsType.julType === 'list'
+		&& argumentsType.Length !== undefined
+		&& !hasListLength(targetType)) {
+		return isTypeAssignable(createCompileTimeListType(argumentsType.ElementType), targetType);
 	}
 	const cached = assignabilityCache.get(argumentsType, targetType);
 	if (cached) {
@@ -4719,6 +4942,13 @@ function isTypeAssignableByStructure(
 			break;
 		case 'list': {
 			const targetElementType = targetType.ElementType;
+			// Eine Länge im Ziel verlangt denselben Wert: Eine andere Liste (oder ein Tupel) hat
+			// nicht nachweislich diese Länge.
+			if (targetType.Length !== undefined
+				&& (argumentsType.julType !== 'list'
+					|| argumentsType.Length !== targetType.Length)) {
+				return getDefaultTypeError(argumentsType, targetType);
+			}
 			switch (argumentsType.julType) {
 				case 'list': {
 					const elementAssignability = isTypeAssignable(argumentsType.ElementType, targetElementType);

@@ -377,3 +377,9 @@
 2026-10-28 10:21:39	5d93bc9+	-	ADV-DEV-56627	yugioh	parse+check	5	11657.55	12240.62	12240.62	nach 3b: findFirstIndex/findLastIndex durch length(values) begrenzt (nur core-lib)
 2026-10-28 10:21:39	5d93bc9+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	786.26	829.31	829.31	nach 3b: findFirstIndex/findLastIndex durch length(values) begrenzt (nur core-lib)
 2026-10-28 10:21:39	5d93bc9+	-	ADV-DEV-56627	yugioh	parse	5	61.92	62.82	62.82	nach 3b: findFirstIndex/findLastIndex durch length(values) begrenzt (nur core-lib)
+2026-10-28 10:49:37	5474aad+	-	ADV-DEV-56627	yugioh	parse+check	5	11570.46	12204.43	12204.43	vor Längen-Terme Schritt 1+2
+2026-10-28 10:49:37	5474aad+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	832.87	887.72	887.72	vor Längen-Terme Schritt 1+2
+2026-10-28 10:49:37	5474aad+	-	ADV-DEV-56627	yugioh	parse	5	58.98	64.45	64.45	vor Längen-Terme Schritt 1+2
+2026-10-28 11:00:07	5474aad+	-	ADV-DEV-56627	yugioh	parse+check	5	13716.27	14466.77	14466.77	nach Längen-Terme Schritt 1+2
+2026-10-28 11:00:07	5474aad+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	924.56	952.09	952.09	nach Längen-Terme Schritt 1+2
+2026-10-28 11:00:07	5474aad+	-	ADV-DEV-56627	yugioh	parse	5	62.18	66.87	66.87	nach Längen-Terme Schritt 1+2

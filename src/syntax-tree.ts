@@ -840,6 +840,9 @@ export function clearInternedTypes(): void {
 	nameIds.clear();
 	integerLiterals.clear();
 	textLiterals.clear();
+	// Danach entsteht für denselben Pfad ein neuer Term. Alte Typen verlieren damit nur den
+	// Längenbeweis, nie die Soundness.
+	pathLengthTerms.clear();
 }
 
 const objectIds = new WeakMap<object, number>();
@@ -1637,15 +1640,56 @@ export function createCompileTimeIntersectionType(ChoiceTypes: CompileTimeType[]
 export interface CompileTimeListType extends CompileTimeTypeBase {
 	readonly julType: 'list';
 	ElementType: CompileTimeType;
+	/**
+	 * Die Länge genau dieses Werts (docs/backlog/laengen-terme.md). Nur ein Index, der über
+	 * dieselbe Länge gebildet ist, beweist eine Position. Fehlt sie, ist über die Länge nichts
+	 * bekannt.
+	 */
+	Length: LengthTerm | undefined;
 }
 
-export function createCompileTimeListType(ElementType: CompileTimeType): CompileTimeListType {
-	return internType(`list:${ElementType.id}`, id => ({
+export function createCompileTimeListType(ElementType: CompileTimeType, Length?: LengthTerm): CompileTimeListType {
+	return internType(Length ? `list:${ElementType.id}:${Length.id}` : `list:${ElementType.id}`, id => ({
 		julType: 'list',
 		ElementType: ElementType,
+		Length: Length,
 		isDeferred: ElementType.isDeferred,
 		id: id,
 	}));
+}
+
+/**
+ * Bezeichnet die Länge eines bestimmten Listenwerts: über den Pfad einer Bindung (Symbol und
+ * Feldschlüssel, unveränderlich, also immer derselbe Wert) oder frisch für einen einzelnen Ausdruck.
+ * Gleich sind zwei Terme nur als dasselbe Objekt.
+ */
+export interface LengthTerm {
+	readonly id: number;
+	/** Nur zur Anzeige und Fehlersuche. */
+	readonly name: string;
+}
+
+let nextLengthTermId = 1;
+const pathLengthTerms = new Map<string, LengthTerm>();
+
+/** Die Länge des Werts, den Symbol und Feldschlüssel bezeichnen. */
+export function getPathLengthTerm(symbol: object, keys: (string | number)[], name: string): LengthTerm {
+	const symbolId = getObjectId(symbol);
+	const key = keys.length
+		? `${symbolId}/${keys.join('/')}`
+		: `${symbolId}`;
+	const existing = pathLengthTerms.get(key);
+	if (existing) {
+		return existing;
+	}
+	const term: LengthTerm = { id: nextLengthTermId++, name: name };
+	pathLengthTerms.set(key, term);
+	return term;
+}
+
+/** Eine Länge, die nur dieser eine Ausdruck hat. */
+export function createFreshLengthTerm(name: string): LengthTerm {
+	return { id: nextLengthTermId++, name: name };
 }
 
 export interface CompileTimeStreamType extends CompileTimeTypeBase {

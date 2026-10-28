@@ -5546,6 +5546,117 @@ a = (values: Or([] List(Integer))) :> Integer =>
 		checkTypes(parsed, {}, { cloneUnchecked: false });
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
+	// Schärfere Gegenprobe: Der Rückgabetyp Integer ohne Empty muss scheitern. Die Quelle ist nur
+	// über den Typ gleich (List(Integer)), nicht dieselbe Liste: Ist other länger, liefert
+	// getElement zur Laufzeit Empty.
+	it('element-at-plus-length-of-other-list-with-same-type-keeps-empty', () => {
+		expectCheck(`f = (values: List(Integer) other: List(Integer)) :> Integer =>
+	getElement(values length(other))`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 33,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 52,
+						endRowIndex: 0,
+						endColumnIndex: 59,
+					},
+				},
+			],
+		});
+	});
+	// Dasselbe über gleichnamige Felder zweier Records gleichen Typs.
+	it('element-at-plus-length-of-same-field-in-other-record-keeps-empty', () => {
+		expectCheck(`History = [past: List(Integer)]
+f = (a: History b: History) :> Integer =>
+	getElement(a/past length(b/past))`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 34,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 1,
+						startColumnIndex: 31,
+						endRowIndex: 1,
+						endColumnIndex: 38,
+					},
+				},
+			],
+		});
+	});
+	// Die Länge in einer lokalen Definition behält ihren Bezug zur Liste.
+	it('element-at-plus-length-in-local-definition-adds-no-empty', () => {
+		expectCheck(`f = (values: List(Integer)) :> Integer =>
+	count = length(values)
+	getElement(values count)`);
+	});
+	// Zwei Aufrufe liefern zwei Werte, auch mit demselben Ausdruck: Jeder Aufruf hat seine eigene Länge.
+	it('element-at-plus-length-of-other-call-keeps-empty', () => {
+		// g als Parameter: Eine definierte Funktion würde der Checker falten oder ihren Rumpf als
+		// Tupel fester Länge ableiten.
+		expectCheck(`f = (g: () :> List(Integer)) :> Integer =>
+	getElement(g() length(g()))`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 28,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 32,
+						endRowIndex: 0,
+						endColumnIndex: 39,
+					},
+				},
+			],
+		});
+	});
+	// Eine Länge, die eine Funktion ohne deklarierten Rückgabetyp liefert, bezeichnet einen Wert
+	// ihres Aufrufs. Beim Aufrufer beweist sie nichts mehr, auch nicht für das eigene Argument.
+	it('element-at-plus-length-from-inferred-return-type-keeps-empty', () => {
+		expectCheck(`len = (values: List(Integer)) => length(values)
+f = (values: List(Integer) other: List(Integer)) :> Integer =>
+	getElement(values len(other))`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 30,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 1,
+						startColumnIndex: 52,
+						endRowIndex: 1,
+						endColumnIndex: 59,
+					},
+				},
+			],
+		});
+	});
+	// Positivprobe: Derselbe Feldpfad auf demselben Record ist dieselbe Liste.
+	it('element-at-plus-length-of-same-field-path-adds-no-empty', () => {
+		expectCheck(`History = [past: List(Integer)]
+f = (a: History) :> Integer =>
+	getElement(a/past length(a/past))`);
+	});
 	it('element-at-plus-length-keeps-empty-for-possibly-empty-input', () => {
 		// Gegenprobe, die zeigt, dass die Erkennung gar nicht erst greifen kann, wenn values
 		// selbst empty sein könnte: length(values) wäre dann Or(0 lengthOf(...)), und die 0 aus

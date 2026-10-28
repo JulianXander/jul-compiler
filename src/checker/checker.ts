@@ -14,6 +14,7 @@ import {
 	createCompileTimeFunctionType,
 	createCompileTimeBoundType,
 	createCompileTimeListType,
+	getPathLengthTerm,
 	createCompileTimeIndexRangeType,
 	createCompileTimeStreamType,
 	createCompileTimeTupleType,
@@ -117,6 +118,9 @@ import {
 	getArgumentsAssignability,
 	getElementTypeAtIndex,
 	getLengthFromType,
+	withListLength,
+	hasListChoice,
+	eraseListLengths,
 	getNamedAccess,
 	hasKnownFields,
 	hasKnownLength,
@@ -2066,7 +2070,52 @@ function setInferredType(
 	if (checkedExpectedType) {
 		expression.expectedType = checkedExpectedType;
 	}
-	expression.typeInfo = inferType(expression, typeContext, checkContext);
+	expression.typeInfo = withExpressionListLength(expression, inferType(expression, typeContext, checkContext), typeContext);
+}
+
+/**
+ * Gibt einer Liste, die ein Pfad (values, a/past) liefert, die Länge genau dieses Werts
+ * (docs/backlog/laengen-terme.md). Andere Ausdrücke bekommen keine: Eine Liste ohne Länge beweist
+ * nichts. Nur Wert-Ausdrücke: Ein Parameter- oder Feldtyp darf keine Länge bekommen, sonst passte nur
+ * noch genau dieser Wert darauf.
+ */
+function withExpressionListLength(
+	expression: TypedExpression,
+	typeInfo: TypeInfo,
+	typeContext: TypeContext,
+): TypeInfo {
+	const type = typeInfo.type;
+	// Ein aufgeschobener Typ (etwa die Verengung eines Parameters) bekommt seine Länge beim Auflösen,
+	// siehe case 'parameterReference' in traversePlaceholdersUncached.
+	if (type.isDeferred) {
+		return typeInfo;
+	}
+	if (!hasListChoice(type)) {
+		return typeInfo;
+	}
+	let lengthType: CompileTimeType;
+	switch (expression.type) {
+		case 'reference':
+		case 'nestedReference': {
+			const path = getAccessPath(expression, typeContext.scopes);
+			if (!path) {
+				return typeInfo;
+			}
+			const name = ['path', ...path.keys].join('/');
+			lengthType = withListLength(type, getPathLengthTerm(path.symbol, path.keys, name), true);
+			break;
+		}
+		case 'functionCall':
+			// Eine Länge aus dem Rückgabetyp entfernen: Die Signatur kann eine Länge des Arguments
+			// durchreichen, ohne dass der Rückgabewert dieselbe Liste ist.
+			lengthType = withListLength(type, undefined, true);
+			break;
+		default:
+			return typeInfo;
+	}
+	return lengthType === type
+		? typeInfo
+		: { ...typeInfo, type: lengthType };
 }
 
 // TODO flatten nested or/and
@@ -2987,7 +3036,8 @@ function inferType(
 			// hier auf den deklarierten Typ zurückfallen, sonst sehen Aufrufer Any statt der
 			// geprüften Zusicherung. Ist der inferierte Typ enger als deklariert (Normalfall,
 			// z.B. ein Literal), bleibt er erhalten - er ist die genauere Information.
-			let returnType = inferredReturnType;
+			// Ohne Längen-Terme: Sie bezeichnen Werte dieses einen Aufrufs (docs/backlog/laengen-terme.md).
+			let returnType = eraseListLengths(inferredReturnType);
 			if (declaredReturnType) {
 				// roh für den Any-Fallback unten: der generische Platzhalter (z.B.
 				// TypeOf(values)/ElementType) muss je Aufruf neu aufgelöst werden, nicht schon
