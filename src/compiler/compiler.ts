@@ -9,6 +9,7 @@ import { SourceMapping, jsonValueToJs, syntaxTreeToJsWithMappings } from './emit
 import { shakeRuntime } from '../runtime/runtime-shaking.js';
 import { _runTests, TestLocation, TestResult } from '../runtime/test-runtime.js';
 import { ParsedDocuments } from '../checker/checker.js';
+import { getFileCheckResult } from '../checker/check-result.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from '../compiler-errors.js';
 import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
 import { parseTodoComments, TodoComment } from '../parser/comment-directives.js';
@@ -646,9 +647,10 @@ function emitToJs(
 				outFilePath = join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
 				break;
 			}
-			// checked trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht
+			// checkResult trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht. Ohne Check
+			// (nur unchecked) ein leeres Ergebnis: dann ohne Typen, wie der Baum ohne typeInfo.
 			const expressions = (parsed.checked ?? parsed.unchecked).expressions ?? [];
-			const emitted = syntaxTreeToJsWithMappings(expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath);
+			const emitted = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath);
 			compiled = emitted.js;
 			runtimeNames = emitted.runtimeNames;
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);

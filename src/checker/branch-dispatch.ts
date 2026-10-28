@@ -1,3 +1,4 @@
+import { CheckResult, getTypeInfo } from './check-result.js';
 import {
 	CompileTimeType,
 	ParseBranching,
@@ -74,9 +75,9 @@ type BranchRequirement =
  * undefined: die Typen geben keinen billigeren Test her als den vollen Check, oder das branching
  * liegt außerhalb dessen, was hier behandelt wird. Der Emitter bleibt dann bei _branch.
  */
-export function getBranchDispatch(branching: ParseBranching): BranchDispatch | undefined {
+export function getBranchDispatch(checkResult: CheckResult, branching: ParseBranching): BranchDispatch | undefined {
 	const argument = getSingleArgument(branching);
-	const argumentType = argument?.typeInfo && resolvePlaceholders(argument.typeInfo.type);
+	const argumentType = getTypeInfo(checkResult, argument) && resolvePlaceholders(getTypeInfo(checkResult, argument)!.type);
 	if (!argumentType) {
 		return undefined;
 	}
@@ -90,7 +91,7 @@ export function getBranchDispatch(branching: ParseBranching): BranchDispatch | u
 			// Alles ist schon abgefangen, der Rest ist unerreichbar.
 			return { tests: tests, exhaustive: true };
 		}
-		const requirement = getBranchRequirement(branch);
+		const requirement = getBranchRequirement(checkResult, branch);
 		if (!requirement) {
 			return undefined;
 		}
@@ -138,12 +139,12 @@ function getSingleArgument(branching: ParseBranching): ParseValueExpression | un
  * einem Parameter ohne rest. Ein Funktionswert in Typ-Position ist ein Prädikat, das die Laufzeit
  * aufrufen muss - dafür gibt es keinen billigeren Test.
  */
-function getBranchRequirement(branch: ParseValueExpression): BranchRequirement | undefined {
+function getBranchRequirement(checkResult: CheckResult, branch: ParseValueExpression): BranchRequirement | undefined {
 	if (branch.type !== 'functionLiteral'
-		|| !branch.typeInfo) {
+		|| !getTypeInfo(checkResult, branch)) {
 		return undefined;
 	}
-	const functionType = resolveAlias(branch.typeInfo.type);
+	const functionType = resolveAlias(getTypeInfo(checkResult, branch)!.type);
 	if (!isFunctionType(functionType)) {
 		return undefined;
 	}

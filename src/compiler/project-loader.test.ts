@@ -1,3 +1,4 @@
+import { getTypeInfo } from '../checker/check-result.js';
 import { expect } from 'chai';
 import { join, resolve } from 'path';
 import { ParsedDocuments } from '../checker/checker.js';
@@ -125,7 +126,7 @@ describe('project-loader', () => {
 		});
 		const data = documents[path('data.json')]!;
 		expect(data.checked).to.not.equal(undefined);
-		expect(data.checked?.expressions?.[0]?.typeInfo).to.equal(undefined);
+		expect(getTypeInfo(data.checkResult!, data.checked?.expressions?.[0])).to.equal(undefined);
 	});
 	it('Datei unter der Grenze behält ihren Typ, ein assume darauf ist überflüssig', () => {
 		const { main } = loadMain({

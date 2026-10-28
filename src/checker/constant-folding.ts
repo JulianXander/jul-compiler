@@ -8,6 +8,7 @@
 // die Ausführung - die braucht zwangsläufig einen bereits geprüften Baum.
 import * as runtime from '../runtime/runtime.js';
 import { resultContext } from './checker-stats.js';
+import { CheckResult, getTypeInfo } from './check-result.js';
 import { _julTypeSymbol } from '../runtime/runtime.js';
 import { functionLiteralToEvaluableJs } from '../compiler/emitter.js';
 import { escapeReservedJsVariableName } from '../util.js';
@@ -388,6 +389,8 @@ function collectFreeReferences(literal: ParseFunctionLiteral): ParseReference[] 
  * (siehe functionLiteralToEvaluableJs), nicht hier aufgelöst.
  */
 function buildEnvironment(
+	/** Das Prüfergebnis der Datei von literal, siehe CompileTimeFunctionType.literalResult. */
+	checkResult: CheckResult,
 	literal: ParseFunctionLiteral,
 	boundValues: { [name: string]: unknown; } | undefined,
 ): { name: string; value: unknown; }[] | undefined {
@@ -431,7 +434,7 @@ function buildEnvironment(
 			environment.push({ name: escapedName, value: boundValues[name] });
 			continue;
 		}
-		const type = reference.typeInfo?.type;
+		const type = getTypeInfo(checkResult, reference)?.type;
 		if (!type) {
 			return undefined;
 		}
@@ -464,16 +467,16 @@ function buildEnvironment(
  * wirft (z.B. FoldBudgetExhaustedError).
  */
 export function tryBuildCallable(functionType: CompileTimeFunctionType): Function | undefined {
-	const literal = functionType.literal;
+	const { literal, literalResult } = functionType;
 	// Bei leerem Budget wirft jeder Aufruf des Callables. Es gar nicht erst zu bauen spart new Function
 	// und den Fehler samt Stacktrace, die sonst bei jeder weiteren Prüfung erneut anfallen.
-	if (!literal || !functionType.foldable || foldBudgetRemaining <= 0) {
+	if (!literal || !literalResult || !functionType.foldable || foldBudgetRemaining <= 0) {
 		if (foldBudgetRemaining <= 0) {
 			resultContext.dependence++;
 		}
 		return undefined;
 	}
-	const environment = buildEnvironment(literal, functionType.boundArguments?.values);
+	const environment = buildEnvironment(literalResult, literal, functionType.boundArguments?.values);
 	if (!environment) {
 		return undefined;
 	}
@@ -483,7 +486,7 @@ export function tryBuildCallable(functionType: CompileTimeFunctionType): Functio
 	const bindingNames = [...runtimeKeys, ...environment.map(entry => entry.name)];
 	const bindingValues: unknown[] = [...runtimeKeys.map(key => key === '_createFunction' ? createBudgetedCreateFunction() : (runtime as { [key: string]: unknown; })[key]), ...environment.map(entry => entry.value)];
 	try {
-		const factory = new Function(...bindingNames, functionLiteralToEvaluableJs(literal));
+		const factory = new Function(...bindingNames, functionLiteralToEvaluableJs(literalResult, literal));
 		return factory(...bindingValues) as Function;
 	}
 	catch {

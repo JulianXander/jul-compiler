@@ -1,3 +1,4 @@
+import { getTypeInfo } from '../checker/check-result.js';
 import { expect } from 'chai';
 import { join, resolve } from 'path';
 import { parseTsCode } from './typescript-parser.js';
@@ -34,7 +35,7 @@ describe('TypeScript Parser', () => {
 		expect(parsed.checked?.errors).to.deep.equal([]);
 		const definition = parsed.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 			expression.type === 'definition' && expression.name.name === 'f');
-		const type = definition?.value?.typeInfo?.type;
+		const type = getTypeInfo(parsed.checkResult!, definition?.value)?.type;
 		return type && typeToString(type, 0, 3);
 	}
 
@@ -195,7 +196,7 @@ describe('TypeScript Parser', () => {
 			expect(main.checked?.errors).to.deep.equal([]);
 			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'result');
-			const type = result?.value?.typeInfo?.type;
+			const type = getTypeInfo(main.checkResult!, result?.value)?.type;
 			expect(type && typeToString(type, 0, 3)).to.equal('§a§');
 		});
 
@@ -210,7 +211,7 @@ describe('TypeScript Parser', () => {
 			expect(main.checked?.errors).to.deep.equal([]);
 			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'result');
-			const type = result?.value?.typeInfo?.type;
+			const type = getTypeInfo(main.checkResult!, result?.value)?.type;
 			expect(type && typeToString(type, 0, 3)).to.equal('Or(Empty List(Or(§a§ §b§)))');
 		});
 
@@ -224,7 +225,7 @@ describe('TypeScript Parser', () => {
 			expect(main.checked?.errors).to.deep.equal([]);
 			const h = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'result');
-			const type = h?.value?.typeInfo?.type;
+			const type = getTypeInfo(main.checkResult!, h?.value)?.type;
 			expect(type && typeToString(type, 0, 3)).to.equal('Or(Empty List(1))');
 		});
 
@@ -238,7 +239,7 @@ describe('TypeScript Parser', () => {
 			expect(main.checked?.errors).to.deep.equal([]);
 			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'result');
-			const type = result?.value?.typeInfo?.type;
+			const type = getTypeInfo(main.checkResult!, result?.value)?.type;
 			expect(type && typeToString(type, 0, 3)).to.equal('Or(Empty Dictionary(Integer))');
 		});
 	});
@@ -297,7 +298,7 @@ ${julCode}`,
 	function purityOfDefinition(file: ParsedFile, name: string): TypePurity | undefined {
 		const definition = file.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 			expression.type === 'definition' && expression.name.name === name);
-		const type = definition?.value?.typeInfo?.type;
+		const type = getTypeInfo(file.checkResult!, definition?.value)?.type;
 		return type && isFunctionType(type) ? type.purity : undefined;
 	}
 
@@ -338,7 +339,7 @@ ${julCode}`,
 			const parsed = checkTs('export function f(cb: (x: bigint) => bigint) {}');
 			const definition = parsed.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'f');
-			const type = definition?.value?.typeInfo?.type;
+			const type = getTypeInfo(parsed.checkResult!, definition?.value)?.type;
 			const paramsType = type && isFunctionType(type) ? type.ParamsType : undefined;
 			const callbackType = paramsType?.julType === 'parameters' ? paramsType.singleNames[0]?.type : undefined;
 			expect(callbackType && isFunctionType(callbackType) ? callbackType.purity : undefined).to.equal('unknown');

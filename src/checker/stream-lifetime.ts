@@ -1,3 +1,4 @@
+import { CheckResult, getTypeInfo } from './check-result.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import {
 	CompileTimeType,
@@ -108,14 +109,15 @@ function getFirstListArgument(call: ParseFunctionCall): PositionedExpression | u
  * weitergegeben wird. Auch auf oberster Ebene, ein gewollt ewiger Stream wird dort abgeschaltet.
  * Ableitungen einer Quelle deckt die Warnung an der Quelle mit ab.
  */
-export function reportStreamsWithoutEnd(fileExpressions: readonly ParseExpression[] | undefined, errors: CompilerError[]): void {
+export function reportStreamsWithoutEnd(checkResult: CheckResult, fileExpressions: readonly ParseExpression[] | undefined, errors: CompilerError[]): void {
 	if (!fileExpressions) {
 		return;
 	}
-	reportInBody(fileExpressions, false, errors, collectCompletedNamesByBody(fileExpressions));
+	reportInBody(checkResult, fileExpressions, false, errors, collectCompletedNamesByBody(fileExpressions));
 }
 
 function reportInBody(
+	checkResult: CheckResult,
 	body: readonly ParseExpression[],
 	isFunctionBody: boolean,
 	errors: CompilerError[],
@@ -127,11 +129,11 @@ function reportInBody(
 	const returnedName = getReturnedName(returned);
 	const visit = (expression: PositionedExpression, definedName: string | undefined): void => {
 		if (expression.type === 'functionLiteral') {
-			reportInBody(expression.body, true, errors, completedNamesByBody);
+			reportInBody(checkResult, expression.body, true, errors, completedNamesByBody);
 			return;
 		}
 		if (expression.type === 'functionCall'
-			&& isStreamSource(expression)
+			&& isStreamSource(checkResult, expression)
 			&& !isEnded(expression, definedName)) {
 			errors.push({
 				code: ErrorCode.streamNeverCompleted,
@@ -171,15 +173,15 @@ function reportInBody(
  * Eine Quelle: ein Aufruf, der einen Stream ohne Zusage liefert, ohne selbst einen Stream als
  * Argument zu bekommen. Mit Stream-Argument ist er eine Ableitung und endet mit seinen Quellen.
  */
-function isStreamSource(call: ParseFunctionCall): boolean {
-	if (!isStreamWithoutEnd(call.typeInfo?.type)) {
+function isStreamSource(checkResult: CheckResult, call: ParseFunctionCall): boolean {
+	if (!isStreamWithoutEnd(getTypeInfo(checkResult, call)?.type)) {
 		return false;
 	}
 	const argumentValues = [
 		...(call.prefixArgument ? [call.prefixArgument] : []),
 		...getArgumentValues(call.arguments),
 	];
-	return !argumentValues.some(argument => containsStream(argument.typeInfo?.type));
+	return !argumentValues.some(argument => containsStream(getTypeInfo(checkResult, argument)?.type));
 }
 
 function getArgumentValues(args: ParseFunctionCall['arguments']): ParseValueExpression[] {

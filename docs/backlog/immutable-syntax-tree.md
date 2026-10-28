@@ -1,6 +1,7 @@
 # Unveränderlicher Syntaxbaum
 
-Plan, entschieden am 2026-10-28. Schritt 0 umgesetzt, ab Schritt 1 offen.
+Plan, entschieden am 2026-10-28. Schritt 0 umgesetzt, Schritt 1 (Gate) bestanden mit Knoten-Id und
+Array, Schritt 2 für Ausdrücke umgesetzt, ab Schritt 3 offen.
 
 ## Stand
 
@@ -97,37 +98,68 @@ Server), Suite und Snapshots grün, yugioh baut und testet.
 Siehe Stand. `structuredClone` und die Option `cloneUnchecked` sind gelöscht, der Server parst für
 einen Recheck neu.
 
-### 1. Versuch zur Leistung (Gate)
+### 1. Versuch zur Leistung (Gate, bestanden 2026-10-28)
 
-In einer Kopie nur `expression.typeInfo` im Checker auf eine Seitentabelle im `CheckContext` umstellen,
-alles andere bleibt. Zwei Varianten gegeneinander und gegen den heutigen Stand messen, per A/B
-abwechselnd auf demselben yugioh-Stand:
+Gate: höchstens +2 % auf parse+check (Median), sonst endet der Plan hier.
 
-- a) `Map<Knoten, TypeInfo>` je Prüflauf, ohne Änderung am Parser.
-- b) Dichte Knoten-`id` (für den Versuch in einem Durchlauf nach dem Parsen vergeben), Tabelle als
-  Array.
+Versuch in einem Worktree auf Stand `6f39675`: Ein Codemod über die TypeScript-API ersetzte alle
+171 Lesezugriffe auf die `typeInfo` von Ausdrücken (Checker, `branch-dispatch`, `constant-folding`,
+`stream-lifetime`, `reference-index`, Emitter, Tests) durch `getTypeInfo(x)`, die eine Schreibstelle
+in `setInferredType` durch `setTypeInfo`. Zugriffe auf Symbole blieben. Die Suite blieb grün
+(1769 Tests, Checker-Snapshot und Zähler-Baseline unverändert), der Versuch prüft also identisch.
 
-Gate: höchstens +2 % auf parse+check (Median). Wird es von beiden Varianten verfehlt, endet der Plan
-hier, Schritt 0 bleibt der Stand. Sonst die billigere Variante nehmen. Bei b) vergibt ab Schritt 3 der
-Parser die `id` (rund 90 Stellen, die Knoten erzeugen, in `parser.ts`, `typescript-parser.ts` und
-`json-parser.ts`).
+Gemessen A/B abwechselnd gegen das Feld am Knoten, yugioh, gemeinsame Dokumente, 7 Läufe je Runde:
 
-### 2. Zugriffsschicht
+| Variante | Runden | Median | Minimum |
+|---|---|---|---|
+| a0) globale `WeakMap` | 6 | +5,9 % | +4,6 % |
+| a) `Map`, je Projektlauf neu (core-lib bleibt) | 6 | +2,9 % | +5,1 % |
+| b) Knoten-Id und Array, je Projektlauf geleert | 6 | −0,6 % | +7,5 % |
+| b) Wiederholung | 8 | +0,3 % | +6,2 % |
 
-Neues Modul `checker/check-result.ts` mit `CheckResult` und den Zugriffen aus dem Zielbild. Die erste
-Umsetzung liest und schreibt weiter die Felder am Knoten, das Verhalten ändert sich nicht.
+Das Minimum von b) hängt jeweils an einem einzelnen schnellen A-Lauf (733 bzw. 688 ms, die übrigen
+A-Minima 754–844 ms). Der Median ist das belastbare Maß.
 
-Alle Lese- und Schreibstellen auf die Zugriffe umstellen. Die eigentliche Arbeit ist, das `CheckResult`
-überall hinzureichen:
+Entscheidung: **b), Knoten-Id und Array.** Im Versuch wurde die Id beim ersten Setzen an den Knoten
+geschrieben (`nodeId`). Im Umbau vergibt sie der Parser beim Erzeugen (rund 90 Stellen in
+`parser.ts`, `typescript-parser.ts` und `json-parser.ts`), damit bleibt die Form der Knoten stabil.
+Die Ids sind je Datei dicht, die Tabelle gehört zum Prüfergebnis der Datei.
 
-- Checker: über den `CheckContext`.
-- Emitter: aus `ParsedFile.checked`.
-- Language Server: Funktionen in `util.ts`, `completion.ts`, `semantic-tokens.ts` usw., die heute nur
-  einen Ausdruck bekommen, bekommen das Ergebnis dazu.
-- Tests: ein Hilfszugriff je Testdatei.
+### 2. Zugriffsschicht (umgesetzt 2026-10-28, für Ausdrücke)
 
-Rein mechanisch, aber der größte Schritt. Der Bench muss unverändert bleiben (die Zugriffe werden
-inline).
+Neues Modul `checker/check-result.ts`: `CheckResult` und die Zugriffe `getTypeInfo`,
+`getExpectedType`, `getCalledFunctionType`, `getCalledParameterNames` samt Settern, jeweils mit dem
+Ergebnis als erstem Argument. Die Umsetzung liest und schreibt noch die Felder am Knoten.
+`ParsedFile.checkResult` hält das Ergebnis des letzten Checks, `getFileCheckResult(file)` liefert es,
+für eine nie geprüfte Datei ein leeres. Die Symbole folgen in Schritt 4.
+
+Umgestellt über drei Skripte auf der TypeScript-API (Codemod der Lesestellen, Durchreichen als erster
+Parameter bis zum Fixpunkt, Entfernen unbenutzter Parameter): im Compiler 182 Stellen, im Language
+Server 27. Woher das Ergebnis kommt:
+
+- Checker: `checkContext.result`. Funktionen ohne `checkContext` bekommen `checkResult` als ersten
+  Parameter (21 in `checker.ts`).
+- Emitter, `compiler.ts`, `bench-runtime.ts`: `getFileCheckResult(parsed)`.
+- Language Server: `getHover`, `getSignatureHelp`, `getSemanticTokens` nehmen es aus der übergebenen
+  Datei, die Handler in `server.ts` geben es nur weiter, wo ein bloßer Ausdruck übergeben wird.
+- Tests: `parsed.checkResult!`, Test-Helfer, die intern parsen, geben es mit zurück.
+
+**Befund: Typen zeigen über Dateigrenzen auf den Baum.** Ein Funktionstyp hält sein Literal
+(`CompileTimeFunctionType.literal`), ein Dictionary-Literal-Typ seine Deklaration (`TypeDeclaration`).
+Beide wandern mit dem Typ in andere Dateien. Wer darüber Typen im Baum liest, braucht das Ergebnis der
+Herkunftsdatei, nicht das der gerade geprüften: die Konstantenfaltung (`buildEnvironment`, mitten in
+`isTypeAssignable`) und `getFieldSymbolsFromDictionaryType` (Spread-Felder). Ein erster Anlauf, der das
+Ergebnis einfach durchreichte, drang deshalb bis in `type-algebra.ts` vor und hätte ab Schritt 3 still
+falsche Typen gelesen (verworfen, liegt als Stash). Lösung wie bei TypeScript, wo der Typ seine
+Deklaration kennt: `literalResult` neben `literal` (gemeinsam gesetzt und über `getFunctionTypeFacts`
+kopiert) und `TypeDeclaration.result`. `type-algebra.ts` bleibt unberührt. Ebenso liest der Typ eines
+Imports aus dem Ergebnis der importierten Datei. `CompileTimeAliasType.symbol` ist die dritte solche
+Verbindung, sie gehört zu Schritt 4.
+
+Gemessen A/B gegen `6f39675` (gleicher yugioh-Stand, 6 Runden à 7 Läufe): Median +1,3 %, Zähler
+identisch. B war in allen Runden etwas langsamer. Laut CPU-Profil kosten die Zugriffe selbst etwa
+0,3 % (V8 bettet `setTypeInfo`/`getTypeInfo` nicht ganz ein), der Rest ist verteilt. Unter dem Gate,
+die Summe mit Schritt 3 ist neu zu messen. Suite (1769), LSP-Snapshot und yugioh (Build, Tests) grün.
 
 ### 3. Ausdrücke umschalten
 
@@ -138,6 +170,12 @@ meldet, ist übersehen worden. `setInferredType` prüft die Tabelle statt des Fe
 
 Fehler trennen: Parse-Fehler bleiben am Baum, Prüffehler kommen ins Ergebnis, der `fileNotFound` aus
 `project-loader.ts` ebenfalls. Leser (`compiler.ts` zweimal, Language Server) verbinden beide Listen.
+
+Mit Ids je Datei liefert ein falsches Ergebnis still den Typ eines anderen Knotens. In Schritt 2
+blieb das folgenlos, weil die Zugriffe noch die Felder lesen. Deshalb in den Tests eine Prüfung
+einschalten, dass der Knoten zur Datei des Ergebnisses gehört (etwa das Ergebnis hält die Knoten je Id
+und vergleicht), und die Suite damit einmal laufen lassen. Verdächtig sind vor allem die
+Test-Hilfen, die `parsed.checkResult!` für Ausdrücke aus importierten Dateien nehmen könnten.
 
 ### 4. Symbole umschalten
 

@@ -1,4 +1,5 @@
 import { CompilerError, Positioned } from './compiler-errors.js';
+import type { CheckResult } from './checker/check-result.js';
 import type { JsonValue } from './runtime/runtime.js';
 import { Extension, NonEmptyArray } from './util.js';
 
@@ -15,6 +16,11 @@ export interface ParsedFile {
 	 * Wird vom checker gesetzt.
 	 */
 	checked?: ParsedExpressions2;
+	/**
+	 * Wird vom checker gesetzt: Typen und was an Aufrufen aufgelöst wurde, gelesen über die
+	 * Zugriffe in checker/check-result.ts.
+	 */
+	checkResult?: CheckResult;
 	/**
 	 * nur für .jul Dateien
 	 */
@@ -779,6 +785,11 @@ export interface TypeDeclaration {
 	 * Leerstring, wenn builtin.
 	 */
 	filePath: string;
+	/**
+	 * Das Prüfergebnis der Datei von expression: Der Typ wandert über Dateigrenzen, die Typen der
+	 * Felder von expression stehen nur dort (docs/backlog/immutable-syntax-tree.md).
+	 */
+	result: CheckResult;
 }
 
 //#region Interning
@@ -1535,6 +1546,12 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	 */
 	readonly literal?: ParseFunctionLiteral;
 	/**
+	 * Genau dann gesetzt, wenn literal gesetzt ist: das Prüfergebnis der Datei, aus der literal
+	 * stammt. Der Funktionstyp wandert über Dateigrenzen, die Typen im Rumpf des Literals stehen
+	 * nur im Ergebnis seiner eigenen Datei (docs/backlog/immutable-syntax-tree.md).
+	 */
+	readonly literalResult?: CheckResult;
+	/**
 	 * Nur gesetzt, wenn literal gesetzt ist: der Rumpf enthält kein nativeFunction-/nativeValue-
 	 * Literal (die Sicherheitsgrenze, siehe containsNativeLiteral im Checker) und stammt nicht aus
 	 * einer .ts/.js-Datei. Sagt allein noch nichts über die freien Referenzen des Rumpfs - die
@@ -1579,7 +1596,7 @@ export interface PredicateContract {
 }
 
 /** Was ein Funktionstyp über seinen Wert festhält, nicht über seine Signatur. */
-export type FunctionTypeFacts = Pick<CompileTimeFunctionType, 'predicate' | 'contract' | 'literal' | 'foldable' | 'boundArguments'>;
+export type FunctionTypeFacts = Pick<CompileTimeFunctionType, 'predicate' | 'contract' | 'literal' | 'literalResult' | 'foldable' | 'boundArguments'>;
 
 export interface FunctionTypeExtras extends FunctionTypeFacts {
 	/** Ohne Angabe bekommt der Funktionstyp eine neue Identität. */
@@ -1592,6 +1609,7 @@ export function getFunctionTypeFacts(functionType: CompileTimeFunctionType): Fun
 		predicate: functionType.predicate,
 		contract: functionType.contract,
 		literal: functionType.literal,
+		literalResult: functionType.literalResult,
 		foldable: functionType.foldable,
 		boundArguments: functionType.boundArguments,
 	};
@@ -1626,6 +1644,7 @@ export function createCompileTimeFunctionType(
 	}
 	if (extras?.literal) {
 		functionType.literal = extras.literal;
+		functionType.literalResult = extras.literalResult;
 	}
 	if (extras?.foldable !== undefined) {
 		functionType.foldable = extras.foldable;

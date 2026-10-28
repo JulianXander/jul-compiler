@@ -1,3 +1,4 @@
+import { CheckResult, getTypeInfo } from './check-result.js';
 import { expect } from 'chai';
 
 import {
@@ -59,7 +60,7 @@ const expectResolvedReturnType = reportAtCaller((code: string, typeString: strin
 	const parserResult = parseCode(code, 'dummy.jul');
 	checkTypes(parserResult, {});
 	expect(parserResult.checked?.errors).to.deep.equal([]);
-	const functionType = parserResult.checked?.expressions?.[0]?.typeInfo?.type;
+	const functionType = getTypeInfo(parserResult.checkResult!, parserResult.checked?.expressions?.[0])?.type;
 	expect(functionType && isFunctionType(functionType), 'die erste Definition ist keine Funktion').to.equal(true);
 	if (functionType && isFunctionType(functionType)) {
 		expect(typeToString(resolvePlaceholders(functionType.ReturnType), 0, 1)).to.equal(typeString);
@@ -92,7 +93,7 @@ const expectParamsJulType = reportAtCaller((code: string, julType: string, branc
 		const branching = body[body.length - 1] as ParseExpression & { branches?: ParseExpression[]; };
 		literal = branching.branches?.[branchIndex];
 	}
-	const functionType = literal?.typeInfo?.type;
+	const functionType = getTypeInfo(parserResult.checkResult!, literal)?.type;
 	expect(functionType && isFunctionType(functionType), 'kein Funktionstyp: ' + functionType?.julType).to.equal(true);
 	if (functionType && isFunctionType(functionType)) {
 		expect(functionType.ParamsType.julType).to.equal(julType);
@@ -112,7 +113,7 @@ const expectLastTypeStringOfIncompleteCode = reportAtCaller((code: string, typeS
 function expectCheckedLastTypeString(parserResult: ReturnType<typeof parseCode>, typeString: string, errors: CompilerError[]): void {
 	checkTypes(parserResult, {});
 	expect(parserResult.checked?.errors).to.deep.equal(errors);
-	const typeInfo = parserResult.checked?.expressions?.at(-1)?.typeInfo;
+	const typeInfo = getTypeInfo(parserResult.checkResult!, parserResult.checked?.expressions?.at(-1));
 	expect(typeInfo, 'der letzte Ausdruck hat keinen typeInfo').to.not.equal(undefined);
 	expect(typeToString(typeInfo!.type, 0, 1)).to.equal(typeString);
 }
@@ -5915,7 +5916,7 @@ f(source)`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
-		const type = parsed.checked?.expressions?.at(-1)?.typeInfo?.type;
+		const type = getTypeInfo(parsed.checkResult!, parsed.checked?.expressions?.at(-1))?.type;
 		expect(type && typeToString(type, 0, 3)).to.equal('Board');
 	});
 	// Bug: Der Aufruf eines Funktions-Parameters lieferte Any statt des deklarierten Rückgabetyps,
@@ -5926,7 +5927,7 @@ f(source)`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
-		const type = parsed.checked?.expressions?.at(-1)?.typeInfo?.type;
+		const type = getTypeInfo(parsed.checkResult!, parsed.checked?.expressions?.at(-1))?.type;
 		expect(type?.julType === 'function' && typeToString(type.ReturnType, 0, 3)).to.equal('Integer');
 	});
 	// Bug: withElementAtFromTypes ignoriert bei Source Empty den tatsächlichen Index und liefert
@@ -5977,9 +5978,9 @@ f(source)`;
 		// Prüfe, dass der Rückgabetyp des Branchings kein 'or' Typ ist
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
 		expect(definition).to.exist;
-		expect(definition.value?.typeInfo?.type.julType).to.not.equal('or',
-			'Union sollte dedupliziert werden — erwarteter Typ: function, tatsächlich: ' + definition.value?.typeInfo?.type.julType);
-		expect(definition.value?.typeInfo?.type.julType).to.equal('function');
+		expect(getTypeInfo(parsed.checkResult!, definition.value)?.type.julType).to.not.equal('or',
+			'Union sollte dedupliziert werden — erwarteter Typ: function, tatsächlich: ' + getTypeInfo(parsed.checkResult!, definition.value)?.type.julType);
+		expect(getTypeInfo(parsed.checkResult!, definition.value)?.type.julType).to.equal('function');
 	});
 	// Fehlt ein catchAll-Branch, kann `_branch` zur Laufzeit ein Error zurückgeben (siehe
 	// runtime.ts). Der Rückgabetyp muss das zeigen.
@@ -5993,7 +5994,7 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const type = definition.value?.typeInfo?.type;
+		const type = getTypeInfo(parsed.checkResult!, definition.value)?.type;
 		expect(type?.julType).to.equal('or',
 			'Ohne catchAll muss Error Teil der Union sein — tatsächlich: ' + type?.julType);
 		const choiceTypes = type?.julType === 'or' ? type.ChoiceTypes : [];
@@ -6011,7 +6012,7 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const type = definition.value?.typeInfo?.type;
+		const type = getTypeInfo(parsed.checkResult!, definition.value)?.type;
 		// Zwei verschiedene Textliterale ergeben unabhängig vom catchAll ein 'or' — geprüft wird
 		// hier nur, dass darin kein 'error' als Choice auftaucht.
 		const choiceTypes = type?.julType === 'or' ? type.ChoiceTypes : [type];
@@ -6029,9 +6030,8 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const returnType = definition.value?.typeInfo?.type.julType === 'function'
-			? definition.value.typeInfo.type.ReturnType
-			: undefined;
+		const valueType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
+			const returnType = valueType?.julType === 'function' ? valueType.ReturnType : undefined;
 		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
 		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(false,
 			'Vollständig abgedeckter Eingabetyp darf kein Error erzeugen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
@@ -6047,9 +6047,8 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const returnType = definition.value?.typeInfo?.type.julType === 'function'
-			? definition.value.typeInfo.type.ReturnType
-			: undefined;
+		const valueType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
+			const returnType = valueType?.julType === 'function' ? valueType.ReturnType : undefined;
 		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
 		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(true,
 			'[Integer Text] fehlt, Error muss im Rückgabetyp stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
@@ -6066,9 +6065,8 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const returnType = definition.value?.typeInfo?.type.julType === 'function'
-			? definition.value.typeInfo.type.ReturnType
-			: undefined;
+		const valueType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
+			const returnType = valueType?.julType === 'function' ? valueType.ReturnType : undefined;
 		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
 		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(false,
 			'Jede Kombination ist abgedeckt, es darf kein Error im Rückgabetyp stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
@@ -6083,9 +6081,8 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const returnType = definition.value?.typeInfo?.type.julType === 'function'
-			? definition.value.typeInfo.type.ReturnType
-			: undefined;
+		const valueType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
+			const returnType = valueType?.julType === 'function' ? valueType.ReturnType : undefined;
 		const choiceTypes = returnType?.julType === 'or' ? returnType.ChoiceTypes : [returnType];
 		expect(choiceTypes.some(choice => choice?.julType === 'error')).to.equal(true,
 			'Fall 3 fehlt, Error muss im Rückgabetyp stehen: ' + choiceTypes.map(choice => choice?.julType).join(', '));
@@ -6105,7 +6102,7 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const functionType = definition.value?.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
 		const returnType = functionType?.julType === 'function' ? functionType.ReturnType : undefined;
 		expect(returnType?.julType).to.equal('integer',
 			'Deklarierter Rückgabetyp Integer sollte gelten, tatsächlich: ' + returnType?.julType);
@@ -6125,7 +6122,7 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const functionType = definition.value?.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
 		const rawReturnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
 		// Ohne Annotation bleibt der Rückgabetyp ein aufschiebbarer Concat-Knoten (für die
 		// präzise Auflösung am Aufrufort) - resolvePlaceholders liefert die deklarationsseitige,
@@ -6157,7 +6154,7 @@ f(source)`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const functionType = definition.value?.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
 		const rawReturnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
 		const returnType = rawReturnType && resolvePlaceholders(rawReturnType);
 
@@ -6280,8 +6277,8 @@ f([1 2])`, [ErrorCode.argumentTypeMismatch]);
 		const cDef = fnLiteral.body[0] as ParseSingleDefinition;
 		const bDef = fnLiteral.body[1] as ParseSingleDefinition;
 
-		const cType = cDef.value?.typeInfo?.type;
-		const bType = bDef.value?.typeInfo?.type;
+		const cType = getTypeInfo(parsed.checkResult!, cDef.value)?.type;
+		const bType = getTypeInfo(parsed.checkResult!, bDef.value)?.type;
 
 		expect(cType && typeToString(resolvePlaceholders(cType), 0, 5)).to.equal(
 			'Or(Empty List(Integer))');
@@ -6302,7 +6299,7 @@ c = 1.0`;
 		checkTypes(parsed, {});
 		const typeOf = (index: number) => {
 			const def = parsed.checked?.expressions?.[index] as ParseSingleDefinition;
-			const type = def.value?.typeInfo?.type;
+			const type = getTypeInfo(parsed.checkResult!, def.value)?.type;
 			return type && typeToString(resolvePlaceholders(type), 0, 5);
 		};
 		expect(typeOf(0)).to.equal(typeOf(1));
@@ -6586,7 +6583,7 @@ newGameState: GameState = [
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const functionType = definition.value?.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
 		const rawReturnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
 		const returnType = rawReturnType && resolvePlaceholders(rawReturnType);
 
@@ -6611,7 +6608,7 @@ f = (source: T) => [
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const definition = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
-		const functionType = definition.value?.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
 		const returnType = functionType && functionType.julType === 'function' ? functionType.ReturnType : undefined;
 
 		// Erwartet: dictionaryLiteral mit 3 Feldern: [a: Integer, b: Text, c: Boolean]
@@ -6636,7 +6633,7 @@ TargetType = [...SourceType z: Boolean]`;
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
-		const targetType = targetDef.value?.typeInfo?.type;
+		const targetType = getTypeInfo(parsed.checkResult!, targetDef.value)?.type;
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  x: Integer\n  y: Text\n  z: Boolean\n])');
 	});
@@ -6656,7 +6653,7 @@ Target = [
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
-		const targetType = targetDef.value?.typeInfo?.type;
+		const targetType = getTypeInfo(parsed.checkResult!, targetDef.value)?.type;
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  zone: ZoneIndex\n  zones: List(ZoneIndex)\n])');
 	});
@@ -6676,7 +6673,7 @@ Target = [
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const targetDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
-		const targetType = targetDef.value?.typeInfo?.type;
+		const targetType = getTypeInfo(parsed.checkResult!, targetDef.value)?.type;
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  zone: Or(Empty ZoneIndex)\n  other: Integer\n])');
 	});
@@ -6691,7 +6688,7 @@ Target = [
 
 		const expressions = parsed.checked?.expressions ?? [];
 		const targetDef = expressions[expressions.length - 1] as ParseSingleDefinition;
-		const targetType = targetDef.value?.typeInfo?.type;
+		const targetType = getTypeInfo(parsed.checkResult!, targetDef.value)?.type;
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			`TypeOf([a: ${shown}])`);
 	});
@@ -6720,7 +6717,7 @@ Target = [
 		expect(parsed.checked?.errors).to.deep.equal([]);
 
 		const treeDef = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const treeType = treeDef.value?.typeInfo?.type;
+		const treeType = getTypeInfo(parsed.checkResult!, treeDef.value)?.type;
 		expect(treeType && typeToString(resolvePlaceholders(treeType), 0, 0)).to.equal(
 			'TypeOf([\n  value: Integer\n  children: Or(Empty List(Tree))\n])');
 	});
@@ -6816,7 +6813,7 @@ result = [1 §a§].second()`;
 		checkTypes(parsed, {});
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
-		const resultType = resultDef.value?.typeInfo?.type;
+		const resultType = getTypeInfo(parsed.checkResult!, resultDef.value)?.type;
 		expect(resultType && typeToString(resolvePlaceholders(resultType), 0, 0)).to.equal('§a§');
 	});
 	// Gegenstück: der Index-/Namenszugriff hält den Platzhalter bereits, weil
@@ -6832,7 +6829,7 @@ result = [1 §a§].second()`;
 		checkTypes(parsed, {});
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
-		const resultType = resultDef.value?.typeInfo?.type;
+		const resultType = getTypeInfo(parsed.checkResult!, resultDef.value)?.type;
 		expect(resultType && typeToString(resolvePlaceholders(resultType), 0, 0)).to.equal('§a§');
 	});
 	it('field-access-keeps-precision-until-call', () => {
@@ -6844,7 +6841,7 @@ result = [x = §a§].getX()`;
 		checkTypes(parsed, {});
 
 		const resultDef = parsed.checked?.expressions?.[1] as ParseSingleDefinition;
-		const resultType = resultDef.value?.typeInfo?.type;
+		const resultType = getTypeInfo(parsed.checkResult!, resultDef.value)?.type;
 		expect(resultType && typeToString(resolvePlaceholders(resultType), 0, 0)).to.equal('§a§');
 	});
 	// Fund aus yugioh/game-logic.jul:136 (10.09.2026): cardEffect/mandatoryTriggers.getElement(
@@ -6892,10 +6889,10 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 	function purityOfDefinition(code: string, name: string): TypePurity | undefined {
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
-		const type = parsed.checked?.expressions
+		const type = getTypeInfo(parsed.checkResult!, parsed.checked?.expressions
 			?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === name)
-			?.value?.typeInfo?.type;
+			?.value)?.type;
 		return type && isFunctionType(type) ? type.purity : undefined;
 	}
 	// Für die beiden "Rumpf unbekannt"-Fälle der Tabelle: nur über eine Closure erreichbar
@@ -6909,7 +6906,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 				expression.type === 'definition' && expression.name.name === 'outer')
 			?.value;
 		const inner = outer?.type === 'functionLiteral' ? outer.body[outer.body.length - 1] : undefined;
-		const type = inner?.typeInfo?.type;
+		const type = getTypeInfo(parsed.checkResult!, inner)?.type;
 		return type && isFunctionType(type) ? type.purity : undefined;
 	}
 
@@ -6967,10 +6964,10 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		const tsPath = 'imported.ts';
 		const parsed = parseCode('/** @pure */\nexport function imported(x: number): number { return x; }\n', tsPath);
 		checkTypes(parsed, { [tsPath]: parsed });
-		const type = parsed.checked?.expressions
+		const type = getTypeInfo(parsed.checkResult!, parsed.checked?.expressions
 			?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'imported')
-			?.value?.typeInfo?.type;
+			?.value)?.type;
 		expect(type && isFunctionType(type) ? type.purity : undefined).to.equal('pure');
 		expect(parsed.checked?.errors).to.deep.equal([]);
 	});
@@ -7015,9 +7012,9 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		parsed.checked?.expressions?.forEach(expression => {
 			lastCall = findLastCall(expression) ?? lastCall;
 		});
-		const functionType = lastCall?.functionExpression?.typeInfo?.type;
-		const prefixArgumentType = lastCall?.prefixArgument?.typeInfo?.type;
-		const argsType = lastCall?.arguments?.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, lastCall?.functionExpression)?.type;
+		const prefixArgumentType = getTypeInfo(parsed.checkResult!, lastCall?.prefixArgument)?.type;
+		const argsType = getTypeInfo(parsed.checkResult!, lastCall?.arguments)?.type;
 		if (!functionType || !isFunctionType(functionType) || !argsType) {
 			return undefined;
 		}
@@ -7156,11 +7153,11 @@ f(map)`)).to.equal('impure');
 		if (value?.type !== 'functionLiteral') {
 			return undefined;
 		}
-		const functionType = value.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, value)?.type;
 		if (!functionType || !isFunctionType(functionType)) {
 			return undefined;
 		}
-		return inferBodyPurity(value.body, functionType.identity).purity;
+		return inferBodyPurity(parsed.checkResult!, value.body, functionType.identity).purity;
 	}
 
 	// Für die Closure-Fälle (E2): der Rumpf, dessen Purity geprüft wird, ist die ZURÜCKGEGEBENE
@@ -7179,11 +7176,11 @@ f(map)`)).to.equal('impure');
 		if (inner?.type !== 'functionLiteral') {
 			return undefined;
 		}
-		const functionType = inner.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, inner)?.type;
 		if (!functionType || !isFunctionType(functionType)) {
 			return undefined;
 		}
-		return inferBodyPurity(inner.body, functionType.identity).purity;
+		return inferBodyPurity(parsed.checkResult!, inner.body, functionType.identity).purity;
 	}
 
 	it('konstanter Rumpf ist pure', () => {
@@ -7662,7 +7659,7 @@ describe('constant folding', () => {
 		expect(parsed.checked?.errors).to.deep.equal([]);
 		const expressions = parsed.checked?.expressions ?? [];
 		const last = expressions[expressions.length - 1] as ParseSingleDefinition;
-		const type = last.value?.typeInfo?.type;
+		const type = getTypeInfo(parsed.checkResult!, last.value)?.type;
 		return type && typeToString(resolvePlaceholders(type), 0, 5);
 	}
 
@@ -7797,7 +7794,7 @@ R = TypeOf(f)/ReturnType`)).to.equal('TypeOf(Text)');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.have.lengthOf(1);
 		const def = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const type = def.value?.typeInfo?.type;
+		const type = getTypeInfo(parsed.checkResult!, def.value)?.type;
 		expect(type && typeToString(resolvePlaceholders(type), 0, 5)).to.equal('Float');
 	});
 
@@ -7993,11 +7990,11 @@ describe('bedingte Typen', () => {
 	 * Rückgabetyp der letzten Definition, deren Wert eine Funktion ist. Tiefe 5 wie bei
 	 * typeOfLastDefinition, damit Alias-Namen (Fraction) erscheinen.
 	 */
-	function returnTypeOfLastDefinition(expressions: ParseExpression[]): string | undefined {
+	function returnTypeOfLastDefinition(checkResult: CheckResult, expressions: ParseExpression[]): string | undefined {
 		const definitions = expressions.filter((expression): expression is ParseSingleDefinition =>
 			expression.type === 'definition');
 		for (let index = definitions.length - 1; index >= 0; index--) {
-			const type = definitions[index]!.value?.typeInfo?.type;
+			const type = getTypeInfo(checkResult, definitions[index]!.value)?.type;
 			if (isFunctionType(type)) {
 				return typeToString(resolvePlaceholders(type.ReturnType), 0, 5);
 			}
@@ -8005,9 +8002,9 @@ describe('bedingte Typen', () => {
 		return undefined;
 	}
 
-	function typeOfLastDefinition(expressions: ParseExpression[]): string | undefined {
+	function typeOfLastDefinition(checkResult: CheckResult, expressions: ParseExpression[]): string | undefined {
 		const last = expressions[expressions.length - 1] as ParseSingleDefinition;
-		const type = last.value?.typeInfo?.type;
+		const type = getTypeInfo(checkResult, last.value)?.type;
 		return type && typeToString(resolvePlaceholders(type), 0, 5);
 	}
 
@@ -8027,10 +8024,10 @@ describe('bedingte Typen', () => {
 		}))).to.deep.equal(errors ?? []);
 		const expressions = parsed.checked?.expressions ?? [];
 		if (returnType !== undefined) {
-			expect(returnTypeOfLastDefinition(expressions)).to.equal(returnType);
+			expect(returnTypeOfLastDefinition(parsed.checkResult!, expressions)).to.equal(returnType);
 		}
 		if (type !== undefined) {
-			expect(typeOfLastDefinition(expressions)).to.equal(type);
+			expect(typeOfLastDefinition(parsed.checkResult!, expressions)).to.equal(type);
 		}
 	});
 	//#region S: Semantik, ein Operand
@@ -8058,7 +8055,7 @@ describe('bedingte Typen', () => {
 	it('M9 Kopf im bedingten Typ wird als Liste ausgegeben', () => {
 		const parsed = check(conditionalHeadShorterThanOperands);
 		const definition = parsed.checked?.expressions?.[0] as ParseSingleDefinition;
-		const functionType = definition.value?.typeInfo?.type;
+		const functionType = getTypeInfo(parsed.checkResult!, definition.value)?.type;
 		expect(isFunctionType(functionType) && typeToString(functionType.ReturnType, 0, 5))
 			.to.equal(':?(TypeOf(a) TypeOf(b) TypeOf(c)) [[Integer Integer] => Text, Any => Boolean]');
 	});

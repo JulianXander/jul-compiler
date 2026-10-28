@@ -1,3 +1,4 @@
+import { getTypeInfo } from './check-result.js';
 import { dirname } from 'path';
 import { getPathFromImport, isImportFunctionCall } from '../parser/parser.js';
 import { isExportedSymbol } from '../parser/parser-utils.js';
@@ -46,7 +47,7 @@ export function getFieldSymbolsFromDictionaryType(
 				visitedDeclarations.add(declaration.expression);
 				declaration.expression.fields.forEach(field => {
 					const spreadType = field.type === 'spread'
-						? field.value.typeInfo?.type
+						? getTypeInfo(declaration.result, field.value)?.type
 						: undefined;
 					if (spreadType) {
 						getFieldSymbolsFromDictionaryType(spreadType, fieldName, result, visitedDeclarations);
@@ -66,8 +67,7 @@ export function getFieldSymbolsFromDictionaryType(
 			return getFieldSymbolsFromDictionaryType(dictionaryType.value, fieldName, result, visitedDeclarations);
 		case 'alias':
 			// Der Alias ist Beschriftung; die Felddeklaration steht am Typ dahinter.
-			return getFieldSymbolsFromDictionaryType(
-				dictionaryType.symbol.typeInfo?.type ?? builtinAny,
+			return getFieldSymbolsFromDictionaryType(dictionaryType.symbol.typeInfo?.type ?? builtinAny,
 				fieldName,
 				result,
 				visitedDeclarations);

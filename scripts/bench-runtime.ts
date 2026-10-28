@@ -8,6 +8,7 @@ import { errorInfos } from '../src/compiler-errors.js';
 import { syntaxTreeToJs } from '../src/compiler/emitter.js';
 import { createFileSystemHost, loadFile } from '../src/compiler/project-loader.js';
 import { ParsedDocuments } from '../src/checker/checker.js';
+import { getFileCheckResult } from '../src/checker/check-result.js';
 import {
 	appendEntries,
 	BenchResult,
@@ -426,7 +427,7 @@ async function compileFixture(file: string, outFolder: string): Promise<{ [name:
 		throw new Error(`${file}: ${errors.map(error => `${error.startRowIndex + 1}: ${error.message}`).join('\n')}`);
 	}
 	const outPath = join(outFolder, basename(file, '.jul') + '.mjs');
-	writeFileSync(outPath, syntaxTreeToJs(expressions.expressions ?? [], runtimeUrl));
+	writeFileSync(outPath, syntaxTreeToJs(getFileCheckResult(parsed), expressions.expressions ?? [], runtimeUrl));
 	return import(pathToFileURL(outPath).href);
 }
 

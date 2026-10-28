@@ -1,3 +1,4 @@
+import { CheckResult, getCalledParameterNames, getTypeInfo } from '../checker/check-result.js';
 import {
 	Name,
 	ParseBranching,
@@ -158,6 +159,7 @@ export function getTestRuntimeImportJs(testRuntimeImportPath: string, names: str
 //#endregion runtime import
 
 export function syntaxTreeToJs(
+	checkResult: CheckResult,
 	expressions: ParseExpression[],
 	runtimeImportPath: string,
 	/**
@@ -169,7 +171,7 @@ export function syntaxTreeToJs(
 	 */
 	testRuntimeImportPath: string = '',
 ): string {
-	return syntaxTreeToJsWithMappings(expressions, runtimeImportPath, filePath, testRuntimeImportPath).js;
+	return syntaxTreeToJsWithMappings(checkResult, expressions, runtimeImportPath, filePath, testRuntimeImportPath).js;
 }
 
 /**
@@ -215,6 +217,7 @@ function jsonValueToJsExpression(value: JsonValue | null): string {
  * Runtime-Namen, aus denen der Compiler die verkleinerte Runtime erzeugt (shakeRuntime).
  */
 export function syntaxTreeToJsWithMappings(
+	checkResult: CheckResult,
 	expressions: ParseExpression[],
 	runtimeImportPath: string,
 	filePath: string = '',
@@ -226,7 +229,7 @@ export function syntaxTreeToJsWithMappings(
 	sourceFilePath = filePath;
 	try {
 		const bodyJs = expressions.map((expression, index) => {
-			const expressionJs = expressionToJs(expression, 0, true);
+			const expressionJs = expressionToJs(checkResult, expression, 0, true);
 			if (expression.type === 'definition') {
 				hasDefinition = true;
 			}
@@ -265,9 +268,9 @@ export function syntaxTreeToJsWithMappings(
  * ist nötig, damit auch eine Selbstreferenz im Rumpf - über dieselbe `let`-Bindung aufgelöst - durch
  * den Wrapper läuft, nicht am Original vorbei.
  */
-export function functionLiteralToEvaluableJs(literal: ParseFunctionLiteral): string {
+export function functionLiteralToEvaluableJs(checkResult: CheckResult, literal: ParseFunctionLiteral): string {
 	const indent = 1;
-	const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(literal.params, literal.body, indent);
+	const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(checkResult, literal.params, literal.body, indent);
 	// Eine Selbstreferenz im Rumpf nennt sich beim ursprünglichen Definitionsnamen (referenceToJs
 	// emittiert ihn wörtlich) - die Bindung hier muss also genauso heißen, sonst läuft die
 	// Rekursion an dieser Closure vorbei in einen ReferenceError.
@@ -283,6 +286,7 @@ function getDefinitionJs(isExport: boolean, nameJs: string, valueJs: string): st
 }
 
 function expressionToJs(
+	checkResult: CheckResult,
 	expression: ParseExpression,
 	indent: number,
 	topLevel: boolean = false,
@@ -294,15 +298,15 @@ function expressionToJs(
 				throw new Error('args missing in branching');
 			}
 			const dispatch = useTypeInfo
-				? getBranchDispatch(expression)
+				? getBranchDispatch(checkResult, expression)
 				: undefined;
 			if (dispatch) {
-				return branchDispatchToJs(expression, dispatch, indent);
+				return branchDispatchToJs(checkResult, expression, dispatch, indent);
 			}
 			const innerIndent = indent + 1;
 			const jsValues = [
-				expressionToJs(args, innerIndent),
-				...expression.branches.map(branch => expressionToJs(branch, innerIndent)),
+				expressionToJs(checkResult, args, innerIndent),
+				...expression.branches.map(branch => expressionToJs(checkResult, branch, innerIndent)),
 			];
 			return `_branch(${listValuesToJs(jsValues, indent)})`;
 		}
@@ -325,7 +329,7 @@ function expressionToJs(
 				return `${importJs}
 ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
-			const valueJs = expressionToJs(value, indent);
+			const valueJs = expressionToJs(checkResult, value, indent);
 			return getDefinitionJs(topLevel, nameJs, valueJs);
 		}
 		case 'destructuring': {
@@ -360,7 +364,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				const valueJs = `_isArray ? _temp[${index}] : _temp.${sourceJs}`;
 				return `${nameJs} = ${valueJs};`;
 			}).join(delimiterJs);
-			return `${declarations}${delimiterJs}{${delimiterJs}const _temp = ${expressionToJs(value, indent)};${delimiterJs}const _isArray = Array.isArray(_temp);${delimiterJs}${assignments}${delimiterJs}}`;
+			return `${declarations}${delimiterJs}{${delimiterJs}const _temp = ${expressionToJs(checkResult, value, indent)};${delimiterJs}const _isArray = Array.isArray(_temp);${delimiterJs}${assignments}${delimiterJs}}`;
 		}
 		case 'dictionary': {
 			const newIndent = indent + 1;
@@ -369,7 +373,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				if (!field.value) {
 					throw new Error('value missing for dictionary field');
 				}
-				const valueJs = expressionToJs(field.value, newIndent);
+				const valueJs = expressionToJs(checkResult, field.value, newIndent);
 				if (field.type === 'singleDictionaryField') {
 					return singleDictionaryFieldToJs(field.name, valueJs);
 				}
@@ -384,14 +388,14 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			const fieldsJs = dictionaryToJs(expression.fields.map(field => {
 				if (field.type === 'singleDictionaryTypeField') {
 					const typeGuardJs = field.typeGuard
-						? expressionToJs(field.typeGuard, fieldsIndent)
+						? expressionToJs(checkResult, field.typeGuard, fieldsIndent)
 						: 'Any';
 					// Ein Feld, das fehlen darf (b?: X), trägt das Kennzeichen am Typ des Felds.
 					return singleDictionaryFieldToJs(field.name, field.optional ? `_optionalField(${typeGuardJs})` : typeGuardJs);
 				}
 				else {
 					// Der gespreadete Wert ist selbst ein Typobjekt, übernommen werden seine Fields.
-					return spreadDictionaryFieldToJs(`${expressionToJs(field.value, fieldsIndent)}.Fields`);
+					return spreadDictionaryFieldToJs(`${expressionToJs(checkResult, field.value, fieldsIndent)}.Fields`);
 				}
 			}), newIndent);
 			return dictionaryToJs([
@@ -406,11 +410,11 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 		case 'fraction':
 			return `{numerator:${expression.numerator}n,denominator:${expression.denominator}n}`;
 		case 'functionCall': {
-			const callJs = functionCallToJs(expression, indent);
+			const callJs = functionCallToJs(checkResult, expression, indent);
 			// Der Checker hat den Aufruf einer Typfunktion im eigenen Rumpf als Anwendung markiert. Sofort
 			// ausgewertet riefe jeder Aufruf von Tree den nächsten auf. Entschieden wird am geprüften
 			// Baum, nicht an useTypeInfo: das schaltet Optimierungen, hier geht es um Korrektheit.
-			const selfAppliedName = getSelfAppliedTypeFunctionName(expression);
+			const selfAppliedName = getSelfAppliedTypeFunctionName(checkResult, expression);
 			return selfAppliedName === undefined
 				? callJs
 				: `_lazyType(${stringToJs(selfAppliedName)}, () => ${callJs})`;
@@ -420,9 +424,9 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			const isNamed = parent?.type === 'definition'
 				&& expression === parent.value;
 			const tail = useTypeInfo && isNamed
-				? analyzeTailCalls(expression, parent.name.name)
+				? analyzeTailCalls(checkResult, expression, parent.name.name)
 				: undefined;
-			const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(expression.params, expression.body, indent, tail);
+			const { functionJs, paramsJs, delimiterJs } = functionLiteralToJsParts(checkResult, expression.params, expression.body, indent, tail);
 			if (!needsRuntimeParams(expression)) {
 				// Nichts liest die Parameterliste: ein nacktes Arrow, ohne _createFunction.
 				if (isNamed) {
@@ -445,7 +449,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 		case 'integer':
 			return `${expression.value}n`;
 		case 'list': {
-			const jsValues = parseListValuesToJs(expression.values, indent, expression);
+			const jsValues = parseListValuesToJs(checkResult, expression.values, indent, expression);
 			return listToJs(jsValues, indent);
 		}
 		case 'nestedReference': {
@@ -455,14 +459,14 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 			switch (nestedKey.type) {
 				case 'index':
-					return `${expressionToJs(expression.source, indent)}?.[${nestedKey.name} - 1]`;
+					return `${expressionToJs(checkResult, expression.source, indent)}?.[${nestedKey.name} - 1]`;
 				case 'name':
 				case 'text':
 					const field = getCheckedEscapableName(nestedKey);
 					if (!field) {
 						throw new Error(`Invalid field.`);
 					}
-					return `${expressionToJs(expression.source, indent)}?.[${stringToJs(field)}]`;
+					return `${expressionToJs(checkResult, expression.source, indent)}?.[${stringToJs(field)}]`;
 				default: {
 					const assertNever: never = nestedKey;
 					throw new Error(`Unexpected nestedKey.type ${(assertNever as ParseExpression).type}`);
@@ -471,13 +475,13 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 		}
 		case 'object': {
 			return `_combineObject(${expression.values.map(value => {
-				return expressionToJs(value.value, indent);
+				return expressionToJs(checkResult, value.value, indent);
 			}).join(`,${getRowDelimiterJs(indent)}`)})`;
 		}
 		case 'reference':
 			return referenceToJs(expression);
 		case 'text':
-			return textLiteralToJs(expression, indent);
+			return textLiteralToJs(checkResult, expression, indent);
 		case 'binding':
 		case 'data':
 		case 'field':
@@ -495,14 +499,14 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 /**
  * listLiteral nur für ein List-Literal, nicht für Argumentlisten: Nur dort kopiert ein Spread.
  */
-function parseListValuesToJs(values: NonEmptyArray<ParseListValue>, indent: number, listLiteral?: ParseExpression): string[] {
+function parseListValuesToJs(checkResult: CheckResult, values: NonEmptyArray<ParseListValue>, indent: number, listLiteral?: ParseExpression): string[] {
 	const innerIndent = indent + 1;
 	const jsValues = values.map(value => {
 		const valueJs = value.type === 'spread'
 			? `...${listLiteral
-				? countCopyJs(expressionToJs(value.value, innerIndent), value.value, listLiteral, 'listSpread')
-				: expressionToJs(value.value, innerIndent)} ?? []`
-			: expressionToJs(value, innerIndent);
+				? countCopyJs(expressionToJs(checkResult, value.value, innerIndent), value.value, listLiteral, 'listSpread')
+				: expressionToJs(checkResult, value.value, innerIndent)} ?? []`
+			: expressionToJs(checkResult, value, innerIndent);
 		return valueJs;
 	});
 	return jsValues;
@@ -564,7 +568,7 @@ function getPathFromImport(importExpression: ParseFunctionCall): string {
 
 //#endregion import
 
-function functionBodyToJs(expressions: ParseExpression[], indent: number, tail?: TailContext): string {
+function functionBodyToJs(checkResult: CheckResult, expressions: ParseExpression[], indent: number, tail?: TailContext): string {
 	const delimiter = getRowDelimiterJs(indent);
 	const js = delimiter + expressions.map((expression, index) => {
 		const markerJs = sourcePositionMarkerJs(expression);
@@ -573,15 +577,15 @@ function functionBodyToJs(expressions: ParseExpression[], indent: number, tail?:
 			if (tail
 				&& (expression.type === 'functionCall' || expression.type === 'branching')
 				&& (tail.calls.has(expression as ParseFunctionCall) || tail.branchings.has(expression as ParseBranching))) {
-				return `${markerJs}${tailExpressionToJs(expression, indent, tail)}`;
+				return `${markerJs}${tailExpressionToJs(checkResult, expression, indent, tail)}`;
 			}
-			const expressionJs = expressionToJs(expression, indent);
+			const expressionJs = expressionToJs(checkResult, expression, indent);
 			if (expression.type === 'definition') {
 				return `${markerJs}${expressionJs}${delimiter}return ${escapeReservedJsVariableName(expression.name.name)};`;
 			}
 			return `${markerJs}return ${expressionJs}`;
 		}
-		return markerJs + expressionToJs(expression, indent);
+		return markerJs + expressionToJs(checkResult, expression, indent);
 	}).join(delimiter);
 	return js;
 }
@@ -595,6 +599,7 @@ function functionBodyToJs(expressions: ParseExpression[], indent: number, tail?:
  * i. d. R. auch für den umgebenden Code braucht.
  */
 function functionLiteralToJsParts(
+	checkResult: CheckResult,
 	params: SimpleExpression | ParseParameterFields,
 	body: ParseExpression[],
 	indent: number,
@@ -608,7 +613,7 @@ function functionLiteralToJsParts(
 		if (rest) {
 			argsJs += (argsJs ? ', ' : '') + '...' + escapeReservedJsVariableName(rest.name.name);
 		}
-		paramsJs = parametersToJs(params, indent);
+		paramsJs = parametersToJs(checkResult, params, indent);
 	}
 	else {
 		argsJs = '';
@@ -617,14 +622,14 @@ function functionLiteralToJsParts(
 		// Typ und beschreibt die ganze Argumentkollektion. Ohne Typinfo (ungeprüfter Baum) bleibt es
 		// ein Typ-Kopf.
 		const isPositionalHead = params.type === 'list'
-			&& params.typeInfo?.type.julType === 'tuple';
-		const headFieldJs = singleDictionaryFieldToJsInternal(isPositionalHead ? 'head' : 'type', expressionToJs(params, indent));
+			&& getTypeInfo(checkResult, params)?.type.julType === 'tuple';
+		const headFieldJs = singleDictionaryFieldToJsInternal(isPositionalHead ? 'head' : 'type', expressionToJs(checkResult, params, indent));
 		paramsJs = dictionaryToJs([headFieldJs], indent);
 	}
 	const delimiterJs = getRowDelimiterJs(indent + 1);
 	const functionJs = tail
-		? `(${argsJs}) => {${getRowDelimiterJs(indent + 2)}while (true) {${functionBodyToJs(body, indent + 3, tail)}${getRowDelimiterJs(indent + 2)}}${delimiterJs}}`
-		: `(${argsJs}) => {${functionBodyToJs(body, indent + 2)}${delimiterJs}}`;
+		? `(${argsJs}) => {${getRowDelimiterJs(indent + 2)}while (true) {${functionBodyToJs(checkResult, body, indent + 3, tail)}${getRowDelimiterJs(indent + 2)}}${delimiterJs}}`
+		: `(${argsJs}) => {${functionBodyToJs(checkResult, body, indent + 2)}${delimiterJs}}`;
 	return { functionJs, paramsJs, delimiterJs };
 }
 
@@ -676,7 +681,7 @@ interface TailContext {
  * Parameter der Folgeiterationen. Ebenso, wenn ein inline emittierter branch einen Namen bindet, der
  * einen Parameter verdeckte: Die Zuweisung für den nächsten Durchlauf träfe den falschen.
  */
-function analyzeTailCalls(literal: ParseFunctionLiteral, name: string): TailContext | undefined {
+function analyzeTailCalls(checkResult: CheckResult, literal: ParseFunctionLiteral, name: string): TailContext | undefined {
 	const params = literal.params;
 	if (params.type !== 'parameters'
 		|| params.rest
@@ -689,7 +694,7 @@ function analyzeTailCalls(literal: ParseFunctionLiteral, name: string): TailCont
 	const inlinedBranches = new Set<ParseFunctionLiteral>();
 	const visitTail = (expression: ParseExpression | undefined): boolean => {
 		if (expression?.type === 'functionCall') {
-			if (!isTailSelfCall(expression, name, parameterNames.length)) {
+			if (!isTailSelfCall(checkResult, expression, name, parameterNames.length)) {
 				return false;
 			}
 			calls.add(expression);
@@ -698,7 +703,7 @@ function analyzeTailCalls(literal: ParseFunctionLiteral, name: string): TailCont
 		if (expression?.type !== 'branching') {
 			return false;
 		}
-		const dispatch = getBranchDispatch(expression);
+		const dispatch = getBranchDispatch(checkResult, expression);
 		if (!dispatch) {
 			return false;
 		}
@@ -766,6 +771,7 @@ function isInlinableBranch(branch: ParseValueExpression): branch is ParseFunctio
  * Dass die Referenz die Definition meint und keinen verdeckenden Namen, prüft analyzeTailCalls.
  */
 function isTailSelfCall(
+	checkResult: CheckResult,
 	call: ParseFunctionCall,
 	name: string,
 	parameterCount: number,
@@ -778,17 +784,17 @@ function isTailSelfCall(
 		|| args?.type !== 'list'
 		|| args.values.length !== parameterCount
 		|| args.values.some(value => value.type === 'spread')
-		|| getSelfAppliedTypeFunctionName(call) !== undefined) {
+		|| getSelfAppliedTypeFunctionName(checkResult, call) !== undefined) {
 		return false;
 	}
 	return true;
 }
 
 /** Die Anweisungen für eine Expression in Tail-Position, die in tail.calls oder tail.branchings steht */
-function tailExpressionToJs(expression: ParseExpression, indent: number, tail: TailContext): string {
+function tailExpressionToJs(checkResult: CheckResult, expression: ParseExpression, indent: number, tail: TailContext): string {
 	if (expression.type === 'functionCall') {
 		const values = (expression.arguments as { values: ParseValueExpression[]; }).values
-			.map(value => expressionToJs(value, indent + 1));
+			.map(value => expressionToJs(checkResult, value, indent + 1));
 		// Das führende ; schützt vor einer Fortsetzung der vorigen Zeile (kein Semikolon nach Aufrufen)
 		const assignmentJs = values.length === 1
 			? `${tail.paramNamesJs[0]} = ${values[0]};`
@@ -796,7 +802,7 @@ function tailExpressionToJs(expression: ParseExpression, indent: number, tail: T
 		return `${assignmentJs}${getRowDelimiterJs(indent)}continue;`;
 	}
 	const branching = expression as ParseBranching;
-	const dispatch = getBranchDispatch(branching)!;
+	const dispatch = getBranchDispatch(checkResult, branching)!;
 	const argument = (branching.args as { values: ParseListValue[]; }).values[0] as ParseValueExpression;
 	const isReference = argument.type === 'reference';
 	const argumentJs = isReference
@@ -805,7 +811,7 @@ function tailExpressionToJs(expression: ParseExpression, indent: number, tail: T
 	const delimiterJs = getRowDelimiterJs(indent);
 	let js = isReference
 		? ''
-		: `const _arg = ${expressionToJs(argument, indent)};${delimiterJs}`;
+		: `const _arg = ${expressionToJs(checkResult, argument, indent)};${delimiterJs}`;
 	let hasCatchAll = false;
 	const chainJs: string[] = [];
 	dispatch.tests.forEach((test, index) => {
@@ -818,7 +824,7 @@ function tailExpressionToJs(expression: ParseExpression, indent: number, tail: T
 		const bindingJs = bindsArgument
 			? `${getRowDelimiterJs(indent + 1)}const ${escapeReservedJsVariableName((branch.params as ParseParameterFields).singleFields[0]!.name.name)} = ${argumentJs};`
 			: '';
-		const blockJs = `{${bindingJs}${functionBodyToJs(branch.body, indent + 1, tail)}${delimiterJs}}`;
+		const blockJs = `{${bindingJs}${functionBodyToJs(checkResult, branch.body, indent + 1, tail)}${delimiterJs}}`;
 		if (test.kind === 'always') {
 			hasCatchAll = true;
 			chainJs.push(blockJs);
@@ -842,7 +848,7 @@ function tailExpressionToJs(expression: ParseExpression, indent: number, tail: T
  * Arrow an Ort und Stelle aufgerufen, ohne _createFunction. Ein nicht-Referenz-Argument wird
  * über ein umschließendes Arrow genau einmal ausgewertet.
  */
-function branchDispatchToJs(branching: ParseBranching, dispatch: BranchDispatch, indent: number): string {
+function branchDispatchToJs(checkResult: CheckResult, branching: ParseBranching, dispatch: BranchDispatch, indent: number): string {
 	// getBranchDispatch liefert nur für ?(x) mit genau einem Argument ohne Spread ein Ergebnis
 	const argument = (branching.args as { values: ParseListValue[]; }).values[0] as ParseValueExpression;
 	const isReference = argument.type === 'reference';
@@ -858,7 +864,7 @@ function branchDispatchToJs(branching: ParseBranching, dispatch: BranchDispatch,
 		if (test.kind === 'never') {
 			return;
 		}
-		const callJs = branchCallToJs(branching.branches[index]!, argumentJs, chainIndent);
+		const callJs = branchCallToJs(checkResult, branching.branches[index]!, argumentJs, chainIndent);
 		if (test.kind === 'always') {
 			chainJs += callJs;
 			return;
@@ -870,14 +876,14 @@ function branchDispatchToJs(branching: ParseBranching, dispatch: BranchDispatch,
 	}
 	return isReference
 		? chainJs
-		: `((${argumentJs}) => ${chainJs})(${expressionToJs(argument, indent)})`;
+		: `((${argumentJs}) => ${chainJs})(${expressionToJs(checkResult, argument, indent)})`;
 }
 
-function branchCallToJs(branch: ParseValueExpression, argumentJs: string, indent: number): string {
+function branchCallToJs(checkResult: CheckResult, branch: ParseValueExpression, argumentJs: string, indent: number): string {
 	if (branch.type !== 'functionLiteral') {
 		throw new Error('branch is not a functionLiteral');
 	}
-	const { functionJs } = functionLiteralToJsParts(branch.params, branch.body, indent);
+	const { functionJs } = functionLiteralToJsParts(checkResult, branch.params, branch.body, indent);
 	// Ein Typ-Kopf und () binden nichts, nur ein einzelner Parameter bekommt das Argument.
 	const bindsArgument = branch.params.type === 'parameters'
 		&& branch.params.singleFields.length === 1;
@@ -972,6 +978,7 @@ function literalValueToJs(value: LiteralValue | undefined): string {
  * das sie weiterreicht.
  */
 function namedArgumentsToDirectCallJs(
+	checkResult: CheckResult,
 	parameterNames: string[] | undefined,
 	functionJs: string,
 	prefixArgument: SimpleExpression | undefined,
@@ -1016,7 +1023,7 @@ function namedArgumentsToDirectCallJs(
 		if (argument.parameterIndex >= 0) {
 			slotsJs[argument.parameterIndex] = needsTemporaries
 				? `_arg${index}`
-				: expressionToJs(argument.value, innerIndent);
+				: expressionToJs(checkResult, argument.value, innerIndent);
 		}
 	});
 	// Fehlende Parameter am Ende brauchen kein undefined, JS füllt sie selbst auf.
@@ -1029,7 +1036,7 @@ function namedArgumentsToDirectCallJs(
 		return `${functionJs}(${listValuesToJs(argumentsJs, indent)})`;
 	}
 	const temporariesJs = written.map((_, index) => `_arg${index}`).join(', ');
-	const writtenJs = written.map(argument => expressionToJs(argument.value, innerIndent));
+	const writtenJs = written.map(argument => expressionToJs(checkResult, argument.value, innerIndent));
 	return `((${temporariesJs}) => ${functionJs}(${argumentsJs.join(', ')}))(${listValuesToJs(writtenJs, indent)})`;
 }
 
@@ -1051,7 +1058,7 @@ function isTrivialArgument(value: ParseValueExpression): boolean {
 
 //#endregion benannte Argumente mit Typinformation
 
-function functionCallToJs(expression: ParseFunctionCall, indent: number): string {
+function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCall, indent: number): string {
 	const functionExpression = expression.functionExpression;
 	if (!functionExpression) {
 		throw new Error('functionExpression missing for functionCall.');
@@ -1073,8 +1080,8 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 		: undefined;
 	const prefixArgJs = prefixArgument
 		? copyingBuiltinName
-			? countCopyJs(expressionToJs(prefixArgument, indent), prefixArgument, expression, copyingBuiltinName)
-			: expressionToJs(prefixArgument, indent)
+			? countCopyJs(expressionToJs(checkResult, prefixArgument, indent), prefixArgument, expression, copyingBuiltinName)
+			: expressionToJs(checkResult, prefixArgument, indent)
 		: 'undefined';
 	if (isNamedFunction(functionExpression, 'assume')) {
 		if (prefixArgument) {
@@ -1087,7 +1094,7 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 					throw new Error('spread not implemented yet for assume');
 				}
 				else {
-					return expressionToJs(firstValue, indent);
+					return expressionToJs(checkResult, firstValue, indent);
 				}
 			}
 			default:
@@ -1095,28 +1102,28 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 		}
 	}
 	if (isNamedFunction(functionExpression, 'test')) {
-		return testCallToJs(expression, functionExpression, indent);
+		return testCallToJs(checkResult, expression, functionExpression, indent);
 	}
-	const shortCircuitJs = shortCircuitCallToJs(expression, prefixArgJs, indent);
+	const shortCircuitJs = shortCircuitCallToJs(checkResult, expression, prefixArgJs, indent);
 	if (shortCircuitJs !== undefined) {
 		return shortCircuitJs;
 	}
-	const functionJs = expressionToJs(functionExpression, indent);
+	const functionJs = expressionToJs(checkResult, functionExpression, indent);
 	const testCallName = expression === instrumentedTestCall
 		&& functionExpression.type === 'reference'
 		? functionExpression.name.name
 		: undefined;
 	if (testCallName !== undefined
 		&& (args?.type === 'list' || args?.type === 'empty' || !args)) {
-		return testCallToInstrumentedJs(testCallName, functionJs, expression, indent);
+		return testCallToInstrumentedJs(checkResult, testCallName, functionJs, expression, indent);
 	}
-	const inlinedListJs = inlinedListCallToJs(expression, prefixArgJs, indent);
+	const inlinedListJs = inlinedListCallToJs(checkResult, expression, prefixArgJs, indent);
 	if (inlinedListJs !== undefined) {
 		return inlinedListJs;
 	}
 	switch (args?.type) {
 		case 'list': {
-			const jsValues = parseListValuesToJs(args.values, indent);
+			const jsValues = parseListValuesToJs(checkResult, args.values, indent);
 			const firstValue = args.values[0];
 			if (prefixArgument) {
 				jsValues.unshift(prefixArgJs);
@@ -1130,14 +1137,14 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 		}
 		case 'object': {
 			// Nur Spreads: eine List, wie f(1 ...values) (der Checker lässt nichts anderes zu).
-			const jsValues = parseListValuesToJs(args.values, indent);
+			const jsValues = parseListValuesToJs(checkResult, args.values, indent);
 			if (prefixArgument) {
 				jsValues.unshift(prefixArgJs);
 			}
 			return `${functionJs}(${listValuesToJs(jsValues, indent)})`;
 		}
 		case 'dictionary': {
-			const directCallJs = namedArgumentsToDirectCallJs(expression.calledParameterNames, functionJs, prefixArgument, args, indent);
+			const directCallJs = namedArgumentsToDirectCallJs(checkResult, getCalledParameterNames(checkResult, expression), functionJs, prefixArgument, args, indent);
 			if (directCallJs) {
 				return directCallJs;
 			}
@@ -1148,7 +1155,7 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
 					|| !field.value) {
 					throw new Error('unexpected field in named arguments.');
 				}
-				return expressionToJs(field.value, indent + 1);
+				return expressionToJs(checkResult, field.value, indent + 1);
 			});
 			if (prefixArgument) {
 				jsArguments.unshift(prefixArgJs);
@@ -1171,8 +1178,8 @@ function functionCallToJs(expression: ParseFunctionCall, indent: number): string
  * Der Name der Typfunktion, wenn der Checker diesen Aufruf als ihre Anwendung auf sich selbst
  * markiert hat (Typ TypeOf(alias mit args)).
  */
-function getSelfAppliedTypeFunctionName(expression: ParseFunctionCall): string | undefined {
-	const type = expression.typeInfo?.type;
+function getSelfAppliedTypeFunctionName(checkResult: CheckResult, expression: ParseFunctionCall): string | undefined {
+	const type = getTypeInfo(checkResult, expression)?.type;
 	return type?.julType === 'typeOf'
 		&& type.value.julType === 'alias'
 		&& type.value.args
@@ -1193,7 +1200,7 @@ const shortCircuitOperators: { readonly [functionName: string]: string | undefin
  * Argumenten (und wenn die Funktion als Wert weitergereicht wird) bleibt es beim Funktionsaufruf, der
  * alle Argumente auswertet. Der Name allein genügt, weil and/or nicht überschrieben werden können.
  */
-function shortCircuitCallToJs(expression: ParseFunctionCall, prefixArgJs: string, indent: number): string | undefined {
+function shortCircuitCallToJs(checkResult: CheckResult, expression: ParseFunctionCall, prefixArgJs: string, indent: number): string | undefined {
 	const functionExpression = expression.functionExpression;
 	const args = expression.arguments;
 	if (functionExpression?.type !== 'reference'
@@ -1212,7 +1219,7 @@ function shortCircuitCallToJs(expression: ParseFunctionCall, prefixArgJs: string
 		if (value.type === 'spread') {
 			return undefined;
 		}
-		operands.push(operandToJs(value, expressionToJs(value, indent)));
+		operands.push(operandToJs(value, expressionToJs(checkResult, value, indent)));
 	}
 	return operands.join(` ${operator} `);
 }
@@ -1336,7 +1343,7 @@ const inlinedListParameterJs: { readonly [parameter in InlinedListParameter]: st
  * Alles andere (Callback als Wert, Typ-Guards, Rest, Spread, benannte Argumente) bleibt beim
  * Funktionsaufruf.
  */
-function inlinedListCallToJs(expression: ParseFunctionCall, prefixArgJs: string, indent: number): string | undefined {
+function inlinedListCallToJs(checkResult: CheckResult, expression: ParseFunctionCall, prefixArgJs: string, indent: number): string | undefined {
 	const functionExpression = expression.functionExpression;
 	const args = expression.arguments;
 	if (functionExpression?.type !== 'reference'
@@ -1366,20 +1373,20 @@ function inlinedListCallToJs(expression: ParseFunctionCall, prefixArgJs: string,
 	const listOffset = hasPrefix ? 0 : 1;
 	const valuesJs = hasPrefix
 		? prefixArgJs
-		: expressionToJs(values[0]!, indent + 1);
+		: expressionToJs(checkResult, values[0]!, indent + 1);
 	const delimiterJs = getRowDelimiterJs(indent + 2);
 	const bodyIndent = indent + 3;
 	const bodyDelimiterJs = getRowDelimiterJs(bodyIndent);
 	const bindings = callback.params.singleFields.map((field, index) =>
 		`const ${escapeReservedJsVariableName(field.name.name)} = ${inlinedListParameterJs[inlined.parameters[index]!]};`);
 	const body = callback.body;
-	const statements = body.slice(0, -1).map(statement => sourcePositionMarkerJs(statement) + expressionToJs(statement, bodyIndent));
+	const statements = body.slice(0, -1).map(statement => sourcePositionMarkerJs(statement) + expressionToJs(checkResult, statement, bodyIndent));
 	const last = body[body.length - 1]!;
-	statements.push(`${sourcePositionMarkerJs(last)}${inlined.step(expressionToJs(last, bodyIndent), bodyDelimiterJs)}`);
+	statements.push(`${sourcePositionMarkerJs(last)}${inlined.step(expressionToJs(checkResult, last, bodyIndent), bodyDelimiterJs)}`);
 	const header = [`const _listValues = ${valuesJs};`];
 	if (inlined.initialValueArgument !== undefined) {
 		const initialValue = values[listOffset + inlined.initialValueArgument]!;
-		header.push(`let _listAccumulator = ${expressionToJs(initialValue, indent + 1)};`);
+		header.push(`let _listAccumulator = ${expressionToJs(checkResult, initialValue, indent + 1)};`);
 	}
 	header.push(`if (!_listValues) {${bodyDelimiterJs}return ${inlined.emptyResult};${delimiterJs}}`, ...inlined.init);
 	const loop = `for (let _listIndex = 0; _listIndex < _listValues.length; _listIndex++) {${bodyDelimiterJs}${[...bindings, ...statements].join(bodyDelimiterJs)}${delimiterJs}}`;
@@ -1420,7 +1427,7 @@ function isEvaluatedDuringOwnDefinition(reference: ParseReference, name: string)
 	return false;
 }
 
-function parametersToJs(parameters: ParseParameterFields, indent: number): string {
+function parametersToJs(checkResult: CheckResult, parameters: ParseParameterFields, indent: number): string {
 	const innerIndent = indent + 1;
 	const innerIndent2 = indent + 2;
 	const innerIndent3 = indent + 3;
@@ -1432,7 +1439,7 @@ function parametersToJs(parameters: ParseParameterFields, indent: number): strin
 				fieldsJs.push(singleDictionaryFieldToJsInternal('source', stringToJs(field.source.name)));
 			}
 			if (field.typeGuard) {
-				fieldsJs.push(singleDictionaryFieldToJsInternal('type', expressionToJs(field.typeGuard, innerIndent3)));
+				fieldsJs.push(singleDictionaryFieldToJsInternal('type', expressionToJs(checkResult, field.typeGuard, innerIndent3)));
 			}
 			return dictionaryToJs(fieldsJs, innerIndent2);
 		});
@@ -1442,7 +1449,7 @@ function parametersToJs(parameters: ParseParameterFields, indent: number): strin
 	if (parameters.rest) {
 		const restFieldsJs: string[] = [];
 		if (parameters.rest.typeGuard) {
-			restFieldsJs.push(singleDictionaryFieldToJsInternal('type', expressionToJs(parameters.rest.typeGuard, innerIndent2)));
+			restFieldsJs.push(singleDictionaryFieldToJsInternal('type', expressionToJs(checkResult, parameters.rest.typeGuard, innerIndent2)));
 		}
 		const restJs = dictionaryToJs(restFieldsJs, innerIndent);
 		parametersFieldsJs.push(singleDictionaryFieldToJsInternal('rest', restJs));
@@ -1450,12 +1457,12 @@ function parametersToJs(parameters: ParseParameterFields, indent: number): strin
 	return dictionaryToJs(parametersFieldsJs, indent);
 }
 
-function textLiteralToJs(stringLiteral: ParseTextLiteral, indent: number): string {
+function textLiteralToJs(checkResult: CheckResult, stringLiteral: ParseTextLiteral, indent: number): string {
 	const stringValue = stringLiteral.values.map(value => {
 		if (value.type === 'textToken') {
 			return escapeStringForBacktickJs(value.value);
 		}
-		return `\${${expressionToJs(value, indent)}}`;
+		return `\${${expressionToJs(checkResult, value, indent)}}`;
 	}).join('');
 	return `\`${stringValue}\``;
 }
@@ -1531,7 +1538,7 @@ function stringToJs(value: string): string {
  * Immer positionell und mit der Stelle des Aufrufs als drittem Argument, auch wenn die Argumente
  * benannt geschrieben sind.
  */
-function testCallToJs(call: ParseFunctionCall, functionExpression: SimpleExpression, indent: number): string {
+function testCallToJs(checkResult: CheckResult, call: ParseFunctionCall, functionExpression: SimpleExpression, indent: number): string {
 	const { name, callback } = getTestArguments(call);
 	const previousInstrumentedCall = instrumentedTestCall;
 	instrumentedTestCall = callback.type === 'functionLiteral'
@@ -1541,9 +1548,9 @@ function testCallToJs(call: ParseFunctionCall, functionExpression: SimpleExpress
 		const innerIndent = indent + 1;
 		const locationJs = `{ file: ${stringToJs(sourceFilePath)}, row: ${call.startRowIndex + 1}, column: ${call.startColumnIndex + 1} }`;
 		const valuesJs = listValuesToJs(
-			[expressionToJs(name, innerIndent), expressionToJs(callback, innerIndent), locationJs],
+			[expressionToJs(checkResult, name, innerIndent), expressionToJs(checkResult, callback, innerIndent), locationJs],
 			indent);
-		return `${expressionToJs(functionExpression, indent)}(${valuesJs})`;
+		return `${expressionToJs(checkResult, functionExpression, indent)}(${valuesJs})`;
 	}
 	finally {
 		instrumentedTestCall = previousInstrumentedCall;
@@ -1562,13 +1569,13 @@ function getTestArguments(call: ParseFunctionCall): { name: ParseValueExpression
  * Der äußerste Aufruf im Callback, mit Listenargumenten. Die Argumente stehen als Array eine
  * Ebene tiefer als bei einem direkten Aufruf.
  */
-function testCallToInstrumentedJs(name: string, functionJs: string, call: ParseFunctionCall, indent: number): string {
+function testCallToInstrumentedJs(checkResult: CheckResult, name: string, functionJs: string, call: ParseFunctionCall, indent: number): string {
 	const valuesIndent = indent + 1;
 	const jsValues = call.arguments?.type === 'list'
-		? parseListValuesToJs(call.arguments.values, valuesIndent)
+		? parseListValuesToJs(checkResult, call.arguments.values, valuesIndent)
 		: [];
 	if (call.prefixArgument) {
-		jsValues.unshift(expressionToJs(call.prefixArgument, valuesIndent + 1));
+		jsValues.unshift(expressionToJs(checkResult, call.prefixArgument, valuesIndent + 1));
 	}
 	const argsJs = `[${listValuesToJs(jsValues, valuesIndent)}]`;
 	return `_testCall(${listValuesToJs([stringToJs(name), functionJs, argsJs], indent)})`;

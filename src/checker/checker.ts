@@ -91,6 +91,7 @@ import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex,
 import { collectCompletedNames, collectCompletedNamesByBody, reportStreamsWithoutEnd } from './stream-lifetime.js';
 import { applyIgnoreComments } from '../parser/comment-directives.js';
 import { checkerStats } from './checker-stats.js';
+import { CheckResult, createCheckResult, getExpectedType, getTypeInfo, setCalledFunctionType, setCalledParameterNames, setExpectedType, setTypeInfo } from './check-result.js';
 import {
 	applyBranchHead,
 	BranchCoverage,
@@ -231,12 +232,13 @@ function recordDestructuringFieldReferences(
  * nach dem Aussortieren übrig bleiben, und zwar alle davon.
  */
 function recordContextualFieldReferences(
+	checkResult: CheckResult,
 	dictionary: ParseDictionaryLiteral,
 	fieldTypes: CompileTimeDictionary,
 	referenceIndex: ReferenceIndex,
 	filePath: string,
 ): void {
-	const expectedType = narrowExpectedTypeByFields(dictionary.expectedType, fieldTypes, getWrittenFieldNames(dictionary));
+	const expectedType = narrowExpectedTypeByFields(getExpectedType(checkResult, dictionary), fieldTypes, getWrittenFieldNames(dictionary));
 	if (!expectedType) {
 		return;
 	}
@@ -395,9 +397,12 @@ const completedNamesByBody = new WeakMap<readonly PositionedExpression[], Set<st
 // Prozess gelesen statt je Host.
 const parsedCoreLib = parseFile(coreLibPath);
 const parsedCoreLib2 = parsedCoreLib.unchecked;
+const coreLibCheckResult = createCheckResult(coreLibPath);
+parsedCoreLib.checkResult = coreLibCheckResult;
 inferFileTypes([], {
 	documents: {},
 	file: parsedCoreLib2,
+	result: coreLibCheckResult,
 	folder: '',
 	filePath: '',
 	referenceIndex: undefined,
@@ -430,11 +435,11 @@ function isTypeName(name: string): boolean {
  * Ruft sich eine Typfunktion im eigenen Rumpf auf (`Tree(T)` in `Tree = (T: Type) => ...`)? Ihr
  * Symbol hat dann noch keinen Typ, und die Referenz steht für den Alias (siehe dereferenceType).
  */
-function getSelfAppliedTypeFunction(functionExpression: SimpleExpression): CompileTimeAliasType | undefined {
+function getSelfAppliedTypeFunction(checkResult: CheckResult, functionExpression: SimpleExpression): CompileTimeAliasType | undefined {
 	if (functionExpression.type !== 'reference') {
 		return undefined;
 	}
-	const type = functionExpression.typeInfo?.type;
+	const type = getTypeInfo(checkResult, functionExpression)?.type;
 	if (type?.julType !== 'typeOf'
 		|| type.value.julType !== 'alias'
 		|| type.value.args) {
@@ -951,6 +956,8 @@ export function checkTypes(
 	resetFoldBudget();
 	const checked = document.unchecked;
 	document.checked = checked;
+	const result = createCheckResult(document.filePath);
+	document.checkResult = result;
 	// Große Datendateien liefern dem Importeur Any, ihr Typ wird nie gelesen. Der Emitter
 	// braucht für Daten keine typeInfo.
 	if (document.untyped
@@ -966,6 +973,7 @@ export function checkTypes(
 	inferFileTypes(scopes, {
 		documents: documents,
 		file: checked,
+		result: result,
 		folder: document.sourceFolder,
 		filePath: document.filePath,
 		referenceIndex: referenceIndex,
@@ -977,7 +985,7 @@ export function checkTypes(
 	if (extname(document.filePath) === Extension.jul
 		&& !isCoreLibPath(document.filePath)) {
 		reportUnusedDefinitions(checked);
-		reportStreamsWithoutEnd(checked.expressions, checked.errors);
+		reportStreamsWithoutEnd(result, checked.expressions, checked.errors);
 	}
 	if (isTestFilePath(document.filePath)) {
 		reportDuplicateTestNames(checked);
@@ -1110,6 +1118,8 @@ function withCompletedStream(typeInfo: TypeInfo, scope: SymbolTable, name: strin
 interface CheckContext {
 	readonly documents: ParsedDocuments;
 	readonly file: ParsedExpressions2;
+	/** Wohin dieser Prüflauf seine Ergebnisse schreibt, siehe check-result.ts. */
+	readonly result: CheckResult;
 	/**
 	 * Leerstring, wenn builtin.
 	 */
@@ -1289,6 +1299,7 @@ function withNarrowedType(
  * Index-Pfade tragen diesen Schluss noch nicht.
  */
 function withNarrowedPath(
+	checkResult: CheckResult,
 	narrowedTypes: NarrowedTypes | undefined,
 	expression: ParseValueExpression,
 	getType: () => CompileTimeType,
@@ -1318,7 +1329,7 @@ function withNarrowedPath(
 		const getFieldType = getNarrowedSourceType;
 		getNarrowedSourceType = createLazyType(() => {
 			const sourceType = getNarrowedType(resultBefore, sourcePath.symbol, sourcePath.keys)
-				?? source.typeInfo?.type
+				?? getTypeInfo(checkResult, source)?.type
 				?? builtinAny;
 			return createNormalizedIntersectionType([
 				sourceType,
@@ -1355,12 +1366,13 @@ function getOriginExpression(symbol: SymbolDefinition): ParseValueExpression | u
  * false ist. Ist es beides möglich, bleibt der Typ, wie er ist.
  */
 function withNarrowedPredicateSubject(
+	checkResult: CheckResult,
 	narrowedTypes: NarrowedTypes | undefined,
 	argument: ParseValueExpression,
 	getConditionType: () => CompileTimeType,
 	scopes: SymbolTable[],
 ): NarrowedTypes | undefined {
-	const predicateCall = getPredicateCallOfArgument(argument, scopes);
+	const predicateCall = getPredicateCallOfArgument(checkResult, argument, scopes);
 	if (!predicateCall) {
 		return narrowedTypes;
 	}
@@ -1374,7 +1386,7 @@ function withNarrowedPredicateSubject(
 		// Aufgelöst: Ein Parameter steht hier noch als Platzhalter, und unter Not entscheidet die
 		// Typalgebra die Zuweisung erst über den aufgelösten Typ.
 		const currentType = resolvePlaceholders(getNarrowedType(narrowedTypes, subjectPath.symbol, subjectPath.keys)
-			?? subject.typeInfo?.type
+			?? getTypeInfo(checkResult, subject)?.type
 			?? builtinAny);
 		const conditionType = getConditionType();
 		if (isSubtypeOf(conditionType, coreBuiltInSymbolTypes.true!) === true) {
@@ -1389,7 +1401,7 @@ function withNarrowedPredicateSubject(
 		}
 		return currentType;
 	});
-	return withNarrowedPath(narrowedTypes, subject, getSubjectNarrowedType, scopes);
+	return withNarrowedPath(checkResult, narrowedTypes, subject, getSubjectNarrowedType, scopes);
 }
 
 /**
@@ -1426,8 +1438,8 @@ function getBranchArgumentType(
  * Der Parametertyp aus dem geprüften params-Ausdruck. Ein Listenliteral als Kopf wird zur
  * Parameterliste ohne Namen (siehe createUnnamedParametersType).
  */
-function getHeadParamsType(params: ParseFunctionLiteral['params']): CompileTimeType {
-	const paramsType = valueOf(params.typeInfo!.type);
+function getHeadParamsType(checkResult: CheckResult, params: ParseFunctionLiteral['params']): CompileTimeType {
+	const paramsType = valueOf(getTypeInfo(checkResult, params)!.type);
 	return params.type === 'list'
 		? createUnnamedParametersType(paramsType)
 		: paramsType;
@@ -1774,6 +1786,7 @@ function instantiateExpectedCallback(
  * Aussage") ist überall erlaubt, zu klein bzw. zu groß wäre der Fehler, der verengt, wo nichts folgt.
  */
 function getPredicateFacts(
+	checkResult: CheckResult,
 	expression: ParseFunctionLiteral,
 	returnType: CompileTimeType,
 ): PredicateFacts | undefined {
@@ -1788,7 +1801,7 @@ function getPredicateFacts(
 		: undefined;
 	const parameterName = params.singleFields[0]!.name.name;
 	if (body?.type === 'functionCall') {
-		return getPredicateFactsFromCall(body, parameterName, returnType);
+		return getPredicateFactsFromCall(checkResult, body, parameterName, returnType);
 	}
 	if (body?.type !== 'branching') {
 		return undefined;
@@ -1815,11 +1828,11 @@ function getPredicateFacts(
 	const caughtTypes: CompileTimeType[] = [];
 	let caughtUnknown = false;
 	for (const branch of branching.branches) {
-		const branchReturnType = getReturnTypeFromFunctionType(branch.typeInfo);
+		const branchReturnType = getReturnTypeFromFunctionType(getTypeInfo(checkResult, branch));
 		const isLiteral = branchReturnType.julType === 'booleanLiteral';
 		const isAlwaysFalse = isLiteral && !branchReturnType.value;
 		const branchValueType = getBranchArgumentType(
-			getParamsType(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type)),
+			getParamsType(getTypeInfo(checkResult, branch) && resolvePlaceholders(getTypeInfo(checkResult, branch)!.type)),
 			0);
 		if (!branchValueType) {
 			if (!isAlwaysFalse) {
@@ -1866,11 +1879,12 @@ function getPredicateFacts(
  * Prädikat etwas aussagt.
  */
 function getPredicateFactsFromCall(
+	checkResult: CheckResult,
 	call: ParseFunctionCall,
 	parameterName: string,
 	returnType: CompileTimeType,
 ): PredicateFacts | undefined {
-	const predicateCall = getPredicateCall(call);
+	const predicateCall = getPredicateCall(checkResult, call);
 	const subject = predicateCall?.subject;
 	if (subject?.type !== 'reference'
 		|| subject.name.name !== parameterName) {
@@ -1894,8 +1908,8 @@ interface PredicateCall {
  * Aufrufs instanziiert. Die billigen Formprüfungen stehen vorn, denn sie laufen für jedes
  * Funktionsliteral mit einem Aufruf als Rumpf und für jeden Aufruf, über den gebrancht wird.
  */
-function getPredicateCall(call: ParseFunctionCall): PredicateCall | undefined {
-	const calleeType = call.functionExpression?.typeInfo && resolveAlias(call.functionExpression.typeInfo.type);
+function getPredicateCall(checkResult: CheckResult, call: ParseFunctionCall): PredicateCall | undefined {
+	const calleeType = getTypeInfo(checkResult, call.functionExpression) && resolveAlias(getTypeInfo(checkResult, call.functionExpression)!.type);
 	if (!calleeType
 		|| !isFunctionType(calleeType)
 		|| (!calleeType.contract && !calleeType.predicate)) {
@@ -1924,12 +1938,12 @@ function getPredicateCall(call: ParseFunctionCall): PredicateCall | undefined {
 	// feststehen. x.equal(n) mit n: Integer hieße sonst bei false "x ist kein Integer".
 	const hasOnlyLiteralOthers = args.every((otherArgument, index) =>
 		index === parameterIndex
-		|| (otherArgument.typeInfo !== undefined
-			&& isSingletonLiteral(resolvePlaceholders(otherArgument.typeInfo.type))));
+		|| (getTypeInfo(checkResult, otherArgument) !== undefined
+			&& isSingletonLiteral(resolvePlaceholders(getTypeInfo(checkResult, otherArgument)!.type))));
 	if (!hasOnlyLiteralOthers) {
 		return undefined;
 	}
-	const argsType = bindReceiver(call.prefixArgument?.typeInfo?.type, call.arguments?.typeInfo?.type ?? builtinAny);
+	const argsType = bindReceiver(getTypeInfo(checkResult, call.prefixArgument)?.type, getTypeInfo(checkResult, call.arguments)?.type ?? builtinAny);
 	const contractType = dereferenceArgumentTypesNested(calleeType, argsType, contract.type);
 	if (isDeferredType(contractType)
 		|| hasUndecidableBound(contractType)) {
@@ -1950,11 +1964,12 @@ function getPredicateCall(call: ParseFunctionCall): PredicateCall | undefined {
  * Ergebnis des Aufrufs gilt also auch im branching über den Namen.
  */
 function getPredicateCallOfArgument(
+	checkResult: CheckResult,
 	argument: ParseValueExpression,
 	scopes: SymbolTable[],
 ): PredicateCall | undefined {
 	if (argument.type === 'functionCall') {
-		return getPredicateCall(argument);
+		return getPredicateCall(checkResult, argument);
 	}
 	if (argument.type !== 'reference') {
 		return undefined;
@@ -1962,7 +1977,7 @@ function getPredicateCallOfArgument(
 	const definition = findSymbolInScopesWithBuiltIns(argument.name.name, scopes)?.symbol.definition;
 	return definition?.type === 'definition'
 		&& definition.value?.type === 'functionCall'
-		? getPredicateCall(definition.value)
+		? getPredicateCall(checkResult, definition.value)
 		: undefined;
 }
 
@@ -2020,7 +2035,7 @@ function getContractSignature(isCall: ParseFunctionCall): ParseFunctionTypeLiter
  * Is(parameter Typ) als Rückgabetyp einer nativeFunction-Signatur. Der Typ darf Platzhalter auf die
  * übrigen Parameter enthalten, eingesetzt wird erst in getPredicateFactsFromCall.
  */
-function getPredicateContract(signature: ParseFunctionTypeLiteral): PredicateContract | undefined {
+function getPredicateContract(checkResult: CheckResult, signature: ParseFunctionTypeLiteral): PredicateContract | undefined {
 	const isCall = signature.returnType;
 	if (isCall.type !== 'functionCall'
 		|| isCall.functionExpression?.type !== 'reference'
@@ -2031,7 +2046,7 @@ function getPredicateContract(signature: ParseFunctionTypeLiteral): PredicateCon
 	}
 	const [valueArgument, typeArgument] = getWrittenArguments(isCall.arguments) ?? [];
 	if (valueArgument?.type !== 'reference'
-		|| !typeArgument?.typeInfo) {
+		|| !getTypeInfo(checkResult, typeArgument)) {
 		return undefined;
 	}
 	const parameterIndex = signature.params.singleFields.findIndex(field =>
@@ -2041,7 +2056,7 @@ function getPredicateContract(signature: ParseFunctionTypeLiteral): PredicateCon
 	}
 	return {
 		parameterIndex: parameterIndex,
-		type: valueOf(typeArgument.typeInfo.type),
+		type: valueOf(getTypeInfo(checkResult, typeArgument)!.type),
 	};
 }
 
@@ -2057,14 +2072,14 @@ function setInferredType(
 	expectedType: CompileTimeType | undefined,
 	checkContext: CheckContext,
 ): void {
-	if (expression.typeInfo) {
+	if (getTypeInfo(checkContext.result, expression)) {
 		return;
 	}
 	const checkedExpectedType = toExpectedType(expectedType);
 	if (checkedExpectedType) {
-		expression.expectedType = checkedExpectedType;
+		setExpectedType(checkContext.result, expression, checkedExpectedType);
 	}
-	expression.typeInfo = withExpressionListLength(expression, inferType(expression, typeContext, checkContext), typeContext);
+	setTypeInfo(checkContext.result, expression, withExpressionListLength(expression, inferType(expression, typeContext, checkContext), typeContext));
 }
 
 /**
@@ -2147,12 +2162,12 @@ function inferType(
 			}
 			const branches = expression.branches;
 			// Der Rest vor jedem branch, siehe branch-coverage.ts. Die Verengung im Rumpf liest ihn.
-			let coverage = createBranchCoverage(args?.typeInfo && resolvePlaceholders(args.typeInfo.type));
+			let coverage = createBranchCoverage(getTypeInfo(checkContext.result, args) && resolvePlaceholders(getTypeInfo(checkContext.result, args)!.type));
 			branches.forEach(branch => {
 				coverageBeforeBranch.set(branch, coverage);
 				setInferredType(branch, typeContext, undefined, checkContext);
-				checkIsFunction(branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
-				const head = getBranchHeadOfFunction(branch.typeInfo && resolvePlaceholders(branch.typeInfo.type));
+				checkIsFunction(checkContext.result, branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
+				const head = getBranchHeadOfFunction(getTypeInfo(checkContext.result, branch) && resolvePlaceholders(getTypeInfo(checkContext.result, branch)!.type));
 				const step = applyBranchHead(coverage, head);
 				coverage = step.coverage;
 				if (step.unreachable) {
@@ -2167,7 +2182,7 @@ function inferType(
 				}
 			});
 			const branchReturnTypes = expression.branches.map(branch => {
-				return getReturnTypeFromFunctionType(branch.typeInfo);
+				return getReturnTypeFromFunctionType(getTypeInfo(checkContext.result, branch));
 			});
 			// _branch (runtime.ts) gibt Error zurück, wenn kein branch matcht. Das gehört nur
 			// dann nicht in den Typ, wenn beweisbar kein Wert von args durchrutschen kann.
@@ -2203,15 +2218,15 @@ function inferType(
 			// Operanden, Köpfe und Ergebnisse werden gelesen wie der Ausdruck hinter ->: als
 			// Wertemenge, nicht als Typwert.
 			const operands = args
-				? getArgValueExpressions(args).map(arg => valueOf(arg?.typeInfo?.type))
+				? getArgValueExpressions(args).map(arg => valueOf(getTypeInfo(checkContext.result, arg)?.type))
 				: [];
 			const conditionalBranches: ConditionalTypeBranch[] = [];
 			expression.branches.forEach(branch => {
 				setInferredType(branch, typeContext, undefined, checkContext);
-				if (!checkIsFunction(branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors)) {
+				if (!checkIsFunction(checkContext.result, branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors)) {
 					return;
 				}
-				const branchType = resolveAlias(branch.typeInfo!.type);
+				const branchType = resolveAlias(getTypeInfo(checkContext.result, branch)!.type);
 				if (!isFunctionType(branchType)) {
 					return;
 				}
@@ -2260,10 +2275,10 @@ function inferType(
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
 				setInferredType(typeGuard, typeContext, undefined, checkContext);
-				checkTypeGuardIsType(typeGuard, errors);
+				checkTypeGuardIsType(checkContext.result, typeGuard, errors);
 			}
 			if (value) {
-				const expectedValueType = typeGuard?.typeInfo && valueOf(typeGuard.typeInfo.type);
+				const expectedValueType = getTypeInfo(checkContext.result, typeGuard) && valueOf(getTypeInfo(checkContext.result, typeGuard)!.type);
 				setInferredType(value, typeContext, expectedValueType, checkContext);
 			}
 			const circularReference = value && findUnproductiveSelfReferenceInDefinition(value, name);
@@ -2283,8 +2298,8 @@ function inferType(
 				typeInfo = { type: rawType };
 			}
 			else {
-				if (value?.typeInfo) {
-					typeInfo = value.typeInfo;
+				if (getTypeInfo(checkContext.result, value)) {
+					typeInfo = getTypeInfo(checkContext.result, value)!;
 				}
 				else {
 					// Ohne Wert hat der Parser die Definition schon gemeldet (assignedValue missing).
@@ -2303,11 +2318,11 @@ function inferType(
 			// Ein hingeschriebener TypeGuard ist die erklärte Absicht und geht dem inferierten Typ vor.
 			checkNamingCase(
 				expression.name,
-				typeGuard?.typeInfo ? valueOf(typeGuard.typeInfo.type) : typeInfo.type,
+				getTypeInfo(checkContext.result, typeGuard) ? valueOf(getTypeInfo(checkContext.result, typeGuard)!.type) : typeInfo.type,
 				errors,
 			);
 			if (typeGuard) {
-				const typeGuardType = typeGuard.typeInfo;
+				const typeGuardType = getTypeInfo(checkContext.result, typeGuard);
 				const dereferencedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
 				const assignability = dereferencedTargetType && isTypeAssignable(resolvePlaceholders(typeInfo.type), dereferencedTargetType);
 				if (assignability && assignability.assignable === false) {
@@ -2316,7 +2331,7 @@ function inferType(
 					// die innerste noch vorhandene, tatsächlich falsche Stelle (TypeScript/
 					// Rust/Elm-Vorbild: eine Diagnose, eine möglichst genaue Position, statt
 					// einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle).
-					const innerPosition = dereferencedTargetType && findInnermostErrorPosition(value);
+					const innerPosition = dereferencedTargetType && findInnermostErrorPosition(checkContext.result, value);
 					const position = innerPosition ?? expression;
 
 					// Ob die umhüllende "Can not assign X to Y."-Zeile fehlt, entscheidet
@@ -2383,12 +2398,12 @@ function inferType(
 							});
 						}
 					}
-					if (value?.typeInfo && !isImportFunctionCall(value)) {
-						recordDestructuringFieldReferences(field, value.typeInfo.type, localSymbol, referenceIndex, filePath);
+					if (value && getTypeInfo(checkContext.result, value) && !isImportFunctionCall(value)) {
+						recordDestructuringFieldReferences(field, getTypeInfo(checkContext.result, value)!.type, localSymbol, referenceIndex, filePath);
 					}
 				}
-				const valueType: CompileTimeType = value?.typeInfo
-					? value.typeInfo.type
+				const valueType: CompileTimeType = getTypeInfo(checkContext.result, value)
+					? getTypeInfo(checkContext.result, value)!.type
 					: builtinAny;
 				// Die Laufzeit greift bei einem Array über die Position zu, sonst über den Namen
 				// (_isArray ? _temp[index] : _temp.name) - der Checker prüft deshalb beides.
@@ -2422,9 +2437,9 @@ function inferType(
 				const typeGuard = field.typeGuard;
 				if (typeGuard) {
 					setInferredType(typeGuard, typeContext, undefined, checkContext);
-					checkTypeGuardIsType(typeGuard, errors);
+					checkTypeGuardIsType(checkContext.result, typeGuard, errors);
 					// TODO check value?
-					const assignability = typeGuard.typeInfo && isTypeAssignable(fieldType, valueOf(resolvePlaceholders(typeGuard.typeInfo.type)));
+					const assignability = getTypeInfo(checkContext.result, typeGuard) && isTypeAssignable(fieldType, valueOf(resolvePlaceholders(getTypeInfo(checkContext.result, typeGuard)!.type)));
 					if (assignability && assignability.assignable === false) {
 						errors.push({
 							code: ErrorCode.destructuringFieldTypeMismatch,
@@ -2449,7 +2464,7 @@ function inferType(
 			const createDictionary = (fields: CompileTimeFields, complete = true) => createCompileTimeDictionaryLiteralType(
 				fields,
 				complete,
-				{ expression: expression, filePath: filePath },
+				{ expression: expression, filePath: filePath, result: checkContext.result },
 				aliasName);
 			// Das Literal entsteht von links nach rechts: jeder Spread wird auf das bisherige Ergebnis
 			// gemergt. undefined heißt, der Typ ist nicht mehr entscheidbar.
@@ -2483,13 +2498,13 @@ function inferType(
 							|| value.type === 'dictionary'
 							|| value.type === 'list';
 						const expectedDictionaryType = needsUniqueChoice
-							? narrowExpectedTypeByFields(expression.expectedType, writtenFieldTypes, writtenFieldNames)
-							: expression.expectedType;
+							? narrowExpectedTypeByFields(getExpectedType(checkContext.result, expression), writtenFieldTypes, writtenFieldNames)
+							: getExpectedType(checkContext.result, expression);
 						expectedFieldType = getExpectedFieldType(expectedDictionaryType, fieldName);
 					}
 					setInferredType(value, typeContext, expectedFieldType, checkContext);
-					if (fieldName !== undefined && value.typeInfo) {
-						writtenFieldTypes[fieldName] = value.typeInfo.type;
+					if (fieldName !== undefined && getTypeInfo(checkContext.result, value)) {
+						writtenFieldTypes[fieldName] = getTypeInfo(checkContext.result, value)!.type;
 					}
 				}
 				switch (field.type) {
@@ -2498,7 +2513,7 @@ function inferType(
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = field.value?.typeInfo?.type ?? builtinAny;
+						const fieldType = getTypeInfo(checkContext.result, field.value)?.type ?? builtinAny;
 						pendingFields[fieldName] = { type: fieldType, optional: false };
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
@@ -2511,7 +2526,7 @@ function inferType(
 						// resolvePlaceholders nötig: sonst wird z.B. eine Parameter-Typreferenz
 						// nicht als dictionaryLiteral erkannt und der gesamte Literal-Typ fällt
 						// still auf Any zurück (verschluckt dann jeden Folgefehler).
-						const valueType = value?.typeInfo && resolvePlaceholders(value.typeInfo.type);
+						const valueType = getTypeInfo(checkContext.result, value) && resolvePlaceholders(getTypeInfo(checkContext.result, value)!.type);
 						mergePendingFields();
 						literalType = literalType
 							&& valueType
@@ -2525,7 +2540,7 @@ function inferType(
 			});
 			mergePendingFields();
 			if (referenceIndex) {
-				recordContextualFieldReferences(expression, writtenFieldTypes, referenceIndex, filePath);
+				recordContextualFieldReferences(checkContext.result, expression, writtenFieldTypes, referenceIndex, filePath);
 			}
 			return { type: literalType ?? builtinAny };
 		}
@@ -2539,12 +2554,12 @@ function inferType(
 							return;
 						}
 						setInferredType(typeGuard, typeContext, undefined, checkContext);
-						checkTypeGuardIsType(typeGuard, errors);
+						checkTypeGuardIsType(checkContext.result, typeGuard, errors);
 						const fieldName = getCheckedEscapableName(field.name);
 						if (!fieldName) {
 							return;
 						}
-						const fieldType = valueOf(typeGuard.typeInfo?.type);
+						const fieldType = valueOf(getTypeInfo(checkContext.result, typeGuard)?.type);
 						fields[fieldName] = { type: fieldType, optional: field.optional ?? false };
 						const fieldSymbol = expression.symbols[fieldName];
 						if (!fieldSymbol) {
@@ -2558,8 +2573,8 @@ function inferType(
 						// resolvePlaceholders/valueOf nötig: die Quelle steht als Typausdruck
 						// (TypeOf(dictionaryLiteral)) da, nicht als Wert - dieselbe Begründung
 						// wie beim Spread in case 'dictionary'.
-						const spreadType = field.value.typeInfo
-							&& resolveAlias(valueOf(resolvePlaceholders(field.value.typeInfo.type)));
+						const spreadType = getTypeInfo(checkContext.result, field.value)
+							&& resolveAlias(valueOf(resolvePlaceholders(getTypeInfo(checkContext.result, field.value)!.type)));
 						if (isDictionaryLiteralType(spreadType)) {
 							for (const key in spreadType.Fields) {
 								fields[key] = getOwnLiteralField(spreadType.Fields, key)!;
@@ -2591,7 +2606,7 @@ function inferType(
 			const rawType = createCompileTimeTypeOfType(createCompileTimeDictionaryLiteralType(
 				fields,
 				true,
-				{ expression: expression, filePath: filePath },
+				{ expression: expression, filePath: filePath, result: checkContext.result },
 				aliasName));
 			return { type: rawType };
 		}
@@ -2626,7 +2641,7 @@ function inferType(
 			}
 			// Die Funktion vor dem Präfix-Argument: es erwartet ihren ersten Parameter.
 			setInferredType(functionExpression, typeContext, undefined, checkContext);
-			const selfApplied = !prefixArgument && getSelfAppliedTypeFunction(functionExpression);
+			const selfApplied = !prefixArgument && getSelfAppliedTypeFunction(checkContext.result, functionExpression);
 			if (selfApplied) {
 				// Die Typfunktion wird selbst noch geprüft, ihr Rückgabetyp steht noch nicht fest:
 				// der Aufruf bleibt als Knoten stehen und wird erst beim Zugriff aufgelöst.
@@ -2634,16 +2649,16 @@ function inferType(
 				if (selfArgs) {
 					setInferredType(selfArgs, typeContext, undefined, checkContext);
 				}
-				const selfArgsType = selfArgs?.typeInfo?.type ?? builtinEmpty;
+				const selfArgsType = getTypeInfo(checkContext.result, selfArgs)?.type ?? builtinEmpty;
 				return {
 					type: createCompileTimeTypeOfType(createCompileTimeAliasType(selfApplied.name, selfApplied.symbol, selfArgsType)),
 				};
 			}
-			const isFunction = checkIsFunction(functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
+			const isFunction = checkIsFunction(checkContext.result, functionExpression, ErrorCode.valueIsNotFunction, 'Expected a function to call.', errors);
 			// Wie typeNotProven nur mit warnUnknown. Ein rekursiver Aufruf sieht den eigenen Typ erst nach
 			// dem Rumpf: bis dahin ist er Any, aber nicht unsicher.
 			if (checkContext.warnUnknown
-				&& resolvePlaceholders(functionExpression.typeInfo!.type).julType === 'any'
+				&& resolvePlaceholders(getTypeInfo(checkContext.result, functionExpression)!.type).julType === 'any'
 				&& !(functionExpression.type === 'reference'
 					&& isSelfReference(functionExpression, functionExpression.name.name))) {
 				errors.push({
@@ -2655,7 +2670,7 @@ function inferType(
 					endColumnIndex: functionExpression.endColumnIndex,
 				});
 			}
-			const functionType = functionExpression.typeInfo!.type;
+			const functionType = getTypeInfo(checkContext.result, functionExpression)!.type;
 			const paramsType = getParamsType(functionType);
 			if (prefixArgument) {
 				setInferredType(prefixArgument, typeContext, getExpectedElementType(paramsType, 0), checkContext);
@@ -2674,8 +2689,8 @@ function inferType(
 			// Preis: im Rumpf einer generischen Funktion ist der Callback-Parameter damit der
 			// aufgelöste Typ (bei a: List(Any) also Any) statt TypeOf(a)/ElementType. Der Rückgabetyp
 			// am Aufrufort ist davon unabhängig, er wird dort aus den konkreten Argumenten berechnet.
-			const prefixArgumentTypeForArgs = prefixArgument?.typeInfo
-				&& resolvePlaceholders(prefixArgument.typeInfo.type);
+			const prefixArgumentTypeForArgs = getTypeInfo(checkContext.result, prefixArgument)
+				&& resolvePlaceholders(getTypeInfo(checkContext.result, prefixArgument)!.type);
 			// Bei einer aufgerufenen Union von Funktionen wird pro Zweig erwartet und instanziiert,
 			// die Ergebnisse fasst mergeExpectedArgumentTypes zusammen.
 			const unionFunctionChoices = getUnionFunctionChoices(functionType);
@@ -2713,7 +2728,7 @@ function inferType(
 								: getExpectedElementTypeAfterSpread(calledParamsType, firstSpreadIndex),
 							// Vorläufige Argumente: die vorherigen sind schon inferiert, die übrigen Any.
 							() => createCompileTimeTupleType(args.values.map(otherValue =>
-								(otherValue as ParseExpressionBase).typeInfo?.type ?? builtinAny)),
+								getTypeInfo(checkContext.result, (otherValue as ParseExpressionBase))?.type ?? builtinAny)),
 							value);
 						setInferredType(value, typeContext, expectedArgumentType, checkContext);
 					});
@@ -2736,8 +2751,8 @@ function inferType(
 							() => createCompileTimeDictionaryLiteralType(toRequiredFields(provisionalFieldTypes), true),
 							value);
 						setInferredType(value, typeContext, expectedArgumentType, checkContext);
-						if (fieldName !== undefined && value.typeInfo) {
-							provisionalFieldTypes[fieldName] = value.typeInfo.type;
+						if (fieldName !== undefined && getTypeInfo(checkContext.result, value)) {
+							provisionalFieldTypes[fieldName] = getTypeInfo(checkContext.result, value)!.type;
 						}
 					});
 					break;
@@ -2761,8 +2776,8 @@ function inferType(
 			// Nur das Präfix, nicht argsType: args kann selbst generische Typwerte enthalten
 			// (z.B. die Signatur eines nativeFunction-Aufrufs) - die dürfen nicht vorschnell
 			// über den eigenen (noch generischen) Deklarationskontext aufgelöst werden.
-			const argsType = args.typeInfo!.type;
-			const rawPrefixArgumentType = prefixArgument?.typeInfo?.type;
+			const argsType = getTypeInfo(checkContext.result, args)!.type;
+			const rawPrefixArgumentType = getTypeInfo(checkContext.result, prefixArgument)?.type;
 			const prefixArgumentType = rawPrefixArgumentType && resolvePlaceholders(rawPrefixArgumentType);
 			// Die Signaturen der Callback-Parameter werden gegen die konkreten Argumente
 			// instanziiert, bevor geprüft wird: ein generischer Parametertyp darin
@@ -2777,8 +2792,8 @@ function inferType(
 			const argsAssignability = getArgumentsAssignability(boundArgsType, dereferencedParamsType);
 			const hasArgsError = argsAssignability.assignable === false;
 			if (argsAssignability.assignable === false) {
-				const position = (prefixArgument && findErrorPositionInChild(prefixArgument))
-					?? findInnermostErrorPosition(args)
+				const position = (prefixArgument && findErrorPositionInChild(checkContext.result, prefixArgument))
+					?? findInnermostErrorPosition(checkContext.result, args)
 					?? expression;
 				errors.push({
 					code: ErrorCode.argumentTypeMismatch,
@@ -2803,11 +2818,11 @@ function inferType(
 			const calledParameterNames = getKnownFieldNames(discardCheckParamsType)
 				?? getSelfReferenceParameterNames(functionExpression);
 			checkArgumentOrder(args, calledParameterNames, !!prefixArgument, errors);
-			checkSpreadArgument(args, errors);
+			checkSpreadArgument(checkContext.result, args, errors);
 			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'test') {
-				checkTestCall(expression, hasArgsError, checkContext.filePath, errors);
+				checkTestCall(checkContext.result, expression, hasArgsError, checkContext.filePath, errors);
 			}
 			// Wie `test`: Name statt Symbol.
 			if (functionExpression.type === 'reference'
@@ -2846,17 +2861,17 @@ function inferType(
 			if (isFunctionType(resolvedFunctionType)) {
 				const callSiteParamsType = substituteParameterProjections(
 					resolvedFunctionType, functionType, boundArgsType, dereferencedParamsType);
-				expression.calledFunctionType = copyFunctionType(resolvedFunctionType, {
+				setCalledFunctionType(checkContext.result, expression, copyFunctionType(resolvedFunctionType, {
 					ParamsType: callSiteParamsType,
 					ReturnType: dereferencedReturnType,
 					aliasName: undefined,
 					isDeferred: callSiteParamsType.isDeferred
 						|| dereferencedReturnType.isDeferred,
-				});
+				}));
 			}
 			// Nur der Emitter-Pfad für benannte Argumente liest sie.
 			if (expression.arguments?.type === 'dictionary') {
-				expression.calledParameterNames = calledParameterNames;
+				setCalledParameterNames(checkContext.result, expression, calledParameterNames);
 			}
 			const foldedType = tryFoldCall(
 				functionExpression, functionType, boundArgsType, hasArgsError);
@@ -2882,11 +2897,11 @@ function inferType(
 				narrowedTypes: narrowedTypes,
 			};
 			// Untypisierte Parameter bekommen ihren Typ aus dem erwarteten Funktionstyp.
-			const expectedFunctionType = getExpectedFunctionType(expression.expectedType);
+			const expectedFunctionType = getExpectedFunctionType(getExpectedType(checkContext.result, expression));
 			setInferredType(params, functionTypeContext, expectedFunctionType?.ParamsType, checkContext);
-			const paramsTypeValue = getHeadParamsType(params);
-			checkParamsTypeIsCollection(params, errors);
-			checkTypeHeadPredicates(params, errors);
+			const paramsTypeValue = getHeadParamsType(checkContext.result, params);
+			checkParamsTypeIsCollection(checkContext.result, params, errors);
+			checkTypeHeadPredicates(checkContext.result, params, errors);
 			identity.ParamsType = paramsTypeValue;
 			identity.sealed = true;
 			//#region verengte Typen für branching
@@ -2895,16 +2910,16 @@ function inferType(
 			if (branching?.type === 'branching') {
 				// Fehlt der Rest (der branch wird außerhalb der Reihenfolge inferiert), verengt nur der Kopf.
 				const coverage = coverageBeforeBranch.get(expression)
-					?? createBranchCoverage(branching.args?.typeInfo && resolvePlaceholders(branching.args.typeInfo.type));
+					?? createBranchCoverage(getTypeInfo(checkContext.result, branching.args) && resolvePlaceholders(getTypeInfo(checkContext.result, branching.args)!.type));
 				const head = getBranchHead(paramsTypeValue);
 				getWrittenArguments(branching.args)?.forEach((argument, argumentIndex) => {
 					if (!mayNarrowAt(coverage, head, argumentIndex)) {
 						return;
 					}
-					branchNarrowedTypes = withNarrowedPredicateSubject(
+					branchNarrowedTypes = withNarrowedPredicateSubject(checkContext.result, 
 						branchNarrowedTypes,
 						argument,
-						() => narrowArgumentType(coverage, head, argumentIndex, argument.typeInfo?.type ?? builtinBoolean),
+						() => narrowArgumentType(coverage, head, argumentIndex, getTypeInfo(checkContext.result, argument)?.type ?? builtinBoolean),
 						functionScopes);
 					const path = getAccessPath(argument, functionScopes);
 					if (!path) {
@@ -2915,14 +2930,14 @@ function inferType(
 					// verengen heißt schneiden, nicht ersetzen: sonst würde z.B. Any => ... verbreitern
 					const getBranchNarrowedType = createLazyType(() => {
 						const currentType = getNarrowedType(outerNarrowedTypes, path.symbol, path.keys)
-							?? argument.typeInfo?.type
+							?? getTypeInfo(checkContext.result, argument)?.type
 							?? builtinAny;
 						return narrowArgumentType(coverage, head, argumentIndex, currentType);
 					});
-					branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, argument, getBranchNarrowedType, functionScopes);
+					branchNarrowedTypes = withNarrowedPath(checkContext.result, branchNarrowedTypes, argument, getBranchNarrowedType, functionScopes);
 					const originExpression = getOriginExpression(path.symbol);
 					if (originExpression) {
-						branchNarrowedTypes = withNarrowedPath(branchNarrowedTypes, originExpression, getBranchNarrowedType, functionScopes);
+						branchNarrowedTypes = withNarrowedPath(checkContext.result, branchNarrowedTypes, originExpression, getBranchNarrowedType, functionScopes);
 					}
 				});
 			}
@@ -2940,11 +2955,11 @@ function inferType(
 			// Der letzte Ausdruck ist der Rückgabewert: er erwartet den deklarierten Rückgabetyp, sonst
 			// den des erwarteten Funktionstyps, sonst als branch, was das branching erwartet. Ein branch
 			// bekommt keinen erwarteten Funktionstyp, seine Parameter kommen aus den Argumenten.
-			const expectedReturnType = declaredReturnType?.typeInfo
-				? valueOf(declaredReturnType.typeInfo.type)
+			const expectedReturnType = getTypeInfo(checkContext.result, declaredReturnType)
+				? valueOf(getTypeInfo(checkContext.result, declaredReturnType)!.type)
 				: expectedFunctionType?.ReturnType
 				?? (branching?.type === 'branching'
-					? branching.expectedType
+					? getExpectedType(checkContext.result, branching)
 					: undefined);
 			const lastBodyExpression = last(expression.body);
 			expression.body.forEach(bodyExpression => {
@@ -2965,7 +2980,7 @@ function inferType(
 				}
 			}
 			else {
-				const bodyPurity = inferBodyPurity(expression.body, identity);
+				const bodyPurity = inferBodyPurity(checkContext.result, expression.body, identity);
 				// Ein Rumpf, der nur deshalb unentscheidbar ist, weil er eigene funktionswertige
 				// Parameter aufruft, ist nicht grundsätzlich unentscheidbar, sondern bedingt rein.
 				const conditionallyPure = bodyPurity.purity === 'unknown' && bodyPurity.unknownOnlyFromOwnParameterCalls;
@@ -3025,7 +3040,7 @@ function inferType(
 			//#endregion Faltbarkeit
 			// Ein leerer body ist ungültig, nicht leer (Empty). Invalid als Ergebnis, damit sich der
 			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
-			const inferredReturnType: CompileTimeType = last(expression.body)?.typeInfo?.type ?? builtinInvalid;
+			const inferredReturnType: CompileTimeType = getTypeInfo(checkContext.result, last(expression.body))?.type ?? builtinInvalid;
 			// Any als inferierter Typ heißt "nichts Genaueres bekannt", nicht "Any ist der Typ" -
 			// hier auf den deklarierten Typ zurückfallen, sonst sehen Aufrufer Any statt der
 			// geprüften Zusicherung. Ist der inferierte Typ enger als deklariert (Normalfall,
@@ -3036,7 +3051,7 @@ function inferType(
 				// roh für den Any-Fallback unten: der generische Platzhalter (z.B.
 				// TypeOf(values)/ElementType) muss je Aufruf neu aufgelöst werden, nicht schon
 				// hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet werden.
-				const rawDeclaredReturnType = valueOf(declaredReturnType.typeInfo!.type);
+				const rawDeclaredReturnType = valueOf(getTypeInfo(checkContext.result, declaredReturnType)!.type);
 				const dereferencedDeclaredReturnType = resolvePlaceholders(rawDeclaredReturnType);
 				const returnAssignability = isTypeAssignable(resolvePlaceholders(inferredReturnType), dereferencedDeclaredReturnType);
 				reportUnknown(returnAssignability, checkContext, 'Return', inferredReturnType, dereferencedDeclaredReturnType, last(expression.body) ?? expression);
@@ -3076,8 +3091,9 @@ function inferType(
 			const functionType = createCompileTimeFunctionType(paramsTypeValue, returnType, purity, undefined, {
 				identity: identity,
 				literal: expression,
+				literalResult: checkContext.result,
 				foldable: foldable,
-				predicate: getPredicateFacts(expression, returnType),
+				predicate: getPredicateFacts(checkContext.result, expression, returnType),
 			});
 			return { type: functionType };
 		}
@@ -3093,19 +3109,19 @@ function inferType(
 				narrowedTypes: narrowedTypes,
 			};
 			setInferredType(params, functionTypeContext, undefined, checkContext);
-			const paramsType = getHeadParamsType(params);
+			const paramsType = getHeadParamsType(checkContext.result, params);
 			identity.ParamsType = paramsType;
 			identity.sealed = true;
-			checkParamsTypeIsCollection(params, errors);
+			checkParamsTypeIsCollection(checkContext.result, params, errors);
 			// TODO check returnType muss pure sein
 			setInferredType(expression.returnType, functionTypeContext, undefined, checkContext);
-			const inferredReturnType = expression.returnType.typeInfo!.type;
+			const inferredReturnType = getTypeInfo(checkContext.result, expression.returnType)!.type;
 			const functionType = createCompileTimeFunctionType(
 				paramsType,
 				valueOf(inferredReturnType),
 				expression.arrow ?? 'unknown',
 				undefined,
-				{ identity: identity, contract: getPredicateContract(expression) },
+				{ identity: identity, contract: getPredicateContract(checkContext.result, expression) },
 			);
 			const rawType = createCompileTimeTypeOfType(functionType);
 			return { type: rawType };
@@ -3125,8 +3141,8 @@ function inferType(
 					return;
 				}
 				const expectedElementType = firstSpreadIndex === undefined
-					? getExpectedElementType(expression.expectedType, index)
-					: getExpectedElementTypeAfterSpread(expression.expectedType, firstSpreadIndex);
+					? getExpectedElementType(getExpectedType(checkContext.result, expression), index)
+					: getExpectedElementTypeAfterSpread(getExpectedType(checkContext.result, expression), firstSpreadIndex);
 				setInferredType(element, typeContext, expectedElementType, checkContext);
 			});
 
@@ -3135,12 +3151,12 @@ function inferType(
 			// deklarierten Parametertyp zurück, obwohl Concat sie am Aufrufort exakt berechnen
 			// könnte (docs/generic-types-through-function-body.md).
 			const hasDeferredSpread = expression.values.some(element =>
-				element.type === 'spread' && isDeferredType(element.value.typeInfo!.type));
+				element.type === 'spread' && isDeferredType(getTypeInfo(checkContext.result, element.value)!.type));
 			if (hasDeferredSpread) {
 				const sources = expression.values.map(element =>
 					element.type === 'spread'
-						? element.value.typeInfo!.type
-						: createCompileTimeTupleType([element.typeInfo!.type]));
+						? getTypeInfo(checkContext.result, element.value)!.type
+						: createCompileTimeTupleType([getTypeInfo(checkContext.result, element)!.type]));
 				return { type: concatFromTypes(sources) };
 			}
 
@@ -3150,7 +3166,7 @@ function inferType(
 
 			for (const element of expression.values) {
 				if (element.type === 'spread') {
-					const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
+					const sourceType = resolvePlaceholders(getTypeInfo(checkContext.result, element.value)!.type);
 					const spreadResult = getSpreadElementTypes(sourceType);
 					if (spreadResult) {
 						if (spreadResult.isListSpread) {
@@ -3162,7 +3178,7 @@ function inferType(
 						tupleElements.push(builtinAny);
 					}
 				} else {
-					tupleElements.push(element.typeInfo!.type);
+					tupleElements.push(getTypeInfo(checkContext.result, element)!.type);
 				}
 			}
 
@@ -3191,7 +3207,7 @@ function inferType(
 			// Vor der Verengung, die weiter unten früh zurückkehrt: der Feldzugriff ist unabhängig
 			// vom verengten Ergebnis eine Referenz auf die Felddeklaration.
 			if (referenceIndex && nestedKey.type !== 'index') {
-				recordFieldReference(nestedKey, source.typeInfo?.type, referenceIndex, filePath);
+				recordFieldReference(nestedKey, getTypeInfo(checkContext.result, source)?.type, referenceIndex, filePath);
 			}
 			if (narrowedTypes) {
 				const path = getAccessPath(expression, scopes);
@@ -3207,11 +3223,11 @@ function inferType(
 					if (nestedKey.name < 1) {
 						return { type: builtinInvalid };
 					}
-					const sourceType = resolvePlaceholders(source.typeInfo!.type);
+					const sourceType = resolvePlaceholders(getTypeInfo(checkContext.result, source)!.type);
 					// Auf dem Nachschlagetyp (ein bloßer Platzhalter bleibt roh, ein zusammengesetzter
 					// wird aufgelöst, z.B. das and aus der Verengung eines branches). Bleibt ein roher
 					// Typ ohne Treffer, auf dem aufgelösten nachsehen, bevor der Index als daneben gilt.
-					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, getLookupType(source.typeInfo!.type))
+					const dereferencedType = dereferenceIndexFromObject(nestedKey.name, getLookupType(getTypeInfo(checkContext.result, source)!.type))
 						?? dereferenceIndexFromObject(nestedKey.name, sourceType);
 					if (!dereferencedType) {
 						// Zwei verschiedene Aussagen: die Art passt nicht zur Quelle (beweisbar
@@ -3242,10 +3258,10 @@ function inferType(
 					if (!fieldName) {
 						return { type: builtinAny };
 					}
-					const sourceType = resolvePlaceholders(source.typeInfo!.type);
+					const sourceType = resolvePlaceholders(getTypeInfo(checkContext.result, source)!.type);
 					// Wie beim Index: erst auf dem Nachschlagetyp, ohne Treffer auf dem aufgelösten, bevor
 					// das Feld als fehlend gilt.
-					const rawDereferencedType = dereferenceNameFromObject(fieldName, getLookupType(source.typeInfo!.type));
+					const rawDereferencedType = dereferenceNameFromObject(fieldName, getLookupType(getTypeInfo(checkContext.result, source)!.type));
 					const resolvedDereferencedType = dereferenceNameFromObject(fieldName, sourceType);
 					const dereferencedType = rawDereferencedType ?? resolvedDereferencedType;
 					if (!dereferencedType
@@ -3302,9 +3318,9 @@ function inferType(
 			// Bleibt eine Spread-Quelle bis zum Aufruf offen, muss die Aneinanderreihung ebenso
 			// offen bleiben (dieselbe Begründung wie bei case 'list').
 			const hasDeferredSpread = expression.values.some(element =>
-				isDeferredType(element.value.typeInfo!.type));
+				isDeferredType(getTypeInfo(checkContext.result, element.value)!.type));
 			if (hasDeferredSpread) {
-				return { type: concatFromTypes(expression.values.map(element => element.value.typeInfo!.type)) };
+				return { type: concatFromTypes(expression.values.map(element => getTypeInfo(checkContext.result, element.value)!.type)) };
 			}
 
 			// Nur reine Spreads (siehe ParseUnknownObjectLiteral) - Bug (CHECKER-AUDIT.md #6):
@@ -3315,7 +3331,7 @@ function inferType(
 			let hasListSpread = false;
 			let isResolvableAsList = true;
 			for (const element of expression.values) {
-				const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
+				const sourceType = resolvePlaceholders(getTypeInfo(checkContext.result, element.value)!.type);
 				const spreadResult = getSpreadElementTypes(sourceType);
 				if (!spreadResult) {
 					isResolvableAsList = false;
@@ -3339,7 +3355,7 @@ function inferType(
 			// sich nicht als Dictionary auflösen lässt, macht den Typ unentscheidbar (Any).
 			let dictionaryType: CompileTimeType | undefined = createCompileTimeDictionaryLiteralType({}, true);
 			for (const element of expression.values) {
-				const sourceType = resolvePlaceholders(element.value.typeInfo!.type);
+				const sourceType = resolvePlaceholders(getTypeInfo(checkContext.result, element.value)!.type);
 				dictionaryType = dictionaryType && spreadDictionaryTypes(
 					dictionaryType,
 					sourceType,
@@ -3351,10 +3367,10 @@ function inferType(
 			const typeGuard = expression.typeGuard;
 			if (typeGuard) {
 				setInferredType(typeGuard, typeContext, undefined, checkContext);
-				checkTypeGuardIsType(typeGuard, errors);
+				checkTypeGuardIsType(checkContext.result, typeGuard, errors);
 			}
 			checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
-			const typeGuardType = typeGuard?.typeInfo?.type;
+			const typeGuardType = getTypeInfo(checkContext.result, typeGuard)?.type;
 			// Ein hingeschriebener TypeGuard gilt, auch wenn der Aufrufkontext etwas anderes
 			// zusichert - sonst wäre er stillschweigend wirkungslos und die Kontravarianzprüfung
 			// vergliche den erwarteten Typ mit sich selbst. Der Kontext füllt nur untypisierte
@@ -3362,7 +3378,7 @@ function inferType(
 			// selbst hängen, nicht an valueOf: valueOf(undefined) liefert Any, nicht undefined.
 			const inferredType = typeGuardType
 				? valueOf(typeGuardType)
-				: expression.expectedType ?? builtinAny;
+				: getExpectedType(checkContext.result, expression) ?? builtinAny;
 			// TODO check array type bei spread
 			const parameterSymbol = findParameterSymbol(expression, scopes);
 			const typeInfo: TypeInfo = { type: inferredType };
@@ -3372,7 +3388,7 @@ function inferType(
 		}
 		case 'parameters': {
 			expression.singleFields.forEach((field, index) => {
-				const expectedParameterType = getExpectedElementType(expression.expectedType, index);
+				const expectedParameterType = getExpectedElementType(getExpectedType(checkContext.result, expression), index);
 				setInferredType(field, typeContext, expectedParameterType, checkContext);
 			});
 			const rest = expression.rest;
@@ -3384,12 +3400,12 @@ function inferType(
 				expression.singleFields.map(field => {
 					return {
 						name: field.source?.name ?? field.name.name,
-						type: field.typeInfo?.type
+						type: getTypeInfo(checkContext.result, field)?.type
 					};
 				}),
 				rest && {
 					name: rest.name.name,
-					type: rest.typeInfo?.type
+					type: getTypeInfo(checkContext.result, rest)?.type
 				},
 			);
 			return { type: rawType };
@@ -3566,8 +3582,8 @@ function getReturnTypeFromFunctionCall(
 ): CompileTimeType {
 	const { documents: parsedDocuments, folder } = checkContext;
 	const errors = checkContext.file.errors;
-	const argsType = functionCall.arguments?.typeInfo?.type ?? builtinAny;
-	const boundArgsType = bindReceiver(functionCall.prefixArgument?.typeInfo?.type, argsType);
+	const argsType = getTypeInfo(checkContext.result, functionCall.arguments)?.type ?? builtinAny;
+	const boundArgsType = bindReceiver(getTypeInfo(checkContext.result, functionCall.prefixArgument)?.type, argsType);
 	// TODO statt functionname functionref value/inferred type prüfen?
 	if (functionExpression.type === 'reference') {
 		const functionName = functionExpression.name.name;
@@ -3627,9 +3643,9 @@ function getReturnTypeFromFunctionCall(
 				if (!lastExpression) {
 					return builtinAny;
 				}
-				return lastExpression.typeInfo
-					? lastExpression.typeInfo.type
-					: builtinAny;
+				// Der Ausdruck gehört zur importierten Datei, sein Typ steht in deren Ergebnis.
+				return (importedDocument.checkResult && getTypeInfo(importedDocument.checkResult, lastExpression)?.type)
+					?? builtinAny;
 			}
 			case 'And': {
 				const argTypes = getAllArgTypes(boundArgsType);
@@ -3790,7 +3806,7 @@ function getReturnTypeFromFunctionCall(
 				break;
 		}
 	}
-	const functionType = functionExpression.typeInfo;
+	const functionType = getTypeInfo(checkContext.result, functionExpression);
 	return getReturnTypeFromFunctionType(functionType);
 }
 
@@ -4012,6 +4028,7 @@ export interface BodyPurity {
  * geschlossen über eine äußere Funktion (E2).
  */
 export function inferBodyPurity(
+	checkResult: CheckResult,
 	body: ParseExpression[],
 	ownFunctionType: FunctionIdentity,
 ): BodyPurity {
@@ -4043,7 +4060,7 @@ export function inferBodyPurity(
 					contribute('pure', expression);
 				}
 				else {
-					const calleeType = functionExpression?.typeInfo && resolveAlias(functionExpression.typeInfo.type);
+					const calleeType = getTypeInfo(checkResult, functionExpression) && resolveAlias(getTypeInfo(checkResult, functionExpression)!.type);
 					if (calleeType?.julType === 'parameterReference') {
 						// E1/E2: der eigene Parameter direkt aufzurufen ist bedingt rein - mit
 						// welchen Argumenten er später gerufen wird, entscheidet sich erst an der
@@ -4054,11 +4071,11 @@ export function inferBodyPurity(
 					}
 					else {
 						const argsType = bindReceiver(
-							expression.prefixArgument?.typeInfo?.type,
-							expression.arguments?.typeInfo?.type ?? builtinEmpty);
+							getTypeInfo(checkResult, expression.prefixArgument)?.type,
+							getTypeInfo(checkResult, expression.arguments)?.type ?? builtinEmpty);
 						contribute(
 							getCallPurityInfo(
-								functionExpression?.typeInfo?.type ?? builtinAny,
+								getTypeInfo(checkResult, functionExpression)?.type ?? builtinAny,
 								argsType,
 								ownFunctionType),
 							expression);
@@ -4073,7 +4090,7 @@ export function inferBodyPurity(
 				// ihrem Typ, genau wie bei jedem anderen aufgerufenen Wert. Ein Zweig muss kein
 				// Literal sein, er kann auch eine Referenz auf eine Funktion sein.
 				const branchesPurity = expression.branches.reduce<Purity>((accumulated, branch) => {
-					const branchType = branch.typeInfo && resolveAlias(branch.typeInfo.type);
+					const branchType = getTypeInfo(checkResult, branch) && resolveAlias(getTypeInfo(checkResult, branch)!.type);
 					if (!branchType || !isFunctionType(branchType)) {
 						return joinPurity(accumulated, 'unknown');
 					}
@@ -4082,7 +4099,7 @@ export function inferBodyPurity(
 					// umgebende Funktion bedingt rein: sein Rumpf wird aus ihrer Sicht noch einmal
 					// untersucht, dort sind diese Parameter die eigenen.
 					if (branch.type === 'functionLiteral' && branchType.purity === 'unknown') {
-						const branchBodyPurity = inferBodyPurity(branch.body, ownFunctionType);
+						const branchBodyPurity = inferBodyPurity(checkResult, branch.body, ownFunctionType);
 						contribute(
 							branchBodyPurity.purity,
 							branchBodyPurity.impureExpression ?? branch,
@@ -4383,6 +4400,7 @@ function checkRedundantAssume(
  * Literal. Ist er nur Boolean, entscheidet erst der Lauf.
  */
 function checkTestCall(
+	checkResult: CheckResult,
 	call: ParseFunctionCall,
 	hasArgumentError: boolean,
 	filePath: string,
@@ -4423,7 +4441,7 @@ function checkTestCall(
 	if (hasArgumentError) {
 		return;
 	}
-	const callbackType = callback?.typeInfo && resolveAlias(resolvePlaceholders(callback.typeInfo.type));
+	const callbackType = getTypeInfo(checkResult, callback) && resolveAlias(resolvePlaceholders(getTypeInfo(checkResult, callback)!.type));
 	if (!isFunctionType(callbackType)) {
 		return;
 	}
@@ -4436,7 +4454,7 @@ function checkTestCall(
 		? last(callback!.body)
 		: undefined;
 	const callText = lastExpression?.type === 'functionCall'
-		? getFoldedCallText(lastExpression)
+		? getFoldedCallText(checkResult, lastExpression)
 		: undefined;
 	const position = callText
 		? lastExpression!
@@ -4495,14 +4513,14 @@ function reportDuplicateTestNames(file: ParsedExpressions2): void {
  * Aufruf mit seinen gefalteten Argumenten, z.B. `equal(600 400)`. Nur für eine Referenz als
  * Funktion und für Argumente, deren Typen sich als Liste lesen lassen.
  */
-function getFoldedCallText(call: ParseFunctionCall): string | undefined {
+function getFoldedCallText(checkResult: CheckResult, call: ParseFunctionCall): string | undefined {
 	const functionExpression = call.functionExpression;
-	const argsType = call.arguments?.typeInfo?.type;
+	const argsType = getTypeInfo(checkResult, call.arguments)?.type;
 	if (functionExpression?.type !== 'reference'
 		|| !argsType) {
 		return undefined;
 	}
-	const argTypes = getAllArgTypes(bindReceiver(call.prefixArgument?.typeInfo?.type, argsType));
+	const argTypes = getAllArgTypes(bindReceiver(getTypeInfo(checkResult, call.prefixArgument)?.type, argsType));
 	if (!argTypes) {
 		return undefined;
 	}
@@ -4780,6 +4798,7 @@ function checkArgumentOrder(
  * die sich den Parametern zuordnen ließe, ebenso wenig ein Wert unbekannten Typs.
  */
 function checkSpreadArgument(
+	checkResult: CheckResult,
 	writtenArgs: BracketedExpression,
 	errors: CompilerError[],
 ): void {
@@ -4789,7 +4808,7 @@ function checkSpreadArgument(
 			? writtenArgs.fields.filter((field): field is ParseSpreadValueExpression => field.type === 'spread')
 			: [];
 	spreads.forEach(spread => {
-		const sourceType = spread.value.typeInfo && resolvePlaceholders(spread.value.typeInfo.type);
+		const sourceType = getTypeInfo(checkResult, spread.value) && resolvePlaceholders(getTypeInfo(checkResult, spread.value)!.type);
 		if (sourceType && getSpreadElementTypes(sourceType)) {
 			return;
 		}
@@ -4811,13 +4830,14 @@ function checkSpreadArgument(
  * Kollektion sein, ist die Funktion nicht aufrufbar und greift auch als branch nie.
  */
 function checkParamsTypeIsCollection(
+	checkResult: CheckResult,
 	params: SimpleExpression | ParseParameterFields,
 	errors: CompilerError[],
 ): void {
 	if (params.type === 'parameters') {
 		return;
 	}
-	const paramsType = valueOf(params.typeInfo && resolvePlaceholders(params.typeInfo.type));
+	const paramsType = valueOf(getTypeInfo(checkResult, params) && resolvePlaceholders(getTypeInfo(checkResult, params)!.type));
 	if (!isDefinitelyNotCollectionType(paramsType)) {
 		return;
 	}
@@ -4837,6 +4857,7 @@ function checkParamsTypeIsCollection(
  * prüft bereits der Type-Parameter von Or.
  */
 function checkTypeHeadPredicates(
+	checkResult: CheckResult,
 	params: SimpleExpression | ParseParameterFields,
 	errors: CompilerError[],
 ): void {
@@ -4847,7 +4868,7 @@ function checkTypeHeadPredicates(
 		if (value.type === 'spread') {
 			return;
 		}
-		const valueType = value.typeInfo && resolveAlias(resolvePlaceholders(value.typeInfo.type));
+		const valueType = getTypeInfo(checkResult, value) && resolveAlias(resolvePlaceholders(getTypeInfo(checkResult, value)!.type));
 		if (!isFunctionType(valueType)) {
 			return;
 		}
@@ -4923,9 +4944,9 @@ function setFunctionRefForParams(
  * Nach dem Vorbild von TypeScript/Rust/Elm: eine Diagnose, eine möglichst genaue Position,
  * statt einer zweiten Diagnose mit demselben Text an einer weniger genauen Stelle.
  */
-function findInnermostErrorPosition(value: PositionedExpression | undefined): Positioned | undefined {
+function findInnermostErrorPosition(checkResult: CheckResult, value: PositionedExpression | undefined): Positioned | undefined {
 	for (const child of getWrittenChildValues(value)) {
-		const position = findErrorPositionInChild(child);
+		const position = findErrorPositionInChild(checkResult, child);
 		if (position) {
 			return position;
 		}
@@ -4936,9 +4957,9 @@ function findInnermostErrorPosition(value: PositionedExpression | undefined): Po
 /**
  * Die innerste Position in child, falls child selbst seinem erwarteten Typ widerspricht.
  */
-function findErrorPositionInChild(child: ParseValueExpression): Positioned | undefined {
-	return hasExpectedTypeError(child)
-		? findInnermostErrorPosition(child) ?? child
+function findErrorPositionInChild(checkResult: CheckResult, child: ParseValueExpression): Positioned | undefined {
+	return hasExpectedTypeError(checkResult, child)
+		? findInnermostErrorPosition(checkResult, child) ?? child
 		: undefined;
 }
 
@@ -4958,9 +4979,9 @@ function getWrittenChildValues(value: PositionedExpression | undefined): ParseVa
 	}
 }
 
-function hasExpectedTypeError(expression: ParseValueExpression): boolean {
-	const expectedType = expression.expectedType;
-	const ownType = expression.typeInfo?.type;
+function hasExpectedTypeError(checkResult: CheckResult, expression: ParseValueExpression): boolean {
+	const expectedType = getExpectedType(checkResult, expression);
+	const ownType = getTypeInfo(checkResult, expression)?.type;
 	if (!expectedType || !ownType) {
 		return false;
 	}
@@ -5279,10 +5300,11 @@ function checkNameDefinedInUpperScope(
  * typeGuard.inferredType muss gesetzt sein
  */
 function checkTypeGuardIsType(
+	checkResult: CheckResult,
 	typeGuard: ParseValueExpression,
 	errors: CompilerError[],
 ): void {
-	const typeGuardType = resolvePlaceholders(typeGuard.typeInfo!.type);
+	const typeGuardType = resolvePlaceholders(getTypeInfo(checkResult, typeGuard)!.type);
 	const typeGuardAssignability = isTypeAssignable(typeGuardType, builtinType);
 	if (typeGuardAssignability.assignable === false) {
 		errors.push({
@@ -5305,13 +5327,14 @@ function checkTypeGuardIsType(
  * Auswertung als Funktion sinnlos ist.
  */
 function checkIsFunction(
+	checkResult: CheckResult,
 	expression: TypedExpression,
 	code: ErrorCode,
 	message: string,
 	errors: CompilerError[],
 ): boolean {
 	const anyFunctionType = createCompileTimeFunctionType(builtinAny, builtinAny, 'unknown');
-	const functionAssignability = isTypeAssignable(resolvePlaceholders(expression.typeInfo!.type), anyFunctionType);
+	const functionAssignability = isTypeAssignable(resolvePlaceholders(getTypeInfo(checkResult, expression)!.type), anyFunctionType);
 	if (functionAssignability.assignable === false) {
 		errors.push({
 			code: code,

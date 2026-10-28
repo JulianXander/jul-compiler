@@ -392,3 +392,9 @@
 2026-10-28 12:57:46	13a357f+	-	ADV-DEV-56627	yugioh	parse+check	5	12210.91	12385.84	12385.84	Perf: Callback-Index Not(GreaterInteger), Interning ohne Strings, Loader ohne existsSync
 2026-10-28 12:57:46	13a357f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	829.96	868.63	868.63	Perf: Callback-Index Not(GreaterInteger), Interning ohne Strings, Loader ohne existsSync
 2026-10-28 12:57:46	13a357f+	-	ADV-DEV-56627	yugioh	parse	5	66.35	73.18	73.18	Perf: Callback-Index Not(GreaterInteger), Interning ohne Strings, Loader ohne existsSync
+2026-10-28 14:24:23	6f39675+	-	ADV-DEV-56627	yugioh	parse+check	5	12506.40	13360.08	13360.08	vor Schritt 2 (Zugriffsschicht CheckResult)
+2026-10-28 14:24:23	6f39675+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	863.17	926.58	926.58	vor Schritt 2 (Zugriffsschicht CheckResult)
+2026-10-28 14:24:23	6f39675+	-	ADV-DEV-56627	yugioh	parse	5	70.96	77.77	77.77	vor Schritt 2 (Zugriffsschicht CheckResult)
+2026-10-28 14:42:44	6f39675+	-	ADV-DEV-56627	yugioh	parse+check	5	11668.03	12529.32	12529.32	Schritt 2: Zugriffsschicht CheckResult (Felder am Knoten, Ergebnis durchgereicht)
+2026-10-28 14:42:44	6f39675+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	736.72	752.79	752.79	Schritt 2: Zugriffsschicht CheckResult (Felder am Knoten, Ergebnis durchgereicht)
+2026-10-28 14:42:44	6f39675+	-	ADV-DEV-56627	yugioh	parse	5	66.97	72.21	72.21	Schritt 2: Zugriffsschicht CheckResult (Felder am Knoten, Ergebnis durchgereicht)

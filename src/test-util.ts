@@ -1,6 +1,7 @@
+import { CheckResult, getTypeInfo } from './checker/check-result.js';
 import type { ParsedDocuments } from './checker/checker.js';
 import { errorInfos } from './compiler-errors.js';
-import { forEachChild, PositionedExpression, TypeInfo } from './syntax-tree.js';
+import { forEachChild, ParseExpressionBase, PositionedExpression } from './syntax-tree.js';
 
 /**
  * Macht aus einer Prüffunktion einen Test-Helfer, der Fehler an der Aufrufstelle meldet, wie
@@ -35,16 +36,16 @@ export function findInvalidWithoutError(documents: ParsedDocuments): string[] {
 		return [];
 	}
 	const positions: string[] = [];
-	const visit = (filePath: string, expression: PositionedExpression): undefined => {
-		const typeInfo = (expression as { typeInfo?: TypeInfo; }).typeInfo;
+	const visit = (checkResult: CheckResult, filePath: string, expression: PositionedExpression): undefined => {
+		const typeInfo = getTypeInfo(checkResult, expression as ParseExpressionBase);
 		if (typeInfo?.type.julType === 'invalid') {
 			positions.push(`${filePath}:${expression.startRowIndex + 1}:${expression.startColumnIndex + 1}`);
 		}
-		forEachChild(expression, child => visit(filePath, child));
+		forEachChild(expression, child => visit(checkResult, filePath, child));
 		return undefined;
 	};
 	files.forEach(file => {
-		file.checked!.expressions?.forEach(expression => visit(file.filePath, expression));
+		file.checked!.expressions?.forEach(expression => visit(file.checkResult!, file.filePath, expression));
 	});
 	return positions;
 }
