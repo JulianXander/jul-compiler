@@ -190,7 +190,7 @@ describe('Emitter', () => {
  */
 function emitCheckedFunctionBody(code: string): string {
 	const parsed = parseCode(code, 'dummy.jul');
-	checkTypes(parsed, {}, { cloneUnchecked: false });
+	checkTypes(parsed, {});
 	const checked = parsed.checked!;
 	const errors = checked.errors.filter(error => errorInfos[error.code].severity === 'error');
 	expect(errors.map(error => error.message)).to.deep.equal([]);
@@ -944,7 +944,7 @@ describe('Emitter Runtime-Import', () => {
  */
 function runEmitted(code: string, resultName?: string): unknown {
 	const parsed = parseCode(code, 'dummy.jul');
-	checkTypes(parsed, {}, { cloneUnchecked: true });
+	checkTypes(parsed, {});
 	expect(parsed.checked?.errors).to.deep.equal([]);
 	const compiled = syntaxTreeToJs(parsed.checked!.expressions!, '');
 	const body = withoutImports(compiled)
@@ -957,7 +957,7 @@ function runEmitted(code: string, resultName?: string): unknown {
 
 function emitChecked(code: string): string {
 	const parsed = parseCode(code, 'dummy.jul');
-	checkTypes(parsed, {}, { cloneUnchecked: true });
+	checkTypes(parsed, {});
 	expect(parsed.checked?.errors).to.deep.equal([]);
 	return withoutImports(syntaxTreeToJs(parsed.checked!.expressions!, ''));
 }

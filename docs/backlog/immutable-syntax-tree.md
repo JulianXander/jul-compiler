@@ -12,9 +12,10 @@ braucht deshalb einen frischen Baum.
 
 Bis 2026-10-28 klonte der Language Server dafür bei **jedem** Check den Baum (`structuredClone`,
 `cloneUnchecked: true`), obwohl nur das erneute Prüfen eines Importeurs ihn brauchte. Seit Schritt 0
-klont niemand mehr außer einigen Tests: CLI und Server prüfen den frisch geparsten Baum direkt, und der
-Server parst für einen Recheck neu (`recheckDocument` in `jul-language-server/src/server.ts`), aus dem
-Editor-Inhalt oder von der Platte.
+gibt es keinen Klon mehr, auch die Option ist entfernt: `checkTypes` prüft immer den frisch geparsten
+Baum direkt, und der Server parst für einen Recheck neu (`recheckDocument` in
+`jul-language-server/src/server.ts`), aus dem Editor-Inhalt oder von der Platte. Tests, die eine Datei
+erneut prüfen, laden sie dafür mit demselben Code neu (`reference-index.test.ts`).
 
 Gemessen (`npm run bench` im Language Server, yugioh, Median):
 
@@ -82,7 +83,7 @@ Nicht betroffen: `FunctionIdentity` (`sealed`, `ParamsType`) ist Teil der Typen,
   `expectedTypeOf(expression)`, `calledFunctionOf(call)`, `symbolTypeOf(symbol)`, `isUsed(symbol)`,
   den Prüffehlern und dem Prüfzustand, der heute in modulweiten `WeakMap`s steckt.
 - `checkTypes(syntax, documents, options)` liefert das `CheckResult` zurück, statt den Baum zu
-  verändern. `cloneUnchecked` entfällt.
+  verändern.
 - Ein Recheck im Server ruft nur `checkTypes` erneut auf, ohne zu parsen.
 - Importeure lesen die Typen einer importierten Datei aus deren `CheckResult`.
 
@@ -93,7 +94,8 @@ Server), Suite und Snapshots grün, yugioh baut und testet.
 
 ### 0. Klon weg (umgesetzt 2026-10-28)
 
-Siehe Stand. Der Server setzt `cloneUnchecked: false` und parst für einen Recheck neu.
+Siehe Stand. `structuredClone` und die Option `cloneUnchecked` sind gelöscht, der Server parst für
+einen Recheck neu.
 
 ### 1. Versuch zur Leistung (Gate)
 
@@ -147,8 +149,7 @@ geprüft, ihr Ergebnis bleibt modulweit.
 
 ### 5. Aufräumen
 
-- `cloneUnchecked` und `structuredClone` löschen, die Tests, die heute für einen zweiten Lauf klonen
-  (`reference-index.test.ts`, `emitter.test.ts`, Language-Server-Tests), prüfen einfach erneut.
+- Die Recheck-Tests in `reference-index.test.ts` prüfen wieder mit `checkTypes` statt neu zu laden.
 - `recheckDocument` im Server ruft `checkTypes` auf dem vorhandenen Baum auf statt `loadFile` mit
   neuem Parsen. Dabei klären, welche Caches ein Recheck leeren muss: `loadFile` ruft heute
   `clearTypeCaches`, ein bloßes `checkTypes` nicht. Die Längen-Terme (`getPathLengthTerm`) hängen an

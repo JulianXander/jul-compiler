@@ -156,7 +156,7 @@ function readSourceFile(filePath: string): SourceReadResult {
  * den Stand, der geprüft wurde. Deshalb nur für einen einzelnen Lauf gedacht, nicht für
  * langlebige Prozesse - dort würden Änderungen auf der Platte nicht mehr gesehen.
  */
-export function createFileSystemHost(options: CheckOptions): ProjectHost {
+export function createFileSystemHost(options: CheckOptions = {}): ProjectHost {
 	const cache = new Map<string, SourceReadResult>();
 	return {
 		readSource: filePath => {
@@ -176,7 +176,7 @@ export function createFileSystemHost(options: CheckOptions): ProjectHost {
  * Für Tests: Dateien im Speicher. Die Schlüssel mit join bilden, wie getPathFromImport die
  * Importpfade auflöst - sonst passen sie unter Windows nicht zusammen.
  */
-export function createInMemoryHost(files: { [filePath: string]: string; }, options: CheckOptions): ProjectHost {
+export function createInMemoryHost(files: { [filePath: string]: string; }, options: CheckOptions = {}): ProjectHost {
 	return {
 		readSource: filePath => {
 			const code = files[filePath];

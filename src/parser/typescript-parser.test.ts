@@ -30,7 +30,7 @@ describe('TypeScript Parser', () => {
 	 */
 	function typeOfF(code: string): string | undefined {
 		const parsed = parseCode(code, 'test.ts');
-		checkTypes(parsed, {}, { cloneUnchecked: false });
+		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 		const definition = parsed.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 			expression.type === 'definition' && expression.name.name === 'f');
@@ -191,7 +191,7 @@ describe('TypeScript Parser', () => {
 			const main = loadFile(mainPath, {}, createInMemoryHost({
 				[mainPath]: '(f) = import(§./util.ts§)\nresult = f(§a§)',
 				[join(folder, 'util.ts')]: 'export function f<T>(a: T): T { return a; }',
-			}, { cloneUnchecked: false })) as ParsedFile;
+			})) as ParsedFile;
 			expect(main.checked?.errors).to.deep.equal([]);
 			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'result');
@@ -206,7 +206,7 @@ describe('TypeScript Parser', () => {
 			const main = loadFile(mainPath, documents, createInMemoryHost({
 				[mainPath]: '(f) = import(§./util.ts§)\nresult = f([§a§ §b§])',
 				[join(folder, 'util.ts')]: 'export function f<T>(a: T[] | undefined): T[] | undefined { return a; }',
-			}, { cloneUnchecked: false })) as ParsedFile;
+			})) as ParsedFile;
 			expect(main.checked?.errors).to.deep.equal([]);
 			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'result');
@@ -220,7 +220,7 @@ describe('TypeScript Parser', () => {
 			const main = loadFile(mainPath, {}, createInMemoryHost({
 				[mainPath]: '(f) = import(§./util.ts§)\ng = (texts: Or([] List(Text))) =>\n\tf(texts.map((value) => 1))\nh = (deck: [main: Or([] List(Text))]) =>\n\tg(deck/main)\nsource = assume([] [main: Or([] List(Text))])\nresult = h(source)',
 				[join(folder, 'util.ts')]: 'export function f<T>(a: T[] | undefined): T[] | undefined { return a; }',
-			}, { cloneUnchecked: false })) as ParsedFile;
+			})) as ParsedFile;
 			expect(main.checked?.errors).to.deep.equal([]);
 			const h = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'result');
@@ -234,7 +234,7 @@ describe('TypeScript Parser', () => {
 			const main = loadFile(mainPath, {}, createInMemoryHost({
 				[mainPath]: '(f) = import(§./util.ts§)\nsource = assume([] Dictionary(Integer))\nresult = f(source §a§)',
 				[join(folder, 'util.ts')]: 'export function f<T>(a: { [key: string]: T; } | undefined, key: string): { [key: string]: T; } | undefined { return a; }',
-			}, { cloneUnchecked: false })) as ParsedFile;
+			})) as ParsedFile;
 			expect(main.checked?.errors).to.deep.equal([]);
 			const result = main.checked?.expressions?.find((expression): expression is ParseSingleDefinition =>
 				expression.type === 'definition' && expression.name.name === 'result');
@@ -250,7 +250,7 @@ describe('TypeScript Parser', () => {
 		const main = loadFile(mainPath, documents, createInMemoryHost({
 			[mainPath]: '(double) = import(§./util.ts§)\nwrong = double(§x§)',
 			[join(folder, 'util.ts')]: 'export function double(a: bigint): bigint { return a * 2n; }',
-		}, { cloneUnchecked: false }));
+		}));
 		expect(typeof main).to.not.equal('string');
 		expect((main as ParsedFile).checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.argumentTypeMismatch]);
 	});
@@ -266,7 +266,7 @@ describe('TypeScript Parser', () => {
 			[mainPath]: `(f) = import(§./util.ts§)
 ${julCode}`,
 			[join(folder, 'util.ts')]: tsCode,
-		}, { cloneUnchecked: false }));
+		}));
 		expect(typeof main).to.not.equal('string');
 		return main as ParsedFile;
 	}
@@ -303,7 +303,7 @@ ${julCode}`,
 
 	function checkTs(code: string): ParsedFile {
 		const parsed = parseCode(code, 'test.ts');
-		checkTypes(parsed, {}, { cloneUnchecked: false });
+		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 		return parsed;
 	}

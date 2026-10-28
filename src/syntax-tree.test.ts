@@ -11,7 +11,7 @@ import { reportAtCaller } from './test-util.js';
 
 function parse(code: string): PositionedExpression[] {
 	const parsed = parseCode(code, 'test.jul');
-	checkTypes(parsed, {}, { cloneUnchecked: false });
+	checkTypes(parsed, {});
 	return parsed.checked!.expressions ?? [];
 }
 

@@ -50,7 +50,7 @@ function findJulFiles(folder: string): string[] {
  * Parst rekursiv inklusive Importe und checkt, auf demselben Weg wie CLI und Language Server.
  */
 function parseAndCheck(filePath: string, parsedDocuments: ParsedDocuments): ParsedFile {
-	const parsed = loadFile(filePath, parsedDocuments, createFileSystemHost({ cloneUnchecked: false }));
+	const parsed = loadFile(filePath, parsedDocuments, createFileSystemHost());
 	if (typeof parsed === 'string') {
 		throw new Error(`${parsed}: ${filePath}`);
 	}
@@ -139,7 +139,7 @@ describe('checker snapshot', () => {
 describe('Zähler-Gate für große Muster', () => {
 	const fixtures = { stateMachine: stateMachineFixture, sequence: sequenceFixture };
 	const checkFixture = (code: string) =>
-		loadFile('fixture.jul', {}, createInMemoryHost({}, { cloneUnchecked: false }), code);
+		loadFile('fixture.jul', {}, createInMemoryHost({}), code);
 	it('prüft die Fixtures ohne Diagnosen', () => {
 		Object.entries(fixtures).forEach(([name, code]) => {
 			expect(checkFixture(code).checked?.errors, name).to.deep.equal([]);
@@ -165,14 +165,14 @@ describe('Zähler-Gate für große Muster', () => {
 describe('Herkunft von Invalid', () => {
 	it('meldet einen Ausdruck mit Invalid, wenn nirgends ein Fehler steht', () => {
 		const parsed = parseCode('x = 1\nx', 'dummy.jul');
-		checkTypes(parsed, {}, { cloneUnchecked: false });
+		checkTypes(parsed, {});
 		parsed.checked!.expressions!.at(-1)!.typeInfo = { type: builtinInvalid };
 		const positions = findInvalidWithoutError({ 'dummy.jul': parsed });
 		expect(positions).to.deep.equal(['dummy.jul:2:1']);
 	});
 	it('meldet nichts, wenn der Fehler gemeldet ist', () => {
 		const parsed = parseCode('x = undefinedName\nx', 'dummy.jul');
-		checkTypes(parsed, {}, { cloneUnchecked: false });
+		checkTypes(parsed, {});
 		expect(findInvalidWithoutError({ 'dummy.jul': parsed })).to.deep.equal([]);
 	});
 	it('gilt für alle Beispiele', () => {

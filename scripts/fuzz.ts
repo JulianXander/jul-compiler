@@ -41,7 +41,7 @@ type WorkerResponse = Finding | undefined;
  */
 function checkInput(files: { [path: string]: string; }, request: WorkerRequest): WorkerResponse {
 	const allFiles = { ...files, [request.path]: request.code };
-	const host = createInMemoryHost(allFiles, { cloneUnchecked: false });
+	const host = createInMemoryHost(allFiles);
 	try {
 		const documents = {};
 		resetCheckerStats();

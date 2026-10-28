@@ -418,7 +418,7 @@ const cases: BenchCase[] = [
 async function compileFixture(file: string, outFolder: string): Promise<{ [name: string]: unknown; }> {
 	const filePath = join(fixtureFolder, file);
 	const documents: ParsedDocuments = {};
-	loadFile(filePath, documents, createFileSystemHost({ cloneUnchecked: false }));
+	loadFile(filePath, documents, createFileSystemHost());
 	const parsed = documents[filePath]!;
 	const expressions = parsed.checked ?? parsed.unchecked;
 	const errors = expressions.errors.filter(error => errorInfos[error.code].severity === 'error');

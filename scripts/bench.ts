@@ -66,7 +66,7 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 		const start = performance.now();
 		julFiles.forEach(filePath => {
 			try {
-				loadFile(filePath, {}, createFileSystemHost({ cloneUnchecked: false }));
+				loadFile(filePath, {}, createFileSystemHost());
 			}
 			catch {
 				// Fehlerhafte Beispiele sind im Snapshot festgehalten, hier nur Laufzeit relevant
@@ -77,7 +77,7 @@ function benchFolder(folder: string, save: boolean, note: string): void {
 	const sharedDurations: number[] = [];
 	for (let run = 0; run < runCount; run++) {
 		const documents = {};
-		const host = createFileSystemHost({ cloneUnchecked: false });
+		const host = createFileSystemHost();
 		const start = performance.now();
 		julFiles.forEach(filePath => {
 			try {

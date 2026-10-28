@@ -17,11 +17,10 @@ function path(fileName: string): string {
  */
 function createCountingHost(files: { [fileName: string]: string; }): { host: ProjectHost; readCounts: Map<string, number>; } {
 	const inMemoryHost = createInMemoryHost(Object.fromEntries(
-		Object.entries(files).map(([fileName, code]) => [path(fileName), code])), { cloneUnchecked: false });
+		Object.entries(files).map(([fileName, code]) => [path(fileName), code])));
 	const readCounts = new Map<string, number>();
 	return {
 		host: {
-			cloneUnchecked: false,
 			readSource: filePath => {
 				readCounts.set(filePath, (readCounts.get(filePath) ?? 0) + 1);
 				return inMemoryHost.readSource(filePath);
@@ -91,9 +90,8 @@ describe('project-loader', () => {
 
 	it('übersprungene Abhängigkeit ist kein Fehler', () => {
 		const files = { 'main.jul': '(count) = import(§./util.ts§)\nwrong: Text = count()' };
-		const inMemoryHost = createInMemoryHost({ [path('main.jul')]: files['main.jul'] }, { cloneUnchecked: false });
+		const inMemoryHost = createInMemoryHost({ [path('main.jul')]: files['main.jul'] });
 		const { main, documents } = loadMain(files, {
-			cloneUnchecked: false,
 			readSource: filePath => filePath === path('util.ts')
 				? { type: 'skipped' }
 				: inMemoryHost.readSource(filePath),

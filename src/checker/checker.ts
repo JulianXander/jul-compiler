@@ -913,17 +913,6 @@ export function bindReceiver(
 
 export interface CheckOptions {
 	/**
-	 * Der Checker schreibt seine Ergebnisse (typeInfo, Fehler) in den Baum und überspringt
-	 * Ausdrücke, die schon eine typeInfo haben. Wer dieselbe Datei später ohne neues Parsen erneut
-	 * checkt, braucht deshalb checked als Klon von unchecked. Sonst ist checked dasselbe Objekt wie
-	 * unchecked - das spart bei großen Dateien den Großteil der Ladezeit. CLI und Language Server
-	 * klonen nicht (der Server parst für einen Recheck neu), nur einige Tests prüfen ohne neues
-	 * Parsen erneut. Fällt mit der Trennung von Syntaxbaum und Typen weg
-	 * (docs/backlog/immutable-syntax-tree.md). Pflicht, damit jeder Aufrufer das ausdrücklich
-	 * entscheidet.
-	 */
-	readonly cloneUnchecked: boolean;
-	/**
 	 * Wird während des Checklaufs mit den aufgelösten Referenzen der Datei befüllt (vorher
 	 * geleert). Nur der Language Server hält einen Index über die Lebensdauer mehrerer Checkläufe
 	 * hinweg; CLI und Tests lassen ihn weg und zahlen keine Buchführungskosten.
@@ -947,18 +936,20 @@ export interface CheckOptions {
 /**
  * infer types of expressions, normalize typeGuards
  * fills errors
+ * Schreibt die Ergebnisse (typeInfo, Fehler) in den Baum aus dem Parser und überspringt Ausdrücke,
+ * die schon eine typeInfo haben: checked ist dasselbe Objekt wie unchecked. Ein erneuter Check
+ * braucht deshalb einen neu geparsten Baum (Language Server: recheckDocument). Das entfällt mit der
+ * Trennung von Syntaxbaum und Typen (docs/backlog/immutable-syntax-tree.md).
  */
 export function checkTypes(
 	document: ParsedFile,
 	documents: ParsedDocuments,
-	options: CheckOptions,
+	options: CheckOptions = {},
 ): void {
-	const { cloneUnchecked, referenceIndex, onProgress } = options;
+	const { referenceIndex, onProgress } = options;
 	referenceIndex?.clearReferencesFromFile(document.filePath);
 	resetFoldBudget();
-	const checked = cloneUnchecked
-		? structuredClone(document.unchecked)
-		: document.unchecked;
+	const checked = document.unchecked;
 	document.checked = checked;
 	// Große Datendateien liefern dem Importeur Any, ihr Typ wird nie gelesen. Der Emitter
 	// braucht für Daten keine typeInfo.

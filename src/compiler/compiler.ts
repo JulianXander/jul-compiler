@@ -50,7 +50,7 @@ export function compileProject(
 	// "compiling" und "bundling" vorbehalten), sondern nur die Detailanzeige neben dem laufenden
 	// Schritt.
 	const host: ProjectHost = {
-		...createFileSystemHost({ cloneUnchecked: false, warnUnknown: () => warnUnknown }),
+		...createFileSystemHost({ warnUnknown: () => warnUnknown }),
 		onParsed: parsed => renderer.updateDetail(parsed.filePath),
 		// Der Checker blockiert den Event-Loop, der Frame-Timer kommt währenddessen nicht dran.
 		onProgress: () => renderer.tick(),
@@ -280,7 +280,7 @@ export async function testProject(
 	//#region load
 	renderer.startStep('compiling');
 	const host: ProjectHost = {
-		...createFileSystemHost({ cloneUnchecked: false, warnUnknown: () => warnUnknown }),
+		...createFileSystemHost({ warnUnknown: () => warnUnknown }),
 		onParsed: parsed => renderer.updateDetail(parsed.filePath),
 		onProgress: () => renderer.tick(),
 	};

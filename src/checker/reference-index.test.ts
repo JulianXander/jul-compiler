@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { join, resolve } from 'path';
 
-import { checkTypes, ParsedDocuments } from './checker.js';
+import { ParsedDocuments } from './checker.js';
 import { errorInfos } from '../compiler-errors.js';
 import { createInMemoryHost, loadFile, ProjectHost } from '../compiler/project-loader.js';
 import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
@@ -31,8 +31,6 @@ describe('ReferenceIndex', () => {
 	beforeEach(() => {
 		documents = {};
 		referenceIndex = new ReferenceIndex();
-		// Mit Klon wie im Language Server: der Recheck-Test checkt eine Datei ohne neues Parsen
-		// erneut.
 		host = createInMemoryHost({
 			[originPath]: 'foo = 1\n',
 			// nicht-aliasierter Import ohne Nutzung
@@ -41,7 +39,7 @@ describe('ReferenceIndex', () => {
 			[directPath]: '(foo) = import(§./origin.jul§)\nusage = foo\n',
 			// aliasierter Import + lokale Nutzung des Alias
 			[aliasPath]: '(bar = foo) = import(§./origin.jul§)\nusage = bar\n',
-		}, { cloneUnchecked: true, referenceIndex: referenceIndex });
+		}, { referenceIndex: referenceIndex });
 		[originPath, importOnlyPath, directPath, aliasPath].forEach(filePath => {
 			load(filePath, documents, host);
 		});
@@ -73,14 +71,15 @@ describe('ReferenceIndex', () => {
 		expect(referenceIndex.getReferences(fooSymbol, originPath)).to.have.lengthOf(4);
 
 		// direct.jul ändert sich: Nutzung von foo entfällt, Import bleibt
-		const reparsed = load(directPath, documents, host, '(foo) = import(§./origin.jul§)\n');
+		const editedCode = '(foo) = import(§./origin.jul§)\n';
+		load(directPath, documents, host, editedCode);
 
 		const afterEdit = referenceIndex.getReferences(fooSymbol, originPath);
 		expect(afterEdit).to.have.lengthOf(3);
 		expect(afterEdit.filter(location => location.filePath === directPath)).to.have.lengthOf(1);
 
-		// erneutes Checken ohne weitere Änderung darf nichts verdoppeln
-		checkTypes(reparsed, documents, { cloneUnchecked: true, referenceIndex: referenceIndex });
+		// Recheck ohne weitere Änderung (wie recheckDocument im Language Server) darf nichts verdoppeln
+		load(directPath, documents, host, editedCode);
 		expect(referenceIndex.getReferences(fooSymbol, originPath)).to.have.lengthOf(3);
 	});
 });
@@ -104,7 +103,7 @@ describe('ReferenceIndex: Felder eines Dictionary-Typs', () => {
 			'	value/name',
 			'',
 		].join('\n');
-		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { referenceIndex: referenceIndex }));
 	});
 
 	function getFieldSymbol(typeName: string, fieldName: string): SymbolDefinition {
@@ -173,7 +172,7 @@ describe('ReferenceIndex: Feldnamen an Stellen mit erwartetem Typ', () => {
 			'		[false] => [name = §u§]',
 			'',
 		].join('\n');
-		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { referenceIndex: referenceIndex }));
 	});
 
 	function getReferenceRows(): number[] {
@@ -247,7 +246,7 @@ describe('ReferenceIndex: Feldnamen mit erwartetem Typ aus einer anderen Datei',
 		const host = createInMemoryHost({
 			[typePath]: 'MyType = [\n\tname: Text\n]\n',
 			[usagePath]: '(MyType) = import(§./type.jul§)\nb: MyType = [name = §b§]\n',
-		}, { cloneUnchecked: false, referenceIndex: referenceIndex });
+		}, { referenceIndex: referenceIndex });
 		load(typePath, documents, host);
 		load(usagePath, documents, host);
 		const references = referenceIndex.getReferences(getFieldSymbolOfType(documents, typePath, 'MyType', 'name'), typePath)
@@ -258,19 +257,21 @@ describe('ReferenceIndex: Feldnamen mit erwartetem Typ aus einer anderen Datei',
 	it('entfernt beim Recheck die Verknüpfungen der Datei, ohne sie zu verdoppeln', () => {
 		const documents: ParsedDocuments = {};
 		const referenceIndex = new ReferenceIndex();
+		const usageCode = '(MyType) = import(§./type.jul§)\nb: MyType = [name = §b§]\nc = b/name\n';
 		const host = createInMemoryHost({
 			[typePath]: 'MyType = [\n\tname: Text\n]\n',
-			[usagePath]: '(MyType) = import(§./type.jul§)\nb: MyType = [name = §b§]\nc = b/name\n',
-		}, { cloneUnchecked: true, referenceIndex: referenceIndex });
+			[usagePath]: usageCode,
+		}, { referenceIndex: referenceIndex });
 		load(typePath, documents, host);
-		const usage = load(usagePath, documents, host);
+		load(usagePath, documents, host);
 		const getUsageRows = () => referenceIndex.getReferences(getFieldSymbolOfType(documents, typePath, 'MyType', 'name'), typePath)
 			.filter(location => location.filePath === usagePath)
 			.map(location => location.startRowIndex)
 			.sort();
 		expect(getUsageRows()).to.deep.equal([1, 2]);
 
-		checkTypes(usage, documents, { cloneUnchecked: true, referenceIndex: referenceIndex });
+		// Recheck ohne Änderung, wie recheckDocument im Language Server
+		load(usagePath, documents, host, usageCode);
 		expect(getUsageRows()).to.deep.equal([1, 2]);
 
 		load(usagePath, documents, host, '(MyType) = import(§./type.jul§)\n');
@@ -296,7 +297,7 @@ describe('ReferenceIndex: Feldnamen mit einer Union als erwartetem Typ', () => {
 			'z: Or(A B) = [kind = §a§ name = §z§]',
 			'',
 		].join('\n');
-		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { referenceIndex: referenceIndex }));
 	});
 
 	function getReferenceRows(typeName: string): number[] {
@@ -362,7 +363,7 @@ describe('ReferenceIndex: Felder, die per Spread übernommen werden', () => {
 			'b: Variant = [name = §b§ kind = §x§]',
 			'',
 		].join('\n');
-		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { cloneUnchecked: false, referenceIndex: referenceIndex }));
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }, { referenceIndex: referenceIndex }));
 	});
 
 	function getTypeOfSymbol(name: string) {
