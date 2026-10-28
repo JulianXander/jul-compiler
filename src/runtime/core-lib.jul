@@ -994,7 +994,7 @@ findFirst = nativeFunction(
 		}
 	§
 )
-# Liefert den index des ersten Elements, für das predicate true liefert.
+# Liefert den index des ersten Elements, für das predicate true liefert (höchstens die Länge, Empty ohne Treffer).
 findFirstIndex = nativeFunction(
 	(
 		values: Or([] List(Any))
@@ -1002,7 +1002,7 @@ findFirstIndex = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> Or([] PositiveInteger)
+	) :> Or([] And(PositiveInteger Or(length(values) LessInteger(length(values)))))
 	§js
 		(values, predicate) => {
 			if (!values) {
@@ -1034,7 +1034,7 @@ findLast = nativeFunction(
 		}
 	§
 )
-# Liefert den index des letzten Elements, für das predicate true liefert.
+# Liefert den index des letzten Elements, für das predicate true liefert (höchstens die Länge, Empty ohne Treffer).
 findLastIndex = nativeFunction(
 	(
 		values: Or([] List(Any))
@@ -1042,7 +1042,7 @@ findLastIndex = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: PositiveInteger
 		) :> Boolean
-	) :> Or([] PositiveInteger)
+	) :> Or([] And(PositiveInteger Or(length(values) LessInteger(length(values)))))
 	§js
 		(values, predicate) => {
 			if (!values) {

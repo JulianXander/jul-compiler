@@ -1913,6 +1913,12 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 			errors: [],
 		});
 	});
+	// findFirstIndex ist wie der Index von forEach durch die Länge begrenzt: Bei einem Tupel steht
+	// die obere Grenze fest, der Index passt dann in die Union seiner Positionen.
+	it('find-first-index-is-bounded-by-tuple-length', () => {
+		expectCheck(`f = (values: [Integer Integer Integer]) :> Or([] 1 2 3) =>
+	values.findFirstIndex((value) => value.equal(2))`);
+	});
 	// findLast hat denselben Fix und dasselbe Narrowing wie findFirst.
 	it('find-last-narrows-element-type-through-predicate', () => {
 		expectCheck(`isInteger = (value: Any) :> Boolean =>

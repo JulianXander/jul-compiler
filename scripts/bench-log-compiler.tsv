@@ -371,3 +371,9 @@
 2026-10-27 15:34:01	003ac3f+	-	ADV-DEV-56627	yugioh	parse+check	5	10962.95	11756.67	11756.67	erwarteter Rückgabetyp in branches
 2026-10-27 15:34:01	003ac3f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	789.84	853.07	853.07	erwarteter Rückgabetyp in branches
 2026-10-27 15:34:01	003ac3f+	-	ADV-DEV-56627	yugioh	parse	5	56.87	64.56	64.56	erwarteter Rückgabetyp in branches
+2026-10-28 10:11:52	5d93bc9	-	ADV-DEV-56627	yugioh	parse+check	5	11812.52	12319.03	12319.03	vor 3b: LessInteger/GreaterInteger mit aufgeschobenem Typ-Argument
+2026-10-28 10:11:52	5d93bc9	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	808.22	839.60	839.60	vor 3b: LessInteger/GreaterInteger mit aufgeschobenem Typ-Argument
+2026-10-28 10:11:52	5d93bc9	-	ADV-DEV-56627	yugioh	parse	5	62.07	91.05	91.05	vor 3b: LessInteger/GreaterInteger mit aufgeschobenem Typ-Argument
+2026-10-28 10:21:39	5d93bc9+	-	ADV-DEV-56627	yugioh	parse+check	5	11657.55	12240.62	12240.62	nach 3b: findFirstIndex/findLastIndex durch length(values) begrenzt (nur core-lib)
+2026-10-28 10:21:39	5d93bc9+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	786.26	829.31	829.31	nach 3b: findFirstIndex/findLastIndex durch length(values) begrenzt (nur core-lib)
+2026-10-28 10:21:39	5d93bc9+	-	ADV-DEV-56627	yugioh	parse	5	61.92	62.82	62.82	nach 3b: findFirstIndex/findLastIndex durch length(values) begrenzt (nur core-lib)
