@@ -2,7 +2,7 @@
 
 Entwurf. Angestoßen vom assume-Abbau in yugioh (Funde 57 und 59 in `yugioh/docs/jul-findings.md`).
 
-**Stand 2026-10-28:** Schritte 1 und 2 umgesetzt, mit diesen Abweichungen vom Entwurf:
+**Stand 2026-10-28:** Schritte 1 bis 3 umgesetzt. Schritt 3: `CompileTimeLengthOfType.Offset` (Länge + Konstante), `subtractFromTypes` verschiebt den Abstand und lässt die Zahlengrenzen daneben stehen, `isIndexWithinLength` verlangt denselben Term, Abstand ≤ 0 und Minimum ≥ 1. Zu Schritt 1 und 2, mit diesen Abweichungen vom Entwurf:
 
 - Keine frischen Terme für Ausdrücke ohne Pfad. Eine Liste ohne Länge beweist nichts mehr
   (`dereferenceNestedKeyFromObject` verlangt `Length`), frische Terme wären also nur Präzision und

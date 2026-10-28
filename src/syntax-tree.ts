@@ -1177,12 +1177,18 @@ export function createCompileTimeBoundType(
 export interface CompileTimeLengthOfType extends CompileTimeTypeBase {
 	readonly julType: 'lengthOf';
 	Source: CompileTimeType;
+	/**
+	 * Ein fester Abstand zur Länge: LengthOf(Source) + Offset, etwa -1 aus length(values).subtract(1)
+	 * (docs/backlog/laengen-terme.md, Schritt 3).
+	 */
+	Offset: bigint;
 }
 
-export function createCompileTimeLengthOfType(Source: CompileTimeType): CompileTimeLengthOfType {
-	return internType(`len:${Source.id}`, id => ({
+export function createCompileTimeLengthOfType(Source: CompileTimeType, Offset = 0n): CompileTimeLengthOfType {
+	return internType(Offset ? `len:${Source.id}:${Offset}` : `len:${Source.id}`, id => ({
 		julType: 'lengthOf',
 		Source: Source,
+		Offset: Offset,
 		// Die Länge selbst wartet nicht: sie ist immer ein Integer, egal wie offen die Quelle noch
 		// ist. Wer die Quelle meint, prüft sie ausdrücklich.
 		isDeferred: false,

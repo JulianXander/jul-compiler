@@ -5601,6 +5601,91 @@ f = (a: History b: History) :> Integer =>
 	count = length(values)
 	getElement(values count)`);
 	});
+	// Länge minus Konstante: Mit der Untergrenze aus der Verengung liegt count - 1 zwischen 1 und der
+	// Länge (docs/backlog/laengen-terme.md, Schritt 3).
+	it('element-at-length-minus-one-with-narrowed-lower-bound-adds-no-empty', () => {
+		expectCheck(`f = (values: List(Integer)) :> Integer =>
+	count = length(values)
+	?(count)
+		[GreaterInteger(1)] => getElement(values count.subtract(1))
+		() => 0`);
+	});
+	// Ohne Untergrenze kann count - 1 bei einer einelementigen Liste 0 sein.
+	it('element-at-length-minus-one-without-lower-bound-keeps-empty', () => {
+		expectCheck(`f = (values: List(Integer)) :> Integer =>
+	getElement(values length(values).subtract(1))`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign GreaterInteger(-1) to GreaterInteger(0).',
+					startRowIndex: 1,
+					startColumnIndex: 19,
+					endRowIndex: 1,
+					endColumnIndex: 45,
+				},
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 46,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 31,
+						endRowIndex: 0,
+						endColumnIndex: 38,
+					},
+				},
+			],
+		});
+	});
+	// count - 2 bei count > 1 kann 0 sein.
+	it('element-at-length-minus-two-with-too-low-bound-keeps-empty', () => {
+		expectCheck(`f = (values: List(Integer)) :> Or([] Integer) =>
+	count = length(values)
+	?(count)
+		[GreaterInteger(1)] => getElement(values count.subtract(2))
+		() => 0`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'index\'\n  Can not assign GreaterInteger(-2) to GreaterInteger(0).\n  Can not assign GreaterInteger(-1) to GreaterInteger(0).',
+					startRowIndex: 3,
+					startColumnIndex: 43,
+					endRowIndex: 3,
+					endColumnIndex: 60,
+				},
+			],
+		});
+	});
+	// Die verengte Länge einer anderen Liste beweist nichts.
+	it('element-at-length-minus-one-of-other-list-keeps-empty', () => {
+		expectCheck(`f = (values: List(Integer) other: List(Integer)) :> Integer =>
+	count = length(other)
+	?(count)
+		[GreaterInteger(1)] => getElement(values count.subtract(1))
+		() => 0`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign Empty to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 5,
+					endColumnIndex: 2,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 52,
+						endRowIndex: 0,
+						endColumnIndex: 59,
+					},
+				},
+			],
+		});
+	});
 	// Zwei Aufrufe liefern zwei Werte, auch mit demselben Ausdruck: Jeder Aufruf hat seine eigene Länge.
 	it('element-at-plus-length-of-other-call-keeps-empty', () => {
 		// g als Parameter: Eine definierte Funktion würde der Checker falten oder ihren Rumpf als
@@ -8009,7 +8094,8 @@ describe('bedingte Typen', () => {
 	it('K6', () => expectConditional('h = (x: Integer y: Rational) => add(x y)', { returnType: 'Rational' }));
 	it('K7', () => expectConditional('h = (ys: List(Integer)) => add(...ys)', { returnType: 'Integer' }));
 	it('K8 Präfix', () => expectConditional('h = (x: Integer) => x.add(1)', { returnType: 'Integer' }));
-	it('K9 Länge minus eins', () => expectConditional('h = (xs: List(Integer)) => xs.length().subtract(1)', { returnType: 'GreaterInteger(-1)' }));
+	// Die Länge minus eins behält den Bezug zur Länge (docs/backlog/laengen-terme.md, Schritt 3).
+	it('K9 Länge minus eins', () => expectConditional('h = (xs: List(Integer)) => xs.length().subtract(1)', { returnType: 'Subtract(LengthOf(List(Integer)) 1)' }));
 	it('K10 Faltung add', () => expectConditional('r = add(2 3)', { type: '5' }));
 	it('K10 Faltung subtract', () => expectConditional('r = subtract(5 3)', { type: '2' }));
 	// Zwei Fractions können einen Integer ergeben: 1/2 + 1/2 = 1, 1/2 - 1/2 = 0.

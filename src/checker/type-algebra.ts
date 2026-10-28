@@ -480,10 +480,9 @@ export function dereferenceNestedKeyFromObject(
 			// "Genau dieser Quelle" heißt: derselbe Längen-Term (typeEquals vergleicht ihn mit).
 			// Ohne Term gälte die Länge jeder Liste gleichen Typs als Beweis
 			// (docs/backlog/laengen-terme.md).
-			if (source.julType === 'list'
-				&& source.Length !== undefined
-				&& typeEquals(nestedKey.Source, source)) {
-				return source.ElementType;
+			// Mit Abstand (Länge - 1) fehlt die Untergrenze, siehe isIndexWithinLength.
+			if (isIndexWithinLength(nestedKey, source)) {
+				return (source as CompileTimeListType).ElementType;
 			}
 			return dereferenceUnknownKeyFromObject(nestedKey, source);
 		}
@@ -495,6 +494,10 @@ export function dereferenceNestedKeyFromObject(
 			// heißt wirklich "die Position steht nicht fest".
 			if (isDeferredType(nestedKey)) {
 				return createNestedReference(source, nestedKey);
+			}
+			// Länge minus Konstante mit Untergrenze aus einer Verengung (count - 1 bei count > 1).
+			if (isIndexWithinLength(nestedKey, source)) {
+				return (source as CompileTimeListType).ElementType;
 			}
 			// Liegt er zwischen zwei Grenzen, stehen zumindest die möglichen Positionen fest.
 			const range = getIntegerRange(nestedKey);
@@ -1490,7 +1493,7 @@ function traversePlaceholdersUncached(
 			// lengthOf(Or([] List(T))) entstehen, gölte die Source-nie-Empty-Invariante
 			// (isTypeAssignable, case 'lengthOf') nicht mehr, obwohl der Aufrufer sich genau darauf
 			// verlässt.
-			return getLengthFromType(dereferencedSource);
+			return shiftLength(getLengthFromType(dereferencedSource), rawType.Offset);
 		}
 		case 'or': {
 			const rawChoices = rawType.ChoiceTypes;
@@ -2083,8 +2086,9 @@ function rangeCoversFirstPosition(rawStart: CompileTimeType, rawEnd: CompileTime
 	}
 	switch (end.julType) {
 		case 'empty':
-		case 'lengthOf':
 			return true;
+		case 'lengthOf':
+			return end.Offset >= 0n;
 		case 'integerLiteral':
 			return end.value >= 1n;
 		default:
@@ -2376,6 +2380,35 @@ export function subtractFromTypes(rawMinuendType: CompileTimeType, rawSubtrahend
 		|| isSubtypeOf(rawSubtrahendType, builtinInteger) !== true) {
 		return builtinInteger;
 	}
+	const bounds = subtractBounds(rawMinuendType, rawSubtrahendType);
+	// Länge minus Konstante behält den Bezug zur Liste, die Grenzen (etwa aus einer Verengung)
+	// bleiben daneben stehen (docs/backlog/laengen-terme.md, Schritt 3).
+	const subtrahend = resolveAlias(rawSubtrahendType);
+	if (subtrahend.julType !== 'integerLiteral') {
+		return bounds;
+	}
+	const minuend = resolveAlias(rawMinuendType);
+	const length = minuend.julType === 'and'
+		? minuend.ChoiceTypes.find(choice => choice.julType === 'lengthOf')
+		: minuend;
+	if (length?.julType !== 'lengthOf') {
+		return bounds;
+	}
+	const shifted = createCompileTimeLengthOfType(length.Source, length.Offset - subtrahend.value);
+	return minuend.julType === 'and'
+		? createNormalizedIntersectionType([shifted, bounds])
+		: shifted;
+}
+
+/** Die Länge mit einem weiteren Abstand, siehe CompileTimeLengthOfType.Offset. */
+function shiftLength(length: CompileTimeType, offset: bigint): CompileTimeType {
+	return offset === 0n
+		? length
+		: subtractFromTypes(length, createIntegerLiteral(-offset));
+}
+
+/** Die Differenz aus den Zahlengrenzen von minuend und subtrahend, siehe subtractFromTypes. */
+function subtractBounds(rawMinuendType: CompileTimeType, rawSubtrahendType: CompileTimeType): CompileTimeType {
 	const minuendMinimum = getIntegerMinimum(rawMinuendType);
 	const subtrahendMaximum = getIntegerMaximum(rawSubtrahendType);
 	const minuendMaximum = getIntegerMaximum(rawMinuendType);
@@ -2470,7 +2503,7 @@ function getIntegerMinimum(rawType: CompileTimeType): bigint | undefined {
 		}
 		// Eine Länge ist nie 0 (siehe getLengthFromType).
 		case 'lengthOf':
-			return 1n;
+			return 1n + type.Offset;
 		case 'and': {
 			let maximum: bigint | undefined;
 			for (const choiceType of type.ChoiceTypes) {
@@ -2559,6 +2592,32 @@ function hasListLength(type: CompileTimeType): boolean {
 }
 
 /**
+ * Liegt der Index beweisbar zwischen 1 und der Länge genau dieser Liste? Er enthält dafür die Länge
+ * derselben Quelle mit einem Abstand ≤ 0 (derselbe Längen-Term, typeEquals vergleicht ihn mit) und
+ * ist mindestens 1: lengthOf selbst ist es immer (die Quelle ist nie Empty, siehe getLengthFromType),
+ * Länge - k nur mit einer Untergrenze aus einem Schnitt, etwa der Verengung count > 1.
+ * Ohne Längen-Term an der Liste gälte die Länge jeder Liste gleichen Typs als Beweis
+ * (docs/backlog/laengen-terme.md).
+ */
+function isIndexWithinLength(key: CompileTimeType, source: CompileTimeType): boolean {
+	if (source.julType !== 'list'
+		|| source.Length === undefined) {
+		return false;
+	}
+	const lengthChoices = key.julType === 'and'
+		? key.ChoiceTypes
+		: [key];
+	const hasOwnLength = lengthChoices.some(choice => choice.julType === 'lengthOf'
+		&& choice.Offset <= 0n
+		&& typeEquals(choice.Source, source));
+	if (!hasOwnLength) {
+		return false;
+	}
+	const minimum = getIntegerMinimum(key);
+	return minimum !== undefined && minimum >= 1n;
+}
+
+/**
  * Gibt den Listen in rawType die Länge des Werts, den der Ausdruck liefert (siehe
  * docs/backlog/laengen-terme.md). Ein Or/And beschreibt denselben Wert, jede Liste darin bekommt
  * also denselben Term. override: auch eine schon vorhandene Länge ersetzen (der Pfad einer Bindung
@@ -2630,7 +2689,7 @@ function eraseListLengthsUncached(rawType: CompileTimeType): CompileTimeType {
 			const source = eraseListLengths(rawType.Source);
 			return source === rawType.Source
 				? rawType
-				: createCompileTimeLengthOfType(source);
+				: createCompileTimeLengthOfType(source, rawType.Offset);
 		}
 		case 'tuple': {
 			const elementTypes = rawType.ElementTypes.map(eraseListLengths);
@@ -4014,6 +4073,7 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 				&& typeEquals(first.Value, second.Value);
 		case 'lengthOf':
 			return second.julType === 'lengthOf'
+				&& first.Offset === second.Offset
 				&& typeEquals(first.Source, second.Source);
 		case 'list':
 			return second.julType === 'list'
@@ -4676,12 +4736,17 @@ function isTypeAssignableByStructure(
 			// bevor PositiveInteger unterstellt wird.
 			const dereferencedSource = resolvePlaceholders(argumentsType.Source);
 			if (dereferencedSource !== argumentsType.Source) {
-				const dereferencedLength = getLengthFromType(dereferencedSource);
+				const dereferencedLength = shiftLength(getLengthFromType(dereferencedSource), argumentsType.Offset);
 				if (!typeEquals(dereferencedLength, argumentsType)) {
 					return isTypeAssignable(dereferencedLength, targetType);
 				}
 			}
-			return isTypeAssignable(CompileTimePositiveInteger, targetType);
+			// Eine Länge ist mindestens 1, mit Abstand mindestens 1 + Offset.
+			return isTypeAssignable(
+				argumentsType.Offset === 0n
+					? CompileTimePositiveInteger
+					: createCompileTimeBoundType('greater', 'integer', createIntegerLiteral(argumentsType.Offset)),
+				targetType);
 		}
 		case 'not': {
 			// Not(A) heißt "alles außer A" und liegt genau dann in T, wenn T alles außer A abdeckt.
@@ -5822,8 +5887,14 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 			return `${boundName(type)}(${typeToString(type.Value, indent, depth + 1, suppressAlias)})`;
 		case 'integer':
 			return 'Integer';
-		case 'lengthOf':
-			return `LengthOf(${typeToString(type.Source, indent, depth + 1, suppressAlias)})`;
+		case 'lengthOf': {
+			const length = `LengthOf(${typeToString(type.Source, indent, depth + 1, suppressAlias)})`;
+			return type.Offset < 0n
+				? `Subtract(${length} ${-type.Offset})`
+				: type.Offset > 0n
+					? `Add([${length} ${type.Offset}])`
+					: length;
+		}
 		case 'list':
 			return `List(${typeToString(type.ElementType, indent, depth + 1, suppressAlias)})`;
 		case 'nestedReference':
