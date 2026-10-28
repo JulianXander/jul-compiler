@@ -812,7 +812,7 @@ map = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Any
 	) :> MapElements(TypeOf(values) TypeOf(transform))
@@ -838,7 +838,7 @@ filter = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Boolean
 	) :> Or([] List(And(TypeOf(values)/ElementType TypeOf(predicate)/PredicateIfTrue)))
@@ -864,7 +864,7 @@ filterMap = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Any
 	) :> Or([] List(Without(TypeOf(transform)/ReturnType [])))
@@ -994,7 +994,7 @@ findFirst = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Boolean
 	) :> Or([] And(TypeOf(values)/ElementType TypeOf(predicate)/PredicateIfTrue))
@@ -1014,10 +1014,10 @@ findFirstIndex = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Boolean
-	) :> Or([] And(PositiveInteger Or(length(values) LessInteger(length(values)))))
+	) :> Or([] And(PositiveInteger Not(GreaterInteger(length(values)))))
 	§js
 		(values, predicate) => {
 			if (!values) {
@@ -1040,7 +1040,7 @@ findLast = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Boolean
 	) :> Or([] And(TypeOf(values)/ElementType TypeOf(predicate)/PredicateIfTrue))
@@ -1060,10 +1060,10 @@ findLastIndex = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Boolean
-	) :> Or([] And(PositiveInteger Or(length(values) LessInteger(length(values)))))
+	) :> Or([] And(PositiveInteger Not(GreaterInteger(length(values)))))
 	§js
 		(values, predicate) => {
 			if (!values) {
@@ -1091,7 +1091,7 @@ forEach = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) ~> Any
 	) ~> []
@@ -1111,7 +1111,7 @@ exists = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Any
 	) :> Boolean
@@ -1134,7 +1134,7 @@ all = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Boolean
 	) :> Boolean
@@ -1156,14 +1156,14 @@ toDictionary = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Text
 		getValue: (
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> Any
 	) :> Or([] Dictionary(TypeOf(getValue)/ReturnType))
@@ -1200,7 +1200,7 @@ aggregate = nativeFunction(
 			value: TypeOf(values)/ElementType
 			index: And(
 				PositiveInteger
-				Or(length(values) LessInteger(length(values)))
+				Not(GreaterInteger(length(values)))
 			)
 		) :> AccumulatorType
 	) :> AccumulatorType

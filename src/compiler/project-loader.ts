@@ -1,4 +1,3 @@
-import { existsSync } from 'fs';
 import { CheckOptions, checkTypes, ParsedDocuments } from '../checker/checker.js';
 import { clearTypeCaches } from '../checker/type-algebra.js';
 import { ErrorCode } from '../compiler-errors.js';
@@ -135,6 +134,24 @@ function loadFileRecursive(
 //#region Hosts
 
 /**
+ * Liest eine Quelldatei. Ohne vorherige Existenzprüfung: Unter Windows kostet existsSync je Datei
+ * etwa so viel wie das Lesen selbst. Fehlt die Datei, ist das ENOENT (oder ENOTDIR bei einem Pfad
+ * durch eine Datei hindurch), jeder andere Fehler bleibt ein Fehler.
+ */
+function readSourceFile(filePath: string): SourceReadResult {
+	try {
+		return { type: 'code', code: readTextFile(filePath) };
+	}
+	catch (error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		if (code === 'ENOENT' || code === 'ENOTDIR') {
+			return { type: 'notFound' };
+		}
+		throw error;
+	}
+}
+
+/**
  * Liest jede Datei höchstens einmal: spätere Abfragen (Fehlerausschnitt, Emit) bekommen genau
  * den Stand, der geprüft wurde. Deshalb nur für einen einzelnen Lauf gedacht, nicht für
  * langlebige Prozesse - dort würden Änderungen auf der Platte nicht mehr gesehen.
@@ -147,9 +164,7 @@ export function createFileSystemHost(options: CheckOptions): ProjectHost {
 			if (cached) {
 				return cached;
 			}
-			const readResult: SourceReadResult = existsSync(filePath)
-				? { type: 'code', code: readTextFile(filePath) }
-				: { type: 'notFound' };
+			const readResult = readSourceFile(filePath);
 			cache.set(filePath, readResult);
 			return readResult;
 		},

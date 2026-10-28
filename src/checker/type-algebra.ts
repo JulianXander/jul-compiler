@@ -2110,10 +2110,9 @@ function getListIndexType(sourceType: CompileTimeListType): CompileTimeType {
 	if (sourceType.Length === undefined) {
 		return positionIndexType;
 	}
-	const length = createCompileTimeLengthOfType(sourceType);
 	return createNormalizedIntersectionType([
 		positionIndexType,
-		createNormalizedUnionType([length, createCompileTimeBoundType('less', 'integer', length)]),
+		createCompileTimeComplementType(createCompileTimeBoundType('greater', 'integer', createCompileTimeLengthOfType(sourceType))),
 	]);
 }
 
@@ -2642,6 +2641,16 @@ function isAtMostLength(type: CompileTimeType, source: CompileTimeType): boolean
 				&& value.Offset <= 1n
 				&& typeEquals(value.Source, source);
 		}
+		case 'not': {
+			// Not(GreaterInteger(Länge + k)) heißt x ≤ Länge + k.
+			const bound = type.SourceType;
+			return bound.julType === 'bound'
+				&& bound.Relation === 'greater'
+				&& bound.Family === 'integer'
+				&& bound.Value.julType === 'lengthOf'
+				&& bound.Value.Offset <= 0n
+				&& typeEquals(bound.Value.Source, source);
+		}
 		case 'or':
 			return type.ChoiceTypes.every(choice => isAtMostLength(choice, source));
 		case 'and':
@@ -2676,21 +2685,31 @@ export function withListLength(rawType: CompileTimeType, term: LengthTerm | unde
 				? rawType
 				: withLength;
 		}
+		// Nur Listen-Zweige ändern sich, die Union bleibt normalisiert, solange dabei keine zwei Zweige
+		// gleich werden. Die Normalisierung wäre hier der teuerste Teil.
 		case 'or': {
 			const choices = rawType.ChoiceTypes.map(choice => withListLength(choice, term, override));
 			return elementsEqual(choices, rawType.ChoiceTypes)
 				? rawType
-				: createNormalizedUnionType(choices);
+				: hasDuplicateTypes(choices)
+					? createNormalizedUnionType(choices)
+					: createCompileTimeUnionType(choices);
 		}
 		case 'and': {
 			const choices = rawType.ChoiceTypes.map(choice => withListLength(choice, term, override));
 			return elementsEqual(choices, rawType.ChoiceTypes)
 				? rawType
-				: createNormalizedIntersectionType(choices);
+				: hasDuplicateTypes(choices)
+					? createNormalizedIntersectionType(choices)
+					: createCompileTimeIntersectionType(choices);
 		}
 		default:
 			return rawType;
 	}
+}
+
+function hasDuplicateTypes(types: CompileTimeType[]): boolean {
+	return types.some((type, index) => types.indexOf(type) !== index);
 }
 
 /**

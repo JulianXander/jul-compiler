@@ -1743,7 +1743,7 @@ h = (n: And(Integer Not(0))) => g(n)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
-					message: 'Argument type mismatch.\nInvalid value for parameter \'callback\'\n  Invalid type for parameter \'index\'\n    Can not assign 3 to Not(GreaterInteger(2)).',
+					message: 'Argument type mismatch.\nInvalid value for parameter \'callback\'\n  Invalid type for parameter \'index\'\n    Can not assign And(PositiveInteger Not(GreaterInteger(3))) to Not(GreaterInteger(2)).',
 					startRowIndex: 0,
 					startColumnIndex: 16,
 					endRowIndex: 0,

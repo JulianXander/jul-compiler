@@ -389,3 +389,6 @@
 2026-10-28 11:35:06	75670ee+	-	ADV-DEV-56627	yugioh	parse+check	5	14318.19	15499.40	15499.40	nach Längen-Terme Schritt 3 (length - k)
 2026-10-28 11:35:06	75670ee+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1021.88	1107.18	1107.18	nach Längen-Terme Schritt 3 (length - k)
 2026-10-28 11:35:06	75670ee+	-	ADV-DEV-56627	yugioh	parse	5	68.58	78.30	78.30	nach Längen-Terme Schritt 3 (length - k)
+2026-10-28 12:57:46	13a357f+	-	ADV-DEV-56627	yugioh	parse+check	5	12210.91	12385.84	12385.84	Perf: Callback-Index Not(GreaterInteger), Interning ohne Strings, Loader ohne existsSync
+2026-10-28 12:57:46	13a357f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	829.96	868.63	868.63	Perf: Callback-Index Not(GreaterInteger), Interning ohne Strings, Loader ohne existsSync
+2026-10-28 12:57:46	13a357f+	-	ADV-DEV-56627	yugioh	parse	5	66.35	73.18	73.18	Perf: Callback-Index Not(GreaterInteger), Interning ohne Strings, Loader ohne existsSync

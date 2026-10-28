@@ -798,6 +798,13 @@ export interface TypeDeclaration {
 const maxInternedTypes = 500_000;
 const internedTypes = new Map<string, CompileTimeType>();
 const dictionaryLiterals = new Map<number, DictionaryLiteralEntry[]>();
+const tupleTypes = new Map<number, CompileTimeTupleType[]>();
+/** Je Quelle die Zugriffe nach Name, Position und Typ-Schlüssel, ohne Schlüssel-String. */
+const nestedReferences = new Map<number, {
+	byName: Map<string, NestedReferenceType>;
+	byIndex: Map<number, NestedReferenceType>;
+	byType: Map<number, NestedReferenceType>;
+}>();
 /** Kleine Nummern für Feld- und Aliasnamen, damit der Hash keine Strings durchlaufen muss. */
 const nameIds = new Map<string, number>();
 
@@ -837,6 +844,8 @@ function internType<T extends CompileTimeType>(key: string, create: (id: number)
 export function clearInternedTypes(): void {
 	internedTypes.clear();
 	dictionaryLiterals.clear();
+	tupleTypes.clear();
+	nestedReferences.clear();
 	nameIds.clear();
 	integerLiterals.clear();
 	textLiterals.clear();
@@ -1725,12 +1734,49 @@ export interface CompileTimeTupleType extends CompileTimeTypeBase {
 }
 
 export function createCompileTimeTupleType(ElementTypes: CompileTimeType[]): CompileTimeTupleType {
-	return internType(`tuple:${getIds(ElementTypes)}`, id => ({
+	// Hash aus den Ids statt eines Schlüssel-Strings wie bei den Dictionary-Literalen: Tupel sind
+	// häufig (jede Argumentliste) und oft lang, der String kostete Bau, Hash und Speicher.
+	let hash = ElementTypes.length;
+	for (const elementType of ElementTypes) {
+		hash = Math.imul(hash ^ elementType.id, 0x9e3779b1);
+		hash ^= hash >>> 15;
+	}
+	const candidates = tupleTypes.get(hash);
+	if (candidates) {
+		for (const candidate of candidates) {
+			if (elementsIdentical(candidate.ElementTypes, ElementTypes)) {
+				return candidate;
+			}
+		}
+	}
+	if (tupleTypes.size >= maxInternedTypes) {
+		tupleTypes.clear();
+	}
+	const type: CompileTimeTupleType = {
 		julType: 'tuple',
 		ElementTypes: ElementTypes,
 		isDeferred: ElementTypes.some(t => t.isDeferred),
-		id: id,
-	}));
+		id: nextTypeId++,
+	};
+	if (candidates) {
+		candidates.push(type);
+	}
+	else {
+		tupleTypes.set(hash, [type]);
+	}
+	return type;
+}
+
+function elementsIdentical(first: readonly CompileTimeType[], second: readonly CompileTimeType[]): boolean {
+	if (first.length !== second.length) {
+		return false;
+	}
+	for (let index = 0; index < first.length; index++) {
+		if (first[index] !== second[index]) {
+			return false;
+		}
+	}
+	return true;
 }
 
 export interface CompileTimeTypeOfType extends CompileTimeTypeBase {
@@ -1772,20 +1818,43 @@ export interface NestedReferenceType extends CompileTimeTypeBase {
 }
 
 export function createNestedReference(source: CompileTimeType, nestedKey: string | number | CompileTimeType): NestedReferenceType {
-	const keyId = typeof nestedKey === 'object'
-		? `t${nestedKey.id}`
+	// Verschachtelte Maps statt eines Schlüssel-Strings: Der Knoten entsteht bei jedem Feldzugriff auf
+	// einen Platzhalter, der String kostete Bau, Hash und Speicher.
+	let bySource = nestedReferences.get(source.id);
+	if (!bySource) {
+		if (nestedReferences.size >= maxInternedTypes) {
+			nestedReferences.clear();
+		}
+		bySource = { byName: new Map(), byIndex: new Map(), byType: new Map() };
+		nestedReferences.set(source.id, bySource);
+	}
+	const existing = typeof nestedKey === 'object'
+		? bySource.byType.get(nestedKey.id)
 		: typeof nestedKey === 'number'
-			? `n${nestedKey}`
-			: `s${nestedKey}`;
-	return internType(`nested:${source.id},${keyId}`, id => ({
+			? bySource.byIndex.get(nestedKey)
+			: bySource.byName.get(nestedKey);
+	if (existing) {
+		return existing;
+	}
+	const type: NestedReferenceType = {
 		julType: 'nestedReference',
 		source: source,
 		nestedKey: nestedKey,
 		// Der Knoten entsteht nur, wenn der Zugriff nicht gefaltet werden konnte - er wartet also
 		// noch, unabhängig davon, wie aufgelöst Quelle und Schlüssel einzeln aussehen.
 		isDeferred: true,
-		id: id,
-	}));
+		id: nextTypeId++,
+	};
+	if (typeof nestedKey === 'object') {
+		bySource.byType.set(nestedKey.id, type);
+	}
+	else if (typeof nestedKey === 'number') {
+		bySource.byIndex.set(nestedKey, type);
+	}
+	else {
+		bySource.byName.set(nestedKey, type);
+	}
+	return type;
 }
 
 /**
