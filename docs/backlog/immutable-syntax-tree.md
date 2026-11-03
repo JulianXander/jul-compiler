@@ -297,6 +297,8 @@ Danach im selben Prozess +0,7 % (40 Paare), mit getrennten Prozessen +1,5 % Medi
 ### 6. Später, eigener Entwurf
 
 Hover und Completion aus dem letzten fehlerfreien Ergebnis, inkrementelles Prüfen je Definition.
+Aufgegangen in `early-cutoff.md` (Schritte 4 und 5), dort nach einer Messung und dem billigeren
+Cutoff für Importeure.
 
 ## Risiken
 
