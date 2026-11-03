@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
-	_branch, _combineObject, _createFunction, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
+	_branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssumeViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
 	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol, _optionalField, _Text, Or,
 } from './runtime.js';
@@ -147,6 +147,48 @@ describe('Record als Typ', () => {
 });
 
 //#endregion _branch
+
+//#region assume
+
+describe('_checkAssume', () => {
+	beforeEach(() => {
+		_takeAssumeViolation();
+	});
+	it('gibt einen passenden Wert identisch zurück', () => {
+		const value = { a: 1n };
+		const recordType = { [_julTypeSymbol]: 'dictionaryLiteral', Fields: { a: Integer } };
+		expect(_checkAssume(value, recordType as any, 'a.jul', 2, 3, '[a: Integer]')).to.equal(value);
+		expect(_takeAssumeViolation()).to.equal(undefined);
+	});
+	it('wirft bei einem unpassenden Wert und merkt sich Wert und Stelle', () => {
+		expect(() => _checkAssume('x', Integer, 'a.jul', 2, 3, 'Integer'))
+			.to.throw('assume violated: value is not Integer (a.jul:2:3)');
+		expect(_takeAssumeViolation()).to.deep.equal({ value: 'x', file: 'a.jul', row: 2, column: 3, typeText: 'Integer' });
+	});
+	// Nur der erste Bruch zählt, und nach dem Abholen ist keiner mehr da.
+	it('behält den ersten Bruch bis zum Abholen', () => {
+		expect(() => _checkAssume('x', Integer, 'a.jul', 2, 3, 'Integer')).to.throw();
+		expect(() => _checkAssume('y', Integer, 'a.jul', 5, 1, 'Integer')).to.throw();
+		expect(_takeAssumeViolation()?.value).to.equal('x');
+		expect(_takeAssumeViolation()).to.equal(undefined);
+	});
+});
+
+describe('_checkAssumeTest', () => {
+	beforeEach(() => {
+		_takeAssumeViolation();
+	});
+	it('gibt den Wert zurück, wenn der Test passt', () => {
+		expect(_checkAssumeTest(1n, value => value !== undefined, 'a.jul', 1, 1, 'Integer')).to.equal(1n);
+	});
+	it('wirft, wenn der Test nicht passt', () => {
+		expect(() => _checkAssumeTest(undefined, value => value !== undefined, 'a.jul', 1, 1, 'Integer'))
+			.to.throw('assume violated: value is not Integer (a.jul:1:1)');
+		expect(_takeAssumeViolation()).to.deep.equal({ value: undefined, file: 'a.jul', row: 1, column: 1, typeText: 'Integer' });
+	});
+});
+
+//#endregion assume
 
 //#region parseJson
 

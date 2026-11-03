@@ -5,9 +5,9 @@ import { RawSourceMap, SourceMapGenerator } from 'source-map';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { format } from 'util';
 import webpack from 'webpack';
-import { SourceMapping, jsonValueToJs, syntaxTreeToJsWithMappings } from './emitter.js';
+import { EmitOptions, SourceMapping, jsonValueToJs, syntaxTreeToJsWithMappings } from './emitter.js';
 import { shakeRuntime } from '../runtime/runtime-shaking.js';
-import { _runTests, TestLocation, TestResult } from '../runtime/test-runtime.js';
+import { _getLoadFailure, _runTests, TestLocation, TestResult } from '../runtime/test-runtime.js';
 import { ParsedDocuments } from '../checker/checker.js';
 import { getFileCheckResult } from '../checker/check-result.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from '../compiler-errors.js';
@@ -314,7 +314,7 @@ export async function testProject(
 	// dann wie gewohnt auf, und eingebundene .js/.ts-Dateien finden ihre Pakete in node_modules.
 	const sources = new Map<string, { source: string; format: 'module' | 'json'; }>();
 	Object.values(documents).forEach(document => {
-		const { outFilePath, compiled, sourceMap } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimeSourcePath, testRuntimeSourcePath);
+		const { outFilePath, compiled, sourceMap } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimeSourcePath, testRuntimeSourcePath, { checkAssumes: true });
 		sources.set(pathToFileURL(resolve(outFilePath)).href, {
 			// Inline, der Testlauf schreibt nichts auf die Platte.
 			source: sourceMap
@@ -355,13 +355,29 @@ export async function testProject(
 	let testCount = 0;
 	let failedCount = 0;
 	let skippedCount = 0;
+	let loadFailedCount = 0;
 	// Vor dem ersten import: Node wendet Source Maps nur auf Module an, die danach geladen werden.
 	// Stacktraces aus Tests zeigen dann auf die .jul-Stelle.
 	process.setSourceMapsEnabled(true);
 	try {
 		for (const testFilePath of testFilePaths) {
-			// Registriert die Tests beim Import, ausgeführt werden sie erst danach gemeinsam.
-			await import(pathToFileURL(resolve(changeExtension(testFilePath, Extension.js))).href);
+			// Registriert die Tests beim Import, ausgeführt werden sie erst danach gemeinsam. Ein
+			// Fehler beim Laden (etwa ein verletztes assume auf oberster Ebene) betrifft nur diese
+			// Datei, die übrigen laufen weiter.
+			try {
+				await import(pathToFileURL(resolve(changeExtension(testFilePath, Extension.js))).href);
+			}
+			catch (error) {
+				loadFailedCount++;
+				const { failure, failureLocation } = _getLoadFailure(error);
+				renderer.log(formatLoadFailure(testFilePath, failure, failureLocation));
+				writeReport({
+					type: 'loadFailed',
+					file: resolve(testFilePath),
+					failure: failure,
+					failureLocation: toAbsoluteLocation(failureLocation),
+				});
+			}
 		}
 		({ testCount, failedCount, skippedCount } = _runTests(
 			result => {
@@ -382,16 +398,18 @@ export async function testProject(
 		process.exitCode = 1;
 		return;
 	}
-	renderer.finishStep(failedCount ? 'failed' : 'done');
+	const hasFailure = failedCount > 0 || loadFailedCount > 0;
+	renderer.finishStep(hasFailure ? 'failed' : 'done');
 	const testSummary = [
 		`- ${pluralize(testCount, 'test')}`,
 		...failedCount ? [`${failedCount} failed`] : [],
 		...skippedCount ? [`${skippedCount} skipped`] : [],
+		...loadFailedCount ? [`${pluralize(loadFailedCount, 'file')} failed to load`] : [],
 	].join(', ');
-	renderer.finish([failedCount
+	renderer.finish([hasFailure
 		? `${colorize('tests failed', ConsoleColor.lightRed)} ${testSummary} ${durationSuffix(startTime)}`
 		: `${colorize('tests passed', ConsoleColor.green)} ${testSummary} ${durationSuffix(startTime)}`]);
-	if (failedCount) {
+	if (hasFailure) {
 		process.exitCode = 1;
 	}
 	//#endregion run
@@ -406,6 +424,13 @@ export function formatTestResult(result: TestResult): string {
 		return colorize(`✓ ${result.name}`, ConsoleColor.green);
 	}
 	return `${colorize(`✗ ${result.name}${formatTestLocation(result.location)}`, ConsoleColor.lightRed)}\n    ${result.failure}${formatTestLocation(result.failureLocation)}`;
+}
+
+/**
+ * Eine Testdatei, die sich nicht laden ließ, wie ein fehlgeschlagener Test.
+ */
+export function formatLoadFailure(testFilePath: string, failure: string, failureLocation: TestLocation | undefined): string {
+	return `${colorize(`✗ ${testFilePath} failed to load`, ConsoleColor.lightRed)}\n    ${failure}${formatTestLocation(failureLocation)}`;
 }
 
 function formatTestLocation(location: TestLocation | undefined): string {
@@ -435,6 +460,16 @@ export type TestReportEvent =
 	| {
 		type: 'compileFailed';
 		errors: (TestLocation & { message: string; })[];
+	}
+	| {
+		/**
+		 * Die Testdatei ließ sich nicht laden. Tests, die sie vor dem Fehler registriert hat, laufen
+		 * trotzdem und melden eigene Ergebnisse.
+		 */
+		type: 'loadFailed';
+		file: string;
+		failure: string;
+		failureLocation: TestLocation | undefined;
 	}
 	| {
 		type: 'finished';
@@ -623,6 +658,7 @@ function emitToJs(
 	outputFolderPath: string,
 	runtimeImportPath: string,
 	testRuntimeImportPath: string,
+	options: EmitOptions = {},
 ): { outFilePath: string; compiled: string; sourceMap?: RawSourceMap; runtimeNames: string[]; } {
 	const sourceFilePath = parsed.filePath;
 	let compiled: string;
@@ -651,7 +687,7 @@ function emitToJs(
 			// checkResult trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht. Ohne
 			// Check ein leeres Ergebnis: dann ohne Typen.
 			const expressions = (parsed.checked ?? parsed.syntax).expressions ?? [];
-			const emitted = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath);
+			const emitted = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath, options);
 			compiled = emitted.js;
 			runtimeNames = emitted.runtimeNames;
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);

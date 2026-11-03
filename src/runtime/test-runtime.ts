@@ -5,8 +5,8 @@
 
 import { relative } from 'path';
 import { fileURLToPath } from 'url';
-import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _Text } from './runtime.js';
-import type { BuiltInType, RuntimeDictionary, RuntimeType } from './runtime.js';
+import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _takeAssumeViolation, _Text } from './runtime.js';
+import type { AssumeViolation, BuiltInType, RuntimeDictionary, RuntimeType } from './runtime.js';
 
 /**
  * Stelle des test-Aufrufs im .jul-Quelltext, 1-basiert. Setzt der Emitter als drittes Argument,
@@ -92,6 +92,8 @@ export function _runTests(
 	let failedCount = 0;
 	for (const registered of tests) {
 		lastTestCall = undefined;
+		// Ein Bruch aus dem Laden der Module oder einem früheren Test gehört nicht zu diesem.
+		_takeAssumeViolation();
 		let result: unknown;
 		let thrown: { error: unknown; } | undefined;
 		const startTime = performance.now();
@@ -102,19 +104,25 @@ export function _runTests(
 			thrown = { error };
 		}
 		const durationMs = performance.now() - startTime;
-		const passed = !thrown && result === true;
+		// Auch wenn JS-Code die Exception abgefangen hat und der Test danach true liefert.
+		const violation = _takeAssumeViolation();
+		const passed = !violation && !thrown && result === true;
 		if (!passed) {
 			failedCount++;
 		}
-		const failureLocation = thrown?.error instanceof Error
-			? getJulStackLocation(thrown.error)
-			: undefined;
+		const failureLocation = violation
+			? getViolationLocation(violation)
+			: thrown?.error instanceof Error
+				? getJulStackLocation(thrown.error)
+				: undefined;
 		report({
 			name: registered.name,
 			location: registered.location,
 			failure: passed
 				? undefined
-				: getTestFailureText(result, thrown, lastTestCall),
+				: violation
+					? getAssumeViolationText(violation)
+					: getTestFailureText(result, thrown, lastTestCall),
 			...failureLocation && { failureLocation: failureLocation },
 			durationMs: durationMs,
 		});
@@ -139,6 +147,42 @@ function getTestFailureText(
 		return `${callText}threw ${error instanceof Error ? error.message : String(error)}`;
 	}
 	return `${callText}returned ${valueToString(result)}`;
+}
+
+/**
+ * Höchstlänge des Werts in der Meldung eines verletzten assume: Behauptet werden oft ganze
+ * Spielzustände.
+ */
+const maxViolationValueLength = 200;
+
+function getAssumeViolationText(violation: AssumeViolation): string {
+	const valueText = valueToString(violation.value);
+	const shortValueText = valueText.length > maxViolationValueLength
+		? valueText.slice(0, maxViolationValueLength) + '…'
+		: valueText;
+	return `assume violated: ${shortValueText} is not ${violation.typeText}`;
+}
+
+function getViolationLocation(violation: AssumeViolation): TestLocation {
+	return { file: violation.file, row: violation.row, column: violation.column };
+}
+
+/**
+ * Was beim Laden einer Testdatei schiefging, im Format eines fehlgeschlagenen Tests: ein verletztes
+ * assume auf oberster Ebene eines geladenen Moduls oder eine andere Exception.
+ */
+export function _getLoadFailure(error: unknown): { failure: string; failureLocation?: TestLocation; } {
+	const violation = _takeAssumeViolation();
+	if (violation) {
+		return { failure: getAssumeViolationText(violation), failureLocation: getViolationLocation(violation) };
+	}
+	const failureLocation = error instanceof Error
+		? getJulStackLocation(error)
+		: undefined;
+	return {
+		failure: getTestFailureText(undefined, { error: error }, undefined),
+		...failureLocation && { failureLocation: failureLocation },
+	};
 }
 
 /**

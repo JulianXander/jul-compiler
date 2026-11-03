@@ -22,7 +22,7 @@
 	(abschnitt "Anschluss: Warnung bei unknown"), voraussetzung ist dort phase 2
 -language features für embedded languages: regex, ts, js
 -userland pure nativefunctions falten
--debug mode: throw bei violated assume und type guards
+-debug mode: throw bei violated type guards (assume prüft jul test schon, docs/assume-check-plan.md)
 -grenzen in der arithmetik (docs/typberechnung-im-rueckgabetyp.md): Add für add umgesetzt, offen
 	-literal-unions genau statt über die untere grenze: Or(1 2).add(1) = Or(2 3)
 	-Multiply (vorzeichenregeln), Subtract (braucht obere grenzen)

@@ -437,3 +437,9 @@
 2026-11-03 15:00:48	7af62f5+	-	ADV-DEV-56627	yugioh	parse+check	5	9760.33	10398.05	10398.05	nach: declaration bei Dictionary-Schnittmenge erhalten
 2026-11-03 15:00:48	7af62f5+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	571.12	644.62	644.62	nach: declaration bei Dictionary-Schnittmenge erhalten
 2026-11-03 15:00:48	7af62f5+	-	ADV-DEV-56627	yugioh	parse	5	65.71	82.89	82.89	nach: declaration bei Dictionary-Schnittmenge erhalten
+2026-11-03 18:05:14	773f83a+	-	ADV-DEV-56627	yugioh	parse+check	5	9022.53	9628.28	9628.28	vor assume-check
+2026-11-03 18:05:14	773f83a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	581.60	619.92	619.92	vor assume-check
+2026-11-03 18:05:14	773f83a+	-	ADV-DEV-56627	yugioh	parse	5	62.83	69.32	69.32	vor assume-check
+2026-11-03 18:17:08	773f83a+	-	ADV-DEV-56627	yugioh	parse+check	5	8974.63	9571.97	9571.97	nach assume-check
+2026-11-03 18:17:08	773f83a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	570.19	611.43	611.43	nach assume-check
+2026-11-03 18:17:08	773f83a+	-	ADV-DEV-56627	yugioh	parse	5	64.86	70.81	70.81	nach assume-check

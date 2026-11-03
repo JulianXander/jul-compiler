@@ -393,6 +393,64 @@ function isDictionary(value: any): value is RuntimeDictionary {
 
 //#endregion check type
 
+//#region assume
+
+/**
+ * Ein verletztes assume: der Wert und die Stelle des Aufrufs (1-basiert), typeText ist der
+ * behauptete Typ als Text.
+ */
+export interface AssumeViolation {
+	value: unknown;
+	file: string;
+	row: number;
+	column: number;
+	typeText: string;
+}
+
+/**
+ * Der erste Bruch seit dem letzten _takeAssumeViolation. Fängt JS-Code die Exception ab, geht er so
+ * nicht verloren.
+ */
+let pendingAssumeViolation: AssumeViolation | undefined;
+
+/**
+ * assume unter jul test, wenn die Typen keinen billigeren Test hergeben. Die Stelle geht als
+ * einzelne Literale mit, ein Objekt würde bei jedem Aufruf neu angelegt.
+ */
+export function _checkAssume(value: unknown, type: RuntimeType, file: string, row: number, column: number, typeText: string): unknown {
+	if (_isOfType(value, type)) {
+		return value;
+	}
+	return assumeViolated(value, file, row, column, typeText);
+}
+
+/**
+ * assume unter jul test mit dem Test, den der Emitter aus dem statischen Typ ableitet (etwa
+ * value !== undefined statt der vollen Prüfung des behaupteten Typs).
+ */
+export function _checkAssumeTest(value: unknown, test: (value: unknown) => boolean, file: string, row: number, column: number, typeText: string): unknown {
+	if (test(value)) {
+		return value;
+	}
+	return assumeViolated(value, file, row, column, typeText);
+}
+
+/**
+ * Liefert den Bruch seit dem letzten Aufruf und setzt ihn zurück. Für die Test-Runtime.
+ */
+export function _takeAssumeViolation(): AssumeViolation | undefined {
+	const violation = pendingAssumeViolation;
+	pendingAssumeViolation = undefined;
+	return violation;
+}
+
+function assumeViolated(value: unknown, file: string, row: number, column: number, typeText: string): never {
+	pendingAssumeViolation ??= { value: value, file: file, row: row, column: column, typeText: typeText };
+	throw new Error(`assume violated: value is not ${typeText} (${file}:${row}:${column})`);
+}
+
+//#endregion assume
+
 /**
  * Mit type check. Liefert die zugewiesenen Werte, oder undefined, wenn die Argumente nicht passen.
  */

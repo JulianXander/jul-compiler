@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { join, resolve } from 'path';
 import { pathToFileURL } from 'url';
-import { deepEqual, equal } from './runtime.js';
-import { _runTests, _testCall, test, TestLocation, TestResult } from './test-runtime.js';
+import { _checkAssumeTest, deepEqual, equal } from './runtime.js';
+import { _getLoadFailure, _runTests, _testCall, test, TestLocation, TestResult } from './test-runtime.js';
 import { reportAtCaller } from '../test-util.js';
 
 /**
@@ -190,5 +190,77 @@ describe('_runTests', () => {
 		test('a', () => true, location);
 		_runTests(() => { }, ['b']);
 		expectTestRun(() => { }, [], 0);
+	});
+});
+
+describe('_runTests mit assume', () => {
+	const violatingCall = () => _checkAssumeTest(undefined, value => value !== undefined, 'b.jul', 7, 2, 'GameCard');
+	it('meldet einen Bruch mit Wert und behauptetem Typ', () => {
+		expectTestRun(
+			() => test('a', () => violatingCall() === 1n, location),
+			['assume violated: [] is not GameCard'],
+			1);
+	});
+	it('meldet die Stelle des assume', () => {
+		expectFailureLocation(
+			() => test('a', () => violatingCall() === 1n, location),
+			{ file: 'b.jul', row: 7, column: 2 });
+	});
+	// JS-Code kann die Exception abfangen, der Test liefert dann true.
+	it('ein abgefangener Bruch lässt den Test trotzdem fehlschlagen', () => {
+		expectTestRun(
+			() => test('a', () => {
+				try {
+					violatingCall();
+				}
+				catch {
+				}
+				return true;
+			}, location),
+			['assume violated: [] is not GameCard'],
+			1);
+	});
+	it('der nächste Test startet ohne den Bruch', () => {
+		expectTestRun(
+			() => {
+				test('a', () => violatingCall() === 1n, location);
+				test('b', () => true, location);
+			},
+			['assume violated: [] is not GameCard', undefined],
+			1);
+	});
+	// Ein Bruch beim Laden der Module gehört zu keinem Test.
+	it('ein Bruch vor dem Lauf zählt nicht für den ersten Test', () => {
+		expect(violatingCall).to.throw();
+		expectTestRun(
+			() => test('a', () => true, location),
+			[undefined],
+			0);
+	});
+	it('kürzt einen langen Wert', () => {
+		const value = { text: 'x'.repeat(300) };
+		expectTestRun(
+			() => test('a', () => _checkAssumeTest(value, () => false, 'b.jul', 1, 1, 'Integer') === 1n, location),
+			[`assume violated: [text = §${'x'.repeat(191)}… is not Integer`],
+			1);
+	});
+});
+
+describe('_getLoadFailure', () => {
+	it('meldet ein verletztes assume beim Laden mit seiner Stelle', () => {
+		let error: unknown;
+		try {
+			_checkAssumeTest(undefined, value => value !== undefined, 'b.jul', 7, 2, 'GameCard');
+		}
+		catch (thrown) {
+			error = thrown;
+		}
+		expect(_getLoadFailure(error)).to.deep.equal({
+			failure: 'assume violated: [] is not GameCard',
+			failureLocation: { file: 'b.jul', row: 7, column: 2 },
+		});
+	});
+	it('meldet eine andere Exception wie ein Test', () => {
+		expect(_getLoadFailure(new Error('kaputt'))).to.deep.equal({ failure: 'threw kaputt' });
 	});
 });

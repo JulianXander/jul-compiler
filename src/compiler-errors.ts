@@ -127,6 +127,11 @@ export enum ErrorCode {
 	 */
 	redundantAssume = 2503,
 	/**
+	 * assume wie ein Keyword: Ein weitergereichtes assume erreicht den Sonderfall im Emitter nicht,
+	 * und `jul test` prüft seine Behauptung nie.
+	 */
+	assumeNotCalled = 2504,
+	/**
 	 * Ein Name passt in der Schreibweise nicht zu seinem Wert: Typen und Funktionen, die einen Typ
 	 * liefern, beginnen groß, alles, was sicher kein Typ ist, beginnt klein. Gemeldet wird nur,
 	 * wenn der statische Typ das eindeutig sagt - bei Any, gemischten Typen und Prädikaten nicht.
@@ -357,6 +362,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.argumentsOutOfOrder]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.spreadArgumentNotList]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.redundantAssume]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.assumeNotCalled]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.namingCase]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.testOutsideTestFile]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testNameNotLiteral]: { type: 'semantic', severity: 'error' },

@@ -283,6 +283,15 @@ const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
  * ist. And, Or, Not und TypeOf folgen dem über die Normalisierung bzw. ihren eigenen Zweig.
  */
 const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'Subtract', 'GreaterInteger', 'LessInteger', 'GreaterFloat'];
+/**
+ * Builtins, die wie ein Keyword nur direkt aufgerufen werden dürfen, mit dem Fehlercode für eine
+ * andere Verwendung. import fehlt, es meldet JUL3140 schon im Parser. Vor dem Check der core-lib
+ * definiert, der beim Modul-Load läuft.
+ */
+const directCallOnlyBuiltins = new Map<string, ErrorCode>([
+	['test', ErrorCode.testNotCalled],
+	['assume', ErrorCode.assumeNotCalled],
+]);
 
 /**
  * Stream(ValueType) und FiniteStream(ValueType): dieselbe Typfunktion, nur das Merkmal finite
@@ -3441,13 +3450,15 @@ function inferType(
 				isBuiltIn,
 			} = dereferenceType(checkContext.result, expression, scopes);
 			const name = expression.name.name;
-			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
-			if (name === 'test'
+			// Name statt Symbol wie bei den übrigen Builtins: `test` und `assume` zu überschatten ist
+			// JUL3203.
+			const notCalledCode = directCallOnlyBuiltins.get(name);
+			if (notCalledCode !== undefined
 				&& isBuiltIn
 				&& !isCalledFunction(expression)) {
 				errors.push({
-					code: ErrorCode.testNotCalled,
-					message: `'test' can only be called directly.`,
+					code: notCalledCode,
+					message: `'${name}' can only be called directly.`,
 					startRowIndex: expression.startRowIndex,
 					startColumnIndex: expression.startColumnIndex,
 					endRowIndex: expression.endRowIndex,

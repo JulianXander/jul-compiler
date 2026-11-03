@@ -4667,6 +4667,40 @@ f(a = 1 b = 2)`);
 	it('assume-of-written-literal-is-not-redundant', () => {
 		expectCheck(`x = assume(5 Integer)`);
 	});
+	it('assume-as-value', () => {
+		expectCheck('f = assume', {
+			errors: [
+				{
+					code: ErrorCode.assumeNotCalled,
+					message: `'assume' can only be called directly.`,
+					startRowIndex: 0,
+					startColumnIndex: 4,
+					endRowIndex: 0,
+					endColumnIndex: 10,
+				},
+			],
+		});
+	});
+	it('assume-in-list', () => {
+		expectCheck('x = [assume]', {
+			errors: [
+				{
+					code: ErrorCode.assumeNotCalled,
+					message: `'assume' can only be called directly.`,
+					startRowIndex: 0,
+					startColumnIndex: 5,
+					endRowIndex: 0,
+					endColumnIndex: 11,
+				},
+			],
+		});
+	});
+	it('assume-direct-call-is-allowed', () => {
+		expectCheck('x = assume(1 Any)');
+	});
+	it('assume-prefix-call-is-allowed', () => {
+		expectCheck('x = 1.assume(Any)');
+	});
 	// Benannte Argumente stehen in der Reihenfolge der Parameter. Gemeldet wird das Argument,
 	// das vor einem bereits geschriebenen späteren Parameter steht.
 	it('named-arguments-out-of-order', () => {

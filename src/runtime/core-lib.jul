@@ -1651,8 +1651,8 @@ nativeValue = nativeFunction(
 	§[...]§
 )
 #endregion JavaScript
-# Assume that the value is of type ValueType without checking.
-# Make sure the Type fits under all circumstances.
+# Assume that the value is of type ValueType. Not checked in a normal build, jul test checks
+# what the static type of the value leaves open. Make sure the Type fits under all circumstances.
 assume = nativeFunction(
 	(value: Any ValueType: Type) -> ValueType
 	§js

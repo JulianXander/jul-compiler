@@ -121,6 +121,35 @@ export function getBranchDispatch(checkResult: CheckResult, branching: ParseBran
 	};
 }
 
+/**
+ * Welcher Test zur Laufzeit reicht, um assume(value Target) zu prüfen, wenn value den statischen
+ * Typ valueType hat. Dieselbe Frage wie für einen branch [Target] => …: Vertraut wird dem
+ * statischen Typ, geprüft wird nur, welcher der laut Typ möglichen Fälle vorliegt.
+ * always: Der statische Typ passt schon, es braucht keine Prüfung.
+ * undefined: Die Typen geben keinen billigeren Test her als den vollen Check.
+ */
+export function getAssumeTest(valueType: CompileTimeType, targetType: CompileTimeType): BranchTest | undefined {
+	const members = getMembers(resolvePlaceholders(valueType));
+	if (!members) {
+		return undefined;
+	}
+	const requirement = getRequirementForType(resolveAlias(resolvePlaceholders(targetType)));
+	if (!requirement) {
+		return undefined;
+	}
+	if (requirement.kind === 'catchAll') {
+		return { kind: 'always' };
+	}
+	const step = getBranchStep(members, requirement.type);
+	if (!step) {
+		return undefined;
+	}
+	// Wie in getBranchDispatch: Fängt der Test jeden noch möglichen Wert, braucht es keinen.
+	return step.remaining.length
+		? step.test
+		: { kind: 'always' };
+}
+
 /** Nur ?(x): ein geschriebenes Argument, kein Spread. */
 function getSingleArgument(branching: ParseBranching): ParseValueExpression | undefined {
 	const args = branching.args;

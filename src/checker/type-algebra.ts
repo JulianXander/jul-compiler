@@ -1323,8 +1323,10 @@ export function getLookupType(rawType: CompileTimeType): CompileTimeType {
  * obwohl hier nicht in sie abgestiegen wird.
  * Gecacht, weil große Dictionary-Literale sonst bei jedem Aufruf durchlaufen würden. Das geht, weil
  * Dictionary-Literale und Tupel nach dem Erzeugen nicht mehr verändert werden.
+ * Auch für den Emitter: Ein solcher Typ hängt von einem Parameter ab, sein emittierter Ausdruck ist
+ * zur Laufzeit kein verlässlicher Typwert.
  */
-function hasArgumentSubstitution(type: CompileTimeType): boolean {
+export function hasArgumentSubstitution(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'parameterReference':
 		case 'nestedReference':

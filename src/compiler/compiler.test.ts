@@ -4,7 +4,7 @@ import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { SourceMapConsumer } from 'source-map';
 
-import { createSourceMap, createTestReport, formatErrors, formatTestResult, formatTodoList, LiveRenderer, toReportResult } from './compiler.js';
+import { createSourceMap, createTestReport, formatErrors, formatLoadFailure, formatTestResult, formatTodoList, LiveRenderer, toReportResult } from './compiler.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { parseTodoComments } from '../parser/comment-directives.js';
 import { createInMemoryHost } from './project-loader.js';
@@ -343,6 +343,13 @@ describe('formatTestResult', () => {
 			failureLocation: { file: 'b.jul', row: 4, column: 2 },
 			durationMs: 1,
 		}))).to.equal('✗ a (a.test.jul:3:1)\n    threw kaputt (b.jul:4:2)');
+	});
+});
+
+describe('formatLoadFailure', () => {
+	it('nennt die Datei und die Stelle des Fehlers', () => {
+		expect(stripAnsi(formatLoadFailure('a.test.jul', 'assume violated: [] is not GameCard', { file: 'b.jul', row: 7, column: 2 })))
+			.to.equal('✗ a.test.jul failed to load\n    assume violated: [] is not GameCard (b.jul:7:2)');
 	});
 });
 

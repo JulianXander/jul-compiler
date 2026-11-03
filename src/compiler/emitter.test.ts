@@ -3,7 +3,7 @@ import { parseCode } from '../parser/parser.js';
 import { checkTypes } from '../checker/checker.js';
 import { getFileCheckResult } from '../checker/check-result.js';
 import { ErrorCode, errorInfos } from '../compiler-errors.js';
-import { functionLiteralToEvaluableJs, getUsedRuntimeNames, jsonValueToJs, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
+import { EmitOptions, functionLiteralToEvaluableJs, getUsedRuntimeNames, jsonValueToJs, syntaxTreeToJs, syntaxTreeToJsWithMappings } from './emitter.js';
 import { ParseFunctionLiteral, ParseSingleDefinition } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
 import * as runtime from '../runtime/runtime.js';
@@ -189,13 +189,13 @@ describe('Emitter', () => {
  * der Funktion f: das _createFunction mit den Parametertypen dahinter ist hier nicht Gegenstand
  * und würde jeden Fall aufblähen.
  */
-function emitCheckedFunctionBody(code: string): string {
+function emitCheckedFunctionBody(code: string, options: EmitOptions = {}): string {
 	const parsed = parseCode(code, 'dummy.jul');
 	checkTypes(parsed, {});
 	const checked = parsed.checked!;
 	const errors = checked.errors.filter(error => errorInfos[error.code].severity === 'error');
 	expect(errors.map(error => error.message)).to.deep.equal([]);
-	const compiled = syntaxTreeToJs(parsed.checkResult!, checked.expressions!, '');
+	const compiled = syntaxTreeToJs(parsed.checkResult!, checked.expressions!, '', 'dummy.jul', '', options);
 	const functionStart = compiled.indexOf('export const f = (');
 	const bodyStart = compiled.indexOf(' => {', functionStart) + ' => {'.length;
 	// Mit Parametertypen folgt ein _createFunction, sonst endet f nach dem Arrow.
@@ -759,6 +759,99 @@ f = () =>
 f = (values: [Integer Integer]) =>
 	g(...values)`, `
 		return g(...values ?? [])`);
+	});
+});
+
+/** Der Rumpf von f mit der Prüfung von assume wie unter jul test */
+const expectAssumeEmit = reportAtCaller((code: string, bodyJs: string) => {
+	expect(emitCheckedFunctionBody(code, { checkAssumes: true })).to.equal(bodyJs);
+});
+
+/** Fälle, in denen assume auch unter jul test nur der Wert bleibt */
+const expectAssumeUnchecked = reportAtCaller((code: string, valueJs: string) => {
+	expect(emitCheckedFunctionBody(code, { checkAssumes: true })).to.equal(`
+		return ${valueJs}`);
+});
+
+describe('Emitter assume', () => {
+	it('ohne checkAssumes nur der Wert', () => {
+		expect(emitCheckedFunctionBody('f = (a: Or([] Integer)) => assume(a Integer)')).to.equal(`
+		return a`);
+	});
+	it('Empty gegen den behaupteten Typ wird zum undefined-Vergleich', () => {
+		expectAssumeEmit('f = (a: Or([] Integer)) => assume(a Integer)', `
+		return _checkAssumeTest(
+			a,
+			(_v) => _v !== undefined,
+			'dummy.jul',
+			1,
+			28,
+			'Integer',
+		)`);
+	});
+	it('Präfixform wie Listenform', () => {
+		expectAssumeEmit('f = (a: Or([] Integer)) => a.assume(Integer)', `
+		return _checkAssumeTest(
+			a,
+			(_v) => _v !== undefined,
+			'dummy.jul',
+			1,
+			28,
+			'Integer',
+		)`);
+	});
+	it('Literal-Union wird zum Vergleich mit den Werten', () => {
+		expectAssumeEmit('f = (a: Or(1 2 3)) => assume(a Or(1 2))', `
+		return _checkAssumeTest(
+			a,
+			(_v) => _v === 1n || _v === 2n,
+			'dummy.jul',
+			1,
+			23,
+			'Or(1 2)',
+		)`);
+	});
+	it('Tagged Union wird zum Feldvergleich', () => {
+		expectAssumeEmit('f = (a: Or([kind: §a§ x: Integer] [kind: §b§ y: Text])) => assume(a [kind: §a§ x: Integer])', `
+		return _checkAssumeTest(
+			a,
+			(_v) => _v?.['kind'] === 'a',
+			'dummy.jul',
+			1,
+			60,
+			'[ kind: §a§ x: Integer ]',
+		)`);
+	});
+	it('Any als Wert wird voll geprüft', () => {
+		expectAssumeEmit('f = (a: Any) => assume(a Integer)', `
+		return _checkAssume(
+			a,
+			Integer,
+			'dummy.jul',
+			1,
+			17,
+			'Integer',
+		)`);
+	});
+	it('bewiesener Typ wird nicht geprüft', () => {
+		expectAssumeUnchecked('f = (a: Integer) => assume(a Integer)', 'a');
+	});
+	it('verbreitertes Literal wird nicht geprüft', () => {
+		expectAssumeUnchecked('f = () => assume(5 Integer)', '5n');
+	});
+	it('Zieltyp Any wird nicht geprüft', () => {
+		expectAssumeUnchecked('f = (a: Integer) => assume(a Any)', 'a');
+	});
+	// Der emittierte Ausdruck TypeOf(values)/ElementType wäre zur Laufzeit kein Typwert.
+	it('Zieltyp abhängig vom Parameter wird nicht geprüft', () => {
+		expectAssumeUnchecked('f = (values: List(Any)) => assume(1 TypeOf(values)/ElementType)', '1n');
+	});
+	// Auch außerhalb von *.test.jul: geprüft wird jede Datei, die ein Test lädt.
+	it('der Helfer kommt in den Runtime-Import einer Nicht-Testdatei', () => {
+		const parsed = parseCode('f = (a: Any) => assume(a Integer)', 'dummy.jul');
+		checkTypes(parsed, {});
+		const compiled = syntaxTreeToJs(parsed.checkResult!, parsed.checked!.expressions!, './runtime.js', 'dummy.jul', '', { checkAssumes: true });
+		expect(compiled).to.match(/^import \{[^}]*\b_checkAssume\b[^}]*\} from '\.\/runtime\.js';/);
 	});
 });
 

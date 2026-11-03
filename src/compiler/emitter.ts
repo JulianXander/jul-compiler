@@ -23,7 +23,8 @@ import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName
 import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
 import { getCheckedEscapableName, getTestCallArguments } from '../parser/parser-utils.js';
-import { BranchDispatch, BranchTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
+import { BranchDispatch, BranchTest, getAssumeTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
+import { hasArgumentSubstitution, typeToString, valueOf } from '../checker/type-algebra.js';
 import { classifyCopySource, copyingBuiltinNames } from './copy-sites.js';
 
 const runtimeKeys = Object.keys(runtime);
@@ -49,6 +50,11 @@ let instrumentedTestCall: ParseExpression | undefined;
  * functionLiteralToEvaluableJs emittiert ohne Marker.
  */
 let emitSourcePositions = false;
+/**
+ * Nur unter jul test: Jedes assume prüft seine Behauptung, soweit der statische Typ sie offen lässt
+ * (siehe assumeCallToJs).
+ */
+let checkAssumes = false;
 /**
  * Messinstrument, siehe countCopyJs.
  */
@@ -170,8 +176,17 @@ export function syntaxTreeToJs(
 	 * Nur für *.test.jul-Dateien gebraucht.
 	 */
 	testRuntimeImportPath: string = '',
+	options: EmitOptions = {},
 ): string {
-	return syntaxTreeToJsWithMappings(checkResult, expressions, runtimeImportPath, filePath, testRuntimeImportPath).js;
+	return syntaxTreeToJsWithMappings(checkResult, expressions, runtimeImportPath, filePath, testRuntimeImportPath, options).js;
+}
+
+export interface EmitOptions {
+	/**
+	 * assume prüft seine Behauptung zur Laufzeit. Nur für jul test, der normale Build bleibt
+	 * unverändert.
+	 */
+	checkAssumes?: boolean;
 }
 
 /**
@@ -222,11 +237,13 @@ export function syntaxTreeToJsWithMappings(
 	runtimeImportPath: string,
 	filePath: string = '',
 	testRuntimeImportPath: string = '',
+	options: EmitOptions = {},
 ): { js: string; mappings: SourceMapping[]; runtimeNames: string[]; } {
 	let hasDefinition = false;
 	useTypeInfo = true;
 	emitSourcePositions = true;
 	sourceFilePath = filePath;
+	checkAssumes = !!options.checkAssumes;
 	try {
 		const bodyJs = expressions.map((expression, index) => {
 			const expressionJs = expressionToJs(checkResult, expression, 0, true);
@@ -254,6 +271,7 @@ export function syntaxTreeToJsWithMappings(
 		useTypeInfo = false;
 		emitSourcePositions = false;
 		sourceFilePath = '';
+		checkAssumes = false;
 	}
 }
 
@@ -1084,17 +1102,17 @@ function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCal
 			: expressionToJs(checkResult, prefixArgument, indent)
 		: 'undefined';
 	if (isNamedFunction(functionExpression, 'assume')) {
-		if (prefixArgument) {
-			return prefixArgJs;
-		}
 		switch (args?.type) {
 			case 'list': {
+				if (prefixArgument) {
+					return assumeCallToJs(checkResult, expression, prefixArgument, prefixArgJs, args.values[0], indent);
+				}
 				const firstValue = args.values[0];
 				if (firstValue.type === 'spread') {
 					throw new Error('spread not implemented yet for assume');
 				}
 				else {
-					return expressionToJs(checkResult, firstValue, indent);
+					return assumeCallToJs(checkResult, expression, firstValue, expressionToJs(checkResult, firstValue, indent), args.values[1], indent);
 				}
 			}
 			default:
@@ -1531,6 +1549,57 @@ function escapeSourceMapMarkers(escapedValue: string): string {
 function stringToJs(value: string): string {
 	return `'${escapeStringForSingleQuoteJs(value)}'`;
 }
+
+//#region assume
+
+/**
+ * assume ist die Identität. Unter jul test (checkAssumes) prüft es seine Behauptung, aber nur so weit,
+ * wie der statische Typ des Werts sie offen lässt: Bei Or([] GameCard) und Ziel GameCard reicht
+ * value !== undefined (getAssumeTest). Nur wenn der statische Typ nichts hergibt, prüft
+ * _checkAssume den ganzen Typ. Ein Zieltyp, der von einem Parameter abhängt, wird nicht geprüft:
+ * Sein emittierter Ausdruck ist zur Laufzeit kein verlässlicher Typwert.
+ */
+function assumeCallToJs(
+	checkResult: CheckResult,
+	call: ParseFunctionCall,
+	valueExpression: ParseValueExpression,
+	valueJs: string,
+	typeExpression: ParseListValue | undefined,
+	indent: number,
+): string {
+	if (!checkAssumes
+		|| !typeExpression
+		|| typeExpression.type === 'spread') {
+		return valueJs;
+	}
+	const valueType = getTypeInfo(checkResult, valueExpression)?.type;
+	const rawTargetType = getTypeInfo(checkResult, typeExpression)?.type;
+	if (!valueType
+		|| !rawTargetType) {
+		return valueJs;
+	}
+	const targetType = valueOf(rawTargetType);
+	if (targetType.julType === 'any'
+		|| hasArgumentSubstitution(targetType)) {
+		return valueJs;
+	}
+	const test = getAssumeTest(valueType, targetType);
+	if (test?.kind === 'always') {
+		return valueJs;
+	}
+	const siteJs = [
+		stringToJs(sourceFilePath),
+		String(call.startRowIndex + 1),
+		String(call.startColumnIndex + 1),
+		// Einzeilig: Der Text steht in einem String-Literal ohne Zeilenumbruch.
+		stringToJs(typeToString(targetType, 0, 1).replace(/\s*\n\s*/g, ' ')),
+	];
+	return test
+		? `_checkAssumeTest(${listValuesToJs([valueJs, `(_v) => ${branchTestToJs(test, '_v')}`, ...siteJs], indent)})`
+		: `_checkAssume(${listValuesToJs([valueJs, expressionToJs(checkResult, typeExpression, indent + 1), ...siteJs], indent)})`;
+}
+
+//#endregion assume
 
 //#region test
 
