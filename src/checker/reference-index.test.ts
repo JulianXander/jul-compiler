@@ -3,9 +3,10 @@ import { join, resolve } from 'path';
 
 import { ParsedDocuments } from './checker.js';
 import { getSymbolTypeInfo } from './check-result.js';
+import { createNormalizedIntersectionType } from './type-algebra.js';
 import { errorInfos } from '../compiler-errors.js';
 import { createInMemoryHost, loadFile, ProjectHost, recheckFile } from '../compiler/project-loader.js';
-import { ParsedFile, SymbolDefinition } from '../syntax-tree.js';
+import { builtinEmpty, createCompileTimeComplementType, createCompileTimeDictionaryLiteralType, ParsedFile, SymbolDefinition } from '../syntax-tree.js';
 import { getFieldSymbolsFromDictionaryType, ReferenceIndex } from './reference-index.js';
 
 // Die Dateien gibt es nur im Speicher - so lässt sich der Import-Graph für diesen Test gezielt
@@ -398,5 +399,36 @@ describe('ReferenceIndex: Felder, die per Spread übernommen werden', () => {
 		const references = referenceIndex.getReferences(getFieldSymbolOfType(documents, filePath, 'Base', 'name'), filePath);
 		// die Literale in Zeile 7 (a: Derived) und 18 (b: Variant)
 		expect(references.map(location => location.startRowIndex)).to.include.members([7, 18]);
+	});
+});
+
+describe('ReferenceIndex: Felder eines verengten Dictionary-Typs', () => {
+	const filePath = join(folder, 'narrowed-fields.jul');
+	let documents: ParsedDocuments;
+
+	beforeEach(() => {
+		documents = {};
+		const code = [
+			'State = [',
+			'	x: Or([] Integer)',
+			'	y: Text',
+			']',
+			'',
+		].join('\n');
+		load(filePath, documents, createInMemoryHost({ [filePath]: code }));
+	});
+
+	// So verengt ein Branch über ?(s/x) den Typ von s: Die Schnittmenge mit einem Dictionary ohne
+	// Herkunft muss die Felder weiter an ihrer Deklaration finden, sonst scheitert Go-to-Definition.
+	it('das Feld der Schnittmenge mit einer Verengung findet sein Symbol an der Deklaration', () => {
+		const xSymbol = getFieldSymbolOfType(documents, filePath, 'State', 'x');
+		const typeSymbol = documents[filePath]!.checked!.symbols['State']!;
+		const stateType = getSymbolTypeInfo(documents[filePath]!.checkResult!, typeSymbol)!.type as any;
+		const narrowing = createCompileTimeDictionaryLiteralType(
+			{ x: { type: createCompileTimeComplementType(builtinEmpty), optional: false } },
+			false);
+		const narrowed = createNormalizedIntersectionType([stateType.julType === 'typeOf' ? stateType.value : stateType, narrowing]);
+		const found = getFieldSymbolsFromDictionaryType(narrowed, 'x');
+		expect(found.map(location => location.symbol)).to.deep.equal([xSymbol]);
 	});
 });

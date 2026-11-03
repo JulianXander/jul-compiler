@@ -431,3 +431,9 @@
 2026-11-03 12:31:33	1f68a1a+	-	ADV-DEV-56627	yugioh	parse+check	5	16202.31	21286.39	21286.39	nach: deklarierter Rückgabetyp gilt immer (Wiederholung, erster Lauf verrauscht)
 2026-11-03 12:31:33	1f68a1a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	698.06	805.96	805.96	nach: deklarierter Rückgabetyp gilt immer (Wiederholung, erster Lauf verrauscht)
 2026-11-03 12:31:33	1f68a1a+	-	ADV-DEV-56627	yugioh	parse	5	68.93	104.60	104.60	nach: deklarierter Rückgabetyp gilt immer (Wiederholung, erster Lauf verrauscht)
+2026-11-03 14:59:32	7af62f5+	-	ADV-DEV-56627	yugioh	parse+check	5	9442.77	9848.09	9848.09	vor: declaration bei Dictionary-Schnittmenge erhalten
+2026-11-03 14:59:32	7af62f5+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	617.02	673.58	673.58	vor: declaration bei Dictionary-Schnittmenge erhalten
+2026-11-03 14:59:32	7af62f5+	-	ADV-DEV-56627	yugioh	parse	5	68.70	91.46	91.46	vor: declaration bei Dictionary-Schnittmenge erhalten
+2026-11-03 15:00:48	7af62f5+	-	ADV-DEV-56627	yugioh	parse+check	5	9760.33	10398.05	10398.05	nach: declaration bei Dictionary-Schnittmenge erhalten
+2026-11-03 15:00:48	7af62f5+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	571.12	644.62	644.62	nach: declaration bei Dictionary-Schnittmenge erhalten
+2026-11-03 15:00:48	7af62f5+	-	ADV-DEV-56627	yugioh	parse	5	65.71	82.89	82.89	nach: declaration bei Dictionary-Schnittmenge erhalten

@@ -3383,7 +3383,14 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 				mergedFields[key] = (firstField ?? secondField)!;
 			}
 		}
-		return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete);
+		// Eine Verengung ([x: Not(Empty)]) hat keine eigene Herkunft, die Felder stammen weiter von
+		// der deklarierten Seite. Zwei verschiedene Herkünfte lassen sich nicht auf eine abbilden.
+		const declaration = first.declaration === second.declaration || !second.declaration
+			? first.declaration
+			: !first.declaration
+				? second.declaration
+				: undefined;
+		return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete, declaration);
 	}
 
 	// Teilmenge liefern:
