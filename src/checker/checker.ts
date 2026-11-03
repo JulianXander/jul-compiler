@@ -91,7 +91,7 @@ import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex,
 import { collectCompletedNames, collectCompletedNamesByBody, reportStreamsWithoutEnd } from './stream-lifetime.js';
 import { applyIgnoreComments } from '../parser/comment-directives.js';
 import { checkerStats } from './checker-stats.js';
-import { CheckResult, createCheckResult, getAliasSymbolType, getExpectedType, getFunctionRef, getSymbolTypeInfo, getTypeInfo, isSymbolUsed, markSymbolUsed, setCalledFunctionType, setCalledParameterNames, setExpectedType, setFunctionRef, setSymbolTypeInfo, setTypeInfo } from './check-result.js';
+import { CheckResult, createCheckResult, getAliasSymbolType, getDeclaredSignature, getExpectedType, getFunctionRef, getSymbolTypeInfo, getTypeInfo, isSymbolUsed, markSymbolUsed, setCalledFunctionType, setCalledParameterNames, setDeclaredSignature, setExpectedType, setFunctionRef, setSymbolTypeInfo, setTypeInfo } from './check-result.js';
 import {
 	applyBranchHead,
 	BranchCoverage,
@@ -540,12 +540,14 @@ function dereferenceType(checkResult: CheckResult, reference: ParseReference, sc
 	if (!referencedType) {
 		// Das Symbol wird gerade selbst gecheckt: eine Selbstreferenz. Ein Typ bekommt den
 		// Alias-Knoten, der den Namen hält und erst auflöst, wenn das Symbol fertig ist -
-		// unproduktive Zyklen sind hier bereits als JUL5170 gemeldet. Ein Wert (rekursive
-		// Funktion) bleibt bei Any, sonst stünde sein Name fälschlich für einen Typ.
+		// unproduktive Zyklen sind hier bereits als JUL5170 gemeldet. Eine rekursive Funktion
+		// bekommt ihre deklarierte Signatur, ohne Rückgabetyp bleibt sie bei Any, sonst stünde
+		// ihr Name fälschlich für einen Typ.
+		const isSelf = isSelfReference(reference, name);
 		return {
-			type: isTypeName(name) && isSelfReference(reference, name)
+			type: isTypeName(name) && isSelf
 				? createCompileTimeTypeOfType(createCompileTimeAliasType(name, foundSymbol, symbolResult))
-				: builtinAny,
+				: (isSelf && getDeclaredSignature(symbolResult, foundSymbol)) || builtinAny,
 			found: true,
 			foundSymbol: foundSymbol,
 			isBuiltIn: isBuiltIn,
@@ -2979,6 +2981,7 @@ function inferType(
 			const declaredReturnType = expression.returnType;
 			if (declaredReturnType) {
 				setInferredType(declaredReturnType, branchTypeContext, undefined, checkContext);
+				setDeclaredSignatureOfDefinition(expression, scopes, paramsTypeValue, identity, checkContext.result);
 			}
 			// Der letzte Ausdruck ist der Rückgabewert: er erwartet den deklarierten Rückgabetyp, sonst
 			// den des erwarteten Funktionstyps, sonst als branch, was das branching erwartet. Ein branch
@@ -4751,6 +4754,37 @@ function getKnownFieldNames(paramsType: CompileTimeType): string[] | undefined {
  * Die Parameternamen (source ?? name) der Funktion, in deren eigener Definition der Aufruf steht,
  * wenn sie ein Literal mit einfacher Parameterliste ist. undefined sonst.
  */
+/**
+ * Steht das Funktionsliteral direkt als Wert einer Definition und hat einen deklarierten
+ * Rückgabetyp, gilt im eigenen Rumpf die deklarierte Signatur: Ein rekursiver Aufruf liefert den
+ * deklarierten Rückgabetyp statt Any. Das ist sicher, weil der Rumpf gegen ihn geprüft wird. Der
+ * Rückgabetyp bleibt roh, damit ein Verweis auf eigene Parameter je Aufruf aufgelöst wird: Er zeigt
+ * über die gemeinsame Identität auf diese Parameter. Die Purity ist unbekannt, der rekursive Aufruf
+ * zählt in inferBodyPurity ohnehin als rein.
+ */
+function setDeclaredSignatureOfDefinition(
+	functionLiteral: ParseFunctionLiteral,
+	scopes: SymbolTable[],
+	paramsType: CompileTimeType,
+	identity: FunctionIdentity,
+	checkResult: CheckResult,
+): void {
+	const definition = functionLiteral.parent;
+	if (definition?.type !== 'definition'
+		|| definition.value !== functionLiteral) {
+		return;
+	}
+	const ownSymbol = findSymbolInScopes(definition.name.name, scopes)?.symbol;
+	if (!ownSymbol
+		|| getSymbolTypeInfo(checkResult, ownSymbol)) {
+		return;
+	}
+	const returnType = valueOf(getTypeInfo(checkResult, functionLiteral.returnType)!.type);
+	setDeclaredSignature(checkResult, ownSymbol, createCompileTimeFunctionType(paramsType, returnType, 'unknown', undefined, {
+		identity: identity,
+	}));
+}
+
 function getSelfReferenceParameterNames(functionExpression: SimpleExpression): string[] | undefined {
 	if (functionExpression.type !== 'reference') {
 		return undefined;

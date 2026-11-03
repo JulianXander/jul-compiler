@@ -30,6 +30,11 @@ export interface CheckResult {
 	 */
 	readonly symbolTypeInfos: (TypeInfo | undefined)[];
 	/**
+	 * Je Symbol einer Funktion mit deklariertem Rückgabetyp, solange ihr Rumpf geprüft wird: die
+	 * deklarierte Signatur. Eine Selbstreferenz im Rumpf bekommt sie statt Any.
+	 */
+	readonly declaredSignatures: (CompileTimeFunctionType | undefined)[];
+	/**
 	 * Je Parameter-Symbol die Identität der Funktion, zu der es gehört.
 	 */
 	readonly functionRefs: (FunctionIdentity | undefined)[];
@@ -82,6 +87,7 @@ export function createCheckResult(file: ParsedFile): CheckResult {
 		calledFunctionTypes: createTable(nodeCount, undefined),
 		calledParameterNames: createTable(nodeCount, undefined),
 		symbolTypeInfos: createTable(symbolCount, undefined),
+		declaredSignatures: createTable(symbolCount, undefined),
 		functionRefs: createTable(symbolCount, undefined),
 		usedSymbols: createTable(symbolCount, false),
 		coverageBeforeBranch: new Map(),
@@ -248,6 +254,14 @@ export function setSymbolTypeInfo(result: CheckResult, symbol: SymbolDefinition,
  */
 export function getAliasSymbolType(alias: CompileTimeAliasType): CompileTimeType | undefined {
 	return getSymbolTypeInfo(alias.symbolResult, alias.symbol)?.type;
+}
+
+export function getDeclaredSignature(result: CheckResult, symbol: SymbolDefinition): CompileTimeFunctionType | undefined {
+	return result.declaredSignatures[getSymbolId(result, symbol)];
+}
+
+export function setDeclaredSignature(result: CheckResult, symbol: SymbolDefinition, signature: CompileTimeFunctionType): void {
+	result.declaredSignatures[getSymbolId(result, symbol)] = signature;
 }
 
 export function getFunctionRef(result: CheckResult, symbol: SymbolDefinition): FunctionIdentity | undefined {

@@ -5234,6 +5234,26 @@ g: Text = f(3)`, {
 			],
 		});
 	});
+	// Der rekursive Aufruf im eigenen Rumpf hat den deklarierten Rückgabetyp, auch wenn er nicht
+	// der Rückgabewert ist.
+	it('recursive-call-result-is-checked-in-own-body', () => {
+		expectCheck(`g = (t: Text) => 0
+f = (n: Integer) :> Integer =>
+	?(n)
+		[0] => 0
+		() => g(f(subtract(n 1)))`, {
+			errors: [
+				{
+					code: ErrorCode.argumentTypeMismatch,
+					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign Integer to Text.',
+					startRowIndex: 4,
+					startColumnIndex: 10,
+					endRowIndex: 4,
+					endColumnIndex: 26,
+				},
+			],
+		});
+	});
 	// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
 	// eines core-lib Namens weiterhin ein Fehler sein.
 	it('redefinition-of-core-lib-name-still-errors', () => {
@@ -8652,6 +8672,34 @@ g = (numbers: List(Integer)) :> Or([] List(Integer)) => tail(numbers)`)).to.deep
 	?(n)
 		[0] => 0
 		() => f(subtract(n 1))`)).to.deep.equal([]);
+	});
+	// Im eigenen Rumpf gilt die deklarierte Signatur: der rekursive Aufruf liefert den deklarierten
+	// Rückgabetyp, nicht Any.
+	it('recursive-call-has-declared-return-type', () => {
+		expect(unknownMessages(`f = (n: Integer) :> Text =>
+	?(n)
+		[0] => §fertig§
+		() => f(subtract(n 1))`)).to.deep.equal([]);
+	});
+	// Ein deklarierter Rückgabetyp, der einen Parameter nennt, wird je rekursivem Aufruf aufgelöst.
+	it('recursive-call-resolves-generic-declared-return-type', () => {
+		expect(unknownMessages(`f = (a: Integer b: Integer) :> TypeOf(b) =>
+	?(a)
+		[0] => b
+		() =>
+			x: 5 = f(subtract(a 1) 5)
+			b`)).to.deep.equal([]);
+	});
+	// Ohne deklarierten Rückgabetyp bleibt der rekursive Aufruf Any.
+	it('recursive-call-without-declared-return-type-is-unknown', () => {
+		expect(unknownMessages(`f = (n: Integer) =>
+	?(n)
+		[0] => 0
+		() =>
+			x: Integer = f(subtract(n 1))
+			x`)).to.deep.equal([
+			'Definition type can not be verified.\nCan not prove that Any is assignable to Integer.',
+		]);
 	});
 	it('call-of-any-is-a-warning', () => {
 		expect(errorInfos[ErrorCode.callOfAny].severity).to.equal('warning');

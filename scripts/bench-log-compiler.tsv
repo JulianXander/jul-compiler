@@ -413,3 +413,12 @@
 2026-10-28 18:29:01	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check	5	12272.63	12934.22	12934.22	Schritt 5 Endstand: getrennte Id-Räume, Tabellen gepackt, Alias-Schlüssel ohne WeakMap
 2026-10-28 18:29:01	ebd578d+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	841.90	868.13	868.13	Schritt 5 Endstand: getrennte Id-Räume, Tabellen gepackt, Alias-Schlüssel ohne WeakMap
 2026-10-28 18:29:01	ebd578d+	-	ADV-DEV-56627	yugioh	parse	5	65.27	72.02	72.02	Schritt 5 Endstand: getrennte Id-Räume, Tabellen gepackt, Alias-Schlüssel ohne WeakMap
+2026-11-03 10:30:19	ce7c5ce	-	ADV-DEV-56627	yugioh	parse+check	5	11984.83	14889.93	14889.93	vor A: deklarierte Signatur im rekursiven Rumpf
+2026-11-03 10:30:19	ce7c5ce	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	790.76	836.25	836.25	vor A: deklarierte Signatur im rekursiven Rumpf
+2026-11-03 10:30:19	ce7c5ce	-	ADV-DEV-56627	yugioh	parse	5	65.36	89.20	89.20	vor A: deklarierte Signatur im rekursiven Rumpf
+2026-11-03 10:46:29	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse+check	5	13682.45	16423.82	16423.82	nach A: deklarierte Signatur im rekursiven Rumpf
+2026-11-03 10:46:29	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1016.54	1186.92	1186.92	nach A: deklarierte Signatur im rekursiven Rumpf
+2026-11-03 10:46:29	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse	5	79.26	92.16	92.16	nach A: deklarierte Signatur im rekursiven Rumpf
+2026-11-03 10:47:59	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse+check	5	14822.81	15179.35	15179.35	nach A, Wiederholung ohne parallele Last
+2026-11-03 10:47:59	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	843.60	898.66	898.66	nach A, Wiederholung ohne parallele Last
+2026-11-03 10:47:59	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse	5	61.34	82.16	82.16	nach A, Wiederholung ohne parallele Last
