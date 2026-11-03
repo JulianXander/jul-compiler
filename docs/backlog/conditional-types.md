@@ -138,9 +138,12 @@ Das Ergebnis ist die Union der aufgenommenen Zweig-Ergebnisse.
    `setElement -> List(Any)`, der Hover löst per `resolvePlaceholders` auf).
 10. **Wie wird der Rumpf einer eigenen Funktion mit `-> :?(…)` geprüft?** Gegen
     die Union aller Zweige, ohne zusätzlichen Code. Der Fall `functionLiteral` prüft den Rumpf
-    schon heute gegen `resolvePlaceholders(deklariert)`. Ist der deklarierte Typ ein offener
-    Platzhalter, behält er ihn als Rückgabetyp und löst ihn je Aufruf neu auf. `conditional`
-    fällt da hinein, genau wie heute `SumType` und `Concat(TypeOf(a) TypeOf(b))`. Ein Test
+    schon heute gegen `resolvePlaceholders(deklariert)`. Der deklarierte Typ ist immer der
+    Rückgabetyp, ein offener Platzhalter wird je Aufruf neu aufgelöst. `conditional`
+    fällt da hinein, genau wie `SumType` und `Concat(TypeOf(a) TypeOf(b))`. Weil der engere
+    Rumpftyp den Aufrufer nicht mehr erreicht, ist `:?` der Weg, eine Abhängigkeit zwischen
+    Eingabe und Ergebnis zu behalten. Ein Beispiel ist `getGameCardIds` in yugioh: Das Ergebnis
+    ist genau dann leer, wenn `refs` leer ist. Ein Test
     sichert das ab. Die Prüfung ist dafür großzügig: Ein Rumpf `=> 1/2` gegen
     `[Integer Integer] => Integer` und `() => Fraction` geht durch, weil `Fraction` in der Union
     liegt. Genauer geht es mit der Prüfung je Zweig, siehe Ausbaustufen.

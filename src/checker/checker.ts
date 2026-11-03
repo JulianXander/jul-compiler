@@ -3072,16 +3072,14 @@ function inferType(
 			// Ein leerer body ist ungültig, nicht leer (Empty). Invalid als Ergebnis, damit sich der
 			// Fehler nicht kaskadierend fortsetzt - beim Tippen ist der Zustand der Normalfall.
 			const inferredReturnType: CompileTimeType = getTypeInfo(checkContext.result, last(expression.body))?.type ?? builtinInvalid;
-			// Any als inferierter Typ heißt "nichts Genaueres bekannt", nicht "Any ist der Typ" -
-			// hier auf den deklarierten Typ zurückfallen, sonst sehen Aufrufer Any statt der
-			// geprüften Zusicherung. Ist der inferierte Typ enger als deklariert (Normalfall,
-			// z.B. ein Literal), bleibt er erhalten - er ist die genauere Information.
-			// Ohne Längen-Terme: Sie bezeichnen Werte dieses einen Aufrufs (docs/backlog/laengen-terme.md).
+			// Ein deklarierter Rückgabetyp ist der Typ jedes Aufrufs, der Rumpf wird nur dagegen
+			// geprüft: Der Aufrufer liest die Signatur, nicht den Rumpf. Ohne Deklaration gilt der
+			// Rumpftyp, ohne Längen-Terme: Sie bezeichnen Werte dieses einen Aufrufs
+			// (docs/backlog/laengen-terme.md).
 			let returnType = eraseListLengths(inferredReturnType);
 			if (declaredReturnType) {
-				// roh für den Any-Fallback unten: der generische Platzhalter (z.B.
-				// TypeOf(values)/ElementType) muss je Aufruf neu aufgelöst werden, nicht schon
-				// hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet werden.
+				// Roh: Ein Platzhalter (z.B. TypeOf(values)/ElementType) wird je Aufruf aufgelöst,
+				// nicht hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet.
 				const rawDeclaredReturnType = valueOf(getTypeInfo(checkContext.result, declaredReturnType)!.type);
 				const dereferencedDeclaredReturnType = resolvePlaceholders(rawDeclaredReturnType);
 				const returnAssignability = isTypeAssignable(resolvePlaceholders(inferredReturnType), dereferencedDeclaredReturnType);
@@ -3110,14 +3108,8 @@ function inferType(
 						},
 					});
 				}
-				else if (inferredReturnType.julType === 'any'
-					|| isDeferredType(rawDeclaredReturnType)) {
-					// Any: kein body-Typ bekannt, deklarierter Typ ist die einzige Information.
-					// Platzhalter: der deklarierte Typ referenziert eigene Parameter (z.B.
-					// Concat(TypeOf(a) TypeOf(b))) und muss je Aufruf neu aufgelöst werden - der
-					// body-Typ wäre nur die an der Deklaration sichtbare, fest verdrahtete Instanz.
-					returnType = rawDeclaredReturnType;
-				}
+				// Auch bei einem Fehler: Er gehört an die Rückgabe, nicht zusätzlich an jeden Aufrufer.
+				returnType = rawDeclaredReturnType;
 			}
 			const functionType = createCompileTimeFunctionType(paramsTypeValue, returnType, purity, undefined, {
 				identity: identity,

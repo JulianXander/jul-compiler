@@ -422,3 +422,12 @@
 2026-11-03 10:47:59	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse+check	5	14822.81	15179.35	15179.35	nach A, Wiederholung ohne parallele Last
 2026-11-03 10:47:59	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	843.60	898.66	898.66	nach A, Wiederholung ohne parallele Last
 2026-11-03 10:47:59	ce7c5ce+	-	ADV-DEV-56627	yugioh	parse	5	61.34	82.16	82.16	nach A, Wiederholung ohne parallele Last
+2026-11-03 12:18:00	1f68a1a+	-	ADV-DEV-56627	yugioh	parse+check	5	13228.36	14766.13	14766.13	vor: deklarierter Rückgabetyp gilt immer
+2026-11-03 12:18:00	1f68a1a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	834.92	850.03	850.03	vor: deklarierter Rückgabetyp gilt immer
+2026-11-03 12:18:00	1f68a1a+	-	ADV-DEV-56627	yugioh	parse	5	65.70	70.58	70.58	vor: deklarierter Rückgabetyp gilt immer
+2026-11-03 12:29:00	1f68a1a+	-	ADV-DEV-56627	yugioh	parse+check	5	11159.99	14010.84	14010.84	nach: deklarierter Rückgabetyp gilt immer
+2026-11-03 12:29:00	1f68a1a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	808.38	1003.50	1003.50	nach: deklarierter Rückgabetyp gilt immer
+2026-11-03 12:29:00	1f68a1a+	-	ADV-DEV-56627	yugioh	parse	5	97.76	115.52	115.52	nach: deklarierter Rückgabetyp gilt immer
+2026-11-03 12:31:33	1f68a1a+	-	ADV-DEV-56627	yugioh	parse+check	5	16202.31	21286.39	21286.39	nach: deklarierter Rückgabetyp gilt immer (Wiederholung, erster Lauf verrauscht)
+2026-11-03 12:31:33	1f68a1a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	698.06	805.96	805.96	nach: deklarierter Rückgabetyp gilt immer (Wiederholung, erster Lauf verrauscht)
+2026-11-03 12:31:33	1f68a1a+	-	ADV-DEV-56627	yugioh	parse	5	68.93	104.60	104.60	nach: deklarierter Rückgabetyp gilt immer (Wiederholung, erster Lauf verrauscht)

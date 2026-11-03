@@ -5213,9 +5213,8 @@ f = (box: BoxOf(Integer)) =>
 		() => f(x)
 g: Integer = f(3)`);
 	});
-	// Fix im functionLiteral-Fall: bei Any als inferiertem Rückgabetyp (hier durch die
-	// Selbstreferenz im body verursacht) wird auf den geprüften deklarierten Rückgabetyp
-	// zurückgefallen statt Any durchzureichen. g: Text = f(3) meldet das jetzt korrekt.
+	// Der Aufruf einer rekursiven Funktion hat den deklarierten Rückgabetyp, g: Text = f(3) wird
+	// gemeldet.
 	it('recursive-function-return-type-is-not-checked', () => {
 		expectCheck(`f = (x: Integer) :> Integer =>
 	?(x)
@@ -5253,6 +5252,56 @@ f = (n: Integer) :> Integer =>
 				},
 			],
 		});
+	});
+	// Der Aufruf hat den deklarierten Rückgabetyp, auch wenn der Rumpf enger ist. Der Parameter als
+	// Argument verhindert, dass der Aufruf gefaltet wird.
+	it('call-has-declared-return-type', () => {
+		expectCheck(`f = (x: Integer) :> Or(Integer Text) => x
+g = (n: Integer) =>
+	y: Integer = f(n)
+	y`, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign Text to Integer.',
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 18,
+				},
+			],
+		});
+	});
+	// Ein Rumpf, der nicht zur Deklaration passt, wird an der Rückgabe gemeldet. Der Aufrufer sieht
+	// den deklarierten Typ und bekommt keinen Folgefehler.
+	it('return-type-mismatch-is-not-reported-at-call', () => {
+		expectCheck(`f = (x: Integer) :> Integer => §a§
+g = (n: Integer) =>
+	y: Integer = f(n)
+	y`, {
+			errors: [
+				{
+					code: ErrorCode.returnTypeMismatch,
+					message: 'Return type mismatch.\nCan not assign §a§ to Integer.',
+					startRowIndex: 0,
+					startColumnIndex: 31,
+					endRowIndex: 0,
+					endColumnIndex: 34,
+					relatedInformation: {
+						message: 'Declared as Integer here.',
+						startRowIndex: 0,
+						startColumnIndex: 20,
+						endRowIndex: 0,
+						endColumnIndex: 27,
+					},
+				},
+			],
+		});
+	});
+	// Ein gefalteter Aufruf liefert seinen ausgewerteten Wert, nicht den deklarierten Typ.
+	it('folded-call-keeps-folded-type', () => {
+		expectCheck(`f = (x: Integer) :> Integer => x.add(1)
+y: 2 = f(1)`);
 	});
 	// Gegenprobe zu isCoreLibPath: in einer normalen Datei muss das Überschreiben
 	// eines core-lib Namens weiterhin ein Fehler sein.
