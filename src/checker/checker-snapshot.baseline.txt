@@ -42,6 +42,10 @@ testValues: [1 2 3]
 === core-lib/aggregate/aggregate.test.jul ===
 aggregateRecursive: (   values: List(Any)   init: Any   fn: (     acc: Any     val: Any     i: Any   ) :> Any   index: PositiveInteger   curr: Any ) :> Any
 testValues: [1 2 3]
+=== core-lib/assume/assume.jul ===
+second: (values: List(Integer)) -> Integer
+=== core-lib/assume/assume.test.jul ===
+second: (values: List(Integer)) -> Integer
 === core-lib/filter/filter.jul ===
 allOf: (values: List(Or(Integer Text))) -> Or(Empty List(Or(Integer Text)))
 firstIntegerOf: (values: List(Or(Integer Text))) -> Or(Empty Integer)

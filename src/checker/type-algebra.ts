@@ -830,13 +830,27 @@ export function dereferenceNameFromObject(
 			return createNestedReference(sourceObjectType, name);
 		case 'or': {
 			const dereferencedChoices: CompileTimeType[] = [];
+			// Hat ein Choice das Feld wirklich? Empty liefert für jeden Namen vakuos Empty und zählt nicht,
+			// sonst überdeckte es in Or([] [a: X])/b den Tippfehler.
+			let isFieldOfSomeChoice = false;
+			let isMissingInClosedRecord = false;
 			for (const choiceType of sourceObjectType.ChoiceTypes) {
 				const dereferenced = dereferenceNameFromObject(name, choiceType);
 				if (dereferenced) {
 					dereferencedChoices.push(dereferenced);
+					if (resolveAlias(choiceType).julType !== 'empty') {
+						isFieldOfSomeChoice = true;
+					}
 					continue;
 				}
-				// Fehlt das Feld nachweislich (die Art kennt ihre Feldmenge oder kann grundsätzlich
+				// Ein vollständiger Record ist geschlossen: Jedes Feld, das er nicht nennt, ist Empty.
+				// Hat ein anderer Choice das Feld, ist es für diesen Choice also Empty.
+				const resolvedChoice = resolveAlias(choiceType);
+				if (resolvedChoice.julType === 'dictionaryLiteral' && resolvedChoice.complete) {
+					isMissingInClosedRecord = true;
+					continue;
+				}
+				// Fehlt das Feld sonst nachweislich (die Art kennt ihre Feldmenge oder kann grundsätzlich
 				// keine Felder tragen), ist der Zugriff für die GANZE Union unsicher - ein anderer
 				// Choice (z.B. Empty) darf das nicht stillschweigend überdecken. Ein Choice, der nur
 				// noch nicht aufgelöst ist (unvollständiges Dictionary), bleibt dagegen unentschieden
@@ -844,6 +858,13 @@ export function dereferenceNameFromObject(
 				if (!canHaveFields(choiceType) || hasKnownFields(choiceType)) {
 					return undefined;
 				}
+			}
+			if (isMissingInClosedRecord) {
+				// Nennt kein Choice das Feld, ist es wie beim einzelnen Record ein Tippfehler.
+				if (!isFieldOfSomeChoice) {
+					return undefined;
+				}
+				dereferencedChoices.push(builtinEmpty);
 			}
 			// Kein Choice hat etwas beigetragen: unbekannt, nicht die leere Union Never.
 			return dereferencedChoices.length
@@ -3051,15 +3072,45 @@ export function createNormalizedUnionType(choiceTypes: CompileTimeType[]): Compi
 function createNormalizedUnionTypeUncached(choiceTypes: CompileTimeType[]): CompileTimeType {
 	//#region flatten UnionTypes
 	// Or(1 Or(2 3)) => Or(1 2 3)
-	// Ein Alias auf eine Union wird NICHT aufgeflacht: er ist der einzige Träger seines Namens,
-	// und die Dedup- bzw. Teilmengen-Elimination unten löst ihn ohnehin auf (typeEquals und
-	// isTypeAssignable dealiasen beide).
-	const flatChoices: CompileTimeType[] = choiceTypes.filter(choiceType =>
-		!isUnionType(choiceType));
-	const unionChoices = choiceTypes.filter(isUnionType);
-	unionChoices.forEach(union => {
-		flatChoices.push(...union.ChoiceTypes);
+	// Auch ein Alias auf eine Union wird aufgeklappt: Jede Operation auf der Union (Feldzugriff,
+	// Zuweisbarkeit, Verengung) sieht dann alle Choices, statt einen Alias als Choice eigens
+	// behandeln zu müssen. Der Name bleibt in origin für die Anzeige erhalten.
+	// Stehen bleibt ein Alias, dessen Symbol noch geprüft wird (er ergäbe Any), und die Anwendung
+	// einer Typfunktion: Um zu sehen, ob Bin(T) eine Union ist, müsste man sie auflösen, und bei einer
+	// rekursiven Typfunktion enthält die Auflösung wieder Or([] Bin(T)).
+	const flatChoices: CompileTimeType[] = [];
+	const origin: CompileTimeType[] = [];
+	let hasOrigin = false;
+	choiceTypes.forEach(choiceType => {
+		if (isUnionType(choiceType)) {
+			flatChoices.push(...choiceType.ChoiceTypes);
+			if (choiceType.origin) {
+				hasOrigin = true;
+			}
+			origin.push(...choiceType.origin ?? choiceType.ChoiceTypes);
+			return;
+		}
+		if (choiceType.julType === 'alias'
+			&& !choiceType.args
+			&& !isPendingAlias(choiceType)) {
+			const resolved = resolveAlias(choiceType);
+			if (isUnionType(resolved)) {
+				flatChoices.push(...resolved.ChoiceTypes);
+				hasOrigin = true;
+				origin.push(choiceType);
+				return;
+			}
+		}
+		flatChoices.push(choiceType);
+		origin.push(choiceType);
 	});
+	const uniqueOrigin = hasOrigin
+		? origin.filter((choice, index) => origin.indexOf(choice) === index)
+		: undefined;
+	// Or(ZoneIndex) und Or(ZoneIndex ZoneIndex) sind ZoneIndex: unter seinem Namen, nicht als Union.
+	if (uniqueOrigin?.length === 1) {
+		return uniqueOrigin[0]!;
+	}
 	//#endregion flatten UnionTypes
 	// Undurchsichtige Choices (isOpaqueForNormalization) werden hier nie aufgelöst: sie machen die
 	// Union weder zu Any noch fallen sie als Never weg.
@@ -3167,7 +3218,19 @@ function createNormalizedUnionTypeUncached(choiceTypes: CompileTimeType[]): Comp
 		collapsedStreamChoices = reducedChoices;
 	}
 	//#endregion collapse Streams
-	return createCompileTimeUnionType(collapsedStreamChoices);
+	// Das Zusammenfassen der Streams macht die Union weiter, origin beschriebe sie dann nicht mehr.
+	if (!uniqueOrigin
+		|| collapsedStreamChoices !== reducedChoices) {
+		return createCompileTimeUnionType(collapsedStreamChoices);
+	}
+	// Wie bei den Choices: Or(Integer Rational) zeigt Rational, Integer steckt schon darin.
+	const reducedOrigin = uniqueOrigin.length <= subtypeReductionLimit
+		? removeSubtypes(uniqueOrigin)
+		: uniqueOrigin;
+	if (reducedOrigin.length === 1) {
+		return reducedOrigin[0]!;
+	}
+	return createCompileTimeUnionType(collapsedStreamChoices, reducedOrigin);
 }
 
 /**
@@ -5969,7 +6032,7 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 		case 'not':
 			return `Not(${typeToString(type.SourceType, indent, depth + 1, suppressAlias)})`;
 		case 'or':
-			return `Or${arrayTypeToString(type.ChoiceTypes, indent, depth + 1, suppressAlias, 'round')}`;
+			return `Or${arrayTypeToString(type.origin ?? type.ChoiceTypes, indent, depth + 1, suppressAlias, 'round')}`;
 		case 'parameters': {
 			// Ein Kopf ohne Namen (`[Integer] => …`) erscheint wie das Listenliteral, aus dem er
 			// entstanden ist, nicht als Parameterliste mit leeren Namen.

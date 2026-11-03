@@ -1827,13 +1827,29 @@ export function createCompileTimeTypeOfType(value: CompileTimeType): CompileTime
 
 export interface CompileTimeUnionType extends CompileTimeTypeBase {
 	readonly julType: 'or';
+	/**
+	 * Flach: Ein Alias auf eine Union steht hier mit seinen Choices, nicht als Alias (siehe
+	 * createNormalizedUnionType). Nur ein Alias, der beim Bilden nicht aufgelöst werden kann, bleibt
+	 * stehen.
+	 */
 	ChoiceTypes: CompileTimeType[];
+	/**
+	 * Nur für die Anzeige: die Choices, wie sie geschrieben wurden, mit den aufgeklappten Aliasen
+	 * statt ihrer Choices (`Or(Empty ZoneIndex)` statt `Or(Empty 1 2 3)`). Beschreibt dieselbe
+	 * Wertemenge wie ChoiceTypes. Fehlt, wenn nichts aufgeklappt wurde.
+	 */
+	origin?: CompileTimeType[];
 }
 
-export function createCompileTimeUnionType(ChoiceTypes: CompileTimeType[]): CompileTimeUnionType {
-	return internType(`or:${getIds(ChoiceTypes)}`, id => ({
+export function createCompileTimeUnionType(
+	ChoiceTypes: CompileTimeType[],
+	origin?: CompileTimeType[],
+): CompileTimeUnionType {
+	const originKey = origin ? `|${getIds(origin)}` : '';
+	return internType(`or:${getIds(ChoiceTypes)}${originKey}`, id => ({
 		julType: 'or',
 		ChoiceTypes: ChoiceTypes,
+		...(origin && { origin: origin }),
 		isDeferred: ChoiceTypes.some(t => t.isDeferred),
 		id: id,
 	}));

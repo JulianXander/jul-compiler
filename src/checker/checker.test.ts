@@ -3144,6 +3144,39 @@ d/a`);
 	it('dictionary-field-on-unknown-type', () => {
 		expectCheck(`f = (d: Any) => d/b`);
 	});
+	// Ein Record ist geschlossen, jedes Feld, das er nicht nennt, ist Empty. Hat nur ein Teil der
+	// Glieder einer Union das Feld, tragen die übrigen Empty bei.
+	it('field-of-some-union-records-is-optional', () => {
+		expectResolvedReturnType(`f = (e: Or([type: §a§ x: Integer] [type: §b§ y: Text])) => e/x`, 'Or(Integer Empty)');
+	});
+	it('field-of-some-union-records-can-be-returned-as-optional', () => {
+		expectCheck(`f = (e: Or([type: §a§ x: Integer] [type: §b§ y: Text])) :> Or([] Integer) => e/x`);
+	});
+	// Das Empty der übrigen Glieder geht nicht verloren.
+	it('field-of-some-union-records-is-not-the-field-type', () => {
+		expectErrorCodes(`f = (e: Or([type: §a§ x: Integer] [type: §b§ y: Text])) :> Integer => e/x`, [ErrorCode.returnTypeMismatch]);
+	});
+	// Ist ein Glied selbst eine Union von Records (über einen Alias), gilt dasselbe für deren Glieder.
+	it('field-of-some-nested-union-records-is-optional', () => {
+		expectCheck(`A = Or([type: §a§ x: Integer] [type: §b§ y: Text])
+B = Or([type: §c§ z: Text] [type: §d§ w: Text])
+f = (e: Or(A B)) :> Or([] Integer) => e/x`);
+	});
+	// Hat kein Glied das Feld, bleibt es ein Fehler wie beim einzelnen Record: ein Tippfehler.
+	it('field-of-no-union-record-is-an-error', () => {
+		expectCheck(`f = (e: Or([type: §a§ x: Integer] [type: §b§ y: Text])) => e/z`, {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'z' in type Or(\n  [\n    type: §a§\n    x: Integer\n  ]\n  [\n    type: §b§\n    y: Text\n  ]\n)",
+					startRowIndex: 0,
+					startColumnIndex: 61,
+					endRowIndex: 0,
+					endColumnIndex: 62,
+				},
+			],
+		});
+	});
 	// Keiner der beiden Choices hat das Feld 'b': Empty liefert bei JEDEM Feldnamen vakuos
 	// Empty zurück (dereferenceNameFromObject, case 'empty'), [a: Integer] hat 'b' nicht.
 	// dereferenceNameFromObject's 'or'-Fall muss deshalb prüfen, ob ALLE Choices das Feld
@@ -6760,10 +6793,10 @@ Target = [
 		expect(targetType && typeToString(resolvePlaceholders(targetType), 0, 0)).to.equal(
 			'TypeOf([\n  zone: ZoneIndex\n  zones: List(ZoneIndex)\n])');
 	});
-	// Ein benannter Union-Typ als Choice einer weiteren Union verliert seinen Namen trotzdem:
-	// createNormalizedUnionType zieht die inneren Choices in die äußere Union hinein, danach gibt
-	// es keinen Typ mehr, an dem der Name hängen könnte. Or([] X) ist die Standardschreibweise
-	// für "optional", der Fall trifft also fast jedes optionale Feld.
+	// Ein benannter Union-Typ als Choice einer weiteren Union behält seinen Namen in der Anzeige,
+	// obwohl createNormalizedUnionType die inneren Choices in die äußere Union hineinzieht.
+	// Or([] X) ist die Standardschreibweise für "optional", der Fall trifft also fast jedes
+	// optionale Feld.
 	it('type-alias-name-survives-flattening-into-an-outer-union', () => {
 		const code = `ZoneIndex = Or(1 2 3)
 Target = [

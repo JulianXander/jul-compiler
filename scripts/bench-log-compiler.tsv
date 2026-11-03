@@ -443,3 +443,12 @@
 2026-11-03 18:17:08	773f83a+	-	ADV-DEV-56627	yugioh	parse+check	5	8974.63	9571.97	9571.97	nach assume-check
 2026-11-03 18:17:08	773f83a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	570.19	611.43	611.43	nach assume-check
 2026-11-03 18:17:08	773f83a+	-	ADV-DEV-56627	yugioh	parse	5	64.86	70.81	70.81	nach assume-check
+2026-11-03 20:37:19	f8daa0e+	-	ADV-DEV-56627	yugioh	parse+check	5	9054.49	9110.39	9110.39	vor union-feldzugriff optional
+2026-11-03 20:37:19	f8daa0e+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	578.68	612.30	612.30	vor union-feldzugriff optional
+2026-11-03 20:37:19	f8daa0e+	-	ADV-DEV-56627	yugioh	parse	5	66.17	71.34	71.34	vor union-feldzugriff optional
+2026-11-03 20:39:13	f8daa0e+	-	ADV-DEV-56627	yugioh	parse+check	5	8944.58	9556.24	9556.24	nach union-feldzugriff optional
+2026-11-03 20:39:13	f8daa0e+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	574.76	619.41	619.41	nach union-feldzugriff optional
+2026-11-03 20:39:13	f8daa0e+	-	ADV-DEV-56627	yugioh	parse	5	65.40	87.27	87.27	nach union-feldzugriff optional
+2026-11-03 21:00:50	f8daa0e+	-	ADV-DEV-56627	yugioh	parse+check	5	9166.41	9778.37	9778.37	flache unions mit origin
+2026-11-03 21:00:50	f8daa0e+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	578.70	617.51	617.51	flache unions mit origin
+2026-11-03 21:00:50	f8daa0e+	-	ADV-DEV-56627	yugioh	parse	5	65.03	88.90	88.90	flache unions mit origin
