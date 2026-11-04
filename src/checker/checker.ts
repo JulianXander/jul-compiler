@@ -100,6 +100,7 @@ import {
 	getBranchHead,
 	getBranchHeadOfFunction,
 	isCoverageExhausted,
+	isCoverageProvablyExhausted,
 	mayNarrowAt,
 	narrowArgumentType,
 } from './branch-coverage.js';
@@ -2293,9 +2294,8 @@ function inferType(
 				// mehr übrig, wird er nie ausgeführt.
 				const isRestOfBlock = branch.type === 'functionLiteral' && !!branch.isRestOfBlock;
 				const restIsCovered = isRestOfBlock
-					&& coverage.checkable
 					&& !coverage.afterCatchAll
-					&& coverage.rest?.length === 0;
+					&& isCoverageProvablyExhausted(coverage);
 				const step = applyBranchHead(coverage, head);
 				coverage = step.coverage;
 				if (step.unreachable || restIsCovered) {

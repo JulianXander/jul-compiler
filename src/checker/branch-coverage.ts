@@ -359,6 +359,18 @@ export function isCoverageExhausted(coverage: BranchCoverage): boolean {
 }
 
 /**
+ * Ob beweisbar kein Wert durchrutscht: Jede übrige Box ist an einer Stelle sicher leer. Anders als
+ * bei isCoverageExhausted zählt Unbekanntes als nicht leer, das Ergebnis begründet eine Meldung.
+ * Eine Box bleibt stehen, solange kein einzelner Kopf sie ganz fängt, deshalb reicht es nicht, auf
+ * leere Boxen zu warten: [true] und [false] fangen ein Boolean erst zusammen.
+ */
+export function isCoverageProvablyExhausted(coverage: BranchCoverage): boolean {
+	return coverage.checkable
+		&& !!coverage.rest
+		&& coverage.rest.every(restBox => restBox.some(isRestTypeProvablyEmpty));
+}
+
+/**
  * Ob der Kopf an dieser Stelle verengen kann, ohne etwas zu berechnen: Er schränkt die Stelle ein,
  * oder vorherige Köpfe haben schon etwas abgezogen. Sonst bleibt der Typ dort wie er ist.
  */
@@ -543,6 +555,15 @@ function isRestTypeEmpty(restType: RestType): boolean {
 		return isNeverType(restType.source);
 	}
 	return isSubtypeOf(restType.source, getLowerBoundType(getSubtractedType(restType))) !== false
+		|| isNeverType(getNormalizedType(restType));
+}
+
+/** Wie isRestTypeEmpty, aber Unbekanntes zählt als nicht leer. */
+function isRestTypeProvablyEmpty(restType: RestType): boolean {
+	if (!restType.subtracted.length) {
+		return isNeverType(restType.source);
+	}
+	return isSubtypeOf(restType.source, getLowerBoundType(getSubtractedType(restType))) === true
 		|| isNeverType(getNormalizedType(restType));
 }
 

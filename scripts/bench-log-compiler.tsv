@@ -488,3 +488,9 @@
 2026-11-04 16:45:35	0462291+	-	ADV-DEV-56627	yugioh	parse+check	5	10722.08	15623.06	15623.06	nach entfernen JUL3001, wiederholt
 2026-11-04 16:45:35	0462291+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	706.27	807.35	807.35	nach entfernen JUL3001, wiederholt
 2026-11-04 16:45:35	0462291+	-	ADV-DEV-56627	yugioh	parse	5	72.83	76.80	76.80	nach entfernen JUL3001, wiederholt
+2026-11-04 16:58:44	9967ba2+	-	ADV-DEV-56627	yugioh	parse+check	5	9393.21	10128.14	10128.14	vor fix unerreichbarer rest bei zusammen abdeckenden armen
+2026-11-04 16:58:44	9967ba2+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	601.87	686.05	686.05	vor fix unerreichbarer rest bei zusammen abdeckenden armen
+2026-11-04 16:58:44	9967ba2+	-	ADV-DEV-56627	yugioh	parse	5	63.84	66.56	66.56	vor fix unerreichbarer rest bei zusammen abdeckenden armen
+2026-11-04 17:01:47	9967ba2+	-	ADV-DEV-56627	yugioh	parse+check	5	9861.95	10172.43	10172.43	fix unerreichbarer rest bei zusammen abdeckenden armen
+2026-11-04 17:01:47	9967ba2+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	641.39	712.74	712.74	fix unerreichbarer rest bei zusammen abdeckenden armen
+2026-11-04 17:01:47	9967ba2+	-	ADV-DEV-56627	yugioh	parse	5	66.57	82.19	82.19	fix unerreichbarer rest bei zusammen abdeckenden armen

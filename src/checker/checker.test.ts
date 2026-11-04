@@ -685,7 +685,7 @@ f = (flag: Boolean) =>
 		(y: Text) =>
 			narrowed: Integer = d/a
 			narrowed
-	0`, {
+		() => 0`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -983,7 +983,7 @@ useType(isLegal)`);
 	?(a b)
 		(x: Integer y: Integer) => 1
 		(x: Integer y: Text) => 2
-	3`, {
+		() => 3`, {
 			errors: [],
 		});
 	});
@@ -8486,6 +8486,24 @@ f = (x: Or(Integer Text)) =>
 					startRowIndex: 3,
 					startColumnIndex: 1,
 					endRowIndex: 3,
+					endColumnIndex: 2,
+				},
+			],
+		});
+	});
+	it('decken erst mehrere Arme zusammen alles ab, ist der Rest unerreichbar', () => {
+		expectCheck(`f = (x: Boolean) =>
+	?(x)
+		[true] => 1
+		[false] => 2
+	3`, {
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable code detected. The branches above already cover every value.',
+					startRowIndex: 4,
+					startColumnIndex: 1,
+					endRowIndex: 4,
 					endColumnIndex: 2,
 				},
 			],

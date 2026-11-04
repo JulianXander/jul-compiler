@@ -297,9 +297,10 @@
 	[replays: …]" (yugioh main.jul:61). eigener hinweis, wenn ein typ übergeben wird, wo ein wert
 	erwartet ist und das literal mit '=' passen würde: "meintest du '='?"
 -early return (branching als anweisung, der rest ist der default), offene punkte:
-	-[true]/[false] auf Boolean gilt in der abdeckungsrechnung nicht als erschöpfend, ein rest
-	 dahinter wird deshalb nicht als unerreichbar gemeldet
 	-refactoring "letzten arm als rest schreiben" im language server, ohne diagnose
-	-yugioh: drei unerreichbare reste in game-logic.jul (JUL5152), früher defensive catchAlls.
-	 entfernen oder wieder als catchAll-arm schreiben (ein geschriebener catchAll gilt nie als
-	 unerreichbar)
+	-yugioh: fünf unerreichbare reste (JUL5152) hinter armen, die eine union von text-literalen
+	 aufzählen: main.jul:1027, game-logic.jul:506, 576, 3683, 4675. entfernen oder als catchAll-arm
+	 schreiben (ein geschriebener catchAll gilt nie als unerreichbar)
+-Boolean als alias Or(true false) in der core-lib statt eigenem grundtyp (wie TypeScript). spart
+	den sonderfall in isTypeAssignable (Boolean gegen Union), kostet union-prüfungen bei jedem
+	Boolean und ändert die laufzeitprüfung. nur mit bench vorher/nachher
