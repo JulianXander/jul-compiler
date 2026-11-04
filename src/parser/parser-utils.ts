@@ -373,3 +373,52 @@ export function isInsideFunctionLiteral(expression: TypedExpression): boolean {
 }
 
 //#endregion Elternkette
+
+//#region and/or
+
+/**
+ * Ein Aufruf von and bzw. or mit direkt aufgeführten Argumenten. Der Name allein genügt, weil sich
+ * Builtins nicht überdecken lassen (JUL3203). Der Emitter macht daraus && bzw. ||, der Checker
+ * verengt über die Operanden.
+ */
+export interface Junction {
+	readonly jsOperator: '&&' | '||';
+	/**
+	 * Hat das Ergebnis diesen Wert, haben ihn alle Operanden: true bei and, false bei or. Beim anderen
+	 * Wert steht nicht fest, welcher Operand ihn geliefert hat.
+	 */
+	readonly sharedResult: boolean;
+	/** Das Präfix-Argument und die Argumente, in Auswertungsreihenfolge. */
+	readonly operands: ParseValueExpression[];
+}
+
+/**
+ * undefined, wenn der Aufruf kein and/or ist oder seine Argumente nicht einzeln dastehen: Bei Spread
+ * und benannten Argumenten lässt sich kein Operand einem Ausdruck zuordnen.
+ */
+export function getJunction(call: ParseFunctionCall): Junction | undefined {
+	const functionExpression = call.functionExpression;
+	const args = call.arguments;
+	if (functionExpression?.type !== 'reference'
+		|| args?.type !== 'list') {
+		return undefined;
+	}
+	const name = functionExpression.name.name;
+	if (name !== 'and'
+		&& name !== 'or') {
+		return undefined;
+	}
+	if (args.values.some(value => value.type === 'spread')) {
+		return undefined;
+	}
+	const values = args.values as ParseValueExpression[];
+	return {
+		jsOperator: name === 'and' ? '&&' : '||',
+		sharedResult: name === 'and',
+		operands: call.prefixArgument
+			? [call.prefixArgument, ...values]
+			: values,
+	};
+}
+
+//#endregion and/or

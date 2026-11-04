@@ -335,7 +335,7 @@ deepEqual = nativeFunction(
 #region Boolean
 # Liefert die Negation des value
 not = nativeFunction(
-	(value: Boolean) -> Boolean
+	(value: Boolean) -> Is(value false)
 	§js
 		value => !value
 	§

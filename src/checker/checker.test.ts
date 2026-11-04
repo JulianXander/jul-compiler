@@ -2032,6 +2032,99 @@ f = (value: Integer) :> Or([] GreaterInteger(1)) =>
 		[true] => value
 		[false] => []`, 'Or(Integer Empty)');
 	});
+	//#region Verengung über not/and/or
+	it('branching-over-not-narrows-subject-in-true-branch', () => {
+		expectCheck(`f = (value: Or([] Integer)) :> Integer =>
+	?(value.equal().not())
+		[true] => value
+		[false] => 0`);
+	});
+	it('branching-over-not-narrows-subject-in-false-branch', () => {
+		expectCheck(`f = (value: Integer) :> Or([] GreaterInteger(1)) =>
+	?(value.greaterInteger(1).not())
+		[true] => []
+		[false] => value`);
+	});
+	it('branching-over-not-in-prefix-free-form', () => {
+		expectCheck(`f = (value: Or([] Integer)) :> Integer =>
+	?(not(value.equal()))
+		[true] => value
+		[false] => 0`);
+	});
+	it('branching-over-double-not-narrows-subject', () => {
+		expectCheck(`f = (value: Integer) :> Or([] GreaterInteger(1)) =>
+	?(value.greaterInteger(1).not().not())
+		[true] => value
+		[false] => []`);
+	});
+	it('branching-over-definition-of-not-narrows-subject', () => {
+		expectCheck(`f = (value: Or([] Integer)) :> Integer =>
+	isSet = value.equal().not()
+	?(isSet)
+		[true] => value
+		[false] => 0`);
+	});
+	it('branching-over-predicate-calling-not-narrows-subject', () => {
+		expectCheck(`isSet = (value: Or([] Integer)) => value.equal().not()
+f = (value: Or([] Integer)) :> Integer =>
+	?(isSet(value))
+		[true] => value
+		[false] => 0`);
+	});
+	it('filter-narrows-through-not', () => {
+		expectCheck(`f = (values: List(Or([] Integer))) :> Or([] List(Integer)) =>
+	values.filter((value) => value.equal().not())`);
+	});
+	it('branching-over-and-narrows-all-subjects-in-true-branch', () => {
+		expectCheck(`f = (first: Or([] Integer) second: Or([] Integer)) :> Integer =>
+	?(and(first.equal().not() second.equal().not()))
+		[true] => first.add(second)
+		[false] => 0`);
+	});
+	it('branching-over-and-in-prefix-form-narrows-all-subjects', () => {
+		expectCheck(`f = (first: Or([] Integer) second: Or([] Integer)) :> Integer =>
+	?(first.equal().not().and(second.equal().not()))
+		[true] => first.add(second)
+		[false] => 0`);
+	});
+	it('branching-over-and-narrows-same-subject-twice', () => {
+		expectCheck(`f = (value: Integer) :> Or([] And(GreaterInteger(1) Not(GreaterInteger(3)))) =>
+	?(and(value.greaterInteger(1) value.greaterInteger(3).not()))
+		[true] => value
+		[false] => []`);
+	});
+	it('branching-over-and-does-not-narrow-in-false-branch', () => {
+		expectResolvedReturnType(`f = (first: Or([] Integer) second: Or([] Integer)) =>
+	?(and(first.equal().not() second.equal().not()))
+		[true] => 0
+		[false] => first`, 'Or(Empty Integer)');
+	});
+	it('branching-over-and-with-spread-does-not-narrow', () => {
+		expectResolvedReturnType(`f = (value: Or([] Integer) conditions: List(Boolean)) =>
+	?(and(value.equal().not() ...conditions))
+		[true] => value
+		[false] => 0`, 'Or(Empty Integer)');
+	});
+	it('branching-over-or-narrows-all-subjects-in-false-branch', () => {
+		expectCheck(`f = (first: Or([] Integer) second: Or([] Integer)) :> Integer =>
+	?(or(first.equal() second.equal()))
+		[true] => 0
+		[false] => first.add(second)`);
+	});
+	it('branching-over-or-does-not-narrow-in-true-branch', () => {
+		expectResolvedReturnType(`f = (first: Or([] Integer) second: Or([] Integer)) =>
+	?(or(first.equal() second.equal()))
+		[true] => first
+		[false] => 0`, 'Or(Empty Integer)');
+	});
+	it('branching-over-and-of-field-paths-narrows-fields', () => {
+		expectCheck(`State = [card: Or([] Integer) zone: Or([] Integer)]
+f = (state: State) :> Integer =>
+	?(and(state/card.equal().not() state/zone.equal().not()))
+		[true] => state/card.add(state/zone)
+		[false] => 0`);
+	});
+	//#endregion Verengung über not/and/or
 	it('is-outside-native-signature', () => {
 		expectCheck(`f = (value: Integer) -> Is(value PositiveInteger) => value.greaterInteger(0)`, {
 			errors: [

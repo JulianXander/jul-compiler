@@ -25,6 +25,17 @@ genau ein solcher Aufruf ist, gilt wie der Aufruf (`isBig = value.greaterInteger
 Fakten und die Regeln für die übrigen Argumente stehen für `filter` und das Branching an einer
 Stelle (`getPredicateCall`).
 
+Die Aussagen verketten sich: Ist das Subjekt eines Prädikats selbst ein Prädikataufruf, gilt,
+was dessen Ergebnis über sein Subjekt aussagt. `not` trägt dafür einen eigenen Vertrag,
+`Is(value false)`, und braucht keinen Sonderfall. So verengt `x.equal().not()` im true-Zweig auf
+`Not(Empty)`, sowohl im Branching (`withNarrowedCondition`, über den Typ des Zwischenwerts) als
+auch im Rumpf eines Callbacks (`chainPredicateFacts`). `and` und `or` sind dagegen Sonderformen,
+erkannt über den Namen wie im Emitter (`getJunction`): Ist `and` true bzw. `or` false, gilt das
+für jeden Operanden, beim anderen Wert folgt nichts. Ein Vertrag `Is(args …)` über den
+Rest-Parameter wäre zwar exakt, bräuchte aber eine Tupel-minus-Liste-Normalisierung, damit die
+false-Richtung etwas bringt, und könnte die Verengung zwischen den Operanden (Kontrollfluss) ohnehin
+nicht ausdrücken.
+
 Dieses Dokument hält fest, **was daran noch offen ist** - und warum die Grenze dort liegt, wo sie
 liegt.
 
@@ -78,10 +89,14 @@ JULs struktureller Checker und außer Verhältnis zum Sprachumfang.
 ### 1. Weitere Rumpfformen
 
 Erkannt wird nur: **ein** Parameter, Rumpf **genau ein** `?(param)`-Branching oder **genau ein**
-Aufruf eines Prädikats mit dem Parameter an der Stelle, über die es etwas aussagt. Offen sind
-mehrere Parameter, Rümpfe mit Definitionen vor dem Ergebnis, der Parameter an anderer Stelle eines
-Builtins (`1.greaterInteger(v)` bräuchte einen zweiten Vertrag je Funktion) und die Kombination
-über `not`/`and`/`or` (Typed Racket: `not` vertauscht die Richtungen, `and` schneidet beide).
+Aufruf eines Prädikats mit dem Parameter an der Stelle, über die es etwas aussagt, auch über
+verkettete Prädikate wie `not`. Offen sind mehrere Parameter, Rümpfe mit Definitionen vor dem
+Ergebnis, der Parameter an anderer Stelle eines Builtins (`1.greaterInteger(v)` bräuchte einen
+zweiten Vertrag je Funktion) und `and`/`or` im Rumpf eines Callbacks
+(`(x) => and(x.equal().not() x.greaterInteger(0))`: true schneidet die `ifTrue` der Operanden,
+sofern jeder über denselben Parameter spricht). Im Branching wirken `and`/`or` schon. Ebenfalls
+offen: die Verengung zwischen den Operanden, in `and(a b)` sähe `b` das in `a` Bewiesene schon,
+weil `b` nur ausgewertet wird, wenn `a` true ist.
 Einseitige Aussagen wie die von `exists` (true heißt nicht leer, false heißt nicht leer oder ohne
 Treffer) kann `Is` nicht ausdrücken, es sagt beide Richtungen zu.
 

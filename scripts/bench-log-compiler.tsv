@@ -452,3 +452,12 @@
 2026-11-03 21:00:50	f8daa0e+	-	ADV-DEV-56627	yugioh	parse+check	5	9166.41	9778.37	9778.37	flache unions mit origin
 2026-11-03 21:00:50	f8daa0e+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	578.70	617.51	617.51	flache unions mit origin
 2026-11-03 21:00:50	f8daa0e+	-	ADV-DEV-56627	yugioh	parse	5	65.03	88.90	88.90	flache unions mit origin
+2026-11-04 09:17:33	e1639cc+	-	ADV-DEV-56627	yugioh	parse+check	5	9453.79	9864.40	9864.40	vor Verengung über not/and/or
+2026-11-04 09:17:33	e1639cc+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	558.22	589.69	589.69	vor Verengung über not/and/or
+2026-11-04 09:17:33	e1639cc+	-	ADV-DEV-56627	yugioh	parse	5	62.71	69.13	69.13	vor Verengung über not/and/or
+2026-11-04 09:26:35	e1639cc+	-	ADV-DEV-56627	yugioh	parse+check	5	10853.19	22172.76	22172.76	Verengung über not/and/or
+2026-11-04 09:26:35	e1639cc+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	599.99	721.27	721.27	Verengung über not/and/or
+2026-11-04 09:26:35	e1639cc+	-	ADV-DEV-56627	yugioh	parse	5	63.05	66.60	66.60	Verengung über not/and/or
+2026-11-04 09:27:44	e1639cc+	-	ADV-DEV-56627	yugioh	parse+check	5	9975.17	11354.30	11354.30	Verengung über not/and/or, Wiederholung ohne Parallellast
+2026-11-04 09:27:44	e1639cc+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	977.00	1220.98	1220.98	Verengung über not/and/or, Wiederholung ohne Parallellast
+2026-11-04 09:27:44	e1639cc+	-	ADV-DEV-56627	yugioh	parse	5	114.72	128.41	128.41	Verengung über not/and/or, Wiederholung ohne Parallellast

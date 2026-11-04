@@ -86,7 +86,7 @@ import {
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, forEach, isDefined, isNonEmpty, isTestFilePath, last, mapDictionary } from '../util.js';
 import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
-import { getCheckedEscapableName, getExportedSymbols, getTestCallArguments, getNameFromValue, getTestName, isInsideFunctionLiteral } from '../parser/parser-utils.js';
+import { getCheckedEscapableName, getExportedSymbols, getJunction, getTestCallArguments, getNameFromValue, getTestName, isInsideFunctionLiteral } from '../parser/parser-utils.js';
 import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex, ReferenceLocation, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
 import { collectCompletedNames, collectCompletedNamesByBody, reportStreamsWithoutEnd } from './stream-lifetime.js';
 import { applyIgnoreComments } from '../parser/comment-directives.js';
@@ -1399,31 +1399,49 @@ function getOriginExpression(symbol: SymbolDefinition): ParseValueExpression | u
 }
 
 /**
- * Eine neue Umgebung, in der das Subjekt des Prädikataufrufs verengt ist, aus dem dieses gebranchte
- * Argument stammt: mit ifTrue, wenn das Argument im branch true ist, ohne excludedIfFalse, wenn es
- * false ist. Ist es beides möglich, bleibt der Typ, wie er ist.
+ * Eine neue Umgebung mit allem, was daraus folgt, dass diese Bedingung im branch den Typ
+ * getConditionType hat. Stammt sie aus einem Prädikataufruf, bekommt dessen Subjekt ifTrue, wenn sie
+ * true ist, und verliert excludedIfFalse, wenn sie false ist. Ist das Subjekt selbst eine solche
+ * Bedingung (x.equal().not()), geht es dort weiter. Bei and bzw. or folgt aus true bzw. false
+ * dasselbe für jeden Operanden. Ist der Wert nicht entschieden, bleibt jeder Typ, wie er ist.
  */
-function withNarrowedPredicateSubject(
+function withNarrowedCondition(
 	checkResult: CheckResult,
 	narrowedTypes: NarrowedTypes | undefined,
-	argument: ParseValueExpression,
+	condition: ParseValueExpression,
 	getConditionType: () => CompileTimeType,
 	scopes: SymbolTable[],
 ): NarrowedTypes | undefined {
-	const predicateCall = getPredicateCallOfArgument(checkResult, argument, scopes);
+	const call = getConditionCall(condition, scopes);
+	if (!call) {
+		return narrowedTypes;
+	}
+	const junction = getJunction(call);
+	if (junction) {
+		const sharedResultType = junction.sharedResult
+			? coreBuiltInSymbolTypes.true!
+			: coreBuiltInSymbolTypes.false!;
+		const getOperandType = createLazyType(() =>
+			isSubtypeOf(getConditionType(), sharedResultType) === true
+				? sharedResultType
+				: builtinBoolean);
+		let result = narrowedTypes;
+		for (const operand of junction.operands) {
+			result = withNarrowedCondition(checkResult, result, operand, getOperandType, scopes);
+		}
+		return result;
+	}
+	const predicateCall = getPredicateCall(checkResult, call);
 	if (!predicateCall) {
 		return narrowedTypes;
 	}
 	const subject = predicateCall.subject;
 	const subjectPath = getAccessPath(subject, scopes);
-	if (!subjectPath) {
-		return narrowedTypes;
-	}
 	const facts = predicateCall.facts;
 	const getSubjectNarrowedType = createLazyType(() => {
 		// Aufgelöst: Ein Parameter steht hier noch als Platzhalter, und unter Not entscheidet die
 		// Typalgebra die Zuweisung erst über den aufgelösten Typ.
-		const currentType = resolvePlaceholders(getNarrowedType(narrowedTypes, subjectPath.symbol, subjectPath.keys)
+		const currentType = resolvePlaceholders((subjectPath && getNarrowedType(narrowedTypes, subjectPath.symbol, subjectPath.keys))
 			?? getTypeInfo(checkResult, subject)?.type
 			?? builtinAny);
 		const conditionType = getConditionType();
@@ -1439,7 +1457,10 @@ function withNarrowedPredicateSubject(
 		}
 		return currentType;
 	});
-	return withNarrowedPath(checkResult, narrowedTypes, subject, getSubjectNarrowedType, scopes);
+	const result = subjectPath
+		? withNarrowedPath(checkResult, narrowedTypes, subject, getSubjectNarrowedType, scopes)
+		: narrowedTypes;
+	return withNarrowedCondition(checkResult, result, subject, getSubjectNarrowedType, scopes);
 }
 
 /**
@@ -1447,6 +1468,10 @@ function withNarrowedPredicateSubject(
  * undefined, wenn sich kein Ausdruck zuordnen lässt - dann wird weder verengt noch gemeldet.
  */
 function getWrittenArguments(args: ParseValueExpression | undefined): ParseValueExpression[] | undefined {
+	// Leere Klammern, etwa nach einem Präfix-Argument: value.equal()
+	if (args?.type === 'empty') {
+		return [];
+	}
 	if (args?.type !== 'list') {
 		return undefined;
 	}
@@ -1914,7 +1939,7 @@ function getPredicateFacts(
 
 /**
  * Rumpf ist genau ein Aufruf, der den Parameter an die Stelle übergibt, über die das gerufene
- * Prädikat etwas aussagt.
+ * Prädikat etwas aussagt, direkt oder über weitere Prädikate (value.equal().not()).
  */
 function getPredicateFactsFromCall(
 	checkResult: CheckResult,
@@ -1922,16 +1947,69 @@ function getPredicateFactsFromCall(
 	parameterName: string,
 	returnType: CompileTimeType,
 ): PredicateFacts | undefined {
+	const facts = getParameterFactsOfCall(checkResult, call, parameterName);
+	if (!facts
+		|| isSubtypeOf(resolvePlaceholders(returnType), builtinBoolean) !== true) {
+		return undefined;
+	}
+	return facts;
+}
+
+/**
+ * Was das Ergebnis dieses Aufrufs über den Parameter aussagt: Ist das Subjekt des Prädikats selbst
+ * ein Aufruf, gilt, was dessen Ergebnis über den Parameter aussagt, gesehen durch dieses Prädikat.
+ */
+function getParameterFactsOfCall(
+	checkResult: CheckResult,
+	call: ParseFunctionCall,
+	parameterName: string,
+): PredicateFacts | undefined {
 	const predicateCall = getPredicateCall(checkResult, call);
 	const subject = predicateCall?.subject;
-	if (subject?.type !== 'reference'
-		|| subject.name.name !== parameterName) {
+	if (subject?.type === 'reference') {
+		return subject.name.name === parameterName
+			? predicateCall!.facts
+			: undefined;
+	}
+	if (subject?.type !== 'functionCall') {
 		return undefined;
 	}
-	if (isSubtypeOf(resolvePlaceholders(returnType), builtinBoolean) !== true) {
+	const subjectFacts = getParameterFactsOfCall(checkResult, subject, parameterName);
+	return subjectFacts && chainPredicateFacts(predicateCall!.facts, subjectFacts);
+}
+
+/**
+ * Die Aussagen eines inneren Prädikats über seinen Wert, gesehen durch ein äußeres Prädikat über das
+ * Boolean des inneren. Es gilt nur, was das äußere über das innere Ergebnis entscheidet:
+ * not(value.equal()) ist true genau dann, wenn value.equal() false ist.
+ */
+function chainPredicateFacts(outer: PredicateFacts, inner: PredicateFacts): PredicateFacts | undefined {
+	const trueType = coreBuiltInSymbolTypes.true!;
+	const falseType = coreBuiltInSymbolTypes.false!;
+	// Ist das äußere true, liegt das innere Ergebnis in outer.ifTrue.
+	const ifTrue = isSubtypeOf(outer.ifTrue, trueType) === true
+		? inner.ifTrue
+		: isSubtypeOf(outer.ifTrue, falseType) === true && inner.excludedIfFalse
+			? createCompileTimeComplementType(inner.excludedIfFalse)
+			: undefined;
+	// Ist das äußere false, liegt das innere Ergebnis nicht in outer.excludedIfFalse.
+	const outerExcluded = outer.excludedIfFalse;
+	const excludedIfFalse = !outerExcluded
+		? undefined
+		: isSubtypeOf(trueType, outerExcluded) === true
+			? inner.excludedIfFalse
+			: isSubtypeOf(falseType, outerExcluded) === true
+				? createCompileTimeComplementType(inner.ifTrue)
+				: undefined;
+	if (!ifTrue
+		&& !excludedIfFalse) {
 		return undefined;
 	}
-	return predicateCall!.facts;
+	return {
+		// Any als Obermenge sagt nichts aus, ist aber nie falsch.
+		ifTrue: ifTrue ?? builtinAny,
+		excludedIfFalse: excludedIfFalse,
+	};
 }
 
 interface PredicateCall {
@@ -1997,25 +2075,28 @@ function getPredicateCall(checkResult: CheckResult, call: ParseFunctionCall): Pr
 }
 
 /**
- * Der Prädikataufruf, aus dem das Boolean eines gebranchten Arguments stammt: der Aufruf selbst
- * oder die Definition, auf die es verweist. Ein Name bezeichnet in JUL genau einen Wert, das
- * Ergebnis des Aufrufs gilt also auch im branching über den Namen.
+ * Der Aufruf, aus dem der Wert einer Bedingung stammt: der Aufruf selbst oder die Definition, auf
+ * die sie verweist. Ein Name bezeichnet in JUL genau einen Wert, das Ergebnis des Aufrufs gilt also
+ * auch im branching über den Namen.
  */
-function getPredicateCallOfArgument(
-	checkResult: CheckResult,
-	argument: ParseValueExpression,
+function getConditionCall(
+	condition: ParseValueExpression,
 	scopes: SymbolTable[],
-): PredicateCall | undefined {
-	if (argument.type === 'functionCall') {
-		return getPredicateCall(checkResult, argument);
+): ParseFunctionCall | undefined {
+	if (condition.type === 'functionCall') {
+		return condition;
 	}
-	if (argument.type !== 'reference') {
+	if (condition.type !== 'reference') {
 		return undefined;
 	}
-	const definition = findSymbolInScopesWithBuiltIns(argument.name.name, scopes)?.symbol.definition;
+	// Ein Builtin ist in der core-lib definiert, deren Knoten nicht im Ergebnis dieser Datei stehen.
+	const found = findSymbolInScopesWithBuiltIns(condition.name.name, scopes);
+	const definition = found && !found.isBuiltIn
+		? found.symbol.definition
+		: undefined;
 	return definition?.type === 'definition'
 		&& definition.value?.type === 'functionCall'
-		? getPredicateCall(checkResult, definition.value)
+		? definition.value
 		: undefined;
 }
 
@@ -2954,7 +3035,7 @@ function inferType(
 					if (!mayNarrowAt(coverage, head, argumentIndex)) {
 						return;
 					}
-					branchNarrowedTypes = withNarrowedPredicateSubject(
+					branchNarrowedTypes = withNarrowedCondition(
 						checkContext.result,
 						branchNarrowedTypes,
 						argument,

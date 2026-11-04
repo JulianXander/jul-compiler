@@ -22,7 +22,7 @@ import * as testRuntime from '../runtime/test-runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from '../util.js';
 import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
-import { getCheckedEscapableName, getTestCallArguments } from '../parser/parser-utils.js';
+import { getCheckedEscapableName, getJunction, getTestCallArguments } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getAssumeTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
 import { hasArgumentSubstitution, typeToString, valueOf } from '../checker/type-algebra.js';
 import { classifyCopySource, copyingBuiltinNames } from './copy-sites.js';
@@ -1207,39 +1207,24 @@ function getSelfAppliedTypeFunctionName(checkResult: CheckResult, expression: Pa
 
 //#region short circuit
 
-const shortCircuitOperators: { readonly [functionName: string]: string | undefined; } = {
-	and: '&&',
-	or: '||',
-};
-
 /**
  * Ein Aufruf von and/or mit direkt aufgeführten Argumenten wird zu && bzw. ||, damit nach dem ersten
  * false bzw. true die übrigen Argumente nicht mehr ausgewertet werden. Bei Spread und bei benannten
  * Argumenten (und wenn die Funktion als Wert weitergereicht wird) bleibt es beim Funktionsaufruf, der
- * alle Argumente auswertet. Der Name allein genügt, weil and/or nicht überschrieben werden können.
+ * alle Argumente auswertet.
  */
 function shortCircuitCallToJs(checkResult: CheckResult, expression: ParseFunctionCall, prefixArgJs: string, indent: number): string | undefined {
-	const functionExpression = expression.functionExpression;
-	const args = expression.arguments;
-	if (functionExpression?.type !== 'reference'
-		|| args?.type !== 'list') {
+	const junction = getJunction(expression);
+	if (!junction) {
 		return undefined;
 	}
-	const operator = shortCircuitOperators[functionExpression.name.name];
-	if (operator === undefined) {
-		return undefined;
-	}
-	const operands: string[] = [];
-	if (expression.prefixArgument) {
-		operands.push(operandToJs(expression.prefixArgument, prefixArgJs));
-	}
-	for (const value of args.values) {
-		if (value.type === 'spread') {
-			return undefined;
-		}
-		operands.push(operandToJs(value, expressionToJs(checkResult, value, indent)));
-	}
-	return operands.join(` ${operator} `);
+	return junction.operands
+		.map(operand => operandToJs(
+			operand,
+			operand === expression.prefixArgument
+				? prefixArgJs
+				: expressionToJs(checkResult, operand, indent)))
+		.join(` ${junction.jsOperator} `);
 }
 
 /**
@@ -1252,10 +1237,7 @@ function operandToJs(operand: ParseExpression, operandJs: string): string {
 		case 'nestedReference':
 			return operandJs;
 		case 'functionCall':
-			return operand.functionExpression?.type === 'reference'
-				&& shortCircuitOperators[operand.functionExpression.name.name] !== undefined
-				&& operand.arguments?.type === 'list'
-				&& !operand.arguments.values.some(value => value.type === 'spread')
+			return getJunction(operand)
 				? `(${operandJs})`
 				: operandJs;
 		default:
