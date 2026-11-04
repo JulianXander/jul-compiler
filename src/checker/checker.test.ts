@@ -1979,8 +1979,16 @@ f = (values: List(Integer)) :> Or([] List(GreaterInteger(1))) =>
 f = (value: Integer) :> Or([] LessInteger(2)) =>
 	result = ?(value)
 		[check] => []
-		(rest) => rest
+		(rest: Integer) => rest
 	result`);
+	});
+	// Ein untypisierter Parameter im Arm-Kopf ist das Argument ohne die Arme davor, nicht Any.
+	it('branching-untyped-parameter-is-argument-without-previous-branches', () => {
+		expectResolvedReturnType(`f = (x: Or(Integer Text)) =>
+	result = ?(x)
+		[Integer] => 1
+		(rest) => rest
+	result`, 'Or(1 Text)');
 	});
 	// Choices ohne ganze Zahlen (hier Empty) nehmen von einem Integer-Bereich nichts auf.
 	it('integer-range-is-assignable-to-or-with-non-integer-choice', () => {

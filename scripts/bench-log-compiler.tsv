@@ -476,3 +476,6 @@
 2026-11-04 15:26:23	a35b778+	-	ADV-DEV-56627	yugioh	parse+check	5	9354.88	10995.52	10995.52	nach fix praedikat-untergrenze in And(A Not(P))
 2026-11-04 15:26:23	a35b778+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	601.03	635.01	635.01	nach fix praedikat-untergrenze in And(A Not(P))
 2026-11-04 15:26:23	a35b778+	-	ADV-DEV-56627	yugioh	parse	5	67.11	77.82	77.82	nach fix praedikat-untergrenze in And(A Not(P))
+2026-11-04 16:27:04	1e09d96+	-	ADV-DEV-56627	yugioh	parse+check	5	10136.61	15156.82	15156.82	arm-parameter mit verengtem argument
+2026-11-04 16:27:04	1e09d96+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	588.78	658.83	658.83	arm-parameter mit verengtem argument
+2026-11-04 16:27:04	1e09d96+	-	ADV-DEV-56627	yugioh	parse	5	62.00	67.45	67.45	arm-parameter mit verengtem argument

@@ -3051,6 +3051,22 @@ function inferType(
 					?? createBranchCoverage(getTypeInfo(checkContext.result, branching.args) && resolvePlaceholders(getTypeInfo(checkContext.result, branching.args)!.type));
 				const head = getBranchHead(paramsTypeValue);
 				getWrittenArguments(branching.args)?.forEach((argument, argumentIndex) => {
+					// Der Parameter an dieser Stelle ist das Argument, er bekommt im Rumpf denselben Typ:
+					// seinen Kopf, geschnitten mit dem, was die Arme davor übrig lassen.
+					const parameter = params.type === 'parameters'
+						? params.singleFields[argumentIndex]
+						: undefined;
+					if (parameter
+						&& parameter.name.name !== discardName) {
+						const getParameterNarrowedType = createLazyType(() => {
+							const argumentPath = getAccessPath(argument, functionScopes);
+							const currentType = (argumentPath && getNarrowedType(narrowedTypes, argumentPath.symbol, argumentPath.keys))
+								?? getTypeInfo(checkContext.result, argument)?.type
+								?? builtinAny;
+							return narrowArgumentType(coverage, head, argumentIndex, currentType);
+						});
+						branchNarrowedTypes = withNarrowedType(branchNarrowedTypes, findParameterSymbol(parameter, functionScopes), [], getParameterNarrowedType);
+					}
 					if (!mayNarrowAt(coverage, head, argumentIndex)) {
 						return;
 					}
