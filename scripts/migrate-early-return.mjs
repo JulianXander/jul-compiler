@@ -1,4 +1,4 @@
-// Migriert JUL-Code auf den Rest des Blocks als Default-Fall (docs/backlog/early-return.md):
+// Migriert JUL-Code auf den Rest des Blocks als Default-Fall:
 //
 //   ?(x)                         ?(x)
 //   	[A] => a                  	[A] => a

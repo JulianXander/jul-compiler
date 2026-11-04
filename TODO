@@ -296,9 +296,10 @@
 	DictionaryType statt eines werts, die meldung sagt nur "Can not assign TypeOf([replays: Empty]) to
 	[replays: …]" (yugioh main.jul:61). eigener hinweis, wenn ein typ übergeben wird, wo ein wert
 	erwartet ist und das literal mit '=' passen würde: "meintest du '='?"
--early return, offene punkte (docs/backlog/early-return.md, abschnitt Offen):
-	-verengung im rest über prädikate: nach [check] => … ist der name im rest And(X Not(check)), ein
-	 parameter im arm-kopf hat das prädikat abgezogen
-	-[true]/[false] auf Boolean gilt in der abdeckungsrechnung nicht als erschöpfend
-	-refactoring "letzten arm als rest schreiben" im language server
-	-yugioh: drei unerreichbare reste in game-logic.jul (JUL5152), früher defensive catchAlls
+-early return (branching als anweisung, der rest ist der default), offene punkte:
+	-[true]/[false] auf Boolean gilt in der abdeckungsrechnung nicht als erschöpfend, ein rest
+	 dahinter wird deshalb nicht als unerreichbar gemeldet
+	-refactoring "letzten arm als rest schreiben" im language server, ohne diagnose
+	-yugioh: drei unerreichbare reste in game-logic.jul (JUL5152), früher defensive catchAlls.
+	 entfernen oder wieder als catchAll-arm schreiben (ein geschriebener catchAll gilt nie als
+	 unerreichbar)
