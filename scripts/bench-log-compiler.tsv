@@ -482,3 +482,9 @@
 2026-11-04 16:41:37	2c34a4d	-	ADV-DEV-56627	yugioh	parse+check	5	9302.21	10199.84	10199.84	vor entfernen JUL3001
 2026-11-04 16:41:37	2c34a4d	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	578.68	618.43	618.43	vor entfernen JUL3001
 2026-11-04 16:41:37	2c34a4d	-	ADV-DEV-56627	yugioh	parse	5	67.35	95.29	95.29	vor entfernen JUL3001
+2026-11-04 16:44:26	0462291	-	ADV-DEV-56627	yugioh	parse+check	5	10839.14	11490.96	11490.96	nach entfernen JUL3001
+2026-11-04 16:44:26	0462291	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	710.22	748.37	748.37	nach entfernen JUL3001
+2026-11-04 16:44:26	0462291	-	ADV-DEV-56627	yugioh	parse	5	75.11	85.79	85.79	nach entfernen JUL3001
+2026-11-04 16:45:35	0462291+	-	ADV-DEV-56627	yugioh	parse+check	5	10722.08	15623.06	15623.06	nach entfernen JUL3001, wiederholt
+2026-11-04 16:45:35	0462291+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	706.27	807.35	807.35	nach entfernen JUL3001, wiederholt
+2026-11-04 16:45:35	0462291+	-	ADV-DEV-56627	yugioh	parse	5	72.83	76.80	76.80	nach entfernen JUL3001, wiederholt
