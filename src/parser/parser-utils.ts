@@ -118,18 +118,6 @@ function checkAndSplitBody(body: ParseExpression[], errors: CompilerError[]): Pa
 				}
 				break;
 			case 'branching': {
-				statement.branches.forEach(branch => {
-					if (isCatchAllBranch(branch)) {
-						errors.push({
-							code: ErrorCode.catchAllInStatementBranching,
-							message: 'A branching as a statement can not have a catch-all branch. Write the default case below the branching, one level less indented.',
-							startRowIndex: branch.params.startRowIndex,
-							startColumnIndex: branch.params.startColumnIndex,
-							endRowIndex: branch.params.endRowIndex,
-							endColumnIndex: branch.params.endColumnIndex,
-						});
-					}
-				});
 				if (index === lastIndex) {
 					break;
 				}
@@ -170,35 +158,6 @@ function checkAndSplitBody(body: ParseExpression[], errors: CompilerError[]): Pa
 		}
 	}
 	return body;
-}
-
-/**
- * Ein Branch, der jede Argumentkollektion annimmt: `() =>`, `Any =>` oder eine Parameterliste ohne
- * Typen (bzw. nur mit `Any`). Steht der Arm nicht als Funktionsliteral da, ist das an der Syntax
- * nicht zu erkennen.
- */
-function isCatchAllBranch(branch: ParseValueExpression): branch is ParseFunctionLiteral {
-	if (branch.type !== 'functionLiteral') {
-		return false;
-	}
-	const params = branch.params;
-	switch (params.type) {
-		case 'reference':
-			return isAnyReference(params);
-		case 'parameters': {
-			const fields = params.rest
-				? [...params.singleFields, params.rest]
-				: params.singleFields;
-			return fields.every(field => !field.typeGuard || isAnyReference(field.typeGuard));
-		}
-		default:
-			return false;
-	}
-}
-
-function isAnyReference(expression: ParseValueExpression): boolean {
-	return expression.type === 'reference'
-		&& expression.name.name === 'Any';
 }
 
 /**

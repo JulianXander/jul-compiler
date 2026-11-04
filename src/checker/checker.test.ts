@@ -8491,6 +8491,30 @@ f = (x: Or(Integer Text)) =>
 			],
 		});
 	});
+	it('hinter einem catchAll ist der Rest unerreichbar', () => {
+		expectCheck(`f = (x: Integer) =>
+	?(x)
+		[0] => 1
+		() => 2
+	3`, {
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable code detected. The branches above already cover every value.',
+					startRowIndex: 4,
+					startColumnIndex: 1,
+					endRowIndex: 4,
+					endColumnIndex: 2,
+				},
+			],
+		});
+	});
+	it('ein catchAll als Anweisung am Blockende ist der Default', () => {
+		expectResolvedReturnType(`f = (x: Integer) =>
+	?(x)
+		[0] => §null§
+		() => §anders§`, 'Or(§null§ §anders§)');
+	});
 	it('ungenutzte Definition im Rest', () => {
 		expectErrorCodes(`f = (x: Integer) =>
 	?(x)

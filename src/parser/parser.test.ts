@@ -1905,34 +1905,8 @@ describe('Branching als Anweisung', () => {
 		const functionLiteral = getFirstFunction('f = (x: Integer) =>\n\ty = ?(x)\n\t\t[0] => 1\n\t\t() => 2\n\ty');
 		expect(functionLiteral.body).to.have.length(2);
 	});
-	it('catchAll () in einem Branching als Anweisung', () => {
-		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\t() => 2', [
-			[ErrorCode.catchAllInStatementBranching, 3, 2],
-		]);
-	});
-	it('catchAll Any in einem Branching als Anweisung', () => {
-		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\tAny => 2', [
-			[ErrorCode.catchAllInStatementBranching, 3, 2],
-		]);
-	});
-	it('catchAll mit Parameter ohne Typ in einem Branching als Anweisung', () => {
-		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\t(y) => y', [
-			[ErrorCode.catchAllInStatementBranching, 3, 2],
-		]);
-	});
-	it('catchAll mit Parameter vom Typ Any in einem Branching als Anweisung', () => {
-		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\t(y: Any) => y', [
-			[ErrorCode.catchAllInStatementBranching, 3, 2],
-		]);
-	});
-	it('ein Parameter mit Typ ist kein catchAll', () => {
-		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t(y: Integer) => y', []);
-	});
-	it('catchAll in einem zugewiesenen Branching', () => {
-		expectErrorStarts('f = (x: Integer) =>\n\ty = ?(x)\n\t\t[0] => 1\n\t\t() => 2\n\ty', []);
-	});
-	it('catchAll in einem Branching als Argument', () => {
-		expectErrorStarts('f = (x: Integer) =>\n\tlog(\n\t\t?(x)\n\t\t\t[0] => 1\n\t\t\t() => 2\n\t)', []);
+	it('catchAll in einem Branching als Anweisung', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\t() => 2', []);
 	});
 	it('Branching als Anweisung auf oberster Ebene', () => {
 		expectErrorStarts('?(1)\n\t[1] => 2', [

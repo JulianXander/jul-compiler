@@ -191,12 +191,6 @@ export enum ErrorCode {
 	 */
 	branchingHasNoBranches = 3000,
 	/**
-	 * Ein Branching als Anweisung im Rumpf hat einen catchAll (`() =>`, `Any =>`, Parameter ohne
-	 * Typ). Dort ist der Rest des Rumpfs der Default, ein catchAll wäre eine zweite Schreibweise
-	 * dafür.
-	 */
-	catchAllInStatementBranching = 3001,
-	/**
 	 * Ein Branching als Anweisung auf oberster Dateiebene. Es gibt dort keine Funktion, die ein
 	 * Treffer verlassen könnte. Ein bedingter Seiteneffekt wird `_ = ?(…)` geschrieben.
 	 */
@@ -400,7 +394,6 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.unknownDirective]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.todoSpelling]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.branchingHasNoBranches]: { type: 'semantic', severity: 'error' },
-	[ErrorCode.catchAllInStatementBranching]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.statementBranchingAtTopLevel]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.unusedFunctionLiteral]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },

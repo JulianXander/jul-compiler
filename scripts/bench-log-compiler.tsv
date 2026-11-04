@@ -479,3 +479,6 @@
 2026-11-04 16:27:04	1e09d96+	-	ADV-DEV-56627	yugioh	parse+check	5	10136.61	15156.82	15156.82	arm-parameter mit verengtem argument
 2026-11-04 16:27:04	1e09d96+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	588.78	658.83	658.83	arm-parameter mit verengtem argument
 2026-11-04 16:27:04	1e09d96+	-	ADV-DEV-56627	yugioh	parse	5	62.00	67.45	67.45	arm-parameter mit verengtem argument
+2026-11-04 16:41:37	2c34a4d	-	ADV-DEV-56627	yugioh	parse+check	5	9302.21	10199.84	10199.84	vor entfernen JUL3001
+2026-11-04 16:41:37	2c34a4d	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	578.68	618.43	618.43	vor entfernen JUL3001
+2026-11-04 16:41:37	2c34a4d	-	ADV-DEV-56627	yugioh	parse	5	67.35	95.29	95.29	vor entfernen JUL3001

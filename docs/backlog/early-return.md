@@ -96,7 +96,8 @@ Regeln:
 1. **Anweisung:** Ein Branching als Anweisung im Rumpf einer Funktion verlässt die innerste
    Funktion mit dem Wert des Arms, wenn ein Arm passt. Passt keiner, geht es mit der nächsten
    Zeile weiter. Der Rest ist auf das Komplement der Arme verengt, wie heute ein catchAll-Arm.
-   Ein catchAll-Arm (`() =>`, `Any =>`, Parameter ohne Typ) ist dort ein Fehler.
+   Ein catchAll-Arm (`() =>`, `Any =>`, Parameter ohne Typ) ist dort ein Fehler. (Nach der
+   Umsetzung gestrichen, siehe „Abweichungen vom Entwurf“.)
 2. **Ausdruck:** Steht ein Branching in Ausdrucksposition (Zuweisung, Argument, Listenelement),
    ändert sich nichts. Der catchAll-Arm ist erlaubt, weil es kein „danach“ gibt.
 3. **Bedingter Seiteneffekt:** Er wird an `_` zugewiesen (`_ = ?(…)`) und steht damit in
@@ -338,13 +339,20 @@ Bedeutung statisch an der Position hängt und nicht am Laufzeitwert.
   Schlüssel. Der Emitter benennt Parameter `_` nach Position (`_0`, `_1`), weil JS doppelte
   Parameternamen ablehnt. Bei der Prüfung von Callback-Signaturen passt `_` zu jedem Namen
   (`(_ index) =>` an `(value index)`).
-- **Neue Codes:** JUL3001 (catchAll in Anweisung), JUL3002 (Anweisung auf oberster Ebene), JUL3003
+- **Neue Codes:** JUL3002 (Anweisung auf oberster Ebene), JUL3003
   (ungenutztes Funktionsliteral, Warnung), JUL3205 (`_` gelesen), JUL3206 (`_` als Ergebnis).
 - **Language Server:** Der Hover auf dem `?` eines Branchings als Anweisung sagt, dass ein Treffer
   die Funktion beendet. `_` erscheint nicht in der Gliederung.
 
 ### Abweichungen vom Entwurf
 
+- **Der catchAll-Arm als Anweisung ist erlaubt.** Das Verbot (Regel 1, zuerst als JUL3001
+  umgesetzt) ist gestrichen. Toter Code dahinter ist kein Argument dafür, denselben gibt es hinter
+  erschöpfenden Armen, und Regel 4 meldet beide gleich. Eine Schreibweise spart es auch nicht ein:
+  Der catchAll bleibt in Ausdrucksposition ohnehin, das Verbot machte daraus nur eine Sonderregel,
+  nach der derselbe Arm je nach Position erlaubt ist oder nicht. Ohne sie passt ein catchAll überall
+  gleich, und der Rest ist nur das, was gilt, wenn kein Arm passt und noch Code folgt. Die flache
+  Schreibweise ist damit ein Angebot, kein Zwang.
 - **Regel 4 ist eine Warnung, kein Fehler.** Sie nutzt JUL5152 (`unreachableBranch`) mit eigener
   Meldung, und das ist dort eine Warnung. Ein geschriebener catchAll wird dabei weiterhin nie als
   unerreichbar gemeldet, er darf defensiv dastehen. Für den Rest des Blocks gilt das nicht.
@@ -362,11 +370,7 @@ auf 13 Tabs.
 
 - **Unerreichbarer Rest in yugioh:** Drei Stellen in `game-logic.jul` waren defensive catchAlls
   hinter erschöpfenden Armen und melden jetzt JUL5152. Ob der Code weg kann, ist dort zu
-  entscheiden.
-- **Verengung im Rest über Prädikate:** Nach `[check] => …` hat ein Parameter im Arm-Kopf den
-  Typ mit abgezogenem Prädikat, der Name im Rest dagegen `And(Integer Not(check))`, und der passt
-  nicht auf `LessInteger(2)`. Das galt vorher für einen catchAll ohne Parameter genauso, fällt mit
-  dem Rest als üblicher Schreibweise aber öfter auf.
+  entscheiden. Soll er defensiv bleiben, geht das wieder als catchAll-Arm.
 - **`[true]`/`[false]` auf einem Boolean** gilt in der Abdeckungsrechnung nicht als erschöpfend.
   Ein Rest dahinter wird deshalb nicht als unerreichbar gemeldet.
 - **Refactoring „Letzten Arm als Rest schreiben“** im Language Server (Problem 2) fehlt noch.
