@@ -301,6 +301,3 @@
 	-yugioh: fünf unerreichbare reste (JUL5152) hinter armen, die eine union von text-literalen
 	 aufzählen: main.jul:1027, game-logic.jul:506, 576, 3683, 4675. entfernen oder als catchAll-arm
 	 schreiben (ein geschriebener catchAll gilt nie als unerreichbar)
--Boolean als alias Or(true false) in der core-lib statt eigenem grundtyp (wie TypeScript). spart
-	den sonderfall in isTypeAssignable (Boolean gegen Union), kostet union-prüfungen bei jedem
-	Boolean und ändert die laufzeitprüfung. nur mit bench vorher/nachher

@@ -164,8 +164,8 @@ sql: Text
 table: §Customer§
 === type-checking-test.jul ===
 t1: TypeOf(true)
-t2: TypeOf(And(Boolean Not(true)))
-t3: TypeOf(And(Boolean Not(true)))
+t2: TypeOf(false)
+t3: TypeOf(false)
 testAnd1: 4
 testAnd2: 5
 testAnd3: 6
@@ -240,8 +240,8 @@ testWithout21: true
   warning 2600 at 77:1 't1' is a type and should start with an uppercase letter.
   warning 2600 at 78:1 't2' is a type and should start with an uppercase letter.
   warning 2600 at 79:1 't3' is a type and should start with an uppercase letter.
-  error 5000 at 84:1 Definition type mismatch. | Can not assign true to Not(true).
-  error 5000 at 85:1 Definition type mismatch. | Can not assign true to Not(true).
+  error 5000 at 84:1 Definition type mismatch. | Can not assign true to false.
+  error 5000 at 85:1 Definition type mismatch. | Can not assign true to false.
   error 5000 at 89:29 Definition type mismatch. | Can not assign 1 to 2.
   error 5000 at 93:31 Definition type mismatch. | Can not assign 4 to Text.
   error 5000 at 95:1 Definition type mismatch. | Can not assign Empty to List(Text).

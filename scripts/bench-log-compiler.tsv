@@ -494,3 +494,12 @@
 2026-11-04 17:01:47	9967ba2+	-	ADV-DEV-56627	yugioh	parse+check	5	9861.95	10172.43	10172.43	fix unerreichbarer rest bei zusammen abdeckenden armen
 2026-11-04 17:01:47	9967ba2+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	641.39	712.74	712.74	fix unerreichbarer rest bei zusammen abdeckenden armen
 2026-11-04 17:01:47	9967ba2+	-	ADV-DEV-56627	yugioh	parse	5	66.57	82.19	82.19	fix unerreichbarer rest bei zusammen abdeckenden armen
+2026-11-04 17:19:19	57db077+	-	ADV-DEV-56627	yugioh	parse+check	5	9592.54	9959.39	9959.39	vor boolean ohne literal normalisieren
+2026-11-04 17:19:19	57db077+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	605.90	641.85	641.85	vor boolean ohne literal normalisieren
+2026-11-04 17:19:19	57db077+	-	ADV-DEV-56627	yugioh	parse	5	63.08	66.67	66.67	vor boolean ohne literal normalisieren
+2026-11-04 17:21:19	57db077+	-	ADV-DEV-56627	yugioh	parse+check	5	13109.96	14128.54	14128.54	boolean ohne literal normalisieren
+2026-11-04 17:21:19	57db077+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	683.95	1360.19	1360.19	boolean ohne literal normalisieren
+2026-11-04 17:21:19	57db077+	-	ADV-DEV-56627	yugioh	parse	5	117.73	133.68	133.68	boolean ohne literal normalisieren
+2026-11-04 17:23:53	57db077+	-	ADV-DEV-56627	yugioh	parse+check	5	9373.69	10787.51	10787.51	boolean ohne literal normalisieren, wiederholt
+2026-11-04 17:23:53	57db077+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	616.91	677.39	677.39	boolean ohne literal normalisieren, wiederholt
+2026-11-04 17:23:53	57db077+	-	ADV-DEV-56627	yugioh	parse	5	68.92	84.44	84.44	boolean ohne literal normalisieren, wiederholt

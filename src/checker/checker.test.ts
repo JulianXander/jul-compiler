@@ -8469,6 +8469,12 @@ f = (x: Or(Integer Text)) =>
 		[Integer] => §zahl§
 	1`, [ErrorCode.returnTypeMismatch]);
 	});
+	it('der Rest sieht ein Boolean ohne das Literal eines Arms als das andere Literal', () => {
+		expectResolvedReturnType(`f = (b: Boolean) =>
+	?(b)
+		[true] => 1
+	b`, 'Or(1 false)');
+	});
 	it('ohne Treffer am Blockende ist Error im Rückgabetyp', () => {
 		expectResolvedReturnType(`f = (x: Or(Integer Text)) =>
 	?(x)

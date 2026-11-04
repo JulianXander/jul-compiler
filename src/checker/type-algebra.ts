@@ -3390,6 +3390,14 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		return distributedType;
 	}
 
+	// Boolean hat nur zwei Werte, ohne den einen bleibt der andere:
+	// And(Boolean Not(true)) => false
+	const booleanRemainder = getBooleanWithoutLiteral(first, second)
+		?? getBooleanWithoutLiteral(second, first);
+	if (booleanRemainder) {
+		return booleanRemainder;
+	}
+
 	if (isComplementType(second)) {
 		const source = second.SourceType;
 		if (typeEquals(first, source)) {
@@ -3493,6 +3501,18 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		return reduceIntersectionOperands(ChoiceTypes);
 	}
 	return finishIntersection(ChoiceTypes);
+}
+
+/** Das andere Literal, wenn type Boolean ist und other eines der beiden Literale ausschließt. */
+function getBooleanWithoutLiteral(type: CompileTimeType, other: CompileTimeType): CompileTimeType | undefined {
+	if (type.julType !== 'boolean'
+		|| !isComplementType(other)) {
+		return undefined;
+	}
+	const excluded = resolveAlias(other.SourceType);
+	return excluded.julType === 'booleanLiteral'
+		? createBooleanLiteral(!excluded.value)
+		: undefined;
 }
 
 function isNestedIntersection(choice: CompileTimeType): boolean {

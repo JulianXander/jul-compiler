@@ -211,6 +211,15 @@ describe('Typalgebra', () => {
 	it('intersection-with-overlapping-complement-keeps-both', () => {
 		expect(and([builtinInteger, not(integerLiteral(0))]).julType).to.equal('and');
 	});
+	// Boolean hat nur zwei Werte: Ohne den einen bleibt der andere.
+	it('intersection-of-boolean-without-literal-is-other-literal', () => {
+		expect(and([builtinBoolean, not(createBooleanLiteral(true))])).to.deep.equal(createBooleanLiteral(false));
+		expect(and([not(createBooleanLiteral(false)), builtinBoolean])).to.deep.equal(createBooleanLiteral(true));
+	});
+	// Ohne beide Literale bleibt nichts.
+	it('intersection-of-boolean-without-both-literals-is-never', () => {
+		expect(and([builtinBoolean, not(createBooleanLiteral(true)), not(createBooleanLiteral(false))])).to.equal(builtinNever);
+	});
 	it('intersection-returns-subset', () => {
 		expect(and([builtinInteger, integerLiteral(5)])).to.deep.equal(integerLiteral(5));
 		expect(and([integerLiteral(5), builtinInteger])).to.deep.equal(integerLiteral(5));
