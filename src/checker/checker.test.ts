@@ -8427,6 +8427,15 @@ f = (d: [a: Or(Integer Text)]) =>
 		[Integer] => §zahl§
 	g(d/a)`);
 	});
+	// Wie ein Parameter im Arm-Kopf (branching-false-branch-subtracts-predicate-from-call): Nach
+	// einem Prädikat-Arm ist das Prädikat im Rest abgezogen, hier bleibt höchstens 1.
+	it('der Rest sieht den Wert ohne das Prädikat eines Arms', () => {
+		expectCheck(`check = (value: Integer) => value.greaterInteger(1)
+f = (value: Integer) :> Or([] LessInteger(2)) =>
+	?(value)
+		[check] => []
+	value`);
+	});
 	it('ohne die Arme davor ist der Wert im Rest nicht verengt', () => {
 		expectErrorCodes(`g = (t: Text) => t
 f = (x: Or(Integer Text)) =>

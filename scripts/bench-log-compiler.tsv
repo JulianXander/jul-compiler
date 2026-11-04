@@ -470,3 +470,9 @@
 2026-11-04 13:36:11	5e305bf+	-	ADV-DEV-56627	yugioh	parse+check	5	9671.25	17727.73	17727.73	nach early return, wiederholt ohne parallele last
 2026-11-04 13:36:11	5e305bf+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1181.19	1324.45	1324.45	nach early return, wiederholt ohne parallele last
 2026-11-04 13:36:11	5e305bf+	-	ADV-DEV-56627	yugioh	parse	5	127.16	174.34	174.34	nach early return, wiederholt ohne parallele last
+2026-11-04 15:23:27	a35b778+	-	ADV-DEV-56627	yugioh	parse+check	5	10567.96	12103.97	12103.97	vor fix praedikat im rest
+2026-11-04 15:23:27	a35b778+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	665.36	939.43	939.43	vor fix praedikat im rest
+2026-11-04 15:23:27	a35b778+	-	ADV-DEV-56627	yugioh	parse	5	67.63	72.02	72.02	vor fix praedikat im rest
+2026-11-04 15:26:23	a35b778+	-	ADV-DEV-56627	yugioh	parse+check	5	9354.88	10995.52	10995.52	nach fix praedikat-untergrenze in And(A Not(P))
+2026-11-04 15:26:23	a35b778+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	601.03	635.01	635.01	nach fix praedikat-untergrenze in And(A Not(P))
+2026-11-04 15:26:23	a35b778+	-	ADV-DEV-56627	yugioh	parse	5	67.11	77.82	77.82	nach fix praedikat-untergrenze in And(A Not(P))

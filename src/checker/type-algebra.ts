@@ -4803,6 +4803,24 @@ function isTypeAssignableByStructure(
 				const remainingType = otherChoices.length === 1
 					? otherChoices[0]!
 					: createCompileTimeIntersectionType(otherChoices);
+				// Ein ausgeschlossenes Prädikat enthält sicher seine untere Schranke. Liegt A schon in
+				// Or(T Untergrenze), liegt es erst recht in Or(T Prädikat): Not(check) mit
+				// check = GreaterInteger(1) lässt höchstens 1 übrig. Scheitert das, beweist es nichts.
+				if (complementChoices.some(choiceType =>
+					resolveAlias((resolveAlias(choiceType) as CompileTimeComplementType).SourceType).julType === 'predicate')) {
+					const lowerWidenedTarget = createNormalizedUnionType([
+						targetType,
+						...complementChoices.map(choiceType => {
+							const excludedType = resolveAlias((resolveAlias(choiceType) as CompileTimeComplementType).SourceType);
+							return excludedType.julType === 'predicate'
+								? excludedType.LowerBound
+								: excludedType;
+						}),
+					]);
+					if (isTypeAssignable(remainingType, lowerWidenedTarget).assignable === true) {
+						return { assignable: true };
+					}
+				}
 				const remainingAssignability = isTypeAssignable(remainingType, widenedTarget);
 				if (remainingAssignability.assignable === false) {
 					return getDefaultTypeError(argumentsType, targetType);
