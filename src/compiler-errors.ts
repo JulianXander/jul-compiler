@@ -190,6 +190,22 @@ export enum ErrorCode {
 	 * Wert liefern - fast immer eine fehlende Einrückung oder unfertiger Code.
 	 */
 	branchingHasNoBranches = 3000,
+	/**
+	 * Ein Branching als Anweisung im Rumpf hat einen catchAll (`() =>`, `Any =>`, Parameter ohne
+	 * Typ). Dort ist der Rest des Rumpfs der Default, ein catchAll wäre eine zweite Schreibweise
+	 * dafür.
+	 */
+	catchAllInStatementBranching = 3001,
+	/**
+	 * Ein Branching als Anweisung auf oberster Dateiebene. Es gibt dort keine Funktion, die ein
+	 * Treffer verlassen könnte. Ein bedingter Seiteneffekt wird `_ = ?(…)` geschrieben.
+	 */
+	statementBranchingAtTopLevel = 3002,
+	/**
+	 * Ein Funktionsliteral als Anweisung, das nicht das Ergebnis ist: Es wird erzeugt und sofort
+	 * verworfen. Meist ein Branch-Arm, der versehentlich eine Ebene zu weit links steht.
+	 */
+	unusedFunctionLiteral = 3003,
 
 	//#region 3100 Import und Modulauflösung
 	importArgumentsMissing = 3100,
@@ -226,6 +242,15 @@ export enum ErrorCode {
 	 * Funktionsrumpfs (Rückgabewert) und Parameter.
 	 */
 	unusedDefinition = 3204,
+	/**
+	 * `_` wird gelesen. Es bindet nichts, ein verworfener Wert lässt sich nicht wieder holen.
+	 */
+	discardRead = 3205,
+	/**
+	 * `_ = …` als letzter Ausdruck eines Rumpfs. Der Wert wäre dort das Ergebnis und würde gerade
+	 * nicht verworfen.
+	 */
+	discardAsResult = 3206,
 	//#endregion 3200 Namensauflösung und Scopes
 	//#endregion 2000 semantic
 
@@ -375,6 +400,9 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.unknownDirective]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.todoSpelling]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.branchingHasNoBranches]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.catchAllInStatementBranching]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.statementBranchingAtTopLevel]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.unusedFunctionLiteral]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.importArgumentsMissing]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.invalidImportExtension]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.fileNotFound]: { type: 'semantic', severity: 'error' },
@@ -387,6 +415,8 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.usedBeforeDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.alreadyDefinedInUpperScope]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.unusedDefinition]: { type: 'semantic', severity: 'hint' },
+	[ErrorCode.discardRead]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.discardAsResult]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.definitionTypeMismatch]: { type: 'type', severity: 'error' },
 	[ErrorCode.typeNotProven]: { type: 'type', severity: 'warning' },
 	[ErrorCode.callOfAny]: { type: 'type', severity: 'warning' },

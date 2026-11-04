@@ -105,7 +105,7 @@ describe('Emitter', () => {
 	}`);
 	});
 	it('branching', () => {
-		expectEmit('?(4)\n\t(a) => log(a)\n\t(b) => log(b)', `export default _branch(
+		expectEmit('_ = ?(4)\n\t(a) => log(a)\n\t(b) => log(b)', `_branch(
 	[4n],
 	_createFunction(
 		(a) => {
@@ -119,7 +119,7 @@ describe('Emitter', () => {
 		},
 		{singleNames: [{name: 'b'}]},
 	),
-)`);
+);`);
 	});
 	it('[a: String]', () => {
 		expectEmit('[a: String]', `export default {
@@ -222,7 +222,7 @@ describe('Emitter branching mit Typinformation', () => {
 		expectBranchingEmit(`f = (x: Or([] [a: Integer b: Text])) =>
 	?(x)
 		[[a: Integer b: Text]] => 1
-		() => 2`, `
+	2`, `
 		return x !== undefined
 			? (() => {
 				return 1n
@@ -236,7 +236,7 @@ describe('Emitter branching mit Typinformation', () => {
 	?(x)
 		[Text] => 1
 		[List(Integer)] => 2
-		() => 3`, `
+	3`, `
 		return typeof x === 'string'
 			? (() => {
 				return 1n
@@ -253,7 +253,7 @@ describe('Emitter branching mit Typinformation', () => {
 		expectBranchingEmit(`f = (x: Integer) =>
 	?(x)
 		[1] => 1
-		() => 2`, `
+	2`, `
 		return x === 1n
 			? (() => {
 				return 1n
@@ -266,7 +266,7 @@ describe('Emitter branching mit Typinformation', () => {
 		expectBranchingEmit(`f = (x: Or([] Text)) =>
 	?(x)
 		(t: Text) => t
-		() => §leer§`, `
+	§leer§`, `
 		return x !== undefined
 			? ((t) => {
 				return t
@@ -279,7 +279,7 @@ describe('Emitter branching mit Typinformation', () => {
 		expectBranchingEmit(`f = (x: Text) =>
 	?(x)
 		[Text] => 1
-		() => 2`, `
+	2`, `
 		return (() => {
 				return 1n
 			})()`);
@@ -312,7 +312,7 @@ describe('Emitter branching mit Typinformation', () => {
 	?(x)
 		[§a§] => 1
 		[Text] => 2
-		() => 3`, `
+	3`, `
 		return x === 'a'
 			? (() => {
 				return 1n
@@ -325,7 +325,7 @@ describe('Emitter branching mit Typinformation', () => {
 		expectBranchingEmit(`f = (x: Or([kind: §circle§ radius: Float] [kind: §rect§ width: Float])) =>
 	?(x)
 		[[kind: §circle§ radius: Float]] => 1
-		() => 2`, `
+	2`, `
 		return x?.['kind'] === 'circle'
 			? (() => {
 				return 1n
@@ -339,7 +339,7 @@ describe('Emitter branching mit Typinformation', () => {
 f = (x: Or([] Text)) =>
 	?(g(x))
 		[Text] => 1
-		() => 2`, `
+	2`, `
 		return ((_arg) => _arg !== undefined
 				? (() => {
 					return 1n
@@ -352,7 +352,7 @@ f = (x: Or([] Text)) =>
 		expectBranchingFallback(`f = (x: Or([] [a: Any])) =>
 	?(x)
 		[[a: Integer]] => 1
-		() => 2`);
+	2`);
 	});
 	// Ob ein beliebiger Integer gerade ist, entscheidet erst die Laufzeit. Ein Array-Test allein
 	// würde [1 3] in den ersten branch schicken.
@@ -361,25 +361,25 @@ f = (x: Or([] Text)) =>
 f = (x: Or(Text List(Integer))) =>
 	?(x)
 		[List(isEven)] => 1
-		() => 2`);
+	2`);
 	});
 	it('Rückfall: untypisiertes Argument', () => {
 		expectBranchingFallback(`f = (x) =>
 	?(x)
 		[Integer] => 1
-		() => 2`);
+	2`);
 	});
 	it('Rückfall: zwei Argumente', () => {
 		expectBranchingFallback(`f = (x: Integer y: Integer) =>
 	?(x y)
 		[1 Integer] => 1
-		() => 2`);
+	2`);
 	});
 	it('Rückfall: komplexe Typen, die sich nur tief in der Struktur unterscheiden', () => {
 		expectBranchingFallback(`f = (x: Or(List(Integer) List(Or(Integer Text)))) =>
 	?(x)
 		[List(Integer)] => 1
-		() => 2`);
+	2`);
 	});
 	// bound (PositiveInteger = GreaterInteger(0)) hat als Laufzeitart bigint bzw. number. Ein Feld mit bound
 	// macht den Record nicht unbestimmbar: gefragt ist nur, welcher der möglichen Fälle vorliegt.
@@ -387,7 +387,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingEmit(`f = (x: Or(Error [a: PositiveInteger])) =>
 	?(x)
 		[Error] => 1
-		() => 2`, `
+	2`, `
 		return x instanceof Error
 			? (() => {
 				return 1n
@@ -400,7 +400,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingEmit(`f = (x: Or([] [a: PositiveInteger])) =>
 	?(x)
 		[Empty] => 1
-		() => 2`, `
+	2`, `
 		return x === undefined
 			? (() => {
 				return 1n
@@ -413,7 +413,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingEmit(`f = (x: Or([] [a: PositiveInteger])) =>
 	?(x)
 		[[a: PositiveInteger]] => 1
-		() => 2`, `
+	2`, `
 		return x !== undefined
 			? (() => {
 				return 1n
@@ -426,7 +426,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingEmit(`f = (x: Or([kind: §a§ id: PositiveInteger] [kind: §b§ id: PositiveInteger])) =>
 	?(x)
 		[[kind: §a§ id: PositiveInteger]] => 1
-		() => 2`, `
+	2`, `
 		return x?.['kind'] === 'a'
 			? (() => {
 				return 1n
@@ -439,7 +439,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingEmit(`f = (x: Or(Text PositiveInteger)) =>
 	?(x)
 		[Text] => 1
-		() => 2`, `
+	2`, `
 		return typeof x === 'string'
 			? (() => {
 				return 1n
@@ -452,7 +452,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingEmit(`f = (x: Or([] PositiveInteger)) =>
 	?(x)
 		[PositiveInteger] => 1
-		() => 2`, `
+	2`, `
 		return x !== undefined
 			? (() => {
 				return 1n
@@ -465,7 +465,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingEmit(`f = (x: Or(Text [a: PositiveInteger])) =>
 	?(x)
 		[[a: Integer]] => 1
-		() => 2`, `
+	2`, `
 		return typeof x !== 'string'
 			? (() => {
 				return 1n
@@ -478,14 +478,14 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingFallback(`f = (x: Or(Text [a: Integer])) =>
 	?(x)
 		[[a: PositiveInteger]] => 1
-		() => 2`);
+	2`);
 	});
 	// Integer und PositiveInteger haben dieselbe Laufzeitart, die Grenze entscheidet der Vergleich.
 	it('Kopf PositiveInteger auf Integer wird zu Vergleich', () => {
 		expectBranchingEmit(`f = (x: Integer) =>
 	?(x)
 		[PositiveInteger] => 1
-		() => 2`, `
+	2`, `
 		return x > 0n
 			? (() => {
 				return 1n
@@ -498,7 +498,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingEmit(`f = (x: Or([] Integer)) =>
 	?(x)
 		[PositiveInteger] => 1
-		() => 2`, `
+	2`, `
 		return (typeof x === 'bigint' && x > 0n)
 			? (() => {
 				return 1n
@@ -511,7 +511,7 @@ f = (x: Or(Text List(Integer))) =>
 		expectBranchingFallback(`f = (x: Or([] [a: PositiveInteger b: Any])) =>
 	?(x)
 		[[a: PositiveInteger b: Integer]] => 1
-		() => 2`);
+	2`);
 	});
 	// Literaltypen sind Einzelwerte: Ein Literal, das nicht zum Kopf gehört, ist sicher verfehlt, auch bei gleicher Laufzeitart.
 	it('Kopf mit Union von Text-Literalen wird zu Gleichheitsvergleichen', () => {
@@ -521,7 +521,7 @@ f = (x: Phase) =>
 		[Or(§draw§ §standby§)] => 1
 		[Or(§main1§ §main2§)] => 2
 		[Or(§battle§)] => 3
-		() => 4`, `
+	4`, `
 		return x === 'draw' || x === 'standby'
 			? (() => {
 				return 1n
@@ -543,7 +543,7 @@ f = (x: Phase) =>
 	?(x)
 		[Or([] 1 2 3 4)] => 0
 		[Or(5 6)] => 1
-		() => 2`, `
+	2`, `
 		return x === undefined || x === 1n || x === 2n || x === 3n || x === 4n
 			? (() => {
 				return 0n
@@ -560,7 +560,7 @@ f = (x: Phase) =>
 		expectBranchingEmit(`f = (x: Or(§a§ §b§ §c§)) =>
 	?(x)
 		[Or(§a§ §z§)] => 1
-		() => 2`, `
+	2`, `
 		return x === 'a'
 			? (() => {
 				return 1n
@@ -574,7 +574,7 @@ f = (x: Phase) =>
 		expectBranchingEmit(`f = (x: Or(§a§ §b§ Integer)) =>
 	?(x)
 		[Or(§a§ §b§)] => 1
-		() => 2`, `
+	2`, `
 		return typeof x === 'string'
 			? (() => {
 				return 1n
@@ -587,19 +587,19 @@ f = (x: Phase) =>
 		expectBranchingFallback(`f = (x: Or(Text Integer)) =>
 	?(x)
 		[Or(§a§ §b§)] => 1
-		() => 2`);
+	2`);
 	});
 	it('Rückfall: Kopf mit Union von Literalen, Argument mit Integer (Wert unbekannt)', () => {
 		expectBranchingFallback(`f = (x: Or([] Integer)) =>
 	?(x)
 		[Or(1 2)] => 1
-		() => 2`);
+	2`);
 	});
 	it('Kopf GreaterInteger mit Literal-Grenze auf Integer wird zu Vergleich', () => {
 		expectBranchingEmit(`f = (x: Integer) =>
 	?(x)
 		[GreaterInteger(1)] => 1
-		() => 2`, `
+	2`, `
 		return x > 1n
 			? (() => {
 				return 1n
@@ -612,7 +612,7 @@ f = (x: Phase) =>
 		expectBranchingEmit(`f = (x: Integer) =>
 	?(x)
 		[LessInteger(1)] => 1
-		() => 2`, `
+	2`, `
 		return x < 1n
 			? (() => {
 				return 1n
@@ -625,7 +625,7 @@ f = (x: Phase) =>
 		expectBranchingEmit(`f = (x: Or(Text Integer)) =>
 	?(x)
 		[GreaterInteger(1)] => 1
-		() => 2`, `
+	2`, `
 		return (typeof x === 'bigint' && x > 1n)
 			? (() => {
 				return 1n
@@ -638,7 +638,7 @@ f = (x: Phase) =>
 		expectBranchingEmit(`f = (x: GreaterInteger(5)) =>
 	?(x)
 		[GreaterInteger(1)] => 1
-		() => 2`, `
+	2`, `
 		return (() => {
 				return 1n
 			})()`);
@@ -647,7 +647,7 @@ f = (x: Phase) =>
 		expectBranchingFallback(`f = (x: Integer count: Integer) =>
 	?(x)
 		[GreaterInteger(count)] => 1
-		() => 2`);
+	2`);
 	});
 });
 
@@ -704,7 +704,7 @@ f = (x: Integer) =>
 		expectCallEmit(`f = (n: Integer acc: Integer) =>
 	?(n)
 		[0] => acc
-		() => f(n = subtract(n 1) acc = add(acc n))`, `
+	f(n = subtract(n 1) acc = add(acc n))`, `
 		return n === 0n
 			? (() => {
 				return acc
@@ -1003,7 +1003,7 @@ describe('Emitter Runtime-Import', () => {
 		expectRuntimeImport('f = (a: Integer) => a', ['Integer', '_createFunction']);
 	});
 	it('Branching importiert _branch', () => {
-		expectRuntimeImport('?(4)\n\t(a) => log(a)\n\t(b) => log(b)', ['_branch', '_createFunction', 'log']);
+		expectRuntimeImport('_ = ?(4)\n\t(a) => log(a)\n\t(b) => log(b)', ['_branch', '_createFunction', 'log']);
 	});
 	it('Builtin-Name in einem Textliteral wird mit importiert', () => {
 		expectRuntimeImport('a = §map§', ['map']);
@@ -1094,7 +1094,7 @@ describe('Emitter Ausführung', () => {
 			'f = (x: Or(Text Integer)) =>',
 			'\t?(x)',
 			'\t\t[GreaterInteger(1)] => 1',
-			'\t\t() => 2',
+			'\t2',
 			'result = [f(§5§) f(0) f(5)]',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.deep.equal([2n, 2n, 1n]);
@@ -1186,7 +1186,7 @@ describe('Emitter Ausführung', () => {
 			'f = (x: Any) =>',
 			'	?(x)',
 			'		[[Integer]] => 1',
-			'		() => 2',
+			'	2',
 			'result = f([1 2])',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(2n);
@@ -1196,7 +1196,7 @@ describe('Emitter Ausführung', () => {
 			'f = (x: Any) =>',
 			'	?(x)',
 			'		[[Integer]] => 1',
-			'		() => 2',
+			'	2',
 			'result = f([1])',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(1n);
@@ -1208,7 +1208,7 @@ describe('Emitter Ausführung', () => {
 			'f = (a: Any b: Any) =>',
 			'	?(a b)',
 			'		[Integer] => 1',
-			'		() => 2',
+			'	2',
 			'result = f(1 §x§)',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(1n);
@@ -1218,10 +1218,78 @@ describe('Emitter Ausführung', () => {
 			'f = (a: Any b: Any) =>',
 			'	?(a b)',
 			'		[Integer] => 1',
-			'		() => 2',
+			'	2',
 			'result = f(§x§ 1)',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(2n);
+	});
+});
+
+describe('Emitter Branching als Anweisung und _', () => {
+	it('ein Treffer beendet die Funktion, sonst läuft der Rest', () => {
+		const code = [
+			'f = (x: Integer) =>',
+			'\t?(x)',
+			'\t\t[0] => §null§',
+			'\tsuffix = §!§',
+			'\t§sonst§(suffix)§',
+			'result = [f(0) f(1)]',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.deep.equal(['null', 'sonst!']);
+	});
+	it('mehrere Branchings nacheinander', () => {
+		const code = [
+			'f = (x: Integer) =>',
+			'\t?(x)',
+			'\t\t[0] => §null§',
+			'\t?(x)',
+			'\t\t[1] => §eins§',
+			'\t§viele§',
+			'result = [f(0) f(1) f(2)]',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.deep.equal(['null', 'eins', 'viele']);
+	});
+	it('ein Treffer im Callback beendet nur den Callback', () => {
+		const code = [
+			'result = [1 2 3].map(',
+			'\t(value) =>',
+			'\t\t?(value)',
+			'\t\t\t[2] => 0',
+			'\t\tvalue',
+			')',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.deep.equal([1n, 0n, 3n]);
+	});
+	it('_ = ?(…) beendet die Funktion nicht', () => {
+		const code = [
+			'f = (x: Integer) =>',
+			'\t_ = ?(x)',
+			'\t\t[0] => 1',
+			'\t\t() => 2',
+			'\t3',
+			'result = [f(0) f(1)]',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.deep.equal([3n, 3n]);
+	});
+	it('mehrere Parameter _', () => {
+		const code = [
+			'f = (_ _ c: Integer) => c',
+			'result = f(1 2 3)',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(3n);
+	});
+	it('_ im Destructuring überspringt eine Position', () => {
+		const code = [
+			'f = () =>',
+			'\t(_ b) = [1 2]',
+			'\tb',
+			'result = f()',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(2n);
+	});
+	it('_ als Parameter eines Callbacks', () => {
+		const code = 'result = [5 6].map((_ index) => index)';
+		expect(runEmitted(code, 'result')).to.deep.equal([1n, 2n]);
 	});
 });
 
@@ -1230,7 +1298,7 @@ describe('Emitter Tail-Call-Optimierung', () => {
 		expectBranchingEmit(`f = (n: Integer sum: Integer) =>
 	?(n)
 		[0] => sum
-		() => f(subtract(n 1) add(sum n))`, `
+	f(subtract(n 1) add(sum n))`, `
 		while (true) {
 			if (n === 0n) {
 				return sum
@@ -1251,7 +1319,7 @@ describe('Emitter Tail-Call-Optimierung', () => {
 			'f = (n: Integer sum: Integer) =>',
 			'\t?(n)',
 			'\t\t[0] => sum',
-			'\t\t() => f(subtract(n 1) add(sum n))',
+			'\tf(subtract(n 1) add(sum n))',
 			'result = f(200000 0)',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(20000100000n);
@@ -1261,7 +1329,7 @@ describe('Emitter Tail-Call-Optimierung', () => {
 			'f = (n: Integer) =>',
 			'\t?(n)',
 			'\t\t[0] => 0',
-			'\t\t() => f(subtract(n 1))',
+			'\tf(subtract(n 1))',
 			'result = f(200000)',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(0n);
@@ -1270,14 +1338,14 @@ describe('Emitter Tail-Call-Optimierung', () => {
 		expect(emitCheckedFunctionBody(`f = (n: Integer) =>
 	?(n)
 		[0] => 0
-		() => add(1 f(subtract(n 1)))`)).to.not.contain('while');
+	add(1 f(subtract(n 1)))`)).to.not.contain('while');
 	});
 	// Eine Closure sähe sonst die Parameter der Folgeiterationen
 	it('eine Closure im Rumpf verhindert die Schleife', () => {
 		expect(emitCheckedFunctionBody(`f = (n: Integer g: Any) =>
 	?(n)
 		[0] => g
-		() => f(subtract(n 1) () => n)`)).to.not.contain('while');
+	f(subtract(n 1) () => n)`)).to.not.contain('while');
 	});
 });
 
@@ -1295,7 +1363,7 @@ describe('Emitter: Kopf aus Positionen', () => {
 		const js = emitChecked(`f = (a: Any b: Any) =>
 	?(a b)
 		[Integer] => 1
-		() => 2`);
+	2`);
 		expect(js).to.contain('head: [Integer]');
 	});
 	it('Alias auf ein Tupel als Kopf bleibt ein Typ-Kopf', () => {
@@ -1345,7 +1413,7 @@ describe('Emitter: params nur, wo die Laufzeit sie liest', () => {
 		expect(js).to.contain('_createFunction');
 	});
 	it('Branch in _branch behält die Parameterliste auch ohne Typen', () => {
-		const js = emitUnchecked(`?(4)
+		const js = emitUnchecked(`_ = ?(4)
 	(a) => log(a)
 	(b) => log(b)`);
 		expect(js.match(/_createFunction/g)).to.have.length(2);

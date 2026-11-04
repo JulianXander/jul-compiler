@@ -775,3 +775,102 @@
 2026-11-03 18:17:31	773f83a+	-	ADV-DEV-56627	bench-runtime	json/small	15	3719.61	3951.67	3951.67	nach assume-check
 2026-11-03 18:17:31	773f83a+	-	ADV-DEV-56627	bench-runtime	json/large	15	3703398.00	3874180.00	3874180.00	nach assume-check
 2026-11-03 18:17:31	773f83a+	-	ADV-DEV-56627	bench-runtime	json/texts	15	440593.00	467888.50	467888.50	nach assume-check
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	94.77	100.95	100.95	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	95.17	104.30	104.30	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	331.05	397.41	397.41	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	27509.70	30659.40	30659.40	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	9.78	13.26	13.26	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.43	11.58	11.58	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.07	11.54	11.54	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	9.66	10.07	10.07	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	13.68	19.58	19.58	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	9.46	9.96	9.96	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	8.52	13.90	13.90	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	9.43	17.57	17.57	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	11.20	19.29	19.29	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	11.30	15.35	15.35	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	7.40	12.47	12.47	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.65	9.99	9.99	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	8.74	10.84	10.84	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	424.08	471.52	471.52	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	50.55	54.27	54.27	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1290.47	1664.90	1664.90	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	500.79	535.35	535.35	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	27.98	31.38	31.38	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	26.58	29.93	29.93	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	24.78	31.17	31.17	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	36.70	42.24	42.24	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	27.68	31.40	31.40	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	46.62	49.16	49.16	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	16.99	17.59	17.59	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	object-shapes/sumAtk	15	183.47	216.86	216.86	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	object-shapes/attackRound	15	1482.80	2259.40	2259.40	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/small	15	4075.92	5827.50	5827.50	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/large	15	4005614.00	4442784.00	4442784.00	vor early return
+2026-11-04 13:08:02	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/texts	15	505678.00	652819.50	652819.50	vor early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	101.77	111.67	111.67	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	95.61	108.75	108.75	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	333.22	342.34	342.34	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	26336.20	28335.00	28335.00	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.97	13.72	13.72	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.60	15.03	15.03	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	8.98	12.39	12.39	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	9.91	10.09	10.09	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	13.51	14.10	14.10	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	8.97	9.66	9.66	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	9.10	11.52	11.52	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	8.57	9.37	9.37	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	11.70	20.92	20.92	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	10.80	11.68	11.68	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	7.38	7.96	7.96	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.73	10.83	10.83	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	8.44	8.87	8.87	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	402.07	479.73	479.73	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	49.98	54.13	54.13	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1240.09	1291.09	1291.09	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	499.86	538.64	538.64	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	28.60	30.47	30.47	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	27.26	29.61	29.61	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	24.55	29.46	29.46	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	37.52	40.76	40.76	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	27.59	33.92	33.92	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	60.21	84.00	84.00	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	18.68	25.59	25.59	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	object-shapes/sumAtk	15	294.55	439.49	439.49	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	object-shapes/attackRound	15	1577.78	1787.15	1787.15	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/small	15	3924.92	4498.86	4498.86	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/large	15	3824946.00	4469548.00	4469548.00	nach early return
+2026-11-04 13:34:16	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/texts	15	451003.00	631261.50	631261.50	nach early return
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	111.53	226.81	226.81	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	97.91	104.27	104.27	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	322.34	340.08	340.08	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	27641.10	28136.90	28136.90	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	8.51	12.63	12.63	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	9.51	14.98	14.98	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	9.41	12.88	12.88	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	9.41	12.11	12.11	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	13.51	15.47	15.47	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	9.32	9.83	9.83	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	8.97	9.80	9.80	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	9.06	11.06	11.06	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	11.57	14.13	14.13	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	11.21	15.29	15.29	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	7.42	11.23	11.23	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	8.59	10.01	10.01	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	8.68	9.31	9.31	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	420.73	457.54	457.54	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	52.89	96.71	96.71	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	1363.84	1718.27	1718.27	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	535.66	949.99	949.99	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	45.26	56.94	56.94	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	42.74	53.65	53.65	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	29.44	45.76	45.76	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	40.31	50.77	50.77	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	33.29	60.46	60.46	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	47.66	56.36	56.36	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	17.54	18.53	18.53	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	object-shapes/sumAtk	15	187.03	194.15	194.15	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	object-shapes/attackRound	15	1253.44	2112.28	2112.28	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/small	15	3846.31	7623.32	7623.32	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/large	15	4036314.00	5162922.00	5162922.00	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:36	5e305bf+	-	ADV-DEV-56627	bench-runtime	json/texts	15	696134.00	1042830.00	1042830.00	nach early return, wiederholt ohne parallele last

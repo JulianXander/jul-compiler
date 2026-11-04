@@ -497,7 +497,21 @@ export interface ParseFunctionLiteral extends ParseExpressionBase {
 	 * und bei aus TypeScript importierten Funktionen.
 	 */
 	readonly arrow?: Purity;
+	/**
+	 * Nicht geschrieben, sondern der Rest eines Rumpfs hinter einem Branching als Anweisung: Der
+	 * Parser hängt ihn als letzten, parameterlosen Branch an dieses Branching. Damit gilt für den
+	 * Rest dasselbe wie für einen geschriebenen catchAll (Verengung, Rückgabetyp, Emission).
+	 * Der Body steht an seiner Position im Quelltext, die Parameter sind leer und liegen in
+	 * Spalte 0 der ersten Zeile des Rests, außerhalb des Rumpfs.
+	 */
+	readonly isRestOfBlock?: true;
 }
+
+/**
+ * `_` bindet nichts: als Definition, Destructuring-Feld oder Parameter verwirft es den Wert. Es
+ * steht in keiner Symboltabelle und lässt sich nicht lesen.
+ */
+export const discardName = '_';
 
 export interface ParseParameterFields extends ParseExpressionBase {
 	readonly type: 'parameters';

@@ -37,6 +37,7 @@ import {
 	SymbolTable,
 	TextToken,
 	createSymbolTable,
+	discardName,
 } from '../syntax-tree.js';
 import {
 	executingDirectory,
@@ -59,6 +60,7 @@ import {
 	fillSymbolTableWithExpressions,
 	setParentsAndIds,
 	setFileSymbolIds,
+	checkTopLevelStatements,
 } from './parser-utils.js';
 import { basename, dirname, extname, join } from 'path';
 import { _parseJson, JsonValue, normalizeRational } from '../runtime/runtime.js';
@@ -238,6 +240,9 @@ function parseJulCode(code: string): ParsedExpressions {
 	const parserResult = expressionBlockParser(rows, 0, 0, 0);
 	const expressions = parserResult.parsed;
 	errors.push(...(parserResult.errors ?? []));
+	if (expressions) {
+		checkTopLevelStatements(expressions, errors);
+	}
 	// check end of code reached
 	if (parserResult.endRowIndex !== rows.length) {
 		errors.push({
@@ -1004,7 +1009,8 @@ function expressionParser(
 	};
 }
 
-const nameRegex = /[a-zA-Z][0-9a-zA-Z]*\$?/y;
+// `_` nur allein: Es bindet nichts (discardName). `_a` bleibt ein ungültiger Name.
+const nameRegex = /[a-zA-Z][0-9a-zA-Z]*\$?|_(?![0-9a-zA-Z_$])/y;
 const invalidNameError = { code: ErrorCode.invalidName, message: 'Invalid name' };
 
 function nameParser(
@@ -1547,7 +1553,8 @@ function simpleExpressionStartParser(
 		if (character === '§') {
 			return textParser(rows, startRowIndex, startColumnIndex, indent);
 		}
-		if (nameStartRegex.test(character)) {
+		if (nameStartRegex.test(character)
+			|| character === discardName) {
 			return referenceParser(rows, startRowIndex, startColumnIndex, indent);
 		}
 	}

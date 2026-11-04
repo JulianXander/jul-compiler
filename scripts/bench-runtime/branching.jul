@@ -9,20 +9,20 @@ MyComplexType = [
 emptyOrComplex = (x: Or([] MyComplexType)) =>
 	?(x)
 		[MyComplexType] => 1
-		() => 2
+	2
 
 textListOrDictionary = (v: Or(Text List(Integer) [name: Text])) =>
 	?(v)
 		[Text] => 1
 		[List(Integer)] => 2
-		() => 3
+	3
 
 Shape = Or([kind: §circle§ radius: Float] [kind: §rect§ width: Float height: Float])
 
 tagField = (s: Shape) =>
 	?(s)
 		[[kind: §circle§ radius: Float]] => 1
-		() => 2
+	2
 
 Phase = Or(§draw§ §standby§ §main1§ §battle§ §main2§ §end§)
 
@@ -31,13 +31,13 @@ literalUnion = (phase: Phase) =>
 		[Or(§draw§ §standby§)] => 1
 		[Or(§main1§ §main2§)] => 2
 		[Or(§battle§)] => 3
-		() => 4
+	4
 
 emptyOrIntegerUnion = (level: Or([] 1 2 3 4 5 6 7 8)) =>
 	?(level)
 		[Or([] 1 2 3 4)] => 0
 		[Or(5 6)] => 1
-		() => 2
+	2
 
 # Records mit PositiveInteger-Feldern (wie GameCardId in yugioh): bound ist ein Integer mit Grenze,
 # die Laufzeitart steht trotzdem fest
@@ -56,31 +56,31 @@ BoundState = [
 errorOrBoundState = (x: Or(Error BoundState)) =>
 	?(x)
 		[Error] => 1
-		() => 2
+	2
 
 # Leer oder großer Record
 emptyOrBoundState = (x: Or([] BoundState)) =>
 	?(x)
 		[Empty] => 1
-		() => 2
+	2
 
 # Kopf mit dem Record-Typ, wie [PlayerInput] in apply
 boundStateHead = (x: Or([] BoundState)) =>
 	?(x)
 		[BoundState] => 1
-		() => 2
+	2
 
 # Kopf mit einem Grenztyp: der Vergleich reicht, die Laufzeitart steht fest
 boundHead = (value: Integer) =>
 	?(value)
 		[GreaterInteger(1)] => 1
-		() => 2
+	2
 
 # Grenztyp neben einer anderen Laufzeitart: vor dem Vergleich die Art prüfen
 textOrBoundHead = (value: Or(Text Integer)) =>
 	?(value)
 		[GreaterInteger(1)] => 1
-		() => 2
+	2
 
 # Derselbe Test als Aufruf, Vergleichsmaßstab für boundHead
 greaterCall = (value: Integer) =>

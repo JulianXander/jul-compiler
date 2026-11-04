@@ -13,13 +13,14 @@ import {
 	ParseReference,
 	PositionedExpression,
 	SimpleExpression,
+	discardName,
 	forEachChild,
 } from '../syntax-tree.js';
 import { Positioned } from '../compiler-errors.js';
 import * as runtime from '../runtime/runtime.js';
 import type { JsonValue } from '../runtime/runtime.js';
 import * as testRuntime from '../runtime/test-runtime.js';
-import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isTestFilePath, last } from '../util.js';
+import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isDefined, isTestFilePath, last } from '../util.js';
 import { extname, isAbsolute } from 'path';
 import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
 import { getCheckedEscapableName, getJunction, getTestCallArguments } from '../parser/parser-utils.js';
@@ -348,10 +349,18 @@ function expressionToJs(
 ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 			const valueJs = expressionToJs(checkResult, value, indent);
+			// _ bindet nichts: nur auswerten. Als letzter Ausdruck eines Rumpfs ist es ein Fehler,
+			// der Emitter sieht es dort nie.
+			if (expression.name.name === discardName) {
+				return `${valueJs};`;
+			}
 			return getDefinitionJs(topLevel, nameJs, valueJs);
 		}
 		case 'destructuring': {
-			const fields = expression.fields.fields;
+			// _ überspringt eine Position. index bleibt die Position im geschriebenen Ziel.
+			const fields = expression.fields.fields
+				.map((field, index) => ({ ...field, index: index }))
+				.filter(field => field.name.name !== discardName);
 			const value = expression.value;
 			if (!value) {
 				throw new Error('value missing in destructuring');
@@ -373,8 +382,8 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				const name = getCheckedEscapableName(field.name);
 				return `let ${name && escapeReservedJsVariableName(name)};`;
 			}).join(delimiterJs);
-			const assignments = fields.map((singleName, index) => {
-				const { name, source } = singleName;
+			const assignments = fields.map(singleName => {
+				const { name, source, index } = singleName;
 				const nameString = name.name;
 				const sourceString = source?.name ?? nameString;
 				const nameJs = escapeReservedJsVariableName(nameString);
@@ -626,10 +635,10 @@ function functionLiteralToJsParts(
 	let argsJs: string;
 	let paramsJs: string;
 	if (params.type === 'parameters') {
-		argsJs = params.singleFields.map(field => escapeReservedJsVariableName(field.name.name)).join(', ');
+		argsJs = params.singleFields.map((field, index) => parameterNameToJs(field.name.name, index)).join(', ');
 		const rest = params.rest;
 		if (rest) {
-			argsJs += (argsJs ? ', ' : '') + '...' + escapeReservedJsVariableName(rest.name.name);
+			argsJs += (argsJs ? ', ' : '') + '...' + parameterNameToJs(rest.name.name, params.singleFields.length);
 		}
 		paramsJs = parametersToJs(checkResult, params, indent);
 	}
@@ -649,6 +658,16 @@ function functionLiteralToJsParts(
 		? `(${argsJs}) => {${getRowDelimiterJs(indent + 2)}while (true) {${functionBodyToJs(checkResult, body, indent + 3, tail)}${getRowDelimiterJs(indent + 2)}}${delimiterJs}}`
 		: `(${argsJs}) => {${functionBodyToJs(checkResult, body, indent + 2)}${delimiterJs}}`;
 	return { functionJs, paramsJs, delimiterJs };
+}
+
+/**
+ * `_` bindet nichts, steht in JS aber trotzdem als Parameter. Mehrere gleichnamige Parameter sind
+ * dort ein Syntaxfehler, deshalb nach Position benannt. Ein JUL-Name beginnt nie mit `_`.
+ */
+function parameterNameToJs(name: string, index: number): string {
+	return name === discardName
+		? `_${index}`
+		: escapeReservedJsVariableName(name);
 }
 
 /**
@@ -772,7 +791,7 @@ function analyzeTailCalls(checkResult: CheckResult, literal: ParseFunctionLitera
 		}
 	}
 	return {
-		paramNamesJs: parameterNames.map(escapeReservedJsVariableName),
+		paramNamesJs: parameterNames.map(parameterNameToJs),
 		calls: calls,
 		branchings: branchings,
 	};
@@ -838,7 +857,8 @@ function tailExpressionToJs(checkResult: CheckResult, expression: ParseExpressio
 		}
 		const branch = branching.branches[index] as ParseFunctionLiteral;
 		const bindsArgument = branch.params.type === 'parameters'
-			&& branch.params.singleFields.length === 1;
+			&& branch.params.singleFields.length === 1
+			&& branch.params.singleFields[0]!.name.name !== discardName;
 		const bindingJs = bindsArgument
 			? `${getRowDelimiterJs(indent + 1)}const ${escapeReservedJsVariableName((branch.params as ParseParameterFields).singleFields[0]!.name.name)} = ${argumentJs};`
 			: '';
@@ -1377,8 +1397,11 @@ function inlinedListCallToJs(checkResult: CheckResult, expression: ParseFunction
 	const delimiterJs = getRowDelimiterJs(indent + 2);
 	const bodyIndent = indent + 3;
 	const bodyDelimiterJs = getRowDelimiterJs(bodyIndent);
-	const bindings = callback.params.singleFields.map((field, index) =>
-		`const ${escapeReservedJsVariableName(field.name.name)} = ${inlinedListParameterJs[inlined.parameters[index]!]};`);
+	const bindings = callback.params.singleFields
+		.map((field, index) => field.name.name === discardName
+			? undefined
+			: `const ${escapeReservedJsVariableName(field.name.name)} = ${inlinedListParameterJs[inlined.parameters[index]!]};`)
+		.filter(isDefined);
 	const body = callback.body;
 	const statements = body.slice(0, -1).map(statement => sourcePositionMarkerJs(statement) + expressionToJs(checkResult, statement, bodyIndent));
 	const last = body[body.length - 1]!;

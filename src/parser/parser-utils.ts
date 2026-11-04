@@ -1,5 +1,5 @@
-import { ParseBindingExpression, DefinitionExpression, forEachChild, getNodeSymbols, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable, TypedExpression, createSymbolTable } from "../syntax-tree.js";
-import { forEach } from "../util.js";
+import { ParseBindingExpression, DefinitionExpression, forEachChild, getNodeSymbols, ParseBranching, ParseDestructuringField, ParseDictionaryField, ParseDictionaryTypeField, ParseExpression, ParseFieldBase, ParseFunctionCall, ParseFunctionLiteral, ParseFunctionTypeLiteral,ParseParameterField, ParseParameterFields, ParseValueExpression, PositionedExpression, PositionedExpressionBase, Purity, SimpleExpression, SymbolDefinition, SymbolTable, TypedExpression, createSymbolTable, discardName } from "../syntax-tree.js";
+import { forEach, last } from "../util.js";
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 
 export function createParseParameters(
@@ -20,6 +20,9 @@ export function createParseParameters(
 		endColumnIndex: position.endColumnIndex,
 	};
 	singleFields.forEach((field, index) => {
+		if (field.name.name === discardName) {
+			return;
+		}
 		defineSymbol(
 			symbols,
 			errors,
@@ -30,7 +33,8 @@ export function createParseParameters(
 			field.description,
 			index);
 	});
-	if (rest) {
+	if (rest
+		&& rest.name.name !== discardName) {
 		defineSymbol(
 			symbols,
 			errors,
@@ -47,11 +51,13 @@ export function createParseParameters(
 export function createParseFunctionLiteral(
 	params: SimpleExpression | ParseParameterFields,
 	returnType: ParseValueExpression | undefined,
-	body: ParseExpression[],
+	writtenBody: ParseExpression[],
 	position: Positioned,
 	errors: CompilerError[],
 	arrow?: Purity,
+	isRestOfBlock?: true,
 ): ParseFunctionLiteral {
+	const body = checkAndSplitBody(writtenBody, errors);
 	const symbols = createSymbolTable();
 	if (params.type === 'binding'
 		|| params.type === 'parameters') {
@@ -67,8 +73,157 @@ export function createParseFunctionLiteral(
 		arrow: arrow,
 		...position,
 	};
+	if (isRestOfBlock) {
+		return { ...functionLiteral, isRestOfBlock: true };
+	}
 	return functionLiteral;
 }
+
+//#region Anweisungen
+
+/**
+ * Prüft die Anweisungen eines Funktionsrumpfs und hängt den Rest hinter dem ersten Branching als
+ * Anweisung als dessen letzten Branch an (ParseFunctionLiteral.isRestOfBlock). Passt ein Arm, ist
+ * sein Wert das Ergebnis der Funktion, sonst geht es mit dem Rest weiter. Rekursiv über
+ * createParseFunctionLiteral, der Rest kann selbst wieder Branchings enthalten.
+ */
+function checkAndSplitBody(body: ParseExpression[], errors: CompilerError[]): ParseExpression[] {
+	const lastIndex = body.length - 1;
+	for (let index = 0; index <= lastIndex; index++) {
+		const statement = body[index]!;
+		switch (statement.type) {
+			case 'functionLiteral':
+				if (index < lastIndex) {
+					errors.push({
+						code: ErrorCode.unusedFunctionLiteral,
+						message: 'This function is never used. A branch must be indented below its branching.',
+						startRowIndex: statement.startRowIndex,
+						startColumnIndex: statement.startColumnIndex,
+						endRowIndex: statement.endRowIndex,
+						endColumnIndex: statement.endColumnIndex,
+					});
+				}
+				break;
+			case 'definition':
+				if (index === lastIndex
+					&& statement.name.name === discardName) {
+					errors.push({
+						code: ErrorCode.discardAsResult,
+						message: `'${discardName}' can not be the result. The last expression of a function is its result.`,
+						startRowIndex: statement.name.startRowIndex,
+						startColumnIndex: statement.name.startColumnIndex,
+						endRowIndex: statement.name.endRowIndex,
+						endColumnIndex: statement.name.endColumnIndex,
+					});
+				}
+				break;
+			case 'branching': {
+				statement.branches.forEach(branch => {
+					if (isCatchAllBranch(branch)) {
+						errors.push({
+							code: ErrorCode.catchAllInStatementBranching,
+							message: 'A branching as a statement can not have a catch-all branch. Write the default case below the branching, one level less indented.',
+							startRowIndex: branch.params.startRowIndex,
+							startColumnIndex: branch.params.startColumnIndex,
+							endRowIndex: branch.params.endRowIndex,
+							endColumnIndex: branch.params.endColumnIndex,
+						});
+					}
+				});
+				if (index === lastIndex) {
+					break;
+				}
+				const rest = body.slice(index + 1);
+				const restStart = rest[0]!;
+				const restEnd = last(rest)!;
+				const restParams = createParseParameters([], undefined, {
+					startRowIndex: restStart.startRowIndex,
+					startColumnIndex: 0,
+					endRowIndex: restStart.startRowIndex,
+					endColumnIndex: 0,
+				}, errors);
+				const restBranch = createParseFunctionLiteral(
+					restParams,
+					undefined,
+					rest,
+					{
+						startRowIndex: restStart.startRowIndex,
+						startColumnIndex: restStart.startColumnIndex,
+						endRowIndex: restEnd.endRowIndex,
+						endColumnIndex: restEnd.endColumnIndex,
+					},
+					errors,
+					undefined,
+					true);
+				// Das Branching umfasst den Rest, sonst fände die Suche nach der Cursorposition im
+				// Language Server den Rest nicht unter seinem Branch.
+				const branching: ParseBranching = {
+					...statement,
+					branches: [...statement.branches, restBranch],
+					endRowIndex: restEnd.endRowIndex,
+					endColumnIndex: restEnd.endColumnIndex,
+				};
+				return [...body.slice(0, index), branching];
+			}
+			default:
+				break;
+		}
+	}
+	return body;
+}
+
+/**
+ * Ein Branch, der jede Argumentkollektion annimmt: `() =>`, `Any =>` oder eine Parameterliste ohne
+ * Typen (bzw. nur mit `Any`). Steht der Arm nicht als Funktionsliteral da, ist das an der Syntax
+ * nicht zu erkennen.
+ */
+function isCatchAllBranch(branch: ParseValueExpression): branch is ParseFunctionLiteral {
+	if (branch.type !== 'functionLiteral') {
+		return false;
+	}
+	const params = branch.params;
+	switch (params.type) {
+		case 'reference':
+			return isAnyReference(params);
+		case 'parameters': {
+			const fields = params.rest
+				? [...params.singleFields, params.rest]
+				: params.singleFields;
+			return fields.every(field => !field.typeGuard || isAnyReference(field.typeGuard));
+		}
+		default:
+			return false;
+	}
+}
+
+function isAnyReference(expression: ParseValueExpression): boolean {
+	return expression.type === 'reference'
+		&& expression.name.name === 'Any';
+}
+
+/**
+ * Auf oberster Dateiebene gibt es keine Funktion, die ein Branching als Anweisung verlassen könnte.
+ */
+export function checkTopLevelStatements(expressions: ParseExpression[], errors: CompilerError[]): void {
+	expressions.forEach(expression => {
+		if (expression.type !== 'branching') {
+			return;
+		}
+		errors.push({
+			code: ErrorCode.statementBranchingAtTopLevel,
+			message: `A branching can not be a top-level statement. Write '${discardName} = ?(…)' for a conditional side effect.`,
+			startRowIndex: expression.startRowIndex,
+			startColumnIndex: expression.startColumnIndex,
+			endRowIndex: expression.startRowIndex,
+			endColumnIndex: expression.args
+				&& expression.args.endRowIndex === expression.startRowIndex
+				? expression.args.endColumnIndex
+				: expression.startColumnIndex + 1,
+		});
+	});
+}
+
+//#endregion Anweisungen
 
 export function createParseFunctionTypeLiteral(
 	params: SimpleExpression | ParseParameterFields,
@@ -102,6 +257,9 @@ export function fillSymbolTableWithExpressions(
 	expressions.forEach(expression => {
 		switch (expression.type) {
 			case 'definition': {
+				if (expression.name.name === discardName) {
+					return;
+				}
 				defineSymbol(
 					symbolTable,
 					errors,
@@ -178,6 +336,11 @@ export function fillSymbolTableWithFields(
 		const name = getCheckedEscapableName(field.name);
 		if (!name) {
 			// TODO error?
+			return;
+		}
+		// Ein Dictionary-Feld namens _ ist ein Schlüssel, keine Bindung.
+		if (name === discardName
+			&& (isFunctionParameter || field.type === 'destructuringField')) {
 			return;
 		}
 		defineSymbol(

@@ -461,3 +461,12 @@
 2026-11-04 09:27:44	e1639cc+	-	ADV-DEV-56627	yugioh	parse+check	5	9975.17	11354.30	11354.30	Verengung über not/and/or, Wiederholung ohne Parallellast
 2026-11-04 09:27:44	e1639cc+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	977.00	1220.98	1220.98	Verengung über not/and/or, Wiederholung ohne Parallellast
 2026-11-04 09:27:44	e1639cc+	-	ADV-DEV-56627	yugioh	parse	5	114.72	128.41	128.41	Verengung über not/and/or, Wiederholung ohne Parallellast
+2026-11-04 13:07:34	5e305bf+	-	ADV-DEV-56627	yugioh	parse+check	5	9305.26	10121.08	10121.08	vor early return
+2026-11-04 13:07:34	5e305bf+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	597.71	640.09	640.09	vor early return
+2026-11-04 13:07:34	5e305bf+	-	ADV-DEV-56627	yugioh	parse	5	62.45	70.89	70.89	vor early return
+2026-11-04 13:33:51	5e305bf+	-	ADV-DEV-56627	yugioh	parse+check	5	14751.16	25373.24	25373.24	nach early return
+2026-11-04 13:33:51	5e305bf+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	637.00	685.07	685.07	nach early return
+2026-11-04 13:33:51	5e305bf+	-	ADV-DEV-56627	yugioh	parse	5	67.63	74.14	74.14	nach early return
+2026-11-04 13:36:11	5e305bf+	-	ADV-DEV-56627	yugioh	parse+check	5	9671.25	17727.73	17727.73	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:11	5e305bf+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1181.19	1324.45	1324.45	nach early return, wiederholt ohne parallele last
+2026-11-04 13:36:11	5e305bf+	-	ADV-DEV-56627	yugioh	parse	5	127.16	174.34	174.34	nach early return, wiederholt ohne parallele last

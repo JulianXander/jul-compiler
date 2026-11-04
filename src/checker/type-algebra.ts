@@ -70,6 +70,7 @@ import {
 	createNestedReference,
 	createParametersType,
 	createTextLiteral,
+	discardName,
 	forEachChildType,
 	getFunctionTypeFacts,
 	getOwnField,
@@ -5760,11 +5761,13 @@ function isTypeAssignableForParametersWithLeading(
 				const targetParameterName = targetParameter.name;
 				const targetParameterType = targetParameter.type;
 				const valueParameter = valueSingleNames[index];
-				// Eine Position ohne Namen (Kopf `[Integer] => …`) legt nur den Typ fest.
+				// Eine Position ohne Namen (Kopf `[Integer] => …`) legt nur den Typ fest, ebenso ein
+				// verworfener Parameter `_`.
 				if (valueParameter
 					&& valueParameter.name !== targetParameterName
 					&& valueParameter.name !== unnamedParameterName
-					&& targetParameterName !== unnamedParameterName) {
+					&& targetParameterName !== unnamedParameterName
+					&& targetParameterName !== discardName) {
 					return {
 						assignable: false,
 						error: new TypeError(`Parameter name mismatch. Got '${targetParameterName}' but expected '${valueParameter.name}'`)

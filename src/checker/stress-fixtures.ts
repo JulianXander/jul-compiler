@@ -152,10 +152,10 @@ advance = (previousUiState: UiState result: Or([] GameHistory Error)) =>
 			?(uiState/passUntilPhase)
 				[Text] =>
 					advance(uiState [])
-				() => uiState
+			uiState
 		[2] =>
 			advance(uiState [])
-		() => uiState
+	uiState
 `;
 
 /**

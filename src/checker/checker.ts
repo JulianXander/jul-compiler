@@ -61,6 +61,7 @@ import {
 	NestedReferenceType,
 	builtinAny,
 	builtinInvalid,
+	discardName,
 	builtinBlob,
 	builtinEmpty,
 	builtinNever,
@@ -2287,12 +2288,22 @@ function inferType(
 				setInferredType(branch, typeContext, undefined, checkContext);
 				checkIsFunction(checkContext.result, branch, ErrorCode.branchIsNotFunction, 'Expected branch to be a function.', errors);
 				const head = getBranchHeadOfFunction(getTypeInfo(checkContext.result, branch) && resolvePlaceholders(getTypeInfo(checkContext.result, branch)!.type));
+				// Ein geschriebener catchAll gilt als erreichbar (applyBranchHead), er darf defensiv
+				// dastehen. Der Rest eines Rumpfs ist dagegen gewöhnlicher Code: Ist nachweislich nichts
+				// mehr übrig, wird er nie ausgeführt.
+				const isRestOfBlock = branch.type === 'functionLiteral' && !!branch.isRestOfBlock;
+				const restIsCovered = isRestOfBlock
+					&& coverage.checkable
+					&& !coverage.afterCatchAll
+					&& coverage.rest?.length === 0;
 				const step = applyBranchHead(coverage, head);
 				coverage = step.coverage;
-				if (step.unreachable) {
+				if (step.unreachable || restIsCovered) {
 					errors.push({
 						code: ErrorCode.unreachableBranch,
-						message: 'Unreachable branch detected.',
+						message: isRestOfBlock
+							? 'Unreachable code detected. The branches above already cover every value.'
+							: 'Unreachable branch detected.',
 						startRowIndex: branch.startRowIndex,
 						startColumnIndex: branch.startColumnIndex,
 						endRowIndex: branch.endRowIndex,
@@ -2425,21 +2436,24 @@ function inferType(
 					typeInfo = { type: builtinInvalid };
 				}
 			}
-			checkNameDefinedInUpperScope(expression, scopes, errors, name);
-			// TODO typecheck mit typeguard, ggf union mit Error type
-			const currentScope = last(scopes);
-			const symbol = currentScope[name];
-			if (!symbol) {
-				throw new Error(`Definition Symbol ${name} not found`);
+			// _ bindet nichts: kein Symbol, keine Namensprüfung, nur der Wert gegen den TypeGuard.
+			if (name !== discardName) {
+				checkNameDefinedInUpperScope(expression, scopes, errors, name);
+				// TODO typecheck mit typeguard, ggf union mit Error type
+				const currentScope = last(scopes);
+				const symbol = currentScope[name];
+				if (!symbol) {
+					throw new Error(`Definition Symbol ${name} not found`);
+				}
+				typeInfo = withCompletedStream(typeInfo, currentScope, name);
+				setSymbolTypeInfo(checkContext.result, symbol, typeInfo);
+				// Ein hingeschriebener TypeGuard ist die erklärte Absicht und geht dem inferierten Typ vor.
+				checkNamingCase(
+					expression.name,
+					getTypeInfo(checkContext.result, typeGuard) ? valueOf(getTypeInfo(checkContext.result, typeGuard)!.type) : typeInfo.type,
+					errors,
+				);
 			}
-			typeInfo = withCompletedStream(typeInfo, currentScope, name);
-			setSymbolTypeInfo(checkContext.result, symbol, typeInfo);
-			// Ein hingeschriebener TypeGuard ist die erklärte Absicht und geht dem inferierten Typ vor.
-			checkNamingCase(
-				expression.name,
-				getTypeInfo(checkContext.result, typeGuard) ? valueOf(getTypeInfo(checkContext.result, typeGuard)!.type) : typeInfo.type,
-				errors,
-			);
 			if (typeGuard) {
 				const typeGuardType = getTypeInfo(checkContext.result, typeGuard);
 				const dereferencedTargetType = typeGuardType && valueOf(resolvePlaceholders(typeGuardType.type));
@@ -2485,6 +2499,11 @@ function inferType(
 				const fieldName = field.name.name;
 				if (!fieldName) {
 					allFieldsResolved = false;
+					return;
+				}
+				// _ überspringt die Position, gelesen wird nichts.
+				if (fieldName === discardName
+					&& !field.source) {
 					return;
 				}
 				checkNameDefinedInUpperScope(expression, scopes, errors, fieldName);
@@ -3482,7 +3501,9 @@ function inferType(
 				setInferredType(typeGuard, typeContext, undefined, checkContext);
 				checkTypeGuardIsType(checkContext.result, typeGuard, errors);
 			}
-			checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
+			if (expression.name.name !== discardName) {
+				checkNameDefinedInUpperScope(expression, scopes, errors, expression.name.name);
+			}
 			const typeGuardType = getTypeInfo(checkContext.result, typeGuard)?.type;
 			// Ein hingeschriebener TypeGuard gilt, auch wenn der Aufrufkontext etwas anderes
 			// zusichert - sonst wäre er stillschweigend wirkungslos und die Kontravarianzprüfung
@@ -3493,8 +3514,11 @@ function inferType(
 				? valueOf(typeGuardType)
 				: getExpectedType(checkContext.result, expression) ?? builtinAny;
 			// TODO check array type bei spread
-			const parameterSymbol = findParameterSymbol(expression, scopes);
 			const typeInfo: TypeInfo = { type: inferredType };
+			if (expression.name.name === discardName) {
+				return typeInfo;
+			}
+			const parameterSymbol = findParameterSymbol(expression, scopes);
 			setSymbolTypeInfo(checkContext.result, parameterSymbol, typeInfo);
 			checkNamingCase(expression.name, inferredType, errors);
 			return typeInfo;
@@ -3524,13 +3548,24 @@ function inferType(
 			return { type: rawType };
 		}
 		case 'reference': {
+			const name = expression.name.name;
+			if (name === discardName) {
+				errors.push({
+					code: ErrorCode.discardRead,
+					message: `'${discardName}' discards a value and can not be read.`,
+					startRowIndex: expression.startRowIndex,
+					startColumnIndex: expression.startColumnIndex,
+					endRowIndex: expression.endRowIndex,
+					endColumnIndex: expression.endColumnIndex,
+				});
+				return { type: builtinInvalid };
+			}
 			const {
 				found,
 				foundSymbol,
 				type,
 				isBuiltIn,
 			} = dereferenceType(checkContext.result, expression, scopes);
-			const name = expression.name.name;
 			// Name statt Symbol wie bei den übrigen Builtins: `test` und `assume` zu überschatten ist
 			// JUL3203.
 			const notCalledCode = directCallOnlyBuiltins.get(name);
@@ -5071,11 +5106,15 @@ function setFunctionRefForParams(
 	functionScopes: NonEmptyArray<SymbolTable>,
 ): void {
 	params.singleFields.forEach(parameter => {
+		if (parameter.name.name === discardName) {
+			return;
+		}
 		const parameterSymbol = findParameterSymbol(parameter, functionScopes);
 		setFunctionRef(checkResult, parameterSymbol, identity);
 	});
 	const restParameter = params.rest;
-	if (restParameter) {
+	if (restParameter
+		&& restParameter.name.name !== discardName) {
 		const parameterSymbol = findParameterSymbol(restParameter, functionScopes);
 		setFunctionRef(checkResult, parameterSymbol, identity);
 	}

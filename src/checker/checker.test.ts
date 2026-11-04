@@ -216,7 +216,7 @@ f(1)`);
 		expectCheck(`f = (x: Integer) =>
 	?(x)
 		Integer => 0
-		() => 1`, {
+	1`, {
 			errors: [
 				{
 					"code": ErrorCode.paramsTypeIsNotCollection,
@@ -252,7 +252,7 @@ f = T => 0`);
 	// die Argumentkollektion, und der gebranchte Wert ist deren Element 0.
 	// Ein branch ist eine Funktion — ein anderer Wert kann nicht matchen.
 	it('branch-non-function-error', () => {
-		expectCheck('?([])\n\t4', {
+		expectCheck('_ = ?([])\n\t4', {
 			errors: [
 				{
 					"code": ErrorCode.branchIsNotFunction,
@@ -270,18 +270,20 @@ f = T => 0`);
 	it('branch-binds-whole-collection', () => {
 		expectCheck(`h = (x: List(Integer)) => x
 f = (someVar: List(Integer)) =>
-	?(someVar)
+	result = ?(someVar)
 		(a: List(Integer)) => h(a)
-		() => []`);
+		() => []
+	result`);
 	});
 	// Gegenstück: gespreadet wird nur mit geschriebenem ..., dann beschreiben die
 	// Parameter die Elemente.
 	it('branch-spread-binds-elements', () => {
 		expectCheck(`g = (x: Integer) => x
 f = (pair: [Integer Integer]) =>
-	?(...pair)
+	result = ?(...pair)
 		(a: Integer b: Integer) => g(a)
-		() => 0`);
+		() => 0
+	result`);
 	});
 	// Ein leerer Wert ist kein leeres Argument: ?(value) schreibt ein Argument, die
 	// Kollektion ist also [()] und der passende Kopf [Empty], nicht Empty.
@@ -289,11 +291,11 @@ f = (pair: [Integer Integer]) =>
 		expectCheck(`f = (value: Or([] Integer)) =>
 	?(value)
 		[Empty] => 0
-		Any => 1`);
+	1`);
 	});
 	// Umgekehrt: ohne geschriebenes Argument ist die Kollektion selbst Empty.
 	it('branch-empty-collection-matches-empty-head', () => {
-		expectCheck(`?()
+		expectCheck(`_ = ?()
 	Empty => 0
 	() => 1`);
 	});
@@ -308,7 +310,7 @@ f = (pair: [Integer Integer]) =>
 f = (countdown: Integer) =>
 	?(countdown)
 		[0] => 0
-		() => g(countdown)`);
+	g(countdown)`);
 	});
 	// Die Parameterliste beschreibt die Argumentkollektion, der 1. Parameter bekommt
 	// also das 1. Argument. Verengt wird auf dessen Typ, nicht auf die Liste als Ganzes.
@@ -332,9 +334,10 @@ f = (countdown: Integer) =>
 	it('branch-narrowing-untyped-param', () => {
 		expectCheck(`g = (x: Integer) => x
 f = (countdown: Integer) =>
-	?(countdown)
+	result = ?(countdown)
 		[0] => 0
-		(y) => g(countdown)`);
+		(y) => g(countdown)
+	result`);
 	});
 	// Any matcht auch die Kollektion und bleibt daher ungewickelt. Verbreitern darf
 	// es nicht, der Schnitt behält Integer.
@@ -343,7 +346,7 @@ f = (countdown: Integer) =>
 f = (countdown: Integer) =>
 	?(countdown)
 		[0] => 0
-		Any => g(countdown)`);
+	g(countdown)`);
 	});
 	// Ein Typ-Kopf bindet nichts und prüft die Kollektion. Verengt wird auf sein
 	// Element 0: someVar wird hier zu Integer.
@@ -352,7 +355,7 @@ f = (countdown: Integer) =>
 f = (someVar: Any) =>
 	?(someVar)
 		[Integer] => g(someVar)
-		() => 0`);
+	0`);
 	});
 	// Distributivgesetz: And(Or(Text Integer) Text) => Or(Text Never) => Text
 	it('branch-narrowing-union', () => {
@@ -360,7 +363,7 @@ f = (someVar: Any) =>
 f = (someVar: Or(Text Integer)) =>
 	?(someVar)
 		(y: Text) => t(someVar)
-		() => §§`);
+	§§`);
 	});
 	// Gegenprobe: die Verengung muss auch wirklich greifen. Im Text-Branch ist someVar
 	// auf Text verengt und damit nicht mehr an einen Integer-Parameter zuweisbar.
@@ -369,7 +372,7 @@ f = (someVar: Or(Text Integer)) =>
 f = (someVar: Or(Text Integer)) =>
 	?(someVar)
 		(y: Text) => g(someVar)
-		() => 0`, {
+	0`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -390,15 +393,16 @@ f = (someVar: Or(Text Integer)) =>
 f = (value: Or([] Integer)) =>
 	?(value)
 		[Empty] => 0
-		Any => g(value)`);
+	g(value)`);
 	});
 	// Gegenprobe: ohne vorherigen branch bleibt Empty möglich und muss gemeldet werden.
 	// Die Verengung darf also nicht pauschal Empty abziehen.
 	it('branch-narrowing-keeps-unhandled-types', () => {
 		expectCheck(`g = (x: Integer) => x
 f = (value: Or([] Integer)) =>
-	?(value)
-		Any => g(value)`, {
+	result = ?(value)
+		Any => g(value)
+	result`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -417,7 +421,7 @@ f = (value: Or([] Integer)) =>
 f = (a: Or(Text Integer) b: Or(Text Integer)) =>
 	?(a b)
 		[Integer Integer] => g(a b)
-		() => 0`);
+	0`);
 	});
 	// b ist immer Integer: Der Kopf schränkt in Wahrheit nur a ein, und der zweite branch
 	// sieht a ohne Integer.
@@ -434,9 +438,10 @@ f = (a: Or(Text Integer) b: Integer) =>
 	it('branch-narrowing-previous-multi-value-branch-does-not-exclude-per-position', () => {
 		expectCheck(`g = (x: Text) => x
 f = (a: Or(Text Integer) b: Or(Text Integer)) =>
-	?(a b)
+	result = ?(a b)
 		(x: Integer y: Integer) => 0
-		(x: Any y: Any) => g(a)`, {
+		(x: Any y: Any) => g(a)
+	result`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -554,7 +559,7 @@ F([1 2])`, 'TypeOf(Or(§a§ 2))');
 		(y: Integer) =>
 			narrowed: Integer = d/a
 			narrowed
-		() => 0`);
+	0`);
 	});
 	// Die Verengung wirkt auch rückwärts auf die Quelle: dass stepType ein Text ist,
 	// beweist, dass step nicht empty ist — Empty hat kein Feld type. Auch über die
@@ -571,13 +576,13 @@ getStep = (flag: Boolean) :> Or([] Step) =>
 			type = §a§
 			query = §b§
 		]
-		() => []
+	[]
 f = (flag: Boolean) =>
 	step = getStep(flag)
 	stepType = step/type
 	?(stepType)
 		[Text] => g(step/query)
-		() => §§`);
+	§§`);
 	});
 	// Das Feld der Quelle wählt die Choice aus: im Zweig §a§ bleibt von step nur die
 	// Choice mit type §a§ übrig, die andere fällt weg. Die Zuweisung an Empty macht den
@@ -621,9 +626,8 @@ f = (flag: Boolean) =>
 f = (v: Or(H Error)) :> [Integer Text] =>
 	?(v)
 		[Error] => [0 §§]
-		() =>
-			(x y) = v
-			[x y]`);
+	(x y) = v
+	[x y]`);
 	});
 	// Ein fehlendes Feld bleibt ein Fehler, auch wenn der verengte Typ noch auf den Parameter wartet.
 	it('branch-narrowing-destructuring-reports-missing-field', () => {
@@ -631,17 +635,15 @@ f = (v: Or(H Error)) :> [Integer Text] =>
 f = (v: Or(H Error)) =>
 	?(v)
 		[Error] => []
-		() =>
-			(x z) = v
-			[x z]`, [ErrorCode.dereferenceFailed]);
+	(x z) = v
+	[x z]`, [ErrorCode.dereferenceFailed]);
 	});
 	it('branch-narrowing-destructures-by-index-in-remaining-branch', () => {
 		expectCheck(`f = (v: Or([Integer Text] Error)) :> [Integer Text] =>
 	?(v)
 		[Error] => [0 §§]
-		() =>
-			(a b) = v
-			[a b]`);
+	(a b) = v
+	[a b]`);
 	});
 	// Gegenprobe: die Verengung darf nur an einem Namen hängen. Zwei Aufrufe sind zwei
 	// Werte — vom Typ des einen folgt nichts über den anderen.
@@ -657,11 +659,11 @@ getStep = (flag: Boolean) :> Or([] Step) =>
 			type = §a§
 			query = §b§
 		]
-		() => []
+	[]
 f = (flag: Boolean) =>
 	?(getStep(flag)/type)
 		[Text] => g(getStep(flag)/query)
-		() => §§`, {
+	§§`, {
 			errors: [
 				{
 					"code": ErrorCode.argumentTypeMismatch,
@@ -683,7 +685,7 @@ f = (flag: Boolean) =>
 		(y: Text) =>
 			narrowed: Integer = d/a
 			narrowed
-		() => 0`, {
+	0`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -700,11 +702,12 @@ f = (flag: Boolean) =>
 	// verbreitern — d/a bleibt Or(Text Integer).
 	it('branch-narrowing-field-path-any-does-not-widen', () => {
 		expectCheck(`f = (d: [a: Or(Text Integer)]) =>
-	?(d/a)
+	result = ?(d/a)
 		(y: Any) =>
 			narrowed: Integer = d/a
 			narrowed
-		() => 0`, {
+		() => 0
+	result`, {
 			errors: [
 				{
 					"code": ErrorCode.definitionTypeMismatch,
@@ -721,7 +724,7 @@ f = (flag: Boolean) =>
 	// Or(Text Integer) — das verengte Symbol liegt im Scope des branches, nicht außen.
 	it('branch-narrowing-field-path-ends-with-the-branch', () => {
 		expectCheck(`f = (d: [a: Or(Text Integer)]) =>
-	?(d/a)
+	_ = ?(d/a)
 		(y: Integer) => 0
 		() => 0
 	narrowed: Integer = d/a
@@ -744,15 +747,15 @@ f = (flag: Boolean) =>
 getD = (flag: Boolean) =>
 	?(flag)
 		[true] => [a = 1]
-		() => [a = §x§]
+	[a = §x§]
 f = (flag: Boolean) =>
 	d = getD(flag)
 	?(d/a)
 		(y: Integer) =>
 			?(flag)
 				[true] => g(d/a)
-				() => 0
-		() => 0`);
+			0
+	0`);
 	});
 	// Auch ein mehrstufiger Pfad verengt: der Fakt liegt auf d/a/b, gelesen wird
 	// derselbe Pfad.
@@ -761,12 +764,12 @@ f = (flag: Boolean) =>
 getD = (flag: Boolean) =>
 	?(flag)
 		[true] => [a = [b = 1]]
-		() => [a = [b = §x§]]
+	[a = [b = §x§]]
 f = (flag: Boolean) =>
 	d = getD(flag)
 	?(d/a/b)
 		(y: Integer) => g(d/a/b)
-		() => 0`);
+	0`);
 	});
 	// Ist die Quelle vom Typ Any, weiß der Checker über ihre Felder nichts. Der
 	// Schnitt aus Any und dem Fakt [index: ...] darf daher nicht heißen, dass s nur
@@ -774,7 +777,7 @@ f = (flag: Boolean) =>
 	it('branch-narrowing-through-any-source-keeps-other-fields', () => {
 		expectCheck(`start: [boards: Integer index: Or([] Integer)] = [boards = 1 index = 1]
 s = assume(start Any)
-?(s/index)
+_ = ?(s/index)
 	[Integer] => 0
 	() =>
 		boardsValue: Integer = s/boards`, {
@@ -795,7 +798,7 @@ s = assume(start Any)
 getCard = () :> Card =>
 	assume([dataId = §a§ face = []] Card)
 card = getCard()
-?(card/face)
+_ = ?(card/face)
 	[§up§] =>
 		newCard: Card = [
 			...card
@@ -810,7 +813,7 @@ card = getCard()
 	// "alles außer Integer" und wäre keinem engeren Typ zuweisbar.
 	it('narrowed-not-type-from-any-source-is-not-checked', () => {
 		expectCheck(`combined = assume([] Any)
-?(combined/index)
+_ = ?(combined/index)
 	[Integer] => 0
 	() =>
 		result: Or([] Integer) = combined/index
@@ -822,7 +825,7 @@ card = getCard()
 	// Ausgeschlossenen, passt kein Wert hinein, auch wenn der Rest unbekannt ist.
 	it('narrowed-not-type-still-errors-when-target-is-subset-of-excluded', () => {
 		expectCheck(`combined = assume([] Any)
-?(combined/index)
+_ = ?(combined/index)
 	[Integer] => 0
 	() =>
 		result: Integer = combined/index
@@ -846,12 +849,12 @@ card = getCard()
 		expectCheck(`isInteger = (x: Any) :> Boolean =>
 	?(x)
 		[Integer] => true
-		() => false
+	false
 g = (n: Integer) => n
 f = (someVar: Or(Integer Text)) =>
 	?(someVar)
 		[isInteger] => g(someVar)
-		() => 0`, {
+	0`, {
 			errors: [],
 		});
 	});
@@ -864,12 +867,12 @@ f = (someVar: Or(Integer Text)) =>
 		expectCheck(`isInteger = (x: Any) :> Boolean =>
 	?(x)
 		[Integer] => true
-		() => false
+	false
 g = (t: Text) => t
 f = (someVar: Or(Integer Text)) =>
 	?(someVar)
 		[isInteger] => 0
-		() => g(someVar)`, {
+	g(someVar)`, {
 			errors: [],
 		});
 	});
@@ -878,7 +881,7 @@ f = (someVar: Or(Integer Text)) =>
 		expectCheck(`isInteger = (x: Any) :> Boolean =>
 	?(x)
 		[Integer] => true
-		() => false
+	false
 useType = (T: Type) => T
 useType(isInteger)`, {
 			errors: [],
@@ -915,7 +918,7 @@ useType(isLegal)`);
 		expectCheck(`f = (value: Or(Integer Empty)) =>
 	?(value)
 		[Integer] => 1
-		() => 2`, {
+	2`, {
 			errors: [],
 		});
 	});
@@ -942,7 +945,7 @@ useType(isLegal)`);
 		expectCheck(`f = (value: Integer) =>
 	?(value)
 		[Text] => 1
-		() => 2`, {
+	2`, {
 			errors: [
 				{
 					code: ErrorCode.unreachableBranch,
@@ -960,7 +963,7 @@ useType(isLegal)`);
 		expectCheck(`f = (value: Integer) =>
 	?([value value])
 		(a: Integer b: Integer) => 1
-		() => 2`, {
+	2`, {
 			errors: [
 				{
 					code: ErrorCode.unreachableBranch,
@@ -980,15 +983,16 @@ useType(isLegal)`);
 	?(a b)
 		(x: Integer y: Integer) => 1
 		(x: Integer y: Text) => 2
-		() => 3`, {
+	3`, {
 			errors: [],
 		});
 	});
 	it('branch-with-matching-param-count-is-reachable', () => {
 		expectCheck(`f = (value: Integer) =>
-	?(value value)
+	result = ?(value value)
 		(a: Integer b: Integer) => 1
-		() => 2`, {
+		() => 2
+	result`, {
 			errors: [],
 		});
 	});
@@ -1144,7 +1148,7 @@ g = (t: Text) => t
 f = (v: Or(isEven Text)) =>
 	?(v)
 		[isEven] => 0
-		() => g(v)`);
+	g(v)`);
 	});
 	it('predicate-identity-through-stored-value', () => {
 		expectCheck(`isEven = (n: Integer) => n.modulo(2).equal(0)
@@ -1153,7 +1157,7 @@ g = (t: Text) => t
 f = (v: Or(even Text)) =>
 	?(v)
 		[isEven] => 0
-		() => g(v)`);
+	g(v)`);
 	});
 	it('predicate-identity-with-bound-argument', () => {
 		expectCheck(`divisibleBy = (divisor: NonZeroInteger) =>
@@ -1163,7 +1167,7 @@ g = (t: Text) => t
 f = (v: Or(divisibleBy(5) Text)) =>
 	?(v)
 		[divisibleBy(5)] => 0
-		() => g(v)`);
+	g(v)`);
 	});
 	// Gleiches Verhalten ist nicht dasselbe Prädikat: zwei Literale sind nie gleich. Sichtbar wird
 	// das an der Erschöpfung - [isEvenB] fängt den isEvenA-Anteil nicht sicher ab, also bleibt
@@ -1249,7 +1253,7 @@ f = (a: isChecked) => a`, {
 f = (a: Integer) =>
 	?(a)
 		[isChecked] => 1
-		() => 2`, {
+	2`, {
 			errors: [
 				{
 					code: ErrorCode.typeGuardIsNotType,
@@ -1338,7 +1342,7 @@ f = (a: Integer) =>
 	?(n)
 		[0] => 1
 		[Not(1)] => 2
-		() => 3`);
+	3`);
 	});
 	// Aus demselben Grund darf der Teilmengen-Shortcut And(A B) => A hier nicht greifen, sonst
 	// geht Integer verloren und ein Text wäre zuweisbar.
@@ -1872,7 +1876,7 @@ g = () => f([1 2 3] (index: Not(GreaterInteger(3))) => [])`);
 		expectCheck(`isInteger = (value: Any) :> Boolean =>
 	?(value)
 		[Integer] => true
-		() => false
+	false
 f = (values: List(Or(Integer Text))) :> Or([] List(Integer)) =>
 	values.filter(isInteger)`, {
 			errors: [],
@@ -1908,7 +1912,7 @@ pushed: History = pushHistory([past = []] 1)`, {
 		expectCheck(`isInteger = (value: Any) :> Boolean =>
 	?(value)
 		[Integer] => true
-		() => false
+	false
 f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 	values.findFirst(isInteger)`, {
 			errors: [],
@@ -1925,7 +1929,7 @@ f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 		expectCheck(`isInteger = (value: Any) :> Boolean =>
 	?(value)
 		[Integer] => true
-		() => false
+	false
 f = (values: List(Or(Integer Text))) :> Or([] Integer) =>
 	values.findLast(isInteger)`, {
 			errors: [],
@@ -1973,9 +1977,10 @@ f = (values: List(Integer)) :> Or([] List(GreaterInteger(1))) =>
 	it('branching-false-branch-subtracts-predicate-from-call', () => {
 		expectCheck(`check = (value: Integer) => value.greaterInteger(1)
 f = (value: Integer) :> Or([] LessInteger(2)) =>
-	?(value)
+	result = ?(value)
 		[check] => []
-		(rest) => rest`);
+		(rest) => rest
+	result`);
 	});
 	// Choices ohne ganze Zahlen (hier Empty) nehmen von einem Integer-Bereich nichts auf.
 	it('integer-range-is-assignable-to-or-with-non-integer-choice', () => {
@@ -1997,7 +2002,7 @@ f = (value: Integer) :> Or([] LessInteger(2)) =>
 		expectCheck(`f = (value: Integer) :> Or([] LessInteger(2)) =>
 	?(value.greaterInteger(1))
 		[true] => []
-		() => value`);
+	value`);
 	});
 	it('branching-over-predicate-call-in-prefix-free-form', () => {
 		expectResolvedReturnType(`f = (value: Integer) =>
@@ -2279,9 +2284,10 @@ f = (values: List(Or(Integer Text))) =>
 		expectCheck(`f = (values: List(Integer)) :> Or([] List(Integer)) =>
 	values.filterMap(
 		(value) =>
-			?(value)
+			result = ?(value)
 				[Integer] => value
 				() => []
+			result
 	)`);
 	});
 	// map liefert laut Implementierung nur dann empty, wenn schon die Eingabe empty war.
@@ -3317,7 +3323,7 @@ f = (e: Or(A B)) :> Or([] Integer) => e/x`);
 		expectCheck(`f = (values: Or([] List([a: Integer]))) =>
 	?(values)
 		[List([a: Integer])] => values.exists((value) => value/b)
-		() => false`, {
+	false`, {
 			errors: [
 				{
 					code: ErrorCode.dereferenceFailed,
@@ -3336,7 +3342,7 @@ f = (e: Or(A B)) :> Or([] Integer) => e/x`);
 		expectCheck(`f = (d: Or(Integer [x: Integer])) =>
 	?(d)
 		[[x: Integer]] => d/y
-		() => 0`, {
+	0`, {
 			errors: [
 				{
 					code: ErrorCode.dereferenceFailed,
@@ -3353,7 +3359,7 @@ f = (e: Or(A B)) :> Or([] Integer) => e/x`);
 		expectCheck(`f = (l: Or([] List(Integer))) =>
 	?(l)
 		[List(Integer)] => l/foo
-		() => 0`, {
+	0`, {
 			errors: [
 				{
 					code: ErrorCode.dereferenceFailed,
@@ -3370,7 +3376,7 @@ f = (e: Or(A B)) :> Or([] Integer) => e/x`);
 		expectCheck(`f = (l: Or([] List([n: Integer]))) =>
 	?(l)
 		[List([n: Integer])] => l/1/m
-		() => 0`, {
+	0`, {
 			errors: [
 				{
 					code: ErrorCode.dereferenceFailed,
@@ -3388,7 +3394,7 @@ f = (e: Or(A B)) :> Or([] Integer) => e/x`);
 		expectCheck(`f = (d: [x: Or([] Integer)]) =>
 	?(d/x)
 		[Integer] => d/x.add(1)
-		() => 0`);
+	0`);
 	});
 	it('return-type-stays-concrete-through-narrowed-parameter', () => {
 		expectCheck(`g = (a: List(Any)) => a
@@ -3396,7 +3402,7 @@ f = (l: Or([] List(Integer))) =>
 	?(l)
 		[List(Integer)] =>
 			r: Text = g(l)
-		() => 0`, {
+	0`, {
 			errors: [
 				{
 					code: ErrorCode.definitionTypeMismatch,
@@ -4929,15 +4935,15 @@ f(b = §x§ a = true)`, {
 		expectCheck(`f = (a: Integer b: Integer) =>
 	?(a)
 		[0] => b
-		() => f(b = 1 a = 0)`, {
+	f(b = 1 a = 0)`, {
 			errors: [
 				{
 					code: ErrorCode.argumentsOutOfOrder,
 					message: "Named arguments must follow the parameter order (a, b). 'a' comes after 'b'.",
 					startRowIndex: 3,
-					startColumnIndex: 16,
+					startColumnIndex: 9,
 					endRowIndex: 3,
-					endColumnIndex: 21,
+					endColumnIndex: 14,
 				},
 			],
 		});
@@ -5078,7 +5084,7 @@ myFn = (a: List(Integer)) =>
 	(x) = a
 	?(x)
 		[true] => 1
-		() => 2`);
+	2`);
 	});
 	// Eine Variable darf legitim mehr Felder haben, und zu löschen gäbe es hier nichts.
 	it('destructuring-from-variable-is-not-discarded', () => {
@@ -5224,7 +5230,7 @@ p = (T: Type v: T) => v`);
 		expectCheck(`IsInteger = (x: Any) :> Boolean =>
 	?(x)
 		[Integer] => true
-		() => false`, {
+	false`, {
 			errors: [
 				namingCaseWarning('IsInteger', false, 0, 0),
 			],
@@ -5370,7 +5376,7 @@ f = (box: BoxOf(Integer)) =>
 		expectCheck(`f = (x: Integer) :> Integer =>
 	?(x)
 		[0] => 0
-		() => f(x)
+	f(x)
 g: Integer = f(3)`);
 	});
 	// Der Aufruf einer rekursiven Funktion hat den deklarierten Rückgabetyp, g: Text = f(3) wird
@@ -5379,7 +5385,7 @@ g: Integer = f(3)`);
 		expectCheck(`f = (x: Integer) :> Integer =>
 	?(x)
 		[0] => 0
-		() => f(x)
+	f(x)
 g: Text = f(3)`, {
 			errors: [
 				{
@@ -5400,15 +5406,15 @@ g: Text = f(3)`, {
 f = (n: Integer) :> Integer =>
 	?(n)
 		[0] => 0
-		() => g(f(subtract(n 1)))`, {
+	g(f(subtract(n 1)))`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
 					message: 'Argument type mismatch.\nInvalid value for parameter \'t\'\n  Can not assign Integer to Text.',
 					startRowIndex: 4,
-					startColumnIndex: 10,
+					startColumnIndex: 3,
 					endRowIndex: 4,
-					endColumnIndex: 26,
+					endColumnIndex: 19,
 				},
 			],
 		});
@@ -5487,14 +5493,14 @@ y: 2 = f(1)`);
 		expectCheck(`f = (x: Integer) :> Integer =>
 	?(x)
 		[0] => true
-		() => 1`, {
+	1`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
 					message: 'Return type mismatch.\nCan not assign true to Integer.',
 					startRowIndex: 1,
 					startColumnIndex: 1,
-					endRowIndex: 4,
+					endRowIndex: 3,
 					endColumnIndex: 2,
 					relatedInformation: {
 						message: 'Declared as Integer here.',
@@ -5740,7 +5746,7 @@ f = (x: Fraction y: Integer) :> Fraction =>
 a = (values: Or([] List(Integer))) :> Integer =>
 	?(values)
 		[List(Any)] => needInt(lastElement(values))
-		() => 0`;
+	0`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
@@ -5751,7 +5757,7 @@ a = (values: Or([] List(Integer))) :> Integer =>
 		const code = `a = (values: Or([] List(Integer))) :> Or([] Integer) =>
 	?(values)
 		[List(Any)] => 0
-		() => lastElement(values)`;
+	lastElement(values)`;
 		const parsed = parseCode(code, 'dummy.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
@@ -5867,7 +5873,7 @@ f = (a: History b: History) :> Integer =>
 	count = length(values)
 	?(count)
 		[GreaterInteger(1)] => getElement(values count.subtract(1))
-		() => 0`);
+	0`);
 	});
 	// Ohne Untergrenze kann count - 1 bei einer einelementigen Liste 0 sein.
 	it('element-at-length-minus-one-without-lower-bound-keeps-empty', () => {
@@ -5906,7 +5912,7 @@ f = (a: History b: History) :> Integer =>
 	count = length(values)
 	?(count)
 		[GreaterInteger(1)] => getElement(values count.subtract(2))
-		() => 0`, {
+	0`, {
 			errors: [
 				{
 					code: ErrorCode.argumentTypeMismatch,
@@ -5925,14 +5931,14 @@ f = (a: History b: History) :> Integer =>
 	count = length(other)
 	?(count)
 		[GreaterInteger(1)] => getElement(values count.subtract(1))
-		() => 0`, {
+	0`, {
 			errors: [
 				{
 					code: ErrorCode.returnTypeMismatch,
 					message: 'Return type mismatch.\nCan not assign Empty to Integer.',
 					startRowIndex: 2,
 					startColumnIndex: 1,
-					endRowIndex: 5,
+					endRowIndex: 4,
 					endColumnIndex: 2,
 					relatedInformation: {
 						message: 'Declared as Integer here.',
@@ -6461,7 +6467,7 @@ f([1 2])`, [ErrorCode.argumentTypeMismatch]);
 	it('unnamed-head-of-branch-has-parameters-type', () => {
 		expectParamsJulType(`f = (x: Any) => ?(x)
 	[Integer] => 1
-	() => 2`, 'parameters', 0);
+2`, 'parameters', 0);
 	});
 	// Ein Kopf wird wie das Listenliteral ausgegeben, aus dem er entstanden ist, nicht als
 	// Parameterliste mit leeren Namen.
@@ -7184,7 +7190,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		expect(purityOfDefinition(`f = (a: Integer) =>
 	?(a)
 		[0] => 0
-		() => subtract(a 1)`, 'f')).to.equal('pure');
+	subtract(a 1)`, 'f')).to.equal('pure');
 	});
 	// Der Dummy-Rumpf (nativeValue) importierter TS-Funktionen ist keine Aussage über das JS
 	// dahinter - die Inferenz greift nicht, auch nicht mit @pure, das der Rumpf sonst bestätigen
@@ -7352,7 +7358,7 @@ f(imp)`)).to.equal('pure');
 		expect(purityOfDefinition(`apply = (cb: () :> Any n: Integer) -> Any =>
 	?(n)
 		[0] => 1
-		() => cb()`, 'apply')).to.equal('pureIfArgsPure');
+	cb()`, 'apply')).to.equal('pureIfArgsPure');
 	});
 	it('bedingt reine Nutzer-HOF mit unreinem Argument ist impure', () => {
 		expect(callPurityOf(`imp = () ~> Any => 1
@@ -7863,7 +7869,7 @@ d`, 'Invalid', [
 		expectLastTypeString(`f = (x: Integer) =>
 	?(x)
 		[undefinedName] => x
-		() => 0
+	0
 f`, '(x: Integer) -> Or(TypeOf(x) 0)', [
 			{
 				code: ErrorCode.notDefined,
@@ -7969,7 +7975,7 @@ R = TypeOf(f)/ReturnType`)).to.equal('TypeOf(Text)');
 	(value) =>
 		?(value)
 			[Integer] => true
-			() => false
+		false
 )`)).to.equal('[1 2 3]');
 	});
 	// Ein Typalias als Parametertyp ist eine freie Referenz der Parameterliste und muss sich in
@@ -8081,7 +8087,7 @@ r = f()`)).to.equal('Date');
 ) =>
 	?(countdown)
 		[0] => previous
-		() => fibonacciHelper(subtract(countdown 1) add(current previous) current)
+	fibonacciHelper(subtract(countdown 1) add(current previous) current)
 r = fibonacciHelper(10 1 0)`)).to.equal('55');
 	});
 
@@ -8148,7 +8154,7 @@ r = f(4)`)).to.equal('12');
 f = (index: Integer) =>
 	?(index)
 		[isFive] => §five§
-		Any => index
+	index
 r = f(5)`)).to.equal('§five§');
 	});
 
@@ -8161,7 +8167,7 @@ fizzBuzzMessage = (index: Integer) =>
 		[divisibleBy(15)] => §FizzBuzz§
 		[divisibleBy(5)] => §Buzz§
 		[divisibleBy(3)] => §Fizz§
-		Any => index
+	index
 r = fizzBuzzMessage(12)`)).to.equal('§Fizz§');
 	});
 
@@ -8187,7 +8193,7 @@ r = map([1 2] tag)`)).to.equal('[Date Date]');
 		expect(typeOfLastDefinition(`getKey = (value: Integer index: PositiveInteger) =>
 	?(index)
 		[1] => §first§
-		() => §rest§
+	§rest§
 getValue = (value: Integer index: PositiveInteger) => value.multiply(10)
 r = toDictionary([1 2] getKey getValue)`)).to.equal('[\n  first: 10\n  rest: 20\n]');
 	});
@@ -8404,6 +8410,146 @@ describe('bedingte Typen', () => {
 });
 
 //#endregion Bedingte Typen
+//#region Branching als Anweisung und _
+
+describe('Branching als Anweisung', () => {
+	it('der Rest sieht den Wert ohne die Typen der Arme', () => {
+		expectCheck(`g = (t: Text) => t
+f = (x: Or(Integer Text)) =>
+	?(x)
+		[Integer] => §zahl§
+	g(x)`);
+	});
+	it('der Rest sieht einen Feldpfad ohne die Typen der Arme', () => {
+		expectCheck(`g = (t: Text) => t
+f = (d: [a: Or(Integer Text)]) =>
+	?(d/a)
+		[Integer] => §zahl§
+	g(d/a)`);
+	});
+	it('ohne die Arme davor ist der Wert im Rest nicht verengt', () => {
+		expectErrorCodes(`g = (t: Text) => t
+f = (x: Or(Integer Text)) =>
+	?(x)
+		[Text] => x
+	g(x)`, [ErrorCode.argumentTypeMismatch]);
+	});
+	it('der Rückgabetyp vereint Arme und Rest', () => {
+		expectResolvedReturnType(`f = (x: Or(Integer Text)) =>
+	?(x)
+		[Integer] => 1
+	§text§`, 'Or(1 §text§)');
+	});
+	it('der Rest wird gegen den deklarierten Rückgabetyp geprüft', () => {
+		expectErrorCodes(`f = (x: Or(Integer Text)) :> Integer =>
+	?(x)
+		[Integer] => 1
+	§text§`, [ErrorCode.returnTypeMismatch]);
+	});
+	it('ein Arm wird gegen den deklarierten Rückgabetyp geprüft', () => {
+		expectErrorCodes(`f = (x: Or(Integer Text)) :> Integer =>
+	?(x)
+		[Integer] => §zahl§
+	1`, [ErrorCode.returnTypeMismatch]);
+	});
+	it('ohne Treffer am Blockende ist Error im Rückgabetyp', () => {
+		expectResolvedReturnType(`f = (x: Or(Integer Text)) =>
+	?(x)
+		[Integer] => 1`, 'Or(1 Error)');
+	});
+	it('decken die Arme alles ab, ist der Rest unerreichbar', () => {
+		expectCheck(`f = (x: Integer) =>
+	?(x)
+		[Integer] => 1
+	3`, {
+			errors: [
+				{
+					code: ErrorCode.unreachableBranch,
+					message: 'Unreachable code detected. The branches above already cover every value.',
+					startRowIndex: 3,
+					startColumnIndex: 1,
+					endRowIndex: 3,
+					endColumnIndex: 2,
+				},
+			],
+		});
+	});
+	it('ungenutzte Definition im Rest', () => {
+		expectErrorCodes(`f = (x: Integer) =>
+	?(x)
+		[0] => 1
+	unused = 2
+	x`, [ErrorCode.unusedDefinition]);
+	});
+	it('die letzte Definition des Rests ist das Ergebnis', () => {
+		expectCheck(`f = (x: Integer) =>
+	?(x)
+		[0] => 1
+	y = 2`);
+	});
+	it('der Rest sieht die Definitionen vor dem Branching', () => {
+		expectCheck(`f = (x: Integer) =>
+	y = 2
+	?(x)
+		[0] => 1
+	y`);
+	});
+});
+
+describe('_', () => {
+	it('_ lässt sich nicht lesen', () => {
+		expectCheck(`f = () =>
+	_ = log(1)
+	_`, {
+			errors: [
+				{
+					code: ErrorCode.discardRead,
+					message: `'_' discards a value and can not be read.`,
+					startRowIndex: 2,
+					startColumnIndex: 1,
+					endRowIndex: 2,
+					endColumnIndex: 2,
+				},
+			],
+		});
+	});
+	it('_ = ?(…) mit catchAll als Seiteneffekt', () => {
+		expectCheck(`f = (x: Integer) =>
+	_ = ?(x)
+		[0] => log(§null§)
+		() => log(§sonst§)
+	x`);
+	});
+	it('_ mit Typ prüft den Wert', () => {
+		expectErrorCodes(`f = () =>
+	_: Integer = §text§
+	1`, [ErrorCode.definitionTypeMismatch]);
+	});
+	it('_ mit passendem Typ', () => {
+		expectCheck(`f = () =>
+	_: Integer = 1
+	2`);
+	});
+	it('_ im Destructuring überspringt eine Position', () => {
+		expectResolvedReturnType(`f = () =>
+	(_ b) = [1 2]
+	b`, '2');
+	});
+	it('_ als Parameter eines Callbacks', () => {
+		expectCheck(`f = (values: List(Integer)) => values.map((_ index) => index)`);
+	});
+	it('_ als Parameter ist nicht im Scope', () => {
+		expectErrorCodes(`f = (_ b: Integer) => _`, [ErrorCode.discardRead]);
+	});
+	it('_ ist kein ungenutzter Name', () => {
+		expectCheck(`f = () =>
+	_ = log(1)
+	_ = log(2)
+	3`);
+	});
+});
+
+//#endregion Branching als Anweisung und _
 //#region Ungenutzte Definitionen
 
 describe('ungenutzte Definitionen', () => {
@@ -8713,7 +8859,7 @@ step = (old: History) :> History =>
 wrap = (history: Or(History Error)) :> Or(History Error) =>
 	?(history)
 		[Error] => history
-		() => step(history)`)).to.deep.equal([]);
+	step(history)`)).to.deep.equal([]);
 	});
 	// Derselbe Fall über die Position statt über den Namen.
 	it('unknown-not-reported-for-call-in-remaining-branch-by-index', () => {
@@ -8722,7 +8868,7 @@ wrap = (history: Or(History Error)) :> Or(History Error) =>
 wrap = (v: Or([List(Integer) Text] Error)) :> Or([List(Integer) Text] Error) =>
 	?(v)
 		[Error] => v
-		() => step(v)`)).to.deep.equal([]);
+	step(v)`)).to.deep.equal([]);
 	});
 	// Mehrere abgezogene Branches: der Schnitt verteilt sich auf eine Vereinigung.
 	it('unknown-not-reported-for-call-in-remaining-branch-of-union', () => {
@@ -8733,7 +8879,7 @@ wrap = (v: Or(History Text Error)) :> Or(History Text Error) =>
 	?(v)
 		[Error] => v
 		[Text] => v
-		() => step(v)`)).to.deep.equal([]);
+	step(v)`)).to.deep.equal([]);
 	});
 	// Die Quelle ist ein Feldpfad statt eines Namens.
 	it('unknown-not-reported-for-call-in-remaining-branch-of-field-path', () => {
@@ -8743,7 +8889,7 @@ step = (old: History) :> History =>
 wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
 	?(d/h)
 		[Error] => d/h
-		() => step(d/h)`)).to.deep.equal([]);
+	step(d/h)`)).to.deep.equal([]);
 	});
 	// Bug: TypeOf(values)/ElementType auf einem im Zweig verengten Argument liefert Any. Die Verengung
 	// ist ein Schnitt über dem noch offenen Parameter, und der Zugriff auf einen Schnitt fiel auf Any.
@@ -8751,7 +8897,7 @@ wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
 		expect(unknownMessages(`f = (past: Or([] List(Text))) :> Or([] List(Text)) =>
 	?(past)
 		[Empty] => []
-		() => past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
+	past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
 	});
 	// Die Quelle ist ein Feldpfad statt eines Namens.
 	it('unknown-not-reported-for-element-type-of-narrowed-field-path', () => {
@@ -8759,7 +8905,7 @@ wrap = (d: [h: Or(History Error)]) :> Or(History Error) =>
 f = (history: H) :> Or([] List(Text)) =>
 	?(history/past)
 		[Empty] => []
-		() => history/past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
+	history/past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
 	});
 	// Dasselbe über eine Kopie des Feldes.
 	it('unknown-not-reported-for-element-type-of-narrowed-field-copy', () => {
@@ -8768,7 +8914,7 @@ f = (history: H) :> Or([] List(Text)) =>
 	past = history/past
 	?(past)
 		[Empty] => []
-		() => past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
+	past.filter((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
 	});
 	it('unknown-not-reported-for-element-type-of-narrowed-field-copy-in-find-first', () => {
 		expect(unknownMessages(`H = [past: Or([] List(Text))]
@@ -8776,7 +8922,7 @@ f = (history: H) :> Or([] Text) =>
 	past = history/past
 	?(past)
 		[Empty] => []
-		() => past.findFirst((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
+	past.findFirst((value index) => index.greaterInteger(1))`)).to.deep.equal([]);
 	});
 	// ElementAt(TypeOf(values) length(values)): Der Index ist die Länge genau der verengten Quelle.
 	it('unknown-not-reported-for-last-element-of-narrowed-parameter', () => {
@@ -8784,7 +8930,7 @@ f = (history: H) :> Or([] Text) =>
 f = (chain: Or([] List(Link))) :> Or([] Link) =>
 	?(chain)
 		[List(Any)] => lastElement(chain)
-		() => []`)).to.deep.equal([]);
+	[]`)).to.deep.equal([]);
 	});
 	// Nicht filter ist betroffen, sondern jeder Rückgabetyp über TypeOf(values)/ElementType.
 	it('unknown-not-reported-for-element-type-of-narrowed-field-copy-in-own-function', () => {
@@ -8794,7 +8940,7 @@ f = (history: H) :> Or([] List(Text)) =>
 	past = history/past
 	?(past)
 		[Empty] => []
-		() => h(past)`)).to.deep.equal([]);
+	h(past)`)).to.deep.equal([]);
 	});
 	// Die Verengung darf die Generizität nicht kosten: Der Elementtyp eines verengten List(Any)-Parameters
 	// kommt erst am Aufrufort aus dem Argument, nicht aus der Deklaration (die nur Any kennt).
@@ -8802,7 +8948,7 @@ f = (history: H) :> Or([] List(Text)) =>
 		expect(unknownMessages(`tail = (values: Or([] List(Any))) =>
 	?(values)
 		[Empty] => []
-		() => values.filter((value index) => index.greaterInteger(1))
+	values.filter((value index) => index.greaterInteger(1))
 g = (numbers: List(Integer)) :> Or([] List(Integer)) => tail(numbers)`)).to.deep.equal([]);
 	});
 	// Ein schon gemeldeter Fehler soll nicht zusätzlich als unbewiesen gemeldet werden.
@@ -8880,7 +9026,7 @@ g = (numbers: List(Integer)) :> Or([] List(Integer)) => tail(numbers)`)).to.deep
 		expect(callOfAnyPositions(`f = (n: Integer) =>
 	?(n)
 		[0] => 0
-		() => f(subtract(n 1))`)).to.deep.equal([]);
+	f(subtract(n 1))`)).to.deep.equal([]);
 	});
 	// Im eigenen Rumpf gilt die deklarierte Signatur: der rekursive Aufruf liefert den deklarierten
 	// Rückgabetyp, nicht Any.
@@ -8888,25 +9034,23 @@ g = (numbers: List(Integer)) :> Or([] List(Integer)) => tail(numbers)`)).to.deep
 		expect(unknownMessages(`f = (n: Integer) :> Text =>
 	?(n)
 		[0] => §fertig§
-		() => f(subtract(n 1))`)).to.deep.equal([]);
+	f(subtract(n 1))`)).to.deep.equal([]);
 	});
 	// Ein deklarierter Rückgabetyp, der einen Parameter nennt, wird je rekursivem Aufruf aufgelöst.
 	it('recursive-call-resolves-generic-declared-return-type', () => {
 		expect(unknownMessages(`f = (a: Integer b: Integer) :> TypeOf(b) =>
 	?(a)
 		[0] => b
-		() =>
-			x: 5 = f(subtract(a 1) 5)
-			b`)).to.deep.equal([]);
+	x: 5 = f(subtract(a 1) 5)
+	b`)).to.deep.equal([]);
 	});
 	// Ohne deklarierten Rückgabetyp bleibt der rekursive Aufruf Any.
 	it('recursive-call-without-declared-return-type-is-unknown', () => {
 		expect(unknownMessages(`f = (n: Integer) =>
 	?(n)
 		[0] => 0
-		() =>
-			x: Integer = f(subtract(n 1))
-			x`)).to.deep.equal([
+	x: Integer = f(subtract(n 1))
+	x`)).to.deep.equal([
 			'Definition type can not be verified.\nCan not prove that Any is assignable to Integer.',
 		]);
 	});

@@ -18,8 +18,8 @@ multiLineList: [1 2 5 Any]
 multiLineObj: Any
 someVar: [1 2 1 4 4 5]
   error 2401 at 52:4 Rest argument must be last.
-  error 3201 at 69:3 'a' is not defined.
-  error 3201 at 69:5 'b' is not defined.
+  error 3201 at 69:7 'a' is not defined.
+  error 3201 at 69:9 'b' is not defined.
   warning 5152 at 71:2 Unreachable branch detected.
 === branching.jul ===
 myEmpty: Empty
@@ -260,10 +260,9 @@ higherOrderFn: (   lowerFn: (     arg1: Text     arg2: Boolean   ) -> Empty ) ->
 myA1: NO TYPE
 parameterFn2: (   x: [     blobNames: List(Text)     nextMarker: Or(Empty Text)   ] ) -> Empty
 paramterFn: (   blobNames: List(Text)   nextMarker: Or(Empty Text) ) -> Empty
-typeFnLong: Invalid
+typeFnLong: (_: BlubType) -> Empty
 typeFnShort: BlubType -> Empty
-  error 2100 at 7:1 assignedValue missing for definition
-  error 1102 at 7:14 multilineParser should parse until end of row
+  error 2105 at 7:31 data literal must use square brackets [ ]
   error 2400 at 19:9 nestedReference is not a valid expression for parameter source.
   error 1102 at 30:14 multilineParser should parse until end of row
   error 1050 at 31:1 Expected a bracket, number, text or reference.

@@ -33,7 +33,7 @@ cards: List(Card) = [
 atkOf = (card: Card) =>
 	?(card/atk)
 		(atk: Integer) => atk
-		() => 0
+	0
 
 # Nur Feldzugriffe auf Karten aller Formen
 sumAtk = (start: Integer) =>

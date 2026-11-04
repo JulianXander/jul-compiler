@@ -461,7 +461,7 @@ describe('Parser', () => {
 	});
 	//#endregion Einrückung
 		it('branching-error', () => {
-			expectParse('?(4)\n\t[4] =>\n\t\tlog(\n\t\t\t4)', {
+			expectParse('_ = ?(4)\n\t[4] =>\n\t\tlog(\n\t\t\t4)', {
 				errors: [
 					{
 						code: ErrorCode.closingBracketNotOnOwnLine,
@@ -1845,3 +1845,143 @@ describe('Klammerlisten mit Feldern abweichend vom Umbruch', () => {
 });
 
 //#endregion Klammerlisten mit Feldern abweichend vom Umbruch
+
+//#region Branching als Anweisung und _
+
+/**
+ * Erwartet genau diese Codes, in dieser Reihenfolge, je mit Zeile und Spalte des Beginns.
+ */
+const expectErrorStarts = reportAtCaller((code: string, expected: [code: ErrorCode, row: number, column: number][]) => {
+	const errors = parseCode(code, 'dummy.jul').syntax.errors;
+	expect(errors.map(error => [error.code, error.startRowIndex, error.startColumnIndex])).to.deep.equal(expected);
+});
+
+/** Der Wert der ersten Definition der Datei, eine Funktion. */
+function getFirstFunction(code: string): ParseFunctionLiteral {
+	const parsed = parseCode(code, 'dummy.jul');
+	expect(parsed.syntax.errors).to.deep.equal([]);
+	return (parsed.syntax.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
+}
+
+describe('Branching als Anweisung', () => {
+	/** Die Funktion der ersten Definition hat als Rumpf genau ein Branching. */
+	const getSingleBranching = (code: string): ParseBranching => {
+		const functionLiteral = getFirstFunction(code);
+		expect(functionLiteral.body).to.have.length(1);
+		return functionLiteral.body[0] as ParseBranching;
+	};
+
+	it('der Rest hinter dem Branching wird sein letzter Branch', () => {
+		const branching = getSingleBranching('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\ty = 2\n\ty');
+		expect(branching.branches).to.have.length(2);
+		const rest = branching.branches[1] as ParseFunctionLiteral;
+		expect(rest.isRestOfBlock).to.equal(true);
+		expect(rest.body.map(expression => expression.type)).to.deep.equal(['definition', 'reference']);
+	});
+	it('das Branching umfasst den Rest', () => {
+		const branching = getSingleBranching('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\ty = 2\n\ty');
+		expect([branching.endRowIndex, branching.endColumnIndex]).to.deep.equal([4, 2]);
+	});
+	it('die Parameter des Rests liegen in Spalte 0 seiner ersten Zeile', () => {
+		const branching = getSingleBranching('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\ty = 2\n\ty');
+		const params = (branching.branches[1] as ParseFunctionLiteral).params;
+		expect([params.startRowIndex, params.startColumnIndex, params.endRowIndex, params.endColumnIndex]).to.deep.equal([3, 0, 3, 0]);
+	});
+	it('die Definitionen des Rests stehen in seiner Symboltabelle', () => {
+		const branching = getSingleBranching('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\ty = 2\n\ty');
+		expect(Object.keys((branching.branches[1] as ParseFunctionLiteral).symbols)).to.deep.equal(['y']);
+	});
+	it('ein Branching im Rest bekommt wieder den Rest dahinter', () => {
+		const branching = getSingleBranching('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t?(x)\n\t\t[1] => 2\n\t3');
+		const innerBranching = (branching.branches[1] as ParseFunctionLiteral).body[0] as ParseBranching;
+		expect(innerBranching.branches).to.have.length(2);
+		expect((innerBranching.branches[1] as ParseFunctionLiteral).isRestOfBlock).to.equal(true);
+	});
+	it('ein Branching am Ende des Rumpfs bekommt keinen Rest', () => {
+		const branching = getSingleBranching('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1');
+		expect(branching.branches).to.have.length(1);
+	});
+	it('ein zugewiesenes Branching bekommt keinen Rest', () => {
+		const functionLiteral = getFirstFunction('f = (x: Integer) =>\n\ty = ?(x)\n\t\t[0] => 1\n\t\t() => 2\n\ty');
+		expect(functionLiteral.body).to.have.length(2);
+	});
+	it('catchAll () in einem Branching als Anweisung', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\t() => 2', [
+			[ErrorCode.catchAllInStatementBranching, 3, 2],
+		]);
+	});
+	it('catchAll Any in einem Branching als Anweisung', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\tAny => 2', [
+			[ErrorCode.catchAllInStatementBranching, 3, 2],
+		]);
+	});
+	it('catchAll mit Parameter ohne Typ in einem Branching als Anweisung', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\t(y) => y', [
+			[ErrorCode.catchAllInStatementBranching, 3, 2],
+		]);
+	});
+	it('catchAll mit Parameter vom Typ Any in einem Branching als Anweisung', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t\t(y: Any) => y', [
+			[ErrorCode.catchAllInStatementBranching, 3, 2],
+		]);
+	});
+	it('ein Parameter mit Typ ist kein catchAll', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t(y: Integer) => y', []);
+	});
+	it('catchAll in einem zugewiesenen Branching', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\ty = ?(x)\n\t\t[0] => 1\n\t\t() => 2\n\ty', []);
+	});
+	it('catchAll in einem Branching als Argument', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\tlog(\n\t\t?(x)\n\t\t\t[0] => 1\n\t\t\t() => 2\n\t)', []);
+	});
+	it('Branching als Anweisung auf oberster Ebene', () => {
+		expectErrorStarts('?(1)\n\t[1] => 2', [
+			[ErrorCode.statementBranchingAtTopLevel, 0, 0],
+		]);
+	});
+	it('_ = ?(…) auf oberster Ebene', () => {
+		expectErrorStarts('_ = ?(1)\n\t[1] => 2\n\t() => 3', []);
+	});
+	it('Funktionsliteral als Anweisung mitten im Rumpf', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\t?(x)\n\t\t[0] => 1\n\t[1] => 2\n\tx', [
+			[ErrorCode.unusedFunctionLiteral, 3, 1],
+		]);
+	});
+	it('Funktionsliteral als letzter Ausdruck ist das Ergebnis', () => {
+		expectErrorStarts('f = (x: Integer) =>\n\tg = 1\n\t(y: Integer) => y', []);
+	});
+});
+
+describe('_', () => {
+	it('_ als Definition bindet nichts', () => {
+		expect(Object.keys(getFirstFunction('f = () =>\n\t_ = log(1)\n\t2').symbols)).to.deep.equal([]);
+	});
+	it('_ mehrfach im selben Rumpf', () => {
+		expectErrorStarts('f = () =>\n\t_ = log(1)\n\t_ = log(2)\n\t3', []);
+	});
+	it('_ mehrfach in einer Parameterliste', () => {
+		expectErrorStarts('f = (_ _ c: Integer) => c', []);
+	});
+	it('_ als Parameter bindet nichts', () => {
+		expect(Object.keys(getFirstFunction('f = (_ index: Integer) => index').symbols)).to.deep.equal(['index']);
+	});
+	it('_ im Destructuring bindet nichts', () => {
+		expect(Object.keys(getFirstFunction('f = () =>\n\t(_ b) = [1 2]\n\tb').symbols)).to.deep.equal(['b']);
+	});
+	it('_ = … als letzter Ausdruck eines Rumpfs', () => {
+		expectErrorStarts('f = () =>\n\t_ = log(1)', [
+			[ErrorCode.discardAsResult, 1, 1],
+		]);
+	});
+	it('_ = … als letzter Ausdruck der Datei', () => {
+		expectErrorStarts('_ = log(1)', []);
+	});
+	it('_a ist kein gültiger Name', () => {
+		expect(parseCode('_a = 1', 'dummy.jul').syntax.errors.map(error => error.code)).to.include(ErrorCode.invalidName);
+	});
+	it('ein Dictionary-Feld _ ist ein Schlüssel', () => {
+		expectErrorStarts('x = [_ = 1]', []);
+	});
+});
+
+//#endregion Branching als Anweisung und _
