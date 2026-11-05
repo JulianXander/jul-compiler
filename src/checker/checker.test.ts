@@ -8614,7 +8614,7 @@ describe('_', () => {
 	});
 });
 
-// docs/definition-typeguard-plan.md: Bei name: T = wert hat name den Typ T, der Wert wird nur dagegen
+// Signatur statt Rumpf (docs/design-principles.md): Bei name: T = wert hat name den Typ T, der Wert wird nur dagegen
 // geprüft. Ohne Typguard gilt der inferierte Typ.
 describe('Typguard einer Definition', () => {
 	// Mit warnUnknown wie die CLI: ein Any statt des Typguards zeigt sich nur als typeNotProven.

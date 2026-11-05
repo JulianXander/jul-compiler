@@ -2440,7 +2440,7 @@ function inferType(
 			// nicht passt (der Fehler gehört an die Definition, nicht an jede Verwendung). Der Wert wird
 			// nur dagegen geprüft, sein inferierter Typ verlässt die Definition nicht - wie beim
 			// deklarierten Rückgabetyp. Ohne TypeGuard gilt der inferierte Typ.
-			// Siehe docs/definition-typeguard-plan.md.
+			// Siehe docs/design-principles.md, Signatur statt Rumpf.
 			const typeGuardInfo = getTypeInfo(checkContext.result, typeGuard);
 			let resultTypeInfo: TypeInfo = typeGuardInfo && !(name in coreBuiltInSymbolTypes)
 				? { type: valueOf(typeGuardInfo.type) }

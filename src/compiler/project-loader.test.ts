@@ -82,7 +82,7 @@ describe('project-loader', () => {
 			'd.jul': 'd = 1',
 		}, [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }]);
 	});
-	// docs/definition-typeguard-plan.md: Der Typguard gilt auch beim Importeur.
+	// Signatur statt Rumpf (docs/design-principles.md): Der Typguard gilt auch beim Importeur.
 	it('importierter Name hat den Typguard seiner Definition', () => {
 		// Mit warnUnknown wie die CLI: ein Any statt des Typguards zeigt sich nur als typeNotProven.
 		const host = createInMemoryHost({
