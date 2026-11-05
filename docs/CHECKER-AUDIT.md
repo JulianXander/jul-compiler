@@ -38,6 +38,13 @@ Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprac
   (`TypeOf(values)/ElementType` mit verengtem Argument) erreicht `getLookupType` nicht. Dafür haben
   die Dereferenzierungen der Typalgebra selbst einen `and`-Fall (`dereferenceFromIntersection`): Mit
   Platzhalter wartet der Schnitt als Ganzes, ohne verteilt sich der Zugriff auf die Operanden.
+  Dasselbe gilt für Operationen auf einer Quelle (Abbilden, Spread, Länge, `setElementAt`, Bereichs-
+  und unbekannte Zugriffe, Concat): Sie laufen über `distributeOverChoices`, das `or` vereinigt und
+  `and` schneidet, und behandeln selbst nur einfache Typarten. „Unbekannt“ ist dort `undefined`,
+  nicht ein geratener Typ. Eine neue Operation mit eigenem `switch` über `or` ist ein Fehler.
+  Vorher fehlte `and` in den meisten (yugioh jul-findings 64). Offen: `And(TypeOf(values) Or([]
+  List(Any)))` als Rückgabetyp von `map` verlor in yugioh den Elementtyp großer Listen
+  (`List(Any)`), Ursache nicht untersucht.
 - **`Any` heißt „unbekannt“ oder „hier bewusst nachsichtig prüfen“, ein gemeldeter Fehler ist `Invalid`.**
   Wer an einer Fehlerstelle `builtinAny` zurückgibt, bringt die Folgefehler zurück, denn `Any` wirkt
   nicht neutral: aus `Not(Any)` wird `Never`, ein Parameter `Any` fängt jeden Branch ab. `Invalid` ist

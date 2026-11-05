@@ -2795,6 +2795,10 @@ complete(a$)`, {
 			],
 		});
 	});
+	// Ein Schnitt aus Dictionary und Feldern bleibt ein Dictionary (jul-findings 64 in yugioh).
+	it('map-dictionary-over-intersection-is-dictionary', () => {
+		expectCheck('f = (d: And(Dictionary(Integer) [x: 1 y: 2])) :> Dictionary(Text) => d.mapDictionary((value) => §§(value)§)');
+	});
 	// combine$ liefert die Werte seiner Quellen in deren Reihenfolge, jede Position mit ihrem Typ.
 	it('combine-keeps-value-type-per-position', () => {
 		expectCheck('f = (a$: Stream(Text) b$: Stream(Or([] Integer)) c$: Stream(Boolean)) :> Integer => combine$(a$ b$ c$)', {
@@ -3492,6 +3496,30 @@ f = (l: Or([] List(Integer))) =>
 				},
 			],
 		});
+	});
+	// Nach dem Verengen eines Feldes ist d ein Schnitt aus Dictionary und unvollständigem Record, den
+	// die Normalisierung nicht zusammenfassen kann. Die Operationen verteilen sich über die Operanden
+	// (distributeOverChoices), vorher war mapDictionary eine List und der Spread Any.
+	it('map-dictionary-over-narrowed-dictionary-maps-each-operand', () => {
+		expectResolvedReturnType(`g = (d: Dictionary(Or(Integer Text))) =>
+	?(d/x)
+		[Integer] => d.mapDictionary((value) => [value])
+		() => []`, 'Or(And(Dictionary([Or(Integer Text)]) [x: [Integer]]) Empty)');
+	});
+	it('spread-of-narrowed-dictionary-spreads-each-operand', () => {
+		expectResolvedReturnType(`g = (d: Dictionary(Or(Integer Text))) =>
+	?(d/x)
+		[Integer] => [...d z = 3]
+		() => []`, 'Or(\n  And(\n    Dictionary(Or(Integer Text))\n    [\n      x: Integer\n      z: 3\n    ]\n  )\n  Empty\n)');
+	});
+	// Spread eines Schnitts aus Dictionary und Feldern: war Any (jul-findings 64 in yugioh).
+	it('spread-of-intersection-with-dictionary-type', () => {
+		expectResolvedReturnType('g = (d: And(Dictionary(Integer) [x: 1 y: 2])) => [...d z = 3]', '[\n  x: 1\n  y: 2\n  z: 3\n]');
+	});
+	// Ein vollständiger Record ist geschlossen, der Schnitt mit Dictionary(X) ist der Record selbst,
+	// jedes Feld mit X geschnitten. Wie And(List(Integer) [1 2]) => [1 2].
+	it('intersection-of-dictionary-type-and-record-is-record', () => {
+		expectResolvedReturnType('g = (d: And(Dictionary(Integer) [x: 1 y: 2])) => d', '[\n  x: 1\n  y: 2\n]');
 	});
 	// Spread von Or([] Dictionary(X)): der Dictionary-Zweig ging verloren, der Typ war nur Empty.
 	it('spread-of-optional-dictionary-type-keeps-both-cases', () => {

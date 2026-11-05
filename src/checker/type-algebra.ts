@@ -521,6 +521,10 @@ function dereferenceIntegerRangeFromObject(
 	rawSource: CompileTimeType,
 ): CompileTimeType | undefined {
 	const source = resolveAlias(rawSource);
+	if (source.julType === 'or'
+		|| (source.julType === 'and' && !isDeferredType(source))) {
+		return distributeOverChoices(source, choice => dereferenceIntegerRangeFromObject(range, nestedKey, choice));
+	}
 	switch (source.julType) {
 		case 'tuple': {
 			const length = BigInt(source.ElementTypes.length);
@@ -547,12 +551,6 @@ function dereferenceIntegerRangeFromObject(
 				&& range.max <= 1n
 				? source.ElementType
 				: createNormalizedUnionType([builtinEmpty, source.ElementType]);
-		case 'or': {
-			const choices = source.ChoiceTypes
-				.map(choiceType => dereferenceIntegerRangeFromObject(range, nestedKey, choiceType))
-				.filter((type): type is CompileTimeType => !!type);
-			return createNormalizedUnionType(choices);
-		}
 		default:
 			return dereferenceUnknownKeyFromObject(nestedKey, source);
 	}
@@ -584,12 +582,13 @@ function dereferenceUnknownKeyFromObject(
 			return createNormalizedUnionType([builtinEmpty, ...source.ElementTypes]);
 		case 'list':
 			return createNormalizedUnionType([builtinEmpty, source.ElementType]);
-		case 'or': {
-			const choices = source.ChoiceTypes
-				.map(choiceType => dereferenceUnknownKeyFromObject(nestedKey, choiceType))
-				.filter((type): type is CompileTimeType => !!type);
-			return createNormalizedUnionType(choices);
-		}
+		case 'or':
+			return distributeOverChoices(source, choice => dereferenceUnknownKeyFromObject(nestedKey, choice));
+		// Mit Platzhalter wartet der Schnitt als Ganzes (wie in dereferenceFromIntersection).
+		case 'and':
+			return isDeferredType(source)
+				? createNestedReference(source, nestedKey)
+				: distributeOverChoices(source, choice => dereferenceUnknownKeyFromObject(nestedKey, choice));
 		case 'concat': {
 			const dereferencedSources = source.Sources
 				.map(sourceType => dereferenceUnknownKeyFromObject(nestedKey, sourceType))
@@ -606,7 +605,6 @@ function dereferenceUnknownKeyFromObject(
 			return dereferenceUnknownKeyFromObject(nestedKey, source.UpperBound);
 		// Weder Positionen noch benannte Felder mit unbekanntem Schlüssel bekannt - bisheriges,
 		// unverändertes Verhalten wie vor der Exhaustivitätsprüfung: permissiv wie 'any'.
-		case 'and':
 		case 'blob':
 		case 'boolean':
 		case 'booleanLiteral':
@@ -671,6 +669,11 @@ export function hasKnownFields(rawType: CompileTimeType): boolean {
 			// Union feststellbar, ob ein Feld existiert (siehe dereferenceNameFromObject,
 			// case 'or': das setzt genau diese Entscheidbarkeit je Choice voraus).
 			return type.ChoiceTypes.every(choiceType => !canHaveFields(choiceType) || hasKnownFields(choiceType));
+		// Ein Feld des Schnitts gibt es nur, wenn es jeder Operand hat (dereferenceFromIntersection).
+		// Kennt einer seine Feldmenge, heißt sein Fehlschlag schon "das Feld gibt es nicht".
+		case 'and':
+			return !isDeferredType(type)
+				&& type.ChoiceTypes.some(hasKnownFields);
 		// Die Felder eines Typwerts sind die Eigenschaften seiner Typart (dereferenceNameFromObjectType).
 		// Ohne diesen Fall stiege der Zugriff beim Fehlschlag in den Wert ab: Aus der fehlenden
 		// Eigenschaft würde ein Feldzugriff auf den Wert, und die Definitionsstelle meldete nichts.
@@ -927,6 +930,57 @@ export function dereferenceNameFromObject(
  * Eigenschaften. Ein Operand ohne Antwort (ein Not, ein Typ ohne diese Eigenschaft) schränkt nichts
  * ein und wird übergangen. Das Ergebnis wird dadurch nur weiter, nie falsch.
  */
+/**
+ * Wendet eine Operation auf einen Typ an und verteilt sie dabei über Or und And. Die Operation
+ * selbst behandelt nur die einfachen Typarten, und keine kann den Fall And vergessen.
+ * - Or: jede Choice einzeln, die Ergebnisse vereinigt. Ist eine Choice unbekannt (undefined),
+ *   ist es das Ganze.
+ * - And: jeder Operand einzeln, die Ergebnisse geschnitten. Das gilt für Operationen, die eine
+ *   Teilmenge auf eine Teilmenge abbilden (op(A ∩ B) ⊆ op(A) ∩ op(B)), also für Abbilden, Spread,
+ *   Länge und Zugriffe. Ein unbekannter Operand (z.B. Not(Empty)) fällt weg, das Ergebnis ist dann
+ *   nur weniger genau. Ein Schnitt mit Platzhalter geht als Ganzes an die Operation, die ihn
+ *   aufschiebt, sonst wäre er vorschnell auf die übrigen Operanden verengt. Die Operation darf ihn
+ *   deshalb nicht selbst wieder hierher geben, sonst ruft sie sich endlos auf.
+ * undefined: über das Ergebnis ist nichts bekannt, der Aufrufer entscheidet, was dann gilt.
+ */
+function distributeOverChoices(
+	rawType: CompileTimeType,
+	operation: (rawType: CompileTimeType) => CompileTimeType | undefined,
+): CompileTimeType | undefined {
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'or': {
+			const results: CompileTimeType[] = [];
+			for (const choice of type.ChoiceTypes) {
+				const result = distributeOverChoices(choice, operation);
+				if (!result) {
+					return undefined;
+				}
+				results.push(result);
+			}
+			return createNormalizedUnionType(results);
+		}
+		case 'and': {
+			if (isDeferredType(type)) {
+				return operation(rawType);
+			}
+			const results = type.ChoiceTypes
+				.map(operand => distributeOverChoices(operand, operation))
+				.filter(isDefined);
+			switch (results.length) {
+				case 0:
+					return undefined;
+				case 1:
+					return results[0];
+				default:
+					return createNormalizedIntersectionType(results);
+			}
+		}
+		default:
+			return operation(rawType);
+	}
+}
+
 function dereferenceFromIntersection(
 	intersection: CompileTimeIntersectionType,
 	deferredSource: CompileTimeType,
@@ -2007,29 +2061,20 @@ export function getElementTypeAtIndex(
 	rawType: CompileTimeType | undefined,
 	index: number,
 ): CompileTimeType | undefined {
-	const type = rawType && resolveAlias(rawType);
-	switch (type?.julType) {
-		case 'any':
-		case 'invalid':
-			return type;
-		case 'list':
-			return type.ElementType;
-		case 'tuple':
-			return type.ElementTypes[index];
-		case 'or': {
-			const choiceTypes: CompileTimeType[] = [];
-			for (const choiceType of type.ChoiceTypes) {
-				const elementType = getElementTypeAtIndex(choiceType, index);
-				if (!elementType) {
-					return undefined;
-				}
-				choiceTypes.push(elementType);
-			}
-			return createNormalizedUnionType(choiceTypes);
+	return rawType && distributeOverChoices(rawType, choice => {
+		const type = resolveAlias(choice);
+		switch (type.julType) {
+			case 'any':
+			case 'invalid':
+				return type;
+			case 'list':
+				return type.ElementType;
+			case 'tuple':
+				return type.ElementTypes[index];
+			default:
+				return undefined;
 		}
-		default:
-			return undefined;
-	}
+	});
 }
 
 //#endregion branch narrowing
@@ -2052,17 +2097,15 @@ function dereferenceIndexRangeFromObject(
 	// Steht die Quelle fest, müssen die Grenzen jetzt entschieden werden. Ein weggelassenes
 	// optionales Argument bleibt sonst für immer parameterReference, der Knoten bliebe stehen -
 	// und ein stehengebliebener Knoten wird permissiv geprüft, der Fehler verschwände lautlos.
+	if (source.julType === 'or'
+		|| source.julType === 'and') {
+		return distributeOverChoices(source, choice => dereferenceIndexRangeFromObject(range, choice));
+	}
 	const start = resolvePlaceholders(range.Start);
 	const end = resolvePlaceholders(range.End);
 	switch (source.julType) {
 		case 'empty':
 			return builtinEmpty;
-		case 'or': {
-			const choices = source.ChoiceTypes
-				.map(choice => dereferenceIndexRangeFromObject(range, choice))
-				.filter((type): type is CompileTimeType => !!type);
-			return createNormalizedUnionType(choices);
-		}
 		case 'tuple': {
 			if (start.julType !== 'integerLiteral') {
 				break;
@@ -2150,6 +2193,18 @@ export function mapElementsFromTypes(
 		&& isDeferredType(callbackType)) {
 		return createCompileTimeMapElementsType(rawSourceType, rawCallbackType);
 	}
+	// Über eine Quelle unbekannter Gestalt (z.B. And(Any Not(Empty))) ist auch das Ergebnis unbekannt,
+	// statt eine Liste zu raten: Das Dictionary eines mapDictionary wäre sonst eine Liste.
+	return distributeOverChoices(rawSourceType, choice => mapElementsOfSource(choice, rawCallbackType, callbackType))
+		?? builtinAny;
+}
+
+/** mapElementsFromTypes für eine Quelle ohne Or und And, undefined bei unbekannter Quelle. */
+function mapElementsOfSource(
+	rawSourceType: CompileTimeType,
+	rawCallbackType: CompileTimeType,
+	callbackType: CompileTimeType,
+): CompileTimeType | undefined {
 	const sourceType = resolveAlias(rawSourceType);
 	switch (sourceType.julType) {
 		case 'never':
@@ -2198,18 +2253,18 @@ export function mapElementsFromTypes(
 		case 'dictionary':
 			// Die Schlüssel stehen nicht fest, jeder Wert bekommt denselben Typ.
 			return createCompileTimeDictionaryType(mapElementType(callbackType, sourceType.ElementType, builtinText));
-		case 'or':
-			return createNormalizedUnionType(sourceType.ChoiceTypes.map(choiceType =>
-				mapElementsFromTypes(choiceType, rawCallbackType)));
-		default:
-			if (isDeferredType(sourceType)) {
-				return createCompileTimeMapElementsType(rawSourceType, rawCallbackType);
-			}
-			// Über die Quelle ist nichts bekannt, sie kann also auch leer sein.
+		// Unverengt kommt Any nur von map, dessen Parameter eine Liste verlangt: leer oder eine Liste.
+		// mapDictionary engt die Quelle vorher auf Or([] Dictionary(Any)) ein. Eine Einengung auch in
+		// map (And(TypeOf(values) Or([] List(Any)))) verlor in yugioh den Elementtyp großer Listen.
+		case 'any':
 			return createNormalizedUnionType([
 				builtinEmpty,
 				createCompileTimeListType(mapElementType(callbackType, builtinAny, positionIndexType)),
 			]);
+		default:
+			return isDeferredType(sourceType)
+				? createCompileTimeMapElementsType(rawSourceType, rawCallbackType)
+				: undefined;
 	}
 }
 
@@ -2317,6 +2372,28 @@ export function concatFromTypes(sourceTypes: CompileTimeType[]): CompileTimeType
 				return concatFromTypes(substituted);
 			});
 			return createNormalizedUnionType(choiceResults);
+		}
+	}
+	// Eine And-Quelle wie bei distributeOverChoices: jeder Operand als eigene Quelle, die Ergebnisse
+	// geschnitten. Platzhalter gibt es hier nicht mehr (siehe oben). Ein Operand, mit dem die
+	// Aneinanderreihung offen bleibt (ein Concat-Knoten, z.B. für Not(Empty)), fällt weg.
+	const andIndex = sourceTypes.findIndex(source => resolveAlias(valueOf(source)).julType === 'and');
+	if (andIndex !== -1) {
+		const andSource = resolveAlias(valueOf(sourceTypes[andIndex]!)) as CompileTimeIntersectionType;
+		const operandResults = andSource.ChoiceTypes
+			.map(operand => {
+				const substituted = sourceTypes.slice();
+				substituted[andIndex] = operand;
+				return concatFromTypes(substituted);
+			})
+			.filter(result => result.julType !== 'concat');
+		switch (operandResults.length) {
+			case 0:
+				return createCompileTimeConcatType(sourceTypes);
+			case 1:
+				return operandResults[0]!;
+			default:
+				return createNormalizedIntersectionType(operandResults);
 		}
 	}
 	// Ein Literal mit reinen Spreads (f(...a ...b)) kann auch ein Dictionary meinen: Sind alle Quellen
@@ -2577,6 +2654,13 @@ export function getLengthFromType(rawArgType: CompileTimeType | undefined): Comp
 		// TODO non negative
 		return builtinInteger;
 	}
+	return distributeOverChoices(getLookupType(resolveAlias(rawArgType)), getLengthOfSource)
+		// TODO non negative
+		?? builtinInteger;
+}
+
+/** getLengthFromType für eine Quelle ohne Or und And, undefined bei unbekannter Länge. */
+function getLengthOfSource(rawArgType: CompileTimeType): CompileTimeType | undefined {
 	const argType = getLookupType(resolveAlias(rawArgType));
 	switch (argType.julType) {
 		case 'empty':
@@ -2585,10 +2669,6 @@ export function getLengthFromType(rawArgType: CompileTimeType | undefined): Comp
 			return createIntegerLiteral(BigInt(argType.ElementTypes.length));
 		case 'list':
 			return createCompileTimeLengthOfType(argType);
-		case 'or': {
-			const lengthChoices = argType.ChoiceTypes.map(getLengthFromType);
-			return createNormalizedUnionType(lengthChoices);
-		}
 		default:
 			// Quelle wartet noch auf weitere Auflösung (z.B. ein Feldzugriff wie history/gameStates
 			// als nestedReference): Länge an die Quelle binden, statt sie auf ein anonymes Integer
@@ -2596,8 +2676,7 @@ export function getLengthFromType(rawArgType: CompileTimeType | undefined): Comp
 			// Länge ist (siehe dereferenceNestedKeyFromObject, case 'lengthOf').
 			return isDeferredType(argType)
 				? createCompileTimeLengthOfType(argType)
-				// TODO non negative
-				: builtinInteger;
+				: undefined;
 	}
 }
 
@@ -2825,6 +2904,17 @@ export function withElementAtFromTypes(
 			withElementAtFromTypes(sourceType, indexChoice, valueType));
 		return createNormalizedUnionType(indexChoices);
 	}
+	return distributeOverChoices(sourceType, sourceChoice => withElementAtOfSource(sourceChoice, indexType, valueType))
+		?? builtinAny;
+}
+
+/** withElementAtFromTypes für eine Quelle ohne Or und And, undefined bei unbekannter Quelle. */
+function withElementAtOfSource(
+	rawSourceType: CompileTimeType,
+	indexType: CompileTimeType,
+	valueType: CompileTimeType,
+): CompileTimeType | undefined {
+	const sourceType = resolveAlias(rawSourceType);
 	switch (sourceType.julType) {
 		case 'empty':
 		case 'tuple': {
@@ -2857,13 +2947,8 @@ export function withElementAtFromTypes(
 		}
 		case 'list':
 			return createCompileTimeListType(createNormalizedUnionType([sourceType.ElementType, valueType]));
-		case 'or': {
-			const sourceChoices = sourceType.ChoiceTypes.map(sourceChoice =>
-				withElementAtFromTypes(sourceChoice, indexType, valueType));
-			return createNormalizedUnionType(sourceChoices);
-		}
 		default:
-			return builtinAny;
+			return undefined;
 	}
 }
 
@@ -3244,18 +3329,19 @@ export function spreadDictionaryTypes(
 	rawRight: CompileTimeType,
 	createDictionary: (fields: CompileTimeFields, complete: boolean) => CompileTimeType,
 ): CompileTimeType | undefined {
+	return distributeOverChoices(rawLeft, left =>
+		distributeOverChoices(rawRight, right =>
+			spreadDictionarySources(left, right, createDictionary)));
+}
+
+/** spreadDictionaryTypes für zwei Seiten ohne Or und And. */
+function spreadDictionarySources(
+	rawLeft: CompileTimeType,
+	rawRight: CompileTimeType,
+	createDictionary: (fields: CompileTimeFields, complete: boolean) => CompileTimeType,
+): CompileTimeType | undefined {
 	const left = resolveAlias(rawLeft);
 	const right = resolveAlias(rawRight);
-	const distributed = isUnionType(left)
-		? left.ChoiceTypes.map(choice => spreadDictionaryTypes(choice, right, createDictionary))
-		: isUnionType(right)
-			? right.ChoiceTypes.map(choice => spreadDictionaryTypes(left, choice, createDictionary))
-			: undefined;
-	if (distributed) {
-		return distributed.every(isDefined)
-			? createNormalizedUnionType(distributed)
-			: undefined;
-	}
 	if (right.julType === 'empty') {
 		return left;
 	}
@@ -3467,6 +3553,18 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		return createCompileTimeDictionaryLiteralType(mergedFields, first.complete || second.complete, declaration);
 	}
 
+	// Ein vollständiger Record ist geschlossen: And(Dictionary(X) [a: A]) => [a: And(A X)].
+	if (first.julType === 'dictionary'
+		&& second.julType === 'dictionaryLiteral'
+		&& second.complete) {
+		return intersectDictionaryWithRecord(first, second);
+	}
+	if (second.julType === 'dictionary'
+		&& first.julType === 'dictionaryLiteral'
+		&& first.complete) {
+		return intersectDictionaryWithRecord(second, first);
+	}
+
 	// Teilmenge liefern:
 	// And(A B) => A, wenn A Teilmenge von B ist
 	// z.B. And(Integer Rational) => Integer, And(Integer Integer) => Integer
@@ -3501,6 +3599,34 @@ function createNormalizedIntersectionTypeUncached(ChoiceTypes: CompileTimeType[]
 		return reduceIntersectionOperands(ChoiceTypes);
 	}
 	return finishIntersection(ChoiceTypes);
+}
+
+/**
+ * Schnitt aus Dictionary(X) und einem vollständigen Record: Der Record nennt alle Schlüssel, X
+ * schränkt nur deren Werte ein. Wie bei der Zuweisung Record => Dictionary (isTypeAssignableByStructure)
+ * gilt das für jedes Feld, auch ein optionales, solange es da ist. Ein optionales Feld, dessen Wert
+ * nicht zu X passen kann, muss fehlen und fällt weg, ein Pflichtfeld macht den Schnitt leer.
+ * Ein unvollständiger Record bleibt als And stehen: Über seine weiteren Felder weiß nur
+ * Dictionary(X) etwas, und dafür hat der Record keine Darstellung.
+ */
+function intersectDictionaryWithRecord(
+	dictionary: CompileTimeDictionaryType,
+	record: CompileTimeDictionaryLiteralType,
+): CompileTimeType {
+	const elementType = dictionary.ElementType;
+	const fields: CompileTimeFields = {};
+	for (const name in record.Fields) {
+		const field = record.Fields[name]!;
+		const fieldType = createNormalizedIntersectionType([field.type, elementType]);
+		if (fieldType.julType === 'never') {
+			if (field.optional) {
+				continue;
+			}
+			return builtinNever;
+		}
+		fields[name] = { type: fieldType, optional: field.optional };
+	}
+	return createCompileTimeDictionaryLiteralType(fields, true, record.declaration);
 }
 
 /** Das andere Literal, wenn type Boolean ist und other eines der beiden Literale ausschließt. */

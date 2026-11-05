@@ -509,3 +509,12 @@
 2026-11-05 13:30:13	b38d686+	-	ADV-DEV-56627	yugioh	parse+check	5	9326.46	9988.66	9988.66	nach: Typguard einer Definition gilt
 2026-11-05 13:30:13	b38d686+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	613.93	685.05	685.05	nach: Typguard einer Definition gilt
 2026-11-05 13:30:13	b38d686+	-	ADV-DEV-56627	yugioh	parse	5	66.60	72.11	72.11	nach: Typguard einer Definition gilt
+2026-11-05 17:43:14	b1c352f+	-	ADV-DEV-56627	yugioh	parse+check	5	8923.50	9569.73	9569.73	vor and-Normalisierung (Finding 64)
+2026-11-05 17:43:14	b1c352f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	596.69	637.90	637.90	vor and-Normalisierung (Finding 64)
+2026-11-05 17:43:14	b1c352f+	-	ADV-DEV-56627	yugioh	parse	5	65.20	69.52	69.52	vor and-Normalisierung (Finding 64)
+2026-11-05 17:50:34	b1c352f+	-	ADV-DEV-56627	yugioh	parse+check	5	9265.30	9909.23	9909.23	nach and-Normalisierung und distributeOverChoices (Finding 64)
+2026-11-05 17:50:34	b1c352f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	599.17	628.26	628.26	nach and-Normalisierung und distributeOverChoices (Finding 64)
+2026-11-05 17:50:34	b1c352f+	-	ADV-DEV-56627	yugioh	parse	5	65.19	90.24	90.24	nach and-Normalisierung und distributeOverChoices (Finding 64)
+2026-11-05 17:54:06	b1c352f+	-	ADV-DEV-56627	yugioh	parse+check	5	9449.42	10212.10	10212.10	nach and-Normalisierung und distributeOverChoices, ohne map-Einengung (Finding 64)
+2026-11-05 17:54:06	b1c352f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	626.83	655.00	655.00	nach and-Normalisierung und distributeOverChoices, ohne map-Einengung (Finding 64)
+2026-11-05 17:54:06	b1c352f+	-	ADV-DEV-56627	yugioh	parse	5	74.77	76.26	76.26	nach and-Normalisierung und distributeOverChoices, ohne map-Einengung (Finding 64)
