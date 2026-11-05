@@ -2,7 +2,7 @@
 MyType: TypeOf([   field1: Integer   someOtherField: Text   function: () :> Text ])
 a: [   f1: 4   f2: §asdf§   f3: () ~> 4 ]
 myFn: (   par1: MyType   par2: Integer ) -> Integer
-myValue: [field1: Any]
+myValue: [   field1: Integer   someOtherField: Text   function: () :> Text ]
   error 1151 at 10:2 Expected a nested key
   error 1151 at 29:6 Expected a nested key
   error 1050 at 35:2 Expected a bracket, number, text or reference.
@@ -71,7 +71,7 @@ file2: [   someText: §test token 1§   logText: (value: Text) ~> Empty   MyType
 javascriptImport: [   testfn1: (par1: Any) ~> Any   testfn2: (par1: Any) ~> Any   greeting: §hello js§   test2: 4f ]
 jsonImport: §hello json§
 someText: §test token 1§
-test1: [hallo: 1]
+test1: [hallo: Integer]
 typescriptImport: [   greeting: §hello ts§   test2: 4f   testfn1: (par1: Text) ~> Any   testfn2: (par1: Text) ~> Any ]
 valueImport: 15
 yamlImport: §hello yaml§
@@ -167,56 +167,56 @@ t1: TypeOf(true)
 t2: TypeOf(false)
 t3: TypeOf(false)
 testAnd1: 4
-testAnd2: 5
-testAnd3: 6
-testAnd4: [   a: 4   b: 5 ]
-testAnd5: [   a: 4   b: 6 ]
-testBoolean1: true
-testBoolean2: 6
-testBooleanLiteral: 4
-testDictionary1: [a: §4§]
-testDictionary2: [a: 4]
-testDictionary3: Empty
+testAnd2: Never
+testAnd3: Never
+testAnd4: Never
+testAnd5: Never
+testBoolean1: Boolean
+testBoolean2: Boolean
+testBooleanLiteral: true
+testDictionary1: Dictionary(Text)
+testDictionary2: Dictionary(Text)
+testDictionary3: Dictionary(Text)
 testDictionaryLiteral1: [a: 4]
-testDictionaryLiteral2: [a: 6]
+testDictionaryLiteral2: [a: 4]
 testDictionaryLiteral3: [   a: 4   b: 6 ]
-testDictionaryLiteral3a: [   a: 4   b: 6 ]
+testDictionaryLiteral3a: [a: 4]
 testDictionaryLiteral4: [a: [b: 4]]
-testDictionaryLiteral5: [a: [b: 5]]
-testDictionaryLiteral6: [a: [b: 4f]]
-testDictionaryLiteral7: [a: 4f]
+testDictionaryLiteral5: [a: [b: 4]]
+testDictionaryLiteral6: [a: Float]
+testDictionaryLiteral7: [a: Float]
 testEmpty1: Empty
-testEmpty2: TypeOf(Empty)
-testEmpty3: [1]
+testEmpty2: Empty
+testEmpty3: Empty
 testEmptyLiteral1: Empty
-testEmptyLiteral2: 4
-testEmptyLiteral3: [4]
-testEmptyLiteral4: [a: 4]
-testFloat1: 6f
-testFloat2: 6
-testInteger1: 4
-testInteger2: 4f
+testEmptyLiteral2: Empty
+testEmptyLiteral3: Empty
+testEmptyLiteral4: Empty
+testFloat1: Float
+testFloat2: Float
+testInteger1: Integer
+testInteger2: Integer
 testIntegerLiteral1: 4
-testIntegerLiteral2: 5
-testList1: [§aa§]
-testList2: [§aa§ 4]
-testList3: Empty
-testNonZeroInteger1: -2
-testNonZeroInteger2: [   numerator: 7   denominator: 2 ]
-testNot1: true
-testNot2: false
-testOr1: 4
-testOr2: 6
-testOr3: 6
-testText1: §§
-testText2: §hallo welt§
-testText3: 4
-testTuple1: [4f 1]
-testTuple2: [4f 1]
+testIntegerLiteral2: 4
+testList1: List(Text)
+testList2: List(Text)
+testList3: List(Text)
+testNonZeroInteger1: And(Integer Not(0))
+testNonZeroInteger2: And(Integer Not(0))
+testNot1: Not(true)
+testNot2: Not(true)
+testOr1: Or(4 5)
+testOr2: Or(4 5)
+testOr3: Integer
+testText1: Text
+testText2: Text
+testText3: Text
+testTuple1: [Float Integer]
+testTuple2: [Float 2]
 testWithout1: false
 testWithout11: false
-testWithout2: true
-testWithout21: true
+testWithout2: false
+testWithout21: false
   error 3200 at 34:1 testNonZeroInteger2 is already defined
   error 5000 at 4:1 Definition type mismatch. | Can not assign TypeOf(Empty) to Empty.
   error 5000 at 6:1 Definition type mismatch. | Can not assign [1] to Empty.
@@ -288,7 +288,7 @@ Even: (num: Integer) -> Boolean
 Number: Boolean
 ParserResult: (TypeParam: Text) -> Invalid :> Boolean
 addNums: (T: Boolean) -> (   num1: Boolean   num2: Boolean ) -> Boolean
-myVar: 3
+myVar: 4
 myVarIsText: Invalid
   error 1102 at 15:26 multilineParser should parse until end of row
   error 1102 at 24:8 multilineParser should parse until end of row
@@ -426,8 +426,8 @@ computeResetDelta: (gameState: GameState) -> GameStateChange
 delta$: Stream(GameStateChange)
 elementById: (id: Text) ~> Any
 gameState$: Stream(GameState)
-initialDelta: [   cellChanges: Empty   currentPlayer: §x§   status: §running§ ]
-initialGameState: [   gameBoard: [[§§ §§ §§] [§§ §§ §§] [§§ §§ §§]]   currentPlayer: §x§   status: §running§ ]
+initialDelta: [   cellChanges: Or(Empty List(CellChange))   currentPlayer: Player   status: GameStatus ]
+initialGameState: [   gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]   currentPlayer: Player   status: GameStatus ]
 isBoardEmpty: (gameBoard: [[Cell Cell Cell] [Cell Cell Cell] [Cell Cell Cell]]) -> Boolean
 resetElement: Any
 resetEnabled$: Stream(Boolean)

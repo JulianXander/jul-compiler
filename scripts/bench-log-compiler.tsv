@@ -503,3 +503,9 @@
 2026-11-04 17:23:53	57db077+	-	ADV-DEV-56627	yugioh	parse+check	5	9373.69	10787.51	10787.51	boolean ohne literal normalisieren, wiederholt
 2026-11-04 17:23:53	57db077+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	616.91	677.39	677.39	boolean ohne literal normalisieren, wiederholt
 2026-11-04 17:23:53	57db077+	-	ADV-DEV-56627	yugioh	parse	5	68.92	84.44	84.44	boolean ohne literal normalisieren, wiederholt
+2026-11-05 13:22:43	b38d686+	-	ADV-DEV-56627	yugioh	parse+check	5	11738.64	23682.62	23682.62	vor: Typguard einer Definition gilt
+2026-11-05 13:22:43	b38d686+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	730.72	1182.13	1182.13	vor: Typguard einer Definition gilt
+2026-11-05 13:22:43	b38d686+	-	ADV-DEV-56627	yugioh	parse	5	124.80	131.80	131.80	vor: Typguard einer Definition gilt
+2026-11-05 13:30:13	b38d686+	-	ADV-DEV-56627	yugioh	parse+check	5	9326.46	9988.66	9988.66	nach: Typguard einer Definition gilt
+2026-11-05 13:30:13	b38d686+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	613.93	685.05	685.05	nach: Typguard einer Definition gilt
+2026-11-05 13:30:13	b38d686+	-	ADV-DEV-56627	yugioh	parse	5	66.60	72.11	72.11	nach: Typguard einer Definition gilt

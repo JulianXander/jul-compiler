@@ -2436,23 +2436,28 @@ function inferType(
 					typeInfo = { type: builtinInvalid };
 				}
 			}
+			// Ein hingeschriebener TypeGuard ist der Typ des Namens und des Ausdrucks, auch wenn der Wert
+			// nicht passt (der Fehler gehört an die Definition, nicht an jede Verwendung). Der Wert wird
+			// nur dagegen geprüft, sein inferierter Typ verlässt die Definition nicht - wie beim
+			// deklarierten Rückgabetyp. Ohne TypeGuard gilt der inferierte Typ.
+			// Siehe docs/definition-typeguard-plan.md.
+			const typeGuardInfo = getTypeInfo(checkContext.result, typeGuard);
+			let resultTypeInfo: TypeInfo = typeGuardInfo && !(name in coreBuiltInSymbolTypes)
+				? { type: valueOf(typeGuardInfo.type) }
+				: typeInfo;
 			// _ bindet nichts: kein Symbol, keine Namensprüfung, nur der Wert gegen den TypeGuard.
 			if (name !== discardName) {
 				checkNameDefinedInUpperScope(expression, scopes, errors, name);
-				// TODO typecheck mit typeguard, ggf union mit Error type
 				const currentScope = last(scopes);
 				const symbol = currentScope[name];
 				if (!symbol) {
 					throw new Error(`Definition Symbol ${name} not found`);
 				}
+				// Der beendete Stream gilt für die Prüfung des Werts und für den Typ des Namens.
 				typeInfo = withCompletedStream(typeInfo, currentScope, name);
-				setSymbolTypeInfo(checkContext.result, symbol, typeInfo);
-				// Ein hingeschriebener TypeGuard ist die erklärte Absicht und geht dem inferierten Typ vor.
-				checkNamingCase(
-					expression.name,
-					getTypeInfo(checkContext.result, typeGuard) ? valueOf(getTypeInfo(checkContext.result, typeGuard)!.type) : typeInfo.type,
-					errors,
-				);
+				resultTypeInfo = withCompletedStream(resultTypeInfo, currentScope, name);
+				setSymbolTypeInfo(checkContext.result, symbol, resultTypeInfo);
+				checkNamingCase(expression.name, resultTypeInfo.type, errors);
 			}
 			if (typeGuard) {
 				const typeGuardType = getTypeInfo(checkContext.result, typeGuard);
@@ -2485,7 +2490,7 @@ function inferType(
 					reportUnknown(assignability, checkContext, 'Definition', typeInfo.type, dereferencedTargetType, expression);
 				}
 			}
-			return typeInfo;
+			return resultTypeInfo;
 		}
 		case 'destructuring': {
 			const value = expression.value;

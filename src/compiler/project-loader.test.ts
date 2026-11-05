@@ -82,6 +82,16 @@ describe('project-loader', () => {
 			'd.jul': 'd = 1',
 		}, [{ code: ErrorCode.dereferenceFailed, startRowIndex: 0, startColumnIndex: 1 }]);
 	});
+	// docs/definition-typeguard-plan.md: Der Typguard gilt auch beim Importeur.
+	it('importierter Name hat den Typguard seiner Definition', () => {
+		// Mit warnUnknown wie die CLI: ein Any statt des Typguards zeigt sich nur als typeNotProven.
+		const host = createInMemoryHost({
+			[path('main.jul')]: '(d) = import(§./b.jul§)\nf = (key: Text) :> Or([] Integer) => d.getField(key)',
+			[path('b.jul')]: 'd: Dictionary(Integer) = [x = 1 y = 2]',
+		}, { warnUnknown: () => true });
+		const { main } = loadMain({}, host);
+		expect(main.checked?.errors.map(error => error.code)).to.deep.equal([]);
+	});
 	it('ungenutzter Import wird gemeldet', () => {
 		expectLoadErrors({
 			'main.jul': '(a b) = import(§./b.jul§)\nc = a',

@@ -4146,7 +4146,7 @@ l: List((x: Integer) :> Text) = [...others (x) => x]`, {
 					"code": ErrorCode.definitionTypeMismatch,
 					"endColumnIndex": 51,
 					"endRowIndex": 1,
-					"message": "Definition type mismatch.\nInvalid return value\n  Can not assign Integer to Text.",
+					"message": "Definition type mismatch.\nCan not assign List(Or((x: Integer) :> Text (x: Integer) -> Integer)) to List((x: Integer) :> Text).\n  Invalid return value\n    Can not assign Integer to Text.",
 					"startColumnIndex": 43,
 					"startRowIndex": 1,
 				},
@@ -4164,7 +4164,7 @@ g(...others (x) => x)`, {
 					"code": ErrorCode.argumentTypeMismatch,
 					"endColumnIndex": 20,
 					"endRowIndex": 2,
-					"message": "Argument type mismatch.\nInvalid value for parameter 'cbs'\n  Invalid return value\n    Can not assign Integer to Text.",
+					"message": "Argument type mismatch.\nInvalid value for parameter 'cbs'\n  Can not assign List(Or((x: Integer) :> Text (x: Integer) -> Integer)) to List((x: Integer) :> Text).\n    Invalid return value\n      Can not assign Integer to Text.",
 					"startColumnIndex": 12,
 					"startRowIndex": 2,
 				},
@@ -8611,6 +8611,47 @@ describe('_', () => {
 	_ = log(1)
 	_ = log(2)
 	3`);
+	});
+});
+
+// docs/definition-typeguard-plan.md: Bei name: T = wert hat name den Typ T, der Wert wird nur dagegen
+// geprüft. Ohne Typguard gilt der inferierte Typ.
+describe('Typguard einer Definition', () => {
+	// Mit warnUnknown wie die CLI: ein Any statt des Typguards zeigt sich nur als typeNotProven.
+	const errorCodesWithUnknown = (code: string): ErrorCode[] => {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {}, { warnUnknown: () => true });
+		return parsed.checked!.errors.map(error => error.code);
+	};
+	it('dynamischer Zugriff nutzt den Typguard', () => {
+		expect(errorCodesWithUnknown(`d: Dictionary(Integer) = [x = 1 y = 2]
+f = (key: Text) :> Or([] Integer) => d.getField(key)`)).to.deep.equal([]);
+	});
+	it('Name hat den Typguard, nicht das Literal', () => {
+		expectErrorCodes(`x: Or(1 2) = 1
+h = () :> 1 => x`, [ErrorCode.returnTypeMismatch]);
+	});
+	it('ohne Typguard bleibt der inferierte Typ', () => {
+		expectCheck(`x = 1
+h = () :> 1 => x`);
+	});
+	it('falscher Wert: Fehler nur an der Definition', () => {
+		expect(errorCodesWithUnknown(`d: Dictionary(Integer) = [x = §a§]
+f = (key: Text) :> Or([] Integer) => d.getField(key)`)).to.deep.equal([ErrorCode.definitionTypeMismatch]);
+	});
+	it('unbewiesener Wert: Warnung nur an der Definition', () => {
+		expect(errorCodesWithUnknown(`f = (a: Any) :> Dictionary(Integer) =>
+	u: Dictionary(Integer) = a
+	u`)).to.deep.equal([ErrorCode.typeNotProven]);
+	});
+	it('Definition als letzte Zeile liefert den Typguard', () => {
+		expectResolvedReturnType(`f = () =>
+	x: Or(1 2) = 1`, 'Or(1 2)');
+	});
+	it('beendeter Stream mit Typguard ist endlich', () => {
+		expectCheck(`result$: Stream(Integer) = create$(Integer 1)
+result$.complete()
+r: FiniteStream(Integer) = result$`);
 	});
 });
 
