@@ -22,8 +22,8 @@ import type { JsonValue } from '../runtime/runtime.js';
 import * as testRuntime from '../runtime/test-runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isDefined, isTestFilePath, last } from '../util.js';
 import { extname, isAbsolute } from 'path';
-import { getPathExpression, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
-import { getCheckedEscapableName, getJunction, getTestCallArguments } from '../parser/parser-utils.js';
+import { getPathExpression, getPathFromImport as getImportedPath, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
+import { getCheckedEscapableName, getJunction, getTestCallArguments, julHasDefaultExport } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getAssumeTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
 import { hasArgumentSubstitution, typeToString, valueOf } from '../checker/type-algebra.js';
 import { classifyCopySource, copyingBuiltinNames } from './copy-sites.js';
@@ -56,6 +56,10 @@ let emitSourcePositions = false;
  * (siehe assumeCallToJs).
  */
 let checkAssumes = false;
+/**
+ * Siehe EmitOptions.hasDefaultExport.
+ */
+let hasDefaultExport: EmitOptions['hasDefaultExport'];
 /**
  * Messinstrument, siehe countCopyJs.
  */
@@ -188,6 +192,11 @@ export interface EmitOptions {
 	 * unverändert.
 	 */
 	checkAssumes?: boolean;
+	/**
+	 * Ob die importierte Datei einen default-Export hat (ParsedFile.hasDefaultExport), zum Pfad
+	 * relativ zur emittierten Datei, wie er im import steht. Nur nötig, wenn die Datei importiert.
+	 */
+	hasDefaultExport?: (importedPath: string) => boolean;
 }
 
 /**
@@ -240,21 +249,19 @@ export function syntaxTreeToJsWithMappings(
 	testRuntimeImportPath: string = '',
 	options: EmitOptions = {},
 ): { js: string; mappings: SourceMapping[]; runtimeNames: string[]; } {
-	let hasDefinition = false;
+	const isValueFile = julHasDefaultExport(expressions);
 	useTypeInfo = true;
 	emitSourcePositions = true;
 	sourceFilePath = filePath;
 	checkAssumes = !!options.checkAssumes;
+	hasDefaultExport = options.hasDefaultExport;
 	try {
 		const bodyJs = expressions.map((expression, index) => {
 			const expressionJs = expressionToJs(checkResult, expression, 0, true);
-			if (expression.type === 'definition') {
-				hasDefinition = true;
-			}
 			const markerJs = sourcePositionMarkerJs(expression);
 			// default export = last expression
 			if (index === expressions.length - 1
-				&& !hasDefinition) {
+				&& isValueFile) {
 				return `${markerJs}export default ${expressionJs}`;
 			}
 			return markerJs + expressionJs;
@@ -273,6 +280,7 @@ export function syntaxTreeToJsWithMappings(
 		emitSourcePositions = false;
 		sourceFilePath = '';
 		checkAssumes = false;
+		hasDefaultExport = undefined;
 	}
 }
 
@@ -339,14 +347,12 @@ function expressionToJs(
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
 				const aliasJs = `_${nameJs}`;
-				const isJson = importPath.endsWith(Extension.json);
-				const importJs = getImportJs(`${isJson ? '' : '* as '}${aliasJs}`, importPath);
-				const valueJs = isJson
+				// value import: der default-Export, sonst das Modul mit allen Definitionen
+				const importedJs = isValueImport(value)
 					? aliasJs
-					// default export automatisch liefern, wenn vorhanden (value import)
-					: `${aliasJs}.default ?? ${aliasJs}`;
-				return `${importJs}
-${getDefinitionJs(topLevel, nameJs, valueJs)}`;
+					: `* as ${aliasJs}`;
+				return `${getImportJs(importedJs, importPath)}
+${getDefinitionJs(topLevel, nameJs, aliasJs)}`;
 			}
 			const valueJs = expressionToJs(checkResult, value, indent);
 			// _ bindet nichts: nur auswerten. Als letzter Ausdruck eines Rumpfs ist es ein Fehler,
@@ -557,6 +563,14 @@ function listToJs(valuesJs: string[], indent: number) {
 }
 
 //#region import
+
+function isValueImport(importExpression: ParseFunctionCall): boolean {
+	const { path } = getImportedPath(importExpression, '');
+	if (!hasDefaultExport || !path) {
+		throw new Error('hasDefaultExport missing for import ' + path);
+	}
+	return hasDefaultExport(path);
+}
 
 function getImportJs(importedJs: string, path: string): string {
 	const isJson = path.endsWith(Extension.json);

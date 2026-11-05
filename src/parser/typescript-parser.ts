@@ -3,9 +3,9 @@ import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode, TypeParameterDeclaration, TypeAliasDeclaration } from 'typescript';
 import { createParseFunctionLiteral, createParseFunctionTypeLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
-const { createSourceFile, forEachChild, getJSDocCommentsAndTags, getJSDocTags, ScriptKind, ScriptTarget, SyntaxKind } = typescript;
+const { canHaveModifiers, createSourceFile, forEachChild, getJSDocCommentsAndTags, getJSDocTags, getModifiers, isExportAssignment, isExportDeclaration, isNamedExports, ScriptKind, ScriptTarget, SyntaxKind } = typescript;
 
-export function parseTsCode(code: string, filePath = 'todo.ts'): ParsedExpressions {
+export function parseTsCode(code: string, filePath = 'todo.ts'): ParsedExpressions & { hasDefaultExport: boolean; } {
 	// Parent-Pointer braucht getJSDocCommentsAndTags
 	// Auch .js wird als TS geparst, der Dateiname dient nur der Anzeige in Meldungen.
 	const tsAst = createSourceFile(filePath, code, ScriptTarget.ESNext, true, ScriptKind.TS);
@@ -16,7 +16,26 @@ export function parseTsCode(code: string, filePath = 'todo.ts'): ParsedExpressio
 	return {
 		expressions: julExpressions,
 		errors: errors,
+		hasDefaultExport: tsAst.statements.some(isDefaultExport),
 	};
+}
+
+/**
+ * export default …, export default function/class … und export { x as default }.
+ */
+function isDefaultExport(statement: Node): boolean {
+	if (isExportAssignment(statement)) {
+		// export = … ist CommonJS
+		return !statement.isExportEquals;
+	}
+	if (isExportDeclaration(statement)) {
+		const exportClause = statement.exportClause;
+		return !!exportClause
+			&& isNamedExports(exportClause)
+			&& exportClause.elements.some(element => element.name.text === 'default');
+	}
+	return canHaveModifiers(statement)
+		&& !!getModifiers(statement)?.some(modifier => modifier.kind === SyntaxKind.DefaultKeyword);
 }
 
 function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerError[]): ParseExpression | undefined {

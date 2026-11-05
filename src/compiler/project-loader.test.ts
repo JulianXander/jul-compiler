@@ -1,4 +1,5 @@
 import { getTypeInfo } from '../checker/check-result.js';
+import { typeToString } from '../checker/type-algebra.js';
 import { expect } from 'chai';
 import { join, resolve } from 'path';
 import { ParsedDocuments } from '../checker/checker.js';
@@ -59,6 +60,15 @@ describe('project-loader', () => {
 			'main.jul': '(count) = import(§./util.ts§)\nwrong: Text = count()',
 			'util.ts': 'export function count(): bigint { return 1n; }',
 		}, [{ code: ErrorCode.definitionTypeMismatch, startRowIndex: 1, startColumnIndex: 0 }]);
+	});
+	// Zur Laufzeit kommt der default-Export an, nicht das Modul mit count. Dessen Wert übersetzt
+	// der TS-Parser nicht, der Typ ist also Any statt eines Dictionarys mit count.
+	it('Value-Import einer TS-Datei mit default-Export liefert nicht die benannten Exporte', () => {
+		const { main } = loadMain({
+			'main.jul': 'u = import(§./util.ts§)',
+			'util.ts': 'export function count(): bigint { return 1n; }\nexport default 5;',
+		});
+		expect(typeToString(getTypeInfo(main.checkResult!, main.checked!.expressions![0])!.type, 0, 3)).to.equal('Any');
 	});
 	// Genau einmal: früher meldeten Parser und Checker den Fehler je für sich.
 	it('fehlende Abhängigkeit wird einmal am Pfad-Literal gemeldet', () => {

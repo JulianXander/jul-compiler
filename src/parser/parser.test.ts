@@ -1959,3 +1959,15 @@ describe('_', () => {
 });
 
 //#endregion Branching als Anweisung und _
+
+describe('Parser default-Export', () => {
+	const expectHasDefaultExport = reportAtCaller((code: string, filePath: string, hasDefaultExport: boolean) => {
+		expect(parseCode(code, filePath).hasDefaultExport).to.equal(hasDefaultExport);
+	});
+
+	it('.jul ohne Definition exportiert den letzten Ausdruck', () => expectHasDefaultExport('log(1)\n5', 'a.jul', true));
+	it('.jul mit Definition exportiert die Definitionen', () => expectHasDefaultExport('log(1)\na = 5', 'a.jul', false));
+	it('leere .jul hat keinen default-Export', () => expectHasDefaultExport('', 'a.jul', false));
+	it('JSON mit {} hat einen default-Export', () => expectHasDefaultExport('{}', 'a.json', true));
+	it('yaml hat einen default-Export', () => expectHasDefaultExport('a: b', 'a.yaml', true));
+});

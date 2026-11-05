@@ -1667,3 +1667,31 @@ describe('Emitter untypisiertes JSON', () => {
 		expect(untyped.syntax.errors.map(error => error.code)).to.deep.equal([ErrorCode.invalidJson]);
 	});
 });
+
+const expectImportEmit = reportAtCaller((code: string, hasDefaultExport: boolean, result: string) => {
+	const parsed = parseCode(code, 'dummy.jul');
+	const compiled = syntaxTreeToJs(getFileCheckResult(parsed), parsed.syntax.expressions!, '', 'dummy.jul', '', {
+		hasDefaultExport: () => hasDefaultExport,
+	});
+	expect(withoutImports(compiled)).to.equal(result);
+});
+
+describe('Emitter Import', () => {
+	// Statisch statt zur Laufzeit: Eine JSON-Datei mit {}, [] oder null exportiert undefined als
+	// default, das ist trotzdem ein default-Export.
+	it('value import bindet den default-Export', () => {
+		expectImportEmit('x = import(§./data.json§)', true, `import _x from './data.js';
+
+export const x = _x;`);
+	});
+	it('definitions import bindet das Modul', () => {
+		expectImportEmit('x = import(§./defs.jul§)', false, `import * as _x from './defs.js';
+
+export const x = _x;`);
+	});
+	it('yaml wird als JSON importiert', () => {
+		expectImportEmit('x = import(§./data.yaml§)', true, `import _x from './data.yaml.json' with { type: 'json' };
+
+export const x = _x;`);
+	});
+});

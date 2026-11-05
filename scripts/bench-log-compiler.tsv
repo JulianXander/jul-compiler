@@ -518,3 +518,9 @@
 2026-11-05 17:54:06	b1c352f+	-	ADV-DEV-56627	yugioh	parse+check	5	9449.42	10212.10	10212.10	nach and-Normalisierung und distributeOverChoices, ohne map-Einengung (Finding 64)
 2026-11-05 17:54:06	b1c352f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	626.83	655.00	655.00	nach and-Normalisierung und distributeOverChoices, ohne map-Einengung (Finding 64)
 2026-11-05 17:54:06	b1c352f+	-	ADV-DEV-56627	yugioh	parse	5	74.77	76.26	76.26	nach and-Normalisierung und distributeOverChoices, ohne map-Einengung (Finding 64)
+2026-11-05 19:26:42	acbece1+	-	ADV-DEV-56627	yugioh	parse+check	5	9061.43	9575.96	9575.96	vor statischem Default-Import
+2026-11-05 19:26:42	acbece1+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	622.14	656.54	656.54	vor statischem Default-Import
+2026-11-05 19:26:42	acbece1+	-	ADV-DEV-56627	yugioh	parse	5	67.61	76.28	76.28	vor statischem Default-Import
+2026-11-05 19:32:20	acbece1+	-	ADV-DEV-56627	yugioh	parse+check	5	9185.97	9728.49	9728.49	nach statischem Default-Import
+2026-11-05 19:32:20	acbece1+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	587.54	624.03	624.03	nach statischem Default-Import
+2026-11-05 19:32:20	acbece1+	-	ADV-DEV-56627	yugioh	parse	5	63.91	69.74	69.74	nach statischem Default-Import

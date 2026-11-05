@@ -61,6 +61,7 @@ import {
 	setParentsAndIds,
 	setFileSymbolIds,
 	checkTopLevelStatements,
+	julHasDefaultExport,
 } from './parser-utils.js';
 import { basename, dirname, extname, join } from 'path';
 import { _parseJson, JsonValue, normalizeRational } from '../runtime/runtime.js';
@@ -142,10 +143,16 @@ export function parseCode(
 	let parsedExpressions: ParsedExpressions;
 	let dependencies: ImportedDependency[] | undefined;
 	let jsonValue: JsonValue | undefined;
+	// JSON und yaml sind genau ein Wert.
+	let hasDefaultExport = true;
 	switch (extension) {
 		case Extension.js:
-			parsedExpressions = parseTsCode(code, filePath);
+		case Extension.ts: {
+			const parsedTs = parseTsCode(code, filePath);
+			parsedExpressions = parsedTs;
+			hasDefaultExport = parsedTs.hasDefaultExport;
 			break;
+		}
 		case Extension.json: {
 			const parsedJson = _parseJson(code);
 			if (parsedJson instanceof Error) {
@@ -175,11 +182,9 @@ export function parseCode(
 			const imported = getImportedPaths(parsedExpressions.expressions, sourceFolder, isTestFilePath(filePath));
 			parsedExpressions.errors.push(...imported.errors);
 			dependencies = imported.dependencies;
+			hasDefaultExport = julHasDefaultExport(parsedExpressions.expressions);
 			break;
 		}
-		case Extension.ts:
-			parsedExpressions = parseTsCode(code, filePath);
-			break;
 		case Extension.yaml: {
 			if (untyped) {
 				parsedExpressions = { errors: [] };
@@ -216,6 +221,7 @@ export function parseCode(
 			symbols: symbols,
 			ignoreComments: ignoreComments,
 		},
+		hasDefaultExport: hasDefaultExport,
 		dependencies: dependencies,
 		jsonValue: jsonValue,
 	};

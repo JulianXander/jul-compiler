@@ -34,6 +34,12 @@ export interface ParsedFile {
 	 */
 	checkResult?: CheckResult;
 	/**
+	 * Ob das emittierte Modul einen default-Export hat. Dann liefert ein Import der Datei diesen
+	 * Wert (value import), sonst ein Dictionary aller Definitionen (definitions import). Statisch
+	 * bekannt, der Emitter des Importeurs wählt danach die Import-Form, der Checker den Typ.
+	 */
+	hasDefaultExport: boolean;
+	/**
 	 * nur für .jul Dateien
 	 */
 	dependencies?: ImportedDependency[];

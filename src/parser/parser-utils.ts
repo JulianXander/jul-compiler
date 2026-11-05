@@ -256,6 +256,15 @@ export function getExportedSymbols(fileSymbols: SymbolTable): SymbolTable {
 }
 
 /**
+ * Eine .jul-Datei ohne Definition auf oberster Ebene exportiert ihren letzten Ausdruck als default
+ * (value import), sonst ihre Definitionen.
+ */
+export function julHasDefaultExport(expressions: ParseExpression[] | undefined): boolean {
+	return !!expressions?.length
+		&& !expressions.some(expression => expression.type === 'definition');
+}
+
+/**
  * Für ein Symbol aus der Top-Level-Symboltabelle einer Datei, siehe getExportedSymbols.
  */
 export function isExportedSymbol(fileSymbol: SymbolDefinition): boolean {

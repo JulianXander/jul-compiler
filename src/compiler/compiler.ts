@@ -85,7 +85,7 @@ export function compileProject(
 	const usedRuntimeNames = new Set<string>();
 	Object.values(documents).forEach(document => {
 		const isEntry = document.filePath === entryFilePath;
-		const emitted = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimeImportPath, testRuntimeImportPath);
+		const emitted = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimeImportPath, testRuntimeImportPath, documents);
 		emitted.runtimeNames.forEach(name => usedRuntimeNames.add(name));
 		if (isEntry) {
 			outFilePath = emitted.outFilePath;
@@ -314,7 +314,7 @@ export async function testProject(
 	// dann wie gewohnt auf, und eingebundene .js/.ts-Dateien finden ihre Pakete in node_modules.
 	const sources = new Map<string, { source: string; format: 'module' | 'json'; }>();
 	Object.values(documents).forEach(document => {
-		const { outFilePath, compiled, sourceMap } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimeSourcePath, testRuntimeSourcePath, { checkAssumes: true });
+		const { outFilePath, compiled, sourceMap } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimeSourcePath, testRuntimeSourcePath, documents, { checkAssumes: true });
 		sources.set(pathToFileURL(resolve(outFilePath)).href, {
 			// Inline, der Testlauf schreibt nichts auf die Platte.
 			source: sourceMap
@@ -597,8 +597,9 @@ function emitFile(
 	outputFolderPath: string,
 	runtimeImportPath: string,
 	testRuntimeImportPath: string,
+	documents: ParsedDocuments,
 ): { outFilePath: string; runtimeNames: string[]; } {
-	const { outFilePath, compiled, sourceMap, runtimeNames } = emitToJs(parsed, sourceCode, outputFolderPath, runtimeImportPath, testRuntimeImportPath);
+	const { outFilePath, compiled, sourceMap, runtimeNames } = emitToJs(parsed, sourceCode, outputFolderPath, runtimeImportPath, testRuntimeImportPath, documents);
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
 	let js = compiled;
@@ -658,7 +659,8 @@ function emitToJs(
 	outputFolderPath: string,
 	runtimeImportPath: string,
 	testRuntimeImportPath: string,
-	options: EmitOptions = {},
+	documents: ParsedDocuments,
+	options: Omit<EmitOptions, 'hasDefaultExport'> = {},
 ): { outFilePath: string; compiled: string; sourceMap?: RawSourceMap; runtimeNames: string[]; } {
 	const sourceFilePath = parsed.filePath;
 	let compiled: string;
@@ -687,7 +689,17 @@ function emitToJs(
 			// checkResult trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht. Ohne
 			// Check ein leeres Ergebnis: dann ohne Typen.
 			const expressions = (parsed.checked ?? parsed.syntax).expressions ?? [];
-			const emitted = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath, options);
+			const emitted = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath, {
+				...options,
+				// Der Loader hat jede importierte Datei vor dem Emit geladen, unter demselben Pfad.
+				hasDefaultExport: importedPath => {
+					const imported = documents[join(parsed.sourceFolder, importedPath)];
+					if (!imported) {
+						throw new Error(`Imported file not loaded: ${importedPath}`);
+					}
+					return imported.hasDefaultExport;
+				},
+			});
 			compiled = emitted.js;
 			runtimeNames = emitted.runtimeNames;
 			const jsFileName = changeExtension(sourceFilePath, Extension.js);

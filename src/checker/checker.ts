@@ -3793,10 +3793,14 @@ function getReturnTypeFromFunctionCall(
 					|| importedDocument?.untyped) {
 					return builtinAny;
 				}
-				// definitions import
-				// a dictionary containing all definitions is imported
-				const exportedSymbols = getExportedSymbols(importedFile.symbols);
-				if (Object.keys(exportedSymbols).length) {
+				// Dieselbe Entscheidung wie beim Emitter des Importeurs.
+				if (!importedDocument.hasDefaultExport) {
+					// definitions import
+					// a dictionary containing all definitions is imported
+					const exportedSymbols = getExportedSymbols(importedFile.symbols);
+					if (!Object.keys(exportedSymbols).length) {
+						return builtinAny;
+					}
 					const importedResult = importedDocument.checkResult;
 					const importedTypes = mapDictionary(exportedSymbols, symbol => {
 						const symbolType: CompileTimeType = (importedResult && getSymbolTypeInfo(importedResult, symbol)?.type)
@@ -3808,7 +3812,10 @@ function getReturnTypeFromFunctionCall(
 				}
 				// value import
 				// the last expression is imported
-				if (!importedFile.expressions) {
+				// Den default-Export einer .ts/.js übersetzt der TS-Parser nicht.
+				if (importedDocument.extension === Extension.ts
+					|| importedDocument.extension === Extension.js
+					|| !importedFile.expressions) {
 					return builtinAny;
 				}
 				const lastExpression = last(importedFile.expressions);

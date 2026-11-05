@@ -386,4 +386,19 @@ ${julCode}`,
 	});
 
 	//#endregion Beschreibung
+
+	//#region default-Export
+
+	const expectHasDefaultExport = reportAtCaller((code: string, hasDefaultExport: boolean) => {
+		expect(parseTsCode(code).hasDefaultExport).to.equal(hasDefaultExport);
+	});
+
+	it('export default mit Wert', () => expectHasDefaultExport('export default 5;', true));
+	it('export default function', () => expectHasDefaultExport('export default function f() {}', true));
+	it('export default class', () => expectHasDefaultExport('export default class A {}', true));
+	it('export { x as default }', () => expectHasDefaultExport('const x = 1;\nexport { x as default };', true));
+	it('nur benannte Exporte', () => expectHasDefaultExport('export const a = 1;\nexport function f() {}', false));
+	it('export = ist kein default-Export', () => expectHasDefaultExport('export = 5;', false));
+
+	//#endregion default-Export
 });
