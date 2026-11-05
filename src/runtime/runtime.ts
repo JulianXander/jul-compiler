@@ -1863,7 +1863,38 @@ export const roundUp = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-export const subtract = /*#__PURE__*/ _createFunction(
+export type FloatRounding = 'down' | 'up' | 'towardZero' | 'nearest';
+/**
+ * Setzt einen endlichen Float voraus: BigInt wirft bei NaN und ±Infinity einen RangeError.
+ */
+export const floatToInteger = /*#__PURE__*/ _createFunction(
+	function floatToInteger(value: number, rounding: FloatRounding): bigint {
+		switch (rounding) {
+			case 'down':
+				return BigInt(Math.floor(value));
+			case 'up':
+				return BigInt(Math.ceil(value));
+			case 'towardZero':
+				return BigInt(Math.trunc(value));
+			case 'nearest':
+				// Math.round rundet .5 Richtung +Infinity, hier symmetrisch weg von der Null
+				return BigInt(Math.sign(value) * Math.round(Math.abs(value)));
+		}
+	},
+	{
+		singleNames: [
+			{
+				name: 'value',
+				type: Float,
+			},
+			{
+				name: 'rounding',
+				type: /*#__PURE__*/ Or('down', 'up', 'towardZero', 'nearest'),
+			},
+		]
+	}
+);
+export const subtract =/*#__PURE__*/ _createFunction(
 	function subtract(minuend: RuntimeRational, subtrahend: RuntimeRational): RuntimeRational {
 		if (typeof minuend === 'bigint') {
 			if (typeof subtrahend === 'bigint') {

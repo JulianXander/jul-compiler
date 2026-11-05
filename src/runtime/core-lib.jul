@@ -546,6 +546,30 @@ roundUp = nativeFunction(
 		}
 	§
 )
+# Wandelt value in eine ganze Zahl, gerundet nach rounding:
+# down = abrunden (floor), up = aufrunden (ceiling), towardZero = Nachkommastellen abschneiden (truncate),
+# nearest = zur nächsten ganzen Zahl, bei .5 weg von der Null (nearest(2.5) ist 3, nearest(-2.5) ist -3).
+# Setzt einen endlichen Float voraus (kein NaN, kein ±Infinity).
+floatToInteger = nativeFunction(
+	(
+		value: Float
+		rounding: Or(§down§ §up§ §towardZero§ §nearest§)
+	) -> Integer
+	§js
+		(value, rounding) => {
+			switch (rounding) {
+				case 'down':
+					return BigInt(Math.floor(value));
+				case 'up':
+					return BigInt(Math.ceil(value));
+				case 'towardZero':
+					return BigInt(Math.trunc(value));
+				case 'nearest':
+					return BigInt(Math.sign(value) * Math.round(Math.abs(value)));
+			}
+		}
+	§
+)
 #endregion arithmetic
 #TODO greater für Rational-Werte
 # Liefert true, wenn first größer als second ist.

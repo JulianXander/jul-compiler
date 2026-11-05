@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
 	_branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssumeViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
-	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp,
+	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol, _optionalField, _Text, Or,
 } from './runtime.js';
 
@@ -470,6 +470,31 @@ describe('rationalToFloat', () => {
 	});
 	it('converts a fraction', () => {
 		expect(rationalToFloat({ numerator: 1n, denominator: 4n })).to.equal(0.25);
+	});
+});
+
+describe('floatToInteger', () => {
+	it('rounds down', () => {
+		expect(floatToInteger(1.7, 'down')).to.equal(1n);
+		expect(floatToInteger(-1.2, 'down')).to.equal(-2n);
+	});
+	it('rounds up', () => {
+		expect(floatToInteger(1.2, 'up')).to.equal(2n);
+		expect(floatToInteger(-1.7, 'up')).to.equal(-1n);
+	});
+	it('truncates toward zero', () => {
+		expect(floatToInteger(1.7, 'towardZero')).to.equal(1n);
+		expect(floatToInteger(-1.7, 'towardZero')).to.equal(-1n);
+	});
+	it('rounds half away from zero', () => {
+		expect(floatToInteger(2.5, 'nearest')).to.equal(3n);
+		expect(floatToInteger(-2.5, 'nearest')).to.equal(-3n);
+		expect(floatToInteger(-2.4, 'nearest')).to.equal(-2n);
+		expect(floatToInteger(-0.2, 'nearest')).to.equal(0n);
+	});
+	it('keeps integral values and large values exact', () => {
+		expect(floatToInteger(4, 'nearest')).to.equal(4n);
+		expect(floatToInteger(2 ** 60, 'down')).to.equal(2n ** 60n);
 	});
 });
 
