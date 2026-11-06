@@ -524,3 +524,12 @@
 2026-11-05 19:32:20	acbece1+	-	ADV-DEV-56627	yugioh	parse+check	5	9185.97	9728.49	9728.49	nach statischem Default-Import
 2026-11-05 19:32:20	acbece1+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	587.54	624.03	624.03	nach statischem Default-Import
 2026-11-05 19:32:20	acbece1+	-	ADV-DEV-56627	yugioh	parse	5	63.91	69.74	69.74	nach statischem Default-Import
+2026-11-06 12:09:47	599ab29+	-	ADV-DEV-56627	yugioh	parse+check	5	9491.38	10241.74	10241.74	vor Längen-Termen in Is-Zusicherungen
+2026-11-06 12:09:47	599ab29+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	562.76	608.22	608.22	vor Längen-Termen in Is-Zusicherungen
+2026-11-06 12:09:47	599ab29+	-	ADV-DEV-56627	yugioh	parse	5	66.98	78.07	78.07	vor Längen-Termen in Is-Zusicherungen
+2026-11-06 12:13:06	599ab29+	-	ADV-DEV-56627	yugioh	parse+check	5	9299.70	10170.36	10170.36	Längen-Terme in Is-Zusicherungen
+2026-11-06 12:13:06	599ab29+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	619.75	657.11	657.11	Längen-Terme in Is-Zusicherungen
+2026-11-06 12:13:06	599ab29+	-	ADV-DEV-56627	yugioh	parse	5	63.50	68.90	68.90	Längen-Terme in Is-Zusicherungen
+2026-11-06 12:15:25	599ab29+	-	ADV-DEV-56627	yugioh	parse+check	5	9891.15	12130.50	12130.50	Längen-Terme in Is-Zusicherungen, Auflösen nur bei Bedarf
+2026-11-06 12:15:25	599ab29+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	707.70	761.34	761.34	Längen-Terme in Is-Zusicherungen, Auflösen nur bei Bedarf
+2026-11-06 12:15:25	599ab29+	-	ADV-DEV-56627	yugioh	parse	5	80.25	105.31	105.31	Längen-Terme in Is-Zusicherungen, Auflösen nur bei Bedarf

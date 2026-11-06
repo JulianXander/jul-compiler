@@ -6,6 +6,7 @@ import {
 	CompileTimeDictionary,
 	CompileTimeFields,
 	CompileTimeFunctionType,
+	CompileTimeLengthOfType,
 	CompileTimeType,
 	createCompileTimeConcatType,
 	createCompileTimeComplementType,
@@ -2054,15 +2055,21 @@ function getPredicateCall(checkResult: CheckResult, call: ParseFunctionCall): Pr
 	}
 	// Die Zusicherung ist exakt (true und false sagen beide etwas), solange die übrigen Argumente
 	// feststehen. x.equal(n) mit n: Integer hieße sonst bei false "x ist kein Integer".
-	const hasOnlyLiteralOthers = args.every((otherArgument, index) =>
+	const hasOnlySingletonOthers = args.every((otherArgument, index) =>
 		index === parameterIndex
 		|| (getTypeInfo(checkResult, otherArgument) !== undefined
-			&& isSingletonLiteral(resolvePlaceholders(getTypeInfo(checkResult, otherArgument)!.type))));
-	if (!hasOnlyLiteralOthers) {
+			&& isSingletonValue(resolvePlaceholders(getTypeInfo(checkResult, otherArgument)!.type))));
+	if (!hasOnlySingletonOthers) {
 		return undefined;
 	}
 	const argsType = bindReceiver(getTypeInfo(checkResult, call.prefixArgument)?.type, getTypeInfo(checkResult, call.arguments)?.type ?? builtinAny);
-	const contractType = dereferenceArgumentTypesNested(calleeType, argsType, contract.type);
+	const rawContractType = dereferenceArgumentTypesNested(calleeType, argsType, contract.type);
+	// Die Länge eines Parameters steht im Rumpf noch als Platzhalter (LengthOf(TypeOf(values))) und
+	// bekommt ihren Längen-Term erst beim Auflösen. Nur dann auflösen, das kostet sonst bei jedem
+	// Prädikataufruf.
+	const contractType = hasUndecidableBound(rawContractType)
+		? resolvePlaceholders(rawContractType)
+		: rawContractType;
 	if (isDeferredType(contractType)
 		|| hasUndecidableBound(contractType)) {
 		return undefined;
@@ -2102,25 +2109,42 @@ function getConditionCall(
 		: undefined;
 }
 
-function isSingletonLiteral(type: CompileTimeType): boolean {
+/**
+ * Bezeichnet der Typ genau einen Wert? Ein Literal, oder die Länge einer Liste mit Längen-Term
+ * (plus Konstante): Der Term gehört zu einem bestimmten, unveränderlichen Wert, seine Länge steht also
+ * fest, auch wenn sie unbekannt ist. Eine Länge ohne Term gilt für jede Liste gleichen Typs.
+ */
+function isSingletonValue(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'booleanLiteral':
 		case 'integerLiteral':
 		case 'floatLiteral':
 		case 'textLiteral':
 			return true;
+		case 'lengthOf':
+			return isLengthTermOf(type);
 		default:
 			return false;
 	}
 }
 
+function isLengthTermOf(type: CompileTimeLengthOfType): boolean {
+	return type.Source.julType === 'list'
+		&& type.Source.Length !== undefined;
+}
+
 /**
  * Eine Grenze, deren Wert kein Literal ihrer Familie ist (GreaterInteger(1.5)), kann die Typalgebra
- * nicht entscheiden: Die Verengung damit wäre nicht falsch, aber unbrauchbar.
+ * nicht entscheiden: Die Verengung damit wäre nicht falsch, aber unbrauchbar. Eine Integer-Grenze über
+ * einen Längen-Term entscheidet sie dagegen, sobald der Index dieselbe Länge trifft.
  */
 function hasUndecidableBound(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'bound':
+			if (type.Family === 'integer'
+				&& type.Value.julType === 'lengthOf') {
+				return !isLengthTermOf(type.Value);
+			}
 			return type.Value.julType !== (type.Family === 'integer' ? 'integerLiteral' : 'floatLiteral');
 		case 'or':
 		case 'and':

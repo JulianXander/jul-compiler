@@ -2138,6 +2138,50 @@ f = (state: State) :> Integer =>
 		[false] => 0`);
 	});
 	//#endregion Verengung über not/and/or
+	//#region Verengung über Längen-Terme
+	// Die Länge eines bestimmten Werts steht so fest wie ein Literal: Derselbe Pfad bezeichnet im
+	// selben Gültigkeitsbereich immer denselben Wert. Die Zusicherung von greaterInteger gilt deshalb
+	// auch mit length(values) als Grenze, in beiden Richtungen.
+	it('branching-over-greater-than-length-narrows-to-index-in-false-branch', () => {
+		expectCheck(`f = (values: List(Integer) index: PositiveInteger) :> Integer =>
+	?(index.greaterInteger(values.length()))
+		[false] => getElement(values index)
+	0`);
+	});
+	it('branching-over-and-of-index-bounds-narrows-to-index', () => {
+		expectCheck(`f = (values: List(Integer) index: Integer) :> Integer =>
+	?(and(index.greaterInteger(0) index.greaterInteger(values.length()).not()))
+		[true] => getElement(values index)
+	0`);
+	});
+	it('branching-over-greater-than-length-of-definition-narrows-to-index', () => {
+		expectCheck(`f = (values: List(Integer) index: PositiveInteger) :> Integer =>
+	count = values.length()
+	?(index.greaterInteger(count))
+		[false] => getElement(values index)
+	0`);
+	});
+	it('branching-over-greater-than-length-minus-one-narrows-to-index', () => {
+		expectCheck(`f = (values: List(Integer) index: PositiveInteger) :> Integer =>
+	?(index.greaterInteger(values.length().subtract(1)))
+		[false] => getElement(values index)
+	0`);
+	});
+	// Größer als die Länge ist nie ein gültiger Index.
+	it('branching-over-greater-than-length-keeps-empty-in-true-branch', () => {
+		expectErrorCodes(`f = (values: List(Integer) index: PositiveInteger) :> Integer =>
+	?(index.greaterInteger(values.length()))
+		[true] => getElement(values index)
+	0`, [ErrorCode.returnTypeMismatch]);
+	});
+	// Die Länge einer anderen Liste beweist nichts über values.
+	it('branching-over-greater-than-length-of-other-list-keeps-empty', () => {
+		expectErrorCodes(`f = (values: List(Integer) other: List(Integer) index: PositiveInteger) :> Integer =>
+	?(index.greaterInteger(other.length()))
+		[false] => getElement(values index)
+	0`, [ErrorCode.returnTypeMismatch]);
+	});
+	//#endregion Verengung über Längen-Terme
 	it('is-outside-native-signature', () => {
 		expectCheck(`f = (value: Integer) -> Is(value PositiveInteger) => value.greaterInteger(0)`, {
 			errors: [
