@@ -1882,6 +1882,29 @@ f = (values: List(Or(Integer Text))) :> Or([] List(Integer)) =>
 			errors: [],
 		});
 	});
+	// Dasselbe Prädikat als Wächter: Der Arm schließt den Sonderfall mit false aus, der Rest liefert
+	// true. Wahr ist das Ergebnis also nur für Integer.
+	it('filter-narrows-element-type-through-guard-predicate', () => {
+		expectCheck(`isInteger = (value: Any) :> Boolean =>
+	?(value)
+		[Not(Integer)] => false
+	true
+f = (values: List(Or(Integer Text))) :> Or([] List(Integer)) =>
+	values.filter(isInteger)`, {
+			errors: [],
+		});
+	});
+	it('filter-narrows-element-type-through-empty-guard-in-callback', () => {
+		expectCheck(`f = (values: List(Or([] Integer))) :> Or([] List(Integer)) =>
+	values.filter(
+		(value) =>
+			?(value)
+				[Empty] => false
+			true
+	)`, {
+			errors: [],
+		});
+	});
 	// Gegenprobe: ohne erkannte Prädikat-Form bleibt der ElementType unverändert -
 	// TypeOf(predicate)/PredicateIfTrue muss dann neutral (Any) sein, sonst würde And(...)
 	// den ElementType fälschlich einschränken.
@@ -2180,6 +2203,30 @@ f = (state: State) :> Integer =>
 	?(index.greaterInteger(other.length()))
 		[false] => getElement(values index)
 	0`, [ErrorCode.returnTypeMismatch]);
+	});
+	// Ein Typmuster als Wächter verengt den Rest auf das Komplement, auch wenn der Wert eine Länge
+	// ist: Nach [Not(GreaterInteger(1))] ist count größer als 1.
+	it('type-guard-on-length-narrows-rest', () => {
+		expectCheck(`f = (values: List(Integer)) :> GreaterInteger(1) =>
+	count = values.length()
+	?(count)
+		[Not(GreaterInteger(1))] => 2
+	count`);
+	});
+	it('type-guard-on-length-of-field-narrows-rest', () => {
+		expectCheck(`f = (history: [gameStates: List(Integer)]) :> GreaterInteger(1) =>
+	count = history/gameStates.length()
+	?(count)
+		[Not(GreaterInteger(1))] => 2
+	count`);
+	});
+	it('type-guard-on-length-of-field-narrows-index-in-rest', () => {
+		expectCheck(`f = (history: [gameStates: List(Integer)]) :> Integer =>
+	gameStates = history/gameStates
+	count = gameStates.length()
+	?(count)
+		[Not(GreaterInteger(1))] => 0
+	gameStates.getElement(count.subtract(1))`);
 	});
 	//#endregion Verengung über Längen-Terme
 	it('is-outside-native-signature', () => {

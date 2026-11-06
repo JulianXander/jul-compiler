@@ -58,6 +58,19 @@ firstIntegerOf: (values: List(Or(Integer Text))) -> Or(Empty Integer)
 integersOf: (values: List(Or(Integer Text))) -> Or(Empty List(Integer))
 lastIntegerOf: (values: List(Or(Integer Text))) -> Or(Empty Integer)
 mixedValues: [1 §zwei§ 3 §vier§]
+=== core-lib/get-element/get-element.jul ===
+elementOrEmpty: (   values: List(Integer)   index: PositiveInteger ) -> Or(Empty Integer)
+elementOrZero: (   values: List(Integer)   index: PositiveInteger ) -> Integer
+elementOrZeroAnyIndex: (   values: List(Integer)   index: Integer ) -> Integer
+elementOrZeroByCount: (   values: List(Integer)   index: PositiveInteger ) -> Integer
+elementOrZeroByPattern: (   values: List(Integer)   index: PositiveInteger ) -> Integer
+=== core-lib/get-element/get-element.test.jul ===
+elementOrEmpty: (   values: List(Integer)   index: PositiveInteger ) -> Or(Empty Integer)
+elementOrZero: (   values: List(Integer)   index: PositiveInteger ) -> Integer
+elementOrZeroAnyIndex: (   values: List(Integer)   index: Integer ) -> Integer
+elementOrZeroByCount: (   values: List(Integer)   index: PositiveInteger ) -> Integer
+elementOrZeroByPattern: (   values: List(Integer)   index: PositiveInteger ) -> Integer
+values: [10 20 30]
 === core-lib/http-request/http-request.jul ===
 === core-lib/import/file1.jul ===
 === core-lib/import/file2.jul ===

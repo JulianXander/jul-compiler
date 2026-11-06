@@ -1902,8 +1902,20 @@ function getPredicateFacts(
 			0);
 		if (!branchValueType) {
 			if (!isAlwaysFalse) {
-				// Ein branch, der alles matcht und true liefern kann: der Wert kann alles sein.
-				return undefined;
+				// Ein branch, der alles matcht und true liefern kann (der Rest hinter einem Wächter):
+				// Er bekommt genau das, was die vorherigen branches nicht abfangen. Steht das nicht
+				// fest, kann der Wert alles sein.
+				if (caughtUnknown
+					|| !caughtTypes.length) {
+					return undefined;
+				}
+				const restType = createCompileTimeComplementType(createNormalizedUnionType(caughtTypes));
+				ifTrueTypes.push(restType);
+				if (isLiteral) {
+					definitelyTrueTypes.push(restType);
+				}
+				caughtUnknown = true;
+				continue;
 			}
 			// Was dieser branch abfängt, steht nicht fest - danach ist kein branch mehr
 			// nachweislich erreichbar.

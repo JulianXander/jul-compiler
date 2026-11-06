@@ -638,11 +638,14 @@ function mapBoundType(rawType: CompileTimeType, upper: boolean): CompileTimeType
 
 /**
  * Not mit den Randfällen, die als Quelle sonst permissiv blieben: Not(Never) ist alles,
- * Not(Any) nichts, Not(Invalid) bleibt ungültig.
+ * Not(Any) nichts, Not(Invalid) bleibt ungültig. Not(Not(X)) ist X, sonst liest etwa die
+ * Grenzen-Rechnung nach einem Wächter [Not(GreaterInteger(1))] keine Untergrenze aus dem Rest.
  */
 function createNormalizedComplementType(source: CompileTimeType): CompileTimeType {
 	const resolved = resolveAlias(source);
 	switch (resolved.julType) {
+		case 'not':
+			return resolved.SourceType;
 		case 'never':
 			return builtinAny;
 		case 'any':

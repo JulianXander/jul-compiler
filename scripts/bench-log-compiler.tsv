@@ -533,3 +533,6 @@
 2026-11-06 12:15:25	599ab29+	-	ADV-DEV-56627	yugioh	parse+check	5	9891.15	12130.50	12130.50	Längen-Terme in Is-Zusicherungen, Auflösen nur bei Bedarf
 2026-11-06 12:15:25	599ab29+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	707.70	761.34	761.34	Längen-Terme in Is-Zusicherungen, Auflösen nur bei Bedarf
 2026-11-06 12:15:25	599ab29+	-	ADV-DEV-56627	yugioh	parse	5	80.25	105.31	105.31	Längen-Terme in Is-Zusicherungen, Auflösen nur bei Bedarf
+2026-11-06 14:30:55	f4b9c92+	-	ADV-DEV-56627	yugioh	parse+check	5	9449.79	10425.90	10425.90	Wächter-Prädikate und Not(Not(X)), yugioh auf Wächter migriert
+2026-11-06 14:30:55	f4b9c92+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	627.22	673.58	673.58	Wächter-Prädikate und Not(Not(X)), yugioh auf Wächter migriert
+2026-11-06 14:30:55	f4b9c92+	-	ADV-DEV-56627	yugioh	parse	5	71.30	74.50	74.50	Wächter-Prädikate und Not(Not(X)), yugioh auf Wächter migriert
