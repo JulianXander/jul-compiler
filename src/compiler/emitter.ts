@@ -966,6 +966,8 @@ function branchTestToJs(test: BranchTest, argumentJs: string): string {
 				? `(typeof ${argumentJs} === '${test.jsKind}' && ${compareJs})`
 				: compareJs;
 		}
+		case 'not':
+			return `!(${branchTestToJs(test.test, argumentJs)})`;
 		default: {
 			const assertNever: never = test;
 			throw new Error(`Unexpected BranchTest ${(assertNever as BranchTest).kind}`);

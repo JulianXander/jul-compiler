@@ -76,6 +76,12 @@ const boundState = {
 		atk: index % 3 ? 1800n : undefined,
 	})),
 };
+// Dasselbe ohne Schlüssel mit undefined: Die volle Laufzeitprüfung (_branch) lehnt atk: undefined bei atk?: Integer ab,
+// boundState ist für sie kein BoundState. Für den Vergleich mit _branch braucht es einen gültigen Wert.
+const validBoundState = {
+	turn: boundState.turn,
+	cards: boundState.cards.map(({ atk, ...card }) => atk === undefined ? card : { ...card, atk: atk }),
+};
 const hundredIntegers = Array.from({ length: 100 }, (_, index) => BigInt(index + 1));
 const fiftyIntegers = Array.from({ length: 50 }, (_, index) => BigInt(index + 1));
 // Wie ein Spielzustand: ein Record mit vielen Feldern, ein Feld ändert sich je Update
@@ -234,6 +240,20 @@ const cases: BenchCase[] = [
 		file: 'branching.jul',
 		functionName: 'errorOrBoundState',
 		inputs: [new Error('fehler'), boundState],
+		expected: [1n, 2n],
+		calls: 200_000,
+	},
+	{
+		file: 'branching.jul',
+		functionName: 'notGuard',
+		inputs: [undefined, 3n],
+		expected: [0n, 1n],
+		calls: 200_000,
+	},
+	{
+		file: 'branching.jul',
+		functionName: 'notRecordGuard',
+		inputs: [undefined, validBoundState],
 		expected: [1n, 2n],
 		calls: 200_000,
 	},

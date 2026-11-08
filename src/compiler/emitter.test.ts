@@ -649,6 +649,90 @@ f = (x: Phase) =>
 		[GreaterInteger(count)] => 1
 	2`);
 	});
+	it('Kopf Not(Integer) auf Or([] PositiveInteger) wird zum undefined-Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or([] PositiveInteger)) =>
+	?(x)
+		[Not(Integer)] => 1
+	2`, `
+		return x === undefined
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Kopf Not(Liste) auf Or([] List(Integer)) wird zum undefined-Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or([] List(Integer))) =>
+	?(x)
+		[Not(List(Integer))] => 1
+	2`, `
+		return x === undefined
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Kopf Not(Literal) wird zum verneinten Gleichheitsvergleich', () => {
+		expectBranchingEmit(`f = (x: Or(§up§ §down§)) =>
+	?(x)
+		[Not(§up§)] => 1
+	2`, `
+		return !(x === 'up')
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Kopf Not(Union von Literalen) auf Or([] 1 2) wird zum undefined-Vergleich', () => {
+		expectBranchingEmit(`f = (x: Or([] 1 2)) =>
+	?(x)
+		[Not(Or(1 2))] => 1
+	2`, `
+		return x === undefined
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Kopf Not(Record) mit unterscheidendem Feld wird zum verneinten Feldvergleich', () => {
+		expectBranchingEmit(`f = (x: Or([kind: §circle§ radius: Float] [kind: §rect§ width: Float])) =>
+	?(x)
+		[Not([kind: §circle§ radius: Float])] => 1
+	2`, `
+		return !(x?.['kind'] === 'circle')
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('nach Kopf Not(Text) bleibt Text: der folgende Text-Branch braucht keinen Test, kein _noBranchMatched', () => {
+		expectBranchingEmit(`f = (x: Or([] Text)) =>
+	?(x)
+		[Not(Text)] => 1
+		[Text] => 2`, `
+		return x === undefined
+			? (() => {
+				return 1n
+			})()
+			: (() => {
+				return 2n
+			})()`);
+	});
+	it('Rückfall: Kopf Not mit Grenze, die erst zur Laufzeit feststeht', () => {
+		expectBranchingFallback(`f = (x: Integer count: Integer) =>
+	?(x)
+		[Not(GreaterInteger(count))] => 1
+	2`);
+	});
 });
 
 const expectCallEmit = reportAtCaller((code: string, bodyJs: string) => {

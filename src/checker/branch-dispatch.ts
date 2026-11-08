@@ -52,6 +52,8 @@ export type BranchTest =
 	 * Grenze, vor dem Vergleich wird sie geprüft.
 	 */
 	| { kind: 'bound'; relation: 'greater' | 'less'; value: LiteralValue; jsKind: 'bigint' | 'number'; guarded: boolean; }
+	/** Kopf Not(X): der Test für X, verneint */
+	| { kind: 'not'; test: BranchTest; }
 	;
 
 export type LiteralValue = bigint | string | boolean | number;
@@ -222,9 +224,56 @@ function getBranchStep(
 	remaining: CompileTimeType[],
 	required: CompileTimeType,
 ): BranchStep | undefined {
+	if (required.julType === 'not') {
+		return getNotStep(remaining, required.SourceType);
+	}
 	return getKindStep(remaining, required)
 		?? getBoundStep(remaining, required)
 		?? getSingletonStep(remaining, required);
+}
+
+/**
+ * Der Kopf ist Not(X) (früher Ausstieg wie [Not(GameCardId)] => …): Der Test für X, verneint, ist für jeden
+ * Wert genauso exakt wie der Test für X selbst. Nach dem branch bleibt, was X fängt. Genau bekannt ist das nur,
+ * wenn der Schritt für X die Glieder vollständig teilt (Laufzeitart, Einzelwerte). Bei Literal, Grenze und
+ * Feld kann ein Glied teilweise gefangen sein (1 aus Integer), dann bleibt der ganze Rest: weniger genau für
+ * die folgenden branches, aber nie falsch.
+ */
+function getNotStep(
+	remaining: CompileTimeType[],
+	source: CompileTimeType,
+): BranchStep | undefined {
+	const sourceStep = getBranchStep(remaining, resolveAlias(source));
+	if (!sourceStep) {
+		return undefined;
+	}
+	const sourceTest = sourceStep.test;
+	const isPartition = sourceTest.kind === 'always'
+		|| sourceTest.kind === 'never'
+		|| sourceTest.kind === 'jsKind'
+		|| sourceTest.kind === 'literals';
+	return {
+		test: negateBranchTest(sourceTest),
+		remaining: isPartition
+			? remaining.filter(member => !sourceStep.remaining.includes(member))
+			: remaining,
+	};
+}
+
+function negateBranchTest(test: BranchTest): BranchTest {
+	switch (test.kind) {
+		case 'always':
+			return { kind: 'never' };
+		case 'never':
+			return { kind: 'always' };
+		case 'jsKind':
+			// k1 || k2 verneint ist !k1 && !k2, genau die negierte Form des Tests
+			return { ...test, negated: !test.negated };
+		case 'not':
+			return test.test;
+		default:
+			return { kind: 'not', test: test };
+	}
 }
 
 /**

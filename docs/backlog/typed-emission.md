@@ -60,6 +60,8 @@ Datei (`syntaxTreeToJs`), nicht beim Constant Folding mitten im Checklauf (`func
 | `literal` | Literal-Kopf | `x === 1n`, `x === 'a'` |
 | `field` | unterscheidendes Feld mit Literaltyp | `x?.['kind'] === 'circle'` |
 | `bound` | Grenztyp-Kopf mit Literal-Grenze, bei fremden Laufzeitarten mit Test der Art davor | `x > 1n`, `(typeof x === 'bigint' && x > 1n)` |
+| `literals` | Kopf ist eine Union aus Einzelwerten (Literale, Empty) | `x === 'draw' \|\| x === 'standby'` |
+| `not` | Kopf `Not(X)`: der Test für `X`, verneint (bei `jsKind` die negierte Form) | `!(x === 'up')`, `x === undefined` für `[Not(GameCardId)]` auf `Or([] GameCardId)` |
 
 **Rechnung.** Der Argumenttyp wird in seine Glieder zerlegt (Or aufgelöst, Aliase aufgelöst, Never entfernt).
 Je Branch mit gefordertem Typ `P` wird jedes noch mögliche Glied eingeordnet:
@@ -86,6 +88,13 @@ Test allein das nicht sagt (letztes Literal einer Literal-Union).
   steht der Test der Art davor, denn `'5' > 1n` ist in JS `true`. Eine Grenze, die erst zur Laufzeit feststeht
   (`GreaterInteger(count)`), führt zum Rückfall. Bereiche (`And(GreaterInteger(0) LessInteger(10))`) kennt der
   Dispatch noch nicht.
+- **Not-Kopf** (`[Not(GameCardId)] => …`, das übliche Muster für einen frühen Ausstieg): erst der Schritt für `X`, dann
+  der Test verneint. Er ist genauso exakt wie der für `X`. Nach dem Branch bleibt, was `X` fängt. Genau bekannt ist
+  das nur, wenn der Schritt für `X` die Glieder vollständig teilt (`always`, `never`, `jsKind`, `literals`). Bei
+  Literal, Grenze und Feld kann ein Glied teilweise gefangen sein (1 aus Integer), dann bleibt der ganze Rest: weniger
+  genau für die folgenden Branches, nie falsch. Ohne Schritt für `X` Rückfall. Wie überall gilt der statische Typ:
+  Ein Wert, den erst die volle Laufzeitprüfung ablehnt (etwa `atk: undefined` bei `atk?: Integer`), nimmt jetzt den
+  Branch, den sein statischer Typ verspricht, nicht mehr den Not-Branch.
 - Sonst Rückfall auf `_branch` für das ganze Branching.
 
 **Any macht ein Glied unbrauchbar.** Die Teilmengenprüfung des Checkers ist für `Any` permissiv, sie hält
@@ -140,6 +149,11 @@ kommen sie vom Funktionsliteral.
 
 Der Fall `namedSwapped` ist entfallen (umsortierte Argumente sind seit JUL2501 ein Fehler). In yugioh laufen nach
 Schritt 1 70 von 249 Branchings weiter über `_branch`.
+
+Not-Kopf (2026-11-08, `npm run bench-runtime -- branching`): `notGuard` (`[Not(PositiveInteger)]` auf
+`Or([] PositiveInteger)`) 64,3 → 6,6 ms, `notRecordGuard` (`[Not(BoundState)]`, Record mit 60 Karten) 4570 → 6,6 ms.
+In yugioh sinken die `_branch`-Stellen im Bundle von 82 auf 15. Engine-Benchmark (`measure-engine.js`, A/B im
+Wechsel): `applyToGameState` −26 %, Partie Greedy gegen Greedy −19 %, `getLegalInputs` −4 %.
 
 ## Später: Hinweis bei unvermeidbarer voller Prüfung
 
