@@ -43,7 +43,7 @@ const runtimeKeys = Object.keys(runtime);
 export function typeToConstantValue(type: CompileTimeType): { value: unknown; } | undefined {
 	switch (type.julType) {
 		case 'integerLiteral':
-			// Wie zur Laufzeit kanonisch: number im sicheren Bereich (docs/backlog/integer-als-number.md)
+			// Wie zur Laufzeit kanonisch: number im sicheren Bereich (docs/integer-darstellung.md)
 			return { value: runtime._toCanonicalInteger(type.value) };
 		case 'floatLiteral':
 		case 'textLiteral':
@@ -232,7 +232,7 @@ export const maxFoldedTupleLength = 1_000;
  * heute für ungefaltete Aufrufe. NaN/Infinity/-Infinity bleiben ungefaltet: ein Literaltyp dafür
  * wäre darstellbar, aber bedeutungslos.
  *
- * Integer sind zur Laufzeit kanonisch number im sicheren Bereich (docs/backlog/integer-als-number.md), eine
+ * Integer sind zur Laufzeit kanonisch number im sicheren Bereich (docs/integer-darstellung.md), eine
  * ganzzahlige number kann also Integer oder Float sein. mayContainFloat (aus dem Rückgabetyp, typeMayContainFloat):
  * Kann das Ergebnis Floats enthalten, bleibt eine ganzzahlige number ungefaltet, sonst wird sie zum Integer-Literal.
  */

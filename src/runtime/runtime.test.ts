@@ -9,7 +9,7 @@ import {
 
 //#region kanonische Integer
 
-// docs/backlog/integer-als-number.md: number im sicheren Bereich, sonst bigint
+// docs/integer-darstellung.md: number im sicheren Bereich, sonst bigint
 describe('kanonische Integer', () => {
 	const maxSafe = Number.MAX_SAFE_INTEGER;
 	const maxSafeBig = BigInt(maxSafe);
@@ -85,6 +85,12 @@ describe('_fromTs', () => {
 		const wrapped = _fromTs((value: bigint | undefined) => value, ['f', ['i'], null, 'i']);
 		expect(wrapped(undefined)).to.equal(undefined);
 		expect(wrapped('text')).to.equal('text');
+	});
+	it('wandelt ein Modul-Objekt wie einen Record (x = import(§….ts§))', async () => {
+		const module = await import('data:text/javascript,export const next = (value) => value + 1n; export const name = "m";');
+		const wrapped = _fromTs(module, ['d', { next: ['f', ['i'], null, 'i'] }]);
+		expect(wrapped.next(41)).to.equal(42);
+		expect(wrapped.name).to.equal('m');
 	});
 });
 

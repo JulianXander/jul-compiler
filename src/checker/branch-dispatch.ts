@@ -629,7 +629,7 @@ function containsAny(type: CompileTimeType, visitedAliases: Set<CompileTimeType>
 
 /**
  * Die Laufzeitarten, die ein Wert dieses Typs haben kann. undefined = nicht bestimmbar.
- * Ein Integer ist kanonisch number im sicheren Bereich, sonst bigint (docs/backlog/integer-als-number.md).
+ * Ein Integer ist kanonisch number im sicheren Bereich, sonst bigint (docs/integer-darstellung.md).
  */
 function getJsKinds(type: CompileTimeType): Set<JsKind> | undefined {
 	const resolved = resolveAlias(type);

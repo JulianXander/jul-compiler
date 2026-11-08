@@ -356,8 +356,17 @@ function expressionToJs(
 				const importedJs = isValueImport(value)
 					? aliasJs
 					: `* as ${aliasJs}`;
+				// Aus TypeScript: das Modul (oder der default-Export) mit Integer im Typ an der Grenze umwandeln, wie beim
+				// Destructuring. Ein Modul-Objekt wird dabei wie ein Record kopiert.
+				const typeInfo = useTypeInfo && isTsImport(value)
+					? getTypeInfo(checkResult, value)
+					: undefined;
+				const spec = typeInfo && getTsConversionSpec(typeInfo.type, new Set());
+				const valueJs = spec
+					? `_fromTs(${aliasJs}, ${JSON.stringify(spec)})`
+					: aliasJs;
 				return `${getImportJs(importedJs, importPath)}
-${getDefinitionJs(topLevel, nameJs, aliasJs)}`;
+${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			}
 			const valueJs = expressionToJs(checkResult, value, indent);
 			// _ bindet nichts: nur auswerten. Als letzter Ausdruck eines Rumpfs ist es ein Fehler,
@@ -1419,7 +1428,7 @@ function operandToJs(operand: ParseExpression, operandJs: string): string {
 
 /**
  * Ein Integer-Literal in kanonischer Darstellung: number im sicheren Bereich, sonst bigint
- * (docs/backlog/integer-als-number.md).
+ * (docs/integer-darstellung.md).
  */
 function integerToJs(value: bigint): string {
 	return value <= maxSafeBigInt && value >= -maxSafeBigInt
@@ -1439,7 +1448,7 @@ const integerArithmeticOperators: { readonly [functionName: string]: { helperJs:
  * add, subtract und multiply sind in der Runtime generisch über Rational (Integer oder Fraction), add und multiply
  * variadisch. Sind alle Operanden laut Typ Integer, genügt der Integer-Helfer der Runtime (_addInteger usw.): Er
  * rechnet im sicheren Bereich mit number und weicht nur bei Überlauf auf bigint aus
- * (docs/backlog/integer-als-number.md, Stufen 1 und 2). Variadische Aufrufe werden linksassoziativ verschachtelt.
+ * (docs/integer-darstellung.md). Variadische Aufrufe werden linksassoziativ verschachtelt.
  * Nur mit Typinformation, bei Spread und benannten Argumenten bleibt es beim Aufruf. Builtins lassen sich nicht
  * überdecken (JUL3203), der Name genügt.
  */
@@ -1503,7 +1512,7 @@ interface EmittedIntegerOperand {
 
 /**
  * Eine Rechnung mit zwei Operanden. Liegen beide Operanden und das Ergebnis laut Bereich sicher im sicheren Bereich,
- * sind beide number und das Ergebnis ist es auch: dann der JS-Operator ohne Prüfung (Stufe 3), sonst der Helfer.
+ * sind beide number und das Ergebnis ist es auch: dann der JS-Operator ohne Prüfung, sonst der Helfer.
  */
 function integerOperationToJs(
 	operator: { helperJs: string; },
@@ -1543,7 +1552,7 @@ function integerOperationToJs(
 
 /**
  * Die Grenzen eines Integer-Ausdrucks laut Typ, beide inklusive, undefined = offen oder nicht ablesbar
- * (docs/backlog/integer-als-number.md, Stufe 3).
+ * (docs/integer-darstellung.md).
  */
 interface IntegerBounds {
 	min?: bigint;

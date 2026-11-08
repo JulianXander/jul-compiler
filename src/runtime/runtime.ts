@@ -135,7 +135,7 @@ export function _isOfType(value: any, type: RuntimeType): boolean {
 						}
 						break;
 					case 'integer':
-						// Kanonisch: number im sicheren Bereich, sonst bigint (docs/backlog/integer-als-number.md)
+						// Kanonisch: number im sicheren Bereich, sonst bigint (docs/integer-darstellung.md)
 						if (_isInteger(value)) {
 							return true;
 						}
@@ -630,7 +630,7 @@ interface RuntimeFraction {
 /**
  * Ein Integer-Wert, kanonisch dargestellt: number im sicheren Bereich (|v| ≤ 2^53 - 1), sonst bigint.
  * Derselbe Wert hat so immer dieselbe Darstellung, === und isDeepEqual bleiben korrekt.
- * Siehe docs/backlog/integer-als-number.md.
+ * Siehe docs/integer-darstellung.md.
  */
 export type RuntimeInteger = number | bigint;
 

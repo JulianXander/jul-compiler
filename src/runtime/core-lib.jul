@@ -86,7 +86,7 @@ NonZeroFloat = Float.Without(0f)
 Integer = nativeValue(§Integer§)
 # Wie Integer, nur für Signaturen aus TypeScript: Ein Parameter vom TS-Typ CanonicalInteger (number | bigint) bekommt
 # Integer in der kanonischen Laufzeitdarstellung (number im sicheren Bereich, sonst bigint), ohne Umwandlung an der
-# Grenze. TS-Typ bigint dagegen wird an der Grenze umgewandelt (docs/backlog/integer-als-number.md).
+# Grenze. TS-Typ bigint dagegen wird an der Grenze umgewandelt (docs/integer-darstellung.md).
 CanonicalInteger = Integer
 NonZeroInteger = Integer.Without(0)
 # Die ganzen Zahlen größer als value.

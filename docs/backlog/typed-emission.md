@@ -57,9 +57,9 @@ Datei (`syntaxTreeToJs`), nicht beim Constant Folding mitten im Checklauf (`func
 | `always` | fängt alles, was noch möglich ist; folgende Branches entfallen | kein Test |
 | `never` | fängt nichts mehr von dem, was noch möglich ist | Branch entfällt |
 | `jsKind` | Laufzeitart, direkt oder negiert | `x !== undefined`, `typeof x === 'string'`, `Array.isArray(x)`, `x instanceof Date` |
-| `literal` | Literal-Kopf | `x === 1n`, `x === 'a'` |
+| `literal` | Literal-Kopf | `x === 1`, `x === 'a'` (Integer-Literale kanonisch, `1n` erst jenseits von 2^53) |
 | `field` | unterscheidendes Feld mit Literaltyp | `x?.['kind'] === 'circle'` |
-| `bound` | Grenztyp-Kopf mit Literal-Grenze, bei fremden Laufzeitarten mit Test der Art davor | `x > 1n`, `(typeof x === 'bigint' && x > 1n)` |
+| `bound` | Grenztyp-Kopf mit Literal-Grenze, bei fremden Laufzeitarten mit Test der Art davor | `x > 1`, `((typeof x === 'number' \|\| typeof x === 'bigint') && x > 1)` |
 | `literals` | Kopf ist eine Union aus Einzelwerten (Literale, Empty) | `x === 'draw' \|\| x === 'standby'` |
 | `not` | Kopf `Not(X)`: der Test für `X`, verneint (bei `jsKind` die negierte Form) | `!(x === 'up')`, `x === undefined` für `[Not(GameCardId)]` auf `Or([] GameCardId)` |
 
@@ -102,7 +102,7 @@ Test allein das nicht sagt (letztes Literal einer Literal-Union).
 führt deshalb zum Rückfall.
 
 Laufzeitarten, passend zu `getTypeError` in der Runtime: `empty→undefined`, `boolean(Literal)→boolean`,
-`integer(Literal)→bigint`, `float(Literal)→number`, `text(Literal)→string`, `list/tuple→array`, `function→function`,
+`integer→number oder bigint` (ein Literal genau eine von beiden, siehe `docs/integer-darstellung.md`), `float(Literal)→number`, `text(Literal)→string`, `list/tuple→array`, `function→function`,
 `date/blob/error→instanceof`, `dictionary/dictionaryLiteral/stream→object`. Alles andere ist unbestimmt. Fraction ist
 zur Laufzeit ein einfaches Objekt und fällt mit Dictionary unter `object`.
 
