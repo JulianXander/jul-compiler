@@ -18,7 +18,7 @@ import {
 
 describe('typeToConstantValue', () => {
 	it('liest ein Integer-Literal', () => {
-		expect(typeToConstantValue(createIntegerLiteral(5n))).to.deep.equal({ value: 5n });
+		expect(typeToConstantValue(createIntegerLiteral(5n))).to.deep.equal({ value: 5 });
 	});
 	it('liest ein Float-Literal', () => {
 		expect(typeToConstantValue(createFloatLiteral(1.5))).to.deep.equal({ value: 1.5 });
@@ -34,14 +34,14 @@ describe('typeToConstantValue', () => {
 	});
 	it('liest ein Tuple aus Literalen', () => {
 		const tuple = createCompileTimeTupleType([createIntegerLiteral(1n), createIntegerLiteral(2n)]);
-		expect(typeToConstantValue(tuple)).to.deep.equal({ value: [1n, 2n] });
+		expect(typeToConstantValue(tuple)).to.deep.equal({ value: [1, 2] });
 	});
 	it('liest ein Dictionary-Literal aus Literalen (Bruch)', () => {
 		const fraction = createCompileTimeDictionaryLiteralType(toRequiredFields({
 			numerator: createIntegerLiteral(1n),
 			denominator: createIntegerLiteral(2n),
 		}), true);
-		expect(typeToConstantValue(fraction)).to.deep.equal({ value: { numerator: 1n, denominator: 2n } });
+		expect(typeToConstantValue(fraction)).to.deep.equal({ value: { numerator: 1, denominator: 2 } });
 	});
 	// Ein Typ als Argument (Integer in aggregate(values Integer ...)) hat den Typ TypeOf(Integer);
 	// sein Wert ist das Laufzeitobjekt des Typs.
@@ -70,7 +70,7 @@ describe('typeToConstantValue', () => {
 
 describe('constantValueToType', () => {
 	it('übersetzt einen bigint zu einem Integer-Literal', () => {
-		expect(constantValueToType(5n)).to.deep.equal(createIntegerLiteral(5n));
+		expect(constantValueToType(5)).to.deep.equal(createIntegerLiteral(5n));
 	});
 	it('übersetzt eine number zu einem Float-Literal', () => {
 		expect(constantValueToType(1.5)).to.deep.equal(createFloatLiteral(1.5));
@@ -97,18 +97,18 @@ describe('constantValueToType', () => {
 		expect(constantValueToType(new Error('invalid'))).to.equal(builtinError);
 	});
 	it('übersetzt ein Array zu einem Tuple', () => {
-		expect(constantValueToType([1n, 2n])).to.deep.equal(
+		expect(constantValueToType([1, 2])).to.deep.equal(
 			createCompileTimeTupleType([createIntegerLiteral(1n), createIntegerLiteral(2n)]));
 	});
 	it('übersetzt ein Array mit der maximalen Länge noch zu einem Tuple', () => {
-		const type = constantValueToType(new Array(maxFoldedTupleLength).fill(1n));
+		const type = constantValueToType(new Array(maxFoldedTupleLength).fill(1));
 		expect(type?.julType).to.equal('tuple');
 	});
 	it('faltet ein Array über der maximalen Länge nicht', () => {
-		expect(constantValueToType(new Array(maxFoldedTupleLength + 1).fill(1n))).to.equal(undefined);
+		expect(constantValueToType(new Array(maxFoldedTupleLength + 1).fill(1))).to.equal(undefined);
 	});
 	it('übersetzt ein Objekt zu einem vollständigen Dictionary-Literal (Bruch)', () => {
-		expect(constantValueToType({ numerator: 1n, denominator: 2n })).to.deep.equal(
+		expect(constantValueToType({ numerator: 1, denominator: 2 })).to.deep.equal(
 			createCompileTimeDictionaryLiteralType(toRequiredFields({
 				numerator: createIntegerLiteral(1n),
 				denominator: createIntegerLiteral(2n),

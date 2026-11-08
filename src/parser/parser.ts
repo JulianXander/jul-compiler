@@ -1726,10 +1726,11 @@ function numberParser(
 			hasParsed: true,
 			endRowIndex: startRowIndex,
 			endColumnIndex: endColumnIndex,
-			parsed: typeof normalized === 'bigint'
+			parsed: typeof normalized !== 'object'
 				? {
 					type: 'integer',
-					value: normalized,
+					// Im Syntaxbaum bleiben Integer bigint, kanonisch ist nur die Laufzeitdarstellung
+					value: BigInt(normalized),
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
 					endRowIndex: startRowIndex,
@@ -1737,8 +1738,8 @@ function numberParser(
 				}
 				: {
 					type: 'fraction',
-					numerator: normalized.numerator,
-					denominator: normalized.denominator,
+					numerator: BigInt(normalized.numerator),
+					denominator: BigInt(normalized.denominator),
 					startRowIndex: startRowIndex,
 					startColumnIndex: startColumnIndex,
 					endRowIndex: startRowIndex,

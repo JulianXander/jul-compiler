@@ -13,6 +13,8 @@ import {
 	ParseReference,
 	PositionedExpression,
 	SimpleExpression,
+	builtinInteger,
+	CompileTimeType,
 	discardName,
 	forEachChild,
 } from '../syntax-tree.js';
@@ -25,7 +27,7 @@ import { extname, isAbsolute } from 'path';
 import { getPathExpression, getPathFromImport as getImportedPath, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
 import { getCheckedEscapableName, getJunction, getTestCallArguments, julHasDefaultExport } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getAssumeTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
-import { hasArgumentSubstitution, typeToString, valueOf } from '../checker/type-algebra.js';
+import { hasArgumentSubstitution, isFunctionType, isParametersType, isSubtypeOf, resolveAlias, resolvePlaceholders, typeToString, valueOf } from '../checker/type-algebra.js';
 import { classifyCopySource, copyingBuiltinNames } from './copy-sites.js';
 
 const runtimeKeys = Object.keys(runtime);
@@ -211,7 +213,10 @@ export function jsonValueToJs(value: JsonValue): string {
 function jsonValueToJsExpression(value: JsonValue | null): string {
 	switch (typeof value) {
 		case 'bigint':
-			return `${value}n`;
+			return integerToJs(value);
+		case 'number':
+			// _parseJson liefert ganze Zahlen im sicheren Bereich als number (kanonisch), nie einen Float
+			return '' + value;
 		case 'boolean':
 			return '' + value;
 		case 'string':
@@ -373,14 +378,26 @@ ${getDefinitionJs(topLevel, nameJs, aliasJs)}`;
 			}
 			if (isImportFunctionCall(value)) {
 				const importPath = getPathFromImport(value);
-				return getImportJs(`{${fields.map(field => {
+				// Aus TypeScript: Werte mit Integer im Typ an der Grenze umwandeln (TS bekommt bigint, Jul kanonische Integer)
+				const moduleType = useTypeInfo && isTsImport(value)
+					? getTypeInfo(checkResult, value)?.type
+					: undefined;
+				const wrapped: string[] = [];
+				const importJs = getImportJs(`{${fields.map(field => {
 					const name = field.name.name;
 					const nameJs = escapeReservedJsVariableName(name);
 					const source = field.source?.name;
+					const sourceJs = escapeReservedJsVariableName(source ?? name);
+					const spec = moduleType && getTsConversionSpec(getModuleFieldType(moduleType, source ?? name), new Set());
+					if (spec) {
+						wrapped.push(`const ${nameJs} = _fromTs(_ts_${nameJs}, ${JSON.stringify(spec)});\n`);
+						return `${sourceJs} as _ts_${nameJs}`;
+					}
 					return source
-						? `${escapeReservedJsVariableName(source)} as ${nameJs}`
+						? `${sourceJs} as ${nameJs}`
 						: nameJs;
 				}).join(', ')}}`, importPath);
+				return importJs + wrapped.join('');
 			}
 			// TODO spread
 			const delimiterJs = getRowDelimiterJs(indent);
@@ -441,7 +458,7 @@ ${getDefinitionJs(topLevel, nameJs, aliasJs)}`;
 		case 'float':
 			return '' + expression.value;
 		case 'fraction':
-			return `{numerator:${expression.numerator}n,denominator:${expression.denominator}n}`;
+			return `{numerator:${integerToJs(expression.numerator)},denominator:${integerToJs(expression.denominator)}}`;
 		case 'functionCall': {
 			const callJs = functionCallToJs(checkResult, expression, indent);
 			// Der Checker hat den Aufruf einer Typfunktion im eigenen Rumpf als Anwendung markiert. Sofort
@@ -480,7 +497,7 @@ ${getDefinitionJs(topLevel, nameJs, aliasJs)}`;
 		case 'functionTypeLiteral':
 			return `_Function`;
 		case 'integer':
-			return `${expression.value}n`;
+			return integerToJs(expression.value);
 		case 'list': {
 			const jsValues = parseListValuesToJs(checkResult, expression.values, indent, expression);
 			return listToJs(jsValues, indent);
@@ -576,6 +593,117 @@ function getImportJs(importedJs: string, path: string): string {
 	const isJson = path.endsWith(Extension.json);
 	const pathWithFileScheme = (isAbsolute(path) ? 'file://' : '') + path;
 	return `import ${importedJs} from ${stringToJs(pathWithFileScheme)}${isJson ? ' with { type: \'json\' }' : ''};\n`;
+}
+
+/** import(§…/datei.ts§) */
+function isTsImport(importExpression: ParseFunctionCall): boolean {
+	const args = importExpression.arguments;
+	const pathExpression = args && getPathExpression(args);
+	return !!pathExpression
+		&& pathExpression.type === 'text'
+		&& pathExpression.values.length === 1
+		&& pathExpression.values[0]!.type === 'textToken'
+		&& extname(pathExpression.values[0].value) === Extension.ts;
+}
+
+/** Der Typ eines Exports im Typ eines importierten Moduls (ein Record der Exporte) */
+function getModuleFieldType(moduleType: CompileTimeType, name: string): CompileTimeType | undefined {
+	const resolved = resolveAlias(resolvePlaceholders(moduleType));
+	return resolved.julType === 'dictionaryLiteral'
+		? resolved.FieldTypes[name]
+		: undefined;
+}
+
+/**
+ * Wie ein Wert dieses Typs an der Grenze zu TypeScript umgewandelt wird (runtime.ts, TsConversionSpec).
+ * undefined: keine Umwandlung nötig, der Wert enthält keinen Integer.
+ */
+function getTsConversionSpec(rawType: CompileTimeType | undefined, visited: Set<CompileTimeType>): runtime.TsConversionSpec | undefined {
+	if (!rawType
+		|| visited.has(rawType)) {
+		return undefined;
+	}
+	visited.add(rawType);
+	try {
+		// TS-Typ CanonicalInteger: Die TS-Funktion verarbeitet kanonische Integer selbst (core-lib.jul)
+		if (rawType.julType === 'alias'
+			&& rawType.name === 'CanonicalInteger') {
+			return undefined;
+		}
+		const type = resolveAlias(rawType);
+		switch (type.julType) {
+			case 'integer':
+			case 'integerLiteral':
+				return 'i';
+			case 'bound':
+				return type.Family === 'integer'
+					? 'i'
+					: undefined;
+			case 'list': {
+				const elementSpec = getTsConversionSpec(type.ElementType, visited);
+				return elementSpec && ['l', elementSpec];
+			}
+			case 'dictionary': {
+				const elementSpec = getTsConversionSpec(type.ElementType, visited);
+				return elementSpec && ['m', elementSpec];
+			}
+			case 'tuple': {
+				const elementSpecs = type.ElementTypes.map(elementType => getTsConversionSpec(elementType, visited) ?? null);
+				return elementSpecs.some(spec => spec)
+					? ['t', elementSpecs]
+					: undefined;
+			}
+			case 'dictionaryLiteral': {
+				const fieldSpecs: { [field: string]: runtime.TsConversionSpec; } = {};
+				let hasSpec = false;
+				for (const [field, fieldType] of Object.entries(type.FieldTypes)) {
+					const fieldSpec = getTsConversionSpec(fieldType, visited);
+					if (fieldSpec) {
+						fieldSpecs[field] = fieldSpec;
+						hasSpec = true;
+					}
+				}
+				return hasSpec
+					? ['d', fieldSpecs]
+					: undefined;
+			}
+			case 'or':
+			case 'and': {
+				const choiceSpecs = type.ChoiceTypes
+					.map(choiceType => getTsConversionSpec(choiceType, visited))
+					.filter(isDefined);
+				if (!choiceSpecs.length) {
+					return undefined;
+				}
+				return choiceSpecs.length === 1
+					? choiceSpecs[0]
+					: ['u', choiceSpecs];
+			}
+			default: {
+				if (!isFunctionType(type)) {
+					return undefined;
+				}
+				const paramsType = resolveAlias(type.ParamsType);
+				const paramSpecs = isParametersType(paramsType)
+					? paramsType.singleNames.map(parameter => getTsConversionSpec(parameter.type, visited) ?? null)
+					: [];
+				const restSpec = isParametersType(paramsType) && paramsType.rest
+					? getTsConversionSpec(paramsType.rest.type, visited) ?? null
+					: null;
+				// Rest-Parameter sind eine Liste: je Argument gilt der Elementtyp
+				const restElementSpec = restSpec && typeof restSpec !== 'string' && restSpec[0] === 'l'
+					? restSpec[1]
+					: restSpec;
+				const returnSpec = getTsConversionSpec(type.ReturnType, visited) ?? null;
+				return paramSpecs.some(spec => spec) || restElementSpec || returnSpec
+					? ['f', paramSpecs, restElementSpec, returnSpec]
+					: undefined;
+			}
+		}
+	}
+	finally {
+		visited.delete(rawType);
+	}
 }
 
 function getPathFromImport(importExpression: ParseFunctionCall): string {
@@ -963,7 +1091,7 @@ function branchTestToJs(test: BranchTest, argumentJs: string): string {
 		case 'bound': {
 			const compareJs = `${argumentJs} ${test.relation === 'greater' ? '>' : '<'} ${literalValueToJs(test.value)}`;
 			return test.guarded
-				? `(typeof ${argumentJs} === '${test.jsKind}' && ${compareJs})`
+				? `(${test.jsKinds.length === 1 ? `typeof ${argumentJs} === '${test.jsKinds[0]}'` : `(${test.jsKinds.map(kind => `typeof ${argumentJs} === '${kind}'`).join(' || ')})`} && ${compareJs})`
 				: compareJs;
 		}
 		case 'not':
@@ -1008,7 +1136,7 @@ function jsKindTestToJs(kind: JsKind, argumentJs: string, negated: boolean): str
 function literalValueToJs(value: LiteralValue | undefined): string {
 	switch (typeof value) {
 		case 'bigint':
-			return `${value}n`;
+			return integerToJs(value);
 		case 'string':
 			return stringToJs(value);
 		case 'undefined':
@@ -1162,6 +1290,10 @@ function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCal
 	if (shortCircuitJs !== undefined) {
 		return shortCircuitJs;
 	}
+	const integerArithmeticJs = integerArithmeticCallToJs(checkResult, expression, prefixArgJs, indent);
+	if (integerArithmeticJs !== undefined) {
+		return integerArithmeticJs;
+	}
 	const functionJs = expressionToJs(checkResult, functionExpression, indent);
 	const testCallName = expression === instrumentedTestCall
 		&& functionExpression.type === 'reference'
@@ -1283,6 +1415,321 @@ function operandToJs(operand: ParseExpression, operandJs: string): string {
 
 //#endregion short circuit
 
+//#region Integer-Arithmetik
+
+/**
+ * Ein Integer-Literal in kanonischer Darstellung: number im sicheren Bereich, sonst bigint
+ * (docs/backlog/integer-als-number.md).
+ */
+function integerToJs(value: bigint): string {
+	return value <= maxSafeBigInt && value >= -maxSafeBigInt
+		? `${value}`
+		: `${value}n`;
+}
+
+const maxSafeBigInt = BigInt(Number.MAX_SAFE_INTEGER);
+
+const integerArithmeticOperators: { readonly [functionName: string]: { helperJs: string; minOperands: number; maxOperands: number; } | undefined; } = {
+	add: { helperJs: '_addInteger', minOperands: 1, maxOperands: Infinity },
+	multiply: { helperJs: '_multiplyInteger', minOperands: 1, maxOperands: Infinity },
+	subtract: { helperJs: '_subtractInteger', minOperands: 2, maxOperands: 2 },
+};
+
+/**
+ * add, subtract und multiply sind in der Runtime generisch über Rational (Integer oder Fraction), add und multiply
+ * variadisch. Sind alle Operanden laut Typ Integer, genügt der Integer-Helfer der Runtime (_addInteger usw.): Er
+ * rechnet im sicheren Bereich mit number und weicht nur bei Überlauf auf bigint aus
+ * (docs/backlog/integer-als-number.md, Stufen 1 und 2). Variadische Aufrufe werden linksassoziativ verschachtelt.
+ * Nur mit Typinformation, bei Spread und benannten Argumenten bleibt es beim Aufruf. Builtins lassen sich nicht
+ * überdecken (JUL3203), der Name genügt.
+ */
+function integerArithmeticCallToJs(checkResult: CheckResult, expression: ParseFunctionCall, prefixArgJs: string, indent: number): string | undefined {
+	if (!useTypeInfo) {
+		return undefined;
+	}
+	const functionExpression = expression.functionExpression;
+	const args = expression.arguments;
+	if (functionExpression?.type !== 'reference') {
+		return undefined;
+	}
+	const operator = integerArithmeticOperators[functionExpression.name.name];
+	if (!operator) {
+		return undefined;
+	}
+	let values: ParseValueExpression[];
+	switch (args?.type) {
+		case 'list':
+			if (args.values.some(value => value.type === 'spread')) {
+				return undefined;
+			}
+			values = args.values as ParseValueExpression[];
+			break;
+		case undefined:
+		case 'empty':
+			values = [];
+			break;
+		default:
+			return undefined;
+	}
+	const operands = expression.prefixArgument
+		? [expression.prefixArgument, ...values]
+		: values;
+	if (operands.length < operator.minOperands
+		|| operands.length > operator.maxOperands
+		|| !operands.every(operand => isIntegerTyped(checkResult, operand))) {
+		return undefined;
+	}
+	const emitted = operands.map((operand): EmittedIntegerOperand => {
+		const js = operand === expression.prefixArgument
+			? prefixArgJs
+			: expressionToJs(checkResult, operand, indent);
+		return {
+			js: js,
+			isPrimary: operand.type === 'reference'
+				|| operand.type === 'nestedReference'
+				|| /^-?\d+n?$/.test(js),
+			bounds: getExpressionIntegerBounds(checkResult, operand),
+		};
+	});
+	return emitted.reduce((accumulator, operand) => integerOperationToJs(operator, accumulator, operand)).js;
+}
+
+interface EmittedIntegerOperand {
+	js: string;
+	/** Braucht als Operand von + - * keine Klammern. */
+	isPrimary: boolean;
+	bounds: IntegerBounds;
+}
+
+/**
+ * Eine Rechnung mit zwei Operanden. Liegen beide Operanden und das Ergebnis laut Bereich sicher im sicheren Bereich,
+ * sind beide number und das Ergebnis ist es auch: dann der JS-Operator ohne Prüfung (Stufe 3), sonst der Helfer.
+ */
+function integerOperationToJs(
+	operator: { helperJs: string; },
+	left: EmittedIntegerOperand,
+	right: EmittedIntegerOperand,
+): EmittedIntegerOperand {
+	const bounds = getIntegerOperationBounds(operator.helperJs, left.bounds, right.bounds);
+	if (!isSafeIntegerBounds(left.bounds)
+		|| !isSafeIntegerBounds(right.bounds)
+		|| !isSafeIntegerBounds(bounds)) {
+		return {
+			js: `${operator.helperJs}(${left.js}, ${right.js})`,
+			isPrimary: true,
+			bounds: bounds,
+		};
+	}
+	const leftJs = left.isPrimary ? left.js : `(${left.js})`;
+	const rightJs = right.isPrimary ? right.js : `(${right.js})`;
+	switch (operator.helperJs) {
+		case '_addInteger':
+			return { js: `(${leftJs} + ${rightJs})`, isPrimary: true, bounds: bounds };
+		case '_subtractInteger':
+			return { js: `(${leftJs} - ${rightJs})`, isPrimary: true, bounds: bounds };
+		case '_multiplyInteger':
+			// 0 * -5 ergibt in JS -0, die Invariante kennt nur 0. + 0 macht daraus 0.
+			return {
+				js: mayProduceNegativeZero(left.bounds, right.bounds)
+					? `(${leftJs} * ${rightJs} + 0)`
+					: `(${leftJs} * ${rightJs})`,
+				isPrimary: true,
+				bounds: bounds,
+			};
+		default:
+			throw new Error('unexpected integer helper: ' + operator.helperJs);
+	}
+}
+
+/**
+ * Die Grenzen eines Integer-Ausdrucks laut Typ, beide inklusive, undefined = offen oder nicht ablesbar
+ * (docs/backlog/integer-als-number.md, Stufe 3).
+ */
+interface IntegerBounds {
+	min?: bigint;
+	max?: bigint;
+}
+
+function getExpressionIntegerBounds(checkResult: CheckResult, expression: ParseExpression): IntegerBounds {
+	const typeInfo = getTypeInfo(checkResult, expression);
+	return typeInfo
+		? getIntegerBounds(resolvePlaceholders(typeInfo.type), new Set())
+		: {};
+}
+
+/** JS-Arrays und -Strings haben höchstens 2^32 - 1 Elemente. */
+const maxJsLength = 4294967295n;
+
+/**
+ * Wie getIntegerMinimum/getIntegerMaximum der Typ-Algebra, aber mit Grenzen, deren Wert selbst ein Typ mit Bereich
+ * ist (Not(GreaterInteger(length(values))) im Index von map), und mit der Obergrenze einer Länge im JS-Target. Die
+ * gehört nicht in die Typ-Algebra: Sie hängt vom Target ab und stünde sonst in jedem angezeigten Typ.
+ * Betrachtet nur die ganzen Zahlen des Typs: Der Aufrufer weiß schon, dass der Ausdruck ein Integer ist.
+ */
+function getIntegerBounds(rawType: CompileTimeType, visiting: Set<CompileTimeType>): IntegerBounds {
+	if (visiting.has(rawType)) {
+		return {};
+	}
+	visiting.add(rawType);
+	const bounds = getIntegerBoundsUnguarded(resolveAlias(rawType), visiting);
+	visiting.delete(rawType);
+	return bounds;
+}
+
+function getIntegerBoundsUnguarded(type: CompileTimeType, visiting: Set<CompileTimeType>): IntegerBounds {
+	switch (type.julType) {
+		case 'integerLiteral':
+			return { min: type.value, max: type.value };
+		case 'bound': {
+			if (type.Family !== 'integer') {
+				return {};
+			}
+			// x > V ≥ m heißt x ≥ m + 1, x < V ≤ n heißt x ≤ n - 1.
+			const valueBounds = getIntegerBounds(type.Value, visiting);
+			return type.Relation === 'greater'
+				? { min: addBound(valueBounds.min, 1n) }
+				: { max: addBound(valueBounds.max, -1n) };
+		}
+		case 'not': {
+			const source = resolveAlias(type.SourceType);
+			if (source.julType !== 'bound'
+				|| source.Family !== 'integer') {
+				return {};
+			}
+			const valueBounds = getIntegerBounds(source.Value, visiting);
+			return source.Relation === 'greater'
+				? { max: valueBounds.max }
+				: { min: valueBounds.min };
+		}
+		case 'lengthOf':
+			return { min: type.Offset, max: maxJsLength + type.Offset };
+		case 'and': {
+			const result: IntegerBounds = {};
+			for (const choiceType of type.ChoiceTypes) {
+				const choiceBounds = getIntegerBounds(choiceType, visiting);
+				if (choiceBounds.min !== undefined
+					&& (result.min === undefined || choiceBounds.min > result.min)) {
+					result.min = choiceBounds.min;
+				}
+				if (choiceBounds.max !== undefined
+					&& (result.max === undefined || choiceBounds.max < result.max)) {
+					result.max = choiceBounds.max;
+				}
+			}
+			return result;
+		}
+		case 'or': {
+			let min: bigint | undefined;
+			let max: bigint | undefined;
+			let first = true;
+			for (const choiceType of type.ChoiceTypes) {
+				const choiceBounds = getIntegerBounds(choiceType, visiting);
+				if (first) {
+					min = choiceBounds.min;
+					max = choiceBounds.max;
+					first = false;
+					continue;
+				}
+				min = min === undefined || choiceBounds.min === undefined
+					? undefined
+					: choiceBounds.min < min ? choiceBounds.min : min;
+				max = max === undefined || choiceBounds.max === undefined
+					? undefined
+					: choiceBounds.max > max ? choiceBounds.max : max;
+			}
+			return { min: min, max: max };
+		}
+		default:
+			return {};
+	}
+}
+
+function addBound(bound: bigint | undefined, offset: bigint): bigint | undefined {
+	return bound === undefined
+		? undefined
+		: bound + offset;
+}
+
+function getIntegerOperationBounds(helperJs: string, left: IntegerBounds, right: IntegerBounds): IntegerBounds {
+	switch (helperJs) {
+		case '_addInteger':
+			return {
+				min: left.min !== undefined && right.min !== undefined ? left.min + right.min : undefined,
+				max: left.max !== undefined && right.max !== undefined ? left.max + right.max : undefined,
+			};
+		case '_subtractInteger':
+			return {
+				min: left.min !== undefined && right.max !== undefined ? left.min - right.max : undefined,
+				max: left.max !== undefined && right.min !== undefined ? left.max - right.min : undefined,
+			};
+		case '_multiplyInteger': {
+			if (left.min === undefined
+				|| left.max === undefined
+				|| right.min === undefined
+				|| right.max === undefined) {
+				return {};
+			}
+			const products = [
+				left.min * right.min,
+				left.min * right.max,
+				left.max * right.min,
+				left.max * right.max,
+			];
+			return {
+				min: products.reduce((first, second) => second < first ? second : first),
+				max: products.reduce((first, second) => second > first ? second : first),
+			};
+		}
+		default:
+			return {};
+	}
+}
+
+function isSafeIntegerBounds(bounds: IntegerBounds): boolean {
+	return bounds.min !== undefined
+		&& bounds.max !== undefined
+		&& bounds.min >= -maxSafeBigInt
+		&& bounds.max <= maxSafeBigInt;
+}
+
+/** Ein Produkt ist -0, wenn ein Faktor 0 und der andere negativ ist. Nur mit bekannten Grenzen aufrufen. */
+function mayProduceNegativeZero(left: IntegerBounds, right: IntegerBounds): boolean {
+	const containsZero = (bounds: IntegerBounds) => bounds.min! <= 0n && bounds.max! >= 0n;
+	return (containsZero(left) && right.min! < 0n)
+		|| (containsZero(right) && left.min! < 0n);
+}
+
+/** Laut Typ sicher ein Integer. Any und unbekannte Typen zählen nicht: Die Teilmengenprüfung ist für Any permissiv. */
+function isIntegerTyped(checkResult: CheckResult, expression: ParseExpression): boolean {
+	const typeInfo = getTypeInfo(checkResult, expression);
+	if (!typeInfo) {
+		return false;
+	}
+	const type = resolvePlaceholders(typeInfo.type);
+	return !containsAnyType(type, new Set())
+		&& isSubtypeOf(type, builtinInteger) === true;
+}
+
+function containsAnyType(rawType: CompileTimeType, visited: Set<CompileTimeType>): boolean {
+	if (visited.has(rawType)) {
+		return false;
+	}
+	visited.add(rawType);
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'any':
+		case 'invalid':
+			return true;
+		case 'or':
+		case 'and':
+			return type.ChoiceTypes.some(choiceType => containsAnyType(choiceType, visited));
+		default:
+			return false;
+	}
+}
+
+//#endregion Integer-Arithmetik
+
 //#region inlined list functions
 
 /** Was ein Parameter des Callbacks bekommt */
@@ -1369,7 +1816,7 @@ const inlinedListFunctions: { readonly [functionName: string]: InlinedListFuncti
 const inlinedListParameterJs: { readonly [parameter in InlinedListParameter]: string; } = {
 	accumulator: '_listAccumulator',
 	value: '_listValues[_listIndex]',
-	index: 'BigInt(_listIndex + 1)',
+	index: '(_listIndex + 1)',
 };
 
 /**

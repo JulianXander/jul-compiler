@@ -51,12 +51,14 @@ export type BranchTest =
 	 * Der Wert liegt jenseits einer Literal-Grenze. guarded: Nicht jedes Glied hat die Laufzeitart der
 	 * Grenze, vor dem Vergleich wird sie geprüft.
 	 */
-	| { kind: 'bound'; relation: 'greater' | 'less'; value: LiteralValue; jsKind: 'bigint' | 'number'; guarded: boolean; }
+	| { kind: 'bound'; relation: 'greater' | 'less'; value: LiteralValue; jsKinds: Array<'bigint' | 'number'>; guarded: boolean; }
 	/** Kopf Not(X): der Test für X, verneint */
 	| { kind: 'not'; test: BranchTest; }
 	;
 
 export type LiteralValue = bigint | string | boolean | number;
+
+const maxSafeBigInt = BigInt(Number.MAX_SAFE_INTEGER);
 
 export interface BranchDispatch {
 	/** Ein Test je emittiertem branch. Nach einem always folgt keiner mehr. */
@@ -292,13 +294,20 @@ function getBoundStep(
 	if (value === undefined) {
 		return undefined;
 	}
-	const jsKind = required.Family === 'integer'
-		? 'bigint'
-		: 'number';
-	// Ohne Test der Art wäre der Vergleich falsch: §5§ > 1n ist in JS true.
-	const guarded = remaining.some(member => getMemberKind(member) !== jsKind);
+	const boundKinds = getJsKinds(required)!;
+	for (const member of remaining) {
+		const memberFamily = getNumberFamily(member);
+		// Integer und Float teilen die Laufzeitart number: Ein Glied der anderen Familie ließe sich vom Vergleich
+		// nicht trennen (2.5 > 1 träfe GreaterInteger(1)).
+		if (memberFamily !== undefined
+			&& memberFamily !== required.Family) {
+			return undefined;
+		}
+	}
+	// Ohne Test der Art wäre der Vergleich falsch: §5§ > 1 ist in JS true.
+	const guarded = remaining.some(member => [...getJsKinds(member)!].some(kind => !boundKinds.has(kind)));
 	return {
-		test: { kind: 'bound', relation: required.Relation, value: value, jsKind: jsKind, guarded: guarded },
+		test: { kind: 'bound', relation: required.Relation, value: value, jsKinds: [...boundKinds] as Array<'bigint' | 'number'>, guarded: guarded },
 		// Wie beim Literal: Der Test ist für jeden Wert exakt, der Rest darf zu groß bleiben.
 		remaining: remaining.filter(member => isSubtypeOf(member, required) !== true),
 	};
@@ -335,9 +344,9 @@ function getSingletonStep(
 			}
 			continue;
 		}
-		const memberKind = getMemberKind(member);
-		if (!memberKind
-			|| requiredKinds.has(memberKind)) {
+		const memberKinds = getJsKinds(member);
+		if (!memberKinds
+			|| sharesKind(memberKinds, requiredKinds)) {
 			return undefined;
 		}
 		missed.push(member);
@@ -381,11 +390,11 @@ function getKindStep(
 	const missed: CompileTimeType[] = [];
 	let undecided = false;
 	for (const member of remaining) {
-		const memberKind = getMemberKind(member);
-		if (!memberKind) {
+		const memberKinds = getJsKinds(member);
+		if (!memberKinds) {
 			return undefined;
 		}
-		if (!requiredKinds.has(memberKind)) {
+		if (!sharesKind(memberKinds, requiredKinds)) {
 			missed.push(member);
 		}
 		else if (isSubtypeOf(member, required) === true) {
@@ -431,8 +440,8 @@ function getKindStep(
  * object scheidet deshalb aus.
  */
 function getKindTest(caught: CompileTimeType[], missed: CompileTimeType[]): BranchTest | undefined {
-	const caughtKinds = new Set(caught.map(member => getMemberKind(member)!));
-	const missedKinds = new Set(missed.map(member => getMemberKind(member)!));
+	const caughtKinds = new Set(caught.flatMap(member => [...getJsKinds(member)!]));
+	const missedKinds = new Set(missed.flatMap(member => [...getJsKinds(member)!]));
 	for (const kind of caughtKinds) {
 		if (missedKinds.has(kind)) {
 			return undefined;
@@ -541,9 +550,35 @@ function getMembers(type: CompileTimeType): CompileTimeType[] | undefined {
 			return members;
 		}
 		default:
-			return getMemberKind(resolved) && !containsAny(resolved, new Set())
+			return getJsKinds(resolved) && !containsAny(resolved, new Set())
 				? [resolved]
 				: undefined;
+	}
+}
+
+function sharesKind(first: Set<JsKind>, second: Set<JsKind>): boolean {
+	for (const kind of first) {
+		if (second.has(kind)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** integer oder float für Zahl-Glieder, sonst undefined */
+function getNumberFamily(type: CompileTimeType): 'integer' | 'float' | undefined {
+	const resolved = resolveAlias(type);
+	switch (resolved.julType) {
+		case 'integer':
+		case 'integerLiteral':
+			return 'integer';
+		case 'float':
+		case 'floatLiteral':
+			return 'float';
+		case 'bound':
+			return resolved.Family;
+		default:
+			return undefined;
 	}
 }
 
@@ -592,16 +627,10 @@ function containsAny(type: CompileTimeType, visitedAliases: Set<CompileTimeType>
 	}
 }
 
-/** Die Laufzeitart eines einzelnen Glieds, undefined wenn sie sich nicht festlegen lässt */
-function getMemberKind(type: CompileTimeType): JsKind | undefined {
-	const kinds = getJsKinds(type);
-	if (kinds?.size !== 1) {
-		return undefined;
-	}
-	return [...kinds][0];
-}
-
-/** Die Laufzeitarten, die ein Wert dieses Typs haben kann. undefined = nicht bestimmbar. */
+/**
+ * Die Laufzeitarten, die ein Wert dieses Typs haben kann. undefined = nicht bestimmbar.
+ * Ein Integer ist kanonisch number im sicheren Bereich, sonst bigint (docs/backlog/integer-als-number.md).
+ */
 function getJsKinds(type: CompileTimeType): Set<JsKind> | undefined {
 	const resolved = resolveAlias(type);
 	switch (resolved.julType) {
@@ -613,15 +642,19 @@ function getJsKinds(type: CompileTimeType): Set<JsKind> | undefined {
 		case 'booleanLiteral':
 			return new Set(['boolean']);
 		case 'integer':
+			return new Set(['number', 'bigint']);
 		case 'integerLiteral':
-			return new Set(['bigint']);
+			// Ein Literal hat genau eine kanonische Darstellung
+			return new Set([resolved.value <= maxSafeBigInt && resolved.value >= -maxSafeBigInt ? 'number' : 'bigint']);
 		case 'float':
 		case 'floatLiteral':
 			return new Set(['number']);
 		case 'bound':
 			// Wie integer bzw. float: die Grenze schränkt die Werte ein, nicht die Laufzeitart.
 			// Ob ein Wert innerhalb der Grenze liegt, kann nur isSubtypeOf (statisch) entscheiden.
-			return new Set([resolved.Family === 'integer' ? 'bigint' : 'number']);
+			return resolved.Family === 'integer'
+				? new Set(['number', 'bigint'])
+				: new Set(['number']);
 		case 'text':
 		case 'textLiteral':
 			return new Set(['string']);

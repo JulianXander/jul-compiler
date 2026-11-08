@@ -611,6 +611,11 @@ function tsTypeReferenceToJulType(
 				? createCollection('Dictionary', valueType!, position, sourceFile, errors)
 				: undefined;
 		}
+		case 'CanonicalInteger':
+			// Integer in kanonischer Laufzeitdarstellung, ohne Umwandlung an der Grenze (siehe core-lib.jul)
+			return typeArguments.length
+				? undefined
+				: createReference('CanonicalInteger', position);
 		case 'Error':
 			return typeArguments.length
 				? undefined

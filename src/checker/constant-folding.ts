@@ -43,6 +43,8 @@ const runtimeKeys = Object.keys(runtime);
 export function typeToConstantValue(type: CompileTimeType): { value: unknown; } | undefined {
 	switch (type.julType) {
 		case 'integerLiteral':
+			// Wie zur Laufzeit kanonisch: number im sicheren Bereich (docs/backlog/integer-als-number.md)
+			return { value: runtime._toCanonicalInteger(type.value) };
 		case 'floatLiteral':
 		case 'textLiteral':
 		case 'booleanLiteral':
@@ -229,8 +231,12 @@ export const maxFoldedTupleLength = 1_000;
  * ein normaler JUL-Wert, und `undefined` wird zu Empty - beides liefert die Runtime bereits
  * heute für ungefaltete Aufrufe. NaN/Infinity/-Infinity bleiben ungefaltet: ein Literaltyp dafür
  * wäre darstellbar, aber bedeutungslos.
+ *
+ * Integer sind zur Laufzeit kanonisch number im sicheren Bereich (docs/backlog/integer-als-number.md), eine
+ * ganzzahlige number kann also Integer oder Float sein. mayContainFloat (aus dem Rückgabetyp, typeMayContainFloat):
+ * Kann das Ergebnis Floats enthalten, bleibt eine ganzzahlige number ungefaltet, sonst wird sie zum Integer-Literal.
  */
-export function constantValueToType(value: unknown): CompileTimeType | undefined {
+export function constantValueToType(value: unknown, mayContainFloat: boolean = false): CompileTimeType | undefined {
 	if (value === undefined) {
 		return builtinEmpty;
 	}
@@ -241,7 +247,15 @@ export function constantValueToType(value: unknown): CompileTimeType | undefined
 		case 'bigint':
 			return createIntegerLiteral(value);
 		case 'number':
-			return Number.isFinite(value) ? createFloatLiteral(value) : undefined;
+			if (!Number.isFinite(value)) {
+				return undefined;
+			}
+			if (Number.isInteger(value)) {
+				return mayContainFloat
+					? undefined
+					: createIntegerLiteral(BigInt(value));
+			}
+			return createFloatLiteral(value);
 		case 'string':
 			return createTextLiteral(value);
 		case 'boolean':
@@ -253,7 +267,7 @@ export function constantValueToType(value: unknown): CompileTimeType | undefined
 		}
 		const elementTypes: CompileTimeType[] = [];
 		for (const element of value) {
-			const elementType = constantValueToType(element);
+			const elementType = constantValueToType(element, mayContainFloat);
 			if (!elementType) {
 				return undefined;
 			}
@@ -270,7 +284,7 @@ export function constantValueToType(value: unknown): CompileTimeType | undefined
 		}
 		const fields: CompileTimeDictionary = {};
 		for (const [fieldName, fieldValue] of Object.entries(value)) {
-			const fieldType = constantValueToType(fieldValue);
+			const fieldType = constantValueToType(fieldValue, mayContainFloat);
 			if (!fieldType) {
 				return undefined;
 			}

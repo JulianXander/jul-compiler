@@ -4444,10 +4444,56 @@ function tryFoldCall(
 	checkerStats.foldableCall++;
 	try {
 		const result = callWithConstantArguments(callable, resolvedFunctionType.ParamsType, prefixValue?.value, argsValue.value);
-		return constantValueToType(result);
+		const declaredReturnType = dereferenceArgumentTypesNested(resolvedFunctionType, boundArgsType, resolvedFunctionType.ReturnType);
+		return constantValueToType(result, typeMayContainFloat(declaredReturnType));
 	}
 	catch {
 		return undefined;
+	}
+}
+
+/**
+ * Kann ein Wert dieses Typs nachweislich einen Float enthalten? Dann bleibt eine
+ * ganzzahlige number im Ergebnis ungefaltet (constantValueToType). Unbekanntes (Any, Rational, offene Rückgabetypen von
+ * Nutzerfunktionen) zählt als nein: Eine ganzzahlige number ist dort ein Integer. Zur Laufzeit sind 2 und 2.0 ohnehin
+ * nicht zu unterscheiden.
+ */
+function typeMayContainFloat(rawType: CompileTimeType, visited: Set<CompileTimeType> = new Set()): boolean {
+	if (visited.has(rawType)) {
+		return false;
+	}
+	visited.add(rawType);
+	const type = resolveAlias(rawType);
+	switch (type.julType) {
+		case 'float':
+		case 'floatLiteral':
+			return true;
+		case 'bound':
+			return type.Family === 'float';
+		case 'never':
+		case 'empty':
+		case 'boolean':
+		case 'booleanLiteral':
+		case 'integer':
+		case 'integerLiteral':
+		case 'text':
+		case 'textLiteral':
+		case 'date':
+		case 'blob':
+		case 'error':
+			return false;
+		case 'list':
+		case 'dictionary':
+			return typeMayContainFloat(type.ElementType, visited);
+		case 'tuple':
+			return type.ElementTypes.some(elementType => typeMayContainFloat(elementType, visited));
+		case 'dictionaryLiteral':
+			return Object.values(type.FieldTypes).some(fieldType => typeMayContainFloat(fieldType, visited));
+		case 'or':
+		case 'and':
+			return type.ChoiceTypes.some(choiceType => typeMayContainFloat(choiceType, visited));
+		default:
+			return false;
 	}
 }
 

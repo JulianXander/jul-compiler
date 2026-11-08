@@ -28,6 +28,13 @@ function jsonValueToJulAst(jsonValue: JsonValue): ParseExpression {
 				value: jsonValue,
 				...position,
 			};
+		case 'number':
+			// _parseJson liefert ganze Zahlen kanonisch (number im sicheren Bereich), nie einen Float
+			return {
+				type: 'integer',
+				value: BigInt(jsonValue),
+				...position,
+			};
 		case 'boolean':
 			return {
 				type: 'reference',

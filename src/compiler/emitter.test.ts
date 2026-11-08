@@ -43,16 +43,16 @@ describe('Emitter', () => {
 		expectEmit('§12§', 'export default `12`');
 	});
 	it('12', () => {
-		expectEmit('12', 'export default 12n');
+		expectEmit('12', 'export default 12');
 	});
 	it('[1 2]', () => {
 		expectEmit('[1 2]', `export default [
-	1n,
-	2n,
+	1,
+	2,
 ]`);
 	});
 	it('someVar = 12', () => {
-		expectEmit('someVar = 12', 'export const someVar = 12n;');
+		expectEmit('someVar = 12', 'export const someVar = 12;');
 	});
 	it('log()', () => {
 		expectEmit('log()', 'export default log()');
@@ -61,24 +61,24 @@ describe('Emitter', () => {
 		expectEmit('log([])', `export default log(undefined)`);
 	});
 	it('log(1)', () => {
-		expectEmit('log(1)', `export default log(1n)`);
+		expectEmit('log(1)', `export default log(1)`);
 	});
 	// Eine reine Spread-Argumentliste ist ein List-Spread (der Checker lässt nur eine List zu).
 	it('functionCall-spread-only', () => {
 		expectEmit('log(...[])', 'export default log(...undefined ?? [])');
 	});
 	it('1.log()', () => {
-		expectEmit('1.log()', 'export default log(1n)');
+		expectEmit('1.log()', 'export default log(1)');
 	});
 	it('1.log(1)', () => {
 		expectEmit('1.log(1)', `export default log(
-	1n,
-	1n,
+	1,
+	1,
 )`);
 	});
 	// Ohne Check kennt der Emitter keine Parameterliste: Die Werte gehen der Reihe nach an die Funktion.
 	it('function-call-named-args', () => {
-		expectEmit('log(a = 1)', 'export default log(1n)');
+		expectEmit('log(a = 1)', 'export default log(1)');
 	});
 	it('text-argument', () => {
 		expectEmit('log(§hallo welt§)', 'export default log(`hallo welt`)');
@@ -94,7 +94,7 @@ describe('Emitter', () => {
 	it('function-return-type-check', () => {
 		expectEmit(`() =>
 	a: Integer = 1`, `export default () => {
-		const a = 1n;
+		const a = 1;
 		return a;
 	}`);
 	});
@@ -106,7 +106,7 @@ describe('Emitter', () => {
 	});
 	it('branching', () => {
 		expectEmit('_ = ?(4)\n\t(a) => log(a)\n\t(b) => log(b)', `_branch(
-	[4n],
+	[4],
 	_createFunction(
 		(a) => {
 			return log(a)
@@ -158,7 +158,7 @@ describe('Emitter', () => {
 	});
 	it('[1 ...a ...b]', () => {
 		expectEmit('[1 ...a ...b]', `export default [
-	1n,
+	1,
 	...a ?? [],
 	...b ?? [],
 ]`);
@@ -225,10 +225,10 @@ describe('Emitter branching mit Typinformation', () => {
 	2`, `
 		return x !== undefined
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('verschiedene Laufzeitarten werden mit typeof und Array.isArray unterschieden', () => {
@@ -239,14 +239,14 @@ describe('Emitter branching mit Typinformation', () => {
 	3`, `
 		return typeof x === 'string'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: Array.isArray(x)
 			? (() => {
-				return 2n
+				return 2
 			})()
 			: (() => {
-				return 3n
+				return 3
 			})()`);
 	});
 	it('Literal-Kopf wird zu Gleichheitsvergleich', () => {
@@ -254,12 +254,12 @@ describe('Emitter branching mit Typinformation', () => {
 	?(x)
 		[1] => 1
 	2`, `
-		return x === 1n
+		return x === 1
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Branch mit Parameter bekommt das Argument direkt', () => {
@@ -281,7 +281,7 @@ describe('Emitter branching mit Typinformation', () => {
 		[Text] => 1
 	2`, `
 		return (() => {
-				return 1n
+				return 1
 			})()`);
 	});
 	it('nicht erschöpfend: nach dem letzten Test folgt _noBranchMatched', () => {
@@ -290,7 +290,7 @@ describe('Emitter branching mit Typinformation', () => {
 		[Text] => 1`, `
 		return typeof x === 'string'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: _noBranchMatched(x)`);
 	});
@@ -301,10 +301,10 @@ describe('Emitter branching mit Typinformation', () => {
 		[§b§] => 2`, `
 		return x === 'a'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Branch, der keinen der noch möglichen Werte fängt, entfällt', () => {
@@ -315,10 +315,10 @@ describe('Emitter branching mit Typinformation', () => {
 	3`, `
 		return x === 'a'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 3n
+				return 3
 			})()`);
 	});
 	it('unterscheidendes Feld wird direkt verglichen', () => {
@@ -328,10 +328,10 @@ describe('Emitter branching mit Typinformation', () => {
 	2`, `
 		return x?.['kind'] === 'circle'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Argument ohne Referenz wird genau einmal ausgewertet', () => {
@@ -342,10 +342,10 @@ f = (x: Or([] Text)) =>
 	2`, `
 		return ((_arg) => _arg !== undefined
 				? (() => {
-					return 1n
+					return 1
 				})()
 				: (() => {
-					return 2n
+					return 2
 				})())(g(x))`);
 	});
 	it('Rückfall: Any in einem Glied, die Teilmengenprüfung wäre dort permissiv', () => {
@@ -390,10 +390,10 @@ f = (x: Or(Text List(Integer))) =>
 	2`, `
 		return x instanceof Error
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('bound im Record: Empty gegen Record mit PositiveInteger-Feld wird zu undefined-Vergleich', () => {
@@ -403,10 +403,10 @@ f = (x: Or(Text List(Integer))) =>
 	2`, `
 		return x === undefined
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('bound im Record: Kopf mit dem Record-Typ wird zu undefined-Vergleich', () => {
@@ -416,10 +416,10 @@ f = (x: Or(Text List(Integer))) =>
 	2`, `
 		return x !== undefined
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('bound im Record: unterscheidendes Feld wird direkt verglichen', () => {
@@ -429,10 +429,10 @@ f = (x: Or(Text List(Integer))) =>
 	2`, `
 		return x?.['kind'] === 'a'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('bound als Glied: Text gegen PositiveInteger wird zu typeof', () => {
@@ -442,10 +442,10 @@ f = (x: Or(Text List(Integer))) =>
 	2`, `
 		return typeof x === 'string'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('bound als Glied: Kopf PositiveInteger auf Or([] PositiveInteger) wird zu undefined-Vergleich', () => {
@@ -455,10 +455,10 @@ f = (x: Or(Text List(Integer))) =>
 	2`, `
 		return x !== undefined
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('bound im Record: Record mit PositiveInteger-Feld ist Teilmenge von Record mit Integer-Feld', () => {
@@ -468,10 +468,10 @@ f = (x: Or(Text List(Integer))) =>
 	2`, `
 		return typeof x !== 'string'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Rückfall: Record mit Integer-Feld ist keine Teilmenge von Record mit PositiveInteger-Feld', () => {
@@ -486,12 +486,12 @@ f = (x: Or(Text List(Integer))) =>
 	?(x)
 		[PositiveInteger] => 1
 	2`, `
-		return x > 0n
+		return x > 0
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf PositiveInteger auf Or([] Integer): erst typeof, dann Vergleich', () => {
@@ -499,12 +499,12 @@ f = (x: Or(Text List(Integer))) =>
 	?(x)
 		[PositiveInteger] => 1
 	2`, `
-		return (typeof x === 'bigint' && x > 0n)
+		return ((typeof x === 'number' || typeof x === 'bigint') && x > 0)
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Rückfall: bound in einem Glied mit Any bleibt unbrauchbar', () => {
@@ -524,18 +524,18 @@ f = (x: Phase) =>
 	4`, `
 		return x === 'draw' || x === 'standby'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: x === 'main1' || x === 'main2'
 			? (() => {
-				return 2n
+				return 2
 			})()
 			: x === 'battle'
 			? (() => {
-				return 3n
+				return 3
 			})()
 			: (() => {
-				return 4n
+				return 4
 			})()`);
 	});
 	it('Kopf mit Union von Integer-Literalen und Empty wird zu Gleichheitsvergleichen', () => {
@@ -544,16 +544,16 @@ f = (x: Phase) =>
 		[Or([] 1 2 3 4)] => 0
 		[Or(5 6)] => 1
 	2`, `
-		return x === undefined || x === 1n || x === 2n || x === 3n || x === 4n
+		return x === undefined || x === 1 || x === 2 || x === 3 || x === 4
 			? (() => {
-				return 0n
+				return 0
 			})()
-			: x === 5n || x === 6n
+			: x === 5 || x === 6
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf mit Union von Literalen: Glieder außerhalb des Kopfs entfallen', () => {
@@ -563,10 +563,10 @@ f = (x: Phase) =>
 	2`, `
 		return x === 'a'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	// Der Test nach Laufzeitart greift zuerst: a und b sind die einzigen Texte im Typ.
@@ -577,10 +577,10 @@ f = (x: Phase) =>
 	2`, `
 		return typeof x === 'string'
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Rückfall: Kopf mit Union von Literalen, Argument mit Text (Wert unbekannt)', () => {
@@ -600,12 +600,12 @@ f = (x: Phase) =>
 	?(x)
 		[GreaterInteger(1)] => 1
 	2`, `
-		return x > 1n
+		return x > 1
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf LessInteger mit Literal-Grenze auf Integer wird zu Vergleich', () => {
@@ -613,12 +613,12 @@ f = (x: Phase) =>
 	?(x)
 		[LessInteger(1)] => 1
 	2`, `
-		return x < 1n
+		return x < 1
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf mit Grenze, Argument mit anderer Laufzeitart: erst typeof, dann Vergleich', () => {
@@ -626,12 +626,12 @@ f = (x: Phase) =>
 	?(x)
 		[GreaterInteger(1)] => 1
 	2`, `
-		return (typeof x === 'bigint' && x > 1n)
+		return ((typeof x === 'number' || typeof x === 'bigint') && x > 1)
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf mit Grenze, die das Argument statisch erfüllt: kein Test', () => {
@@ -640,7 +640,7 @@ f = (x: Phase) =>
 		[GreaterInteger(1)] => 1
 	2`, `
 		return (() => {
-				return 1n
+				return 1
 			})()`);
 	});
 	it('Rückfall: Kopf mit Grenze, die erst zur Laufzeit feststeht', () => {
@@ -656,10 +656,10 @@ f = (x: Phase) =>
 	2`, `
 		return x === undefined
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf Not(Liste) auf Or([] List(Integer)) wird zum undefined-Vergleich', () => {
@@ -669,10 +669,10 @@ f = (x: Phase) =>
 	2`, `
 		return x === undefined
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf Not(Literal) wird zum verneinten Gleichheitsvergleich', () => {
@@ -682,10 +682,10 @@ f = (x: Phase) =>
 	2`, `
 		return !(x === 'up')
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf Not(Union von Literalen) auf Or([] 1 2) wird zum undefined-Vergleich', () => {
@@ -695,10 +695,10 @@ f = (x: Phase) =>
 	2`, `
 		return x === undefined
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Kopf Not(Record) mit unterscheidendem Feld wird zum verneinten Feldvergleich', () => {
@@ -708,10 +708,10 @@ f = (x: Phase) =>
 	2`, `
 		return !(x?.['kind'] === 'circle')
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('nach Kopf Not(Text) bleibt Text: der folgende Text-Branch braucht keinen Test, kein _noBranchMatched', () => {
@@ -721,10 +721,10 @@ f = (x: Phase) =>
 		[Text] => 2`, `
 		return x === undefined
 			? (() => {
-				return 1n
+				return 1
 			})()
 			: (() => {
-				return 2n
+				return 2
 			})()`);
 	});
 	it('Rückfall: Kopf Not mit Grenze, die erst zur Laufzeit feststeht', () => {
@@ -739,6 +739,83 @@ const expectCallEmit = reportAtCaller((code: string, bodyJs: string) => {
 	expect(emitCheckedFunctionBody(code)).to.equal(bodyJs);
 });
 
+describe('Emitter Integer-Arithmetik mit Typinformation', () => {
+	it('Literal im sicheren Bereich wird number, darüber bigint', () => {
+		expectCallEmit(`f = (a: Integer) => add(a 9007199254740991 9007199254740992 -9007199254740992)`, `
+		return _addInteger(_addInteger(_addInteger(a, 9007199254740991), 9007199254740992n), -9007199254740992n)`);
+	});
+	it('add mit zwei Integer wird zum Integer-Helfer', () => {
+		expectCallEmit(`f = (a: Integer b: Integer) => add(a b)`, `
+		return _addInteger(a, b)`);
+	});
+	it('Präfix-Form mit Literal', () => {
+		expectCallEmit(`f = (a: PositiveInteger) => a.add(1)`, `
+		return _addInteger(a, 1)`);
+	});
+	it('subtract mit negativem Literal', () => {
+		expectCallEmit(`f = (a: Integer) => a.subtract(-1)`, `
+		return _subtractInteger(a, -1)`);
+	});
+	it('verschachtelt und variadisch', () => {
+		expectCallEmit(`f = (a: Integer b: Integer c: Integer) => multiply(add(a b c) 2)`, `
+		return _multiplyInteger(_addInteger(_addInteger(a, b), c), 2)`);
+	});
+	it('Rückfall: Rational-Operand bleibt beim Runtime-Aufruf', () => {
+		expect(emitCheckedFunctionBody(`f = (a: Integer b: Rational) => add(a b)`)).to.contain('add(');
+	});
+	it('Rückfall: Any-Operand bleibt beim Runtime-Aufruf', () => {
+		expect(emitCheckedFunctionBody(`f = (a: Integer b) => add(a b)`)).to.contain('add(');
+	});
+	it('Rückfall: Spread bleibt beim Runtime-Aufruf', () => {
+		expect(emitCheckedFunctionBody(`f = (a: List(Integer)) => add(...a)`)).to.contain('add(');
+	});
+});
+
+describe('Emitter Integer-Arithmetik mit bekanntem Bereich', () => {
+	it('beide Operanden und Ergebnis im sicheren Bereich: JS-Operator ohne Prüfung', () => {
+		expectCallEmit(`f = (a: And(GreaterInteger(-1) LessInteger(100)) b: And(GreaterInteger(-1) LessInteger(100))) => add(a b)`, `
+		return (a + b)`);
+	});
+	it('subtract und Literal-Operand ohne Klammern', () => {
+		expectCallEmit(`f = (a: And(GreaterInteger(0) LessInteger(100))) => a.subtract(1)`, `
+		return (a - 1)`);
+	});
+	it('variadisch: jeder Schritt im sicheren Bereich', () => {
+		expectCallEmit(`f = (a: And(GreaterInteger(0) LessInteger(100)) b: And(GreaterInteger(0) LessInteger(100))) => add(a b 1)`, `
+		return ((a + b) + 1)`);
+	});
+	it('Ergebnis genau an der Grenze 2^53 - 1: JS-Operator', () => {
+		expectCallEmit(`f = (a: And(GreaterInteger(0) LessInteger(9007199254740991))) => a.add(1)`, `
+		return (a + 1)`);
+	});
+	it('Ergebnis kann den sicheren Bereich verlassen: Helfer', () => {
+		expectCallEmit(`f = (a: And(GreaterInteger(0) LessInteger(9007199254740992))) => a.add(1)`, `
+		return _addInteger(a, 1)`);
+	});
+	it('Bereich nur einseitig bekannt: Helfer', () => {
+		expectCallEmit(`f = (a: PositiveInteger b: And(GreaterInteger(0) LessInteger(100))) => add(a b)`, `
+		return _addInteger(a, b)`);
+	});
+	it('multiply mit nichtnegativen Faktoren ohne Korrektur', () => {
+		expectCallEmit(`f = (a: And(GreaterInteger(-1) LessInteger(100))) => a.multiply(3)`, `
+		return (a * 3)`);
+	});
+	it('multiply mit möglichem -0 bekommt + 0', () => {
+		expectCallEmit(`f = (a: And(GreaterInteger(-1) LessInteger(100))) => a.multiply(-3)`, `
+		return (a * -3 + 0)`);
+	});
+	it('multiply mit offenem Faktor: Helfer', () => {
+		expectCallEmit(`f = (a: And(GreaterInteger(-1) LessInteger(100)) b: Integer) => multiply(a b)`, `
+		return _multiplyInteger(a, b)`);
+	});
+	it('Index im Callback ist durch die Länge beschränkt', () => {
+		expect(emitCheckedFunctionBody(`f = (values: List(Text)) => values.map((value index) => index.add(1))`)).to.contain('(index + 1)');
+	});
+	it('Länge minus 1 ohne Prüfung', () => {
+		expect(emitCheckedFunctionBody(`f = (values: List(Text)) => values.length().subtract(1)`)).to.contain(' - 1)');
+	});
+});
+
 describe('Emitter benannte Argumente mit Typinformation', () => {
 	it('gleiche Reihenfolge wird zum positionalen Aufruf', () => {
 		expectCallEmit(`g = (a: Integer b: Integer) => a
@@ -746,7 +823,7 @@ f = (x: Integer) =>
 	g(a = x b = 1)`, `
 		return g(
 			x,
-			1n,
+			1,
 		)`);
 	});
 	it('fehlender letzter Parameter entfällt', () => {
@@ -770,7 +847,7 @@ f = (x: Integer) =>
 	x.g(b = 1)`, `
 		return g(
 			x,
-			1n,
+			1,
 		)`);
 	});
 	it('überzähliges nicht-triviales Argument wird trotzdem ausgewertet', () => {
@@ -789,20 +866,14 @@ f = (x: Integer) =>
 	?(n)
 		[0] => acc
 	f(n = subtract(n 1) acc = add(acc n))`, `
-		return n === 0n
+		return n === 0
 			? (() => {
 				return acc
 			})()
 			: (() => {
 				return f(
-					subtract(
-						n,
-						1n,
-					),
-					add(
-						acc,
-						n,
-					),
+					_subtractInteger(n, 1),
+					_addInteger(acc, n),
 				)
 			})()`);
 	});
@@ -811,8 +882,8 @@ f = (x: Integer) =>
 		expectCallEmit(`f = (g: Any) =>
 	g(a = 1 b = 2)`, `
 		return g(
-			1n,
-			2n,
+			1,
+			2,
 		)`);
 	});
 	it('Builtin wird direkt aufgerufen', () => {
@@ -820,13 +891,13 @@ f = (x: Integer) =>
 	modulo(dividend = x divisor = 3)`, `
 		return modulo(
 			x,
-			3n,
+			3,
 		)`);
 	});
 	it('funktionswertiger Parameter wird direkt aufgerufen', () => {
 		expectCallEmit(`f = (g: (a: Integer) -> Integer) =>
 	g(a = 1)`, `
-		return g(1n)`);
+		return g(1)`);
 	});
 	it('Funktion mit Typ-Kopf bekommt die Argumente in Parameterreihenfolge, sie liest sie nicht', () => {
 		expectCallEmit(`MyType = [a: Integer b: Integer]
@@ -834,8 +905,8 @@ typeFunction = MyType => 1
 f = () =>
 	typeFunction(a = 1 b = 2)`, `
 		return typeFunction(
-			1n,
-			2n,
+			1,
+			2,
 		)`);
 	});
 	it('List-Spread in der Argumentliste ist ein JS-Spread', () => {
@@ -888,7 +959,7 @@ describe('Emitter assume', () => {
 		expectAssumeEmit('f = (a: Or(1 2 3)) => assume(a Or(1 2))', `
 		return _checkAssumeTest(
 			a,
-			(_v) => _v === 1n || _v === 2n,
+			(_v) => _v === 1 || _v === 2,
 			'dummy.jul',
 			1,
 			23,
@@ -921,14 +992,14 @@ describe('Emitter assume', () => {
 		expectAssumeUnchecked('f = (a: Integer) => assume(a Integer)', 'a');
 	});
 	it('verbreitertes Literal wird nicht geprüft', () => {
-		expectAssumeUnchecked('f = () => assume(5 Integer)', '5n');
+		expectAssumeUnchecked('f = () => assume(5 Integer)', '5');
 	});
 	it('Zieltyp Any wird nicht geprüft', () => {
 		expectAssumeUnchecked('f = (a: Integer) => assume(a Any)', 'a');
 	});
 	// Der emittierte Ausdruck TypeOf(values)/ElementType wäre zur Laufzeit kein Typwert.
 	it('Zieltyp abhängig vom Parameter wird nicht geprüft', () => {
-		expectAssumeUnchecked('f = (values: List(Any)) => assume(1 TypeOf(values)/ElementType)', '1n');
+		expectAssumeUnchecked('f = (values: List(Any)) => assume(1 TypeOf(values)/ElementType)', '1');
 	});
 	// Auch außerhalb von *.test.jul: geprüft wird jede Datei, die ein Test lädt.
 	it('der Helfer kommt in den Runtime-Import einer Nicht-Testdatei', () => {
@@ -955,8 +1026,8 @@ describe('Emitter test', () => {
 				'equal',
 				equal,
 				[
-					1n,
-					2n,
+					1,
+					2,
 				],
 			)
 		},
@@ -971,8 +1042,8 @@ describe('Emitter test', () => {
 				'equal',
 				equal,
 				[
-					1n,
-					2n,
+					1,
+					2,
 				],
 			)
 		},
@@ -1015,7 +1086,7 @@ const expectMapping = reportAtCaller((
 
 describe('Emitter source map', () => {
 	it('top-level-definition', () => {
-		expectMapping('a = 1\n\nb = 2', 2, 0, 'export const b = 2n;');
+		expectMapping('a = 1\n\nb = 2', 2, 0, 'export const b = 2;');
 	});
 	it('default-export', () => {
 		expectMapping('§a§', 0, 0, 'export default `a`');
@@ -1111,7 +1182,7 @@ describe('Emitter Runtime-Import', () => {
 		expect(getUsedRuntimeNames('combine$(a); _branch(b)', ['_branch', 'combine$', 'combine'])).to.deep.equal(['_branch', 'combine$']);
 	});
 	it('Scan: Suffix einer Zahl ist kein Bezeichner', () => {
-		expect(getUsedRuntimeNames('f(1n)', ['n'])).to.deep.equal([]);
+		expect(getUsedRuntimeNames('f(1)', ['n'])).to.deep.equal([]);
 	});
 });
 
@@ -1181,7 +1252,7 @@ describe('Emitter Ausführung', () => {
 			'\t2',
 			'result = [f(§5§) f(0) f(5)]',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.deep.equal([2n, 2n, 1n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([2, 2, 1]);
 	});
 	it('mapDictionary bildet jeden Wert mit seinem Schlüssel ab', () => {
 		const code = [
@@ -1202,14 +1273,14 @@ describe('Emitter Ausführung', () => {
 			'd = [a = 1 b = 2 c = 3]',
 			'result = d.findField((value key) => value.greaterInteger(2))',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(3n);
+		expect(runEmitted(code, 'result')).to.equal(3);
 	});
 	it('findField reicht den Schlüssel an das Prädikat', () => {
 		const code = [
 			'd = [a = 1 b = 2]',
 			'result = d.findField((value key) => key.equal(§b§))',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(2n);
+		expect(runEmitted(code, 'result')).to.equal(2);
 	});
 	it('findField über Empty liefert Empty', () => {
 		const code = [
@@ -1251,7 +1322,7 @@ describe('Emitter Ausführung', () => {
 			'f = (node: Node) => node/value',
 			'result = f([value = 1 children = [[value = 2 children = [[value = 3]]]]])',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(1n);
+		expect(runEmitted(code, 'result')).to.equal(1);
 	});
 	// Der Aufruf Tree(T) im eigenen Rumpf darf erst beim Prüfen ausgewertet werden, sonst ruft
 	// jeder Aufruf von Tree sofort den nächsten auf.
@@ -1261,7 +1332,7 @@ describe('Emitter Ausführung', () => {
 			'f = (tree: Tree(Integer)) => tree/value',
 			'result = f([value = 1 children = [[value = 2 children = [[value = 3]]]]])',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(1n);
+		expect(runEmitted(code, 'result')).to.equal(1);
 	});
 	// Ein Datentupel ist geschlossen: [Integer] als Typ trifft
 	// nur ein Array mit genau einem Element.
@@ -1273,7 +1344,7 @@ describe('Emitter Ausführung', () => {
 			'	2',
 			'result = f([1 2])',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(2n);
+		expect(runEmitted(code, 'result')).to.equal(2);
 	});
 	it('ein Tupeltyp als Kopf trifft ein Array mit genau so vielen Elementen', () => {
 		const code = [
@@ -1283,7 +1354,7 @@ describe('Emitter Ausführung', () => {
 			'	2',
 			'result = f([1])',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(1n);
+		expect(runEmitted(code, 'result')).to.equal(1);
 	});
 	// Ein Kopf ist dagegen eine Parameterliste: Er prüft die Positionen, die er nennt, und lässt
 	// weitere Operanden zu.
@@ -1295,7 +1366,7 @@ describe('Emitter Ausführung', () => {
 			'	2',
 			'result = f(1 §x§)',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(1n);
+		expect(runEmitted(code, 'result')).to.equal(1);
 	});
 	it('ein Kopf mit weniger Positionen als Operanden prüft die genannte Position', () => {
 		const code = [
@@ -1305,7 +1376,7 @@ describe('Emitter Ausführung', () => {
 			'	2',
 			'result = f(§x§ 1)',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(2n);
+		expect(runEmitted(code, 'result')).to.equal(2);
 	});
 });
 
@@ -1342,7 +1413,7 @@ describe('Emitter Branching als Anweisung und _', () => {
 			'\t\tvalue',
 			')',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.deep.equal([1n, 0n, 3n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([1, 0, 3]);
 	});
 	it('_ = ?(…) beendet die Funktion nicht', () => {
 		const code = [
@@ -1353,14 +1424,14 @@ describe('Emitter Branching als Anweisung und _', () => {
 			'\t3',
 			'result = [f(0) f(1)]',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.deep.equal([3n, 3n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([3, 3]);
 	});
 	it('mehrere Parameter _', () => {
 		const code = [
 			'f = (_ _ c: Integer) => c',
 			'result = f(1 2 3)',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(3n);
+		expect(runEmitted(code, 'result')).to.equal(3);
 	});
 	it('_ im Destructuring überspringt eine Position', () => {
 		const code = [
@@ -1369,11 +1440,11 @@ describe('Emitter Branching als Anweisung und _', () => {
 			'\tb',
 			'result = f()',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(2n);
+		expect(runEmitted(code, 'result')).to.equal(2);
 	});
 	it('_ als Parameter eines Callbacks', () => {
 		const code = 'result = [5 6].map((_ index) => index)';
-		expect(runEmitted(code, 'result')).to.deep.equal([1n, 2n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([1, 2]);
 	});
 });
 
@@ -1384,16 +1455,10 @@ describe('Emitter Tail-Call-Optimierung', () => {
 		[0] => sum
 	f(subtract(n 1) add(sum n))`, `
 		while (true) {
-			if (n === 0n) {
+			if (n === 0) {
 				return sum
 			} else {
-				;[n, sum] = [subtract(
-						n,
-						1n,
-					), add(
-						sum,
-						n,
-					)];
+				;[n, sum] = [_subtractInteger(n, 1), _addInteger(sum, n)];
 				continue;
 			}
 		}`);
@@ -1406,7 +1471,7 @@ describe('Emitter Tail-Call-Optimierung', () => {
 			'\tf(subtract(n 1) add(sum n))',
 			'result = f(200000 0)',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(20000100000n);
+		expect(runEmitted(code, 'result')).to.equal(20000100000);
 	});
 	it('ein einzelner Parameter wird ohne Array zugewiesen', () => {
 		const code = [
@@ -1416,7 +1481,7 @@ describe('Emitter Tail-Call-Optimierung', () => {
 			'\tf(subtract(n 1))',
 			'result = f(200000)',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(0n);
+		expect(runEmitted(code, 'result')).to.equal(0);
 	});
 	it('ein Aufruf außerhalb der Tail-Position bleibt Rekursion', () => {
 		expect(emitCheckedFunctionBody(`f = (n: Integer) =>
@@ -1531,7 +1596,7 @@ describe('Emitter exists als Schleife', () => {
 	});
 	it('der Index ist 1-basiert und wird nur mit zweitem Parameter gebildet', () => {
 		const withIndex = `${listOf3}\nresult = exists(values (value index) => equal(index 3))`;
-		expect(emitChecked(withIndex)).to.contain('BigInt(_listIndex + 1)');
+		expect(emitChecked(withIndex)).to.contain('(_listIndex + 1)');
 		expect(runEmitted(withIndex, 'result')).to.equal(true);
 		const withoutIndex = `${listOf3}\nresult = exists(values (value) => equal(value 3))`;
 		expect(emitChecked(withoutIndex)).to.not.contain('BigInt');
@@ -1584,7 +1649,7 @@ describe('Emitter filter, map und filterMap als Schleife', () => {
 	it('filter behält die passenden Elemente', () => {
 		const code = `${listOf3}\nresult = filter(values (value) => greaterInteger(value 1))`;
 		expectLoop(code);
-		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([2, 3]);
 	});
 	it('filter ohne Treffer liefert Empty', () => {
 		const code = `${listOf3}\nresult = filter(values (value) => greaterInteger(value 9))`;
@@ -1600,16 +1665,16 @@ describe('Emitter filter, map und filterMap als Schleife', () => {
 	it('filter reicht den 1-basierten Index', () => {
 		const code = `${listOf3}\nresult = filter(values (value index) => greaterInteger(index 1))`;
 		expectLoop(code);
-		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([2, 3]);
 	});
 	it('map bildet jedes Element ab', () => {
 		const code = `${listOf3}\nresult = values.map((value) => add(value 10))`;
 		expectLoop(code);
-		expect(runEmitted(code, 'result')).to.deep.equal([11n, 12n, 13n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([11, 12, 13]);
 	});
 	it('map reicht den 1-basierten Index', () => {
 		const code = `${listOf3}\nresult = map(values (value index) => add(value index))`;
-		expect(runEmitted(code, 'result')).to.deep.equal([2n, 4n, 6n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([2, 4, 6]);
 	});
 	it('map über Empty liefert Empty', () => {
 		const code = [
@@ -1624,16 +1689,16 @@ describe('Emitter filter, map und filterMap als Schleife', () => {
 			'result = f([[] 5 [] 7])',
 		].join('\n');
 		expect(emitChecked(code)).to.contain('_listValues');
-		expect(runEmitted(code, 'result')).to.deep.equal([5n, 7n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([5, 7]);
 	});
 	it('ein Callback als Wert bleibt ein Funktionsaufruf', () => {
 		const code = `${listOf3}\ninc = (value) => add(value 1)\nresult = map(values inc)`;
 		expect(emitChecked(code)).to.not.contain('_listValues');
-		expect(runEmitted(code, 'result')).to.deep.equal([2n, 3n, 4n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([2, 3, 4]);
 	});
 	it('verkettete Aufrufe bleiben richtig geordnet', () => {
 		const code = `${listOf3}\nresult = values.filter((value) => greaterInteger(value 1)).map((value) => add(value 10))`;
-		expect(runEmitted(code, 'result')).to.deep.equal([12n, 13n]);
+		expect(runEmitted(code, 'result')).to.deep.equal([12, 13]);
 	});
 });
 
@@ -1665,7 +1730,7 @@ describe('Emitter all, findFirst und aggregate als Schleife', () => {
 	it('findFirst liefert das erste passende Element', () => {
 		const code = `${listOf3}\nresult = findFirst(values (value) => greaterInteger(value 1))`;
 		expectLoop(code);
-		expect(runEmitted(code, 'result')).to.equal(2n);
+		expect(runEmitted(code, 'result')).to.equal(2);
 	});
 	it('findFirst ohne Treffer liefert Empty', () => {
 		const code = `${listOf3}\nresult = findFirst(values (value) => greaterInteger(value 9))`;
@@ -1681,27 +1746,27 @@ describe('Emitter all, findFirst und aggregate als Schleife', () => {
 	it('aggregate summiert mit Startwert', () => {
 		const code = `${listOf3}\nresult = values.aggregate(Integer 10 (accumulator value) => add(accumulator value))`;
 		expectLoop(code);
-		expect(runEmitted(code, 'result')).to.equal(16n);
+		expect(runEmitted(code, 'result')).to.equal(16);
 	});
 	it('aggregate reicht den 1-basierten Index', () => {
 		const code = `${listOf3}\nresult = aggregate(values Integer 0 (accumulator value index) => add(accumulator index))`;
-		expect(runEmitted(code, 'result')).to.equal(6n);
+		expect(runEmitted(code, 'result')).to.equal(6);
 	});
 	it('aggregate über Empty liefert den Startwert', () => {
 		const code = [
 			'f = (values: Or([] List(Integer))) => values.aggregate(Integer 7 (accumulator value) => add(accumulator value))',
 			'result = f([])',
 		].join('\n');
-		expect(runEmitted(code, 'result')).to.equal(7n);
+		expect(runEmitted(code, 'result')).to.equal(7);
 	});
 	it('aggregate mit einem Parameter sieht nur den Akkumulator', () => {
 		const code = `${listOf3}\nresult = values.aggregate(Integer 0 (accumulator) => add(accumulator 2))`;
-		expect(runEmitted(code, 'result')).to.equal(6n);
+		expect(runEmitted(code, 'result')).to.equal(6);
 	});
 	it('aggregate mit Callback als Wert bleibt ein Funktionsaufruf', () => {
 		const code = `${listOf3}\nsum = (accumulator value) => add(accumulator value)\nresult = values.aggregate(Rational 0 sum)`;
 		expect(emitChecked(code)).to.not.contain('_listValues');
-		expect(runEmitted(code, 'result')).to.equal(6n);
+		expect(runEmitted(code, 'result')).to.equal(6);
 	});
 });
 

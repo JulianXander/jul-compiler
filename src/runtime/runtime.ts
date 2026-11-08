@@ -135,17 +135,19 @@ export function _isOfType(value: any, type: RuntimeType): boolean {
 						}
 						break;
 					case 'integer':
-						if (typeof value === 'bigint') {
+						// Kanonisch: number im sicheren Bereich, sonst bigint (docs/backlog/integer-als-number.md)
+						if (_isInteger(value)) {
 							return true;
 						}
 						break;
 					case 'float':
+						// Eine ganzzahlige number erfüllt auch Float: Zur Laufzeit sind 2 und 2.0 nicht zu unterscheiden.
 						if (typeof value === 'number') {
 							return true;
 						}
 						break;
 					case 'bound':
-						if (typeof value === (type.Family === 'integer' ? 'bigint' : 'number')
+						if ((type.Family === 'integer' ? _isInteger(value) : typeof value === 'number')
 							&& (type.Relation === 'greater' ? value > type.Value : value < type.Value)) {
 							return true;
 						}
@@ -621,11 +623,212 @@ export type RuntimeType =
  * numerator / denominator
  */
 interface RuntimeFraction {
-	numerator: bigint;
-	denominator: bigint;
+	numerator: RuntimeInteger;
+	denominator: RuntimeInteger;
 }
 
-type RuntimeRational = bigint | RuntimeFraction;
+/**
+ * Ein Integer-Wert, kanonisch dargestellt: number im sicheren Bereich (|v| ≤ 2^53 - 1), sonst bigint.
+ * Derselbe Wert hat so immer dieselbe Darstellung, === und isDeepEqual bleiben korrekt.
+ * Siehe docs/backlog/integer-als-number.md.
+ */
+export type RuntimeInteger = number | bigint;
+
+type RuntimeRational = RuntimeInteger | RuntimeFraction;
+
+//#region kanonische Integer
+
+const maxSafeInteger = Number.MAX_SAFE_INTEGER;
+const maxSafeBigInt = BigInt(Number.MAX_SAFE_INTEGER);
+
+/** Ist value ein Integer-Wert (ganzzahlige number oder bigint)? */
+export function _isInteger(value: unknown): value is RuntimeInteger {
+	return typeof value === 'bigint'
+		|| (typeof value === 'number' && Number.isInteger(value));
+}
+
+/** Stellt die kanonische Darstellung her: bigint im sicheren Bereich wird number. */
+export function _toCanonicalInteger(value: RuntimeInteger): RuntimeInteger {
+	return typeof value === 'bigint'
+		&& value <= maxSafeBigInt
+		&& value >= -maxSafeBigInt
+		? Number(value)
+		: value;
+}
+
+/** Für exakte Rechnungen jenseits des sicheren Bereichs und für Brüche */
+export function _toBigInt(value: RuntimeInteger): bigint {
+	return typeof value === 'bigint'
+		? value
+		: BigInt(value);
+}
+
+/**
+ * Die Prüfung nach der Rechnung ist für + - * exakt: Liegt das echte Ergebnis außerhalb des sicheren Bereichs,
+ * liegt auch das gerundete außerhalb.
+ */
+export function _addInteger(first: RuntimeInteger, second: RuntimeInteger): RuntimeInteger {
+	if (typeof first === 'number' && typeof second === 'number') {
+		const result = first + second;
+		if (result <= maxSafeInteger && result >= -maxSafeInteger) {
+			return result;
+		}
+	}
+	return _toCanonicalInteger(_toBigInt(first) + _toBigInt(second));
+}
+
+export function _subtractInteger(minuend: RuntimeInteger, subtrahend: RuntimeInteger): RuntimeInteger {
+	if (typeof minuend === 'number' && typeof subtrahend === 'number') {
+		const result = minuend - subtrahend;
+		if (result <= maxSafeInteger && result >= -maxSafeInteger) {
+			return result;
+		}
+	}
+	return _toCanonicalInteger(_toBigInt(minuend) - _toBigInt(subtrahend));
+}
+
+export function _multiplyInteger(first: RuntimeInteger, second: RuntimeInteger): RuntimeInteger {
+	if (typeof first === 'number' && typeof second === 'number') {
+		const result = first * second;
+		if (result <= maxSafeInteger && result >= -maxSafeInteger) {
+			// -0 (etwa -1 * 0) wäre !== 0 nicht, aber Object.is und Texte unterscheiden es
+			return result === 0 ? 0 : result;
+		}
+	}
+	return _toCanonicalInteger(_toBigInt(first) * _toBigInt(second));
+}
+
+/** Ganzzahliger Rest mit dem Vorzeichen des Dividenden, wie % auf bigint */
+function moduloInteger(dividend: RuntimeInteger, divisor: RuntimeInteger): RuntimeInteger {
+	if (typeof dividend === 'number' && typeof divisor === 'number') {
+		const result = dividend % divisor;
+		return result === 0 ? 0 : result;
+	}
+	return _toCanonicalInteger(_toBigInt(dividend) % _toBigInt(divisor));
+}
+
+//#endregion kanonische Integer
+
+//#region TypeScript-Grenze
+
+/**
+ * Wie ein Wert an der Grenze zu TypeScript umgewandelt wird. Der Compiler erzeugt die Beschreibung aus dem Typ der
+ * importierten TS-Funktion (getTsConversionSpec im Emitter). TS-Code mit `bigint` in der Signatur bekommt bigint, Jul
+ * bekommt kanonische Integer zurück. null: unverändert.
+ * - 'i': Integer
+ * - ['l', s]: Liste, ['t', [s...]]: Tupel, ['m', s]: Dictionary
+ * - ['d', {feld: s}]: Record (nur Felder mit Umwandlung)
+ * - ['f', [s...], rest, rückgabe]: Funktion (Callbacks werden in Gegenrichtung umgewandelt)
+ * - ['u', [s...]]: Union, gewählt nach der Form des Werts
+ */
+export type TsConversionSpec =
+	| 'i'
+	| readonly ['l', TsConversionSpec]
+	| readonly ['t', readonly (TsConversionSpec | null)[]]
+	| readonly ['m', TsConversionSpec]
+	| readonly ['d', { readonly [field: string]: TsConversionSpec; }]
+	| readonly ['f', readonly (TsConversionSpec | null)[], TsConversionSpec | null, TsConversionSpec | null]
+	| readonly ['u', readonly TsConversionSpec[]]
+	;
+
+function isPlainRecord(value: unknown): value is { [field: string]: unknown; } {
+	return typeof value === 'object'
+		&& value !== null
+		&& !Array.isArray(value)
+		&& !(value instanceof Error)
+		&& !(value instanceof Date)
+		&& !(_julTypeSymbol in value);
+}
+
+function matchesTsSpec(value: unknown, spec: TsConversionSpec): boolean {
+	if (spec === 'i') {
+		return _isInteger(value);
+	}
+	switch (spec[0]) {
+		case 'l':
+		case 't':
+			return Array.isArray(value);
+		case 'm':
+		case 'd':
+			return isPlainRecord(value);
+		case 'f':
+			return typeof value === 'function';
+		case 'u':
+			return spec[1].some(choice => matchesTsSpec(value, choice));
+	}
+}
+
+/** toTs: Jul-Wert für TS (Integer werden bigint), sonst TS-Wert für Jul (Integer werden kanonisch) */
+function convertAtTsBoundary(value: any, spec: TsConversionSpec | null | undefined, toTs: boolean): any {
+	if (!spec) {
+		return value;
+	}
+	if (spec === 'i') {
+		if (toTs) {
+			return typeof value === 'number' && Number.isInteger(value)
+				? BigInt(value)
+				: value;
+		}
+		return typeof value === 'bigint'
+			? _toCanonicalInteger(value)
+			: value;
+	}
+	switch (spec[0]) {
+		case 'l':
+			return Array.isArray(value)
+				? value.map(element => convertAtTsBoundary(element, spec[1], toTs))
+				: value;
+		case 't':
+			return Array.isArray(value)
+				? value.map((element, index) => convertAtTsBoundary(element, spec[1][index], toTs))
+				: value;
+		case 'm': {
+			if (!isPlainRecord(value)) {
+				return value;
+			}
+			const converted: { [field: string]: unknown; } = {};
+			for (const field in value) {
+				converted[field] = convertAtTsBoundary(value[field], spec[1], toTs);
+			}
+			return converted;
+		}
+		case 'd': {
+			if (!isPlainRecord(value)) {
+				return value;
+			}
+			const converted: { [field: string]: unknown; } = { ...value };
+			for (const field in spec[1]) {
+				if (field in converted) {
+					converted[field] = convertAtTsBoundary(converted[field], spec[1][field], toTs);
+				}
+			}
+			return converted;
+		}
+		case 'f': {
+			if (typeof value !== 'function') {
+				return value;
+			}
+			const [, paramSpecs, restSpec, returnSpec] = spec;
+			// Eine TS-Funktion für Jul bekommt ihre Argumente für TS umgewandelt und liefert für Jul. Ein Jul-Callback
+			// für TS (toTs) umgekehrt.
+			return (...args: any[]) => convertAtTsBoundary(
+				value(...args.map((arg, index) => convertAtTsBoundary(arg, index < paramSpecs.length ? paramSpecs[index] : restSpec, !toTs))),
+				returnSpec,
+				toTs);
+		}
+		case 'u': {
+			const choice = spec[1].find(candidate => matchesTsSpec(value, candidate));
+			return convertAtTsBoundary(value, choice, toTs);
+		}
+	}
+}
+
+/** Ein aus TypeScript importierter Wert, für Jul umgewandelt (siehe TsConversionSpec) */
+export function _fromTs(value: any, spec: TsConversionSpec): any {
+	return convertAtTsBoundary(value, spec, false);
+}
+
+//#endregion TypeScript-Grenze
 
 type CustomType = (value: any) => boolean;
 
@@ -901,7 +1104,7 @@ function parseJsonValue(json: string, startIndex: number): ParserResult<JsonValu
 			const combinedExponent = fractionExponent + exponent;
 			const numberValue: RuntimeRational = combinedExponent < 0
 				? normalizeRational(numerator, 10n ** (-1n * combinedExponent))
-				: numerator * 10n ** combinedExponent;
+				: _toCanonicalInteger(numerator * 10n ** combinedExponent);
 			return {
 				parsed: numberValue,
 				endIndex: numberRegex.lastIndex,
@@ -1249,9 +1452,10 @@ export const _Boolean: BooleanType = { [_julTypeSymbol]: 'boolean' };
 export const Float: FloatType = { [_julTypeSymbol]: 'float' };
 export const NonZeroFloat = /*#__PURE__*/ And(Float, /*#__PURE__*/ Not(0));
 export const Integer: IntegerType = { [_julTypeSymbol]: 'integer' };
-export const NonZeroInteger = /*#__PURE__*/ And(Integer, /*#__PURE__*/ Not(0n));
+export const CanonicalInteger = Integer;
+export const NonZeroInteger = /*#__PURE__*/ And(Integer, /*#__PURE__*/ Not(0));
 export const GreaterInteger = /*#__PURE__*/ _createFunction(
-	function GreaterInteger(Value: bigint): BoundType {
+	function GreaterInteger(Value: RuntimeInteger): BoundType {
 		return {
 			[_julTypeSymbol]: 'bound',
 			Relation: 'greater',
@@ -1269,7 +1473,7 @@ export const GreaterInteger = /*#__PURE__*/ _createFunction(
 	}
 );
 export const LessInteger = /*#__PURE__*/ _createFunction(
-	function LessInteger(Value: bigint): BoundType {
+	function LessInteger(Value: RuntimeInteger): BoundType {
 		return {
 			[_julTypeSymbol]: 'bound',
 			Relation: 'less',
@@ -1304,9 +1508,9 @@ export const GreaterFloat = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-export const PositiveInteger = /*#__PURE__*/ GreaterInteger(0n);
+export const PositiveInteger = /*#__PURE__*/ GreaterInteger(0);
 export const ElementAt = /*#__PURE__*/ _createFunction(
-	function ElementAt(Source: any, index: bigint): RuntimeType {
+	function ElementAt(Source: any, index: RuntimeInteger): RuntimeType {
 		const position = Number(index);
 		if (Source !== null
 			&& typeof Source === 'object'
@@ -1342,9 +1546,9 @@ export const LengthOf = /*#__PURE__*/ _createFunction(
 			&& _julTypeSymbol in Source) {
 			switch (Source[_julTypeSymbol]) {
 				case 'empty':
-					return 0n;
+					return 0;
 				case 'tuple':
-					return BigInt(Source.ElementTypes.length);
+					return Source.ElementTypes.length;
 				case 'list':
 					return PositiveInteger;
 				default:
@@ -1363,7 +1567,7 @@ export const LengthOf = /*#__PURE__*/ _createFunction(
 	}
 );
 export const WithElementAt = /*#__PURE__*/ _createFunction(
-	function WithElementAt(Source: any, index: bigint, Value: RuntimeType): RuntimeType {
+	function WithElementAt(Source: any, index: RuntimeInteger, Value: RuntimeType): RuntimeType {
 		const position = Number(index);
 		if (Source !== null
 			&& typeof Source === 'object'
@@ -1403,7 +1607,7 @@ export const WithElementAt = /*#__PURE__*/ _createFunction(
 	}
 );
 export const IndexRange = /*#__PURE__*/ _createFunction(
-	function IndexRange(start: bigint, end: bigint | undefined): RuntimeType {
+	function IndexRange(start: RuntimeInteger, end: RuntimeInteger | undefined): RuntimeType {
 		return {
 			[_julTypeSymbol]: 'indexRange',
 			Start: start,
@@ -1509,7 +1713,7 @@ export const Fraction: DictionaryLiteralType = {
 	},
 };
 export const Rational = /*#__PURE__*/ Or(Integer, Fraction);
-export const NonZeroRational = /*#__PURE__*/ And(Rational, /*#__PURE__*/ Not(0n));
+export const NonZeroRational = /*#__PURE__*/ And(Rational, /*#__PURE__*/ Not(0));
 //#endregion Number
 export const _Text: TextType = { [_julTypeSymbol]: 'text' };
 export const _Date: DateType = { [_julTypeSymbol]: 'date' };
@@ -1647,7 +1851,7 @@ export const divideFloat = /*#__PURE__*/ _createFunction(
 	}
 );
 export const greaterInteger = /*#__PURE__*/ _createFunction(
-	function greaterInteger(first: bigint, second: bigint) {
+	function greaterInteger(first: RuntimeInteger, second: RuntimeInteger) {
 		return first > second;
 	},
 	{
@@ -1681,7 +1885,7 @@ export const greaterFloat = /*#__PURE__*/ _createFunction(
 	}
 );
 export const maxInteger = /*#__PURE__*/ _createFunction(
-	function maxInteger(...args: bigint[]): bigint {
+	function maxInteger(...args: RuntimeInteger[]): RuntimeInteger {
 		let max = args[0]!;
 		for (let index = 1; index < args.length; index++) {
 			const element = args[index]!;
@@ -1709,8 +1913,8 @@ export const maxFloat = /*#__PURE__*/ _createFunction(
 );
 // TODO moduloFloat
 export const modulo = /*#__PURE__*/ _createFunction(
-	function modulo(dividend: bigint, divisor: bigint) {
-		return dividend % divisor;
+	function modulo(dividend: RuntimeInteger, divisor: RuntimeInteger) {
+		return moduloInteger(dividend, divisor);
 	},
 	{
 		singleNames: [
@@ -1745,37 +1949,53 @@ export function normalizeRational(numerator: bigint, denominator: bigint): Runti
 	const reducedNumerator = divisor ? signedNumerator / divisor : signedNumerator;
 	const reducedDenominator = divisor ? signedDenominator / divisor : signedDenominator;
 	return reducedDenominator === 1n
-		? reducedNumerator
+		? _toCanonicalInteger(reducedNumerator)
 		: {
-			numerator: reducedNumerator,
-			denominator: reducedDenominator,
+			numerator: _toCanonicalInteger(reducedNumerator),
+			denominator: _toCanonicalInteger(reducedDenominator),
 		};
+}
+
+/**
+ * Zähler und Nenner als bigint, für die Rechnung mit Brüchen. Ein Bruch aus einem Literal hat bigint-Felder, einer aus
+ * einem Jul-Record oder dem Constant Folding kanonische Integer.
+ */
+function getRationalParts(value: RuntimeRational): [bigint, bigint] {
+	return typeof value === 'object'
+		? [_toBigInt(value.numerator), _toBigInt(value.denominator)]
+		: [_toBigInt(value), 1n];
+}
+
+function multiplyRational(first: RuntimeRational, second: RuntimeRational): RuntimeRational {
+	if (typeof first !== 'object' && typeof second !== 'object') {
+		return _multiplyInteger(first, second);
+	}
+	const [firstNumerator, firstDenominator] = getRationalParts(first);
+	const [secondNumerator, secondDenominator] = getRationalParts(second);
+	return normalizeRational(firstNumerator * secondNumerator, firstDenominator * secondDenominator);
+}
+
+function addRational(first: RuntimeRational, second: RuntimeRational): RuntimeRational {
+	if (typeof first !== 'object' && typeof second !== 'object') {
+		return _addInteger(first, second);
+	}
+	const [firstNumerator, firstDenominator] = getRationalParts(first);
+	const [secondNumerator, secondDenominator] = getRationalParts(second);
+	return normalizeRational(
+		firstNumerator * secondDenominator + secondNumerator * firstDenominator,
+		firstDenominator * secondDenominator);
 }
 
 export const multiply = /*#__PURE__*/ _createFunction(
 	function multiply(...args: RuntimeRational[]) {
-		return args.reduce(
-			(accumulator, current) => {
-				if (typeof accumulator === 'bigint') {
-					if (typeof current === 'bigint') {
-						return accumulator * current;
-					}
-					else {
-						return normalizeRational(accumulator * current.numerator, current.denominator);
-					}
-				}
-				else {
-					if (typeof current === 'bigint') {
-						return normalizeRational(accumulator.numerator * current, accumulator.denominator);
-					}
-					else {
-						return normalizeRational(
-							accumulator.numerator * current.numerator,
-							accumulator.denominator * current.denominator);
-					}
-				}
-			},
-			1n);
+		if (!args.length) {
+			return 1;
+		}
+		let result = args[0]!;
+		for (let index = 1; index < args.length; index++) {
+			result = multiplyRational(result, args[index]!);
+		}
+		return result;
 	},
 	{
 		rest: {
@@ -1785,10 +2005,8 @@ export const multiply = /*#__PURE__*/ _createFunction(
 );
 export const divide = /*#__PURE__*/ _createFunction(
 	function divide(dividend: RuntimeRational, divisor: RuntimeRational): RuntimeRational {
-		const dividendNumerator = typeof dividend === 'bigint' ? dividend : dividend.numerator;
-		const dividendDenominator = typeof dividend === 'bigint' ? 1n : dividend.denominator;
-		const divisorNumerator = typeof divisor === 'bigint' ? divisor : divisor.numerator;
-		const divisorDenominator = typeof divisor === 'bigint' ? 1n : divisor.denominator;
+		const [dividendNumerator, dividendDenominator] = getRationalParts(dividend);
+		const [divisorNumerator, divisorDenominator] = getRationalParts(divisor);
 		return normalizeRational(
 			dividendNumerator * divisorDenominator,
 			dividendDenominator * divisorNumerator);
@@ -1826,7 +2044,7 @@ export const multiplyFloat = /*#__PURE__*/ _createFunction(
 );
 export const rationalToFloat = /*#__PURE__*/ _createFunction(
 	function rationalToFloat(rational: RuntimeRational): number {
-		if (typeof rational === 'bigint') {
+		if (typeof rational !== 'object') {
 			return Number(rational);
 		}
 		else {
@@ -1843,16 +2061,17 @@ export const rationalToFloat = /*#__PURE__*/ _createFunction(
 	}
 );
 export const roundUp = /*#__PURE__*/ _createFunction(
-	function roundUp(value: RuntimeRational): bigint {
-		if (typeof value === 'bigint') {
+	function roundUp(value: RuntimeRational): RuntimeInteger {
+		if (typeof value !== 'object') {
 			return value;
 		}
-		const quotient = value.numerator / value.denominator;
-		const hasRemainder = value.numerator % value.denominator !== 0n;
-		const isPositive = (value.numerator < 0n) === (value.denominator < 0n);
-		return hasRemainder && isPositive
+		const [numerator, denominator] = getRationalParts(value);
+		const quotient = numerator / denominator;
+		const hasRemainder = numerator % denominator !== 0n;
+		const isPositive = (numerator < 0n) === (denominator < 0n);
+		return _toCanonicalInteger(hasRemainder && isPositive
 			? quotient + 1n
-			: quotient;
+			: quotient);
 	},
 	{
 		singleNames: [
@@ -1868,18 +2087,27 @@ export type FloatRounding = 'down' | 'up' | 'towardZero' | 'nearest';
  * Setzt einen endlichen Float voraus: BigInt wirft bei NaN und ±Infinity einen RangeError.
  */
 export const floatToInteger = /*#__PURE__*/ _createFunction(
-	function floatToInteger(value: number, rounding: FloatRounding): bigint {
+	function floatToInteger(value: number, rounding: FloatRounding): RuntimeInteger {
+		let rounded: number;
 		switch (rounding) {
 			case 'down':
-				return BigInt(Math.floor(value));
+				rounded = Math.floor(value);
+				break;
 			case 'up':
-				return BigInt(Math.ceil(value));
+				rounded = Math.ceil(value);
+				break;
 			case 'towardZero':
-				return BigInt(Math.trunc(value));
+				rounded = Math.trunc(value);
+				break;
 			case 'nearest':
 				// Math.round rundet .5 Richtung +Infinity, hier symmetrisch weg von der Null
-				return BigInt(Math.sign(value) * Math.round(Math.abs(value)));
+				rounded = Math.sign(value) * Math.round(Math.abs(value));
+				break;
 		}
+		// -0 wird 0, jenseits des sicheren Bereichs exakt als bigint (BigInt ist exakt zum Float)
+		return Number.isSafeInteger(rounded)
+			? rounded + 0
+			: BigInt(rounded);
 	},
 	{
 		singleNames: [
@@ -1896,24 +2124,14 @@ export const floatToInteger = /*#__PURE__*/ _createFunction(
 );
 export const subtract =/*#__PURE__*/ _createFunction(
 	function subtract(minuend: RuntimeRational, subtrahend: RuntimeRational): RuntimeRational {
-		if (typeof minuend === 'bigint') {
-			if (typeof subtrahend === 'bigint') {
-				return minuend - subtrahend;
-			}
-			else {
-				return normalizeRational(minuend * subtrahend.denominator - subtrahend.numerator, subtrahend.denominator);
-			}
+		if (typeof minuend !== 'object' && typeof subtrahend !== 'object') {
+			return _subtractInteger(minuend, subtrahend);
 		}
-		else {
-			if (typeof subtrahend === 'bigint') {
-				return normalizeRational(minuend.numerator - subtrahend * minuend.denominator, minuend.denominator);
-			}
-			else {
-				return normalizeRational(
-					minuend.numerator * subtrahend.denominator - subtrahend.numerator * minuend.denominator,
-					minuend.denominator * subtrahend.denominator);
-			}
-		}
+		const [minuendNumerator, minuendDenominator] = getRationalParts(minuend);
+		const [subtrahendNumerator, subtrahendDenominator] = getRationalParts(subtrahend);
+		return normalizeRational(
+			minuendNumerator * subtrahendDenominator - subtrahendNumerator * minuendDenominator,
+			minuendDenominator * subtrahendDenominator);
 	},
 	{
 		singleNames: [
@@ -1951,28 +2169,14 @@ export const subtractFloat = /*#__PURE__*/ _createFunction(
 );
 export const add = /*#__PURE__*/ _createFunction(
 	function add(...args: RuntimeRational[]) {
-		return args.reduce(
-			(accumulator, current) => {
-				if (typeof accumulator === 'bigint') {
-					if (typeof current === 'bigint') {
-						return accumulator + current;
-					}
-					else {
-						return normalizeRational(accumulator * current.denominator + current.numerator, current.denominator);
-					}
-				}
-				else {
-					if (typeof current === 'bigint') {
-						return normalizeRational(accumulator.numerator + current * accumulator.denominator, accumulator.denominator);
-					}
-					else {
-						return normalizeRational(
-							accumulator.numerator * current.denominator + current.numerator * accumulator.denominator,
-							accumulator.denominator * current.denominator);
-					}
-				}
-			},
-			0n);
+		if (!args.length) {
+			return 0;
+		}
+		let result = args[0]!;
+		for (let index = 1; index < args.length; index++) {
+			result = addRational(result, args[index]!);
+		}
+		return result;
 	},
 	{
 		rest: {
@@ -2139,13 +2343,13 @@ export const regex = /*#__PURE__*/ _createFunction(
 export const addDate = /*#__PURE__*/ _createFunction(
 	function addDate(
 		date: Date,
-		years: bigint | undefined,
-		months: bigint | undefined,
-		days: bigint | undefined,
-		hours: bigint | undefined,
-		minutes: bigint | undefined,
-		seconds: bigint | undefined,
-		milliseconds: bigint | undefined
+		years: RuntimeInteger | undefined,
+		months: RuntimeInteger | undefined,
+		days: RuntimeInteger | undefined,
+		hours: RuntimeInteger | undefined,
+		minutes: RuntimeInteger | undefined,
+		seconds: RuntimeInteger | undefined,
+		milliseconds: RuntimeInteger | undefined
 	) {
 		return new Date(
 			date.getFullYear() + Number(years ?? 0),
@@ -2220,11 +2424,11 @@ export const toIsoDateText = /*#__PURE__*/ _createFunction(
 export const length = /*#__PURE__*/ _createFunction(
 	function length(
 		values: any[] | undefined,
-	): bigint {
+	): number {
 		if (!values) {
-			return 0n;
+			return 0;
 		}
-		return BigInt(values.length);
+		return values.length;
 	},
 	{
 		singleNames: [
@@ -2238,9 +2442,12 @@ export const length = /*#__PURE__*/ _createFunction(
 export const getElement = /*#__PURE__*/ _createFunction(
 	function getElement<T>(
 		values: T[] | undefined,
-		index: bigint,
+		index: RuntimeInteger,
 	): T | undefined {
-		return values?.[Number(index) - 1];
+		// Ein bigint-Index liegt jenseits von 2^53, also außerhalb jeder Liste
+		return typeof index === 'number'
+			? values?.[index - 1]
+			: undefined;
 	},
 	{
 		singleNames: [
@@ -2258,7 +2465,7 @@ export const getElement = /*#__PURE__*/ _createFunction(
 export const setElement = /*#__PURE__*/ _createFunction(
 	function setElement<T>(
 		values: T[] | undefined,
-		index: bigint,
+		index: RuntimeInteger,
 		value: T,
 	): T[] {
 		const copy = values
@@ -2286,13 +2493,13 @@ export const setElement = /*#__PURE__*/ _createFunction(
 export const map = /*#__PURE__*/ _createFunction(
 	function map<T, U>(
 		values: T[] | undefined,
-		transform: (value: T, index: bigint) => U,
+		transform: (value: T, index: number) => U,
 	): U[] | undefined {
 		if (!values) {
 			return;
 		}
 		const mappedValues = values.map((value, index) => {
-			return transform(value, BigInt(index + 1));
+			return transform(value, index + 1);
 		});
 		return mappedValues.length
 			? mappedValues
@@ -2314,13 +2521,13 @@ export const map = /*#__PURE__*/ _createFunction(
 export const filter = /*#__PURE__*/ _createFunction(
 	function filter<T>(
 		values: T[] | undefined,
-		predicate: (value: T, index: bigint) => boolean,
+		predicate: (value: T, index: number) => boolean,
 	): T[] | undefined {
 		if (!values) {
 			return;
 		}
 		const filtered = values.filter((value, index) => {
-			return predicate(value, BigInt(index + 1));
+			return predicate(value, index + 1);
 		});
 		return filtered.length
 			? filtered
@@ -2342,14 +2549,14 @@ export const filter = /*#__PURE__*/ _createFunction(
 export const filterMap = /*#__PURE__*/ _createFunction(
 	function filterMap<T, U>(
 		values: T[] | undefined,
-		transform: (value: T, index: bigint) => U | undefined,
+		transform: (value: T, index: number) => U | undefined,
 	): U[] | undefined {
 		if (!values) {
 			return;
 		}
 		const mappedValues: U[] = [];
 		values.forEach((value, index) => {
-			const mapped = transform(value, BigInt(index + 1));
+			const mapped = transform(value, index + 1);
 			if (mapped !== undefined) {
 				mappedValues.push(mapped);
 			}
@@ -2436,17 +2643,17 @@ export const sort = /*#__PURE__*/ _createFunction(
 export const slice = /*#__PURE__*/ _createFunction(
 	function slice<T>(
 		values: T[] | undefined,
-		start: bigint,
-		end: bigint | undefined,
+		start: RuntimeInteger,
+		end: RuntimeInteger | undefined,
 	): T[] | undefined {
 		if (!values) {
 			return;
 		}
 		const sliced = values.slice(
 			Number(start) - 1,
-			typeof end === 'bigint'
-				? Number(end)
-				: undefined
+			end === undefined
+				? undefined
+				: Number(end)
 		);
 		return sliced.length ? sliced : undefined;
 	},
@@ -2468,13 +2675,21 @@ export const slice = /*#__PURE__*/ _createFunction(
 	}
 );
 export const range = /*#__PURE__*/ _createFunction(
-	function range(start: bigint, end: bigint): bigint[] | undefined {
+	function range(start: RuntimeInteger, end: RuntimeInteger): RuntimeInteger[] | undefined {
 		if (start > end) {
 			return;
 		}
-		const values: bigint[] = [];
-		for (let value = start; value <= end; value++) {
-			values.push(value);
+		const values: RuntimeInteger[] = [];
+		if (typeof start === 'number' && typeof end === 'number') {
+			for (let value = start; value <= end; value++) {
+				values.push(value);
+			}
+			return values;
+		}
+		// Grenzen jenseits des sicheren Bereichs: exakt mit bigint, jeder Wert kanonisch
+		const bigEnd = _toBigInt(end);
+		for (let value = _toBigInt(start); value <= bigEnd; value++) {
+			values.push(_toCanonicalInteger(value));
 		}
 		return values;
 	},
@@ -2494,10 +2709,10 @@ export const range = /*#__PURE__*/ _createFunction(
 export const findFirst =/*#__PURE__*/ _createFunction(
 	function findFirst<T>(
 		values: T[] | undefined,
-		predicate: (value: T, index: bigint) => boolean,
+		predicate: (value: T, index: number) => boolean,
 	): T | undefined {
 		return values?.find((value, index) => {
-			return predicate(value, BigInt(index + 1));
+			return predicate(value, index + 1);
 		});
 	},
 	{
@@ -2516,17 +2731,17 @@ export const findFirst =/*#__PURE__*/ _createFunction(
 export const findFirstIndex = /*#__PURE__*/ _createFunction(
 	function findFirstIndex<T>(
 		values: T[] | undefined,
-		predicate: (value: T, index: bigint) => boolean,
-	): bigint | undefined {
+		predicate: (value: T, index: number) => boolean,
+	): number | undefined {
 		if (!values) {
 			return;
 		}
 		const firstIndexFloat = values.findIndex((value, index) => {
-			return predicate(value, BigInt(index + 1));
+			return predicate(value, index + 1);
 		});
 		return firstIndexFloat === -1
 			? undefined
-			: BigInt(firstIndexFloat + 1);
+			: firstIndexFloat + 1;
 	},
 	{
 		singleNames: [
@@ -2544,10 +2759,10 @@ export const findFirstIndex = /*#__PURE__*/ _createFunction(
 export const findLast = /*#__PURE__*/ _createFunction(
 	function findLast<T>(
 		values: T[] | undefined,
-		predicate: (value: T, index: bigint) => boolean,
+		predicate: (value: T, index: number) => boolean,
 	): T | undefined {
 		return values?.findLast((value, index) => {
-			return predicate(value, BigInt(index + 1));
+			return predicate(value, index + 1);
 		});
 	},
 	{
@@ -2566,17 +2781,17 @@ export const findLast = /*#__PURE__*/ _createFunction(
 export const findLastIndex = /*#__PURE__*/ _createFunction(
 	function findLastIndex<T>(
 		values: T[] | undefined,
-		predicate: (value: T, index: bigint) => boolean,
-	): bigint | undefined {
+		predicate: (value: T, index: number) => boolean,
+	): number | undefined {
 		if (!values) {
 			return;
 		}
 		const lastIndexFloat = values.findLastIndex((value, index) => {
-			return predicate(value, BigInt(index + 1));
+			return predicate(value, index + 1);
 		});
 		return lastIndexFloat === -1
 			? undefined
-			: BigInt(lastIndexFloat + 1);
+			: lastIndexFloat + 1;
 	},
 	{
 		singleNames: [
@@ -2607,10 +2822,10 @@ export const lastElement = /*#__PURE__*/ _createFunction(
 export const forEach = /*#__PURE__*/ _createFunction(
 	function forEach<T>(
 		values: T[] | undefined,
-		callback: (value: T, index: bigint) => void,
+		callback: (value: T, index: number) => void,
 	) {
 		values?.forEach((value, index) => {
-			return callback(value, BigInt(index + 1));
+			return callback(value, index + 1);
 		});
 	},
 	{
@@ -2629,13 +2844,13 @@ export const forEach = /*#__PURE__*/ _createFunction(
 export const exists = /*#__PURE__*/ _createFunction(
 	function exists<T>(
 		values: T[] | undefined,
-		predicate: (value: T, index: bigint) => boolean,
+		predicate: (value: T, index: number) => boolean,
 	): boolean {
 		if (!values) {
 			return false;
 		}
 		return values.some((value, index) => {
-			return predicate(value, BigInt(index + 1));
+			return predicate(value, index + 1);
 		});
 	},
 	{
@@ -2655,13 +2870,13 @@ export const exists = /*#__PURE__*/ _createFunction(
 export const all = /*#__PURE__*/ _createFunction(
 	function all<T>(
 		values: T[] | undefined,
-		predicate: (value: T, index: bigint) => boolean,
+		predicate: (value: T, index: number) => boolean,
 	): boolean {
 		if (!values) {
 			return true;
 		}
 		return values.every((value, index) => {
-			return predicate(value, BigInt(index + 1));
+			return predicate(value, index + 1);
 		});
 	},
 	{
@@ -2680,20 +2895,20 @@ export const all = /*#__PURE__*/ _createFunction(
 export const toDictionary = /*#__PURE__*/ _createFunction(
 	function toDictionary(
 		values: any[] | undefined,
-		getKey: (value: any, index: bigint) => string,
-		getValue: (value: any, index: bigint) => any,
+		getKey: (value: any, index: number) => string,
+		getValue: (value: any, index: number) => any,
 	): RuntimeDictionary | undefined {
 		if (!values) {
 			return;
 		}
 		const dictionary: RuntimeDictionary = {};
-		let indexBigint = 1n;
+		let position = 1;
 		for (let index = 0; index < values.length; index++) {
 			const oldValue = values[index];
-			const key = getKey(oldValue, indexBigint);
-			const newValue = getValue(oldValue, indexBigint);
+			const key = getKey(oldValue, position);
+			const newValue = getValue(oldValue, position);
 			dictionary[key] = newValue;
-			indexBigint++;
+			position++;
 		}
 		return dictionary;
 	},
@@ -2719,14 +2934,14 @@ export const aggregate = /*#__PURE__*/ _createFunction(
 		values: T[] | undefined,
 		_accumulatorType: unknown,
 		initialValue: U,
-		callback: (accumulator: U, value: T, index: bigint) => U,
+		callback: (accumulator: U, value: T, index: number) => U,
 	): U {
 		if (!values) {
 			return initialValue;
 		}
 		return values.reduce(
 			(accumulator, value, index) => {
-				return callback(accumulator, value, BigInt(index + 1));
+				return callback(accumulator, value, index + 1);
 			},
 			initialValue);
 	},
@@ -3128,15 +3343,15 @@ function _delay$<T>(delayMs: number, value: T): StreamClass<T | undefined> {
  * Startwert 0, nach jedem Intervall von delayMs die Anzahl der vergangenen Intervalle. Mit count
  * nach count Intervallen beendet, bei 0 sofort. Beendet wird das Intervall gelöscht.
  */
-function _interval$(delayMs: number, count?: bigint): StreamClass<bigint> {
-	const interval$ = _create$(0n);
-	if (count === 0n) {
+function _interval$(delayMs: number, count?: RuntimeInteger): StreamClass<number> {
+	const interval$ = _create$(0);
+	if (count === 0) {
 		interval$.complete();
 		return interval$;
 	}
 	const intervalId = setInterval(() => {
 		processId++;
-		const elapsed = interval$.lastValue! + 1n;
+		const elapsed = interval$.lastValue! + 1;
 		interval$.push(elapsed, processId);
 		if (elapsed === count) {
 			interval$.complete();
@@ -3236,8 +3451,8 @@ function _combine$<T>(
 	return combined$;
 }
 
-function _take$<T>(source$: StreamClass<T>, count: bigint): StreamClass<T> {
-	let counter = 0n;
+function _take$<T>(source$: StreamClass<T>, count: RuntimeInteger): StreamClass<T> {
+	let counter = 0;
 	const mapped$ = _create$<T>(source$.lastValue!);
 	const unsubscribe = source$.subscribe(
 		(value) => {
@@ -3682,10 +3897,10 @@ export const log = /*#__PURE__*/ _createFunction(
 );
 export const repeat = /*#__PURE__*/ _createFunction(
 	function repeat(
-		count: bigint,
-		iteratee: (index: bigint) => void,
+		count: RuntimeInteger,
+		iteratee: (index: number) => void,
 	) {
-		for (let index = 1n; index <= count; index++) {
+		for (let index = 1; index <= Number(count); index++) {
 			iteratee(index);
 		}
 	},
