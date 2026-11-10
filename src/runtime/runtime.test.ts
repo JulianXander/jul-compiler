@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { reportAtCaller } from '../test-util.js';
 import {
-	_branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssumeViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText,
+	_branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssumeViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText, toLowerCase,
 	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol, _optionalField, _Text, Or,
 	_addInteger, _subtractInteger, _multiplyInteger, _toCanonicalInteger, _isInteger, _fromTs, _isOfType, Float, length, range, modulo,
@@ -709,6 +709,18 @@ describe('compareOrdinal', () => {
 	});
 	it('vergleicht Ziffern als Text, nicht als Zahl', () => {
 		expect(compareOrdinal('a10', 'a2')).to.equal('less');
+	});
+});
+
+describe('toLowerCase', () => {
+	it('wandelt Großbuchstaben in Kleinbuchstaben', () => {
+		expect(toLowerCase('Fortune Lady')).to.equal('fortune lady');
+	});
+	it('wandelt Umlaute und lässt ß unverändert', () => {
+		expect(toLowerCase('ÄÖÜß')).to.equal('äöüß');
+	});
+	it('lässt Ziffern und Satzzeichen unverändert', () => {
+		expect(toLowerCase('ATK:1-2')).to.equal('atk:1-2');
 	});
 });
 

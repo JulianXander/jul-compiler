@@ -2241,6 +2241,19 @@ export const compareOrdinal = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const toLowerCase = /*#__PURE__*/ _createFunction(
+	function toLowerCase(text: string) {
+		return text.toLowerCase();
+	},
+	{
+		singleNames: [
+			{
+				name: 'text',
+				type: _Text,
+			},
+		]
+	}
+);
 export const splitText = /*#__PURE__*/ _createFunction(
 	function splitText(text: string, separator: string) {
 		return text.split(separator);

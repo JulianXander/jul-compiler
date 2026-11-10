@@ -677,6 +677,14 @@ compareOrdinal = nativeFunction(
 				: 'equal'
 	§
 )
+# Text in Kleinbuchstaben nach den Unicode-Regeln, unabhängig von Sprache und Umgebung (wie String.toLowerCase in JavaScript).
+# Für einen Vergleich ohne Unterscheidung von Groß- und Kleinschreibung: compareOrdinal(toLowerCase(first) toLowerCase(second)).
+toLowerCase = nativeFunction(
+	(text: Text) -> Text
+	§js
+		(text) => text.toLowerCase()
+	§
+)
 #region JSON
 JsonPrimitive = Or([] Boolean Rational Text)
 JsonValue = Or(JsonPrimitive List(JsonValue) Dictionary(JsonValue))
