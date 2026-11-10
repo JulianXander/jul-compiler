@@ -1,6 +1,6 @@
 import { appendFileSync, chmodSync, writeFileSync, globSync, readFileSync, rmSync, statSync } from 'fs';
 import { registerHooks } from 'module';
-import { basename, dirname, join, relative, resolve } from 'path';
+import { basename, dirname, extname, join, relative, resolve } from 'path';
 import { RawSourceMap, SourceMapGenerator } from 'source-map';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { format } from 'util';
@@ -63,7 +63,7 @@ export function compileProject(
 	//#region 3. report errors
 	const { hasError, summary } = reportErrors(
 		documents,
-		entry === 'notFound' ? [entryFilePath] : [],
+		getProjectErrors(documents, entry === 'notFound' ? [entryFilePath] : []),
 		host,
 		renderer);
 	if (hasError) {
@@ -178,9 +178,59 @@ export function compileProject(
  * Die Fehler aller Dateien, nicht nur die der ersten fehlerhaften (wie tsc), und die Abschlusszeile
  * des Schritts "compiling". Hinweise zählen nicht mit, sie sind keine Beanstandung.
  */
+/**
+ * Fehler, die keiner Stelle im Code gehören, sondern dem Projekt: eine nicht gefundene Datei oder
+ * zwei Quellen mit derselben Ausgabedatei. file ist die Datei, unter der der Fehler gemeldet wird.
+ */
+interface ProjectError {
+	file: string;
+	message: string;
+}
+
+function getProjectErrors(documents: ParsedDocuments, notFoundPaths: string[]): ProjectError[] {
+	return [
+		...notFoundPaths.map(path => ({ file: path, message: `File not found: ${path}` })),
+		...findOutputPathConflicts(Object.keys(documents)).map(conflict => ({
+			file: conflict.sourceFilePaths[0]!,
+			message: `Output file conflict: ${formatList(conflict.sourceFilePaths)} ${conflict.sourceFilePaths.length === 2 ? 'both' : 'all'} compile to ${conflict.outFilePath}. Rename one of them.`,
+		})),
+	];
+}
+
+function formatList(items: string[]): string {
+	return items.length <= 2
+		? items.join(' and ')
+		: `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+}
+
+/**
+ * Ausgabedateien, auf die mehr als eine Quelldatei fällt (etwa util.jul und util.ts, beide werden zu
+ * util.js). Ohne diese Prüfung überschriebe die zuletzt emittierte Datei still die andere. Verglichen
+ * wird ohne Unterscheidung von Groß- und Kleinschreibung, weil die Dateisysteme unter Windows und
+ * macOS meist nicht unterscheiden. outFilePath ist relativ zum Out-Ordner, so wie die erste Quelle
+ * ihn schreibt.
+ */
+export function findOutputPathConflicts(
+	sourceFilePaths: string[],
+): { outFilePath: string; sourceFilePaths: string[]; }[] {
+	const groups = new Map<string, { outFilePath: string; sourceFilePaths: string[]; }>();
+	sourceFilePaths.forEach(sourceFilePath => {
+		const outFilePath = getOutFilePath(sourceFilePath, '');
+		const key = outFilePath.toLowerCase();
+		const group = groups.get(key);
+		if (group) {
+			group.sourceFilePaths.push(sourceFilePath);
+		}
+		else {
+			groups.set(key, { outFilePath: outFilePath, sourceFilePaths: [sourceFilePath] });
+		}
+	});
+	return [...groups.values()].filter(group => group.sourceFilePaths.length > 1);
+}
+
 function reportErrors(
 	documents: ParsedDocuments,
-	notFoundPaths: string[],
+	projectErrors: ProjectError[],
 	host: ProjectHost,
 	renderer: LiveRenderer,
 	// Codes, die der Aufrufer selbst abdeckt: weder gemeldet noch Abbruchgrund.
@@ -188,9 +238,9 @@ function reportErrors(
 ): { hasError: boolean; summary: string; } {
 	// checked enthält die Parse-Fehler schon (das CheckResult kopiert syntax.errors), deshalb nicht
 	// beide Listen.
-	let errorCount = notFoundPaths.length;
+	let errorCount = projectErrors.length;
 	let warningCount = 0;
-	const formattedErrors = notFoundPaths.map(path => `File not found: ${path}`);
+	const formattedErrors = projectErrors.map(error => error.message);
 	Object.values(documents).forEach(document => {
 		// Hinweise sind für den Editor, der sie an der Stelle zeigt. In der Ausgabe gingen die
 		// Beanstandungen darin unter.
@@ -294,9 +344,10 @@ export async function testProject(
 	// Ein statisch fehlschlagender Test ist kein Abbruchgrund: Der Checker meldet JUL5200 nur bei
 	// fehlerfreien Argumenten, der Aufruf lässt sich also emittieren. Der Lauf führt ihn dann als
 	// fehlgeschlagen, samt Argumentwerten - die statische Meldung wäre daneben doppelt.
-	const { hasError, summary } = reportErrors(documents, notFoundPaths, host, renderer, [ErrorCode.testFails]);
+	const projectErrors = getProjectErrors(documents, notFoundPaths);
+	const { hasError, summary } = reportErrors(documents, projectErrors, host, renderer, [ErrorCode.testFails]);
 	if (hasError) {
-		writeReport({ type: 'compileFailed', errors: getCompileErrors(documents, notFoundPaths, [ErrorCode.testFails]) });
+		writeReport({ type: 'compileFailed', errors: getCompileErrors(documents, projectErrors, [ErrorCode.testFails]) });
 		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
 		return;
@@ -511,11 +562,11 @@ function toAbsoluteLocation(location: TestLocation | undefined): TestLocation | 
  */
 function getCompileErrors(
 	documents: ParsedDocuments,
-	notFoundPaths: string[],
+	projectErrors: ProjectError[],
 	ignoredCodes: ErrorCode[],
 ): (TestLocation & { message: string; })[] {
 	return [
-		...notFoundPaths.map(path => ({ file: resolve(path), row: 1, column: 1, message: `File not found: ${path}` })),
+		...projectErrors.map(error => ({ file: resolve(error.file), row: 1, column: 1, message: error.message })),
 		...Object.values(documents).flatMap(document =>
 			(document.checked?.errors ?? document.syntax.errors)
 				.filter(error => errorInfos[error.code].severity === 'error'
@@ -666,14 +717,13 @@ function emitToJs(
 	let compiled: string;
 	// Nur .jul und .json importieren die Runtime.
 	let runtimeNames: string[] = [];
-	let outFilePath: string;
+	const outFilePath = getOutFilePath(sourceFilePath, outputFolderPath);
 	let sourceMap: RawSourceMap | undefined;
 	const extension = parsed.extension;
 	switch (extension) {
 		case Extension.js: {
 			// copy js file to output folder
 			compiled = sourceCode;
-			outFilePath = join(outputFolderPath, sourceFilePath);
 			break;
 		}
 		case Extension.json:
@@ -683,7 +733,6 @@ function emitToJs(
 				&& extension === Extension.json) {
 				// Kein Syntaxbaum, das JS entsteht direkt aus dem geparsten Wert.
 				compiled = jsonValueToJs(parsed.jsonValue);
-				outFilePath = join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
 				break;
 			}
 			// checkResult trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht. Ohne
@@ -702,16 +751,12 @@ function emitToJs(
 			});
 			compiled = emitted.js;
 			runtimeNames = emitted.runtimeNames;
-			const jsFileName = changeExtension(sourceFilePath, Extension.js);
-			outFilePath = join(outputFolderPath, jsFileName);
 			if (extension === Extension.jul) {
 				sourceMap = createSourceMap(emitted.mappings, sourceFilePath, outFilePath, sourceCode);
 			}
 			break;
 		}
 		case Extension.ts: {
-			const jsFileName = changeExtension(sourceFilePath, Extension.js);
-			outFilePath = join(outputFolderPath, jsFileName);
 			const js = transpileModule(sourceCode, {
 				compilerOptions: {
 					module: ModuleKind.ESNext,
@@ -736,7 +781,6 @@ function emitToJs(
 			// TODO compile
 			const parsedYaml = load(sourceCode);
 			compiled = JSON.stringify(parsedYaml);
-			outFilePath = join(outputFolderPath, sourceFilePath + Extension.json);
 			break;
 		}
 		default: {
@@ -745,6 +789,22 @@ function emitToJs(
 		}
 	}
 	return { outFilePath: outFilePath, compiled: compiled, sourceMap: sourceMap, runtimeNames: runtimeNames };
+}
+
+/**
+ * Pfad der Ausgabedatei zu einer Quelldatei: .js wird kopiert, .yaml wird zu .yaml.json, alles
+ * andere zu .js. Gegenstück zum Umschreiben der Importpfade im Emitter (getPathFromImport).
+ */
+function getOutFilePath(sourceFilePath: string, outputFolderPath: string): string {
+	const extension = extname(sourceFilePath);
+	switch (extension) {
+		case Extension.js:
+			return join(outputFolderPath, sourceFilePath);
+		case Extension.yaml:
+			return join(outputFolderPath, sourceFilePath + Extension.json);
+		default:
+			return join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
+	}
 }
 
 //#region rendering

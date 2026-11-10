@@ -4,7 +4,7 @@ import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { SourceMapConsumer } from 'source-map';
 
-import { createSourceMap, createTestReport, formatErrors, formatLoadFailure, formatTestResult, formatTodoList, LiveRenderer, toReportResult } from './compiler.js';
+import { createSourceMap, createTestReport, findOutputPathConflicts, formatErrors, formatLoadFailure, formatTestResult, formatTodoList, LiveRenderer, toReportResult } from './compiler.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { parseTodoComments } from '../parser/comment-directives.js';
 import { createInMemoryHost } from './project-loader.js';
@@ -327,6 +327,38 @@ describe('createSourceMap', () => {
 	it('contains-source-code', () => {
 		const sourceMap = createSourceMap(mappings, 'a.jul', 'a.js', 'code');
 		expect(sourceMap.sourcesContent).to.deep.equal(['code']);
+	});
+});
+
+// Zwei Quellen, die dieselbe Ausgabedatei ergäben, überschrieben sich still (yugioh: util.jul neben
+// util.ts, beide werden zu util.js). Der Compiler muss das vor dem Emit erkennen und beide nennen.
+describe('findOutputPathConflicts', () => {
+	it('meldet .jul und .ts mit demselben Namen', () => {
+		expect(findOutputPathConflicts([join('src', 'util.jul'), join('src', 'util.ts')])).to.deep.equal([
+			{ outFilePath: join('src', 'util.js'), sourceFilePaths: [join('src', 'util.jul'), join('src', 'util.ts')] },
+		]);
+	});
+	it('meldet .jul und .json mit demselben Namen', () => {
+		expect(findOutputPathConflicts([join('src', 'data.jul'), join('src', 'data.json')])).to.deep.equal([
+			{ outFilePath: join('src', 'data.js'), sourceFilePaths: [join('src', 'data.jul'), join('src', 'data.json')] },
+		]);
+	});
+	it('meldet .ts und eine kopierte .js-Datei mit demselben Namen', () => {
+		expect(findOutputPathConflicts([join('src', 'dom.ts'), join('src', 'dom.js')])).to.deep.equal([
+			{ outFilePath: join('src', 'dom.js'), sourceFilePaths: [join('src', 'dom.ts'), join('src', 'dom.js')] },
+		]);
+	});
+	// Unter Windows und macOS ist das Dateisystem meist unabhängig von Groß- und Kleinschreibung.
+	it('meldet Namen, die sich nur in Groß- und Kleinschreibung unterscheiden', () => {
+		expect(findOutputPathConflicts([join('src', 'Util.ts'), join('src', 'util.jul')])).to.deep.equal([
+			{ outFilePath: join('src', 'Util.js'), sourceFilePaths: [join('src', 'Util.ts'), join('src', 'util.jul')] },
+		]);
+	});
+	it('meldet nichts für .yaml neben .jul, .yaml behält die Endung', () => {
+		expect(findOutputPathConflicts([join('src', 'config.jul'), join('src', 'config.yaml')])).to.deep.equal([]);
+	});
+	it('meldet nichts für denselben Namen in verschiedenen Ordnern', () => {
+		expect(findOutputPathConflicts([join('src', 'util.jul'), join('src', 'ui', 'util.ts')])).to.deep.equal([]);
 	});
 });
 
