@@ -618,6 +618,27 @@ f = (flag: Boolean) =>
 			sum
 		[§b§] => 0`);
 	});
+	// Ein Name und seine Herkunft bezeichnen denselben Wert, die Verengung gilt in beide Richtungen.
+	it('branch-narrowing-over-origin-narrows-field-of-alias', () => {
+		expectCheck(`Flagged = [level: Or([] Integer) flag: Boolean]
+Holder = [state: Flagged]
+f = (holder: Holder) :> Integer =>
+	record = holder/state
+	?(holder/state/level)
+		[Empty] => 0
+	record/level`);
+	});
+	// Die Herkunft eines Namens kann auf ihn selbst zurückführen. Die Suche nach dem Zugriffspfad
+	// darf dabei nicht endlos laufen.
+	it('branch-narrowing-over-self-referencing-origin-terminates', () => {
+		const parserResult = parseCode(`f = (x: [b: Boolean]) =>
+	a = c/b
+	c = a/b
+	?(a/b)
+		[true] => 1
+	a/b`, 'dummy.jul');
+		expect(() => checkTypes(parserResult, {})).not.to.throw();
+	});
 	// Bug: Destructuring eines im Zweig verengten Parameters. Die Verengung ist ein Schnitt über dem
 	// noch offenen Parameter, das Destructuring schlägt Name bzw. Position aber ohne getLookupType
 	// nach und meldet "Failed to dereference", obwohl ein nicht verengtes Argument funktioniert.
@@ -9072,6 +9093,31 @@ describe('Warnung bei unknown', () => {
 			.filter(error => error.code === ErrorCode.typeNotProven)
 			.map(error => error.message);
 	};
+	// Bug: Die Verengung von record/flag landete als Typ von holder/state statt von
+	// holder/state/flag. Damit war holder leer geschnitten und holder/level danach Any.
+	it('unknown-not-reported-for-other-field-of-origin-after-early-exit-over-field-of-alias', () => {
+		expect(unknownMessages(`Flagged = [face: Or(§up§ §down§) flag: Boolean]
+Holder = [level: Or([] Integer) state: Flagged]
+f = (holder: Holder) :> Integer =>
+	record = holder/state
+	?(record/flag)
+		[true] => 0
+	level = holder/level
+	?(level)
+		[Empty] => 0
+	level`)).to.deep.equal([]);
+	});
+	// Dasselbe als Wertverzweigung: In den Armen ist holder/level Any.
+	it('unknown-not-reported-for-other-field-of-origin-in-branches-over-field-of-alias', () => {
+		expect(unknownMessages(`Flagged = [face: Or(§up§ §down§) flag: Boolean]
+Holder = [level: Or([] Integer) state: Flagged]
+f = (holder: Holder) :> Or([] Integer) =>
+	record = holder/state
+	newLevel: Or([] Integer) = ?(record/flag)
+		[true] => holder/level
+		[false] => holder/level
+	newLevel`)).to.deep.equal([]);
+	});
 	// Bug: Im verbleibenden Zweig ist history ein Schnitt aus dem eigenen, offenen Parameter und
 	// dem Komplement des vorherigen Kopfes. Beim Aufruf von step löst sich old/states über diesen
 	// Schnitt nicht auf (dereferenceNameFromObject kennt 'and' nicht) und wird zu Any. Der

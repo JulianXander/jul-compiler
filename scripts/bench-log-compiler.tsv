@@ -536,3 +536,9 @@
 2026-11-06 14:30:55	f4b9c92+	-	ADV-DEV-56627	yugioh	parse+check	5	9449.79	10425.90	10425.90	Wächter-Prädikate und Not(Not(X)), yugioh auf Wächter migriert
 2026-11-06 14:30:55	f4b9c92+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	627.22	673.58	673.58	Wächter-Prädikate und Not(Not(X)), yugioh auf Wächter migriert
 2026-11-06 14:30:55	f4b9c92+	-	ADV-DEV-56627	yugioh	parse	5	71.30	74.50	74.50	Wächter-Prädikate und Not(Not(X)), yugioh auf Wächter migriert
+2026-11-12 15:53:41	1e66bff+	-	ADV-DEV-56627	yugioh	parse+check	5	17253.03	17627.57	17627.57	vor Fix 79 (Narrowing über Zwischennamen)
+2026-11-12 15:53:41	1e66bff+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	886.44	948.78	948.78	vor Fix 79 (Narrowing über Zwischennamen)
+2026-11-12 15:53:41	1e66bff+	-	ADV-DEV-56627	yugioh	parse	5	90.49	94.75	94.75	vor Fix 79 (Narrowing über Zwischennamen)
+2026-11-12 15:57:50	1e66bff+	-	ADV-DEV-56627	yugioh	parse+check	5	16751.75	17583.80	17583.80	nach Fix 79 (kanonische Zugriffspfade über Zwischennamen)
+2026-11-12 15:57:50	1e66bff+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	962.74	1007.42	1007.42	nach Fix 79 (kanonische Zugriffspfade über Zwischennamen)
+2026-11-12 15:57:50	1e66bff+	-	ADV-DEV-56627	yugioh	parse	5	91.36	97.11	97.11	nach Fix 79 (kanonische Zugriffspfade über Zwischennamen)

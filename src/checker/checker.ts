@@ -1224,6 +1224,8 @@ interface AccessPath {
  * Der Zugriffspfad, den dieser Ausdruck bezeichnet.
  * undefined, sobald ein Glied kein Name und kein literaler Schlüssel ist - ein Aufruf als Quelle
  * (getStep(flag)/type) bezeichnet keinen Pfad, denn zwei Aufrufe sind zwei Werte.
+ * Ein Name, der für einen Feldzugriff steht (record = holder/state), hat keinen eigenen Pfad, er
+ * bezeichnet den seiner Herkunft. So treffen record/flag und holder/state/flag denselben Eintrag.
  */
 function getAccessPath(
 	expression: ParseValueExpression,
@@ -1232,10 +1234,7 @@ function getAccessPath(
 	switch (expression.type) {
 		case 'reference': {
 			const symbol = findSymbolInScopesWithBuiltIns(expression.name.name, scopes)?.symbol;
-			return symbol && {
-				symbol: symbol,
-				keys: [],
-			};
+			return symbol && getSymbolAccessPath(symbol, scopes);
 		}
 		case 'nestedReference': {
 			const nestedKey = expression.nestedKey;
@@ -1260,6 +1259,61 @@ function getAccessPath(
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * Der Zugriffspfad, den dieses Symbol bezeichnet: der seiner Herkunft, falls es für einen
+ * Feldzugriff steht, sonst das Symbol selbst.
+ * Die Herkunft wird in den aktuellen Scopes aufgelöst. Das trifft dasselbe Symbol wie am Ort der
+ * Definition, denn die liegt im selben oder einem äußeren Scope, und Überdeckung gibt es nicht (JUL3203).
+ */
+function getSymbolAccessPath(
+	symbol: SymbolDefinition,
+	scopes: SymbolTable[],
+): AccessPath {
+	const originExpression = getOriginExpression(symbol);
+	// Die Herkunft eines Namens kann ihn selbst nennen (a = a/b), das ist bereits ein Fehler.
+	// Ohne diese Prüfung liefe die Auflösung endlos.
+	const originPath = originExpression && !refersToSymbol(originExpression, symbol, scopes)
+		? getAccessPath(originExpression, scopes)
+		: undefined;
+	return originPath ?? {
+		symbol: symbol,
+		keys: [],
+	};
+}
+
+/**
+ * Ob die Wurzel dieses Feldzugriffs über Namen, die für Feldzugriffe stehen, auf das Symbol
+ * zurückführt.
+ */
+function refersToSymbol(
+	expression: ParseValueExpression,
+	symbol: SymbolDefinition,
+	scopes: SymbolTable[],
+): boolean {
+	const visited = new Set<SymbolDefinition>();
+	let current: ParseValueExpression | undefined = expression;
+	while (current) {
+		if (current.type === 'nestedReference') {
+			current = current.source;
+			continue;
+		}
+		if (current.type !== 'reference') {
+			return false;
+		}
+		const root = findSymbolInScopesWithBuiltIns(current.name.name, scopes)?.symbol;
+		if (!root) {
+			return false;
+		}
+		if (root === symbol
+			|| visited.has(root)) {
+			return true;
+		}
+		visited.add(root);
+		current = getOriginExpression(root);
+	}
+	return false;
 }
 
 /**
@@ -1351,7 +1405,7 @@ function withNarrowedPath(
 		return narrowedTypes;
 	}
 	let result = withNarrowedType(narrowedTypes, path.symbol, path.keys, getType);
-	let narrowedExpression: ParseValueExpression = expression;
+	let narrowedExpression = followOrigin(expression, path, scopes);
 	let getNarrowedSourceType = getType;
 	while (narrowedExpression.type === 'nestedReference') {
 		const source = narrowedExpression.source;
@@ -1380,9 +1434,28 @@ function withNarrowedPath(
 			]);
 		});
 		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, getNarrowedSourceType);
-		narrowedExpression = source;
+		narrowedExpression = followOrigin(source, sourcePath, scopes);
 	}
 	return result;
+}
+
+/**
+ * Steht der Ausdruck als Name für einen Feldzugriff (record = holder/state), dessen Herkunft,
+ * sonst er selbst. Sein Pfad ist bereits der der Herkunft, withNarrowedPath geht von dort aus weiter
+ * zu den Quellen darüber: Auch holder ist damit nicht empty.
+ */
+function followOrigin(
+	expression: ParseValueExpression,
+	path: AccessPath,
+	scopes: SymbolTable[],
+): ParseValueExpression {
+	// Ein Name mit Schlüsseln im Pfad hat eine Herkunft, die nicht auf ihn selbst zurückführt.
+	if (expression.type !== 'reference'
+		|| !path.keys.length) {
+		return expression;
+	}
+	const symbol = findSymbolInScopesWithBuiltIns(expression.name.name, scopes)?.symbol;
+	return (symbol && getOriginExpression(symbol)) ?? expression;
 }
 
 /**
@@ -3131,10 +3204,6 @@ function inferType(
 						return narrowArgumentType(coverage, head, argumentIndex, currentType);
 					});
 					branchNarrowedTypes = withNarrowedPath(checkContext.result, branchNarrowedTypes, argument, getBranchNarrowedType, functionScopes);
-					const originExpression = getOriginExpression(path.symbol);
-					if (originExpression) {
-						branchNarrowedTypes = withNarrowedPath(checkContext.result, branchNarrowedTypes, originExpression, getBranchNarrowedType, functionScopes);
-					}
 				});
 			}
 			//#endregion verengte Typen für branching
@@ -3680,7 +3749,8 @@ function inferType(
 					endColumnIndex: expression.endColumnIndex,
 				});
 			}
-			const narrowedType = foundSymbol && getNarrowedType(narrowedTypes, foundSymbol, []);
+			const foundPath = foundSymbol && narrowedTypes && getSymbolAccessPath(foundSymbol, scopes);
+			const narrowedType = foundPath && getNarrowedType(narrowedTypes, foundPath.symbol, foundPath.keys);
 			return { type: narrowedType ?? type };
 		}
 		case 'text': {
