@@ -1,5 +1,8 @@
 import { expect } from 'chai';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { reportAtCaller } from '../test-util.js';
+import * as runtime from './runtime.js';
 import {
 	_branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssumeViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText, toLowerCase,
 	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger,
@@ -1081,3 +1084,50 @@ describe('combine$', () => {
 });
 
 //#endregion Stream
+
+//#region core-lib.jul und Runtime
+
+// Der Emitter gibt Builtin-Namen als JS-Bezeichner aus, die auf Exporte dieser Runtime verweisen. Fehlt ein
+// Export, fällt das erst beim Ausführen auf (z.B. "JsonValue is not defined" in assume unter jul test).
+describe('core-lib.jul und Runtime', () => {
+	// Namen, die der Compiler selbst übersetzt und die deshalb keinen Runtime-Export brauchen
+	const compiledByEmitter = new Set(['true', 'false', 'import', 'test', 'assume', 'nativeFunction', 'nativeValue']);
+	// Bekannte Lücken, noch ohne Laufzeit-Implementierung
+	const knownMissing = new Set([
+		// TODO Without (runtime.ts)
+		'Without',
+	]);
+	it('hat zu jeder Definition in core-lib.jul einen Export', () => {
+		const coreLib = readFileSync(join(import.meta.dirname, 'core-lib.jul'), 'utf8');
+		const definitions = [...coreLib.matchAll(/^([A-Za-z_$][\w$]*)\s*(?::[^=\n]*)?=/gm)].map(match => match[1]!);
+		const exports = runtime as Record<string, unknown>;
+		// Namen, die in JS reserviert wären oder mit globalen Objekten kollidieren, exportiert die Runtime mit _ (z.B. _Text)
+		const missing = definitions.filter(name =>
+			!compiledByEmitter.has(name)
+			&& !knownMissing.has(name)
+			&& exports[name] === undefined
+			&& exports[`_${name}`] === undefined);
+		expect(missing).to.deep.equal([]);
+	});
+	it('JsonValue prüft verschachtelte Werte', () => {
+		expect(_isOfType({ a: [1, 'x', true, undefined], b: { c: { numerator: 1, denominator: 2 } } }, runtime.JsonValue)).to.equal(true);
+		// verschachtelte Listen (eine leere Liste ist in Jul Empty, also undefined, kein leeres Array)
+		expect(_isOfType([[[1]], [undefined]], runtime.JsonValue)).to.equal(true);
+		expect(_isOfType({ a: [() => 1] }, runtime.JsonValue)).to.equal(false);
+		expect(_isOfType(1.5, runtime.JsonValue)).to.equal(false);
+	});
+	it('assume(x JsonValue) wirft nicht mehr', () => {
+		_takeAssumeViolation();
+		const value = { a: [1, 2] };
+		expect(_checkAssume(value, runtime.JsonValue, 'a.jul', 1, 1, 'JsonValue')).to.equal(value);
+		expect(_takeAssumeViolation()).to.equal(undefined);
+	});
+	it('Ordering', () => {
+		expect(_isOfType('less', runtime.Ordering)).to.equal(true);
+		expect(_isOfType('equal', runtime.Ordering)).to.equal(true);
+		expect(_isOfType('greater', runtime.Ordering)).to.equal(true);
+		expect(_isOfType('bigger', runtime.Ordering)).to.equal(false);
+	});
+});
+
+//#endregion core-lib.jul und Runtime

@@ -1735,6 +1735,17 @@ export const Dictionary = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+//#region JSON
+// Wie in core-lib.jul. Ohne diese Exporte wäre JsonValue zur Laufzeit nicht definiert, z.B. in der Prüfung
+// von assume(x JsonValue) unter jul test.
+export const JsonPrimitive = /*#__PURE__*/ Or(Empty, _Boolean, Rational, _Text);
+// Die Selbstreferenz ist lazy, sonst würde JsonValue ausgewertet, bevor die Konstante fertig ist.
+export const JsonValue: RuntimeType = /*#__PURE__*/ Or(
+	JsonPrimitive,
+	/*#__PURE__*/ List(/*#__PURE__*/ _lazyType('JsonValue', () => JsonValue)),
+	/*#__PURE__*/ Dictionary(/*#__PURE__*/ _lazyType('JsonValue', () => JsonValue)),
+);
+//#endregion JSON
 export const Stream = /*#__PURE__*/ _createFunction(
 	function Stream(ValueType: RuntimeType) {
 		return _StreamType;
@@ -2220,6 +2231,8 @@ export const combineTexts = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+// Wie in core-lib.jul, Ergebnis von compareOrdinal und sort-Vergleichen
+export const Ordering = /*#__PURE__*/ Or('less', 'equal', 'greater');
 export const compareOrdinal = /*#__PURE__*/ _createFunction(
 	function compareOrdinal(first: string, second: string) {
 		return first < second
