@@ -1942,6 +1942,29 @@ f = (values: List(Integer)) :> Or([] List(Integer)) =>
 		expectLastTypeString(`f = (x: Or([] List(Integer)) entry: Integer) => [...x entry].filter((value) => true)
 f([] 1)`, 'Or(Empty List(1))');
 	});
+	// Besteht ein List-Literal nur aus Spreads, die alle leer sein können, kann auch das Ergebnis
+	// leer sein: Empty gehört dann in den Typ.
+	it('spread-of-two-possibly-empty-lists-may-be-empty', () => {
+		expectLastTypeString(`getList = (flag: Boolean) :> Or([] List(Integer)) =>
+	?(flag)
+		[true] => []
+		Any => [1]
+condition: Boolean = true
+[...getList(condition) ...getList(condition)]`, 'Or(Empty List(Integer))');
+	});
+	it('empty-branch-after-spread-of-two-possibly-empty-lists-is-reachable', () => {
+		expectCheck(`getList = (flag: Boolean) :> Or([] List(Integer)) =>
+	?(flag)
+		[true] => []
+		Any => [1]
+isSpreadEmpty = (flag: Boolean) :> Boolean =>
+	combined = [...getList(flag) ...getList(flag)]
+	?(combined)
+		[Empty] => true
+		Any => false`, {
+			errors: [],
+		});
+	});
 	it('filter-on-spread-of-empty-field-is-assignable-to-declared-type', () => {
 		expectCheck(`History = [past: Or([] List(Integer))]
 pushHistory = (history: History entry: Integer) :> History =>

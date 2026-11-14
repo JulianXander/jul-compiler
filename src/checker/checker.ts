@@ -3421,39 +3421,32 @@ function inferType(
 			// Akkumuliere Element-Typen, handle Spreads durch Flattening/Collapsing
 			const tupleElements: CompileTimeType[] = [];
 			let hasListSpread = false;
+			let mayBeEmpty = true;
 
 			for (const element of expression.values) {
-				if (element.type === 'spread') {
-					const sourceType = resolvePlaceholders(getTypeInfo(checkContext.result, element.value)!.type);
-					const spreadResult = getSpreadElementTypes(sourceType);
-					if (spreadResult) {
-						if (spreadResult.isListSpread) {
-							hasListSpread = true;
-						}
-						tupleElements.push(...spreadResult.elementTypes);
-					} else {
-						// Nicht auflösbare Quelle (z.B. Any): fallback zu any
-						tupleElements.push(builtinAny);
-					}
-				} else {
+				if (element.type !== 'spread') {
+					mayBeEmpty = false;
 					tupleElements.push(getTypeInfo(checkContext.result, element)!.type);
+					continue;
 				}
+				const sourceType = resolvePlaceholders(getTypeInfo(checkContext.result, element.value)!.type);
+				const spreadResult = getSpreadElementTypes(sourceType);
+				if (!spreadResult) {
+					// Nicht auflösbare Quelle (z.B. Any): fallback zu any
+					mayBeEmpty = false;
+					tupleElements.push(builtinAny);
+					continue;
+				}
+				if (spreadResult.isListSpread) {
+					hasListSpread = true;
+				}
+				if (!spreadResult.mayBeEmpty) {
+					mayBeEmpty = false;
+				}
+				tupleElements.push(...spreadResult.elementTypes);
 			}
 
-			// Entscheide outer type: List wenn min. ein List-Spread, sonst Tuple
-			let rawType: CompileTimeType;
-			if (hasListSpread) {
-				// Baue Union aller tupleElements-Typen für List ElementType
-				// WICHTIG: Resolve Placeholders auf jedem Element (z.B. parameterReference in List(T))
-				const dereferencedElements = tupleElements.map(t => resolvePlaceholders(t));
-				const unionType = createNormalizedUnionType(dereferencedElements);
-				rawType = createCompileTimeListType(unionType);
-			} else {
-				// Alle Spreads sind Tuples (oder keine Spreads) → Tuple mit bekannter Länge
-				rawType = createCompileTimeTupleType(tupleElements);
-			}
-
-			return { type: rawType };
+			return { type: createSpreadLiteralType(tupleElements, hasListSpread, mayBeEmpty) };
 		}
 		case 'nestedReference': {
 			const source = expression.source;
@@ -3587,6 +3580,7 @@ function inferType(
 			// Liste/Tuple/Empty auflösen, wird genauso zu Tuple bzw. List zusammengesetzt.
 			const tupleElements: CompileTimeType[] = [];
 			let hasListSpread = false;
+			let mayBeEmpty = true;
 			let isResolvableAsList = true;
 			for (const element of expression.values) {
 				const sourceType = resolvePlaceholders(getTypeInfo(checkContext.result, element.value)!.type);
@@ -3598,13 +3592,13 @@ function inferType(
 				if (spreadResult.isListSpread) {
 					hasListSpread = true;
 				}
+				if (!spreadResult.mayBeEmpty) {
+					mayBeEmpty = false;
+				}
 				tupleElements.push(...spreadResult.elementTypes);
 			}
 			if (isResolvableAsList) {
-				const rawType = hasListSpread
-					? createCompileTimeListType(createNormalizedUnionType(tupleElements.map(resolvePlaceholders)))
-					: createCompileTimeTupleType(tupleElements);
-				return { type: rawType };
+				return { type: createSpreadLiteralType(tupleElements, hasListSpread, mayBeEmpty) };
 			}
 
 			// Lässt sich nicht als Liste/Tuple auflösen: laut ParseUnknownObjectLiteral kann die
@@ -4099,37 +4093,75 @@ function getReturnTypeFromFunctionCall(
 
 //#region Sequenz Arithmetik
 
+interface SpreadElementTypes {
+	elementTypes: CompileTimeType[];
+	/**
+	 * Die Gesamtlänge wird durch den Spread unbestimmt, das Literal muss zur List werden statt zum
+	 * Tuple.
+	 */
+	isListSpread: boolean;
+	/**
+	 * Die Quelle kann leer sein und bringt dann kein Element ein.
+	 */
+	mayBeEmpty: boolean;
+}
+
 /**
  * Elemente, die ein Spread in ein List-Literal einbringt, und ob dadurch die Gesamtlänge
- * unbestimmt wird (dann muss das Literal zur List werden statt zum Tuple). `Or([] List(X))`
- * (Idiom für eine möglicherweise leere Liste) muss dafür durch seine Choices hindurchschauen:
- * unterschiedliche Längen zwischen den Choices bedeuten ebenfalls eine unbestimmte Gesamtlänge.
+ * unbestimmt wird. `Or([] List(X))` (Idiom für eine möglicherweise leere Liste) muss dafür durch
+ * seine Choices hindurchschauen: unterschiedliche Längen zwischen den Choices bedeuten ebenfalls
+ * eine unbestimmte Gesamtlänge.
  */
-function getSpreadElementTypes(
-	rawSourceType: CompileTimeType,
-): { elementTypes: CompileTimeType[]; isListSpread: boolean; } | undefined {
+function getSpreadElementTypes(rawSourceType: CompileTimeType): SpreadElementTypes | undefined {
 	const sourceType = resolveAlias(rawSourceType);
 	switch (sourceType.julType) {
 		case 'tuple':
-			return { elementTypes: sourceType.ElementTypes, isListSpread: false };
+			return {
+				elementTypes: sourceType.ElementTypes,
+				isListSpread: false,
+				mayBeEmpty: !sourceType.ElementTypes.length,
+			};
 		case 'list':
-			return { elementTypes: [sourceType.ElementType], isListSpread: true };
+			return { elementTypes: [sourceType.ElementType], isListSpread: true, mayBeEmpty: false };
 		case 'empty':
-			return { elementTypes: [], isListSpread: false };
+			return { elementTypes: [], isListSpread: false, mayBeEmpty: true };
 		case 'or': {
 			const subResults = sourceType.ChoiceTypes.map(getSpreadElementTypes);
 			if (subResults.some(subResult => !subResult)) {
 				return undefined;
 			}
-			const resolvedResults = subResults as { elementTypes: CompileTimeType[]; isListSpread: boolean; }[];
+			const resolvedResults = subResults as SpreadElementTypes[];
 			const lengths = new Set(resolvedResults.map(subResult => subResult.elementTypes.length));
-			const isListSpread = resolvedResults.some(subResult => subResult.isListSpread) || lengths.size > 1;
-			const elementTypes = resolvedResults.flatMap(subResult => subResult.elementTypes);
-			return { elementTypes: elementTypes, isListSpread: isListSpread };
+			return {
+				elementTypes: resolvedResults.flatMap(subResult => subResult.elementTypes),
+				isListSpread: resolvedResults.some(subResult => subResult.isListSpread) || lengths.size > 1,
+				mayBeEmpty: resolvedResults.some(subResult => subResult.mayBeEmpty),
+			};
 		}
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * Der Typ eines List-Literals aus den aneinandergereihten Elementen seiner Einträge. Eine List
+ * schließt das Leere aus: Können alle Einträge leer sein (nur Spreads, die jeweils leer sein
+ * können), gehört Empty deshalb zusätzlich in den Typ.
+ */
+function createSpreadLiteralType(
+	tupleElements: CompileTimeType[],
+	hasListSpread: boolean,
+	mayBeEmpty: boolean,
+): CompileTimeType {
+	if (!hasListSpread) {
+		// Alle Spreads sind Tuples (oder keine Spreads) → Tuple mit bekannter Länge
+		return createCompileTimeTupleType(tupleElements);
+	}
+	// Placeholders auf jedem Element auflösen (z.B. parameterReference in List(T))
+	const listType = createCompileTimeListType(createNormalizedUnionType(tupleElements.map(resolvePlaceholders)));
+	return mayBeEmpty
+		? createNormalizedUnionType([builtinEmpty, listType])
+		: listType;
 }
 
 //#endregion Sequenz Arithmetik
