@@ -857,11 +857,9 @@ export function dereferenceNameFromObject(
 				// Fehlt das Feld sonst nachweislich (die Art kennt ihre Feldmenge oder kann grundsätzlich
 				// keine Felder tragen), ist der Zugriff für die GANZE Union unsicher - ein anderer
 				// Choice (z.B. Empty) darf das nicht stillschweigend überdecken. Ein Choice, der nur
-				// noch nicht aufgelöst ist (unvollständiges Dictionary), bleibt dagegen unentschieden
-				// und wird wie bisher aus der Vereinigung weggelassen.
-				if (!canHaveFields(choiceType) || hasKnownFields(choiceType)) {
-					return undefined;
-				}
+				// noch nicht aufgelöst ist (unvollständiges Dictionary), bleibt dagegen unentschieden,
+				// und mit ihm die ganze Union.
+				return undefined;
 			}
 			if (isMissingInClosedRecord) {
 				// Nennt kein Choice das Feld, ist es wie beim einzelnen Record ein Tippfehler.

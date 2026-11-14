@@ -1,2 +1,2 @@
-stateMachine: inferType: 363, resolvePlaceholders: 621, getTypeError: 637, foldableCall: 0
+stateMachine: inferType: 363, resolvePlaceholders: 632, getTypeError: 666, foldableCall: 0
 sequence: inferType: 167, resolvePlaceholders: 151, getTypeError: 85, foldableCall: 0

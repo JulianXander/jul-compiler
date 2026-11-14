@@ -628,6 +628,48 @@ f = (holder: Holder) :> Integer =>
 		[Empty] => 0
 	record/level`);
 	});
+	// Ein Feld, das Empty ist, beweist nicht, dass die Quelle da ist: Ein Zugriff auf eine leere
+	// Quelle liefert ebenfalls Empty.
+	it('branch-narrowing-empty-field-keeps-empty-source', () => {
+		expectCheck(`Pair = [inner: Or([] Integer)]
+f = (pair: Or([] Pair)) :> Text =>
+	?(pair/inner)
+		[Empty] =>
+			?(pair)
+				[Empty] => §pair leer§
+				Any => §inner leer§
+		Any => §inner da§`, {
+			errors: [],
+		});
+	});
+	// Ein Feld, das Empty ist, schließt auch keine Variante ohne dieses Feld aus: Der Zugriff liefert
+	// dort ebenfalls Empty.
+	it('branch-narrowing-empty-field-keeps-choice-without-field', () => {
+		expectCheck(`Pair = [inner: Or([] Integer)]
+Other = [other: Integer]
+f = (value: Or(Pair Other)) :> Text =>
+	?(value/inner)
+		[Empty] =>
+			?(value)
+				[Other] => §other§
+				Any => §pair§
+		Any => §inner da§`, {
+			errors: [],
+		});
+	});
+	// Nach einem Early Exit über and(…) ist nur bekannt, dass nicht alle Operanden true sind. Über
+	// den einzelnen Operanden und die Quelle seines Feldes ist nichts bekannt.
+	it('early-exit-over-and-of-field-equal-keeps-empty-source', () => {
+		expectCheck(`Pair = [inner: Or([] Integer)]
+f = (links: Or([] Integer) pair: Or([] Pair)) :> Text =>
+	?(and(links.equal() pair/inner.equal()))
+		[true] => §beide leer§
+	?(pair)
+		[Empty] => §pair leer§
+		Any => §pair da§`, {
+			errors: [],
+		});
+	});
 	// Die Herkunft eines Namens kann auf ihn selbst zurückführen. Die Suche nach dem Zugriffspfad
 	// darf dabei nicht endlos laufen.
 	it('branch-narrowing-over-self-referencing-origin-terminates', () => {
@@ -4709,12 +4751,13 @@ g = (xs: List(Text)) => §x§.f(...xs)`, {
 	});
 	// Nach dem Verengen über ein Feld ist x ein unvollständiges Dictionary: bekannt ist nur b, die
 	// übrigen Felder kann x trotzdem haben. Das Ergebnis des Spreads bleibt unvollständig, ein
-	// fehlendes c ist kein Beweis, dass es fehlt.
+	// fehlendes c ist kein Beweis, dass es fehlt. Der erste Zweig fängt Empty mit ab, sonst könnte x
+	// im Rest auch leer sein.
 	it('dictionary-spread-of-incomplete-dictionary-stays-incomplete', () => {
 		expectCheck(`T = [a: Integer b: Text c: Text]
 x = assume([] Any)
 r = ?(x/b)
-	[Integer] => 0
+	[Or([] Integer)] => 0
 	() =>
 		y: T = [...x a = 1]
 		y`);

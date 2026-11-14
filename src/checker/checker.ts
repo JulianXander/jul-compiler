@@ -1428,15 +1428,31 @@ function withNarrowedPath(
 				?? builtinAny;
 			return createNormalizedIntersectionType([
 				sourceType,
-				// complete: false, denn der branch beweist nur diesen einen Fakt - über andere
-				// Felder der Quelle ist damit nichts gesagt.
-				createCompileTimeDictionaryLiteralType({ [key]: { type: getFieldType(), optional: false } }, false),
+				getSourceTypeOfFieldType(key, getFieldType()),
 			]);
 		});
 		result = withNarrowedType(result, sourcePath.symbol, sourcePath.keys, getNarrowedSourceType);
 		narrowedExpression = followOrigin(source, sourcePath, scopes);
 	}
 	return result;
+}
+
+/**
+ * Alle Quellen, deren Feld key den Typ fieldType hat. Schließt fieldType Empty aus, ist das ein
+ * Dictionary mit diesem Feld. Sonst passt auch eine leere Quelle und eine ohne das Feld, denn der
+ * Zugriff liefert für beide Empty. Ist nicht entscheidbar, ob fieldType Empty enthält, gilt das
+ * Weitere: Dann wird höchstens zu wenig verengt.
+ */
+function getSourceTypeOfFieldType(key: string, fieldType: CompileTimeType): CompileTimeType {
+	// Aufgelöst: Ein Parameter steht hier noch als Platzhalter (TypeOf(pair)/inner), über den die
+	// Typalgebra die Zuweisung nicht entscheidet.
+	const excludesEmpty = isSubtypeOf(builtinEmpty, resolvePlaceholders(fieldType)) === false;
+	// complete: false, denn der branch beweist nur diesen einen Fakt - über andere Felder der Quelle
+	// ist damit nichts gesagt.
+	const dictionaryType = createCompileTimeDictionaryLiteralType({ [key]: { type: fieldType, optional: !excludesEmpty } }, false);
+	return excludesEmpty
+		? dictionaryType
+		: createNormalizedUnionType([builtinEmpty, dictionaryType]);
 }
 
 /**
