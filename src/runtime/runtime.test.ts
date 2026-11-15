@@ -601,6 +601,12 @@ describe('parseInteger', () => {
 	it('parses -0 as 0', () => {
 		expect(Object.is(parseInteger('-0'), 0)).to.equal(true);
 	});
+	it('parses 15 digits as number', () => {
+		expect(parseInteger('-999999999999999')).to.equal(-999999999999999);
+	});
+	it('parses the largest safe integer with 16 digits as number', () => {
+		expect(parseInteger('9007199254740991')).to.equal(9007199254740991);
+	});
 	it('keeps large values exact as bigint', () => {
 		expect(parseInteger('9007199254740993')).to.equal(9007199254740993n);
 	});

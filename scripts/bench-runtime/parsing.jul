@@ -1,0 +1,1 @@
+parseIntegerText = (text: Text) => parseInteger(text)

@@ -900,3 +900,7 @@
 2026-11-08 16:09:56	bcbacd1+	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	9.48	13.42	13.42	nachher: Not-Kopf als verneinter Test (getNotStep in branch-dispatch.ts)
 2026-11-08 16:09:56	bcbacd1+	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	8.29	15.94	15.94	nachher: Not-Kopf als verneinter Test (getNotStep in branch-dispatch.ts)
 2026-11-08 16:09:56	bcbacd1+	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	7.70	11.04	11.04	nachher: Not-Kopf als verneinter Test (getNotStep in branch-dispatch.ts)
+2026-11-15 13:41:18	d19b578+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	58.73	62.49	62.49	vorher: parseInteger immer ueber BigInt
+2026-11-15 13:41:18	d19b578+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	79.24	88.20	88.20	vorher: parseInteger immer ueber BigInt
+2026-11-15 13:41:29	d19b578+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	22.18	25.26	25.26	nachher: parseInteger bis 15 Ziffern ueber Number
+2026-11-15 13:41:29	d19b578+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	84.15	89.93	89.93	nachher: parseInteger bis 15 Ziffern ueber Number

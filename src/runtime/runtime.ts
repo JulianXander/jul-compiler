@@ -2325,7 +2325,14 @@ export const parseInteger = /*#__PURE__*/ _createFunction(
 		if (!integerTextPattern.test(text)) {
 			return new Error('Invalid integer.');
 		}
-		// über bigint exakt auch jenseits von 2^53, danach kanonisch (-0 wird 0)
+		// Bis 15 Ziffern ist der Wert kleiner als 10^15 < 2^53, Number ist dann exakt und spart das bigint (+ 0: -0 wird 0)
+		const digitCount = text.startsWith('-')
+			? text.length - 1
+			: text.length;
+		if (digitCount <= 15) {
+			return Number(text) + 0;
+		}
+		// länger: über bigint exakt, danach kanonisch (im sicheren Bereich wieder number)
 		return _toCanonicalInteger(BigInt(text));
 	},
 	{

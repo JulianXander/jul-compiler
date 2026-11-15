@@ -434,6 +434,24 @@ const cases: BenchCase[] = [
 		select: result => result.marker,
 		calls: 200,
 	},
+	// Kurze Zahlen wie Positionen, Level und ATK aus Eingabefeldern oder der URL
+	{
+		file: 'parsing.jul',
+		functionName: 'parseIntegerText',
+		label: 'parsing/shortInteger',
+		inputs: ['7', '1800', '-3', '2500'],
+		expected: [7, 1800, -3, 2500],
+		calls: 1_000_000,
+	},
+	// 16 Ziffern, hier bleibt der Weg über bigint
+	{
+		file: 'parsing.jul',
+		functionName: 'parseIntegerText',
+		label: 'parsing/longInteger',
+		inputs: ['9007199254740991', '-1234567890123456'],
+		expected: [9007199254740991, -1234567890123456],
+		calls: 1_000_000,
+	},
 ];
 
 async function compileFixture(file: string, outFolder: string): Promise<{ [name: string]: unknown; }> {
