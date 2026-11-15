@@ -2325,14 +2325,21 @@ export const parseInteger = /*#__PURE__*/ _createFunction(
 		if (!integerTextPattern.test(text)) {
 			return new Error('Invalid integer.');
 		}
-		// Bis 15 Ziffern ist der Wert kleiner als 10^15 < 2^53, Number ist dann exakt und spart das bigint (+ 0: -0 wird 0)
-		const digitCount = text.startsWith('-')
-			? text.length - 1
-			: text.length;
-		if (digitCount <= 15) {
+		// Bis 15 Zeichen sind es höchstens 15 Ziffern, der Wert ist kleiner als 10^15 < 2^53: Number ist exakt (+ 0: -0 wird 0)
+		if (text.length <= 15) {
 			return Number(text) + 0;
 		}
-		// länger: über bigint exakt, danach kanonisch (im sicheren Bereich wieder number)
+		// Bis 17 Zeichen (2^53 - 1 hat 16 Ziffern, dazu das Minus) kann der Wert noch sicher sein. Bis 2^53 - 1 ist Number
+		// exakt, ein größerer Wert rundet auf mindestens 2^53 und ist damit nicht sicher: isSafeInteger trennt die Fälle exakt.
+		if (text.length <= 17) {
+			const value = Number(text);
+			if (Number.isSafeInteger(value)) {
+				return value + 0;
+			}
+			// jenseits des sicheren Bereichs ist bigint die kanonische Darstellung
+			return BigInt(text);
+		}
+		// Länger ist der Wert nur mit führenden Nullen sicher: Number zuerst zu versuchen kostete jeden großen Wert doppelt
 		return _toCanonicalInteger(BigInt(text));
 	},
 	{

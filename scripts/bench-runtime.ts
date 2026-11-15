@@ -443,7 +443,16 @@ const cases: BenchCase[] = [
 		expected: [7, 1800, -3, 2500],
 		calls: 1_000_000,
 	},
-	// 16 Ziffern, hier bleibt der Weg über bigint
+	// Jenseits von 2^53 - 1: Ergebnis bigint
+	{
+		file: 'parsing.jul',
+		functionName: 'parseIntegerText',
+		label: 'parsing/hugeInteger',
+		inputs: ['9007199254740993', '-123456789012345678901'],
+		expected: [9007199254740993n, -123456789012345678901n],
+		calls: 1_000_000,
+	},
+	// 16 Ziffern im sicheren Bereich
 	{
 		file: 'parsing.jul',
 		functionName: 'parseIntegerText',

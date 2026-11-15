@@ -607,8 +607,20 @@ describe('parseInteger', () => {
 	it('parses the largest safe integer with 16 digits as number', () => {
 		expect(parseInteger('9007199254740991')).to.equal(9007199254740991);
 	});
+	it('parses the smallest safe integer as number', () => {
+		expect(parseInteger('-9007199254740991')).to.equal(-9007199254740991);
+	});
+	it('parses a long text with leading zeros as number', () => {
+		expect(parseInteger('00000000000000000042')).to.equal(42);
+	});
+	it('parses 2^53 as bigint', () => {
+		expect(parseInteger('9007199254740992')).to.equal(9007199254740992n);
+	});
 	it('keeps large values exact as bigint', () => {
 		expect(parseInteger('9007199254740993')).to.equal(9007199254740993n);
+	});
+	it('keeps large negative values exact as bigint', () => {
+		expect(parseInteger('-9007199254740993')).to.equal(-9007199254740993n);
 	});
 	it('returns Error for empty text', () => {
 		expect(parseInteger('')).to.be.instanceOf(Error);

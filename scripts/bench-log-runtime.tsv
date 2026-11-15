@@ -904,3 +904,11 @@
 2026-11-15 13:41:18	d19b578+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	79.24	88.20	88.20	vorher: parseInteger immer ueber BigInt
 2026-11-15 13:41:29	d19b578+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	22.18	25.26	25.26	nachher: parseInteger bis 15 Ziffern ueber Number
 2026-11-15 13:41:29	d19b578+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	84.15	89.93	89.93	nachher: parseInteger bis 15 Ziffern ueber Number
+2026-11-15 13:44:50	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	20.11	22.32	22.32	nachher: parseInteger Laenge statt startsWith
+2026-11-15 13:44:50	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	81.36	84.24	84.24	nachher: parseInteger Laenge statt startsWith
+2026-11-15 13:47:03	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	21.48	23.84	23.84	nachher: parseInteger Number mit isSafeInteger, bigint nur jenseits 2^53
+2026-11-15 13:47:03	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/hugeInteger	15	129.42	137.14	137.14	nachher: parseInteger Number mit isSafeInteger, bigint nur jenseits 2^53
+2026-11-15 13:47:03	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	57.03	62.44	62.44	nachher: parseInteger Number mit isSafeInteger, bigint nur jenseits 2^53
+2026-11-15 13:47:40	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	20.47	22.38	22.38	nachher: parseInteger Number mit isSafeInteger nur bis 17 Zeichen
+2026-11-15 13:47:40	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/hugeInteger	15	103.31	109.01	109.01	nachher: parseInteger Number mit isSafeInteger nur bis 17 Zeichen
+2026-11-15 13:47:40	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	54.02	59.51	59.51	nachher: parseInteger Number mit isSafeInteger nur bis 17 Zeichen
