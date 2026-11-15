@@ -560,3 +560,6 @@
 2026-11-15 20:15:11	8aed0e6+	-	ADV-DEV-56627	yugioh	parse+check	5	19193.93	20268.16	20268.16	nach assert
 2026-11-15 20:15:11	8aed0e6+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1033.97	1094.57	1094.57	nach assert
 2026-11-15 20:15:11	8aed0e6+	-	ADV-DEV-56627	yugioh	parse	5	99.80	121.48	121.48	nach assert
+2026-11-15 20:37:37	314f2f9	-	ADV-DEV-56627	yugioh	parse+check	5	18540.58	19438.57	19438.57	Integer an Float
+2026-11-15 20:37:37	314f2f9	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1102.09	1134.37	1134.37	Integer an Float
+2026-11-15 20:37:37	314f2f9	-	ADV-DEV-56627	yugioh	parse	5	99.05	122.79	122.79	Integer an Float
