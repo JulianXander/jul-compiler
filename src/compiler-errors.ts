@@ -132,6 +132,28 @@ export enum ErrorCode {
 	 */
 	assumeNotCalled = 2504,
 	/**
+	 * assert wie ein Keyword: Nur einen direkten Aufruf kann der Emitter ohne checkAssertions samt
+	 * Argumenten entfernen und mit checkAssertions mit Stelle prüfen.
+	 */
+	assertNotCalled = 2505,
+	/**
+	 * Die Bedingung eines assert ist schon beim Kompilieren true. Das assert prüft nichts und kann
+	 * gelöscht werden.
+	 */
+	assertConditionAlwaysTrue = 2506,
+	/**
+	 * Die Bedingung eines assert ist schon beim Kompilieren false. Das assert schlägt bei jeder
+	 * Ausführung fehl. Eine Warnung, kein Fehler: Die Faltung wird mit der Zeit genauer, ein Fehler
+	 * machte bestehenden Code dann mit einem Compiler-Update unbaubar.
+	 */
+	assertConditionAlwaysFalse = 2507,
+	/**
+	 * Eine lokale Bindung wird nur in den Argumenten von assert referenziert. Ohne checkAssertions
+	 * fällt das assert weg, die Bindung wird aber weiter berechnet. Die Rechnung gehört in eine
+	 * Hilfsfunktion, die in der Bedingung aufgerufen wird.
+	 */
+	usedOnlyInAssert = 2508,
+	/**
 	 * Ein Name passt in der Schreibweise nicht zu seinem Wert: Typen und Funktionen, die einen Typ
 	 * liefern, beginnen groß, alles, was sicher kein Typ ist, beginnt klein. Gemeldet wird nur,
 	 * wenn der statische Typ das eindeutig sagt - bei Any, gemischten Typen und Prädikaten nicht.
@@ -382,6 +404,10 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.spreadArgumentNotList]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.redundantAssume]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.assumeNotCalled]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.assertNotCalled]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.assertConditionAlwaysTrue]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.assertConditionAlwaysFalse]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.usedOnlyInAssert]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.namingCase]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.testOutsideTestFile]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testNameNotLiteral]: { type: 'semantic', severity: 'error' },

@@ -21,6 +21,10 @@ export interface JulCompilerConfiguration {
 	 * Default: true
 	 */
 	warnUnknown?: boolean;
+	/**
+	 * Default: false. Unter jul test immer an.
+	 */
+	checkAssertions?: boolean;
 }
 
 export const defaultWarnUnknown = true;

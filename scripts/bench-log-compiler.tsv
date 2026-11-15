@@ -554,3 +554,9 @@
 2026-11-14 15:06:01	8e5b4ac+	-	ADV-DEV-56627	yugioh	parse+check	5	17732.89	18000.81	18000.81	nach fix feldpfad-verengung empty (finding 82)
 2026-11-14 15:06:01	8e5b4ac+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	993.03	1093.00	1093.00	nach fix feldpfad-verengung empty (finding 82)
 2026-11-14 15:06:01	8e5b4ac+	-	ADV-DEV-56627	yugioh	parse	5	95.06	117.18	117.18	nach fix feldpfad-verengung empty (finding 82)
+2026-11-15 20:04:05	8aed0e6+	-	ADV-DEV-56627	yugioh	parse+check	5	18456.18	18756.69	18756.69	vor assert
+2026-11-15 20:04:05	8aed0e6+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1146.63	1166.73	1166.73	vor assert
+2026-11-15 20:04:05	8aed0e6+	-	ADV-DEV-56627	yugioh	parse	5	100.36	105.39	105.39	vor assert
+2026-11-15 20:15:11	8aed0e6+	-	ADV-DEV-56627	yugioh	parse+check	5	19193.93	20268.16	20268.16	nach assert
+2026-11-15 20:15:11	8aed0e6+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1033.97	1094.57	1094.57	nach assert
+2026-11-15 20:15:11	8aed0e6+	-	ADV-DEV-56627	yugioh	parse	5	99.80	121.48	121.48	nach assert

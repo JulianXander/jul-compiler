@@ -435,22 +435,17 @@ function setSymbolIds(symbols: SymbolTable, firstId: number): number {
 	}
 	return nextId;
 }
-//#region test
 
 /**
- * Name- und Callback-Argument eines test-Aufrufs, positionell, mit Präfix-Argument oder benannt.
- * Fehlt eines, ist es undefined. Ein Spread zählt nicht als Argument.
+ * Die Argumente eines Aufrufs in der Reihenfolge der Parameter, positionell, mit Präfix-Argument
+ * oder benannt. Fehlt eines, ist es undefined. Ein Spread zählt nicht als Argument.
  */
-export function getTestCallArguments(call: ParseFunctionCall): {
-	name: ParseValueExpression | undefined;
-	callback: ParseValueExpression | undefined;
-} {
+function getArgumentsByParameter(call: ParseFunctionCall, parameterNames: readonly string[]): (ParseValueExpression | undefined)[] {
 	const args = call.arguments;
 	if (args?.type === 'dictionary') {
-		const getField = (fieldName: string) => args.fields.find(field =>
+		return parameterNames.map(parameterName => args.fields.find(field =>
 			field.type === 'singleDictionaryField'
-			&& getCheckedEscapableName(field.name) === fieldName)?.value;
-		return { name: getField('name'), callback: getField('callback') };
+			&& getCheckedEscapableName(field.name) === parameterName)?.value);
 	}
 	const values: (ParseValueExpression | undefined)[] = call.prefixArgument
 		? [call.prefixArgument]
@@ -460,7 +455,31 @@ export function getTestCallArguments(call: ParseFunctionCall): {
 			values.push(value.type === 'spread' ? undefined : value);
 		});
 	}
-	return { name: values[0], callback: values[1] };
+	return parameterNames.map((_, index) => values[index]);
+}
+
+/**
+ * Meldung und Bedingung eines assert-Aufrufs, siehe getArgumentsByParameter.
+ */
+export function getAssertCallArguments(call: ParseFunctionCall): {
+	message: ParseValueExpression | undefined;
+	condition: ParseValueExpression | undefined;
+} {
+	const [message, condition] = getArgumentsByParameter(call, ['message', 'condition']);
+	return { message: message, condition: condition };
+}
+
+//#region test
+
+/**
+ * Name- und Callback-Argument eines test-Aufrufs, siehe getArgumentsByParameter.
+ */
+export function getTestCallArguments(call: ParseFunctionCall): {
+	name: ParseValueExpression | undefined;
+	callback: ParseValueExpression | undefined;
+} {
+	const [name, callback] = getArgumentsByParameter(call, ['name', 'callback']);
+	return { name: name, callback: callback };
 }
 
 /**

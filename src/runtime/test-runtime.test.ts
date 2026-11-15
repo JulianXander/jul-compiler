@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { join, resolve } from 'path';
 import { pathToFileURL } from 'url';
-import { _checkAssumeTest, deepEqual, equal } from './runtime.js';
+import { _assertCall, _assertFailed, _checkAssumeTest, _takeAssertCall, deepEqual, equal } from './runtime.js';
 import { _getLoadFailure, _runTests, _testCall, test, TestLocation, TestResult } from './test-runtime.js';
 import { reportAtCaller } from '../test-util.js';
 
@@ -242,6 +242,48 @@ describe('_runTests mit assume', () => {
 		expectTestRun(
 			() => test('a', () => _checkAssumeTest(value, () => false, 'b.jul', 1, 1, 'Integer') === 1n, location),
 			[`assume violated: [text = §${'x'.repeat(191)}… is not Integer`],
+			1);
+	});
+});
+
+describe('_runTests mit assert', () => {
+	const failingCall = () => _assertCall('equal', equal, [1n, 2n])
+		|| _assertFailed(_takeAssertCall(), 'Werte gleich', 'b.jul', 4, 2);
+	it('meldet die Meldung und den ausgewerteten Aufruf', () => {
+		expectTestRun(
+			() => test('a', () => failingCall() === undefined, location),
+			['assert failed: Werte gleich: equal(1 2) returned false'],
+			1);
+	});
+	it('ohne Aufruf als Bedingung nur die Meldung', () => {
+		expectTestRun(
+			() => test('a', () => _assertFailed(undefined, 'kaputt', 'b.jul', 4, 2), location),
+			['assert failed: kaputt'],
+			1);
+	});
+	it('meldet die Stelle des assert', () => {
+		expectFailureLocation(
+			() => test('a', () => failingCall() === undefined, location),
+			{ file: 'b.jul', row: 4, column: 2 });
+	});
+	it('ein abgefangener Bruch lässt den Test trotzdem fehlschlagen', () => {
+		expectTestRun(
+			() => test('a', () => {
+				try {
+					failingCall();
+				}
+				catch {
+				}
+				return true;
+			}, location),
+			['assert failed: Werte gleich: equal(1 2) returned false'],
+			1);
+	});
+	it('kürzt lange Argumente', () => {
+		const value = { text: 'x'.repeat(300) };
+		expectTestRun(
+			() => test('a', () => (_assertCall('equal', equal, [value, 1n]) || _assertFailed(_takeAssertCall(), 'm', 'b.jul', 1, 1)) === undefined, location),
+			[`assert failed: m: equal([text = §${'x'.repeat(191)}… 1) returned false`],
 			1);
 	});
 });

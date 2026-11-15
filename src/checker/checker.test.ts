@@ -5047,6 +5047,113 @@ f(a = 1 b = 2)`);
 	it('assume-prefix-call-is-allowed', () => {
 		expectCheck('x = 1.assume(Any)');
 	});
+	it('assert-direct-call-is-allowed', () => {
+		expectCheck(`f = (a: Integer) =>
+	assert(§positiv§ greaterInteger(a 0))
+	a`);
+	});
+	it('assert-as-value', () => {
+		expectCheck('f = assert', {
+			errors: [
+				{
+					code: ErrorCode.assertNotCalled,
+					message: `'assert' can only be called directly.`,
+					startRowIndex: 0,
+					startColumnIndex: 4,
+					endRowIndex: 0,
+					endColumnIndex: 10,
+				},
+			],
+		});
+	});
+	it('assert-condition-must-be-boolean', () => {
+		expectErrorCodes(`f = (a: Integer) =>
+	assert(§m§ a)
+	a`, [ErrorCode.argumentTypeMismatch]);
+	});
+	it('assert-condition-always-true', () => {
+		expectCheck(`f = (a: Integer) =>
+	assert(§m§ equal(1 1))
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.assertConditionAlwaysTrue,
+					message: 'The condition of assert is always true, the assert checks nothing.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 23,
+				},
+			],
+		});
+	});
+	it('assert-condition-always-false', () => {
+		expectCheck(`f = (a: Integer) =>
+	assert(§m§ false)
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.assertConditionAlwaysFalse,
+					message: 'The condition of assert is always false, the assert fails every time.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 18,
+				},
+			],
+		});
+	});
+	it('assert-definition-used-only-in-assert', () => {
+		expectCheck(`f = (a: Integer) =>
+	doubled = multiply(a 2)
+	assert(§m§ greaterInteger(doubled 0))
+	a`, {
+			errors: [
+				{
+					code: ErrorCode.usedOnlyInAssert,
+					message: `'doubled' is only used in assert, but is computed even when assert is removed. Move the computation into a function called in the condition.`,
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: 8,
+				},
+			],
+		});
+	});
+	it('assert-definition-used-only-in-message', () => {
+		expectErrorCodes(`f = (a: Integer) =>
+	text = §a ist §
+	assert(text greaterInteger(a 0))
+	a`, [ErrorCode.usedOnlyInAssert]);
+	});
+	it('assert-definition-used-only-in-nested-function', () => {
+		expectErrorCodes(`f = (values: List(Integer) limit: Integer) =>
+	doubled = multiply(limit 2)
+	assert(§m§ all(values (value) => greaterInteger(doubled value)))
+	values`, [ErrorCode.usedOnlyInAssert]);
+	});
+	// Gegenprobe: auch außerhalb von assert verwendet, die Rechnung bleibt ohnehin.
+	it('assert-definition-also-used-elsewhere', () => {
+		expectCheck(`f = (a: Integer) =>
+	doubled = multiply(a 2)
+	assert(§m§ greaterInteger(doubled 0))
+	doubled`);
+	});
+	it('assert-definition-used-elsewhere-before-assert', () => {
+		expectCheck(`f = (a: Integer) =>
+	doubled = multiply(a 2)
+	result = add(doubled 1)
+	assert(§m§ greaterInteger(doubled 0))
+	result`);
+	});
+	// Gegenprobe: Die Reihenfolge der Referenzen ändert nichts.
+	it('assert-definition-used-elsewhere-after-assert', () => {
+		expectCheck(`f = (a: Integer) =>
+	doubled = multiply(a 2)
+	assert(§m§ greaterInteger(doubled 0))
+	result = add(doubled 1)
+	result`);
+	});
 	// Benannte Argumente stehen in der Reihenfolge der Parameter. Gemeldet wird das Argument,
 	// das vor einem bereits geschriebenen späteren Parameter steht.
 	it('named-arguments-out-of-order', () => {

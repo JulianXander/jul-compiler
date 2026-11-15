@@ -4,8 +4,8 @@ import { join } from 'path';
 import { reportAtCaller } from '../test-util.js';
 import * as runtime from './runtime.js';
 import {
-	_branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssumeViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText, toLowerCase,
-	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger, parseInteger, parseFloat,
+	_assertCall, _assertFailed, _branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssertCall, _takeAssertionViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText, toLowerCase,
+	completed$, create$, deepEqual, delay$, divide, equal, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger, parseInteger, parseFloat,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol, _optionalField, _Text, Or,
 	_addInteger, _subtractInteger, _multiplyInteger, _toCanonicalInteger, _isInteger, _fromTs, _isOfType, Float, length, range, modulo,
 } from './runtime.js';
@@ -241,35 +241,35 @@ describe('Record als Typ', () => {
 
 //#endregion _branch
 
-//#region assume
+//#region assume und assert
 
 describe('_checkAssume', () => {
 	beforeEach(() => {
-		_takeAssumeViolation();
+		_takeAssertionViolation();
 	});
 	it('gibt einen passenden Wert identisch zurück', () => {
 		const value = { a: 1 };
 		const recordType = { [_julTypeSymbol]: 'dictionaryLiteral', Fields: { a: Integer } };
 		expect(_checkAssume(value, recordType as any, 'a.jul', 2, 3, '[a: Integer]')).to.equal(value);
-		expect(_takeAssumeViolation()).to.equal(undefined);
+		expect(_takeAssertionViolation()).to.equal(undefined);
 	});
 	it('wirft bei einem unpassenden Wert und merkt sich Wert und Stelle', () => {
 		expect(() => _checkAssume('x', Integer, 'a.jul', 2, 3, 'Integer'))
 			.to.throw('assume violated: value is not Integer (a.jul:2:3)');
-		expect(_takeAssumeViolation()).to.deep.equal({ value: 'x', file: 'a.jul', row: 2, column: 3, typeText: 'Integer' });
+		expect(_takeAssertionViolation()).to.deep.equal({ kind: 'assume', value: 'x', file: 'a.jul', row: 2, column: 3, typeText: 'Integer' });
 	});
 	// Nur der erste Bruch zählt, und nach dem Abholen ist keiner mehr da.
 	it('behält den ersten Bruch bis zum Abholen', () => {
 		expect(() => _checkAssume('x', Integer, 'a.jul', 2, 3, 'Integer')).to.throw();
 		expect(() => _checkAssume('y', Integer, 'a.jul', 5, 1, 'Integer')).to.throw();
-		expect(_takeAssumeViolation()?.value).to.equal('x');
-		expect(_takeAssumeViolation()).to.equal(undefined);
+		expect(_takeAssertionViolation()).to.include({ value: 'x' });
+		expect(_takeAssertionViolation()).to.equal(undefined);
 	});
 });
 
 describe('_checkAssumeTest', () => {
 	beforeEach(() => {
-		_takeAssumeViolation();
+		_takeAssertionViolation();
 	});
 	it('gibt den Wert zurück, wenn der Test passt', () => {
 		expect(_checkAssumeTest(1, value => value !== undefined, 'a.jul', 1, 1, 'Integer')).to.equal(1);
@@ -277,11 +277,38 @@ describe('_checkAssumeTest', () => {
 	it('wirft, wenn der Test nicht passt', () => {
 		expect(() => _checkAssumeTest(undefined, value => value !== undefined, 'a.jul', 1, 1, 'Integer'))
 			.to.throw('assume violated: value is not Integer (a.jul:1:1)');
-		expect(_takeAssumeViolation()).to.deep.equal({ value: undefined, file: 'a.jul', row: 1, column: 1, typeText: 'Integer' });
+		expect(_takeAssertionViolation()).to.deep.equal({ kind: 'assume', value: undefined, file: 'a.jul', row: 1, column: 1, typeText: 'Integer' });
 	});
 });
 
-//#endregion assume
+describe('_assertCall und _assertFailed', () => {
+	beforeEach(() => {
+		_takeAssertionViolation();
+		_takeAssertCall();
+	});
+	it('_assertCall liefert das Ergebnis und merkt sich den Aufruf', () => {
+		expect(_assertCall('equal', equal, [1, 1])).to.equal(true);
+		expect(_takeAssertCall()).to.deep.equal({ name: 'equal', args: [1, 1] });
+		expect(_takeAssertCall()).to.equal(undefined);
+	});
+	// Ein assert im Aufgerufenen läuft vor dem Ende des äußeren Aufrufs.
+	it('_assertCall merkt sich den äußeren Aufruf, nicht einen inneren', () => {
+		const outer = () => {
+			_assertCall('equal', equal, [1, 1]);
+			return false;
+		};
+		_assertCall('outer', outer, []);
+		expect(_takeAssertCall()).to.deep.equal({ name: 'outer', args: [] });
+	});
+	it('_assertFailed wirft mit Meldung und Stelle und merkt sich den Bruch', () => {
+		const call = { name: 'equal', args: [1, 2] };
+		expect(() => _assertFailed(call, 'Werte gleich', 'a.jul', 2, 3))
+			.to.throw('assert failed: Werte gleich (a.jul:2:3)');
+		expect(_takeAssertionViolation()).to.deep.equal({ kind: 'assert', message: 'Werte gleich', call: call, file: 'a.jul', row: 2, column: 3 });
+	});
+});
+
+//#endregion assume und assert
 
 //#region parseJson
 
@@ -1148,7 +1175,7 @@ describe('combine$', () => {
 // Export, fällt das erst beim Ausführen auf (z.B. "JsonValue is not defined" in assume unter jul test).
 describe('core-lib.jul und Runtime', () => {
 	// Namen, die der Compiler selbst übersetzt und die deshalb keinen Runtime-Export brauchen
-	const compiledByEmitter = new Set(['true', 'false', 'import', 'test', 'assume', 'nativeFunction', 'nativeValue']);
+	const compiledByEmitter = new Set(['true', 'false', 'import', 'test', 'assume', 'assert', 'nativeFunction', 'nativeValue']);
 	// Bekannte Lücken, noch ohne Laufzeit-Implementierung
 	const knownMissing = new Set([
 		// TODO Without (runtime.ts)
@@ -1174,10 +1201,10 @@ describe('core-lib.jul und Runtime', () => {
 		expect(_isOfType(1.5, runtime.JsonValue)).to.equal(false);
 	});
 	it('assume(x JsonValue) wirft nicht mehr', () => {
-		_takeAssumeViolation();
+		_takeAssertionViolation();
 		const value = { a: [1, 2] };
 		expect(_checkAssume(value, runtime.JsonValue, 'a.jul', 1, 1, 'JsonValue')).to.equal(value);
-		expect(_takeAssumeViolation()).to.equal(undefined);
+		expect(_takeAssertionViolation()).to.equal(undefined);
 	});
 	it('Ordering', () => {
 		expect(_isOfType('less', runtime.Ordering)).to.equal(true);

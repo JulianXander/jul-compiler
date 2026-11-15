@@ -23,6 +23,11 @@
 			"description": "Warn where the checker can neither prove nor refute that a value fits its target (definition with type, argument, return value). Set to false if the warnings are too noisy.",
 			"type": "boolean",
 			"default": true
+		},
+		"checkAssertions": {
+			"description": "Check assume and assert at runtime in the build, like jul test always does. Without it, assume does nothing and assert is removed with its arguments.",
+			"type": "boolean",
+			"default": false
 		}
 	},
 	"required": [

@@ -919,17 +919,17 @@ f = (values: [Integer Integer]) =>
 
 /** Der Rumpf von f mit der Prüfung von assume wie unter jul test */
 const expectAssumeEmit = reportAtCaller((code: string, bodyJs: string) => {
-	expect(emitCheckedFunctionBody(code, { checkAssumes: true })).to.equal(bodyJs);
+	expect(emitCheckedFunctionBody(code, { checkAssertions: true })).to.equal(bodyJs);
 });
 
 /** Fälle, in denen assume auch unter jul test nur der Wert bleibt */
 const expectAssumeUnchecked = reportAtCaller((code: string, valueJs: string) => {
-	expect(emitCheckedFunctionBody(code, { checkAssumes: true })).to.equal(`
+	expect(emitCheckedFunctionBody(code, { checkAssertions: true })).to.equal(`
 		return ${valueJs}`);
 });
 
 describe('Emitter assume', () => {
-	it('ohne checkAssumes nur der Wert', () => {
+	it('ohne checkAssertions nur der Wert', () => {
 		expect(emitCheckedFunctionBody('f = (a: Or([] Integer)) => assume(a Integer)')).to.equal(`
 		return a`);
 	});
@@ -1005,11 +1005,126 @@ describe('Emitter assume', () => {
 	it('der Helfer kommt in den Runtime-Import einer Nicht-Testdatei', () => {
 		const parsed = parseCode('f = (a: Any) => assume(a Integer)', 'dummy.jul');
 		checkTypes(parsed, {});
-		const compiled = syntaxTreeToJs(parsed.checkResult!, parsed.checked!.expressions!, './runtime.js', 'dummy.jul', '', { checkAssumes: true });
+		const compiled = syntaxTreeToJs(parsed.checkResult!, parsed.checked!.expressions!, './runtime.js', 'dummy.jul', '', { checkAssertions: true });
 		expect(compiled).to.match(/^import \{[^}]*\b_checkAssume\b[^}]*\} from '\.\/runtime\.js';/);
 	});
 });
 
+
+/** Der Rumpf von f mit der Prüfung von assert wie unter jul test */
+const expectAssertEmit = reportAtCaller((code: string, bodyJs: string) => {
+	expect(emitCheckedFunctionBody(code, { checkAssertions: true })).to.equal(bodyJs);
+});
+
+/** Der Rumpf von f im normalen Build, ohne checkAssertions */
+const expectAssertRemoved = reportAtCaller((code: string, bodyJs: string) => {
+	expect(emitCheckedFunctionBody(code)).to.equal(bodyJs);
+});
+
+describe('Emitter assert', () => {
+	it('ohne checkAssertions fällt die Zeile samt Argumenten weg', () => {
+		expectAssertRemoved(`f = (a: Integer) =>
+	assert(§positiv§ greaterInteger(a 0))
+	a`, `
+		return a`);
+	});
+	it('ohne checkAssertions wird es als letzte Zeile zu Empty', () => {
+		expectAssertRemoved(`f = (a: Integer) =>
+	assert(§positiv§ greaterInteger(a 0))`, `
+		return undefined`);
+	});
+	it('ein Aufruf als Bedingung läuft über _assertCall', () => {
+		expectAssertEmit(`f = (a: Integer) =>
+	assert(§positiv§ greaterInteger(a 0))
+	a`, `
+		void (_assertCall(
+			'greaterInteger',
+			greaterInteger,
+			[
+				a,
+				0,
+			],
+		) || _assertFailed(
+			_takeAssertCall(),
+			\`positiv\`,
+			'dummy.jul',
+			2,
+			2,
+		))
+		return a`);
+	});
+	// Die Meldung steht im Fehlerzweig und wird nur bei einem Bruch ausgewertet.
+	it('als letzte Zeile liefert es undefined', () => {
+		expectAssertEmit(`f = (a: Integer) =>
+	assert(§a ist §(a)§ greaterInteger(a 0))`, `
+		return void (_assertCall(
+			'greaterInteger',
+			greaterInteger,
+			[
+				a,
+				0,
+			],
+		) || _assertFailed(
+			_takeAssertCall(),
+			\`a ist \${a}\`,
+			'dummy.jul',
+			2,
+			2,
+		))`);
+	});
+	it('eine andere Bedingung wird geklammert und ohne Aufruf gemeldet', () => {
+		expectAssertEmit(`f = (a: Boolean b: Boolean) =>
+	assert(§m§ and(a b))
+	a`, `
+		void ((a && b) || _assertFailed(
+			undefined,
+			\`m\`,
+			'dummy.jul',
+			2,
+			2,
+		))
+		return a`);
+	});
+	it('Präfixform wie Listenform', () => {
+		expectAssertEmit(`f = (a: Boolean) =>
+	§m§.assert(a)
+	a`, `
+		void ((a) || _assertFailed(
+			undefined,
+			\`m\`,
+			'dummy.jul',
+			2,
+			2,
+		))
+		return a`);
+	});
+	it('benannte Argumente wie Listenform', () => {
+		expectAssertEmit(`f = (a: Boolean) =>
+	assert(message = §m§ condition = a)
+	a`, `
+		void ((a) || _assertFailed(
+			undefined,
+			\`m\`,
+			'dummy.jul',
+			2,
+			2,
+		))
+		return a`);
+	});
+	// Auch außerhalb von *.test.jul: geprüft wird jede Datei, die ein Test lädt.
+	it('die Helfer kommen in den Runtime-Import einer Nicht-Testdatei', () => {
+		const parsed = parseCode('f = (a: Integer) =>\n\tassert(§m§ greaterInteger(a 0))\n\ta', 'dummy.jul');
+		checkTypes(parsed, {});
+		const compiled = syntaxTreeToJs(parsed.checkResult!, parsed.checked!.expressions!, './runtime.js', 'dummy.jul', '', { checkAssertions: true });
+		expect(compiled).to.match(/^import \{[^}]*\b_assertCall, _assertFailed\b[^}]*\b_takeAssertCall\b[^}]*\} from '\.\/runtime\.js';/);
+	});
+	it('ohne checkAssertions fällt es auf oberster Ebene weg', () => {
+		const parsed = parseCode('a = 1\nassert(§m§ greaterInteger(a 0))\nb = 2', 'dummy.jul');
+		checkTypes(parsed, {});
+		const compiled = syntaxTreeToJs(parsed.checkResult!, parsed.checked!.expressions!, '', 'dummy.jul');
+		expect(withoutImports(compiled)).to.equal('export const a = 1;\nexport const b = 2;');
+	});
+});
 const expectTestEmit = reportAtCaller((code: string, result: string) => {
 	const parsed = parseCode(code, 'dummy.test.jul');
 	const compiled = syntaxTreeToJs(getFileCheckResult(parsed), parsed.syntax.expressions!, '', 'dummy.test.jul');

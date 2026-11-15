@@ -395,28 +395,52 @@ function isDictionary(value: any): value is RuntimeDictionary {
 
 //#endregion check type
 
-//#region assume
+//#region assume und assert
 
 /**
- * Ein verletztes assume: der Wert und die Stelle des Aufrufs (1-basiert), typeText ist der
- * behauptete Typ als Text.
+ * Ein verletztes assume oder assert mit der Stelle des Aufrufs (1-basiert). Bei assume der Wert und
+ * der behauptete Typ als Text, bei assert die Meldung und, wenn die Bedingung ein Aufruf war, dieser
+ * mit seinen ausgewerteten Argumenten.
  */
-export interface AssumeViolation {
-	value: unknown;
-	file: string;
-	row: number;
-	column: number;
-	typeText: string;
+export type AssertionViolation =
+	| {
+		kind: 'assume';
+		value: unknown;
+		file: string;
+		row: number;
+		column: number;
+		typeText: string;
+	}
+	| {
+		kind: 'assert';
+		message: string;
+		call: AssertCall | undefined;
+		file: string;
+		row: number;
+		column: number;
+	};
+
+/**
+ * Der Aufruf, der die Bedingung eines assert berechnet hat, samt ausgewerteten Argumenten.
+ */
+export interface AssertCall {
+	name: string;
+	args: unknown[];
 }
 
 /**
- * Der erste Bruch seit dem letzten _takeAssumeViolation. Fängt JS-Code die Exception ab, geht er so
- * nicht verloren.
+ * Der erste Bruch seit dem letzten _takeAssertionViolation. Fängt JS-Code die Exception ab, geht er
+ * so nicht verloren.
  */
-let pendingAssumeViolation: AssumeViolation | undefined;
+let pendingAssertionViolation: AssertionViolation | undefined;
+/**
+ * Der zuletzt beendete Aufruf aus _assertCall. Erst nach dem Aufruf gesetzt, damit ein assert im
+ * Aufgerufenen ihn nicht überschreibt.
+ */
+let lastAssertCall: AssertCall | undefined;
 
 /**
- * assume unter jul test, wenn die Typen keinen billigeren Test hergeben. Die Stelle geht als
+ * assume unter checkAssertions, wenn die Typen keinen billigeren Test hergeben. Die Stelle geht als
  * einzelne Literale mit, ein Objekt würde bei jedem Aufruf neu angelegt.
  */
 export function _checkAssume(value: unknown, type: RuntimeType, file: string, row: number, column: number, typeText: string): unknown {
@@ -427,7 +451,7 @@ export function _checkAssume(value: unknown, type: RuntimeType, file: string, ro
 }
 
 /**
- * assume unter jul test mit dem Test, den der Emitter aus dem statischen Typ ableitet (etwa
+ * assume unter checkAssertions mit dem Test, den der Emitter aus dem statischen Typ ableitet (etwa
  * value !== undefined statt der vollen Prüfung des behaupteten Typs).
  */
 export function _checkAssumeTest(value: unknown, test: (value: unknown) => boolean, file: string, row: number, column: number, typeText: string): unknown {
@@ -438,20 +462,49 @@ export function _checkAssumeTest(value: unknown, test: (value: unknown) => boole
 }
 
 /**
+ * Um den Aufruf gelegt, der die Bedingung eines assert berechnet (siehe Emitter), damit die
+ * Meldung eines Bruchs seine ausgewerteten Argumente nennen kann.
+ */
+export function _assertCall(name: string, fn: Function, args: unknown[]): unknown {
+	const result = fn(...args);
+	lastAssertCall = { name: name, args: args };
+	return result;
+}
+
+/**
+ * Der Aufruf aus dem letzten _assertCall. Der Emitter übergibt ihn als erstes Argument an
+ * _assertFailed, also vor der Meldung, deren Auswertung ihn sonst überschreiben könnte.
+ */
+export function _takeAssertCall(): AssertCall | undefined {
+	const call = lastAssertCall;
+	lastAssertCall = undefined;
+	return call;
+}
+
+/**
+ * Ein assert, dessen Bedingung false war. Der Emitter ruft es nur im Fehlerzweig auf, die Meldung
+ * wird also nur dann ausgewertet.
+ */
+export function _assertFailed(call: AssertCall | undefined, message: string, file: string, row: number, column: number): never {
+	pendingAssertionViolation ??= { kind: 'assert', message: message, call: call, file: file, row: row, column: column };
+	throw new Error(`assert failed: ${message} (${file}:${row}:${column})`);
+}
+
+/**
  * Liefert den Bruch seit dem letzten Aufruf und setzt ihn zurück. Für die Test-Runtime.
  */
-export function _takeAssumeViolation(): AssumeViolation | undefined {
-	const violation = pendingAssumeViolation;
-	pendingAssumeViolation = undefined;
+export function _takeAssertionViolation(): AssertionViolation | undefined {
+	const violation = pendingAssertionViolation;
+	pendingAssertionViolation = undefined;
 	return violation;
 }
 
 function assumeViolated(value: unknown, file: string, row: number, column: number, typeText: string): never {
-	pendingAssumeViolation ??= { value: value, file: file, row: row, column: column, typeText: typeText };
+	pendingAssertionViolation ??= { kind: 'assume', value: value, file: file, row: row, column: column, typeText: typeText };
 	throw new Error(`assume violated: value is not ${typeText} (${file}:${row}:${column})`);
 }
 
-//#endregion assume
+//#endregion assume und assert
 
 /**
  * Mit type check. Liefert die zugewiesenen Werte, oder undefined, wenn die Argumente nicht passen.

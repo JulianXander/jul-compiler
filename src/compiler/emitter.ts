@@ -25,7 +25,7 @@ import * as testRuntime from '../runtime/test-runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isDefined, isTestFilePath, last } from '../util.js';
 import { extname, isAbsolute } from 'path';
 import { getPathExpression, getPathFromImport as getImportedPath, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
-import { getCheckedEscapableName, getJunction, getTestCallArguments, julHasDefaultExport } from '../parser/parser-utils.js';
+import { getAssertCallArguments, getCheckedEscapableName, getJunction, getTestCallArguments, julHasDefaultExport } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getAssumeTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';
 import { hasArgumentSubstitution, isFunctionType, isParametersType, isSubtypeOf, resolveAlias, resolvePlaceholders, typeToString, valueOf } from '../checker/type-algebra.js';
 import { classifyCopySource, copyingBuiltinNames } from './copy-sites.js';
@@ -43,10 +43,12 @@ let useTypeInfo = false;
  */
 let sourceFilePath = '';
 /**
- * Der äußerste Aufruf im Rumpf des Test-Callbacks, der gerade emittiert wird. Er läuft über
- * _testCall, damit ein Fehlschlag seine ausgewerteten Argumente nennen kann.
+ * Der äußerste Aufruf im Rumpf des Test-Callbacks oder in der Bedingung eines assert, der gerade
+ * emittiert wird. Er läuft über instrumentedCallHelper (_testCall bzw. _assertCall), damit ein
+ * Fehlschlag seine ausgewerteten Argumente nennen kann.
  */
 let instrumentedTestCall: ParseExpression | undefined;
+let instrumentedCallHelper: '_testCall' | '_assertCall' = '_testCall';
 /**
  * Nur beim Emittieren einer ganzen Datei: dann schreibt der Emitter an jeden Statement-Anfang einen
  * Marker mit der Quellposition, aus dem extractSourceMappings die Source Map gewinnt.
@@ -54,10 +56,9 @@ let instrumentedTestCall: ParseExpression | undefined;
  */
 let emitSourcePositions = false;
 /**
- * Nur unter jul test: Jedes assume prüft seine Behauptung, soweit der statische Typ sie offen lässt
- * (siehe assumeCallToJs).
+ * Siehe EmitOptions.checkAssertions.
  */
-let checkAssumes = false;
+let checkAssertions = false;
 /**
  * Siehe EmitOptions.hasDefaultExport.
  */
@@ -190,10 +191,12 @@ export function syntaxTreeToJs(
 
 export interface EmitOptions {
 	/**
-	 * assume prüft seine Behauptung zur Laufzeit. Nur für jul test, der normale Build bleibt
-	 * unverändert.
+	 * assume und assert prüfen zur Laufzeit: assume seine Behauptung, soweit der statische Typ sie
+	 * offen lässt (assumeCallToJs), assert seine Bedingung (assertCallToJs). Immer unter jul test,
+	 * im normalen Build nach der jul-config. Ohne ist assume die Identität, und assert fällt samt
+	 * Argumenten weg.
 	 */
-	checkAssumes?: boolean;
+	checkAssertions?: boolean;
 	/**
 	 * Ob die importierte Datei einen default-Export hat (ParsedFile.hasDefaultExport), zum Pfad
 	 * relativ zur emittierten Datei, wie er im import steht. Nur nötig, wenn die Datei importiert.
@@ -258,18 +261,23 @@ export function syntaxTreeToJsWithMappings(
 	useTypeInfo = true;
 	emitSourcePositions = true;
 	sourceFilePath = filePath;
-	checkAssumes = !!options.checkAssumes;
+	checkAssertions = !!options.checkAssertions;
 	hasDefaultExport = options.hasDefaultExport;
 	try {
-		const bodyJs = expressions.map((expression, index) => {
+		const bodyJs = expressions.flatMap((expression, index) => {
+			const isDefaultExport = index === expressions.length - 1
+				&& isValueFile;
+			if (!isDefaultExport
+				&& isRemovedAssert(expression)) {
+				return [];
+			}
 			const expressionJs = expressionToJs(checkResult, expression, 0, true);
 			const markerJs = sourcePositionMarkerJs(expression);
 			// default export = last expression
-			if (index === expressions.length - 1
-				&& isValueFile) {
-				return `${markerJs}export default ${expressionJs}`;
+			if (isDefaultExport) {
+				return [`${markerJs}export default ${expressionJs}`];
 			}
-			return markerJs + expressionJs;
+			return [markerJs + expressionJs];
 		}).join('\n');
 		// Die Marker stehen erst nach dem Import im Text, extractSourceMappings zählt die Zeilen des
 		// Imports also mit.
@@ -284,7 +292,7 @@ export function syntaxTreeToJsWithMappings(
 		useTypeInfo = false;
 		emitSourcePositions = false;
 		sourceFilePath = '';
-		checkAssumes = false;
+		checkAssertions = false;
 		hasDefaultExport = undefined;
 	}
 }
@@ -748,10 +756,16 @@ function getPathFromImport(importExpression: ParseFunctionCall): string {
 
 function functionBodyToJs(checkResult: CheckResult, expressions: ParseExpression[], indent: number, tail?: TailContext): string {
 	const delimiter = getRowDelimiterJs(indent);
-	const js = delimiter + expressions.map((expression, index) => {
+	const js = delimiter + expressions.flatMap((expression, index) => {
+		const isLast = index === expressions.length - 1;
+		// Als letzte Zeile bleibt es stehen und liefert undefined (Empty) als Rückgabewert.
+		if (!isLast
+			&& isRemovedAssert(expression)) {
+			return [];
+		}
 		const markerJs = sourcePositionMarkerJs(expression);
 		// Die letzte Expression ist der Rückgabewert
-		if (index === expressions.length - 1) {
+		if (isLast) {
 			if (tail
 				&& (expression.type === 'functionCall' || expression.type === 'branching')
 				&& (tail.calls.has(expression as ParseFunctionCall) || tail.branchings.has(expression as ParseBranching))) {
@@ -1291,6 +1305,9 @@ function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCal
 			default:
 				throw new Error('unexpected arguments.type for assume functionCall: ' + args?.type);
 		}
+	}
+	if (isNamedFunction(functionExpression, 'assert')) {
+		return assertCallToJs(checkResult, expression, indent);
 	}
 	if (isNamedFunction(functionExpression, 'test')) {
 		return testCallToJs(checkResult, expression, functionExpression, indent);
@@ -2030,7 +2047,7 @@ function stringToJs(value: string): string {
 //#region assume
 
 /**
- * assume ist die Identität. Unter jul test (checkAssumes) prüft es seine Behauptung, aber nur so weit,
+ * assume ist die Identität. Unter jul test (checkAssertions) prüft es seine Behauptung, aber nur so weit,
  * wie der statische Typ des Werts sie offen lässt: Bei Or([] GameCard) und Ziel GameCard reicht
  * value !== undefined (getAssumeTest). Nur wenn der statische Typ nichts hergibt, prüft
  * _checkAssume den ganzen Typ. Ein Zieltyp, der von einem Parameter abhängt, wird nicht geprüft:
@@ -2044,7 +2061,7 @@ function assumeCallToJs(
 	typeExpression: ParseListValue | undefined,
 	indent: number,
 ): string {
-	if (!checkAssumes
+	if (!checkAssertions
 		|| !typeExpression
 		|| typeExpression.type === 'spread') {
 		return valueJs;
@@ -2078,6 +2095,65 @@ function assumeCallToJs(
 
 //#endregion assume
 
+//#region assert
+
+/**
+ * Ohne checkAssertions fällt assert samt Argumenten weg: Als eigene Zeile emittiert der Rumpf es
+ * gar nicht (isRemovedAssert), an jeder anderen Stelle steht undefined, sein Wert Empty. Mit
+ * checkAssertions wird die Meldung nur im Fehlerzweig ausgewertet, und ein Aufruf als Bedingung
+ * läuft über _assertCall, damit der Bruch seine ausgewerteten Argumente nennt.
+ */
+function assertCallToJs(checkResult: CheckResult, call: ParseFunctionCall, indent: number): string {
+	if (!checkAssertions) {
+		return 'undefined';
+	}
+	const { message, condition } = getAssertCallArguments(call);
+	if (!message || !condition) {
+		throw new Error('arguments missing for assert');
+	}
+	const innerIndent = indent + 1;
+	const previousInstrumentedCall = instrumentedTestCall;
+	const previousHelper = instrumentedCallHelper;
+	instrumentedTestCall = condition;
+	instrumentedCallHelper = '_assertCall';
+	let conditionJs: string;
+	try {
+		conditionJs = expressionToJs(checkResult, condition, indent);
+	}
+	finally {
+		instrumentedTestCall = previousInstrumentedCall;
+		instrumentedCallHelper = previousHelper;
+	}
+	// Nicht jeder Aufruf wird instrumentiert (etwa and, Arithmetik, ein Aufruf mit benannten
+	// Argumenten). Wurde er es, beginnt das JS der Bedingung mit dem Helfer.
+	const isInstrumented = conditionJs.startsWith('_assertCall(');
+	const failedJs = `_assertFailed(${listValuesToJs([
+		isInstrumented ? '_takeAssertCall()' : 'undefined',
+		expressionToJs(checkResult, message, innerIndent),
+		stringToJs(sourceFilePath),
+		String(call.startRowIndex + 1),
+		String(call.startColumnIndex + 1),
+	], indent)})`;
+	// Sonst geklammert: Das JS der Bedingung kann ?? oder ?: enthalten, die schwächer binden als ||
+	// oder sich ohne Klammern nicht mit || mischen lassen.
+	return isInstrumented
+		? `void (${conditionJs} || ${failedJs})`
+		: `void ((${conditionJs}) || ${failedJs})`;
+}
+
+/**
+ * Ein assert, das ohne checkAssertions wegfällt. Als Zeile eines Rumpfs wird es dann gar nicht
+ * emittiert.
+ */
+function isRemovedAssert(expression: ParseExpression): boolean {
+	return !checkAssertions
+		&& expression.type === 'functionCall'
+		&& !!expression.functionExpression
+		&& isNamedFunction(expression.functionExpression, 'assert');
+}
+
+//#endregion assert
+
 //#region test
 
 /**
@@ -2087,9 +2163,11 @@ function assumeCallToJs(
 function testCallToJs(checkResult: CheckResult, call: ParseFunctionCall, functionExpression: SimpleExpression, indent: number): string {
 	const { name, callback } = getTestArguments(call);
 	const previousInstrumentedCall = instrumentedTestCall;
+	const previousHelper = instrumentedCallHelper;
 	instrumentedTestCall = callback.type === 'functionLiteral'
 		? last(callback.body)
 		: undefined;
+	instrumentedCallHelper = '_testCall';
 	try {
 		const innerIndent = indent + 1;
 		const locationJs = `{ file: ${stringToJs(sourceFilePath)}, row: ${call.startRowIndex + 1}, column: ${call.startColumnIndex + 1} }`;
@@ -2100,6 +2178,7 @@ function testCallToJs(checkResult: CheckResult, call: ParseFunctionCall, functio
 	}
 	finally {
 		instrumentedTestCall = previousInstrumentedCall;
+		instrumentedCallHelper = previousHelper;
 	}
 }
 
@@ -2124,7 +2203,7 @@ function testCallToInstrumentedJs(checkResult: CheckResult, name: string, functi
 		jsValues.unshift(expressionToJs(checkResult, call.prefixArgument, valuesIndent + 1));
 	}
 	const argsJs = `[${listValuesToJs(jsValues, valuesIndent)}]`;
-	return `_testCall(${listValuesToJs([stringToJs(name), functionJs, argsJs], indent)})`;
+	return `${instrumentedCallHelper}(${listValuesToJs([stringToJs(name), functionJs, argsJs], indent)})`;
 }
 
 //#endregion test

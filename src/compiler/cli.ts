@@ -159,6 +159,7 @@ try {
 				config.cli,
 				command === 'check',
 				config.warnUnknown ?? defaultWarnUnknown,
+				config.checkAssertions ?? false,
 			);
 			break;
 		}

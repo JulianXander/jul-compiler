@@ -93,7 +93,7 @@ import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex,
 import { collectCompletedNames, collectCompletedNamesByBody, reportStreamsWithoutEnd } from './stream-lifetime.js';
 import { applyIgnoreComments } from '../parser/comment-directives.js';
 import { checkerStats } from './checker-stats.js';
-import { CheckResult, createCheckResult, getAliasSymbolType, getDeclaredSignature, getExpectedType, getFunctionRef, getSymbolTypeInfo, getTypeInfo, isSymbolUsed, markSymbolUsed, setCalledFunctionType, setCalledParameterNames, setDeclaredSignature, setExpectedType, setFunctionRef, setSymbolTypeInfo, setTypeInfo } from './check-result.js';
+import { CheckResult, createCheckResult, getAliasSymbolType, getDeclaredSignature, getExpectedType, getFunctionRef, getSymbolTypeInfo, getSymbolUse, getTypeInfo, markSymbolUsed, setCalledFunctionType, setCalledParameterNames, setDeclaredSignature, setExpectedType, setFunctionRef, setSymbolTypeInfo, setTypeInfo } from './check-result.js';
 import {
 	applyBranchHead,
 	BranchCoverage,
@@ -294,6 +294,7 @@ const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElement
 const directCallOnlyBuiltins = new Map<string, ErrorCode>([
 	['test', ErrorCode.testNotCalled],
 	['assume', ErrorCode.assumeNotCalled],
+	['assert', ErrorCode.assertNotCalled],
 ]);
 
 /**
@@ -1038,7 +1039,8 @@ export function checkTypes(
 //#region ungenutzte Definitionen
 
 /**
- * Meldet lokale Bindungen, die keine Referenz gefunden hat (isSymbolUsed).
+ * Meldet lokale Bindungen, die keine Referenz gefunden hat oder nur in den Argumenten von assert
+ * (getSymbolUse).
  * Ausgenommen ist, was außerhalb des Scopes noch ankommt: Top-Level-Definitionen sind exportiert,
  * die letzte Definition eines Funktionsrumpfs ist sein Rückgabewert, Parameter werden vom Aufrufer
  * belegt. Destructuring auf oberster Ebene wird nicht exportiert und daher geprüft.
@@ -1072,7 +1074,19 @@ function reportUnusedInFunctionBodies(result: CheckResult, expression: Positione
 }
 
 function reportIfUnused(result: CheckResult, symbol: SymbolDefinition, name: string, errors: CompilerError[]): void {
-	if (isSymbolUsed(result, symbol)) {
+	const use = getSymbolUse(result, symbol);
+	if (use === 'used') {
+		return;
+	}
+	if (use === 'onlyInAssert') {
+		errors.push({
+			code: ErrorCode.usedOnlyInAssert,
+			message: `'${name}' is only used in assert, but is computed even when assert is removed. Move the computation into a function called in the condition.`,
+			startRowIndex: symbol.startRowIndex,
+			startColumnIndex: symbol.startColumnIndex,
+			endRowIndex: symbol.endRowIndex,
+			endColumnIndex: symbol.endColumnIndex,
+		});
 		return;
 	}
 	errors.push({
@@ -1083,6 +1097,23 @@ function reportIfUnused(result: CheckResult, symbol: SymbolDefinition, name: str
 		endRowIndex: symbol.endRowIndex,
 		endColumnIndex: symbol.endColumnIndex,
 	});
+}
+
+/**
+ * Liegt der Ausdruck in einem Argument eines assert-Aufrufs, auch verschachtelt? Wie bei `test`
+ * entscheidet der Name, `assert` zu überschatten ist JUL3203.
+ */
+function isInsideAssertArgument(expression: PositionedExpression): boolean {
+	for (let current = expression; current.parent; current = current.parent) {
+		const parent = current.parent;
+		if (parent.type === 'functionCall'
+			&& current !== parent.functionExpression
+			&& parent.functionExpression?.type === 'reference'
+			&& parent.functionExpression.name.name === 'assert') {
+			return true;
+		}
+	}
+	return false;
 }
 
 /**
@@ -3098,6 +3129,12 @@ function inferType(
 				&& !hasArgsError) {
 				checkRedundantAssume(expression, prefixArgument ?? getArgValueExpressions(args)[0], boundArgsType, errors);
 			}
+			// Wie `test`: Name statt Symbol.
+			if (functionExpression.type === 'reference'
+				&& functionExpression.name.name === 'assert'
+				&& !hasArgsError) {
+				checkConstantAssert(expression, boundArgsType, errors);
+			}
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, checkContext);
 			// Für den Rückgabetyp bleibt ein Platzhalter stehen, statt hier schon auf den
 			// deklarierten Parametertyp zu fallen: erst der Aufrufort kennt den konkreten Typ,
@@ -3702,7 +3739,7 @@ function inferType(
 				type,
 				isBuiltIn,
 			} = dereferenceType(checkContext.result, expression, scopes);
-			// Name statt Symbol wie bei den übrigen Builtins: `test` und `assume` zu überschatten ist
+			// Name statt Symbol wie bei den übrigen Builtins: `test`, `assume` und `assert` zu überschatten ist
 			// JUL3203.
 			const notCalledCode = directCallOnlyBuiltins.get(name);
 			if (notCalledCode !== undefined
@@ -3745,9 +3782,9 @@ function inferType(
 			}
 			if (foundSymbol
 				&& !isBuiltIn
-				&& !isSymbolUsed(checkContext.result, foundSymbol)
+				&& getSymbolUse(checkContext.result, foundSymbol) !== 'used'
 				&& !isInside(expression, foundSymbol.definition)) {
-				markSymbolUsed(checkContext.result, foundSymbol);
+				markSymbolUsed(checkContext.result, foundSymbol, isInsideAssertArgument(expression));
 			}
 			if (referenceIndex && foundSymbol && !isBuiltIn) {
 				const canonical = resolveCanonicalSymbol(foundSymbol, filePath, parsedDocuments);
@@ -4769,6 +4806,46 @@ function checkRedundantAssume(
 }
 
 //#endregion assume
+
+//#region assert
+
+/**
+ * Eine Bedingung, die schon beim Kompilieren feststeht, ist sinnloser Code: true prüft nichts,
+ * false schlägt bei jeder Ausführung fehl. Je Fall ein eigener Code, das Zweite ist eher ein Bug.
+ */
+function checkConstantAssert(
+	call: ParseFunctionCall,
+	boundArgsType: CompileTimeType,
+	errors: CompilerError[],
+): void {
+	const argTypes = getAllArgTypes(boundArgsType);
+	if (argTypes?.length !== 2) {
+		return;
+	}
+	const conditionType = resolvePlaceholders(argTypes[1]!);
+	if (conditionType.julType !== 'booleanLiteral') {
+		return;
+	}
+	errors.push(conditionType.value
+		? {
+			code: ErrorCode.assertConditionAlwaysTrue,
+			message: 'The condition of assert is always true, the assert checks nothing.',
+			startRowIndex: call.startRowIndex,
+			startColumnIndex: call.startColumnIndex,
+			endRowIndex: call.endRowIndex,
+			endColumnIndex: call.endColumnIndex,
+		}
+		: {
+			code: ErrorCode.assertConditionAlwaysFalse,
+			message: 'The condition of assert is always false, the assert fails every time.',
+			startRowIndex: call.startRowIndex,
+			startColumnIndex: call.startColumnIndex,
+			endRowIndex: call.endRowIndex,
+			endColumnIndex: call.endColumnIndex,
+		});
+}
+
+//#endregion assert
 
 //#region test
 

@@ -39,9 +39,10 @@ export interface CheckResult {
 	 */
 	readonly functionRefs: (FunctionIdentity | undefined)[];
 	/**
-	 * Je Symbol, ob eine Referenz außerhalb der eigenen Definition es gefunden hat.
+	 * Je Symbol, ob eine Referenz außerhalb der eigenen Definition es gefunden hat, und ob nur in den
+	 * Argumenten von assert.
 	 */
-	readonly usedSymbols: boolean[];
+	readonly symbolUses: SymbolUse[];
 	/**
 	 * Was vor diesem branch noch ankommen kann, gesetzt in case 'branching' vor dem Inferieren des
 	 * branches. Die Verengung in seinem Rumpf liest es. Schlüssel ist die Knoten-Id des branches.
@@ -89,7 +90,7 @@ export function createCheckResult(file: ParsedFile): CheckResult {
 		symbolTypeInfos: createTable(symbolCount, undefined),
 		declaredSignatures: createTable(symbolCount, undefined),
 		functionRefs: createTable(symbolCount, undefined),
-		usedSymbols: createTable(symbolCount, false),
+		symbolUses: createTable<SymbolUse>(symbolCount, 'none'),
 		coverageBeforeBranch: new Map(),
 		errors: [...file.syntax.errors, ...file.loadErrors ?? []],
 		roots: verifyNodeOwnership
@@ -272,12 +273,28 @@ export function setFunctionRef(result: CheckResult, symbol: SymbolDefinition, fu
 	result.functionRefs[getSymbolId(result, symbol)] = functionRef;
 }
 
-export function isSymbolUsed(result: CheckResult, symbol: SymbolDefinition): boolean {
-	return result.usedSymbols[getSymbolId(result, symbol)]!;
+/**
+ * Wie ein Symbol referenziert wird: gar nicht, nur in den Argumenten von assert (die ohne
+ * checkAssertions wegfallen) oder auch an anderer Stelle.
+ */
+export type SymbolUse = 'none' | 'onlyInAssert' | 'used';
+
+export function getSymbolUse(result: CheckResult, symbol: SymbolDefinition): SymbolUse {
+	return result.symbolUses[getSymbolId(result, symbol)]!;
 }
 
-export function markSymbolUsed(result: CheckResult, symbol: SymbolDefinition): void {
-	result.usedSymbols[getSymbolId(result, symbol)] = true;
+/**
+ * Eine Referenz in den Argumenten von assert stuft eine andere Verwendung nicht zurück.
+ */
+export function markSymbolUsed(result: CheckResult, symbol: SymbolDefinition, onlyInAssert: boolean): void {
+	const id = getSymbolId(result, symbol);
+	if (onlyInAssert
+		&& result.symbolUses[id] === 'used') {
+		return;
+	}
+	result.symbolUses[id] = onlyInAssert
+		? 'onlyInAssert'
+		: 'used';
 }
 
 //#endregion Symbole

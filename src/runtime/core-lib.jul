@@ -1708,5 +1708,15 @@ assume = nativeFunction(
 		(value) => value
 	§
 )
+# Prüft, dass condition gilt, und wirft sonst mit message und der Stelle des Aufrufs. Geprüft wird
+# unter jul test und in einem Build mit checkAssertions: true in der jul-config.yaml. Sonst fällt der
+# Aufruf samt Argumenten weg, auch mit ihren Seiteneffekten. message wird nur bei einem Bruch
+# ausgewertet. Nur direkt aufrufbar.
+assert = nativeFunction(
+	(message: Text condition: Boolean) -> []
+	§js
+		() => undefined
+	§
+)
 #endregion Utility
 #endregion Functions

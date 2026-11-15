@@ -5,8 +5,8 @@
 
 import { relative } from 'path';
 import { fileURLToPath } from 'url';
-import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _takeAssumeViolation, _Text } from './runtime.js';
-import type { AssumeViolation, BuiltInType, RuntimeDictionary, RuntimeType } from './runtime.js';
+import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _takeAssertionViolation, _Text } from './runtime.js';
+import type { AssertionViolation, BuiltInType, RuntimeDictionary, RuntimeType } from './runtime.js';
 
 /**
  * Stelle des test-Aufrufs im .jul-Quelltext, 1-basiert. Setzt der Emitter als drittes Argument,
@@ -93,7 +93,7 @@ export function _runTests(
 	for (const registered of tests) {
 		lastTestCall = undefined;
 		// Ein Bruch aus dem Laden der Module oder einem früheren Test gehört nicht zu diesem.
-		_takeAssumeViolation();
+		_takeAssertionViolation();
 		let result: unknown;
 		let thrown: { error: unknown; } | undefined;
 		const startTime = performance.now();
@@ -105,7 +105,7 @@ export function _runTests(
 		}
 		const durationMs = performance.now() - startTime;
 		// Auch wenn JS-Code die Exception abgefangen hat und der Test danach true liefert.
-		const violation = _takeAssumeViolation();
+		const violation = _takeAssertionViolation();
 		const passed = !violation && !thrown && result === true;
 		if (!passed) {
 			failedCount++;
@@ -121,7 +121,7 @@ export function _runTests(
 			failure: passed
 				? undefined
 				: violation
-					? getAssumeViolationText(violation)
+					? getAssertionViolationText(violation)
 					: getTestFailureText(result, thrown, lastTestCall),
 			...failureLocation && { failureLocation: failureLocation },
 			durationMs: durationMs,
@@ -150,31 +150,41 @@ function getTestFailureText(
 }
 
 /**
- * Höchstlänge des Werts in der Meldung eines verletzten assume: Behauptet werden oft ganze
- * Spielzustände.
+ * Höchstlänge eines Werts in der Meldung eines verletzten assume oder assert: Behauptet und geprüft
+ * werden oft ganze Spielzustände.
  */
 const maxViolationValueLength = 200;
 
-function getAssumeViolationText(violation: AssumeViolation): string {
-	const valueText = valueToString(violation.value);
-	const shortValueText = valueText.length > maxViolationValueLength
-		? valueText.slice(0, maxViolationValueLength) + '…'
-		: valueText;
-	return `assume violated: ${shortValueText} is not ${violation.typeText}`;
+function getAssertionViolationText(violation: AssertionViolation): string {
+	if (violation.kind === 'assume') {
+		return `assume violated: ${shortValueToString(violation.value)} is not ${violation.typeText}`;
+	}
+	const call = violation.call;
+	const callText = call
+		? `: ${call.name}(${call.args.map(shortValueToString).join(' ')}) returned false`
+		: '';
+	return `assert failed: ${violation.message}${callText}`;
 }
 
-function getViolationLocation(violation: AssumeViolation): TestLocation {
+function shortValueToString(value: unknown): string {
+	const valueText = valueToString(value);
+	return valueText.length > maxViolationValueLength
+		? valueText.slice(0, maxViolationValueLength) + '…'
+		: valueText;
+}
+
+function getViolationLocation(violation: AssertionViolation): TestLocation {
 	return { file: violation.file, row: violation.row, column: violation.column };
 }
 
 /**
  * Was beim Laden einer Testdatei schiefging, im Format eines fehlgeschlagenen Tests: ein verletztes
- * assume auf oberster Ebene eines geladenen Moduls oder eine andere Exception.
+ * assume oder assert auf oberster Ebene eines geladenen Moduls oder eine andere Exception.
  */
 export function _getLoadFailure(error: unknown): { failure: string; failureLocation?: TestLocation; } {
-	const violation = _takeAssumeViolation();
+	const violation = _takeAssertionViolation();
 	if (violation) {
-		return { failure: getAssumeViolationText(violation), failureLocation: getViolationLocation(violation) };
+		return { failure: getAssertionViolationText(violation), failureLocation: getViolationLocation(violation) };
 	}
 	const failureLocation = error instanceof Error
 		? getJulStackLocation(error)

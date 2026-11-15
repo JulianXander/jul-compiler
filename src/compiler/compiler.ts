@@ -31,6 +31,7 @@ export function compileProject(
 	cli: boolean = false,
 	checkOnly: boolean = false,
 	warnUnknown: boolean = false,
+	checkAssertions: boolean = false,
 ): void {
 	const startTime = performance.now();
 	const renderer = new LiveRenderer();
@@ -85,7 +86,7 @@ export function compileProject(
 	const usedRuntimeNames = new Set<string>();
 	Object.values(documents).forEach(document => {
 		const isEntry = document.filePath === entryFilePath;
-		const emitted = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimeImportPath, testRuntimeImportPath, documents);
+		const emitted = emitFile(document, getSourceCode(host, document.filePath)!, outputFolderPath, runtimeImportPath, testRuntimeImportPath, documents, checkAssertions);
 		emitted.runtimeNames.forEach(name => usedRuntimeNames.add(name));
 		if (isEntry) {
 			outFilePath = emitted.outFilePath;
@@ -365,7 +366,7 @@ export async function testProject(
 	// dann wie gewohnt auf, und eingebundene .js/.ts-Dateien finden ihre Pakete in node_modules.
 	const sources = new Map<string, { source: string; format: 'module' | 'json'; }>();
 	Object.values(documents).forEach(document => {
-		const { outFilePath, compiled, sourceMap } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimeSourcePath, testRuntimeSourcePath, documents, { checkAssumes: true });
+		const { outFilePath, compiled, sourceMap } = emitToJs(document, getSourceCode(host, document.filePath)!, '', runtimeSourcePath, testRuntimeSourcePath, documents, { checkAssertions: true });
 		sources.set(pathToFileURL(resolve(outFilePath)).href, {
 			// Inline, der Testlauf schreibt nichts auf die Platte.
 			source: sourceMap
@@ -649,8 +650,9 @@ function emitFile(
 	runtimeImportPath: string,
 	testRuntimeImportPath: string,
 	documents: ParsedDocuments,
+	checkAssertions: boolean,
 ): { outFilePath: string; runtimeNames: string[]; } {
-	const { outFilePath, compiled, sourceMap, runtimeNames } = emitToJs(parsed, sourceCode, outputFolderPath, runtimeImportPath, testRuntimeImportPath, documents);
+	const { outFilePath, compiled, sourceMap, runtimeNames } = emitToJs(parsed, sourceCode, outputFolderPath, runtimeImportPath, testRuntimeImportPath, documents, { checkAssertions: checkAssertions });
 	const outDir = dirname(outFilePath);
 	tryCreateDirectory(outDir);
 	let js = compiled;
