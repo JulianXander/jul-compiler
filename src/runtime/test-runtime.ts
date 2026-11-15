@@ -258,7 +258,11 @@ function typeToString(type: RuntimeType, indent: number): string {
 		case 'function':
 			return 'CustomType: ' + type;
 		case 'number':
-			return type.toString() + 'f';
+			// Kleine Integer und Float sind beide number. Ganzzahlig gilt sie wie zur Laufzeit als
+			// Integer (docs/integer-darstellung.md), nur ein gebrochener Wert ist sicher ein Float.
+			return Number.isInteger(type)
+				? type.toString()
+				: type.toString() + 'f';
 		case 'object': {
 			if (type === null) {
 				// TODO throw error?

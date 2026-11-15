@@ -154,7 +154,6 @@ combined$: FiniteStream([Or(0 PositiveInteger) Integer Integer])
 mapped1$: FiniteStream(Integer)
 mapped2$: FiniteStream(Integer)
 source$: FiniteStream(Or(0 PositiveInteger))
-  error 5050 at 1:21 Argument type mismatch. | Invalid value for parameter 'delayMs' |   Can not assign 2000 to Float.
   error 3201 at 4:3 'console' is not defined.
   error 5050 at 3:2 Argument type mismatch. | Invalid value for parameter 'listener' |   Parameter name mismatch. Got 'x' but expected 'value'
   error 5050 at 7:25 Argument type mismatch. | Invalid value for parameter 'transform$' |   Parameter name mismatch. Got 'count' but expected 'value'
@@ -207,6 +206,7 @@ testEmptyLiteral3: Empty
 testEmptyLiteral4: Empty
 testFloat1: Float
 testFloat2: Float
+testFloat3: (a: Integer) -> Float
 testInteger1: Integer
 testInteger2: Integer
 testIntegerLiteral1: 4
@@ -242,29 +242,29 @@ testWithout21: false
   error 5000 at 28:1 Definition type mismatch. | Can not assign 4f to Integer.
   error 5000 at 32:1 Definition type mismatch. | Can not assign 0 to Not(0).
   error 5000 at 34:1 Definition type mismatch. | Can not assign [ |   numerator: 7 |   denominator: 2 | ] to Integer.
-  error 5000 at 38:1 Definition type mismatch. | Can not assign 6 to Float.
-  error 5000 at 44:1 Definition type mismatch. | Can not assign 4 to Text.
-  error 5000 at 48:1 Definition type mismatch. | Can not assign 6 to 4. | Can not assign 6 to 5.
-  error 5000 at 54:1 Definition type mismatch. | Can not assign 5 to Never.
-  error 5000 at 56:1 Definition type mismatch. | Can not assign 6 to Never.
-  error 5000 at 58:1 Definition type mismatch. | Can not assign [ |   a: 4 |   b: 5 | ] to Never.
-  error 5000 at 66:1 Definition type mismatch. | Can not assign [ |   a: 4 |   b: 6 | ] to Never.
-  error 5000 at 74:1 Definition type mismatch. | Can not assign true to Not(true).
-  warning 2600 at 77:1 't1' is a type and should start with an uppercase letter.
-  warning 2600 at 78:1 't2' is a type and should start with an uppercase letter.
-  warning 2600 at 79:1 't3' is a type and should start with an uppercase letter.
-  error 5000 at 84:1 Definition type mismatch. | Can not assign true to false.
-  error 5000 at 85:1 Definition type mismatch. | Can not assign true to false.
-  error 5000 at 89:29 Definition type mismatch. | Can not assign 1 to 2.
-  error 5000 at 93:31 Definition type mismatch. | Can not assign 4 to Text.
-  error 5000 at 95:1 Definition type mismatch. | Can not assign Empty to List(Text).
-  error 5000 at 99:39 Definition type mismatch. | Can not assign [a: 6] to [a: 4]. |   Invalid value for field 'a' |     Can not assign 6 to 4.
-  error 5000 at 109:1 Definition type mismatch. | Unexpected field 'b'.
-  error 5000 at 118:49 Definition type mismatch. | Can not assign [a: [b: 5]] to [a: [b: 4]]. |   Invalid value for field 'a' |     Can not assign [b: 5] to [b: 4]. |       Invalid value for field 'b' |         Can not assign 5 to 4.
-  error 5000 at 120:43 Definition type mismatch. | Can not assign [a: [b: 4f]] to [a: Float]. |   Invalid value for field 'a' |     Can not assign [b: 4f] to Float.
-  error 5000 at 126:42 Definition type mismatch. | Invalid value for field 'a' |   Can not assign 4 to Text.
-  error 5000 at 128:1 Definition type mismatch. | Can not assign Empty to Dictionary(Text).
-  error 5050 at 132:1 Argument type mismatch. | Invalid value for parameter 'minuend' |   Can not assign Empty to Integer. |   Can not assign Empty to [ |     numerator: Integer |     denominator: NonZeroInteger |   ].
+  error 5050 at 40:42 Argument type mismatch. | Invalid value for parameter 'dividend' |   Can not assign Integer to Float.
+  error 5000 at 46:1 Definition type mismatch. | Can not assign 4 to Text.
+  error 5000 at 50:1 Definition type mismatch. | Can not assign 6 to 4. | Can not assign 6 to 5.
+  error 5000 at 56:1 Definition type mismatch. | Can not assign 5 to Never.
+  error 5000 at 58:1 Definition type mismatch. | Can not assign 6 to Never.
+  error 5000 at 60:1 Definition type mismatch. | Can not assign [ |   a: 4 |   b: 5 | ] to Never.
+  error 5000 at 68:1 Definition type mismatch. | Can not assign [ |   a: 4 |   b: 6 | ] to Never.
+  error 5000 at 76:1 Definition type mismatch. | Can not assign true to Not(true).
+  warning 2600 at 79:1 't1' is a type and should start with an uppercase letter.
+  warning 2600 at 80:1 't2' is a type and should start with an uppercase letter.
+  warning 2600 at 81:1 't3' is a type and should start with an uppercase letter.
+  error 5000 at 86:1 Definition type mismatch. | Can not assign true to false.
+  error 5000 at 87:1 Definition type mismatch. | Can not assign true to false.
+  error 5000 at 91:29 Definition type mismatch. | Can not assign 1 to 2.
+  error 5000 at 95:31 Definition type mismatch. | Can not assign 4 to Text.
+  error 5000 at 97:1 Definition type mismatch. | Can not assign Empty to List(Text).
+  error 5000 at 101:39 Definition type mismatch. | Can not assign [a: 6] to [a: 4]. |   Invalid value for field 'a' |     Can not assign 6 to 4.
+  error 5000 at 111:1 Definition type mismatch. | Unexpected field 'b'.
+  error 5000 at 120:49 Definition type mismatch. | Can not assign [a: [b: 5]] to [a: [b: 4]]. |   Invalid value for field 'a' |     Can not assign [b: 5] to [b: 4]. |       Invalid value for field 'b' |         Can not assign 5 to 4.
+  error 5000 at 122:43 Definition type mismatch. | Can not assign [a: [b: 4f]] to [a: Float]. |   Invalid value for field 'a' |     Can not assign [b: 4f] to Float.
+  error 5000 at 128:42 Definition type mismatch. | Invalid value for field 'a' |   Can not assign 4 to Text.
+  error 5000 at 130:1 Definition type mismatch. | Can not assign Empty to Dictionary(Text).
+  error 5050 at 134:1 Argument type mismatch. | Invalid value for parameter 'minuend' |   Can not assign Empty to Integer. |   Can not assign Empty to [ |     numerator: Integer |     denominator: NonZeroInteger |   ].
 === type-function.jul ===
 BlubType: TypeOf([   a: List(Text)   b: Or(Empty Text) ])
 arg1: true

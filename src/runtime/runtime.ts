@@ -692,7 +692,9 @@ type RuntimeRational = RuntimeInteger | RuntimeFraction;
 //#region kanonische Integer
 
 const maxSafeInteger = Number.MAX_SAFE_INTEGER;
-const maxSafeBigInt = BigInt(Number.MAX_SAFE_INTEGER);
+// Als Literal statt BigInt(Number.MAX_SAFE_INTEGER): Ein Aufruf auf oberster Ebene bliebe beim
+// Tree-Shaking stehen.
+const maxSafeBigInt = 9007199254740991n;
 
 /** Ist value ein Integer-Wert (ganzzahlige number oder bigint)? */
 export function _isInteger(value: unknown): value is RuntimeInteger {

@@ -9533,3 +9533,44 @@ describe('Namen aus Object.prototype', () => {
 		expectNoThrow('hasOwnProperty = 1\nx = hasOwnProperty');
 	});
 });
+
+//#region Integer an Float
+
+// Ein Integer im sicheren Bereich (±2^53 − 1) ist als Float exakt darstellbar und zur Laufzeit
+// dieselbe number. Darüber würde er gerundet.
+describe('Integer an Float', () => {
+	it('Literal an Float-Definition', () => {
+		expectCheck('x: Float = 6');
+	});
+	it('Literale an Float-Parameter', () => {
+		expectCheck('x = divideFloat(5 2)');
+	});
+	it('negatives Literal an der Grenze', () => {
+		expectCheck('x: Float = -9007199254740991');
+	});
+	it('beschränkter Integer an Float-Parameter', () => {
+		expectCheck('f = (a: And(Integer GreaterInteger(0) LessInteger(10))) => divideFloat(a 2f)');
+	});
+	it('Integer-Literal in einer Float-Liste', () => {
+		expectCheck('x: List(Float) = [1 2.5f]');
+	});
+	// Gegenprobe: unbeschränkt kann er über 2^53 liegen und würde gerundet.
+	it('unbeschränkter Integer an Float bleibt ein Fehler', () => {
+		expectErrorCodes('f = (a: Integer) => divideFloat(a 2f)', [ErrorCode.argumentTypeMismatch]);
+	});
+	it('Literal über dem sicheren Bereich bleibt ein Fehler', () => {
+		expectErrorCodes('x: Float = 9007199254740993', [ErrorCode.definitionTypeMismatch]);
+	});
+	it('nur nach unten beschränkter Integer bleibt ein Fehler', () => {
+		expectErrorCodes('f = (a: PositiveInteger) => divideFloat(a 2f)', [ErrorCode.argumentTypeMismatch]);
+	});
+	// Gegenprobe: Die andere Richtung bleibt gesperrt, ein Float ist nicht exakt.
+	it('Float an Rational bleibt ein Fehler', () => {
+		expectErrorCodes('x = divide(0.5f 2)', [ErrorCode.argumentTypeMismatch]);
+	});
+	it('Float an Integer bleibt ein Fehler', () => {
+		expectErrorCodes('x: Integer = 4f', [ErrorCode.definitionTypeMismatch]);
+	});
+});
+
+//#endregion Integer an Float

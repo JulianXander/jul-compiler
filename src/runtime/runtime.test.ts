@@ -90,7 +90,9 @@ describe('_fromTs', () => {
 		expect(wrapped('text')).to.equal('text');
 	});
 	it('wandelt ein Modul-Objekt wie einen Record (x = import(§….ts§))', async () => {
-		const module = await import('data:text/javascript,export const next = (value) => value + 1n; export const name = "m";');
+		// Über eine Variable: Für ein Literal sucht tsc eine Typdeklaration des Moduls.
+		const moduleUrl = 'data:text/javascript,export const next = (value) => value + 1n; export const name = "m";';
+		const module = await import(moduleUrl);
 		const wrapped = _fromTs(module, ['d', { next: ['f', ['i'], null, 'i'] }]);
 		expect(wrapped.next(41)).to.equal(42);
 		expect(wrapped.name).to.equal('m');

@@ -73,6 +73,19 @@ describe('_runTests', () => {
 			['equal(1 2) returned false'],
 			1);
 	});
+	// Kleine Integer sind zur Laufzeit number, wie Floats.
+	it('formats-integral-number-as-integer', () => {
+		expectTestRun(
+			() => test('a', () => _testCall('equal', equal, [4, 5]), location),
+			['equal(4 5) returned false'],
+			1);
+	});
+	it('formats-fractional-number-as-float', () => {
+		expectTestRun(
+			() => test('a', () => _testCall('equal', equal, [1.5, 2]), location),
+			['equal(1.5f 2) returned false'],
+			1);
+	});
 	it('formats-collections-in-jul-notation', () => {
 		expectTestRun(
 			() => test('a', () => _testCall('deepEqual', deepEqual, [[1n, 'x'], { b: 2n }]), location),

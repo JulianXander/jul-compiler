@@ -4870,6 +4870,10 @@ function isTypeAssignableAtDepth(
 	// Die Zerlegung unten geht über Or(T B) und verlangt dort einen einzelnen passenden Choice, das
 	// scheitert schon an And(Integer Not(GreaterInteger(2))) gegen Not(GreaterInteger(3)).
 	// Passt es nicht, liefert die Zerlegung die genauere Meldung, etwa gegen welchen Teil des targets.
+	if (targetType.julType === 'float'
+		&& isSafeIntegerRange(argumentsType)) {
+		return { assignable: true };
+	}
 	const fitsRange = integerRangeFits(argumentsType, targetType);
 	if (fitsRange === true) {
 		return { assignable: true };
@@ -4881,6 +4885,22 @@ function isTypeAssignableAtDepth(
 			: getDefaultTypeError(argumentsType, targetType);
 	}
 	return isTypeAssignableByStructure(argumentsType, targetType);
+}
+
+const maxSafeIntegerBigInt = 9007199254740991n;
+
+/**
+ * Enthält der Typ nur ganze Zahlen im sicheren Bereich (±2^53 − 1)? Dann ist jeder Wert als Float
+ * exakt darstellbar und zur Laufzeit dieselbe number (docs/integer-darstellung.md). Ein Integer
+ * ohne beide Grenzen könnte darüber liegen und würde gerundet.
+ */
+function isSafeIntegerRange(type: CompileTimeType): boolean {
+	const range = getIntegerRange(type);
+	return !!range?.isInteger
+		&& range.min !== undefined
+		&& range.max !== undefined
+		&& range.min >= -maxSafeIntegerBigInt
+		&& range.max <= maxSafeIntegerBigInt;
 }
 
 /**
