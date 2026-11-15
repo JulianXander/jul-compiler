@@ -2299,6 +2299,10 @@ export const error = /*#__PURE__*/ _createFunction(
 );
 export const parseFloat = /*#__PURE__*/ _createFunction(
 	function parseFloat(textNumber: string) {
+		// +'' und +'  ' sind in JavaScript 0, leerer Text ist aber keine Zahl
+		if (textNumber.trim() === '') {
+			return new Error('Invalid number.');
+		}
 		const result = +textNumber;
 		if (Number.isNaN(result)) {
 			return new Error('Invalid number.');
@@ -2309,6 +2313,25 @@ export const parseFloat = /*#__PURE__*/ _createFunction(
 		singleNames: [
 			{
 				name: 'textNumber',
+				type: _Text,
+			},
+		]
+	}
+);
+// Ganze Zahl im Dezimalformat: optionales Minus, dann nur Ziffern, ohne Leerzeichen
+const integerTextPattern = /^-?[0-9]+$/;
+export const parseInteger = /*#__PURE__*/ _createFunction(
+	function parseInteger(text: string): RuntimeInteger | Error {
+		if (!integerTextPattern.test(text)) {
+			return new Error('Invalid integer.');
+		}
+		// über bigint exakt auch jenseits von 2^53, danach kanonisch (-0 wird 0)
+		return _toCanonicalInteger(BigInt(text));
+	},
+	{
+		singleNames: [
+			{
+				name: 'text',
 				type: _Text,
 			},
 		]

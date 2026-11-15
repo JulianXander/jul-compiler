@@ -655,12 +655,25 @@ parseFloat = nativeFunction(
 	(textNumber: Text) -> Or(Float Error)
 	§js
 		(textNumber) => {
+			if (textNumber.trim() === '') {
+				return new Error('Invalid number.');
+			}
 			const result = +textNumber;
 			if (Number.isNaN(result)) {
 				return new Error('Invalid number.');
 			}
 			return result;
 		}
+	§
+)
+# Liest eine ganze Zahl im Dezimalformat: optionales Minus, dann nur Ziffern.
+# Liefert Error bei jedem anderen Text, auch bei leerem Text, Leerzeichen, Nachkommastellen oder Exponent.
+parseInteger = nativeFunction(
+	(text: Text) -> Or(Integer Error)
+	§js
+		(text) => /^-?[0-9]+$/.test(text)
+			? BigInt(text)
+			: new Error('Invalid integer.')
 	§
 )
 # Ergebnis eines Vergleichs: first ist kleiner, gleich oder größer als second.

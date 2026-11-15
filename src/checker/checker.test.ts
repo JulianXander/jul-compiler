@@ -8146,6 +8146,12 @@ r = f(a = 5 b = 3)`)).to.equal('2');
 	it('parseFloat faltet zu Error bei ungültigem Text (zurückgegebener Error, kein Wurf)', () => {
 		expect(typeOfLastDefinition('r = parseFloat(§abc§)')).to.equal('Error');
 	});
+	it('parseInteger faltet einen validen Text', () => {
+		expect(typeOfLastDefinition('r = parseInteger(§-12§)')).to.equal('-12');
+	});
+	it('parseInteger faltet zu Error bei Nachkommastellen', () => {
+		expect(typeOfLastDefinition('r = parseInteger(§1.5§)')).to.equal('Error');
+	});
 	it('error liefert Error', () => {
 		expect(typeOfLastDefinition('r = error(§kaputt§)')).to.equal('Error');
 	});

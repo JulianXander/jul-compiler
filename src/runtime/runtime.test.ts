@@ -5,7 +5,7 @@ import { reportAtCaller } from '../test-util.js';
 import * as runtime from './runtime.js';
 import {
 	_branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssumeViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText, toLowerCase,
-	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger,
+	completed$, create$, deepEqual, delay$, divide, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger, parseInteger, parseFloat,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol, _optionalField, _Text, Or,
 	_addInteger, _subtractInteger, _multiplyInteger, _toCanonicalInteger, _isInteger, _fromTs, _isOfType, Float, length, range, modulo,
 } from './runtime.js';
@@ -588,6 +588,45 @@ describe('floatToInteger', () => {
 	it('keeps integral values and large values exact', () => {
 		expect(floatToInteger(4, 'nearest')).to.equal(4);
 		expect(floatToInteger(2 ** 60, 'down')).to.equal(2n ** 60n);
+	});
+});
+
+describe('parseInteger', () => {
+	it('parses a small integer as number', () => {
+		expect(parseInteger('42')).to.equal(42);
+	});
+	it('parses a negative integer', () => {
+		expect(parseInteger('-7')).to.equal(-7);
+	});
+	it('parses -0 as 0', () => {
+		expect(Object.is(parseInteger('-0'), 0)).to.equal(true);
+	});
+	it('keeps large values exact as bigint', () => {
+		expect(parseInteger('9007199254740993')).to.equal(9007199254740993n);
+	});
+	it('returns Error for empty text', () => {
+		expect(parseInteger('')).to.be.instanceOf(Error);
+	});
+	it('returns Error for whitespace', () => {
+		expect(parseInteger(' 1')).to.be.instanceOf(Error);
+	});
+	it('returns Error for decimals', () => {
+		expect(parseInteger('1.5')).to.be.instanceOf(Error);
+	});
+	it('returns Error for exponent', () => {
+		expect(parseInteger('1e3')).to.be.instanceOf(Error);
+	});
+	it('returns Error for hex', () => {
+		expect(parseInteger('0x10')).to.be.instanceOf(Error);
+	});
+});
+
+describe('parseFloat', () => {
+	it('returns Error for empty text', () => {
+		expect(parseFloat('')).to.be.instanceOf(Error);
+	});
+	it('returns Error for whitespace only', () => {
+		expect(parseFloat('  ')).to.be.instanceOf(Error);
 	});
 });
 
