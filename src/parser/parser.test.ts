@@ -2011,6 +2011,83 @@ describe('Leerzeichen um : und =', () => {
 			[ErrorCode.operatorSpacing, 0, 6],
 		]);
 	});
+	it('== ist kein = mit falschen Leerzeichen', () => {
+		const codes = parseCode('x == 1', 'dummy.jul').syntax.errors.map(error => error.code);
+		expect(codes).to.not.include(ErrorCode.operatorSpacing);
+	});
+});
+
+describe('Leerzeichen um Pfeile', () => {
+	it('fehlendes Leerzeichen nach =>', () => {
+		expectErrorStarts('f = (a) =>1', [
+			[ErrorCode.operatorSpacing, 0, 7],
+		]);
+	});
+	it('fehlendes Leerzeichen vor =>', () => {
+		expectErrorStarts('f = (a)=> 1', [
+			[ErrorCode.operatorSpacing, 0, 7],
+		]);
+	});
+	it('=> ohne Leerzeichen', () => {
+		expectErrorStarts('f = (a)=>1', [
+			[ErrorCode.operatorSpacing, 0, 7],
+		]);
+	});
+	it('zwei Leerzeichen vor =>', () => {
+		expectErrorStarts('f = (a)  => 1', [
+			[ErrorCode.operatorSpacing, 0, 7],
+		]);
+	});
+	it('fehlendes Leerzeichen vor => am Zeilenende', () => {
+		expectErrorStarts('f = (a)=>\n\t1', [
+			[ErrorCode.operatorSpacing, 0, 7],
+		]);
+	});
+	it('der Rumpf hinter => ohne Leerzeichen wird trotzdem geparst', () => {
+		const parsed = parseCode('f = (a)=>1', 'dummy.jul');
+		const functionLiteral = (parsed.syntax.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
+		expect(functionLiteral.body.map(expression => expression.type)).to.deep.equal(['integer']);
+	});
+	it('fehlendes Leerzeichen vor => im Branching', () => {
+		expectErrorStarts('x = ?(1)\n\t[1]=> 2', [
+			[ErrorCode.operatorSpacing, 1, 4],
+		]);
+	});
+	it('fehlendes Leerzeichen nach => im Branching', () => {
+		expectErrorStarts('x = ?(1)\n\t[1] =>2', [
+			[ErrorCode.operatorSpacing, 1, 4],
+		]);
+	});
+	it('fehlendes Leerzeichen nach => in der Pfeilzeile', () => {
+		expectErrorStarts('f = (a: Integer)\n\t=>a', [
+			[ErrorCode.operatorSpacing, 1, 1],
+		]);
+	});
+	it(':> ohne Leerzeichen', () => {
+		expectErrorStarts('F = [Text]:>Boolean', [
+			[ErrorCode.operatorSpacing, 0, 10],
+		]);
+	});
+	it('fehlendes Leerzeichen nach :>', () => {
+		expectErrorStarts('F = [Text] :>Boolean', [
+			[ErrorCode.operatorSpacing, 0, 10],
+		]);
+	});
+	it('fehlendes Leerzeichen vor ->', () => {
+		expectErrorStarts('F = [Text]-> Boolean', [
+			[ErrorCode.operatorSpacing, 0, 10],
+		]);
+	});
+	it('fehlendes Leerzeichen nach ~>', () => {
+		expectErrorStarts('F = [Text] ~>Boolean', [
+			[ErrorCode.operatorSpacing, 0, 10],
+		]);
+	});
+	it('der Rückgabetyp hinter :> ohne Leerzeichen wird trotzdem geparst', () => {
+		const parsed = parseCode('F = [Text]:>Boolean', 'dummy.jul');
+		const functionType = (parsed.syntax.expressions![0] as ParseSingleDefinition).value as ParseFunctionTypeLiteral;
+		expect((functionType.returnType as ParseReference).name.name).to.equal('Boolean');
+	});
 });
 
 //#endregion Leerzeichen um : und =

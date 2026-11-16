@@ -575,3 +575,6 @@
 2026-11-16 12:42:32	59ada3f+	-	ADV-DEV-56627	yugioh	parse+check	5	19134.59	19898.26	19898.26	Leerzeichen um : und = gezielt melden
 2026-11-16 12:42:32	59ada3f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1231.31	1350.97	1350.97	Leerzeichen um : und = gezielt melden
 2026-11-16 12:42:32	59ada3f+	-	ADV-DEV-56627	yugioh	parse	5	117.43	164.81	164.81	Leerzeichen um : und = gezielt melden
+2026-11-16 12:55:54	8722eff+	-	ADV-DEV-56627	yugioh	parse+check	5	19367.64	19783.38	19783.38	Leerzeichen um Pfeile gezielt melden
+2026-11-16 12:55:54	8722eff+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1111.21	1126.86	1126.86	Leerzeichen um Pfeile gezielt melden
+2026-11-16 12:55:54	8722eff+	-	ADV-DEV-56627	yugioh	parse	5	107.23	107.96	107.96	Leerzeichen um Pfeile gezielt melden

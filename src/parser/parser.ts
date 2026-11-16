@@ -1221,7 +1221,7 @@ interface FieldOperator {
 /**
  * Sucht ':' bzw. '=' hinter dem Namen eines Felds an columnIndex, auch mit fehlenden oder
  * überzähligen Leerzeichen, damit der Parser einen gezielten Fehler meldet und dahinter weiterparst.
- * ':>' und '=>' sind Pfeile, keine Feldoperatoren.
+ * ':>' und '=>' sind Pfeile, keine Feldoperatoren, '==' ist ein anderer Fehler.
  */
 function findFieldOperator(
 	row: string | undefined,
@@ -1235,7 +1235,8 @@ function findFieldOperator(
 	while (row[operatorColumnIndex] === ' ') {
 		operatorColumnIndex++;
 	}
-	if (row[operatorColumnIndex] !== operator || row[operatorColumnIndex + 1] === '>') {
+	const nextChar = row[operatorColumnIndex + 1];
+	if (row[operatorColumnIndex] !== operator || nextChar === '>' || nextChar === '=') {
 		return undefined;
 	}
 	let operandColumnIndex = operatorColumnIndex + 1;
@@ -1421,13 +1422,14 @@ function valueExpressionBaseParser(
 	// Was auf die simpleExpression folgt: Rumpf, Rückgabepfeil mit Typ, ein ungültiger Pfeil am
 	// Zeilenende, Pfeilzeilen unter dem Kopf oder nichts. Das erste passende Prädikat gewinnt.
 	let restResult: ParserResult<FunctionHeadRest> | undefined;
-	if (rows[endRowIndex]?.startsWith(' =>', endColumnIndex)) {
+	const inlineArrow = findInlineArrow(rows[endRowIndex], endRowIndex, endColumnIndex);
+	if (inlineArrow?.arrow === '=>') {
 		restResult = functionBodyParser(rows, endRowIndex, endColumnIndex, indent);
 	}
-	else if (getReturnArrowPurity(rows[endRowIndex], endColumnIndex) !== undefined) {
+	else if (inlineArrow && !inlineArrow.atEndOfRow) {
 		restResult = functionTypeBodyParser(rows, endRowIndex, endColumnIndex, indent);
 	}
-	else if (isReturnArrowAtEndOfRow(rows, endRowIndex, endColumnIndex)) {
+	else if (inlineArrow) {
 		restResult = returnArrowAtEndOfRowParser(rows, endRowIndex, endColumnIndex, indent);
 	}
 	else if (isFunctionHeadContinued(rows, endRowIndex, endColumnIndex, indent)) {
@@ -2300,27 +2302,128 @@ const returnArrowPurities: { [arrow in ReturnArrow]: Purity } = {
 	'~>': 'impure',
 };
 
-/**
- * Rückgabepfeil samt Leerzeichen davor und danach an columnIndex: ' :> ', ' -> ', ' ~> '.
- */
-function getReturnArrowPurity(row: string | undefined, columnIndex: number): Purity | undefined {
-	if (row === undefined) {
-		return undefined;
-	}
-	if (row.startsWith(' :> ', columnIndex)) {
-		return 'unknown';
-	}
-	if (row.startsWith(' -> ', columnIndex)) {
-		return 'pure';
-	}
-	if (row.startsWith(' ~> ', columnIndex)) {
-		return 'impure';
-	}
-	return undefined;
+interface InlineArrow {
+	arrow: Arrow;
+	/**
+	 * Spalte, an der der Pfeil samt Leerzeichen davor beginnt: direkt hinter dem linken Operanden.
+	 */
+	startColumnIndex: number;
+	arrowColumnIndex: number;
+	/**
+	 * Spalte des Operanden hinter dem Pfeil und seinen Leerzeichen. Steht hinter dem Pfeil nichts mehr,
+	 * die Spalte direkt hinter dem Pfeil, die dann das Zeilenende ist.
+	 */
+	operandColumnIndex: number;
+	/**
+	 * Steht der Operand in der nächsten Zeile (Pfeil am Zeilenende)?
+	 */
+	atEndOfRow: boolean;
+	/**
+	 * Fehlt, wenn die Leerzeichen um den Pfeil stimmen: genau eins davor und genau eins danach, am
+	 * Zeilenende keins.
+	 */
+	spacingError?: CompilerError;
 }
 
 /**
- * Pfeil an columnIndex, gefolgt von Leerzeichen oder Zeilenende.
+ * Pfeil hinter einem Ausdruck an columnIndex, auch mit fehlenden oder überzähligen Leerzeichen,
+ * damit der Parser einen gezielten Fehler meldet und dahinter weiterparst.
+ */
+function findInlineArrow(row: string | undefined, rowIndex: number, columnIndex: number): InlineArrow | undefined {
+	if (row === undefined) {
+		return undefined;
+	}
+	let arrowColumnIndex = columnIndex;
+	while (row[arrowColumnIndex] === ' ') {
+		arrowColumnIndex++;
+	}
+	const arrow = getArrowAt(row, arrowColumnIndex);
+	if (!arrow) {
+		return undefined;
+	}
+	const { operandColumnIndex, atEndOfRow, spacesAfterCorrect } = getArrowOperand(row, arrowColumnIndex);
+	const spacesBeforeCorrect = arrowColumnIndex - columnIndex === 1;
+	return {
+		arrow: arrow,
+		startColumnIndex: columnIndex,
+		arrowColumnIndex: arrowColumnIndex,
+		operandColumnIndex: operandColumnIndex,
+		atEndOfRow: atEndOfRow,
+		spacingError: spacesBeforeCorrect && spacesAfterCorrect
+			? undefined
+			: arrowSpacingError(arrow, rowIndex, columnIndex, operandColumnIndex, true, !atEndOfRow),
+	};
+}
+
+/**
+ * Operand hinter dem Pfeil an arrowColumnIndex.
+ */
+function getArrowOperand(row: string, arrowColumnIndex: number): {
+	operandColumnIndex: number;
+	atEndOfRow: boolean;
+	spacesAfterCorrect: boolean;
+} {
+	const afterArrowColumnIndex = arrowColumnIndex + 2;
+	let operandColumnIndex = afterArrowColumnIndex;
+	while (row[operandColumnIndex] === ' ') {
+		operandColumnIndex++;
+	}
+	if (operandColumnIndex === row.length) {
+		return {
+			operandColumnIndex: afterArrowColumnIndex,
+			atEndOfRow: true,
+			spacesAfterCorrect: operandColumnIndex === afterArrowColumnIndex,
+		};
+	}
+	return {
+		operandColumnIndex: operandColumnIndex,
+		atEndOfRow: false,
+		spacesAfterCorrect: operandColumnIndex === afterArrowColumnIndex + 1,
+	};
+}
+
+function arrowSpacingError(
+	arrow: Arrow,
+	rowIndex: number,
+	startColumnIndex: number,
+	endColumnIndex: number,
+	spaceBefore: boolean,
+	spaceAfter: boolean,
+): CompilerError {
+	const expected = spaceBefore
+		? spaceAfter
+			? `exactly one space before and after '${arrow}'`
+			: `exactly one space before '${arrow}' and none after it at the end of the row`
+		: spaceAfter
+			? `exactly one space after '${arrow}'`
+			: `no space after '${arrow}' at the end of the row`;
+	return {
+		code: ErrorCode.operatorSpacing,
+		message: `Expected ${expected}.`,
+		startRowIndex: rowIndex,
+		startColumnIndex: startColumnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: endColumnIndex,
+	};
+}
+
+/**
+ * Rückgabepfeil hinter einem Ausdruck mit Operand in derselben Zeile.
+ */
+function findInlineReturnArrow(
+	row: string | undefined,
+	rowIndex: number,
+	columnIndex: number,
+): (InlineArrow & { arrow: ReturnArrow; }) | undefined {
+	const found = findInlineArrow(row, rowIndex, columnIndex);
+	if (!found || found.arrow === '=>' || found.atEndOfRow) {
+		return undefined;
+	}
+	return found as InlineArrow & { arrow: ReturnArrow; };
+}
+
+/**
+ * Pfeil an columnIndex, ohne Rücksicht darauf, was folgt.
  */
 function getArrowAt(row: string, columnIndex: number): Arrow | undefined {
 	const arrow = row.substring(columnIndex, columnIndex + 2);
@@ -2328,10 +2431,6 @@ function getArrowAt(row: string, columnIndex: number): Arrow | undefined {
 		&& arrow !== ':>'
 		&& arrow !== '~>'
 		&& arrow !== '=>') {
-		return undefined;
-	}
-	const nextChar = row[columnIndex + 2];
-	if (nextChar !== undefined && nextChar !== ' ') {
 		return undefined;
 	}
 	return arrow;
@@ -2345,7 +2444,11 @@ interface ArrowLine {
 	columnIndex: number;
 	arrow: Arrow;
 	/**
-	 * spaceIndentation
+	 * Siehe InlineArrow.operandColumnIndex
+	 */
+	operandColumnIndex: number;
+	/**
+	 * spaceIndentation, operatorSpacing hinter dem Pfeil
 	 */
 	indentErrors?: CompilerError[];
 }
@@ -2380,11 +2483,19 @@ function findArrowLine(
 		if (!arrow) {
 			return undefined;
 		}
+		const { operandColumnIndex, atEndOfRow, spacesAfterCorrect } = getArrowOperand(row, columnIndex);
+		const errors = spacesAfterCorrect
+			? indentResult.errors
+			: [
+				...(indentResult.errors ?? []),
+				arrowSpacingError(arrow, currentRowIndex, columnIndex, operandColumnIndex, false, !atEndOfRow),
+			];
 		return {
 			rowIndex: currentRowIndex,
 			columnIndex: columnIndex,
 			arrow: arrow,
-			indentErrors: indentResult.errors,
+			operandColumnIndex: operandColumnIndex,
+			indentErrors: errors,
 		};
 	}
 	return undefined;
@@ -2436,17 +2547,6 @@ function misplacedArrowError(rowIndex: number, columnIndex: number, message: str
 		endRowIndex: rowIndex,
 		endColumnIndex: columnIndex + 2,
 	};
-}
-
-function isReturnArrowAtEndOfRow(rows: string[], rowIndex: number, columnIndex: number): boolean {
-	const row = rows[rowIndex];
-	if (row === undefined
-		|| row[columnIndex] !== ' '
-		|| columnIndex + 3 !== row.length) {
-		return false;
-	}
-	const arrow = getArrowAt(row, columnIndex + 1);
-	return !!arrow && arrow !== '=>';
 }
 
 function isFunctionHeadContinued(rows: string[], rowIndex: number, columnIndex: number, indent: number): boolean {
@@ -2512,7 +2612,7 @@ function arrowLinesParser(
 			endColumnIndex = rows[endRowIndex]!.length;
 			continue;
 		}
-		const operandColumnIndex = columnIndex + 2;
+		const operandColumnIndex = arrowLine.operandColumnIndex;
 		const operandResult = arrow === '=>'
 			? bodyOperandParser(rows, rowIndex, operandColumnIndex, arrowIndent)
 			: returnTypeOperandParser(rows, rowIndex, operandColumnIndex, arrowIndent, arrow, true);
@@ -2590,8 +2690,8 @@ function returnArrowAtEndOfRowParser(
 	indent: number,
 ): ParserResult<FunctionHeadRest> {
 	const row = rows[startRowIndex]!;
-	const arrowColumnIndex = startColumnIndex + 1;
-	const arrow = getArrowAt(row, arrowColumnIndex) as ReturnArrow;
+	// Die Leerzeichen um den Pfeil werden nicht gemeldet, der Pfeil gehört ohnehin in die nächste Zeile.
+	const { arrow, arrowColumnIndex } = findInlineArrow(row, startRowIndex, startColumnIndex)! as InlineArrow & { arrow: ReturnArrow; };
 	const errors: CompilerError[] = [misplacedArrowError(
 		startRowIndex,
 		arrowColumnIndex,
@@ -2632,8 +2732,20 @@ function returnArrowAtEndOfRowParser(
 }
 
 /**
+ * Steht ab columnIndex nur noch Leerraum in der Zeile?
+ */
+function isRestOfRowBlank(row: string, columnIndex: number): boolean {
+	for (let index = columnIndex; index < row.length; index++) {
+		if (row[index] !== ' ') {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
  * Operand hinter einem =>: inline ein Ausdruck, am Zeilenende ein eingerückter Block.
- * startColumnIndex steht direkt hinter dem Pfeil.
+ * startColumnIndex ist InlineArrow.operandColumnIndex.
  */
 function bodyOperandParser(
 	rows: string[],
@@ -2641,26 +2753,23 @@ function bodyOperandParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<ParseExpression[]> {
-	const row = rows[startRowIndex];
-	if (row !== undefined && startColumnIndex === row.length) {
+	const row = rows[startRowIndex]!;
+	if (isRestOfRowBlank(row, startColumnIndex)) {
 		// multiline FunctionLiteral
 		return blockOperandParser(rows, startRowIndex, startColumnIndex, indent, '=>', true);
 	}
-	if (row?.startsWith(' ', startColumnIndex)) {
-		// inline FunctionLiteral
-		const valueResult = valueExpressionParser(rows, startRowIndex, startColumnIndex + 1, indent);
-		return {
-			...valueResult,
-			parsed: valueResult.parsed && [valueResult.parsed],
-		};
-	}
-	return expectedOneOfResult(startRowIndex, startColumnIndex, 'Expected a line end or a space after the arrow.');
+	// inline FunctionLiteral
+	const valueResult = valueExpressionParser(rows, startRowIndex, startColumnIndex, indent);
+	return {
+		...valueResult,
+		parsed: valueResult.parsed && [valueResult.parsed],
+	};
 }
 
 /**
  * Operand hinter einem Rückgabepfeil: inline eine simpleExpression, am Zeilenende ein eingerückter
  * Block, dessen letzter Ausdruck der Rückgabetyp ist.
- * startColumnIndex steht direkt hinter dem Pfeil.
+ * startColumnIndex ist InlineArrow.operandColumnIndex.
  */
 function returnTypeOperandParser(
 	rows: string[],
@@ -2671,7 +2780,7 @@ function returnTypeOperandParser(
 	reportMissingOperand: boolean,
 ): ParserResult<ParseValueExpression> {
 	const row = rows[startRowIndex]!;
-	if (startColumnIndex === row.length) {
+	if (isRestOfRowBlank(row, startColumnIndex)) {
 		const blockResult = blockOperandParser(rows, startRowIndex, startColumnIndex, indent, arrow, reportMissingOperand);
 		const errors = blockResult.errors ?? [];
 		return {
@@ -2680,7 +2789,7 @@ function returnTypeOperandParser(
 			errors: errors,
 		};
 	}
-	return returnTypeInlineParser(rows, startRowIndex, startColumnIndex + 1, indent);
+	return returnTypeInlineParser(rows, startRowIndex, startColumnIndex, indent);
 }
 
 /**
@@ -2692,19 +2801,21 @@ function returnArrowOperandParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<[Purity, SimpleExpression]> {
-	const arrow = getReturnArrowPurity(rows[startRowIndex], startColumnIndex);
-	if (arrow === undefined) {
+	const found = findInlineReturnArrow(rows[startRowIndex], startRowIndex, startColumnIndex);
+	if (!found) {
 		return expectedOneOfResult(startRowIndex, startColumnIndex, 'Expected a return arrow.');
 	}
-	const operandResult = simpleExpressionBaseParser(rows, startRowIndex, startColumnIndex + 4, indent);
+	const operandResult = simpleExpressionBaseParser(rows, startRowIndex, found.operandColumnIndex, indent);
 	return {
 		hasParsed: operandResult.hasParsed,
 		endRowIndex: operandResult.endRowIndex,
 		endColumnIndex: operandResult.endColumnIndex,
 		parsed: operandResult.hasParsed
-			? [arrow, operandResult.parsed!]
+			? [returnArrowPurities[found.arrow], operandResult.parsed!]
 			: undefined,
-		errors: operandResult.errors,
+		errors: found.spacingError
+			? mergeErrors([found.spacingError], operandResult.errors)
+			: operandResult.errors,
 	};
 }
 
@@ -2750,7 +2861,7 @@ function returnTypeInlineParser(
 	const result = simpleExpressionBaseParser(rows, startRowIndex, startColumnIndex, indent);
 	const paramsBase = result.parsed;
 	if (paramsBase?.type !== 'binding'
-		|| getReturnArrowPurity(rows[result.endRowIndex], result.endColumnIndex) === undefined) {
+		|| !findInlineReturnArrow(rows[result.endRowIndex], result.endRowIndex, result.endColumnIndex)) {
 		return result;
 	}
 	// Funktionstyp als Rückgabetyp
@@ -2864,7 +2975,8 @@ function blockOperandParser(
 	return {
 		hasParsed: true,
 		endRowIndex: result.hasParsed ? result.endRowIndex : startRowIndex,
-		endColumnIndex: result.hasParsed ? result.endColumnIndex : startColumnIndex,
+		// Leerzeichen hinter dem Pfeil gehören dazu, gemeldet sind sie schon mit operatorSpacing.
+		endColumnIndex: result.hasParsed ? result.endColumnIndex : rows[startRowIndex]!.length,
 		parsed: [],
 		errors: errors,
 	};
@@ -2879,10 +2991,11 @@ function functionBodyParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<FunctionBody> {
-	if (!rows[startRowIndex]?.startsWith(' =>', startColumnIndex)) {
+	const found = findInlineArrow(rows[startRowIndex], startRowIndex, startColumnIndex);
+	if (found?.arrow !== '=>') {
 		return tokenFailure(rows, startRowIndex, startColumnIndex, ' =>');
 	}
-	const bodyResult = bodyOperandParser(rows, startRowIndex, startColumnIndex + 3, indent);
+	const bodyResult = bodyOperandParser(rows, startRowIndex, found.operandColumnIndex, indent);
 	return {
 		hasParsed: bodyResult.hasParsed,
 		endRowIndex: bodyResult.endRowIndex,
@@ -2893,7 +3006,9 @@ function functionBodyParser(
 				body: bodyResult.parsed!,
 			}
 			: undefined,
-		errors: bodyResult.errors,
+		errors: found.spacingError
+			? mergeErrors([found.spacingError], bodyResult.errors)
+			: bodyResult.errors,
 	};
 }
 
@@ -2908,23 +3023,25 @@ function functionTypeBodyParser(
 	startColumnIndex: number,
 	indent: number,
 ): ParserResult<FunctionTypeBody> {
-	const arrow = getReturnArrowPurity(rows[startRowIndex], startColumnIndex);
-	if (arrow === undefined) {
+	const found = findInlineReturnArrow(rows[startRowIndex], startRowIndex, startColumnIndex);
+	if (!found) {
 		return expectedOneOfResult(startRowIndex, startColumnIndex, 'Expected a return arrow.');
 	}
-	const returnTypeResult = returnTypeInlineParser(rows, startRowIndex, startColumnIndex + 4, indent);
+	const arrow = returnArrowPurities[found.arrow];
+	const returnTypeResult = returnTypeInlineParser(rows, startRowIndex, found.operandColumnIndex, indent);
+	const spacingErrors = found.spacingError && [found.spacingError];
 	if (!returnTypeResult.hasParsed) {
 		return {
 			hasParsed: false,
 			endRowIndex: returnTypeResult.endRowIndex,
 			endColumnIndex: returnTypeResult.endColumnIndex,
-			errors: returnTypeResult.errors,
+			errors: mergeErrors(spacingErrors, returnTypeResult.errors),
 		};
 	}
 	const returnTypeBase = returnTypeResult.parsed!;
-	const errors = returnTypeResult.errors ?? [];
+	const errors = mergeErrors(spacingErrors, returnTypeResult.errors) ?? [];
 	const { endRowIndex, endColumnIndex } = returnTypeResult;
-	if (rows[endRowIndex]?.startsWith(' =>', endColumnIndex)) {
+	if (findInlineArrow(rows[endRowIndex], endRowIndex, endColumnIndex)?.arrow === '=>') {
 		const bodyResult = functionBodyParser(rows, endRowIndex, endColumnIndex, indent);
 		if (bodyResult.errors) {
 			errors.push(...bodyResult.errors);
