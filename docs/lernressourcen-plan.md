@@ -129,6 +129,31 @@ Umgesetzt, mit diesen Ergänzungen:
   Dateiname im Meta (` ```yaml live title="data.yaml"`), die das Remark-Plugin zu einem Playground zusammenfasst.
   Beim Ausführen zeigen die Importpfade im erzeugten JS über eine Import-Map auf Blob-URLs.
 
+Umgesetzt in `jul-homepage/docs/src/components/JulPlayground` und `plugins/jul-playground`, mit
+diesen Abweichungen und Ergänzungen:
+
+- **Ausführung ohne Import-Map:** In Workern gelten Import-Maps nicht. `link-modules.js` gibt jedem
+  Modul eine Blob-URL und ersetzt die Importpfade im Code mit `es-module-lexer` (nur statische
+  Importe, Text bleibt unberührt), Abhängigkeiten zuerst. Die Runtime importiert der erzeugte Code
+  über die nackten Bezeichner `jul-runtime`/`jul-test-runtime`, die Runtime kommt als Text (`?raw`)
+  in den Worker.
+- **JSON/YAML:** Der Emitter importiert Felder einzeln (`import {a} from './x.yaml.json' with
+  { type: 'json' }`). Browser kennen bei JSON-Modulen nur den Default-Export, deshalb wird eine
+  JSON-Datei zu einem JS-Modul mit Default- und benannten Exporten, das `with` fällt weg.
+- **Ausführen** läuft automatisch nach jeder fehlerfreien Prüfung (entprellt 300 ms), ohne Knopf.
+  Der Timeout (3 s) zählt ab dem Laden der Module, nicht ab dem Start des Workers. Bei Fehlern steht
+  statt der Ausgabe die Fehlerliste. „Zurücksetzen“ stellt den Startcode wieder her.
+- **Monaco** ohne die mitgelieferten Sprachen (`editor.api` + `features/register.all`),
+  Hervorhebung über `@shikijs/monaco` mit Grammatik und Themes der statischen Blöcke. Bundle:
+  Monaco 4 MB (gzip ~1 MB), Compiler-Worker 340 kB, TypeScript 3,5 MB nur bei `.ts`/`.js`. Auf dem
+  Server wird der Playground nicht gebündelt (`IgnorePlugin`), dort steht der Code statisch.
+- **Compiler** per webpack-Alias `jul-compiler` → `jul-compiler/out`, ohne `file:`-Dependency.
+  Babel läuft nicht über Compiler und Runtime. `browser.ts` liefert die Meldungen jetzt auch bei
+  Erfolg (Warnungen) und exportiert `errorInfos` für den Schweregrad.
+- **Absicherung:** `check-browser` führt das übersetzte Probeprojekt samt Runtime und einem Test
+  über `_runTests` zusätzlich gebündelt im leeren VM-Kontext aus.
+- Marker verlinken den Fehlercode auf die Seite der Fehlercodes.
+
 ### 4. Sprachfeatures im Playground
 
 Die Features des Language Servers kommen in den Playground, aber ohne LSP-Protokoll: Die

@@ -5,6 +5,9 @@ import { createInMemoryHost, loadFile } from './compiler/project-loader.js';
 import { isTypeScriptLoaded, setTypeScript } from './typescript-module.js';
 import { Extension } from './util.js';
 
+export { errorInfos } from './compiler-errors.js';
+export type { CompilerError } from './compiler-errors.js';
+
 /**
  * Einstieg für den Compiler im Browser (Playground der Homepage). Ohne Dateisystem: Die Dateien
  * kommen als Text, das Ergebnis geht als Text zurück. Unter Node gilt stattdessen node-host.ts.
@@ -26,6 +29,8 @@ export type CompileOutput =
 	| {
 		type: 'success';
 		documents: ParsedDocuments;
+		/** Nur Warnungen und Hinweise. */
+		errors: { [filePath: string]: CompilerError[]; };
 		files: { [filePath: string]: EmittedFile; };
 	}
 	| {
@@ -96,7 +101,7 @@ export async function compile(files: SourceFiles, options: CompileOptions): Prom
 			{ checkAssertions: options.checkAssertions });
 		emitted[document.filePath] = { outFilePath: outFilePath, js: compiled };
 	});
-	return { type: 'success', documents: documents, files: emitted };
+	return { type: 'success', documents: documents, errors: errors, files: emitted };
 }
 
 function loadAll(files: SourceFiles): ParsedDocuments {
