@@ -68,11 +68,18 @@ export interface TestResult {
 	 */
 	failure: string | undefined;
 	/**
-	 * Nur bei einer Exception: die erste Stelle im Stack, die in eine .jul-Datei zeigt.
+	 * Nur bei einer Exception: wo sie im .jul-Quelltext entstand (siehe ErrorLocator).
 	 */
 	failureLocation?: TestLocation;
 	durationMs: number;
 }
+
+/**
+ * Die Stelle im .jul-Quelltext, an der eine Exception entstand. Ohne Angabe die erste Stelle im
+ * Stack, die in eine .jul-Datei zeigt. Die gibt es nur, wenn die Laufzeit Source Maps auf den Stack
+ * anwendet (Node). Im Browser rechnet der Aufrufer selbst zurück.
+ */
+export type ErrorLocator = (error: Error) => TestLocation | undefined;
 
 /**
  * Führt alle bisher registrierten Tests aus und entfernt sie aus dem Register. Jedes Ergebnis geht
@@ -82,6 +89,7 @@ export interface TestResult {
 export function _runTests(
 	report: (result: TestResult) => void,
 	names?: string[],
+	getErrorLocation: ErrorLocator = getJulStackLocation,
 ): { testCount: number; failedCount: number; skippedCount: number; } {
 	const allTests = registeredTests.splice(0);
 	const tests = names === undefined
@@ -111,7 +119,7 @@ export function _runTests(
 		const failureLocation = violation
 			? getViolationLocation(violation)
 			: thrown?.error instanceof Error
-				? getJulStackLocation(thrown.error)
+				? getErrorLocation(thrown.error)
 				: undefined;
 		report({
 			name: registered.name,
@@ -179,13 +187,16 @@ function getViolationLocation(violation: AssertionViolation): TestLocation {
  * Was beim Laden einer Testdatei schiefging, im Format eines fehlgeschlagenen Tests: ein verletztes
  * assume oder assert auf oberster Ebene eines geladenen Moduls oder eine andere Exception.
  */
-export function _getLoadFailure(error: unknown): { failure: string; failureLocation?: TestLocation; } {
+export function _getLoadFailure(
+	error: unknown,
+	getErrorLocation: ErrorLocator = getJulStackLocation,
+): { failure: string; failureLocation?: TestLocation; } {
 	const violation = _takeAssertionViolation();
 	if (violation) {
 		return { failure: getAssertionViolationText(violation), failureLocation: getViolationLocation(violation) };
 	}
 	const failureLocation = error instanceof Error
-		? getJulStackLocation(error)
+		? getErrorLocation(error)
 		: undefined;
 	return {
 		failure: getTestFailureText(undefined, { error: error }, undefined),

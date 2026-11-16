@@ -2,6 +2,7 @@ import { initCoreLib, ParsedDocuments } from './checker/checker.js';
 import { ReferenceIndex } from './checker/reference-index.js';
 import { CompilerError, errorInfos } from './compiler-errors.js';
 import { emitToJs } from './compiler/emit-file.js';
+import type { SourceMapping } from './compiler/emitter.js';
 import { createInMemoryHost, loadFile } from './compiler/project-loader.js';
 import { isTypeScriptLoaded, setTypeScript } from './typescript-module.js';
 import { Extension } from './util.js';
@@ -9,6 +10,8 @@ import { Extension } from './util.js';
 export { ReferenceIndex } from './checker/reference-index.js';
 export { errorInfos } from './compiler-errors.js';
 export type { CompilerError } from './compiler-errors.js';
+export type { SourceMapping } from './compiler/emitter.js';
+export { isTestFilePath } from './util.js';
 
 /**
  * Einstieg für den Compiler im Browser (Playground der Homepage). Ohne Dateisystem: Die Dateien
@@ -42,12 +45,18 @@ export type CompileOutput =
 	};
 
 export interface EmittedFile {
+	sourceFilePath: string;
 	/**
 	 * Pfad der Ausgabe, auf den die Importe im erzeugten JS zeigen (aus a.jul wird a.js, aus
 	 * data.yaml data.yaml.json).
 	 */
 	outFilePath: string;
 	js: string;
+	/**
+	 * Nur bei .jul: Positionen im JS → Positionen im Quelltext, für die Stelle einer Exception
+	 * (getSourceLocationFromStack in compiler/stack-location.ts).
+	 */
+	mappings?: SourceMapping[];
 }
 
 export interface CheckOptions {
@@ -101,7 +110,7 @@ export async function compile(files: SourceFiles, options: CompileOptions): Prom
 	}
 	const emitted: { [filePath: string]: EmittedFile; } = {};
 	Object.values(documents).forEach(document => {
-		const { outFilePath, compiled } = emitToJs(
+		const { outFilePath, compiled, mappings } = emitToJs(
 			document,
 			files[document.filePath]!,
 			'',
@@ -109,7 +118,12 @@ export async function compile(files: SourceFiles, options: CompileOptions): Prom
 			options.testRuntimeImportPath,
 			documents,
 			{ checkAssertions: options.checkAssertions });
-		emitted[document.filePath] = { outFilePath: outFilePath, js: compiled };
+		emitted[document.filePath] = {
+			sourceFilePath: document.filePath,
+			outFilePath: outFilePath,
+			js: compiled,
+			...mappings && { mappings: mappings },
+		};
 	});
 	return { type: 'success', documents: documents, errors: errors, files: emitted };
 }

@@ -259,6 +259,30 @@ Technisch:
 - `test` steht nur in `*.test.jul`. Ein Playground mit einer einzigen Datei, die Tests enthält,
   nennt sie intern `main.test.jul`, sichtbar ist der Name nicht.
 
+Umgesetzt, mit diesen Abweichungen und Ergänzungen:
+
+- **Tests laufen auf Knopfdruck.** Ein Playground mit Testdatei führt nach der Prüfung nichts von
+  selbst aus, sondern zeigt die Checkliste. „Prüfen“ startet alle Tests, „▶ Ausführen“ über einem
+  `test(...)` nur diesen; die Ergebnisse der anderen bleiben stehen. Jede Änderung am Code löscht
+  die Ergebnisse. Ein Klick kurz nach dem Tippen wartet auf die laufende Prüfung. Geladen werden wie
+  unter `jul test` nur die Testdateien, kompiliert mit `checkAssertions`.
+- **`test-runtime.ts` war schon ohne Node** (siehe Schritt 2). Neu ist nur der optionale
+  `ErrorLocator` für `_runTests` und `_getLoadFailure`, über den der Playground die Fehlerstelle
+  liefert.
+- **Fehlerstelle:** `emitToJs` gibt die unkodierten Zuordnungen mit (`mappings`), `browser.ts`
+  reicht sie samt `sourceFilePath` je Datei weiter. `getSourceLocationFromStack`
+  (`compiler/stack-location.ts`) liest Stacks von V8 und Firefox/Safari, übergeht fremde Module
+  (Runtime) und nimmt die letzte Zuordnung vor der Stelle. Bei einem Stack-Overflow wirft V8 beim
+  Eintritt in die Funktion, die Stelle ist dann ihre Definition.
+- **Testliste** kommt aus der Antwort auf `compile` (`tests` im Language Server, `findTests`), also
+  auch, wenn der Code Fehler hat. Die CodeLens fragt sie selbst über den Compiler-Worker ab.
+- Der Checker faltet konstante Aufrufe und meldet einen Test, der so schon fehlschlägt, als Fehler
+  (`equal(fibonacci(12) 145)`). Zur Laufzeit scheitern nur Tests mit Werten, die er nicht kennt.
+- Das Testbeispiel im Handbuch (Abschnitt Tests) ist ein Playground mit `fibonacci.test.jul` und
+  `fibonacci.jul`.
+- Offen: Beispielseiten mit statisch aufgenommener Testausgabe gehören zu Schritt 6. Ein Abbruch
+  nach 3 s markiert den laufenden Test nicht, die nicht gelaufenen bleiben offen (○).
+
 ### 6. Aufbau der Seite
 
 Vorlage ist roc-lang.org:

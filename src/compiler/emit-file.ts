@@ -45,6 +45,8 @@ function getSourceMapSource(sourceFilePath: string, outFilePath: string): string
 /**
  * Die Ausgabe einer geladenen, fehlerfreien Datei und wohin sie gehört, ohne zu schreiben.
  * sourceMap nur für .jul und .ts, das angehängte sourceMappingURL ist Sache des Aufrufers.
+ * mappings nur für .jul: dieselben Zuordnungen wie in der sourceMap, aber unkodiert, für
+ * Fehlerstellen im Browser (getSourceLocationFromStack).
  */
 export function emitToJs(
 	parsed: ParsedFile,
@@ -54,13 +56,14 @@ export function emitToJs(
 	testRuntimeImportPath: string,
 	documents: ParsedDocuments,
 	options: Omit<EmitOptions, 'hasDefaultExport'> = {},
-): { outFilePath: string; compiled: string; sourceMap?: RawSourceMap; runtimeNames: string[]; } {
+): { outFilePath: string; compiled: string; sourceMap?: RawSourceMap; mappings?: SourceMapping[]; runtimeNames: string[]; } {
 	const sourceFilePath = parsed.filePath;
 	let compiled: string;
 	// Nur .jul und .json importieren die Runtime.
 	let runtimeNames: string[] = [];
 	const outFilePath = getOutFilePath(sourceFilePath, outputFolderPath);
 	let sourceMap: RawSourceMap | undefined;
+	let mappings: SourceMapping[] | undefined;
 	const extension = parsed.extension;
 	switch (extension) {
 		case Extension.js: {
@@ -95,6 +98,7 @@ export function emitToJs(
 			runtimeNames = emitted.runtimeNames;
 			if (extension === Extension.jul) {
 				sourceMap = createSourceMap(emitted.mappings, sourceFilePath, outFilePath, sourceCode);
+				mappings = emitted.mappings;
 			}
 			break;
 		}
@@ -131,7 +135,7 @@ export function emitToJs(
 			throw new Error(`Unexpected extension for emitToJs: ${assertNever}`);
 		}
 	}
-	return { outFilePath: outFilePath, compiled: compiled, sourceMap: sourceMap, runtimeNames: runtimeNames };
+	return { outFilePath: outFilePath, compiled: compiled, sourceMap: sourceMap, mappings: mappings, runtimeNames: runtimeNames };
 }
 
 /**

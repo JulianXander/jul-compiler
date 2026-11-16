@@ -140,6 +140,16 @@ describe('_runTests', () => {
 			() => test('a', () => { throw error; }, location),
 			undefined);
 	});
+	it('reports-location-from-given-locator', () => {
+		const error = new Error('kaputt');
+		test('a', () => { throw error; }, location);
+		const results: TestResult[] = [];
+		_runTests(
+			result => results.push(result),
+			undefined,
+			thrown => thrown === error ? { file: 'b.jul', row: 2, column: 5 } : undefined);
+		expect(results.map(result => result.failureLocation)).to.deep.equal([{ file: 'b.jul', row: 2, column: 5 }]);
+	});
 	it('reports-name-and-location', () => {
 		test('a', () => false, location);
 		const results: TestResult[] = [];
@@ -318,5 +328,11 @@ describe('_getLoadFailure', () => {
 	});
 	it('meldet eine andere Exception wie ein Test', () => {
 		expect(_getLoadFailure(new Error('kaputt'))).to.deep.equal({ failure: 'threw kaputt' });
+	});
+	it('nimmt die Stelle einer Exception vom übergebenen Locator', () => {
+		expect(_getLoadFailure(new Error('kaputt'), () => ({ file: 'b.jul', row: 2, column: 5 }))).to.deep.equal({
+			failure: 'threw kaputt',
+			failureLocation: { file: 'b.jul', row: 2, column: 5 },
+		});
 	});
 });

@@ -581,3 +581,12 @@
 2026-11-16 13:10:33	7d2a394+	-	ADV-DEV-56627	yugioh	parse+check	5	19662.66	20386.60	20386.60	1102 nennt das gefundene Zeichen
 2026-11-16 13:10:33	7d2a394+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1160.01	1174.28	1174.28	1102 nennt das gefundene Zeichen
 2026-11-16 13:10:33	7d2a394+	-	ADV-DEV-56627	yugioh	parse	5	105.43	111.57	111.57	1102 nennt das gefundene Zeichen
+2026-11-16 13:41:35	0e3eab0+	-	ADV-DEV-56627	yugioh	parse+check	5	31967.59	32217.96	32217.96	vor Tests im Playground
+2026-11-16 13:41:35	0e3eab0+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1800.69	1924.55	1924.55	vor Tests im Playground
+2026-11-16 13:41:35	0e3eab0+	-	ADV-DEV-56627	yugioh	parse	5	196.77	205.80	205.80	vor Tests im Playground
+2026-11-16 13:44:17	0e3eab0+	-	ADV-DEV-56627	yugioh	parse+check	5	26714.98	27333.76	27333.76	vor Tests im Playground, Wiederholung ohne Last
+2026-11-16 13:44:17	0e3eab0+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1259.11	1511.18	1511.18	vor Tests im Playground, Wiederholung ohne Last
+2026-11-16 13:44:17	0e3eab0+	-	ADV-DEV-56627	yugioh	parse	5	126.21	146.14	146.14	vor Tests im Playground, Wiederholung ohne Last
+2026-11-16 13:58:31	0e3eab0+	-	ADV-DEV-56627	yugioh	parse+check	5	20700.67	21050.36	21050.36	nach Tests im Playground (Mappings aus emitToJs, ErrorLocator)
+2026-11-16 13:58:31	0e3eab0+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1148.99	1220.18	1220.18	nach Tests im Playground (Mappings aus emitToJs, ErrorLocator)
+2026-11-16 13:58:31	0e3eab0+	-	ADV-DEV-56627	yugioh	parse	5	118.03	140.97	140.97	nach Tests im Playground (Mappings aus emitToJs, ErrorLocator)
