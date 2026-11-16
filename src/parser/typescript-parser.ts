@@ -1,14 +1,20 @@
 import { Name, ParseDictionaryTypeLiteral, ParseExpression, ParseFunctionCall, ParseNestedReference, ParseParameterField, ParseParameterFields, ParseReference, ParseSingleDictionaryTypeField, ParseValueExpression, ParsedExpressions, Purity, SymbolTable, createSymbolTable } from '../syntax-tree.js';
 import { isDefined, NonEmptyArray } from '../util.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
-import typescript, { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode, TypeParameterDeclaration, TypeAliasDeclaration } from 'typescript';
+import type { ArrowFunction, BindingName, FunctionDeclaration, FunctionTypeNode, IndexSignatureDeclaration, LiteralTypeNode, Node, NodeArray, NumericLiteral, ParameterDeclaration, ParenthesizedTypeNode, PropertySignature, SourceFile, StringLiteral, TypeLiteralNode, TypeNode, TypeOperatorNode, TypeReferenceNode, UnionTypeNode, VariableStatement, ArrayTypeNode, TypeParameterDeclaration, TypeAliasDeclaration } from 'typescript';
 import { createParseFunctionLiteral, createParseFunctionTypeLiteral, createParseParameters, fillSymbolTableWithFields } from './parser-utils.js';
-const { canHaveModifiers, createSourceFile, forEachChild, getJSDocCommentsAndTags, getJSDocTags, getModifiers, isExportAssignment, isExportDeclaration, isNamedExports, ScriptKind, ScriptTarget, SyntaxKind } = typescript;
+import { getTypeScript } from '../typescript-module.js';
+
+/**
+ * Das TypeScript-Paket, gesetzt beim Eintritt in parseTsCode (siehe typescript-module.ts).
+ */
+let ts: ReturnType<typeof getTypeScript>;
 
 export function parseTsCode(code: string, filePath = 'todo.ts'): ParsedExpressions & { hasDefaultExport: boolean; } {
-	// Parent-Pointer braucht getJSDocCommentsAndTags
+	ts = getTypeScript();
+	// Parent-Pointer braucht ts.getJSDocCommentsAndTags
 	// Auch .js wird als TS geparst, der Dateiname dient nur der Anzeige in Meldungen.
-	const tsAst = createSourceFile(filePath, code, ScriptTarget.ESNext, true, ScriptKind.TS);
+	const tsAst = ts.createSourceFile(filePath, code, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
 	const errors: CompilerError[] = [];
 	const julExpressions = tsAst.statements.map(tsNode =>
 		tsNodeToJulAst(tsNode, tsAst, errors))
@@ -24,24 +30,24 @@ export function parseTsCode(code: string, filePath = 'todo.ts'): ParsedExpressio
  * export default …, export default function/class … und export { x as default }.
  */
 function isDefaultExport(statement: Node): boolean {
-	if (isExportAssignment(statement)) {
+	if (ts.isExportAssignment(statement)) {
 		// export = … ist CommonJS
 		return !statement.isExportEquals;
 	}
-	if (isExportDeclaration(statement)) {
+	if (ts.isExportDeclaration(statement)) {
 		const exportClause = statement.exportClause;
 		return !!exportClause
-			&& isNamedExports(exportClause)
+			&& ts.isNamedExports(exportClause)
 			&& exportClause.elements.some(element => element.name.text === 'default');
 	}
-	return canHaveModifiers(statement)
-		&& !!getModifiers(statement)?.some(modifier => modifier.kind === SyntaxKind.DefaultKeyword);
+	return ts.canHaveModifiers(statement)
+		&& !!ts.getModifiers(statement)?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword);
 }
 
 function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerError[]): ParseExpression | undefined {
 	const position = getPositionFromTsNode(tsNode, sourceFile);
 	switch (tsNode.kind) {
-		case SyntaxKind.NumericLiteral: {
+		case ts.SyntaxKind.NumericLiteral: {
 			const numericLiteral = tsNode as NumericLiteral;
 			return {
 				type: 'float',
@@ -49,7 +55,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 				...position,
 			};
 		}
-		case SyntaxKind.StringLiteral: {
+		case ts.SyntaxKind.StringLiteral: {
 			const stringLiteral = tsNode as StringLiteral;
 			return {
 				type: 'text',
@@ -60,21 +66,21 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 				...position,
 			};
 		}
-		case SyntaxKind.NullKeyword:
+		case ts.SyntaxKind.NullKeyword:
 			return {
 				type: 'empty',
 				...position,
 			};
-		case SyntaxKind.ArrowFunction: {
+		case ts.SyntaxKind.ArrowFunction: {
 			const arrowFunction = tsNode as ArrowFunction;
 			return tsFunctionToJulAst(position, arrowFunction, arrowFunction.typeParameters, arrowFunction.parameters, arrowFunction.type, sourceFile, errors);
 		}
-		case SyntaxKind.EmptyStatement:
+		case ts.SyntaxKind.EmptyStatement:
 			return undefined;
-		case SyntaxKind.VariableStatement: {
+		case ts.SyntaxKind.VariableStatement: {
 			const variableStatement = tsNode as VariableStatement;
 			// Nicht exportierte Konstanten sind von außen nicht sichtbar und müssen nicht übersetzt werden.
-			if (!variableStatement.modifiers?.some(modifier => modifier.kind === SyntaxKind.ExportKeyword)) {
+			if (!variableStatement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
 				return undefined;
 			}
 			const test = variableStatement.declarationList.declarations.map(declaration => {
@@ -96,7 +102,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 				...position,
 			};
 		}
-		case SyntaxKind.FunctionDeclaration: {
+		case ts.SyntaxKind.FunctionDeclaration: {
 			const functionDeclaration = tsNode as FunctionDeclaration;
 			const tsName = functionDeclaration.name;
 			if (!tsName) {
@@ -114,7 +120,7 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
 				...position,
 			};
 		}
-		case SyntaxKind.TypeAliasDeclaration:
+		case ts.SyntaxKind.TypeAliasDeclaration:
 			reportNullInType((tsNode as TypeAliasDeclaration).type, sourceFile, errors);
 			return undefined;
 		default:
@@ -127,8 +133,8 @@ function tsNodeToJulAst(tsNode: Node, sourceFile: SourceFile, errors: CompilerEr
  * Textzeilen stehen. Gewöhnliche Kommentare (// und /* *\/) sind keine Beschreibung.
  */
 function getJsDocDescription(tsNode: Node, sourceFile: SourceFile): string | undefined {
-	const jsDoc = getJSDocCommentsAndTags(tsNode)
-		.filter(jsDocOrTag => jsDocOrTag.kind === SyntaxKind.JSDoc)
+	const jsDoc = ts.getJSDocCommentsAndTags(tsNode)
+		.filter(jsDocOrTag => jsDocOrTag.kind === ts.SyntaxKind.JSDoc)
 		.at(-1);
 	if (!jsDoc) {
 		return undefined;
@@ -220,7 +226,7 @@ function tsFunctionToJulAst(
  * der Checker aus @pure ein pureIfArgsPure.
  */
 function getTsFunctionPurity(tsFunction: Node): Purity {
-	return getJSDocTags(tsFunction).some(tag => tag.tagName.text === 'pure')
+	return ts.getJSDocTags(tsFunction).some(tag => tag.tagName.text === 'pure')
 		? 'pure'
 		: 'impure';
 }
@@ -344,7 +350,7 @@ function getReturnTypeParameters(
 	typeParameters.forEach(typeParameter => {
 		const typeParameterName = typeParameter.name.text;
 		for (const parameter of parameters) {
-			if (parameter.name.kind !== SyntaxKind.Identifier
+			if (parameter.name.kind !== ts.SyntaxKind.Identifier
 				|| parameter.name.text === 'this'
 				|| parameter.dotDotDotToken
 				|| !parameter.type) {
@@ -380,20 +386,20 @@ function getReturnTypeParameters(
  */
 function findTypeParameterPath(tsType: TypeNode, typeParameterName: string): string[] | undefined {
 	switch (tsType.kind) {
-		case SyntaxKind.ParenthesizedType:
+		case ts.SyntaxKind.ParenthesizedType:
 			return findTypeParameterPath((tsType as ParenthesizedTypeNode).type, typeParameterName);
-		case SyntaxKind.TypeOperator: {
+		case ts.SyntaxKind.TypeOperator: {
 			const typeOperator = tsType as TypeOperatorNode;
-			return typeOperator.operator === SyntaxKind.ReadonlyKeyword
+			return typeOperator.operator === ts.SyntaxKind.ReadonlyKeyword
 				? findTypeParameterPath(typeOperator.type, typeParameterName)
 				: undefined;
 		}
-		case SyntaxKind.ArrayType:
+		case ts.SyntaxKind.ArrayType:
 			return prependPath('ElementType', findTypeParameterPath((tsType as ArrayTypeNode).elementType, typeParameterName));
-		case SyntaxKind.UnionType: {
+		case ts.SyntaxKind.UnionType: {
 			const choices = (tsType as UnionTypeNode).types.filter(choice =>
-				choice.kind !== SyntaxKind.UndefinedKeyword
-				&& !(choice.kind === SyntaxKind.LiteralType && (choice as LiteralTypeNode).literal.kind === SyntaxKind.NullKeyword));
+				choice.kind !== ts.SyntaxKind.UndefinedKeyword
+				&& !(choice.kind === ts.SyntaxKind.LiteralType && (choice as LiteralTypeNode).literal.kind === ts.SyntaxKind.NullKeyword));
 			const [onlyChoice] = choices;
 			const path = choices.length === 1
 				? findTypeParameterPath(onlyChoice!, typeParameterName)
@@ -402,10 +408,10 @@ function findTypeParameterPath(tsType: TypeNode, typeParameterName: string): str
 				? path
 				: undefined;
 		}
-		case SyntaxKind.TypeReference: {
+		case ts.SyntaxKind.TypeReference: {
 			const typeReference = tsType as TypeReferenceNode;
 			const typeName = typeReference.typeName;
-			if (typeName.kind !== SyntaxKind.Identifier) {
+			if (typeName.kind !== ts.SyntaxKind.Identifier) {
 				return undefined;
 			}
 			const typeArguments = typeReference.typeArguments ?? [];
@@ -420,21 +426,21 @@ function findTypeParameterPath(tsType: TypeNode, typeParameterName: string): str
 			}
 			if (typeName.text === 'Record'
 				&& typeArguments.length === 2
-				&& typeArguments[0]!.kind === SyntaxKind.StringKeyword) {
+				&& typeArguments[0]!.kind === ts.SyntaxKind.StringKeyword) {
 				return prependPath('ElementType', findTypeParameterPath(typeArguments[1]!, typeParameterName));
 			}
 			return undefined;
 		}
-		case SyntaxKind.TypeLiteral: {
+		case ts.SyntaxKind.TypeLiteral: {
 			// nur die reine Index-Signatur { [key: string]: T }, wie in tsTypeLiteralToJulType
 			const members = (tsType as TypeLiteralNode).members;
 			const [member] = members;
 			if (members.length !== 1
-				|| member!.kind !== SyntaxKind.IndexSignature) {
+				|| member!.kind !== ts.SyntaxKind.IndexSignature) {
 				return undefined;
 			}
 			const indexSignature = member as IndexSignatureDeclaration;
-			return indexSignature.parameters[0]?.type?.kind === SyntaxKind.StringKeyword
+			return indexSignature.parameters[0]?.type?.kind === ts.SyntaxKind.StringKeyword
 				? prependPath('ElementType', findTypeParameterPath(indexSignature.type, typeParameterName))
 				: undefined;
 		}
@@ -457,8 +463,8 @@ function prependPath(key: string, path: string[] | undefined): string[] | undefi
  * mehrfach und taugt dafür nicht).
  */
 function reportNullInType(tsType: Node, sourceFile: SourceFile, errors: CompilerError[]): void {
-	if (tsType.kind === SyntaxKind.LiteralType
-		&& (tsType as LiteralTypeNode).literal.kind === SyntaxKind.NullKeyword) {
+	if (tsType.kind === ts.SyntaxKind.LiteralType
+		&& (tsType as LiteralTypeNode).literal.kind === ts.SyntaxKind.NullKeyword) {
 		errors.push({
 			code: ErrorCode.nullNotAllowedInTypeScriptType,
 			message: "'null' is not allowed in a TypeScript type, use 'undefined'.",
@@ -466,7 +472,7 @@ function reportNullInType(tsType: Node, sourceFile: SourceFile, errors: Compiler
 		});
 		return;
 	}
-	forEachChild(tsType, child => reportNullInType(child, sourceFile, errors));
+	ts.forEachChild(tsType, child => reportNullInType(child, sourceFile, errors));
 }
 
 /**
@@ -482,46 +488,46 @@ function tsTypeToJulType(
 ): ParseValueExpression | undefined {
 	const position = getPositionFromTsNode(tsType, sourceFile);
 	switch (tsType.kind) {
-		case SyntaxKind.BigIntKeyword:
+		case ts.SyntaxKind.BigIntKeyword:
 			return createReference('Integer', position);
-		case SyntaxKind.NumberKeyword:
+		case ts.SyntaxKind.NumberKeyword:
 			return createReference('Float', position);
-		case SyntaxKind.StringKeyword:
+		case ts.SyntaxKind.StringKeyword:
 			return createReference('Text', position);
-		case SyntaxKind.BooleanKeyword:
+		case ts.SyntaxKind.BooleanKeyword:
 			return createReference('Boolean', position);
-		case SyntaxKind.AnyKeyword:
-		case SyntaxKind.UnknownKeyword:
+		case ts.SyntaxKind.AnyKeyword:
+		case ts.SyntaxKind.UnknownKeyword:
 			return createReference('Any', position);
-		case SyntaxKind.NullKeyword:
-		case SyntaxKind.UndefinedKeyword:
-		case SyntaxKind.VoidKeyword:
+		case ts.SyntaxKind.NullKeyword:
+		case ts.SyntaxKind.UndefinedKeyword:
+		case ts.SyntaxKind.VoidKeyword:
 			return { type: 'empty', ...position };
-		case SyntaxKind.ParenthesizedType:
+		case ts.SyntaxKind.ParenthesizedType:
 			return tsTypeToJulType((tsType as ParenthesizedTypeNode).type, sourceFile, errors);
-		case SyntaxKind.LiteralType:
+		case ts.SyntaxKind.LiteralType:
 			return tsLiteralTypeToJulType(tsType as LiteralTypeNode, position);
-		case SyntaxKind.ArrayType:
+		case ts.SyntaxKind.ArrayType:
 			return createCollection(
 				'List',
 				(tsType as ArrayTypeNode).elementType,
 				position,
 				sourceFile,
 				errors);
-		case SyntaxKind.TypeOperator: {
+		case ts.SyntaxKind.TypeOperator: {
 			const typeOperator = tsType as TypeOperatorNode;
 			// readonly ändert nichts am Wert, keyof/unique lassen sich nicht übersetzen
-			return typeOperator.operator === SyntaxKind.ReadonlyKeyword
+			return typeOperator.operator === ts.SyntaxKind.ReadonlyKeyword
 				? tsTypeToJulType(typeOperator.type, sourceFile, errors)
 				: undefined;
 		}
-		case SyntaxKind.TypeReference:
+		case ts.SyntaxKind.TypeReference:
 			return tsTypeReferenceToJulType(tsType as TypeReferenceNode, position, sourceFile, errors);
-		case SyntaxKind.TypeLiteral:
+		case ts.SyntaxKind.TypeLiteral:
 			return tsTypeLiteralToJulType(tsType as TypeLiteralNode, position, sourceFile, errors);
-		case SyntaxKind.UnionType:
+		case ts.SyntaxKind.UnionType:
 			return tsUnionToJulType((tsType as UnionTypeNode).types, false, position, sourceFile, errors);
-		case SyntaxKind.FunctionType:
+		case ts.SyntaxKind.FunctionType:
 			return tsFunctionTypeToJulType(tsType as FunctionTypeNode, position, sourceFile, errors);
 		default:
 			return undefined;
@@ -546,7 +552,7 @@ function tsLiteralTypeToJulType(
 ): ParseValueExpression | undefined {
 	const literal = literalType.literal;
 	switch (literal.kind) {
-		case SyntaxKind.StringLiteral:
+		case ts.SyntaxKind.StringLiteral:
 			return {
 				type: 'text',
 				values: [{
@@ -555,24 +561,24 @@ function tsLiteralTypeToJulType(
 				}],
 				...position,
 			};
-		case SyntaxKind.NumericLiteral:
+		case ts.SyntaxKind.NumericLiteral:
 			return {
 				type: 'float',
 				value: +literal.text,
 				...position,
 			};
-		case SyntaxKind.BigIntLiteral:
+		case ts.SyntaxKind.BigIntLiteral:
 			return {
 				type: 'integer',
 				// text endet auf n
 				value: BigInt(literal.text.slice(0, -1)),
 				...position,
 			};
-		case SyntaxKind.TrueKeyword:
+		case ts.SyntaxKind.TrueKeyword:
 			return createReference('true', position);
-		case SyntaxKind.FalseKeyword:
+		case ts.SyntaxKind.FalseKeyword:
 			return createReference('false', position);
-		case SyntaxKind.NullKeyword:
+		case ts.SyntaxKind.NullKeyword:
 			return { type: 'empty', ...position };
 		default:
 			return undefined;
@@ -586,7 +592,7 @@ function tsTypeReferenceToJulType(
 	errors: CompilerError[],
 ): ParseValueExpression | undefined {
 	const typeName = typeReference.typeName;
-	if (typeName.kind !== SyntaxKind.Identifier) {
+	if (typeName.kind !== ts.SyntaxKind.Identifier) {
 		return undefined;
 	}
 	const typeArguments = typeReference.typeArguments ?? [];
@@ -607,7 +613,7 @@ function tsTypeReferenceToJulType(
 		case 'Record': {
 			const [keyType, valueType] = typeArguments;
 			return typeArguments.length === 2
-				&& keyType!.kind === SyntaxKind.StringKeyword
+				&& keyType!.kind === ts.SyntaxKind.StringKeyword
 				? createCollection('Dictionary', valueType!, position, sourceFile, errors)
 				: undefined;
 		}
@@ -645,7 +651,7 @@ function tsTypeAliasToJulType(
 		return undefined;
 	}
 	const alias = sourceFile.statements.find((statement): statement is TypeAliasDeclaration =>
-		statement.kind === SyntaxKind.TypeAliasDeclaration
+		statement.kind === ts.SyntaxKind.TypeAliasDeclaration
 		&& (statement as TypeAliasDeclaration).name.text === aliasName);
 	if (!alias || alias.typeParameters?.length) {
 		return undefined;
@@ -676,24 +682,24 @@ function tsTypeLiteralToJulType(
 		// {} heißt in TS "alles außer null/undefined", nicht "leeres Objekt"
 		return undefined;
 	}
-	if (firstMember.kind === SyntaxKind.IndexSignature) {
+	if (firstMember.kind === ts.SyntaxKind.IndexSignature) {
 		const indexSignature = firstMember as IndexSignatureDeclaration;
 		const keyType = indexSignature.parameters[0]?.type;
 		if (members.length !== 1
-			|| keyType?.kind !== SyntaxKind.StringKeyword) {
+			|| keyType?.kind !== ts.SyntaxKind.StringKeyword) {
 			return undefined;
 		}
 		return createCollection('Dictionary', indexSignature.type, position, sourceFile, errors);
 	}
 	const fields: ParseSingleDictionaryTypeField[] = [];
 	for (const member of members) {
-		if (member.kind !== SyntaxKind.PropertySignature) {
+		if (member.kind !== ts.SyntaxKind.PropertySignature) {
 			return undefined;
 		}
 		const propertySignature = member as PropertySignature;
 		const propertyName = propertySignature.name;
-		if (propertyName.kind !== SyntaxKind.Identifier
-			&& propertyName.kind !== SyntaxKind.StringLiteral) {
+		if (propertyName.kind !== ts.SyntaxKind.Identifier
+			&& propertyName.kind !== ts.SyntaxKind.StringLiteral) {
 			return undefined;
 		}
 		const tsFieldType = propertySignature.type;
@@ -771,12 +777,12 @@ function tsFunctionTypeToJulType(
 	errors: CompilerError[],
 ): ParseValueExpression | undefined {
 	if (functionType.typeParameters
-		|| functionType.parameters.some(parameter => parameter.name.kind !== SyntaxKind.Identifier)) {
+		|| functionType.parameters.some(parameter => parameter.name.kind !== ts.SyntaxKind.Identifier)) {
 		return undefined;
 	}
 	const tsReturnType = functionType.type;
 	// void heißt am Callback "der Rückgabewert wird ignoriert", nicht "liefert nichts"
-	const returnType = tsReturnType.kind === SyntaxKind.VoidKeyword
+	const returnType = tsReturnType.kind === ts.SyntaxKind.VoidKeyword
 		? createReference('Any', getPositionFromTsNode(tsReturnType, sourceFile))
 		: tsTypeToJulTypeOrAny(tsReturnType, sourceFile, errors);
 	return createParseFunctionTypeLiteral(
@@ -800,7 +806,7 @@ function orEmpty(
 	if (julType.type === 'empty') {
 		return julType;
 	}
-	if (tsType.kind === SyntaxKind.UnionType) {
+	if (tsType.kind === ts.SyntaxKind.UnionType) {
 		return tsUnionToJulType((tsType as UnionTypeNode).types, true, position, sourceFile, errors) ?? julType;
 	}
 	return createCall('Or', [{ type: 'empty', ...position }, julType], position);
@@ -854,25 +860,25 @@ function createReference(name: string, position: Positioned): ParseReference {
 //#endregion Typannotation
 
 function isTsBindingPattern(tsName: BindingName): boolean {
-	return tsName.kind === SyntaxKind.ObjectBindingPattern
-		|| tsName.kind === SyntaxKind.ArrayBindingPattern;
+	return tsName.kind === ts.SyntaxKind.ObjectBindingPattern
+		|| tsName.kind === ts.SyntaxKind.ArrayBindingPattern;
 }
 
 function tsNameToJulName(tsName: BindingName, sourceFile: SourceFile): Name | undefined {
 	// TODO case BindingPattern
 	let name: string;
 	switch (tsName.kind) {
-		case SyntaxKind.Identifier:
+		case ts.SyntaxKind.Identifier:
 			name = tsName.text;
 			break;
-		case SyntaxKind.ObjectBindingPattern:
-		case SyntaxKind.ArrayBindingPattern:
+		case ts.SyntaxKind.ObjectBindingPattern:
+		case ts.SyntaxKind.ArrayBindingPattern:
 			const position = getPositionFromTsNode(tsName, sourceFile);
-			console.error(`SyntaxKind for Name not implemented yet: ${SyntaxKind[tsName.kind]} in ${sourceFile.fileName}:${position.startRowIndex + 1}:${position.startColumnIndex + 1}`);
+			console.error(`ts.SyntaxKind for Name not implemented yet: ${ts.SyntaxKind[tsName.kind]} in ${sourceFile.fileName}:${position.startRowIndex + 1}:${position.startColumnIndex + 1}`);
 			return undefined;
 		default:
 			const assertNever: never = tsName;
-			throw new Error(`Unexpected SyntaxKind for Name: ${SyntaxKind[(assertNever as BindingName).kind]}`);
+			throw new Error(`Unexpected ts.SyntaxKind for Name: ${ts.SyntaxKind[(assertNever as BindingName).kind]}`);
 	}
 	return {
 		type: 'name',

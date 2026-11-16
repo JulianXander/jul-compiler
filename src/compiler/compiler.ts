@@ -1,23 +1,21 @@
 import { appendFileSync, chmodSync, writeFileSync, globSync, readFileSync, rmSync, statSync } from 'fs';
 import { registerHooks } from 'module';
-import { basename, dirname, extname, join, relative, resolve } from 'path';
-import { RawSourceMap, SourceMapGenerator } from 'source-map';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'path';
+import { RawSourceMap } from 'source-map';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { format } from 'util';
 import webpack from 'webpack';
-import { EmitOptions, SourceMapping, jsonValueToJs, syntaxTreeToJsWithMappings } from './emitter.js';
+import { emitToJs, getOutFilePath } from './emit-file.js';
 import { shakeRuntime } from '../runtime/runtime-shaking.js';
 import { _getLoadFailure, _runTests, TestLocation, TestResult } from '../runtime/test-runtime.js';
 import { ParsedDocuments } from '../checker/checker.js';
-import { getFileCheckResult } from '../checker/check-result.js';
 import { CompilerError, CompilerErrorSeverity, CompilerErrorType, ErrorCode, errorInfos, Positioned } from '../compiler-errors.js';
-import { createFileSystemHost, loadFile, ProjectHost } from './project-loader.js';
+import { loadFile, ProjectHost } from './project-loader.js';
+import { createFileSystemHost } from './node-host.js';
 import { parseTodoComments, TodoComment } from '../parser/comment-directives.js';
 import { ParsedFile } from '../syntax-tree.js';
-import { Extension, changeExtension, executingDirectory, tryCreateDirectory } from '../util.js';
-import { load } from 'js-yaml';
-import typescript from 'typescript';
-const { ModuleKind, transpileModule } = typescript;
+import { changeExtension, Extension } from '../util.js';
+import { executingDirectory, tryCreateDirectory } from '../node-util.js';
 
 const runtimeFileName = 'runtime.js';
 const testRuntimeFileName = 'test-runtime.js';
@@ -421,7 +419,8 @@ export async function testProject(
 			}
 			catch (error) {
 				loadFailedCount++;
-				const { failure, failureLocation } = _getLoadFailure(error);
+				const { failure, failureLocation: rawFailureLocation } = _getLoadFailure(error);
+				const failureLocation = toCwdRelativeLocation(rawFailureLocation);
 				renderer.log(formatLoadFailure(testFilePath, failure, failureLocation));
 				writeReport({
 					type: 'loadFailed',
@@ -432,7 +431,11 @@ export async function testProject(
 			}
 		}
 		({ testCount, failedCount, skippedCount } = _runTests(
-			result => {
+			rawResult => {
+				const result: TestResult = {
+					...rawResult,
+					...rawResult.failureLocation && { failureLocation: toCwdRelativeLocation(rawResult.failureLocation) },
+				};
 				renderer.log(formatTestResult(result));
 				writeReport(toReportResult(result));
 			},
@@ -554,6 +557,22 @@ export function toReportResult(result: TestResult): TestReportEvent {
 	};
 }
 
+/**
+ * Eine Stelle aus dem Stack (file-URL oder absoluter Pfad) relativ zum Arbeitsverzeichnis, wie die
+ * Stellen, die der Emitter einsetzt.
+ */
+export function toCwdRelativeLocation(location: TestLocation | undefined): TestLocation | undefined {
+	if (!location) {
+		return undefined;
+	}
+	const path = location.file.startsWith('file://')
+		? fileURLToPath(location.file)
+		: location.file;
+	return isAbsolute(path)
+		? { ...location, file: relative(process.cwd(), path) }
+		: location;
+}
+
 function toAbsoluteLocation(location: TestLocation | undefined): TestLocation | undefined {
 	return location && { ...location, file: resolve(location.file) };
 }
@@ -671,142 +690,6 @@ function appendSourceMapUrl(js: string, url: string): string {
 
 function getInlineSourceMapUrl(sourceMap: RawSourceMap): string {
 	return `data:application/json;base64,${Buffer.from(JSON.stringify(sourceMap)).toString('base64')}`;
-}
-
-/**
- * Die Map einer emittierten .jul-Datei. sources ist relativ zur Ausgabedatei, sourcesContent trägt
- * den Quelltext mit, damit die Map auch dann stimmt, wenn der Pfad aus Sicht des Debuggers nicht
- * auflöst.
- */
-export function createSourceMap(
-	mappings: SourceMapping[],
-	sourceFilePath: string,
-	outFilePath: string,
-	sourceCode: string,
-): RawSourceMap {
-	const source = getSourceMapSource(sourceFilePath, outFilePath);
-	const generator = new SourceMapGenerator({ file: basename(outFilePath) });
-	generator.setSourceContent(source, sourceCode);
-	mappings.forEach(mapping => {
-		generator.addMapping({
-			source: source,
-			generated: { line: mapping.generatedLine + 1, column: mapping.generatedColumn },
-			original: { line: mapping.sourceLine + 1, column: mapping.sourceColumn },
-		});
-	});
-	// toJSON fehlt in den Typen von source-map 0.6, toString ist dessen JSON.stringify.
-	return JSON.parse(generator.toString());
-}
-
-function getSourceMapSource(sourceFilePath: string, outFilePath: string): string {
-	return relative(dirname(outFilePath), sourceFilePath).replaceAll('\\', '/');
-}
-
-/**
- * Die Ausgabe einer geladenen, fehlerfreien Datei und wohin sie gehört, ohne zu schreiben.
- * sourceMap nur für .jul und .ts, das angehängte sourceMappingURL ist Sache des Aufrufers.
- */
-function emitToJs(
-	parsed: ParsedFile,
-	sourceCode: string,
-	outputFolderPath: string,
-	runtimeImportPath: string,
-	testRuntimeImportPath: string,
-	documents: ParsedDocuments,
-	options: Omit<EmitOptions, 'hasDefaultExport'> = {},
-): { outFilePath: string; compiled: string; sourceMap?: RawSourceMap; runtimeNames: string[]; } {
-	const sourceFilePath = parsed.filePath;
-	let compiled: string;
-	// Nur .jul und .json importieren die Runtime.
-	let runtimeNames: string[] = [];
-	const outFilePath = getOutFilePath(sourceFilePath, outputFolderPath);
-	let sourceMap: RawSourceMap | undefined;
-	const extension = parsed.extension;
-	switch (extension) {
-		case Extension.js: {
-			// copy js file to output folder
-			compiled = sourceCode;
-			break;
-		}
-		case Extension.json:
-		// parse json and write to js in output folder
-		case Extension.jul: {
-			if (parsed.untyped
-				&& extension === Extension.json) {
-				// Kein Syntaxbaum, das JS entsteht direkt aus dem geparsten Wert.
-				compiled = jsonValueToJs(parsed.jsonValue);
-				break;
-			}
-			// checkResult trägt die typeInfo, die der Emitter für billigere Laufzeittests braucht. Ohne
-			// Check ein leeres Ergebnis: dann ohne Typen.
-			const expressions = (parsed.checked ?? parsed.syntax).expressions ?? [];
-			const emitted = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath, {
-				...options,
-				// Der Loader hat jede importierte Datei vor dem Emit geladen, unter demselben Pfad.
-				hasDefaultExport: importedPath => {
-					const imported = documents[join(parsed.sourceFolder, importedPath)];
-					if (!imported) {
-						throw new Error(`Imported file not loaded: ${importedPath}`);
-					}
-					return imported.hasDefaultExport;
-				},
-			});
-			compiled = emitted.js;
-			runtimeNames = emitted.runtimeNames;
-			if (extension === Extension.jul) {
-				sourceMap = createSourceMap(emitted.mappings, sourceFilePath, outFilePath, sourceCode);
-			}
-			break;
-		}
-		case Extension.ts: {
-			const js = transpileModule(sourceCode, {
-				compilerOptions: {
-					module: ModuleKind.ESNext,
-					sourceMap: true,
-				},
-				fileName: basename(sourceFilePath),
-			});
-			// transpileModule hängt selbst ein sourceMappingURL an, auf eine Datei, die es nicht
-			// schreibt.
-			compiled = js.outputText.replace(/\n\/\/# sourceMappingURL=.*\s*$/, '\n');
-			const tsSourceMap: RawSourceMap = JSON.parse(js.sourceMapText!);
-			sourceMap = {
-				...tsSourceMap,
-				file: basename(outFilePath),
-				sources: [getSourceMapSource(sourceFilePath, outFilePath)],
-				sourcesContent: [sourceCode],
-			};
-			break;
-		}
-		case Extension.yaml: {
-			// parse yaml and write to json in output folder
-			// TODO compile
-			const parsedYaml = load(sourceCode);
-			compiled = JSON.stringify(parsedYaml);
-			break;
-		}
-		default: {
-			const assertNever: never = extension;
-			throw new Error(`Unexpected extension for emitToJs: ${assertNever}`);
-		}
-	}
-	return { outFilePath: outFilePath, compiled: compiled, sourceMap: sourceMap, runtimeNames: runtimeNames };
-}
-
-/**
- * Pfad der Ausgabedatei zu einer Quelldatei: .js wird kopiert, .yaml wird zu .yaml.json, alles
- * andere zu .js. Gegenstück zum Umschreiben der Importpfade im Emitter (getPathFromImport).
- */
-function getOutFilePath(sourceFilePath: string, outputFolderPath: string): string {
-	const extension = extname(sourceFilePath);
-	switch (extension) {
-		case Extension.js:
-			return join(outputFolderPath, sourceFilePath);
-		case Extension.yaml:
-			return join(outputFolderPath, sourceFilePath + Extension.json);
-		default:
-			return join(outputFolderPath, changeExtension(sourceFilePath, Extension.js));
-	}
 }
 
 //#region rendering

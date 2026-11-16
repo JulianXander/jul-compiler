@@ -276,7 +276,8 @@ async function main() {
 		process.exit(1);
 	}
 	const load = async path => import(pathToFileURL(join(compilerDir, path)).href);
-	const { loadFile, createFileSystemHost } = await load('compiler/project-loader.js');
+	const { loadFile } = await load('compiler/project-loader.js');
+	const { createFileSystemHost } = await load('compiler/node-host.js');
 	const { getTypeInfo } = await load('checker/check-result.js');
 	const { typeToString } = await load('checker/type-algebra.js');
 	const api = { getTypeInfo, typeToString };

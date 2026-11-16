@@ -4,7 +4,8 @@ import { execFileSync } from 'child_process';
 import { basename, join, resolve } from 'path';
 
 import { checkerStats, resetCheckerStats } from '../src/checker/checker-stats.js';
-import { createFileSystemHost, loadFile } from '../src/compiler/project-loader.js';
+import { loadFile } from '../src/compiler/project-loader.js';
+import { createFileSystemHost } from '../src/compiler/node-host.js';
 import { parseCode } from '../src/parser/parser.js';
 import {
 	alarmingDeviation,

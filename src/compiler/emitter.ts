@@ -23,7 +23,7 @@ import * as runtime from '../runtime/runtime.js';
 import type { JsonValue } from '../runtime/runtime.js';
 import * as testRuntime from '../runtime/test-runtime.js';
 import { Extension, NonEmptyArray, changeExtension, escapeReservedJsVariableName, isDefined, isTestFilePath, last } from '../util.js';
-import { extname, isAbsolute } from 'path';
+import { extname, isAbsolute } from '../path-util.js';
 import { getPathExpression, getPathFromImport as getImportedPath, isImportFunction, isImportFunctionCall, isNamedFunction } from '../parser/parser.js';
 import { getAssertCallArguments, getCheckedEscapableName, getJunction, getTestCallArguments, julHasDefaultExport } from '../parser/parser-utils.js';
 import { BranchDispatch, BranchTest, getAssumeTest, getBranchDispatch, JsKind, LiteralValue } from '../checker/branch-dispatch.js';

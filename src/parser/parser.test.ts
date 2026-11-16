@@ -2,7 +2,8 @@ import { expect } from 'chai';
 
 import { BracketedExpression, DefinitionExpression, forEachChild, ParseFunctionCall, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseBranching, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDefinition, ParseSingleDictionaryTypeField, ParseValueExpression, PositionedExpression, SymbolDefinition } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
-import { coreLibPath, isCoreLibPath, parseCode, parseFile } from './parser.js';
+import { isCoreLibPath, parseCode } from './parser.js';
+import { coreLibPath, parseFile } from '../compiler/node-host.js';
 import { reportAtCaller } from '../test-util.js';
 import { setFileSymbolIds, setParentsAndIds } from './parser-utils.js';
 

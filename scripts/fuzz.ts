@@ -5,6 +5,7 @@ import { isMainThread, parentPort, Worker, workerData } from 'worker_threads';
 import { checkerStats, resetCheckerStats } from '../src/checker/checker-stats.js';
 import { initialFoldBudget } from '../src/checker/constant-folding.js';
 import { createInMemoryHost, loadFile } from '../src/compiler/project-loader.js';
+import '../src/compiler/node-host.js';
 import type { CompilerError } from '../src/compiler-errors.js';
 
 /**

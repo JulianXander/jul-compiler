@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import { load } from 'js-yaml';
 import { dirname, join } from 'path';
 import configSchema from './jul-config-schema.json' with { type: 'json' };
-import { readTextFile } from '../util.js';
+import { readTextFile } from '../node-util.js';
 
 export const configFileName = 'jul-config.yaml';
 

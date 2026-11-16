@@ -1,4 +1,4 @@
-import { extname, join } from 'path';
+import { extname, join } from '../path-util.js';
 import * as runtime from '../runtime/runtime.js';
 import { constantValueToType, resetFoldBudget, typeToConstantValue, tryBuildCallable } from './constant-folding.js';
 import {
@@ -86,7 +86,7 @@ import {
 	toRequiredFields,
 } from '../syntax-tree.js';
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, forEach, isDefined, isNonEmpty, isTestFilePath, last, mapDictionary } from '../util.js';
-import { coreLibPath, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseFile } from '../parser/parser.js';
+import { coreLibFileName, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseCode } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCheckedEscapableName, getExportedSymbols, getJunction, getTestCallArguments, getNameFromValue, getTestName, isInsideFunctionLiteral } from '../parser/parser-utils.js';
 import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex, ReferenceLocation, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
@@ -271,14 +271,13 @@ const parameterProjectionsCache = new WeakMap<CompileTimeFunctionType, Parameter
 
 /**
  * Schutz gegen Zyklen über Aliase und verschachtelte Typen in classifyTypeness. Echte Typen sind
- * nie annähernd so tief. Steht hier oben, weil die core-lib schon beim Modul-Load gecheckt wird.
+ * nie annähernd so tief.
  */
 const maxTypenessDepth = 50;
 
 /**
  * Kombinieren auf derselben Ebene, statt eine Datenebene hinzuzufügen - siehe
- * findUnproductiveSelfReference. Muss wie subtypeReductionLimit hier oben stehen: die core-lib
- * wird schon beim Modul-Load gecheckt und läuft dabei durch die Prüfung.
+ * findUnproductiveSelfReference.
  */
 const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
 /**
@@ -288,8 +287,7 @@ const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
 const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'Subtract', 'GreaterInteger', 'LessInteger', 'GreaterFloat'];
 /**
  * Builtins, die wie ein Keyword nur direkt aufgerufen werden dürfen, mit dem Fehlercode für eine
- * andere Verwendung. import fehlt, es meldet JUL3140 schon im Parser. Vor dem Check der core-lib
- * definiert, der beim Modul-Load läuft.
+ * andere Verwendung. import fehlt, es meldet JUL3140 schon im Parser.
  */
 const directCallOnlyBuiltins = new Map<string, ErrorCode>([
 	['test', ErrorCode.testNotCalled],
@@ -392,38 +390,60 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
 
 /**
  * Je Rumpf die Namen, auf die dort irgendwo complete aufgerufen wird. Vor dem Rumpf gesammelt,
- * damit ein so beendeter Stream schon an seiner Definition ein FiniteStream ist. Muss vor dem
- * Check der core-lib stehen, der beim Modul-Load läuft.
+ * damit ein so beendeter Stream schon an seiner Definition ein FiniteStream ist.
  */
 const completedNamesByScope = new WeakMap<SymbolTable, Set<string>>();
 
 /** Die Mengen aus einem Durchlauf je Datei (collectCompletedNamesByBody), je Rumpf. */
 const completedNamesByBody = new WeakMap<readonly PositionedExpression[], Set<string>>();
 
-// Einziger Dateizugriff des Checkers, bewusst am ProjectHost vorbei: die core-lib gehört zum
-// Compiler, nicht zum Projekt, ändert sich während eines Laufs nicht und wird deshalb einmal je
-// Prozess gelesen statt je Host.
-const parsedCoreLib = parseFile(coreLibPath);
-const parsedCoreLib2 = parsedCoreLib.syntax;
-export const coreLibCheckResult = createCheckResult(parsedCoreLib);
-parsedCoreLib.checkResult = coreLibCheckResult;
-parsedCoreLib.checked = {
-	...parsedCoreLib2,
-	errors: coreLibCheckResult.errors,
-};
-inferFileTypes([], {
-	documents: {},
-	file: parsedCoreLib.checked,
-	result: coreLibCheckResult,
-	folder: '',
-	filePath: '',
-	referenceIndex: undefined,
-	onProgress: undefined,
-	warnUnknown: false,
-});
-export const builtInSymbols: SymbolTable = parsedCoreLib2.symbols;
+//#region core-lib
+
+// Die core-lib gehört zum Compiler, nicht zum Projekt, ändert sich während eines Laufs nicht und
+// wird deshalb einmal je Prozess geprüft statt je Host. Den Text liefert der Einstieg: unter Node
+// node-host.ts beim Laden, im Browser browser.ts.
+export let coreLibCheckResult: CheckResult;
+export let builtInSymbols: SymbolTable;
 /** Die Symbole aus builtInSymbols, die jede andere Datei in ihren Scopes sieht. */
-const coreLibSymbols = new Set(Object.values(builtInSymbols));
+let coreLibSymbols: Set<SymbolDefinition>;
+
+export function isCoreLibInitialized(): boolean {
+	return builtInSymbols !== undefined;
+}
+
+/**
+ * Parst und prüft die core-lib. Nur der erste Aufruf wirkt, alle Dateien eines Prozesses teilen
+ * sich deren Symbole.
+ * @param filePath unter Node der Pfad der Datei, für Fehlermeldungen in der core-lib
+ */
+export function initCoreLib(code: string, filePath = coreLibFileName): void {
+	if (isCoreLibInitialized()) {
+		return;
+	}
+	const parsedCoreLib = parseCode(code, filePath);
+	const syntax = parsedCoreLib.syntax;
+	const checkResult = createCheckResult(parsedCoreLib);
+	parsedCoreLib.checkResult = checkResult;
+	parsedCoreLib.checked = {
+		...syntax,
+		errors: checkResult.errors,
+	};
+	coreLibCheckResult = checkResult;
+	inferFileTypes([], {
+		documents: {},
+		file: parsedCoreLib.checked,
+		result: checkResult,
+		folder: '',
+		filePath: '',
+		referenceIndex: undefined,
+		onProgress: undefined,
+		warnUnknown: false,
+	});
+	builtInSymbols = syntax.symbols;
+	coreLibSymbols = new Set(Object.values(builtInSymbols));
+}
+
+//#endregion core-lib
 
 /**
  * Das Ergebnis, in dem Typ und Verwendung eines Symbols aus den Scopes einer Datei stehen: für ein
@@ -531,10 +551,11 @@ function dereferenceType(checkResult: CheckResult, reference: ParseReference, sc
 	// (sie wird ohne builtInSymbols gecheckt). Auch dann ist isBuiltIn korrekt:
 	// innerhalb der core-lib sind Vorwärtsreferenzen erlaubt (kein usedBeforeDefined).
 	const isBuiltIn = findResult.scopeIndex === 0;
-	// Aus den Scopes kommt ein Symbol aus der geprüften Datei oder aus der core-lib, die beim Modul-Load
-	// geprüft wurde. Verglichen wird die Tabelle, nicht der Index: Prüft ein Test die core-lib erneut,
-	// steht an Index 0 ihre eigene, neu geparste Tabelle.
-	const symbolResult = scopes[findResult.scopeIndex] === parsedCoreLib2.symbols
+	// Aus den Scopes kommt ein Symbol aus der geprüften Datei oder aus der core-lib, die initCoreLib
+	// geprüft hat. Verglichen wird die Tabelle, nicht der Index: Prüft ein Test die core-lib erneut,
+	// steht an Index 0 ihre eigene, neu geparste Tabelle. Während initCoreLib ist builtInSymbols noch
+	// leer, die geprüfte Datei ist dann die core-lib selbst.
+	const symbolResult = scopes[findResult.scopeIndex] === builtInSymbols
 		? coreLibCheckResult
 		: checkResult;
 	if (foundSymbol.functionParameterIndex !== undefined) {

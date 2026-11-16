@@ -3,8 +3,6 @@
 // dieses Modul nur von *.test.jul-Dateien (siehe Emitter) und vom Compiler, der _runTests aufruft -
 // beide über denselben Pfad, sonst hätten sie getrennte Register.
 
-import { relative } from 'path';
-import { fileURLToPath } from 'url';
 import { _createFunction, _Function, _julTypeSymbol, _StreamClass, _takeAssertionViolation, _Text } from './runtime.js';
 import type { AssertionViolation, BuiltInType, RuntimeDictionary, RuntimeType } from './runtime.js';
 
@@ -196,9 +194,11 @@ export function _getLoadFailure(error: unknown): { failure: string; failureLocat
 }
 
 /**
- * Die erste Stelle im Stack, die in eine .jul-Datei zeigt, relativ zum Arbeitsverzeichnis. Die gibt
- * es nur mit Source Maps (siehe testProject). Frames in der Runtime und im Compiler fallen so von
- * selbst heraus. Die erste Zeile des Stacks ist die Meldung und wird übergangen.
+ * Die erste Stelle im Stack, die in eine .jul-Datei zeigt. Die gibt es nur mit Source Maps (siehe
+ * testProject). Frames in der Runtime und im Compiler fallen so von selbst heraus. Die erste Zeile
+ * des Stacks ist die Meldung und wird übergangen. Die Datei steht so da wie im Stack, als Pfad oder
+ * file-URL: Die Runtime läuft auch im Browser und kennt kein Arbeitsverzeichnis, relativ macht sie
+ * der Aufrufer.
  */
 function getJulStackLocation(error: Error): TestLocation | undefined {
 	const frames = error.stack?.split('\n').slice(1) ?? [];
@@ -206,11 +206,8 @@ function getJulStackLocation(error: Error): TestLocation | undefined {
 		const match = /((?:file:\/\/)?[^\s()]+\.jul):(\d+):(\d+)/.exec(frame);
 		if (match) {
 			const [, pathOrUrl, row, column] = match;
-			const path = pathOrUrl!.startsWith('file://')
-				? fileURLToPath(pathOrUrl!)
-				: pathOrUrl!;
 			return {
-				file: relative(process.cwd(), path),
+				file: pathOrUrl!,
 				row: Number(row),
 				column: Number(column),
 			};

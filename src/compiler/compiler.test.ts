@@ -3,8 +3,10 @@ import { readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { SourceMapConsumer } from 'source-map';
+import { pathToFileURL } from 'url';
 
-import { createSourceMap, createTestReport, findOutputPathConflicts, formatErrors, formatLoadFailure, formatTestResult, formatTodoList, LiveRenderer, toReportResult } from './compiler.js';
+import { createSourceMap } from './emit-file.js';
+import { createTestReport, findOutputPathConflicts, formatErrors, formatLoadFailure, formatTestResult, formatTodoList, LiveRenderer, toCwdRelativeLocation, toReportResult } from './compiler.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { parseTodoComments } from '../parser/comment-directives.js';
 import { createInMemoryHost } from './project-loader.js';
@@ -305,6 +307,21 @@ describe('LiveRenderer', () => {
 			(process.stdout as any).isTTY = originalIsTty;
 			process.stdout.write = originalWrite;
 		}
+	});
+});
+
+describe('toCwdRelativeLocation', () => {
+	it('macht eine file-URL aus dem Stack relativ', () => {
+		expect(toCwdRelativeLocation({ file: pathToFileURL(resolve('src/a.jul')).href, row: 4, column: 3 }))
+			.to.deep.equal({ file: join('src', 'a.jul'), row: 4, column: 3 });
+	});
+	it('macht einen absoluten Pfad relativ', () => {
+		expect(toCwdRelativeLocation({ file: resolve('a.jul'), row: 4, column: 3 }))
+			.to.deep.equal({ file: 'a.jul', row: 4, column: 3 });
+	});
+	it('lässt eine relative Stelle des Emitters stehen', () => {
+		expect(toCwdRelativeLocation({ file: 'b.jul', row: 7, column: 2 }))
+			.to.deep.equal({ file: 'b.jul', row: 7, column: 2 });
 	});
 });
 

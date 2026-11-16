@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { join, resolve } from 'path';
+import { resolve } from 'path';
 import { pathToFileURL } from 'url';
 import { _assertCall, _assertFailed, _checkAssumeTest, _takeAssertCall, deepEqual, equal } from './runtime.js';
 import { _getLoadFailure, _runTests, _testCall, test, TestLocation, TestResult } from './test-runtime.js';
@@ -102,6 +102,7 @@ describe('_runTests', () => {
 			1);
 	});
 	// Mit Source Maps steht die .jul-Stelle im Stack. Frames davor (Runtime) zählen nicht.
+	// Die Stelle steht da wie im Stack, relativ zum Arbeitsverzeichnis macht sie erst die CLI.
 	it('reports-jul-location-of-exception', () => {
 		const error = new Error('kaputt');
 		error.stack = [
@@ -112,14 +113,14 @@ describe('_runTests', () => {
 		].join('\n');
 		expectFailureLocation(
 			() => test('a', () => { throw error; }, location),
-			{ file: join('src', 'fibonacci.jul'), row: 4, column: 3 });
+			{ file: pathToFileURL(resolve('src/fibonacci.jul')).href, row: 4, column: 3 });
 	});
 	it('reports-jul-location-of-exception-with-windows-path', () => {
 		const error = new Error('kaputt');
 		error.stack = `Error: kaputt\n    at fibonacci (${resolve('fibonacci.jul')}:4:3)`;
 		expectFailureLocation(
 			() => test('a', () => { throw error; }, location),
-			{ file: 'fibonacci.jul', row: 4, column: 3 });
+			{ file: resolve('fibonacci.jul'), row: 4, column: 3 });
 	});
 	// Die Stelle steht nicht mehr in der Meldung, die setzt erst die Ausgabe zusammen.
 	it('keeps-failure-text-without-location', () => {

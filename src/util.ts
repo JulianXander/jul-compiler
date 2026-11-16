@@ -1,7 +1,3 @@
-import { mkdirSync, readFileSync } from 'fs';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-
 export function isDefined<T>(value: T | undefined): value is T {
 	return value !== undefined;
 }
@@ -208,10 +204,6 @@ export function fieldsEqual(values1: { [key: string]: any; }, values2: { [key: s
 // 	};
 // }
 
-//#region file system
-
-export const executingDirectory = dirname(fileURLToPath(import.meta.url));
-
 //#region extension
 
 export enum Extension {
@@ -258,17 +250,3 @@ export function isTestFilePath(path: string): boolean {
 
 //#endregion extension
 
-/**
- * @throws Wirft Error wenn Datei nicht gelesen werden kann.
- */
-export function readTextFile(path: string): string {
-	const file = readFileSync(path);
-	const text = file.toString();
-	return text;
-}
-
-export function tryCreateDirectory(path: string): void {
-	mkdirSync(path, { recursive: true });
-}
-
-//#endregion file system

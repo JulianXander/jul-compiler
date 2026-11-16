@@ -1,15 +1,14 @@
-import { CheckOptions, checkTypes, ParsedDocuments } from '../checker/checker.js';
+import { CheckOptions, checkTypes, isCoreLibInitialized, ParsedDocuments } from '../checker/checker.js';
 import { clearTypeCaches } from '../checker/type-algebra.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { parseCode } from '../parser/parser.js';
 import { ParsedFile } from '../syntax-tree.js';
-import { readTextFile } from '../util.js';
 
 /**
  * Der einzige Weg von einer Datei zum geprüften Baum samt Abhängigkeiten - für CLI, Language
  * Server, Bench und Tests. Parser und Checker greifen selbst nicht aufs Dateisystem zu, gelesen
- * wird nur über den ProjectHost. Ausnahme ist die core-lib, die der Checker beim Modul-Load selbst
- * liest (siehe checker.ts).
+ * wird nur über den ProjectHost. Die core-lib bekommt der Checker vorher über initCoreLib, unter
+ * Node aus node-host.ts, im Browser aus browser.ts.
  */
 
 /**
@@ -73,6 +72,7 @@ export function loadFile(
 	host: ProjectHost,
 	code?: string,
 ): ParsedFile | 'notFound' | 'skipped' {
+	assertCoreLibInitialized();
 	clearTypeCaches();
 	return loadFileRecursive(filePath, documents, host, code, new Set());
 }
@@ -125,6 +125,7 @@ function loadFileRecursive(
  * fileNotFound, eine fehlende wird geladen, falls es sie jetzt gibt.
  */
 export function recheckFile(file: ParsedFile, documents: ParsedDocuments, host: ProjectHost): void {
+	assertCoreLibInitialized();
 	// Wie loadFile, siehe clearTypeCaches.
 	clearTypeCaches();
 	loadDependencies(file, documents, host, new Set());
@@ -159,45 +160,6 @@ function loadDependencies(
 //#region Hosts
 
 /**
- * Liest eine Quelldatei. Ohne vorherige Existenzprüfung: Unter Windows kostet existsSync je Datei
- * etwa so viel wie das Lesen selbst. Fehlt die Datei, ist das ENOENT (oder ENOTDIR bei einem Pfad
- * durch eine Datei hindurch), jeder andere Fehler bleibt ein Fehler.
- */
-function readSourceFile(filePath: string): SourceReadResult {
-	try {
-		return { type: 'code', code: readTextFile(filePath) };
-	}
-	catch (error) {
-		const code = (error as NodeJS.ErrnoException).code;
-		if (code === 'ENOENT' || code === 'ENOTDIR') {
-			return { type: 'notFound' };
-		}
-		throw error;
-	}
-}
-
-/**
- * Liest jede Datei höchstens einmal: spätere Abfragen (Fehlerausschnitt, Emit) bekommen genau
- * den Stand, der geprüft wurde. Deshalb nur für einen einzelnen Lauf gedacht, nicht für
- * langlebige Prozesse - dort würden Änderungen auf der Platte nicht mehr gesehen.
- */
-export function createFileSystemHost(options: CheckOptions = {}): ProjectHost {
-	const cache = new Map<string, SourceReadResult>();
-	return {
-		readSource: filePath => {
-			const cached = cache.get(filePath);
-			if (cached) {
-				return cached;
-			}
-			const readResult = readSourceFile(filePath);
-			cache.set(filePath, readResult);
-			return readResult;
-		},
-		...options,
-	};
-}
-
-/**
  * Für Tests: Dateien im Speicher. Die Schlüssel mit join bilden, wie getPathFromImport die
  * Importpfade auflöst - sonst passen sie unter Windows nicht zusammen.
  */
@@ -214,3 +176,9 @@ export function createInMemoryHost(files: { [filePath: string]: string; }, optio
 }
 
 //#endregion Hosts
+
+function assertCoreLibInitialized(): void {
+	if (!isCoreLibInitialized()) {
+		throw new Error('core-lib is not initialized. Node: import compiler/node-host.js, browser: call initCompiler.');
+	}
+}

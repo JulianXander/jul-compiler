@@ -6,7 +6,8 @@ import { pathToFileURL } from 'url';
 
 import { errorInfos } from '../src/compiler-errors.js';
 import { syntaxTreeToJs } from '../src/compiler/emitter.js';
-import { createFileSystemHost, loadFile } from '../src/compiler/project-loader.js';
+import { loadFile } from '../src/compiler/project-loader.js';
+import { createFileSystemHost } from '../src/compiler/node-host.js';
 import { ParsedDocuments } from '../src/checker/checker.js';
 import { getFileCheckResult } from '../src/checker/check-result.js';
 import {

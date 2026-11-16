@@ -20,7 +20,8 @@ import {
 } from '../syntax-tree.js';
 import { CompilerError, ErrorCode, errorInfos } from '../compiler-errors.js';
 import { reportAtCaller } from '../test-util.js';
-import { coreLibPath, parseCode, parseFile } from '../parser/parser.js';
+import { parseCode } from '../parser/parser.js';
+import { coreLibPath, parseFile } from '../compiler/node-host.js';
 import { checkTypes } from './checker.js';
 import { bindReceiver, builtInSymbols, coreLibCheckResult, getCallPurity, getCallPurityInfo, inferBodyPurity } from './checker.js';
 import { isFunctionType, resolvePlaceholders, typeToString } from './type-algebra.js';

@@ -10,5 +10,8 @@ use(chaiAsPromised);
 Error.stackTraceLimit = 10;
 
 // Die Zugriffe auf das CheckResult prüfen, ob der Knoten zur Datei des Ergebnisses gehört (siehe
-// checker/check-result.ts). Vor dem ersten Import des Checkers, der die core-lib beim Laden prüft.
+// checker/check-result.ts). Vor dem ersten Import des Checkers, der das Flag beim Laden liest.
 process.env.JUL_VERIFY_NODE_OWNERSHIP = '1';
+
+// Prüft die core-lib und setzt TypeScript, für alle Tests, die Code über createInMemoryHost laden.
+await import('./src/compiler/node-host.ts');

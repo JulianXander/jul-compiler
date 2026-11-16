@@ -2,7 +2,7 @@
 import { dirname, join } from 'path';
 import { compileProject, listTodos, testProject } from './compiler.js';
 import { defaultWarnUnknown, JulCompilerConfiguration, parseConfig } from './config.js';
-import { executingDirectory, readTextFile } from '../util.js';
+import { executingDirectory, readTextFile } from '../node-util.js';
 
 interface PackageJson {
 	version: string;

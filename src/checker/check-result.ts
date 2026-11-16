@@ -66,10 +66,10 @@ export interface CheckResult {
 /**
  * Für die Tests: Jeder Zugriff prüft, ob der Knoten oder das Symbol zur Datei des Ergebnisses gehört
  * (Knoten über die parent-Kette). Kostet eine Schleife je Zugriff, deshalb nur mit
- * JUL_VERIFY_NODE_OWNERSHIP=1 (test-setup.mjs). Beim Modul-Load gelesen, weil der Checker die
- * core-lib dann schon prüft.
+ * JUL_VERIFY_NODE_OWNERSHIP=1 (test-setup.mjs).
  */
-const verifyNodeOwnership = process.env.JUL_VERIFY_NODE_OWNERSHIP === '1';
+const verifyNodeOwnership = typeof process !== 'undefined'
+	&& process.env.JUL_VERIFY_NODE_OWNERSHIP === '1';
 
 let nextCheckResultId = 1;
 

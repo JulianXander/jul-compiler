@@ -66,9 +66,7 @@ aus einem Shiki-Transformer bekommt, oder erledigt sich für ` ```jul live` durc
   voraussetzt.
 - **`util.ts` aufteilen** in reine Helfer und Node-Helfer (`fs`, `executingDirectory`). Parser,
   Checker, Loader und Emitter importieren nur die reinen.
-- **Pfade:** Nur POSIX-Teil von `path` wird gebraucht. Entweder `path-browserify` über die
-  Bundler-Konfiguration oder ein eigenes kleines `path-util.ts`. Eigenes Modul bevorzugt, weil der
-  Compiler dann ohne Polyfill-Konfiguration in jedem Bundler läuft.
+- **Pfade:** eigenes `path-util.ts` (siehe unten).
 - **`isCoreLibPath`** ohne `process`: im Browser case-sensitiv vergleichen.
 - **TypeScript nachladen.** Gebraucht werden nur `createSourceFile` (Parser) und `transpileModule`
   (Emitter), beide laufen im Browser. Das Paket ist aber groß (`typescript.js` 9,1 MB, gezippt
@@ -79,11 +77,33 @@ aus einem Shiki-Transformer bekommt, oder erledigt sich für ` ```jul live` durc
   - `check(files)` → Fehler je Datei (für Monaco-Marker)
   - `compile(files)` → emittiertes JS je Datei, nur wenn kein `error`
   - Zugriff auf `ParsedDocuments` für Hover und Vervollständigung (Schritt 4)
-- **Absicherung:** Ein Build-Skript bündelt `browser.ts` mit `platform: 'browser'` (esbuild) und
-  schlägt fehl, sobald ein Node-Builtin hineinrutscht. In `build-all` einhängen, sonst merkt es
+- **Absicherung:** Ein Build-Skript bündelt `browser.ts` für den Browser und schlägt fehl, sobald ein Node-Builtin hineinrutscht. In `build-all` einhängen, sonst merkt es
   niemand. Bundle-Größe dabei ausgeben.
 - Bench vor und nach dem Umbau (yugioh, `--save`), die core-lib-Initialisierung berührt den
   Checker-Start.
+
+Umgesetzt, mit diesen Ergänzungen:
+
+- **`path-util.ts`** statt `import 'path'`: Unter Node das eingebaute `path` über
+  `process.getBuiltinModule`, damit unter Windows `join` weiter `\` liefert (darauf verlassen sich
+  Importauflösung und Language Server). Im Browser eigener POSIX-Code ohne Arbeitsverzeichnis.
+  Kein Polyfill und keine Bundler-Konfiguration nötig. Node ohne `getBuiltinModule` (vor 20.16 bzw.
+  22.3) bricht mit Meldung ab, statt still auf POSIX zu fallen. Die Extension erlaubt laut `engines`
+  noch VS Code 1.91 (Node 20.9), das müsste angehoben werden.
+- **core-lib:** `initCoreLib(code)` im Checker. Unter Node ruft es `compiler/node-host.ts` beim
+  Laden auf (dort auch `createFileSystemHost`, `coreLibPath`, `parseFile`), im Browser
+  `initCompiler(coreLibCode)`. `loadFile` meldet einen fehlenden Aufruf mit klarer Meldung.
+- **TypeScript** über `typescript-module.ts` (`setTypeScript`/`getTypeScript`), auch für `.js`,
+  die der Parser über TypeScript liest. `emitToJs` steht jetzt in `compiler/emit-file.ts`.
+- **test-runtime.ts** war schon jetzt dran, weil der Emitter sie importiert:
+  `getJulStackLocation` liefert die Stelle wie im Stack, relativ zum Arbeitsverzeichnis macht sie
+  `compiler.ts` (`toCwdRelativeLocation`).
+- **Prüfung:** `npm run check-browser` (in `build-all`, nach dem Build) bündelt `out/browser.js` mit
+  webpack (schon Dependency, ohne Node-Polyfills) und führt das Bündel zusätzlich in einem leeren
+  VM-Kontext ohne `process`/`Buffer` aus, mit einer Probe aus zwei Dateien. Größe: 353 kB
+  minifiziert ohne TypeScript.
+- Die Tests des Language Servers laufen unter tsx als CommonJS mit eigener Instanz der
+  Compiler-Module, `test-setup.mjs` lädt `node-host` dort deshalb per `require`.
 
 ### 3. Playground-Komponente
 

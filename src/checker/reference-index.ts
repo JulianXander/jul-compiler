@@ -1,5 +1,5 @@
 import { getAliasSymbolType, getTypeInfo } from './check-result.js';
-import { dirname } from 'path';
+import { dirname } from '../path-util.js';
 import { getPathFromImport, isImportFunctionCall } from '../parser/parser.js';
 import { isExportedSymbol } from '../parser/parser-utils.js';
 import { builtinAny, CompileTimeType, ParseDestructuringField, SymbolDefinition } from '../syntax-tree.js';

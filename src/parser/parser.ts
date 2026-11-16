@@ -40,14 +40,12 @@ import {
 	discardName,
 } from '../syntax-tree.js';
 import {
-	executingDirectory,
 	Extension,
 	isNonEmpty,
 	isTestFilePath,
 	isValidExtension,
 	last,
 	mapNonEmpty,
-	readTextFile,
 } from '../util.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
 import { getCommentDirectiveError, isDirectiveCommentText, parseIgnoreComments } from './comment-directives.js';
@@ -63,7 +61,7 @@ import {
 	checkTopLevelStatements,
 	julHasDefaultExport,
 } from './parser-utils.js';
-import { basename, dirname, extname, join } from 'path';
+import { basename, dirname, extname, join } from '../path-util.js';
 import { _parseJson, JsonValue, normalizeRational } from '../runtime/runtime.js';
 import { jsonValueToParsedExpressions } from './json-parser.js';
 import { load } from 'js-yaml';
@@ -95,34 +93,24 @@ function endOfCodeError(searched: string): string {
 	return `End of code reached while looking for ${searched}`;
 }
 
-const coreLibFileName = 'core-lib.jul';
-export const coreLibPath = join(executingDirectory, 'runtime', coreLibFileName);
+export const coreLibFileName = 'core-lib.jul';
 
 /**
  * Ist die Datei die core-lib?
  * Die core-lib definiert die builtInSymbols selbst und muss daher ohne oberen Scope gecheckt
  * werden, sonst stünde ihre Symboltabelle doppelt im Scope Stack.
  *
- * Erkennung über den Dateinamen und nicht über coreLibPath: der Sprachserver läuft aus dem out
+ * Erkennung über den Dateinamen und nicht über den Pfad (coreLibPath in node-host.ts): der Sprachserver läuft aus dem out
  * Verzeichnis der installierten Extension, im Editor wird aber die Quelldatei aus dem Repo
  * geöffnet. Von der Extension aus ist deren Pfad nicht ableitbar, ein Pfadvergleich würde die
  * Quelldatei also nie erkennen.
  */
 export function isCoreLibPath(filePath: string): boolean {
-	// unter win32 sind Dateinamen case insensitiv
-	const fileName = process.platform === 'win32'
+	// unter win32 sind Dateinamen case insensitiv, im Browser gibt es kein process
+	const fileName = typeof process !== 'undefined' && process.platform === 'win32'
 		? basename(filePath).toLowerCase()
 		: basename(filePath);
 	return fileName === coreLibFileName;
-}
-
-/**
- * @throws Wirft Error wenn Datei nicht gelesen werden kann.
- */
-export function parseFile(filePath: string): ParsedFile {
-	const code = readTextFile(filePath);
-	const result = parseCode(code, filePath);
-	return result;
 }
 
 /**
