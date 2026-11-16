@@ -220,9 +220,11 @@ Umgesetzt, mit diesen Abweichungen und Ergänzungen:
   passende Theme-Regel in der Standardfarbe, statt die Farbe der Grammatik zu lassen, und die
   Playgrounds sähen anders aus als die statischen Blöcke daneben. Bräuchte eigene Theme-Regeln je
   Tokentyp, aus den Scopes der Shiki-Themes abgeleitet.
-- **Aufgefallen, nicht behoben:** Umbenennen eines importierten Namens ohne Alias ändert nur die
-  importierende Datei und bricht den Import (auch in VSCode, schon vor dem Umbau so). Die
-  Signaturhilfe kommt in `f(` und `f()`, aber nicht mit dem Cursor hinter einem Argument (`f(2`).
+- **Rename aus YAML/JSON:** Ein importierter Schlüssel einer Datendatei wurde nur lokal umbenannt
+  und brach den Import. Jetzt schreibt der Rename einen Alias (`(gruss = greeting) = import(…)`),
+  die Datendatei bleibt (sie hat ohnehin keine Positionen, siehe `TODO`).
+- **Aufgefallen, offen (`TODO`):** Die Signaturhilfe kommt in `f(` und `f()`, aber nicht, sobald
+  ein Argument dasteht.
 
 ### 5. Tests im Playground
 

@@ -19,6 +19,11 @@
 	die vom parameter abhängen (im rumpf), prädikate. setzt auf docs/three-valued-assignability.md auf
 	(abschnitt "Anschluss: Warnung bei unknown"), voraussetzung ist dort phase 2
 -language features für embedded languages: regex, ts, js
+-positionen für .yaml/.json: der syntaxbaum entsteht aus dem geparsten wert (jsonValueToParsedExpressions),
+	alle knoten stehen auf 0:0. gehe zu definition auf einen schlüssel landet in zeile 1, ein json-fehler
+	hat keine stelle. bräuchte einen yaml-parser mit positionen (paket yaml statt js-yaml) und einen eigenen
+	weg für json. rename von der importierenden seite schreibt bewusst einen alias und lässt die datei stehen
+-signaturhilfe kommt nur bei leeren klammern (f( und f()), mit argument (f(2, f(2)) nicht mehr
 -userland pure nativefunctions falten
 -debug mode: throw bei violated type guards (assume und assert prüft jul test schon). schalter für normale
 	builds ist checkAssertions in der jul-config.yaml
