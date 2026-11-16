@@ -454,4 +454,4 @@ subscribeEvent: (   element: Any   event: Text   listener: () :> Any ) ~> Empty
 addHtml: (html: Text) ~> Any
 removeElement: (element: Any) ~> Any
 subscribeEvent: (   listener: (     sender: Any     event: Text   ) :> Any ) ~> Any
-todoItemHtml: §<div> 	<input type="checkbox"> 	<input> 	<button onclick="emit(this, 'delete')">x</button> </div> §
+todoItemHtml: §<div> 	<input type="checkbox"> 	<input> 	<button onclick="emit(this, 'delete')">x</button> </div>§

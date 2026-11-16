@@ -67,10 +67,19 @@ describe('Parser', () => {
 		expectTextValue('§regex\n\t^(a)\n\t# Kommentar\n\t(b)\n§', '^(a)(b)');
 	});
 	it('text-multiline-skips-comment-lines', () => {
-		expectTextValue('§\n\ta\n\t# Kommentar\n\tb\n§', 'a\nb\n');
+		expectTextValue('§\n\ta\n\t# Kommentar\n\tb\n§', 'a\nb');
+	});
+	it('text-multiline-has-no-trailing-newline', () => {
+		expectTextValue('§\n\ta\n\tb\n§', 'a\nb');
+	});
+	it('text-multiline-trailing-comment-line-adds-no-newline', () => {
+		expectTextValue('§\n\ta\n\t# Kommentar\n§', 'a');
+	});
+	it('text-multiline-empty-last-line-adds-trailing-newline', () => {
+		expectTextValue('§\n\ta\n\n§', 'a\n');
 	});
 	it('text-multiline-js-keeps-newlines', () => {
-		expectTextValue('§js\n\ta\n\tb\n§', 'a\nb\n');
+		expectTextValue('§js\n\ta\n\tb\n§', 'a\nb');
 	});
 	it('definition-with-literal-type-guard', () => {
 		expectParse('a: 4 = 4');

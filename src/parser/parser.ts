@@ -2005,6 +2005,9 @@ function multilineTextParser(
 	if (result.parsed) {
 		languageIdentifier = result.parsed.languageIdentifier;
 		const isRegex = languageIdentifier === 'regex';
+		// Zeilen werden durch Umbrüche getrennt, der Umbruch vor dem schließenden § gehört nicht zum
+		// Text. Eine Leerzeile davor ergibt einen Umbruch am Ende.
+		let isFirstLine = true;
 		result.parsed.lines.forEach(line => {
 			if (isRegex) {
 				// Ein Regex ist ein Pattern, kein Text mit Zeilen: Zeilen ohne Umbruch und ohne
@@ -2020,21 +2023,26 @@ function multilineTextParser(
 				// Kommentarzeile, gehört samt Zeilenumbruch nicht zum Text
 				return;
 			}
-			if (line) {
-				values.push(...line);
-			}
-			const tail = last(values);
-			if (tail?.type === 'textToken') {
-				// Ersetzen statt anhängen: Der Token kann aus einem Teilergebnis stammen, das der Parser
-				// mehrfach durchläuft (siehe setParentsAndIds).
-				values[values.length - 1] = { ...tail, value: tail.value + '\n' };
+			if (isFirstLine) {
+				isFirstLine = false;
 			}
 			else {
-				const textToken: TextToken = {
-					type: 'textToken',
-					value: '\n'
-				};
-				values.push(textToken);
+				const tail = last(values);
+				if (tail?.type === 'textToken') {
+					// Ersetzen statt anhängen: Der Token kann aus einem Teilergebnis stammen, das der Parser
+					// mehrfach durchläuft (siehe setParentsAndIds).
+					values[values.length - 1] = { ...tail, value: tail.value + '\n' };
+				}
+				else {
+					const textToken: TextToken = {
+						type: 'textToken',
+						value: '\n'
+					};
+					values.push(textToken);
+				}
+			}
+			if (line) {
+				values.push(...line);
 			}
 		});
 	}

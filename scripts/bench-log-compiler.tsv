@@ -596,3 +596,9 @@
 2026-11-16 15:43:00	389d024+	-	ADV-DEV-56627	yugioh	parse+check	5	30560.24	36965.30	36965.30	nach: Kommentarzeilen in mehrzeiligem Text
 2026-11-16 15:43:00	389d024+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1388.11	1512.81	1512.81	nach: Kommentarzeilen in mehrzeiligem Text
 2026-11-16 15:43:00	389d024+	-	ADV-DEV-56627	yugioh	parse	5	133.75	142.68	142.68	nach: Kommentarzeilen in mehrzeiligem Text
+2026-11-16 15:52:25	e4a87fb+	-	ADV-DEV-56627	yugioh	parse+check	5	21990.16	30137.90	30137.90	vor: mehrzeiliger Text ohne Umbruch am Ende
+2026-11-16 15:52:25	e4a87fb+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	2533.13	2648.51	2648.51	vor: mehrzeiliger Text ohne Umbruch am Ende
+2026-11-16 15:52:25	e4a87fb+	-	ADV-DEV-56627	yugioh	parse	5	209.50	235.22	235.22	vor: mehrzeiliger Text ohne Umbruch am Ende
+2026-11-16 15:57:45	e4a87fb+	-	ADV-DEV-56627	yugioh	parse+check	5	21848.29	28376.12	28376.12	nach: mehrzeiliger Text ohne Umbruch am Ende
+2026-11-16 15:57:45	e4a87fb+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1282.93	1341.05	1341.05	nach: mehrzeiliger Text ohne Umbruch am Ende
+2026-11-16 15:57:45	e4a87fb+	-	ADV-DEV-56627	yugioh	parse	5	122.64	128.94	128.94	nach: mehrzeiliger Text ohne Umbruch am Ende
