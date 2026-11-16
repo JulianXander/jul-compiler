@@ -319,7 +319,7 @@ Umgesetzt: Suche. `@easyops-cn/docusaurus-search-local` als Theme, Index je Spra
 Indiziert sind die Docs, nicht die Startseite. Treffer einzelner Abschnitte (Fehlercodes,
 Handbuch-Überschriften) und eine eigene Ergebnisseite unter `/search`.
 
-Umgesetzt: Gerüst des Tutorials. Neun Kapitelseiten unter `docs/tutorial` in der Reihenfolge aus
+Umgesetzt: Gerüst des Tutorials. Sieben Kapitelseiten unter `docs/tutorial` in der Reihenfolge aus
 Schritt 7, noch ohne Inhalt, eigene Sidebar und Navbar-Eintrag „Tutorial“ vorn. Offen in Schritt 6
 sind die Beispielseiten.
 
@@ -328,9 +328,12 @@ sind die Beispielseiten.
 - Kapitel als Docs-Seiten unter `docs/tutorial`, jedes mit kurzer Erklärung, Playground und Übung.
 - **Übungen** mit „Prüfen“-Knopf: Unter der Lösung steht die schreibgeschützte
   Testdatei, der Playground führt Lösung und Tests zusammen aus (Schritt 5).
-- Reihenfolge der Kapitel grob: Werte und Text, Funktionen und Aufrufe, Klammern (Bindung vs.
-  Daten), Listen und Dictionaries, Typen und `Empty`, Branching mit `?`, Records und Tupel,
-  Tests, Streams.
+- Reihenfolge der Kapitel grob: Werte und Text, Funktionen und Aufrufe, Listen und
+  Dictionaries, Typen und `Empty`, Branching mit `?`, Tests, Streams.
+- Klammern kein eigenes Kapitel: Runde Klammern kommen mit Aufrufen und Parametern, eckige mit
+  Listen und Dictionaries.
+- Records und Tupel kein eigenes Kapitel: Sie sind die Typen zu Dictionaries und Listen und stehen
+  bei „Typen und `Empty`“ zusammen mit `List(X)` und `Dictionary(X)`.
 - Inhalte folgen den Regeln für `jul-homepage/docs`: Verhalten mit Beispiel, keine Begründungen.
 - Übersetzung nach `i18n/en` erst, wenn die deutschen Kapitel stehen.
 
