@@ -590,3 +590,9 @@
 2026-11-16 13:58:31	0e3eab0+	-	ADV-DEV-56627	yugioh	parse+check	5	20700.67	21050.36	21050.36	nach Tests im Playground (Mappings aus emitToJs, ErrorLocator)
 2026-11-16 13:58:31	0e3eab0+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1148.99	1220.18	1220.18	nach Tests im Playground (Mappings aus emitToJs, ErrorLocator)
 2026-11-16 13:58:31	0e3eab0+	-	ADV-DEV-56627	yugioh	parse	5	118.03	140.97	140.97	nach Tests im Playground (Mappings aus emitToJs, ErrorLocator)
+2026-11-16 15:40:21	389d024+	-	ADV-DEV-56627	yugioh	parse+check	5	22425.44	23732.24	23732.24	vor: Kommentarzeilen in mehrzeiligem Text
+2026-11-16 15:40:21	389d024+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1266.77	1337.55	1337.55	vor: Kommentarzeilen in mehrzeiligem Text
+2026-11-16 15:40:21	389d024+	-	ADV-DEV-56627	yugioh	parse	5	127.57	142.23	142.23	vor: Kommentarzeilen in mehrzeiligem Text
+2026-11-16 15:43:00	389d024+	-	ADV-DEV-56627	yugioh	parse+check	5	30560.24	36965.30	36965.30	nach: Kommentarzeilen in mehrzeiligem Text
+2026-11-16 15:43:00	389d024+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1388.11	1512.81	1512.81	nach: Kommentarzeilen in mehrzeiligem Text
+2026-11-16 15:43:00	389d024+	-	ADV-DEV-56627	yugioh	parse	5	133.75	142.68	142.68	nach: Kommentarzeilen in mehrzeiligem Text

@@ -66,6 +66,9 @@ describe('Parser', () => {
 	it('text-multiline-regex-skips-comment-lines', () => {
 		expectTextValue('§regex\n\t^(a)\n\t# Kommentar\n\t(b)\n§', '^(a)(b)');
 	});
+	it('text-multiline-skips-comment-lines', () => {
+		expectTextValue('§\n\ta\n\t# Kommentar\n\tb\n§', 'a\nb\n');
+	});
 	it('text-multiline-js-keeps-newlines', () => {
 		expectTextValue('§js\n\ta\n\tb\n§', 'a\nb\n');
 	});

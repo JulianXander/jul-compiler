@@ -2016,7 +2016,11 @@ function multilineTextParser(
 				}
 				return;
 			}
-			if (typeof line === 'object') {
+			if (typeof line === 'string') {
+				// Kommentarzeile, gehört samt Zeilenumbruch nicht zum Text
+				return;
+			}
+			if (line) {
 				values.push(...line);
 			}
 			const tail = last(values);
