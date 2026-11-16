@@ -280,7 +280,7 @@ Umgesetzt, mit diesen Abweichungen und Ergänzungen:
   (`equal(fibonacci(12) 145)`). Zur Laufzeit scheitern nur Tests mit Werten, die er nicht kennt.
 - Das Testbeispiel im Handbuch (Abschnitt Tests) ist ein Playground mit `fibonacci.test.jul` und
   `fibonacci.jul`.
-- Offen: Beispielseiten mit statisch aufgenommener Testausgabe gehören zu Schritt 6. Ein Abbruch
+- Offen: Ein Abbruch
   nach 3 s markiert den laufenden Test nicht, die nicht gelaufenen bleiben offen (○).
 
 ### 6. Aufbau der Seite
@@ -320,8 +320,20 @@ Indiziert sind die Docs, nicht die Startseite. Treffer einzelner Abschnitte (Feh
 Handbuch-Überschriften) und eine eigene Ergebnisseite unter `/search`.
 
 Umgesetzt: Gerüst des Tutorials. Sieben Kapitelseiten unter `docs/tutorial` in der Reihenfolge aus
-Schritt 7, noch ohne Inhalt, eigene Sidebar und Navbar-Eintrag „Tutorial“ vorn. Offen in Schritt 6
-sind die Beispielseiten.
+Schritt 7, noch ohne Inhalt, eigene Sidebar und Navbar-Eintrag „Tutorial“ vorn.
+
+Umgesetzt: Beispielseiten, mit diesen Abweichungen:
+
+- `scripts/generate-examples.mjs` in `jul-homepage/docs` erzeugt `docs/examples` (Übersicht und je
+  Kategorie ein Ordner) und `static/examples` (Oberflächen), beide nicht eingecheckt. Es läuft vor
+  `start`, `start-en` und `build` und bricht ab, wenn ein Beispiel nicht baut, nicht läuft oder
+  Tests nicht bestehen.
+- Auf die Seite kommt ein Projekt aus `jul-examples` mit einer `README.md` mit Frontmatter
+  (`category`, optional `files`, `html`, `height`), Überschrift als Titel, Text darunter als
+  Aufgabe, der erste Satz steht in der Übersicht. Ohne Frontmatter bleibt die README intern.
+- **Keine feste Ausgabe:** Konsolenbeispiele stehen als Playground da, der die Ausgabe selbst zeigt.
+  Oberflächen zeigen den Code statisch (der Playground hat kein DOM) und darüber die gebaute Seite
+  im iframe.
 
 ### 7. Tutorial-Inhalte
 
