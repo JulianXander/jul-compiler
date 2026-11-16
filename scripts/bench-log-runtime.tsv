@@ -912,3 +912,41 @@
 2026-11-15 13:47:40	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	20.47	22.38	22.38	nachher: parseInteger Number mit isSafeInteger nur bis 17 Zeichen
 2026-11-15 13:47:40	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/hugeInteger	15	103.31	109.01	109.01	nachher: parseInteger Number mit isSafeInteger nur bis 17 Zeichen
 2026-11-15 13:47:40	9b93cbe+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	54.02	59.51	59.51	nachher: parseInteger Number mit isSafeInteger nur bis 17 Zeichen
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	64.21	67.90	67.90	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	90.06	97.29	97.29	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	331.52	449.59	449.59	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	5166.85	6511.00	6511.00	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	5.43	6.05	6.05	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	6.15	7.10	7.10	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	5.99	6.75	6.75	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	6.58	9.82	9.82	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	6.47	6.87	6.87	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	6.29	6.69	6.69	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/notGuard	15	6.21	6.51	6.51	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/notRecordGuard	15	5.63	6.40	6.40	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	5.64	6.53	6.53	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	5.77	6.54	6.54	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	5.77	7.23	7.23	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	6.41	6.88	6.88	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	6.71	6.94	6.94	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	5.30	8.90	8.90	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	6.50	10.14	10.14	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	276.00	298.78	298.78	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	32.98	38.98	38.98	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	129.45	137.70	137.70	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	100.27	111.65	111.65	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	22.58	27.57	27.57	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	26.35	32.08	32.08	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	21.38	24.21	24.21	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	33.75	39.27	39.27	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	19.83	22.52	22.52	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	33.95	41.12	41.12	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	6.77	8.40	8.40	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	object-shapes/sumAtk	15	70.13	74.26	74.26	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	object-shapes/attackRound	15	1121.84	1196.77	1196.77	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	json/small	15	3835.78	4077.49	4077.49	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	json/large	15	3893776.00	4038550.00	4038550.00	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	json/texts	15	440636.50	462820.00	462820.00	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	23.88	26.47	26.47	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	parsing/hugeInteger	15	108.38	122.83	122.83	Bench auf number-Integer umgestellt
+2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	58.11	69.03	69.03	Bench auf number-Integer umgestellt
