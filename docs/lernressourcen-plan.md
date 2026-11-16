@@ -302,6 +302,18 @@ Vorlage ist roc-lang.org:
   geprüft wurde. Quelle sind die Projekte in `jul-examples`, die Seite wird daraus erzeugt, nicht
   von Hand kopiert, und beim Erzeugen gebaut und ausgeführt, damit kein Beispiel veraltet.
 
+Umgesetzt: Startseite und Farbmodus.
+
+- **Immer dunkel.** `colorMode` ohne Umschalter, ein Shiki-Theme (`github-dark`) für statische
+  Blöcke und Monaco. Logo und Farben sind für dunklen Grund gemacht, und jede Farbe müsste sonst
+  in zwei Modi gepflegt werden.
+- **Startseite:** schwarzer Kopf mit dem animierten Logo aus `jul-homepage/jul.html` (Komponente
+  `JulLogo`, eindeutige Ids über `useId`, steht bei „Bewegung reduzieren“ still), darunter ein
+  Playground mit einem Snippet und Knöpfe zu Schnellstart und Handbuch. Die Vorlage
+  (`HomepageFeatures`, Vorlagenbilder) ist entfernt. Das Snippet soll durch einen Ausschnitt aus
+  dem ersten Tutorial-Kapitel ersetzt werden, ein Knopf zum Tutorial kommt mit dem Tutorial.
+- Die Texte der Startseite sind noch nicht übersetzt, unter `/en` stehen sie deutsch.
+
 ### 7. Tutorial-Inhalte
 
 - Kapitel als Docs-Seiten unter `docs/tutorial`, jedes mit kurzer Erklärung, Playground und Übung.
