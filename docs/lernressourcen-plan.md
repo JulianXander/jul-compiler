@@ -308,16 +308,20 @@ Umgesetzt: Startseite und Farbmodus.
   Blöcke und Monaco. Logo und Farben sind für dunklen Grund gemacht, und jede Farbe müsste sonst
   in zwei Modi gepflegt werden.
 - **Startseite:** schwarzer Kopf mit dem animierten Logo aus `jul-homepage/jul.html` (Komponente
-  `JulLogo`, eindeutige Ids über `useId`, steht bei „Bewegung reduzieren“ still), darunter ein
-  Playground mit einem Snippet und Knöpfe zu Schnellstart und Handbuch, darunter die drei
-  Merkmale „Einfach“, „Stabil“, „Mächtig“ (`HomepageFeatures`). Das Snippet soll durch einen Ausschnitt aus
-  dem ersten Tutorial-Kapitel ersetzt werden, ein Knopf zum Tutorial kommt mit dem Tutorial.
+  `JulLogo`, eindeutige Ids über `useId`, steht bei „Bewegung reduzieren“ still), darunter die
+  drei Merkmale „Einfach“, „Stabil“, „Mächtig“ (`HomepageFeatures`), Knöpfe zu Tutorial,
+  Schnellstart und Handbuch und ein Playground mit einem Snippet. Das Snippet soll durch einen
+  Ausschnitt aus dem ersten Tutorial-Kapitel ersetzt werden.
 - Die Texte der Startseite sind noch nicht übersetzt, unter `/en` stehen sie deutsch.
 
 Umgesetzt: Suche. `@easyops-cn/docusaurus-search-local` als Theme, Index je Sprache beim Build
 (`search-index.json`, je etwa 380 kB), durchsucht im Browser mit lunr für Deutsch und Englisch.
 Indiziert sind die Docs, nicht die Startseite. Treffer einzelner Abschnitte (Fehlercodes,
 Handbuch-Überschriften) und eine eigene Ergebnisseite unter `/search`.
+
+Umgesetzt: Gerüst des Tutorials. Neun Kapitelseiten unter `docs/tutorial` in der Reihenfolge aus
+Schritt 7, noch ohne Inhalt, eigene Sidebar und Navbar-Eintrag „Tutorial“ vorn. Offen in Schritt 6
+sind die Beispielseiten.
 
 ### 7. Tutorial-Inhalte
 
