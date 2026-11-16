@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { BracketedExpression, DefinitionExpression, forEachChild, ParseFunctionCall, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseBranching, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseReference, ParseSingleDictionaryField, ParseSingleDefinition, ParseSingleDictionaryTypeField, ParseValueExpression, PositionedExpression, SymbolDefinition } from '../syntax-tree.js';
+import { BracketedExpression, DefinitionExpression, forEachChild, ParseFunctionCall, ParseDictionaryLiteral, ParseDictionaryTypeLiteral, ParseExpression, ParseBranching, ParseFunctionLiteral, ParseFunctionTypeLiteral, ParseListLiteral, ParseNestedReference, ParseParameterFields, ParseReference, ParseSingleDictionaryField, ParseSingleDefinition, ParseSingleDictionaryTypeField, ParseValueExpression, PositionedExpression, SymbolDefinition } from '../syntax-tree.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { isCoreLibPath, parseCode } from './parser.js';
 import { coreLibPath, parseFile } from '../compiler/node-host.js';
@@ -1960,6 +1960,60 @@ describe('_', () => {
 });
 
 //#endregion Branching als Anweisung und _
+
+//#region Leerzeichen um : und =
+
+describe('Leerzeichen um : und =', () => {
+	it('fehlendes Leerzeichen nach :', () => {
+		expectErrorStarts('f = (a:Text) => 1', [
+			[ErrorCode.operatorSpacing, 0, 6],
+		]);
+	});
+	it('Leerzeichen vor : statt danach', () => {
+		expectErrorStarts('f = (a :Text) => 1', [
+			[ErrorCode.operatorSpacing, 0, 6],
+		]);
+	});
+	it('Leerzeichen vor und nach :', () => {
+		expectErrorStarts('f = (a : Text) => 1', [
+			[ErrorCode.operatorSpacing, 0, 6],
+		]);
+	});
+	it('zwei Leerzeichen nach :', () => {
+		expectErrorStarts('f = (a:  Text) => 1', [
+			[ErrorCode.operatorSpacing, 0, 6],
+		]);
+	});
+	it('der Typ hinter : ohne Leerzeichen wird trotzdem geparst', () => {
+		const parsed = parseCode('f = (a:Text) => 1', 'dummy.jul');
+		const functionLiteral = (parsed.syntax.expressions![0] as ParseSingleDefinition).value as ParseFunctionLiteral;
+		const params = functionLiteral.params as ParseParameterFields;
+		const typeGuard = params.singleFields[0]!.typeGuard as ParseReference;
+		expect(typeGuard.name.name).to.equal('Text');
+	});
+	it('= ohne Leerzeichen', () => {
+		expectErrorStarts('x=1', [
+			[ErrorCode.operatorSpacing, 0, 1],
+		]);
+	});
+	it('= ohne Leerzeichen danach', () => {
+		expectErrorStarts('x =1', [
+			[ErrorCode.operatorSpacing, 0, 1],
+		]);
+	});
+	it('= ohne Leerzeichen davor', () => {
+		expectErrorStarts('x= 1', [
+			[ErrorCode.operatorSpacing, 0, 1],
+		]);
+	});
+	it('= ohne Leerzeichen im Dictionary', () => {
+		expectErrorStarts('x = [a=1]', [
+			[ErrorCode.operatorSpacing, 0, 6],
+		]);
+	});
+});
+
+//#endregion Leerzeichen um : und =
 
 describe('Parser default-Export', () => {
 	const expectHasDefaultExport = reportAtCaller((code: string, filePath: string, hasDefaultExport: boolean) => {

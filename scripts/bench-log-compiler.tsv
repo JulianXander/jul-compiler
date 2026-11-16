@@ -572,3 +572,6 @@
 2026-11-16 10:29:29	05717b1+	-	ADV-DEV-56627	yugioh	parse+check	5	18211.96	20285.26	20285.26	path-util statt import path
 2026-11-16 10:29:29	05717b1+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1008.51	1075.06	1075.06	path-util statt import path
 2026-11-16 10:29:29	05717b1+	-	ADV-DEV-56627	yugioh	parse	5	107.49	109.29	109.29	path-util statt import path
+2026-11-16 12:42:32	59ada3f+	-	ADV-DEV-56627	yugioh	parse+check	5	19134.59	19898.26	19898.26	Leerzeichen um : und = gezielt melden
+2026-11-16 12:42:32	59ada3f+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1231.31	1350.97	1350.97	Leerzeichen um : und = gezielt melden
+2026-11-16 12:42:32	59ada3f+	-	ADV-DEV-56627	yugioh	parse	5	117.43	164.81	164.81	Leerzeichen um : und = gezielt melden

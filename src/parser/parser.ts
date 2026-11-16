@@ -1207,6 +1207,78 @@ function checkOptionalNotAllowed(field: ParseFieldBase, errors: CompilerError[])
 	}
 }
 
+interface FieldOperator {
+	/**
+	 * Spalte des Operanden hinter dem Operator und seinen Leerzeichen.
+	 */
+	operandColumnIndex: number;
+	/**
+	 * Die Leerzeichen um den Operator stimmen: ': ' ohne Leerzeichen davor, ' = ' mit je einem.
+	 */
+	wellSpaced: boolean;
+}
+
+/**
+ * Sucht ':' bzw. '=' hinter dem Namen eines Felds an columnIndex, auch mit fehlenden oder
+ * überzähligen Leerzeichen, damit der Parser einen gezielten Fehler meldet und dahinter weiterparst.
+ * ':>' und '=>' sind Pfeile, keine Feldoperatoren.
+ */
+function findFieldOperator(
+	row: string | undefined,
+	columnIndex: number,
+	operator: ':' | '=',
+): FieldOperator | undefined {
+	if (row === undefined) {
+		return undefined;
+	}
+	let operatorColumnIndex = columnIndex;
+	while (row[operatorColumnIndex] === ' ') {
+		operatorColumnIndex++;
+	}
+	if (row[operatorColumnIndex] !== operator || row[operatorColumnIndex + 1] === '>') {
+		return undefined;
+	}
+	let operandColumnIndex = operatorColumnIndex + 1;
+	while (row[operandColumnIndex] === ' ') {
+		operandColumnIndex++;
+	}
+	const operandStart = row[operandColumnIndex];
+	if (operandStart === undefined || operandStart === ')' || operandStart === ']') {
+		// Operand fehlt: Nur die richtige Schreibweise gilt, dann meldet der Aufrufer den fehlenden Wert.
+		const wellSpacedOperator = operator === '=' ? ' = ' : ': ';
+		return row.startsWith(wellSpacedOperator, columnIndex)
+			? { operandColumnIndex: columnIndex + wellSpacedOperator.length, wellSpaced: true }
+			: undefined;
+	}
+	const spacesBefore = operatorColumnIndex - columnIndex;
+	const spacesAfter = operandColumnIndex - operatorColumnIndex - 1;
+	return {
+		operandColumnIndex: operandColumnIndex,
+		wellSpaced: spacesBefore === (operator === '=' ? 1 : 0) && spacesAfter === 1,
+	};
+}
+
+function getOperatorSpacingErrors(
+	found: FieldOperator,
+	rowIndex: number,
+	columnIndex: number,
+	operator: ':' | '=',
+): CompilerError[] | undefined {
+	if (found.wellSpaced) {
+		return undefined;
+	}
+	return [{
+		code: ErrorCode.operatorSpacing,
+		message: operator === '='
+			? `Expected exactly one space before and after '=': a = 1`
+			: `Expected no space before and exactly one space after ':': a: Text`,
+		startRowIndex: rowIndex,
+		startColumnIndex: columnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: found.operandColumnIndex,
+	}];
+}
+
 function fieldParser(
 	rows: string[],
 	startRowIndex: number,
@@ -1233,13 +1305,16 @@ function fieldParser(
 	}
 	// b?: X, das ? gehört zum Feld (nur der Dictionary-Typ erlaubt es)
 	let optional = false;
-	if (rows[rowIndex]?.startsWith('?: ', columnIndex)) {
+	if (rows[rowIndex]?.startsWith('?', columnIndex)
+		&& findFieldOperator(rows[rowIndex], columnIndex + 1, ':')) {
 		optional = true;
 		columnIndex += 1;
 	}
 	let typeGuard: ParseValueExpression | undefined;
-	if (rows[rowIndex]?.startsWith(': ', columnIndex)) {
-		const typeGuardResult = valueExpressionParser(rows, rowIndex, columnIndex + 2, indent);
+	const colon = findFieldOperator(rows[rowIndex], columnIndex, ':');
+	if (colon) {
+		errors = mergeErrors(errors, getOperatorSpacingErrors(colon, rowIndex, columnIndex, ':'));
+		const typeGuardResult = valueExpressionParser(rows, rowIndex, colon.operandColumnIndex, indent);
 		errors = mergeErrors(errors, typeGuardResult.errors);
 		rowIndex = typeGuardResult.endRowIndex;
 		columnIndex = typeGuardResult.endColumnIndex;
@@ -1255,9 +1330,11 @@ function fieldParser(
 	}
 	let definition = false;
 	let assignedValue: ParseValueExpression | undefined;
-	if (rows[rowIndex]?.startsWith(' = ', columnIndex)) {
+	const equals = findFieldOperator(rows[rowIndex], columnIndex, '=');
+	if (equals) {
 		definition = true;
-		columnIndex += 3;
+		errors = mergeErrors(errors, getOperatorSpacingErrors(equals, rowIndex, columnIndex, '='));
+		columnIndex = equals.operandColumnIndex;
 		const valueResult = valueExpressionParser(rows, rowIndex, columnIndex, indent);
 		if (valueResult.hasParsed) {
 			errors = mergeErrors(errors, valueResult.errors);
