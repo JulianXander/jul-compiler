@@ -314,6 +314,11 @@ Umgesetzt: Startseite und Farbmodus.
   dem ersten Tutorial-Kapitel ersetzt werden, ein Knopf zum Tutorial kommt mit dem Tutorial.
 - Die Texte der Startseite sind noch nicht übersetzt, unter `/en` stehen sie deutsch.
 
+Umgesetzt: Suche. `@easyops-cn/docusaurus-search-local` als Theme, Index je Sprache beim Build
+(`search-index.json`, je etwa 380 kB), durchsucht im Browser mit lunr für Deutsch und Englisch.
+Indiziert sind die Docs, nicht die Startseite. Treffer einzelner Abschnitte (Fehlercodes,
+Handbuch-Überschriften) und eine eigene Ergebnisseite unter `/search`.
+
 ### 7. Tutorial-Inhalte
 
 - Kapitel als Docs-Seiten unter `docs/tutorial`, jedes mit kurzer Erklärung, Playground und Übung.
