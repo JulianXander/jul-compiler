@@ -827,9 +827,9 @@ describe('Parser', () => {
 				},
 				{
 					"code": ErrorCode.unparsedRestOfRow,
-					"endColumnIndex": 3,
+					"endColumnIndex": 4,
 					"endRowIndex": 0,
-					"message": "multilineParser should parse until end of row",
+					"message": "Unexpected '1'. Expected end of row.",
 					"startColumnIndex": 3,
 					"startRowIndex": 0,
 				},
@@ -2091,6 +2091,44 @@ describe('Leerzeichen um Pfeile', () => {
 });
 
 //#endregion Leerzeichen um : und =
+
+//#region Rest der Zeile
+
+/**
+ * Erwartet genau einen unparsedRestOfRow-Fehler mit dieser Meldung und diesem Bereich.
+ */
+const expectRestOfRowError = reportAtCaller((
+	code: string,
+	[message, row, startColumn, endColumn]: [message: string, row: number, startColumn: number, endColumn: number],
+) => {
+	const errors = parseCode(code, 'dummy.jul').syntax.errors
+		.filter(error => error.code === ErrorCode.unparsedRestOfRow)
+		.map(error => [error.message, error.startRowIndex, error.startColumnIndex, error.endColumnIndex]);
+	expect(errors).to.deep.equal([[message, row, startColumn, endColumn]]);
+});
+
+describe('Rest der Zeile', () => {
+	it('zweiter Ausdruck in der Zeile', () => {
+		expectRestOfRowError('x = 1 2', [`Unexpected ' '. Expected end of row.`, 0, 5, 7]);
+	});
+	it('Infix-Operator', () => {
+		expectRestOfRowError('x = a+b', [`Unexpected '+'. Expected end of row.`, 0, 5, 7]);
+	});
+	it('Semikolon am Zeilenende', () => {
+		expectRestOfRowError('x = 1;', [`Unexpected ';'. Expected end of row.`, 0, 5, 6]);
+	});
+	it('zweiter Aufruf in der Zeile', () => {
+		expectRestOfRowError('x = f(1) g(2)', [`Unexpected ' '. Expected end of row.`, 0, 8, 13]);
+	});
+	it('Leerzeichen am Zeilenende', () => {
+		expectRestOfRowError('x = 1 ', [`Unexpected ' '. Expected end of row.`, 0, 5, 6]);
+	});
+	it('Rest hinter dem Rumpf einer Pfeilzeile', () => {
+		expectRestOfRowError('f = (a: Integer)\n\t=> a b', [`Unexpected ' '. Expected end of row.`, 1, 5, 7]);
+	});
+});
+
+//#endregion Rest der Zeile
 
 describe('Parser default-Export', () => {
 	const expectHasDefaultExport = reportAtCaller((code: string, filePath: string, hasDefaultExport: boolean) => {

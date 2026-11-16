@@ -813,14 +813,7 @@ function multilineBlock<T>(
 					errors: errors,
 				};
 			}
-			errors.push({
-				code: ErrorCode.unparsedRestOfRow,
-				message: 'multilineParser should parse until end of row',
-				startRowIndex: rowIndex,
-				startColumnIndex: result.endColumnIndex,
-				endRowIndex: rowIndex,
-				endColumnIndex: result.endColumnIndex,
-			});
+			errors.push(unparsedRestOfRowError(endRow, rowIndex, result.endColumnIndex));
 			// fehlerhafte Zeile überspringen und in nächster Zeile weiterparsen
 			continue;
 		}
@@ -1172,6 +1165,21 @@ function indexParser(
  * Verkettet zwei Fehlerlisten: undefined bleibt undefined, eine einzelne Liste
  * wird weitergereicht.
  */
+/**
+ * Der Ausdruck endet an columnIndex vor dem Zeilenende. Gemeldet wird das Zeichen dort und der ganze
+ * Rest der Zeile.
+ */
+function unparsedRestOfRowError(row: string, rowIndex: number, columnIndex: number): CompilerError {
+	return {
+		code: ErrorCode.unparsedRestOfRow,
+		message: `Unexpected '${row[columnIndex]}'. Expected end of row.`,
+		startRowIndex: rowIndex,
+		startColumnIndex: columnIndex,
+		endRowIndex: rowIndex,
+		endColumnIndex: row.length,
+	};
+}
+
 function mergeErrors(
 	errors: CompilerError[] | undefined,
 	more: CompilerError[] | undefined,
@@ -2648,14 +2656,7 @@ function arrowLinesParser(
 		const endRow = rows[endRowIndex];
 		if (endRow !== undefined && endColumnIndex !== endRow.length) {
 			if (operandResult.hasParsed) {
-				errors.push({
-					code: ErrorCode.unparsedRestOfRow,
-					message: 'Unexpected code after the end of the expression.',
-					startRowIndex: endRowIndex,
-					startColumnIndex: endColumnIndex,
-					endRowIndex: endRowIndex,
-					endColumnIndex: endRow.length,
-				});
+				errors.push(unparsedRestOfRowError(endRow, endRowIndex, endColumnIndex));
 			}
 			endColumnIndex = endRow.length;
 		}

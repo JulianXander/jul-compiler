@@ -8148,11 +8148,11 @@ x`, 'Invalid', [
 			},
 			{
 				code: ErrorCode.unparsedRestOfRow,
-				message: 'multilineParser should parse until end of row',
+				message: `Unexpected '['. Expected end of row.`,
 				startRowIndex: 0,
 				startColumnIndex: 4,
 				endRowIndex: 0,
-				endColumnIndex: 4,
+				endColumnIndex: 9,
 			},
 		]);
 	});
@@ -8177,11 +8177,11 @@ d`, 'Invalid', [
 			},
 			{
 				code: ErrorCode.unparsedRestOfRow,
-				message: 'multilineParser should parse until end of row',
+				message: `Unexpected ' '. Expected end of row.`,
 				startRowIndex: 0,
 				startColumnIndex: 12,
 				endRowIndex: 0,
-				endColumnIndex: 12,
+				endColumnIndex: 15,
 			},
 		]);
 	});

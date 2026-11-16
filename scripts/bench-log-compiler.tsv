@@ -578,3 +578,6 @@
 2026-11-16 12:55:54	8722eff+	-	ADV-DEV-56627	yugioh	parse+check	5	19367.64	19783.38	19783.38	Leerzeichen um Pfeile gezielt melden
 2026-11-16 12:55:54	8722eff+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1111.21	1126.86	1126.86	Leerzeichen um Pfeile gezielt melden
 2026-11-16 12:55:54	8722eff+	-	ADV-DEV-56627	yugioh	parse	5	107.23	107.96	107.96	Leerzeichen um Pfeile gezielt melden
+2026-11-16 13:10:33	7d2a394+	-	ADV-DEV-56627	yugioh	parse+check	5	19662.66	20386.60	20386.60	1102 nennt das gefundene Zeichen
+2026-11-16 13:10:33	7d2a394+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1160.01	1174.28	1174.28	1102 nennt das gefundene Zeichen
+2026-11-16 13:10:33	7d2a394+	-	ADV-DEV-56627	yugioh	parse	5	105.43	111.57	111.57	1102 nennt das gefundene Zeichen

@@ -277,12 +277,12 @@ typeFnLong: (_: BlubType) -> Empty
 typeFnShort: BlubType -> Empty
   error 2105 at 7:31 data literal must use square brackets [ ]
   error 2400 at 19:9 nestedReference is not a valid expression for parameter source.
-  error 1102 at 30:14 multilineParser should parse until end of row
+  error 1102 at 30:14 Unexpected ' '. Expected end of row.
   error 1050 at 31:1 Expected a bracket, number, text or reference.
   error 1050 at 32:1 Expected a bracket, number, text or reference.
   error 1050 at 33:1 Expected a bracket, number, text or reference.
   error 2101 at 35:1 spread not allowed for valueExpression
-  error 1102 at 35:17 multilineParser should parse until end of row
+  error 1102 at 35:17 Unexpected ' '. Expected end of row.
   error 1050 at 36:1 Expected a bracket, number, text or reference.
   error 1050 at 37:1 Expected a bracket, number, text or reference.
   error 5160 at 19:2 Failed to dereference 'myA1' in type [ |   a: [ |     a1: 1 |     b1: 3 |   ] |   b: 2 | ]
@@ -303,19 +303,19 @@ ParserResult: (TypeParam: Text) -> Invalid :> Boolean
 addNums: (T: Boolean) -> (   num1: Boolean   num2: Boolean ) -> Boolean
 myVar: 4
 myVarIsText: Invalid
-  error 1102 at 15:26 multilineParser should parse until end of row
-  error 1102 at 24:8 multilineParser should parse until end of row
-  error 1102 at 30:13 multilineParser should parse until end of row
-  error 1102 at 34:33 multilineParser should parse until end of row
+  error 1102 at 15:26 Unexpected ' '. Expected end of row.
+  error 1102 at 24:8 Unexpected ' '. Expected end of row.
+  error 1102 at 30:13 Unexpected ' '. Expected end of row.
+  error 1102 at 34:33 Unexpected ' '. Expected end of row.
   error 1050 at 35:1 Expected a bracket, number, text or reference.
   error 1050 at 36:1 Expected a bracket, number, text or reference.
   error 1050 at 37:1 Expected a bracket, number, text or reference.
   error 1050 at 38:1 Expected a bracket, number, text or reference.
-  error 1102 at 42:14 multilineParser should parse until end of row
+  error 1102 at 42:14 Unexpected ' '. Expected end of row.
   error 1050 at 43:3 Expected a bracket, number, text or reference.
   error 1050 at 44:3 Expected a bracket, number, text or reference.
   error 1050 at 45:3 Expected a bracket, number, text or reference.
-  error 1102 at 50:14 multilineParser should parse until end of row
+  error 1102 at 50:14 Unexpected '<'. Expected end of row.
   error 2103 at 48:1 definition not allowed for valueExpression
   error 1000 at 59:23 Unexpected character: ) while looking for: (
   error 1000 at 59:44 Unexpected character: ) while looking for: (
