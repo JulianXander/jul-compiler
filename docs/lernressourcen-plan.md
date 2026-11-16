@@ -192,6 +192,38 @@ Voraussetzungen für den Browser:
 - `path` in `auto-import.ts` und `symbol-lookup.ts` wie im Compiler ersetzen.
 - Ein Test-Bundle wie in Schritt 2 sichert ab, dass kein Node-Builtin hineinrutscht.
 
+Umgesetzt, mit diesen Abweichungen und Ergänzungen:
+
+- **Einstieg `jul-language-server/src/browser.ts`:** je Feature eine Funktion auf einem `Workspace`
+  (`documents` + `ReferenceIndex` aus demselben Lauf), Positionen 0-basiert, Dateien als Pfad, nur
+  reine Daten als Ergebnis (sie gehen per `postMessage` aus dem Worker). Im Importpfad schlägt die
+  Vervollständigung die anderen Dateien des Playgrounds vor statt Dateien von der Platte.
+  `browser.ts` des Compilers nimmt dafür einen `referenceIndex` an.
+- **Aus `server.ts` herausgelöst:** `definition.ts` (Gehe zu Definition), `document-symbols.ts`,
+  in `references.ts` die Rename-Ziele (`getTargetsAt`), `getRenameRange` und
+  `getDocumentHighlightLocations`, `isImportPath` nach `symbol-lookup.ts`. Snapshot unverändert.
+- **Imports:** Die Feature-Module importieren aus `vscode-languageserver-types` (jetzt direkte
+  Dependency), `semantic-tokens.ts` kodiert ohne `SemanticTokensBuilder`. `path` nur noch in
+  `server.ts` und `auto-import.ts`, die der Playground nicht braucht.
+- **Absicherung:** `npm run check-browser` im Language Server (in `build-all` des Compilers)
+  bündelt beide Browser-Einstiege und fragt Hover, Vervollständigung, Definition und Referenzen im
+  leeren VM-Kontext ab. Zusammen 404 kB minifiziert, 50 kB mehr als der Compiler allein.
+- **Worker:** Der Compiler-Worker hält je Playground den letzten geprüften Stand. Eine Anfrage
+  bringt den aktuellen Code aller Dateien mit; weicht er ab (Tippen vor der entprellten Prüfung),
+  wird vorher neu geprüft. Die Homepage bindet `jul-language-server/out` per Alias ein, der
+  Compiler-Alias zeigt jetzt auf den Paketordner, damit beide denselben Compiler sehen.
+- **Monaco** (`language-features.js`): Hover, Vervollständigung, Signaturhilfe, Gehe zu Definition
+  (über einen Editor-Opener in den Editor der anderen Datei), Referenzen, Hervorheben, Umbenennen
+  (abgelehnt, wenn es eine schreibgeschützte Datei träfe), Gliederung, Faltung, Formatieren und der
+  Quick Fix für `#ignore`. Ziele in der core-lib werden nicht angesprungen.
+- **Semantische Tokens nicht eingebunden:** Monaco im Standalone-Betrieb färbt einen Tokentyp ohne
+  passende Theme-Regel in der Standardfarbe, statt die Farbe der Grammatik zu lassen, und die
+  Playgrounds sähen anders aus als die statischen Blöcke daneben. Bräuchte eigene Theme-Regeln je
+  Tokentyp, aus den Scopes der Shiki-Themes abgeleitet.
+- **Aufgefallen, nicht behoben:** Umbenennen eines importierten Namens ohne Alias ändert nur die
+  importierende Datei und bricht den Import (auch in VSCode, schon vor dem Umbau so). Die
+  Signaturhilfe kommt in `f(` und `f()`, aber nicht mit dem Cursor hinter einem Argument (`f(2`).
+
 ### 5. Tests im Playground
 
 `_runTests(report)` liefert je Test ein `TestResult` (Name, Stelle des `test`-Aufrufs, Fehlertext

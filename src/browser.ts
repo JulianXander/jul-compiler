@@ -1,10 +1,12 @@
 import { initCoreLib, ParsedDocuments } from './checker/checker.js';
+import { ReferenceIndex } from './checker/reference-index.js';
 import { CompilerError, errorInfos } from './compiler-errors.js';
 import { emitToJs } from './compiler/emit-file.js';
 import { createInMemoryHost, loadFile } from './compiler/project-loader.js';
 import { isTypeScriptLoaded, setTypeScript } from './typescript-module.js';
 import { Extension } from './util.js';
 
+export { ReferenceIndex } from './checker/reference-index.js';
 export { errorInfos } from './compiler-errors.js';
 export type { CompilerError } from './compiler-errors.js';
 
@@ -48,7 +50,15 @@ export interface EmittedFile {
 	js: string;
 }
 
-export interface CompileOptions {
+export interface CheckOptions {
+	/**
+	 * Wird beim Prüfen mit den Referenzen aller Dateien befüllt, für Find-All-References und
+	 * Rename im Language Server (jul-language-server/src/browser.ts). Je Aufruf ein neuer.
+	 */
+	referenceIndex?: ReferenceIndex;
+}
+
+export interface CompileOptions extends CheckOptions {
 	/** Importpfad der Runtime im erzeugten JS. */
 	runtimeImportPath: string;
 	/** Importpfad der Test-Runtime im erzeugten JS, gebraucht nur von *.test.jul. */
@@ -67,9 +77,9 @@ export function initCompiler(coreLibCode: string): void {
 /**
  * Parst und prüft alle Dateien samt ihren Importen untereinander.
  */
-export async function check(files: SourceFiles): Promise<CheckOutput> {
+export async function check(files: SourceFiles, options: CheckOptions = {}): Promise<CheckOutput> {
 	await loadTypeScriptIfNeeded(files);
-	const documents = loadAll(files);
+	const documents = loadAll(files, options);
 	return {
 		documents: documents,
 		errors: getErrors(documents),
@@ -82,7 +92,7 @@ export async function check(files: SourceFiles): Promise<CheckOutput> {
  */
 export async function compile(files: SourceFiles, options: CompileOptions): Promise<CompileOutput> {
 	await loadTypeScriptIfNeeded(files);
-	const documents = loadAll(files);
+	const documents = loadAll(files, options);
 	const errors = getErrors(documents);
 	const hasError = Object.values(errors).some(fileErrors =>
 		fileErrors.some(error => errorInfos[error.code].severity === 'error'));
@@ -104,8 +114,8 @@ export async function compile(files: SourceFiles, options: CompileOptions): Prom
 	return { type: 'success', documents: documents, errors: errors, files: emitted };
 }
 
-function loadAll(files: SourceFiles): ParsedDocuments {
-	const host = createInMemoryHost(files);
+function loadAll(files: SourceFiles, options: CheckOptions): ParsedDocuments {
+	const host = createInMemoryHost(files, { referenceIndex: options.referenceIndex });
 	const documents: ParsedDocuments = {};
 	Object.keys(files).forEach(filePath => {
 		if (!documents[filePath]) {

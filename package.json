@@ -22,7 +22,7 @@
 	},
 	"scripts": {
 		"build": "rimraf out && npx tsc -p tsconfig.build.json && copyfiles --flat src/runtime/core-lib.jul out/runtime",
-		"build-all": "npm run build && npm run check-browser && npx tsc --project ../jul-language-server/tsconfig.build.json && npx tsc --project ../vscode-jul-language-service/tsconfig.json",
+		"build-all": "npm run build && npm run check-browser && npx tsc --project ../jul-language-server/tsconfig.build.json && npm run check-browser --prefix ../jul-language-server && npx tsc --project ../vscode-jul-language-service/tsconfig.json",
 		"check-browser": "node scripts/check-browser-bundle.mjs",
 		"build-all-and-deploy": "npm run build-all && npm run install-cli && npm run test-deploy --prefix ../vscode-jul-language-service",
 		"test": "node --import=tsx ./node_modules/mocha/bin/mocha.js --require ./test-setup.mjs \"src/**/*.test.ts\"",
