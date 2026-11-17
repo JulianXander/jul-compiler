@@ -4957,6 +4957,15 @@ function isTypeAssignableByStructure(
 				isComplementType(resolveAlias(choiceType)));
 			if (complementChoices.length
 				&& complementChoices.length < argumentsType.ChoiceTypes.length) {
+				// Passt der Wert als Ganzes in einen Choice eines Or-target, ist er zugewiesen. Das
+				// verbreiterte target sieht das nicht: And(Integer Not(0)) gegen
+				// Or(And(Integer Not(0)) Fraction) verlangte Integer in Or(And(Integer Not(0)) Fraction 0),
+				// und dort deckt kein einzelner Choice ganz Integer ab.
+				if (targetType.julType === 'or'
+					&& targetType.ChoiceTypes.some(choiceType =>
+						isTypeAssignable(argumentsType, choiceType).assignable === true)) {
+					return { assignable: true };
+				}
 				const otherChoices = argumentsType.ChoiceTypes.filter(choiceType =>
 					!complementChoices.includes(choiceType));
 				const widenedTarget = createNormalizedUnionType([

@@ -340,12 +340,16 @@ Umgesetzt: Beispielseiten, mit diesen Abweichungen:
 - Kapitel als Docs-Seiten unter `docs/tutorial`, jedes mit kurzer Erklärung, Playground und Übung.
 - **Übungen** mit „Prüfen“-Knopf: Unter der Lösung steht die schreibgeschützte
   Testdatei, der Playground führt Lösung und Tests zusammen aus (Schritt 5).
-- Reihenfolge der Kapitel grob: Werte und Text, Funktionen und Aufrufe, Listen und
-  Dictionaries, Typen und `Empty`, Branching mit `?`, Tests, Streams.
+- Reihenfolge der Kapitel: Primitive Werte (Text, Zahlen, Wahrheitswerte, mit Aufrufen eingebauter
+  Funktionen), Kollektionen (Listen, Dictionaries, Empty, ohne Callbacks), Funktionen (mit `map`,
+  `filter`), Verzweigung (über Werte und Bedingungen), Typen (Typguards, Rückgabetypen, `Or`,
+  Verzweigung über Typen wie `[Text]` und `[Empty]`), Tests, Streams.
+- Funktionen vor Verzweigung: Auf oberster Ebene hat jeder Name den Typ seines Literals, ein
+  Wertzweig daneben wäre unerreichbar (JUL5152). In einer Funktion ist der Parameter allgemein.
 - Klammern kein eigenes Kapitel: Runde Klammern kommen mit Aufrufen und Parametern, eckige mit
   Listen und Dictionaries.
 - Records und Tupel kein eigenes Kapitel: Sie sind die Typen zu Dictionaries und Listen und stehen
-  bei „Typen und `Empty`“ zusammen mit `List(X)` und `Dictionary(X)`.
+  bei „Typen“ zusammen mit `List(X)` und `Dictionary(X)`.
 - Inhalte folgen den Regeln für `jul-homepage/docs`: Verhalten mit Beispiel, keine Begründungen.
 - Übersetzung nach `i18n/en` erst, wenn die deutschen Kapitel stehen.
 

@@ -693,6 +693,15 @@ f = (v: Or(H Error)) :> [Integer Text] =>
 	(x y) = v
 	[x y]`);
 	});
+	// Bug: Nach dem Zweig [0] ist zahl And(Integer Not(0)). Das passt zu NonZeroRational =
+	// Or(And(Integer Not(0)) Fraction), der Checker meldet trotzdem einen Typfehler. Gegen einen
+	// Parameter NonZeroInteger ohne Or passt es.
+	it('branch-narrowing-excluded-literal-passes-to-or-parameter', () => {
+		expectCheck(`f = (zahl: Integer) =>
+	?(zahl)
+		[0] => 0
+	divide(1 zahl)`);
+	});
 	// Ein fehlendes Feld bleibt ein Fehler, auch wenn der verengte Typ noch auf den Parameter wartet.
 	it('branch-narrowing-destructuring-reports-missing-field', () => {
 		expectErrorCodes(`H = [x: Integer y: Text]

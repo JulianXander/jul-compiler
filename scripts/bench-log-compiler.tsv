@@ -602,3 +602,9 @@
 2026-11-16 15:57:45	e4a87fb+	-	ADV-DEV-56627	yugioh	parse+check	5	21848.29	28376.12	28376.12	nach: mehrzeiliger Text ohne Umbruch am Ende
 2026-11-16 15:57:45	e4a87fb+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1282.93	1341.05	1341.05	nach: mehrzeiliger Text ohne Umbruch am Ende
 2026-11-16 15:57:45	e4a87fb+	-	ADV-DEV-56627	yugioh	parse	5	122.64	128.94	128.94	nach: mehrzeiliger Text ohne Umbruch am Ende
+2026-11-17 08:37:22	2601b4b+	-	ADV-DEV-56627	yugioh	parse+check	5	20472.36	21102.47	21102.47	vor fix: and-not gegen or-ziel
+2026-11-17 08:37:22	2601b4b+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1172.62	1230.29	1230.29	vor fix: and-not gegen or-ziel
+2026-11-17 08:37:22	2601b4b+	-	ADV-DEV-56627	yugioh	parse	5	133.80	160.13	160.13	vor fix: and-not gegen or-ziel
+2026-11-17 08:39:42	2601b4b+	-	ADV-DEV-56627	yugioh	parse+check	5	20471.39	21336.09	21336.09	nach fix: and-not gegen or-ziel
+2026-11-17 08:39:42	2601b4b+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1193.47	1270.33	1270.33	nach fix: and-not gegen or-ziel
+2026-11-17 08:39:42	2601b4b+	-	ADV-DEV-56627	yugioh	parse	5	112.60	115.98	115.98	nach fix: and-not gegen or-ziel
