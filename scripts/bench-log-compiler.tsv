@@ -611,3 +611,6 @@
 2026-11-17 09:32:37	cfe96af+	-	ADV-DEV-56627	yugioh	parse+check	5	27804.00	39390.83	39390.83	vor immer emittieren
 2026-11-17 09:32:37	cfe96af+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1122.39	1188.02	1188.02	vor immer emittieren
 2026-11-17 09:32:37	cfe96af+	-	ADV-DEV-56627	yugioh	parse	5	109.08	111.44	111.44	vor immer emittieren
+2026-11-17 09:42:04	a6ef4a1+	-	ADV-DEV-56627	yugioh	parse+check	5	20804.08	21778.75	21778.75	nach Emitter ohne Abstürze
+2026-11-17 09:42:04	a6ef4a1+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1178.26	1192.56	1192.56	nach Emitter ohne Abstürze
+2026-11-17 09:42:04	a6ef4a1+	-	ADV-DEV-56627	yugioh	parse	5	112.58	133.48	133.48	nach Emitter ohne Abstürze

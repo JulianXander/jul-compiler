@@ -988,3 +988,41 @@
 2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	24.15	25.51	25.51	vor immer emittieren
 2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	parsing/hugeInteger	15	111.67	114.68	114.68	vor immer emittieren
 2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	59.17	66.29	66.29	vor immer emittieren
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	66.25	70.24	70.24	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	92.96	96.26	96.26	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	327.14	378.14	378.14	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	5480.30	6874.70	6874.70	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	5.36	7.72	7.72	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	6.68	13.46	13.46	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	7.63	16.03	16.03	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	6.76	12.41	12.41	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	6.04	6.93	6.93	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	6.87	7.62	7.62	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/notGuard	15	5.36	6.88	6.88	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/notRecordGuard	15	5.87	7.01	7.01	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	5.48	9.92	9.92	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	6.10	12.45	12.45	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	6.11	12.61	12.61	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	6.39	8.53	8.53	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	6.09	6.81	6.81	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	5.43	6.74	6.74	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	5.49	7.23	7.23	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	275.25	305.24	305.24	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	31.34	39.16	39.16	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	130.35	138.88	138.88	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	106.38	124.63	124.63	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	22.23	26.63	26.63	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	25.20	30.34	30.34	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	22.65	25.76	25.76	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	36.05	37.82	37.82	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	21.27	23.66	23.66	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	35.93	40.21	40.21	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	7.62	9.38	9.38	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	object-shapes/sumAtk	15	76.12	82.18	82.18	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	object-shapes/attackRound	15	1162.44	1255.66	1255.66	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	json/small	15	4097.51	4647.27	4647.27	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	json/large	15	3981546.00	4330586.00	4330586.00	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	json/texts	15	461910.50	474571.50	474571.50	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	25.95	30.24	30.24	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	parsing/hugeInteger	15	110.09	142.22	142.22	nach Emitter ohne Abstürze
+2026-11-17 09:42:25	a6ef4a1+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	60.85	86.57	86.57	nach Emitter ohne Abstürze

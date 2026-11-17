@@ -354,10 +354,10 @@ function expressionToJs(
 		case 'definition': {
 			// export topLevel definitions
 			const value = expression.value;
-			if (!value) {
-				throw new Error('value missing in definition');
-			}
 			const nameJs = escapeReservedJsVariableName(expression.name.name);
+			if (!value) {
+				return getDefinitionJs(topLevel, nameJs, 'undefined');
+			}
 			if (isImportFunctionCall(value)) {
 				const importPath = getResolvedImportPath(value);
 				if (!importPath) {
@@ -530,7 +530,7 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 		case 'nestedReference': {
 			const nestedKey = expression.nestedKey;
 			if (!nestedKey) {
-				throw new Error('Missing nestedKey in nestedReference.');
+				return 'undefined';
 			}
 			switch (nestedKey.type) {
 				case 'index':
@@ -1291,7 +1291,7 @@ function isTrivialArgument(value: ParseValueExpression): boolean {
 function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCall, indent: number): string {
 	const functionExpression = expression.functionExpression;
 	if (!functionExpression) {
-		throw new Error('functionExpression missing for functionCall.');
+		return 'undefined';
 	}
 	if (isImportFunction(functionExpression)) {
 		// TODO dynamic import/parser error?
@@ -1320,15 +1320,13 @@ function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCal
 					return assumeCallToJs(checkResult, expression, prefixArgument, prefixArgJs, args.values[0], indent);
 				}
 				const firstValue = args.values[0];
-				if (firstValue.type === 'spread') {
-					throw new Error('spread not implemented yet for assume');
-				}
-				else {
-					return assumeCallToJs(checkResult, expression, firstValue, expressionToJs(checkResult, firstValue, indent), args.values[1], indent);
-				}
+				// Mit Spread prüft der Checker die Argumente nicht, assume hat dann keinen Wert.
+				return firstValue.type === 'spread'
+					? 'undefined'
+					: assumeCallToJs(checkResult, expression, firstValue, expressionToJs(checkResult, firstValue, indent), args.values[1], indent);
 			}
 			default:
-				throw new Error('unexpected arguments.type for assume functionCall: ' + args?.type);
+				return 'undefined';
 		}
 	}
 	if (isNamedFunction(functionExpression, 'assert')) {
@@ -1387,13 +1385,11 @@ function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCal
 			}
 			// Ohne bekannte Parameterliste (Typ Any, JUL5011) gehen die Werte der Reihe nach an die Funktion,
 			// die Namen entfallen.
-			const jsArguments = args.fields.map(field => {
-				if (field.type !== 'singleDictionaryField'
-					|| !field.value) {
-					throw new Error('unexpected field in named arguments.');
-				}
-				return expressionToJs(checkResult, field.value, indent + 1);
-			});
+			// Ein Spread unter benannten Argumenten ist ein Fehler (JUL2502), er bleibt undefined.
+			const jsArguments = args.fields.map(field =>
+				field.type === 'singleDictionaryField' && field.value
+					? expressionToJs(checkResult, field.value, indent + 1)
+					: 'undefined');
 			if (prefixArgument) {
 				jsArguments.unshift(prefixArgJs);
 			}
@@ -2134,7 +2130,7 @@ function assertCallToJs(checkResult: CheckResult, call: ParseFunctionCall, inden
 	}
 	const { message, condition } = getAssertCallArguments(call);
 	if (!message || !condition) {
-		throw new Error('arguments missing for assert');
+		return 'undefined';
 	}
 	const innerIndent = indent + 1;
 	const previousInstrumentedCall = instrumentedTestCall;
@@ -2186,7 +2182,10 @@ function isRemovedAssert(expression: ParseExpression): boolean {
  * benannt geschrieben sind.
  */
 function testCallToJs(checkResult: CheckResult, call: ParseFunctionCall, functionExpression: SimpleExpression, indent: number): string {
-	const { name, callback } = getTestArguments(call);
+	const { name, callback } = getTestCallArguments(call);
+	if (!name || !callback) {
+		return 'undefined';
+	}
 	const previousInstrumentedCall = instrumentedTestCall;
 	const previousHelper = instrumentedCallHelper;
 	instrumentedTestCall = callback.type === 'functionLiteral'
@@ -2205,14 +2204,6 @@ function testCallToJs(checkResult: CheckResult, call: ParseFunctionCall, functio
 		instrumentedTestCall = previousInstrumentedCall;
 		instrumentedCallHelper = previousHelper;
 	}
-}
-
-function getTestArguments(call: ParseFunctionCall): { name: ParseValueExpression; callback: ParseValueExpression; } {
-	const { name, callback } = getTestCallArguments(call);
-	if (!name || !callback) {
-		throw new Error('arguments missing for test');
-	}
-	return { name, callback };
 }
 
 /**

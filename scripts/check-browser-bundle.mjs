@@ -103,7 +103,7 @@ async function runProbe(compilerCode) {
 		runtimeImportPath: 'jul-runtime',
 		testRuntimeImportPath: 'jul-test-runtime',
 	});
-	if (output.type !== 'success') {
+	if (Object.values(output.errors).some(errors => errors.some(error => compiler.errorInfos[error.code].severity === 'error'))) {
 		fail('Probe im Browser-Bündel fehlgeschlagen:', JSON.stringify(output.errors, undefined, 2));
 		return;
 	}

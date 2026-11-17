@@ -1,6 +1,6 @@
 import { initCoreLib, ParsedDocuments } from './checker/checker.js';
 import { ReferenceIndex } from './checker/reference-index.js';
-import { CompilerError, errorInfos } from './compiler-errors.js';
+import { CompilerError } from './compiler-errors.js';
 import { emitToJs } from './compiler/emit-file.js';
 import type { SourceMapping } from './compiler/emitter.js';
 import { createInMemoryHost, loadFile } from './compiler/project-loader.js';
@@ -30,19 +30,10 @@ export interface CheckOutput {
 	errors: { [filePath: string]: CompilerError[]; };
 }
 
-export type CompileOutput =
-	| {
-		type: 'success';
-		documents: ParsedDocuments;
-		/** Nur Warnungen und Hinweise. */
-		errors: { [filePath: string]: CompilerError[]; };
-		files: { [filePath: string]: EmittedFile; };
-	}
-	| {
-		type: 'error';
-		documents: ParsedDocuments;
-		errors: { [filePath: string]: CompilerError[]; };
-	};
+export interface CompileOutput extends CheckOutput {
+	/** Auch bei Fehlern. Was das JS an einer fehlerhaften Stelle tut, ist offen. */
+	files: { [filePath: string]: EmittedFile; };
+}
 
 export interface EmittedFile {
 	sourceFilePath: string;
@@ -96,18 +87,12 @@ export async function check(files: SourceFiles, options: CheckOptions = {}): Pro
 }
 
 /**
- * Prüft alle Dateien und erzeugt JS, aber nur, wenn keine Datei einen Fehler mit Schweregrad
- * error hat.
+ * Prüft alle Dateien und erzeugt JS, auch wenn sie Fehler haben.
  */
 export async function compile(files: SourceFiles, options: CompileOptions): Promise<CompileOutput> {
 	await loadTypeScriptIfNeeded(files);
 	const documents = loadAll(files, options);
 	const errors = getErrors(documents);
-	const hasError = Object.values(errors).some(fileErrors =>
-		fileErrors.some(error => errorInfos[error.code].severity === 'error'));
-	if (hasError) {
-		return { type: 'error', documents: documents, errors: errors };
-	}
 	const emitted: { [filePath: string]: EmittedFile; } = {};
 	Object.values(documents).forEach(document => {
 		const { outFilePath, compiled, mappings } = emitToJs(
@@ -125,7 +110,7 @@ export async function compile(files: SourceFiles, options: CompileOptions): Prom
 			...mappings && { mappings: mappings },
 		};
 	});
-	return { type: 'success', documents: documents, errors: errors, files: emitted };
+	return { documents: documents, errors: errors, files: emitted };
 }
 
 function loadAll(files: SourceFiles, options: CheckOptions): ParsedDocuments {

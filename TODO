@@ -1,3 +1,5 @@
+-(a) = import(§./x.jul§) als letzte zeile einer datei emittiert export default import {a} from ..., ungültiges JS. der emitter-test "(testVar) = import(§./some-file.jul§)" schreibt das fest
+-assume() ohne argumente meldet keinen fehler
 -crud screen example mit fake rest backend
 	?realtime
 -usages von assume in yugioh untersuchen:

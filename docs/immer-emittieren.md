@@ -67,7 +67,26 @@ Sperren vor dem Emit:
    `jul-homepage/docs` steht dazu bisher nichts, im CLI-Teil des Handbuchs einen Satz ergänzen:
    Auch mit Fehlern wird gebaut, der Exit-Code ist dann 1.
 
+## Umgesetzt
+
+Alle fünf Schritte, mit diesen Abweichungen:
+
+- Eine zweite Versuchsreihe mit 33 Eingaben fand acht weitere Abstürze im Emitter (Dereferenz ohne
+  Feld, Punkt ohne Funktion, `assert` ohne Bedingung, `assume()` und `assume(...l)`, benannte
+  Argumente mit Spread, Definition ohne Wert im Rumpf, `test` ohne Callback). Je ein Test verlangt
+  gültiges JS, geprüft mit dem Parser von TypeScript. Alle 53 Eingaben ergeben jetzt gültiges JS.
+- `hasDefaultExport` liefert `undefined` für eine nicht geladene Datei, statt zu werfen.
+- Projektfehler halten Build und Testlauf weiter auf: Ohne Einstieg gibt es nichts zu bauen, bei
+  gleichen Ausgabepfaden überschriebe eine Datei die andere. `compileFailed` meldet nur noch sie.
+- Sind alle Tests grün, der Code hat aber Fehler, endet `jul test` mit „tests passed with compile
+  errors“ und Exit-Code 1.
+- Der Playground blendet `JUL5200` in der Fehlerliste aus wie `jul test`, im Editor bleibt es
+  markiert.
+- Bench vor und nach dem Emitter: keine Änderung über das Rauschen hinaus, für fehlerfreien Code ist
+  das erzeugte JS gleich.
+
 ## Offen
 
+- Im Browser nicht ausprobiert.
 - Läuft der Playground bei jedem Tastendruck halbfertigen Code aus, kann der in eine Endlosschleife
   geraten. Der Lauf wird bei jeder Änderung neu gestartet und nach 10 s beendet, das sollte genügen.

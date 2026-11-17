@@ -60,12 +60,13 @@ export function compileProject(
 	//#endregion 2. load
 
 	//#region 3. report errors
-	const { hasError, summary } = reportErrors(
-		documents,
-		getProjectErrors(documents, entry === 'notFound' ? [entryFilePath] : []),
-		host,
-		renderer);
-	if (hasError) {
+	const projectErrors = getProjectErrors(documents, entry === 'notFound' ? [entryFilePath] : []);
+	const { hasError, summary } = reportErrors(documents, projectErrors, host, renderer);
+	// Fehler im Code halten den Build nicht auf, das Ergebnis tut an der Fehlerstelle irgendetwas.
+	// Projektfehler schon: Ohne Einstieg gibt es nichts zu bauen, und bei gleichen Ausgabepfaden
+	// überschriebe eine Datei die andere.
+	if (hasError
+		&& (checkOnly || projectErrors.length)) {
 		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
 		return;
@@ -164,8 +165,13 @@ export function compileProject(
 				chmodSync(bundlePath, 0o755);
 			}
 			const bundleSize = formatBytes(statSync(bundlePath).size);
+			if (hasError) {
+				process.exitCode = 1;
+			}
 			renderer.finish([
-				`${colorize('build finished successfully', ConsoleColor.green)} ${summary} ${durationSuffix(startTime)}`,
+				`${hasError
+					? colorize('build finished with errors', ConsoleColor.lightRed)
+					: colorize('build finished successfully', ConsoleColor.green)} ${summary} ${durationSuffix(startTime)}`,
 				`${relative(process.cwd(), bundlePath)}  ${colorize(bundleSize, ConsoleColor.cyan)}`,
 			]);
 		}
@@ -340,12 +346,12 @@ export async function testProject(
 	//#endregion load
 
 	//#region report errors
-	// Ein statisch fehlschlagender Test ist kein Abbruchgrund: Der Checker meldet JUL5200 nur bei
-	// fehlerfreien Argumenten, der Aufruf lässt sich also emittieren. Der Lauf führt ihn dann als
-	// fehlgeschlagen, samt Argumentwerten - die statische Meldung wäre daneben doppelt.
+	// Fehler im Code halten den Lauf nicht auf, nur Projektfehler (wie im Build). Ein statisch
+	// fehlschlagender Test (JUL5200) bleibt ungemeldet: Der Lauf führt ihn als fehlgeschlagen, samt
+	// Argumentwerten, die statische Meldung wäre daneben doppelt.
 	const projectErrors = getProjectErrors(documents, notFoundPaths);
 	const { hasError, summary } = reportErrors(documents, projectErrors, host, renderer, [ErrorCode.testFails]);
-	if (hasError) {
+	if (projectErrors.length) {
 		writeReport({ type: 'compileFailed', errors: getCompileErrors(documents, projectErrors, [ErrorCode.testFails]) });
 		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
 		process.exitCode = 1;
@@ -463,8 +469,10 @@ export async function testProject(
 	].join(', ');
 	renderer.finish([hasFailure
 		? `${colorize('tests failed', ConsoleColor.lightRed)} ${testSummary} ${durationSuffix(startTime)}`
-		: `${colorize('tests passed', ConsoleColor.green)} ${testSummary} ${durationSuffix(startTime)}`]);
-	if (hasFailure) {
+		: hasError
+			? `${colorize('tests passed with compile errors', ConsoleColor.lightRed)} ${testSummary} ${durationSuffix(startTime)}`
+			: `${colorize('tests passed', ConsoleColor.green)} ${testSummary} ${durationSuffix(startTime)}`]);
+	if (hasFailure || hasError) {
 		process.exitCode = 1;
 	}
 	//#endregion run
