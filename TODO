@@ -1,4 +1,4 @@
--types tuto mit bounded numbers
+-types tuto mit bounded numbers, higher order types (type params), type branching
 -(a) = import(§./x.jul§) als letzte zeile einer datei emittiert export default import {a} from ..., ungültiges JS. der emitter-test "(testVar) = import(§./some-file.jul§)" schreibt das fest
 -assume() ohne argumente meldet keinen fehler
 -crud screen example mit fake rest backend
