@@ -30,7 +30,6 @@ import {
 	ParseDictionaryField,
 	ParseExpression,
 	ParseDictionaryLiteral,
-	ParseBranching,
 	ParseDestructuringField,
 	ParseDictionaryTypeField,
 	ParseFunctionCall,
@@ -65,7 +64,6 @@ import {
 	discardName,
 	builtinBlob,
 	builtinEmpty,
-	builtinNever,
 	builtinBoolean,
 	builtinInteger,
 	builtinText,
@@ -96,7 +94,6 @@ import { checkerStats } from './checker-stats.js';
 import { CheckResult, createCheckResult, getAliasSymbolType, getDeclaredSignature, getExpectedType, getFunctionRef, getSymbolTypeInfo, getSymbolUse, getTypeInfo, markSymbolUsed, setCalledFunctionType, setCalledParameterNames, setDeclaredSignature, setExpectedType, setFunctionRef, setSymbolTypeInfo, setTypeInfo } from './check-result.js';
 import {
 	applyBranchHead,
-	BranchCoverage,
 	createBranchCoverage,
 	getBranchHead,
 	getBranchHeadOfFunction,
@@ -151,7 +148,6 @@ import {
 	typeErrorToString,
 	typePropertyAccess,
 	typeToString,
-	typesOverlap,
 	valueFieldAccess,
 	valueOf,
 	withElementAtFromTypes,
