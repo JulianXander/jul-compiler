@@ -341,11 +341,14 @@ Umgesetzt: Beispielseiten, mit diesen Abweichungen:
 - **Übungen** mit „Prüfen“-Knopf: Unter der Lösung steht die schreibgeschützte
   Testdatei, der Playground führt Lösung und Tests zusammen aus (Schritt 5).
 - Reihenfolge der Kapitel: Primitive Werte (Text, Zahlen, Wahrheitswerte, mit Aufrufen eingebauter
-  Funktionen), Kollektionen (Listen, Dictionaries, Empty, ohne Callbacks), Funktionen (mit `map`,
-  `filter`), Verzweigung (über Werte und Bedingungen), Typen (Typguards, Rückgabetypen, `Or`,
-  Verzweigung über Typen wie `[Text]` und `[Empty]`), Tests, Streams.
-- Funktionen vor Verzweigung: Auf oberster Ebene hat jeder Name den Typ seines Literals, ein
-  Wertzweig daneben wäre unerreichbar (JUL5152). In einer Funktion ist der Parameter allgemein.
+  Funktionen), Kollektionen (Listen, Dictionaries, Empty, ohne Callbacks), Typen (Typguards, `Or`,
+  `List(X)`, `Dictionary(X)`, Records, Tupel), Verzweigung (über Werte, Bedingungen und Typen),
+  Eigene Funktionen (Parameter- und Rückgabetypen, Verzweigung als Anweisung, Funktionen als Zweige,
+  `map`, `filter`), Tests, Streams.
+- Typen vor Verzweigung: Auf oberster Ebene hat jeder Name ohne Typguard den Typ seines Literals,
+  ein Wertzweig daneben wäre unerreichbar (JUL5152). Die Beispiele der Verzweigung stehen deshalb
+  auf oberster Ebene mit Typguard. Verzweigung vor eigenen Funktionen, weil Zweige Funktionen sind
+  und Parameter Typen brauchen.
 - Klammern kein eigenes Kapitel: Runde Klammern kommen mit Aufrufen und Parametern, eckige mit
   Listen und Dictionaries.
 - Records und Tupel kein eigenes Kapitel: Sie sind die Typen zu Dictionaries und Listen und stehen
