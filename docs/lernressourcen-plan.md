@@ -362,6 +362,10 @@ Umgesetzt: Beispielseiten, mit diesen Abweichungen:
 - Inhalte folgen den Regeln für `jul-homepage/docs`: Verhalten mit Beispiel, keine Begründungen.
 - Übersetzung nach `i18n/en` erst, wenn die deutschen Kapitel stehen.
 
+Umgesetzt: die sieben deutschen Kapitel, Beispiele und Übungslösungen mit der CLI geprüft, die Seite
+baut. Der Playground zeigt jetzt auch Ausgaben nach dem Ende des Programms (`interval$`) und beendet
+den Lauf nach 10 s. Offen: Durchsicht im Browser, Übersetzung nach `i18n/en`.
+
 ## Hosting
 
 Vorerst nur lokal (`npm start` / `npm run serve`), später vielleicht GitHub Pages, noch später
