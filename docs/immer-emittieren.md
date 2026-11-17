@@ -80,8 +80,8 @@ Alle fünf Schritte, mit diesen Abweichungen:
   gleichen Ausgabepfaden überschriebe eine Datei die andere. `compileFailed` meldet nur noch sie.
 - Sind alle Tests grün, der Code hat aber Fehler, endet `jul test` mit „tests passed with compile
   errors“ und Exit-Code 1.
-- Der Playground blendet `JUL5200` in der Fehlerliste aus wie `jul test`, im Editor bleibt es
-  markiert.
+- Der Playground zeigt `JUL5200` weiter in der Fehlerliste: Tests laufen dort erst auf „Prüfen“,
+  ohne die Meldung sähe man vorher nicht, dass ein Test fehlschlägt.
 - Bench vor und nach dem Emitter: keine Änderung über das Rauschen hinaus, für fehlerfreien Code ist
   das erzeugte JS gleich.
 
