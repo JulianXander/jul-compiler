@@ -199,9 +199,10 @@ export interface EmitOptions {
 	checkAssertions?: boolean;
 	/**
 	 * Ob die importierte Datei einen default-Export hat (ParsedFile.hasDefaultExport), zum Pfad
-	 * relativ zur emittierten Datei, wie er im import steht. Nur nötig, wenn die Datei importiert.
+	 * relativ zur emittierten Datei, wie er im import steht. undefined, wenn die Datei nicht geladen
+	 * wurde, der Import bindet dann undefined. Ohne diese Option gilt jede Datei als geladen.
 	 */
-	hasDefaultExport?: (importedPath: string) => boolean;
+	hasDefaultExport?: (importedPath: string) => boolean | undefined;
 }
 
 /**
@@ -358,7 +359,10 @@ function expressionToJs(
 			}
 			const nameJs = escapeReservedJsVariableName(expression.name.name);
 			if (isImportFunctionCall(value)) {
-				const importPath = getPathFromImport(value);
+				const importPath = getResolvedImportPath(value);
+				if (!importPath) {
+					return getDefinitionJs(topLevel, nameJs, 'undefined');
+				}
 				const aliasJs = `_${nameJs}`;
 				// value import: der default-Export, sonst das Modul mit allen Definitionen
 				const importedJs = isValueImport(value)
@@ -394,7 +398,12 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 				throw new Error('value missing in destructuring');
 			}
 			if (isImportFunctionCall(value)) {
-				const importPath = getPathFromImport(value);
+				const importPath = getResolvedImportPath(value);
+				if (!importPath) {
+					return fields
+						.map(field => getDefinitionJs(topLevel, escapeReservedJsVariableName(field.name.name), 'undefined'))
+						.join(getRowDelimiterJs(indent));
+				}
 				// Aus TypeScript: Werte mit Integer im Typ an der Grenze umwandeln (TS bekommt bigint, Jul kanonische Integer)
 				const moduleType = useTypeInfo && isTsImport(value)
 					? getTypeInfo(checkResult, value)?.type
@@ -437,10 +446,9 @@ ${getDefinitionJs(topLevel, nameJs, valueJs)}`;
 			const newIndent = indent + 1;
 			// TODO mit Object.create(null), damit leerer prototype? Oder Persistent Data Structure?
 			return dictionaryToJs(expression.fields.map(field => {
-				if (!field.value) {
-					throw new Error('value missing for dictionary field');
-				}
-				const valueJs = expressionToJs(checkResult, field.value, newIndent);
+				const valueJs = field.value
+					? expressionToJs(checkResult, field.value, newIndent)
+					: 'undefined';
 				if (field.type === 'singleDictionaryField') {
 					return singleDictionaryFieldToJs(field.name, valueJs);
 				}
@@ -603,7 +611,22 @@ function isValueImport(importExpression: ParseFunctionCall): boolean {
 	if (!hasDefaultExport || !path) {
 		throw new Error('hasDefaultExport missing for import ' + path);
 	}
-	return hasDefaultExport(path);
+	return !!hasDefaultExport(path);
+}
+
+/**
+ * Der Pfad der importierten JS-Datei. undefined, wenn der Import nichts liefert: ohne Pfad, mit
+ * unbekannter Endung oder für eine Datei, die nicht geladen wurde.
+ */
+function getResolvedImportPath(importExpression: ParseFunctionCall): string | undefined {
+	const jsPath = getPathFromImport(importExpression);
+	if (!jsPath || !hasDefaultExport) {
+		return jsPath;
+	}
+	const { path } = getImportedPath(importExpression, '');
+	return path && hasDefaultExport(path) !== undefined
+		? jsPath
+		: undefined;
 }
 
 function getImportJs(importedJs: string, path: string): string {
@@ -723,10 +746,13 @@ function getTsConversionSpec(rawType: CompileTimeType | undefined, visited: Set<
 	}
 }
 
-function getPathFromImport(importExpression: ParseFunctionCall): string {
+/**
+ * undefined ohne festen Pfad und bei unbekannter Endung, der Checker meldet beides.
+ */
+function getPathFromImport(importExpression: ParseFunctionCall): string | undefined {
 	const args = importExpression.arguments;
 	if (!args) {
-		throw new Error('arguments missing for import');
+		return undefined;
 	}
 	const pathExpression = getPathExpression(args);
 	if (pathExpression
@@ -745,11 +771,10 @@ function getPathFromImport(importExpression: ParseFunctionCall): string {
 			case Extension.js:
 				return importedPath;
 			default:
-				throw new Error('Unexpected extension for import ' + extension);
+				return undefined;
 		}
 	}
-	// TODO dynamische imports verbieten???
-	throw new Error('Can not get import path from ' + pathExpression?.type);
+	return undefined;
 }
 
 //#endregion import

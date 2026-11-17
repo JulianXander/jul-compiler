@@ -85,14 +85,10 @@ export function emitToJs(
 			const expressions = (parsed.checked ?? parsed.syntax).expressions ?? [];
 			const emitted = syntaxTreeToJsWithMappings(getFileCheckResult(parsed), expressions, runtimeImportPath, sourceFilePath, testRuntimeImportPath, {
 				...options,
-				// Der Loader hat jede importierte Datei vor dem Emit geladen, unter demselben Pfad.
-				hasDefaultExport: importedPath => {
-					const imported = documents[join(parsed.sourceFolder, importedPath)];
-					if (!imported) {
-						throw new Error(`Imported file not loaded: ${importedPath}`);
-					}
-					return imported.hasDefaultExport;
-				},
+				// Der Loader hat jede importierte Datei vor dem Emit geladen, unter demselben Pfad. Fehlt
+				// eine, hat er sie nicht gefunden und JUL3120 gemeldet.
+				hasDefaultExport: importedPath =>
+					documents[join(parsed.sourceFolder, importedPath)]?.hasDefaultExport,
 			});
 			compiled = emitted.js;
 			runtimeNames = emitted.runtimeNames;

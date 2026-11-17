@@ -7,6 +7,11 @@ import { EmitOptions, functionLiteralToEvaluableJs, getUsedRuntimeNames, jsonVal
 import { ParseFunctionLiteral, ParseSingleDefinition } from '../syntax-tree.js';
 import { reportAtCaller } from '../test-util.js';
 import * as runtime from '../runtime/runtime.js';
+import { join, resolve } from 'path';
+import typescript from 'typescript';
+import { ParsedDocuments } from '../checker/checker.js';
+import { emitToJs } from './emit-file.js';
+import { createInMemoryHost, loadFile } from './project-loader.js';
 
 /**
  * Die Import-Zeilen am Anfang, welche Namen sie enthalten, prüft der Abschnitt Runtime-Import.
@@ -1959,3 +1964,74 @@ export const x = _x;`);
 export const x = _x;`);
 	});
 });
+
+//#region Fehler im Code
+
+const errorRoot = resolve('/emitter-fehler-test');
+
+/**
+ * Lädt und emittiert main.jul wie der Testlauf, samt Importen über den Loader. Der Code ist
+ * unvollständig oder hat Fehler, der Emitter muss trotzdem durchlaufen.
+ */
+function emitWithErrors(code: string, otherFiles: { [fileName: string]: string; } = {}, fileName = 'main.jul'): string {
+	const filePath = join(errorRoot, fileName);
+	const files = Object.fromEntries(Object.entries(otherFiles).map(([fileName, fileCode]) => [join(errorRoot, fileName), fileCode]));
+	const documents: ParsedDocuments = {};
+	loadFile(filePath, documents, createInMemoryHost({ ...files, [filePath]: code }));
+	const document = documents[filePath]!;
+	// Nur die Runtime-Importe weglassen, ein Import der fehlenden Datei muss sichtbar bleiben.
+	return emitToJs(document, code, '', './runtime.js', './test-runtime.js', documents, { checkAssertions: true }).compiled
+		.split('\n')
+		.filter(line => !/^import \{[^}]*\} from '\.\/(test-)?runtime\.js';$/.test(line))
+		.join('\n');
+}
+
+/**
+ * Der Emitter läuft durch und erzeugt syntaktisch gültiges JS, was es tut, ist offen.
+ */
+const expectValidJs = reportAtCaller((code: string, fileName?: string) => {
+	const js = emitWithErrors(code, {}, fileName);
+	const syntaxErrors = typescript.transpileModule(js, { reportDiagnostics: true }).diagnostics ?? [];
+	expect(syntaxErrors.map(error => typescript.flattenDiagnosticMessageText(error.messageText, '\n'))).to.deep.equal([]);
+});
+
+describe('Emitter mit Fehlern im Code', () => {
+	it('Dereferenz ohne Feld', () => {
+		expectValidJs('d = [a = 1]\nx = d/\nlog(x)');
+	});
+	it('Punkt ohne Funktion', () => {
+		expectValidJs('x = 1.\nlog(x)');
+	});
+	it('assert ohne Bedingung', () => {
+		expectValidJs('f = (a: Integer) =>\n\tassert(§m§)\n\ta\nlog(f(1))');
+	});
+	it('assume ohne Argumente', () => {
+		expectValidJs('x = assume()\nlog(x)');
+	});
+	it('assume mit Spread', () => {
+		expectValidJs('l = [1 Integer]\nx = assume(...l)\nlog(x)');
+	});
+	it('benannte Argumente mit Spread', () => {
+		expectValidJs('f = (a: Integer) => a\nlog(f(a = 1 ...[b = 2]))');
+	});
+	it('Definition ohne Wert im Rumpf', () => {
+		expectValidJs('f = (a: Integer) =>\n\tb = \n\ta\nlog(f(1))');
+	});
+	it('test ohne Callback', () => {
+		expectValidJs('test(§a§)', 'main.test.jul');
+	});
+	it('Dictionary-Feld ohne Wert wird undefined', () => {
+		expect(emitWithErrors('d = [a = ]\nlog(d)')).to.equal('export const d = {\'a\': undefined};\nlog(d)');
+	});
+	it('import ohne Pfad wird undefined', () => {
+		expect(emitWithErrors('a = import()\nlog(a)')).to.equal('export const a = undefined;\nlog(a)');
+	});
+	it('Wertimport einer fehlenden Datei wird undefined', () => {
+		expect(emitWithErrors('a = import(§./fehlt.jul§)\nlog(a)')).to.equal('export const a = undefined;\nlog(a)');
+	});
+	it('Destructuring-Import einer fehlenden Datei wird undefined', () => {
+		expect(emitWithErrors('(a b) = import(§./fehlt.jul§)\nlog(a b)')).to.equal('export const a = undefined;\nexport const b = undefined;\nexport default log(\n\ta,\n\tb,\n)');
+	});
+});
+
+//#endregion Fehler im Code

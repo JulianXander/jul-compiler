@@ -950,3 +950,41 @@
 2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	23.88	26.47	26.47	Bench auf number-Integer umgestellt
 2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	parsing/hugeInteger	15	108.38	122.83	122.83	Bench auf number-Integer umgestellt
 2026-11-16 14:03:42	509ba96	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	58.11	69.03	69.03	Bench auf number-Integer umgestellt
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	deep-equal/lists	15	75.09	91.15	91.15	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	deep-equal/dictionaries	15	90.20	101.43	101.43	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	deep-equal/nested	15	313.59	342.50	342.50	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	recursion/sumTo	15	5562.65	6741.65	6741.65	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrComplex	15	5.53	10.01	10.01	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/textListOrDictionary	15	5.73	7.23	7.23	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/tagField	15	5.81	6.83	6.83	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/literalUnion	15	6.11	22.49	22.49	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrIntegerUnion	15	5.92	7.82	7.82	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/errorOrBoundState	15	5.76	6.85	6.85	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/notGuard	15	5.73	6.14	6.14	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/notRecordGuard	15	5.84	6.53	6.53	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/emptyOrBoundState	15	6.04	12.85	12.85	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/boundStateHead	15	5.85	8.92	8.92	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/boundHead	15	5.62	7.50	7.50	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/textOrBoundHead	15	6.17	11.98	11.98	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	branching/greaterCall	15	5.93	6.66	6.66	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	named-arguments/positional	15	5.64	7.02	7.02	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	named-arguments/namedInOrder	15	5.21	6.01	6.01	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	callbacks/countAbove	15	258.12	290.78	290.78	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	callbacks/countSmall	15	30.29	31.53	31.53	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithIndex	15	127.64	144.61	144.61	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	callbacks/sumWithoutIndex	15	98.03	109.37	109.37	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	list-search/containsBoth	15	20.82	24.55	24.55	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	list-concat/flattenShort	15	25.51	27.83	27.83	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	list-concat/concatLists	15	21.03	25.13	25.13	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	list-concat/mergeDictionaries	15	31.72	35.33	35.33	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	record-update/nextTurn	15	19.47	23.64	23.64	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	record-update/nextTwice	15	34.70	39.01	39.01	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	field-access/unitScore	15	6.94	8.77	8.77	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	object-shapes/sumAtk	15	68.86	72.86	72.86	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	object-shapes/attackRound	15	1132.38	1194.04	1194.04	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	json/small	15	3895.81	4125.46	4125.46	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	json/large	15	3828486.00	4040370.00	4040370.00	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	json/texts	15	443730.00	476687.50	476687.50	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	parsing/shortInteger	15	24.15	25.51	25.51	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	parsing/hugeInteger	15	111.67	114.68	114.68	vor immer emittieren
+2026-11-17 09:32:57	cfe96af+	-	ADV-DEV-56627	bench-runtime	parsing/longInteger	15	59.17	66.29	66.29	vor immer emittieren
