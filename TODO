@@ -1,7 +1,11 @@
 -multi target compilation paradigm
-	-config: targets: ["browser", "node", "exe", "etc"], default: ["browser"]
+	-config: targets: ["browser", "node", "exe", "etc"]
+	?default target: ["browser"]? oder immer explizit in jul config? explizit ist besser als implizit
 	-branching über target im jul code, exhaustiveness checks
 	-target spezifische libs, dürfen nur in branches des richtigen targets importiert/benutzt? werden
+	-solange nur ein target, darf die target lib überall importiert und benutzt werden
+	-httpRequest aus corelib rausziehen in node/browser libs
+	-customTypes? z.b. Blob, File in targetlibs
 -stream tuto mit FiniteStream und completion warnung
 -types tuto mit bounded numbers
 	-neues kapitel advanced types: higher order types (type params), type branching, predicate types?
