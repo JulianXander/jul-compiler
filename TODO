@@ -1,5 +1,5 @@
 -multi target compilation paradigm
-	-config: targets: ["browser", "exe", "etc"]
+	-config: targets: ["browser", "node", "exe", "etc"]
 	-branching über target im jul code, exhaustiveness checks
 	-target spezifische libs, dürfen nur in branches des richtigen targets importiert/benutzt? werden
 -stream tuto mit FiniteStream und completion warnung
