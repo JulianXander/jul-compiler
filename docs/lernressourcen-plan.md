@@ -345,7 +345,8 @@ Umgesetzt: Beispielseiten, mit diesen Abweichungen:
   (Typguards, `Or`, `List(X)`, `Dictionary(X)`, Records, Tupel), Verzweigung (über Werte, Bedingungen
   und Typen), Eigene Funktionen (Parameter- und Rückgabetypen, Reinheit, Verzweigung als Anweisung,
   Funktionen als Zweige, `map`, `filter`), Tests (`assert`, `assume`, `jul test`), Streams
-  (`create$`, `subscribe`, `push`, `complete`, `interval$`, `map$`, `combine$`).
+  (`create$`, `subscribe`, `push`, `complete`, JUL2800 und `#ignore`, `interval$`, `FiniteStream`,
+  `map$`, `combine$`).
 - Tests zweimal: Jede Übung hat eine Testdatei, deshalb stehen `test` und `equal` kurz im ersten
   Kapitel. `assert` gehört in einen Funktionsrumpf und `assume` braucht Typen, das eigene Kapitel
   steht deshalb nach den eigenen Funktionen.
