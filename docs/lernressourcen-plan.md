@@ -363,7 +363,9 @@ Umgesetzt: Beispielseiten, mit diesen Abweichungen:
 - Übersetzung nach `i18n/en` erst, wenn die deutschen Kapitel stehen.
 
 Umgesetzt: die sieben deutschen Kapitel, Beispiele und Übungslösungen mit der CLI geprüft, die Seite
-baut. Der Playground zeigt jetzt auch Ausgaben nach dem Ende des Programms (`interval$`) und beendet
+baut. Dazu bei „Typen“ `And`, `Not` und Zahlenbereiche, und ein achtes Kapitel „Fortgeschrittene
+Typen“ (Typfunktionen, Prädikate, `:?`). Rechnen mit Bereichen fehlt dort: `add` behält nur die
+untere Grenze. Der Playground zeigt jetzt auch Ausgaben nach dem Ende des Programms (`interval$`) und beendet
 den Lauf nach 10 s. Offen: Durchsicht im Browser, Übersetzung nach `i18n/en`.
 
 ## Hosting
