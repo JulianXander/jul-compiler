@@ -329,7 +329,7 @@ describe('project-loader', () => {
 		expect(main.syntax.errors).to.deep.equal([]);
 	});
 
-	// docs/backlog/key-of.md: Ein importierter Name steht für die Definition in seiner Datei, sonst
+	// KeyOf: Ein importierter Name steht für die Definition in seiner Datei, sonst
 	// wäre KeyOf(data) in jeder importierenden Datei ein anderer Typ.
 	describe('KeyOf über Dateigrenzen', () => {
 		const pool = 'data: Dictionary(Integer) = [a = 1 b = 2]\nId = KeyOf(data)';

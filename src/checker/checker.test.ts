@@ -9652,7 +9652,7 @@ describe('Integer an Float', () => {
 
 //#region KeyOf
 
-// docs/backlog/key-of.md: KeyOf bezeichnet die Schlüssel genau eines Werts. Ein Dictionary bekommt
+// KeyOf bezeichnet die Schlüssel genau eines Werts. Ein Dictionary bekommt
 // den Term seines Pfads wie eine Liste ihre Länge.
 describe('KeyOf', () => {
 	const data = 'data: Dictionary(Integer) = [a = 1 b = 2]\n';

@@ -2265,7 +2265,7 @@ function getConditionCall(
  * Bezeichnet der Typ genau einen Wert? Ein Literal, oder die Länge einer Liste mit Längen-Term
  * (plus Konstante): Der Term gehört zu einem bestimmten, unveränderlichen Wert, seine Länge steht also
  * fest, auch wenn sie unbekannt ist. Eine Länge ohne Term gilt für jede Liste gleichen Typs. Ebenso
- * ein Dictionary mit Term: Seine Schlüssel stehen fest (hasField, docs/backlog/key-of.md), auch wenn
+ * ein Dictionary mit Term: Seine Schlüssel stehen fest (hasField), auch wenn
  * es leer sein kann (dann hat es keine).
  */
 function isSingletonValue(type: CompileTimeType): boolean {
@@ -2392,7 +2392,7 @@ function setInferredType(
 
 /**
  * Gibt einer Liste oder einem Dictionary, das ein Pfad (values, a/past) liefert, den Term genau
- * dieses Werts: die Länge (docs/backlog/laengen-terme.md), die Schlüssel (docs/backlog/key-of.md).
+ * dieses Werts: die Länge (docs/backlog/laengen-terme.md), die Schlüssel (KeyOf).
  * Andere Ausdrücke bekommen keinen: Ohne Term beweist ein lengthOf oder keyOf nichts. Nur
  * Wert-Ausdrücke: Ein Parameter- oder Feldtyp darf keinen Term bekommen, sonst passte nur noch genau
  * dieser Wert darauf.
@@ -4089,7 +4089,7 @@ function getReturnTypeFromFunctionCall(
 			}
 			case 'KeyOf': {
 				// Das Argument ist ein Wert wie bei TypeOf, kein Typ: Sein Typ trägt den Term, über den
-				// KeyOf genau diesen Wert bezeichnet (docs/backlog/key-of.md).
+				// KeyOf genau diesen Wert bezeichnet.
 				const argTypes = getAllArgTypes(boundArgsType);
 				const sourceType = argTypes?.[0];
 				if (!sourceType) {

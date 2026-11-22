@@ -1526,7 +1526,7 @@ export interface CompileTimeDictionaryType extends CompileTimeTypeBase {
 	readonly julType: 'dictionary';
 	ElementType: CompileTimeType;
 	/**
-	 * Genau dieser Wert, wie der Längen-Term einer Liste (docs/backlog/key-of.md): Nur ein Schlüssel
+	 * Genau dieser Wert, wie der Längen-Term einer Liste: Nur ein Schlüssel
 	 * vom Typ KeyOf desselben Terms ist beweisbar vorhanden. Fehlt er, ist über die Schlüssel nichts
 	 * bekannt.
 	 */
@@ -1550,7 +1550,7 @@ export function createCompileTimeDictionaryType(
 }
 
 /**
- * Die Schlüssel, die in Source vorhanden sind, auch mit leerem Wert (KeyOf, docs/backlog/key-of.md).
+ * Die Schlüssel, die in Source vorhanden sind, auch mit leerem Wert (KeyOf).
  * Source ist ein Dictionary mit Term, ein Typ ohne bestimmten Wert (Aufrufergebnis, Record-Typ) oder
  * ein noch offener Typ (Parameter, Feldzugriff).
  */

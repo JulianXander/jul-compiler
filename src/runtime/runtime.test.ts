@@ -243,7 +243,7 @@ describe('Record als Typ', () => {
 
 //#endregion _branch
 
-// docs/backlog/key-of.md: vorhanden heißt eigener Schlüssel, auch mit leerem Wert.
+// KeyOf: vorhanden heißt eigener Schlüssel, auch mit leerem Wert.
 describe('KeyOf als Typ', () => {
 	const dictionary = { a: 1, b: undefined };
 	it('passt auf einen vorhandenen Schlüssel', () => {

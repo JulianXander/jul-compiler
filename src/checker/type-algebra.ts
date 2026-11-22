@@ -2268,7 +2268,7 @@ function mapElementsOfSource(
 		}
 		case 'dictionary':
 			// Die Schlüssel stehen nicht fest, jeder Wert bekommt denselben Typ. Der Schlüssel ist einer
-			// dieser Quelle (KeyOf, docs/backlog/key-of.md).
+			// dieser Quelle (KeyOf).
 			return createCompileTimeDictionaryType(mapElementType(callbackType, sourceType.ElementType, getKeyOfFromType(sourceType)));
 		// Unverengt kommt Any nur von map, dessen Parameter eine Liste verlangt: leer oder eine Liste.
 		// mapDictionary engt die Quelle vorher auf Or([] Dictionary(Any)) ein. Eine Einengung auch in
@@ -2698,7 +2698,7 @@ function getLengthOfSource(rawArgType: CompileTimeType): CompileTimeType | undef
 }
 
 /**
- * Die Schlüssel, die jeder Wert von rawType sicher hat (KeyOf, docs/backlog/key-of.md). Ein Wert
+ * Die Schlüssel, die jeder Wert von rawType sicher hat (KeyOf). Ein Wert
  * aus Or(A B) liegt in A oder in B, sicher sind also nur die Schlüssel beider: der Schnitt. Ein Wert
  * aus And(A B) liegt in beiden, er hat die Schlüssel von A und die von B. Empty und alles ohne
  * Schlüssel tragen Never bei.
@@ -2885,8 +2885,8 @@ function isAtMostLength(type: CompileTimeType, source: CompileTimeType): boolean
 
 /**
  * Gibt den Listen und Dictionaries in rawType den Term des Werts, den der Ausdruck liefert: die
- * Länge einer Liste (docs/backlog/laengen-terme.md), die Schlüssel eines Dictionary
- * (docs/backlog/key-of.md). Ein Or/And beschreibt denselben Wert, jeder Zweig bekommt also denselben
+ * Länge einer Liste (docs/backlog/laengen-terme.md), die Schlüssel eines Dictionary (KeyOf).
+ * Ein Or/And beschreibt denselben Wert, jeder Zweig bekommt also denselben
  * Term. override: auch einen schon vorhandenen Term ersetzen (der Pfad einer Bindung ist der genauere
  * Name als ein Term, den der Typ von woanders mitbringt). term undefined mit override entfernt ihn.
  */

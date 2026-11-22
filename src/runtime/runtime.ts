@@ -1049,8 +1049,7 @@ interface TypeOfType {
 }
 
 /**
- * Die Texte, die in dictionary als Schlüssel vorhanden sind, auch mit leerem Wert
- * (docs/backlog/key-of.md).
+ * Die Texte, die in dictionary als Schlüssel vorhanden sind, auch mit leerem Wert (KeyOf).
  */
 interface KeyOfType {
 	readonly [_julTypeSymbol]: 'keyOf';
