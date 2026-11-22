@@ -4898,11 +4898,14 @@ function checkAssume(
 	errors: CompilerError[],
 ): void {
 	const argTypes = getAllArgTypes(boundArgsType);
-	if (argTypes?.length !== 2) {
+	if (!argTypes) {
 		return;
 	}
-	const valueType = resolvePlaceholders(argTypes[0]!);
-	const targetType = resolvePlaceholders(valueOf(argTypes[1]));
+	// Ein weggelassenes Argument ist Empty, als Zieltyp also der Typ Empty.
+	const valueType = resolvePlaceholders(argTypes[0] ?? builtinEmpty);
+	const targetType = argTypes[1]
+		? resolvePlaceholders(valueOf(argTypes[1]))
+		: builtinEmpty;
 	if (isTypeAssignable(valueType, targetType).assignable !== true) {
 		if (isTestFilePath(filePath)) {
 			return;

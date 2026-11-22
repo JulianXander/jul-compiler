@@ -5058,6 +5058,36 @@ f = (a: Any) => assume(a Integer)`);
 	it('assume-of-written-literal-is-not-redundant', () => {
 		expectCheck(`x = assume(5 Integer)`);
 	});
+	// Weggelassene Argumente sind Empty: assume() ist assume([] []) und behauptet nichts Neues.
+	it('assume-without-arguments-is-redundant', () => {
+		expectCheck(`x = assume()`, {
+			errors: [
+				{
+					code: ErrorCode.redundantAssume,
+					message: 'Redundant assume: the value is already known to be Empty.',
+					startRowIndex: 0,
+					startColumnIndex: 4,
+					endRowIndex: 0,
+					endColumnIndex: 12,
+				},
+			],
+		});
+	});
+	// Der weggelassene Zieltyp ist Empty, 1 ist das nicht.
+	it('assume-without-target-type-is-unchecked', () => {
+		expectCheck(`x = assume(1)`, {
+			errors: [
+				{
+					code: ErrorCode.uncheckedAssume,
+					message: 'Unchecked assume: outside of tests nothing checks that the value is Empty. Explain why it always holds with #ignore JUL2509.',
+					startRowIndex: 0,
+					startColumnIndex: 4,
+					endRowIndex: 0,
+					endColumnIndex: 13,
+				},
+			],
+		});
+	});
 	it('assume-as-value', () => {
 		expectCheck('f = assume', {
 			errors: [
