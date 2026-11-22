@@ -9649,3 +9649,110 @@ describe('Integer an Float', () => {
 });
 
 //#endregion Integer an Float
+
+//#region KeyOf
+
+// docs/backlog/key-of.md: KeyOf bezeichnet die Schlüssel genau eines Werts. Ein Dictionary bekommt
+// den Term seines Pfads wie eine Liste ihre Länge.
+describe('KeyOf', () => {
+	const data = 'data: Dictionary(Integer) = [a = 1 b = 2]\n';
+	const other = 'other: Dictionary(Integer) = [a = 1]\n';
+	it('getField mit KeyOf desselben Dictionary liefert den Elementtyp ohne Empty', () => {
+		expectErrorCodes(data + 'Id = KeyOf(data)\nget = (id: Id) :> Integer => data.getField(id)', []);
+	});
+	// Gegenprobe: Ein anderes Dictionary gleichen Typs hat andere Schlüssel.
+	it('getField mit KeyOf eines anderen Dictionary behält Empty', () => {
+		expectErrorCodes(data + other + 'get = (id: KeyOf(other)) :> Integer => data.getField(id)', [ErrorCode.returnTypeMismatch]);
+	});
+	it('getField mit Text behält Empty', () => {
+		expectErrorCodes(data + 'get = (id: Text) :> Integer => data.getField(id)', [ErrorCode.returnTypeMismatch]);
+	});
+	it('ein Text ist ohne Verengung kein KeyOf', () => {
+		expectErrorCodes(data + 'get = (id: Text) :> KeyOf(data) => id', [ErrorCode.returnTypeMismatch]);
+	});
+	it('ein KeyOf ist ein Text', () => {
+		expectErrorCodes(data + 'f = (id: KeyOf(data)) :> Text => id', []);
+	});
+	it('KeyOf eines anderen Dictionary passt nicht', () => {
+		expectErrorCodes(data + other + 'f = (id: KeyOf(other)) :> KeyOf(data) => id', [ErrorCode.returnTypeMismatch]);
+	});
+	it('Early Exit mit Not(KeyOf) verengt', () => {
+		expectErrorCodes(data + `get = (id: Text) :> Integer =>
+	?(id)
+		[Not(KeyOf(data))] => 0
+	data.getField(id)`, []);
+	});
+	it('Zweig mit KeyOf verengt', () => {
+		expectErrorCodes(data + `get = (id: Text) :> Integer =>
+	?(id)
+		[KeyOf(data)] => data.getField(id)
+		() => 0`, []);
+	});
+	it('hasField verengt im branching', () => {
+		expectErrorCodes(data + `get = (id: Text) :> Integer =>
+	?(data.hasField(id))
+		[false] => 0
+	data.getField(id)`, []);
+	});
+	it('hasField verengt in filter', () => {
+		expectErrorCodes(data + `known = (ids: List(Text)) :> Or([] List(KeyOf(data))) =>
+	ids.filter((value) => data.hasField(value))`, []);
+	});
+	// Gegenprobe: hasField auf einem anderen Dictionary beweist nichts über data.
+	it('hasField eines anderen Dictionary verengt nicht für data', () => {
+		expectErrorCodes(data + other + `get = (id: Text) :> Integer =>
+	?(other.hasField(id))
+		[false] => 0
+	data.getField(id)`, [ErrorCode.returnTypeMismatch]);
+	});
+	it('ein Parameter-Dictionary mit KeyOf seines Parameters', () => {
+		expectErrorCodes('f = (d: Dictionary(Integer) k: KeyOf(d)) :> Integer => d.getField(k)', []);
+	});
+	it('am Aufruf zählt das Argument', () => {
+		expectErrorCodes(data + other + `f = (d: Dictionary(Integer) k: KeyOf(d)) :> Integer => d.getField(k)
+g = (k: KeyOf(data)) :> Integer => f(data k)
+h = (k: KeyOf(data)) :> Integer => f(other k)`, [ErrorCode.argumentTypeMismatch]);
+	});
+	// Zwei Aufrufe liefern vielleicht verschiedene Werte.
+	it('ein Aufrufergebnis beweist nichts', () => {
+		expectErrorCodes(data + `make = () :> Dictionary(Integer) => data
+g = (k: KeyOf(data)) :> Integer => make().getField(k)`, [ErrorCode.returnTypeMismatch]);
+	});
+	it('KeyOf zweier Aufrufergebnisse sind verschiedene Schlüssel', () => {
+		expectErrorCodes(`make = (x: Integer) :> Dictionary(Integer) => [a = x]
+f = (k: KeyOf(make(1))) :> KeyOf(make(1)) => k`, [ErrorCode.returnTypeMismatch]);
+	});
+	// Der Term eines Parameters gilt nur für einen Aufruf: Er verlässt die Funktion nicht.
+	it('der Term eines Parameters entkommt nicht über den abgeleiteten Rückgabetyp', () => {
+		expectErrorCodes(data + other + `keys = (d: Dictionary(Integer) ids: List(Text)) => ids.filter((value) => d.hasField(value))
+g = (ids: List(Text)) :> Or([] List(KeyOf(data))) => keys(other ids)`, [ErrorCode.returnTypeMismatch]);
+	});
+	// Die Schlüssel einer Top-Level-Bindung bleiben im abgeleiteten Rückgabetyp.
+	it('der Term einer Top-Level-Bindung bleibt im abgeleiteten Rückgabetyp', () => {
+		expectErrorCodes(data + `known = (ids: List(Text)) => ids.filter((value) => data.hasField(value))
+g = (ids: List(Text)) :> Or([] List(KeyOf(data))) => known(ids)`, []);
+	});
+	it('ein optionales Dictionary beweist mit hasField nichts', () => {
+		expectErrorCodes(`get = (d: Or([] Dictionary(Integer)) id: Text) :> Integer =>
+	?(d.hasField(id))
+		[false] => 0
+	d.getField(id)`, [ErrorCode.returnTypeMismatch]);
+	});
+	it('ein Pflichtfeld eines Record-Typs ist ein KeyOf', () => {
+		expectErrorCodes('r = [a = 1 b = 2]\nx: KeyOf(r) = §a§', []);
+	});
+	it('ein fehlendes Feld eines Record-Typs ist kein KeyOf', () => {
+		expectErrorCodes('r = [a = 1 b = 2]\nx: KeyOf(r) = §c§', [ErrorCode.definitionTypeMismatch]);
+	});
+	it('ein optionales Feld ist kein KeyOf', () => {
+		expectErrorCodes('R = [a: Integer b?: Integer]\nf = (r: R) :> KeyOf(r) => §b§', [ErrorCode.returnTypeMismatch]);
+	});
+	it('KeyOf von Empty ist Never', () => {
+		expectLastTypeString('x = []\nK = KeyOf(x)', 'TypeOf(Never)');
+	});
+	it('KeyOf zeigt den Namen des Werts', () => {
+		expectLastTypeString(data + 'K = KeyOf(data)', 'TypeOf(KeyOf(data))');
+	});
+});
+
+//#endregion KeyOf

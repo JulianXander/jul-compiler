@@ -942,6 +942,7 @@ export type CompileTimeType =
 	| TypeType
 	| CompileTimeBoundType
 	| CompileTimeLengthOfType
+	| CompileTimeKeyOfType
 	| CompileTimeWithElementAtType
 	| CompileTimeConditionalType
 	| CompileTimeIndexRangeType
@@ -1524,17 +1525,52 @@ function isSameDictionaryLiteral(
 export interface CompileTimeDictionaryType extends CompileTimeTypeBase {
 	readonly julType: 'dictionary';
 	ElementType: CompileTimeType;
+	/**
+	 * Genau dieser Wert, wie der Längen-Term einer Liste (docs/backlog/key-of.md): Nur ein Schlüssel
+	 * vom Typ KeyOf desselben Terms ist beweisbar vorhanden. Fehlt er, ist über die Schlüssel nichts
+	 * bekannt.
+	 */
+	Keys: LengthTerm | undefined;
 }
 
 export function createCompileTimeDictionaryType(
 	ElementType: CompileTimeType,
 	aliasName?: string,
+	Keys?: LengthTerm,
 ): CompileTimeDictionaryType {
-	return internType(`dict:${ElementType.id},${aliasName === undefined ? '-' : aliasName.length + ':' + aliasName}`, id => ({
+	const keysKey = Keys ? `,${Keys.id}` : '';
+	return internType(`dict:${ElementType.id},${aliasName === undefined ? '-' : aliasName.length + ':' + aliasName}${keysKey}`, id => ({
 		julType: 'dictionary',
 		ElementType: ElementType,
 		aliasName: aliasName,
+		Keys: Keys,
 		isDeferred: ElementType.isDeferred,
+		id: id,
+	}));
+}
+
+/**
+ * Die Schlüssel, die in Source vorhanden sind, auch mit leerem Wert (KeyOf, docs/backlog/key-of.md).
+ * Source ist ein Dictionary mit Term, ein Typ ohne bestimmten Wert (Aufrufergebnis, Record-Typ) oder
+ * ein noch offener Typ (Parameter, Feldzugriff).
+ */
+export interface CompileTimeKeyOfType extends CompileTimeTypeBase {
+	readonly julType: 'keyOf';
+	Source: CompileTimeType;
+	/**
+	 * Ein frischer Term, wenn Source keinen bestimmten Wert bezeichnet: Zwei KeyOf(make()) meinen
+	 * vielleicht verschiedene Werte und dürfen nicht als dieselben Schlüssel gelten, auch nicht als
+	 * dasselbe internierte Objekt. Bei einem Dictionary mit Term steht er dort.
+	 */
+	Keys: LengthTerm | undefined;
+}
+
+export function createCompileTimeKeyOfType(Source: CompileTimeType, Keys?: LengthTerm): CompileTimeKeyOfType {
+	return internType(Keys ? `keyOf:${Source.id}:${Keys.id}` : `keyOf:${Source.id}`, id => ({
+		julType: 'keyOf',
+		Source: Source,
+		Keys: Keys,
+		isDeferred: Source.isDeferred,
 		id: id,
 	}));
 }
@@ -1734,13 +1770,21 @@ export interface LengthTerm {
 	readonly id: number;
 	/** Nur zur Anzeige und Fehlersuche. */
 	readonly name: string;
+	/**
+	 * Der Pfad beginnt an einer Top-Level-Bindung: Er bezeichnet in jedem Aufruf denselben Wert und
+	 * darf deshalb in einem abgeleiteten Rückgabetyp stehen bleiben (eraseValueTerms).
+	 */
+	readonly global?: true;
 }
 
 let nextLengthTermId = 1;
 const pathLengthTerms = new Map<string, LengthTerm>();
 
-/** Die Länge des Werts, den Symbol und Feldschlüssel bezeichnen. */
-export function getPathLengthTerm(symbol: object, keys: (string | number)[], name: string): LengthTerm {
+/**
+ * Der Wert, den Symbol und Feldschlüssel bezeichnen: seine Länge bei einer Liste, seine Schlüssel
+ * bei einem Dictionary.
+ */
+export function getPathLengthTerm(symbol: object, keys: (string | number)[], name: string, global?: boolean): LengthTerm {
 	const symbolId = getObjectId(symbol);
 	const key = keys.length
 		? `${symbolId}/${keys.join('/')}`
@@ -1749,7 +1793,9 @@ export function getPathLengthTerm(symbol: object, keys: (string | number)[], nam
 	if (existing) {
 		return existing;
 	}
-	const term: LengthTerm = { id: nextLengthTermId++, name: name };
+	const term: LengthTerm = global
+		? { id: nextLengthTermId++, name: name, global: true }
+		: { id: nextLengthTermId++, name: name };
 	pathLengthTerms.set(key, term);
 	return term;
 }
@@ -2093,6 +2139,7 @@ export function forEachChildType(type: CompileTimeType, callback: (child: Compil
 			callback(type.Value);
 			return;
 		case 'lengthOf':
+		case 'keyOf':
 			callback(type.Source);
 			return;
 		case 'not':

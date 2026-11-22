@@ -328,4 +328,32 @@ describe('project-loader', () => {
 		expect(documents[path('main.jul')]).to.equal(main);
 		expect(main.syntax.errors).to.deep.equal([]);
 	});
+
+	// docs/backlog/key-of.md: Ein importierter Name steht für die Definition in seiner Datei, sonst
+	// wäre KeyOf(data) in jeder importierenden Datei ein anderer Typ.
+	describe('KeyOf über Dateigrenzen', () => {
+		const pool = 'data: Dictionary(Integer) = [a = 1 b = 2]\nId = KeyOf(data)';
+		function getErrorCodes(files: { [fileName: string]: string; }): ErrorCode[] {
+			return loadMain(files).main.checked!.errors.map(error => error.code);
+		}
+		it('KeyOf aus der Quelldatei gilt für den importierten Wert', () => {
+			expect(getErrorCodes({
+				'main.jul': '(data Id) = import(§./pool.jul§)\nget = (id: Id) :> Integer => data.getField(id)',
+				'pool.jul': pool,
+			})).to.deep.equal([]);
+		});
+		it('KeyOf des importierten Werts ist derselbe Typ wie in der Quelldatei', () => {
+			expect(getErrorCodes({
+				'main.jul': '(data Id) = import(§./pool.jul§)\nf = (id: KeyOf(data)) :> Id => id',
+				'pool.jul': pool,
+			})).to.deep.equal([]);
+		});
+		// Gegenprobe: ein anderes Dictionary aus derselben Datei.
+		it('KeyOf eines anderen importierten Dictionary passt nicht', () => {
+			expect(getErrorCodes({
+				'main.jul': '(other Id) = import(§./pool.jul§)\nget = (id: Id) :> Integer => other.getField(id)',
+				'pool.jul': pool + '\nother: Dictionary(Integer) = [a = 1]',
+			})).to.deep.equal([ErrorCode.returnTypeMismatch]);
+		});
+	});
 });

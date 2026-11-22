@@ -7,7 +7,7 @@ import {
 	_assertCall, _assertFailed, _branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssertCall, _takeAssertionViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText, toLowerCase,
 	completed$, create$, deepEqual, delay$, divide, equal, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger, parseInteger, parseFloat,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol, _optionalField, _Text, Or,
-	_addInteger, _subtractInteger, _multiplyInteger, _toCanonicalInteger, _isInteger, _fromTs, _isOfType, Float, length, range, modulo,
+	_addInteger, _subtractInteger, _multiplyInteger, _toCanonicalInteger, _isInteger, _fromTs, _isOfType, Float, length, range, modulo, KeyOf, hasField,
 } from './runtime.js';
 
 //#region kanonische Integer
@@ -242,6 +242,34 @@ describe('Record als Typ', () => {
 });
 
 //#endregion _branch
+
+// docs/backlog/key-of.md: vorhanden heißt eigener Schlüssel, auch mit leerem Wert.
+describe('KeyOf als Typ', () => {
+	const dictionary = { a: 1, b: undefined };
+	it('passt auf einen vorhandenen Schlüssel', () => {
+		expect(_isOfType('a', KeyOf(dictionary))).to.equal(true);
+	});
+	it('passt auf einen Schlüssel mit leerem Wert', () => {
+		expect(_isOfType('b', KeyOf(dictionary))).to.equal(true);
+	});
+	it('passt nicht auf einen fehlenden Schlüssel', () => {
+		expect(_isOfType('c', KeyOf(dictionary))).to.equal(false);
+	});
+	// Nicht über den Prototyp: toString ist kein Schlüssel des Werts.
+	it('passt nicht auf eine Eigenschaft des Prototyps', () => {
+		expect(_isOfType('toString', KeyOf(dictionary))).to.equal(false);
+	});
+	it('passt nicht auf einen Nicht-Text', () => {
+		expect(_isOfType(1, KeyOf({ 1: 1 }))).to.equal(false);
+	});
+	it('passt bei Empty auf nichts', () => {
+		expect(_isOfType('a', KeyOf(undefined))).to.equal(false);
+	});
+	it('hasField sagt dasselbe', () => {
+		expect([hasField(dictionary, 'a'), hasField(dictionary, 'b'), hasField(dictionary, 'c'), hasField(dictionary, 'toString'), hasField(undefined, 'a')])
+			.to.deep.equal([true, true, false, false, false]);
+	});
+});
 
 //#region assume und assert
 

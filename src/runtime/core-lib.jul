@@ -1268,12 +1268,37 @@ aggregate = nativeFunction(
 )
 #endregion List
 #region Dictionary
+# Die Texte, die in dictionary als Schlüssel vorhanden sind, auch mit leerem Wert.
+# Bezeichnet die Schlüssel genau dieses Werts, nicht die jedes Dictionary gleichen Typs.
+# Ein Text wird zum Schlüssel über hasField oder ?(key) [KeyOf(dictionary)].
+KeyOf = nativeFunction(
+	(dictionary: Or([] Dictionary(Any))) -> Type
+	§js
+		(dictionary) => KeyOf(dictionary)
+	§
+)
+# Ob key in dictionary als Schlüssel vorhanden ist, auch mit leerem Wert.
+hasField = nativeFunction(
+	(
+		dictionary: Or([] Dictionary(Any))
+		key: Text
+	) -> Is(key KeyOf(dictionary))
+	§js
+		(dictionary, key) => dictionary != null && Object.hasOwn(dictionary, key)
+	§
+)
 # Liefert den Wert des Feldes mit dem gegebenen Key.
+# Empty, wenn das Feld fehlt. Ein Key vom Typ KeyOf(dictionary) ist vorhanden, dann ist der Wert
+# vom Elementtyp.
 getField = nativeFunction(
 	(
 		dictionary: Or([] Dictionary(Any))
 		key: Text
-	) -> Or([] TypeOf(dictionary)/ElementType)
+	)
+		->
+			:?(TypeOf(key))
+				[KeyOf(dictionary)] => TypeOf(dictionary)/ElementType
+				() => Or([] TypeOf(dictionary)/ElementType)
 	§js
 		(dictionary, key) => dictionary?.[key]
 	§

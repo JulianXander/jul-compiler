@@ -271,6 +271,16 @@ export function _isOfType(value: any, type: RuntimeType): boolean {
 							return true;
 						}
 						break;
+					case 'keyOf': {
+						// Wie bei einem Pflichtfeld zählt der Schlüssel, nicht der Wert darunter.
+						const dictionary = type.dictionary;
+						if (typeof value === 'string'
+							&& isDictionary(dictionary)
+							&& Object.hasOwn(dictionary, value)) {
+							return true;
+						}
+						break;
+					}
 					// Selten, deshalb zuletzt: die Prüfung ist der heißeste Pfad der Runtime.
 					case 'lazy':
 						return _isOfType(value, type.getType());
@@ -912,6 +922,7 @@ export type BuiltInType =
 	| UnionType
 	| ComplementType
 	| TypeOfType
+	| KeyOfType
 	| LazyType
 	;
 
@@ -1035,6 +1046,15 @@ interface ComplementType {
 interface TypeOfType {
 	readonly [_julTypeSymbol]: 'typeOf';
 	readonly value: RuntimeType;
+}
+
+/**
+ * Die Texte, die in dictionary als Schlüssel vorhanden sind, auch mit leerem Wert
+ * (docs/backlog/key-of.md).
+ */
+interface KeyOfType {
+	readonly [_julTypeSymbol]: 'keyOf';
+	readonly dictionary: unknown;
 }
 
 /**
@@ -1498,6 +1518,21 @@ export const TypeOf = /*#__PURE__*/ _createFunction(
 		singleNames: [
 			{
 				name: 'value',
+			},
+		]
+	}
+);
+export const KeyOf = /*#__PURE__*/ _createFunction(
+	function KeyOf(dictionary: unknown): KeyOfType {
+		return {
+			[_julTypeSymbol]: 'keyOf',
+			dictionary: dictionary,
+		};
+	},
+	{
+		singleNames: [
+			{
+				name: 'dictionary',
 			},
 		]
 	}
@@ -3090,6 +3125,28 @@ export const getField = /*#__PURE__*/ _createFunction(
 		key: string,
 	): T | undefined {
 		return dictionary?.[key];
+	},
+	{
+		singleNames: [
+			{
+				name: 'dictionary',
+				type: /*#__PURE__*/ optionalType(/*#__PURE__*/ Dictionary(Any))
+			},
+			{
+				name: 'key',
+				type: _Text
+			},
+		]
+	}
+);
+export const hasField = /*#__PURE__*/ _createFunction(
+	function hasField(
+		dictionary: { [key: string]: unknown; } | undefined,
+		key: string,
+	): boolean {
+		// Der eigene Schlüssel zählt, auch mit leerem Wert. Nicht über den Prototyp (toString).
+		return dictionary != null
+			&& Object.hasOwn(dictionary, key);
 	},
 	{
 		singleNames: [

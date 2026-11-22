@@ -83,6 +83,7 @@ alias: (value: Text) ~> Empty
 file2: [   someText: §test token 1§   logText: (value: Text) ~> Empty   MyType: TypeOf(MyType) ]
 javascriptImport: [   testfn1: (par1: Any) ~> Any   testfn2: (par1: Any) ~> Any   greeting: §hello js§   test2: 4f ]
 jsonImport: §hello json§
+people: Dictionary([   name: Text   age: Integer ])
 someText: §test token 1§
 test1: [hallo: Integer]
 typescriptImport: [   greeting: §hello ts§   test2: 4f   testfn1: (par1: Text) ~> Any   testfn2: (par1: Text) ~> Any ]

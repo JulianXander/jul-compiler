@@ -17,6 +17,7 @@ import {
 	CompileTimeFunctionType,
 	CompileTimeIndexRangeType,
 	CompileTimeIntersectionType,
+	CompileTimeKeyOfType,
 	CompileTimeListType,
 	CompileTimePredicateType,
 	CompileTimeStreamType,
@@ -53,6 +54,7 @@ import {
 	createCompileTimeIndexRangeType,
 	createCompileTimeIntersectionType,
 	createCompileTimeLengthOfType,
+	createCompileTimeKeyOfType,
 	createCompileTimeListType,
 	getPathLengthTerm,
 	createFreshLengthTerm,
@@ -621,6 +623,7 @@ function dereferenceUnknownKeyFromObject(
 		case 'add':
 		case 'subtract':
 		case 'lengthOf':
+		case 'keyOf':
 		case 'never':
 		case 'not':
 		case 'parameters':
@@ -729,6 +732,7 @@ function hasKnownTypeProperties(rawType: CompileTimeType): boolean {
 		case 'indexRange':
 		case 'invalid':
 		case 'lengthOf':
+		case 'keyOf':
 		case 'mapElements':
 		case 'nestedReference':
 		case 'never':
@@ -900,6 +904,7 @@ export function dereferenceNameFromObject(
 		case 'add':
 		case 'subtract':
 		case 'lengthOf':
+		case 'keyOf':
 		case 'never':
 		case 'not':
 		case 'indexRange':
@@ -1089,6 +1094,7 @@ function dereferenceNameFromObjectType(
 		case 'add':
 		case 'subtract':
 		case 'lengthOf':
+		case 'keyOf':
 		case 'never':
 		case 'not':
 		case 'indexRange':
@@ -1204,6 +1210,7 @@ export function dereferenceIndexFromObject(
 		case 'add':
 		case 'subtract':
 		case 'lengthOf':
+		case 'keyOf':
 		case 'never':
 		case 'not':
 		case 'parameters':
@@ -1501,7 +1508,8 @@ function traversePlaceholdersUncached(
 			}
 			return createCompileTimeDictionaryType(
 				dereferencedElement,
-				argumentContext ? undefined : rawType.aliasName);
+				argumentContext ? undefined : rawType.aliasName,
+				rawType.Keys);
 		}
 		case 'dictionaryLiteral': {
 			// Auch mit argumentContext: ein Typparameter in einem Feld (`[value: T]`) wird erst am
@@ -1572,6 +1580,16 @@ function traversePlaceholdersUncached(
 			// verlässt.
 			return shiftLength(getLengthFromType(dereferencedSource), rawType.Offset);
 		}
+		case 'keyOf': {
+			const rawSource = rawType.Source;
+			const dereferencedSource = traversePlaceholders(rawSource, argumentContext);
+			if (dereferencedSource === rawSource) {
+				return rawType;
+			}
+			// Wie bei lengthOf neu ausrechnen: Ein Record-Typ wird zur Union seiner Feldnamen, ein Or
+			// zum Schnitt.
+			return getKeyOfFromType(dereferencedSource);
+		}
 		case 'or': {
 			const rawChoices = rawType.ChoiceTypes;
 			const dereferencedChoices = rawChoices.map(choiceType => traversePlaceholders(choiceType, argumentContext));
@@ -1602,8 +1620,8 @@ function traversePlaceholdersUncached(
 			// Länge dieses Parameters, nicht die irgendeiner Liste gleichen Typs
 			// (docs/backlog/laengen-terme.md).
 			const resolvedParameter = resolvePlaceholders(dereferenced1);
-			return rawType.functionRef && hasListChoice(resolvedParameter)
-				? withListLength(
+			return rawType.functionRef && hasTermChoice(resolvedParameter)
+				? withValueTerm(
 					resolvedParameter,
 					getPathLengthTerm(rawType.functionRef, ['parameter', rawType.index], rawType.name),
 					false)
@@ -1827,7 +1845,7 @@ function traverseOperation(
 	}
 	const evaluated = operation.evaluate(rawType, operands, argumentContext);
 	if (rawType.julType !== 'nestedReference'
-		|| !hasListChoice(evaluated)) {
+		|| !hasTermChoice(evaluated)) {
 		return evaluated;
 	}
 	// Ein Feldpfad auf einem Parameter (a/past im Rumpf) bezeichnet wie der Parameter selbst genau
@@ -1841,7 +1859,7 @@ function traverseOperation(
 	const term = argumentContext
 		? getArgumentLengthTerm(argumentContext, path.index, path.keys, name)
 		: getPathLengthTerm(path.functionRef, ['parameter', path.index, ...path.keys], name);
-	return withListLength(evaluated, term, false);
+	return withValueTerm(evaluated, term, false);
 }
 
 const argumentLengthTerms = new WeakMap<ArgumentContext, Map<string, LengthTerm>>();
@@ -2678,30 +2696,110 @@ function getLengthOfSource(rawArgType: CompileTimeType): CompileTimeType | undef
 	}
 }
 
-/** Liegt in type direkt (ohne Verschachtelung) eine Liste, die eine Länge tragen kann? Billige Vorprüfung für withListLength. */
-export function hasListChoice(type: CompileTimeType): boolean {
+/**
+ * Die Schlüssel, die jeder Wert von rawType sicher hat (KeyOf, docs/backlog/key-of.md). Ein Wert
+ * aus Or(A B) liegt in A oder in B, sicher sind also nur die Schlüssel beider: der Schnitt. Ein Wert
+ * aus And(A B) liegt in beiden, er hat die Schlüssel von A und die von B. Empty und alles ohne
+ * Schlüssel tragen Never bei.
+ */
+export function getKeyOfFromType(rawType: CompileTimeType): CompileTimeType {
+	const type = getLookupType(resolveAlias(rawType));
+	switch (type.julType) {
+		case 'dictionary':
+			return type.Keys
+				? createCompileTimeKeyOfType(type)
+				: createCompileTimeKeyOfType(type, createFreshLengthTerm(''));
+		// Ein Record-Typ bezeichnet keinen bestimmten Wert. Seine Pflichtfelder sind trotzdem in jedem
+		// Wert vorhanden (isRequiredFieldOf).
+		case 'dictionaryLiteral':
+			return createCompileTimeKeyOfType(type, createFreshLengthTerm(''));
+		case 'any':
+			return builtinText;
+		case 'invalid':
+			return builtinInvalid;
+		case 'or':
+			return createNormalizedIntersectionType(type.ChoiceTypes.map(getKeyOfFromType));
+		case 'and':
+			// Mit Platzhalter wartet der Schnitt als Ganzes, wie beim Feldzugriff.
+			return isDeferredType(type)
+				? createCompileTimeKeyOfType(type)
+				: createNormalizedUnionType(type.ChoiceTypes.map(getKeyOfFromType));
+		case 'predicate':
+			return getKeyOfFromType(type.UpperBound);
+		default:
+			return isDeferredType(type)
+				? createCompileTimeKeyOfType(type)
+				: builtinNever;
+	}
+}
+
+/**
+ * Der Term der Schlüssel: der frische des Knotens oder der des Dictionary. undefined nur, solange
+ * Source noch offen ist.
+ */
+function getKeysTerm(type: CompileTimeKeyOfType): LengthTerm | undefined {
+	if (type.Keys) {
+		return type.Keys;
+	}
+	const source = resolveAlias(type.Source);
+	return source.julType === 'dictionary'
+		? source.Keys
+		: undefined;
+}
+
+/** Bezeichnen beide dieselben Schlüssel, also die Schlüssel desselben Werts? */
+function hasSameKeys(first: CompileTimeKeyOfType, second: CompileTimeKeyOfType): boolean {
+	const keys = getKeysTerm(first);
+	return keys !== undefined
+		&& keys === getKeysTerm(second);
+}
+
+/** Hat jeder Wert von rawSource den Schlüssel name? Nur bei einem Record-Typ mit diesem Pflichtfeld. */
+function isRequiredFieldOf(name: string, rawSource: CompileTimeType): boolean {
+	const source = resolveAlias(rawSource);
+	if (source.julType !== 'dictionaryLiteral') {
+		return false;
+	}
+	const field = getOwnLiteralField(source.Fields, name);
+	return field !== undefined
+		&& !field.optional;
+}
+
+/**
+ * Liegt in type direkt (ohne Verschachtelung) eine Liste oder ein Dictionary, das einen Term tragen
+ * kann? Billige Vorprüfung für withValueTerm.
+ */
+export function hasTermChoice(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'list':
+		case 'dictionary':
 			return true;
 		case 'alias':
-			return resolveAlias(type).julType === 'list';
+			return isTermCarrier(resolveAlias(type).julType);
 		case 'or':
 		case 'and':
-			return type.ChoiceTypes.some(choice => choice.julType === 'list'
-				|| (choice.julType === 'alias' && resolveAlias(choice).julType === 'list'));
+			return type.ChoiceTypes.some(choice => isTermCarrier(choice.julType)
+				|| (choice.julType === 'alias' && isTermCarrier(resolveAlias(choice).julType)));
 		default:
 			return false;
 	}
 }
 
-/** Verlangt type direkt (ohne Verschachtelung) eine bestimmte Listenlänge? */
-function hasListLength(type: CompileTimeType): boolean {
+function isTermCarrier(julType: CompileTimeType['julType']): boolean {
+	return julType === 'list'
+		|| julType === 'dictionary';
+}
+
+/** Verlangt type direkt (ohne Verschachtelung) eine bestimmte Listenlänge oder Schlüsselmenge? */
+function hasValueTerm(type: CompileTimeType): boolean {
 	switch (type.julType) {
 		case 'list':
 			return type.Length !== undefined;
+		case 'dictionary':
+			return type.Keys !== undefined;
 		case 'or':
 		case 'and':
-			return type.ChoiceTypes.some(hasListLength);
+			return type.ChoiceTypes.some(hasValueTerm);
 		default:
 			return false;
 	}
@@ -2763,34 +2861,40 @@ function isAtMostLength(type: CompileTimeType, source: CompileTimeType): boolean
 }
 
 /**
- * Gibt den Listen in rawType die Länge des Werts, den der Ausdruck liefert (siehe
- * docs/backlog/laengen-terme.md). Ein Or/And beschreibt denselben Wert, jede Liste darin bekommt
- * also denselben Term. override: auch eine schon vorhandene Länge ersetzen (der Pfad einer Bindung
- * ist der genauere Name als eine Länge, die der Typ von woanders mitbringt). term undefined mit
- * override entfernt die Länge.
+ * Gibt den Listen und Dictionaries in rawType den Term des Werts, den der Ausdruck liefert: die
+ * Länge einer Liste (docs/backlog/laengen-terme.md), die Schlüssel eines Dictionary
+ * (docs/backlog/key-of.md). Ein Or/And beschreibt denselben Wert, jeder Zweig bekommt also denselben
+ * Term. override: auch einen schon vorhandenen Term ersetzen (der Pfad einer Bindung ist der genauere
+ * Name als ein Term, den der Typ von woanders mitbringt). term undefined mit override entfernt ihn.
  */
-export function withListLength(rawType: CompileTimeType, term: LengthTerm | undefined, override: boolean): CompileTimeType {
+export function withValueTerm(rawType: CompileTimeType, term: LengthTerm | undefined, override: boolean): CompileTimeType {
 	switch (rawType.julType) {
 		case 'list':
 			return rawType.Length === term
 				|| (rawType.Length !== undefined && !override)
 				? rawType
 				: createCompileTimeListType(rawType.ElementType, term);
+		case 'dictionary':
+			// Der Alias-Name bleibt, er ist nur Beschriftung.
+			return rawType.Keys === term
+				|| (rawType.Keys !== undefined && !override)
+				? rawType
+				: createCompileTimeDictionaryType(rawType.ElementType, rawType.aliasName, term);
 		case 'alias': {
-			// Nur ein Alias auf eine Liste. Die Beschriftung geht dabei verloren.
+			// Nur ein Alias auf eine Liste oder ein Dictionary. Die Beschriftung geht dabei verloren.
 			const resolved = resolveAlias(rawType);
-			if (resolved.julType !== 'list') {
+			if (!isTermCarrier(resolved.julType)) {
 				return rawType;
 			}
-			const withLength = withListLength(resolved, term, override);
-			return withLength === resolved
+			const withTerm = withValueTerm(resolved, term, override);
+			return withTerm === resolved
 				? rawType
-				: withLength;
+				: withTerm;
 		}
-		// Nur Listen-Zweige ändern sich, die Union bleibt normalisiert, solange dabei keine zwei Zweige
-		// gleich werden. Die Normalisierung wäre hier der teuerste Teil.
+		// Nur Listen- und Dictionary-Zweige ändern sich, die Union bleibt normalisiert, solange dabei
+		// keine zwei Zweige gleich werden. Die Normalisierung wäre hier der teuerste Teil.
 		case 'or': {
-			const choices = rawType.ChoiceTypes.map(choice => withListLength(choice, term, override));
+			const choices = rawType.ChoiceTypes.map(choice => withValueTerm(choice, term, override));
 			return elementsEqual(choices, rawType.ChoiceTypes)
 				? rawType
 				: hasDuplicateTypes(choices)
@@ -2798,7 +2902,7 @@ export function withListLength(rawType: CompileTimeType, term: LengthTerm | unde
 					: createCompileTimeUnionType(choices);
 		}
 		case 'and': {
-			const choices = rawType.ChoiceTypes.map(choice => withListLength(choice, term, override));
+			const choices = rawType.ChoiceTypes.map(choice => withValueTerm(choice, term, override));
 			return elementsEqual(choices, rawType.ChoiceTypes)
 				? rawType
 				: hasDuplicateTypes(choices)
@@ -2815,51 +2919,69 @@ function hasDuplicateTypes(types: CompileTimeType[]): boolean {
 }
 
 /**
- * Entfernt die Längen-Terme aus dem Rückgabetyp einer Funktion: Sie bezeichnen Werte eines
- * einzelnen Aufrufs. Ein anderer Aufruf (Rekursion) liefert andere Werte unter demselben Term.
- * Ohne Term beweist ein lengthOf nichts mehr.
+ * Entfernt die Terme aus dem Rückgabetyp einer Funktion: Sie bezeichnen Werte eines einzelnen
+ * Aufrufs. Ein anderer Aufruf (Rekursion) liefert andere Werte unter demselben Term. Ohne Term
+ * beweist ein lengthOf oder keyOf nichts mehr. Die Schlüssel einer Top-Level-Bindung bleiben: Sie
+ * bezeichnen in jedem Aufruf denselben Wert (KeyOf(allCardData) im abgeleiteten Typ eines filter).
  */
-const erasedListLengths = new WeakMap<CompileTimeType, CompileTimeType>();
+const erasedValueTerms = new WeakMap<CompileTimeType, CompileTimeType>();
 
-export function eraseListLengths(rawType: CompileTimeType): CompileTimeType {
+export function eraseValueTerms(rawType: CompileTimeType): CompileTimeType {
 	// Typen sind interniert, große Rückgabetypen (ein Spielzustand) kommen oft wieder.
-	const cached = erasedListLengths.get(rawType);
+	const cached = erasedValueTerms.get(rawType);
 	if (cached) {
 		return cached;
 	}
-	const erased = eraseListLengthsUncached(rawType);
-	erasedListLengths.set(rawType, erased);
+	const erased = eraseValueTermsUncached(rawType);
+	erasedValueTerms.set(rawType, erased);
 	return erased;
 }
 
-function eraseListLengthsUncached(rawType: CompileTimeType): CompileTimeType {
+function eraseValueTermsUncached(rawType: CompileTimeType): CompileTimeType {
 	switch (rawType.julType) {
 		case 'list': {
-			const elementType = eraseListLengths(rawType.ElementType);
+			const elementType = eraseValueTerms(rawType.ElementType);
 			return rawType.Length === undefined && elementType === rawType.ElementType
 				? rawType
 				: createCompileTimeListType(elementType);
 		}
+		case 'dictionary': {
+			const elementType = eraseValueTerms(rawType.ElementType);
+			const keys = rawType.Keys?.global
+				? rawType.Keys
+				: undefined;
+			return keys === rawType.Keys && elementType === rawType.ElementType
+				? rawType
+				: createCompileTimeDictionaryType(elementType, rawType.aliasName, keys);
+		}
 		case 'lengthOf': {
-			const source = eraseListLengths(rawType.Source);
+			const source = eraseValueTerms(rawType.Source);
 			return source === rawType.Source
 				? rawType
 				: createCompileTimeLengthOfType(source, rawType.Offset);
 		}
+		case 'keyOf': {
+			const source = eraseValueTerms(rawType.Source);
+			// Ohne den Term der Quelle bezeichnet der Knoten keinen bestimmten Wert mehr, er bekommt
+			// einen frischen (siehe CompileTimeKeyOfType.Keys).
+			return source === rawType.Source
+				? rawType
+				: createCompileTimeKeyOfType(source, rawType.Keys ?? createFreshLengthTerm(''));
+		}
 		case 'tuple': {
-			const elementTypes = rawType.ElementTypes.map(eraseListLengths);
+			const elementTypes = rawType.ElementTypes.map(eraseValueTerms);
 			return elementsEqual(elementTypes, rawType.ElementTypes)
 				? rawType
 				: createCompileTimeTupleType(elementTypes);
 		}
 		case 'or': {
-			const choices = rawType.ChoiceTypes.map(eraseListLengths);
+			const choices = rawType.ChoiceTypes.map(eraseValueTerms);
 			return elementsEqual(choices, rawType.ChoiceTypes)
 				? rawType
 				: createNormalizedUnionType(choices);
 		}
 		case 'and': {
-			const choices = rawType.ChoiceTypes.map(eraseListLengths);
+			const choices = rawType.ChoiceTypes.map(eraseValueTerms);
 			return elementsEqual(choices, rawType.ChoiceTypes)
 				? rawType
 				: createNormalizedIntersectionType(choices);
@@ -2867,7 +2989,7 @@ function eraseListLengthsUncached(rawType: CompileTimeType): CompileTimeType {
 		case 'dictionaryLiteral': {
 			let changed = false;
 			const fields = mapFieldTypes(rawType.Fields, fieldType => {
-				const erased = eraseListLengths(fieldType);
+				const erased = eraseValueTerms(fieldType);
 				changed ||= erased !== fieldType;
 				return erased;
 			});
@@ -4336,7 +4458,12 @@ function typeEqualsAtDepth(first: CompileTimeType, second: CompileTimeType): boo
 				&& first.value === second.value;
 		case 'dictionary':
 			return second.julType === 'dictionary'
+				&& first.Keys === second.Keys
 				&& typeEquals(first.ElementType, second.ElementType);
+		case 'keyOf':
+			return second.julType === 'keyOf'
+				&& first.Keys === second.Keys
+				&& typeEquals(first.Source, second.Source);
 		case 'bound':
 			return second.julType === 'bound'
 				&& first.Relation === second.Relation
@@ -4649,7 +4776,7 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 			const elementValue = valueOf(type.ElementType);
 			return elementValue === type.ElementType
 				? type
-				: createCompileTimeDictionaryType(elementValue);
+				: createCompileTimeDictionaryType(elementValue, undefined, type.Keys);
 		}
 		case 'or': {
 			// Der Wert ist einer der Choices, als Typ gelesen also die Union ihrer Werte:
@@ -4685,6 +4812,7 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 		case 'integer':
 		case 'integerLiteral':
 		case 'lengthOf':
+		case 'keyOf':
 		case 'never':
 		case 'not':
 		case 'indexRange':
@@ -4745,11 +4873,17 @@ export function isTypeAssignable(
 		return { assignable: false, error: new TypeError('Type comparison is excessively deep and possibly infinite.') };
 	}
 	// Die Länge einer Liste zählt nur, wenn das Ziel eine verlangt. Ohne sie trifft der Cache den
-	// Vergleich derselben Liste ohne Länge, statt für jeden Pfad neu zu rechnen.
+	// Vergleich derselben Liste ohne Länge, statt für jeden Pfad neu zu rechnen. Ebenso die Schlüssel
+	// eines Dictionary.
 	if (argumentsType.julType === 'list'
 		&& argumentsType.Length !== undefined
-		&& !hasListLength(targetType)) {
+		&& !hasValueTerm(targetType)) {
 		return isTypeAssignable(createCompileTimeListType(argumentsType.ElementType), targetType);
+	}
+	if (argumentsType.julType === 'dictionary'
+		&& argumentsType.Keys !== undefined
+		&& !hasValueTerm(targetType)) {
+		return isTypeAssignable(createCompileTimeDictionaryType(argumentsType.ElementType, argumentsType.aliasName), targetType);
 	}
 	const cached = assignabilityCache.get(argumentsType, targetType);
 	if (cached) {
@@ -5115,6 +5249,30 @@ function isTypeAssignableByStructure(
 				// Ein Wert, der das Prädikat erfüllt, liegt in der Obermenge.
 				default:
 					return isTypeAssignable(argumentsType.UpperBound, targetType);
+			}
+			break;
+		case 'keyOf':
+			switch (targetType.julType) {
+				// Erst zerlegen, damit dieselben Schlüssel darin gefunden werden.
+				case 'and':
+				case 'not':
+				case 'or':
+				case 'predicate':
+					break;
+				case 'keyOf':
+					if (hasSameKeys(argumentsType, targetType)) {
+						return { assignable: true };
+					}
+					return isDeferredType(argumentsType) || isDeferredType(targetType)
+						? { assignable: undefined }
+						: getDefaultTypeError(argumentsType, targetType);
+				// Ein Schlüssel ist ein Text, mehr ist über ihn nicht bekannt.
+				default: {
+					const textAssignability = isTypeAssignable(builtinText, targetType);
+					return textAssignability.assignable === false
+						? getDefaultTypeError(argumentsType, targetType)
+						: textAssignability;
+				}
 			}
 			break;
 		default:
@@ -5507,6 +5665,16 @@ function isTypeAssignableByStructure(
 		case 'indexRange':
 			// Nur als Schlüssel sinnvoll, nie als Zieltyp einer Zuweisung.
 			return { assignable: undefined };
+		case 'keyOf': {
+			// Ein Pflichtfeld eines Record-Typs ist in jedem Wert als Schlüssel da.
+			if (argumentsType.julType === 'textLiteral'
+				&& isRequiredFieldOf(argumentsType.value, targetType.Source)) {
+				return { assignable: true };
+			}
+			// Sonst beweist nur dieselbe Herkunft etwas (oben bei der Quelle). Ein beliebiger Text
+			// verlangt eine Verengung, etwa mit hasField oder ?(x) [KeyOf(d)].
+			break;
+		}
 		case 'predicate': {
 			if (argumentsType.julType === 'predicate'
 				&& isSamePredicate(argumentsType, targetType)) {
@@ -6214,6 +6382,13 @@ export function typeToString(type: CompileTimeType, indent: number, depth: numbe
 				: type.Offset > 0n
 					? `Add([${length} ${type.Offset}])`
 					: length;
+		}
+		case 'keyOf': {
+			// Mit Term der Name des Werts (KeyOf(allCardData)), sein Typ sagte nichts über die Herkunft.
+			const keys = getKeysTerm(type);
+			return keys?.name
+				? `KeyOf(${keys.name})`
+				: `KeyOf(${typeToString(type.Source, indent, depth + 1, suppressAlias)})`;
 		}
 		case 'list':
 			return `List(${typeToString(type.ElementType, indent, depth + 1, suppressAlias)})`;

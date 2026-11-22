@@ -325,6 +325,9 @@ function typeToString(type: RuntimeType, indent: number): string {
 						return 'Type';
 					case 'typeOf':
 						return `TypeOf(${typeToString(type.value, indent)})`;
+					// Die Schlüssel ausgeschrieben wären bei card-data.json zehntausende.
+					case 'keyOf':
+						return 'KeyOf(…)';
 					case 'lazy':
 						// Der Name statt des Typs: ausgeschrieben endete die Rekursion nicht.
 						return type.name;

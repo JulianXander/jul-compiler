@@ -47,6 +47,7 @@ import {
 	Purity,
 	SimpleExpression,
 	SymbolDefinition,
+	DefinitionExpression,
 	SymbolTable,
 	Name,
 	TextToken,
@@ -119,9 +120,10 @@ import {
 	getArgumentsAssignability,
 	getElementTypeAtIndex,
 	getLengthFromType,
-	withListLength,
-	hasListChoice,
-	eraseListLengths,
+	getKeyOfFromType,
+	withValueTerm,
+	hasTermChoice,
+	eraseValueTerms,
 	getNamedAccess,
 	hasKnownFields,
 	hasKnownLength,
@@ -280,7 +282,7 @@ const typeCombinatorNames = ['Or', 'And', 'Not', 'TypeOf', 'Greater'];
  * Typfunktionen, deren Ergebnis ungültig ist, wenn einer ihrer Operanden schon als Fehler gemeldet
  * ist. And, Or, Not und TypeOf folgen dem über die Normalisierung bzw. ihren eigenen Zweig.
  */
-const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'Subtract', 'GreaterInteger', 'LessInteger', 'GreaterFloat'];
+const invalidAbsorbingTypeFunctionNames = ['ElementAt', 'LengthOf', 'KeyOf', 'WithElementAt', 'IndexRange', 'MapElements', 'Concat', 'Add', 'Subtract', 'GreaterInteger', 'LessInteger', 'GreaterFloat'];
 /**
  * Builtins, die wie ein Keyword nur direkt aufgerufen werden dürfen, mit dem Fehlercode für eine
  * andere Verwendung. import fehlt, es meldet JUL3140 schon im Parser.
@@ -2261,7 +2263,8 @@ function getConditionCall(
 /**
  * Bezeichnet der Typ genau einen Wert? Ein Literal, oder die Länge einer Liste mit Längen-Term
  * (plus Konstante): Der Term gehört zu einem bestimmten, unveränderlichen Wert, seine Länge steht also
- * fest, auch wenn sie unbekannt ist. Eine Länge ohne Term gilt für jede Liste gleichen Typs.
+ * fest, auch wenn sie unbekannt ist. Eine Länge ohne Term gilt für jede Liste gleichen Typs. Ebenso
+ * ein Dictionary mit Term: Seine Schlüssel stehen fest (hasField, docs/backlog/key-of.md).
  */
 function isSingletonValue(type: CompileTimeType): boolean {
 	switch (type.julType) {
@@ -2270,6 +2273,8 @@ function isSingletonValue(type: CompileTimeType): boolean {
 		case 'floatLiteral':
 		case 'textLiteral':
 			return true;
+		case 'dictionary':
+			return type.Keys !== undefined;
 		case 'lengthOf':
 			return isLengthTermOf(type);
 		default:
@@ -2373,19 +2378,21 @@ function setInferredType(
 	if (checkedExpectedType) {
 		setExpectedType(checkContext.result, expression, checkedExpectedType);
 	}
-	setTypeInfo(checkContext.result, expression, withExpressionListLength(expression, inferType(expression, typeContext, checkContext), typeContext));
+	setTypeInfo(checkContext.result, expression, withExpressionValueTerm(expression, inferType(expression, typeContext, checkContext), typeContext, checkContext));
 }
 
 /**
- * Gibt einer Liste, die ein Pfad (values, a/past) liefert, die Länge genau dieses Werts
- * (docs/backlog/laengen-terme.md). Andere Ausdrücke bekommen keine: Eine Liste ohne Länge beweist
- * nichts. Nur Wert-Ausdrücke: Ein Parameter- oder Feldtyp darf keine Länge bekommen, sonst passte nur
- * noch genau dieser Wert darauf.
+ * Gibt einer Liste oder einem Dictionary, das ein Pfad (values, a/past) liefert, den Term genau
+ * dieses Werts: die Länge (docs/backlog/laengen-terme.md), die Schlüssel (docs/backlog/key-of.md).
+ * Andere Ausdrücke bekommen keinen: Ohne Term beweist ein lengthOf oder keyOf nichts. Nur
+ * Wert-Ausdrücke: Ein Parameter- oder Feldtyp darf keinen Term bekommen, sonst passte nur noch genau
+ * dieser Wert darauf.
  */
-function withExpressionListLength(
+function withExpressionValueTerm(
 	expression: TypedExpression,
 	typeInfo: TypeInfo,
 	typeContext: TypeContext,
+	checkContext: CheckContext,
 ): TypeInfo {
 	const type = typeInfo.type;
 	// Ein aufgeschobener Typ (etwa die Verengung eines Parameters) bekommt seine Länge beim Auflösen,
@@ -2393,7 +2400,7 @@ function withExpressionListLength(
 	if (type.isDeferred) {
 		return typeInfo;
 	}
-	if (!hasListChoice(type)) {
+	if (!hasTermChoice(type)) {
 		return typeInfo;
 	}
 	let lengthType: CompileTimeType;
@@ -2404,14 +2411,15 @@ function withExpressionListLength(
 			if (!path) {
 				return typeInfo;
 			}
-			const name = ['path', ...path.keys].join('/');
-			lengthType = withListLength(type, getPathLengthTerm(path.symbol, path.keys, name), true);
+			const origin = getTermOrigin(path.symbol, checkContext);
+			const name = [getSymbolName(origin.symbol), ...path.keys].join('/');
+			lengthType = withValueTerm(type, getPathLengthTerm(origin.symbol, path.keys, name, origin.global), true);
 			break;
 		}
 		case 'functionCall':
 			// Eine Länge aus dem Rückgabetyp entfernen: Die Signatur kann eine Länge des Arguments
 			// durchreichen, ohne dass der Rückgabewert dieselbe Liste ist.
-			lengthType = withListLength(type, undefined, true);
+			lengthType = withValueTerm(type, undefined, true);
 			break;
 		default:
 			return typeInfo;
@@ -2419,6 +2427,73 @@ function withExpressionListLength(
 	return lengthType === type
 		? typeInfo
 		: { ...typeInfo, type: lengthType };
+}
+
+/**
+ * Das Symbol, an dem der Term eines Pfads hängt. Ein importierter Name steht für die Definition in
+ * seiner Datei: Sonst wäre KeyOf(allCardData) in jeder importierenden Datei ein anderer Typ. global:
+ * Der Pfad beginnt an einer Top-Level-Bindung, siehe LengthTerm.global.
+ */
+function getTermOrigin(
+	symbol: SymbolDefinition,
+	checkContext: CheckContext,
+): TermOrigin {
+	// Je Symbol nur einmal: Jede Referenz auf eine Liste fragt, und das Auflösen eines Imports
+	// rechnet Pfade. Ein Import kann veralten, wenn der Language Server nur die importierte Datei neu
+	// parst: Dann zeigt der Eintrag auf ein Symbol, das es dort nicht mehr gibt.
+	const cached = termOrigins.get(symbol);
+	if (cached
+		&& (!cached.importedFrom || isCurrentImport(cached, checkContext.documents))) {
+		return cached;
+	}
+	const definition = symbol.definition;
+	const imported = definition?.type === 'destructuringField'
+		? resolveImportBinding(definition, checkContext.filePath, checkContext.documents)
+		: undefined;
+	const origin: TermOrigin = imported && definition?.type === 'destructuringField'
+		? {
+			symbol: imported.symbol,
+			global: true,
+			importedFrom: { filePath: imported.filePath, name: definition.source?.name ?? definition.name.name },
+		}
+		: { symbol: symbol, global: isTopLevelDefinition(definition) };
+	termOrigins.set(symbol, origin);
+	return origin;
+}
+
+interface TermOrigin {
+	symbol: SymbolDefinition;
+	global: boolean;
+	/** Bei einem Import: wo das Symbol steht, um den Eintrag beim nächsten Mal zu prüfen. */
+	importedFrom?: { filePath: string; name: string; };
+}
+
+function isCurrentImport(origin: TermOrigin, documents: ParsedDocuments): boolean {
+	const document = documents[origin.importedFrom!.filePath];
+	const symbols = (document?.checked ?? document?.syntax)?.symbols;
+	return symbols?.[origin.importedFrom!.name] === origin.symbol;
+}
+
+const termOrigins = new WeakMap<SymbolDefinition, TermOrigin>();
+
+/** Steht die Definition auf oberster Ebene einer Datei, auch als Feld eines Destructurings? */
+function isTopLevelDefinition(definition: DefinitionExpression | undefined): boolean {
+	if (!definition) {
+		return false;
+	}
+	const node: { parent?: unknown; } | undefined = definition.type === 'destructuringField'
+		? definition.parent?.parent
+		: definition;
+	return node !== undefined
+		&& !node.parent;
+}
+
+/** Nur für die Anzeige eines Terms (KeyOf(allCardData)). */
+function getSymbolName(symbol: SymbolDefinition): string {
+	const definition = symbol.definition;
+	return definition && 'name' in definition && definition.name && typeof definition.name === 'object' && 'name' in definition.name
+		? String(definition.name.name)
+		: 'value';
 }
 
 // TODO flatten nested or/and
@@ -3381,7 +3456,7 @@ function inferType(
 			// geprüft: Der Aufrufer liest die Signatur, nicht den Rumpf. Ohne Deklaration gilt der
 			// Rumpftyp, ohne Längen-Terme: Sie bezeichnen Werte dieses einen Aufrufs
 			// (docs/backlog/laengen-terme.md).
-			let returnType = eraseListLengths(inferredReturnType);
+			let returnType = eraseValueTerms(inferredReturnType);
 			if (declaredReturnType) {
 				// Roh: Ein Platzhalter (z.B. TypeOf(values)/ElementType) wird je Aufruf aufgelöst,
 				// nicht hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet.
@@ -3991,6 +4066,16 @@ function getReturnTypeFromFunctionCall(
 					return builtinAny;
 				}
 				return createCompileTimeTypeOfType(getLengthFromType(valueOf(sourceType)));
+			}
+			case 'KeyOf': {
+				// Das Argument ist ein Wert wie bei TypeOf, kein Typ: Sein Typ trägt den Term, über den
+				// KeyOf genau diesen Wert bezeichnet (docs/backlog/key-of.md).
+				const argTypes = getAllArgTypes(boundArgsType);
+				const sourceType = argTypes?.[0];
+				if (!sourceType) {
+					return builtinAny;
+				}
+				return createCompileTimeTypeOfType(getKeyOfFromType(sourceType));
 			}
 			case 'WithElementAt': {
 				const argTypes = getAllArgTypes(boundArgsType);
@@ -5794,6 +5879,7 @@ function classifyTypenessOnPath(
 		case 'add':
 		case 'subtract':
 		case 'lengthOf':
+		case 'keyOf':
 		case 'indexRange':
 			return 'value';
 		case 'list':
