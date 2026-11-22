@@ -1,3 +1,4 @@
+-assume außerhalb von test code (test dateien) sollte warnung geben
 -test coverage reporten
 -multi target compilation paradigm
 	-config: targets: ["browser", "node", "exe", "etc"]
