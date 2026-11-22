@@ -5011,9 +5011,44 @@ f(a = 1 b = 2)`);
 			],
 		});
 	});
-	// Gegenprobe: unbewiesen ist genau der Fall, für den assume da ist.
+	// Gegenprobe: unbewiesen ist genau der Fall, für den assume da ist. In einer Testdatei prüft
+	// jul test die Behauptung.
 	it('assume-of-unproven-type-is-not-redundant', () => {
-		expectCheck(`f = (a: Any) => assume(a Integer)`);
+		expectCheck(`f = (a: Any) => assume(a Integer)`, { filePath: 'dummy.test.jul' });
+	});
+	// Außerhalb von Tests prüft ein normaler Build die Behauptung nicht.
+	it('assume-of-unproven-type-outside-test-file-is-unchecked', () => {
+		expectCheck(`f = (a: Any) => assume(a Integer)`, {
+			errors: [
+				{
+					code: ErrorCode.uncheckedAssume,
+					message: 'Unchecked assume: outside of tests nothing checks that the value is Integer. Explain why it always holds with #ignore JUL2509.',
+					startRowIndex: 0,
+					startColumnIndex: 16,
+					endRowIndex: 0,
+					endColumnIndex: 33,
+				},
+			],
+		});
+	});
+	it('assume-of-unproven-literal-outside-test-file-is-unchecked', () => {
+		expectCheck(`Point = [x: Integer]
+p = assume([] Point)`, {
+			errors: [
+				{
+					code: ErrorCode.uncheckedAssume,
+					message: 'Unchecked assume: outside of tests nothing checks that the value is Point. Explain why it always holds with #ignore JUL2509.',
+					startRowIndex: 1,
+					startColumnIndex: 4,
+					endRowIndex: 1,
+					endColumnIndex: 20,
+				},
+			],
+		});
+	});
+	it('unchecked-assume-justified-with-ignore-comment', () => {
+		expectCheck(`#ignore JUL2509 Aufrufer übergeben nur Integer
+f = (a: Any) => assume(a Integer)`);
 	});
 	// Gegenprobe: ein genauerer Wert wird absichtlich auf Any verbreitert.
 	it('assume-widening-to-any-is-not-redundant', () => {
@@ -6479,7 +6514,7 @@ f = (state: State) =>
 	first(state2)
 source = assume([] State)
 f(source)`;
-		const parsed = parseCode(code, 'dummy.jul');
+		const parsed = parseCode(code, 'dummy.test.jul');
 		checkTypes(parsed, {});
 		expect(parsed.checked?.errors).to.deep.equal([]);
 		const type = getTypeInfo(parsed.checkResult!, parsed.checked?.expressions?.at(-1))?.type;

@@ -3144,7 +3144,7 @@ function inferType(
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'assume'
 				&& !hasArgsError) {
-				checkRedundantAssume(expression, prefixArgument ?? getArgValueExpressions(args)[0], boundArgsType, errors);
+				checkAssume(expression, prefixArgument ?? getArgValueExpressions(args)[0], boundArgsType, checkContext.filePath, errors);
 			}
 			// Wie `test`: Name statt Symbol.
 			if (functionExpression.type === 'reference'
@@ -4773,18 +4773,43 @@ function bindClosureArguments(
 //#region assume
 
 /**
- * `assume` behauptet einen Typ, den der Checker nicht beweisen kann. Beweist er ihn schon, ist
- * die Behauptung überflüssig und verdeckt nur, dass sie nicht mehr gebraucht wird (z. B. nach
- * einer verbesserten Typinferenz). Nur ein bewiesenes `assignable === true` meldet, ein
- * unbekanntes Ergebnis ist genau der Fall, für den `assume` gedacht ist. Ausgenommen ist das
+ * `assume` behauptet einen Typ, den der Checker nicht beweisen kann.
+ *
+ * Unbewiesen (`assignable !== true`) ist genau der Fall, für den `assume` gedacht ist. Außerhalb
+ * von *.test.jul prüft ihn aber nichts: Ein normaler Build übernimmt die Behauptung ungeprüft,
+ * deshalb die Warnung, die der Aufrufer mit `#ignore` begründet.
+ *
+ * Beweist der Checker den Typ schon, ist die Behauptung überflüssig und verdeckt nur, dass sie
+ * nicht mehr gebraucht wird (z. B. nach einer verbesserten Typinferenz). Ausgenommen ist das
  * bewusste Verbreitern auf Any und ein Literal als Wert.
  */
-function checkRedundantAssume(
+function checkAssume(
 	call: ParseFunctionCall,
 	valueExpression: ParseValueExpression | undefined,
 	boundArgsType: CompileTimeType,
+	filePath: string,
 	errors: CompilerError[],
 ): void {
+	const argTypes = getAllArgTypes(boundArgsType);
+	if (argTypes?.length !== 2) {
+		return;
+	}
+	const valueType = resolvePlaceholders(argTypes[0]!);
+	const targetType = resolvePlaceholders(valueOf(argTypes[1]));
+	if (isTypeAssignable(valueType, targetType).assignable !== true) {
+		if (isTestFilePath(filePath)) {
+			return;
+		}
+		errors.push({
+			code: ErrorCode.uncheckedAssume,
+			message: `Unchecked assume: outside of tests nothing checks that the value is ${typeToString(targetType, 0, 1)}. Explain why it always holds with #ignore JUL${ErrorCode.uncheckedAssume}.`,
+			startRowIndex: call.startRowIndex,
+			startColumnIndex: call.startColumnIndex,
+			endRowIndex: call.endRowIndex,
+			endColumnIndex: call.endColumnIndex,
+		});
+		return;
+	}
 	// Ein hingeschriebenes Literal zu verbreitern (`assume(5 Integer)`) ist die Art, einen
 	// Wert undurchsichtig zu machen, kein Leerlauf.
 	switch (valueExpression?.type) {
@@ -4798,18 +4823,9 @@ function checkRedundantAssume(
 		default:
 			break;
 	}
-	const argTypes = getAllArgTypes(boundArgsType);
-	if (argTypes?.length !== 2) {
-		return;
-	}
-	const valueType = resolvePlaceholders(argTypes[0]!);
-	const targetType = resolvePlaceholders(valueOf(argTypes[1]));
 	// `assume(x Any)` mit einem genaueren x vergisst den Typ absichtlich, das ist kein Leerlauf.
 	if (targetType.julType === 'any'
 		&& valueType.julType !== 'any') {
-		return;
-	}
-	if (isTypeAssignable(valueType, targetType).assignable !== true) {
 		return;
 	}
 	errors.push({

@@ -132,7 +132,7 @@ describe('project-loader', () => {
 			...createCountingHost(files).host,
 			maxTypedFileSize: 5,
 		});
-		expect(main.checked?.errors).to.deep.equal([]);
+		expect(main.checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.uncheckedAssume]);
 		expect(documents[path('data.json')]?.untyped).to.equal(true);
 	});
 	it('zu große Datendatei bekommt keinen Syntaxbaum und wird nicht inferiert', () => {

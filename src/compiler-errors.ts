@@ -155,6 +155,12 @@ export enum ErrorCode {
 	 */
 	usedOnlyInAssert = 2508,
 	/**
+	 * `assume` außerhalb einer *.test.jul-Datei mit einem Typ, den der Checker nicht beweist. Ein
+	 * normaler Build prüft die Behauptung nicht, nur `jul test` und checkAssertions. Wer sie
+	 * stehen lässt, begründet mit `#ignore JUL2509 …`, warum der Typ immer passt.
+	 */
+	uncheckedAssume = 2509,
+	/**
 	 * Ein Name passt in der Schreibweise nicht zu seinem Wert: Typen und Funktionen, die einen Typ
 	 * liefern, beginnen groß, alles, was sicher kein Typ ist, beginnt klein. Gemeldet wird nur,
 	 * wenn der statische Typ das eindeutig sagt - bei Any, gemischten Typen und Prädikaten nicht.
@@ -410,6 +416,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.assertConditionAlwaysTrue]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.assertConditionAlwaysFalse]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.usedOnlyInAssert]: { type: 'semantic', severity: 'warning' },
+	[ErrorCode.uncheckedAssume]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.namingCase]: { type: 'semantic', severity: 'warning' },
 	[ErrorCode.testOutsideTestFile]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testNameNotLiteral]: { type: 'semantic', severity: 'error' },

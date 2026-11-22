@@ -217,7 +217,7 @@ describe('TypeScript Parser', () => {
 
 		it('Aufruf liefert den Elementtyp eines map-Ergebnisses über eine mögliche leere Liste', () => {
 			const folder = resolve('/typescript-parser-test');
-			const mainPath = join(folder, 'main.jul');
+			const mainPath = join(folder, 'main.test.jul');
 			const main = loadFile(mainPath, {}, createInMemoryHost({
 				[mainPath]: '(f) = import(§./util.ts§)\ng = (texts: Or([] List(Text))) =>\n\tf(texts.map((value) => 1))\nh = (deck: [main: Or([] List(Text))]) =>\n\tg(deck/main)\nsource = assume([] [main: Or([] List(Text))])\nresult = h(source)',
 				[join(folder, 'util.ts')]: 'export function f<T>(a: T[] | undefined): T[] | undefined { return a; }',
@@ -231,7 +231,7 @@ describe('TypeScript Parser', () => {
 
 		it('Aufruf liefert den Elementtyp eines Dictionary-Arguments', () => {
 			const folder = resolve('/typescript-parser-test');
-			const mainPath = join(folder, 'main.jul');
+			const mainPath = join(folder, 'main.test.jul');
 			const main = loadFile(mainPath, {}, createInMemoryHost({
 				[mainPath]: '(f) = import(§./util.ts§)\nsource = assume([] Dictionary(Integer))\nresult = f(source §a§)',
 				[join(folder, 'util.ts')]: 'export function f<T>(a: { [key: string]: T; } | undefined, key: string): { [key: string]: T; } | undefined { return a; }',
