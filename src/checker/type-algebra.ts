@@ -2267,8 +2267,9 @@ function mapElementsOfSource(
 			return createCompileTimeDictionaryLiteralType(mappedFields, sourceType.complete);
 		}
 		case 'dictionary':
-			// Die Schlüssel stehen nicht fest, jeder Wert bekommt denselben Typ.
-			return createCompileTimeDictionaryType(mapElementType(callbackType, sourceType.ElementType, builtinText));
+			// Die Schlüssel stehen nicht fest, jeder Wert bekommt denselben Typ. Der Schlüssel ist einer
+			// dieser Quelle (KeyOf, docs/backlog/key-of.md).
+			return createCompileTimeDictionaryType(mapElementType(callbackType, sourceType.ElementType, getKeyOfFromType(sourceType)));
 		// Unverengt kommt Any nur von map, dessen Parameter eine Liste verlangt: leer oder eine Liste.
 		// mapDictionary engt die Quelle vorher auf Or([] Dictionary(Any)) ein. Eine Einengung auch in
 		// map (And(TypeOf(values) Or([] List(Any)))) verlor in yugioh den Elementtyp großer Listen.
@@ -2709,16 +2710,24 @@ export function getKeyOfFromType(rawType: CompileTimeType): CompileTimeType {
 			return type.Keys
 				? createCompileTimeKeyOfType(type)
 				: createCompileTimeKeyOfType(type, createFreshLengthTerm(''));
-		// Ein Record-Typ bezeichnet keinen bestimmten Wert. Seine Pflichtfelder sind trotzdem in jedem
-		// Wert vorhanden (isRequiredFieldOf).
+		// Ein Record-Typ nennt seine Schlüssel: Jedes Pflichtfeld ist in jedem Wert vorhanden. Ein
+		// weiterer Schlüssel mit leerem Wert gilt im Typsystem wie ein fehlender (geschlossener Record).
 		case 'dictionaryLiteral':
-			return createCompileTimeKeyOfType(type, createFreshLengthTerm(''));
+			return getRecordKeys(type);
 		case 'any':
 			return builtinText;
 		case 'invalid':
 			return builtinInvalid;
-		case 'or':
-			return createNormalizedIntersectionType(type.ChoiceTypes.map(getKeyOfFromType));
+		case 'or': {
+			// Empty trägt nichts bei: Ein Schlüssel vom Typ KeyOf(d) beweist, dass d nicht leer ist.
+			// Jeder Weg zu ihm (hasField, ein Callback, findKey, die Prüfung zur Laufzeit) setzt einen
+			// nicht leeren Wert voraus, und eine Bindung bleibt, wie sie ist. Sonst wäre KeyOf eines
+			// optionalen Dictionary Never und der Schlüssel im Callback von mapDictionary unbrauchbar.
+			const choices = type.ChoiceTypes.filter(choice => resolveAlias(choice).julType !== 'empty');
+			return choices.length
+				? createNormalizedIntersectionType(choices.map(getKeyOfFromType))
+				: builtinNever;
+		}
 		case 'and':
 			// Mit Platzhalter wartet der Schnitt als Ganzes, wie beim Feldzugriff.
 			return isDeferredType(type)
@@ -2731,6 +2740,31 @@ export function getKeyOfFromType(rawType: CompileTimeType): CompileTimeType {
 				? createCompileTimeKeyOfType(type)
 				: builtinNever;
 	}
+}
+
+const recordKeys = new WeakMap<CompileTimeDictionaryLiteralType, CompileTimeType>();
+
+/**
+ * Die Pflichtfeld-Namen eines Record-Typs als Union, je Typ einmal gebaut. Ohne Normalisierung: Die
+ * Namen sind verschieden, und das Entfernen von Dubletten ist quadratisch. Ein JSON-Import hat
+ * Tausende Felder, und getField fragt bei jedem Aufruf (Kopf KeyOf(dictionary)).
+ */
+function getRecordKeys(type: CompileTimeDictionaryLiteralType): CompileTimeType {
+	const cached = recordKeys.get(type);
+	if (cached) {
+		return cached;
+	}
+	const names: CompileTimeType[] = [];
+	for (const name in type.Fields) {
+		if (!type.Fields[name]!.optional) {
+			names.push(createTextLiteral(name));
+		}
+	}
+	const keys = names.length > 1
+		? createCompileTimeUnionType(names)
+		: names[0] ?? builtinNever;
+	recordKeys.set(type, keys);
+	return keys;
 }
 
 /**
@@ -2752,17 +2786,6 @@ function hasSameKeys(first: CompileTimeKeyOfType, second: CompileTimeKeyOfType):
 	const keys = getKeysTerm(first);
 	return keys !== undefined
 		&& keys === getKeysTerm(second);
-}
-
-/** Hat jeder Wert von rawSource den Schlüssel name? Nur bei einem Record-Typ mit diesem Pflichtfeld. */
-function isRequiredFieldOf(name: string, rawSource: CompileTimeType): boolean {
-	const source = resolveAlias(rawSource);
-	if (source.julType !== 'dictionaryLiteral') {
-		return false;
-	}
-	const field = getOwnLiteralField(source.Fields, name);
-	return field !== undefined
-		&& !field.optional;
 }
 
 /**
@@ -3095,6 +3118,13 @@ function traverseConditionalHead(head: CompileTimeType, argumentContext: Argumen
 		: createParametersType(singleNames);
 }
 
+/** Wartet der Kopf noch auf einen Parameter? Bei einer Parameterliste zählen ihre Typen. */
+function isOpenHead(head: CompileTimeType): boolean {
+	return isParametersType(head)
+		? head.singleNames.some(parameter => parameter.type !== undefined && hasArgumentSubstitution(parameter.type))
+		: hasArgumentSubstitution(head);
+}
+
 /**
  * `:?(Operanden)`: prüft die Kollektion der Operanden der Reihe nach gegen die Köpfe der Zweige.
  * Teilmenge: Ergebnis aufnehmen, fertig. Disjunkt: Zweig überspringen. Überlappend: Ergebnis
@@ -3107,7 +3137,10 @@ export function createConditionalType(
 	operands: CompileTimeType[],
 	branches: ConditionalTypeBranch[],
 ): CompileTimeType {
-	if (operands.some(isDeferredType)) {
+	// Auch ein offener Kopf entscheidet noch nichts: KeyOf(dictionary) im Kopf von getField wartet
+	// im Rumpf auf den Parameter der umgebenden Funktion.
+	if (operands.some(isDeferredType)
+		|| branches.some(branch => isOpenHead(branch.Head))) {
 		return createCompileTimeConditionalType(operands, branches);
 	}
 	const collection = operands.length
@@ -5665,16 +5698,11 @@ function isTypeAssignableByStructure(
 		case 'indexRange':
 			// Nur als Schlüssel sinnvoll, nie als Zieltyp einer Zuweisung.
 			return { assignable: undefined };
-		case 'keyOf': {
-			// Ein Pflichtfeld eines Record-Typs ist in jedem Wert als Schlüssel da.
-			if (argumentsType.julType === 'textLiteral'
-				&& isRequiredFieldOf(argumentsType.value, targetType.Source)) {
-				return { assignable: true };
-			}
-			// Sonst beweist nur dieselbe Herkunft etwas (oben bei der Quelle). Ein beliebiger Text
-			// verlangt eine Verengung, etwa mit hasField oder ?(x) [KeyOf(d)].
+		// Nur dieselbe Herkunft beweist etwas (oben bei der Quelle). Ein beliebiger Text verlangt eine
+		// Verengung, etwa mit hasField oder ?(x) [KeyOf(d)]. Die Schlüssel eines Record-Typs sind kein
+		// keyOf, sondern die Union seiner Feldnamen (getKeyOfFromType).
+		case 'keyOf':
 			break;
-		}
 		case 'predicate': {
 			if (argumentsType.julType === 'predicate'
 				&& isSamePredicate(argumentsType, targetType)) {

@@ -1,7 +1,8 @@
 # KeyOf: Schlüssel, deren Existenz bewiesen ist
 
-**Stand 2026-11-22:** Schritte 1 bis 3 umgesetzt (Compiler, Laufzeit, core-lib, Handbuch), Schritt 4
-(yugioh) offen. Abweichungen vom Entwurf unten:
+**Stand 2026-11-22:** Schritte 1 bis 5 umgesetzt (Compiler, Laufzeit, core-lib, Handbuch, yugioh,
+`findKey` und Schlüssel in `mapDictionary`/`findField`). Abweichungen vom Entwurf unten, die aus
+Schritt 4 und 5 im zweiten Block.
 
 - **Identität über Weg 2, wie die Längen-Terme** ([laengen-terme.md](laengen-terme.md)): Statt die
   Identität beim Binden mitzuführen, trägt `CompileTimeDictionaryType` einen Term (`Keys`, derselbe
@@ -12,19 +13,57 @@
   Vertrag von `hasField` ohne eigene Mechanik: Ein Dictionary mit Term gilt in `isSingletonValue` wie
   ein Literal.
 - **Knoten `keyOf(Source)`** mit `getKeyOfFromType`: Dictionary mit Term → `keyOf`; Dictionary ohne
-  Term und Record-Typ → `keyOf` mit frischem Term (`CompileTimeKeyOfType.Keys`), damit zwei
-  `KeyOf(make())` nicht als dasselbe internierte Objekt zusammenfallen; `Or` → Schnitt der
-  Schlüssel, `And` → Vereinigung, Empty → Never, Any → Text.
+  Term → `keyOf` mit frischem Term (`CompileTimeKeyOfType.Keys`), damit zwei `KeyOf(make())` nicht
+  als dasselbe internierte Objekt zusammenfallen; Record-Typ → Union der Pflichtfeld-Namen; `Or` →
+  Schnitt der Schlüssel ohne Empty, `And` → Vereinigung, Empty → Never, Any → Text.
 - **Import:** Ein importierter Name bekommt den Term seiner Definition (`getTermOrigin` über
-  `resolveImportBinding`, je Symbol gecacht und beim Treffer gegen die importierte Datei geprüft).
+  `resolveImportBinding`, je Symbol gecacht, Schlüssel Datei und Name, siehe unten).
 - **Top-Level-Terme sind global** (`LengthTerm.global`): `eraseValueTerms` lässt sie im
   abgeleiteten Rückgabetyp stehen, Terme von Parametern und lokalen Bindungen nicht.
-- **Literal-Regel:** Ein Textliteral passt zu `KeyOf` eines Record-Typs, wenn es ein Pflichtfeld ist.
-  Bei einem `Dictionary` mit Term beweist ein Literal nichts.
+- **Literal-Regel:** Ein Textliteral passt zu `KeyOf` eines Record-Typs, wenn es ein Pflichtfeld ist
+  (folgt aus der Union). Bei einem `Dictionary` mit Term beweist ein Literal nichts.
 - **Lokale Alias-Bindung** (`local = data`, dann `local.hasField(id)`): beweist nichts für `data`,
   `local` hat einen eigenen Term. Präzisionsverlust, kein Soundness-Problem.
 - **Kosten** (yugioh, `npm run bench`): Zähler unverändert, „geteilt" 1091 → 1125 ms (+3 %),
   parse+check +2 bis 4 % im Rauschen.
+
+Aus Schritt 4 (yugioh) und 5, ersetzt Teile des Blocks oben:
+
+- **Record-Typ:** `KeyOf` ist die Union seiner Pflichtfeld-Namen, kein `keyOf`-Knoten mit frischem Term.
+  Frische Terme je Auswertung scheiterten am Callback von `mapDictionary`: Signatur und Lambda werten
+  `KeyOf(dictionary)` getrennt aus, `KeyOf(d)` passte dann nicht zu `KeyOf(d)`. Ein Dictionary ohne Term
+  bekommt weiter einen frischen Term.
+- **`Or` mit Empty:** Empty trägt nichts bei. Ein Schlüssel vom Typ `KeyOf(d)` beweist, dass `d` nicht
+  leer ist (jeder Weg zu ihm setzt einen nicht leeren Wert voraus, Bindungen sind unveränderlich).
+  Sonst wäre der Schlüssel im Callback eines optionalen Dictionary `Never`. `isSingletonValue` nimmt
+  auch `Or([] Dictionary)` mit Term, `hasField` verengt also auch dort.
+- **Term über Datei und Name:** Eine Top-Level-Bindung (auch über Import) hat den Term
+  `<Datei>#<Name>`, nicht das Symbol-Objekt, und er steht in einer eigenen Map (`namedPathTerms`), die
+  `clearInternedTypes` nicht leert. `jul test` lädt mehrere Wurzeln in dieselben documents und leert
+  dazwischen die Caches, sonst gab es zwei `KeyOf(allCardData)` (Test in `project-loader.test.ts`).
+- **Zweige löschen keine Terme:** `eraseValueTerms` greift nicht beim Arm einer Verzweigung, er läuft im
+  Aufruf der umgebenden Funktion. Sonst verlor ein Early Exit mit `hasField` auf einem Parameter den
+  Term (betraf schon vorher die Listenlängen).
+- **Offener Kopf:** `createConditionalType` wartet auch, wenn ein Kopf noch einen Parameter nennt
+  (`isOpenHead`). `[KeyOf(dictionary)]` im Kopf von `getField` wartet im Rumpf auf den Parameter der
+  umgebenden Funktion, vorher wurde zu früh „überlappt“ entschieden.
+- **Vertrag mit offenem `keyOf`:** `getPredicateContract` löst einen offenen `keyOf`-Vertrag auf (wie
+  die Länge eines Parameters), sonst verengte `hasField` auf einem Parameter nicht.
+- **Schritt 5:** `findKey` liefert `Or([] KeyOf(dictionary))`, der Schlüssel im Callback von
+  `mapDictionary`, `findField` und `findKey` ist `KeyOf(dictionary)`, `MapElements` setzt ihn ein.
+- **Kosten nach Schritt 4/5** (`npm run bench`, Zähler deterministisch): gegen den Stand vor KeyOf
+  `resolvePlaceholders` 6,03 → 6,60 Mio. (+9,5 %), `getTypeError` 5,15 → 5,65 Mio. (+9,8 %),
+  „geteilt" 1091 → 1139 ms (+4 %), parse+check 20,0 → 22,3 s (+11 %). Davon etwa die Hälfte aus den
+  Compiler-Änderungen seit Schritt 3 (unveränderter yugioh-Stand im Worktree: 6,28 Mio. bzw.
+  5,33 Mio.), der Rest aus dem Umbau in yugioh. Die Regel für offene Köpfe ändert die Zähler nicht.
+  Ein Zwischenstand baute die Union der Record-Schlüssel bei jedem getField normalisiert neu
+  (quadratisch, JSON-Imports mit Tausenden Feldern): parse+check 84 s, jetzt einmal je Typ ohne
+  Normalisierung (`getRecordKeys`). yugioh: Build unverändert (~2,7 s), `jul test` 5,1 → 5,6 s.
+- **yugioh:** `allCardData` und `CardDataId` stehen in `game-types.jul` (kein Zyklus, kein eigenes
+  Modul nötig). `GameCard/dataId` bleibt `Text`, weil Tokens keinen Passcode in `card-data.json`
+  haben. Grenzen: `getKnownCards`/`toKnownDeck` (YDK, Datenbank, Bench-Einstiege), Payload-Typen in
+  `ui-events.jul` (die Laufzeitprüfung gegen `UiEvent` prüft `KeyOf`), `findKey` (Szenarien),
+  `mapDictionary` (Suche), `toCardDataId`/`toTestDeck` (Tests, `assume`).
 
 Ursprünglicher Entwurf (Stand 2026-11-22, vor der Umsetzung):
 

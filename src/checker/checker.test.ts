@@ -9718,9 +9718,19 @@ h = (k: KeyOf(data)) :> Integer => f(other k)`, [ErrorCode.argumentTypeMismatch]
 		expectErrorCodes(data + `make = () :> Dictionary(Integer) => data
 g = (k: KeyOf(data)) :> Integer => make().getField(k)`, [ErrorCode.returnTypeMismatch]);
 	});
+	// Über einen Funktionsparameter, damit der Aufruf nicht zu einem Record gefaltet wird: Bei einem
+	// Record-Typ sind die Schlüssel tatsächlich dieselben (seine Pflichtfelder).
 	it('KeyOf zweier Aufrufergebnisse sind verschiedene Schlüssel', () => {
-		expectErrorCodes(`make = (x: Integer) :> Dictionary(Integer) => [a = x]
-f = (k: KeyOf(make(1))) :> KeyOf(make(1)) => k`, [ErrorCode.returnTypeMismatch]);
+		expectErrorCodes(`f = (make: () :> Dictionary(Integer) k: KeyOf(make())) :> KeyOf(make()) => k`, [ErrorCode.returnTypeMismatch]);
+	});
+	it('hasField verengt bei einem Parameter-Dictionary', () => {
+		expectErrorCodes(`get = (d: Dictionary(Integer) id: Text) :> Integer =>
+	?(d.hasField(id))
+		[false] => 0
+	d.getField(id)`, []);
+	});
+	it('KeyOf eines Record-Typs sind seine Pflichtfelder', () => {
+		expectLastTypeString('R = [a: Integer b?: Integer c: Or([] Text)]\nf = (r: R) => r\nK = KeyOf(f([a = 1 c = []]))', 'TypeOf(Or(§a§ §c§))');
 	});
 	// Der Term eines Parameters gilt nur für einen Aufruf: Er verlässt die Funktion nicht.
 	it('der Term eines Parameters entkommt nicht über den abgeleiteten Rückgabetyp', () => {
@@ -9732,11 +9742,30 @@ g = (ids: List(Text)) :> Or([] List(KeyOf(data))) => keys(other ids)`, [ErrorCod
 		expectErrorCodes(data + `known = (ids: List(Text)) => ids.filter((value) => data.hasField(value))
 g = (ids: List(Text)) :> Or([] List(KeyOf(data))) => known(ids)`, []);
 	});
-	it('ein optionales Dictionary beweist mit hasField nichts', () => {
+	// Ein Schlüssel von d beweist, dass d nicht leer ist.
+	it('hasField verengt auch bei einem optionalen Dictionary', () => {
 		expectErrorCodes(`get = (d: Or([] Dictionary(Integer)) id: Text) :> Integer =>
 	?(d.hasField(id))
 		[false] => 0
-	d.getField(id)`, [ErrorCode.returnTypeMismatch]);
+	d.getField(id)`, []);
+	});
+	it('der Schlüssel im Callback von mapDictionary ist ein KeyOf', () => {
+		expectErrorCodes(data + 'ids = data.mapDictionary((value key) => key).toList()\nf = () :> Or([] List(KeyOf(data))) => ids', []);
+	});
+	// Der Schlüssel im Callback passt zu seinem eigenen Parameter, auch ohne Term am Dictionary.
+	it('mapDictionary auf einem Aufrufergebnis', () => {
+		expectErrorCodes(`make = (x: Integer) :> Dictionary(Integer) => [a = x]
+f = () => make(1).mapDictionary((value key) => key)`, []);
+	});
+	it('mapDictionary auf einem Record', () => {
+		expectErrorCodes('f = () => [a = 1 b = 2].mapDictionary((value key) => key)', []);
+	});
+	it('findKey liefert einen KeyOf oder Empty', () => {
+		expectErrorCodes(data + 'f = () :> Or([] KeyOf(data)) => data.findKey((value) => value.equal(2))', []);
+	});
+	// Gegenprobe: ohne Empty passt das Ergebnis von findKey nicht.
+	it('findKey kann Empty liefern', () => {
+		expectErrorCodes(data + 'f = () :> KeyOf(data) => data.findKey((value) => value.equal(2))', [ErrorCode.returnTypeMismatch]);
 	});
 	it('ein Pflichtfeld eines Record-Typs ist ein KeyOf', () => {
 		expectErrorCodes('r = [a = 1 b = 2]\nx: KeyOf(r) = §a§', []);

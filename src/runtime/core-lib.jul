@@ -1367,7 +1367,7 @@ mapDictionary = nativeFunction(
 		dictionary: Or([] Dictionary(Any))
 		transform: (
 			value: TypeOf(dictionary)/ElementType
-			key: Text
+			key: KeyOf(dictionary)
 		) :> Any
 	) :> MapElements(And(TypeOf(dictionary) Or([] Dictionary(Any))) TypeOf(transform))
 	§js
@@ -1391,7 +1391,7 @@ findField = nativeFunction(
 		dictionary: Or([] Dictionary(Any))
 		predicate: (
 			value: TypeOf(dictionary)/ElementType
-			key: Text
+			key: KeyOf(dictionary)
 		) :> Boolean
 	) :> Or([] And(TypeOf(dictionary)/ElementType TypeOf(predicate)/PredicateIfTrue))
 	§js
@@ -1415,9 +1415,9 @@ findKey = nativeFunction(
 		dictionary: Or([] Dictionary(Any))
 		predicate: (
 			value: TypeOf(dictionary)/ElementType
-			key: Text
+			key: KeyOf(dictionary)
 		) :> Boolean
-	) :> Or([] Text)
+	) :> Or([] KeyOf(dictionary))
 	§js
 		(dictionary, predicate) => {
 			if (!dictionary) {

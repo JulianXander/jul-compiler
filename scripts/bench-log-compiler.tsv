@@ -626,3 +626,9 @@
 2026-11-22 13:34:55	a147d51+	-	ADV-DEV-56627	yugioh	parse+check	5	20436.68	21634.76	21634.76	nach KeyOf
 2026-11-22 13:34:55	a147d51+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1152.91	1178.55	1178.55	nach KeyOf
 2026-11-22 13:34:55	a147d51+	-	ADV-DEV-56627	yugioh	parse	5	106.02	137.66	137.66	nach KeyOf
+2026-11-22 14:19:49	409f3ad+	-	ADV-DEV-56627	yugioh	parse+check	5	84101.38	84283.51	84283.51	KeyOf Schritt 4/5 (yugioh umgestellt, findKey, mapDictionary-Schlüssel)
+2026-11-22 14:19:49	409f3ad+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	2675.57	2775.15	2775.15	KeyOf Schritt 4/5 (yugioh umgestellt, findKey, mapDictionary-Schlüssel)
+2026-11-22 14:19:49	409f3ad+	-	ADV-DEV-56627	yugioh	parse	5	118.92	127.70	127.70	KeyOf Schritt 4/5 (yugioh umgestellt, findKey, mapDictionary-Schlüssel)
+2026-11-22 14:23:38	409f3ad+	-	ADV-DEV-56627	yugioh	parse+check	5	22278.11	22825.89	22825.89	KeyOf Schritt 4/5, Record-Schlüssel ohne Normalisierung gecacht
+2026-11-22 14:23:38	409f3ad+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1139.32	1339.11	1339.11	KeyOf Schritt 4/5, Record-Schlüssel ohne Normalisierung gecacht
+2026-11-22 14:23:38	409f3ad+	-	ADV-DEV-56627	yugioh	parse	5	122.28	123.53	123.53	KeyOf Schritt 4/5, Record-Schlüssel ohne Normalisierung gecacht

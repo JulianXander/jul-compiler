@@ -1779,24 +1779,37 @@ export interface LengthTerm {
 
 let nextLengthTermId = 1;
 const pathLengthTerms = new Map<string, LengthTerm>();
+/**
+ * Die Terme der Top-Level-Bindungen (Datei und Name), getrennt von pathLengthTerms: Sie überstehen
+ * clearInternedTypes. Sonst hätte eine schon geprüfte Datei nach dem Leeren einen anderen Term für
+ * allCardData als eine danach geprüfte (jul test mit mehreren Wurzeln), und KeyOf(allCardData) passte
+ * nicht mehr zu sich selbst. Ihre Zahl ist durch die Top-Level-Bindungen begrenzt.
+ */
+const namedPathTerms = new Map<string, LengthTerm>();
 
 /**
  * Der Wert, den Symbol und Feldschlüssel bezeichnen: seine Länge bei einer Liste, seine Schlüssel
- * bei einem Dictionary.
+ * bei einem Dictionary. symbol ist bei einer Top-Level-Bindung ein Text aus Datei und Name.
  */
-export function getPathLengthTerm(symbol: object, keys: (string | number)[], name: string, global?: boolean): LengthTerm {
-	const symbolId = getObjectId(symbol);
+export function getPathLengthTerm(symbol: object | string, keys: (string | number)[], name: string, global?: boolean): LengthTerm {
+	const isNamed = typeof symbol === 'string';
+	const terms = isNamed
+		? namedPathTerms
+		: pathLengthTerms;
+	const symbolId = isNamed
+		? symbol
+		: getObjectId(symbol);
 	const key = keys.length
 		? `${symbolId}/${keys.join('/')}`
 		: `${symbolId}`;
-	const existing = pathLengthTerms.get(key);
+	const existing = terms.get(key);
 	if (existing) {
 		return existing;
 	}
 	const term: LengthTerm = global
 		? { id: nextLengthTermId++, name: name, global: true }
 		: { id: nextLengthTermId++, name: name };
-	pathLengthTerms.set(key, term);
+	terms.set(key, term);
 	return term;
 }
 

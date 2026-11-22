@@ -348,6 +348,23 @@ describe('project-loader', () => {
 				'pool.jul': pool,
 			})).to.deep.equal([]);
 		});
+		// jul test lädt mehrere Wurzeln in dieselben documents, loadFile leert dazwischen die Typ-Caches.
+		// pool.jul ist dann schon geprüft, sein Id trägt den Term aus dem ersten Lauf. Der Term einer
+		// Top-Level-Bindung muss das Leeren überstehen, sonst passte KeyOf(data) nicht mehr zu sich selbst.
+		it('KeyOf übersteht das Leeren der Caches zwischen zwei Wurzeln', () => {
+			const host = createCountingHost({
+				'first.jul': '(Id) = import(§./pool.jul§)\nx = 1',
+				'second.jul': '(data Id) = import(§./pool.jul§)\nget = (id: Id) :> Integer => data.getField(id)',
+				'pool.jul': pool,
+			}).host;
+			const documents: ParsedDocuments = {};
+			loadFile(path('first.jul'), documents, host);
+			const second = loadFile(path('second.jul'), documents, host);
+			if (typeof second === 'string') {
+				throw new Error(second);
+			}
+			expect(second.checked!.errors.map(error => error.code)).to.deep.equal([]);
+		});
 		// Gegenprobe: ein anderes Dictionary aus derselben Datei.
 		it('KeyOf eines anderen importierten Dictionary passt nicht', () => {
 			expect(getErrorCodes({

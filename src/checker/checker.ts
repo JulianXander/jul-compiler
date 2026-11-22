@@ -2216,9 +2216,10 @@ function getPredicateCall(checkResult: CheckResult, call: ParseFunctionCall): Pr
 	const argsType = bindReceiver(getTypeInfo(checkResult, call.prefixArgument)?.type, getTypeInfo(checkResult, call.arguments)?.type ?? builtinAny);
 	const rawContractType = dereferenceArgumentTypesNested(calleeType, argsType, contract.type);
 	// Die Länge eines Parameters steht im Rumpf noch als Platzhalter (LengthOf(TypeOf(values))) und
-	// bekommt ihren Längen-Term erst beim Auflösen. Nur dann auflösen, das kostet sonst bei jedem
-	// Prädikataufruf.
+	// bekommt ihren Längen-Term erst beim Auflösen. Ebenso die Schlüssel eines Parameters
+	// (KeyOf(dictionary) bei hasField). Nur dann auflösen, das kostet sonst bei jedem Prädikataufruf.
 	const contractType = hasUndecidableBound(rawContractType)
+		|| (rawContractType.julType === 'keyOf' && rawContractType.isDeferred)
 		? resolvePlaceholders(rawContractType)
 		: rawContractType;
 	if (isDeferredType(contractType)
@@ -2264,7 +2265,8 @@ function getConditionCall(
  * Bezeichnet der Typ genau einen Wert? Ein Literal, oder die Länge einer Liste mit Längen-Term
  * (plus Konstante): Der Term gehört zu einem bestimmten, unveränderlichen Wert, seine Länge steht also
  * fest, auch wenn sie unbekannt ist. Eine Länge ohne Term gilt für jede Liste gleichen Typs. Ebenso
- * ein Dictionary mit Term: Seine Schlüssel stehen fest (hasField, docs/backlog/key-of.md).
+ * ein Dictionary mit Term: Seine Schlüssel stehen fest (hasField, docs/backlog/key-of.md), auch wenn
+ * es leer sein kann (dann hat es keine).
  */
 function isSingletonValue(type: CompileTimeType): boolean {
 	switch (type.julType) {
@@ -2275,6 +2277,13 @@ function isSingletonValue(type: CompileTimeType): boolean {
 			return true;
 		case 'dictionary':
 			return type.Keys !== undefined;
+		case 'or': {
+			const dictionaries = type.ChoiceTypes.filter(choice => choice.julType !== 'empty');
+			const first = dictionaries[0];
+			return first?.julType === 'dictionary'
+				&& first.Keys !== undefined
+				&& dictionaries.every(choice => choice.julType === 'dictionary' && choice.Keys === first.Keys);
+		}
 		case 'lengthOf':
 			return isLengthTermOf(type);
 		default:
@@ -2412,8 +2421,8 @@ function withExpressionValueTerm(
 				return typeInfo;
 			}
 			const origin = getTermOrigin(path.symbol, checkContext);
-			const name = [getSymbolName(origin.symbol), ...path.keys].join('/');
-			lengthType = withValueTerm(type, getPathLengthTerm(origin.symbol, path.keys, name, origin.global), true);
+			const name = [origin.name, ...path.keys].join('/');
+			lengthType = withValueTerm(type, getPathLengthTerm(origin.key, path.keys, name, origin.global), true);
 			break;
 		}
 		case 'functionCall':
@@ -2430,48 +2439,55 @@ function withExpressionValueTerm(
 }
 
 /**
- * Das Symbol, an dem der Term eines Pfads hängt. Ein importierter Name steht für die Definition in
- * seiner Datei: Sonst wäre KeyOf(allCardData) in jeder importierenden Datei ein anderer Typ. global:
- * Der Pfad beginnt an einer Top-Level-Bindung, siehe LengthTerm.global.
+ * Woran der Term eines Pfads hängt. Eine Top-Level-Bindung über Datei und Name, nicht über das
+ * Symbol-Objekt: Dieselbe Datei kann mehrfach geparst sein (jul test mit mehreren Wurzeln, Recheck im
+ * Language Server), KeyOf(allCardData) muss trotzdem derselbe Typ bleiben. Ein importierter Name steht
+ * für die Definition in seiner Datei, sonst wäre KeyOf(allCardData) in jeder importierenden Datei ein
+ * anderer Typ. global: Der Pfad beginnt an einer Top-Level-Bindung, siehe LengthTerm.global.
  */
 function getTermOrigin(
 	symbol: SymbolDefinition,
 	checkContext: CheckContext,
 ): TermOrigin {
-	// Je Symbol nur einmal: Jede Referenz auf eine Liste fragt, und das Auflösen eines Imports
-	// rechnet Pfade. Ein Import kann veralten, wenn der Language Server nur die importierte Datei neu
-	// parst: Dann zeigt der Eintrag auf ein Symbol, das es dort nicht mehr gibt.
+	// Je Symbol nur einmal: Jede Referenz auf eine Liste fragt, und das Auflösen eines Imports rechnet
+	// Pfade. Der Eintrag veraltet nicht: Datei und Name ändern sich nur mit dem Import selbst, und der
+	// ist dann ein neues Symbol.
 	const cached = termOrigins.get(symbol);
-	if (cached
-		&& (!cached.importedFrom || isCurrentImport(cached, checkContext.documents))) {
+	if (cached) {
 		return cached;
 	}
 	const definition = symbol.definition;
 	const imported = definition?.type === 'destructuringField'
 		? resolveImportBinding(definition, checkContext.filePath, checkContext.documents)
 		: undefined;
-	const origin: TermOrigin = imported && definition?.type === 'destructuringField'
-		? {
-			symbol: imported.symbol,
-			global: true,
-			importedFrom: { filePath: imported.filePath, name: definition.source?.name ?? definition.name.name },
-		}
-		: { symbol: symbol, global: isTopLevelDefinition(definition) };
+	const origin = getTermOriginUncached(symbol, definition, imported?.filePath, checkContext.filePath);
 	termOrigins.set(symbol, origin);
 	return origin;
 }
 
-interface TermOrigin {
-	symbol: SymbolDefinition;
-	global: boolean;
-	/** Bei einem Import: wo das Symbol steht, um den Eintrag beim nächsten Mal zu prüfen. */
-	importedFrom?: { filePath: string; name: string; };
+function getTermOriginUncached(
+	symbol: SymbolDefinition,
+	definition: DefinitionExpression | undefined,
+	importedFilePath: string | undefined,
+	filePath: string,
+): TermOrigin {
+	if (importedFilePath
+		&& definition?.type === 'destructuringField') {
+		const name = definition.source?.name ?? definition.name.name;
+		return { key: `${importedFilePath}#${name}`, name: name, global: true };
+	}
+	const name = getSymbolName(symbol);
+	return isTopLevelDefinition(definition)
+		? { key: `${filePath}#${name}`, name: name, global: true }
+		: { key: symbol, name: name, global: false };
 }
 
-function isCurrentImport(origin: TermOrigin, documents: ParsedDocuments): boolean {
-	const document = documents[origin.importedFrom!.filePath];
-	const symbols = (document?.checked ?? document?.syntax)?.symbols;
-	return symbols?.[origin.importedFrom!.name] === origin.symbol;
+interface TermOrigin {
+	/** Datei und Name einer Top-Level-Bindung, sonst das Symbol. */
+	key: object | string;
+	/** Nur zur Anzeige (KeyOf(allCardData)). */
+	name: string;
+	global: boolean;
 }
 
 const termOrigins = new WeakMap<SymbolDefinition, TermOrigin>();
@@ -3455,8 +3471,12 @@ function inferType(
 			// Ein deklarierter Rückgabetyp ist der Typ jedes Aufrufs, der Rumpf wird nur dagegen
 			// geprüft: Der Aufrufer liest die Signatur, nicht den Rumpf. Ohne Deklaration gilt der
 			// Rumpftyp, ohne Längen-Terme: Sie bezeichnen Werte dieses einen Aufrufs
-			// (docs/backlog/laengen-terme.md).
-			let returnType = eraseValueTerms(inferredReturnType);
+			// (docs/backlog/laengen-terme.md). Nicht bei einem Zweig: Er läuft im Aufruf der
+			// umgebenden Funktion, ihre Terme gelten in ihm weiter (Early Exit mit hasField auf einem
+			// Parameter). Verlassen sie die Funktion, entfernt sie deren eigener Rückgabetyp.
+			let returnType = expression.parent?.type === 'branching'
+				? inferredReturnType
+				: eraseValueTerms(inferredReturnType);
 			if (declaredReturnType) {
 				// Roh: Ein Platzhalter (z.B. TypeOf(values)/ElementType) wird je Aufruf aufgelöst,
 				// nicht hier mit dem an der Deklaration sichtbaren Parametertyp fest verdrahtet.
