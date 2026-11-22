@@ -156,6 +156,107 @@ describe('project-loader', () => {
 		expect(main.checked?.errors.map(error => error.code)).to.deep.equal([ErrorCode.redundantAssume]);
 	});
 
+	describe('Import mit Typ', () => {
+		function loadUntyped(files: { [fileName: string]: string; }): ReturnType<typeof loadMain> {
+			return loadMain(files, {
+				...createCountingHost(files).host,
+				maxTypedFileSize: 5,
+			});
+		}
+		function getErrorCodes(main: ParsedFile): ErrorCode[] {
+			return main.checked!.errors.map(error => error.code);
+		}
+		function getImportType(main: ParsedFile): string {
+			return typeToString(getTypeInfo(main.checkResult!, main.checked!.expressions![0])!.type, 0, 3);
+		}
+		/**
+		 * Unter und über maxTypedFileSize dasselbe Urteil: Eine Datei soll ihr Prüfergebnis nicht
+		 * ändern, nur weil sie über die Grenze wächst.
+		 */
+		const expectSameVerdict = reportAtCaller((
+			files: { [fileName: string]: string; },
+			errorCodes: ErrorCode[],
+		) => {
+			expect(getErrorCodes(loadMain(files).main), 'unter der Grenze').to.deep.equal(errorCodes);
+			expect(getErrorCodes(loadUntyped(files).main), 'über der Grenze').to.deep.equal(errorCodes);
+		});
+
+		it('hat den angegebenen Typ', () => {
+			const files = {
+				'main.jul': 'data = import(§./data.json§ List(Integer))',
+				'data.json': '[1, 2, 3]',
+			};
+			expect(getImportType(loadMain(files).main)).to.equal('List(Integer)');
+			expect(getImportType(loadUntyped(files).main)).to.equal('List(Integer)');
+		});
+		it('passender Wert ist kein Fehler', () => {
+			expectSameVerdict({
+				'main.jul': 'data = import(§./data.json§ List(Integer))',
+				'data.json': '[1, 2, 3]',
+			}, []);
+		});
+		it('unpassender Wert ist ein Fehler', () => {
+			expectSameVerdict({
+				'main.jul': 'data = import(§./data.json§ List(Text))',
+				'data.json': '[1, 2, 3]',
+			}, [ErrorCode.importTypeMismatch]);
+		});
+		it('null erfüllt ein Feld, das Empty zulässt', () => {
+			expectSameVerdict({
+				'main.jul': 'data = import(§./data.json§ Dictionary([a: Integer b: Or([] Text)]))',
+				'data.json': '{"x": {"a": 1, "b": null}, "y": {"a": 2, "b": "z"}}',
+			}, []);
+		});
+		it('fehlendes Pflichtfeld ist ein Fehler', () => {
+			expectSameVerdict({
+				'main.jul': 'data = import(§./data.json§ Dictionary([a: Integer b: Text]))',
+				'data.json': '{"x": {"a": 1}}',
+			}, [ErrorCode.importTypeMismatch]);
+		});
+		it('Meldung nennt nur die ersten falschen Einträge', () => {
+			const { main } = loadUntyped({
+				'main.jul': 'data = import(§./data.json§ Dictionary(Text))',
+				'data.json': '{"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}',
+			});
+			const lines = main.checked!.errors[0]!.message.split('\n');
+			expect(lines.filter(line => line.startsWith('Invalid value'))).to.have.length(3);
+			expect(lines.at(-1)).to.equal('… 2 more');
+		});
+		it('Typ als benanntes Argument', () => {
+			expectSameVerdict({
+				'main.jul': 'data = import(path = §./data.json§ ValueType = List(Text))',
+				'data.json': '[1, 2, 3]',
+			}, [ErrorCode.importTypeMismatch]);
+		});
+		// Die Grenze der Konstantenfaltung (maxFoldedTupleLength) gilt nicht: Wie ein Literal im
+		// Quelltext ist der Wert durch die Dateigröße begrenzt.
+		it('lange Liste in großer Datei wird geprüft', () => {
+			const { main } = loadUntyped({
+				'main.jul': 'data = import(§./data.json§ List(Integer))',
+				'data.json': `[${Array(1001).fill('1').join(', ')}]`,
+			});
+			expect(getErrorCodes(main)).to.deep.equal([]);
+		});
+		// Wie im Language Server, der große Dateien nicht lädt: Der Typ gilt ungeprüft, der Build prüft.
+		it('übersprungene Datei hat den angegebenen Typ ohne Fehler', () => {
+			const inMemoryHost = createInMemoryHost({ [path('main.jul')]: 'data = import(§./data.json§ List(Text))' });
+			const { main } = loadMain({}, {
+				readSource: filePath => filePath === path('data.json')
+					? { type: 'skipped' }
+					: inMemoryHost.readSource(filePath),
+			});
+			expect(getErrorCodes(main)).to.deep.equal([]);
+			expect(getImportType(main)).to.equal('List(Text)');
+		});
+		it('Wert ohne Typ (TS-default-Export) ist nicht beweisbar', () => {
+			const { main } = loadMain({
+				'main.jul': 'u = import(§./util.ts§ Integer)',
+				'util.ts': 'export default 5;',
+			});
+			expect(getErrorCodes(main)).to.deep.equal([ErrorCode.importTypeMismatch]);
+		});
+	});
+
 	it('jede Datei einer Raute wird genau einmal gelesen und gecheckt', () => {
 		const { host, readCounts } = createCountingHost({
 			'main.jul': '(b) = import(§./b.jul§)\n(c) = import(§./c.jul§)',

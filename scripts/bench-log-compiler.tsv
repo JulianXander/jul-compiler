@@ -614,3 +614,9 @@
 2026-11-17 09:42:04	a6ef4a1+	-	ADV-DEV-56627	yugioh	parse+check	5	20804.08	21778.75	21778.75	nach Emitter ohne Abstürze
 2026-11-17 09:42:04	a6ef4a1+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1178.26	1192.56	1192.56	nach Emitter ohne Abstürze
 2026-11-17 09:42:04	a6ef4a1+	-	ADV-DEV-56627	yugioh	parse	5	112.58	133.48	133.48	nach Emitter ohne Abstürze
+2026-11-22 12:22:59	934343a	-	ADV-DEV-56627	yugioh	parse+check	5	18457.89	19942.15	19942.15	vor getyptem Import
+2026-11-22 12:22:59	934343a	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1098.72	1423.89	1423.89	vor getyptem Import
+2026-11-22 12:22:59	934343a	-	ADV-DEV-56627	yugioh	parse	5	104.76	120.89	120.89	vor getyptem Import
+2026-11-22 12:29:56	934343a+	-	ADV-DEV-56627	yugioh	parse+check	5	20401.94	21028.41	21028.41	getypter Import (JUL3170), yugioh card-data mit Typ
+2026-11-22 12:29:56	934343a+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1097.63	1136.37	1136.37	getypter Import (JUL3170), yugioh card-data mit Typ
+2026-11-22 12:29:56	934343a+	-	ADV-DEV-56627	yugioh	parse	5	102.02	107.82	107.82	getypter Import (JUL3170), yugioh card-data mit Typ

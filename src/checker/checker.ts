@@ -3955,46 +3955,15 @@ function getReturnTypeFromFunctionCall(
 						? builtinInvalid
 						: builtinAny;
 				}
-				// TODO get full path, get type from parsedfile
-				const fullPath = join(folder, path);
-				const importedDocument = parsedDocuments[fullPath];
-				const importedFile = importedDocument?.checked;
-				if (!importedFile
-					|| importedDocument?.untyped) {
-					return builtinAny;
+				const importedDocument = parsedDocuments[join(folder, path)];
+				const declaredType = getImportTypeArgument(boundArgsType);
+				if (!declaredType) {
+					return importedDocument?.untyped
+						? builtinAny
+						: getImportedType(importedDocument);
 				}
-				// Dieselbe Entscheidung wie beim Emitter des Importeurs.
-				if (!importedDocument.hasDefaultExport) {
-					// definitions import
-					// a dictionary containing all definitions is imported
-					const exportedSymbols = getExportedSymbols(importedFile.symbols);
-					if (!Object.keys(exportedSymbols).length) {
-						return builtinAny;
-					}
-					const importedResult = importedDocument.checkResult;
-					const importedTypes = mapDictionary(exportedSymbols, symbol => {
-						const symbolType: CompileTimeType = (importedResult && getSymbolTypeInfo(importedResult, symbol)?.type)
-							?? builtinAny;
-						return symbolType;
-					});
-					// TODO exrepssion, filePath?
-					return createCompileTimeDictionaryLiteralType(toRequiredFields(importedTypes), true);
-				}
-				// value import
-				// the last expression is imported
-				// Den default-Export einer .ts/.js übersetzt der TS-Parser nicht.
-				if (importedDocument.extension === Extension.ts
-					|| importedDocument.extension === Extension.js
-					|| !importedFile.expressions) {
-					return builtinAny;
-				}
-				const lastExpression = last(importedFile.expressions);
-				if (!lastExpression) {
-					return builtinAny;
-				}
-				// Der Ausdruck gehört zur importierten Datei, sein Typ steht in deren Ergebnis.
-				return (importedDocument.checkResult && getTypeInfo(importedDocument.checkResult, lastExpression)?.type)
-					?? builtinAny;
+				checkImportType(functionCall, importedDocument, declaredType, errors);
+				return declaredType;
 			}
 			case 'And': {
 				const argTypes = getAllArgTypes(boundArgsType);
@@ -4160,6 +4129,144 @@ function getReturnTypeFromFunctionCall(
 }
 
 //#endregion get Type from FunctionCall
+
+//#region import
+
+/**
+ * Typ des importierten Werts, ohne angegebenen Typ. Any, wenn die Datei nicht geladen ist (der
+ * Language Server überspringt große Dateien, fileNotFound ist schon gemeldet) oder ihr Wert keinen
+ * Typ hat (.ts/.js mit default-Export).
+ */
+function getImportedType(importedDocument: ParsedFile | undefined): CompileTimeType {
+	const importedFile = importedDocument?.checked;
+	if (!importedFile) {
+		return builtinAny;
+	}
+	// Dieselbe Entscheidung wie beim Emitter des Importeurs.
+	if (!importedDocument.hasDefaultExport) {
+		// definitions import
+		// a dictionary containing all definitions is imported
+		const exportedSymbols = getExportedSymbols(importedFile.symbols);
+		if (!Object.keys(exportedSymbols).length) {
+			return builtinAny;
+		}
+		const importedResult = importedDocument.checkResult;
+		const importedTypes = mapDictionary(exportedSymbols, symbol => {
+			const symbolType: CompileTimeType = (importedResult && getSymbolTypeInfo(importedResult, symbol)?.type)
+				?? builtinAny;
+			return symbolType;
+		});
+		// TODO exrepssion, filePath?
+		return createCompileTimeDictionaryLiteralType(toRequiredFields(importedTypes), true);
+	}
+	// value import
+	// the last expression is imported
+	// Den default-Export einer .ts/.js übersetzt der TS-Parser nicht.
+	if (importedDocument.extension === Extension.ts
+		|| importedDocument.extension === Extension.js
+		|| !importedFile.expressions) {
+		return builtinAny;
+	}
+	const lastExpression = last(importedFile.expressions);
+	if (!lastExpression) {
+		return builtinAny;
+	}
+	// Der Ausdruck gehört zur importierten Datei, sein Typ steht in deren Ergebnis.
+	return (importedDocument.checkResult && getTypeInfo(importedDocument.checkResult, lastExpression)?.type)
+		?? builtinAny;
+}
+
+/**
+ * Der angegebene Typ eines Imports (`import(§./data.json§ Dictionary(CardData))`), positionell
+ * oder als `ValueType = …`.
+ */
+function getImportTypeArgument(boundArgsType: CompileTimeType): CompileTimeType | undefined {
+	const typeArgument = getAllArgTypes(boundArgsType)?.[1]
+		?? getNamedImportArgument(boundArgsType, 'ValueType');
+	if (!typeArgument
+		|| typeArgument.julType === 'empty') {
+		return undefined;
+	}
+	return valueOf(typeArgument);
+}
+
+function getNamedImportArgument(boundArgsType: CompileTimeType, name: string): CompileTimeType | undefined {
+	const argsType = resolveAlias(boundArgsType);
+	return argsType.julType === 'dictionaryLiteral'
+		? argsType.FieldTypes[name]
+		: undefined;
+}
+
+/**
+ * Ein Import mit Typ hat beim Importeur den angegebenen Typ, der Wert der Datei muss ihn erfüllen.
+ *
+ * Unter maxTypedFileSize ist das der inferierte Typ der Datei. Darüber gibt es keinen Syntaxbaum,
+ * der Typ einer Datendatei entsteht dann aus dem geparsten Wert: derselbe Literal-Typ, nur ohne
+ * Inferenz, und dieselbe Prüfung. Ist die Datei nicht geladen (der Language Server überspringt
+ * große Dateien), gilt der angegebene Typ ungeprüft, der Build prüft ihn.
+ */
+function checkImportType(
+	importCall: ParseFunctionCall,
+	importedDocument: ParsedFile | undefined,
+	declaredType: CompileTimeType,
+	errors: CompilerError[],
+): void {
+	if (!importedDocument?.checked) {
+		return;
+	}
+	const importedType = importedDocument.untyped
+		? getUntypedFileType(importedDocument)
+		: getImportedType(importedDocument);
+	const assignability = isTypeAssignable(resolvePlaceholders(importedType), declaredType);
+	if (assignability.assignable === true) {
+		return;
+	}
+	const message = assignability.assignable === false
+		? `Import type mismatch.\n${shortenImportTypeError(typeErrorToString(assignability.error))}`
+		: `The imported value can not be proven to be ${typeToString(declaredType, 0, 1)}.`;
+	errors.push({
+		code: ErrorCode.importTypeMismatch,
+		message: message,
+		startRowIndex: importCall.startRowIndex,
+		startColumnIndex: importCall.startColumnIndex,
+		endRowIndex: importCall.endRowIndex,
+		endColumnIndex: importCall.endColumnIndex,
+	});
+}
+
+const maxImportTypeErrorBlocks = 3;
+
+/**
+ * Eine Datendatei hat oft tausende gleichartige Einträge. Ist der Typ eines Eintrags falsch, nennt
+ * der Typfehler jeden einzeln (bei card-data.json 780 kB), gezeigt werden nur die ersten.
+ * Ein Block ist eine Zeile ohne Einrückung samt ihren eingerückten Folgezeilen.
+ */
+function shortenImportTypeError(text: string): string {
+	const lines = text.split('\n');
+	const blockStarts = lines.flatMap((line, index) => /^\s/.test(line) ? [] : [index]);
+	const cutIndex = blockStarts[maxImportTypeErrorBlocks];
+	if (cutIndex === undefined) {
+		return text;
+	}
+	return [
+		...lines.slice(0, cutIndex),
+		`… ${blockStarts.length - maxImportTypeErrorBlocks} more`,
+	].join('\n');
+}
+
+/**
+ * Typ einer Datei über maxTypedFileSize aus ihrem geparsten Wert. Nur JSON hat einen (jsonValue),
+ * sonst Any.
+ */
+function getUntypedFileType(importedDocument: ParsedFile): CompileTimeType {
+	if (importedDocument.extension !== Extension.json) {
+		return builtinAny;
+	}
+	return constantValueToType(importedDocument.jsonValue, false, Infinity)
+		?? builtinAny;
+}
+
+//#endregion import
 
 //#region Sequenz Arithmetik
 

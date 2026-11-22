@@ -1638,8 +1638,12 @@ takeUntil$ = nativeFunction(
 # .js
 # .json
 # .yaml
+# Mit ValueType hat der Import diesen Typ, der Compiler prüft den Wert der Datei dagegen.
 import = nativeFunction(
-	(path: Text) ~> Any
+	(
+		path: Text
+		ValueType: Or([] Type)
+	) ~> Any
 	§js
 		require
 	§

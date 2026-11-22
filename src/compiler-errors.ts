@@ -252,6 +252,12 @@ export enum ErrorCode {
 	 * JS-`null` erfüllt `Empty` nicht - der Typ würde etwas zusichern, das die Laufzeit nicht einhält.
 	 */
 	nullNotAllowedInTypeScriptType = 3160,
+	/**
+	 * Der Wert einer Datei, die mit Typ importiert wird (`import(§./data.json§ Dictionary(Card))`),
+	 * erfüllt den Typ nicht oder ist nicht beweisbar. Bei einer Datei über maxTypedFileSize meldet
+	 * das erst der Build, der Language Server lädt sie nicht.
+	 */
+	importTypeMismatch = 3170,
 	//#endregion 3100 Import und Modulauflösung
 
 	//#region 3200 Namensauflösung und Scopes
@@ -438,6 +444,7 @@ export const errorInfos: { [Code in ErrorCode]: ErrorInfo; } = {
 	[ErrorCode.unsupportedImportPosition]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.testFileImportedOutsideTests]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.nullNotAllowedInTypeScriptType]: { type: 'semantic', severity: 'error' },
+	[ErrorCode.importTypeMismatch]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.alreadyDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.notDefined]: { type: 'semantic', severity: 'error' },
 	[ErrorCode.usedBeforeDefined]: { type: 'semantic', severity: 'error' },

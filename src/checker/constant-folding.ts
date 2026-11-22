@@ -235,8 +235,15 @@ export const maxFoldedTupleLength = 1_000;
  * Integer sind zur Laufzeit kanonisch number im sicheren Bereich (docs/integer-darstellung.md), eine
  * ganzzahlige number kann also Integer oder Float sein. mayContainFloat (aus dem Rückgabetyp, typeMayContainFloat):
  * Kann das Ergebnis Floats enthalten, bleibt eine ganzzahlige number ungefaltet, sonst wird sie zum Integer-Literal.
+ *
+ * maxTupleLength: Ein längeres Array liefert undefined. Ein importierter JSON-Wert hebt die Grenze
+ * auf: Wie ein Literal im Quelltext ist er durch die Dateigröße begrenzt.
  */
-export function constantValueToType(value: unknown, mayContainFloat: boolean = false): CompileTimeType | undefined {
+export function constantValueToType(
+	value: unknown,
+	mayContainFloat: boolean = false,
+	maxTupleLength: number = maxFoldedTupleLength,
+): CompileTimeType | undefined {
 	if (value === undefined) {
 		return builtinEmpty;
 	}
@@ -262,12 +269,12 @@ export function constantValueToType(value: unknown, mayContainFloat: boolean = f
 			return createBooleanLiteral(value);
 	}
 	if (Array.isArray(value)) {
-		if (value.length > maxFoldedTupleLength) {
+		if (value.length > maxTupleLength) {
 			return undefined;
 		}
 		const elementTypes: CompileTimeType[] = [];
 		for (const element of value) {
-			const elementType = constantValueToType(element, mayContainFloat);
+			const elementType = constantValueToType(element, mayContainFloat, maxTupleLength);
 			if (!elementType) {
 				return undefined;
 			}
@@ -284,7 +291,7 @@ export function constantValueToType(value: unknown, mayContainFloat: boolean = f
 		}
 		const fields: CompileTimeDictionary = {};
 		for (const [fieldName, fieldValue] of Object.entries(value)) {
-			const fieldType = constantValueToType(fieldValue, mayContainFloat);
+			const fieldType = constantValueToType(fieldValue, mayContainFloat, maxTupleLength);
 			if (!fieldType) {
 				return undefined;
 			}
