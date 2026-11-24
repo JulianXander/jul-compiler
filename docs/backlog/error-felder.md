@@ -1,8 +1,8 @@
 # Felder eingebauter Typen in der core-lib deklarieren
 
-Schritt 1 (`native`) und 2 (Felder von `Error`) sind umgesetzt, Schritt 3 (Stream) ist offen.
-Anlass ist `Error/message`. Der Entwurf vereinigt dafür `nativeFunction` und `nativeValue` zu
-`native`.
+Schritt 1 (`native`) und 2 (Felder von `Error`) sind umgesetzt, Schritt 3 (Stream) ist
+entworfen, aber nicht entschieden. Anlass ist `Error/message`. Der Entwurf vereinigt dafür
+`nativeFunction` und `nativeValue` zu `native`.
 
 ## Ausgangslage
 
@@ -113,12 +113,8 @@ core-lib.
 
 ### Weitere Typen
 
-- **Stream (`getValue`):** passt, ist heute genauso fest verdrahtet. Die Schwierigkeit: `Stream` ist
-  eine Typfunktion, der Typ von `getValue` hängt vom Parameter ab (`() ~> ValueType`). Das Literal
-  müsste `ValueType` sehen, steht aber als eigenes Argument außerhalb der Signatur. Möglich wäre
-  `Fields` als Typfunktion mit denselben Parametern (`(ValueType: Type) => [getValue: () ~> ValueType]`).
-  `ValueType` als Eigenschaft des Typs (`TypeOf(s$)/ValueType`) bleibt in `typePropertyAccess`, sie ist
-  kein Feld eines Streams. `FiniteStream` teilt die Felder.
+- **Stream (`getValue`):** ist heute genauso fest verdrahtet, siehe
+  [Schritt 3](#schritt-3-stream).
 - **List (`length`):** eher nicht. Zur Laufzeit ist `Array.length` da, aber es gibt schon die
   Funktion `length`, deren Rückgabetyp `LengthOf(TypeOf(values))` die genaue Länge kennt. Ein Feld
   mit `Integer` wäre eine zweite, schlechter typisierte Schreibweise für dieselbe Sache. Außerdem
@@ -126,6 +122,108 @@ core-lib.
   Feldzugriff für Listen einführen.
 - **Function (`ParamsType`, `ReturnType`):** keine Felder, sondern Eigenschaften, die aus dem
   jeweiligen Funktionstyp berechnet werden. Bleiben in der Typalgebra.
+
+## Schritt 3: Stream
+
+### Ausgangslage
+
+Ein Stream hat statisch genau ein Feld, `getValue` vom Typ `() ~> ValueType`.
+`valueFieldAccess.stream` kennt es fest, den Funktionstyp baut `getStreamGetValueType` bei jedem
+Zugriff neu, die Vervollständigung hat dafür einen eigenen Fall. Go to Definition und Hover
+haben kein Ziel, wie früher bei `message`. Der Kommentar über `Stream` in der core-lib nennt
+außerdem `completed: Boolean` als Feld der Instanz, statisch ist es Empty.
+
+Alles andere, was man mit einem Stream tut, ist eine Funktion der core-lib, aufgerufen mit `.`:
+`push`, `complete`, `subscribe`, `map$`, `takeUntil$`. Nur der aktuelle Wert wird über `/` geholt
+(`gameState$/getValue()`). Das steht als Frage im TODO („warum getValue als Feld von Stream
+Instanz?“).
+
+`Stream` und `FiniteStream` sind Typfunktionen (`(ValueType: Type) -> Type`). Der Typ von
+`getValue` hängt vom Argument ab, das macht ein Literal wie bei `Error` unmöglich: Es stünde als
+eigenes Argument von `native` außerhalb der Signatur und sähe `ValueType` nicht.
+
+### Variante A: `Fields` als Typfunktion
+
+```jul
+StreamFields = (ValueType: Type) => [
+	# Der zuletzt eingetragene Wert. Ein Stream hat immer einen.
+	getValue: () ~> ValueType
+]
+Stream = native(
+	(ValueType: Type) -> Type
+	§js …§
+	StreamFields
+)
+FiniteStream = native(… StreamFields)
+```
+
+- **Parameter von `native`:** `Fields: Or([] Type (…) => Type)`. Für eine Typfunktion als Wert
+  hat JUL noch keinen Typ, der nur Typfunktionen zulässt. Wie bei `Error` prüft `initCoreLib`.
+- **Typalgebra:** `valueFieldAccess.stream.get` muss die Typfunktion mit dem `ValueType` des
+  Streams anwenden, also den Parameter im Rückgabetyp ersetzen. Das kann bisher nur der Checker
+  beim Aufruf. Die Typalgebra darf `checker.ts` nicht importieren, gebraucht würde eine
+  Ersetzung von Parameterreferenzen in der Typalgebra selbst oder ein weiterer Setter.
+- **Language Server:** `getFieldSymbolsFromDictionaryType` folgt bei `stream` dem Literal im
+  Rumpf von `StreamFields`. Go to Definition und Hover gehen dann wie bei `message`.
+- **Aufwand:** neue Mechanik (Typfunktion als `Fields`, Ersetzung in der Typalgebra) für genau
+  ein Feld. Ein Stream wird dadurch kein Record, `/` bleibt eine Sonderform neben den Funktionen.
+- **Nutzer:** keine Änderung.
+
+### Variante B: `getValue` wird eine Funktion der core-lib
+
+```jul
+# Der zuletzt eingetragene Wert. Ein Stream hat immer einen.
+getCurrentValue = native(
+	(stream$: Stream(Any)) ~> TypeOf(stream$)/ValueType
+	§js
+		(stream$) => stream$.getValue()
+	§
+)
+```
+
+Aufgerufen wie die übrigen Stream-Funktionen: `gameState$.getCurrentValue()`.
+
+- **Stream hat danach keine Felder.** `valueFieldAccess.stream.get` kennt nur noch `ValueType` (als
+  Eigenschaft des Typs, sie bleibt in `typePropertyAccess`), `getStreamGetValueType` und der Fall
+  in der Vervollständigung entfallen. Go to Definition, Hover, Referenzen und Signaturhilfe gehen
+  wie bei jedem Builtin, ohne eigenen Code.
+- **Kein neues Konstrukt.** Der Rückgabetyp über `TypeOf(stream$)/ValueType` ist dieselbe Form wie
+  bei `push` und `subscribe`. `~>` macht den Aufruf unrein, wie heute die Signatur des Felds.
+- **Die Frage aus dem TODO ist beantwortet:** Mit einem Stream arbeitet man nur noch über `.`.
+- **Laufzeit:** `StreamClass.getValue` bleibt, die core-lib-Funktion ruft sie auf. Ein Aufruf mehr,
+  vor und nach dem Umbau mit `bench-runtime` messen.
+- **Migration:** 72 Stellen in yugioh, 8 in jul-examples, Homepage und Doku. Ein
+  `migrate-stream-get-value.mjs` nach dem Muster der übrigen Skripte ersetzt
+  `x/getValue()` durch `x.getCurrentValue()`. Ein `x/getValue` ohne Aufruf (als Funktionswert)
+  wird zu `() ~> x.getCurrentValue()`, das Skript meldet solche Stellen.
+- **`s$/getValue` danach:** Empty, wie jedes unbekannte Feld eines Werts ohne Felder. Für die
+  Umstellung reicht das, die Migration erfasst alle Stellen. Eine eigene Meldung mit Hinweis auf
+  den neuen Namen lohnt nicht.
+
+### Name in Variante B
+
+Ein Builtin lässt sich nicht verdecken, ein Parameter mit demselben Namen ist JUL3203. `getValue`
+ist als Parametername verbreitet: in der core-lib selbst (`toDictionary(values getKey getValue)`,
+dort auch Teil der benannten Argumente) und in yugioh (`blackwing.jul`, `sumFor`). Als Builtin
+müssten beide umbenannt werden, und jeder künftige Callback dieses Namens stieße auf den Fehler.
+
+- **`getCurrentValue`** (Vorschlag): `get` für den Zugriff nach [naming.md](../naming.md), „current“
+  sagt, dass der Wert sich ändert. Kein Konflikt.
+- **`getLastValue`**: entspricht `lastValue` in der Runtime, klingt aber nach „letzter Wert vor dem
+  Ende“.
+- **`getValue`**: am kürzesten, aber mit den Konflikten oben.
+
+### Empfehlung
+
+Variante B. Der Stream ist kein Datensatz, sein einziges Feld ist eine Funktion, und für
+Funktionen auf Streams hat die Sprache schon die Form mit `.`. Variante A baute neue Mechanik, damit
+eine Ausnahme bestehen bleibt. Die Felder aus der core-lib bleiben damit auf Typen ohne Parameter
+beschränkt (`Error`). Eine Typfunktion mit Feldern wird erst entworfen, wenn ein Typ wirklich
+Daten trägt, die von seinem Parameter abhängen.
+
+`completed` wird in keiner Variante ein Feld: Der Wert ändert sich, ein Feldzugriff gilt aber als
+rein. Wird er gebraucht, dann als unreine Funktion, siehe [stream-on-completed.md](stream-on-completed.md).
+Der Kommentar über `Stream` in der core-lib wird auf den tatsächlichen Stand korrigiert.
 
 ## Verworfen
 
@@ -162,8 +260,7 @@ core-lib.
 - **Was der Check der core-lib selbst sieht.** Beim Check von `Error = native(…)` gibt es den Setter
   noch nicht. Die core-lib liest `/message` heute nirgends. Käme das später dazu, müsste es nach
   der Definition von `Error` stehen oder der Setter schon während des Checks greifen.
-- **Felder einer Typfunktion** (Stream, siehe oben): `Fields` als Typfunktion mit den Parametern der
-  Signatur, oder Stream vorerst fest verdrahtet lassen.
+- **Stream:** Variante A oder B aus [Schritt 3](#schritt-3-stream), bei B der Name.
 - **Andere Laufzeitfelder.** `stack` und `name` gibt es zur Laufzeit, statisch sind sie Empty.
   Daran ändert der Entwurf nichts, das ist heute schon so.
 
@@ -173,7 +270,10 @@ core-lib.
    `typescript-parser.ts`, Handbuch und JUL5155). Kein Verhalten ändert sich, Snapshot und Tests
    bleiben gleich.
 2. `Fields` für `Error`, Feldzugriff und Language Server darauf umstellen.
-3. Stream, sobald die Frage der Typfunktion entschieden ist.
+3. Stream nach Variante B: `getCurrentValue` in der core-lib mit Tests, dann das
+   Migrationsskript, yugioh, jul-examples, Homepage und Doku umstellen. Danach das Feld in
+   `valueFieldAccess.stream`, `getStreamGetValueType` und den Fall in `completion.ts` entfernen.
+   Bench, `bench-runtime` und Snapshots vorher und nachher.
 
 ## Tests
 

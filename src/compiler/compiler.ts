@@ -495,11 +495,14 @@ export function formatTestSummary(counts: {
 		...failedCount ? [`${failedCount} failed`] : [],
 		...skippedCount ? [`${skippedCount} skipped`] : [],
 		...loadFailedCount ? [`${pluralize(loadFailedCount, 'file')} failed to load`] : [],
+		...errorCount ? [pluralize(errorCount, 'error')] : [],
 	].join(', ');
+	// Bei Fehlern im Code kein "passed", auch wenn alle Tests grün sind: Wer die Zeile überfliegt
+	// oder nach "passed" filtert, hielte den Lauf sonst für grün.
 	return hasFailure
 		? `${colorize('tests failed', ConsoleColor.lightRed)} ${testSummary}`
 		: errorCount
-			? `${colorize('tests passed with compile errors', ConsoleColor.lightRed)} ${testSummary}`
+			? `${colorize('tests finished with errors', ConsoleColor.lightRed)} ${testSummary}`
 			: `${colorize('tests passed', ConsoleColor.green)} ${testSummary}`;
 }
 

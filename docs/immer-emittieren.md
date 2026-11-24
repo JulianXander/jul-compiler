@@ -78,8 +78,9 @@ Alle fünf Schritte, mit diesen Abweichungen:
 - `hasDefaultExport` liefert `undefined` für eine nicht geladene Datei, statt zu werfen.
 - Projektfehler halten Build und Testlauf weiter auf: Ohne Einstieg gibt es nichts zu bauen, bei
   gleichen Ausgabepfaden überschriebe eine Datei die andere. `compileFailed` meldet nur noch sie.
-- Sind alle Tests grün, der Code hat aber Fehler, endet `jul test` mit „tests passed with compile
-  errors“ und Exit-Code 1.
+- Sind alle Tests grün, der Code hat aber Fehler, endet `jul test` mit „tests finished with errors“
+  samt Fehleranzahl und Exit-Code 1 (zuerst „tests passed with compile errors“, das las sich beim
+  Überfliegen und für `grep passed` wie ein grüner Lauf).
 - Der Playground zeigt `JUL5200` weiter in der Fehlerliste: Tests laufen dort erst auf „Prüfen“,
   ohne die Meldung sähe man vorher nicht, dass ein Test fehlschlägt.
 - Bench vor und nach dem Emitter: keine Änderung über das Rauschen hinaus, für fehlerfreien Code ist
