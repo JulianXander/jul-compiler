@@ -1045,7 +1045,7 @@ export function checkTypes(
 	});
 	if (extname(document.filePath) === Extension.jul
 		&& !isCoreLibPath(document.filePath)) {
-		reportUnusedDefinitions(result, checked);
+		reportUnusedDefinitions(result, checked, isTestFilePath(document.filePath));
 		reportStreamsWithoutEnd(result, checked.expressions, checked.errors);
 	}
 	if (isTestFilePath(document.filePath)) {
@@ -1063,41 +1063,59 @@ export function checkTypes(
  * Ausgenommen ist, was außerhalb des Scopes noch ankommt: Top-Level-Definitionen sind exportiert,
  * die letzte Definition eines Funktionsrumpfs ist sein Rückgabewert, Parameter werden vom Aufrufer
  * belegt. Destructuring auf oberster Ebene wird nicht exportiert und daher geprüft.
+ * In einer Testdatei gilt die Nutzung in assert als Nutzung: Unter jul test fällt kein assert weg.
  */
-function reportUnusedDefinitions(result: CheckResult, file: ParsedExpressions2): void {
+function reportUnusedDefinitions(result: CheckResult, file: ParsedExpressions2, isTestFile: boolean): void {
 	const { errors } = file;
 	forEach(file.symbols, (symbol, name) => {
 		if (symbol.definition?.type === 'destructuringField') {
-			reportIfUnused(result, symbol, name, errors);
+			reportIfUnused(result, symbol, name, errors, isTestFile);
 		}
 	});
 	file.expressions?.forEach(expression => {
-		reportUnusedInFunctionBodies(result, expression, errors);
+		reportUnusedInFunctionBodies(result, expression, errors, isTestFile);
 	});
 }
 
-function reportUnusedInFunctionBodies(result: CheckResult, expression: PositionedExpression, errors: CompilerError[]): void {
+function reportUnusedInFunctionBodies(
+	result: CheckResult,
+	expression: PositionedExpression,
+	errors: CompilerError[],
+	isTestFile: boolean,
+): void {
 	if (expression.type === 'functionLiteral') {
 		const returnedDefinition = last(expression.body);
 		forEach(expression.symbols, (symbol, name) => {
 			const definition = symbol.definition;
 			if ((definition?.type === 'definition' && definition !== returnedDefinition)
 				|| definition?.type === 'destructuringField') {
-				reportIfUnused(result, symbol, name, errors);
+				reportIfUnused(result, symbol, name, errors, isTestFile);
 			}
 		});
 	}
 	forEachChild(expression, child => {
-		reportUnusedInFunctionBodies(result, child, errors);
+		reportUnusedInFunctionBodies(result, child, errors, isTestFile);
 	});
 }
 
-function reportIfUnused(result: CheckResult, symbol: SymbolDefinition, name: string, errors: CompilerError[]): void {
+function reportIfUnused(
+	result: CheckResult,
+	symbol: SymbolDefinition,
+	name: string,
+	errors: CompilerError[],
+	isTestFile: boolean,
+): void {
 	const use = getSymbolUse(result, symbol);
 	if (use === 'used') {
 		return;
 	}
 	if (use === 'onlyInAssert') {
+		// Ohne assert wird hier nichts umsonst berechnet: In einer Testdatei bleibt jedes assert,
+		// und ein Import bindet nur einen Namen.
+		if (isTestFile
+			|| isImportedName(symbol)) {
+			return;
+		}
 		errors.push({
 			code: ErrorCode.usedOnlyInAssert,
 			message: `'${name}' is only used in assert, but is computed even when assert is removed. Move the computation into a function called in the condition.`,
@@ -1116,6 +1134,18 @@ function reportIfUnused(result: CheckResult, symbol: SymbolDefinition, name: str
 		endRowIndex: symbol.endRowIndex,
 		endColumnIndex: symbol.endColumnIndex,
 	});
+}
+
+/** Feld eines Destructurings, dessen Wert ein import(…) ist. */
+function isImportedName(symbol: SymbolDefinition): boolean {
+	const definition = symbol.definition;
+	if (definition?.type !== 'destructuringField') {
+		return false;
+	}
+	const destructuring = definition.parent?.parent;
+	return destructuring?.type === 'destructuring'
+		&& !!destructuring.value
+		&& isImportFunctionCall(destructuring.value);
 }
 
 /**

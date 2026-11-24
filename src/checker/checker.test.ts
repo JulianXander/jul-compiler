@@ -5229,6 +5229,35 @@ f = (a: Any) => assume(a Integer)`);
 	result = add(doubled 1)
 	result`);
 	});
+	// Unter jul test wird jedes assert geprüft, in einer Testdatei fällt nie eines weg.
+	it('assert-definition-used-only-in-assert-in-test-file', () => {
+		expectCheck(`f = (a: Integer) =>
+	doubled = multiply(a 2)
+	assert(§m§ greaterInteger(doubled 0))
+	a`, { filePath: 'dummy.test.jul' });
+	});
+	it('assert-definition-used-only-in-assert-in-test-callback', () => {
+		expectCheck(`test(
+	§a§
+	() =>
+		date = toIsoDateText(currentDate())
+		assert(§m§ equal(date §x§))
+		true
+)`, { filePath: 'dummy.test.jul' });
+	});
+	// Ein Import bindet nur einen Namen, berechnet wird nichts.
+	// Entschieden wird am Syntaxbaum, die importierte Datei muss dafür nicht geladen sein.
+	it('imported-name-used-only-in-assert', () => {
+		expectCheck(`(isPositive) = import(§./helper.jul§)
+f = (a: Integer) =>
+	assert(§m§ isPositive(a))
+	a`);
+	});
+	// Gegenprobe: Ein importierter Name, der gar nicht vorkommt, bleibt ungenutzt.
+	it('imported-name-never-used', () => {
+		expectErrorCodes(`(isPositive) = import(§./helper.jul§)
+f = (a: Integer) => a`, [ErrorCode.unusedDefinition]);
+	});
 	// Benannte Argumente stehen in der Reihenfolge der Parameter. Gemeldet wird das Argument,
 	// das vor einem bereits geschriebenen späteren Parameter steht.
 	it('named-arguments-out-of-order', () => {
