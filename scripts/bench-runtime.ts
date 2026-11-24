@@ -315,6 +315,20 @@ const cases: BenchCase[] = [
 		calls: 100_000,
 	},
 	{
+		file: 'comparison.jul',
+		functionName: 'countEqual',
+		inputs: [hundredIntegers],
+		expected: [1],
+		calls: 100_000,
+	},
+	{
+		file: 'comparison.jul',
+		functionName: 'countDifferent',
+		inputs: [hundredIntegers],
+		expected: [99],
+		calls: 100_000,
+	},
+	{
 		file: 'callbacks.jul',
 		functionName: 'countSmall',
 		inputs: [{ limit: 1, values: [1, 2, 3] }, { limit: 5, values: [1, 2, 3] }],

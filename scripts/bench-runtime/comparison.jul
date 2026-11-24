@@ -1,0 +1,7 @@
+# Vergleich im Callback einer Listenfunktion: je Element ein equal
+countEqual = (values: List(Integer)) =>
+	values.filter((value) => equal(value 50)).length()
+
+# Dasselbe verneint: je Element ein equal und ein not
+countDifferent = (values: List(Integer)) =>
+	values.filter((value) => value.equal(50).not()).length()

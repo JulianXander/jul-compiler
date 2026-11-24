@@ -1302,6 +1302,14 @@ function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCal
 		// 	: path;
 		// return `require("${outPath}")`;
 	}
+	// Vor dem Präfix-Argument: not(equal(…)) emittiert die Operanden von equal selbst. Der äußerste
+	// Aufruf in test bleibt ein Aufruf, seine Instrumentierung zeigt die Argumente im Fehlerfall.
+	const equalOrNotJs = expression === instrumentedTestCall
+		? undefined
+		: equalOrNotCallToJs(checkResult, expression, indent);
+	if (equalOrNotJs !== undefined) {
+		return equalOrNotJs;
+	}
 	const args = expression.arguments;
 	const prefixArgument = expression.prefixArgument;
 	const copyingBuiltinName = functionExpression.type === 'reference'
@@ -1443,16 +1451,22 @@ function shortCircuitCallToJs(checkResult: CheckResult, expression: ParseFunctio
 }
 
 /**
- * Klammert den Operanden, wenn er kein primärer Ausdruck ist (zum Beispiel ein verschachteltes
- * and/or oder eine Verzweigung). Referenzen, Zugriffe und normale Aufrufe brauchen keine Klammern.
+ * Klammert den Operanden, wenn er kein primärer Ausdruck ist (zum Beispiel ein Aufruf von and/or,
+ * equal oder not, der zum JS-Operator wird, oder eine Verzweigung). Referenzen, Zugriffe, Zahl- und
+ * Textliterale und normale Aufrufe brauchen keine Klammern.
  */
 function operandToJs(operand: ParseExpression, operandJs: string): string {
 	switch (operand.type) {
 		case 'reference':
 		case 'nestedReference':
+		case 'integer':
+		case 'float':
+		case 'text':
 			return operandJs;
 		case 'functionCall':
 			return getJunction(operand)
+				|| getBuiltinOperands(operand, 'equal', 2)
+				|| getBuiltinOperands(operand, 'not', 1)
 				? `(${operandJs})`
 				: operandJs;
 		default:
@@ -1461,6 +1475,85 @@ function operandToJs(operand: ParseExpression, operandJs: string): string {
 }
 
 //#endregion short circuit
+
+//#region equal/not
+
+/**
+ * equal vergleicht in der Runtime mit ===, not verneint mit !. Ein direkter Aufruf wird deshalb zum
+ * JS-Operator und not(equal(…)) zu !==: Das spart je Vergleich zwei Funktionsaufrufe und hält das
+ * erzeugte JS kurz. Ein weggelassenes Argument ist Empty, also undefined. Bei Spread, benannten und
+ * überzähligen Argumenten bleibt es beim Aufruf. Builtins lassen sich nicht überdecken (JUL3203), der
+ * Name genügt.
+ */
+function equalOrNotCallToJs(checkResult: CheckResult, expression: ParseFunctionCall, indent: number): string | undefined {
+	const equalOperands = getBuiltinOperands(expression, 'equal', 2);
+	if (equalOperands) {
+		return equalityToJs(checkResult, equalOperands, '===', indent);
+	}
+	const notOperands = getBuiltinOperands(expression, 'not', 1);
+	if (!notOperands) {
+		return undefined;
+	}
+	const operand = notOperands[0];
+	if (!operand) {
+		return '!undefined';
+	}
+	if (operand.type === 'functionCall') {
+		const negatedOperands = getBuiltinOperands(operand, 'equal', 2);
+		if (negatedOperands) {
+			return equalityToJs(checkResult, negatedOperands, '!==', indent);
+		}
+	}
+	return `!${operandToJs(operand, expressionToJs(checkResult, operand, indent))}`;
+}
+
+function equalityToJs(checkResult: CheckResult, operands: ParseValueExpression[], jsOperator: '===' | '!==', indent: number): string {
+	const [first, second] = operands;
+	const firstJs = first
+		? operandToJs(first, expressionToJs(checkResult, first, indent))
+		: 'undefined';
+	const secondJs = second
+		? operandToJs(second, expressionToJs(checkResult, second, indent))
+		: 'undefined';
+	return `${firstJs} ${jsOperator} ${secondJs}`;
+}
+
+/**
+ * Das Präfix-Argument und die Argumente eines direkten Aufrufs des Builtins name, in
+ * Auswertungsreihenfolge. undefined bei einem anderen Aufruf, bei Spread, benannten Argumenten und
+ * mehr als maxOperands Operanden.
+ */
+function getBuiltinOperands(call: ParseFunctionCall, name: string, maxOperands: number): ParseValueExpression[] | undefined {
+	const functionExpression = call.functionExpression;
+	if (!functionExpression
+		|| !isNamedFunction(functionExpression, name)) {
+		return undefined;
+	}
+	const args = call.arguments;
+	let values: ParseValueExpression[];
+	switch (args?.type) {
+		case 'list':
+			if (args.values.some(value => value.type === 'spread')) {
+				return undefined;
+			}
+			values = args.values as ParseValueExpression[];
+			break;
+		case undefined:
+		case 'empty':
+			values = [];
+			break;
+		default:
+			return undefined;
+	}
+	const operands = call.prefixArgument
+		? [call.prefixArgument, ...values]
+		: values;
+	return operands.length <= maxOperands
+		? operands
+		: undefined;
+}
+
+//#endregion equal/not
 
 //#region Integer-Arithmetik
 

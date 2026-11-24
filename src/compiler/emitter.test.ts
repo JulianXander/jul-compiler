@@ -1363,6 +1363,65 @@ describe('Emitter and/or kurzschließend', () => {
 	});
 });
 
+describe('Emitter equal und not als Operator', () => {
+	it('equal wird zu ===', () => {
+		expectEmitChecked(
+			'x = 1\ny = 2\nresult = equal(x y)',
+			'export const x = 1;\nexport const y = 2;\nexport const result = x === y;',
+		);
+	});
+	it('not wird zu !', () => {
+		expectEmitChecked(
+			'x = true\nresult = not(x)',
+			'export const x = true;\nexport const result = !x;',
+		);
+	});
+	it('not über equal wird zu !==', () => {
+		expectEmitChecked(
+			'x = 1\ny = 2\nresult = not(equal(x y))',
+			'export const x = 1;\nexport const y = 2;\nexport const result = x !== y;',
+		);
+	});
+	it('Präfixschreibweise wird zu !==', () => {
+		expectEmitChecked(
+			'x = 1\ny = 2\nresult = x.equal(y).not()',
+			'export const x = 1;\nexport const y = 2;\nexport const result = x !== y;',
+		);
+	});
+	it('ein Literal als Operand bleibt ungeklammert', () => {
+		expectEmitChecked(
+			'x = 1\nresult = x.equal(50)',
+			'export const x = 1;\nexport const result = x === 50;',
+		);
+	});
+	it('ein weggelassenes Argument von equal ist undefined', () => {
+		expectEmitChecked(
+			'x = 1\nresult = x.equal()',
+			'export const x = 1;\nexport const result = x === undefined;',
+		);
+	});
+	it('not über and klammert den Operanden', () => {
+		expectEmitChecked(
+			'x = true\ny = false\nresult = not(and(x y))',
+			'export const x = true;\nexport const y = false;\nexport const result = !(x && y);',
+		);
+	});
+	it('equal als Operand von and wird geklammert', () => {
+		expectEmitChecked(
+			'x = 1\ny = 2\nresult = and(equal(x y) not(equal(y x)))',
+			'export const x = 1;\nexport const y = 2;\nexport const result = (x === y) && (y !== x);',
+		);
+	});
+	it('equal mit Spread bleibt ein Funktionsaufruf', () => {
+		const js = emitChecked('list = [1 2]\nresult = equal(...list)');
+		expect(js).to.not.contain('===');
+	});
+	it('equal und not liefern weiterhin das richtige Ergebnis', () => {
+		expect(runEmitted('x = 1\ny = 2\nresult = [equal(x x) equal(x y) not(equal(x y)) x.equal().not() not(true)]', 'result'))
+			.to.deep.equal([true, false, true, true, false]);
+	});
+});
+
 describe('Emitter Ausführung', () => {
 	it('Kopf mit Grenze fängt keinen Text, dessen Inhalt jenseits der Grenze liegt', () => {
 		const code = [
