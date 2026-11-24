@@ -5943,24 +5943,13 @@ function isTypeAssignableForDictionaryLiteral(
 						: `Missing fields: ${missingFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`),
 				});
 			}
-			// Ein Record-Typ ist geschlossen: jedes Feld, das er nicht nennt, ist Empty. Ein
-			// weiteres Feld im Wert passt deshalb nur, wenn es Empty sein kann. Eine
-			// unvollständige Seite nennt nur einen bewiesenen Fakt, dort ist das Zuviel unbekannt.
+			// Ein Record-Typ ist geschlossen: ein Feld, das er nicht nennt, passt nicht, auch nicht
+			// mit dem Wert Empty. Zur Laufzeit legt `b = []` den Schlüssel an, deepEqual unterscheidet
+			// das von einem fehlenden Feld (yugioh Jul-Fund 48). Eine unvollständige Seite nennt nur
+			// einen bewiesenen Fakt, dort ist das Zuviel unbekannt.
 			if (targetComplete && argumentsType.complete) {
-				const surplusFieldNames: string[] = [];
-				let surplusUnknown = false;
-				for (const fieldName of Object.keys(argumentsType.Fields)) {
-					if (getOwnLiteralField(targetFields, fieldName) !== undefined) {
-						continue;
-					}
-					const surplusAssignable = isTypeAssignable(argumentsType.Fields[fieldName]!.type, builtinEmpty).assignable;
-					if (surplusAssignable === false) {
-						surplusFieldNames.push(fieldName);
-					}
-					else if (surplusAssignable === undefined) {
-						surplusUnknown = true;
-					}
-				}
+				const surplusFieldNames = Object.keys(argumentsType.Fields).filter(fieldName =>
+					getOwnLiteralField(targetFields, fieldName) === undefined);
 				if (surplusFieldNames.length) {
 					fieldAssignabilities.unshift({
 						assignable: false,
@@ -5968,9 +5957,6 @@ function isTypeAssignableForDictionaryLiteral(
 							? `Unexpected field '${surplusFieldNames[0]}'.`
 							: `Unexpected fields: ${surplusFieldNames.map(fieldName => `'${fieldName}'`).join(', ')}.`),
 					});
-				}
-				else if (surplusUnknown) {
-					fieldAssignabilities.push({ assignable: undefined });
 				}
 			}
 			return joinTypeAssignabilities(fieldAssignabilities, true);

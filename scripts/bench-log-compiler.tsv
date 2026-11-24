@@ -650,3 +650,9 @@
 2026-11-24 15:25:07	bb04418+	-	ADV-DEV-56627	yugioh	parse+check	5	24696.42	25357.42	25357.42	nach getCurrentValue statt Stream-Feld getValue
 2026-11-24 15:25:07	bb04418+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1530.01	1837.73	1837.73	nach getCurrentValue statt Stream-Feld getValue
 2026-11-24 15:25:07	bb04418+	-	ADV-DEV-56627	yugioh	parse	5	111.75	114.76	114.76	nach getCurrentValue statt Stream-Feld getValue
+2026-11-24 18:06:27	b3da4fb	-	ADV-DEV-56627	yugioh	parse+check	5	21850.33	22810.09	22810.09	vor Fund 48: ueberzaehliges Feld mit Empty
+2026-11-24 18:06:27	b3da4fb	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1401.63	1423.52	1423.52	vor Fund 48: ueberzaehliges Feld mit Empty
+2026-11-24 18:06:27	b3da4fb	-	ADV-DEV-56627	yugioh	parse	5	108.77	117.17	117.17	vor Fund 48: ueberzaehliges Feld mit Empty
+2026-11-24 18:12:50	b3da4fb+	-	ADV-DEV-56627	yugioh	parse+check	5	22647.24	23629.81	23629.81	nach Fund 48: ueberzaehliges Feld mit Empty ist Fehler
+2026-11-24 18:12:50	b3da4fb+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1423.80	1455.43	1455.43	nach Fund 48: ueberzaehliges Feld mit Empty ist Fehler
+2026-11-24 18:12:50	b3da4fb+	-	ADV-DEV-56627	yugioh	parse	5	111.07	113.89	113.89	nach Fund 48: ueberzaehliges Feld mit Empty ist Fehler

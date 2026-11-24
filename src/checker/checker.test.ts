@@ -4890,10 +4890,22 @@ f(a = 1 b = 2)`, {
 			],
 		});
 	});
-	// Ein weiteres Feld mit dem Wert Empty ist dasselbe wie ein fehlendes: der geschlossene Typ
-	// nennt für jedes andere Feld Empty.
-	it('surplus-field-with-empty-is-allowed', () => {
-		expectCheck('x: [a: Integer] = [a = 1 b = []]');
+	// Auch ein weiteres Feld mit dem Wert Empty passt nicht: Zur Laufzeit legt es den Schlüssel an,
+	// deepEqual unterscheidet das von einem fehlenden Feld. Typischer Fall ist ein umbenanntes oder
+	// verschobenes Feld, das im Literal mit [] stehen geblieben ist (yugioh Jul-Fund 48).
+	it('surplus-field-with-empty-is-rejected', () => {
+		expectCheck('x: [a: Integer] = [a = 1 b = []]', {
+			errors: [
+				{
+					"code": ErrorCode.definitionTypeMismatch,
+					"endColumnIndex": 32,
+					"endRowIndex": 0,
+					"message": "Definition type mismatch.\nUnexpected field 'b'.",
+					"startColumnIndex": 0,
+					"startRowIndex": 0,
+				},
+			],
+		});
 	});
 	// Kann das weitere Feld einen Wert haben, ist die Zuweisung nicht bewiesen sicher.
 	it('surplus-field-that-may-be-non-empty-is-rejected', () => {

@@ -2,7 +2,8 @@
 
 Offene Fragen, die nach der Umstellung auf geschlossene Record-Typen übrig sind
 ([geschlossene-records.md](geschlossene-records.md)). Ein fehlendes Feld und ein Feld mit dem Wert Empty
-sind für den Checker heute dasselbe, ein weiteres Feld ist zulässig, wenn es Empty sein kann.
+sind für den Checker heute dasselbe. Ein weiteres Feld außerhalb des Typs ist seit 2026-11-24 immer ein
+Fehler (`Unexpected field`), auch mit dem Wert Empty, siehe unten „Laufzeit: Schlüssel mit Empty“.
 
 ## JSON-null gegen fehlenden Schlüssel
 
@@ -26,8 +27,15 @@ Das betrifft alles, was über Schlüssel läuft: `deepEqual` (vergleicht die Sch
 (`Object.values`), `toJson`, `mapDictionary`, `findKey`, die `Dictionary(X)`-Prüfung.
 
 Mit dem Vorschlag oben ist das kein Widerspruch mehr: „fehlt“ und „Empty“ haben verschiedene Typen, die
-Laufzeit darf sie unterscheiden. Offen bleibt nur ein weiteres Feld mit Empty außerhalb des Typs, siehe
-die offenen Fragen in [stabile-objektformen.md](stabile-objektformen.md).
+Laufzeit darf sie unterscheiden.
+
+**Entschieden (2026-11-24):** Ein weiteres Feld mit Empty außerhalb des Typs ist ein Fehler wie jedes
+andere weitere Feld (Test `surplus-field-with-empty-is-rejected`). Vorher war es zulässig (geschlossener
+Typ: jedes ungenannte Feld ist Empty), zur Laufzeit hatte der Wert aber einen Schlüssel mehr. Anlass war
+yugioh Jul-Fund 48: Nach Umbenennen oder Verschieben von Feldern blieben `feld = []` in Literalen still
+stehen und änderten `deepEqual`. Folge: Ein Spread kann keine Felder entfernen, ein Wechsel zwischen
+Varianten einer Union kopiert die gemeinsamen Felder einzeln (yugioh `getGameUiStateBase`). Der früher
+hier verlinkte Entwurf `stabile-objektformen.md` existiert nicht.
 
 ## Offene Records
 
