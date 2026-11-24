@@ -5,7 +5,7 @@ import { reportAtCaller } from '../test-util.js';
 import * as runtime from './runtime.js';
 import {
 	_assertCall, _assertFailed, _branch, _checkAssume, _checkAssumeTest, _combineObject, _createFunction, _takeAssertCall, _takeAssertionViolation, add, addDate, and, combine$, combineTexts, compareOrdinal, complete, splitText, toLowerCase,
-	completed$, create$, deepEqual, delay$, divide, equal, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger, parseInteger, parseFloat,
+	completed$, create$, deepEqual, getCurrentValue, delay$, divide, equal, findFirstIndex, findLastIndex, flatten, getElement, GreaterInteger, httpTextRequest$, Integer, LessInteger, multiply, or, parseJson, push, rationalToFloat, removeField, roundUp, floatToInteger, parseInteger, parseFloat,
 	regex, setElement, sort, subscribe, subtract, take$, takeUntil$, interval$, toJson, _julTypeSymbol, _optionalField, _Text, Or,
 	_addInteger, _subtractInteger, _multiplyInteger, _toCanonicalInteger, _isInteger, _fromTs, _isOfType, Float, length, range, modulo, KeyOf, hasField,
 } from './runtime.js';
@@ -967,6 +967,14 @@ describe('create$/push/subscribe', () => {
 		subscribe(stream$, (value: number) => values.push(value));
 		push(stream$, 2);
 		expect(values).to.deep.equal([1, 2]);
+	});
+});
+
+describe('getCurrentValue', () => {
+	it('liefert den zuletzt eingetragenen Wert', () => {
+		const stream$ = create$(Integer, 1);
+		push(stream$, 2);
+		expect(getCurrentValue(stream$)).to.equal(2);
 	});
 });
 

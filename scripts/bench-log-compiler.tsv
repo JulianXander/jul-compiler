@@ -647,3 +647,6 @@
 2026-11-24 15:06:46	78e8b56+	-	ADV-DEV-56627	yugioh	parse+check	5	24944.94	26438.35	26438.35	Error-Felder aus der core-lib
 2026-11-24 15:06:46	78e8b56+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1664.41	1727.92	1727.92	Error-Felder aus der core-lib
 2026-11-24 15:06:46	78e8b56+	-	ADV-DEV-56627	yugioh	parse	5	113.96	116.63	116.63	Error-Felder aus der core-lib
+2026-11-24 15:25:07	bb04418+	-	ADV-DEV-56627	yugioh	parse+check	5	24696.42	25357.42	25357.42	nach getCurrentValue statt Stream-Feld getValue
+2026-11-24 15:25:07	bb04418+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1530.01	1837.73	1837.73	nach getCurrentValue statt Stream-Feld getValue
+2026-11-24 15:25:07	bb04418+	-	ADV-DEV-56627	yugioh	parse	5	111.75	114.76	114.76	nach getCurrentValue statt Stream-Feld getValue

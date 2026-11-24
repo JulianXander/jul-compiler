@@ -3842,6 +3842,19 @@ export const subscribe = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
+export const getCurrentValue = /*#__PURE__*/ _createFunction(
+	function getCurrentValue<T>(stream$: StreamClass<T>): T {
+		return stream$.getValue();
+	},
+	{
+		singleNames: [
+			{
+				name: 'stream$',
+				type: _StreamType
+			},
+		]
+	}
+);
 //#endregion core
 //#region create
 export const create$ = /*#__PURE__*/ _createFunction(

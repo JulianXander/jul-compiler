@@ -2630,8 +2630,8 @@ x: Integer = typeOfValue(Integer)`, {
 			],
 		});
 	});
-	// Typeigenschaften gibt es nur über einen Typwert. Ein Stream-Wert hat nur das Feld getValue,
-	// der Hinweis zeigt die richtige Schreibweise.
+	// Typeigenschaften gibt es nur über einen Typwert. Ein Stream-Wert hat keine Felder, der Hinweis
+	// zeigt die richtige Schreibweise.
 	it('value-type-of-stream-value-needs-type-of', () => {
 		expectCheck(`f = (s$: Stream(Text)) =>
 	x = s$/ValueType
@@ -2644,6 +2644,45 @@ x: Integer = typeOfValue(Integer)`, {
 					startColumnIndex: 8,
 					endRowIndex: 1,
 					endColumnIndex: 17,
+				},
+			],
+		});
+	});
+	it('getCurrentValue liefert den ValueType des Streams', () => {
+		expectCheck(`f = (s$: Stream(Text)) =>
+	x: Text = s$.getCurrentValue()
+	x`);
+	});
+	it('getCurrentValue passt nicht zu einem anderen Typ als dem ValueType', () => {
+		const code = `f = (s$: Stream(Text)) =>
+	x: Integer = s$.getCurrentValue()
+	x`;
+		expectCheck(code, {
+			errors: [
+				{
+					code: ErrorCode.definitionTypeMismatch,
+					message: 'Definition type mismatch.\nCan not assign Text to Integer.',
+					startRowIndex: 1,
+					startColumnIndex: 1,
+					endRowIndex: 1,
+					endColumnIndex: code.split('\n')[1]!.length,
+				},
+			],
+		});
+	});
+	// Der aktuelle Wert kommt über getCurrentValue, ein Stream-Wert hat keine Felder.
+	it('ein Stream-Wert hat kein Feld getValue', () => {
+		expectCheck(`f = (s$: Stream(Text)) =>
+	x = s$/getValue()
+	x`, {
+			errors: [
+				{
+					code: ErrorCode.dereferenceFailed,
+					message: "Failed to dereference field 'getValue' in type Stream(Text)",
+					startRowIndex: 1,
+					startColumnIndex: 8,
+					endRowIndex: 1,
+					endColumnIndex: 16,
 				},
 			],
 		});

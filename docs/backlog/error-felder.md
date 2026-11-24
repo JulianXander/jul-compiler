@@ -1,8 +1,7 @@
 # Felder eingebauter Typen in der core-lib deklarieren
 
-Schritt 1 (`native`) und 2 (Felder von `Error`) sind umgesetzt, Schritt 3 (Stream) ist
-entworfen, aber nicht entschieden. Anlass ist `Error/message`. Der Entwurf vereinigt dafür
-`nativeFunction` und `nativeValue` zu `native`.
+Alle drei Schritte sind umgesetzt, Schritt 3 nach Variante B mit `getCurrentValue`. Anlass war
+`Error/message`. Der Entwurf vereinigt dafür `nativeFunction` und `nativeValue` zu `native`.
 
 ## Ausgangslage
 
@@ -192,13 +191,13 @@ Aufgerufen wie die übrigen Stream-Funktionen: `gameState$.getCurrentValue()`.
 - **Die Frage aus dem TODO ist beantwortet:** Mit einem Stream arbeitet man nur noch über `.`.
 - **Laufzeit:** `StreamClass.getValue` bleibt, die core-lib-Funktion ruft sie auf. Ein Aufruf mehr,
   vor und nach dem Umbau mit `bench-runtime` messen.
-- **Migration:** 72 Stellen in yugioh, 8 in jul-examples, Homepage und Doku. Ein
+- **Migration:** 72 Stellen in yugioh, 3 in jul-examples, Homepage und Doku. Ein
   `migrate-stream-get-value.mjs` nach dem Muster der übrigen Skripte ersetzt
   `x/getValue()` durch `x.getCurrentValue()`. Ein `x/getValue` ohne Aufruf (als Funktionswert)
   wird zu `() ~> x.getCurrentValue()`, das Skript meldet solche Stellen.
-- **`s$/getValue` danach:** Empty, wie jedes unbekannte Feld eines Werts ohne Felder. Für die
-  Umstellung reicht das, die Migration erfasst alle Stellen. Eine eigene Meldung mit Hinweis auf
-  den neuen Namen lohnt nicht.
+- **`s$/getValue` danach:** Fehler JUL5160 (`dereferenceFailed`), weil ein Stream seine
+  Feldmenge kennt, sie ist leer. Für die Umstellung reicht das, die Migration erfasst alle Stellen.
+  Eine eigene Meldung mit Hinweis auf den neuen Namen lohnt nicht.
 
 ### Name in Variante B
 
@@ -260,7 +259,7 @@ Der Kommentar über `Stream` in der core-lib wird auf den tatsächlichen Stand k
 - **Was der Check der core-lib selbst sieht.** Beim Check von `Error = native(…)` gibt es den Setter
   noch nicht. Die core-lib liest `/message` heute nirgends. Käme das später dazu, müsste es nach
   der Definition von `Error` stehen oder der Setter schon während des Checks greifen.
-- **Stream:** Variante A oder B aus [Schritt 3](#schritt-3-stream), bei B der Name.
+- **Stream.** Entschieden: Variante B mit `getCurrentValue`.
 - **Andere Laufzeitfelder.** `stack` und `name` gibt es zur Laufzeit, statisch sind sie Empty.
   Daran ändert der Entwurf nichts, das ist heute schon so.
 

@@ -152,10 +152,7 @@ Dictionary = native(
 	§
 )
 # data structure representing a value of type ValueType changing over time
-# Instance structure: (
-# getValue: () :> ValueType
-#	completed: Boolean
-# )
+# Hat keine Felder, den aktuellen Wert liefert getCurrentValue.
 # Type structure: (ValueType: Type)
 # Zur Laufzeit wird ValueType nicht geprüft, nur ob es ein Stream ist.
 Stream = native(
@@ -1474,6 +1471,13 @@ subscribe = native(
 			};
 			return stream$.subscribe(listenerFunction);
 		}
+	§
+)
+# Der zuletzt eingetragene Wert. Ein Stream hat immer einen.
+getCurrentValue = native(
+	(stream$: Stream(Any)) ~> TypeOf(stream$)/ValueType
+	§js
+		(stream$) => stream$.getValue()
 	§
 )
 #endregion core

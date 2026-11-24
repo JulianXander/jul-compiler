@@ -52,8 +52,7 @@ liefert.
   `++`, landet still ein falscher Eintrag im Cache, und kein Test bemerkt es zuverlässig.
 - **Anzeigedaten stecken im Schlüssel fürs Interning.** `aliasName` und `declaration` gehören zum
   Schlüssel. Strukturell gleiche Typen sind deshalb verschiedene Objekte, `===` und die Caches nach
-  Id treffen nicht, und `typeEquals` bleibt überall nötig. Funktionstypen werden gar nicht interniert,
-  `getStreamGetValueType` baut bei jedem `s$/getValue` einen neuen.
+  Id treffen nicht, und `typeEquals` bleibt überall nötig. Funktionstypen werden gar nicht interniert.
 
 ## Performance
 

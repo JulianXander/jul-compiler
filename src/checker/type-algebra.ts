@@ -164,7 +164,7 @@ export function setErrorFieldsType(fieldsType: CompileTimeDictionaryLiteralType)
 }
 
 /**
- * Felder eines Werts: `x/name`, wobei x einen Wert dieses Typs hat (`point/x`, `s$/getValue`). Die
+ * Felder eines Werts: `x/name`, wobei x einen Wert dieses Typs hat (`point/x`, `e/message`). Die
  * Einträge für Funktion und Stream tragen auch deren Typeigenschaften, typePropertyAccess übernimmt
  * sie. Über einen Wert gelesen werden sie nicht, siehe isTypePropertyOfValue.
  */
@@ -222,16 +222,7 @@ export const valueFieldAccess: NamedAccessTable = {
 		},
 	},
 	stream: {
-		get: (type, name) => {
-			switch (name) {
-				case 'getValue':
-					return getStreamGetValueType(type);
-				case 'ValueType':
-					return type.ValueType;
-				default:
-					return undefined;
-			}
-		},
+		get: (type, name) => name === 'ValueType' ? type.ValueType : undefined,
 		set: (type, name, value) => name === 'ValueType'
 			? createCompileTimeStreamType(value, type.finite)
 			: undefined,
@@ -268,11 +259,7 @@ export const typePropertyAccess: NamedAccessTable = {
 	// Signatur und Werttyp sind Eigenschaften des Typs, derselbe Zugriff wie über einen Wert.
 	function: valueFieldAccess.function,
 	parameters: valueFieldAccess.parameters,
-	stream: {
-		// getValue ist ein Feld des Streams, keine Eigenschaft seines Typs.
-		get: (type, name) => name === 'ValueType' ? type.ValueType : undefined,
-		set: valueFieldAccess.stream!.set,
-	},
+	stream: valueFieldAccess.stream,
 };
 
 export function getNamedAccess(table: NamedAccessTable, type: ResolvedType): NamedAccess<ResolvedType> | undefined {
@@ -438,10 +425,6 @@ const maxMappedPositions = 50;
 const CompileTimePositiveInteger = createCompileTimeBoundType('greater', 'integer', createIntegerLiteral(0n));
 
 //#region dereference
-
-export function getStreamGetValueType(streamType: CompileTimeStreamType): CompileTimeFunctionType {
-	return createCompileTimeFunctionType(builtinEmpty, streamType.ValueType, 'impure');
-}
 
 /**
  * Faltet einen Zugriff so weit, wie die Position beweisbar ist: existiert sie, kommt ihr Typ

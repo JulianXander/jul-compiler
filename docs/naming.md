@@ -15,9 +15,9 @@ und gelten für neue Builtins ohne erneute Diskussion.
 - **Finnish Notation** für Streams: Ein Name endet auf `$`, wenn sein Wert ein Stream ist, also
   Variablen und Parameter vom Typ `Stream` (`stream$`, `source$`, `until$`) und Funktionen, die
   einen Stream liefern (`create$`, `interval$`, `map$`, `httpTextRequest$`). Maßgeblich ist der
-  Rückgabewert: `push`, `complete` und `subscribe` nehmen einen Stream an, liefern aber keinen und
-  tragen kein `$`. Die Typen `Stream` und `FiniteStream` bleiben ohne `$`. Die Stream-Variante
-  einer Listenfunktion heißt wie diese mit `$` (`map` → `map$`).
+  Rückgabewert: `push`, `complete`, `subscribe` und `getCurrentValue` nehmen einen Stream an,
+  liefern aber keinen und tragen kein `$`. Die Typen `Stream` und `FiniteStream` bleiben ohne `$`.
+  Die Stream-Variante einer Listenfunktion heißt wie diese mit `$` (`map` → `map$`).
 - Kommentare in der core-lib sind deutsch, Bezeichner englisch.
 
 ## Typfunktion zu Wertfunktion

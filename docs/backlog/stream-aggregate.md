@@ -13,7 +13,7 @@ Das Beispiel behilft sich mit einem Subscriber, der in einen `create$`-Stream pu
 ```jul
 subscribe(
 	delta$
-	(delta = value) => gameState$.push(applyDelta(gameState$/getValue() delta))
+	(delta = value) => gameState$.push(applyDelta(gameState$.getCurrentValue() delta))
 )
 ```
 
