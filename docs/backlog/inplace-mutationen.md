@@ -140,7 +140,7 @@ Spannungen gibt es bei Repräsentation und Kosten, nicht in der Semantik:
   überwiegt das Schreiben bei Weitem, und die Feldzugriffe sind schon jetzt ein Posten im Profil (Punkt 2
   des Plans). Persistent lohnt sich nur für große Listen und Dictionaries.
 - **JS-Grenze:** `List` ist heute ein JS-Array. Sichtbar ist das in den `§js§`-Blöcken der core-lib, in
-  `nativeFunction`, bei `.ts`-Importen, JSON, `deepEqual`, dem Branch-Test `Array.isArray` und den inline
+  `native`, bei `.ts`-Importen, JSON, `deepEqual`, dem Branch-Test `Array.isArray` und den inline
   ausgeschriebenen Listenschleifen. Eine andere Repräsentation braucht Umwandlung an diesen Grenzen oder einen
   eigenen Typ.
 - **Lesen wird teurer:** `getElement` O(log n) statt O(1), Iteration über Knoten statt über ein Array.

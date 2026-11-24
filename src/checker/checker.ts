@@ -4,6 +4,7 @@ import { constantValueToType, resetFoldBudget, typeToConstantValue, tryBuildCall
 import {
 	BracketedExpression,
 	CompileTimeDictionary,
+	CompileTimeDictionaryLiteralType,
 	CompileTimeFields,
 	CompileTimeFunctionType,
 	CompileTimeLengthOfType,
@@ -144,6 +145,7 @@ import {
 	mapElementsFromTypes,
 	resolveAlias,
 	resolvePlaceholders,
+	setErrorFieldsType,
 	splitReceiver,
 	spreadDictionaryTypes,
 	typeEquals,
@@ -354,18 +356,21 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
 	})(),
 	Stream: createStreamTypeFunction(false),
 	FiniteStream: createStreamTypeFunction(true),
-	nativeFunction: (() => {
-		const parameterReference = createParameterReference('FunctionType', 0);
+	native: (() => {
+		const parameterReference = createParameterReference('ValueType', 0);
 		const functionType = createCompileTimeFunctionType(
 			createParametersType([
 				{
-					name: 'FunctionType',
-					// TODO functionType
+					name: 'ValueType',
 					type: builtinType,
 				},
 				{
 					name: 'js',
 					type: builtinText,
+				},
+				{
+					name: 'Fields',
+					type: createNormalizedUnionType([builtinEmpty, builtinType]),
 				},
 			]),
 			createCompileTimeValueAsType(parameterReference),
@@ -374,16 +379,6 @@ const coreBuiltInSymbolTypes: { [key: string]: CompileTimeType; } = Object.assig
 		parameterReference.functionRef = functionType.identity;
 		return functionType;
 	})(),
-	nativeValue: createCompileTimeFunctionType(
-		createParametersType([
-			{
-				name: 'js',
-				type: builtinText,
-			},
-		]),
-		builtinAny,
-		'impure',
-	),
 });
 
 /**
@@ -439,6 +434,34 @@ export function initCoreLib(code: string, filePath = coreLibFileName): void {
 	});
 	builtInSymbols = syntax.symbols;
 	coreLibSymbols = new Set(Object.values(builtInSymbols));
+	setErrorFieldsType(getNativeFieldsType(checkResult, builtInSymbols, 'Error'));
+}
+
+/**
+ * Die Felder der Instanzen eines eingebauten Typs, das dritte Argument von `native` in seiner
+ * Definition in der core-lib. Wirft, wenn dort kein Record-Typ-Literal steht.
+ */
+export function getNativeFieldsType(
+	coreLibResult: CheckResult,
+	symbols: SymbolTable,
+	name: string,
+): CompileTimeDictionaryLiteralType {
+	const definition = symbols[name]?.definition;
+	const value = definition?.type === 'definition'
+		? definition.value
+		: undefined;
+	const fieldsArgument = value?.type === 'functionCall'
+		&& value.functionExpression?.type === 'reference'
+		&& value.functionExpression.name.name === 'native'
+		&& value.arguments
+		? getArgValueExpressions(value.arguments)[2]
+		: undefined;
+	const fieldsType = fieldsArgument && valueOf(getTypeInfo(coreLibResult, fieldsArgument)?.type);
+	if (!isDictionaryLiteralType(fieldsType)
+		|| !fieldsType.declaration) {
+		throw new Error(`${name} in der core-lib braucht ein Record-Typ-Literal als Fields von native.`);
+	}
+	return fieldsType;
 }
 
 //#endregion core-lib
@@ -2350,7 +2373,7 @@ function hasUndecidableBound(type: CompileTimeType): boolean {
 }
 
 /**
- * Die nativeFunction-Signatur, deren Rückgabetyp isCall ist. undefined, wenn Is anderswo steht.
+ * Die native-Signatur, deren Rückgabetyp isCall ist. undefined, wenn Is anderswo steht.
  */
 function getContractSignature(isCall: ParseFunctionCall): ParseFunctionTypeLiteral | undefined {
 	const signature = isCall.parent;
@@ -2361,7 +2384,7 @@ function getContractSignature(isCall: ParseFunctionCall): ParseFunctionTypeLiter
 	const nativeCall = signature.parent?.parent;
 	if (nativeCall?.type !== 'functionCall'
 		|| nativeCall.functionExpression?.type !== 'reference'
-		|| nativeCall.functionExpression.name.name !== 'nativeFunction'
+		|| nativeCall.functionExpression.name.name !== 'native'
 		|| !nativeCall.arguments
 		|| getArgValueExpressions(nativeCall.arguments)[0] !== signature) {
 		return undefined;
@@ -2370,7 +2393,7 @@ function getContractSignature(isCall: ParseFunctionCall): ParseFunctionTypeLiter
 }
 
 /**
- * Is(parameter Typ) als Rückgabetyp einer nativeFunction-Signatur. Der Typ darf Platzhalter auf die
+ * Is(parameter Typ) als Rückgabetyp einer native-Signatur. Der Typ darf Platzhalter auf die
  * übrigen Parameter enthalten, eingesetzt wird erst in getPredicateFactsFromCall.
  */
 function getPredicateContract(checkResult: CheckResult, signature: ParseFunctionTypeLiteral): PredicateContract | undefined {
@@ -3211,7 +3234,7 @@ function inferType(
 			// nestedReference-Rückfallregel in isTypeAssignable. resolvePlaceholders löst über
 			// functionRef+Index auf.
 			// Nur das Präfix, nicht argsType: args kann selbst generische Typwerte enthalten
-			// (z.B. die Signatur eines nativeFunction-Aufrufs) - die dürfen nicht vorschnell
+			// (z.B. die Signatur eines native-Aufrufs) - die dürfen nicht vorschnell
 			// über den eigenen (noch generischen) Deklarationskontext aufgelöst werden.
 			const argsType = getTypeInfo(checkContext.result, args)!.type;
 			const rawPrefixArgumentType = getTypeInfo(checkContext.result, prefixArgument)?.type;
@@ -3283,13 +3306,13 @@ function inferType(
 				: prefixArgumentType;
 			// evaluate generic ReturnType
 			const outermostFunctionTypeArg = getArgValueExpressions(args)[0];
-			// :> an der äußersten Signatur eines nativeFunction-Aufrufs ist eine bedingte
+			// :> an der äußersten Signatur eines native-Aufrufs ist eine bedingte
 			// Zusicherung (Purity folgt den übergebenen Funktionsargumenten), keine unbestimmte -
 			// verschachtelte :> an Callback-Parametern derselben Signatur bleiben unknown. Der
 			// Klon teilt die Identität des Originals, die parameterReference-Knoten in ParamsType und
 			// ReturnType lösen sich also weiter auf.
 			const isConditionallyPureSignature = functionExpression.type === 'reference'
-				&& functionExpression.name.name === 'nativeFunction'
+				&& functionExpression.name.name === 'native'
 				&& outermostFunctionTypeArg?.type === 'functionTypeLiteral'
 				&& outermostFunctionTypeArg.arrow === 'unknown';
 			const unadjustedReturnType = dereferenceArgumentTypesNested(functionType, bindReceiver(returnPrefixArgumentType, argsType), returnType);
@@ -3482,7 +3505,7 @@ function inferType(
 			}
 			//#endregion Purity-Inferenz
 			//#region Faltbarkeit
-			// Ein Funktionsliteral ist faltbar, wenn sein Rumpf kein nativeFunction-/nativeValue-
+			// Ein Funktionsliteral ist faltbar, wenn sein Rumpf kein native-
 			// Literal enthält (containsNativeLiteral, die Sicherheitsgrenze) und es nicht aus einer
 			// .ts/.js-Datei stammt (deren Rumpf ist ein Emitter-Artefakt, keine Aussage über das
 			// tatsächliche JS dahinter). Beides wird hier beim Prüfen des Literals berechnet, nicht
@@ -4000,7 +4023,7 @@ function findUnproductiveSelfReference(
 	definitionName: string,
 	/**
 	 * Im Rumpf einer Typfunktion steht ihr Aufruf für den Typ selbst. Außerhalb nicht: dort ruft
-	 * sich etwa nativeFunction = nativeFunction(...) auf, ohne einen Typ zu beschreiben.
+	 * sich etwa native = native(...) auf, ohne einen Typ zu beschreiben.
 	 */
 	isTypeFunctionBody: boolean,
 ): ParseReference | undefined {
@@ -4192,7 +4215,7 @@ function getReturnTypeFromFunctionCall(
 				if (!getContractSignature(functionCall)) {
 					errors.push({
 						code: ErrorCode.isOutsideNativeSignature,
-						message: 'Is is only allowed as return type of a nativeFunction signature.',
+						message: 'Is is only allowed as return type of a native signature.',
 						startRowIndex: functionCall.startRowIndex,
 						startColumnIndex: functionCall.startColumnIndex,
 						endRowIndex: functionCall.endRowIndex,
@@ -4610,7 +4633,7 @@ function isDataFilePath(filePath: string): boolean {
 }
 
 /**
- * E6: der Dummy-Rumpf (`nativeValue`) importierter TS-Funktionen ist ein Artefakt des
+ * E6: der Dummy-Rumpf (`native`) importierter TS-Funktionen ist ein Artefakt des
  * typescript-parsers, keine Aussage über das JS dahinter - ihre Purity kommt aus dem JSDoc,
  * nicht aus der Inferenz.
  */
@@ -4764,13 +4787,13 @@ export function inferBodyPurity(
 
 /**
  * Die Sicherheitsgrenze für constant folding von Nutzerfunktionen: ein Funktionsliteral ist nur
- * faltbar, wenn sein Rumpf keinen Aufruf von nativeFunction/nativeValue enthält - beide sind
+ * faltbar, wenn sein Rumpf keinen Aufruf von native enthält - es ist
  * gewöhnliche core-lib-Builtins, über die Nutzercode beliebiges JS einbetten kann (siehe
  * tryBuildCallable). Die Menge der zur Prüfzeit ausgeführten Funktionen war bis zu dieser Stufe
  * kuratiert (nur runtime.ts); seither läuft erstmals emittierter Nutzercode zur Prüfzeit, und der
  * Language Server prüft beim Öffnen einer Datei ungefragt - eine Lücke hier bedeutet
  * Codeausführung beim bloßen Öffnen einer fremden .jul-Datei. Der Rumpf ist dabei beweisbar unrein
- * (nativeFunction/nativeValue sind `~>`) und fällt deshalb meist schon am Purity-Gate in
+ * (native ist `~>`) und fällt deshalb meist schon am Purity-Gate in
  * tryFoldCall durch - dieser Walker ist trotzdem der unabhängige, strukturelle zweite Riegel:
  * Purity ruht auf dem geschriebenen `~>` in der core-lib, einer Deklaration, keinem Beweis.
  * Anders als inferBodyPurity steigt dieser Walker auch in verschachtelte Funktionsliterale ab -
@@ -4781,7 +4804,7 @@ function containsNativeLiteral(expression: PositionedExpression): boolean {
 	if (expression.type === 'functionCall') {
 		const functionExpression = expression.functionExpression;
 		if (functionExpression?.type === 'reference'
-			&& (functionExpression.name.name === 'nativeFunction' || functionExpression.name.name === 'nativeValue')) {
+			&& functionExpression.name.name === 'native') {
 			return true;
 		}
 	}
@@ -4837,8 +4860,8 @@ function tryFoldCall(
 	// Trägt der Typ ein literal, ist es eine Nutzerfunktion (case 'functionLiteral' setzt es) -
 	// dafür der Auswerter (tryBuildCallable). Sonst ein Runtime-Export mit params unter diesem
 	// Namen; params hängt nur an Builtins, die runtime.ts selbst per _createFunction(...)
-	// registriert, ihre Namen sind über JUL3203 überdeckungsgeschützt. Eine per nativeFunction
-	// definierte Funktion (z.B. myFn = nativeFunction(...)) trägt weder literal (sie entsteht aus
+	// registriert, ihre Namen sind über JUL3203 überdeckungsgeschützt. Eine per native
+	// definierte Funktion (z.B. myFn = native(...)) trägt weder literal (sie entsteht aus
 	// einer Signatur, nicht aus einem geprüften Rumpf) noch params (das hängt nur an runtime.ts-
 	// Exporten) und faltet hier deshalb nicht - ihre `->`-Signatur ist eine ungeprüfte Zusicherung.
 	const name = functionExpression.name.name;

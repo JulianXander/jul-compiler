@@ -1,4 +1,4 @@
-import { CheckResult, getSymbolTypeInfo, getTypeInfo } from './check-result.js';
+import { CheckResult, getFileCheckResult, getSymbolTypeInfo, getTypeInfo } from './check-result.js';
 import { expect } from 'chai';
 
 import {
@@ -23,7 +23,7 @@ import { reportAtCaller } from '../test-util.js';
 import { parseCode } from '../parser/parser.js';
 import { coreLibPath, parseFile } from '../compiler/node-host.js';
 import { checkTypes } from './checker.js';
-import { bindReceiver, builtInSymbols, coreLibCheckResult, getCallPurity, getCallPurityInfo, inferBodyPurity } from './checker.js';
+import { bindReceiver, builtInSymbols, coreLibCheckResult, getCallPurity, getCallPurityInfo, getNativeFieldsType, inferBodyPurity } from './checker.js';
 import { isFunctionType, resolvePlaceholders, typeToString } from './type-algebra.js';
 
 const expectCheck = reportAtCaller((code: string, { result, errors, filePath }: {
@@ -2330,7 +2330,7 @@ f = (state: State) :> Integer =>
 			errors: [
 				{
 					code: ErrorCode.isOutsideNativeSignature,
-					message: 'Is is only allowed as return type of a nativeFunction signature.',
+					message: 'Is is only allowed as return type of a native signature.',
 					startRowIndex: 0,
 					startColumnIndex: 24,
 					endRowIndex: 0,
@@ -2368,12 +2368,12 @@ f = (state: State) :> Integer =>
 	// firsts generische Rückgabetyp-Auflösung (TypeOf(values)/ElementType) und blieb
 	// dort hängen - getTypeErrors laxe nestedReference-Rückfallregel verschluckte den
 	// Fehler lautlos. Fix: resolvePlaceholders auf prefixArgumentType vor der Verwendung.
-	// Wie core-lib (slice, filter, ...) via nativeFunction deklariert - eine reine
+	// Wie core-lib (slice, filter, ...) via native deklariert - eine reine
 	// Signatur ohne Rumpf (case 'functionTypeLiteral'), damit der generische
 	// Rückgabetyp nicht wie bei einer echten Funktion mit Rumpf (case 'functionLiteral')
 	// schon bei der Deklaration über resolvePlaceholders fest verdrahtet wird.
 	it('prefix-argument-resolves-to-declared-type-in-generic-return', () => {
-		expectCheck(`first = nativeFunction(
+		expectCheck(`first = native(
 	(values: List(Any)) :> TypeOf(values)/ElementType
 	§js values => values[0]§
 )
@@ -7529,6 +7529,25 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		checkTypes(parsed, {});
 		expect(parsed.checked!.errors).to.deep.equal([]);
 	});
+
+	function getNativeFieldsTypeOf(code: string): ReturnType<typeof getNativeFieldsType> {
+		const parsed = parseCode(code, 'dummy.jul');
+		checkTypes(parsed, {});
+		return getNativeFieldsType(getFileCheckResult(parsed), parsed.syntax.symbols, 'MyError');
+	}
+
+	it('native-Felder: ein Record-Typ-Literal wird gelesen', () => {
+		const fieldsType = getNativeFieldsTypeOf('MyError = native(Type §_Error§ [message: Text])');
+		expect(typeToString(fieldsType, 0, 0)).to.equal('[message: Text]');
+	});
+
+	it('native-Felder: ohne Record-Typ-Literal wirft es', () => {
+		expect(() => getNativeFieldsTypeOf('MyError = native(Type §_Error§ Text)')).to.throw('MyError');
+	});
+
+	it('native-Felder: ohne Fields wirft es', () => {
+		expect(() => getNativeFieldsTypeOf('MyError = native(Type §_Error§)')).to.throw('MyError');
+	});
 	// Hält den Befund fest, der zu den Purity-Pfeilen geführt hat (docs/pure-functions.md,
 	// "Stand"): früher trug jede core-lib-Funktion pure: true, weil functionTypeLiteral das
 	// hart setzte - auch log und currentDate, die offensichtlich nicht pure sind. Seit der
@@ -7616,7 +7635,7 @@ getEffect = (values: List(Any) trigger: PendingTrigger) =>
 		[0] => 0
 	subtract(a 1)`, 'f')).to.equal('pure');
 	});
-	// Der Dummy-Rumpf (nativeValue) importierter TS-Funktionen ist keine Aussage über das JS
+	// Der Dummy-Rumpf (native) importierter TS-Funktionen ist keine Aussage über das JS
 	// dahinter - die Inferenz greift nicht, auch nicht mit @pure, das der Rumpf sonst bestätigen
 	// oder widerlegen müsste.
 	it('aus TypeScript importierte Funktion mit @pure wird nicht inferiert', () => {
@@ -8369,6 +8388,11 @@ r = f(a = 5 b = 3)`)).to.equal('2');
 		expect(typeOfLastDefinition(`f = (e: Error) => e/message
 R = TypeOf(f)/ReturnType`)).to.equal('TypeOf(Text)');
 	});
+	// Records sind geschlossen: Am Record ist message Empty.
+	it('das Feld message an einem Record oder Error ist Empty oder Text', () => {
+		expect(typeOfLastDefinition(`f = (x: Or([value: Integer] Error)) => x/message
+R = TypeOf(f)/ReturnType`)).to.equal('TypeOf(Or(Text Empty))');
+	});
 	it('ein unbekanntes Feld eines Errors ist ein Fehler', () => {
 		const parsed = parseCode('f = (e: Error) => e/nachricht', 'dummy.jul');
 		expect(parsed.syntax.errors).to.deep.equal([]);
@@ -8490,7 +8514,7 @@ R = TypeOf(f)/ReturnType`)).to.equal('TypeOf(Text)');
 
 	it('Nutzerfunktion mit konstantem Argument faltet', () => {
 		// Eröffnungsfall, zugleich Gegenprobe zur Faltbarkeitsregel: multiply ist eine
-		// nativeFunction, und double ist trotzdem faltbar - die Regel hängt am emittierten
+		// native, und double ist trotzdem faltbar - die Regel hängt am emittierten
 		// Slice, nicht am Aufrufgraphen.
 		expect(typeOfLastDefinition(`double = (a: Integer) => a.multiply(2)
 r = double(21)`)).to.equal('42');
@@ -8528,11 +8552,11 @@ r = fibonacciHelper(10 1 0)`)).to.equal('55');
 r = (x: Integer) => double(x)`)).to.equal('(x: Integer) -> Integer');
 	});
 
-	it('eine per nativeFunction definierte Funktion wird nicht gefaltet', () => {
-		// myFn behauptet -> (ungeprüft, per nativeFunction definiert), f ist damit rein und
-		// enthält selbst kein nativeFunction-Literal. Die Faltung wird also versucht und muss am
+	it('eine per native definierte Funktion wird nicht gefaltet', () => {
+		// myFn behauptet -> (ungeprüft, per native definiert), f ist damit rein und
+		// enthält selbst kein native-Literal. Die Faltung wird also versucht und muss am
 		// Umgebungsaufbau scheitern: myFn trägt weder literal noch einen Runtime-Export-Namen.
-		expect(typeOfLastDefinition(`myFn = nativeFunction(
+		expect(typeOfLastDefinition(`myFn = native(
 	(a: Integer) -> Integer
 	§js
 		(a) => a

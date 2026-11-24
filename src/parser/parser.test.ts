@@ -1146,8 +1146,8 @@ describe('Mehrzeiliger Funktionskopf', () => {
 			},
 		});
 	});
-	it('PA3 bedingter Typ im Funktionskopf von nativeFunction', () => {
-		expectMultilineHead('f = nativeFunction(\n\t(a: Integer)\n\t\t->\n\t\t\t:?(TypeOf(a))\n\t\t\t\t[Integer] => Integer\n\t\t\t\t() => Text\n\t§js\n\t\t(a) => a\n\t§\n)', {
+	it('PA3 bedingter Typ im Funktionskopf von native', () => {
+		expectMultilineHead('f = native(\n\t(a: Integer)\n\t\t->\n\t\t\t:?(TypeOf(a))\n\t\t\t\t[Integer] => Integer\n\t\t\t\t() => Text\n\t§js\n\t\t(a) => a\n\t§\n)', {
 			check: expression => {
 				const call = definedValue(expression) as ParseFunctionCall;
 				expect(call.type).to.equal('functionCall');

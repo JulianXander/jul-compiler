@@ -150,6 +150,20 @@ function withDictionaryLiteralField(
 }
 
 /**
+ * Die Felder eines Errors, das Record-Typ-Literal aus `Error = native(Type §_Error§ [...])` in der
+ * core-lib. Gesetzt von initCoreLib, davor hat ein Error keine Felder.
+ */
+let errorFieldsType: CompileTimeDictionaryLiteralType | undefined;
+
+export function getErrorFieldsType(): CompileTimeDictionaryLiteralType | undefined {
+	return errorFieldsType;
+}
+
+export function setErrorFieldsType(fieldsType: CompileTimeDictionaryLiteralType): void {
+	errorFieldsType = fieldsType;
+}
+
+/**
  * Felder eines Werts: `x/name`, wobei x einen Wert dieses Typs hat (`point/x`, `s$/getValue`). Die
  * Einträge für Funktion und Stream tragen auch deren Typeigenschaften, typePropertyAccess übernimmt
  * sie. Über einen Wert gelesen werden sie nicht, siehe isTypePropertyOfValue.
@@ -171,8 +185,8 @@ export const valueFieldAccess: NamedAccessTable = {
 		set: (_type, _name, value) => createCompileTimeDictionaryType(value),
 	},
 	error: {
-		get: (_type, name) => name === 'message' ? builtinText : undefined,
-		// Ein Error trägt nur message, und die hat immer den Typ Text.
+		get: (_type, name) => errorFieldsType && valueFieldAccess.dictionaryLiteral!.get(errorFieldsType, name),
+		// Die Felder eines Errors stehen in der core-lib fest.
 		set: () => undefined,
 	},
 	function: {
@@ -4601,7 +4615,7 @@ function isSamePredicate(first: CompileTimePredicateType, second: CompileTimePre
 	}
 	const literal = firstFunction.literal;
 	if (!literal) {
-		// Ohne Literal (nativeFunction, Import aus .ts) bleibt nur dasselbe Objekt.
+		// Ohne Literal (native, Import aus .ts) bleibt nur dasselbe Objekt.
 		return firstFunction === secondFunction;
 	}
 	if (literal !== secondFunction.literal) {
@@ -4865,7 +4879,7 @@ export function valueOf(type: CompileTimeType | undefined): CompileTimeType {
 
 /**
  * Die Argumente eines Aufrufs gegen seine Parameter. Geprüft wird zuerst ungelöst, denn die
- * Argumente können generische Typwerte enthalten (etwa die Signatur eines nativeFunction-Aufrufs).
+ * Argumente können generische Typwerte enthalten (etwa die Signatur eines native-Aufrufs).
  * Bleibt das unbekannt, wird mit aufgelösten Platzhaltern beider Seiten wiederholt, so wie es die
  * Prüfung des Rückgabewerts tut: Ein Lambda behält für seinen Parameter etwa TypeOf(row)/ElementType,
  * während der Callback-Parameter des Ziels schon zu Cell aufgelöst ist. Beide meinen dasselbe.

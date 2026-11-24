@@ -53,7 +53,7 @@ Der Sprachfakt zu `Empty` steht jetzt in [CLAUDE.md](../../CLAUDE.md) beim Sprac
   Ausgenommen ist das Element eines Containers: `[Invalid 2]` bleibt eine Liste. Es entsteht nur, wo für
   den Ausdruck schon ein Fehler gemeldet ist (vom Parser oder vom Checker), `findInvalidWithoutError` in
   `test-util.ts` prüft das über alle Beispiele. Unterschieden vom Laufzeit-`error` (`Error =
-  nativeValue(§_Error§)`, der Typ von `_branch` ohne Treffer). Die Ausdrücke im Baum tragen keine
+  native(Type §_Error§)`, der Typ von `_branch` ohne Treffer). Die Ausdrücke im Baum tragen keine
   Fehlermarkierung, die Fehler liegen als flache Liste pro Datei: Der Checker kann nicht fragen „hat
   dieser Teilausdruck schon Fehler“, deshalb bleibt die Herkunftsregel eine Prüfung über den ganzen
   Dokumentensatz. `hasKnownFields` und `hasKnownLength` fragen dagegen nicht nach Fehlern, sondern ob

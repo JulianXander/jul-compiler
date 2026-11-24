@@ -1431,7 +1431,7 @@ function _toJson(value: RuntimeType): string | Error {
 //#region builtins
 // Dieser Block ist die tatsächliche Laufzeit-Implementierung aller in core-lib.jul deklarierten Builtins.
 // core-lib.jul wird nur geparst, um dem Checker Typinformationen (builtInSymbols) zu liefern - sie wird
-// nie emittiert, ihr eigener js-Text in nativeFunction(...)-Aufrufen läuft also nie. Jedes kompilierte
+// nie emittiert, ihr eigener js-Text in native(...)-Aufrufen läuft also nie. Jedes kompilierte
 // Modul importiert stattdessen die Exporte dieser Datei, die es benutzt (siehe getUsedRuntimeNames in
 // emitter.ts), und Referenzen auf Builtin-Symbole werden vom Emitter als einfache JS-Identifier ausgegeben,
 // die hierher auflösen. core-lib.jul's js-Text dient also nur als für Menschen lesbare Referenz und muss
@@ -1738,7 +1738,7 @@ export const Concat = /*#__PURE__*/ _createFunction(
 	function Concat(...sources: any[]): RuntimeType {
 		// Diese Funktion wird zur Laufzeit nie aufgerufen — Concat ist eine
 		// rein semantische Typ-Konstruktorfunktion für den Checker.
-		// Sie ist nur hier definiert, um eine gültige nativeFunction zu haben.
+		// Sie ist nur hier definiert, um eine gültige native-Definition zu haben.
 		throw new Error('Concat() is only for type-level computation and should never be called at runtime');
 	},
 	{

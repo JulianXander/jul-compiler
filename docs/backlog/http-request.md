@@ -40,7 +40,7 @@ Fallstricke:
 HttpProgress = [loaded: Integer total: Or([] Integer)]
 HttpResponse = [status: Integer headers: Dictionary(Text) body: Blob]
 
-httpRequest$ = nativeFunction(
+httpRequest$ = native(
 	(
 		url: Text
 		method: Text

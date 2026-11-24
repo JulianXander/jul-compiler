@@ -6,7 +6,7 @@ import { SourceMapConsumer } from 'source-map';
 import { pathToFileURL } from 'url';
 
 import { createSourceMap } from './emit-file.js';
-import { createTestReport, findOutputPathConflicts, formatErrors, formatLoadFailure, formatTestResult, formatTodoList, LiveRenderer, toCwdRelativeLocation, toReportResult } from './compiler.js';
+import { createTestReport, findOutputPathConflicts, formatErrors, formatLoadFailure, formatTestResult, formatTestSummary, formatTodoList, LiveRenderer, toCwdRelativeLocation, toReportResult } from './compiler.js';
 import { CompilerError, ErrorCode } from '../compiler-errors.js';
 import { parseTodoComments } from '../parser/comment-directives.js';
 import { createInMemoryHost } from './project-loader.js';
@@ -392,6 +392,22 @@ describe('formatTestResult', () => {
 			failureLocation: { file: 'b.jul', row: 4, column: 2 },
 			durationMs: 1,
 		}))).to.equal('✗ a (a.test.jul:3:1)\n    threw kaputt (b.jul:4:2)');
+	});
+});
+
+describe('formatTestSummary', () => {
+	const noFailures = { failedCount: 0, skippedCount: 0, loadFailedCount: 0, errorCount: 0 };
+	it('alle grün ohne Fehler im Code', () => {
+		expect(stripAnsi(formatTestSummary({ ...noFailures, testCount: 2 }))).to.equal('tests passed - 2 tests');
+	});
+	it('alle grün, aber Fehler im Code: kein "passed", mit Fehleranzahl', () => {
+		expect(stripAnsi(formatTestSummary({ ...noFailures, testCount: 1, errorCount: 1 }))).to.equal('tests finished with errors - 1 test, 1 error');
+	});
+	it('fehlgeschlagen ohne Fehler im Code', () => {
+		expect(stripAnsi(formatTestSummary({ ...noFailures, testCount: 2, failedCount: 1 }))).to.equal('tests failed - 2 tests, 1 failed');
+	});
+	it('fehlgeschlagen und Fehler im Code: nennt die Fehleranzahl', () => {
+		expect(stripAnsi(formatTestSummary({ ...noFailures, testCount: 2, failedCount: 1, errorCount: 2 }))).to.equal('tests failed - 2 tests, 1 failed, 2 errors');
 	});
 });
 

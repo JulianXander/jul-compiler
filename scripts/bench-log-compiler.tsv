@@ -638,3 +638,12 @@
 2026-11-24 14:05:53	3dfe0f1+	-	ADV-DEV-56627	yugioh	parse+check	5	24846.77	26099.14	26099.14	nach test ohne Boolean-Rückgabe
 2026-11-24 14:05:53	3dfe0f1+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1593.30	1641.54	1641.54	nach test ohne Boolean-Rückgabe
 2026-11-24 14:05:53	3dfe0f1+	-	ADV-DEV-56627	yugioh	parse	5	119.64	122.57	122.57	nach test ohne Boolean-Rückgabe
+2026-11-24 14:53:06	78e8b56+	-	ADV-DEV-56627	yugioh	parse+check	5	24163.17	27983.79	27983.79	vor native statt nativeFunction/nativeValue
+2026-11-24 14:53:06	78e8b56+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1412.03	1502.60	1502.60	vor native statt nativeFunction/nativeValue
+2026-11-24 14:53:06	78e8b56+	-	ADV-DEV-56627	yugioh	parse	5	107.50	112.39	112.39	vor native statt nativeFunction/nativeValue
+2026-11-24 14:56:53	78e8b56+	-	ADV-DEV-56627	yugioh	parse+check	5	25282.56	26123.20	26123.20	nach native statt nativeFunction/nativeValue
+2026-11-24 14:56:53	78e8b56+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1556.43	1593.03	1593.03	nach native statt nativeFunction/nativeValue
+2026-11-24 14:56:53	78e8b56+	-	ADV-DEV-56627	yugioh	parse	5	116.36	120.33	120.33	nach native statt nativeFunction/nativeValue
+2026-11-24 15:06:46	78e8b56+	-	ADV-DEV-56627	yugioh	parse+check	5	24944.94	26438.35	26438.35	Error-Felder aus der core-lib
+2026-11-24 15:06:46	78e8b56+	-	ADV-DEV-56627	yugioh	parse+check geteilt	5	1664.41	1727.92	1727.92	Error-Felder aus der core-lib
+2026-11-24 15:06:46	78e8b56+	-	ADV-DEV-56627	yugioh	parse	5	113.96	116.63	116.63	Error-Felder aus der core-lib

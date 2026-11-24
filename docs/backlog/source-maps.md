@@ -73,7 +73,7 @@ Umgesetzt wie unten beschrieben. Abweichungen und Nebenwirkungen:
 - Markerform: `\u0001<row>:<column>\u0002` (0-basiert, wie intern üblich). Die Steuerzeichen stehen
   in gültigem JS-Quelltext nur innerhalb von String- oder Template-Literalen, und dorthin kommen sie
   nur über `escapeStringForBacktickJs`/`escapeStringForSingleQuoteJs`. Beide escapen `\u0001` und
-  `\u0002` zusätzlich als `\\u0001`/`\\u0002`. JS in `§js … §` von `nativeFunction` wird wörtlich
+  `\u0002` zusätzlich als `\\u0001`/`\\u0002`. JS in `§js … §` von `native` wird wörtlich
   übernommen; rohe Steuerzeichen darin sind kein realistischer Fall und werden nicht behandelt.
 - Neuer modulweiter Schalter `emitSourcePositions` analog zu `useTypeInfo`, gesetzt nur in
   `syntaxTreeToJs`. `functionLiteralToEvaluableJs` (constant folding) emittiert damit weiterhin

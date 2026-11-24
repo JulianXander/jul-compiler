@@ -240,7 +240,7 @@ function reportErrors(
 	renderer: LiveRenderer,
 	// Codes, die der Aufrufer selbst abdeckt: weder gemeldet noch Abbruchgrund.
 	ignoredCodes: ErrorCode[] = [],
-): { hasError: boolean; summary: string; } {
+): { hasError: boolean; errorCount: number; summary: string; } {
 	// checked enthält die Parse-Fehler schon (das CheckResult kopiert syntax.errors), deshalb nicht
 	// beide Listen.
 	let errorCount = projectErrors.length;
@@ -277,6 +277,7 @@ function reportErrors(
 	}
 	return {
 		hasError: hasError,
+		errorCount: errorCount,
 		summary: formatSummary(
 			Object.keys(documents).length,
 			Object.values(documents).reduce((sum, document) => sum + document.lineCount, 0),
@@ -350,7 +351,7 @@ export async function testProject(
 	// fehlschlagender Test (JUL5200) bleibt ungemeldet: Der Lauf führt ihn als fehlgeschlagen, samt
 	// Argumentwerten, die statische Meldung wäre daneben doppelt.
 	const projectErrors = getProjectErrors(documents, notFoundPaths);
-	const { hasError, summary } = reportErrors(documents, projectErrors, host, renderer, [ErrorCode.testFails]);
+	const { hasError, errorCount, summary } = reportErrors(documents, projectErrors, host, renderer, [ErrorCode.testFails]);
 	if (projectErrors.length) {
 		writeReport({ type: 'compileFailed', errors: getCompileErrors(documents, projectErrors, [ErrorCode.testFails]) });
 		renderer.finish([`${colorize('compiling failed', ConsoleColor.lightRed)} ${summary} ${durationSuffix(startTime)}`]);
@@ -461,21 +462,45 @@ export async function testProject(
 	}
 	const hasFailure = failedCount > 0 || loadFailedCount > 0;
 	renderer.finishStep(hasFailure ? 'failed' : 'done');
+	renderer.finish([`${formatTestSummary({
+		testCount: testCount,
+		failedCount: failedCount,
+		skippedCount: skippedCount,
+		loadFailedCount: loadFailedCount,
+		errorCount: errorCount,
+	})} ${durationSuffix(startTime)}`]);
+	if (hasFailure || hasError) {
+		process.exitCode = 1;
+	}
+	//#endregion run
+}
+
+/**
+ * Die Schlusszeile von jul test ohne Dauer.
+ */
+export function formatTestSummary(counts: {
+	testCount: number;
+	failedCount: number;
+	skippedCount: number;
+	loadFailedCount: number;
+	/**
+	 * Fehler im Code (ohne Warnungen und Hinweise).
+	 */
+	errorCount: number;
+}): string {
+	const { testCount, failedCount, skippedCount, loadFailedCount, errorCount } = counts;
+	const hasFailure = failedCount > 0 || loadFailedCount > 0;
 	const testSummary = [
 		`- ${pluralize(testCount, 'test')}`,
 		...failedCount ? [`${failedCount} failed`] : [],
 		...skippedCount ? [`${skippedCount} skipped`] : [],
 		...loadFailedCount ? [`${pluralize(loadFailedCount, 'file')} failed to load`] : [],
 	].join(', ');
-	renderer.finish([hasFailure
-		? `${colorize('tests failed', ConsoleColor.lightRed)} ${testSummary} ${durationSuffix(startTime)}`
-		: hasError
-			? `${colorize('tests passed with compile errors', ConsoleColor.lightRed)} ${testSummary} ${durationSuffix(startTime)}`
-			: `${colorize('tests passed', ConsoleColor.green)} ${testSummary} ${durationSuffix(startTime)}`]);
-	if (hasFailure || hasError) {
-		process.exitCode = 1;
-	}
-	//#endregion run
+	return hasFailure
+		? `${colorize('tests failed', ConsoleColor.lightRed)} ${testSummary}`
+		: errorCount
+			? `${colorize('tests passed with compile errors', ConsoleColor.lightRed)} ${testSummary}`
+			: `${colorize('tests passed', ConsoleColor.green)} ${testSummary}`;
 }
 
 /**

@@ -36,7 +36,7 @@ Darauf aufbauend ist Constant Folding umgesetzt und verdrahtet: `tryFoldCall` im
 [Checker](../src/checker/checker.ts) und die Übersetzung zwischen Typ und Wert in
 [constant-folding.ts](../src/checker/constant-folding.ts), getestet in `constant-folding.test.ts`
 und im `constant folding`-Block von `checker.test.ts`. Gefaltet wird, wenn das Ergebnis Skalare
-**und** Kollektionen aus Literaltypen sind. Gefaltet werden nicht nur core-lib-`nativeFunction`s,
+**und** Kollektionen aus Literaltypen sind. Gefaltet werden nicht nur core-lib-`native`s,
 sondern auch Nutzerfunktionen: `tryBuildCallable` emittiert das Funktionsliteral über
 `functionLiteralToEvaluableJs` ([emitter.ts](../src/emitter.ts)) und führt es aus. Dagegen steht ein
 globales Budget pro Check-Lauf (`resetFoldBudget`), das ein erschöpftes Budget still in „nicht

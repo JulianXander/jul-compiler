@@ -87,7 +87,7 @@ export function typeToConstantValue(type: CompileTimeType): { value: unknown; } 
 			// Nutzerfunktion (trägt literal, siehe checker.ts case 'functionLiteral'): ein echtes
 			// JS-Callable aus dem Auswerter, damit sie z.B. als Callback an eine HOF wie map
 			// weitergereicht werden kann.
-			// Ein Builtin (aus nativeFunction, ohne literal) bleibt hier unfaltbar: sein Typ trägt
+			// Ein Builtin (aus native, ohne literal) bleibt hier unfaltbar: sein Typ trägt
 			// nirgends den Namen, unter dem der Runtime-Export zu finden wäre - der Name steht nur
 			// an der jeweiligen Referenz-Schreibstelle (functionExpression.name.name), die diese
 			// rein typbasierte Übersetzung nicht sieht. TODO: Auflösung nur erreichbar, wenn der
@@ -430,7 +430,7 @@ function buildEnvironment(
 		// true/false sind gewöhnliche core-lib-Referenzen (kein eigener Literal-Knoten im AST),
 		// aber referenceToJs emittiert sie als bloßen Bezeichner - der zufällig mit dem gültigen
 		// JS-Boolean-Literal übereinstimmt und deshalb ohne jede Bindung auskommt. Anders als
-		// Integer/List/etc. sind sie kein runtime.ts-Export (nativeValue liefert den JS-Text
+		// Integer/List/etc. sind sie kein runtime.ts-Export (native liefert den JS-Text
 		// direkt) und würden hier sonst als Bindungsname landen - ein reserviertes Wort, das
 		// new Function nicht als Parameter akzeptiert.
 		if (name === 'true' || name === 'false') {

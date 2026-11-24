@@ -11,7 +11,7 @@ gelten sie unverändert (Argument 0). Ein natives Builtin sichert seine Aussage 
 Der Checker hält sie getrennt als `contract` und setzt die Argumente des Aufrufs erst bei der
 Herleitung ein, und nur, wenn alle übrigen Argumente einzelne Literale sind. Sonst wäre die
 Zusicherung nicht exakt (`x.equal(n)` mit `n: Integer`). `Is` außerhalb einer
-nativeFunction-Signatur ist JUL5155. Ein Funktionswert in Typ-Position ist
+native-Signatur ist JUL5155. Ein Funktionswert in Typ-Position ist
 ein Prädikat mit eigenem Typ `julType: 'predicate'`, seine Schranken kommen aus dem Typ des ersten
 Parameters und diesen Fakten. `filter`, `findFirst` und `findLast` schneiden ihren ElementType
 über `TypeOf(predicate)/PredicateIfTrue`.

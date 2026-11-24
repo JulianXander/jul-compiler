@@ -1205,7 +1205,7 @@ describe('combine$', () => {
 // Export, fällt das erst beim Ausführen auf (z.B. "JsonValue is not defined" in assume unter jul test).
 describe('core-lib.jul und Runtime', () => {
 	// Namen, die der Compiler selbst übersetzt und die deshalb keinen Runtime-Export brauchen
-	const compiledByEmitter = new Set(['true', 'false', 'import', 'test', 'assume', 'assert', 'nativeFunction', 'nativeValue']);
+	const compiledByEmitter = new Set(['true', 'false', 'import', 'test', 'assume', 'assert', 'native']);
 	// Bekannte Lücken, noch ohne Laufzeit-Implementierung
 	const knownMissing = new Set([
 		// TODO Without (runtime.ts)

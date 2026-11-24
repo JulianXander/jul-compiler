@@ -39,7 +39,7 @@ läuft für immer. Mit den vorhandenen Mitteln bleibt die Wahl zwischen Absturz 
 `onCompleted` aus der Runtime in die core-lib aufnehmen:
 
 ```jul
-onCompleted = nativeFunction(
+onCompleted = native(
 	(stream$: Stream(Any) callback: () :> Any) ~> []
 	…
 )

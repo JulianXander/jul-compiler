@@ -62,7 +62,7 @@ Knoten. Schlägt der Test fehl, zeigt der Reporter den Baum:
    geworfen hat. `_v` erkennt ihn über einen kleinen Stack der offenen `id`s. Der Reporter zeigt die
    Exception an dieser JUL-Stelle, für Fehler im Testrumpf also schon ohne Source Maps.
 5. **Nichts doppelt auswerten.** Manche Werkzeuge werten Teilausdrücke nach einem Fehlschlag erneut
-   aus. Das wäre bei Effekten (`log`, Streams, `nativeFunction`) falsch.
+   aus. Das wäre bei Effekten (`log`, Streams, `native`) falsch.
    → Nur während des einen Laufs mitschreiben. JUL-Werte sind unveränderlich, die gespeicherte
    Referenz bleibt gültig. Ausnahme sind veränderliche JS-Objekte aus dem Interop, die später
    mutiert werden. Selten, wird hingenommen.

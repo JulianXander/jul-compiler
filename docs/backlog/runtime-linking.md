@@ -51,11 +51,11 @@ JUL ist das derzeit kein Problem:
 
 - `runJs` ist `_createFunction(eval, …)`, also ein indirektes `eval`. Das läuft im globalen
   Scope und sieht weder die Bindungen im Bundle noch die Importe der emittierten Datei.
-- Der JS-Text in `nativeFunction`/`nativeValue` steht nur in `core-lib.jul` und wird nie
+- Der JS-Text in `native` steht nur in `core-lib.jul` und wird nie
   emittiert (siehe Kommentar im Abschnitt „builtins“ von `runtime.ts`).
 
 Das kippt, falls es einmal eingebettetes JS im Nutzercode gibt, das auf Runtime-Namen zugreift,
-etwa `nativeFunction` in Bibliotheken. Dann müsste der Linker diesen JS-Text ebenfalls parsen,
+etwa `native` in Bibliotheken. Dann müsste der Linker diesen JS-Text ebenfalls parsen,
 oder eine solche Datei zieht die ganze Runtime nach sich.
 
 ### Vorbilder

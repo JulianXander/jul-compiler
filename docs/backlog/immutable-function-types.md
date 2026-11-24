@@ -32,7 +32,7 @@ Gezählt wurde in `jul-compiler/src` und `jul-language-server/src`, ohne Tests. 
 
 | Art | Stellen |
 |---|---|
-| Setzen, Typfunktionen der core-lib (`Stream` und `FiniteStream` über `createStreamTypeFunction`, `List`, `Dictionary`, `nativeFunction`) | `checker.ts` 263, 292, 307, 330; hier entsteht der Zyklus schon beim Aufbau |
+| Setzen, Typfunktionen der core-lib (`Stream` und `FiniteStream` über `createStreamTypeFunction`, `List`, `Dictionary`, `native`) | `checker.ts` 263, 292, 307, 330; hier entsteht der Zyklus schon beim Aufbau |
 | Setzen an Parameter-Symbolen | `setFunctionRefForParams` (2 Stellen), und `checker.ts` 460 kopiert es vom Symbol in die `parameterReference` |
 | Identitätsvergleich | `type-algebra.ts` 889 (Argumente einsetzen), `checker.ts` 721 (Projektion), 3657 und 3840 (Purity: eigener Parameter) |
 | Inhalt lesen | genau eine Stelle: `dereferenceParameterTypeFromFunctionRef` (`type-algebra.ts` 1340) liest `ParamsType` |

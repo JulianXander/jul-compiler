@@ -40,7 +40,7 @@ Realer Nutzen heißt konkret:
 - **Lesbarkeit:** wie leicht sich ein Stück Code erfassen lässt. Klarheit fragt, *ob* sich die
   Bedeutung aus der Stelle ableiten lässt, Lesbarkeit fragt, *wie mühsam* das ist.
 - **Mächtigkeit:** was sich überhaupt ausdrücken lässt — in der Sprache selbst, und bei Bedarf
-  auch durch Verlassen der Sprache: `nativeFunction(... §js ... §)` und Importe aus `.ts`/`.js`
+  auch durch Verlassen der Sprache: `native(... §js ... §)` und Importe aus `.ts`/`.js`
   sind Teil davon, keine Notlösung.
 - **Editierbarkeit:** wie lokal eine Änderung bleibt; eine kleine Änderung soll keine
   Umformatierung an anderer Stelle erzwingen.

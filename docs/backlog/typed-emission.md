@@ -15,7 +15,7 @@ es auch die benannten, `_callFunction` und `assignArgs` gibt es nicht mehr.
 
 - **Der Emitter vertraut den statischen Typen.** Das ist ein Implementierungsdetail, kein Sprachprinzip.
   Zur Laufzeit wird nur geprüft, was der statische Typ offen lässt (Any, Unknown). Falsche Deklarationen,
-  etwa ein `nativeFunction` mit falschem Rückgabetyp oder ein `.ts`-Import, führen deshalb zu stillem
+  etwa ein `native` mit falschem Rückgabetyp oder ein `.ts`-Import, führen deshalb zu stillem
   Fehlverhalten statt zu einem Laufzeitfehler.
 - **Die Laufzeitprüfung entscheidet nur noch, sie sichert nicht ab.** Welcher Branch gilt, steht erst zur
   Laufzeit fest. Dafür reicht der billigste Test, der die im Restbereich möglichen Fälle trennt. Die Optimierung

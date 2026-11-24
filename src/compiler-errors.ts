@@ -330,7 +330,7 @@ export enum ErrorCode {
 	 */
 	typeBranchHeadBinding = 5154,
 	/**
-	 * `Is(...)` steht nicht als Rückgabetyp einer nativeFunction-Signatur. Nur dort ist die Zusicherung
+	 * `Is(...)` steht nicht als Rückgabetyp einer native-Signatur. Nur dort ist die Zusicherung
 	 * vertretbar, weil die Implementierung ohnehin ungeprüft ist. Bei einer JUL-Funktion leitet der
 	 * Checker sie aus dem Rumpf her.
 	 */

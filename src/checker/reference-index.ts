@@ -4,6 +4,7 @@ import { getPathFromImport, isImportFunctionCall } from '../parser/parser.js';
 import { isExportedSymbol } from '../parser/parser-utils.js';
 import { builtinAny, CompileTimeType, ParseDestructuringField, SymbolDefinition } from '../syntax-tree.js';
 import { Positioned } from '../compiler-errors.js';
+import { getErrorFieldsType } from './type-algebra.js';
 import type { ParsedDocuments } from './checker.js';
 
 export interface ReferenceLocation extends Positioned {
@@ -65,6 +66,13 @@ export function getFieldSymbolsFromDictionaryType(
 		}
 		case 'typeOf':
 			return getFieldSymbolsFromDictionaryType(dictionaryType.value, fieldName, result, visitedDeclarations);
+		case 'error': {
+			// Die Felder eines Errors deklariert das Record-Typ-Literal in seiner Definition in der core-lib.
+			const errorFieldsType = getErrorFieldsType();
+			return errorFieldsType
+				? getFieldSymbolsFromDictionaryType(errorFieldsType, fieldName, result, visitedDeclarations)
+				: result;
+		}
 		case 'alias':
 			// Der Alias ist Beschriftung; die Felddeklaration steht am Typ dahinter.
 			return getFieldSymbolsFromDictionaryType(getAliasSymbolType(dictionaryType) ?? builtinAny,

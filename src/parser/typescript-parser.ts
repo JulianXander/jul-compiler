@@ -182,7 +182,7 @@ function tsFunctionToJulAst(
 			typeParameters && getReturnTypeParameters(typeParameters, parameters),
 			() => tsTypeToJulType(returnType, sourceFile, errors)),
 		// TODO body, errors,
-		// erstmal dummy body nativeValue([...]) damit returnType = Any inferred wird
+		// erstmal dummy body native(Any [...]) damit returnType = Any inferred wird
 		[
 			{
 				type: 'functionCall',
@@ -190,7 +190,7 @@ function tsFunctionToJulAst(
 					type: 'reference',
 					name: {
 						type: 'name',
-						name: 'nativeValue',
+						name: 'native',
 						...position,
 					},
 					...position,
@@ -198,6 +198,15 @@ function tsFunctionToJulAst(
 				arguments: {
 					type: 'list',
 					values: [
+						{
+							type: 'reference',
+							name: {
+								type: 'name',
+								name: 'Any',
+								...position,
+							},
+							...position,
+						},
 						{
 							type: 'text',
 							values: [

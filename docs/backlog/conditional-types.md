@@ -14,7 +14,7 @@ Eingabe, aus einem Tuple wird nie ein Skalar.
 ## core-lib
 
 ```jul
-add = nativeFunction(
+add = native(
 	(...args: List(Rational))
 		->
 			:?(TypeOf(args))
@@ -22,7 +22,7 @@ add = nativeFunction(
 				() => Rational
 	§js … §
 )
-multiply = nativeFunction(
+multiply = native(
 	(...args: List(Rational))
 		->
 			:?(TypeOf(args))
@@ -30,7 +30,7 @@ multiply = nativeFunction(
 				() => Rational
 	§js … §
 )
-subtract = nativeFunction(
+subtract = native(
 	(minuend: Rational subtrahend: Rational)
 		->
 			:?(TypeOf(minuend) TypeOf(subtrahend))
@@ -202,7 +202,7 @@ Das Ergebnis ist die Union der aufgenommenen Zweig-Ergebnisse.
   still. Bekanntes Risiko ist der Teiltreffer: Ohne catchAll ergibt `(a: Rational) -> :?(TypeOf(a))`
   mit nur `[Integer] => Integer` das Ergebnis `Integer`, denn die Überlappung wird aufgenommen und
   die Fraction-Werte fallen still heraus. Das ist ein falscher, plausibel aussehender Typ. Bei
-  `nativeFunction` fällt er erst zur Laufzeit auf. Optionen:
+  `native` fällt er erst zur Laufzeit auf. Optionen:
   - **catchAll-Pflicht:** Der letzte Zweig muss `()` oder `Any` sein. Das ist billig und immer
     korrekt, erzwingt aber einen sinnlosen Zweig, wenn die Köpfe ohnehin alles abdecken.
   - **Abdeckungsprüfung an der Definition:** Geprüft wird, ob der deklarierte Operandentyp

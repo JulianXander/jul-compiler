@@ -484,7 +484,7 @@ export type Purity =
 /**
  * Purity am Typ: zusätzlich der bedingte Fall, den kein Pfeil direkt schreibt - rein, sofern die
  * übergebenen Funktionsargumente rein sind. Entsteht an der äußersten Signatur eines
- * nativeFunction-Aufrufs mit :> und aus der Rumpf-Inferenz, wenn ein Rumpf nur deshalb
+ * native-Aufrufs mit :> und aus der Rumpf-Inferenz, wenn ein Rumpf nur deshalb
  * unentscheidbar ist, weil er eigene funktionswertige Parameter aufruft.
  */
 export type TypePurity = Purity | 'pureIfArgsPure';
@@ -1604,7 +1604,7 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	readonly purity: TypePurity;
 	readonly predicate?: PredicateFacts;
 	/**
-	 * Nur bei einer nativeFunction-Signatur mit Is(...) als Rückgabetyp. Getrennt von predicate, weil der
+	 * Nur bei einer native-Signatur mit Is(...) als Rückgabetyp. Getrennt von predicate, weil der
 	 * Typ Platzhalter auf die eigenen Parameter enthält: Nur die Herleitung in getPredicateFacts setzt
 	 * die Argumente eines Aufrufs ein, PredicateIfTrue würde sie gegen den falschen Aufruf auflösen.
 	 */
@@ -1621,7 +1621,7 @@ export interface CompileTimeFunctionType extends CompileTimeTypeBase {
 	 */
 	readonly literalResult?: CheckResult;
 	/**
-	 * Nur gesetzt, wenn literal gesetzt ist: der Rumpf enthält kein nativeFunction-/nativeValue-
+	 * Nur gesetzt, wenn literal gesetzt ist: der Rumpf enthält kein native-
 	 * Literal (die Sicherheitsgrenze, siehe containsNativeLiteral im Checker) und stammt nicht aus
 	 * einer .ts/.js-Datei. Sagt allein noch nichts über die freien Referenzen des Rumpfs - die
 	 * prüft der Auswerter je Aufrufstelle, weil sie von der jeweiligen Umgebung abhängen

@@ -117,7 +117,7 @@
 	-auch bei eingang Any ein fehler: der checker weiß sicher, dass die runtime die signatur nicht
 	 prüft, das muster sagt nachweislich etwas anderes als der code tut
 	-für muster, deren eingang nichts garantiert, braucht es "irgendeine funktion" als
-	 schreibweise, etwa Function = nativeValue(§_Function§). (...args: Any) :> Any taugt nicht,
+	 schreibweise, etwa Function = native(Type §_Function§). (...args: Any) :> Any taugt nicht,
 	 das heißt wegen der kontravarianz "nimmt alles an". für streams reicht Stream(Any)
 	-kosten je zweig: projektion, schnitt, getTypeError. vorher und nachher messen, branching ist
 	 in yugioh häufig
