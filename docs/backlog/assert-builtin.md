@@ -43,8 +43,16 @@ ein Bruch dort gemeldet wird, wo er entsteht.
   obwohl das `assert` wegfällt. Der Checker warnt deshalb bei einer Definition, deren einzige
   Verwendungen in `assert`-Bedingungen liegen, mit dem Hinweis, die Rechnung in eine
   Hilfsfunktion zu verschieben (wie die `get…Error`-Funktionen in yugiohs `invariants.jul`).
-- **Fehlermeldung wie bei `test`.** Der Emitter legt `_testCall` um die Bedingung, ein Bruch
-  nennt dann die ausgewerteten Argumente (`equal(1 2) returned false`).
+- **Die Meldung nennt den äußersten Aufruf der Bedingung.** Der Emitter legt `_assertCall` um
+  ihn, ein Bruch nennt dann die ausgewerteten Argumente (`equal(1 2) returned false`).
+- **Tests prüfen nur mit `assert`.** Der Callback von `test` liefert `[]`, ein Test ist bestanden,
+  wenn kein `assert` oder `assume` verletzt ist und nichts wirft. Zuvor war die letzte Zeile ein
+  `Boolean` und die übrigen Prüfungen `assert`s: zwei Schreibweisen für dieselbe Prüfung, die letzte
+  ohne Label, und wer eine Prüfung anhängte, musste die bisher letzte umschreiben. Der Rückgabetyp
+  ist streng `[]`, nicht `Any`, damit ein übrig gebliebenes `Boolean` am Ende ein Typfehler ist und
+  nicht still als bestanden gilt. Ein Test ohne `assert` prüft, dass nichts wirft. In `*.test.jul`
+  meldet eine statisch wahre Bedingung nichts (der Normalfall bei puren Funktionen), eine statisch
+  falsche ist ein fehlschlagender Test (JUL5200, ein Fehler statt der Warnung JUL2507).
 - **Die Meldung wird nur im Fehlerfall ausgewertet.** Der Emitter setzt das Argument für die
   Meldung in den Fehlerzweig, eine interpolierte Meldung kostet bei bestandener Prüfung nichts.
   Geschrieben wird sie als normaler `Text`, nicht als Funktion.

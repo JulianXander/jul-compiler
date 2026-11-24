@@ -4,12 +4,12 @@ Reine Ideensammlung, keine Entscheidung getroffen.
 
 ## Ausgangslage
 
-Der Emitter schreibt im Rumpf eines Test-Callbacks nur den **äußersten** Aufruf um, als
-`_testCall('equal', equal, [args])`, und das nur bei positionellen Argumenten
-([emitter.ts](../src/emitter.ts), `testCallToInstrumentedJs`; [testing.md](testing.md)). Bei
+Der Emitter schreibt in der Bedingung eines `assert` nur den **äußersten** Aufruf um, als
+`_assertCall('equal', equal, [args])`, und das nur bei positionellen Argumenten
+([emitter.ts](../src/compiler/emitter.ts), `assertCallToInstrumentedJs`; [testing.md](testing.md)). Bei
 
 ```jul
-test(§die ersten beiden Zahlen sind 1§ () => and(equal(fibonacci(1) 1) equal(fibonacci(2) 1)))
+test(§die ersten beiden Zahlen sind 1§ () => assert(§beide 1§ and(equal(fibonacci(1) 1) equal(fibonacci(2) 1))))
 ```
 
 meldet der Lauf nur `and(true false) returned false`. Welcher `fibonacci`-Aufruf falsch war, sieht
@@ -39,7 +39,7 @@ Knoten. Schlägt der Test fehl, zeigt der Reporter den Baum:
 - Eingerückte Liste statt des Säulendiagramms von power-assert. Das Diagramm zerfällt bei
   mehrzeiligen Tests und langen Werten.
 - Literale weglassen, Referenzen zeigen.
-- Ersetzt `_testCall`. Benannte Argumente, heute ausgenommen, gehen automatisch mit, weil Werte
+- Ersetzt `_assertCall`. Benannte Argumente, heute ausgenommen, gehen automatisch mit, weil Werte
   eingefangen werden und keine Aufrufe.
 - Auch Definitionen in einem mehrzeiligen Testrumpf werden so erfasst, nicht nur der letzte Ausdruck.
 

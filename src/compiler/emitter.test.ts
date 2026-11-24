@@ -1137,45 +1137,22 @@ const expectTestEmit = reportAtCaller((code: string, result: string) => {
 });
 
 describe('Emitter test', () => {
-	// Die Stelle geht als drittes Argument mit, der äußerste Aufruf im Callback über _testCall.
-	it('instrumented-outermost-call', () => {
-		expectTestEmit('test(§a§ () => equal(1 2))', `export default test(
+	// Die Stelle geht als drittes Argument mit. Der Callback bleibt unverändert, geprüft wird nur mit assert.
+	it('location-is-third-argument', () => {
+		expectTestEmit('test(§a§ () => log(1))', `export default test(
 	\`a\`,
 	() => {
-			return _testCall(
-				'equal',
-				equal,
-				[
-					1,
-					2,
-				],
-			)
-		},
-	{ file: 'dummy.test.jul', row: 1, column: 1 },
-)`);
-	});
-	it('prefix-argument-is-first-instrumented-argument', () => {
-		expectTestEmit('test(§a§ () => 1.equal(2))', `export default test(
-	\`a\`,
-	() => {
-			return _testCall(
-				'equal',
-				equal,
-				[
-					1,
-					2,
-				],
-			)
+			return log(1)
 		},
 	{ file: 'dummy.test.jul', row: 1, column: 1 },
 )`);
 	});
 	// Benannte Argumente werden positionell emittiert, damit die Stelle mitgehen kann.
 	it('named-arguments-are-emitted-positionally', () => {
-		expectTestEmit('test(name = §a§ callback = () => true)', `export default test(
+		expectTestEmit('test(name = §a§ callback = () => [])', `export default test(
 	\`a\`,
 	() => {
-			return true
+			return undefined
 		},
 	{ file: 'dummy.test.jul', row: 1, column: 1 },
 )`);
@@ -1284,10 +1261,10 @@ describe('Emitter Runtime-Import', () => {
 		expectRuntimeImport('a = §map§', ['map']);
 	});
 	it('Testdatei importiert aus der Runtime nur die benutzten Namen', () => {
-		expectRuntimeImport('test(§x§ () => equal(1 1))', ['equal'], 'dummy.test.jul');
+		expectRuntimeImport('test(§x§ () => log(1))', ['log'], 'dummy.test.jul');
 	});
 	it('Testdatei importiert aus der Test-Runtime nur die benutzten Namen', () => {
-		expectTestRuntimeImport('test(§x§ () => equal(1 1))', ['_testCall', 'test']);
+		expectTestRuntimeImport('test(§x§ () => log(1))', ['test']);
 	});
 	it('Testdatei ohne test-Aufruf importiert die Test-Runtime nicht', () => {
 		expectTestRuntimeImport('x = 1', undefined);

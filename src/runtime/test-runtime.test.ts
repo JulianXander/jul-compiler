@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { resolve } from 'path';
 import { pathToFileURL } from 'url';
 import { _assertCall, _assertFailed, _checkAssumeTest, _takeAssertCall, deepEqual, equal } from './runtime.js';
-import { _getLoadFailure, _runTests, _testCall, test, TestLocation, TestResult } from './test-runtime.js';
+import { _getLoadFailure, _runTests, test, TestLocation, TestResult } from './test-runtime.js';
 import { reportAtCaller } from '../test-util.js';
 
 /**
@@ -54,49 +54,24 @@ const expectFailureLocation = reportAtCaller((
 const location = { file: 'a.test.jul', row: 3, column: 1 };
 
 describe('_runTests', () => {
-	it('passes-on-true', () => {
+	it('passes-without-violation', () => {
 		expectTestRun(
-			() => test('a', () => true, location),
+			() => test('a', () => undefined, location),
 			[undefined],
 			0);
 	});
-	// Wie beim Branching gilt nur true, nicht jeder truthy Wert.
-	it('fails-on-truthy-value', () => {
+	// Geprüft wird nur mit assert und assume, der Rückgabewert zählt nicht.
+	it('ignores-return-value', () => {
 		expectTestRun(
-			() => test('a', () => 5n, location),
-			['returned 5'],
-			1);
-	});
-	it('names-arguments-of-instrumented-call', () => {
-		expectTestRun(
-			() => test('a', () => _testCall('equal', equal, [1n, 2n]), location),
-			['equal(1 2) returned false'],
-			1);
-	});
-	// Kleine Integer sind zur Laufzeit number, wie Floats.
-	it('formats-integral-number-as-integer', () => {
-		expectTestRun(
-			() => test('a', () => _testCall('equal', equal, [4, 5]), location),
-			['equal(4 5) returned false'],
-			1);
-	});
-	it('formats-fractional-number-as-float', () => {
-		expectTestRun(
-			() => test('a', () => _testCall('equal', equal, [1.5, 2]), location),
-			['equal(1.5f 2) returned false'],
-			1);
-	});
-	it('formats-collections-in-jul-notation', () => {
-		expectTestRun(
-			() => test('a', () => _testCall('deepEqual', deepEqual, [[1n, 'x'], { b: 2n }]), location),
-			['deepEqual([1 §x§] [b = 2]) returned false'],
-			1);
+			() => test('a', () => false, location),
+			[undefined],
+			0);
 	});
 	it('reports-exception-and-continues', () => {
 		expectTestRun(
 			() => {
 				test('a', () => { throw new Error('kaputt'); }, location);
-				test('b', () => true, location);
+				test('b', () => undefined, location);
 			},
 			['threw kaputt', undefined],
 			1);
@@ -151,28 +126,28 @@ describe('_runTests', () => {
 		expect(results.map(result => result.failureLocation)).to.deep.equal([{ file: 'b.jul', row: 2, column: 5 }]);
 	});
 	it('reports-name-and-location', () => {
-		test('a', () => false, location);
+		test('a', () => { throw new Error('kaputt'); }, location);
 		const results: TestResult[] = [];
 		_runTests(result => results.push(result));
-		expect(results.map(({ durationMs, ...result }) => result)).to.deep.equal([{ name: 'a', location: location, failure: 'returned false' }]);
+		expect(results.map(({ durationMs, ...result }) => result)).to.deep.equal([{ name: 'a', location: location, failure: 'threw kaputt' }]);
 	});
 	it('reports-duration', () => {
-		test('a', () => true, location);
+		test('a', () => undefined, location);
 		const results: TestResult[] = [];
 		_runTests(result => results.push(result));
 		expect(results[0]!.durationMs).to.be.a('number').and.at.least(0);
 	});
 	// Das Register wird geleert, ein zweiter Lauf wiederholt nichts.
 	it('runs-each-test-once', () => {
-		test('a', () => true, location);
+		test('a', () => undefined, location);
 		_runTests(() => { });
 		expectTestRun(() => { }, [], 0);
 	});
 	it('runs-only-tests-with-name', () => {
 		expectFilteredRun(
 			() => {
-				test('a', () => true, location);
-				test('b', () => true, location);
+				test('a', () => undefined, location);
+				test('b', () => undefined, location);
 			},
 			['b'],
 			['b'],
@@ -181,9 +156,9 @@ describe('_runTests', () => {
 	it('runs-tests-with-any-of-the-names', () => {
 		expectFilteredRun(
 			() => {
-				test('a', () => true, location);
-				test('b', () => true, location);
-				test('c', () => true, location);
+				test('a', () => undefined, location);
+				test('b', () => undefined, location);
+				test('c', () => undefined, location);
 			},
 			['a', 'c'],
 			['a', 'c'],
@@ -193,9 +168,9 @@ describe('_runTests', () => {
 	it('runs-all-tests-with-same-name', () => {
 		expectFilteredRun(
 			() => {
-				test('a', () => true, location);
-				test('b', () => true, location);
-				test('a', () => true, location);
+				test('a', () => undefined, location);
+				test('b', () => undefined, location);
+				test('a', () => undefined, location);
 			},
 			['a'],
 			['a', 'a'],
@@ -204,14 +179,14 @@ describe('_runTests', () => {
 	// Kein Teilstring-Treffer: 'a' wählt 'ab' nicht aus.
 	it('matches-name-exactly', () => {
 		expectFilteredRun(
-			() => test('ab', () => true, location),
+			() => test('ab', () => undefined, location),
 			['a'],
 			[],
 			1);
 	});
 	// Das Register wird auch ohne Treffer geleert.
 	it('clears-skipped-tests', () => {
-		test('a', () => true, location);
+		test('a', () => undefined, location);
 		_runTests(() => { }, ['b']);
 		expectTestRun(() => { }, [], 0);
 	});
@@ -221,16 +196,16 @@ describe('_runTests mit assume', () => {
 	const violatingCall = () => _checkAssumeTest(undefined, value => value !== undefined, 'b.jul', 7, 2, 'GameCard');
 	it('meldet einen Bruch mit Wert und behauptetem Typ', () => {
 		expectTestRun(
-			() => test('a', () => violatingCall() === 1n, location),
+			() => test('a', () => { violatingCall(); }, location),
 			['assume violated: [] is not GameCard'],
 			1);
 	});
 	it('meldet die Stelle des assume', () => {
 		expectFailureLocation(
-			() => test('a', () => violatingCall() === 1n, location),
+			() => test('a', () => { violatingCall(); }, location),
 			{ file: 'b.jul', row: 7, column: 2 });
 	});
-	// JS-Code kann die Exception abfangen, der Test liefert dann true.
+	// JS-Code kann die Exception abfangen, der Test läuft dann durch.
 	it('ein abgefangener Bruch lässt den Test trotzdem fehlschlagen', () => {
 		expectTestRun(
 			() => test('a', () => {
@@ -239,7 +214,6 @@ describe('_runTests mit assume', () => {
 				}
 				catch {
 				}
-				return true;
 			}, location),
 			['assume violated: [] is not GameCard'],
 			1);
@@ -247,8 +221,8 @@ describe('_runTests mit assume', () => {
 	it('der nächste Test startet ohne den Bruch', () => {
 		expectTestRun(
 			() => {
-				test('a', () => violatingCall() === 1n, location);
-				test('b', () => true, location);
+				test('a', () => { violatingCall(); }, location);
+				test('b', () => undefined, location);
 			},
 			['assume violated: [] is not GameCard', undefined],
 			1);
@@ -257,14 +231,14 @@ describe('_runTests mit assume', () => {
 	it('ein Bruch vor dem Lauf zählt nicht für den ersten Test', () => {
 		expect(violatingCall).to.throw();
 		expectTestRun(
-			() => test('a', () => true, location),
+			() => test('a', () => undefined, location),
 			[undefined],
 			0);
 	});
 	it('kürzt einen langen Wert', () => {
 		const value = { text: 'x'.repeat(300) };
 		expectTestRun(
-			() => test('a', () => _checkAssumeTest(value, () => false, 'b.jul', 1, 1, 'Integer') === 1n, location),
+			() => test('a', () => { _checkAssumeTest(value, () => false, 'b.jul', 1, 1, 'Integer'); }, location),
 			[`assume violated: [text = §${'x'.repeat(191)}… is not Integer`],
 			1);
 	});
@@ -275,7 +249,7 @@ describe('_runTests mit assert', () => {
 		|| _assertFailed(_takeAssertCall(), 'Werte gleich', 'b.jul', 4, 2);
 	it('meldet die Meldung und den ausgewerteten Aufruf', () => {
 		expectTestRun(
-			() => test('a', () => failingCall() === undefined, location),
+			() => test('a', () => { failingCall(); }, location),
 			['assert failed: Werte gleich: equal(1 2) returned false'],
 			1);
 	});
@@ -287,7 +261,7 @@ describe('_runTests mit assert', () => {
 	});
 	it('meldet die Stelle des assert', () => {
 		expectFailureLocation(
-			() => test('a', () => failingCall() === undefined, location),
+			() => test('a', () => { failingCall(); }, location),
 			{ file: 'b.jul', row: 4, column: 2 });
 	});
 	it('ein abgefangener Bruch lässt den Test trotzdem fehlschlagen', () => {
@@ -298,7 +272,6 @@ describe('_runTests mit assert', () => {
 				}
 				catch {
 				}
-				return true;
 			}, location),
 			['assert failed: Werte gleich: equal(1 2) returned false'],
 			1);
@@ -306,8 +279,27 @@ describe('_runTests mit assert', () => {
 	it('kürzt lange Argumente', () => {
 		const value = { text: 'x'.repeat(300) };
 		expectTestRun(
-			() => test('a', () => (_assertCall('equal', equal, [value, 1n]) || _assertFailed(_takeAssertCall(), 'm', 'b.jul', 1, 1)) === undefined, location),
+			() => test('a', () => { _assertCall('equal', equal, [value, 1n]) || _assertFailed(_takeAssertCall(), 'm', 'b.jul', 1, 1); }, location),
 			[`assert failed: m: equal([text = §${'x'.repeat(191)}… 1) returned false`],
+			1);
+	});
+	// Kleine Integer sind zur Laufzeit number, wie Floats.
+	it('zeigt eine ganzzahlige number als Integer', () => {
+		expectTestRun(
+			() => test('a', () => { _assertCall('equal', equal, [4, 5]) || _assertFailed(_takeAssertCall(), 'm', 'b.jul', 1, 1); }, location),
+			['assert failed: m: equal(4 5) returned false'],
+			1);
+	});
+	it('zeigt eine gebrochene number als Float', () => {
+		expectTestRun(
+			() => test('a', () => { _assertCall('equal', equal, [1.5, 2]) || _assertFailed(_takeAssertCall(), 'm', 'b.jul', 1, 1); }, location),
+			['assert failed: m: equal(1.5f 2) returned false'],
+			1);
+	});
+	it('zeigt Kollektionen in JUL-Schreibweise', () => {
+		expectTestRun(
+			() => test('a', () => { _assertCall('deepEqual', deepEqual, [[1n, 'x'], { b: 2n }]) || _assertFailed(_takeAssertCall(), 'm', 'b.jul', 1, 1); }, location),
+			['assert failed: m: deepEqual([1 §x§] [b = 2]) returned false'],
 			1);
 	});
 });

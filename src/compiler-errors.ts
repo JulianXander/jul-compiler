@@ -343,8 +343,8 @@ export enum ErrorCode {
 	 */
 	circularTypeDefinition = 5170,
 	/**
-	 * Der Callback eines `test` liefert statisch false: Der Checker hat ihn gefaltet, der Test
-	 * schlägt in jedem Lauf fehl.
+	 * Ein assert in *.test.jul hat eine statisch falsche Bedingung: Der Checker hat sie gefaltet, der
+	 * Test schlägt in jedem Lauf fehl. Außerhalb von Testdateien ist das JUL2507.
 	 */
 	testFails = 5200,
 	//#endregion 5000 type: Typprüfung

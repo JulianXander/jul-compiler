@@ -26,7 +26,7 @@ const workDirectory = mkdtempSync(join(tmpdir(), 'jul-browser-check-'));
 const probeFiles = {
 	'main.jul': '(double) = import(§./lib/math.jul§)\nlog(double(21))\n',
 	'lib/math.jul': 'double = (x: Integer) => x.multiply(2)\n',
-	'lib/math.test.jul': '(double) = import(§./math.jul§)\n\ntest(§verdoppelt§ () => equal(double(2) 4))\n',
+	'lib/math.test.jul': '(double) = import(§./math.jul§)\n\ntest(§verdoppelt§ () => assert(§2 verdoppelt§ equal(double(2) 4)))\n',
 };
 
 try {

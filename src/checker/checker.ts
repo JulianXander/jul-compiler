@@ -87,7 +87,7 @@ import {
 import { Extension, NonEmptyArray, elementsEqual, escapeReservedJsVariableName, forEach, isDefined, isNonEmpty, isTestFilePath, last, mapDictionary } from '../util.js';
 import { coreLibFileName, getPathFromImport, isCoreLibPath, isImportFunctionCall, isTopLevelImport, parseCode } from '../parser/parser.js';
 import { CompilerError, ErrorCode, Positioned } from '../compiler-errors.js';
-import { getCheckedEscapableName, getExportedSymbols, getJunction, getTestCallArguments, getNameFromValue, getTestName, isInsideFunctionLiteral } from '../parser/parser-utils.js';
+import { getCheckedEscapableName, getAssertCallArguments, getExportedSymbols, getJunction, getTestCallArguments, getNameFromValue, getTestName, isInsideFunctionLiteral } from '../parser/parser-utils.js';
 import { FieldSymbolLocation, getFieldSymbolsFromDictionaryType, ReferenceIndex, ReferenceLocation, resolveCanonicalSymbol, resolveImportBinding } from './reference-index.js';
 import { collectCompletedNames, collectCompletedNamesByBody, reportStreamsWithoutEnd } from './stream-lifetime.js';
 import { applyIgnoreComments } from '../parser/comment-directives.js';
@@ -3259,7 +3259,7 @@ function inferType(
 			// Name statt Symbol wie bei den übrigen Builtins: `test` zu überschatten ist JUL3203.
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'test') {
-				checkTestCall(checkContext.result, expression, hasArgsError, checkContext.filePath, errors);
+				checkTestCall(expression, checkContext.filePath, errors);
 			}
 			// Wie `test`: Name statt Symbol.
 			if (functionExpression.type === 'reference'
@@ -3271,7 +3271,7 @@ function inferType(
 			if (functionExpression.type === 'reference'
 				&& functionExpression.name.name === 'assert'
 				&& !hasArgsError) {
-				checkConstantAssert(expression, boundArgsType, errors);
+				checkConstantAssert(checkContext.result, expression, boundArgsType, checkContext.filePath, errors);
 			}
 			const returnType = getReturnTypeFromFunctionCall(expression, functionExpression, checkContext);
 			// Für den Rückgabetyp bleibt ein Platzhalter stehen, statt hier schon auf den
@@ -5090,10 +5090,15 @@ function checkAssume(
 /**
  * Eine Bedingung, die schon beim Kompilieren feststeht, ist sinnloser Code: true prüft nichts,
  * false schlägt bei jeder Ausführung fehl. Je Fall ein eigener Code, das Zweite ist eher ein Bug.
+ * In *.test.jul ist true der Normalfall (ein Test über pure Funktionen mit festen Werten), false
+ * ein fehlschlagender Test (JUL5200). Gefaltet wird dafür nichts Zusätzliches: Die Bedingung ist
+ * beim Check des Aufrufs bereits gefaltet, ihr Typ ist dann das Literal.
  */
 function checkConstantAssert(
+	checkResult: CheckResult,
 	call: ParseFunctionCall,
 	boundArgsType: CompileTimeType,
+	filePath: string,
 	errors: CompilerError[],
 ): void {
 	const argTypes = getAllArgTypes(boundArgsType);
@@ -5102,6 +5107,12 @@ function checkConstantAssert(
 	}
 	const conditionType = resolvePlaceholders(argTypes[1]!);
 	if (conditionType.julType !== 'booleanLiteral') {
+		return;
+	}
+	if (isTestFilePath(filePath)) {
+		if (!conditionType.value) {
+			errors.push(getTestFailsError(checkResult, call));
+		}
 		return;
 	}
 	errors.push(conditionType.value
@@ -5128,15 +5139,32 @@ function checkConstantAssert(
 //#region test
 
 /**
- * `test` ist nur in *.test.jul erlaubt. Liefert der Callback statisch false, schlägt der Test in
- * jedem Lauf fehl und wird schon hier gemeldet. Gefaltet wird dafür nichts Zusätzliches: Der
- * Rumpf des Callbacks ist beim Check des Literals bereits gefaltet, sein Rückgabetyp ist dann das
- * Literal. Ist er nur Boolean, entscheidet erst der Lauf.
+ * Ein assert in *.test.jul, dessen Bedingung statisch false ist: Der Test schlägt in jedem Lauf
+ * fehl. Die Meldung nennt den äußersten Aufruf der Bedingung mit den gefalteten Argumenten.
+ */
+function getTestFailsError(checkResult: CheckResult, assertCall: ParseFunctionCall): CompilerError {
+	const { condition } = getAssertCallArguments(assertCall);
+	const callText = condition?.type === 'functionCall'
+		? getFoldedCallText(checkResult, condition)
+		: undefined;
+	const position = callText
+		? condition!
+		: assertCall;
+	return {
+		code: ErrorCode.testFails,
+		message: `Test fails.\n${callText ? `${callText} returns false.` : 'The condition is false.'}`,
+		startRowIndex: position.startRowIndex,
+		startColumnIndex: position.startColumnIndex,
+		endRowIndex: position.endRowIndex,
+		endColumnIndex: position.endColumnIndex,
+	};
+}
+
+/**
+ * `test` ist nur in *.test.jul erlaubt.
  */
 function checkTestCall(
-	checkResult: CheckResult,
 	call: ParseFunctionCall,
-	hasArgumentError: boolean,
 	filePath: string,
 	errors: CompilerError[],
 ): void {
@@ -5161,7 +5189,7 @@ function checkTestCall(
 			endColumnIndex: call.endColumnIndex,
 		});
 	}
-	const { name, callback } = getTestCallArguments(call);
+	const { name } = getTestCallArguments(call);
 	if (name && getTestName(call) === undefined) {
 		errors.push({
 			code: ErrorCode.testNameNotLiteral,
@@ -5172,35 +5200,6 @@ function checkTestCall(
 			endColumnIndex: name.endColumnIndex,
 		});
 	}
-	if (hasArgumentError) {
-		return;
-	}
-	const callbackType = getTypeInfo(checkResult, callback) && resolveAlias(resolvePlaceholders(getTypeInfo(checkResult, callback)!.type));
-	if (!isFunctionType(callbackType)) {
-		return;
-	}
-	const returnType = resolveAlias(resolvePlaceholders(callbackType.ReturnType));
-	if (returnType.julType !== 'booleanLiteral'
-		|| returnType.value) {
-		return;
-	}
-	const lastExpression = callback!.type === 'functionLiteral'
-		? last(callback!.body)
-		: undefined;
-	const callText = lastExpression?.type === 'functionCall'
-		? getFoldedCallText(checkResult, lastExpression)
-		: undefined;
-	const position = callText
-		? lastExpression!
-		: callback!;
-	errors.push({
-		code: ErrorCode.testFails,
-		message: `Test fails.\n${callText ?? 'The callback'} returns false.`,
-		startRowIndex: position.startRowIndex,
-		startColumnIndex: position.startColumnIndex,
-		endRowIndex: position.endRowIndex,
-		endColumnIndex: position.endColumnIndex,
-	});
 }
 
 /**

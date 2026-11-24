@@ -1719,12 +1719,13 @@ nativeValue = nativeFunction(
 )
 #endregion JavaScript
 #region Test
-# Registriert einen Test, den `jul test` ausführt. Er ist bestanden, wenn callback true liefert.
+# Registriert einen Test, den `jul test` ausführt. Geprüft wird mit assert im callback, der Test ist
+# bestanden, wenn kein assert und kein assume verletzt ist und nichts wirft.
 # Nur in *.test.jul erlaubt. Implementiert in test-runtime.ts, nicht in runtime.ts.
 test = nativeFunction(
 	(
 		name: Text
-		callback: () :> Boolean
+		callback: () :> []
 	) ~> []
 	§js
 		test

@@ -43,12 +43,10 @@ let useTypeInfo = false;
  */
 let sourceFilePath = '';
 /**
- * Der äußerste Aufruf im Rumpf des Test-Callbacks oder in der Bedingung eines assert, der gerade
- * emittiert wird. Er läuft über instrumentedCallHelper (_testCall bzw. _assertCall), damit ein
- * Fehlschlag seine ausgewerteten Argumente nennen kann.
+ * Der äußerste Aufruf in der Bedingung eines assert, der gerade emittiert wird. Er läuft über
+ * _assertCall, damit ein Bruch seine ausgewerteten Argumente nennen kann.
  */
-let instrumentedTestCall: ParseExpression | undefined;
-let instrumentedCallHelper: '_testCall' | '_assertCall' = '_testCall';
+let instrumentedAssertCall: ParseExpression | undefined;
 /**
  * Nur beim Emittieren einer ganzen Datei: dann schreibt der Emitter an jeden Statement-Anfang einen
  * Marker mit der Quellposition, aus dem extractSourceMappings die Source Map gewinnt.
@@ -1304,8 +1302,8 @@ function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCal
 		// return `require("${outPath}")`;
 	}
 	// Vor dem Präfix-Argument: not(equal(…)) emittiert die Operanden von equal selbst. Der äußerste
-	// Aufruf in test bleibt ein Aufruf, seine Instrumentierung zeigt die Argumente im Fehlerfall.
-	const equalOrNotJs = expression === instrumentedTestCall
+	// Aufruf in assert bleibt ein Aufruf, seine Instrumentierung zeigt die Argumente im Fehlerfall.
+	const equalOrNotJs = expression === instrumentedAssertCall
 		? undefined
 		: equalOrNotCallToJs(checkResult, expression, indent);
 	if (equalOrNotJs !== undefined) {
@@ -1353,13 +1351,13 @@ function functionCallToJs(checkResult: CheckResult, expression: ParseFunctionCal
 		return integerArithmeticJs;
 	}
 	const functionJs = expressionToJs(checkResult, functionExpression, indent);
-	const testCallName = expression === instrumentedTestCall
+	const assertCallName = expression === instrumentedAssertCall
 		&& functionExpression.type === 'reference'
 		? functionExpression.name.name
 		: undefined;
-	if (testCallName !== undefined
+	if (assertCallName !== undefined
 		&& (args?.type === 'list' || args?.type === 'empty' || !args)) {
-		return testCallToInstrumentedJs(checkResult, testCallName, functionJs, expression, indent);
+		return assertCallToInstrumentedJs(checkResult, assertCallName, functionJs, expression, indent);
 	}
 	const inlinedListJs = inlinedListCallToJs(checkResult, expression, prefixArgJs, indent);
 	if (inlinedListJs !== undefined) {
@@ -2227,17 +2225,14 @@ function assertCallToJs(checkResult: CheckResult, call: ParseFunctionCall, inden
 		return 'undefined';
 	}
 	const innerIndent = indent + 1;
-	const previousInstrumentedCall = instrumentedTestCall;
-	const previousHelper = instrumentedCallHelper;
-	instrumentedTestCall = condition;
-	instrumentedCallHelper = '_assertCall';
+	const previousInstrumentedCall = instrumentedAssertCall;
+	instrumentedAssertCall = condition;
 	let conditionJs: string;
 	try {
 		conditionJs = expressionToJs(checkResult, condition, indent);
 	}
 	finally {
-		instrumentedTestCall = previousInstrumentedCall;
-		instrumentedCallHelper = previousHelper;
+		instrumentedAssertCall = previousInstrumentedCall;
 	}
 	// Nicht jeder Aufruf wird instrumentiert (etwa and, Arithmetik, ein Aufruf mit benannten
 	// Argumenten). Wurde er es, beginnt das JS der Bedingung mit dem Helfer.
@@ -2280,31 +2275,23 @@ function testCallToJs(checkResult: CheckResult, call: ParseFunctionCall, functio
 	if (!name || !callback) {
 		return 'undefined';
 	}
-	const previousInstrumentedCall = instrumentedTestCall;
-	const previousHelper = instrumentedCallHelper;
-	instrumentedTestCall = callback.type === 'functionLiteral'
-		? last(callback.body)
-		: undefined;
-	instrumentedCallHelper = '_testCall';
-	try {
-		const innerIndent = indent + 1;
-		const locationJs = `{ file: ${stringToJs(sourceFilePath)}, row: ${call.startRowIndex + 1}, column: ${call.startColumnIndex + 1} }`;
-		const valuesJs = listValuesToJs(
-			[expressionToJs(checkResult, name, innerIndent), expressionToJs(checkResult, callback, innerIndent), locationJs],
-			indent);
-		return `${expressionToJs(checkResult, functionExpression, indent)}(${valuesJs})`;
-	}
-	finally {
-		instrumentedTestCall = previousInstrumentedCall;
-		instrumentedCallHelper = previousHelper;
-	}
+	const innerIndent = indent + 1;
+	const locationJs = `{ file: ${stringToJs(sourceFilePath)}, row: ${call.startRowIndex + 1}, column: ${call.startColumnIndex + 1} }`;
+	const valuesJs = listValuesToJs(
+		[expressionToJs(checkResult, name, innerIndent), expressionToJs(checkResult, callback, innerIndent), locationJs],
+		indent);
+	return `${expressionToJs(checkResult, functionExpression, indent)}(${valuesJs})`;
 }
 
+//#endregion test
+
+//#region assert
+
 /**
- * Der äußerste Aufruf im Callback, mit Listenargumenten. Die Argumente stehen als Array eine
- * Ebene tiefer als bei einem direkten Aufruf.
+ * Der äußerste Aufruf in der Bedingung eines assert, mit Listenargumenten. Die Argumente stehen als
+ * Array eine Ebene tiefer als bei einem direkten Aufruf.
  */
-function testCallToInstrumentedJs(checkResult: CheckResult, name: string, functionJs: string, call: ParseFunctionCall, indent: number): string {
+function assertCallToInstrumentedJs(checkResult: CheckResult, name: string, functionJs: string, call: ParseFunctionCall, indent: number): string {
 	const valuesIndent = indent + 1;
 	const jsValues = call.arguments?.type === 'list'
 		? parseListValuesToJs(checkResult, call.arguments.values, valuesIndent)
@@ -2313,10 +2300,10 @@ function testCallToInstrumentedJs(checkResult: CheckResult, name: string, functi
 		jsValues.unshift(expressionToJs(checkResult, call.prefixArgument, valuesIndent + 1));
 	}
 	const argsJs = `[${listValuesToJs(jsValues, valuesIndent)}]`;
-	return `${instrumentedCallHelper}(${listValuesToJs([stringToJs(name), functionJs, argsJs], indent)})`;
+	return `_assertCall(${listValuesToJs([stringToJs(name), functionJs, argsJs], indent)})`;
 }
 
-//#endregion test
+//#endregion assert
 
 function callCreateFunctionJs(functionJs: string, paramsJs: string, indent: number): string {
 	const argsJs = listValuesToJs([functionJs, paramsJs], indent);

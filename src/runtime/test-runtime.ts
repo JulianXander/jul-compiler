@@ -20,19 +20,10 @@ interface RegisteredTest {
 	callback: () => unknown;
 	location: TestLocation | undefined;
 }
-/**
- * Der äußerste Aufruf im Rumpf eines Test-Callbacks, samt ausgewerteten Argumenten. Schreibt
- * _testCall, gelesen wird er nur, wenn der Test fehlschlägt.
- */
-interface TestCall {
-	name: string;
-	args: unknown[];
-}
 const registeredTests: RegisteredTest[] = [];
-let lastTestCall: TestCall | undefined;
 /**
  * Registriert nur, ausgeführt wird erst über _runTests. Ein Test ist bestanden, wenn der Callback
- * true liefert.
+ * durchläuft, ohne ein assume oder assert zu verletzen. Was er liefert, zählt nicht.
  */
 export const test = /*#__PURE__*/ _createFunction(
 	function test(name: string, callback: () => unknown, location?: TestLocation) {
@@ -51,20 +42,12 @@ export const test = /*#__PURE__*/ _createFunction(
 		]
 	}
 );
-/**
- * Um den äußersten Aufruf im Callback eines test gelegt (siehe Emitter), damit eine
- * Fehlschlagsmeldung die ausgewerteten Argumente nennen kann.
- */
-export function _testCall(name: string, fn: Function, args: unknown[]): unknown {
-	// Vor dem Aufruf, damit auch eine Exception die Argumente nennen kann.
-	lastTestCall = { name, args };
-	return fn(...args);
-}
 export interface TestResult {
 	name: string;
 	location: TestLocation | undefined;
 	/**
-	 * Nur bei einem Fehlschlag: was stattdessen herauskam, z.B. `equal(1 2) returned false`.
+	 * Nur bei einem Fehlschlag: das verletzte assert oder assume oder die Exception, z.B.
+	 * `assert failed: Summe: equal(1 2) returned false`.
 	 */
 	failure: string | undefined;
 	/**
@@ -97,22 +80,20 @@ export function _runTests(
 		: allTests.filter(candidate => names.includes(candidate.name));
 	let failedCount = 0;
 	for (const registered of tests) {
-		lastTestCall = undefined;
 		// Ein Bruch aus dem Laden der Module oder einem früheren Test gehört nicht zu diesem.
 		_takeAssertionViolation();
-		let result: unknown;
 		let thrown: { error: unknown; } | undefined;
 		const startTime = performance.now();
 		try {
-			result = registered.callback();
+			registered.callback();
 		}
 		catch (error) {
 			thrown = { error };
 		}
 		const durationMs = performance.now() - startTime;
-		// Auch wenn JS-Code die Exception abgefangen hat und der Test danach true liefert.
+		// Auch wenn JS-Code die Exception abgefangen hat und der Test danach durchläuft.
 		const violation = _takeAssertionViolation();
-		const passed = !violation && !thrown && result === true;
+		const passed = !violation && !thrown;
 		if (!passed) {
 			failedCount++;
 		}
@@ -128,7 +109,7 @@ export function _runTests(
 				? undefined
 				: violation
 					? getAssertionViolationText(violation)
-					: getTestFailureText(result, thrown, lastTestCall),
+					: getThrownText(thrown!.error),
 			...failureLocation && { failureLocation: failureLocation },
 			durationMs: durationMs,
 		});
@@ -140,19 +121,8 @@ export function _runTests(
 	};
 }
 
-function getTestFailureText(
-	result: unknown,
-	thrown: { error: unknown; } | undefined,
-	call: TestCall | undefined,
-): string {
-	const callText = call
-		? `${call.name}(${call.args.map(valueToString).join(' ')}) `
-		: '';
-	if (thrown) {
-		const error = thrown.error;
-		return `${callText}threw ${error instanceof Error ? error.message : String(error)}`;
-	}
-	return `${callText}returned ${valueToString(result)}`;
+function getThrownText(error: unknown): string {
+	return `threw ${error instanceof Error ? error.message : String(error)}`;
 }
 
 /**
@@ -199,7 +169,7 @@ export function _getLoadFailure(
 		? getErrorLocation(error)
 		: undefined;
 	return {
-		failure: getTestFailureText(undefined, { error: error }, undefined),
+		failure: getThrownText(error),
 		...failureLocation && { failureLocation: failureLocation },
 	};
 }

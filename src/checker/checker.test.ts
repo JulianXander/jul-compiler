@@ -72,8 +72,8 @@ const expectResolvedReturnType = reportAtCaller((code: string, typeString: strin
  * Prüft nur die Fehlercodes (ohne Meldung und Position), für Fälle, in denen die Meldung nichts
  * zur Aussage beiträgt.
  */
-const expectErrorCodes = reportAtCaller((code: string, errorCodes: ErrorCode[]) => {
-	const parserResult = parseCode(code, 'dummy.jul');
+const expectErrorCodes = reportAtCaller((code: string, errorCodes: ErrorCode[], filePath: string = 'dummy.jul') => {
+	const parserResult = parseCode(code, filePath);
 	expect(parserResult.syntax.errors.filter(error => errorInfos[error.code].severity === 'error')).to.deep.equal([]);
 	checkTypes(parserResult, {});
 	expect(parserResult.checked?.errors.map(error => error.code)).to.deep.equal(errorCodes);
@@ -5242,7 +5242,6 @@ f = (a: Any) => assume(a Integer)`);
 	() =>
 		date = toIsoDateText(currentDate())
 		assert(§m§ equal(date §x§))
-		true
 )`, { filePath: 'dummy.test.jul' });
 	});
 	// Ein Import bindet nur einen Namen, berechnet wird nichts.
@@ -9153,7 +9152,7 @@ describe('ungenutzte Definitionen', () => {
 
 describe('test builtin', () => {
 	it('test-outside-test-file', () => {
-		expectCheck('test(§a§ () => true)', {
+		expectCheck('test(§a§ () => [])', {
 			errors: [
 				{
 					code: ErrorCode.testOutsideTestFile,
@@ -9161,82 +9160,102 @@ describe('test builtin', () => {
 					startRowIndex: 0,
 					startColumnIndex: 0,
 					endRowIndex: 0,
-					endColumnIndex: 20,
+					endColumnIndex: 18,
 				},
 			],
 		});
 	});
-	it('folded-false-fails-with-arguments', () => {
-		expectCheck('test(§a§ () => equal(1 2))', {
+	it('folded-false-assert-fails-with-arguments', () => {
+		expectCheck('test(§a§ () => assert(§m§ equal(1 2)))', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
 					code: ErrorCode.testFails,
 					message: 'Test fails.\nequal(1 2) returns false.',
 					startRowIndex: 0,
-					startColumnIndex: 15,
+					startColumnIndex: 26,
 					endRowIndex: 0,
-					endColumnIndex: 25,
+					endColumnIndex: 36,
 				},
 			],
 		});
 	});
-	it('folded-true-passes', () => {
-		expectCheck('test(§a§ () => equal(1 1))', { filePath: 'dummy.test.jul' });
+	// In einer Testdatei ist eine statisch wahre Bedingung der Normalfall, kein JUL2506.
+	it('folded-true-assert-passes', () => {
+		expectCheck('test(§a§ () => assert(§m§ equal(1 1)))', { filePath: 'dummy.test.jul' });
 	});
 	// Erst die Laufzeit kennt das Ergebnis, statisch ist es nur Boolean.
-	it('impure-callback-is-not-reported', () => {
-		expectCheck('test(§a§ () => equal(toIsoDateText(currentDate()) §x§))', { filePath: 'dummy.test.jul' });
+	it('impure-assert-is-not-reported', () => {
+		expectCheck('test(§a§ () => assert(§m§ equal(toIsoDateText(currentDate()) §x§)))', { filePath: 'dummy.test.jul' });
 	});
 	// Ohne äußersten Aufruf gibt es keine Argumente zu nennen.
-	it('false-literal-fails-without-call', () => {
-		expectCheck('test(§a§ () => false)', {
+	it('false-literal-assert-fails-without-call', () => {
+		expectCheck('test(§a§ () => assert(§m§ false))', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
 					code: ErrorCode.testFails,
-					message: 'Test fails.\nThe callback returns false.',
+					message: 'Test fails.\nThe condition is false.',
 					startRowIndex: 0,
-					startColumnIndex: 9,
+					startColumnIndex: 15,
 					endRowIndex: 0,
-					endColumnIndex: 20,
+					endColumnIndex: 32,
 				},
 			],
 		});
 	});
 	// Das Präfix-Argument ist das erste Argument, genannt werden die gefalteten Werte.
 	it('prefix-call-names-folded-arguments', () => {
-		expectCheck('f = (x: Integer) => x.add(1)\ntest(§a§ () => f(2).equal(4))', {
+		expectCheck('f = (x: Integer) => x.add(1)\ntest(§a§ () => assert(§m§ f(2).equal(4)))', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
 					code: ErrorCode.testFails,
 					message: 'Test fails.\nequal(3 4) returns false.',
 					startRowIndex: 1,
-					startColumnIndex: 15,
+					startColumnIndex: 26,
 					endRowIndex: 1,
-					endColumnIndex: 28,
+					endColumnIndex: 39,
 				},
 			],
 		});
 	});
+	// Gemeldet wird jedes falsche assert, nicht nur das letzte.
+	it('false-assert-before-last-line-fails', () => {
+		expectErrorCodes(`test(
+	§a§
+	() =>
+		assert(§m§ equal(1 2))
+		assert(§n§ equal(1 1))
+)`, [ErrorCode.testFails], 'dummy.test.jul');
+	});
+	// Auch in einer Hilfsfunktion der Testdatei: Sie läuft nur unter jul test.
+	it('false-assert-in-helper-of-test-file-fails', () => {
+		expectErrorCodes(`f = () =>
+	assert(§m§ equal(1 2))
+test(§a§ () => f())`, [ErrorCode.testFails], 'dummy.test.jul');
+	});
 	it('named-callback-argument', () => {
-		expectCheck('test(name = §a§ callback = () => equal(1 2))', {
+		expectCheck('test(name = §a§ callback = () => assert(§m§ equal(1 1)))', { filePath: 'dummy.test.jul' });
+	});
+	// Der Callback liefert Empty. Ein Boolean als letzte Zeile wäre sonst eine Prüfung, die nichts prüft.
+	it('boolean-callback-is-argument-mismatch', () => {
+		expectCheck('test(§a§ () => equal(1 1))', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
-					code: ErrorCode.testFails,
-					message: 'Test fails.\nequal(1 2) returns false.',
+					code: ErrorCode.argumentTypeMismatch,
+					message: "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid return value\n    Can not assign true to Empty.",
 					startRowIndex: 0,
-					startColumnIndex: 33,
+					startColumnIndex: 9,
 					endRowIndex: 0,
-					endColumnIndex: 43,
+					endColumnIndex: 25,
 				},
 			],
 		});
 	});
 	it('name-with-interpolation', () => {
-		expectCheck('n = 1\ntest(§a §(n)§ () => true)', {
+		expectCheck('n = 1\ntest(§a §(n)§ () => [])', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
@@ -9251,7 +9270,7 @@ describe('test builtin', () => {
 		});
 	});
 	it('name-as-reference', () => {
-		expectCheck('name = §a§\ntest(name () => true)', {
+		expectCheck('name = §a§\ntest(name () => [])', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
@@ -9266,10 +9285,10 @@ describe('test builtin', () => {
 		});
 	});
 	it('named-name-argument-as-literal', () => {
-		expectCheck('test(name = §a§ callback = () => true)', { filePath: 'dummy.test.jul' });
+		expectCheck('test(name = §a§ callback = () => [])', { filePath: 'dummy.test.jul' });
 	});
 	it('test-in-function-body', () => {
-		expectCheck('f = () =>\n\ttest(§a§ () => true)', {
+		expectCheck('f = () =>\n\ttest(§a§ () => [])', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
@@ -9278,14 +9297,14 @@ describe('test builtin', () => {
 					startRowIndex: 1,
 					startColumnIndex: 1,
 					endRowIndex: 1,
-					endColumnIndex: 21,
+					endColumnIndex: 19,
 				},
 			],
 		});
 	});
 	// Auch als Wert einer Definition steht der Aufruf nicht selbst auf oberster Ebene.
 	it('test-as-definition-value', () => {
-		expectCheck('x = test(§a§ () => true)', {
+		expectCheck('x = test(§a§ () => [])', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
@@ -9294,14 +9313,14 @@ describe('test builtin', () => {
 					startRowIndex: 0,
 					startColumnIndex: 4,
 					endRowIndex: 0,
-					endColumnIndex: 24,
+					endColumnIndex: 22,
 				},
 			],
 		});
 	});
 	// Gemeldet wird jedes weitere Vorkommen, nicht das erste.
 	it('duplicate-test-name', () => {
-		expectCheck('test(§a§ () => true)\ntest(§b§ () => true)\ntest(§a§ () => true)', {
+		expectCheck('test(§a§ () => [])\ntest(§b§ () => [])\ntest(§a§ () => [])', {
 			filePath: 'dummy.test.jul',
 			errors: [
 				{
@@ -9346,23 +9365,7 @@ describe('test builtin', () => {
 		});
 	});
 	it('prefix-call-is-allowed', () => {
-		expectCheck('§a§.test(() => true)', { filePath: 'dummy.test.jul' });
-	});
-	// Ein Nicht-Boolean meldet die normale Argumentprüfung, nicht die Test-Prüfung.
-	it('non-boolean-callback-is-argument-mismatch', () => {
-		expectCheck('test(§a§ () => 5)', {
-			filePath: 'dummy.test.jul',
-			errors: [
-				{
-					code: ErrorCode.argumentTypeMismatch,
-					message: "Argument type mismatch.\nInvalid value for parameter 'callback'\n  Invalid return value\n    Can not assign 5 to Boolean.",
-					startRowIndex: 0,
-					startColumnIndex: 9,
-					endRowIndex: 0,
-					endColumnIndex: 16,
-				},
-			],
-		});
+		expectCheck('§a§.test(() => [])', { filePath: 'dummy.test.jul' });
 	});
 });
 
