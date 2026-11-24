@@ -1680,17 +1680,6 @@ log = nativeFunction(
 		console.log
 	§
 )
-# Registriert einen Test, den `jul test` ausführt. Er ist bestanden, wenn callback true liefert.
-# Nur in *.test.jul erlaubt. Implementiert in test-runtime.ts, nicht in runtime.ts.
-test = nativeFunction(
-	(
-		name: Text
-		callback: () :> Boolean
-	) ~> []
-	§js
-		test
-	§
-)
 # Führt den iteratee count mal aus, beginnend mit index 1.
 repeat = nativeFunction(
 	(
@@ -1729,6 +1718,18 @@ nativeValue = nativeFunction(
 	§[...]§
 )
 #endregion JavaScript
+#region Test
+# Registriert einen Test, den `jul test` ausführt. Er ist bestanden, wenn callback true liefert.
+# Nur in *.test.jul erlaubt. Implementiert in test-runtime.ts, nicht in runtime.ts.
+test = nativeFunction(
+	(
+		name: Text
+		callback: () :> Boolean
+	) ~> []
+	§js
+		test
+	§
+)
 # Assume that the value is of type ValueType. Not checked in a normal build, jul test checks
 # what the static type of the value leaves open. Make sure the Type fits under all circumstances.
 assume = nativeFunction(
@@ -1747,5 +1748,6 @@ assert = nativeFunction(
 		() => undefined
 	§
 )
+#endregion Test
 #endregion Utility
 #endregion Functions

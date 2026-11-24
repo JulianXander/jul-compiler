@@ -169,3 +169,38 @@ Nächste Schritte, nach erwartetem Gewinn:
    kopierten Elemente.
 2. Stufe 1 allgemein nicht bauen. Stufe 2 nur, wenn die Record-Spreads aus Parametern weiter oben im
    Profil stehen.
+
+## Offene Entscheidung: auch über Funktionsgrenzen? (Stand 2026-11-22)
+
+Frage: Bleibt es bei in-place innerhalb einer Funktion (Akkumulator von `aggregate`, frische Bindungen), oder
+soll die Eindeutigkeit auch über Funktionsgrenzen gelten (Stufe 2)? Ohne Stufe 2 kommt die Optimierung an die
+teuren Kategorien `param`, `localCall` und `path` nicht heran, mit ihr wird sie zum Sprachfeature.
+
+Optionen:
+
+| | Was | Aufwand | Risiko |
+|---|---|---|---|
+| A | Nur innerhalb einer Funktion: `aggregate`-Akkumulator, Ketten frischer Werte | Klein, nur Emitter und Analyse je Funktion | Gering, Differenztest reicht |
+| B | Stufe 2 per Inferenz: Zusammenfassung „liefert frisch“ je Funktion, Parameter „übernommen“, wenn der Aufrufer ihn nach dem Aufruf nicht mehr nutzt. Ohne Laufzeit-Zählung braucht eine Funktion dafür zwei Varianten (übernehmend und kopierend), der Aufrufer wählt. | Groß, Analyse über das ganze Programm, Codegröße wächst | Mittel: Fehler zeigen sich als falsche Werte an fernen Stellen, nur der Differenztest findet sie |
+| C | Stufe 2 mit Angaben in der Signatur: Parameter als übernommen markiert (etwa wie `owned` in Lean oder Uniqueness-Typen in Clean), der Checker prüft, dass der Aufrufer den Wert danach nicht mehr nutzt | Groß, neue Syntax und Checker-Regeln | Gering für die Korrektheit (der Checker beweist es), dafür Ergonomie: Annotationen auf dem heißen Pfad, Fehlermeldungen bei versehentlichem Teilen |
+
+Was für die Entscheidung fehlt:
+
+- **Neue Zählung nach dem History-Umbau.** Die Tabelle oben stammt von vor dem Umbau (359 Mio. Felder). Mit
+  `count-copies.mjs` neu messen, wie sich die übrigen 142,5 Mio. auf `param`, `localCall` und `path` verteilen.
+- **Wie viele dieser Quellen wären eindeutig?** In der Lookahead-Suche hat der Eltern-State mehrere Besitzer
+  (jeder Kind-Zweig startet von ihm). Kopien davon bleiben auch mit Stufe 2 nötig, nur Zwischenschritte
+  innerhalb eines `apply` würden eindeutig. Stichprobe an den zehn teuersten Stellen: Ist die Quelle dort nach
+  dem Aufruf noch erreichbar?
+- **`path`-Quellen** (`...a/b`): Eindeutig nur, wenn `a` eindeutig ist und `a/b` danach nicht mehr gelesen
+  wird. Das braucht Eindeutigkeit für Teilobjekte, nicht nur für Bindungen.
+
+Abhängigkeiten:
+
+- Ein Corelib-`memoize` braucht Stufe 2 nicht: Die Tabelle steckt in der Closure, Reinheit macht sie
+  unbeobachtbar. Erst eine von Hand durchgereichte Tabelle im Stil von Roc (`(score, table)` als Rückgabe)
+  würde von Stufe 2 leben.
+- Persistente Datenstrukturen decken den geteilten Fall ab, den Stufe 2 nicht erreicht (siehe oben).
+
+Vorläufige Empfehlung: A bauen (Punkt 1 der nächsten Schritte), dann neu zählen. B oder C nur, wenn
+`param`/`localCall` mit eindeutiger Quelle danach deutlich über 10 % der kopierten Felder liegen.
