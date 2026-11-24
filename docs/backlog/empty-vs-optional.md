@@ -34,8 +34,10 @@ andere weitere Feld (Test `surplus-field-with-empty-is-rejected`). Vorher war es
 Typ: jedes ungenannte Feld ist Empty), zur Laufzeit hatte der Wert aber einen Schlüssel mehr. Anlass war
 yugioh Jul-Fund 48: Nach Umbenennen oder Verschieben von Feldern blieben `feld = []` in Literalen still
 stehen und änderten `deepEqual`. Folge: Ein Spread kann keine Felder entfernen, ein Wechsel zwischen
-Varianten einer Union kopiert die gemeinsamen Felder einzeln (yugioh `getGameUiStateBase`). Der früher
-hier verlinkte Entwurf `stabile-objektformen.md` existiert nicht.
+Varianten einer Union kopiert die gemeinsamen Felder einzeln (yugioh `getGameUiStateBase`). Die
+Laufzeitprüfung (`isDictionaryLiteralOfType`) urteilt seitdem gleich: Ein weiterer Schlüssel passt auch
+mit `undefined` nicht (Test `does not match a surplus field with undefined`). Der früher hier verlinkte
+Entwurf `stabile-objektformen.md` existiert nicht.
 
 ## Offene Records
 

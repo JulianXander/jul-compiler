@@ -214,9 +214,10 @@ describe('Record als Typ', () => {
 	it('does not match a surplus field with a value', () => {
 		expect(_branch([{ a: 1, b: 2 }], branchWithType, fallback)).to.equal('fallback');
 	});
-	// Ein Schlüssel mit undefined ist dasselbe wie ein fehlender.
-	it('matches a surplus field with undefined', () => {
-		expect(_branch([{ a: 1, b: undefined }], branchWithType, fallback)).to.equal('matched');
+	// Auch ein weiterer Schlüssel mit undefined passt nicht, wie im Checker
+	// (surplus-field-with-empty-is-rejected): deepEqual unterscheidet ihn von einem fehlenden.
+	it('does not match a surplus field with undefined', () => {
+		expect(_branch([{ a: 1, b: undefined }], branchWithType, fallback)).to.equal('fallback');
 	});
 	// b?: Text: der Schlüssel darf fehlen, ist er da, muss der Wert zum Typ passen.
 	it('matches an optional field that is missing', () => {

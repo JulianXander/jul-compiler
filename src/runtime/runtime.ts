@@ -374,10 +374,10 @@ function isDictionaryLiteralOfType(value: any, fieldTypes: RuntimeDictionary): b
 			return false;
 		}
 	}
-	// Ein Record-Typ ist geschlossen: ein weiterer Schlüssel zählt nur, wenn er Empty ist.
+	// Ein Record-Typ ist geschlossen: ein weiterer Schlüssel passt nicht, auch nicht mit Empty
+	// (wie im Checker, `Unexpected field`; deepEqual unterscheidet ihn von einem fehlenden).
 	for (const key in value) {
-		if (!(key in fieldTypes)
-			&& value[key] !== undefined) {
+		if (!(key in fieldTypes)) {
 			return false;
 		}
 	}
