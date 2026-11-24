@@ -105,7 +105,7 @@ describe('Emitter', () => {
 	});
 	it('multiline-function-body', () => {
 		expectEmit('(a b) =>\n\tlog(a)\n\tlog(b)', `export default (a, b) => {
-		log(a)
+		log(a);
 		return log(b)
 	}`);
 	});
@@ -1055,7 +1055,7 @@ describe('Emitter assert', () => {
 			'dummy.jul',
 			2,
 			2,
-		))
+		));
 		return a`);
 	});
 	// Die Meldung steht im Fehlerzweig und wird nur bei einem Bruch ausgewertet.
@@ -1087,7 +1087,7 @@ describe('Emitter assert', () => {
 			'dummy.jul',
 			2,
 			2,
-		))
+		));
 		return a`);
 	});
 	it('Präfixform wie Listenform', () => {
@@ -1100,7 +1100,7 @@ describe('Emitter assert', () => {
 			'dummy.jul',
 			2,
 			2,
-		))
+		));
 		return a`);
 	});
 	it('benannte Argumente wie Listenform', () => {
@@ -1113,7 +1113,7 @@ describe('Emitter assert', () => {
 			'dummy.jul',
 			2,
 			2,
-		))
+		));
 		return a`);
 	});
 	// Auch außerhalb von *.test.jul: geprüft wird jede Datei, die ein Test lädt.
@@ -1556,6 +1556,52 @@ describe('Emitter Ausführung', () => {
 			'result = f(§x§ 1)',
 		].join('\n');
 		expect(runEmitted(code, 'result')).to.equal(2);
+	});
+});
+
+describe('Emitter Anweisungen ohne Zuweisung', () => {
+	// JS setzt kein Semikolon automatisch vor einer Zeile, die mit (, [ oder ` beginnt. Ohne
+	// Trennzeichen würde das Ergebnis der Zeile davor aufgerufen, indiziert oder als Tag benutzt.
+	it('Aufruf gefolgt von map im Funktionsrumpf', () => {
+		const code = [
+			'g = (x: Integer) => x',
+			'f = () =>',
+			'	g(1)',
+			'	[1 2].map((value) => value)',
+			'	3',
+			'result = f()',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(3);
+	});
+	it('Definition gefolgt von map im Funktionsrumpf', () => {
+		const code = [
+			'f = () =>',
+			'	x = 1',
+			'	[1 2].map((value) => value)',
+			'	x',
+			'result = f()',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(1);
+	});
+	it('Aufruf gefolgt von Text im Funktionsrumpf', () => {
+		const code = [
+			'g = (x: Integer) => x',
+			'f = () =>',
+			'	g(1)',
+			'	§a§',
+			'	3',
+			'result = f()',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(3);
+	});
+	it('Aufruf gefolgt von map auf oberster Ebene', () => {
+		const code = [
+			'g = (x: Integer) => x',
+			'g(1)',
+			'[1 2].map((value) => value)',
+			'result = 3',
+		].join('\n');
+		expect(runEmitted(code, 'result')).to.equal(3);
 	});
 });
 

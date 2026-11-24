@@ -278,7 +278,8 @@ export function syntaxTreeToJsWithMappings(
 			if (isDefaultExport) {
 				return [`${markerJs}export default ${expressionJs}`];
 			}
-			return [markerJs + expressionJs];
+			const isLast = index === expressions.length - 1;
+			return [markerJs + (isLast ? expressionJs : terminateStatementJs(expressionJs))];
 		}).join('\n');
 		// Die Marker stehen erst nach dem Import im Text, extractSourceMappings zählt die Zeilen des
 		// Imports also mit.
@@ -802,7 +803,7 @@ function functionBodyToJs(checkResult: CheckResult, expressions: ParseExpression
 			}
 			return `${markerJs}return ${expressionJs}`;
 		}
-		return markerJs + expressionToJs(checkResult, expression, indent);
+		return markerJs + terminateStatementJs(expressionToJs(checkResult, expression, indent));
 	}).join(delimiter);
 	return js;
 }
@@ -2320,6 +2321,18 @@ function testCallToInstrumentedJs(checkResult: CheckResult, name: string, functi
 function callCreateFunctionJs(functionJs: string, paramsJs: string, indent: number): string {
 	const argsJs = listValuesToJs([functionJs, paramsJs], indent);
 	return `_createFunction(${argsJs})`;
+}
+
+/**
+ * Schließt eine Anweisung mit `;` ab, auf die noch eine folgt. JS setzt das Semikolon nicht selbst,
+ * wenn die nächste Zeile mit `(`, `[` oder `` ` `` beginnt (etwa die Schleife von `map` oder ein
+ * Text), sonst würde das Ergebnis dieser Zeile aufgerufen, indiziert oder als Tag benutzt.
+ * Nach `;` und nach einem Block (`}`) braucht es keins.
+ */
+function terminateStatementJs(statementJs: string): string {
+	return statementJs.endsWith(';') || statementJs.endsWith('}')
+		? statementJs
+		: statementJs + ';';
 }
 
 function getRowDelimiterJs(indent: number): string {
